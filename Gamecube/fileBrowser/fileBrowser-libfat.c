@@ -201,8 +201,7 @@ void InitRemovalThread()
 static bool isCueCcdFileExist(const char *filePath, const char *fileName, const char *fileType) {
     static char cuename[FILE_BROWSER_MAX_PATH_LEN];
     memset(cuename, 0, FILE_BROWSER_MAX_PATH_LEN);
-    sprintf(cuename, "%s/%s", filePath, fileName);
-    cuename[FILE_BROWSER_MAX_PATH_LEN - 1] = '\0';
+    snprintf(cuename, sizeof(cuename), "%s/%s", filePath, fileName);
 
     if (strlen(cuename) >= 4) {
         char *trackPos = strstr(cuename, " (Track");
@@ -305,7 +304,7 @@ int fileBrowser_libfat_readDir(fileBrowser_file* file, fileBrowser_file** dir){
 			entries = tmp;
 		}
 
-		sprintf(entries[i].name, "%s/%s", file->name, temp->d_name);
+		snprintf(entries[i].name, sizeof(entries[i].name), "%s/%s", file->name, temp->d_name);
 		entries[i].offset = 0;
 		entries[i].size	 = 0; //TODO
 		entries[i].attr	 = (temp->d_type & DT_DIR) ?
