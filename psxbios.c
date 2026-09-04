@@ -46,6 +46,7 @@ extern char mcd2Written;
 #include "psxhw.h"
 #include "gpu.h"
 #include "sio.h"
+#include "cdrom.h"
 #include "psxhle.h"
 #include "psxinterpreter.h"
 

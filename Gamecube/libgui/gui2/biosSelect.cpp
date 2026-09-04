@@ -32,17 +32,24 @@ char * GetGameBios(char * biosPath, char * fileName, int isoFileNameLen)
     // Assuming that SCPH1001.BIN must exist.
     char * retVal = "/SCPH1001.BIN";
     sprintf(biosFileName, "SCPH1001.BIN");
-    memset(tstLine, 0, 150);
+    memset(tstLine, 0, sizeof(tstLine));
 
-    char * tmpPtr = tstLine;
-    memcpy(tstLine, biosPath, strlen(biosPath));
-    tmpPtr += strlen(biosPath);
-    *tmpPtr = '/';
-    *(tmpPtr + 1) = '\0';
+    size_t biosPathLen = strlen(biosPath);
+    if (biosPathLen > sizeof(tstLine) - 2)
+        biosPathLen = sizeof(tstLine) - 2;
+    memcpy(tstLine, biosPath, biosPathLen);
+    tstLine[biosPathLen] = '/';
+    tstLine[biosPathLen + 1] = '\0';
 
-    // Find Bios with a name equal to the file name
-    strncat(tstLine, fileName, strlen(fileName) - 4);
-    strcat(tstLine, ".bin");
+    // Find Bios with a name equal to the file name (strip the last 4 chars,
+    // e.g. the ".iso" extension -- fileName shorter than that has nothing to strip)
+    size_t fileNameLen = strlen(fileName);
+    size_t stripLen = (fileNameLen > 4) ? (fileNameLen - 4) : 0;
+    size_t remaining = sizeof(tstLine) - strlen(tstLine) - 1;
+    if (stripLen > remaining)
+        stripLen = remaining;
+    strncat(tstLine, fileName, stripLen);
+    strncat(tstLine, ".bin", sizeof(tstLine) - strlen(tstLine) - 1);
 
     FILE* f = fopen(tstLine, "rb" );  //attempt to open file
     if (f) {
@@ -52,8 +59,9 @@ char * GetGameBios(char * biosPath, char * fileName, int isoFileNameLen)
         memset(tstLine, 0, strlen(tstLine));
         *tstLine = '/';
         *(tstLine + 1) = '\0';
-        strncat(tstLine, fileName, strlen(fileName) - 4);
-        strcat(tstLine, ".bin");
+        remaining = sizeof(tstLine) - strlen(tstLine) - 1;
+        strncat(tstLine, fileName, (stripLen > remaining) ? remaining : stripLen);
+        strncat(tstLine, ".bin", sizeof(tstLine) - strlen(tstLine) - 1);
 
         // Return the Bios with a name equal to the file name
         return tstLine;

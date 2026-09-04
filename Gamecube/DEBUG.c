@@ -144,7 +144,7 @@ void DEBUG_print(char* string,int pos){
         else {
             memset(text[pos],0,DEBUG_TEXT_WIDTH);
             strncpy(text[pos], string, DEBUG_TEXT_WIDTH);
-            memset(text[DEBUG_TEXT_WIDTH-1],0,1);
+            memset(text[pos]+DEBUG_TEXT_WIDTH-1,0,1);
             texttimes[pos] = gettime();
         }
     #endif
