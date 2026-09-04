@@ -96,12 +96,20 @@ Any help is appreciated.
 
 ### Quick setup (Windows)
 
-Run these from a Git Bash / MSYS2 shell in the repo root. No admin rights required.
+One manual step first (needs admin rights, which nothing else here requires):
+
+1. Download the official installer: https://github.com/devkitPro/installer/releases/latest
+2. Right-click it → **Run as administrator**.
+3. In the component picker, check **"Wii Development"**. Leave the install path at its
+   default (`C:\devkitPro`).
+
+That sets up devkitPro's real MSYS2 + pacman environment. Everything else is scripted —
+run these from **devkitPro's own MSYS2 shell** (Start Menu → devkitPro → MSys2, or
+`C:\devkitPro\msys2\msys2_shell.bat`):
 
 ```bash
-scripts/setup-devkitpro-windows.sh   # one-time: installs devkitPPC r41-2, libogc2,
-                                      # make, elf2dol/gxtexconv/bin2s, and the zlib
-                                      # portlib into C:/devkitPro
+scripts/setup-devkitpro-windows.sh   # one-time: pacman -S wii-dev ppc-zlib, plus the one
+                                      # pinned exception below
 scripts/build.sh                     # debug build -> Gamecube/WiiSXRX_debug.dol
 scripts/build.sh release             # release build -> Gamecube/WiiSXRX_Release.dol
 scripts/build.sh clean               # remove build artifacts
@@ -112,15 +120,24 @@ not `C:/Users/Jane Doe/...`). devkitPro's Makefiles pass `$(CURDIR)` to the comp
 unquoted, so a space anywhere in the path breaks compilation with confusing
 "file not found" errors that look unrelated to the actual cause.
 
-`scripts/setup-devkitpro-windows.sh` is idempotent — re-run it any time; it skips
-whatever's already installed. It fetches the devkitPPC r41-2 compiler and the
-`elf2dol`/`gxtexconv`/`bin2s`/`make` utilities (none of which devkitPro's own
-installer distributes for old, specific-version installs like this), plus the
-`ppc-zlib` portlib for `<zlib.h>` (the project's own bundled zlib build is used
-only internally by libCHDr and does not provide a public header). Everything else
-this project depends on — libogc2, SDL, GNU Lightning, and Lightrec — comes from
-the `lightrec+Libogc2.zip` already checked into the repo root, per the original
-author's instructions above.
+`scripts/setup-devkitpro-windows.sh` is idempotent — re-run it any time. It uses
+devkitPro's own pacman for everything pacman can provide: `general-tools`,
+`gamecube-tools`, `make`, cmake support, `wiiload`, and the `ppc-zlib` portlib
+(for `<zlib.h>` — the project's own bundled zlib build is used only internally by
+libCHDr and doesn't expose a public header) all come from the official, signed,
+currently-maintained devkitPro repositories, tracked in pacman's own package
+database like any other install.
+
+The one deliberate exception: this project ships prebuilt libogc2 (Extrems' fork,
+not the official `libogc` pacman provides) plus Lightrec/GNU Lightning binaries,
+all built against **devkitPPC r41-2** specifically, from the `lightrec+Libogc2.zip`
+already checked into the repo root, per the original author's instructions above.
+Newer devkitPPC releases aren't ABI-compatible with those prebuilt binaries, and
+devkitPro's own servers only ever serve the *current* release — old versions
+aren't retained there for anyone's project. The setup script installs r41-2 to its
+own `devkitPPC-r41-2` directory, side by side with pacman's own current devkitPPC,
+rather than overwriting or fighting with it — `scripts/build.sh` points at it
+explicitly.
 
 ## WiiStation Credits
 
