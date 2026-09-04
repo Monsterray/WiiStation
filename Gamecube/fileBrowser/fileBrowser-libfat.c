@@ -229,27 +229,34 @@ static bool isCueCcdFileExist(const char *filePath, const char *fileName, const 
     }
 }
 
+// Case-insensitive suffix check -- Wii SD/USB storage is FAT via libfat,
+// which is case-preserving but not case-sensitive for lookups, so this
+// matches ".CUE"/".cue"/etc equally without needing a separate check per case.
+static bool hasExt(const char *name, const char *ext) {
+    size_t nameLen = strlen(name);
+    size_t extLen = strlen(ext);
+    if (extLen > nameLen) return false;
+    return strcasecmp(name + (nameLen - extLen), ext) == 0;
+}
+
 static bool isFileOk(const char *filePath, const char *fileName) {
-    if (strstr(fileName, ".cue")
-        || strstr(fileName, ".CUE")
-        || strstr(fileName, ".ccd")
-        || strstr(fileName, ".CCD")
-        || strstr(fileName, ".iso")
-        || strstr(fileName, ".ISO")
-        || strstr(fileName, ".chd")
-        || strstr(fileName, ".CHD"))
+    // Suffix match, not substring: previously used strstr(), so a file
+    // named e.g. "readme.cue.txt" was incorrectly treated as a playable
+    // .cue image just for containing that substring anywhere in its name.
+    if (hasExt(fileName, ".cue")
+        || hasExt(fileName, ".ccd")
+        || hasExt(fileName, ".iso")
+        || hasExt(fileName, ".chd"))
     {
         return true;
     }
-    else if (strstr(fileName, ".sub") || strstr(fileName, ".SUB"))
+    else if (hasExt(fileName, ".sub"))
     {
         return false;
     }
-    else if (((strstr(fileName, ".bin") || strstr(fileName, ".BIN")) &&
-             (isCueCcdFileExist(filePath, fileName, ".cue") || isCueCcdFileExist(filePath, fileName, ".CUE")))
+    else if ((hasExt(fileName, ".bin") && isCueCcdFileExist(filePath, fileName, ".cue"))
              ||
-             ((strstr(fileName, ".img") || strstr(fileName, ".IMG")) &&
-             (isCueCcdFileExist(filePath, fileName, ".ccd") || isCueCcdFileExist(filePath, fileName, ".CCD")))
+             (hasExt(fileName, ".img") && isCueCcdFileExist(filePath, fileName, ".ccd"))
              )
     {
         return false;
