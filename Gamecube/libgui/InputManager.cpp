@@ -131,7 +131,7 @@ PADStatus* Input::getPad()
 
 void Input::clearInputData()
 {
-	Focus::getInstance().clearInput	Data();
+	Focus::getInstance().clearInputData();
 	Cursor::getInstance().clearInputData();
 }
 
