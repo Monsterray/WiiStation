@@ -533,8 +533,8 @@ int main(int argc, char *argv[])
 	if(argc > 2 && argv[1] != NULL && argv[2] != NULL)
 	{
 		Autoboot = true;
-		strncpy(AutobootPath, argv[1], sizeof(AutobootPath));
-		strncpy(AutobootROM, argv[2], sizeof(AutobootROM));
+		snprintf(AutobootPath, sizeof(AutobootPath), "%s", argv[1]);
+		snprintf(AutobootROM, sizeof(AutobootROM), "%s", argv[2]);
 	}
 	else
 	{

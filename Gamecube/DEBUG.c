@@ -87,8 +87,8 @@ void writeLogFile(char* string) {
 
     openLogFile();
 
-    if (canWriteLog) {
-        fprintf(fdebugLog, string);
+    if (fdebugLog) {
+        fputs(string, fdebugLog);
     }
 
     closeLogFile();
@@ -168,8 +168,7 @@ void DEBUG_stats(int stats_id, char *info, unsigned int stats_type, unsigned int
             stats_buffer[stats_id] += adjustment_value;
             break;
         case STAT_TYPE_CLEAR:
-            if(stats_type & STAT_TYPE_AVGE)
-                avge_counter[stats_id] = 0;
+            avge_counter[stats_id] = 0;
             stats_buffer[stats_id] = 0;
             break;
 

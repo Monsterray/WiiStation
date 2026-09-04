@@ -73,8 +73,9 @@ int fileBrowser_DVD_readDir(fileBrowser_file* ffile, fileBrowser_file** dir){
 		(*dir)[i].attr	 = 0;
 		if(DVDToc.file[i].flags == 2)//on DVD, 2 is a dir
 			(*dir)[i].attr   = FILE_BROWSER_ATTR_DIR; 
-		if((*dir)[i].name[strlen((*dir)[i].name)-1] == '/' )
-			(*dir)[i].name[strlen((*dir)[i].name)-1] = 0;	//get rid of trailing '/'
+		size_t len = strlen((*dir)[i].name);
+		if(len > 0 && (*dir)[i].name[len-1] == '/' )
+			(*dir)[i].name[len-1] = 0;	//get rid of trailing '/'
 	}
 		
 	if(strlen((*dir)[0].name) == 0)

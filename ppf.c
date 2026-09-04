@@ -348,6 +348,7 @@ void BuildPPFCache() {
 	FillPPFCache(); // build address array
 
 	SysPrintf(_("Loaded PPF %d.0 patch: %s.\n"), method + 1, szPPF);
+	return;
 
 fail_io:
 #ifndef NDEBUG
