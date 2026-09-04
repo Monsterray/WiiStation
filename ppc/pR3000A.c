@@ -43,7 +43,9 @@
 #define printFunctionLog()
 
 /* variable declarations */
-static u32 psxRecLUT[0x010000];
+/* Lazily allocated: only the old PPC dynarec (DYNACORE_DYNAREC_OLD) needs this
+ * 256KiB table; Lightrec is the normal core and never touches it. */
+static u32 *psxRecLUT = NULL;
 //static char recMem[RECMEM_SIZE] __attribute__((aligned(32)));	/* the recompiled blocks will be here */
 static char *recMem = RECMEM2_LO;	/* the recompiled blocks will be here */
 //static char recRAM[0x200000] __attribute__((aligned(32)));	/* and the ptr to the blocks here */
@@ -1100,6 +1102,12 @@ static void recMVMVA2() {
 static int allocMem() {
 	int i;
 
+	if (psxRecLUT == NULL) {
+		psxRecLUT = (u32 *)malloc(0x010000 * sizeof(u32));
+		if (psxRecLUT == NULL)
+			return -1;
+	}
+
 	for (i=0; i<0x80; i++) psxRecLUT[i + 0x0000] = (u32)&recRAM[(i & 0x1f) << 16];
 	memcpy(psxRecLUT + 0x8000, psxRecLUT, 0x80 * 4);
 	memcpy(psxRecLUT + 0xa000, psxRecLUT, 0x80 * 4);
@@ -1157,6 +1165,9 @@ static void recApplyConfig() {
 
 static void recShutdown() {
 	ppcShutdown();
+
+	free(psxRecLUT);
+	psxRecLUT = NULL;
 }
 
 static void recError() {

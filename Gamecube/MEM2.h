@@ -49,7 +49,15 @@
 #define LIGHTREC_BUF_LO   (SPU_BUF_HI)
 #define LIGHTREC_BUF_HI   (LIGHTREC_BUF_LO + LIGHTREC_BUF_SIZE)
 
+// We want 512KB for the PSX BIOS ROM image. It's read-mostly data that HLE
+// mode -- the hardcoded default -- never fetches as code, so it doesn't
+// need MEM1's speed; only opt-in LLE mode (a user-supplied BIOS dump) walks
+// it as executable CPU-core input, and only briefly at boot.
+#define PSXR_BUF_SIZE (512*KB)
+#define PSXR_BUF_LO   (LIGHTREC_BUF_HI)
+#define PSXR_BUF_HI   (PSXR_BUF_LO + PSXR_BUF_SIZE)
 
-#define NEW_MEM2_LO LIGHTREC_BUF_HI
+
+#define NEW_MEM2_LO PSXR_BUF_HI
 
 #endif

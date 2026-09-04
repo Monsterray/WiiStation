@@ -72,10 +72,9 @@ void CAST_SetGQR(s32 GQR, u32 typeL, s32 scaleL)
 extern void SysMessage(char *fmt, ...);
 
 static s8 psxM_buf[0x220000] __attribute__((aligned(4096)));
-static s8 psxR_buf[0x80000] __attribute__((aligned(4096)));
 
 s8 *psxM = psxM_buf; // Kernel & User Memory (2 Meg)
-s8 *psxR = psxR_buf; // BIOS ROM (512K)
+s8 *psxR = (s8*)PSXR_BUF_LO; // BIOS ROM (512K) - MEM2, cold in the default HLE config
 s8 *psxP = NULL; // Parallel Port (64K)
 s8 *psxH = NULL; // Scratch Pad (1K) & Hardware Registers (8K)
 
