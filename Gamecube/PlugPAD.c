@@ -182,14 +182,21 @@ int load_configurations(FILE* f, controller_t* controller){
 		'W', 'X', controller->identifier, CONTROLLER_CONFIG_VERSION
 	};
 	char actual[4];
-	fread(actual, 1, 4, f);
-	if(memcmp(magic, actual, 4))
+	if(fread(actual, 1, 4, f) != 4 || memcmp(magic, actual, 4))
 		return 0;
-	
+
 	inline button_t* getPointer(button_t* list, int size){
+		// A truncated/corrupt config previously left `index` as uninitialized
+		// stack garbage (fread's return value was ignored) and then used
+		// signed `%`, which can go negative on a negative dividend -- turning
+		// list + (index % size) into an out-of-bounds pointer that callers
+		// later dereference unconditionally (e.g. .SQU->index on save, with
+		// no NULL check), so falling back to NULL here isn't safe either.
+		// Clamp to a known-valid index instead.
 		int index;
-		fread(&index, 4, 1, f);
-		return list + (index % size);
+		if (fread(&index, 4, 1, f) != 1 || index < 0 || index >= size)
+			index = 0;
+		return list + index;
 	}
 	inline button_t* getButton(void){
 		return getPointer(controller->buttons, controller->num_buttons);
