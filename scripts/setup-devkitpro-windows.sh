@@ -1,126 +1,106 @@
 #!/usr/bin/env bash
-# One-time toolchain setup for building WiiStation on Windows (Git Bash / MSYS2).
+# One-time toolchain setup for building WiiStation on Windows.
 #
-# Installs, into C:/devkitPro (no admin rights required):
-#   - devkitPPC r41-2 (the exact compiler version this project's headers/lib
-#     ABI were built against -- newer devkitPPC releases are NOT drop-in
-#     compatible with the bundled libogc2/lightrec/lightning binaries below)
-#   - libogc2 + SDL + GNU Lightning + Lightrec, from this repo's own
-#     lightrec+Libogc2.zip (already checked into the repo root)
-#   - the small devkitPro command-line tools that don't ship with the
-#     compiler package: make, elf2dol, gxtexconv, bin2s
-#   - the ppc-zlib portlib (zlib.h + libz.a), which the main codebase
-#     includes directly as <zlib.h>
+# This uses the REAL devkitPro pacman package manager for everything it can
+# provide: general-tools, gamecube-tools, the zlib portlib, cmake support,
+# wiiload, etc. all come from the official, signed, currently-maintained
+# devkitPro repositories, tracked in pacman's own package database like any
+# other install.
 #
-# Safe to re-run: every step is skipped if its target already exists.
+# The one deliberate exception: this project ships prebuilt libogc2 (Extrems'
+# fork, not the official "libogc" pacman provides) plus Lightrec and GNU
+# Lightning binaries, all built against devkitPPC r41-2 specifically. Newer
+# devkitPPC releases are not ABI-compatible with those prebuilt binaries, and
+# devkitPro's own servers only ever serve the *current* devkitPPC release --
+# old versions are simply not retained there, by policy, for anyone's
+# project. r41-2 is installed to its own devkitPPC-r41-2 directory (never
+# overlapping pacman's own current devkitPPC install) purely for that reason.
+#
+# Prerequisites (do this once, manually -- it needs admin rights this script
+# cannot obtain on its own):
+#   1. Download the official installer:
+#      https://github.com/devkitPro/installer/releases/latest
+#      (devkitProUpdater-*.exe)
+#   2. Right-click it -> Run as administrator.
+#   3. In the component picker, check "Wii Development". Leave the install
+#      path at its default (C:\devkitPro).
+#
+# Everything below is safe to re-run.
 set -euo pipefail
 
 DEVKITPRO=/c/devkitPro
+PACMAN="$DEVKITPRO/msys2/usr/bin/pacman.exe"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MIRROR="https://wii.leseratte10.de/devkitPro"
 
 log() { printf '\n==> %s\n' "$1"; }
 
-mkdir -p "$DEVKITPRO"
+if [ ! -x "$PACMAN" ]; then
+	cat <<EOF
+devkitPro's pacman was not found at:
+  $PACMAN
 
-# --- 1. devkitPPC r41-2 compiler toolchain ---------------------------------
-if [ -x "$DEVKITPRO/devkitPPC/bin/powerpc-eabi-gcc.exe" ]; then
-	log "devkitPPC already installed, skipping"
+Run the official installer first (needs admin rights, which this script
+cannot obtain on its own):
+  1. Download: https://github.com/devkitPro/installer/releases/latest
+  2. Right-click the .exe -> Run as administrator
+  3. Check "Wii Development" in the component picker; keep the default
+     install path (C:\\devkitPro)
+
+Then re-run this script.
+EOF
+	exit 1
+fi
+
+# --- 1. Everything pacman can provide, via the real package manager -------
+log "Installing/updating wii-dev, ppc-zlib and unzip via pacman"
+"$PACMAN" -Sy --noconfirm
+"$PACMAN" -S --needed --noconfirm wii-dev ppc-zlib unzip
+
+# --- 2. devkitPPC r41-2, pinned for ABI compatibility with this project's --
+#        bundled prebuilt libogc2/lightrec/lightning (see header comment)
+DEVKITPPC_PIN="$DEVKITPRO/devkitPPC-r41-2"
+if [ -x "$DEVKITPPC_PIN/bin/powerpc-eabi-gcc.exe" ]; then
+	log "devkitPPC r41-2 already installed, skipping"
 else
-	log "Downloading devkitPPC r41-2 (~51MB)"
+	log "Downloading devkitPPC r41-2 (~51MB, pinned -- see header comment)"
 	tmp=$(mktemp -d)
 	curl -L -o "$tmp/devkitPPC.pkg.tar.xz" \
 		"$MIRROR/devkitPPC/r41%20(2022-05-31)/devkitPPC-r41-2-windows_x86_64.pkg.tar.xz"
 	tar -xf "$tmp/devkitPPC.pkg.tar.xz" -C "$tmp"
-	mv "$tmp/opt/devkitpro/devkitPPC" "$DEVKITPRO/devkitPPC"
+	mv "$tmp/opt/devkitpro/devkitPPC" "$DEVKITPPC_PIN"
 	rm -rf "$tmp"
 fi
 
-# --- 2. base_tools (defines CC/CXX/AR/PORTLIBS_PATH for the make rules) ----
-if [ -f "$DEVKITPRO/devkitPPC/base_tools" ]; then
-	log "base_tools already installed, skipping"
-else
-	log "Downloading devkitppc-rules (base_tools)"
-	tmp=$(mktemp -d)
-	curl -sL -o "$tmp/rules.tar.gz" \
-		"$MIRROR/devkitPPC/devkitppc-rules/devkitppc-rules-1.1.1.tar.gz"
-	tar -xf "$tmp/rules.tar.gz" -C "$tmp"
-	cp "$tmp"/devkitppc-rules-*/base_tools "$DEVKITPRO/devkitPPC/base_tools"
-	rm -rf "$tmp"
-fi
-
-# --- 3. libogc2 + SDL + Lightning + Lightrec (bundled in this repo) --------
+# --- 3. libogc2 + SDL + Lightning + Lightrec (bundled in this repo, this --
+#        project's own choice of fork/build, not something pacman ships)
 if [ -d "$DEVKITPRO/libogc2" ]; then
 	log "libogc2 already installed, skipping"
 else
 	log "Extracting bundled lightrec+Libogc2.zip"
 	tmp=$(mktemp -d)
 	unzip -oq "$REPO_ROOT/lightrec+Libogc2.zip" -d "$tmp"
-	cp -rn "$tmp/lightrec+Libogc2/devkitPPC/"* "$DEVKITPRO/devkitPPC/"
+	cp -rn "$tmp/lightrec+Libogc2/devkitPPC/"* "$DEVKITPPC_PIN/"
 	cp -r "$tmp/lightrec+Libogc2/libogc2" "$DEVKITPRO/libogc2"
 	rm -rf "$tmp"
 fi
 
-# wii_rules / gamecube_rules also need to exist directly under devkitPPC --
-# the per-dependency Makefiles (opengx, lightrec, zstd, lzma, zlib, chdr)
-# all `include $(DEVKITPPC)/wii_rules` at that standard devkitPro location,
-# while Gamecube/Makefile_Wii instead includes libogc2's copy directly.
-# Both need the same file.
-cp -f "$DEVKITPRO/libogc2/wii_rules" "$DEVKITPRO/devkitPPC/wii_rules"
-cp -f "$DEVKITPRO/libogc2/gamecube_rules" "$DEVKITPRO/devkitPPC/gamecube_rules"
-
-# --- 4. devkitPro command-line tools not bundled with the compiler --------
-mkdir -p "$DEVKITPRO/tools/bin"
-
-if [ -x "$DEVKITPRO/tools/bin/make.exe" ]; then
-	log "make already installed, skipping"
-else
-	log "Downloading standalone GNU Make 4.4.1 (no admin rights needed)"
-	tmp=$(mktemp -d)
-	curl -sL -o "$tmp/make.zip" \
-		"https://sourceforge.net/projects/ezwinports/files/make-4.4.1-without-guile-w32-bin.zip/download"
-	unzip -oq "$tmp/make.zip" -d "$tmp/x"
-	cp "$tmp/x/bin/make.exe" "$DEVKITPRO/tools/bin/make.exe"
-	rm -rf "$tmp"
-fi
-
-if [ -x "$DEVKITPRO/tools/bin/elf2dol.exe" ]; then
-	log "elf2dol/gxtexconv already installed, skipping"
-else
-	log "Downloading gamecube-tools (elf2dol, gxtexconv)"
-	tmp=$(mktemp -d)
-	curl -sL -o "$tmp/gc-tools.pkg.tar.xz" \
-		"$MIRROR/other-stuff/gamecube-tools/gamecube-tools-1.0.4-1-windows_x86_64.pkg.tar.xz"
-	tar -xf "$tmp/gc-tools.pkg.tar.xz" -C "$tmp"
-	cp "$tmp/opt/devkitpro/tools/bin/"*.exe "$DEVKITPRO/tools/bin/"
-	rm -rf "$tmp"
-fi
-
-if [ -x "$DEVKITPRO/tools/bin/bin2s.exe" ]; then
-	log "bin2s already installed, skipping"
-else
-	log "Downloading general-tools (bin2s and friends)"
-	tmp=$(mktemp -d)
-	curl -sL -o "$tmp/gen-tools.pkg.tar.xz" \
-		"$MIRROR/other-stuff/general-tools/general-tools-1.2.0-3-windows_x86_64.pkg.tar.xz"
-	tar -xf "$tmp/gen-tools.pkg.tar.xz" -C "$tmp"
-	cp "$tmp/opt/devkitpro/tools/bin/"*.exe "$DEVKITPRO/tools/bin/"
-	rm -rf "$tmp"
-fi
-
-# --- 5. ppc-zlib portlib (zlib.h + libz.a, used directly as <zlib.h>) ------
-mkdir -p "$DEVKITPRO/portlibs/ppc" "$DEVKITPRO/portlibs/wii"
-if [ -f "$DEVKITPRO/portlibs/ppc/include/zlib.h" ]; then
-	log "ppc-zlib already installed, skipping"
-else
-	log "Downloading ppc-zlib portlib"
-	tmp=$(mktemp -d)
-	curl -sL -o "$tmp/ppc-zlib.pkg.tar.xz" \
-		"$MIRROR/portlibs/ppc-zlib-1.2.11-1-any.pkg.tar.xz"
-	tar -xf "$tmp/ppc-zlib.pkg.tar.xz" -C "$tmp"
-	cp -r "$tmp/opt/devkitpro/portlibs/ppc/"* "$DEVKITPRO/portlibs/ppc/"
-	rm -rf "$tmp"
-fi
+# --- 4. wii_rules / gamecube_rules / base_tools for the pinned compiler ---
+#        wii_rules/gamecube_rules must point LIBOGC_INC/LIB at libogc2, not
+#        pacman's official libogc -- libogc2's own copies do that, so use
+#        those instead of whatever the standard devkitPPC package ships.
+#        base_tools we take from pacman's current devkitppc-rules install
+#        (same file wii-dev already gave us) rather than fetching a second,
+#        separately-versioned copy -- it only sets PATH/PORTLIBS_PATH/the
+#        compiler-prefix variables, none of which are version-sensitive.
+cp -f "$DEVKITPRO/libogc2/wii_rules" "$DEVKITPPC_PIN/wii_rules"
+cp -f "$DEVKITPRO/libogc2/gamecube_rules" "$DEVKITPPC_PIN/gamecube_rules"
+cp -f "$DEVKITPRO/devkitPPC/base_tools" "$DEVKITPPC_PIN/base_tools"
+# The stock base_tools hardcodes $(DEVKITPRO)/devkitPPC/bin into PATH instead
+# of using $(DEVKITPPC) -- harmless with only one devkitPPC install, but it
+# silently prepends pacman's *current* compiler ahead of this pinned one
+# once both exist side by side. Point it at $(DEVKITPPC) instead.
+sed -i 's#\$(DEVKITPATH)/devkitPPC/bin#$(DEVKITPPC)/bin#' "$DEVKITPPC_PIN/base_tools"
 
 log "Toolchain setup complete."
 
@@ -138,6 +118,7 @@ fi
 
 cat <<'EOF'
 
-Done. Build with:
+Done. Build with (from devkitPro's own MSYS2 shell -- Start Menu ->
+devkitPro -> MSys2, or C:\devkitPro\msys2\msys2_shell.bat):
   scripts/build.sh
 EOF
