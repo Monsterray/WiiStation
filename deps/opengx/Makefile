@@ -62,7 +62,7 @@ $(LIB_DIR)/libOpengx.a: $(OPENGX_OBJS)
 COMMON_FLAGS	:= -g -O2 -w $(MACHDEP) -fvisibility=hidden
 INCLUDES		:= -Iinclude -I$(LIBOGC_INC)
 DEFINES			:= -DGEKKO
-CFLAGS			:= $(COMMON_FLAGS) $(INCLUDES) $(INCLUDE) $(DEFINES)--pedantic -D__BIG_ENDIAN -D__powerpc__ -DBIG_ENDIAN -DLOG_LEVEL=0 -DNDEBUG
+CFLAGS			:= $(COMMON_FLAGS) $(INCLUDES) $(INCLUDE) $(DEFINES) --pedantic -D__BIG_ENDIAN -D__powerpc__ -DBIG_ENDIAN -DLOG_LEVEL=0 -DNDEBUG
 
 # Test link flags.
 LDFLAGS			:= $(COMMON_FLAGS) -L$(LIB_DIR) -L$(LIBOGC_LIB) $(PORTLIBS_PATH)/wii/lib

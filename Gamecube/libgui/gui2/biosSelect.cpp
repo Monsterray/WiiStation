@@ -48,7 +48,12 @@ char * GetGameBios(char * biosPath, char * fileName, int isoFileNameLen)
     size_t remaining = sizeof(tstLine) - strlen(tstLine) - 1;
     if (stripLen > remaining)
         stripLen = remaining;
-    strncat(tstLine, fileName, stripLen);
+    // memcpy instead of strncat: stripLen is already proven <= strlen(fileName)
+    // above, so this is exactly as safe, without tripping -Wstringop-overflow's
+    // "bound derived from source length" heuristic on a strncat call.
+    size_t curLen = strlen(tstLine);
+    memcpy(tstLine + curLen, fileName, stripLen);
+    tstLine[curLen + stripLen] = '\0';
     strncat(tstLine, ".bin", sizeof(tstLine) - strlen(tstLine) - 1);
 
     FILE* f = fopen(tstLine, "rb" );  //attempt to open file
@@ -60,7 +65,11 @@ char * GetGameBios(char * biosPath, char * fileName, int isoFileNameLen)
         *tstLine = '/';
         *(tstLine + 1) = '\0';
         remaining = sizeof(tstLine) - strlen(tstLine) - 1;
-        strncat(tstLine, fileName, (stripLen > remaining) ? remaining : stripLen);
+        if (stripLen > remaining)
+            stripLen = remaining;
+        curLen = strlen(tstLine);
+        memcpy(tstLine + curLen, fileName, stripLen);
+        tstLine[curLen + stripLen] = '\0';
         strncat(tstLine, ".bin", sizeof(tstLine) - strlen(tstLine) - 1);
 
         // Return the Bios with a name equal to the file name

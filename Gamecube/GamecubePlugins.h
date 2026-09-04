@@ -31,6 +31,7 @@
 void SetCdOpenCaseTime(s64 time);
 void SetIsoFile(const char *filename);
 int ReloadCdromPlugin();
+char *SysLibError(void);
 
 #define SYMS_PER_LIB 32
 typedef struct {
@@ -46,7 +47,7 @@ typedef struct {
 /* SPU NULL */
 /* dfsound */
 void DF_SPUwriteRegister(unsigned long reg, unsigned short val, unsigned int cycles);
-unsigned short DF_SPUreadRegister(unsigned long reg);
+unsigned short DF_SPUreadRegister(unsigned long reg, unsigned int cycles);
 void DF_SPUreadDMAMem(unsigned short * pusPSXMem,int iSize, unsigned int cycles);
 void DF_SPUwriteDMAMem(unsigned short * pusPSXMem,int iSize, unsigned int cycles);
 void DF_SPUasync(unsigned long cycle, unsigned int flags, unsigned int psxType);

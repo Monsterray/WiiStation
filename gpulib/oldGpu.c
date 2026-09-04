@@ -182,7 +182,11 @@ extern unsigned int      lGPUInfoVals[16];
 #define _IN_GPU
 
 static uint16_t *vram_ptr_orig = NULL;
-extern uint8_t globalVram[VRAM_SIZE + (VRAM_ALIGN - 1)];
+// The real definition (gpulib/gpulib.c) uses its own, larger VRAM_SIZE/VRAM_ALIGN
+// (deliberately doubled there for an overdraw guard), so declaring a size here would
+// just be a second, smaller, and wrong bound on the same object. Only &globalVram[0]
+// is ever taken in this file -- never subscripted or sizeof'd -- so leave it unsized.
+extern uint8_t globalVram[];
 
 ////////////////////////////////////////////////////////////////////////
 // INIT, will be called after lib load... well, just do some var init...

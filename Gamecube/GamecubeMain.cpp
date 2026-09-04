@@ -1048,6 +1048,6 @@ void SysUpdate()
 void SysRunGui() {}
 void SysMessage(char *fmt, ...) {}
 void SysCloseLibrary(void *lib) {}
-char *SysLibError() {	return NULL; }
+char *SysLibError(void) {	return NULL; }
 
 } //extern "C"

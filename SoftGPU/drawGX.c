@@ -576,7 +576,7 @@ static void gc_vout_set_mode(int w, int h, int raw_w, int raw_h, int bpp) {
 
 extern u32 hSyncCount;
 extern u32 frame_counter;
-extern void gpu_state_change(int what);
+extern void gpu_state_change(int what, int cycles);
 
 static struct rearmed_cbs gc_rearmed_cbs = {
    .pl_vout_open     = gc_vout_open,

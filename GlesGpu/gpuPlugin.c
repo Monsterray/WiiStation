@@ -198,7 +198,11 @@ static void flipEGL(void);
 #define VRAM_SIZE ((1024 * 512 * 2) + 4096)
 #define VRAM_ALIGN 16
 static uint16_t *vram_ptr_orig = NULL;
-extern uint8_t globalVram[VRAM_SIZE + (VRAM_ALIGN - 1)];
+// The real definition (gpulib/gpulib.c) uses its own, larger VRAM_SIZE/VRAM_ALIGN
+// (deliberately doubled there for an overdraw guard), so declaring a size here would
+// just be a second, smaller, and wrong bound on the same object. Only &globalVram[0]
+// is ever taken in this file -- never subscripted or sizeof'd -- so leave it unsized.
+extern uint8_t globalVram[];
 
 long CALLBACK GL_GPUinit()
 {
