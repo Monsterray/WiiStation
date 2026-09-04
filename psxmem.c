@@ -442,7 +442,7 @@ void *psxMemPointer(u32 mem) {
 	t = mem >> 16;
 	if (t == 0x1f80 || t == 0x9f80 || t == 0xbf80) {
 		if ((mem & 0xffff) < 0x400)
-			return (void *)&psxH[mem];
+			return (void *)psxHAddr(mem);
 		else
 			return NULL;
 	} else {

@@ -34,13 +34,13 @@ static vu32* const MotorCommand = (vu32*)HID_MEM2_WIIU_MOTOR_CMD;
 static vu32* HID_STATUS = (vu32*)HID_MEM2_STATUS;
 static vu32* HID_CHANGE = (vu32*)HID_MEM2_CHANGE;
 static vu32* HID_CFG_SIZE = (vu32*)HID_MEM2_CFG_SIZE;
-static vu32* HID_CFG_FILE = (vu32*)HID_MEM2_CFG_SIZE;
+static vu32* HID_CFG_FILE = (vu32*)HID_MEM2_CFG_FILE;
 
 static vu32* HIDMotor = (vu32*)HID_MEM2_MOTOR_CMD;
 static vu32* PadUsed = (vu32*)HID_MEM2_PAD_USED;
 
 static vu32* PADIsBarrel = (vu32*)HID_MEM2_PAD_IS_BARREL;
-static vu32* PADBarrelEnabled = (vu32*)HID_MEM2_PAD_IS_BARREL;
+static vu32* PADBarrelEnabled = (vu32*)HID_MEM2_PAD_BARREL_ENABLED;
 static vu32* PADBarrelPress = (vu32*)HID_MEM2_PAD_BARREL_PRESS;
 
 //static volatile struct BTPadCont *BTPad = (volatile struct BTPadCont*)0x932F0000;
