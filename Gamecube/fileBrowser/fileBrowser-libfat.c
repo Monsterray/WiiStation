@@ -263,32 +263,51 @@ int fileBrowser_libfat_readDir(fileBrowser_file* file, fileBrowser_file** dir){
   pauseRemovalThread();
 
   DIR* dp = opendir(file->name );
-	if(!dp) return FILE_BROWSER_ERROR;
+	if(!dp) {
+		continueRemovalThread();
+		return FILE_BROWSER_ERROR;
+	}
 	struct dirent * temp = NULL;
 
 	// Set everything up to read
 	//char filename[MAXPATHLEN];
-	int num_entries = 2, i = 0;
-	*dir = malloc( num_entries * sizeof(fileBrowser_file) );
+	int capacity = 32, i = 0;
+	fileBrowser_file *entries = malloc( capacity * sizeof(fileBrowser_file) );
+	if (!entries) {
+		closedir(dp);
+		continueRemovalThread();
+		return FILE_BROWSER_ERROR;
+	}
 	// Read each entry of the directory
 	while( (temp = readdir(dp)) && (temp != NULL) ){
         if (!isFileOk(file->name, temp->d_name)) {
             continue;
 		}
-		// Make sure we have room for this one
-		if(i == num_entries){
-			++num_entries;
-			*dir = realloc( *dir, num_entries * sizeof(fileBrowser_file) );
+		// Make sure we have room for this one -- double capacity instead of
+		// growing by one entry at a time, which was O(n) reallocations
+		// (each copying more data than the last) for an n-entry directory
+		if(i == capacity){
+			capacity *= 2;
+			fileBrowser_file *tmp = realloc( entries, capacity * sizeof(fileBrowser_file) );
+			if (!tmp) {
+				free(entries);
+				closedir(dp);
+				continueRemovalThread();
+				return FILE_BROWSER_ERROR;
+			}
+			entries = tmp;
 		}
 
-		sprintf((*dir)[i].name, "%s/%s", file->name, temp->d_name);
-		(*dir)[i].offset = 0;
-		(*dir)[i].size	 = 0; //TODO
-		(*dir)[i].attr	 = (temp->d_type & DT_DIR) ?
+		sprintf(entries[i].name, "%s/%s", file->name, temp->d_name);
+		entries[i].offset = 0;
+		entries[i].size	 = 0; //TODO
+		entries[i].attr	 = (temp->d_type & DT_DIR) ?
 							FILE_BROWSER_ATTR_DIR : 0;
 		++i;
 	}
 
+	*dir = entries;
+	closedir(dp);
 	continueRemovalThread();
 
 	return i;
