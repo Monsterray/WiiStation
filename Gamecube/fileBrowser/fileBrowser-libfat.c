@@ -485,6 +485,10 @@ int fileBrowser_libfatROM_readFile(fileBrowser_file* file, void* buffer, unsigne
   if(stop)     //do this only in the menu
 	pauseRemovalThread();
 	if(!fd[file->attr]) fd[file->attr] = fopen( file->name, "rb");
+	if(!fd[file->attr]) {
+		if(stop) continueRemovalThread();
+		return FILE_BROWSER_ERROR;
+	}
 
 	fseek(fd[file->attr], file->offset, SEEK_SET);
 	int bytes_read = fread(buffer, 1, length, fd[file->attr]);
