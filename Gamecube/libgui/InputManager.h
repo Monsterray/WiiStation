@@ -28,7 +28,7 @@ namespace menu {
 class Input
 {
 public:
-	void refreshInput();
+	bool refreshInput();
 #ifdef HW_RVL
 	WPADData* getWpad();
 	WUPCData* getWupc();

@@ -76,10 +76,10 @@ void Gui::removeFrame(Frame *frame)
 void Gui::draw()
 {
 //	printf("Gui draw\n");
-	Input::getInstance().refreshInput();
-	Cursor::getInstance().updateCursor();
-	Focus::getInstance().updateFocus();
-	if(padAutoAssign) auto_assign_controllers();
+	if(Input::getInstance().refreshInput())
+	{
+		if(padAutoAssign) auto_assign_controllers();
+	}
 	//Update time??
 
 #ifdef WII

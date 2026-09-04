@@ -16,7 +16,7 @@
  * ranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
  * See the GNU General Public Licence for more details.
  *
-**/
+ **/
 #include <ogc/machine/processor.h>
 
 #include "InputManager.h"
@@ -82,13 +82,14 @@ void Input::initHid()
 	//	BTPad[i].used = C_NOT_SET;
 }
 
-void Input::refreshInput()
+bool Input::refreshInput()
 {
-	if(padNeedScan){ gc_connected = PAD_ScanPads(); padNeedScan = 0; }
+	bool scanned = false;
+	if(padNeedScan){ gc_connected = PAD_ScanPads(); padNeedScan = 0; scanned = true; }
 	PAD_Read(gcPad);
 	PAD_Clamp(gcPad);
 #ifdef HW_RVL
-	if (wpadNeedScan){ WUPC_UpdateButtonStats(); WiiDRC_ScanPads(); WPAD_ScanPads(); wpadNeedScan = 0; }
+	if (wpadNeedScan){ WUPC_UpdateButtonStats(); WiiDRC_ScanPads(); WPAD_ScanPads(); wpadNeedScan = 0; scanned = true; }
 //	WPAD_ScanPads();
 	wiiPad = WPAD_Data(0);
 	wupcData = WUPC_Data(0);
@@ -103,6 +104,7 @@ void Input::refreshInput()
         }
 	}
 #endif
+	return scanned;
 }
 
 #ifdef HW_RVL
@@ -129,7 +131,7 @@ PADStatus* Input::getPad()
 
 void Input::clearInputData()
 {
-	Focus::getInstance().clearInputData();
+	Focus::getInstance().clearInput	Data();
 	Cursor::getInstance().clearInputData();
 }
 
