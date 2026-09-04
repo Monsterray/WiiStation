@@ -281,7 +281,7 @@ int read_safe(void* dst, uint64_t offset, int len)
   // if required, align the start and read it
   if(offset&2047) {
     int alignment = offset&2047;
-    int amount_to_copy = len > 2048-alignment ? 2048-alignment : len-alignment;
+    int amount_to_copy = len > 2048-alignment ? 2048-alignment : len;
     ret |= DVD_LowRead64(sector_buffer, 2048, offset - alignment);
     memcpy(dst, sector_buffer+alignment, amount_to_copy );	
 

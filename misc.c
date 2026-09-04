@@ -621,8 +621,12 @@ int SaveState() {
 	gzwrite(f, (void*)PcsxHeader, 32);
 	gzwrite(f, (void *)&Config.HLE, sizeof(bool));
 
-	pMem = (unsigned char *) malloc(128 * 96 * 3);
-	if (pMem == NULL) return -1;
+	pMem = (unsigned char *) calloc(1, 128 * 96 * 3);
+	if (pMem == NULL) {
+		gzclose(f);
+		continueRemovalThread();
+		return -1;
+	}
 	//gpuPtr->getScreenPic(pMem);
 	gzwrite(f, pMem, 128 * 96 * 3);
 	free(pMem);

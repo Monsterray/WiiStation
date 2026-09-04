@@ -1,2 +1,6 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Shell scripts must keep LF endings even on Windows checkouts, or Git Bash
+# fails to parse them (CRLF breaks the shebang line and here-docs).
+*.sh text eol=lf

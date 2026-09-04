@@ -291,7 +291,7 @@ int fileBrowser_libfat_readDir(fileBrowser_file* file, fileBrowser_file** dir){
 
 	continueRemovalThread();
 
-	return num_entries;
+	return i;
 }
 
 int fileBrowser_libfat_open(fileBrowser_file* file) {

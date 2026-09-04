@@ -404,7 +404,7 @@ int IplFont::drawStringWrap(int x, int y, char *string, float scale, bool center
     {
         if(*stringWork == 0) //end of string
         {
-            if((stringWidth + tokenWidth <= maxWidth) || (numTokens = 0))
+            if((stringWidth + tokenWidth <= maxWidth) || (numTokens == 0))
             {
                 if (stringWidth + tokenWidth > 0)
                 {

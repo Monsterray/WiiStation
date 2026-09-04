@@ -37,7 +37,7 @@ char * GetGameBios(char * biosPath, char * fileName, int isoFileNameLen)
     char * tmpPtr = tstLine;
     memcpy(tstLine, biosPath, strlen(biosPath));
     tmpPtr += strlen(biosPath);
-    *tmpPtr = '//';
+    *tmpPtr = '/';
     *(tmpPtr + 1) = '\0';
 
     // Find Bios with a name equal to the file name

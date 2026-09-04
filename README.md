@@ -94,6 +94,34 @@ Any help is appreciated.
 
   The compiled SDL is here: https://github.com/xjsxjs197/WiiSXRX_2022/raw/main/libSDL.a
 
+### Quick setup (Windows)
+
+Run these from a Git Bash / MSYS2 shell in the repo root. No admin rights required.
+
+```bash
+scripts/setup-devkitpro-windows.sh   # one-time: installs devkitPPC r41-2, libogc2,
+                                      # make, elf2dol/gxtexconv/bin2s, and the zlib
+                                      # portlib into C:/devkitPro
+scripts/build.sh                     # debug build -> Gamecube/WiiSXRX_debug.dol
+scripts/build.sh release             # release build -> Gamecube/WiiSXRX_Release.dol
+scripts/build.sh clean               # remove build artifacts
+```
+
+**Important: check out this repo to a path with no spaces** (e.g. `C:/projects/WiiStation`,
+not `C:/Users/Jane Doe/...`). devkitPro's Makefiles pass `$(CURDIR)` to the compiler
+unquoted, so a space anywhere in the path breaks compilation with confusing
+"file not found" errors that look unrelated to the actual cause.
+
+`scripts/setup-devkitpro-windows.sh` is idempotent — re-run it any time; it skips
+whatever's already installed. It fetches the devkitPPC r41-2 compiler and the
+`elf2dol`/`gxtexconv`/`bin2s`/`make` utilities (none of which devkitPro's own
+installer distributes for old, specific-version installs like this), plus the
+`ppc-zlib` portlib for `<zlib.h>` (the project's own bundled zlib build is used
+only internally by libCHDr and does not provide a public header). Everything else
+this project depends on — libogc2, SDL, GNU Lightning, and Lightrec — comes from
+the `lightrec+Libogc2.zip` already checked into the repo root, per the original
+author's instructions above.
+
 ## WiiStation Credits
 
 WiiStation (formerly WiiSXRX_2022) - developed by xjsxjs197 - https://github.com/xjsxjs197/WiiSXRX_2022
