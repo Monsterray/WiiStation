@@ -79,7 +79,22 @@ void Gui::draw()
 	Input::getInstance().refreshInput();
 	Cursor::getInstance().updateCursor();
 	Focus::getInstance().updateFocus();
-	if(padAutoAssign) auto_assign_controllers();
+	if(padAutoAssign)
+	{
+		// auto_assign_controllers() re-probes every controller type (each of
+		// which does its own WPAD_ScanPads()/WPAD_Probe() calls) across both
+		// virtual controller ports every time it runs. Rescanning hardware
+		// that hasn't changed on every single menu frame is wasted work, so
+		// only run it every 15 frames (~250ms) instead -- still fast enough
+		// that a newly connected controller gets picked up almost instantly
+		// on a menu screen.
+		static int autoAssignCounter = 0;
+		if(--autoAssignCounter <= 0)
+		{
+			auto_assign_controllers();
+			autoAssignCounter = 15;
+		}
+	}
 	//Update time??
 
 #ifdef WII
