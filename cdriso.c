@@ -1173,9 +1173,19 @@ fail_io:
 
 static int cdread_sub_sub_mixed(FILE *f, int sector)
 {
-	if (fseek(f, sector * (CD_FRAMESIZE_RAW + SUB_FRAMESIZE) + CD_FRAMESIZE_RAW, SEEK_SET))
+	int ret;
+	long pos = sector * (CD_FRAMESIZE_RAW + SUB_FRAMESIZE) + CD_FRAMESIZE_RAW;
+
+	// Interleaved with cdread_sub_mixed on the same FILE*: must go through
+	// cdimg_seek/cdimg_seek_advance too, or its seek would move the real
+	// stream position without updating the tracker, leaving a stale
+	// cdimg_seek_pos that could wrongly match (and skip) a later caller's
+	// seek to that same offset.
+	if (cdimg_seek(f, pos))
 		goto fail_io;
-	if (fread(subbuffer, 1, SUB_FRAMESIZE, f) != SUB_FRAMESIZE)
+	ret = fread(subbuffer, 1, SUB_FRAMESIZE, f);
+	cdimg_seek_advance(f, pos, ret);
+	if (ret != SUB_FRAMESIZE)
 		goto fail_io;
 
 	return SUB_FRAMESIZE;
