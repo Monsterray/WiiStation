@@ -155,6 +155,18 @@ static inline void tok2msf(char *time, char *msf) {
 	}
 }
 
+// cdread_normal/cdread_sub_mixed/cdread_2048 each fseek() to the target byte
+// offset before every single sector read, even when consecutive reads are
+// sequential (the common case: level loading, FMV playback) and the stream
+// is already positioned exactly there after the previous fread(). newlib's
+// fseek() doesn't special-case a same-position seek -- it unconditionally
+// discards the stdio buffer set_static_stdio_buffer() below deliberately
+// widens to 16KB, forcing a real underlying read (FAT/DVD I/O on real Wii
+// hardware) on every sector regardless. Skipping the redundant seek lets
+// that buffering actually do its job for sequential access.
+static FILE *cdimg_seek_file;
+static long cdimg_seek_pos = -1;
+
 // Some c libs like newlib default buffering to just 1k which is less than
 // cd sector size which is bad for performance.
 // Note that NULL setvbuf() is implemented differently by different libs
@@ -171,6 +183,40 @@ static void set_static_stdio_buffer(FILE *f)
 			SysPrintf("cdriso: setvbuf %d %d\n", r, errno);
 	}
 #endif
+	// A freshly (re)opened stream invalidates whatever position the seek
+	// tracking above remembered -- a stale match against a reused FILE*
+	// address would otherwise skip a seek that's actually needed.
+	cdimg_seek_file = NULL;
+	cdimg_seek_pos = -1;
+}
+
+static int cdimg_seek(FILE *f, long pos)
+{
+	if (f == cdimg_seek_file && pos == cdimg_seek_pos)
+		return 0;
+	// fseek() is also relied on to clear the stream's EOF/error indicator;
+	// only skip it once we know this exact seek is redundant.
+	if (fseek(f, pos, SEEK_SET)) {
+		cdimg_seek_file = NULL;
+		cdimg_seek_pos = -1;
+		return -1;
+	}
+	cdimg_seek_file = f;
+	cdimg_seek_pos = pos;
+	return 0;
+}
+
+// Track the position a successful read actually left the stream at (not
+// the nominal sector arithmetic), so a short read or error correctly
+// forces a real seek next time instead of a wrong skip.
+static void cdimg_seek_advance(FILE *f, long pos, int nread)
+{
+	if (nread > 0 && f == cdimg_seek_file)
+		cdimg_seek_pos = pos + nread;
+	else {
+		cdimg_seek_file = NULL;
+		cdimg_seek_pos = -1;
+	}
 }
 
 // this function tries to get the .toc file of the given .bin
@@ -1092,9 +1138,11 @@ static int opensbifile(const char *isoname) {
 static int cdread_normal(FILE *f, unsigned int base, void *dest, int sector)
 {
 	int ret;
-	if (fseek(f, base + sector * CD_FRAMESIZE_RAW, SEEK_SET))
+	long pos = base + sector * CD_FRAMESIZE_RAW;
+	if (cdimg_seek(f, pos))
 		goto fail_io;
 	ret = fread(dest, 1, CD_FRAMESIZE_RAW, f);
+	cdimg_seek_advance(f, pos, ret);
 	if (ret <= 0)
 		goto fail_io;
 	return ret;
@@ -1108,10 +1156,12 @@ fail_io:
 static int cdread_sub_mixed(FILE *f, unsigned int base, void *dest, int sector)
 {
 	int ret;
+	long pos = base + sector * (CD_FRAMESIZE_RAW + SUB_FRAMESIZE);
 
-	if (fseek(f, base + sector * (CD_FRAMESIZE_RAW + SUB_FRAMESIZE), SEEK_SET))
+	if (cdimg_seek(f, pos))
 		goto fail_io;
 	ret = fread(dest, 1, CD_FRAMESIZE_RAW, f);
+	cdimg_seek_advance(f, pos, ret);
 	if (ret <= 0)
 		goto fail_io;
 	return ret;
@@ -1302,9 +1352,11 @@ static int cdread_sub_chd(FILE *f, int sector)
 static int cdread_2048(FILE *f, unsigned int base, void *dest, int sector)
 {
 	int ret;
+	long pos = base + sector * 2048;
 
-	fseek(f, base + sector * 2048, SEEK_SET);
+	cdimg_seek(f, pos);
 	ret = fread((char *)dest + 12 * 2, 1, 2048, f);
+	cdimg_seek_advance(f, pos, ret);
 
 	// not really necessary, fake mode 2 header
 	memset(cdbuffer, 0, 12 * 2);
