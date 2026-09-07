@@ -2552,7 +2552,8 @@ static void buopen(int mcd)
 		mcd_data = Mcd2Data;
 	}
 
-	strcpy(FDesc[1 + mcd].name, Ra0+5);
+	strncpy(FDesc[1 + mcd].name, Ra0+5, sizeof(FDesc[1 + mcd].name) - 1);
+	FDesc[1 + mcd].name[sizeof(FDesc[1 + mcd].name) - 1] = '\0';
 	FDesc[1 + mcd].offset = 0;
 	FDesc[1 + mcd].mode   = a1;
 
@@ -2871,6 +2872,7 @@ void psxBios_nextfile() { // 43
 		if ((*ptr & 0xF0) != 0x50) continue; \
 		if (strcmp(Ra0+5, ptr+0xa)) continue; \
 		namelen = strlen(Ra1+5); \
+		if (namelen > 0x75) namelen = 0x75; \
 		memcpy(ptr+0xa, Ra1+5, namelen); \
 		memset(ptr+0xa+namelen, 0, 0x75-namelen); \
 		for (j=0; j<127; j++) xor^= ptr[j]; \
