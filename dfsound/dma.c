@@ -44,11 +44,21 @@ void DF_SPUreadDMAMem(unsigned short *pusPSXMem, int iSize,
  do_samples_if_needed(cycles, 1, 4);
  irq_after = (irq_addr - addr) & 0x7ffff;
 
- for(i = 0; i < iSize; i++)
+ // Mirrors the memcpy fast path DF_SPUwriteDMAMem already has below --
+ // same non-wrapping-run condition, just copying the other direction.
+ if (addr + iSize*2 < 0x80000)
  {
-  *pusPSXMem++ = *(unsigned short *)(spu.spuMemC + addr);
-  addr += 2;
-  addr &= 0x7fffe;
+  memcpy(pusPSXMem, spu.spuMemC + addr, iSize*2);
+  addr += iSize*2;
+ }
+ else
+ {
+  for(i = 0; i < iSize; i++)
+  {
+   *pusPSXMem++ = *(unsigned short *)(spu.spuMemC + addr);
+   addr += 2;
+   addr &= 0x7fffe;
+  }
  }
  //if (irq && (spu.spuCtrl & CTRL_IRQ))
  if ((spu.spuCtrl & CTRL_IRQ) && irq_after < iSize * 2) {
