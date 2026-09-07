@@ -1108,6 +1108,11 @@ static int opensubfile(const char *isoname) {
 	if (subHandle == NULL)
 		return -1;
 
+	// A freshly opened handle could reuse a stale-tracked FILE* address --
+	// see the identical comment on set_static_stdio_buffer().
+	cdimg_seek_file = NULL;
+	cdimg_seek_pos = -1;
+
 	return 0;
 }
 
@@ -1562,6 +1567,10 @@ static long CALLBACK ISOclose(void) {
 		fclose(subHandle);
 		subHandle = NULL;
 	}
+	// Either closed FILE* could be reused by a later fopen() -- don't let a
+	// stale tracked position falsely match against it.
+	cdimg_seek_file = NULL;
+	cdimg_seek_pos = -1;
 
 	if (compr_img != NULL) {
 		free(compr_img->index_table);
@@ -1715,9 +1724,13 @@ static unsigned char* CALLBACK ISOgetBufferSub(int sector) {
 			return NULL;
 	}
 	else if (subHandle != NULL) {
-		if (fseek(subHandle, sector * SUB_FRAMESIZE, SEEK_SET))
+		int ret;
+		long pos = sector * SUB_FRAMESIZE;
+		if (cdimg_seek(subHandle, pos))
 			return NULL;
-		if (fread(subbuffer, 1, SUB_FRAMESIZE, subHandle) != SUB_FRAMESIZE)
+		ret = fread(subbuffer, 1, SUB_FRAMESIZE, subHandle);
+		cdimg_seek_advance(subHandle, pos, ret);
+		if (ret != SUB_FRAMESIZE)
 			return NULL;
 	}
 	else {
