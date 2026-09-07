@@ -24,10 +24,13 @@
 #include "../Gamecube/DEBUG.h"
 #include "../psxcommon.h"
 
-// ~500ms at 44.1kHz stereo (doubled from the original ~250ms) -- gives the
-// ring buffer more headroom to absorb real-time jitter (frame-pacing
-// stalls, disc I/O) before sdl_feed() has to start dropping samples.
-#define BUFFER_SIZE        44100
+// Reverted to the original ~250ms: sdl_busy()'s "keep generating more
+// samples" heuristic targets BUFFER_SIZE/2 fill as its steady-state
+// operating point (not just an emergency-refill threshold), so doubling
+// this also doubled the actual audio latency (~125ms -> ~250ms) --
+// audible as audio lagging behind video. The frame-limiter fix
+// (c19c70f) already removes the speed bursts this was meant to absorb.
+#define BUFFER_SIZE        22050
 //#define BUFFER_SIZE        12000
 
 short            *pSndBuffer = NULL;
