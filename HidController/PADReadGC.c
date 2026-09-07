@@ -125,10 +125,28 @@ void HIDUpdateControllerIni()
         fseek(f, 0, SEEK_END);
         size_t fsize = ftell(f);
         fseek(f, 0, SEEK_SET);
-        fread((void*)HID_CFG_FILE, 1, fsize, f);
-        DCFlushRange((void*)HID_CFG_FILE, fsize);
-        fclose(f);
-        *(vu32*)HID_CFG_SIZE = fsize;
+        // HID_CFG_FILE is a fixed-size slot in the MEM2 layout -- HID_CTRL
+        // (the live controller struct) sits immediately after it, so an
+        // oversized .ini file would otherwise overflow into live state.
+        // Reject rather than truncate: a partially-loaded config would get
+        // parsed as if it were complete, silently applying a wrong/half
+        // mapping instead of just failing to load one.
+        size_t cap = HID_MEM2_CTRL_ADDR - HID_MEM2_CFG_FILE;
+        if (fsize > cap)
+        {
+            #ifdef DISP_DEBUG
+            writeLogFile("controller ini too large, ignoring\r\n");
+            #endif // DISP_DEBUG
+            fclose(f);
+            *(vu32*)HID_CFG_SIZE = 0;
+        }
+        else
+        {
+            fread((void*)HID_CFG_FILE, 1, fsize, f);
+            DCFlushRange((void*)HID_CFG_FILE, fsize);
+            fclose(f);
+            *(vu32*)HID_CFG_SIZE = fsize;
+        }
     }
     else
     {

@@ -1161,7 +1161,13 @@ static u32 ConfigGetValue( char *Data, const char *EntryName, u32 Entry )
             for(i = 0; i < RawRumbleDataLen; ++i)
             {
                 RawRumbleDataOn[i] = strtoul(str, NULL, 16);
-                str = strstr( str, "," )+1;
+                str = strstr( str, "," );
+                if( str == (char*)NULL || str > strEnd )
+                {
+                    dbgprintf("No \",\" found in entry.\r\n");
+                    break;
+                }
+                str++;
             }
             break;
 
@@ -1169,7 +1175,13 @@ static u32 ConfigGetValue( char *Data, const char *EntryName, u32 Entry )
             for(i = 0; i < RawRumbleDataLen; ++i)
             {
                 RawRumbleDataOff[i] = strtoul(str, NULL, 16);
-                str = strstr( str, "," )+1;
+                str = strstr( str, "," );
+                if( str == (char*)NULL || str > strEnd )
+                {
+                    dbgprintf("No \",\" found in entry.\r\n");
+                    break;
+                }
+                str++;
             }
             break;
 
