@@ -743,8 +743,19 @@ void fileBrowserFrame_LoadFile(int i)
 void fileBrowserFrame_AutoBootFile()
 {
 	int i;
-	for(i = 0; i < num_entries - 1; i++)
+	// fileBrowserFrame_OpenDirectory() (called just before this by
+	// Func_LoadFromSD/USB) sets dir_entries = NULL and num_entries <= 0
+	// on a failed/empty directory listing -- without this check, i stays
+	// 0 and fileBrowserFrame_LoadFile(0) dereferences a NULL dir_entries.
+	if(dir_entries == NULL || num_entries <= 0)
+		return;
+	for(i = 0; i < num_entries; i++)
 		if(strcasestr(dir_entries[i].name, AutobootROM) != NULL)
 			break;
-	fileBrowserFrame_LoadFile(i);
+	// Previously `i < num_entries - 1` never checked the last entry, and
+	// on no match at all still called LoadFile(i) with i left at the last
+	// index -- silently booting whatever file happened to sort last
+	// instead of reporting "not found".
+	if(i < num_entries)
+		fileBrowserFrame_LoadFile(i);
 }
