@@ -398,12 +398,14 @@ void InitializeTextureStore()
   for(j=0;j<MAXTPAGES;j++)
    {
     pscSubtexStore[i][j]=(textureSubCacheEntryS *)_mem2_malloc(CSUBSIZES*sizeof(textureSubCacheEntryS));
-    memset(pscSubtexStore[i][j],0,CSUBSIZES*sizeof(textureSubCacheEntryS));
+    if(pscSubtexStore[i][j])
+     memset(pscSubtexStore[i][j],0,CSUBSIZES*sizeof(textureSubCacheEntryS));
    }
  for(i=0;i<MAXSORTTEX;i++)                           // -> info 0..511
   {
    pxSsubtexLeft[i]=(EXLong *)_mem2_malloc(CSUBSIZE*sizeof(EXLong));
-   memset(pxSsubtexLeft[i],0,CSUBSIZE*sizeof(EXLong));
+   if(pxSsubtexLeft[i])
+    memset(pxSsubtexLeft[i],0,CSUBSIZE*sizeof(EXLong));
    uiStexturePage[i]=0;
   }
 }
@@ -1606,7 +1608,8 @@ GLuint Fake15BitTexture(void)
    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, iFilter); glError();
 
    p=(char *)_mem2_malloc(iFTex*iFTex*4);
-   memset(p,0,iFTex*iFTex*4);
+   if(p)
+    memset(p,0,iFTex*iFTex*4);
    #ifdef DISP_DEBUG
 //sprintf(txtbuffer, "Fake15BitTexture            %d %d\r\n", iFTex, iFTex);
 //DEBUG_print(txtbuffer, DBG_SPU1);
