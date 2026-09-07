@@ -598,6 +598,8 @@ int SaveState() {
 
     /* fix the filename to %s.st%u format */
 	filename = malloc(1024);
+	if (!filename)
+		return 0;
 
     #ifdef HW_RVL
         sprintf(filename, "%s%s%s.st%u",(saveStateDevice==SAVESTATEDEVICE_USB)?"usb:":"sd:",
@@ -645,6 +647,11 @@ int SaveState() {
     LoadingBar_showBar(0.70f, SAVE_STATE_MSG);
 	// gpu
 	gpufP = (GPUFreeze_t *) malloc(sizeof(GPUFreeze_t));
+	if (!gpufP) {
+		gzclose(f);
+		continueRemovalThread();
+		return -1;
+	}
 	gpufP->ulFreezeVersion = 1;
 	gpuPtr->freeze(1, gpufP);
 	gzwrite(f, gpufP, sizeof(GPUFreeze_t));
@@ -655,10 +662,20 @@ int SaveState() {
     LoadingBar_showBar(0.80f, SAVE_STATE_MSG);
 	// spu
 	spufP = (SPUFreeze_t *) malloc(16);
+	if (!spufP) {
+		gzclose(f);
+		continueRemovalThread();
+		return -1;
+	}
 	SPU_freeze(2, spufP, psxRegs.cycle);
 	Size = spufP->ulFreezeSize; gzwrite(f, &Size, 4);
 	free(spufP);
 	spufP = (SPUFreeze_t *) malloc(Size);
+	if (!spufP) {
+		gzclose(f);
+		continueRemovalThread();
+		return -1;
+	}
 	SPU_freeze(1, spufP, psxRegs.cycle);
 	gzwrite(f, spufP, Size);
 	free(spufP);
@@ -691,6 +708,8 @@ int LoadState() {
 
     /* fix the filename to %s.st%u format */
 	filename = malloc(1024);
+	if (!filename)
+		return 0;
     #ifdef HW_RVL
         sprintf(filename, "%s%s%s.st%u",(saveStateDevice==SAVESTATEDEVICE_USB)?"usb:":"sd:",
                            statespath, CdromId, savestates_slot);
@@ -748,6 +767,11 @@ int LoadState() {
 
 	// gpu
 	gpufP = (GPUFreeze_t *) malloc (sizeof(GPUFreeze_t));
+	if (!gpufP) {
+		gzclose(f);
+		continueRemovalThread();
+		return -1;
+	}
 	gzread(f, gpufP, sizeof(GPUFreeze_t));
 	gpuPtr->freeze(0, gpufP);
 	free(gpufP);
@@ -758,7 +782,19 @@ int LoadState() {
 
 	// spu
 	gzread(f, &Size, 4);
+	// Size comes straight from the savestate file -- a corrupted/foreign
+	// file could hand us a bogus or negative value here.
+	if (Size <= 0 || Size > 16 * 1024 * 1024) {
+		gzclose(f);
+		continueRemovalThread();
+		return -1;
+	}
 	spufP = (SPUFreeze_t *) malloc (Size);
+	if (!spufP) {
+		gzclose(f);
+		continueRemovalThread();
+		return -1;
+	}
 	gzread(f, spufP, Size);
 	SPU_freeze(0, spufP, psxRegs.cycle);
 	free(spufP);
