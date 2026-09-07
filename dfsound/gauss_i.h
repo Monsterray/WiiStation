@@ -49,7 +49,13 @@ for(0) + for(256) + rev(256) + rev(0)
 
 
 // Mednafen's table (PSX) 99-100%
-const int gauss[]={
+// short, not int: every value here is either a small positive coefficient
+// or the -1 sentinel (0xffffffff truncates identically as a short) --
+// halves this table's footprint (4KB -> 2KB), and it's read once per
+// output sample per active channel when Gaussian interpolation is picked
+// (the higher-quality option in-game), so the smaller footprint means
+// fewer L1 cache lines touched on every one of those lookups.
+const short gauss[]={
 	0x12c7, 0x59b3, 0x1307, 0xffffffff, 
 	0x1288, 0x59b2, 0x1347, 0xffffffff, 
 	0x1249, 0x59b0, 0x1388, 0xffffffff, 
