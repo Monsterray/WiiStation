@@ -17,13 +17,17 @@
  */
 
 #include <stdlib.h>
+#include <string.h>
 #include <SDL/SDL.h>
 #include "out.h"
 #include "../coredebug.h"
 #include "../Gamecube/DEBUG.h"
 #include "../psxcommon.h"
 
-#define BUFFER_SIZE        22050
+// ~500ms at 44.1kHz stereo (doubled from the original ~250ms) -- gives the
+// ring buffer more headroom to absorb real-time jitter (frame-pacing
+// stalls, disc I/O) before sdl_feed() has to start dropping samples.
+#define BUFFER_SIZE        44100
 //#define BUFFER_SIZE        12000
 
 short            *pSndBuffer = NULL;
@@ -66,6 +70,16 @@ static void SOUND_FillAudio(void *unused, Uint8 *stream, int len) {
         *p++ = lastSampleR;
         sposTmp += SINC;
         --len;
+    }
+
+    // Ring buffer ran dry before satisfying the full request -- SDL does
+    // not guarantee `stream` starts zeroed, so without this the tail would
+    // play back whatever was previously in that memory (an audible pop).
+    // Left un-advanced: sposTmp/lastSample* deliberately aren't touched
+    // here, so the resampler picks back up exactly where it left off once
+    // real data is available again, instead of skipping ahead over the gap.
+    if (len > 0) {
+        memset(p, 0, len * 2 * sizeof(int16_t));
     }
 
     #ifdef SHOW_DEBUG
