@@ -621,35 +621,21 @@ static unsigned long timeGetTime()
 
 static void FrameCap (void)
 {
-    static unsigned long curticks, lastticks, _ticks_since_last_update;
+    static unsigned long lastticks;
     static unsigned long TicksToWait = 0;
+    BOOL Waiting = TRUE;
 
-    curticks = timeGetTime();
-    _ticks_since_last_update = curticks - lastticks;
-
-    if ((_ticks_since_last_update > TicksToWait) ||
-            (curticks <lastticks))
+    while (Waiting)
     {
-        lastticks = curticks;
-
-        if ((_ticks_since_last_update-TicksToWait) > gc_rearmed_cbs.gpu_peops.dwFrameRateTicks)
-            TicksToWait = 0;
-        else TicksToWait = gc_rearmed_cbs.gpu_peops.dwFrameRateTicks - (_ticks_since_last_update - TicksToWait);
-    }
-    else
-    {
-        BOOL Waiting = TRUE;
-        while (Waiting)
+        unsigned long curticks, _ticks_since_last_update;
+        curticks = timeGetTime();
+        _ticks_since_last_update = curticks - lastticks;
+        if ((_ticks_since_last_update > TicksToWait) ||
+                (curticks < lastticks))
         {
-            curticks = timeGetTime();
-            _ticks_since_last_update = curticks - lastticks;
-            if ((_ticks_since_last_update > TicksToWait) ||
-                    (curticks < lastticks))
-            {
-                Waiting = FALSE;
-                lastticks = curticks;
-                TicksToWait = gc_rearmed_cbs.gpu_peops.dwFrameRateTicks;
-            }
+            Waiting = FALSE;
+            lastticks = curticks;
+            TicksToWait = gc_rearmed_cbs.gpu_peops.dwFrameRateTicks;
         }
     }
 }
