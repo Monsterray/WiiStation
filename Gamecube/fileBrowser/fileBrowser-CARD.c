@@ -138,16 +138,20 @@ int fileBrowser_CARD_writeFile(fileBrowser_file* file, void* buffer, unsigned in
 	  CardStat.banner_fmt = 0;
 	  CardStat.icon_addr = 0x40;
 	  tmpBuffer = memalign(32,newLength);
-	  //memset(tmpBuffer,0,newLength);
-	  strcpy(tmpBuffer,ctime (&gc_time));
-	  strcpy(tmpBuffer+0x20,file->name);
-	  memcpy(tmpBuffer+0x40,CARDIcon,sizeof(CARDIcon));       // copy icon
-	  memcpy(tmpBuffer+0x40+sizeof(CARDIcon),buffer,length);  // copy file data
-	  //if space remaining, set to zero
-	  unsigned int endoffset = 0x40+sizeof(CARDIcon)+length;
-	  if(newLength > endoffset)
-	    memset(tmpBuffer+endoffset,0,newLength-endoffset);
-	  status = CARD_SetStatus(slot,CardFile.filenum,&CardStat);
+	  if (tmpBuffer != NULL) {
+	    //memset(tmpBuffer,0,newLength);
+	    strcpy(tmpBuffer,ctime (&gc_time));
+	    strcpy(tmpBuffer+0x20,file->name);
+	    memcpy(tmpBuffer+0x40,CARDIcon,sizeof(CARDIcon));       // copy icon
+	    memcpy(tmpBuffer+0x40+sizeof(CARDIcon),buffer,length);  // copy file data
+	    //if space remaining, set to zero
+	    unsigned int endoffset = 0x40+sizeof(CARDIcon)+length;
+	    if(newLength > endoffset)
+	      memset(tmpBuffer+endoffset,0,newLength-endoffset);
+	    status = CARD_SetStatus(slot,CardFile.filenum,&CardStat);
+	  } else {
+	    status = CARD_ERROR_NOFILE;
+	  }
   }
   		
 	if(status == CARD_ERROR_READY) {

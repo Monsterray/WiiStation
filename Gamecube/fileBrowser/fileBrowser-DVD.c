@@ -64,6 +64,7 @@ int fileBrowser_DVD_readDir(fileBrowser_file* ffile, fileBrowser_file** dir){
 	
 	// Convert the DVD "file" data to fileBrowser_files
 	*dir = malloc( num_entries * sizeof(fileBrowser_file) );
+	if (*dir == NULL) return FILE_BROWSER_ERROR;
 	int i;
 	for(i=0; i<num_entries; ++i){
 		strcpy( (*dir)[i].name, &DVDToc.file[i].name[0] );
