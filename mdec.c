@@ -601,11 +601,18 @@ void psxDma1(u32 adr, u32 bcr, u32 chcr) {
 		/* there is some partial block pending ? */
 		if(mdec.block_buffer_pos != 0) {
 			int n = mdec.block_buffer - mdec.block_buffer_pos + SIZE_OF_16B_BLOCK;
-			/* TODO: check if partial block do not  larger than size */
-			memcpy(image, mdec.block_buffer_pos, n);
-			image += n;
-			size -= n;
-			mdec.block_buffer_pos = 0;
+			if (n > size) {
+				/* this transfer doesn't have enough room to finish the
+				 * pending block -- copy what fits and stay pending */
+				memcpy(image, mdec.block_buffer_pos, size);
+				mdec.block_buffer_pos += size;
+				size = 0;
+			} else {
+				memcpy(image, mdec.block_buffer_pos, n);
+				image += n;
+				size -= n;
+				mdec.block_buffer_pos = 0;
+			}
 		}
 
 		while(size >= SIZE_OF_16B_BLOCK) {
@@ -630,11 +637,18 @@ void psxDma1(u32 adr, u32 bcr, u32 chcr) {
 		/* there is some partial block pending ? */
 		if(mdec.block_buffer_pos != 0) {
 			int n = mdec.block_buffer - mdec.block_buffer_pos + SIZE_OF_24B_BLOCK;
-			/* TODO: check if partial block do not  larger than size */
-			memcpy(image, mdec.block_buffer_pos, n);
-			image += n;
-			size -= n;
-			mdec.block_buffer_pos = 0;
+			if (n > size) {
+				/* this transfer doesn't have enough room to finish the
+				 * pending block -- copy what fits and stay pending */
+				memcpy(image, mdec.block_buffer_pos, size);
+				mdec.block_buffer_pos += size;
+				size = 0;
+			} else {
+				memcpy(image, mdec.block_buffer_pos, n);
+				image += n;
+				size -= n;
+				mdec.block_buffer_pos = 0;
+			}
 		}
 
 		while(size >= SIZE_OF_24B_BLOCK) {
