@@ -33,6 +33,16 @@
 #define BUFFER_SIZE        22050
 //#define BUFFER_SIZE        12000
 
+// sdl_busy()'s operating point kept as its own literal, deliberately NOT
+// derived from BUFFER_SIZE: the capacity (ring-buffer/overflow headroom)
+// and the catch-up target (steady-state latency) are two different
+// concerns that used to be the same constant (BUFFER_SIZE/2) -- that's
+// exactly what caused the latency regression above. If BUFFER_SIZE ever
+// needs to grow again for overflow headroom, this stays fixed and the
+// operating latency won't silently move with it. Set to match the
+// current BUFFER_SIZE/2 (11025) so behavior is unchanged by this split.
+#define BUSY_TARGET_SAMPLES 11025
+
 short            *pSndBuffer = NULL;
 volatile int    iReadPos = 0, iWritePos = 0;
 static int sposTmp = 0x10000L;
@@ -159,7 +169,7 @@ static int sdl_busy(void) {
     size = iReadPos - iWritePos;
     if (size <= 0) size += BUFFER_SIZE;
 
-    if (size < BUFFER_SIZE / 2) {
+    if (size < BUSY_TARGET_SAMPLES) {
         #ifdef SHOW_DEBUG
         //sprintf(txtbuffer, "sdl_busy size = %d\n", size);
         //DEBUG_print(txtbuffer, DBG_SPU1);
