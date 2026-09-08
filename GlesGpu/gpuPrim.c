@@ -864,15 +864,6 @@ void SetScanTrans ( void )                             // blending for scan line
 // Set several rendering stuff including blending
 ////////////////////////////////////////////////////////////////////////
 
-// For ubOpaqueDraw
-//static void SetZMask3O ( void )
-//{
-//    if ( iUseMask && DrawSemiTrans && !iSetMask )
-//    {
-//        vertex[0].z = vertex[1].z = vertex[2].z = gl_z;
-//        gl_z += 0.00004f;
-//    }
-//}
 
 // For PolyFT3 PolyGT3
 static void SetZMask3 ( void )
@@ -910,15 +901,6 @@ static void SetZMask3NT ( void )
 
 ////////////////////////////////////////////////////////////////////////
 
-// For ubOpaqueDraw
-//static void SetZMask4O ( void )
-//{
-//    if ( iUseMask && DrawSemiTrans && !iSetMask )
-//    {
-//        vertex[0].z = vertex[1].z = vertex[2].z = vertex[3].z = gl_z;
-//        gl_z += 0.00004f;
-//    }
-//}
 
 // For PolyFT4 PolyGT4
 static void SetZMask4 ( void )
@@ -1079,19 +1061,6 @@ static void SetRenderMode ( unsigned int DrawAttributes, BOOL bSCol )
     }
 }
 
-////////////////////////////////////////////////////////////////////////
-// Set Opaque multipass color
-////////////////////////////////////////////////////////////////////////
-
-//static void SetOpaqueColor ( unsigned int DrawAttributes )
-//{
-//    if ( bDrawNonShaded ) return;                         // no shading? bye
-//
-//    DrawAttributes = DoubleBGR2RGB ( DrawAttributes );    // multipass is just half color, so double it on opaque pass
-////vertex[0].c.lcol=DrawAttributes|0xff000000;
-//    PUTLE32 ( &vertex[0].c.lcol, DrawAttributes | 0xff000000 );
-//    SETCOL ( vertex[0] );                                 // set color
-//}
 
 ////////////////////////////////////////////////////////////////////////
 // Fucking stupid screen coord checking
@@ -1581,6 +1550,10 @@ int UploadScreen ( int Position )
 {
     short x, y, YStep, XStep, U, s, UStep, ux[4], vy[4];
     short xa, xb, ya, yb;
+    uint32_t uploadMapId;
+    int drawnBeforeUpload;
+    int externalRebuildUpload;
+    int externalRebuildComplete;
 
     if ( xrUploadArea.x0 > 1023 ) xrUploadArea.x0 = 1023;
     if ( xrUploadArea.x1 > 1024 ) xrUploadArea.x1 = 1024;
@@ -1589,6 +1562,34 @@ int UploadScreen ( int Position )
 
     if ( xrUploadArea.x0 == xrUploadArea.x1 ) return 0;
     if ( xrUploadArea.y0 == xrUploadArea.y1 ) return 0;
+
+    uploadMapId = ResolveUploadMapId(Position);
+    drawnBeforeUpload = iDrawnSomething;
+    externalRebuildComplete = FALSE;
+    externalRebuildUpload =
+        ReadbackEnabled() && Position == FALSE &&
+        !PSXDisplay.RGB24 && !(STATUSREG & GPUSTATUS_RGB24) &&
+        uploadMapId != INVALID_MAP_ID &&
+        uploadMapId != g_activeMap.map_id;
+#ifdef DISP_DEBUG
+    sprintf(txtbuffer,
+            "VRB UP pos=%d rgb=%d ext=%d uploadMap=%u active=%u prevId=%u "
+            "prevRect=%d,%d-%d,%d activeRect=%d,%d-%d,%d\r\n",
+            Position, PSXDisplay.RGB24, externalRebuildUpload,
+            uploadMapId, g_activeMap.map_id, g_prevMapId,
+            PreviousPSXDisplay.DisplayPosition.x,
+            PreviousPSXDisplay.DisplayPosition.y,
+            PreviousPSXDisplay.DisplayEnd.x,
+            PreviousPSXDisplay.DisplayEnd.y,
+            g_activeMap.vram_x0, g_activeMap.vram_y0,
+            g_activeMap.vram_x1, g_activeMap.vram_y1);
+    writeLogFile(txtbuffer);
+#endif
+    if (uploadMapId == INVALID_MAP_ID)
+    {
+        g_untrackedEfbWrite = TRUE;
+        SetEfbHazard();
+    }
 
     if (PSXDisplay.Disabled && iOffscreenDrawing < 4)
     {
@@ -1655,10 +1656,10 @@ int UploadScreen ( int Position )
         }
 
         // VAGRANT STORY For GX gpu fix
-        if ((dwActFixes & AUTO_FIX_NO_SWAP_BUF) && (xrUploadArea.x1 - xrUploadArea.x0) == 511 && (xrUploadArea.y1 - xrUploadArea.y0) == 480)
-        {
-            canSwapFrameBuf = FALSE;
-        }
+//        if ((dwActFixes & AUTO_FIX_NO_SWAP_BUF) && (xrUploadArea.x1 - xrUploadArea.x0) == 511 && (xrUploadArea.y1 - xrUploadArea.y0) == 480)
+//        {
+//            canClearFrameBuf = FALSE;
+//        }
     }
 
     iDrawnSomething |= 0x2;
@@ -1697,6 +1698,37 @@ int UploadScreen ( int Position )
     yb = xrUploadArea.y1;
     xa = xrUploadArea.x0;
     xb = xrUploadArea.x1;
+
+#ifdef DISP_DEBUG
+    {
+        unsigned int sourceNonZero = 0;
+        unsigned int sourceHash = 2166136261u;
+        int sourceBytesPerRow = (xb - xa) * (PSXDisplay.RGB24 ? 3 : 2);
+        int sourceY;
+
+        for (sourceY = ya; sourceY < yb; sourceY++)
+        {
+            const unsigned char *source =
+                (const unsigned char *)&psxVuw[(sourceY << 10) + xa];
+            int sourceIndex;
+
+            for (sourceIndex = 0; sourceIndex < sourceBytesPerRow; sourceIndex++)
+            {
+                unsigned int value = source[sourceIndex];
+
+                if (value != 0)
+                    sourceNonZero++;
+                sourceHash = (sourceHash ^ value) * 16777619u;
+            }
+        }
+        sprintf(txtbuffer, "UpSrc rgb=%d rect=%d,%d-%d,%d nz=%u hash=%08X\r\n",
+                PSXDisplay.RGB24, xa, ya, xb, yb,
+                sourceNonZero, sourceHash);
+        writeLogFile(txtbuffer);
+        if (!PSXDisplay.RGB24)
+            DebugLogVramHalf("Upload", xa, ya, xb - xa, yb - ya);
+    }
+#endif
 
     for ( y = ya; y <= yb; y += YStep )                   // loop y
     {
@@ -1746,7 +1778,83 @@ int UploadScreen ( int Position )
             offsetScreenUpload ( Position );
             assignTextureVRAMWrite();
 
+#ifdef DISP_DEBUG
+            {
+                const unsigned char *textureBytes = texturepart;
+                unsigned int textureNonZero = 0;
+                unsigned int textureHash = 2166136261u;
+                int textureWidth = xrMovieArea.x1 - xrMovieArea.x0;
+                int textureHeight = xrMovieArea.y1 - xrMovieArea.y0;
+                int textureSize = textureWidth * textureHeight * 4;
+                int textureIndex;
+
+                for (textureIndex = 0; textureIndex < textureSize; textureIndex++)
+                {
+                    unsigned int value = textureBytes[textureIndex];
+
+                    if (value != 0)
+                        textureNonZero++;
+                    textureHash = (textureHash ^ value) * 16777619u;
+                }
+                sprintf(txtbuffer,
+                        "UpTex part=%d,%d-%d,%d id=%u type=%d dim=%dx%d nz=%u hash=%08X\r\n",
+                        lx0, ly0, lx2, ly2, gTexName, gl_ux[8],
+                        textureWidth, textureHeight,
+                        textureNonZero, textureHash);
+                writeLogFile(txtbuffer);
+            }
+#endif
+
+            {
+                int ctxOk = BeginEfbDrawContext();
+                if (ctxOk && externalRebuildUpload)
+                {
+                    PreparePreviousRebuildCandidate(uploadMapId);
+                    TopEfbContext()->externalRebuild = 1;
+                }
+                SetEfbDrawContextRect(xrMovieArea.x0, xrMovieArea.y0,
+                                      xrMovieArea.x1, xrMovieArea.y1,
+                                      uploadMapId);
+                if (ctxOk)
+                    TopEfbContext()->coverage = EFB_TILE_PARTIAL;
+            }
             glPRIMdrawTexturedQuad ( &vertex[0], 1 );
+            {
+                EfbDrawContext *uploadCtx = TopEfbContext();
+                if (uploadCtx && uploadCtx->rectSet &&
+                    uploadCtx->lastSeq != 0)
+                {
+                    if (uploadCtx->externalRebuild)
+                    {
+                        int completed = FinishPreviousRebuildChunk(
+                            uploadCtx->lastSeq,
+                            xrMovieArea.x0, xrMovieArea.y0,
+                            xrMovieArea.x1, xrMovieArea.y1);
+                        if (completed)
+                            externalRebuildComplete = TRUE;
+#ifdef DISP_DEBUG
+                        if (completed)
+                        {
+                            sprintf(txtbuffer,
+                                    "VRB REBUILD ready map=%u rect=%d,%d-%d,%d\r\n",
+                                    uploadMapId,
+                                    PreviousPSXDisplay.DisplayPosition.x,
+                                    PreviousPSXDisplay.DisplayPosition.y,
+                                    PreviousPSXDisplay.DisplayEnd.x,
+                                    PreviousPSXDisplay.DisplayEnd.y);
+                            writeLogFile(txtbuffer);
+                        }
+#endif
+                    }
+                    else if (uploadMapId == g_activeMap.map_id)
+                    {
+                        MarkEfbTilesUpload(uploadCtx->lastSeq,
+                                           xrMovieArea.x0, xrMovieArea.y0,
+                                           xrMovieArea.x1, xrMovieArea.y1);
+                    }
+                }
+                EndEfbDrawContext();
+            }
 
             U += UStep;
         }
@@ -1756,6 +1864,27 @@ int UploadScreen ( int Position )
     bDisplayNotSet = TRUE;
     noNeedMulConstColor &= ~0x2;
     glNoNeedMulConstColor( noNeedMulConstColor );
+
+    /* Do not present a partially reconstructed page.  Once the A0 chunks
+     * cover the complete display map, however, this is also a valid visible
+     * frame and must retain the upload draw bit for the following page flip. */
+    if (externalRebuildUpload)
+    {
+        iDrawnSomething = drawnBeforeUpload;
+        if (externalRebuildComplete ||
+            (g_rebuildCandidate.valid && g_rebuildCandidate.complete))
+            iDrawnSomething |= 0x2;
+#ifdef DISP_DEBUG
+        sprintf(txtbuffer,
+                "VRB REBUILD %s map=%u complete=%d drawn=%x\r\n",
+                (g_rebuildCandidate.valid && g_rebuildCandidate.complete) ?
+                    "visible" : "hidden",
+                uploadMapId,
+                g_rebuildCandidate.valid && g_rebuildCandidate.complete,
+                iDrawnSomething);
+        writeLogFile(txtbuffer);
+#endif
+    }
 
     #if defined(DISP_DEBUG)
     sprintf ( txtbuffer, "UploadScreen end\r\n");
@@ -1873,7 +2002,6 @@ static void cmdTexturePage ( unsigned char * baseAddr )
     writeLogFile(txtbuffer);
     #endif // DISP_DEBUG
     uint32_t gdata = GETLE32 ( ( uint32_t* ) baseAddr );
-    drawTexturePage = TRUE;
 
     usMirror = gdata & 0x3000;
     STATUSREG &= ~0x07ff;                                 // Clear the necessary bits
@@ -2187,6 +2315,18 @@ static void cmdDrawOffset ( unsigned char * baseAddr )
 #endif // DISP_DEBUG
 }
 
+#define CHK_FPS_DISP1(x, y, w, h) { \
+    if (showFPSonScreen == 1 && canShowFps == FALSE \
+        && x <= 10 && y <= 35 && (x + w) >= 160 && (y + h) >= 50) \
+        canShowFps = TRUE; \
+}
+
+#define CHK_FPS_DISP2(x0, y0, x1, y1) { \
+    if (showFPSonScreen == 1 && canShowFps == FALSE \
+        && x0 <= 10 && y0 <= 35 && x1 >= 160 && y1 >= 50) \
+        canShowFps = TRUE; \
+}
+
 ////////////////////////////////////////////////////////////////////////
 // cmd: load image to vram
 ////////////////////////////////////////////////////////////////////////
@@ -2266,6 +2406,7 @@ static void PrepareRGB24Upload ( void )
         if (VRAMWrite.x + VRAMWrite.Width >= PreviousPSXDisplay.DisplayEnd.x)
         {
             RGB24Uploaded |= 0x1;
+            canClearFrameBuf = TRUE;
         }
         RGB24Uploaded |= 0x4;
     }
@@ -2278,9 +2419,12 @@ static void PrepareRGB24Upload ( void )
         if (VRAMWrite.x + VRAMWrite.Width >= PSXDisplay.DisplayEnd.x)
         {
             RGB24Uploaded |= 0x2;
+            canClearFrameBuf = TRUE;
         }
         RGB24Uploaded |= 0x8;
     }
+
+    canShowFps = TRUE;
     #if defined(DISP_DEBUG)
     sprintf ( txtbuffer, "PrepareRGB24Upload %x\r\n", RGB24Uploaded);
     writeLogFile ( txtbuffer );
@@ -2317,57 +2461,43 @@ void CheckWriteUpdate()
         return;
     }
 
-    // The current frame does not have the cmdTexturePage command,
-    // so the data uploaded by command primLoadImage does not need to be manually displayed on the screen
-//    if (drawTexturePage == FALSE)
-//    {
-//        if ((VRAMWrite.Width != screenWidth || VRAMWrite.Height != screenHeight)
-//            && (VRAMWrite.y * 2 + VRAMWrite.Height) != screenHeight)
-//        {
-//            // Cancel all operations except during animation playback.
-//            #if defined(DISP_DEBUG)
-//            sprintf ( txtbuffer, "No drawTexturePage\r\n" );
-//            writeLogFile ( txtbuffer );
-//            #endif // DISP_DEBUG
-//            return;
-//        }
-//    }
+    CHK_FPS_DISP1(VRAMWrite.x, VRAMWrite.y, VRAMWrite.Width, VRAMWrite.Height);
 
     int uploaded = 0;
-    if ( !PSXDisplay.InterlacedTest &&
-            CheckAgainstScreen ( VRAMWrite.x, VRAMWrite.y, VRAMWrite.Width, VRAMWrite.Height ) )
+    #if defined(DISP_DEBUG)
+    if (skipPreviousDisplayCheckOnce)
     {
+        sprintf(txtbuffer, "Skip CheckAgainstScreen once\r\n");
+        writeLogFile(txtbuffer);
+    }
+    #endif // DISP_DEBUG
+
+    //if ( !PSXDisplay.InterlacedTest && ((skipPreviousDisplayCheckOnce == FALSE && CheckAgainstScreen ( VRAMWrite.x, VRAMWrite.y, VRAMWrite.Width, VRAMWrite.Height ))
+    //                                    || (skipPreviousDisplayCheckOnce == TRUE && CheckAgainstFrontScreen ( VRAMWrite.x, VRAMWrite.y, VRAMWrite.Width, VRAMWrite.Height ))) )
+    if ( !PSXDisplay.InterlacedTest && CheckAgainstScreen ( VRAMWrite.x, VRAMWrite.y, VRAMWrite.Width, VRAMWrite.Height ))
+    {
+        uploaded = UploadScreen ( FALSE );
+
+        if (uploaded)
         {
-            //if ( dwActFixes & 0x800 ) return;
-
-//            if ( bRenderFrontBuffer )
-//            {
-//                updateFrontDisplayGl();
-//            }
-
-            uploaded = UploadScreen ( FALSE );
-
-            //bNeedUploadTest = TRUE;
-            if (uploaded)
-            {
-                needUploadScreen = FALSE;
-                uploadedScreen = FALSE;
-            }
-            else
-            {
-                // need upload screen ?
-                needUploadScreen = TRUE;
-                uploadedScreen = FALSE;
-                uploadAreaX1 = xrUploadArea.x0;
-                uploadAreaX2 = xrUploadArea.x1;
-                uploadAreaY1 = xrUploadArea.y0;
-                uploadAreaY2 = xrUploadArea.y1;
-                #if defined(DISP_DEBUG)
-                sprintf ( txtbuffer, "needUploadScreen\r\n" );
-                writeLogFile ( txtbuffer );
-                #endif // DISP_DEBUG
-            }
+            needUploadScreen = FALSE;
+            uploadedScreen = FALSE;
         }
+        else
+        {
+            // need upload screen ?
+            needUploadScreen = TRUE;
+            uploadedScreen = FALSE;
+            uploadAreaX1 = xrUploadArea.x0;
+            uploadAreaX2 = xrUploadArea.x1;
+            uploadAreaY1 = xrUploadArea.y0;
+            uploadAreaY2 = xrUploadArea.y1;
+            #if defined(DISP_DEBUG)
+            sprintf ( txtbuffer, "needUploadScreen\r\n" );
+            writeLogFile ( txtbuffer );
+            #endif // DISP_DEBUG
+        }
+
     }
     //else if ( iOffscreenDrawing )
     else if ( 1 )
@@ -2447,6 +2577,8 @@ void CheckWriteUpdate()
         }
     }
 
+    skipPreviousDisplayCheckOnce = FALSE;
+
 //    if (uploaded == 0 &&
 //        ((VRAMWrite.y + VRAMWrite.Height) <= screenY1)
 //        && (VRAMWrite.y >= screenY)
@@ -2470,6 +2602,7 @@ void CheckWriteUpdate()
 static void primStoreImage ( unsigned char * baseAddr )
 {
     unsigned short *sgpuData = ( ( unsigned short * ) baseAddr );
+    MappingKind readMapping;
 
     VRAMRead.x      = GETLEs16 ( &sgpuData[2] ) & 0x03ff;
     VRAMRead.y      = GETLEs16 ( &sgpuData[3] ) &iGPUHeightMask;
@@ -2486,6 +2619,29 @@ static void primStoreImage ( unsigned char * baseAddr )
     VRAMRead.ColsRemaining = VRAMRead.Height;
 
     iDataReadMode = DR_VRAMTRANSFER;
+    g_readbackState = READBACK_PENDING;
+
+    readMapping = ClassifyReadMapping(VRAMRead.x, VRAMRead.y,
+                                      VRAMRead.Width, VRAMRead.Height);
+    if (readMapping == MAPPING_PREVIOUS)
+        ResolveCompletedRebuildForRead(VRAMRead.x, VRAMRead.y,
+                                       VRAMRead.Width, VRAMRead.Height);
+
+    #ifdef DISP_DEBUG
+    DebugLogC0Selection(VRAMRead.x, VRAMRead.y,
+                        VRAMRead.Width, VRAMRead.Height,
+                        readMapping);
+    sprintf(txtbuffer,
+            "VRB C0 kind=%d enabled=%d fixes=%08x rect=%d,%d %dx%d "
+            "map=%u mv=%d cv=%d dirty=%d full=%d partial=%d\r\n",
+            readMapping, ReadbackEnabled(), dwActFixes,
+            VRAMRead.x, VRAMRead.y, VRAMRead.Width, VRAMRead.Height,
+            g_activeMap.map_id, g_activeMap.map_valid,
+            g_activeMap.content_valid, g_activeMap.content_dirty,
+            CountEfbTiles(EFB_TILE_FULL),
+            CountEfbTiles(EFB_TILE_PARTIAL));
+    writeLogFile(txtbuffer);
+    #endif
 
     STATUSREG |= GPUSTATUS_READYFORVRAM;
 }
@@ -2494,16 +2650,11 @@ static void primStoreImage ( unsigned char * baseAddr )
 // cmd: blkfill - NO primitive! Doesn't care about draw areas...
 ////////////////////////////////////////////////////////////////////////
 
-#define clearFillArea(x, y, wi, he) { \
-    startY = y; \
-    for (; startY < y + he; startY++) \
-    { \
-        memset(psxVuw + (startY << 10) + x, 0, wi * 2); \
-    } \
-}
 
-static inline void BlkFillArea(short x0, short y0, short width, short height)
+static inline void BlkFillArea(short x0, short y0, short width, short height, unsigned short fillCol)
 {
+    int x, y;
+
     if ( width <= 0 ) return;
     if ( height <= 0 ) return;
 
@@ -2516,10 +2667,25 @@ static inline void BlkFillArea(short x0, short y0, short width, short height)
     if ( (y0 + height) > 512 ) height = 512 - y0;
     if ( (x0 + width) > 1024 ) width = 1024 - x0;
 
-    // clear area
-    int startY;
     InvalidateTextureArea(x0, y0, width, height);
-    clearFillArea(x0, y0, width, height);
+
+    // clear area
+    if (fillCol == 0)
+    {
+        for (y = y0; y < y0 + height; y++)
+        {
+            memset(psxVuw + (y << 10) + x0, 0, width * 2);
+        }
+    }
+    else
+    {
+        for (y = y0; y < y0 + height; y++)
+        {
+            unsigned short *ptr = psxVuw + (y << 10) + x0;
+            for (x = 0; x < width; x++)
+                PUTLE16(ptr++, fillCol);
+        }
+    }
 }
 
 static void primBlkFill ( unsigned char * baseAddr )
@@ -2528,6 +2694,8 @@ static void primBlkFill ( unsigned char * baseAddr )
     short *sgpuData = ( ( short * ) baseAddr );
 
     iDrawnSomething |= 0x4;
+    uint64_t seq = BeginCommandWrite();
+    int ctxOk;
 
     // https://psx-spx.consoledev.net/graphicsprocessingunitgpu/#masking-and-rounding-for-fill-command-parameters
     sprtX = GETLEs16 ( &sgpuData[2] ) & 0x3f0;
@@ -2547,13 +2715,15 @@ static void primBlkFill ( unsigned char * baseAddr )
         return;
     }
 
-    sprtW = ( sprtW + 15 ) & ~15;
+    sprtW = (sprtW + 0x0F) & ~0x0F;
 
     // x and y of start
     ly0 = ly1 = sprtY;
     ly2 = ly3 = ( sprtY + sprtH );
     lx0 = lx3 = sprtX;
     lx1 = lx2 = ( sprtX + sprtW );
+
+    CHK_FPS_DISP1(sprtX, sprtY, sprtW, sprtH);
 
     offsetBlk();
 
@@ -2563,7 +2733,7 @@ static void primBlkFill ( unsigned char * baseAddr )
     writeLogFile(txtbuffer);
     logType = 1;
     sprintf ( txtbuffer, "primBlkFill %d %d %d %d %08x %d %d %d %d\r\n",
-             sprtX, sprtY, sprtW, sprtH, gpuData[0],
+             sprtX, sprtY, sprtW, sprtH, gpuData[0] & ~0xFF,
              screenX, screenY, screenX1, screenY1);
     DEBUG_print ( txtbuffer, DBG_SPU3 );
     writeLogFile(txtbuffer);
@@ -2571,64 +2741,63 @@ static void primBlkFill ( unsigned char * baseAddr )
     logType = 0;
     #endif // DISP_DEBUG
 
-    //mmm... will clean all stuff, also if not all _should_ be cleaned...
-//if (IsInsideNextScreen(sprtX, sprtY, sprtW, sprtH))
-// try this:
-    if ( IsCompleteInsideNextScreen ( sprtX, sprtY, sprtW, sprtH ) )
+    // mmm... will clean all stuff, also if not all _should_ be cleaned...
+    BOOL clearNext = IsCompleteInsideNextScreen(sprtX, sprtY, sprtW, sprtH);
+    BOOL clearCurrent = CLEAR_SCREEN(sprtX, sprtY, sprtX + sprtW, sprtY + sprtH);
+
+    ctxOk = BeginEfbDrawContext();
+    if (ctxOk)
+    {
+        TopEfbContext()->fixedSeq = seq;
+        SetEfbDrawContextRect(sprtX, sprtY,
+                              sprtX + sprtW, sprtY + sprtH,
+                              g_activeMap.map_id);
+        if (clearCurrent)
+        {
+            TopEfbContext()->coverage = EFB_TILE_FULL;
+            TopEfbContext()->presentationRebuild = 1;
+        }
+        else
+            TopEfbContext()->coverage = EFB_TILE_PARTIAL;
+    }
+
+    if (clearNext)
     {
         #if defined(DISP_DEBUG) && defined(CMD_LOG_2D)
         sprintf(txtbuffer, "clear Next Screen\r\n");
         writeLogFile(txtbuffer);
         #endif // DISP_DEBUG
-        lClearOnSwapColor = COLOR ( GETLE32 ( &gpuData[0] ) );
+        lClearOnSwapColor = COLOR(GETLE32(&gpuData[0]));
         lClearOnSwap = 1;
-        canSwapFrameBuf = TRUE;
+        canClearFrameBuf = TRUE;
+        canShowFps = TRUE;
     }
-    else
+
+    if (clearCurrent)
     {
         #if defined(DISP_DEBUG) && defined(CMD_LOG_2D)
         sprintf(txtbuffer, "clear Current Screen\r\n");
         writeLogFile(txtbuffer);
         #endif // DISP_DEBUG
-        if (CLEAR_SCREEN(sprtX, sprtY, sprtX + sprtW, sprtY + sprtH))
+
+        needUploadScreen = FALSE;
+        uploadedScreen = FALSE;
+        canShowFps = TRUE;
+
+        // Clear all Screen
+        if ((sprtX + sprtW) >= 1023 && (sprtY + sprtH) >= 511)
         {
-            needUploadScreen = FALSE;
-            uploadedScreen = FALSE;
-            canSwapFrameBuf = TRUE;
-            #if defined(DISP_DEBUG) && defined(CMD_LOG_2D)
-            sprintf(txtbuffer, "CLEAR_SCREEN\r\n");
-            writeLogFile(txtbuffer);
-            #endif // DISP_DEBUG
+            unsigned char g, b, r;
+            r = baseAddr[0];
+            g = baseAddr[1];
+            b = baseAddr[2];
 
-            // Clear all Screen
-            if ((sprtX + sprtW) >= 1023 && (sprtY + sprtH) >= 511)
-            {
-                unsigned char g, b, r;
-                r = baseAddr[0];
-                g = baseAddr[1];
-                b = baseAddr[2];
-
-                glClearColor2 ( r, g, b, 255 );
-                glClear ( uiBufferBits );
-            }
-            else
-            {
-                bDrawTextured     = FALSE;
-                bDrawSmoothShaded = FALSE;
-                SetRenderState ( ( unsigned int ) 0x01000000 );
-                SetRenderMode ( ( unsigned int ) 0x01000000, FALSE );
-                vertex[0].c.lcol = gpuData[0] | 0xFF;
-                SETCOL ( vertex[0] );
-                glPRIMdrawQuad ( &vertex[0] );
-            }
-            gl_z = 0.0f;
+            glClearColor2 ( r, g, b, 255 );
+            glClear ( uiBufferBits );
+            OnEfbClearSubmitted();
         }
         else
         {
-            CheckFullScreenUpload();
-            //CheckClearUploadArea(lx0, ly0, lx1, ly2);
-
-            // Clear part of screen
             bDrawTextured     = FALSE;
             bDrawSmoothShaded = FALSE;
             SetRenderState ( ( unsigned int ) 0x01000000 );
@@ -2637,116 +2806,41 @@ static void primBlkFill ( unsigned char * baseAddr )
             SETCOL ( vertex[0] );
             glPRIMdrawQuad ( &vertex[0] );
         }
+        gl_z = 0.0f;
+    }
+    else if (!clearNext)
+    {
+        #if defined(DISP_DEBUG) && defined(CMD_LOG_2D)
+        sprintf(txtbuffer, "clear Part Screen\r\n");
+        writeLogFile(txtbuffer);
+        #endif // DISP_DEBUG
 
-        // use software blkFill
-        BlkFillArea(sprtX, sprtY, sprtW, sprtH);
+        CheckFullScreenUpload();
+        //CheckClearUploadArea(lx0, ly0, lx1, ly2);
+
+        // Clear part of screen
+        bDrawTextured     = FALSE;
+        bDrawSmoothShaded = FALSE;
+        SetRenderState ( ( unsigned int ) 0x01000000 );
+        SetRenderMode ( ( unsigned int ) 0x01000000, FALSE );
+        vertex[0].c.lcol = gpuData[0] | 0xFF;
+        SETCOL ( vertex[0] );
+        glPRIMdrawQuad ( &vertex[0] );
     }
 
-//    if ( ClipVertexListScreen() )
-//    {
-//        PSXDisplay_t * pd;
-//        if ( PSXDisplay.InterlacedTest ) pd = &PSXDisplay;
-//        else                          pd = &PreviousPSXDisplay;
-//
-//        if ( ( lx0 <= pd->DisplayPosition.x + 16 ) &&
-//                ( ly0 <= pd->DisplayPosition.y + 16 ) &&
-//                ( lx2 >= pd->DisplayEnd.x - 16 ) &&
-//                ( ly2 >= pd->DisplayEnd.y - 16 ) )
-//        {
-//            unsigned char g, b, r;
-//            //r=((unsigned char)RED(GETLE32(&gpuData[0])));
-//            //g=((unsigned char)GREEN(GETLE32(&gpuData[0])));
-//            //b=((unsigned char)BLUE(GETLE32(&gpuData[0])));
-//            r = baseAddr[0];
-//            g = baseAddr[1];
-//            b = baseAddr[2];
-//
-//            //glDisable(GL_SCISSOR_TEST); glError();
-//            glClearColor2 ( r, g, b, 255 );
-//            glError();
-//            glClear ( uiBufferBits );
-//            glError();
-//            gl_z = 0.0f;
-//
-//            if ( GETLE32 ( &gpuData[0] ) != 0x02000000 &&
-//                    ( ly0 > pd->DisplayPosition.y ||
-//                      ly2 < pd->DisplayEnd.y ) )
-//            {
-//                bDrawTextured     = FALSE;
-//                bDrawSmoothShaded = FALSE;
-//                SetRenderState ( ( unsigned int ) 0x01000000 );
-//                SetRenderMode ( ( unsigned int ) 0x01000000, FALSE );
-//                vertex[0].c.lcol = SWAP32_C ( 0xff000000 );
-//                SETCOL ( vertex[0] );
-//                if ( ly0 > pd->DisplayPosition.y )
-//                {
-//                    vertex[0].x = 0;
-//                    vertex[0].y = 0;
-//                    vertex[1].x = pd->DisplayEnd.x - pd->DisplayPosition.x;
-//                    vertex[1].y = 0;
-//                    vertex[2].x = vertex[1].x;
-//                    vertex[2].y = ly0 - pd->DisplayPosition.y;
-//                    vertex[3].x = 0;
-//                    vertex[3].y = vertex[2].y;
-//                    PRIMdrawQuad ( &vertex[0], &vertex[1], &vertex[2], &vertex[3] );
-//                    #if defined(DISP_DEBUG)
-//                    //sprintf ( txtbuffer, "blkFill1_1 %2.0f %2.0f %2.0f %2.0f %2.0f %2.0f %2.0f %2.0f\r\n", vertex[0].x, vertex[0].y, vertex[1].x, vertex[1].y, vertex[2].x, vertex[2].y, vertex[3].x, vertex[3].y );
-//                    sprintf(txtbuffer, "blkFill11 %d %d %d %d %d %d %d %d\r\n", lx0, ly0 , lx1, ly1, lx2, ly2, PSXDisplay.GDrawOffset.x, PSXDisplay.GDrawOffset.y);
-//                    //DEBUG_print ( txtbuffer, DBG_CORE2 );
-//                    writeLogFile(txtbuffer);
-//                    #endif // DISP_DEBUG
-//                }
-//                if ( ly2 < pd->DisplayEnd.y )
-//                {
-//                    vertex[0].x = 0;
-//                    vertex[0].y = ( pd->DisplayEnd.y - pd->DisplayPosition.y ) - ( pd->DisplayEnd.y - ly2 );
-//                    vertex[1].x = pd->DisplayEnd.x - pd->DisplayPosition.x;
-//                    vertex[1].y = vertex[0].y;
-//                    vertex[2].x = vertex[1].x;
-//                    vertex[2].y = pd->DisplayEnd.y;
-//                    vertex[3].x = 0;
-//                    vertex[3].y = vertex[2].y;
-//                    PRIMdrawQuad ( &vertex[0], &vertex[1], &vertex[2], &vertex[3] );
-//                    #if defined(DISP_DEBUG)
-//                    //sprintf ( txtbuffer, "blkFill1_1 %2.0f %2.0f %2.0f %2.0f %2.0f %2.0f %2.0f %2.0f\r\n", vertex[0].x, vertex[0].y, vertex[1].x, vertex[1].y, vertex[2].x, vertex[2].y, vertex[3].x, vertex[3].y );
-//                    sprintf(txtbuffer, "blkFill12 %d %d %d %d %d %d %d %d\r\n", lx0, ly0 , lx1, ly1, lx2, ly2, PSXDisplay.GDrawOffset.x, PSXDisplay.GDrawOffset.y);
-//                    //DEBUG_print ( txtbuffer, DBG_CORE2 );
-//                    writeLogFile(txtbuffer);
-//                    #endif // DISP_DEBUG
-//                }
-//            }
-//            #if defined(DISP_DEBUG)
-//            sprintf(txtbuffer, "blkFill13\r\n");
-//            //DEBUG_print ( txtbuffer, DBG_CORE2 );
-//            writeLogFile(txtbuffer);
-//            #endif // DISP_DEBUG
-//
-//            //glEnable(GL_SCISSOR_TEST); glError();
-//        }
-//        else
-//        {
-//            #if defined(DISP_DEBUG)
-//            //sprintf ( txtbuffer, "blkFill1_1 %2.0f %2.0f %2.0f %2.0f %2.0f %2.0f %2.0f %2.0f\r\n", vertex[0].x, vertex[0].y, vertex[1].x, vertex[1].y, vertex[2].x, vertex[2].y, vertex[3].x, vertex[3].y );
-//            sprintf(txtbuffer, "blkFill14 %d %d %d %d %d %d %d %d\r\n", lx0, ly0 , lx1, ly1, lx2, ly2, PSXDisplay.GDrawOffset.x, PSXDisplay.GDrawOffset.y);
-//            //DEBUG_print ( txtbuffer, DBG_CORE2 );
-//            writeLogFile(txtbuffer);
-//            #endif // DISP_DEBUG
-//            bDrawTextured     = FALSE;
-//            bDrawSmoothShaded = FALSE;
-//            SetRenderState ( ( unsigned int ) 0x01000000 );
-//            SetRenderMode ( ( unsigned int ) 0x01000000, FALSE );
-//            vertex[0].c.lcol = gpuData[0] | SWAP32_C ( 0xff000000 );
-//            SETCOL ( vertex[0] );
-//            //glDisable(GL_SCISSOR_TEST); glError();
-//            PRIMdrawQuad ( &vertex[0], &vertex[1], &vertex[2], &vertex[3] );
-//            //glEnable(GL_SCISSOR_TEST); glError();
-//        }
-//    }
+    if (!clearNext)
+    {
+        // use software blkFill
+        unsigned short fillCol = BGR24to16(GETLE32(&gpuData[0]));
+        BlkFillArea(sprtX, sprtY, sprtW, sprtH, fillCol);
+        MarkCpuVramWriteWithSeq(seq, sprtX, sprtY, sprtW, sprtH);
+#ifdef DISP_DEBUG
+        if (sprtH >= 120)
+            DebugLogVramHalf("BlkFill", sprtX, sprtY, sprtW, sprtH);
+#endif
+    }
 
-    //ClampToPSXScreenOffset( &sprtX, &sprtY, &sprtW, &sprtH);
-    //if ((sprtW == 0) || (sprtH == 0)) return;
-    //InvalidateTextureArea(sprtX, sprtY, sprtW - 1, sprtH - 1);
-    //FillSoftwareArea(sprtX, sprtY, sprtX + sprtW, sprtY + sprtH, BGR24to16(GETLE32 ( &gpuData[0] )));
+    EndEfbDrawContext();
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -2836,6 +2930,26 @@ static void primMoveImage ( unsigned char * baseAddr )
     if ( imageSX <= 0 ) return;
     if ( imageSY <= 0 ) return;
 
+    /* Only DC2's five full-height strip copies are proven to consume GX-only
+     * EFB content.  Applying the read barrier to unrelated 80h commands can
+     * replace CPU-uploaded animation data with a pending EFB snapshot. */
+    if ((dwActFixes & AUTO_FIX_DINO_CRISIS2) &&
+        imageSX == 64 && imageSY == 240 &&
+        imageX1 == 448 && imageY1 == 256 &&
+        imageX0 <= 256 && (imageX0 & 63) == 0 &&
+        (imageY0 == 0 || imageY0 == 256))
+    {
+        MaterializeEfbForVramMove(imageX0, imageY0, imageSX, imageSY);
+    }
+
+#ifdef DISP_DEBUG
+    if (ReadbackEnabled() && imageSY >= 120)
+    {
+        DebugLogVramHalf("MoveSrcPre", imageX0, imageY0, imageSX, imageSY);
+        DebugLogVramHalf("MoveDstPre", imageX1, imageY1, imageSX, imageSY);
+    }
+#endif
+
     if ( ( imageY0 + imageSY ) > iGPUHeight ||
             ( imageX0 + imageSX ) > 1024       ||
             ( imageY1 + imageSY ) > iGPUHeight ||
@@ -2883,6 +2997,16 @@ static void primMoveImage ( unsigned char * baseAddr )
         }
     }
 
+    MarkCpuVramWrite(imageX1, imageY1, imageSX, imageSY);
+
+#ifdef DISP_DEBUG
+    if (ReadbackEnabled() && imageSY >= 120)
+    {
+        DebugLogVramHalf("MoveSrcPost", imageX0, imageY0, imageSX, imageSY);
+        DebugLogVramHalf("MoveDstPost", imageX1, imageY1, imageSX, imageSY);
+    }
+#endif
+
     if ( !PSXDisplay.RGB24 )
     {
         InvalidateTextureArea ( imageX1, imageY1, imageSX - 1, imageSY - 1 );
@@ -2895,8 +3019,10 @@ static void primMoveImage ( unsigned char * baseAddr )
 //            || (screenX == PSXDisplay.DisplayPosition.x && screenY == PSXDisplay.DisplayPosition.y
 //                && screenX1 == PSXDisplay.DisplayEnd.x && screenY1 == PSXDisplay.DisplayEnd.y))
             {
-                needFlipEGL = TRUE;
                 uploaded = UploadScreen ( FALSE );
+                if (uploaded &&
+                    ResolveUploadMapId(FALSE) == g_activeMap.map_id)
+                    needFlipEGL = TRUE;
 
                 //bNeedUploadTest = TRUE;
             }
@@ -2946,7 +3072,8 @@ static void primMoveImage ( unsigned char * baseAddr )
             xrUploadArea.x1 = imageX1 + imageSX;
             xrUploadArea.y1 = imageY1 + imageSY;
             uploaded = UploadScreen ( FALSE );
-            if (uploaded)
+            if (uploaded &&
+                ResolveUploadMapId(FALSE) == g_activeMap.map_id)
             {
                 needFlipEGL = TRUE;
             }
@@ -3011,17 +3138,32 @@ static void primMoveImage ( unsigned char * baseAddr )
 // cmd: draw free-size Tile
 ////////////////////////////////////////////////////////////////////////
 
-#define clearTitleArea(x, y, wi, he) { \
-    startY = y; \
-    for (; startY < y + he; startY++) \
-    { \
-        unsigned short *ptr = psxVuw + (startY << 10) + x; \
-        tmpWid = wi; \
-        while (tmpWid-- > 0) \
-        { \
-            *ptr++ = colTmp; \
-        } \
-    } \
+static inline BOOL ShouldDoSoftTitleFill(short x0, short y0, short w, short h)
+{
+    //if (!(dwActFixes & AUTO_FIX_NEED_SOFT_TITLE))
+    //    return FALSE;
+
+    if (PSXDisplay.RGB24)
+        return FALSE;
+
+    if (w <= 0 || h <= 0)
+        return FALSE;
+
+    if (DrawSemiTrans || bCheckMask)
+        return FALSE;
+
+    if ((w == 1 && h == 1) || (w == 8 && h == 8))
+        return FALSE;
+
+    //if (w < 48 || h < 12)
+    //    return FALSE;
+
+    if (x0 >= PSXDisplay.DrawArea.x1 || y0 >= PSXDisplay.DrawArea.y1)
+        return FALSE;
+    if ((x0 + w) <= PSXDisplay.DrawArea.x0 || (y0 + h) <= PSXDisplay.DrawArea.y0)
+        return FALSE;
+
+    return TRUE;
 }
 
 static inline void TitleFillArea(short x0, short y0, short width, short height, unsigned short colInfo)
@@ -3034,31 +3176,37 @@ static inline void TitleFillArea(short x0, short y0, short width, short height, 
         iCheat ^= 1;
     }
 
-    if (!(dwActFixes & AUTO_FIX_NEED_SOFT_TITLE))
-    {
-        return;
-    }
+    int x1 = x0 + width;
+    int y1 = y0 + height;
 
-    if ( width <= 0 ) return;
-    if ( height <= 0 ) return;
-
-    if ( y0 >= 512 )   return;
-    if ( x0 >= 1024 )   return;
-
-    if (y0 < 0) y0 = 0;
     if (x0 < 0) x0 = 0;
+    if (y0 < 0) y0 = 0;
+    if (x1 > 1024) x1 = 1024;
+    if (y1 > 512)  y1 = 512;
 
-    if ( (y0 + height) > 512 ) height = 512 - y0;
-    if ( (x0 + width) > 1024 ) width = 1024 - x0;
+    // PS1 drawing area
+    if (x0 < PSXDisplay.DrawArea.x0) x0 = PSXDisplay.DrawArea.x0;
+    if (y0 < PSXDisplay.DrawArea.y0) y0 = PSXDisplay.DrawArea.y0;
+    if (x1 > PSXDisplay.DrawArea.x1) x1 = PSXDisplay.DrawArea.x1;
+    if (y1 > PSXDisplay.DrawArea.y1) y1 = PSXDisplay.DrawArea.y1;
 
-    unsigned short colTmp = SWAP16_C(colInfo);
-    // clear area
-    int startY;
-    int tmpWid;
+    width  = x1 - x0;
+    height = y1 - y0;
+
+    if (width <= 0 || height <= 0)
+        return;
+
     if (!bCheckMask && !DrawSemiTrans)
     {
+        unsigned short colTmp = SWAP16_C(colInfo);
         InvalidateTextureArea(x0, y0, width, height);
-        clearTitleArea(x0, y0, width, height);
+
+        for (int yy = y0; yy < y1; yy++)
+        {
+            unsigned short *ptr = psxVuw + (yy << 10) + x0;
+            for (int xx = 0; xx < width; xx++)
+                *ptr++ = colTmp;
+        }
     }
     #if defined(DISP_DEBUG) && defined(CMD_LOG_2D)
     else
@@ -3094,11 +3242,12 @@ static void primTileS ( unsigned char * baseAddr )
 
     offsetST();
 
+    CHK_FPS_DISP2(lx0, ly0, lx0 + sprtW + PSXDisplay.CumulOffset.x, ly0 + sprtY + PSXDisplay.CumulOffset.y);
+
     if (CLEAR_SCREEN(sprtX, sprtY, sprtX + sprtW, sprtY + sprtH))
     {
         needUploadScreen = FALSE;
         uploadedScreen = FALSE;
-        canSwapFrameBuf = TRUE;
     }
     else
     {
@@ -3122,7 +3271,10 @@ static void primTileS ( unsigned char * baseAddr )
 //        }
 
     offsetPSX4();
-    TitleFillArea(lx0, ly0, sprtW, sprtH, BGR24to16 ( GETLE32 ( &gpuData[0] ) ));
+    if (ShouldDoSoftTitleFill(lx0, ly0, sprtW, sprtH))
+    {
+        TitleFillArea(lx0, ly0, sprtW, sprtH, BGR24to16(GETLE32(&gpuData[0])));
+    }
 
 //        if ( bDrawOffscreen4() )
 //        {
@@ -3187,6 +3339,7 @@ static void primTileS ( unsigned char * baseAddr )
     writeLogFile(txtbuffer);
     #endif // DISP_DEBUG
 
+    SetEfbDrawContextFromVertices(4, 0);
     glPRIMdrawQuad ( &vertex[0] );
 
     //iDrawnSomething |= 0x1;
@@ -3230,7 +3383,6 @@ static void primTile1 ( unsigned char * baseAddr )
     SetRenderState ( GETLE32 ( &gpuData[0] ) );
 
     offsetPSX4();
-    TitleFillArea(lx0, ly0, 1, 1, BGR24to16 ( GETLE32 ( &gpuData[0] ) ));
 
 //        if ( bDrawOffscreen4() )
 //        {
@@ -3256,6 +3408,7 @@ static void primTile1 ( unsigned char * baseAddr )
     {
         return;
     }
+    SetEfbDrawContextFromVertices(4, 0);
     glPRIMdrawQuad ( &vertex[0] );
 
     //iDrawnSomething |= 0x1;
@@ -3297,7 +3450,6 @@ static void primTile8 ( unsigned char * baseAddr )
     SetRenderState ( GETLE32 ( &gpuData[0] ) );
 
     offsetPSX4();
-    TitleFillArea(lx0, ly0, 8, 8, BGR24to16 ( GETLE32 ( &gpuData[0] ) ));
 
 //        if ( bDrawOffscreen4() )
 //        {
@@ -3319,6 +3471,7 @@ static void primTile8 ( unsigned char * baseAddr )
     //vertex[0].c.col.a = 0xFF;
     SETCOL ( vertex[0] );
 
+    SetEfbDrawContextFromVertices(4, 0);
     glPRIMdrawQuad ( &vertex[0] );
 
     //iDrawnSomething |= 0x1;
@@ -3360,7 +3513,6 @@ static void primTile16 ( unsigned char * baseAddr )
     SetRenderState ( GETLE32 ( &gpuData[0] ) );
 
     offsetPSX4();
-    TitleFillArea(lx0, ly0, 16, 16, BGR24to16 ( GETLE32 ( &gpuData[0] ) ));
 
 //        if ( bDrawOffscreen4() )
 //        {
@@ -3382,6 +3534,7 @@ static void primTile16 ( unsigned char * baseAddr )
     //vertex[0].c.col.a = 0xFF;
     SETCOL ( vertex[0] );
 
+    SetEfbDrawContextFromVertices(4, 0);
     glPRIMdrawQuad ( &vertex[0] );
 
     //iDrawnSomething |= 0x1;
@@ -3391,36 +3544,6 @@ static void primTile16 ( unsigned char * baseAddr )
 
 #define   POFF 0.375f
 
-//void DrawMultiFilterSprite ( void )
-//{
-//    int lABR, lDST;
-//
-//    if ( bUseMultiPass || DrawSemiTrans || ubOpaqueDraw )
-//    {
-//        PRIMdrawTexturedQuad ( &vertex[0], &vertex[1], &vertex[2], &vertex[3] );
-//        return;
-//    }
-//
-//    lABR = GlobalTextABR;
-//    lDST = DrawSemiTrans;
-//    vertex[0].c.col.a = ubGloAlpha / 2;                  // -> set color with
-//    SETCOL ( vertex[0] );                                 //    texture alpha
-//    PRIMdrawTexturedQuad ( &vertex[0], &vertex[1], &vertex[2], &vertex[3] );
-//    vertex[0].x += POFF;
-//    vertex[1].x += POFF;
-//    vertex[2].x += POFF;
-//    vertex[3].x += POFF;
-//    vertex[0].y += POFF;
-//    vertex[1].y += POFF;
-//    vertex[2].y += POFF;
-//    vertex[3].y += POFF;
-//    GlobalTextABR = 0;
-//    DrawSemiTrans = 1;
-//    SetSemiTrans();
-//    PRIMdrawTexturedQuad ( &vertex[0], &vertex[1], &vertex[2], &vertex[3] );
-//    GlobalTextABR = lABR;
-//    DrawSemiTrans = lDST;
-//}
 
 ////////////////////////////////////////////////////////////////////////
 // cmd: small sprite (textured rect)
@@ -3538,6 +3661,7 @@ static void primSprt8 ( unsigned char * baseAddr )
 //    if ( iFilterType > 4 )
 //        DrawMultiFilterSprite();
 //    else
+        SetEfbDrawContextFromVertices(4, 1);
         glPRIMdrawTexturedQuad ( &vertex[0], 1 );
 
     iSpriteTex = 0;
@@ -3659,6 +3783,7 @@ static void primSprt16 ( unsigned char * baseAddr )
 //    if ( iFilterType > 4 )
 //        DrawMultiFilterSprite();
 //    else
+        SetEfbDrawContextFromVertices(4, 1);
         glPRIMdrawTexturedQuad ( &vertex[0], 1 );
 
     iSpriteTex = 0;
@@ -3784,6 +3909,8 @@ static void primSprtSRest ( unsigned char * baseAddr, unsigned short type )
 
     offsetST();
 
+    CHK_FPS_DISP2(lx0, ly0, lx0 + sprtW + PSXDisplay.CumulOffset.x, ly0 + sprtY + PSXDisplay.CumulOffset.y);
+
     ulClutID = GETLE16 ( &sgpuData[5] );
 
     bDrawTextured = TRUE;
@@ -3838,6 +3965,7 @@ static void primSprtSRest ( unsigned char * baseAddr, unsigned short type )
 //    if ( iFilterType > 4 )
 //        DrawMultiFilterSprite();
 //    else
+        SetEfbDrawContextFromVertices(4, 1);
         glPRIMdrawTexturedQuad ( &vertex[0], 1 );
 
     if ( sTypeRest && type < 4 )
@@ -3866,21 +3994,22 @@ static void primSprtS ( unsigned char * baseAddr )
     if ( !sprtH ) return;
     if ( !sprtW ) return;
 
-    // Dino Crisis2 For GX gpu fix
-    if ((dwActFixes & AUTO_FIX_DINO_CRISIS2) && sprtW == 64 && sprtH == 48)
+    // Dino Crisis 2 uploads this 64x48 block as VRAM work data, not a sprite.
+    if ((dwActFixes & AUTO_FIX_DINO_CRISIS2) &&
+        sprtW == 64 && sprtH == 48)
     {
         return;
     }
 
     // TOMB RAIDER For GX gpu fix
-    if ((dwActFixes & AUTO_FIX_NO_SWAP_BUF) && sprtW == 256 && sprtH == 240)
-    {
-        canSwapFrameBuf = FALSE;
-        #if defined(DISP_DEBUG)
-        sprintf ( txtbuffer, "primSprtS TOMB RAIDER For GX gpu fix\r\n");
-        writeLogFile(txtbuffer);
-        #endif // DISP_DEBUG
-    }
+//    if ((dwActFixes & AUTO_FIX_NO_SWAP_BUF) && sprtW == 256 && sprtH == 240)
+//    {
+//        canClearFrameBuf = FALSE;
+//        #if defined(DISP_DEBUG)
+//        sprintf ( txtbuffer, "primSprtS TOMB RAIDER For GX gpu fix\r\n");
+//        writeLogFile(txtbuffer);
+//        #endif // DISP_DEBUG
+//    }
 
     iSpriteTex = 1;
 
@@ -3944,6 +4073,8 @@ static void primSprtS ( unsigned char * baseAddr )
 
     offsetST();
 
+    CHK_FPS_DISP2(lx0, ly0, lx0 + sprtW + PSXDisplay.CumulOffset.x, ly0 + sprtY + PSXDisplay.CumulOffset.y);
+
     ulClutID = GETLE16 ( &sgpuData[5] );
 
     bDrawTextured = TRUE;
@@ -3999,6 +4130,7 @@ static void primSprtS ( unsigned char * baseAddr )
 //    if ( iFilterType > 4 )
 //        DrawMultiFilterSprite();
 //    else
+        SetEfbDrawContextFromVertices(4, 1);
         glPRIMdrawTexturedQuad ( &vertex[0], 1 );
 
     if ( sTypeRest )
@@ -4040,6 +4172,8 @@ static void primPolyF4 ( unsigned char *baseAddr )
 
     if ( offset4() ) return;
 
+    CHK_FPS_DISP2(lx0, ly0, lx2 + PSXDisplay.CumulOffset.x, ly2 + PSXDisplay.CumulOffset.y);
+
     bDrawTextured = FALSE;
     bDrawSmoothShaded = FALSE;
     SetRenderState ( GETLE32 ( &gpuData[0] ) );
@@ -4071,6 +4205,7 @@ static void primPolyF4 ( unsigned char *baseAddr )
     writeLogFile(txtbuffer);
     #endif // DISP_DEBUG
 
+    SetEfbDrawContextFromVertices(4, 1);
     glPRIMdrawTri2 ( &vertex[0] );
 
     iDrawnSomething |= 0x1;
@@ -4162,6 +4297,8 @@ static void primPolyG4 ( unsigned char * baseAddr )
 
     if ( offset4() ) return;
 
+    CHK_FPS_DISP2(lx0, ly0, lx2 + PSXDisplay.CumulOffset.x, ly2 + PSXDisplay.CumulOffset.y);
+
     bDrawTextured = FALSE;
     bDrawSmoothShaded = TRUE;
     SetRenderState ( GETLE32 ( &gpuData[0] ) );
@@ -4202,6 +4339,7 @@ static void primPolyG4 ( unsigned char * baseAddr )
     //vertex[0].c.col.a = vertex[1].c.col.a = vertex[2].c.col.a = vertex[3].c.col.a = 0xFF;
 
 
+    SetEfbDrawContextFromVertices(4, 1);
     glPRIMdrawGouraudTri2Color ( &vertex[0] );
 
     iDrawnSomething |= 0x1;
@@ -4353,6 +4491,7 @@ static BOOL DoLineCheck ( unsigned int * gpuData )
 
     if ( !bQuad ) return FALSE;
 
+    SetEfbDrawContextFromVertices(3, 1);
     glPRIMdrawTexturedQuad ( &vertex[0], 0 );
 
     iDrawnSomething |= 0x1;
@@ -4423,6 +4562,7 @@ static void primPolyFT3 ( unsigned char * baseAddr )
         if ( DoLineCheck ( gpuData ) ) return;
     }
 
+    SetEfbDrawContextFromVertices(3, 1);
     glPRIMdrawTexturedTri ( &vertex[0] );
 
     iDrawnSomething |= 0x1;
@@ -4808,6 +4948,8 @@ static void primPolyFT4 ( unsigned char * baseAddr )
 
     if ( offset4() ) return;
 
+    CHK_FPS_DISP2(lx0, ly0, lx2 + PSXDisplay.CumulOffset.x, ly2 + PSXDisplay.CumulOffset.y);
+
     gl_vy[0] = baseAddr[9]; //((gpuData[2]>>8)&0xff);
     gl_vy[1] = baseAddr[17]; //((gpuData[4]>>8)&0xff);
     gl_vy[2] = baseAddr[25]; //((gpuData[6]>>8)&0xff);
@@ -4857,6 +4999,7 @@ static void primPolyFT4 ( unsigned char * baseAddr )
 
     RectTexAlign();
 
+    SetEfbDrawContextFromVertices(4, 1);
     glPRIMdrawTexturedQuad ( &vertex[0], 0 );
 
     iDrawnSomething |= 0x1;
@@ -4929,6 +5072,7 @@ static void primPolyGT3 ( unsigned char *baseAddr )
         //vertex[0].c.col.a = 0xFF;
         SETCOL ( vertex[0] );
 
+        SetEfbDrawContextFromVertices(3, 1);
         glPRIMdrawTexturedTri ( &vertex[0] );
 
 //        if ( ubOpaqueDraw )
@@ -4948,6 +5092,7 @@ static void primPolyGT3 ( unsigned char *baseAddr )
     vertex[2].c.lcol = gpuData[6] | 0xFF; // DoubleBGR2RGB
     //vertex[0].c.col.a = vertex[1].c.col.a = vertex[2].c.col.a = 0xFF;
 
+    SetEfbDrawContextFromVertices(3, 1);
     glPRIMdrawTexGouraudTriColor ( &vertex[0] );
 
     iDrawnSomething |= 0x1;
@@ -5004,6 +5149,7 @@ static void primPolyG3 ( unsigned char *baseAddr )
     vertex[2].c.lcol = gpuData[4] | 0xFF;
     //vertex[0].c.col.a = vertex[1].c.col.a = vertex[2].c.col.a = 0xFF;
 
+    SetEfbDrawContextFromVertices(3, 1);
     glPRIMdrawGouraudTriColor ( &vertex[0] );
 
     iDrawnSomething |= 0x1;
@@ -5036,6 +5182,8 @@ static void primPolyGT4 ( unsigned char *baseAddr )
     ly3 = GETLEs16 ( &sgpuData[21] );
 
     if ( offset4() ) return;
+
+    CHK_FPS_DISP2(lx0, ly0, lx2 + PSXDisplay.CumulOffset.x, ly2 + PSXDisplay.CumulOffset.y);
 
 // do texture stuff
     gl_ux[0] = baseAddr[8]; //gpuData[2]&0xff;
@@ -5083,6 +5231,7 @@ static void primPolyGT4 ( unsigned char *baseAddr )
         sprintf ( txtbuffer, "primPolyGT4 1 \r\n" );
         writeLogFile(txtbuffer);
         #endif // DISP_DEBUG
+        SetEfbDrawContextFromVertices(4, 1);
         glPRIMdrawTexturedQuad ( &vertex[0], 0 );
 
 //        if ( ubOpaqueDraw )
@@ -5109,6 +5258,7 @@ static void primPolyGT4 ( unsigned char *baseAddr )
     sprintf ( txtbuffer, "primPolyGT4 2 \r\n" );
     writeLogFile(txtbuffer);
     #endif // DISP_DEBUG
+    SetEfbDrawContextFromVertices(4, 1);
     glPRIMdrawTexGouraudTriColorQuad ( &vertex[0] );
 
     iDrawnSomething |= 0x1;
@@ -5165,6 +5315,7 @@ static void primPolyF3 ( unsigned char *baseAddr )
     //vertex[0].c.col.a = 0xFF;
     SETCOL ( vertex[0] );
 
+    SetEfbDrawContextFromVertices(3, 1);
     glPRIMdrawTri ( &vertex[0] );
 
     iDrawnSomething |= 0x1;
@@ -5273,6 +5424,7 @@ static void primLineGEx ( unsigned char *baseAddr )
                    lx0=cx0;lx1=cx1;ly0=cy0;ly1=cy1;
                   }*/
 
+            SetEfbDrawContextFromVertices(2, 1);
             glPRIMdrawGouraudLine ( &vertex[0] );
         }
         i++;
@@ -5334,6 +5486,7 @@ static void primLineG2 ( unsigned char *baseAddr )
       }
     */
 //if(ClipVertexList4())
+    SetEfbDrawContextFromVertices(2, 1);
     glPRIMdrawGouraudLine ( &vertex[0] );
 
     iDrawnSomething |= 0x1;
@@ -5429,6 +5582,7 @@ static void primLineFEx ( unsigned char *baseAddr )
                     }
                    lx0=cx0;lx1=cx1;ly0=cy0;ly1=cy1;
                   }*/
+            SetEfbDrawContextFromVertices(2, 1);
             glPRIMdrawFlatLine ( &vertex[0] );
         }
 
@@ -5486,6 +5640,7 @@ static void primLineF2 ( unsigned char *baseAddr )
       }
     */
 //if(ClipVertexList4())
+    SetEfbDrawContextFromVertices(2, 1);
     glPRIMdrawFlatLine ( &vertex[0] );
 
     iDrawnSomething |= 0x1;

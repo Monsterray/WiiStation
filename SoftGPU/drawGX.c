@@ -83,6 +83,24 @@ void switchToTVMode(short dWidth, short dHeight, bool retMenu);
 
 static int vsync_enable;
 static int new_frame;
+static volatile int gx_present_inflight;
+
+static void gx_prepare_efb_pixel_state(void)
+{
+	extern GXRModeObj *vmode;
+
+	if (vmode && vmode->aa)
+		GX_SetPixelFmt(GX_PF_RGB565_Z16, GX_ZC_LINEAR);
+	else
+		GX_SetPixelFmt(GX_PF_RGB8_Z24, GX_ZC_LINEAR);
+	GX_SetZCompLoc(GX_FALSE);
+	GX_SetAlphaCompare(GX_ALWAYS, 0, GX_AOP_AND, GX_ALWAYS, 0);
+	GX_SetZMode(GX_ENABLE, GX_ALWAYS, GX_TRUE);
+	GX_SetBlendMode(GX_BM_NONE, GX_BL_ONE, GX_BL_ZERO, GX_LO_COPY);
+	GX_SetColorUpdate(GX_ENABLE);
+	GX_SetAlphaUpdate(GX_ENABLE);
+	GX_SetDstAlpha(GX_DISABLE, 0xff);
+}
 
 enum {
 	FB_BACK,
@@ -116,6 +134,17 @@ static void gc_vout_copydone(void)
 	new_frame = 1;
 }
 
+static void gx_vout_copydone(void)
+{
+	/* GX draw-done callbacks are global.  A lifecycle drain from another
+	 * subsystem must not rotate the XFBs when no display copy is pending. */
+	if (!gx_present_inflight)
+		return;
+
+	gc_vout_copydone();
+	gx_present_inflight = 0;
+}
+
 static void gc_vout_drawdone(void)
 {
 	GX_CopyDisp(xfb[FB_BACK], GX_TRUE);
@@ -133,21 +162,55 @@ void gc_vout_render(void)
 	GX_SetDrawDone();
 }
 
-void gx_vout_render(short canSwapFrameBuf)
+int gx_vout_render(short canSwapFrameBuf)
 {
+	/* Keep displaying the last completed XFB while the next copy is pending.
+	 * In particular, never rotate an XFB merely because GX_CopyDisp was queued. */
+	if (gx_present_inflight)
+		return 0;
+
 	// reset swap table from GUI/DEBUG
 	// To improve efficiency, the original BGR pixel format of PS is directly used
 	// So the format of SwapModeTable is GX_CH_BLUE, GX_CH_GREEN, GX_CH_RED, GX_CH_ALPHA
 	GX_SetTevSwapModeTable(GX_TEV_SWAP0, GX_CH_BLUE, GX_CH_GREEN, GX_CH_RED, GX_CH_ALPHA);
 	GX_SetTevSwapMode(GX_TEVSTAGE0, GX_TEV_SWAP0, GX_TEV_SWAP0);
 
-	GX_DrawDone();
+	gx_present_inflight = 1;
 	GX_CopyDisp(xfb[FB_BACK], canSwapFrameBuf ? GX_TRUE : GX_FALSE);
-	GX_Flush();
+	GX_PixModeSync();
+	GX_SetDrawDoneCallback(gx_vout_copydone);
+	GX_SetDrawDone();
+	return 1;
+}
+
+void gx_vout_wait_idle(void)
+{
+	int had_pending_copy = gx_present_inflight;
+
+	/* Mode changes may replace/reconfigure the XFBs.  Finish an already
+	 * submitted copy first and publish only that completed buffer.  Detach
+	 * the global callback before draining so an older menu/plugin draw-done
+	 * token cannot be mistaken for this XFB copy.  This is a rare lifecycle
+	 * boundary, not a per-frame synchronization point. */
+	GX_SetDrawDoneCallback(NULL);
+	GX_DrawDone();
+	if (had_pending_copy && gx_present_inflight)
+	{
+		gc_vout_copydone();
+		gx_present_inflight = 0;
+	}
+
+	if (new_frame)
+		gc_vout_vsync(0);
+}
+
+void gc_vout_disabled(void)
+{
+    extern GXRModeObj *vmode;     /*** Graphics Mode Object ***/
+    memset(MEM_K1_TO_K0(xfb[FB_BACK]), 0, VIDEO_PadFramebufferWidth(vmode->fbWidth) * vmode->xfbHeight * 2);
 
 	gc_vout_copydone();
 	gc_vout_vsync(0);
-	//new_frame = 1;
 }
 
 void showFpsAndDebugInfo(void)
@@ -198,7 +261,7 @@ static void GX_Flip(const void *buffer, int pitch, u8 fmt,
 		GX_InitTexObj(&GXtexobj, GXtexture, width, height, fmt, GX_CLAMP, GX_CLAMP, GX_FALSE);
 	}
 
-	if (originalMode == ORIGINALMODE_ENABLE || bilinearFilter == BILINEARFILTER_DISABLE)
+	if (originalMode == ORIGINALMODE_ENABLE || bilinearFilter != BILINEARFILTER_ENABLE)
 		GX_InitTexObjFilterMode(&GXtexobj, GX_NEAR, GX_NEAR);
 	else
 		GX_InitTexObjFilterMode(&GXtexobj, GX_LINEAR, GX_LINEAR);
@@ -317,7 +380,7 @@ static void GX_Flip(const void *buffer, int pitch, u8 fmt,
 	GX_LoadPosMtxImm(GXmodelIdent,GX_PNMTX0);
 
 	GX_SetCullMode(GX_CULL_NONE);
-	GX_SetZMode(GX_ENABLE,GX_ALWAYS,GX_TRUE);
+	gx_prepare_efb_pixel_state();
 
 	GX_InvalidateTexAll();
 	GX_SetTevOp(GX_TEVSTAGE0, GX_REPLACE);
@@ -444,7 +507,9 @@ int gc_vout_open(void) {
 }
 
 int gx_vout_open(void) {
-	//VIDEO_SetPreRetraceCallback(gc_vout_vsync);
+	new_frame = 0;
+	gx_present_inflight = 0;
+	VIDEO_SetPreRetraceCallback(gc_vout_vsync);
 	return 0;
 }
 

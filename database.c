@@ -99,16 +99,16 @@ static const char * const special_game_hack_db2[] =
     "SLUS01279", "SLPM86627", "SLES03221", "SLES03222", "SLES03223", "SLES03224", "SLES03225",
 };
 
-static const char * const special_game_hack_need_soft_title[] =
-{
-    // For GX gpu fix(need software primTitle)
-    /* BRAVE FENCER MUSASHIDEN */
-    "SLPS01490", "SLPS01491", "SCPS45291", "SLUS00726", "SLUS90029",
-    /* VAGRANT STORY */
-    "SLPS02377", "SCPS45486", "SLPS91457", "SLPM87393", "SLUS01040",
-    /* PRO PINBALL - TIMESHOCK! */
-    "SLUS00639", "SLES00606",
-};
+//static const char * const special_game_hack_need_soft_title[] =
+//{
+//    // For GX gpu fix(need software primTitle)
+//    /* BRAVE FENCER MUSASHIDEN */
+//    "SLPS01490", "SLPS01491", "SCPS45291", "SLUS00726", "SLUS90029",
+//    /* VAGRANT STORY */
+//    "SLPS02377", "SCPS45486", "SLPS91457", "SLPM87393", "SLUS01040",
+//    /* PRO PINBALL - TIMESHOCK! */
+//    "SLUS00639", "SLES00606",
+//};
 
 static const char * const special_game_hack_chrono_cross[] =
 {
@@ -127,6 +127,15 @@ static const char * const special_game_hack_no_swap_framebuf[] =
     "SLPS00617", "SLPS91049", "SLPS91433", "SLPS01200", "SLPS91119", "SLPS91434", "SCPS45385",
     "SCPS45386", "SLPM86196", "SLPM86197", "SLPS02803", "SLPM86896", "SLPM86779", "SLPM87160",
     /* VAGRANT STORY */
+    "SLPS02377", "SCPS45486", "SLPS91457", "SLPM87393", "SLUS01040",
+};
+
+static const char * const special_game_hack_vram_readback[] =
+{
+    /* Dino Crisis 2 */
+    "SLUS01279", "SLPM86627",
+    "SLES03221", "SLES03222", "SLES03223", "SLES03224", "SLES03225",
+    /* Vagrant Story */
     "SLPS02377", "SCPS45486", "SLPS91457", "SLPM87393", "SLUS01040",
 };
 
@@ -300,7 +309,7 @@ void Apply_Hacks_Cdrom()
             break;
         }
     }
-	
+
 	Config.gpu_timing_override = 0;
 	for (i = 0; i < ARRAY_SIZE(gpu_timing_hack_db); i++)
 	{
@@ -343,13 +352,13 @@ void Apply_Hacks_Cdrom()
             break;
         }
     }
-    for (i = 0; i < ARRAY_SIZE(special_game_hack_need_soft_title); i++) {
-        if (strcmp(CdromId, special_game_hack_need_soft_title[i]) == 0)
-        {
-            Config.hacks.dwActFixes |= AUTO_FIX_NEED_SOFT_TITLE;
-            break;
-        }
-    }
+//    for (i = 0; i < ARRAY_SIZE(special_game_hack_need_soft_title); i++) {
+//        if (strcmp(CdromId, special_game_hack_need_soft_title[i]) == 0)
+//        {
+//            Config.hacks.dwActFixes |= AUTO_FIX_NEED_SOFT_TITLE;
+//            break;
+//        }
+//    }
     for (i = 0; i < ARRAY_SIZE(special_game_hack_chrono_cross); i++) {
         if (strcmp(CdromId, special_game_hack_chrono_cross[i]) == 0)
         {
@@ -361,6 +370,13 @@ void Apply_Hacks_Cdrom()
         if (strcmp(CdromId, special_game_hack_no_swap_framebuf[i]) == 0)
         {
             Config.hacks.dwActFixes |= AUTO_FIX_NO_SWAP_BUF;
+            break;
+        }
+    }
+    for (i = 0; i < ARRAY_SIZE(special_game_hack_vram_readback); i++) {
+        if (strcmp(CdromId, special_game_hack_vram_readback[i]) == 0)
+        {
+            Config.hacks.dwActFixes |= AUTO_FIX_VRAM_READBACK;
             break;
         }
     }

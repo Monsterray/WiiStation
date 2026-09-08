@@ -67,6 +67,9 @@ POSSIBILITY OF SUCH DAMAGE.
 #define TEX_TYPE_1  0x1
 #define TEX_TYPE_2  0x2
 
+void (*ogx_draw_submitted_cb)(void);
+#define OGX_DRAW_SUBMITTED() do { if (ogx_draw_submitted_cb) ogx_draw_submitted_cb(); } while (0)
+
 //#define DISP_DEBUG
 
 #ifdef DISP_DEBUG
@@ -694,13 +697,14 @@ void glBindTextureBef(GLenum target, GLuint texture)
     glparamstate.glcurtex = texture;
 }
 
-void glChgTextureFilter( void )
+void glChgTextureFilter( unsigned int gTexMovieName )
 {
     int i;
     for (i = 1; i < _MAX_GL_TEX; i++) {
         gltexture_ *currtex = &texture_list[i];
         if (currtex->used == 1) {
-            if (originalMode == ORIGINALMODE_ENABLE || bilinearFilter == BILINEARFILTER_DISABLE)
+            if (originalMode == ORIGINALMODE_ENABLE || bilinearFilter == BILINEARFILTER_NEAR ||
+                (i == gTexMovieName && bilinearFilter == BILINEARFILTER_DISABLE))
             {
                 if (currtex->data)
                 {
@@ -1627,7 +1631,7 @@ void glInitRGBATextures( GLsizei width, GLsizei height )
 
     GX_InitTexObj(&currtex->texobj, currtex->data,
                   currtex->w, currtex->h, GX_TF_RGB5A3, currtex->wraps, currtex->wrapt, GX_FALSE);
-    if (originalMode == ORIGINALMODE_ENABLE || bilinearFilter == BILINEARFILTER_DISABLE)
+    if (originalMode == ORIGINALMODE_ENABLE || bilinearFilter == BILINEARFILTER_NEAR)
     {
         GX_InitTexObjFilterMode(&currtex->texobj, GX_NEAR, GX_NEAR);
     }
@@ -1837,7 +1841,7 @@ int glInitMovieTextures( GLsizei width, GLsizei height, void * texData )
 //                      currtex->w, currtex->h, GX_TF_RGBA8, currtex->wraps, currtex->wrapt, GX_FALSE);
         GX_InitTexObj(&currtex->texobj, currtex->data,
                       currtex->w, currtex->h, GX_TF_RGB5A3, currtex->wraps, currtex->wrapt, GX_FALSE);
-        if (originalMode == ORIGINALMODE_ENABLE || bilinearFilter == BILINEARFILTER_DISABLE)
+        if (originalMode == ORIGINALMODE_ENABLE || bilinearFilter == BILINEARFILTER_NEAR)
         {
             GX_InitTexObjFilterMode(&currtex->texobj, GX_NEAR, GX_NEAR);
         }
@@ -1847,7 +1851,7 @@ int glInitMovieTextures( GLsizei width, GLsizei height, void * texData )
         textureType = _ogx_scramble_4b_5a3((unsigned char *)texData, currtex->data, glparamstate.blendenabled, width, height);
         GX_InitTexObj(&currtex->texobj, currtex->data,
                       currtex->w, currtex->h, GX_TF_RGB5A3, currtex->wraps, currtex->wrapt, GX_FALSE);
-        if (originalMode == ORIGINALMODE_ENABLE || bilinearFilter == BILINEARFILTER_DISABLE)
+        if (originalMode == ORIGINALMODE_ENABLE || bilinearFilter != BILINEARFILTER_ENABLE)
         {
             GX_InitTexObjFilterMode(&currtex->texobj, GX_NEAR, GX_NEAR);
         }
@@ -1857,7 +1861,7 @@ int glInitMovieTextures( GLsizei width, GLsizei height, void * texData )
             memcpy(currtex->semiTransData, semiTransBuf, currtex->w * currtex->h * 2);
             GX_InitTexObj(&currtex->semiTransTexobj, currtex->semiTransData,
                           currtex->w, currtex->h, GX_TF_RGB5A3, currtex->wraps, currtex->wrapt, GX_FALSE);
-            if (originalMode == ORIGINALMODE_ENABLE || bilinearFilter == BILINEARFILTER_DISABLE)
+            if (originalMode == ORIGINALMODE_ENABLE || bilinearFilter != BILINEARFILTER_ENABLE)
             {
                 GX_InitTexObjFilterMode(&currtex->semiTransTexobj, GX_NEAR, GX_NEAR);
             }
@@ -1981,7 +1985,7 @@ int glTexSubImage2D(GLenum target, GLint level,
             currtex->semiTransData = _mem2_memalign(32, currtex->w * currtex->h * 2);
             GX_InitTexObj(&currtex->semiTransTexobj, currtex->semiTransData,
                         currtex->w, currtex->h, GX_TF_RGB5A3, currtex->wraps, currtex->wrapt, GX_FALSE);
-            if (originalMode == ORIGINALMODE_ENABLE || bilinearFilter == BILINEARFILTER_DISABLE)
+            if (originalMode == ORIGINALMODE_ENABLE || bilinearFilter == BILINEARFILTER_NEAR)
             {
                 GX_InitTexObjFilterMode(&currtex->semiTransTexobj, GX_NEAR, GX_NEAR);
             }
@@ -2048,7 +2052,7 @@ int glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei width
 
     GX_InitTexObj(&currtex->texobj, currtex->data,
                 currtex->w, currtex->h, GX_TF_RGB5A3, currtex->wraps, currtex->wrapt, GX_FALSE);
-    if (originalMode == ORIGINALMODE_ENABLE || bilinearFilter == BILINEARFILTER_DISABLE)
+    if (originalMode == ORIGINALMODE_ENABLE || bilinearFilter == BILINEARFILTER_NEAR)
     {
         GX_InitTexObjFilterMode(&currtex->texobj, GX_NEAR, GX_NEAR);
     }
@@ -2058,15 +2062,14 @@ int glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei width
         if (currtex->semiTransData == 0)
         {
             currtex->semiTransData = _mem2_memalign(32, currtex->w * currtex->h * 2);
-            memcpy(currtex->semiTransData, semiTransBuf, currtex->w * currtex->h * 2);
-
             GX_InitTexObj(&currtex->semiTransTexobj, currtex->semiTransData,
                         currtex->w, currtex->h, GX_TF_RGB5A3, currtex->wraps, currtex->wrapt, GX_FALSE);
-            if (originalMode == ORIGINALMODE_ENABLE || bilinearFilter == BILINEARFILTER_DISABLE)
+            if (originalMode == ORIGINALMODE_ENABLE || bilinearFilter == BILINEARFILTER_NEAR)
             {
                 GX_InitTexObjFilterMode(&currtex->semiTransTexobj, GX_NEAR, GX_NEAR);
             }
         }
+        memcpy(currtex->semiTransData, semiTransBuf, currtex->w * currtex->h * 2);
         DCFlushRange(currtex->semiTransData, currtex->w * currtex->h * 2);
     }
     //GX_InitTexObjFilterMode(&currtex->texobj, GX_LINEAR, GX_LINEAR);
@@ -3213,6 +3216,7 @@ void glPRIMdrawTexturedQuad( void* vertexAdr, int changePointOrder )
     if (_ogx_apply_state(1, 0))
     {
         GX_Begin(GX_TRIANGLESTRIP, GX_VTXFMT0, 4);
+        OGX_DRAW_SUBMITTED();
 
         GX_Position3f32(*(float*)(addrPtr + 0), *(float*)(addrPtr + 4), *(float*)(addrPtr + 8));
         GX_TexCoord2f32(*(float*)(addrPtr + 12), *(float*)(addrPtr + 16));
@@ -3247,6 +3251,7 @@ void glPRIMdrawTexturedQuad( void* vertexAdr, int changePointOrder )
         if (_ogx_apply_state(1, 0))
         {
             GX_Begin(GX_TRIANGLESTRIP, GX_VTXFMT0, 4);
+            OGX_DRAW_SUBMITTED();
 
             GX_Position3f32(*(float*)(addrPtr + 0), *(float*)(addrPtr + 4), *(float*)(addrPtr + 8));
             GX_TexCoord2f32(*(float*)(addrPtr + 12), *(float*)(addrPtr + 16));
@@ -3293,6 +3298,7 @@ void glPRIMdrawTexturedTri( void* vertexAdr )
     if (_ogx_apply_state(1, 0))
     {
         GX_Begin(GX_TRIANGLES, GX_VTXFMT0, 3);
+        OGX_DRAW_SUBMITTED();
 
         GX_Position3f32(*(float*)(addrPtr + 0), *(float*)(addrPtr + 4), *(float*)(addrPtr + 8));
         GX_TexCoord2f32(*(float*)(addrPtr + 12), *(float*)(addrPtr + 16));
@@ -3313,6 +3319,7 @@ void glPRIMdrawTexturedTri( void* vertexAdr )
         if (_ogx_apply_state(1, 0))
         {
             GX_Begin(GX_TRIANGLES, GX_VTXFMT0, 3);
+            OGX_DRAW_SUBMITTED();
 
             GX_Position3f32(*(float*)(addrPtr + 0), *(float*)(addrPtr + 4), *(float*)(addrPtr + 8));
             GX_TexCoord2f32(*(float*)(addrPtr + 12), *(float*)(addrPtr + 16));
@@ -3345,6 +3352,7 @@ void glPRIMdrawTexGouraudTriColor( void* vertexAdr )
     if (_ogx_apply_state(1, 1))
     {
         GX_Begin(GX_TRIANGLES, GX_VTXFMT0, 3);
+        OGX_DRAW_SUBMITTED();
 
         GX_Position3f32(*(float*)(addrPtr + 0), *(float*)(addrPtr + 4), *(float*)(addrPtr + 8));
         GX_Color4u8(*(addrPtr + 22), *(addrPtr + 21), *(addrPtr + 20), *(addrPtr + 23));
@@ -3368,6 +3376,7 @@ void glPRIMdrawTexGouraudTriColor( void* vertexAdr )
         if (_ogx_apply_state(1, 1))
         {
             GX_Begin(GX_TRIANGLES, GX_VTXFMT0, 3);
+            OGX_DRAW_SUBMITTED();
 
             GX_Position3f32(*(float*)(addrPtr + 0), *(float*)(addrPtr + 4), *(float*)(addrPtr + 8));
             GX_Color4u8(*(addrPtr + 22), *(addrPtr + 21), *(addrPtr + 20), *(addrPtr + 23));
@@ -3403,6 +3412,7 @@ void glPRIMdrawTexGouraudTriColorQuad( void* vertexAdr )
     if (_ogx_apply_state(1, 1))
     {
         GX_Begin(GX_TRIANGLESTRIP, GX_VTXFMT0, 4);
+        OGX_DRAW_SUBMITTED();
 
         GX_Position3f32(*(float*)(addrPtr + 0), *(float*)(addrPtr + 4), *(float*)(addrPtr + 8));
         GX_Color4u8(*(addrPtr + 22), *(addrPtr + 21), *(addrPtr + 20), *(addrPtr + 23));
@@ -3430,6 +3440,7 @@ void glPRIMdrawTexGouraudTriColorQuad( void* vertexAdr )
         if (_ogx_apply_state(1, 1))
         {
             GX_Begin(GX_TRIANGLESTRIP, GX_VTXFMT0, 4);
+            OGX_DRAW_SUBMITTED();
 
             GX_Position3f32(*(float*)(addrPtr + 0), *(float*)(addrPtr + 4), *(float*)(addrPtr + 8));
             GX_Color4u8(*(addrPtr + 22), *(addrPtr + 21), *(addrPtr + 20), *(addrPtr + 23));
@@ -3469,6 +3480,7 @@ void glPRIMdrawTri( void* vertexAdr )
     if (_ogx_apply_state(0, 0))
     {
         GX_Begin(GX_TRIANGLES, GX_VTXFMT0, 3);
+        OGX_DRAW_SUBMITTED();
 
         GX_Position3f32(*(float*)(addrPtr + 0), *(float*)(addrPtr + 4), *(float*)(addrPtr + 8));
 
@@ -3496,6 +3508,7 @@ void glPRIMdrawTri2( void* vertexAdr )
     if (_ogx_apply_state(0, 0))
     {
         GX_Begin(GX_TRIANGLESTRIP, GX_VTXFMT0, 4);
+        OGX_DRAW_SUBMITTED();
 
         GX_Position3f32(*(float*)(addrPtr + 0), *(float*)(addrPtr + 4), *(float*)(addrPtr + 8));
 
@@ -3525,6 +3538,7 @@ void glPRIMdrawGouraudTriColor( void* vertexAdr )
     if (_ogx_apply_state(0, 1))
     {
         GX_Begin(GX_TRIANGLES, GX_VTXFMT0, 3);
+        OGX_DRAW_SUBMITTED();
 
         GX_Position3f32(*(float*)(addrPtr + 0), *(float*)(addrPtr + 4), *(float*)(addrPtr + 8));
         GX_Color4u8(*(addrPtr + 22), *(addrPtr + 21), *(addrPtr + 20), *(addrPtr + 23));
@@ -3555,6 +3569,7 @@ void glPRIMdrawGouraudTri2Color( void* vertexAdr )
     if (_ogx_apply_state(0, 1))
     {
         GX_Begin(GX_TRIANGLESTRIP, GX_VTXFMT0, 4);
+        OGX_DRAW_SUBMITTED();
 
         GX_Position3f32(*(float*)(addrPtr + 0), *(float*)(addrPtr + 4), *(float*)(addrPtr + 8));
         GX_Color4u8(*(addrPtr + 22), *(addrPtr + 21), *(addrPtr + 20), *(addrPtr + 23));
@@ -3588,6 +3603,7 @@ void glPRIMdrawFlatLine( void* vertexAdr )
     if (_ogx_apply_state(0, 1))
     {
         GX_Begin(GX_TRIANGLESTRIP, GX_VTXFMT0, 4);
+        OGX_DRAW_SUBMITTED();
 
         GX_Position3f32(*(float*)(addrPtr + 0), *(float*)(addrPtr + 4), *(float*)(addrPtr + 8));
         GX_Color4u8(*(addrPtr + 22), *(addrPtr + 21), *(addrPtr + 20), *(addrPtr + 23));
@@ -3621,6 +3637,7 @@ void glPRIMdrawGouraudLine( void* vertexAdr )
     if (_ogx_apply_state(0, 1))
     {
         GX_Begin(GX_TRIANGLESTRIP, GX_VTXFMT0, 4);
+        OGX_DRAW_SUBMITTED();
 
         GX_Position3f32(*(float*)(addrPtr + 0), *(float*)(addrPtr + 4), *(float*)(addrPtr + 8));
         GX_Color4u8(*(addrPtr + 22), *(addrPtr + 21), *(addrPtr + 20), *(addrPtr + 23));
@@ -3654,6 +3671,7 @@ void glPRIMdrawQuad( void* vertexAdr )
     if (_ogx_apply_state(0, 0))
     {
         GX_Begin(GX_TRIANGLESTRIP, GX_VTXFMT0, 4);
+        OGX_DRAW_SUBMITTED();
 
         GX_Position3f32(*(float*)(addrPtr + 0), *(float*)(addrPtr + 4), *(float*)(addrPtr + 8));
 

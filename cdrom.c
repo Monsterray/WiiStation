@@ -1340,13 +1340,13 @@ void cdrInterrupt(void) {
 				if (CdromId[0] == '\0')
 					cdr.Result[1] |= 0x80;
 			}
-			// canSwapFrameBuf is defined in GlesGpu/gpuPlugin.c as `BOOL`, but that
+			// canClearFrameBuf is defined in GlesGpu/gpuPlugin.c as `BOOL`, but that
 			// file's BOOL is gpulib/stdafx.h's `#define BOOL unsigned short` (2 bytes) --
 			// not libogc2's `typedef unsigned int BOOL` (4 bytes) that this file sees.
 			// Declare the real width here so this doesn't become a 4-byte store into
 			// a 2-byte global, corrupting whatever follows it in gpuPlugin.c.
-			extern unsigned short canSwapFrameBuf;
-			canSwapFrameBuf = TRUE;
+			extern unsigned short canClearFrameBuf;
+			canClearFrameBuf = TRUE;
 			cdr.Result[0] |= (cdr.Result[1] >> 4) & 0x08;
 			CDR_LOG_I("CdlID: %02x %02x %02x %02x\n", cdr.Result[0],
 				cdr.Result[1], cdr.Result[2], cdr.Result[3]);
