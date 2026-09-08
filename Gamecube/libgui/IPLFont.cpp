@@ -421,11 +421,13 @@ int IplFont::drawStringWrap(int x, int y, char *string, float scale, bool center
                 stringDraw[lineStop-lineStart] = 0;
                 drawString( x, y+numLines*lineSpacing, stringDraw, scale, centered);
                 free(stringDraw);
-                numLines++;
+                numTokens = 0; // Reset for next part
                 lineStart = lineStop+1;
-                drawString( x, y+numLines*lineSpacing, lineStart, scale, centered);
-                numLines++;
-                break;
+                stringWork = lineStart; // Reset work pointer
+                stringWidth = 0;
+                tokenWidth = 0;
+                // We don't break; we continue to process the rest of the string
+                continue;
             }
         }
 
@@ -449,14 +451,12 @@ int IplFont::drawStringWrap(int x, int y, char *string, float scale, bool center
                 stringDraw[lineStop-lineStart] = 0;
                 drawString( x, y+numLines*lineSpacing, stringDraw, scale, centered);
                 free(stringDraw);
-                numLines++;
-
+                numTokens = 0; // Reset
                 lineStart = lineStop+1;
                 lineStop = lineStart;
                 stringWork = lineStart;
                 stringWidth = 0;
                 tokenWidth = 0;
-                numTokens = 0;
                 continue;
             }
         }
