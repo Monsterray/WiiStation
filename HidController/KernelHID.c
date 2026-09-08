@@ -50,6 +50,7 @@ static u32 bEndpointAddressController = 0;
 static u32 bEndpointAddressKeyboard = 0;
 static u32 wMaxPacketSize = 0;
 static u32 MemPacketSize = 0;
+static u32 AllocatedPacketSize = 0;
 static u8 *Packet = (u8*)NULL;
 
 static u32 RumbleType = 0;
@@ -689,7 +690,13 @@ static s32 HIDOpen( u32 LoaderRequest )
                 else
                     MemPacketSize = wMaxPacketSize;
 
-                if (Packet == NULL) Packet = (u8*)iosAlloc(hId, MemPacketSize);
+                if (Packet == NULL || MemPacketSize > AllocatedPacketSize)
+                {
+                    u8 *NewPacket = (u8*)iosAlloc(hId, MemPacketSize);
+                    if (Packet != NULL) iosFree(hId, Packet);
+                    Packet = NewPacket;
+                    AllocatedPacketSize = MemPacketSize;
+                }
                 memset(Packet, 0, MemPacketSize);
 
                 memset(HID_Packet, 0, MemPacketSize);
