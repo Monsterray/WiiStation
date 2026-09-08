@@ -13,6 +13,8 @@ deps/libchdr/deps/zlib-1.3.1/bin/lib/libzlibstatic.a
 
 # Personal research/analysis scratch, not project source
 AI Research.md
+OPTIMIZATIONS.md
+OPTIMIZATION_PLAN.md
 
 # Agent-facing notes, not project source
 AGENTS.md
