@@ -143,57 +143,67 @@ extern char CdromId[10];
 extern char CdromLabel[33];
 extern char debugInfo[256];
 
+// Appends src to dst without overflowing dst's declared size. Used to build
+// up RomInfo from several independently-gated pieces whose combined length
+// isn't bounded by any single piece's fixed size.
+static void appendBounded(char* dst, size_t dstSize, const char* src)
+{
+	size_t used = strlen(dst);
+	if (used < dstSize - 1)
+		strncat(dst, src, dstSize - used - 1);
+}
+
 void Func_ShowRomInfo()
 {
 	char RomInfo[256] = "";
 	char buffer [50];
 
 	sprintf(buffer,"CD-ROM Label: %s\n",CdromLabel);
-  strcat(RomInfo,buffer);
+  appendBounded(RomInfo, sizeof(RomInfo), buffer);
   sprintf(buffer,"CD-ROM ID: %s\n", CdromId);
 
-	strcat(RomInfo,buffer);
+	appendBounded(RomInfo, sizeof(RomInfo), buffer);
   if (Config.hacks.gpu_slow_list_walking)
   {
   	sprintf(buffer, "GpuSlowListWalking auto fixed\n");
-  	strcat(RomInfo,buffer);
+  	appendBounded(RomInfo, sizeof(RomInfo), buffer);
   }
   if (Config.cycle_multiplier_override)
   {
   	sprintf(buffer, "CycleMultiplierOverride fixed\n");
-  	strcat(RomInfo,buffer);
+  	appendBounded(RomInfo, sizeof(RomInfo), buffer);
   }
   if (Config.hacks.gpu_busy_hack)
   {
   	sprintf(buffer, "GPU 'Fake Busy States' hacked\n");
-  	strcat(RomInfo,buffer);
+  	appendBounded(RomInfo, sizeof(RomInfo), buffer);
   }
   if (Config.hacks.dwActFixes)
   {
   	sprintf(buffer, "Special game auto fixed %08x\n", Config.hacks.dwActFixes);
-  	strcat(RomInfo,buffer);
+  	appendBounded(RomInfo, sizeof(RomInfo), buffer);
   }
   if (Config.hacks.lightrec_hacks)
   {
   	sprintf(buffer, "Applied Lightrec hacks\n");
-  	strcat(RomInfo,buffer);
+  	appendBounded(RomInfo, sizeof(RomInfo), buffer);
   }
   if (Config.pR3000Fix)
   {
   	sprintf(buffer, "pR3000 auto fixed\n");
-  	strcat(RomInfo,buffer);
+  	appendBounded(RomInfo, sizeof(RomInfo), buffer);
   }
 
   sprintf(buffer,"ISO Size: %u Mb\n",isoFile.size/1024/1024);
-  strcat(RomInfo,buffer);
+  appendBounded(RomInfo, sizeof(RomInfo), buffer);
   sprintf(buffer,"Country: %s\n",(!Config.PsxType) ? "NTSC":"PAL");
-  strcat(RomInfo,buffer);
+  appendBounded(RomInfo, sizeof(RomInfo), buffer);
   sprintf(buffer,"BIOS: %s\n",(Config.HLE==BIOS_USER_DEFINED) ? "PSX":"HLE");
-  strcat(RomInfo,buffer);
+  appendBounded(RomInfo, sizeof(RomInfo), buffer);
   unsigned char tracks[2];
   ISOgetTN(&tracks[0]);
   sprintf(buffer,"Number of tracks %u\n", tracks[1]);
-	strcat(RomInfo,buffer);
+	appendBounded(RomInfo, sizeof(RomInfo), buffer);
 
 	menu::MessageBox::getInstance().setMessage(RomInfo);
 }

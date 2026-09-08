@@ -574,6 +574,16 @@ static void CheckGameR3000AutoFix(void)
     }
 }
 
+// Appends src to dst without overflowing dst's declared size. Used to build
+// up RomInfo/feedback_string from several independently-gated pieces whose
+// combined length isn't bounded by any single piece's fixed size.
+static void appendBounded(char* dst, size_t dstSize, const char* src)
+{
+	size_t used = strlen(dst);
+	if (used < dstSize - 1)
+		strncat(dst, src, dstSize - used - 1);
+}
+
 void fileBrowserFrame_LoadFile(int i)
 {
 	char feedback_string[256] = "Failed to load ISO";
@@ -607,45 +617,44 @@ void fileBrowserFrame_LoadFile(int i)
 				return;
 			}
 
-			strcpy(feedback_string, "Loaded ");
-			strcat(feedback_string, filenameFromAbsPath(dir_entries[i].name));
+			snprintf(feedback_string, sizeof(feedback_string), "Loaded %s", filenameFromAbsPath(dir_entries[i].name));
 
 			char RomInfo[512] = "";
 			char buffer [50];
-			strcat(RomInfo,feedback_string);
+			appendBounded(RomInfo, sizeof(RomInfo), feedback_string);
 			sprintf(buffer,"\nCD-ROM Label: %s\n",CdromLabel);
-			strcat(RomInfo,buffer);
+			appendBounded(RomInfo, sizeof(RomInfo), buffer);
 			sprintf(buffer,"CD-ROM ID: %s\n", CdromId);
-			strcat(RomInfo,buffer);
+			appendBounded(RomInfo, sizeof(RomInfo), buffer);
             if (check_unsatisfied_libcrypt())
             {
                 sprintf(buffer, "LibCrypt protected game with missing SBI\n");
-                strcat(RomInfo,buffer);
+                appendBounded(RomInfo, sizeof(RomInfo), buffer);
             }
             if (Config.hacks.gpu_slow_list_walking)
             {
                 sprintf(buffer, "GpuSlowListWalking auto fixed\n");
-                strcat(RomInfo,buffer);
+                appendBounded(RomInfo, sizeof(RomInfo), buffer);
             }
             if (Config.cycle_multiplier_override)
             {
                 sprintf(buffer, "CycleMultiplierOverride fixed\n");
-                strcat(RomInfo,buffer);
+                appendBounded(RomInfo, sizeof(RomInfo), buffer);
             }
             if (Config.hacks.gpu_busy_hack)
             {
                 sprintf(buffer, "GPU 'Fake Busy States' hacked\n");
-                strcat(RomInfo,buffer);
+                appendBounded(RomInfo, sizeof(RomInfo), buffer);
             }
             if (Config.hacks.dwActFixes)
             {
                 sprintf(buffer, "Special game auto fixed %08x\n", Config.hacks.dwActFixes);
-                strcat(RomInfo,buffer);
+                appendBounded(RomInfo, sizeof(RomInfo), buffer);
             }
             if (Config.hacks.lightrec_hacks)
             {
                 sprintf(buffer, "Applied Lightrec hacks\n");
-                strcat(RomInfo,buffer);
+                appendBounded(RomInfo, sizeof(RomInfo), buffer);
             }
             // Switches for painting textured quads as 2 triangles (small glitches, but better shading!)
             // This function has been automatically started in soft.c and dwActFixes have been determined in gpu code, so need to set it here
@@ -656,37 +665,37 @@ void fileBrowserFrame_LoadFile(int i)
             if (Config.pR3000Fix)
             {
                 sprintf(buffer, "pR3000 auto fixed\n");
-                strcat(RomInfo,buffer);
+                appendBounded(RomInfo, sizeof(RomInfo), buffer);
             }
 
 			sprintf(buffer,"ISO Size: %u Mb\n",isoFile.size/1024/1024);
-			strcat(RomInfo,buffer);
+			appendBounded(RomInfo, sizeof(RomInfo), buffer);
 			sprintf(buffer,"Country: %s\n",forceNTSC == FORCENTSC_ENABLE ? "FORCE NTSC" : ((!Config.PsxType) ? "NTSC":"PAL"));
-			strcat(RomInfo,buffer);
+			appendBounded(RomInfo, sizeof(RomInfo), buffer);
 			sprintf(buffer,"BIOS: %s\n",(Config.HLE==BIOS_USER_DEFINED) ? "PSX":"HLE");
-			strcat(RomInfo,buffer);
+			appendBounded(RomInfo, sizeof(RomInfo), buffer);
 			sprintf(buffer, "BIOS Name: %s\n", biosFileName);
-			strcat(RomInfo, buffer);
+			appendBounded(RomInfo, sizeof(RomInfo), buffer);
 			unsigned char tracks[2];
             ISOgetTN(&tracks[0]);
             sprintf(buffer,"Number of tracks %u\n", tracks[1]);
-			strcat(RomInfo,buffer);
+			appendBounded(RomInfo, sizeof(RomInfo), buffer);
 
 			switch (autoSaveLoaded)
 			{
 			case NATIVESAVEDEVICE_NONE:
 				break;
 			case NATIVESAVEDEVICE_SD:
-				strcat(RomInfo,"\nFound & loaded save from SD card\n");
+				appendBounded(RomInfo, sizeof(RomInfo), "\nFound & loaded save from SD card\n");
 				break;
 			case NATIVESAVEDEVICE_USB:
-				strcat(RomInfo,"\nFound & loaded save from USB device\n");
+				appendBounded(RomInfo, sizeof(RomInfo), "\nFound & loaded save from USB device\n");
 				break;
 			case NATIVESAVEDEVICE_CARDA:
-				strcat(RomInfo,"\nFound & loaded save from memcard in slot A\n");
+				appendBounded(RomInfo, sizeof(RomInfo), "\nFound & loaded save from memcard in slot A\n");
 				break;
 			case NATIVESAVEDEVICE_CARDB:
-				strcat(RomInfo,"\nFound & loaded save from memcard in slot B\n");
+				appendBounded(RomInfo, sizeof(RomInfo), "\nFound & loaded save from memcard in slot B\n");
 				break;
 			}
 			autoSaveLoaded = NATIVESAVEDEVICE_NONE;
