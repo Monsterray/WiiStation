@@ -23,6 +23,7 @@
 
 #include "IPLFont.h"
 #include "../MEM2.h"
+#include "../perf_prof.h"
 
 #include "gui2/gettext.h"
 #include "../wiiSXconfig.h"
@@ -353,10 +354,13 @@ void IplFont::drawString(int x, int y, char *string, float scale, bool centered)
 
     //GX_InvalidateTexAll();
     GX_InvalidateTexRegion(&texCacheRegionS[0]);
+    PERF_INC(menu_strings);
 
     wchar_t *utf8Txt = charToWideChar(gettext(string));
     wchar_t *tmpPtr = utf8Txt;
     while (*utf8Txt) {
+        PERF_INC(menu_glyphs);
+        PERF_INC(menu_texloads);
 
         GX_InitTexObj(&fontTexObj, this->getCharPngBuf(*utf8Txt), CH_FONT_WIDTH, CH_FONT_HEIGHT, GX_TF_IA8, GX_CLAMP, GX_CLAMP, GX_FALSE);
         GX_LoadTexObjPreloaded(&fontTexObj, &texCacheRegionS[0], GX_TEXMAP0);

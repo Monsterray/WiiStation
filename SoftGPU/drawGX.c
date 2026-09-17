@@ -24,6 +24,7 @@
 #include <ogc/machine/processor.h>
 #include <wiiuse/wpad.h>
 #include "../coredebug.h"
+#include "../Gamecube/perf_prof.h"
 #include "../gpulib/stdafx.h"
 //#define _IN_DRAW
 #include "externals.h"
@@ -556,8 +557,10 @@ void DoBufferSwap(void)                                // SWAP BUFFERS
 	if (iDX < PreviousPSXDisplay.Range.x1)
 		iDX += 8;
 	short iDY = PreviousPSXDisplay.DisplayMode.y;
+	unsigned long long swap_t0;
 
 	if (menuActive) return;
+	swap_t0 = perf_now_us();
 
 	if(iOldDX!=iDX || iOldDY!=iDY)
 	{
@@ -599,6 +602,7 @@ void DoBufferSwap(void)                                // SWAP BUFFERS
 	}
 
 	GX_Flip(imgPtr, iResX_Max*2, PSXDisplay.RGB24 ? GX_TF_RGBA8 : GX_TF_RGB5A3, 0, 0, iDX, iDY);
+	perf_present_tick(perf_now_us() - swap_t0);
 }
 
 // For old softGpu

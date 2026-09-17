@@ -60,6 +60,17 @@ POSSIBILITY OF SUCH DAMAGE.
 
 #include "../../mem2_manager.h"
 #include "../../Gamecube/wiiSXconfig.h"
+#include "../../Gamecube/perf_prof.h"
+
+/* Phase 1 profiling: timed GX_DrawDone wrapper. DrawDone stalls Broadway
+ * until the GP goes idle, so the gettick pair is noise next to the wait. */
+static void perf_drawdone(void)
+{
+	unsigned long long t0 = perf_now_us();
+	GX_DrawDone();
+	PERF_INC(gx_drawdone);
+	PERF_ADD(gx_drawdone_us, perf_now_us() - t0);
+}
 
 #define ROUND_32B(x) (((x) + 31) & (~31))
 #define min(a,b)     (((a) < (b)) ? (a) : (b))
@@ -778,6 +789,7 @@ static void checkLoadTextureObj( int textureType )
     {
         if (textureType == TEX_TYPE_1 && texCacheUsedInfo[i] == (curTexId + _MAX_GL_TEX))
         {
+            PERF_INC(gx_tex_hits);
             gxTexMapSemi = i;
             if (texChgType)
             {
@@ -789,6 +801,7 @@ static void checkLoadTextureObj( int textureType )
         }
         else if (textureType == TEX_TYPE_2 && texCacheUsedInfo[i] == curTexId)
         {
+            PERF_INC(gx_tex_hits);
             gxTexMap = i;
             if (texChgType)
             {
@@ -799,6 +812,7 @@ static void checkLoadTextureObj( int textureType )
             return;
         }
     }
+    PERF_INC(gx_tex_misses);
 
     // find free texture cache
     for (i = 0; i < 8; i++)
@@ -829,7 +843,8 @@ static void checkLoadTextureObj( int textureType )
     #endif // DISP_DEBUG
 
     // no free texture cache, run GX_DrawDone and clear texture cache
-    GX_DrawDone();
+    perf_drawdone();
+    PERF_INC(gx_tex_resets);
     resetTexCacheInfo();
 
     if (textureType == TEX_TYPE_1)
@@ -851,7 +866,7 @@ static void checkLoadTextureObj( int textureType )
 void glDeleteTextures(GLsizei n, const GLuint *textures)
 {
     const GLuint *texlist = textures;
-    GX_DrawDone();
+    perf_drawdone();
     while (n-- > 0) {
         int i = *texlist++;
         if (!(i < 0 || i >= _MAX_GL_TEX)) {
@@ -1441,7 +1456,7 @@ void glFlush() {} // All commands are sent immediately to draw, no queue, so poi
 // Waits for all the commands to be successfully executed
 void glFinish()
 {
-    GX_DrawDone(); // Be careful, WaitDrawDone waits for the DD command, this sends AND waits for it
+    perf_drawdone(); // Be careful, WaitDrawDone waits for the DD command, this sends AND waits for it
 }
 
 void glBlendFunc(GLenum sfactor, GLenum dfactor)
@@ -1806,7 +1821,8 @@ int glInitMovieTextures( GLsizei width, GLsizei height, void * texData )
 {
     int textureType = 0;
     //GX_WaitDrawDone();
-    GX_DrawDone();
+    perf_drawdone();
+    PERF_INC(gx_tex_resets);
     resetTexCacheInfo();
 
     gltexture_ *currtex = &texture_list[glparamstate.glcurtex];
@@ -1881,7 +1897,8 @@ int glTexSubImage2D(GLenum target, GLint level,
 {
     int textureType = 0;
     //GX_WaitDrawDone();
-    GX_DrawDone();
+    perf_drawdone();
+    PERF_INC(gx_tex_resets);
     resetTexCacheInfo();
 
     gltexture_ *currtex = &texture_list[glparamstate.glcurtex];
@@ -2012,7 +2029,9 @@ int glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei width
     //GX_DrawDone(); // Very ugly, we should have a list of used textures and only wait if we are using the curr tex.
                    // This way we are sure that we are not modifying a texture which is being drawn
     //GX_WaitDrawDone();
-    GX_DrawDone();
+    perf_drawdone();
+    PERF_INC(gx_tex_resets);
+    PERF_INC(gx_tex_loads);
     resetTexCacheInfo();
 
     gltexture_ *currtex = &texture_list[glparamstate.glcurtex];
@@ -2045,6 +2064,7 @@ int glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei width
     currtex->bytespp = 2;
 
     textureType = _ogx_scramble_4b_5a3((unsigned char *)data, currtex->data, glparamstate.blendenabled, width, height);
+    PERF_ADD(gx_tex_bytes, (unsigned long long)currtex->w * currtex->h * 2);
     DCFlushRange(currtex->data, currtex->w * currtex->h * 2);
 
     // Slow but necessary! The new textures may be in the same region of some old cached textures
@@ -3028,6 +3048,7 @@ void glDrawArrays(GLenum mode, GLint first, GLsizei count)
 
     if (_ogx_apply_state(texen, glparamstate.color_enabled))
     {
+        PERF_INC(gx_batches);
         GX_Begin(gxmode, GX_VTXFMT0, count + loop);
         draw_arrays_general(ptr_pos, ptr_normal, ptr_texc, ptr_color,
                             count, glparamstate.normal_enabled, color_provide, texen, loop);
@@ -3040,6 +3061,7 @@ void glDrawArrays(GLenum mode, GLint first, GLsizei count)
 
         if (_ogx_apply_state(texen, glparamstate.color_enabled))
         {
+            PERF_INC(gx_batches);
             GX_Begin(gxmode, GX_VTXFMT0, count + loop);
             draw_arrays_general(ptr_pos, ptr_normal, ptr_texc, ptr_color,
                                 count, glparamstate.normal_enabled, color_provide, texen, loop);

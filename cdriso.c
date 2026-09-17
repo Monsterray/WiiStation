@@ -39,6 +39,7 @@
 #include <unistd.h>
 
 #include "Gamecube/DEBUG.h"
+#include "Gamecube/perf_prof.h"
 
 #define OFF_T_MSB ((off_t)1 << (sizeof(off_t) * 8 - 1))
 
@@ -192,8 +193,10 @@ static void set_static_stdio_buffer(FILE *f)
 
 static int cdimg_seek(FILE *f, long pos)
 {
-	if (f == cdimg_seek_file && pos == cdimg_seek_pos)
+	if (f == cdimg_seek_file && pos == cdimg_seek_pos) {
+		PERF_INC(cd_seq);
 		return 0;
+	}
 	// fseek() is also relied on to clear the stream's EOF/error indicator;
 	// only skip it once we know this exact seek is redundant.
 	if (fseek(f, pos, SEEK_SET)) {
@@ -201,9 +204,23 @@ static int cdimg_seek(FILE *f, long pos)
 		cdimg_seek_pos = -1;
 		return -1;
 	}
+	PERF_INC(cd_rand);
 	cdimg_seek_file = f;
 	cdimg_seek_pos = pos;
 	return 0;
+}
+
+/* Phase 1 profiling: fold one sector-read result into the counters. */
+static void perf_cd_done(unsigned long long t0, int ret)
+{
+	unsigned long long dt = perf_now_us() - t0;
+	PERF_ADD(io_total_us, dt);
+	if (ret > 0) {
+		PERF_INC(cd_reads);
+		PERF_ADD(cd_bytes, (unsigned long long)ret);
+	}
+	if ((uint32_t)dt > g_perf.io_worst_us)
+		g_perf.io_worst_us = (uint32_t)dt;
 }
 
 // Track the position a successful read actually left the stream at (not
@@ -1144,17 +1161,20 @@ static int cdread_normal(FILE *f, unsigned int base, void *dest, int sector)
 {
 	int ret;
 	long pos = base + sector * CD_FRAMESIZE_RAW;
+	unsigned long long t0 = perf_now_us();
 	if (cdimg_seek(f, pos))
 		goto fail_io;
 	ret = fread(dest, 1, CD_FRAMESIZE_RAW, f);
 	cdimg_seek_advance(f, pos, ret);
 	if (ret <= 0)
 		goto fail_io;
+	perf_cd_done(t0, ret);
 	return ret;
 
 fail_io:
 	// often happens in cdda gaps of a split cue/bin, so not logged
 	//SysPrintf("File IO error %d, base %u, sector %u\n", errno, base, sector);
+	perf_cd_done(t0, -1);
 	return -1;
 }
 
@@ -1162,6 +1182,7 @@ static int cdread_sub_mixed(FILE *f, unsigned int base, void *dest, int sector)
 {
 	int ret;
 	long pos = base + sector * (CD_FRAMESIZE_RAW + SUB_FRAMESIZE);
+	unsigned long long t0 = perf_now_us();
 
 	if (cdimg_seek(f, pos))
 		goto fail_io;
@@ -1169,10 +1190,12 @@ static int cdread_sub_mixed(FILE *f, unsigned int base, void *dest, int sector)
 	cdimg_seek_advance(f, pos, ret);
 	if (ret <= 0)
 		goto fail_io;
+	perf_cd_done(t0, ret);
 	return ret;
 
 fail_io:
 	//SysPrintf("File IO error %d, base %u, sector %u\n", errno, base, sector);
+	perf_cd_done(t0, -1);
 	return -1;
 }
 
@@ -1186,18 +1209,23 @@ static int cdread_sub_sub_mixed(FILE *f, int sector)
 	// stream position without updating the tracker, leaving a stale
 	// cdimg_seek_pos that could wrongly match (and skip) a later caller's
 	// seek to that same offset.
+	{
+	unsigned long long t0 = perf_now_us();
 	if (cdimg_seek(f, pos))
-		goto fail_io;
+		goto fail_io_sub;
 	ret = fread(subbuffer, 1, SUB_FRAMESIZE, f);
 	cdimg_seek_advance(f, pos, ret);
 	if (ret != SUB_FRAMESIZE)
-		goto fail_io;
+		goto fail_io_sub;
 
+	perf_cd_done(t0, SUB_FRAMESIZE);
 	return SUB_FRAMESIZE;
 
-fail_io:
+fail_io_sub:
 	SysPrintf("subchannel: file IO error %d, sector %u\n", errno, sector);
+	perf_cd_done(t0, -1);
 	return -1;
+	}
 }
 
 static int uncompress2_pcsx(void *out, unsigned long *out_size, void *in, unsigned long in_size)
@@ -1238,6 +1266,7 @@ static int cdread_compressed(FILE *f, unsigned int base, void *dest, int sector)
 	int is_compressed;
 	off_t start_byte;
 	int ret, block;
+	unsigned long long t0 = perf_now_us();
 
 	if (base)
 		sector += base / 2352;
@@ -1252,6 +1281,7 @@ static int cdread_compressed(FILE *f, unsigned int base, void *dest, int sector)
 
 	if (sector >= compr_img->index_len * 16) {
 		SysPrintf("sector %d is past img end\n", sector);
+		perf_cd_done(t0, -1);
 		return -1;
 	}
 
@@ -1260,6 +1290,7 @@ static int cdread_compressed(FILE *f, unsigned int base, void *dest, int sector)
 		SysPrintf("seek error for block %d at %llx: ",
 			block, (long long)start_byte);
 		perror(NULL);
+		perf_cd_done(t0, -1);
 		return -1;
 	}
 
@@ -1267,6 +1298,7 @@ static int cdread_compressed(FILE *f, unsigned int base, void *dest, int sector)
 	size = (compr_img->index_table[block + 1] & ~OFF_T_MSB) - start_byte;
 	if (size > sizeof(compr_img->buff_compressed)) {
 		SysPrintf("block %d is too large: %u\n", block, size);
+		perf_cd_done(t0, -1);
 		return -1;
 	}
 
@@ -1274,6 +1306,7 @@ static int cdread_compressed(FILE *f, unsigned int base, void *dest, int sector)
 				1, size, cdHandle) != size) {
 		SysPrintf("read error for block %d at %x: ", block, start_byte);
 		perror(NULL);
+		perf_cd_done(t0, -1);
 		return -1;
 	}
 
@@ -1284,6 +1317,7 @@ static int cdread_compressed(FILE *f, unsigned int base, void *dest, int sector)
 		if (ret != 0) {
 			SysPrintf("uncompress failed with %d for block %d, sector %d\n",
 					ret, block, sector);
+			perf_cd_done(t0, -1);
 			return -1;
 		}
 		if (cdbuffer_size != cdbuffer_size_expect)
@@ -1298,6 +1332,7 @@ finish:
 	if (dest != cdbuffer) // copy avoid HACK
 		memcpy(dest, compr_img->buff_raw[compr_img->sector_in_blk],
 			CD_FRAMESIZE_RAW);
+	perf_cd_done(t0, CD_FRAMESIZE_RAW);
 	return CD_FRAMESIZE_RAW;
 }
 
@@ -1312,27 +1347,39 @@ static unsigned char *chd_get_sector(unsigned int current_buffer, unsigned int s
 static int cdread_chd(FILE *f, unsigned int base, void *dest, int sector)
 {
 	int hunk;
+	unsigned long long t0 = perf_now_us();
 
 	sector += base;
 
 	hunk = sector / chd_img->sectors_per_hunk;
 	chd_img->sector_in_hunk = sector % chd_img->sectors_per_hunk;
 
-	if (hunk == chd_img->current_hunk[0])
+	if (hunk == chd_img->current_hunk[0]) {
+		PERF_INC(chd_hit);
 		chd_img->current_buffer = 0;
-	else if (hunk == chd_img->current_hunk[1])
+	}
+	else if (hunk == chd_img->current_hunk[1]) {
+		PERF_INC(chd_hit);
 		chd_img->current_buffer = 1;
+	}
 	else
 	{
+		unsigned long long ct0 = perf_now_us();
+		PERF_INC(chd_miss);
 		if (chd_read(chd_img->chd, hunk, chd_img->buffer +
-			chd_img->current_buffer * chd_img->header->hunkbytes) != CHDERR_NONE)
+			chd_img->current_buffer * chd_img->header->hunkbytes) != CHDERR_NONE) {
+			PERF_INC(chd_err);
+			perf_cd_done(t0, -1);
 			return -1;
+		}
+		PERF_ADD(chd_us, perf_now_us() - ct0);
 		chd_img->current_hunk[chd_img->current_buffer] = hunk;
 	}
 
 	if (dest != cdbuffer) // copy avoid HACK
 		memcpy(dest, chd_get_sector(chd_img->current_buffer, chd_img->sector_in_hunk),
 			CD_FRAMESIZE_RAW);
+	perf_cd_done(t0, CD_FRAMESIZE_RAW);
 	return CD_FRAMESIZE_RAW;
 }
 
@@ -1370,10 +1417,12 @@ static int cdread_2048(FILE *f, unsigned int base, void *dest, int sector)
 {
 	int ret;
 	long pos = base + sector * 2048;
+	unsigned long long t0 = perf_now_us();
 
 	cdimg_seek(f, pos);
 	ret = fread((char *)dest + 12 * 2, 1, 2048, f);
 	cdimg_seek_advance(f, pos, ret);
+	perf_cd_done(t0, 12*2 + ret);
 
 	// not really necessary, fake mode 2 header
 	memset(cdbuffer, 0, 12 * 2);
