@@ -385,7 +385,14 @@ void WriteConfig(void) {
   dwCfgFixes=0;
   iUseFixes=0;
   iUseNoStretchBlt=1;
-  iUseDither=0;
+  // This is the default baked into a freshly-written config file (no
+  // config on disk yet), which ReadConfig()/ReadConfigFile() then loads
+  // back on every later session -- unlike ReadConfig()'s own in-memory
+  // default a few lines up (iUseDither = useDithering), this one sticks
+  // permanently once a config file exists. 0=disabled, 1=default, 2=always
+  // enabled. Was 0 (disabled), which left dithering permanently off after
+  // the first save; fixes Silent Hill's banding.
+  iUseDither=2;
   iShowFPS=0;
   bSSSPSXLimit=FALSE;
 

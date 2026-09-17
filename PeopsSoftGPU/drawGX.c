@@ -62,11 +62,16 @@ bool 		   backFromMenu=0;
 //Some GX specific variables
 #define RESX_MAX 1024	//Vmem width
 #define RESY_MAX 512	//Vmem height
-#define GXRESX_MAX 1366	//1024 * 1.33 for ARGB
 //int	iResX_Max=640;	//Max FB Width
 int		iResX_Max=RESX_MAX;
 int		iResY_Max=RESY_MAX;
-static unsigned char	GXtexture[GXRESX_MAX*RESY_MAX*2] __attribute__((aligned(32)));
+// Sized for the largest texture GX_InitTexObj can be given here: the full
+// RESX_MAX x RESY_MAX VRAM area at 4 bytes/pixel (GX_TF_RGBA8), which
+// PSXDisplay.RGB24 frames use (see GX_Flip's fmt argument below). The old
+// GXRESX_MAX*RESY_MAX*2 sizing (a 1024*1.33 width fudge at 2 bytes/pixel)
+// undersized this for large/24bpp frames, corrupting memory past the end
+// of the buffer on games like MediEvil PAL.
+static unsigned char	GXtexture[RESX_MAX*RESY_MAX*4] __attribute__((aligned(32)));
 char *	pCaptionText;
 
 extern u32* xfb[2];	/*** Framebuffers ***/
@@ -116,7 +121,7 @@ void DoBufferSwap(void)                                // SWAP BUFFERS
 
 	if(iOldDX!=iDX || iOldDY!=iDY)
 	{
-		memset(GXtexture, 0, GXRESX_MAX*RESY_MAX*2);
+		memset(GXtexture, 0, sizeof(GXtexture));
 		iOldDX=iDX;iOldDY=iDY;
 		backFromMenu = 1;
 	}
@@ -230,7 +235,7 @@ unsigned long ulInitDisplay(void)
 		BuildDispMenu(0);
 	}
 
-	memset(GXtexture,0,GXRESX_MAX*iResY_Max*2);
+	memset(GXtexture,0,sizeof(GXtexture));
 
 	return (unsigned long)GXtexture;		//This isn't right, but didn't want to return 0..
 }
@@ -293,7 +298,7 @@ void GX_Flip(short width, short height, u8 * buffer, int pitch, u8 fmt)
 		oldwidth = width;
 		oldheight = height;
 		oldformat = fmt;
-		memset(GXtexture,0,GXRESX_MAX*iResY_Max*2);
+		memset(GXtexture,0,sizeof(GXtexture));
 		GX_InitTexObj(&GXtexobj, GXtexture, width, height, fmt, GX_CLAMP, GX_CLAMP, GX_FALSE);
 	}
 	
