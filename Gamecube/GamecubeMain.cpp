@@ -50,6 +50,7 @@ extern bool executedBios;
 
 extern "C" {
 #include "DEBUG.h"
+#include "perf_prof.h"
 #include "fileBrowser/fileBrowser.h"
 #include "fileBrowser/fileBrowser-libfat.h"
 #include "fileBrowser/fileBrowser-DVD.h"
@@ -657,7 +658,13 @@ void biosFileInit()
  	}
 	biosFile = (fileBrowser_file*)memalign(32,sizeof(fileBrowser_file));
 	memcpy(biosFile,biosFile_dir,sizeof(fileBrowser_file));
-	strcat(biosFile->name, GetGameBios(biosFile->name, filenameFromAbsPath(isoFile.name), strlen(isoFile.name)));
+	{
+		size_t used = strlen(biosFile->name);
+		size_t avail = (used < sizeof(biosFile->name)) ? sizeof(biosFile->name) - used - 1 : 0;
+		const char *tail = GetGameBios(biosFile->name, filenameFromAbsPath(isoFile.name), strlen(isoFile.name));
+		if (avail > 0 && tail && tail[0])
+			snprintf(biosFile->name + used, avail + 1, "%s", tail);
+	}
 	biosFile_init(biosFile);  //initialize the bios device (it might not be the same as ISO device)
 }
 
@@ -938,6 +945,7 @@ extern "C" {
 void go(void) {
 	Config.PsxOut = 0;
 	stop = 0;
+	perf_reset();
 
 	if (gpuPtr == &newSoftGpu)
     {

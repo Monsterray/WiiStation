@@ -17,6 +17,7 @@
 #include "psxhle.h"
 #include "Gamecube/MEM2.h"
 #include "Gamecube/PadSSSPSX.h"
+#include "Gamecube/perf_prof.h"
 #include "deps/lightrec/lightrec.h"
 
 #define ARRAY_SIZE(x) (sizeof(x) ? sizeof(x) / sizeof((x)[0]) : 0)
@@ -533,6 +534,7 @@ static void lightrec_plugin_execute_internal(bool block_only)
 {
 	struct lightrec_registers *regs;
 	u32 flags, cycles_pcsx;
+	unsigned long long slice_t0 = perf_now_us();
 
 	regs = lightrec_get_registers(lightrec_state);
 	gen_interupt((psxCP0Regs *)regs->cp0);
@@ -546,9 +548,10 @@ static void lightrec_plugin_execute_internal(bool block_only)
 
 	u32 cycles_lightrec = cycles_pcsx * 1024;
 	if (unlikely(use_lightrec_interpreter)) {
+			PERF_INC(jit_interp_fallbacks);
 			psxRegs.pc = lightrec_run_interpreter(lightrec_state,
-							      psxRegs.pc,
-							      cycles_lightrec);
+						      psxRegs.pc,
+						      cycles_lightrec);
 	} else {
 		psxRegs.pc = lightrec_execute(lightrec_state,
 					      psxRegs.pc, cycles_lightrec);
@@ -566,20 +569,27 @@ static void lightrec_plugin_execute_internal(bool block_only)
 		exit(1);
 	}
 
-	if (flags & LIGHTREC_EXIT_SYSCALL)
+	if (flags & LIGHTREC_EXIT_SYSCALL) {
+		PERF_INC(jit_exceptions);
 		psxException(R3000E_Syscall << 2, 0, (psxCP0Regs *)regs->cp0);
-	if (flags & LIGHTREC_EXIT_BREAK)
+	}
+	if (flags & LIGHTREC_EXIT_BREAK) {
+		PERF_INC(jit_exceptions);
 		psxException(R3000E_Bp << 2, 0, (psxCP0Regs *)regs->cp0);
+	}
 	else if (flags & LIGHTREC_EXIT_UNKNOWN_OP) {
 		u32 op = intFakeFetch(psxRegs.pc);
 		u32 hlec = op & 0x03ffffff;
 		if ((op >> 26) == 0x3b && hlec < ARRAY_SIZE(psxHLEt) && Config.HLE) {
+			PERF_INC(jit_hle);
 			lightrec_plugin_sync_regs_to_pcsx(0);
 			psxHLEt[hlec]();
 			lightrec_plugin_sync_regs_from_pcsx(0);
 		}
-		else
+		else {
+			PERF_INC(jit_exceptions);
 			psxException(R3000E_RI << 2, 0, (psxCP0Regs *)regs->cp0);
+		}
 	}
 
 	if ((regs->cp0[13] & regs->cp0[12] & 0x300) && (regs->cp0[12] & 0x1)) {
@@ -587,6 +597,9 @@ static void lightrec_plugin_execute_internal(bool block_only)
 		regs->cp0[13] &= ~0x7c;
 		psxException(regs->cp0[13], 0, (psxCP0Regs *)regs->cp0);
 	}
+
+	PERF_INC(jit_slices);
+	PERF_ADD(cpu_us, perf_now_us() - slice_t0);
 }
 
 static void lightrec_plugin_execute(void)
@@ -607,11 +620,15 @@ static void lightrec_plugin_execute_block(enum blockExecCaller caller)
 static void lightrec_plugin_clear(u32 addr, u32 size)
 {
 	if ((addr == 0 && size == UINT32_MAX)
-	    || (Config.hacks.lightrec_hacks & LIGHTREC_OPT_INV_DMA_ONLY))
+	    || (Config.hacks.lightrec_hacks & LIGHTREC_OPT_INV_DMA_ONLY)) {
+		PERF_INC(jit_resets_full);
 		lightrec_invalidate_all(lightrec_state);
-	else
+	}
+	else {
+		PERF_INC(jit_resets_partial);
 		/* size * 4: PCSX uses DMA units */
 		lightrec_invalidate(lightrec_state, addr, size * 4);
+	}
 }
 
 static void lightrec_plugin_notify(enum R3000Anote note, void *data)
