@@ -1652,9 +1652,11 @@ void glInitRGBATextures( GLsizei width, GLsizei height )
     }
 }
 
+#define RESX_MAX 1024   //Vmem width
 #define RESY_MAX 512    //Vmem height
-#define GXRESX_MAX 1366    //1024 * 1.33 for ARGB
-#define MOVIE_BUF_SIZE (GXRESX_MAX*RESY_MAX*2)
+// Must match SoftGPU/drawGX.c's GXtexture array size -- this is an extern
+// into that same buffer, not a separate allocation.
+#define MOVIE_BUF_SIZE (RESX_MAX*RESY_MAX*4)
 #define W_BLOCK(w) (((w + 3) & ~(unsigned int)3) >> 2)
 
 extern unsigned char GXtexture[MOVIE_BUF_SIZE];

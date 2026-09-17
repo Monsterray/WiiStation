@@ -61,11 +61,16 @@ int            backFromMenu=0;
 
 #define RESX_MAX 1024	//Vmem width
 #define RESY_MAX 512	//Vmem height
-#define GXRESX_MAX 1366	//1024 * 1.33 for ARGB
 int		iResX_Max=RESX_MAX;
 int		iResY_Max=RESY_MAX;
 
-unsigned char	GXtexture[GXRESX_MAX*RESY_MAX*2] __attribute__((aligned(32)));
+// Sized for the largest texture GX_InitTexObj can be given here: the full
+// RESX_MAX x RESY_MAX VRAM area at 4 bytes/pixel (GX_TF_RGBA8). The old
+// GXRESX_MAX*RESY_MAX*2 sizing (a 1024*1.33 width fudge at 2 bytes/pixel)
+// undersized this for large/24bpp frames, corrupting memory past the end
+// of the buffer on games like MediEvil PAL.
+// deps/opengx/gc_gl.c's MOVIE_BUF_SIZE must be kept in sync with this size.
+unsigned char	GXtexture[RESX_MAX*RESY_MAX*4] __attribute__((aligned(32)));
 extern u32* xfb[3];	/*** Framebuffers ***/
 char *	pCaptionText;
 
