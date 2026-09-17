@@ -1324,8 +1324,9 @@ static int cdread_chd(FILE *f, unsigned int base, void *dest, int sector)
 		chd_img->current_buffer = 1;
 	else
 	{
-		chd_read(chd_img->chd, hunk, chd_img->buffer +
-			chd_img->current_buffer * chd_img->header->hunkbytes);
+		if (chd_read(chd_img->chd, hunk, chd_img->buffer +
+			chd_img->current_buffer * chd_img->header->hunkbytes) != CHDERR_NONE)
+			return -1;
 		chd_img->current_hunk[chd_img->current_buffer] = hunk;
 	}
 
@@ -1354,8 +1355,9 @@ static int cdread_sub_chd(FILE *f, int sector)
 	else
 	{
 		buffer = chd_img->current_buffer ^ 1;
-		chd_read(chd_img->chd, hunk, chd_img->buffer +
-			buffer * chd_img->header->hunkbytes);
+		if (chd_read(chd_img->chd, hunk, chd_img->buffer +
+			buffer * chd_img->header->hunkbytes) != CHDERR_NONE)
+			return -1;
 		chd_img->current_hunk[buffer] = hunk;
 	}
 
