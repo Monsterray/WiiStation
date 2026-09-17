@@ -67,6 +67,36 @@ void perf_report(void)
 			(unsigned long)g_perf.jit_resets_partial,
 			(unsigned long)g_perf.jit_interp_fallbacks,
 			(unsigned long)g_perf.jit_hle, (unsigned long)g_perf.jit_exceptions);
+		fprintf(f, "jitmem: code=%lu peak=%lu meta=%lu oldrec_slices=%lu oldrec_resets=%lu oldrec_peak_kb=%lu\n",
+			(unsigned long)g_perf.jit_code_bytes, (unsigned long)g_perf.jit_code_peak,
+			(unsigned long)g_perf.jit_meta_bytes,
+			(unsigned long)g_perf.oldrec_slices, (unsigned long)g_perf.oldrec_resets,
+			(unsigned long)g_perf.oldrec_peak_kb);
+		{
+			/* Top GTE ops by count (func & 0x3f index into adapter table) */
+			unsigned i, n = 0;
+			uint32_t top_v[8] = {0};
+			unsigned top_i[8] = {0};
+			for (i = 0; i < 64; i++) {
+				unsigned k;
+				for (k = 0; k < 8; k++) {
+					if (g_perf.gte_counts[i] > top_v[k]) {
+						unsigned m;
+						for (m = 7; m > k; m--) {
+							top_v[m] = top_v[m-1];
+							top_i[m] = top_i[m-1];
+						}
+						top_v[k] = g_perf.gte_counts[i];
+						top_i[k] = i;
+						break;
+					}
+				}
+			}
+			fprintf(f, "gte top:");
+			for (n = 0; n < 8 && top_v[n]; n++)
+				fprintf(f, " %02x=%lu", top_i[n], (unsigned long)top_v[n]);
+			fprintf(f, "\n");
+		}
 		fprintf(f, "ram: mem1_free_kb=%lu mem2=%lu/%luKB peak=%luKB fails=%lu\n",
 			(unsigned long)mem1_kb, (unsigned long)m2used, (unsigned long)m2tot,
 			(unsigned long)g_perf.mem2_peak_kb, (unsigned long)g_perf.mem2_alloc_fails);

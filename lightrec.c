@@ -19,6 +19,7 @@
 #include "Gamecube/PadSSSPSX.h"
 #include "Gamecube/perf_prof.h"
 #include "deps/lightrec/lightrec.h"
+#include "deps/lightrec/memmanager.h"
 
 #define ARRAY_SIZE(x) (sizeof(x) ? sizeof(x) / sizeof((x)[0]) : 0)
 
@@ -109,6 +110,7 @@ static void cop2_op(struct lightrec_state *state, u32 func)
 	} else {
 		/* This works because regs->cp2c comes right after regs->cp2d,
 		 * so it can be cast to a pcsxCP2Regs pointer. */
+		PERF_INC(gte_counts[func & 0x3f]);
 		cp2_ops[func & 0x3f]((psxCP2Regs *) regs->cp2d);
 	}
 }
@@ -600,6 +602,17 @@ static void lightrec_plugin_execute_internal(bool block_only)
 
 	PERF_INC(jit_slices);
 	PERF_ADD(cpu_us, perf_now_us() - slice_t0);
+	{
+		/* Sample JIT code-cache occupancy for the 4 MiB sizing
+		 * decision (Phase 2 item 3). MEM_FOR_CODE ~= TLSF pool use;
+		 * meta covers IR/MIPS bookkeeping. Cheap integer reads. */
+		unsigned code = lightrec_get_mem_usage(MEM_FOR_CODE);
+		unsigned total = lightrec_get_total_mem_usage();
+		g_perf.jit_code_bytes = code;
+		if (code > g_perf.jit_code_peak)
+			g_perf.jit_code_peak = code;
+		g_perf.jit_meta_bytes = total > code ? total - code : 0;
+	}
 }
 
 static void lightrec_plugin_execute(void)

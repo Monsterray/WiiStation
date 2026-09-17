@@ -34,6 +34,19 @@ typedef struct {
 	uint32_t jit_exceptions;      /* syscall/break/RI taken from JIT */
 	uint32_t int_slices;          /* interpreter execute entries */
 	uint64_t cpu_us;              /* accumulated JIT slice time */
+	/* JIT code-cache occupancy (sampled per slice via memmanager) */
+	uint32_t jit_code_bytes;      /* MEM_FOR_CODE current (TLSF pool use) */
+	uint32_t jit_code_peak;       /* max sampled MEM_FOR_CODE */
+	uint32_t jit_meta_bytes;      /* other Lightrec heap (IR/MIPS/meta) */
+	/* NOTE: idle-loop cycles skipped are not observable: the new core
+	 * performs the skip internally with no counter hook. Measure the
+	 * effect via cpu_us/slice deltas instead (see Phase 2 notes). */
+	/* Old PPC dynarec (ppc/pR3000A.c) */
+	uint32_t oldrec_slices;       /* recExecute/recExecuteBlock entries */
+	uint32_t oldrec_resets;       /* full 10 MiB cache resets */
+	uint32_t oldrec_peak_kb;      /* max sampled ppcPtr-recMem */
+	/* GTE op histogram (adapter cop2_op, index = func & 0x3f) */
+	uint32_t gte_counts[64];
 
 	/* RAM (sampled at report; fails counted live) */
 	uint32_t mem2_alloc_fails;    /* _mem2_memalign NULL returns */
