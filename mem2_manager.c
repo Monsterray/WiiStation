@@ -9,6 +9,7 @@
 
 #include "mem2_manager.h"
 #include "Gamecube/MEM2.h"
+#include "Gamecube/perf_prof.h"
 
 /* Forbid the use of MEM2 through malloc */
 //uint32_t MALLOC_MEM2 = 0;
@@ -104,9 +105,13 @@ bool gx_init_mem2(void)
 
 void *_mem2_memalign(uint8_t align, uint32_t size)
 {
+   void *p;
    if (size == 0)
       return NULL;
-   return __lwp_heap_allocate(&gx_mem2_heap, size);
+   p = __lwp_heap_allocate(&gx_mem2_heap, size);
+   if (!p)
+      PERF_INC(mem2_alloc_fails);
+   return p;
 }
 
 void *_mem2_malloc(uint32_t size)

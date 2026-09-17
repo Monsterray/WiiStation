@@ -20,6 +20,7 @@
 
 #include <math.h>
 #include "GraphicsGX.h"
+#include "../perf_prof.h"
 extern "C" {
     #include "../../gpu.h"
 }
@@ -191,6 +192,9 @@ extern "C" void switchToTVMode(short dWidth, short dHeight, bool retMenu){
 
 extern "C" void resetTexCacheInfo(void)
 {
+    /* Phase 4: counts upload/init-driven full discards (the per-flip
+     * full reset is gone; see ogx_on_frame_present). */
+    PERF_INC(gx_tex_resets);
     texCacheUsedInfo[0] = -1;
     texCacheUsedInfo[1] = -1;
     texCacheUsedInfo[2] = -1;
