@@ -75,6 +75,7 @@ typedef struct {
 	uint64_t cd_bytes;            /* bytes handed to caller */
 	uint32_t cd_seq;              /* sequential (no re-seek) reads */
 	uint32_t cd_rand;             /* reads that needed a seek */
+	uint32_t cd_win;              /* MEM2 window hits (Phase 6) */
 	uint32_t chd_hit;             /* CHD hunk already resident */
 	uint32_t chd_miss;            /* CHD hunk decompressed */
 	uint32_t chd_err;             /* chd_read failures */

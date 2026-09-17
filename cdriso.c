@@ -40,6 +40,7 @@
 
 #include "Gamecube/DEBUG.h"
 #include "Gamecube/perf_prof.h"
+#include "mem2_manager.h"
 
 #define OFF_T_MSB ((off_t)1 << (sizeof(off_t) * 8 - 1))
 
@@ -233,6 +234,144 @@ static void cdimg_seek_advance(FILE *f, long pos, int nread)
 	else {
 		cdimg_seek_file = NULL;
 		cdimg_seek_pos = -1;
+	}
+}
+
+/* Phase 6: MEM2 readahead windows for raw sector reads.
+ *
+ * Two 64 KiB windows keyed on (FILE *, aligned file offset). Raw ISO
+ * traffic is dominated by sequential 2352B sector reads; serving them
+ * from one 64 KiB device transaction instead of ~27 small freads (each
+ * paying FAT/device overhead) is the win. Sub-2K/subchannel, compressed
+ * and CHD paths bypass the windows (different shapes / own buffering).
+ *
+ * Safety properties (review these, not just the code):
+ * - PURE: a hit memcpys exactly the bytes a direct fread would return;
+ *   any fill anomaly leaves the windows untouched and the caller runs
+ *   the direct path. No stale data by construction.
+ * - KEYED on the FILE*: multi-track images use distinct handles per
+ *   track, so alternating tracks can't alias. Stale-handle reuse is
+ *   covered by cdwin_invalidate() on ISOclose (same rule as the seek
+ *   tracker above).
+ * - TRACKER-TRANSPARENT: every window op leaves (OS position, tracker)
+ *   exactly as the direct path would (cdimg_seek/advance do the work;
+ *   the extra fseeks are libc position updates, no device I/O).
+ * - FILL ONLY WHEN SEQUENTIAL (caller saw a seek-skip): random reads
+ *   neither fill nor pollute. CDWIN_SIZE is the single knob for HW A/B
+ *   runs; validate via the cd_win perf counter. */
+#define CDWIN_SIZE (64*1024)
+#define CDWIN_COUNT 2
+typedef struct {
+	FILE *f;
+	long base;
+	unsigned valid;
+	unsigned char *data;
+} cdwin_t;
+static cdwin_t cdwin[CDWIN_COUNT];
+static unsigned cdwin_victim;
+
+static void cdwin_invalidate(void)
+{
+	unsigned i;
+	for (i = 0; i < CDWIN_COUNT; ++i)
+		cdwin[i].valid = 0;
+}
+
+static void cdwin_free(void)
+{
+	unsigned i;
+	for (i = 0; i < CDWIN_COUNT; ++i) {
+		if (cdwin[i].data) {
+			_mem2_free(cdwin[i].data);
+			cdwin[i].data = NULL;
+		}
+		cdwin[i].f = NULL;
+		cdwin[i].valid = 0;
+	}
+}
+
+/* 1 + memcpy when [pos, pos+len) is resident; repositions the stream
+ * exactly as if the bytes had been fread (see note above). Uses a raw
+ * fseek (not cdimg_seek) so the seq/rand counters keep measuring game
+ * reads only, then syncs the tracker to the known-true position. */
+static int cdwin_hit(FILE *f, long pos, void *dest, unsigned len)
+{
+	unsigned i;
+	long base;
+	unsigned off;
+
+	if (pos < 0 || len == 0 || len > CDWIN_SIZE)
+		return 0;
+	base = pos & ~(long)(CDWIN_SIZE - 1);
+	off = (unsigned)(pos - base);
+	for (i = 0; i < CDWIN_COUNT; ++i) {
+		if (cdwin[i].valid && cdwin[i].f == f && cdwin[i].base == base &&
+		    off + len <= cdwin[i].valid) {
+			memcpy(dest, cdwin[i].data + off, len);
+			if (fseek(f, pos + len, SEEK_SET)) {
+				cdimg_seek_file = NULL;
+				cdimg_seek_pos = -1;
+			} else {
+				cdimg_seek_file = f;
+				cdimg_seek_pos = pos + len;
+			}
+			PERF_INC(cd_win);
+			return 1;
+		}
+	}
+	return 0;
+}
+
+/* Best-effort fill of the window containing pos; call only right after a
+ * direct [pos, pos+ret) read so the stream can be restored to the
+ * caller's end position afterwards (tracker-transparent). */
+static void cdwin_fill(FILE *f, long pos, int ret)
+{
+	long base;
+	unsigned slot, i;
+	int got;
+
+	if (pos < 0 || ret <= 0)
+		return;
+	base = pos & ~(long)(CDWIN_SIZE - 1);
+
+	for (i = 0; i < CDWIN_COUNT; ++i)
+		if (cdwin[i].valid && cdwin[i].f == f && cdwin[i].base == base)
+			return;
+
+	slot = cdwin_victim;
+	cdwin_victim = (cdwin_victim + 1) % CDWIN_COUNT;
+
+	if (!cdwin[slot].data) {
+		cdwin[slot].data = _mem2_malloc(CDWIN_SIZE);
+		if (!cdwin[slot].data)
+			return;
+	}
+	/* Raw fseek (not cdimg_seek): fill traffic must not pollute the
+	 * game-read seq/rand counters; the tracker is synced manually.
+	 * Any I/O anomaly below clears the tracker (fail-safe: extra seeks,
+	 * never wrong skips). */
+	if (fseek(f, base, SEEK_SET)) {
+		cdimg_seek_file = NULL;
+		cdimg_seek_pos = -1;
+		return;
+	}
+	got = fread(cdwin[slot].data, 1, CDWIN_SIZE, f);
+	if (got <= 0) {
+		cdimg_seek_file = NULL;
+		cdimg_seek_pos = -1;
+		return;
+	}
+	cdwin[slot].f = f;
+	cdwin[slot].base = base;
+	cdwin[slot].valid = (unsigned)got;
+	/* Restore the caller's end position (pure libc seek, no I/O). */
+	if (fseek(f, pos + ret, SEEK_SET)) {
+		cdimg_seek_file = NULL;
+		cdimg_seek_pos = -1;
+	} else {
+		cdimg_seek_file = f;
+		cdimg_seek_pos = pos + ret;
 	}
 }
 
@@ -1162,12 +1301,19 @@ static int cdread_normal(FILE *f, unsigned int base, void *dest, int sector)
 	int ret;
 	long pos = base + sector * CD_FRAMESIZE_RAW;
 	unsigned long long t0 = perf_now_us();
+	int sequential = (f == cdimg_seek_file && pos == cdimg_seek_pos);
+	if (cdwin_hit(f, pos, dest, CD_FRAMESIZE_RAW)) {
+		perf_cd_done(t0, CD_FRAMESIZE_RAW);
+		return CD_FRAMESIZE_RAW;
+	}
 	if (cdimg_seek(f, pos))
 		goto fail_io;
 	ret = fread(dest, 1, CD_FRAMESIZE_RAW, f);
 	cdimg_seek_advance(f, pos, ret);
 	if (ret <= 0)
 		goto fail_io;
+	if (sequential)
+		cdwin_fill(f, pos, ret);
 	perf_cd_done(t0, ret);
 	return ret;
 
@@ -1183,13 +1329,20 @@ static int cdread_sub_mixed(FILE *f, unsigned int base, void *dest, int sector)
 	int ret;
 	long pos = base + sector * (CD_FRAMESIZE_RAW + SUB_FRAMESIZE);
 	unsigned long long t0 = perf_now_us();
+	int sequential = (f == cdimg_seek_file && pos == cdimg_seek_pos);
 
+	if (cdwin_hit(f, pos, dest, CD_FRAMESIZE_RAW)) {
+		perf_cd_done(t0, CD_FRAMESIZE_RAW);
+		return CD_FRAMESIZE_RAW;
+	}
 	if (cdimg_seek(f, pos))
 		goto fail_io;
 	ret = fread(dest, 1, CD_FRAMESIZE_RAW, f);
 	cdimg_seek_advance(f, pos, ret);
 	if (ret <= 0)
 		goto fail_io;
+	if (sequential)
+		cdwin_fill(f, pos, ret);
 	perf_cd_done(t0, ret);
 	return ret;
 
@@ -1364,16 +1517,23 @@ static int cdread_chd(FILE *f, unsigned int base, void *dest, int sector)
 	}
 	else
 	{
+		/* Phase 6: true 2-hunk LRU. The old code decompressed into
+		 * current_buffer (the MRU slot) and never updated it, so the
+		 * second buffer stayed dead and every new hunk evicted the
+		 * hottest one. With 2 entries, current_buffer^1 IS the LRU
+		 * slot; publish it as MRU after the fill. */
 		unsigned long long ct0 = perf_now_us();
+		unsigned buffer = chd_img->current_buffer ^ 1;
 		PERF_INC(chd_miss);
 		if (chd_read(chd_img->chd, hunk, chd_img->buffer +
-			chd_img->current_buffer * chd_img->header->hunkbytes) != CHDERR_NONE) {
+			buffer * chd_img->header->hunkbytes) != CHDERR_NONE) {
 			PERF_INC(chd_err);
 			perf_cd_done(t0, -1);
 			return -1;
 		}
 		PERF_ADD(chd_us, perf_now_us() - ct0);
-		chd_img->current_hunk[chd_img->current_buffer] = hunk;
+		chd_img->current_hunk[buffer] = hunk;
+		chd_img->current_buffer = buffer;
 	}
 
 	if (dest != cdbuffer) // copy avoid HACK
@@ -1395,17 +1555,23 @@ static int cdread_sub_chd(FILE *f, int sector)
 	hunk = sector / chd_img->sectors_per_hunk;
 	sector_in_hunk = sector % chd_img->sectors_per_hunk;
 
-	if (hunk == chd_img->current_hunk[0])
+	if (hunk == chd_img->current_hunk[0]) {
 		buffer = 0;
-	else if (hunk == chd_img->current_hunk[1])
+		chd_img->current_buffer = 0;
+	}
+	else if (hunk == chd_img->current_hunk[1]) {
 		buffer = 1;
+		chd_img->current_buffer = 1;
+	}
 	else
 	{
+		/* Same true-LRU fix as cdread_chd: publish the filled slot. */
 		buffer = chd_img->current_buffer ^ 1;
 		if (chd_read(chd_img->chd, hunk, chd_img->buffer +
 			buffer * chd_img->header->hunkbytes) != CHDERR_NONE)
 			return -1;
 		chd_img->current_hunk[buffer] = hunk;
+		chd_img->current_buffer = buffer;
 	}
 
 	memcpy(subbuffer, chd_get_sector(buffer, sector_in_hunk) + CD_FRAMESIZE_RAW, SUB_FRAMESIZE);
@@ -1418,10 +1584,17 @@ static int cdread_2048(FILE *f, unsigned int base, void *dest, int sector)
 	int ret;
 	long pos = base + sector * 2048;
 	unsigned long long t0 = perf_now_us();
+	int sequential = (f == cdimg_seek_file && pos == cdimg_seek_pos);
 
-	cdimg_seek(f, pos);
-	ret = fread((char *)dest + 12 * 2, 1, 2048, f);
-	cdimg_seek_advance(f, pos, ret);
+	if (cdwin_hit(f, pos, (char *)dest + 12 * 2, 2048))
+		ret = 2048;
+	else {
+		cdimg_seek(f, pos);
+		ret = fread((char *)dest + 12 * 2, 1, 2048, f);
+		cdimg_seek_advance(f, pos, ret);
+		if (sequential && ret > 0)
+			cdwin_fill(f, pos, ret);
+	}
 	perf_cd_done(t0, 12*2 + ret);
 
 	// not really necessary, fake mode 2 header
@@ -1622,6 +1795,10 @@ static long CALLBACK ISOclose(void) {
 	// stale tracked position falsely match against it.
 	cdimg_seek_file = NULL;
 	cdimg_seek_pos = -1;
+	/* Same stale-handle rule for the readahead windows, plus release the
+	 * MEM2 window buffers until the next disc needs them. */
+	cdwin_invalidate();
+	cdwin_free();
 
 	if (compr_img != NULL) {
 		free(compr_img->index_table);
