@@ -24,6 +24,7 @@
 #include "sio.h"
 #include "Gamecube/fileBrowser/fileBrowser.h"
 #include "Gamecube/fileBrowser/fileBrowser-libfat.h"
+#include <stdlib.h>
 #include <sys/stat.h>
 #include "Gamecube/wiiSXconfig.h"
 #include "Gamecube/PadSSSPSX.h"
@@ -380,6 +381,15 @@ void sioInterrupt() {
 	}
 }
 
+// Detect common memory-card containers: raw 128 KiB, +64 B header
+// (e.g. single .mcr header), +3904 B header (e.g. Adrenaline/PSP exports).
+// Returns the data offset for a given file size, or 0 for raw/unknown.
+static unsigned int McdDataOffsetForSize(long size) {
+	if (size == (long)(MCD_SIZE + 64)) return 64;
+	if (size == (long)(MCD_SIZE + 3904)) return 3904;
+	return 0;
+}
+
 //call me from menu, takes slot and save path as args
 int LoadMcd(int mcd, fileBrowser_file *savepath) {
 	int temp = 0;
@@ -401,7 +411,11 @@ int LoadMcd(int mcd, fileBrowser_file *savepath) {
 	}
 
 	if(saveFile_readFile(&saveFile, &temp, 4) == 4) {  //file exists
-		saveFile.offset = 0;
+		struct stat st;
+		unsigned int dataOff = 0;
+		if (stat((char*)saveFile.name, &st) == 0)
+			dataOff = McdDataOffsetForSize((long)st.st_size);
+		saveFile.offset = dataOff;
 		if(saveFile_readFile(&saveFile, data, MCD_SIZE)==MCD_SIZE)
 		  ret = 1;
 	}
@@ -452,6 +466,33 @@ int SaveMcd(int mcd, fileBrowser_file *savepath) {
   	sprintf((char*)saveFile.name,"%s/slot2.mcd",savepath->name);
   	data = &Mcd2Data[0];
 	}
+
+  /* Preserve an existing +64/+3904 header so imported saves keep their
+   * container format; new cards stay raw MCD_SIZE. */
+  {
+    struct stat st;
+    unsigned int dataOff = 0;
+    if (stat((char*)saveFile.name, &st) == 0)
+      dataOff = McdDataOffsetForSize((long)st.st_size);
+    if (dataOff != 0) {
+      fileBrowser_file hdrFile;
+      memcpy(&hdrFile, &saveFile, sizeof(hdrFile));
+      hdrFile.offset = 0;
+      /* Read-modify-write via a temp: keep header bytes, replace card data. */
+      char *tmp = (char*)malloc(dataOff + MCD_SIZE);
+      if (tmp) {
+        if (saveFile_readFile(&hdrFile, tmp, dataOff) == (int)dataOff) {
+          memcpy(tmp + dataOff, data, MCD_SIZE);
+          hdrFile.offset = 0;
+          if (saveFile_writeFile(&hdrFile, tmp, dataOff + MCD_SIZE) == (int)(dataOff + MCD_SIZE))
+            ret = 1;
+        }
+        free(tmp);
+        return ret;
+      }
+      /* malloc failed: fall through to raw write rather than losing the save. */
+    }
+  }
 
   if(saveFile_writeFile(&saveFile, data, MCD_SIZE)==MCD_SIZE)
     ret = 1;

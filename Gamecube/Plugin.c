@@ -164,9 +164,9 @@ int NetOpened = 0;
 
 #define PARSEPATH(dst, src) \
 	ptr = src + strlen(src); \
-	while (*ptr != '\\' && ptr != src) ptr--; \
+	while (ptr != src && *ptr != '\\' && *ptr != '/') ptr--; \
 	if (ptr != src) { \
-		strcpy(dst, ptr+1); \
+		snprintf(dst, sizeof(dst), "%s", ptr+1); \
 	}
 
 int _OpenPlugins() {
