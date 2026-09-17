@@ -38,6 +38,11 @@ typedef struct {
 	/* RAM (sampled at report; fails counted live) */
 	uint32_t mem2_alloc_fails;    /* _mem2_memalign NULL returns */
 	uint32_t mem2_peak_kb;        /* max sampled MEM2 used */
+	/* PSX LUT health (Phase 3): RLUT-null reads = genuinely unmapped
+	 * region touched (copy-protection probes, bad pointers). WLUT is
+	 * intentionally NOT counted (PIO-drop + isolate protocol pollute
+	 * it by design). */
+	uint32_t mem_null_read;
 
 	/* GPU (deps/opengx gc_gl.c + present paths) */
 	uint32_t gx_tex_hits;         /* texture-cache hits */

@@ -52,6 +52,7 @@
 #include "Gamecube/fileBrowser/fileBrowser-DVD.h"
 #include "Gamecube/wiiSXconfig.h"
 #include "Gamecube/DEBUG.h"
+#include "Gamecube/perf_prof.h"
 
 #include "Gamecube/vm/vm.h"
 
@@ -253,6 +254,7 @@ u8 psxMemRead8(u32 mem) {
 		if (p != NULL) {
 			return *(u8 *)(p + (mem & 0xffff));
 		} else {
+			PERF_INC(mem_null_read);
 #ifdef PSXMEM_LOG
 			PSXMEM_LOG("err lb %8.8lx\n", mem);
 #endif
@@ -281,6 +283,7 @@ u16 psxMemRead16(u32 mem) {
 			return LOAD_SWAP16p(p + (mem & 0xffff));
             // upd xjsxjs197 end
 		} else {
+			PERF_INC(mem_null_read);
 #ifdef PSXMEM_LOG
 			PSXMEM_LOG("err lh %8.8lx\n", mem);
 #endif
@@ -309,6 +312,7 @@ u32 psxMemRead32(u32 mem) {
 			return LOAD_SWAP32p(p + (mem & 0xffff));
             // upd xjsxjs197 end
 		} else {
+			PERF_INC(mem_null_read);
 #ifdef PSXMEM_LOG
 			if (writeok) { PSXMEM_LOG("err lw %8.8lx\n", mem); }
 #endif
