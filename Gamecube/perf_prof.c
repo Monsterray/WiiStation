@@ -97,9 +97,10 @@ void perf_report(void)
 				fprintf(f, " %02x=%lu", top_i[n], (unsigned long)top_v[n]);
 			fprintf(f, "\n");
 		}
-		fprintf(f, "ram: mem1_free_kb=%lu mem2=%lu/%luKB peak=%luKB fails=%lu\n",
+		fprintf(f, "ram: mem1_free_kb=%lu mem2=%lu/%luKB peak=%luKB fails=%lu null_read=%lu\n",
 			(unsigned long)mem1_kb, (unsigned long)m2used, (unsigned long)m2tot,
-			(unsigned long)g_perf.mem2_peak_kb, (unsigned long)g_perf.mem2_alloc_fails);
+			(unsigned long)g_perf.mem2_peak_kb, (unsigned long)g_perf.mem2_alloc_fails,
+			(unsigned long)g_perf.mem_null_read);
 		fprintf(f, "gpu: tex_hit=%lu miss=%lu resets=%lu loads=%lu bytes=%llu batches=%lu\n",
 			(unsigned long)g_perf.gx_tex_hits, (unsigned long)g_perf.gx_tex_misses,
 			(unsigned long)g_perf.gx_tex_resets, (unsigned long)g_perf.gx_tex_loads,

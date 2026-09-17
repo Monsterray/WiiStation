@@ -283,8 +283,10 @@ u32 intFakeFetch(u32 pc)
 {
 	u8 *base = psxMemRLUT[pc >> 16];
 	u32 *code;
-	if (unlikely(base == INVALID_PTR))
+	if (unlikely(base == INVALID_PTR)) {
+		PERF_INC(mem_null_read);
 		return 0; // nop
+	}
 	code = (u32 *)(base + (pc & 0xfffc));
 	return SWAP32(*code);
 
