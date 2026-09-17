@@ -226,19 +226,29 @@ void BuildPPFCache() {
 		return;
 	}
 
-	fseek(ppffile, 5, SEEK_SET);
-	method = fgetc(ppffile);
+	if (fseek(ppffile, 5, SEEK_SET) != 0)
+		goto fail_io;
+	{
+		int mc = fgetc(ppffile);
+		if (mc == EOF)
+			goto fail_io;
+		method = (char)mc;
+	}
 
 	switch (method) {
 		case 0: // ppf1
-			fseek(ppffile, 0, SEEK_END);
+			if (fseek(ppffile, 0, SEEK_END) != 0)
+				goto fail_io;
 			count = ftell(ppffile);
+			if (count < 0)
+				goto fail_io;
 			count -= 56;
 			seekpos = 56;
 			break;
 
 		case 1: // ppf2
-			fseek(ppffile, -8, SEEK_END);
+			if (fseek(ppffile, -8, SEEK_END) != 0)
+				goto fail_io;
 
 			memset(buffer, 0, 5);
 			if (fread(buffer, 1, 4, ppffile) != 4)
@@ -253,8 +263,11 @@ void BuildPPFCache() {
 				dizyn = 1;
 			}
 
-			fseek(ppffile, 0, SEEK_END);
+			if (fseek(ppffile, 0, SEEK_END) != 0)
+				goto fail_io;
 			count = ftell(ppffile);
+			if (count < 0)
+				goto fail_io;
 
 			if (dizyn == 0) {
 				count -= 1084;
@@ -268,11 +281,19 @@ void BuildPPFCache() {
 			break;
 
 		case 2: // ppf3
-			fseek(ppffile, 57, SEEK_SET);
-			blockcheck = fgetc(ppffile);
-			undo = fgetc(ppffile);
+			if (fseek(ppffile, 57, SEEK_SET) != 0)
+				goto fail_io;
+			{
+				int bc = fgetc(ppffile);
+				int un = fgetc(ppffile);
+				if (bc == EOF || un == EOF)
+					goto fail_io;
+				blockcheck = (char)bc;
+				undo = (char)un;
+			}
 
-			fseek(ppffile, -6, SEEK_END);
+			if (fseek(ppffile, -6, SEEK_END) != 0)
+				goto fail_io;
 			memset(buffer, 0, 5);
 			if (fread(buffer, 1, 4, ppffile) != 4)
 				goto fail_io;
@@ -287,8 +308,11 @@ void BuildPPFCache() {
 				dizlen += 36;
 			}
 
-			fseek(ppffile, 0, SEEK_END);
+			if (fseek(ppffile, 0, SEEK_END) != 0)
+				goto fail_io;
 			count = ftell(ppffile);
+			if (count < 0)
+				goto fail_io;
 			count -= dizlen;
 
 			if (blockcheck) {
@@ -319,7 +343,14 @@ void BuildPPFCache() {
 				goto fail_io;
 		}
 
-		anz = fgetc(ppffile);
+		{
+			int ac = fgetc(ppffile);
+			if (ac == EOF)
+				goto fail_io;
+			anz = (u32)ac;
+		}
+		if (anz > sizeof(ppfmem))
+			goto fail_io;
 		if (fread(ppfmem, 1, anz, ppffile) != anz)
 			goto fail_io;
 

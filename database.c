@@ -43,6 +43,10 @@ static const char * const gpu_slow_llist_db[] =
 	"SCES01338", "SCES02072", "SCES02072", "SCES02072", "SCES02072", "SCUS94427",
 	/* Vampire Hunter D */
 	"SLES02731", "SLPS02477", "SLPS03198", "SLUS01138",
+	/* Alice in Cyberland (upstream) */
+	"SLPS00636",
+	/* NHL Face Off 97/98 (upstream) */
+	"SCUS94550", "SCES00392", "SCUS94174", "SCES01022",
 };
 
 static const char * const gpu_busy_hack_db[] =
@@ -68,6 +72,8 @@ static const char * const gpu_centering_hack_db[] =
 	"SLPM86042", "SLPM86103", "SLPM87323",
 	/* Sexy Parodius */
 	"SLPM86009",
+	/* Salamander Deluxe Pack Plus (upstream) */
+	"SLPM86037",
 };
 
 static const char * const fractional_Framerate_hack_db[] =
@@ -84,6 +90,8 @@ static const char * const fractional_Framerate_hack_db[] =
 	"SLES04163",
 	/* Spyro 2 */
 	"SCUS94425", "SCES02104",
+	/* Contra: Legacy of War (upstream) */
+	"SLUS00288", "SLES00608",
 };
 
 // For special game correction
@@ -113,8 +121,8 @@ static const char * const special_game_hack_db2[] =
 static const char * const special_game_hack_chrono_cross[] =
 {
     /* CHRONO_CROSS For GX gpu fix */
-    "SLPS45447", "SLPS45448", "SLPS02364", "SLPS02365", "SLPS91464", "SLPS91465", "SLPS02777", "SLPS02778",
-    "SLPS87395", "SLPS87396", "SLPS01041", "SLPS01080",
+    "SCPS45447", "SCPS45448", "SLPS02364", "SLPS02365", "SLPS91464", "SLPS91465", "SLPS02777", "SLPS02778",
+    "SLPM87395", "SLPM87396", "SLUS01041", "SLUS01080",
 };
 
 static const char * const special_game_hack_no_swap_framebuf[] =

@@ -476,7 +476,12 @@ static s32 HIDOpen( u32 LoaderRequest )
                         }
                         loadingControllerIni = 0;
                         u32 cfgsize = *((u32*)(HID_CFG_SIZE));
-                        if (cfgsize == 0)
+                        /* PPC side already caps at CTRL-CFG_FILE, but re-check
+                         * here: a stale/oversized size must not drive
+                         * iosAlloc(cfgsize+1) overflow or out-of-bounds memcpy. */
+                        if (cfgsize == 0 ||
+                            cfgsize > (u32)(HID_MEM2_CTRL_ADDR - HID_MEM2_CFG_FILE) ||
+                            cfgsize > 32768)
                         {
                             dbgprintf("HID:No controller config found!\r\n");
                             HID_CTRL->VID = 0;
@@ -623,7 +628,9 @@ static s32 HIDOpen( u32 LoaderRequest )
                             HID_CTRL->DPADMask = 0xFFFF;    //check all the bits
 
                         HID_CTRL->StickX.Offset        = ConfigGetValue( Data, INI_KYY_STICKX, 0 );
-                        HID_CTRL->StickX.DeadZone    = ConfigGetValue( Data, INI_KYY_STICKX, 1 );
+                        { s32 dz = (s32)ConfigGetValue( Data, INI_KYY_STICKX, 1 );
+                          if (dz < 0) dz = 0; if (dz > 100) dz = 100;
+                          HID_CTRL->StickX.DeadZone = (s8)dz; }
                         HID_CTRL->StickX.Radius        = ConfigGetDecValue( Data, INI_KYY_STICKX, 2 );
                         if (HID_CTRL->StickX.Radius == 0)
                             HID_CTRL->StickX.Radius = 80;
@@ -631,7 +638,9 @@ static s32 HIDOpen( u32 LoaderRequest )
                     //        dbgprintf("HID:StickX:  Offset=%3X Deadzone=%3X Radius=%d\r\n", HID_CTRL->StickX.Offset, HID_CTRL->StickX.DeadZone, HID_CTRL->StickX.Radius);
 
                         HID_CTRL->StickY.Offset        = ConfigGetValue( Data, INI_KYY_STICKY, 0 );
-                        HID_CTRL->StickY.DeadZone    = ConfigGetValue( Data, INI_KYY_STICKY, 1 );
+                        { s32 dz = (s32)ConfigGetValue( Data, INI_KYY_STICKY, 1 );
+                          if (dz < 0) dz = 0; if (dz > 100) dz = 100;
+                          HID_CTRL->StickY.DeadZone = (s8)dz; }
                         HID_CTRL->StickY.Radius        = ConfigGetDecValue( Data, INI_KYY_STICKY, 2 );
                         if (HID_CTRL->StickY.Radius == 0)
                             HID_CTRL->StickY.Radius = 80;
@@ -639,7 +648,9 @@ static s32 HIDOpen( u32 LoaderRequest )
                     //        dbgprintf("HID:StickY:  Offset=%3X Deadzone=%3X Radius=%d\r\n", HID_CTRL->StickY.Offset, HID_CTRL->StickY.DeadZone, HID_CTRL->StickY.Radius);
 
                         HID_CTRL->CStickX.Offset    = ConfigGetValue( Data, INI_KYY_CSTICKX, 0 );
-                        HID_CTRL->CStickX.DeadZone    = ConfigGetValue( Data, INI_KYY_CSTICKX, 1 );
+                        { s32 dz = (s32)ConfigGetValue( Data, INI_KYY_CSTICKX, 1 );
+                          if (dz < 0) dz = 0; if (dz > 100) dz = 100;
+                          HID_CTRL->CStickX.DeadZone = (s8)dz; }
                         HID_CTRL->CStickX.Radius    = ConfigGetDecValue( Data, INI_KYY_CSTICKX, 2 );
                         if (HID_CTRL->CStickX.Radius == 0)
                             HID_CTRL->CStickX.Radius = 80;
@@ -647,7 +658,9 @@ static s32 HIDOpen( u32 LoaderRequest )
                     //        dbgprintf("HID:CStickX: Offset=%3X Deadzone=%3X Radius=%d\r\n", HID_CTRL->CStickX.Offset, HID_CTRL->CStickX.DeadZone, HID_CTRL->CStickX.Radius);
 
                         HID_CTRL->CStickY.Offset    = ConfigGetValue( Data, INI_KYY_CSTICKY, 0 );
-                        HID_CTRL->CStickY.DeadZone    = ConfigGetValue( Data, INI_KYY_CSTICKY, 1 );
+                        { s32 dz = (s32)ConfigGetValue( Data, INI_KYY_CSTICKY, 1 );
+                          if (dz < 0) dz = 0; if (dz > 100) dz = 100;
+                          HID_CTRL->CStickY.DeadZone = (s8)dz; }
                         HID_CTRL->CStickY.Radius    = ConfigGetDecValue( Data, INI_KYY_CSTICKY, 2 );
                         if (HID_CTRL->CStickY.Radius == 0)
                             HID_CTRL->CStickY.Radius = 80;

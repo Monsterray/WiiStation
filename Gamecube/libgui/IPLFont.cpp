@@ -300,8 +300,8 @@ void IplFont::setColor(GXColor* fontColorPtr)
 __inline wchar_t* IplFont::charToWideChar(char* strChar) {
     wchar_t *strWChar = new wchar_t[strlen(strChar) + 1];
 
-    int bt = mbstowcs(strWChar, strChar, strlen(strChar));
-    if (bt) {
+    size_t bt = mbstowcs(strWChar, strChar, strlen(strChar));
+    if (bt != (size_t)-1) {
         strWChar[bt] = (wchar_t)'\0';
         return strWChar;
     }

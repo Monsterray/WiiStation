@@ -139,7 +139,7 @@ void Func_LoadFromSD()
 
 	if(Autoboot)
 	{
-		strncpy(isoFile_topLevel->name, AutobootPath, sizeof(isoFile_topLevel->name));
+		snprintf(isoFile_topLevel->name, sizeof(isoFile_topLevel->name), "%s", AutobootPath);
 		fileBrowserFrame_OpenDirectory(isoFile_topLevel);
 	}
 	else
@@ -186,7 +186,7 @@ void Func_LoadFromUSB()
 	
 	if(Autoboot)
 	{
-		strncpy(isoFile_topLevel->name, AutobootPath, sizeof(isoFile_topLevel->name));
+		snprintf(isoFile_topLevel->name, sizeof(isoFile_topLevel->name), "%s", AutobootPath);
 		fileBrowserFrame_OpenDirectory(isoFile_topLevel);
 	}
 	else

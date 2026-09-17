@@ -122,9 +122,18 @@ void HIDUpdateControllerIni()
 
     if (f != NULL)
     {
-        fseek(f, 0, SEEK_END);
-        size_t fsize = ftell(f);
-        fseek(f, 0, SEEK_SET);
+        long fend = 0;
+        size_t fsize = 0;
+        if (fseek(f, 0, SEEK_END) != 0 ||
+            (fend = ftell(f)) < 0 ||
+            fseek(f, 0, SEEK_SET) != 0)
+        {
+            fclose(f);
+            *(vu32*)HID_CFG_SIZE = 0;
+            *(vu32*)HID_CHANGE = 0;
+            return;
+        }
+        fsize = (size_t)fend;
         // HID_CFG_FILE is a fixed-size slot in the MEM2 layout -- HID_CTRL
         // (the live controller struct) sits immediately after it, so an
         // oversized .ini file would otherwise overflow into live state.
@@ -142,10 +151,17 @@ void HIDUpdateControllerIni()
         }
         else
         {
-            fread((void*)HID_CFG_FILE, 1, fsize, f);
-            DCFlushRange((void*)HID_CFG_FILE, fsize);
+            size_t got = fread((void*)HID_CFG_FILE, 1, fsize, f);
             fclose(f);
-            *(vu32*)HID_CFG_SIZE = fsize;
+            if (got != fsize)
+            {
+                *(vu32*)HID_CFG_SIZE = 0;
+            }
+            else
+            {
+                DCFlushRange((void*)HID_CFG_FILE, fsize);
+                *(vu32*)HID_CFG_SIZE = fsize;
+            }
         }
     }
     else
