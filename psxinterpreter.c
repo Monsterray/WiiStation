@@ -30,6 +30,7 @@
 #include <assert.h>
 
 #include "Gamecube/DEBUG.h"
+#include "Gamecube/perf_prof.h"
 
 int branch = 0;
 int branch2 = 0;
@@ -1019,6 +1020,7 @@ static void execI() {
 }
 
 static void intExecute() {
+	PERF_INC(int_slices);
 	while(!stop)
 		execI();
 }
@@ -1029,6 +1031,7 @@ static void intExecuteDbg() {
 }
 
 static void intExecuteBlock() {
+	PERF_INC(int_slices);
 	branch2 = 0;
 	while (!branch2) execI();
 }

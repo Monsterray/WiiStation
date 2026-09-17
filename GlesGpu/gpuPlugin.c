@@ -55,6 +55,7 @@
 #include "../database.h"
 #include "../Gamecube/DEBUG.h"
 #include "../Gamecube/MEM2.h"
+#include "../Gamecube/perf_prof.h"
 
 static short DrawSemiTrans=FALSE;
 static short ly0,lx0,ly1,lx1,ly2,lx2,ly3,lx3;        // global psx vertex coords
@@ -2139,6 +2140,7 @@ void CALLBACK GL_GPUrearmedCallbacks(const struct rearmed_cbs *_cbs)
 static void flipEGL(void)
 {
     int presentSubmitted;
+    unsigned long long flip_t0 = perf_now_us();
     #ifdef DISP_DEBUG
     sprintf(txtbuffer, "flipEGL %d \r\n", canClearFrameBuf);
     DEBUG_print(txtbuffer, DBG_SPU3);
@@ -2182,6 +2184,7 @@ static void flipEGL(void)
 
     extern void resetTexCacheInfo(void);
     resetTexCacheInfo();
+    perf_present_tick(perf_now_us() - flip_t0);
 }
 
 #include "../Gamecube/wiiSXconfig.h"

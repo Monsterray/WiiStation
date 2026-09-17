@@ -50,6 +50,7 @@ extern bool executedBios;
 
 extern "C" {
 #include "DEBUG.h"
+#include "perf_prof.h"
 #include "fileBrowser/fileBrowser.h"
 #include "fileBrowser/fileBrowser-libfat.h"
 #include "fileBrowser/fileBrowser-DVD.h"
@@ -944,6 +945,7 @@ extern "C" {
 void go(void) {
 	Config.PsxOut = 0;
 	stop = 0;
+	perf_reset();
 
 	if (gpuPtr == &newSoftGpu)
     {

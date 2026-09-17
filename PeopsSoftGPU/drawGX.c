@@ -23,6 +23,7 @@
 #include <ogc/lwp_watchdog.h>
 #include <wiiuse/wpad.h>
 #include "../coredebug.h"
+#include "../Gamecube/perf_prof.h"
 #include "stdafx.h"
 #define _IN_DRAW
 #include "externals.h"
@@ -98,6 +99,7 @@ void DoBufferSwap(void)                                // SWAP BUFFERS
 	if (menuActive) return;
 
 
+	unsigned long long swap_t0 = perf_now_us();
  // TODO: visual rumble
 
 /*
@@ -148,7 +150,9 @@ void DoBufferSwap(void)                                // SWAP BUFFERS
 	
 
 	GX_Flip(iDX, iDY, imgPtr, iResX_Max*2, PSXDisplay.RGB24 ? GX_TF_RGBA8 : GX_TF_RGB5A3);
-	
+
+	perf_present_tick(perf_now_us() - swap_t0);
+
 	// Check if TVMode needs to be changed (240 or 480 lines)
 	if (originalMode == ORIGINALMODE_ENABLE)
 	{
