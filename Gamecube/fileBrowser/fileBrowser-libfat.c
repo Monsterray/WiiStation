@@ -341,7 +341,7 @@ int fileBrowser_libfat_seekFile(fileBrowser_file* file, unsigned int where, unsi
 int fileBrowser_libfat_readFile(fileBrowser_file* file, void* buffer, unsigned int length){
   pauseRemovalThread();
 	FILE* f = fopen( file->name, "rb" );
-	if(!f) return FILE_BROWSER_ERROR;
+	if(!f) { continueRemovalThread(); return FILE_BROWSER_ERROR; }
 
 	fseek(f, file->offset, SEEK_SET);
 	int bytes_read = fread(buffer, 1, length, f);
@@ -355,7 +355,7 @@ int fileBrowser_libfat_readFile(fileBrowser_file* file, void* buffer, unsigned i
 int fileBrowser_libfat_writeFile(fileBrowser_file* file, void* buffer, unsigned int length){
   pauseRemovalThread();
 	FILE* f = fopen( file->name, "wb" );
-	if(!f) return FILE_BROWSER_ERROR;
+	if(!f) { continueRemovalThread(); return FILE_BROWSER_ERROR; }
 
 	fseek(f, file->offset, SEEK_SET);
 	int bytes_read = fwrite(buffer, 1, length, f);
@@ -483,6 +483,10 @@ int fileBrowser_libfatROM_deinit(fileBrowser_file* f){
 int fileBrowser_libfatROM_readFile(fileBrowser_file* file, void* buffer, unsigned int length){
   if(stop)     //do this only in the menu
 	pauseRemovalThread();
+	if(file->attr >= FILE_BROWSER_MAX_FILE_PTRS) {
+		if(stop) continueRemovalThread();
+		return FILE_BROWSER_ERROR;
+	}
 	if(!fd[file->attr]) fd[file->attr] = fopen( file->name, "rb");
 	if(!fd[file->attr]) {
 		if(stop) continueRemovalThread();

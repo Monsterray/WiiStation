@@ -26,6 +26,7 @@
 #include "MessageBox.h"
 #include "LoadingBar.h"
 #include "GuiResources.h"
+#include "../perf_prof.h"
 
 extern "C" {
 #include "../gc_input/controller.h"
@@ -76,6 +77,8 @@ void Gui::removeFrame(Frame *frame)
 void Gui::draw()
 {
 //	printf("Gui draw\n");
+	unsigned long long menu_t0 = perf_now_us();
+	PERF_INC(menu_frames);
 	Input::getInstance().refreshInput();
 	Cursor::getInstance().updateCursor();
 	Focus::getInstance().updateFocus();
@@ -187,6 +190,7 @@ void Gui::draw()
 	}
 
 	gfx->swapBuffers();
+	PERF_ADD(menu_us, perf_now_us() - menu_t0);
 }
 
 void Gui::drawBackground()

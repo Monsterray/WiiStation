@@ -30,6 +30,7 @@
 #include <assert.h>
 
 #include "Gamecube/DEBUG.h"
+#include "Gamecube/perf_prof.h"
 
 int branch = 0;
 int branch2 = 0;
@@ -282,8 +283,10 @@ u32 intFakeFetch(u32 pc)
 {
 	u8 *base = psxMemRLUT[pc >> 16];
 	u32 *code;
-	if (unlikely(base == INVALID_PTR))
+	if (unlikely(base == INVALID_PTR)) {
+		PERF_INC(mem_null_read);
 		return 0; // nop
+	}
 	code = (u32 *)(base + (pc & 0xfffc));
 	return SWAP32(*code);
 
@@ -1019,6 +1022,7 @@ static void execI() {
 }
 
 static void intExecute() {
+	PERF_INC(int_slices);
 	while(!stop)
 		execI();
 }
@@ -1029,6 +1033,7 @@ static void intExecuteDbg() {
 }
 
 static void intExecuteBlock() {
+	PERF_INC(int_slices);
 	branch2 = 0;
 	while (!branch2) execI();
 }

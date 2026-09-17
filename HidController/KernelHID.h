@@ -29,8 +29,12 @@ extern "C" {
 #define HID_MEM2_CFG_SIZE                (HID_BUF_LO + 0x448)  // HID_CFG_SIZE    0x93003448
 #define HID_MEM2_CFG_FILE                (HID_BUF_LO + 0x460)  // HID_CFG_FILE    0x93003460
 
-#define HID_MEM2_CTRL_ADDR               (HID_BUF_LO + 0x600)  // HID_CTRL_ADDR   0x93005000
-#define HID_MEM2_PACKET_ADDR             (HID_BUF_LO + 0x700)  // HID_Packet_ADDR 0x93005100
+// Keep controller state well clear of the variable-length .ini slot at
+// CFG_FILE+0x460: shipped .ini files exceed 1 KiB, so the old compact
+// +0x600/+0x700 layout left only 416 B before overwriting live state.
+// Restored safer +0x2000/+0x2100 spacing inside the 128 KiB HID buffer.
+#define HID_MEM2_CTRL_ADDR               (HID_BUF_LO + 0x2000) // HID_CTRL_ADDR
+#define HID_MEM2_PACKET_ADDR             (HID_BUF_LO + 0x2100) // HID_Packet_ADDR
 
 ///////////////////////////////
 
