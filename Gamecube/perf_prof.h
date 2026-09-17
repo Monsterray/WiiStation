@@ -60,7 +60,8 @@ typedef struct {
 	/* GPU (deps/opengx gc_gl.c + present paths) */
 	uint32_t gx_tex_hits;         /* texture-cache hits */
 	uint32_t gx_tex_misses;       /* texture-cache misses */
-	uint32_t gx_tex_resets;       /* full "8 full -> discard all" evicts */
+	uint32_t gx_tex_resets;       /* full tag discards (uploads/init) */
+	uint32_t gx_tex_evicts;       /* single-slot clock evictions */
 	uint32_t gx_tex_loads;        /* glTexImage2D uploads */
 	uint64_t gx_tex_bytes;        /* uploaded texture bytes */
 	uint32_t gx_drawdone;         /* blocking GX_DrawDone calls */

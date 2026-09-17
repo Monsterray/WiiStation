@@ -2178,13 +2178,16 @@ static void flipEGL(void)
     needFlipEGL = presentSubmitted ? FALSE : TRUE;
     if (presentSubmitted)
         canClearFrameBuf = FALSE;
+    /* Phase 4: preserve texture tags 1-7 across frames instead of a full
+     * reset every present. Menu/font drawing uses TMEM region 0 only, so
+     * just that tag may be stale (iff FPS text drew); uploads reset tags
+     * themselves, and session resume goes through go(). */
+    extern void ogx_on_frame_present(int font_drew);
+    ogx_on_frame_present(canShowFps);
+
     canShowFps = FALSE;
     RGB24Uploaded = 0;
     glSetLoadMtxFlg();
-
-    extern void resetTexCacheInfo(void);
-    resetTexCacheInfo();
-    perf_present_tick(perf_now_us() - flip_t0);
 }
 
 #include "../Gamecube/wiiSXconfig.h"
