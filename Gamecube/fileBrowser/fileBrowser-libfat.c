@@ -198,9 +198,19 @@ void InitRemovalThread()
 #endif
 }
 
-static bool isCueCcdFileExist(const char *filePath, const char *fileName, const char *fileType) {
-    static char cuename[FILE_BROWSER_MAX_PATH_LEN];
-    memset(cuename, 0, FILE_BROWSER_MAX_PATH_LEN);
+/* Phase 5: in-RAM version of the cue/ccd companion check. readDir() first
+ * collects the whole directory with ONE readdir pass, then filters .bin/
+ * .img against the collected names here -- no per-file access() round
+ * trips (each one is a FAT lookup+open, milliseconds on real USB/SD, so
+ * hundreds of files meant seconds per directory open). String logic is
+ * identical to the old access() version; comparison is case-insensitive
+ * to match FAT lookup semantics. */
+static bool isCueCcdNamePresent(const fileBrowser_file *entries, int count,
+                                const char *filePath, const char *fileName,
+                                const char *fileType) {
+    char cuename[FILE_BROWSER_MAX_PATH_LEN];
+    int i;
+
     snprintf(cuename, sizeof(cuename), "%s/%s", filePath, fileName);
 
     if (strlen(cuename) >= 4) {
@@ -214,18 +224,12 @@ static bool isCueCcdFileExist(const char *filePath, const char *fileName, const 
             strcpy(cuename + strlen(cuename) - 4, fileType);
         }
 
-        if (access(cuename, F_OK) == 0) {
-            return true;
-        }
-        else
-        {
-            return false;
+        for (i = 0; i < count; ++i) {
+            if (strcasecmp(entries[i].name, cuename) == 0)
+                return true;
         }
     }
-    else
-    {
-        return false;
-    }
+    return false;
 }
 
 // Case-insensitive suffix check -- Wii SD/USB storage is FAT via libfat,
@@ -238,7 +242,8 @@ static bool hasExt(const char *name, const char *ext) {
     return strcasecmp(name + (nameLen - extLen), ext) == 0;
 }
 
-static bool isFileOk(const char *filePath, const char *fileName) {
+static bool isFileOk(const fileBrowser_file *entries, int count,
+                     const char *filePath, const char *fileName) {
     // Suffix match, not substring: previously used strstr(), so a file
     // named e.g. "readme.cue.txt" was incorrectly treated as a playable
     // .cue image just for containing that substring anywhere in its name.
@@ -253,9 +258,9 @@ static bool isFileOk(const char *filePath, const char *fileName) {
     {
         return false;
     }
-    else if ((hasExt(fileName, ".bin") && isCueCcdFileExist(filePath, fileName, ".cue"))
+    else if ((hasExt(fileName, ".bin") && isCueCcdNamePresent(entries, count, filePath, fileName, ".cue"))
              ||
-             (hasExt(fileName, ".img") && isCueCcdFileExist(filePath, fileName, ".ccd"))
+             (hasExt(fileName, ".img") && isCueCcdNamePresent(entries, count, filePath, fileName, ".ccd"))
              )
     {
         return false;
@@ -277,18 +282,19 @@ int fileBrowser_libfat_readDir(fileBrowser_file* file, fileBrowser_file** dir){
 
 	// Set everything up to read
 	//char filename[MAXPATHLEN];
-	int capacity = 32, i = 0;
+	int capacity = 32, i = 0, n = 0, kept = 0;
 	fileBrowser_file *entries = malloc( capacity * sizeof(fileBrowser_file) );
 	if (!entries) {
 		closedir(dp);
 		continueRemovalThread();
 		return FILE_BROWSER_ERROR;
 	}
-	// Read each entry of the directory
+	/* Pass 1: collect the whole directory with a single readdir scan.
+	 * No filtering here -- the .bin/.img dedup below needs the complete
+	 * .cue/.ccd name set, and filtering first would require a second
+	 * filesystem pass (or per-file access() calls, the slowness this
+	 * removes). d_type is cached per entry so pass 2 needs no I/O. */
 	while( (temp = readdir(dp)) && (temp != NULL) ){
-        if (!isFileOk(file->name, temp->d_name)) {
-            continue;
-		}
 		// Make sure we have room for this one -- double capacity instead of
 		// growing by one entry at a time, which was O(n) reallocations
 		// (each copying more data than the last) for an n-entry directory
@@ -311,12 +317,27 @@ int fileBrowser_libfat_readDir(fileBrowser_file* file, fileBrowser_file** dir){
 							FILE_BROWSER_ATTR_DIR : 0;
 		++i;
 	}
+	n = i;
+
+	/* Pass 2: in-RAM filter + compact. isFileOk's companion check searches
+	 * the collected names (case-insensitive, FAT semantics) instead of
+	 * hitting the filesystem per .bin/.img. kept <= n always, so the
+	 * compaction is in-place and overlap-safe (dst <= src). */
+	for (i = 0; i < n; ++i) {
+		const char *base = strrchr(entries[i].name, '/');
+		base = base ? base + 1 : entries[i].name;
+		if (!isFileOk(entries, n, file->name, base))
+			continue;
+		if (kept != i)
+			entries[kept] = entries[i];
+		++kept;
+	}
 
 	*dir = entries;
 	closedir(dp);
 	continueRemovalThread();
 
-	return i;
+	return kept;
 }
 
 int fileBrowser_libfat_open(fileBrowser_file* file) {
@@ -341,7 +362,7 @@ int fileBrowser_libfat_seekFile(fileBrowser_file* file, unsigned int where, unsi
 int fileBrowser_libfat_readFile(fileBrowser_file* file, void* buffer, unsigned int length){
   pauseRemovalThread();
 	FILE* f = fopen( file->name, "rb" );
-	if(!f) return FILE_BROWSER_ERROR;
+	if(!f) { continueRemovalThread(); return FILE_BROWSER_ERROR; }
 
 	fseek(f, file->offset, SEEK_SET);
 	int bytes_read = fread(buffer, 1, length, f);
@@ -355,7 +376,7 @@ int fileBrowser_libfat_readFile(fileBrowser_file* file, void* buffer, unsigned i
 int fileBrowser_libfat_writeFile(fileBrowser_file* file, void* buffer, unsigned int length){
   pauseRemovalThread();
 	FILE* f = fopen( file->name, "wb" );
-	if(!f) return FILE_BROWSER_ERROR;
+	if(!f) { continueRemovalThread(); return FILE_BROWSER_ERROR; }
 
 	fseek(f, file->offset, SEEK_SET);
 	int bytes_read = fwrite(buffer, 1, length, f);
@@ -483,6 +504,10 @@ int fileBrowser_libfatROM_deinit(fileBrowser_file* f){
 int fileBrowser_libfatROM_readFile(fileBrowser_file* file, void* buffer, unsigned int length){
   if(stop)     //do this only in the menu
 	pauseRemovalThread();
+	if(file->attr >= FILE_BROWSER_MAX_FILE_PTRS) {
+		if(stop) continueRemovalThread();
+		return FILE_BROWSER_ERROR;
+	}
 	if(!fd[file->attr]) fd[file->attr] = fopen( file->name, "rb");
 	if(!fd[file->attr]) {
 		if(stop) continueRemovalThread();

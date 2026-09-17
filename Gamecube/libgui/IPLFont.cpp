@@ -23,6 +23,7 @@
 
 #include "IPLFont.h"
 #include "../MEM2.h"
+#include "../perf_prof.h"
 
 #include "gui2/gettext.h"
 #include "../wiiSXconfig.h"
@@ -75,17 +76,53 @@ void IplFont::loadFontFile(FILE* charPngFile)
     GXtexCache = (heap_cntrl*)malloc(sizeof(heap_cntrl));
     __lwp_heap_init(GXtexCache, CN_FONT_LO, CN_FONT_SIZE, 32);
 
+    /* Raw file image used only as parse scratch below (glyph bitmaps are
+     * copied into the CN_FONT heap per record). */
+    u8 *rawFontImage = NULL;
+
     if (charPngFile != NULL)
     {
-        fseek(charPngFile, 0, SEEK_END);
-        fontSize = (int)ftell(charPngFile);
-        searchLen = (int)(fontSize / (CHAR_IMG_SIZE + 4));
-        fontBuffer = (u8*) RECMEM2_LO;
+        /* Phase 5: never stage the font inside RECMEM2_LO -- that is the
+         * old PPC dynarec's code area, and a CJK font (up to CN_FONT_SIZE)
+         * would clobber compiled blocks / leak in place there. Use a
+         * transient MEM2-heap buffer, freed after parsing. */
+        long fend = 0;
+        size_t got = 0;
+        if (fseek(charPngFile, 0, SEEK_END) != 0 ||
+            (fend = ftell(charPngFile)) < 0 ||
+            fend > (long)CN_FONT_SIZE ||
+            fseek(charPngFile, 0, SEEK_SET) != 0)
+        {
+            fclose(charPngFile);
+            charPngFile = NULL;
+        }
+        else
+        {
+            fontSize = (int)fend;
+            rawFontImage = (u8*)malloc(fontSize ? fontSize : 1);
+            if (!rawFontImage)
+            {
+                fclose(charPngFile);
+                charPngFile = NULL;
+            }
+            else
+            {
+                got = fread(rawFontImage, 1, fontSize, charPngFile);
+                fclose(charPngFile);
+                charPngFile = NULL;
+                if (got != (size_t)fontSize)
+                {
+                    free(rawFontImage);
+                    rawFontImage = NULL;
+                }
+            }
+        }
+    }
 
-        fseek(charPngFile, 0, SEEK_SET);
-        fread(fontBuffer, 1, fontSize, charPngFile);
-        fclose(charPngFile);
-        charPngFile = NULL;
+    if (rawFontImage != NULL)
+    {
+        fontBuffer = rawFontImage;
+        searchLen = (int)(fontSize / (CHAR_IMG_SIZE + 4));
     }
     else
     {
@@ -105,15 +142,20 @@ void IplFont::loadFontFile(FILE* charPngFile)
     {
         charCodeMap.insert(std::pair<wchar_t, int>(*zhFontBufTemp, *((u8*)(zhFontBufTemp + 1) + 1)));
         u8 * tmpPngBuf = (u8*) __lwp_heap_allocate(GXtexCache, CHAR_IMG_SIZE);
+        if (!tmpPngBuf)
+            break;
         memcpy(tmpPngBuf, (u8*)(zhFontBufTemp + 2), CHAR_IMG_SIZE);
         charPngBufMap.insert(std::pair<wchar_t, u8*>(*zhFontBufTemp, tmpPngBuf));
 
         zhFontBufTemp += skipSetp;
         bufIndex++;
     }
-    if (charPngFile != NULL)
+    /* Scratch image no longer needed -- glyphs live in the CN_FONT heap
+     * copies above. (Previously this squatted on RECMEM2_LO forever.) */
+    if (rawFontImage != NULL)
     {
-        //__lwp_heap_free(GXtexCache, fontBuffer);
+        free(rawFontImage);
+        rawFontImage = NULL;
     }
 }
 
@@ -300,8 +342,8 @@ void IplFont::setColor(GXColor* fontColorPtr)
 __inline wchar_t* IplFont::charToWideChar(char* strChar) {
     wchar_t *strWChar = new wchar_t[strlen(strChar) + 1];
 
-    int bt = mbstowcs(strWChar, strChar, strlen(strChar));
-    if (bt) {
+    size_t bt = mbstowcs(strWChar, strChar, strlen(strChar));
+    if (bt != (size_t)-1) {
         strWChar[bt] = (wchar_t)'\0';
         return strWChar;
     }
@@ -342,21 +384,35 @@ __inline int IplFont::getCharCode(const wchar_t wChar) {
 
 void IplFont::drawString(int x, int y, char *string, float scale, bool centered)
 {
+    /* Convert once: the centered path previously ran getStringWidth() and
+     * getStringHeight() (each converting + walking the string) and then
+     * converted a third time for the draw loop below. getStringHeight()
+     * is the constant CH_FONT_HEIGHT and getStringWidth() is the summed
+     * advance + 5, both replicated here -- identical results. */
+    wchar_t *utf8Txt = charToWideChar(gettext(string));
+    wchar_t *tmpPtr = utf8Txt;
+
     if(centered)
     {
-        int strHeight = this->getStringHeight(string, scale);
-        int strWidth = this->getStringWidth(string, scale);
+        int strWidth = 5;
+        wchar_t *w = utf8Txt;
+        while (*w)
+        {
+            strWidth += this->getCharCode(*w) + 1;
+            w++;
+        }
 
         x = (int) x - strWidth/2;
-        y = (int) y - strHeight/2;
+        y = (int) y - CH_FONT_HEIGHT/2;
     }
 
     //GX_InvalidateTexAll();
     GX_InvalidateTexRegion(&texCacheRegionS[0]);
+    PERF_INC(menu_strings);
 
-    wchar_t *utf8Txt = charToWideChar(gettext(string));
-    wchar_t *tmpPtr = utf8Txt;
     while (*utf8Txt) {
+        PERF_INC(menu_glyphs);
+        PERF_INC(menu_texloads);
 
         GX_InitTexObj(&fontTexObj, this->getCharPngBuf(*utf8Txt), CH_FONT_WIDTH, CH_FONT_HEIGHT, GX_TF_IA8, GX_CLAMP, GX_CLAMP, GX_FALSE);
         GX_LoadTexObjPreloaded(&fontTexObj, &texCacheRegionS[0], GX_TEXMAP0);

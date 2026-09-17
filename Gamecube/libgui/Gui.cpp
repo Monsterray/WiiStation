@@ -26,6 +26,7 @@
 #include "MessageBox.h"
 #include "LoadingBar.h"
 #include "GuiResources.h"
+#include "../perf_prof.h"
 
 extern "C" {
 #include "../gc_input/controller.h"
@@ -76,6 +77,10 @@ void Gui::removeFrame(Frame *frame)
 void Gui::draw()
 {
 //	printf("Gui draw\n");
+	unsigned long long menu_t0 = perf_now_us();
+	PERF_INC(menu_frames);
+	/* refreshInput() below consumes the scan flags, so sample them first. */
+	bool freshScan = padNeedScan || wpadNeedScan;
 	Input::getInstance().refreshInput();
 	Cursor::getInstance().updateCursor();
 	Focus::getInstance().updateFocus();
@@ -83,16 +88,21 @@ void Gui::draw()
 	{
 		// auto_assign_controllers() re-probes every controller type (each of
 		// which does its own WPAD_ScanPads()/WPAD_Probe() calls) across both
-		// virtual controller ports every time it runs. Rescanning hardware
-		// that hasn't changed on every single menu frame is wasted work, so
-		// only run it every 15 frames (~250ms) instead -- still fast enough
-		// that a newly connected controller gets picked up almost instantly
-		// on a menu screen.
+		// virtual controller ports every time it runs. Gate it instead of
+		// running it on a fixed cadence: fresh scan data (boot/menu entry)
+		// and a changed GC bitmask (free signal -- refreshInput above
+		// already paid for PAD_ScanPads) reassign immediately; otherwise a
+		// ~2s backstop covers WPAD hotplug (no cheap WPAD change signal
+		// exists -- probing IS the expensive part). Same assignment
+		// semantics, ~8x fewer probe storms.
 		static int autoAssignCounter = 0;
-		if(--autoAssignCounter <= 0)
+		static u32 lastGcConnected = 0;
+		if(--autoAssignCounter <= 0 || freshScan ||
+		   gc_connected != lastGcConnected)
 		{
 			auto_assign_controllers();
-			autoAssignCounter = 15;
+			autoAssignCounter = 120;
+			lastGcConnected = gc_connected;
 		}
 	}
 	//Update time??
@@ -187,6 +197,7 @@ void Gui::draw()
 	}
 
 	gfx->swapBuffers();
+	PERF_ADD(menu_us, perf_now_us() - menu_t0);
 }
 
 void Gui::drawBackground()

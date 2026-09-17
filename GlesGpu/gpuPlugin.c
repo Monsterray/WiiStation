@@ -55,6 +55,7 @@
 #include "../database.h"
 #include "../Gamecube/DEBUG.h"
 #include "../Gamecube/MEM2.h"
+#include "../Gamecube/perf_prof.h"
 
 static short DrawSemiTrans=FALSE;
 static short ly0,lx0,ly1,lx1,ly2,lx2,ly3,lx3;        // global psx vertex coords
@@ -2139,6 +2140,7 @@ void CALLBACK GL_GPUrearmedCallbacks(const struct rearmed_cbs *_cbs)
 static void flipEGL(void)
 {
     int presentSubmitted;
+    unsigned long long flip_t0 = perf_now_us();
     #ifdef DISP_DEBUG
     sprintf(txtbuffer, "flipEGL %d \r\n", canClearFrameBuf);
     DEBUG_print(txtbuffer, DBG_SPU3);
@@ -2176,12 +2178,16 @@ static void flipEGL(void)
     needFlipEGL = presentSubmitted ? FALSE : TRUE;
     if (presentSubmitted)
         canClearFrameBuf = FALSE;
+    /* Phase 4: preserve texture tags 1-7 across frames instead of a full
+     * reset every present. Menu/font drawing uses TMEM region 0 only, so
+     * just that tag may be stale (iff FPS text drew); uploads reset tags
+     * themselves, and session resume goes through go(). */
+    extern void ogx_on_frame_present(int font_drew);
+    ogx_on_frame_present(canShowFps);
+
     canShowFps = FALSE;
     RGB24Uploaded = 0;
     glSetLoadMtxFlg();
-
-    extern void resetTexCacheInfo(void);
-    resetTexCacheInfo();
 }
 
 #include "../Gamecube/wiiSXconfig.h"

@@ -60,6 +60,39 @@ POSSIBILITY OF SUCH DAMAGE.
 
 #include "../../mem2_manager.h"
 #include "../../Gamecube/wiiSXconfig.h"
+#include "../../Gamecube/perf_prof.h"
+
+/* Phase 1 profiling: timed GX_DrawDone wrapper. DrawDone stalls Broadway
+ * until the GP goes idle, so the gettick pair is noise next to the wait. */
+static void perf_drawdone(void)
+{
+	unsigned long long t0 = perf_now_us();
+	GX_DrawDone();
+	PERF_INC(gx_drawdone);
+	PERF_ADD(gx_drawdone_us, perf_now_us() - t0);
+}
+
+/* Phase 4: VTXFMT0 attribute formats are invariant across every opengx
+ * batch (POS_XYZ/F32, NRM_XYZ/F32, TEX_ST/F32, CLR_RGBA/RGBA8 x2) and no
+ * foreign writer changes them mid-frame: menu font/images use VTXFMT1 +
+ * TMEM region 0 only, soft-plugin presents run in a mutually exclusive
+ * mode, and every mode/menu transition funnels through go(), which marks
+ * us dirty again. Descriptors still vary per batch and are set per batch;
+ * only the redundant format re-emit is skipped. */
+static bool ogx_vtxfmt_clean = false;
+static void ogx_emit_vtxfmt(void)
+{
+	GX_SetVtxAttrFmt(GX_VTXFMT0, GX_VA_POS, GX_POS_XYZ, GX_F32, 0);
+	GX_SetVtxAttrFmt(GX_VTXFMT0, GX_VA_NRM, GX_NRM_XYZ, GX_F32, 0);
+	GX_SetVtxAttrFmt(GX_VTXFMT0, GX_VA_TEX0, GX_TEX_ST, GX_F32, 0);
+	GX_SetVtxAttrFmt(GX_VTXFMT0, GX_VA_CLR0, GX_CLR_RGBA, GX_RGBA8, 0);
+	GX_SetVtxAttrFmt(GX_VTXFMT0, GX_VA_CLR1, GX_CLR_RGBA, GX_RGBA8, 0);
+	ogx_vtxfmt_clean = true;
+}
+void ogx_mark_vtxfmt_dirty(void)
+{
+	ogx_vtxfmt_clean = false;
+}
 
 #define ROUND_32B(x) (((x) + 31) & (~31))
 #define min(a,b)     (((a) < (b)) ? (a) : (b))
@@ -778,6 +811,7 @@ static void checkLoadTextureObj( int textureType )
     {
         if (textureType == TEX_TYPE_1 && texCacheUsedInfo[i] == (curTexId + _MAX_GL_TEX))
         {
+            PERF_INC(gx_tex_hits);
             gxTexMapSemi = i;
             if (texChgType)
             {
@@ -789,6 +823,7 @@ static void checkLoadTextureObj( int textureType )
         }
         else if (textureType == TEX_TYPE_2 && texCacheUsedInfo[i] == curTexId)
         {
+            PERF_INC(gx_tex_hits);
             gxTexMap = i;
             if (texChgType)
             {
@@ -799,6 +834,7 @@ static void checkLoadTextureObj( int textureType )
             return;
         }
     }
+    PERF_INC(gx_tex_misses);
 
     // find free texture cache
     for (i = 0; i < 8; i++)
@@ -828,30 +864,49 @@ static void checkLoadTextureObj( int textureType )
     writeLogFile(txtbuffer);
     #endif // DISP_DEBUG
 
-    // no free texture cache, run GX_DrawDone and clear texture cache
-    GX_DrawDone();
-    resetTexCacheInfo();
+    /* No free slot: evict ONE round-robin victim instead of discarding
+     * all 8. Slots are independent TMEM regions, so the other 7 stay
+     * valid (same rendering, far fewer reloads). The stall stays: the
+     * GPU may still be sampling the victim region from this frame. */
+    perf_drawdone();
+    PERF_INC(gx_tex_evicts);
+    {
+        static unsigned victim = 0;
+        unsigned slot = victim;
+        victim = (victim + 1) & 7;
 
-    if (textureType == TEX_TYPE_1)
-    {
-        gxTexMapSemi = 0;
-        GX_InvalidateTexRegion(&texCacheRegionS[0]);
-        GX_LoadTexObjPreloaded(&currtex->semiTransTexobj, &texCacheRegionS[0], 0);
-        texCacheUsedInfo[0] = curTexId + _MAX_GL_TEX;
+        if (textureType == TEX_TYPE_1)
+        {
+            gxTexMapSemi = slot;
+            GX_InvalidateTexRegion(&texCacheRegionS[slot]);
+            GX_LoadTexObjPreloaded(&currtex->semiTransTexobj, &texCacheRegionS[slot], gxTexMapSemi);
+            texCacheUsedInfo[slot] = curTexId + _MAX_GL_TEX;
+        }
+        else
+        {
+            gxTexMap = slot;
+            GX_InvalidateTexRegion(&texCacheRegionS[slot]);
+            GX_LoadTexObjPreloaded(&currtex->texobj, &texCacheRegionS[slot], gxTexMap);
+            texCacheUsedInfo[slot] = curTexId;
+        }
     }
-    else
-    {
-        gxTexMap = 0;
-        GX_InvalidateTexRegion(&texCacheRegionS[0]);
-        GX_LoadTexObjPreloaded(&currtex->texobj, &texCacheRegionS[0], 0);
-        texCacheUsedInfo[0] = curTexId;
-    }
+}
+
+/* Phase 4 frame-boundary hook (called by the GlesGpu present path instead
+ * of a full resetTexCacheInfo): menu/font drawing uses TMEM region 0 only
+ * (IPLFont/Image, VTXFMT1), so when it drew this frame, only tag 0 may be
+ * stale. Slots 1-7 provably survive across frames: uploads reset tags
+ * themselves, and nothing else touches their regions mid-game. */
+void ogx_on_frame_present(int font_drew)
+{
+    if (font_drew)
+        texCacheUsedInfo[0] = -1;
 }
 
 void glDeleteTextures(GLsizei n, const GLuint *textures)
 {
     const GLuint *texlist = textures;
-    GX_DrawDone();
+    perf_drawdone();
     while (n-- > 0) {
         int i = *texlist++;
         if (!(i < 0 || i >= _MAX_GL_TEX)) {
@@ -1441,7 +1496,7 @@ void glFlush() {} // All commands are sent immediately to draw, no queue, so poi
 // Waits for all the commands to be successfully executed
 void glFinish()
 {
-    GX_DrawDone(); // Be careful, WaitDrawDone waits for the DD command, this sends AND waits for it
+    perf_drawdone(); // Be careful, WaitDrawDone waits for the DD command, this sends AND waits for it
 }
 
 void glBlendFunc(GLenum sfactor, GLenum dfactor)
@@ -1806,7 +1861,8 @@ int glInitMovieTextures( GLsizei width, GLsizei height, void * texData )
 {
     int textureType = 0;
     //GX_WaitDrawDone();
-    GX_DrawDone();
+    perf_drawdone();
+    PERF_INC(gx_tex_resets);
     resetTexCacheInfo();
 
     gltexture_ *currtex = &texture_list[glparamstate.glcurtex];
@@ -1881,7 +1937,8 @@ int glTexSubImage2D(GLenum target, GLint level,
 {
     int textureType = 0;
     //GX_WaitDrawDone();
-    GX_DrawDone();
+    perf_drawdone();
+    PERF_INC(gx_tex_resets);
     resetTexCacheInfo();
 
     gltexture_ *currtex = &texture_list[glparamstate.glcurtex];
@@ -2012,7 +2069,9 @@ int glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei width
     //GX_DrawDone(); // Very ugly, we should have a list of used textures and only wait if we are using the curr tex.
                    // This way we are sure that we are not modifying a texture which is being drawn
     //GX_WaitDrawDone();
-    GX_DrawDone();
+    perf_drawdone();
+    PERF_INC(gx_tex_resets);
+    PERF_INC(gx_tex_loads);
     resetTexCacheInfo();
 
     gltexture_ *currtex = &texture_list[glparamstate.glcurtex];
@@ -2045,6 +2104,7 @@ int glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei width
     currtex->bytespp = 2;
 
     textureType = _ogx_scramble_4b_5a3((unsigned char *)data, currtex->data, glparamstate.blendenabled, width, height);
+    PERF_ADD(gx_tex_bytes, (unsigned long long)currtex->w * currtex->h * 2);
     DCFlushRange(currtex->data, currtex->w * currtex->h * 2);
 
     // Slow but necessary! The new textures may be in the same region of some old cached textures
@@ -2915,19 +2975,20 @@ static inline void glDrawCommon(int texen, int color_enabled)
     // Not using indices
     GX_ClearVtxDesc();
     GX_SetVtxDesc(GX_VA_POS, GX_DIRECT);
-    GX_SetVtxAttrFmt(GX_VTXFMT0, GX_VA_POS, GX_POS_XYZ, GX_F32, 0);
 
     if (color_enabled)
     {
         GX_SetVtxDesc(GX_VA_CLR0, GX_DIRECT);
-        GX_SetVtxAttrFmt(GX_VTXFMT0, GX_VA_CLR0, GX_CLR_RGBA, GX_RGBA8, 0);
     }
 
     if (texen)
     {
         GX_SetVtxDesc(GX_VA_TEX0, GX_DIRECT);
-        GX_SetVtxAttrFmt(GX_VTXFMT0, GX_VA_TEX0, GX_TEX_ST, GX_F32, 0);
     }
+
+    /* Formats are invariant (see ogx_emit_vtxfmt); descriptors above vary. */
+    if (!ogx_vtxfmt_clean)
+        ogx_emit_vtxfmt();
 
     // Invalidate vertex data as may have been modified by the user
     GX_InvVtxCache();
@@ -3007,12 +3068,9 @@ void glDrawArrays(GLenum mode, GLint first, GLsizei count)
     if (texen)
         GX_SetVtxDesc(GX_VA_TEX0, GX_DIRECT);
 
-    // Using floats
-    GX_SetVtxAttrFmt(GX_VTXFMT0, GX_VA_POS, GX_POS_XYZ, GX_F32, 0);
-    GX_SetVtxAttrFmt(GX_VTXFMT0, GX_VA_NRM, GX_NRM_XYZ, GX_F32, 0);
-    GX_SetVtxAttrFmt(GX_VTXFMT0, GX_VA_TEX0, GX_TEX_ST, GX_F32, 0);
-    GX_SetVtxAttrFmt(GX_VTXFMT0, GX_VA_CLR0, GX_CLR_RGBA, GX_RGBA8, 0);
-    GX_SetVtxAttrFmt(GX_VTXFMT0, GX_VA_CLR1, GX_CLR_RGBA, GX_RGBA8, 0);
+    /* Formats are invariant (see ogx_emit_vtxfmt); descriptors above vary. */
+    if (!ogx_vtxfmt_clean)
+        ogx_emit_vtxfmt();
 
     // Invalidate vertex data as may have been modified by the user
     GX_InvVtxCache();
@@ -3028,6 +3086,7 @@ void glDrawArrays(GLenum mode, GLint first, GLsizei count)
 
     if (_ogx_apply_state(texen, glparamstate.color_enabled))
     {
+        PERF_INC(gx_batches);
         GX_Begin(gxmode, GX_VTXFMT0, count + loop);
         draw_arrays_general(ptr_pos, ptr_normal, ptr_texc, ptr_color,
                             count, glparamstate.normal_enabled, color_provide, texen, loop);
@@ -3040,6 +3099,7 @@ void glDrawArrays(GLenum mode, GLint first, GLsizei count)
 
         if (_ogx_apply_state(texen, glparamstate.color_enabled))
         {
+            PERF_INC(gx_batches);
             GX_Begin(gxmode, GX_VTXFMT0, count + loop);
             draw_arrays_general(ptr_pos, ptr_normal, ptr_texc, ptr_color,
                                 count, glparamstate.normal_enabled, color_provide, texen, loop);

@@ -34,6 +34,7 @@
 #include "../psxhle.h"
 #include "../Gamecube/DEBUG.h"
 #include "../Gamecube/MEM2.h"
+#include "../Gamecube/perf_prof.h"
 #include <ogc/lwp_heap.h>
 
 //#define printFunctionLog() { \
@@ -1122,6 +1123,7 @@ static int recInit() {
 }
 
 static void recReset() {
+	PERF_INC(oldrec_resets);
 	psxRegs.ICache_valid = FALSE;
 
 	memset(recRAM, 0, 0x200000);
@@ -1215,12 +1217,14 @@ static void recExecute() {
 
     recRecompileInit();
 
+    PERF_INC(oldrec_slices);
     while(!stop) execute();
 }
 
 static void recExecuteBlock(enum blockExecCaller caller) {
     recRecompileInit();
 
+    PERF_INC(oldrec_slices);
     execute();
 }
 
@@ -3565,6 +3569,12 @@ __inline static void recRecompile() {
   #ifdef DISP_DEBUG
   dyna_used = ((u32)ppcPtr - (u32)recMem) >> 10;
   #endif // DISP_DEBUG
+  {
+    /* Unconditional peak for the 10 MiB sizing decision (Phase 2 item 4) */
+    u32 used_kb = ((u32)ppcPtr - (u32)recMem) >> 10;
+    if (used_kb > g_perf.oldrec_peak_kb)
+        g_perf.oldrec_peak_kb = used_kb;
+  }
 }
 
 

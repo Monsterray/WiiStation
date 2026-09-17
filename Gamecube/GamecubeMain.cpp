@@ -50,6 +50,7 @@ extern bool executedBios;
 
 extern "C" {
 #include "DEBUG.h"
+#include "perf_prof.h"
 #include "fileBrowser/fileBrowser.h"
 #include "fileBrowser/fileBrowser-libfat.h"
 #include "fileBrowser/fileBrowser-DVD.h"
@@ -657,7 +658,13 @@ void biosFileInit()
  	}
 	biosFile = (fileBrowser_file*)memalign(32,sizeof(fileBrowser_file));
 	memcpy(biosFile,biosFile_dir,sizeof(fileBrowser_file));
-	strcat(biosFile->name, GetGameBios(biosFile->name, filenameFromAbsPath(isoFile.name), strlen(isoFile.name)));
+	{
+		size_t used = strlen(biosFile->name);
+		size_t avail = (used < sizeof(biosFile->name)) ? sizeof(biosFile->name) - used - 1 : 0;
+		const char *tail = GetGameBios(biosFile->name, filenameFromAbsPath(isoFile.name), strlen(isoFile.name));
+		if (avail > 0 && tail && tail[0])
+			snprintf(biosFile->name + used, avail + 1, "%s", tail);
+	}
 	biosFile_init(biosFile);  //initialize the bios device (it might not be the same as ISO device)
 }
 
@@ -933,11 +940,23 @@ void writeConfig(FILE* f){
 	}
 }
 
+/* Phase 4: menu-side texture tags (C linkage, defined in libgui) and the
+ * opengx frame hook (C linkage, defined in deps/opengx). */
+extern "C" void resetTexCacheInfo(void);
+extern "C" void ogx_mark_vtxfmt_dirty(void);
+
 extern "C" {
 //System Functions
 void go(void) {
 	Config.PsxOut = 0;
 	stop = 0;
+	perf_reset();
+
+	/* Phase 4: the menu may have drawn over TMEM region 0 (font/images)
+	 * and foreign GX state (soft-plugin formats) since the last session,
+	 * so drop texture tags and force a VTXFMT re-emit on resume/boot. */
+	resetTexCacheInfo();
+	ogx_mark_vtxfmt_dirty();
 
 	if (gpuPtr == &newSoftGpu)
     {
