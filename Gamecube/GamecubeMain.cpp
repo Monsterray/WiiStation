@@ -569,6 +569,25 @@ int main(int argc, char *argv[])
 
 	loadSettings(argc, argv);
 
+	/* Test automation: a bare .dol booted by Dolphin gets no loader argv, so
+	 * sd:/wiisxrx/autoboot.txt -- two lines, the ISO's directory and its
+	 * filename -- stands in for argv[1]/argv[2] and boots straight into the
+	 * game with no menu input. Delete the file to boot to the menu as usual.
+	 * Read here rather than in main()'s argv block because the SD card is
+	 * only mounted once loadSettings() has run. */
+	if (!Autoboot) {
+		FILE *ab = fopen("sd:/wiisxrx/autoboot.txt", "r");
+		if (ab) {
+			if (fgets(AutobootPath, sizeof(AutobootPath), ab) &&
+			    fgets(AutobootROM,  sizeof(AutobootROM),  ab)) {
+				AutobootPath[strcspn(AutobootPath, "\r\n")] = 0;
+				AutobootROM [strcspn(AutobootROM,  "\r\n")] = 0;
+				Autoboot = AutobootPath[0] && AutobootROM[0];
+			}
+			fclose(ab);
+		}
+	}
+
 	#ifdef HW_RVL
 	HIDInit(ios);
 
