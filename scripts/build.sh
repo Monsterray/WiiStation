@@ -55,24 +55,44 @@ cd "$REPO_ROOT"
 # lightrec/lightning are not built at all -- they're prebuilt binaries
 # already installed under devkitPPC-r41-2/powerpc-eabi/lib by the setup
 # script (they came from this project's own bundled zip, not pacman).
+# The Gamecube Makefiles make the .elf depend only on its own objects, not
+# on the dependency archives, so an edit confined to e.g. deps/opengx rebuilds
+# libOpengx.a but never relinks -- and elf2dol then regenerates a fresh-looking
+# .dol from the stale .elf. Drop the .elf when any archive is newer than it.
+relink_if_deps_newer() {
+	local elf="$1" a
+	[ -f "$elf" ] || return 0
+	for a in deps/*/lib/*.a; do
+		if [ "$a" -nt "$elf" ]; then
+			echo "$a is newer than $elf -- forcing relink"
+			rm -f "$elf"
+			return 0
+		fi
+	done
+}
+
 case "${1:-debug}" in
 	debug)
 		make opengx.a lightrecWithLog.a zstd.a lzma.a zlibstatic.a chdrstatic.a
+		relink_if_deps_newer Gamecube/WiiSXRX_debug.elf
 		make -C Gamecube -f Makefile_Wii
 		echo "Output: Gamecube/WiiSXRX_debug.dol"
 		;;
 	debug-warn)
 		make opengx.a lightrecWithLog.a zstd.a lzma.a zlibstatic.a chdrstatic.a
+		relink_if_deps_newer Gamecube/WiiSXRX_debug.elf
 		make -C Gamecube -f Makefile_Wii WARN=1
 		echo "Output: Gamecube/WiiSXRX_debug.dol"
 		;;
 	release)
 		make opengx.a lightrecNoLog.a zstd.a lzma.a zlibstatic.a chdrstatic.a
+		relink_if_deps_newer Gamecube/WiiSXRX_Release.elf
 		make -C Gamecube -f Makefile_Wii_Release
 		echo "Output: Gamecube/WiiSXRX_Release.dol"
 		;;
 	release-warn)
 		make opengx.a lightrecNoLog.a zstd.a lzma.a zlibstatic.a chdrstatic.a
+		relink_if_deps_newer Gamecube/WiiSXRX_Release.elf
 		make -C Gamecube -f Makefile_Wii_Release WARN=1
 		echo "Output: Gamecube/WiiSXRX_Release.dol"
 		;;
