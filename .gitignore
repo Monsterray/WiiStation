@@ -20,3 +20,8 @@ Work To Be Done.md
 
 # Agent-facing notes, not project source
 AGENTS.md
+
+# Local MCP server registration -- contains a workstation-specific absolute
+# path to the codebase-memory-mcp binary, so it would not work elsewhere.
+# (.cbmignore is deliberately NOT ignored: those rules are portable.)
+.mcp.json

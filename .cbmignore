@@ -1,0 +1,8 @@
+# codebase-memory-mcp ignore rules (gitignore syntax).
+# Keeps the code graph focused on WiiStation's own C/C++ rather than the
+# vendored third-party trees we never edit. deps/opengx is deliberately NOT
+# excluded -- we do modify gc_gl.c.
+deps/libchdr/
+deps/lightrec/
+Gamecube/build_debug/
+Gamecube/build_release/
