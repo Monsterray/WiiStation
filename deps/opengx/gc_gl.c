@@ -3296,11 +3296,150 @@ static void draw_arrays_general(float *ptr_pos, float *ptr_normal, float *ptr_te
 }
 
 
+/* Probe for the flat-polygon investigation: is the texture this draw is
+ * about to sample uniform over the region it samples? Texels are read from
+ * the texture's tiled RAM buffer (RGB5A3, 4x4 blocks of 32 bytes), i.e.
+ * exactly what GX will fetch. Bounded to 16 samples per draw. UVs are read
+ * from the same 24-byte OGLVertex layout the draw functions decode. */
+static unsigned short probe_texel(const gltexture_ *t, int x, int y)
+{
+    const unsigned char *p = (const unsigned char *)t->data;
+    int wb = (t->w + 3) >> 2;
+    return *(const unsigned short *)(p + (((y >> 2) * wb + (x >> 2)) << 5) + (((y & 3) << 2) + (x & 3)) * 2);
+}
+static void probe_uniform(int gt, const void *vertexAdr, int nv)
+{
+    const unsigned char *a = (const unsigned char *)vertexAdr;
+    const gltexture_ *t = &texture_list[glparamstate.glcurtex];
+    float umin = 1e9f, umax = -1e9f, vmin = 1e9f, vmax = -1e9f;
+    int i, j, x0, y0, x1, y1, uniform = 1;
+    unsigned short first = 0;
+    if (!t->data || t->w <= 0 || t->h <= 0) return;
+    for (i = 0; i < nv; i++) {
+        float u = *(const float *)(a + i * 24 + 12), v = *(const float *)(a + i * 24 + 16);
+        if (u < umin) umin = u;
+        if (u > umax) umax = u;
+        if (v < vmin) vmin = v;
+        if (v > vmax) vmax = v;
+    }
+    x0 = (int)(umin * t->w); x1 = (int)(umax * t->w);
+    y0 = (int)(vmin * t->h); y1 = (int)(vmax * t->h);
+    if (x0 < 0) x0 = 0;
+    if (y0 < 0) y0 = 0;
+    if (x1 > t->w - 1) x1 = t->w - 1;
+    if (y1 > t->h - 1) y1 = t->h - 1;
+    if (x1 < x0) x1 = x0;
+    if (y1 < y0) y1 = y0;
+    for (j = 0; j < 4 && uniform; j++) {
+        for (i = 0; i < 4; i++) {
+            unsigned short tx = probe_texel(t, x0 + (x1 - x0) * i / 3, y0 + (y1 - y0) * j / 3);
+            if (i == 0 && j == 0) first = tx;
+            else if (tx != first) { uniform = 0; break; }
+        }
+    }
+    if (gt) PERF_INC(ogx_draw_gt); else PERF_INC(ogx_draw_ft);
+    if (!uniform) return;
+    if (gt) PERF_INC(ogx_uni_gt); else PERF_INC(ogx_uni_ft);
+    if (g_perf.ogx_ud_n < 8) {
+        unsigned k = g_perf.ogx_ud_n++;
+        g_perf.ogx_ud[k].texid = glparamstate.glcurtex; g_perf.ogx_ud[k].mode = g_perf.ogx_cur_mode;
+        g_perf.ogx_ud[k].clut = g_perf.ogx_cur_clut;   g_perf.ogx_ud[k].page = g_perf.ogx_cur_page;
+        g_perf.ogx_ud[k].w = t->w; g_perf.ogx_ud[k].h = t->h; g_perf.ogx_ud[k].texel = first;
+        g_perf.ogx_ud[k].semi = texSemiType; g_perf.ogx_ud[k].gt = gt; g_perf.ogx_ud[k].nv = nv;
+        for (i = 0; i < 4; i++) {
+            float u = i < nv ? *(const float *)(a + i * 24 + 12) : 0.0f;
+            float v = i < nv ? *(const float *)(a + i * 24 + 16) : 0.0f;
+            g_perf.ogx_ud[k].u[i] = (uint16_t)(u < 0 ? 0 : (u > 63 ? 65535 : u * 1024));
+            g_perf.ogx_ud[k].v[i] = (uint16_t)(v < 0 ? 0 : (v > 63 ? 65535 : v * 1024));
+        }
+    }
+}
+
+/* Texel-equivalence detector (see perf_prof.h). PSX VRAM is the plugins'
+ * shared psxVuw, stored little-endian. Opaque, non-window draws only. */
+extern unsigned short *psxVuw;
+static unsigned short psx_le16(const unsigned short *p)
+{
+    unsigned short r = *p;
+    return (unsigned short)((r >> 8) | (r << 8));
+}
+static unsigned short psx_texel(unsigned mode, unsigned tx, unsigned ty, unsigned cx, unsigned cy, int u, int v)
+{
+    unsigned short w;
+    if (u < 0) u = 0;
+    if (v < 0) v = 0;
+    if (u > 255) u = 255;
+    if (v > 255) v = 255;
+    switch (mode) {
+    case 0:
+        w = psx_le16(&psxVuw[((ty + v) & 511) * 1024 + ((tx + (u >> 2)) & 1023)]);
+        return psx_le16(&psxVuw[(cy & 511) * 1024 + ((cx + ((w >> ((u & 3) * 4)) & 0xf)) & 1023)]);
+    case 1:
+        w = psx_le16(&psxVuw[((ty + v) & 511) * 1024 + ((tx + (u >> 1)) & 1023)]);
+        return psx_le16(&psxVuw[(cy & 511) * 1024 + ((cx + ((w >> ((u & 1) * 8)) & 0xff)) & 1023)]);
+    default:
+        return psx_le16(&psxVuw[((ty + v) & 511) * 1024 + ((tx + u) & 1023)]);
+    }
+}
+static int rgb5a3_match(unsigned short gx, unsigned short psx)
+{
+    /* The converter keeps the PSX 1555 bit layout in the GX texture (the TEV
+     * swap table puts B and R right at sampling time) and uses bit 15 as the
+     * opaque flag; PSX texel 0 stays 0 = transparent. Two 5-bit levels of
+     * tolerance per channel for the converter's rounding. */
+    int d;
+    if (psx == 0) return gx == 0;
+    if (gx == 0) return 0;
+    d = (gx & 31) - (psx & 31);                 if (d < -2 || d > 2) return 0;
+    d = ((gx >> 5) & 31) - ((psx >> 5) & 31);   if (d < -2 || d > 2) return 0;
+    d = ((gx >> 10) & 31) - ((psx >> 10) & 31); if (d < -2 || d > 2) return 0;
+    return 1;
+}
+static void probe_equiv(const void *vertexAdr, int nv)
+{
+    const unsigned char *a = (const unsigned char *)vertexAdr;
+    const gltexture_ *t = &texture_list[glparamstate.glcurtex];
+    float uc = 0.0f, vc = 0.0f;
+    int i, x, y, pu = 0, pv = 0, ok = 0, du, dv;
+    unsigned cx, cy;
+    unsigned short got, exp0;
+    if (!t->data || t->w <= 0 || t->h <= 0 || !psxVuw) return;
+    if (g_perf.ogx_cur_twin || g_perf.ogx_cur_semi || g_perf.ogx_cur_mode > 2) return;
+    for (i = 0; i < nv; i++) {
+        uc += *(const float *)(a + i * 24 + 12);
+        vc += *(const float *)(a + i * 24 + 16);
+        pu += g_perf.ogx_cur_u[i];
+        pv += g_perf.ogx_cur_v[i];
+    }
+    x = (int)(uc / nv * t->w); y = (int)(vc / nv * t->h);
+    pu = (pu + nv / 2) / nv; pv = (pv + nv / 2) / nv;
+    if (x < 0 || y < 0 || x >= t->w || y >= t->h) return;
+    got = probe_texel(t, x, y);
+    cx = (g_perf.ogx_cur_clut & 0x3f) << 4; cy = (g_perf.ogx_cur_clut >> 6) & 0x1ff;
+    exp0 = psx_texel(g_perf.ogx_cur_mode, g_perf.ogx_cur_tx, g_perf.ogx_cur_ty, cx, cy, pu, pv);
+    for (dv = -1; dv <= 1 && !ok; dv++)
+        for (du = -1; du <= 1; du++)
+            if (rgb5a3_match(got, psx_texel(g_perf.ogx_cur_mode, g_perf.ogx_cur_tx, g_perf.ogx_cur_ty, cx, cy, pu + du, pv + dv))) { ok = 1; break; }
+    PERF_INC(ogx_eq_n);
+    if (ok) return;
+    PERF_INC(ogx_eq_mism);
+    if (exp0 != 0 && got == 0) PERF_INC(ogx_eq_hole);
+    /* ring: mismatches #1, #8, #64, ... so the samples span the run */
+    if (g_perf.ogx_eq_r < 8 && g_perf.ogx_eq_mism == (1u << (3 * g_perf.ogx_eq_r))) {
+        unsigned k = g_perf.ogx_eq_r++;
+        g_perf.ogx_eq[k].texid = glparamstate.glcurtex; g_perf.ogx_eq[k].mode = g_perf.ogx_cur_mode;
+        g_perf.ogx_eq[k].page = g_perf.ogx_cur_page; g_perf.ogx_eq[k].clut = g_perf.ogx_cur_clut;
+        g_perf.ogx_eq[k].pu = pu; g_perf.ogx_eq[k].pv = pv; g_perf.ogx_eq[k].x = x; g_perf.ogx_eq[k].y = y;
+        g_perf.ogx_eq[k].exp = exp0; g_perf.ogx_eq[k].got = got; g_perf.ogx_eq[k].nv = nv;
+    }
+}
+
 void glPRIMdrawTexturedQuad( void* vertexAdr, int changePointOrder )
 {
     // vertexAdr( float x, y, z, sow, tow; unsigned char r, g, b, a )
     unsigned char* addrPtr = (unsigned char*)vertexAdr;
     glDrawCommon(1, 0);
+    probe_uniform(0, vertexAdr, 4); probe_equiv(vertexAdr, 4);
 
     // blendenabled=false, Execute GX_SetBlendMode once
     //   1st GX_SetBlendMode: Non transparent colors
@@ -3383,6 +3522,7 @@ void glPRIMdrawTexturedTri( void* vertexAdr )
     // vertexAdr( float x, y, z, sow, tow; unsigned char r, g, b, a )
     unsigned char* addrPtr = (unsigned char*)vertexAdr;
     glDrawCommon(1, 0);
+    probe_uniform(0, vertexAdr, 3); probe_equiv(vertexAdr, 3);
 
     // blendenabled=false, Execute GX_SetBlendMode once
     //   1st GX_SetBlendMode: Non transparent colors
@@ -3437,6 +3577,7 @@ void glPRIMdrawTexGouraudTriColor( void* vertexAdr )
     // vertexAdr( float x, y, z, sow, tow; unsigned char r, g, b, a )
     unsigned char* addrPtr = (unsigned char*)vertexAdr;
     glDrawCommon(1, 1);
+    probe_uniform(1, vertexAdr, 3); probe_equiv(vertexAdr, 3);
 
     // blendenabled=false, Execute GX_SetBlendMode once
     //   1st GX_SetBlendMode: Non transparent colors
@@ -3497,6 +3638,7 @@ void glPRIMdrawTexGouraudTriColorQuad( void* vertexAdr )
     // vertexAdr( float x, y, z, sow, tow; unsigned char r, g, b, a )
     unsigned char* addrPtr = (unsigned char*)vertexAdr;
     glDrawCommon(1, 1);
+    probe_uniform(1, vertexAdr, 4); probe_equiv(vertexAdr, 4);
 
     // blendenabled=false, Execute GX_SetBlendMode once
     //   1st GX_SetBlendMode: Non transparent colors

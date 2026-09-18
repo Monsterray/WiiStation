@@ -125,6 +125,49 @@ typedef struct {
 	 * them too large (the PSX GPU's 1024x512 limit). A check that is off by a
 	 * pixel drops exactly the big close-up ground quads. */
 	uint32_t ogx_coord_rej;
+	/* Per-draw texture probe for the flat-polygon investigation: for every
+	 * textured draw, a 4x4 grid of texels across the draw's UV bounding box is
+	 * read straight from the texture's tiled RAM buffer -- exactly what GX will
+	 * sample -- and the draw is counted as "uniform" if all 16 are identical.
+	 * A uniform textured draw is a flat polygon by construction; the ring keeps
+	 * which texture (and which PSX texture mode) produced the first eight. */
+	uint32_t ogx_draw_ft, ogx_draw_gt;   /* textured draws: flat-lit / Gouraud */
+	uint32_t ogx_uni_ft, ogx_uni_gt;     /* of which sampled uniform */
+	uint32_t ogx_cur_mode;               /* PSX texture mode of the current sub-texture */
+	uint32_t ogx_cur_clut, ogx_cur_page; /* raw CLUT id and PSX texture page of the same */
+	/* VRAM-write invalidation: how often the game wrote VRAM under cached
+	 * sub-textures, and how many entries the sweep actually dropped. Writes
+	 * with no drops means stale conversions are served forever. */
+	uint32_t ogx_vram_wr, ogx_inval;
+	struct { uint16_t texid, mode, w, h, texel, clut, page; uint16_t u[4], v[4]; uint8_t semi, gt, nv; } ogx_ud[8];
+	uint32_t ogx_ud_n;
+	/* Render-to-texture probe: primitives whose destination is VRAM outside
+	 * the visible buffers (the dormant bDrawOffscreen* test), i.e. draws a
+	 * software rasterizer would have written into VRAM and this port drops,
+	 * plus GP0 fills. The ring keeps the first eight destination rects. */
+	uint32_t ogx_off_prim, ogx_off_prim_tex, ogx_fill_all, ogx_fill_off;
+	struct { int16_t x0, y0, x1, y1; uint16_t color; uint8_t kind, tex; } ogx_op[8];
+	uint32_t ogx_op_n;
+	/* Region of interest = PSX texture pages 12/13 (VRAM x 768..895, y 0..255),
+	 * where the flat grey textures live. off_roi: off-screen primitives whose
+	 * destination touches it; va_*: VRAM areas invalidated (image loads,
+	 * moves, CPU writes) in total and touching it. ogx_va ring: first eight
+	 * such areas. */
+	uint32_t ogx_off_roi, ogx_va_all, ogx_va_roi;
+	struct { int16_t x0, y0, x1, y1; } ogx_va[8];
+	uint32_t ogx_va_n;
+	/* Texel-equivalence detector: per textured opaque draw, the texel the GX
+	 * texture holds at the polygon's UV centroid vs the texel the PSX would
+	 * sample from VRAM through the CLUT at the same spot (3x3 tolerance for
+	 * rounding). Context is published by SelectSubTextureS. A mismatch means
+	 * the draw is bound to the wrong texture content; 'hole' = expected
+	 * opaque, got transparent. */
+	uint16_t ogx_cur_tx, ogx_cur_ty, ogx_cur_semi, ogx_cur_twin;
+	uint16_t ogx_cur_u[4], ogx_cur_v[4];
+	uint32_t ogx_eq_n, ogx_eq_mism, ogx_eq_hole;
+	struct { uint16_t texid, mode, page, clut, pu, pv, x, y, exp, got; uint8_t nv; } ogx_eq[8];
+	uint32_t ogx_eq_r;
+	uint32_t vram_dumped;                /* one-shot VRAM snapshot taken (see perf_prof.c) */
 
 	/* Slice granularity: why the recompiler keeps exiting.
 	 *

@@ -1259,6 +1259,47 @@ static BOOL bDrawOffscreen3 ( void )
     return TRUE;
 }
 
+
+/* Probe (render-to-texture investigation). kind 1/2: a quad/tri whose
+ * destination is outside the visible buffers -- offsetPSX*() makes lx and ly
+ * absolute VRAM coordinates and bDrawOffscreen*() applies the same test the
+ * disabled soft-drawing path used, leaving the rect in sxmin/symin/sxmax/
+ * symax. Safe after offset*(): the GX draw already took its coordinates
+ * from vertex[]. kind 0: a GP0 fill, tested against the display rects. */
+static void probe_offscreen(int kind, unsigned int color)
+{
+    /* Passive: bDrawOffscreen*'s front-buffer branch rewrites vertex[], so
+     * snapshot and restore it. Its return value is NOT used -- it yields
+     * bFullVRam for on-screen primitives -- only its clamp of sxmin..symax
+     * to the drawing area is wanted. Off-screen = the rect misses BOTH
+     * display buffers. */
+    OGLVertex saved[4];
+    short x0, y0, x1, y1;
+    int hit_cur, hit_prev, off, roi;
+    memcpy(saved, vertex, sizeof(saved));
+    if (kind == 1) { offsetPSX4(); bDrawOffscreen4(); }
+    else if (kind == 2) { offsetPSX4(); bDrawOffscreen3(); }   /* no offsetPSX3 in this port; slot 3 unused for tris */
+    if (kind) memcpy(vertex, saved, sizeof(saved));
+    if (kind == 0) { sxmin = sprtX; symin = sprtY; sxmax = sprtX + sprtW; symax = sprtY + sprtH; }
+    x0 = sxmin; y0 = symin; x1 = sxmax; y1 = symax;
+    hit_cur  = x0 < PSXDisplay.DisplayEnd.x && x1 > PSXDisplay.DisplayPosition.x &&
+               y0 < PSXDisplay.DisplayEnd.y && y1 > PSXDisplay.DisplayPosition.y;
+    hit_prev = x0 < PreviousPSXDisplay.DisplayEnd.x && x1 > PreviousPSXDisplay.DisplayPosition.x &&
+               y0 < PreviousPSXDisplay.DisplayEnd.y && y1 > PreviousPSXDisplay.DisplayPosition.y;
+    off = !hit_cur && !hit_prev;
+    roi = x1 >= 768 && x0 <= 895 && y1 >= 0 && y0 <= 255;
+    if (kind == 0) { PERF_INC(ogx_fill_all); if (off) PERF_INC(ogx_fill_off); }
+    if (!off) return;
+    if (kind) { PERF_INC(ogx_off_prim); if (bDrawTextured) PERF_INC(ogx_off_prim_tex); }
+    if (roi) PERF_INC(ogx_off_roi);
+    if (roi && g_perf.ogx_op_n < 8) {
+        unsigned k = g_perf.ogx_op_n++;
+        g_perf.ogx_op[k].kind = kind; g_perf.ogx_op[k].tex = kind ? (bDrawTextured != 0) : 0;
+        g_perf.ogx_op[k].x0 = x0; g_perf.ogx_op[k].y0 = y0; g_perf.ogx_op[k].x1 = x1; g_perf.ogx_op[k].y1 = y1;
+        g_perf.ogx_op[k].color = (uint16_t)BGR24to16(color);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////
 static PSXRect_t xUploadArea;
 
@@ -2704,6 +2745,7 @@ static void primBlkFill ( unsigned char * baseAddr )
     sprtW = GETLEs16 ( &sgpuData[4] ) & 0x3ff;
     sprtH = GETLEs16 ( &sgpuData[5] ) & iGPUHeightMask;
 
+    probe_offscreen(0, GETLE32 ( &gpuData[0] ));
     if (sprtW == 0 || sprtH == 0)
     {
         #if defined(DISP_DEBUG) && defined(CMD_LOG_2D)
@@ -4179,6 +4221,8 @@ static void primPolyF4 ( unsigned char *baseAddr )
     bDrawSmoothShaded = FALSE;
     SetRenderState ( GETLE32 ( &gpuData[0] ) );
 
+    probe_offscreen(1, GETLE32 ( &gpuData[0] ));
+
     /* if(iOffscreenDrawing)
       {
        offsetPSX4();
@@ -4303,6 +4347,8 @@ static void primPolyG4 ( unsigned char * baseAddr )
     bDrawTextured = FALSE;
     bDrawSmoothShaded = TRUE;
     SetRenderState ( GETLE32 ( &gpuData[0] ) );
+
+    probe_offscreen(1, GETLE32 ( &gpuData[0] ));
 
     /* if(iOffscreenDrawing)
       {
@@ -4541,6 +4587,8 @@ static void primPolyFT3 ( unsigned char * baseAddr )
     bDrawTextured = TRUE;
     bDrawSmoothShaded = FALSE;
     SetRenderState ( GETLE32 ( &gpuData[0] ) );
+
+    probe_offscreen(2, GETLE32 ( &gpuData[0] ));
 
     /* if(iOffscreenDrawing)
       {
@@ -4968,6 +5016,8 @@ static void primPolyFT4 ( unsigned char * baseAddr )
     bDrawSmoothShaded = FALSE;
     SetRenderState ( GETLE32 ( &gpuData[0] ) );
 
+    probe_offscreen(1, GETLE32 ( &gpuData[0] ));
+
     /* if(iOffscreenDrawing)
       {
        offsetPSX4();
@@ -5049,6 +5099,8 @@ static void primPolyGT3 ( unsigned char *baseAddr )
     bDrawTextured = TRUE;
     bDrawSmoothShaded = TRUE;
     SetRenderState ( GETLE32 ( &gpuData[0] ) );
+
+    probe_offscreen(2, GETLE32 ( &gpuData[0] ));
 
     /* if(iOffscreenDrawing)
       {
@@ -5132,6 +5184,8 @@ static void primPolyG3 ( unsigned char *baseAddr )
     bDrawSmoothShaded = TRUE;
     SetRenderState ( GETLE32 ( &gpuData[0] ) );
 
+    probe_offscreen(2, GETLE32 ( &gpuData[0] ));
+
     /* if(iOffscreenDrawing)
       {
        offsetPSX3();
@@ -5202,6 +5256,8 @@ static void primPolyGT4 ( unsigned char *baseAddr )
     bDrawTextured     = TRUE;
     bDrawSmoothShaded = TRUE;
     SetRenderState ( GETLE32 ( &gpuData[0] ) );
+
+    probe_offscreen(1, GETLE32 ( &gpuData[0] ));
 
     /* if(iOffscreenDrawing)
       {
@@ -5298,6 +5354,8 @@ static void primPolyF3 ( unsigned char *baseAddr )
     bDrawTextured     = FALSE;
     bDrawSmoothShaded = FALSE;
     SetRenderState ( GETLE32 ( &gpuData[0] ) );
+
+    probe_offscreen(2, GETLE32 ( &gpuData[0] ));
 
     /* if(iOffscreenDrawing)
       {

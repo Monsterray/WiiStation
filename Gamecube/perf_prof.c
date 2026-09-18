@@ -55,10 +55,37 @@ static void perf_sample_mem(void)
 		g_perf.mem2_peak_kb = used_kb;
 }
 
+/* One-shot snapshot of PSX VRAM at a fixed emulated time. Keyed on the
+ * core's vblank count rather than on presents so that two plugins' runs of
+ * the same autoboot stop at the same game frame whatever their speed; the
+ * two dumps are then diffed offline. All GPU plugins publish their VRAM
+ * through the one psxVuw global. */
+#define PERF_VRAM_DUMP_VBLANK 6000
+extern unsigned short *psxVuw;
+static void perf_vram_dump(void)
+{
+	size_t n = 0;
+	FILE *f = fopen("sd:/wiisxrx/vram.bin", "wb");
+	if (f) {
+		if (psxVuw) n = fwrite(psxVuw, 1, 1024u * 512u * 2u, f);
+		fclose(f);
+	}
+	f = fopen("sd:/wiisxrx/perf.log", "a");
+	if (f) {
+		fprintf(f, "vramdump: frames=%lu vblanks=%lu bytes=%lu\n",
+			(unsigned long)g_perf.present_frames, (unsigned long)g_perf.vblanks, (unsigned long)n);
+		fclose(f);
+	}
+}
+
 void perf_present_tick(unsigned long long present_us)
 {
 	g_perf.present_frames++;
 	g_perf.present_us += present_us;
+	if (!g_perf.vram_dumped && g_perf.vblanks >= PERF_VRAM_DUMP_VBLANK) {
+		g_perf.vram_dumped = 1;
+		perf_vram_dump();
+	}
 	if ((g_perf.present_frames % PERF_REPORT_EVERY_FRAMES) == 0)
 		perf_report();
 }
@@ -157,6 +184,48 @@ void perf_report(void)
 			(unsigned long)g_perf.ogx_upl_semi, (unsigned long)g_perf.ogx_upl_opaque,
 			(unsigned long)g_perf.ogx_upl_mismatch);
 		fprintf(f, "ogxgeom: coord_rej=%lu\n", (unsigned long)g_perf.ogx_coord_rej);
+		fprintf(f, "ogxoff: prims=%lu tex=%lu off_roi=%lu fills=%lu fills_off=%lu va=%lu va_roi=%lu\n",
+			(unsigned long)g_perf.ogx_off_prim, (unsigned long)g_perf.ogx_off_prim_tex,
+			(unsigned long)g_perf.ogx_off_roi,
+			(unsigned long)g_perf.ogx_fill_all, (unsigned long)g_perf.ogx_fill_off,
+			(unsigned long)g_perf.ogx_va_all, (unsigned long)g_perf.ogx_va_roi);
+		{
+			unsigned k;
+			for (k = 0; k < g_perf.ogx_va_n && k < 8; k++)
+				fprintf(f, "ogxva: rect=(%d,%d)-(%d,%d)\n",
+					g_perf.ogx_va[k].x0, g_perf.ogx_va[k].y0, g_perf.ogx_va[k].x1, g_perf.ogx_va[k].y1);
+		}
+		{
+			unsigned k;
+			for (k = 0; k < g_perf.ogx_op_n && k < 8; k++)
+				fprintf(f, "ogxop: kind=%u tex=%u rect=(%d,%d)-(%d,%d) color=%04x\n",
+					g_perf.ogx_op[k].kind, g_perf.ogx_op[k].tex,
+					g_perf.ogx_op[k].x0, g_perf.ogx_op[k].y0, g_perf.ogx_op[k].x1, g_perf.ogx_op[k].y1,
+					g_perf.ogx_op[k].color);
+		}
+		fprintf(f, "ogxeq: n=%lu mism=%lu hole=%lu\n",
+			(unsigned long)g_perf.ogx_eq_n, (unsigned long)g_perf.ogx_eq_mism, (unsigned long)g_perf.ogx_eq_hole);
+		{
+			unsigned k;
+			for (k = 0; k < g_perf.ogx_eq_r && k < 8; k++)
+				fprintf(f, "ogxeqr: tex=%u mode=%u page=%u clut=%04x nv=%u psx_uv=(%u,%u) gx_xy=(%u,%u) exp=%04x got=%04x\n",
+					g_perf.ogx_eq[k].texid, g_perf.ogx_eq[k].mode, g_perf.ogx_eq[k].page, g_perf.ogx_eq[k].clut,
+					g_perf.ogx_eq[k].nv, g_perf.ogx_eq[k].pu, g_perf.ogx_eq[k].pv, g_perf.ogx_eq[k].x, g_perf.ogx_eq[k].y,
+					g_perf.ogx_eq[k].exp, g_perf.ogx_eq[k].got);
+		}
+		fprintf(f, "ogxdraw: ft=%lu gt=%lu uni_ft=%lu uni_gt=%lu vram_wr=%lu inval=%lu\n",
+			(unsigned long)g_perf.ogx_draw_ft, (unsigned long)g_perf.ogx_draw_gt,
+			(unsigned long)g_perf.ogx_uni_ft, (unsigned long)g_perf.ogx_uni_gt,
+			(unsigned long)g_perf.ogx_vram_wr, (unsigned long)g_perf.ogx_inval);
+		{
+			unsigned k;
+			for (k = 0; k < g_perf.ogx_ud_n && k < 8; k++)
+				fprintf(f, "ogxud: gt=%u nv=%u mode=%u page=%u clut=%04x tex=%u %ux%u semi=%u texel=%04x uv1024=(%u,%u)(%u,%u)(%u,%u)(%u,%u)\n",
+					g_perf.ogx_ud[k].gt, g_perf.ogx_ud[k].nv, g_perf.ogx_ud[k].mode, g_perf.ogx_ud[k].page, g_perf.ogx_ud[k].clut, g_perf.ogx_ud[k].texid,
+					g_perf.ogx_ud[k].w, g_perf.ogx_ud[k].h, g_perf.ogx_ud[k].semi, g_perf.ogx_ud[k].texel,
+					g_perf.ogx_ud[k].u[0], g_perf.ogx_ud[k].v[0], g_perf.ogx_ud[k].u[1], g_perf.ogx_ud[k].v[1],
+					g_perf.ogx_ud[k].u[2], g_perf.ogx_ud[k].v[2], g_perf.ogx_ud[k].u[3], g_perf.ogx_ud[k].v[3]);
+		}
 		{
 			unsigned k;
 			for (k = 0; k < g_perf.ogx_mm_n && k < 8; k++)
