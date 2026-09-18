@@ -872,7 +872,7 @@ void LoadStretchWndTexturePage(int pageid, int mode, short cx, short cy)
         if(ldy)
          {ldy--;
           for(TXU=g_x1;TXU<=g_x2;TXU++)
-           *ta++=*(ta-(g_x2-g_x1));
+           *ta = *(ta-(g_x2-g_x1)); ta++; // split: reading and incrementing ta in one expr is unsequenced UB
          }
        }
 
@@ -962,7 +962,7 @@ void LoadStretchWndTexturePage(int pageid, int mode, short cx, short cy)
         if(ldy)
          {ldy--;
           for(TXU=g_x1;TXU<=g_x2;TXU++)
-           *ta++=*(ta-(g_x2-g_x1));
+           *ta = *(ta-(g_x2-g_x1)); ta++; // split: reading and incrementing ta in one expr is unsequenced UB
          }
 
        }

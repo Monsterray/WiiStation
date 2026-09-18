@@ -393,6 +393,7 @@ void cdrLidSeekInterrupt(void)
         sprintf(txtbuffer, "cdrLidSeekInterrupt=default ");
         DEBUG_print(txtbuffer, DBG_CDR4);
         #endif // DISP_DEBUG
+	    __attribute__((fallthrough)); // unhandled states are treated like STANDBY
 	case DRIVESTATE_STANDBY:
 	    #ifdef DISP_DEBUG
         sprintf(txtbuffer, "cdrLidSeekInterrupt=DRIVESTATE_STANDBY: %x ", cdr_stat.Status);

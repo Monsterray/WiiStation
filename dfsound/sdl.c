@@ -183,7 +183,7 @@ static int sdl_busy(void) {
 static int sdl_feed(void *pSound, int lBytes) {
     short *p = (short *)pSound;
 
-    if (pSndBuffer == NULL) return;
+    if (pSndBuffer == NULL) return 0;
 
     while (lBytes > 0) {
         ++iWritePos;

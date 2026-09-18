@@ -101,7 +101,7 @@ static void aesnd_callback(AESNDPB* voice, u32 state){
 ////////////////////////////////////////////////////////////////////////
 int SoundFeedStreamData(unsigned char* pSound,long lBytes)
 {
-	if(!audioEnabled) return;
+	if(!audioEnabled) return 0;
 
 	buffers[fill_buffer].buffer = pSound;
 	buffers[fill_buffer].len = lBytes;

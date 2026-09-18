@@ -518,7 +518,7 @@ unsigned char SSS_PADpoll (const unsigned char value)
 				}
 			}
 			UpdateState(pad);
-
+			/* fall through */
 		case 0x43:
 			global.cmdLen = 2 + 2 * (global.padID[pad] & 0x0f);
 			buf.b8[1] = global.padModeC[pad] ? 0x00 : 0x5a;
@@ -646,6 +646,7 @@ unsigned char SSS_PADpoll (const unsigned char value)
 			{
 			case 0x00:
 				global.padVib0[pad] = cur;
+				/* fall through */
 			case 0x01:
 				if ((global.padID[pad] & 0x0f) < (cur - 1) / 2)
 					 global.padID[pad] = (global.padID[pad] & 0xf0) + (cur - 1) / 2;

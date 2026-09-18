@@ -918,7 +918,7 @@ void do_samples(unsigned int cycles_to, int force_no_thread)
   {
    //xprintf("desync %u %d\n", cycles_to, cycle_diff);
    spu.cycles_played = cycles_to;
-   return 0;
+   return;
   }
 
  silentch = ~(spu.dwChannelsAudible | spu.dwNewChannel) & 0xffffff;
@@ -928,7 +928,7 @@ void do_samples(unsigned int cycles_to, int force_no_thread)
  if (cycle_diff < 4 * 768)
  {
      //spu.cycles_played = cycles_to;
-     return 0;
+     return;
  }
 
  ns_to = (cycle_diff / 768 + 3) & ~3;
@@ -990,8 +990,6 @@ void do_samples(unsigned int cycles_to, int force_no_thread)
   spu.cycles_played += ns_to * 768;
   spu.decode_pos = (spu.decode_pos + ns_to) & 0x1ff;
   spu.spuStat = (spu.spuStat & ~0x800) | ((spu.decode_pos << 3) & 0x800);
-
-  return ns_to;
 }
 
 static void do_samples_finish(int *SSumLR, int ns_to,
