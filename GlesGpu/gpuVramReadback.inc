@@ -1124,7 +1124,6 @@ static int RectOverlapArea(int ax0, int ay0, int ax1, int ay1,
  * GP1 still names the other page, so the generic active-map tracker cannot
  * assign those draws ownership.  Recover only the small, fully-contained C0
  * rectangle when DrawArea unambiguously identifies the previous page. */
-static int ReadSnapshotPixelRaw(const GXFrameSnapshot *snap, int px, int py, uint16_t *value);
 static int TryCapturePreviousReadRect(int x, int y, int w, int h)
 {
     GXDisplayMap map;
@@ -1141,12 +1140,18 @@ static int TryCapturePreviousReadRect(int x, int y, int w, int h)
         !g_activeMap.content_valid || !g_activeMap.content_dirty ||
         g_efbContaminated || g_mixedMappingSeen || g_untrackedEfbWrite)
         return 0;
-    /* Two callers: the small-read fallback (Dino Crisis 2 / Vagrant Story, gated
-     * on AUTO_FIX_NO_SWAP_BUF, at most 64 wide / 4096 pixels), and a read of the
-     * buffer the game is drawing into right now -- the drawing area lies over
-     * the previous display -- which is what Spyro's pause does to grab the
-     * frame it just rendered (four 128x224 strips). The EFB holds that content,
-     * so it can be captured at any size. */
+    /* Two callers.  The small-read fallback (Dino Crisis 2 / Vagrant Story,
+     * gated on AUTO_FIX_NO_SWAP_BUF, at most 64 wide / 4096 pixels), and a
+     * read of the buffer the game is drawing into right now.  P.E.Op.S. draws
+     * relative to PreviousPSXDisplay.DisplayPosition, which after a GP1 05
+     * swap is the back buffer of a double-buffered game, so between two
+     * presents the EFB holds exactly that buffer: the clear-on-swap colour
+     * (a GP0 02 fill of the next screen is not drawn, it becomes the clear
+     * colour of the present -- so EFB tile coverage cannot be used here) plus
+     * everything drawn since.  Spyro's pause draws the whole frame into the
+     * back buffer and then reads it back in four 128x224 strips.  Accept such
+     * a read at any size when the drawing area lies over the previous
+     * display, i.e. the game really is rendering into that buffer. */
     {
         int smallRead = (dwActFixes & AUTO_FIX_NO_SWAP_BUF) && w <= 64 && w * h <= 4096;
         int drawingIntoPrevious = RectOverlapArea(
@@ -1228,15 +1233,6 @@ static int TryCapturePreviousReadRect(int x, int y, int w, int h)
     if (captureResult == CAPTURE_QUEUED &&
         CompletePendingAsyncSnapshotForRead())
         captureResult = CAPTURE_COMPLETE;
-#ifdef PERF_PROF
-    { /* C4 = snapshot buffer content after capture: non-zero words in the first 64 KB, and the word at the viewport centre */
-        const uint16_t *px = (const uint16_t *)slot->pixels; unsigned nz = 0, i, n = slot->size / 2; if (n > 32768) n = 32768;
-        for (i = 0; i < n; i++) if (px[i] & 0x7fff) nz++;
-        perf_prim_trace(0xC4, 0, 0, (unsigned)nz, slot->viewport_x, slot->viewport_y, slot->viewport_w, slot->viewport_h);
-        { uint16_t centre = 0; int ok = ReadSnapshotPixelRaw(slot, x + w / 2, y + h / 2, &centre);
-          perf_prim_trace(0xC5, (unsigned)ok, 0, (unsigned)centre, slot->vram_x, slot->vram_y, slot->vram_w, slot->vram_h); }
-    }
-#endif
     return captureResult == CAPTURE_COMPLETE;
 }
 

@@ -10,6 +10,37 @@ F6/F7 display range, F8 display mode; flags S semi-transparent, T textured,
 Q quad, G gouraud."""
 import sys, re
 
+MAPPING = {"S": "previous", "T": "unknown", "-": "current"}
+CAPTURE = {3: "captured-back-buffer", 2: "captured-pending", 1: "captured-live", 4: "queued", 5: "queued",
+           0: "none", -1: "readback-off", -2: "efb-not-capturable", -3: "not-dirty", -4: "capture-rejected",
+           -5: "previous:no-capture", -6: "unknown-mapping", -7: "pending-rejected", -8: "no-source"}
+GATE = ["pendingPresented", "contaminated", "mixed", "untracked", "prevSnap", "liveSnap",
+        "mapValid", "contentValid", "contentDirty", "asyncInFlight"]
+READ_RX = re.compile(r"pt: \+(\d+) cmd=c([123]) (\S)(\S)\S\S abr=(\d+) col=([0-9a-f]{6}) "
+                     r"\((-?\d+),(-?\d+)\)-\((-?\d+),(-?\d+)\)")
+
+def decode_reads(lines):
+    """One line per GP0 C0 read: pairs the C1 (outcome), C2 (state bits, tile counts) and
+    C3 (post-merge hash / non-black words) entries written by the debug build's read path."""
+    out, cur = [], None
+    for l in lines:
+        m = READ_RX.match(l)
+        if not m:
+            continue
+        fr, kind, f0, f1, abr, col, x0, y0, x1, y1 = m.groups()
+        if kind == "1":
+            mapping = "previous" if f0 == "S" else ("unknown" if f1 == "T" else "current")
+            cap = int(abr) - 8
+            cur = [f"+{fr} ({x0},{y0})-({x1},{y1}) | {mapping} {CAPTURE.get(cap, cap)} merged={int(col, 16)}"]
+            out.append(cur)
+        elif kind == "2" and cur is not None:
+            bits = int(col, 16)
+            cur.append("| " + ",".join(n for i, n in enumerate(GATE) if bits & (1 << i)) +
+                       f" map={x0}/prev={y0} prevTiles={x1} liveTiles={y1}")
+        elif kind == "3" and cur is not None:
+            cur.append(f"| hash={col} nonblack={x1} of {y1}")
+    return [" ".join(r) for r in out]
+
 def main():
     path = sys.argv[1]; big = 20000; show = 12
     a = sys.argv[2:]
@@ -24,6 +55,11 @@ def main():
     for l in lines:
         m = re.match(r"pt: \+(\d+) cmd=([0-9a-f]{2}) (\S{4}) abr=(\d) col=([0-9a-f]{6}) \((-?\d+),(-?\d+)\)-\((-?\d+),(-?\d+)\)", l)
         if m: frames.setdefault(int(m.group(1)), []).append(m.groups())
+    reads = decode_reads(lines)
+    if reads:
+        print("\nVRAM->CPU reads (debug readback probes): rect | mapping capture merged | state bits | psxVuw after merge")
+        for r in reads:
+            print("  " + r)
     for fr in sorted(frames):
         ps = frames[fr]
         semi = [(i, p) for i, p in enumerate(ps) if p[2][0] == "S"]

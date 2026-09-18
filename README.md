@@ -88,6 +88,15 @@ Any help is appreciated.
 
 All settings of the `settingsRX2022.cfg` file, the per-game settings files, `autoboot.txt` and the other files in `wiisxrx/` are described in [SETTINGS.md](SETTINGS.md).
 
+## Testing in Dolphin
+
+Dolphin can run the WiiStation `.dol`. Two Dolphin graphics options change what the OpenGX renderer (`gpuPlugin = 2`) shows. Set them before you compare Dolphin with the Wii:
+
+- **Graphics > Hacks > Texture Cache > Accuracy: Safe** (`GFX.ini`: `[Settings] SafeTextureCacheColorSamples = 0`). The renderer updates small parts of its texture pages in place. The default "Fast" hash does not see many of these updates, and Dolphin keeps the old texture. You see wrong or missing textures that pop in later. Real hardware does not have this problem.
+- **Graphics > Hacks > Embedded Frame Buffer > Store EFB Copies to Texture Only: off** (`GFX.ini`: `[Hacks] EFBToTextureEnable = False`). Games on the VRAM read-back list (Dino Crisis 2, Vagrant Story, Spyro the Dragon) read the rendered frame back from the GPU. The renderer copies the frame buffer to memory for this. With the option on, Dolphin keeps the copy on the GPU, the game reads zeros, and effects that use the frame (for example the Spyro pause screen) show a flat colour or black. Real hardware does not have this problem.
+
+Boot a bare `.dol` with `Dolphin.exe -b -e <path to .dol>`. To boot a game without the menu, put `autoboot.txt` in the SD sync folder (see [SETTINGS.md](SETTINGS.md)).
+
 ## Compilation information
 
 * devkitPPC r41-2 + libOGC2 (until git [7456c4ab](https://github.com/extremscorner/libogc2/commit/7456c4abf3e8e8ccd7eac7bb7cbe808128befa55)) + SDL + GNU Lightning + Lightrec
