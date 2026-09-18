@@ -687,6 +687,33 @@ void glSetVramClearedFlg( void )
 static short texSemiType = 0;
 static short curTexType = 0;
 static short texChgType = 0;
+/* The primitive's DrawSemiTrans, handed over by the plugin right before it
+ * loads that primitive's texture -- the same value its cache key is built
+ * from. The texel split in glTexImage2D/glTexSubImage2D follows THIS rather
+ * than GL blend state, so the split can never disagree with the key; the
+ * mismatch counter records whether it ever would have. -1 = not set. */
+static short uploadSemiTrans = -1;
+void glSetUploadSemiTrans(short semiTrans) { uploadSemiTrans = semiTrans; }
+static unsigned short upload_semi_flag(unsigned w, unsigned h, int x, int y, int dw, int dh)
+{
+    unsigned short gl = glparamstate.blendenabled ? 1 : 0;
+    unsigned short st;
+    if (uploadSemiTrans < 0)
+        return gl;
+    st = uploadSemiTrans ? 1 : 0;
+    if (st) PERF_INC(ogx_upl_semi); else PERF_INC(ogx_upl_opaque);
+    if (st != gl) {
+        PERF_INC(ogx_upl_mismatch);
+        if (g_perf.ogx_mm_n < 8) {
+            unsigned k = g_perf.ogx_mm_n++;
+            g_perf.ogx_mm[k].w = w;   g_perf.ogx_mm[k].h = h;
+            g_perf.ogx_mm[k].x = x;   g_perf.ogx_mm[k].y = y;
+            g_perf.ogx_mm[k].dw = dw; g_perf.ogx_mm[k].dh = dh;
+            g_perf.ogx_mm[k].blend = gl; g_perf.ogx_mm[k].semi = st;
+        }
+    }
+    return st;
+}
 void glSetTextureType( short textureSemiType, short loadTextureType, short textureChgType )
 {
     texSemiType = textureSemiType;
@@ -1866,7 +1893,7 @@ int glInitMovieTextures( GLsizei width, GLsizei height, void * texData )
     }
     else
     {
-        textureType = _ogx_scramble_4b_5a3((unsigned char *)texData, currtex->data, glparamstate.blendenabled, width, height);
+        textureType = _ogx_scramble_4b_5a3((unsigned char *)texData, currtex->data, upload_semi_flag(currtex->w, currtex->h, 0, 0, width, height), width, height);
         GX_InitTexObj(&currtex->texobj, currtex->data,
                       currtex->w, currtex->h, GX_TF_RGB5A3, currtex->wraps, currtex->wrapt, GX_FALSE);
         if (originalMode == ORIGINALMODE_ENABLE || bilinearFilter != BILINEARFILTER_ENABLE)
@@ -1923,11 +1950,32 @@ int glTexSubImage2D(GLenum target, GLint level,
     if (currtex->semiTransData == 0)
         memset(semiTransBuf, 0, currtex->w * currtex->h * 2);
 
+    /* The block-aligned fast path below tiles the whole sub-rectangle and
+     * never checks it against the texture's own bounds -- only the per-pixel
+     * unaligned path clamps to currtex->w/h. A rectangle that overhangs the
+     * page edge therefore writes past the end of currtex->data (and of
+     * semiTransData) into the header of the next MEM2 heap block, after
+     * which the heap returns overlapping buffers and textures bleed into one
+     * another. Count every such upload for the profiler, and clamp it. */
+    if (xoffset < 0 || yoffset < 0) {
+        PERF_INC(ogx_oob_upload);
+        return 0;
+    }
+    if (xoffset + width > currtex->w || yoffset + height > currtex->h) {
+        PERF_INC(ogx_oob_upload);
+        if (xoffset + width > currtex->w)
+            width = (xoffset < currtex->w) ? currtex->w - xoffset : 0;
+        if (yoffset + height > currtex->h)
+            height = (yoffset < currtex->h) ? currtex->h - yoffset : 0;
+    }
+
+    unsigned short semiFlg = upload_semi_flag(currtex->w, currtex->h, xoffset, yoffset, width, height);
+
     if ((xoffset & 3) == 0 && (yoffset & 3) == 0)
     {
         // The position happens to be the integer position of the Block
         int startOffset = ((yoffset >> 2) * W_BLOCK(currtex->w) + (xoffset >> 2)) * 32;
-        textureType = _ogx_scramble_4b_sub((unsigned char *)data, currtex->data + startOffset, semiTransBufPtr + startOffset, glparamstate.blendenabled, width, height, currtex->w);
+        textureType = _ogx_scramble_4b_sub((unsigned char *)data, currtex->data + startOffset, semiTransBufPtr + startOffset, semiFlg, width, height, currtex->w);
         DCFlushRange(currtex->data , currtex->w * currtex->h * 2);
     }
     else
@@ -1988,7 +2036,7 @@ int glTexSubImage2D(GLenum target, GLint level,
                             *(unsigned short*)(semiTransDstBlock + (blockHe * 4 + blockWi) * 2) = 0;
                             *(unsigned short*)(dstBlock + (blockHe * 4 + blockWi) * 2) = 0;
                         }
-                        else if (glparamstate.blendenabled && (tmpPixel & 0x8000) == 0)
+                        else if (semiFlg && (tmpPixel & 0x8000) == 0)
                         {
                             *(unsigned short*)(semiTransDstBlock + (blockHe * 4 + blockWi) * 2) = tmpPixel | 0x8000;
                             *(unsigned short*)(dstBlock + (blockHe * 4 + blockWi) * 2) = 0;
@@ -2083,7 +2131,7 @@ int glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei width
     currtex->h = he;
     currtex->bytespp = 2;
 
-    textureType = _ogx_scramble_4b_5a3((unsigned char *)data, currtex->data, glparamstate.blendenabled, width, height);
+    textureType = _ogx_scramble_4b_5a3((unsigned char *)data, currtex->data, upload_semi_flag(currtex->w, currtex->h, 0, 0, width, height), width, height);
     PERF_ADD(gx_tex_bytes, (unsigned long long)currtex->w * currtex->h * 2);
     DCFlushRange(currtex->data, currtex->w * currtex->h * 2);
 
@@ -2894,6 +2942,7 @@ static inline int _ogx_apply_state(int texen, int color_enabled)
                 else
                 {
                     PERF_INC(ogx_skip);
+                    PERF_INC(ogx_skip_b1);
                     return 0;
                 }
             }
@@ -2907,6 +2956,7 @@ static inline int _ogx_apply_state(int texen, int color_enabled)
                 else
                 {
                     PERF_INC(ogx_skip);
+                    PERF_INC(ogx_skip_b2);
                     return 0;
                 }
             }
@@ -2927,6 +2977,7 @@ static inline int _ogx_apply_state(int texen, int color_enabled)
             else
             {
                 PERF_INC(ogx_skip);
+                if (texSemiType) PERF_INC(ogx_skip_op_semi); else PERF_INC(ogx_skip_op_empty);
                 return 0;
             }
         }

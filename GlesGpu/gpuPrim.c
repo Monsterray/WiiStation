@@ -981,6 +981,7 @@ static void SetRenderMode ( unsigned int DrawAttributes, BOOL bSCol )
     if ( bDrawTextured )                                  // texture ? build it/get it from cache
     {
         texChgType = 0;
+        glSetUploadSemiTrans(DrawSemiTrans);
         int loadTextureType;
         GLuint currTex;
         if ( bUsingTWin )       { currTex = LoadTextureWnd ( GlobalTexturePage, GlobalTextTP, ulClutID ); loadTextureType = TEX_TYPE_WIN; }

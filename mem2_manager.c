@@ -210,3 +210,38 @@ uint32_t gx_mem2_total(void)
    __lwp_heap_getinfo(&gx_mem2_heap, &info);
    return info.used_size + info.free_size;
 }
+
+/* Heap consistency check for the profiler: walks every block header and
+ * returns non-zero only if the sizes and free-list are intact. The lwp heap
+ * keeps each block's header inline just before its data, so a texture
+ * upload that overruns its buffer, or a double free, corrupts the header of
+ * the NEXT block -- after which the heap hands out overlapping memory and
+ * one texture's texels show up inside another's. Walking a few hundred
+ * blocks is cheap at report cadence (every ~30 s), never per frame. */
+uint32_t gx_mem2_check(void)
+{
+   heap_cntrl *heap = &gx_mem2_heap;
+   heap_block *block;
+   uint32_t level, ok = 1, n = 0;
+
+   _CPU_ISR_Disable(level);
+   /* Blocks are chained by size from 'start' and must land exactly on the
+    * permanent sentinel at 'final'. A smashed header yields a garbage size,
+    * so the chain either overshoots 'final' or never reaches it. This is
+    * the same walk libogc's own heap checker does, written locally because
+    * libogc2 doesn't export one. */
+   for (block = heap->start; block < heap->final; ) {
+      uint32_t size = __lwp_heap_blocksize(block);
+      if (size < sizeof(heap_block) ||
+          (char *)block + size > (char *)heap->final ||
+          ++n > 100000) {           /* cycle guard: no sane heap has 100k blocks */
+         ok = 0;
+         break;
+      }
+      block = __lwp_heap_blockat(block, size);
+   }
+   if (ok && block != heap->final)
+      ok = 0;
+   _CPU_ISR_Restore(level);
+   return ok;
+}

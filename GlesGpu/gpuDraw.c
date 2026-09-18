@@ -728,7 +728,7 @@ BOOL offsetline(void)
    ly0=(short)(((int)ly0<<SIGNSHIFT)>>SIGNSHIFT);
    ly1=(short)(((int)ly1<<SIGNSHIFT)>>SIGNSHIFT);
 
-   if(CheckCoord2()) return TRUE;
+   if(CheckCoord2()) { PERF_INC(ogx_coord_rej); return TRUE; }
   }
 
  x0 = (lx0 + PSXDisplay.CumulOffset.x)+1;
@@ -823,7 +823,7 @@ BOOL offset2(void)
    ly0=(short)(((int)ly0<<SIGNSHIFT)>>SIGNSHIFT);
    ly1=(short)(((int)ly1<<SIGNSHIFT)>>SIGNSHIFT);
 
-   if(CheckCoord2()) return TRUE;
+   if(CheckCoord2()) { PERF_INC(ogx_coord_rej); return TRUE; }
   }
 
  vertex[0].x=lx0+PSXDisplay.CumulOffset.x;
@@ -850,7 +850,7 @@ BOOL offset3(void)
    ly1=(short)(((int)ly1<<SIGNSHIFT)>>SIGNSHIFT);
    ly2=(short)(((int)ly2<<SIGNSHIFT)>>SIGNSHIFT);
 
-   if(CheckCoord3()) return TRUE;
+   if(CheckCoord3()) { PERF_INC(ogx_coord_rej); return TRUE; }
   }
 
  vertex[0].x=lx0+PSXDisplay.CumulOffset.x;
@@ -881,7 +881,7 @@ BOOL offset4(void)
    ly2=(short)(((int)ly2<<SIGNSHIFT)>>SIGNSHIFT);
    ly3=(short)(((int)ly3<<SIGNSHIFT)>>SIGNSHIFT);
 
-   if(CheckCoord4()) return TRUE;
+   if(CheckCoord4()) { PERF_INC(ogx_coord_rej); return TRUE; }
   }
 
  vertex[0].x=lx0+PSXDisplay.CumulOffset.x;

@@ -13,6 +13,10 @@
 #include "perf_prof.h"
 #include "../mem2_manager.h"
 
+/* Diagnostic-only; declared here rather than in mem2_manager.h so the
+ * profiler stays the single consumer. */
+extern uint32_t gx_mem2_check(void);
+
 #ifdef SHOW_DEBUG
 #include "DEBUG.h"
 #endif
@@ -131,10 +135,10 @@ void perf_report(void)
 						(unsigned long)g_perf.irq_fires[i]);
 		}
 		fprintf(f, "\n");
-		fprintf(f, "ram: mem1_free_kb=%lu mem2=%lu/%luKB peak=%luKB fails=%lu null_read=%lu\n",
+		fprintf(f, "ram: mem1_free_kb=%lu mem2=%lu/%luKB peak=%luKB fails=%lu null_read=%lu heap_ok=%u\n",
 			(unsigned long)mem1_kb, (unsigned long)m2used, (unsigned long)m2tot,
 			(unsigned long)g_perf.mem2_peak_kb, (unsigned long)g_perf.mem2_alloc_fails,
-			(unsigned long)g_perf.mem_null_read);
+			(unsigned long)g_perf.mem_null_read, (unsigned)gx_mem2_check());
 		fprintf(f, "gpu: tex_hit=%lu miss=%lu resets=%lu loads=%lu bytes=%llu batches=%lu\n",
 			(unsigned long)g_perf.gx_tex_hits, (unsigned long)g_perf.gx_tex_misses,
 			(unsigned long)g_perf.gx_tex_resets, (unsigned long)g_perf.gx_tex_loads,
@@ -142,10 +146,24 @@ void perf_report(void)
 		fprintf(f, "gpu: drawdone=%lu drawdone_us=%llu convert_us=%llu present_us=%llu\n",
 			(unsigned long)g_perf.gx_drawdone, g_perf.gx_drawdone_us,
 			g_perf.gx_convert_us, g_perf.present_us);
-		fprintf(f, "ogx: gc=%lu sub_new=%lu sub_hit=%lu skip=%lu unaligned=%lu\n",
+		fprintf(f, "ogx: gc=%lu sub_new=%lu sub_hit=%lu skip=%lu unaligned=%lu oob=%lu\n",
 			(unsigned long)g_perf.ogx_gc, (unsigned long)g_perf.ogx_sub_new,
 			(unsigned long)g_perf.ogx_sub_hit, (unsigned long)g_perf.ogx_skip,
-			(unsigned long)g_perf.ogx_unaligned);
+			(unsigned long)g_perf.ogx_unaligned, (unsigned long)g_perf.ogx_oob_upload);
+		fprintf(f, "ogxskip: b1=%lu b2=%lu op_empty=%lu op_semi=%lu\n",
+			(unsigned long)g_perf.ogx_skip_b1, (unsigned long)g_perf.ogx_skip_b2,
+			(unsigned long)g_perf.ogx_skip_op_empty, (unsigned long)g_perf.ogx_skip_op_semi);
+		fprintf(f, "ogxupl: semi=%lu opaque=%lu mismatch=%lu\n",
+			(unsigned long)g_perf.ogx_upl_semi, (unsigned long)g_perf.ogx_upl_opaque,
+			(unsigned long)g_perf.ogx_upl_mismatch);
+		fprintf(f, "ogxgeom: coord_rej=%lu\n", (unsigned long)g_perf.ogx_coord_rej);
+		{
+			unsigned k;
+			for (k = 0; k < g_perf.ogx_mm_n && k < 8; k++)
+				fprintf(f, "ogxmm: tex=%ux%u rect=%u,%u %ux%u glblend=%u semitrans=%u\n",
+					g_perf.ogx_mm[k].w, g_perf.ogx_mm[k].h, g_perf.ogx_mm[k].x, g_perf.ogx_mm[k].y,
+					g_perf.ogx_mm[k].dw, g_perf.ogx_mm[k].dh, g_perf.ogx_mm[k].blend, g_perf.ogx_mm[k].semi);
+		}
 		fprintf(f, "cd: reads=%lu bytes=%llu seq=%lu rand=%lu worst_us=%lu total_us=%llu\n",
 			(unsigned long)g_perf.cd_reads, g_perf.cd_bytes,
 			(unsigned long)g_perf.cd_seq, (unsigned long)g_perf.cd_rand,

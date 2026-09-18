@@ -105,6 +105,26 @@ typedef struct {
 	uint32_t ogx_sub_hit;     /* sub-texture cache hits */
 	uint32_t ogx_skip;        /* draws dropped: layer lacks the needed texel type */
 	uint32_t ogx_unaligned;   /* glTexSubImage2D took the per-pixel (unaligned) path */
+	uint32_t ogx_oob_upload;  /* sub-uploads that overhung the texture's own bounds */
+	/* Skip sites split by site and by evidence. An OPAQUE draw dropped while
+	 * its texture holds texels only in the semi layer is the signature of an
+	 * entry converted under the wrong blend state -- a visible hole. */
+	uint32_t ogx_skip_b1;        /* blended pass 1: no TEX_TYPE_1 texels */
+	uint32_t ogx_skip_b2;        /* blended pass 2: no TEX_TYPE_2 texels */
+	uint32_t ogx_skip_op_empty;  /* opaque draw: mask 0, nothing to draw (benign) */
+	uint32_t ogx_skip_op_semi;   /* opaque draw: mask == TEX_TYPE_1 only (a hole) */
+	/* Upload-time blend state vs the primitive's DrawSemiTrans, the value its
+	 * cache key is built from. The texel split must follow the key. First
+	 * eight disagreements are kept in detail. */
+	uint32_t ogx_upl_semi;       /* uploads made for semi-transparent primitives */
+	uint32_t ogx_upl_opaque;     /* uploads made for opaque primitives */
+	uint32_t ogx_upl_mismatch;   /* GL blend state disagreed with DrawSemiTrans */
+	struct { uint16_t w, h, x, y, dw, dh; uint8_t blend, semi; } ogx_mm[8];
+	uint32_t ogx_mm_n;
+	/* Primitives the plugin refused to draw at all because CheckCoord* judged
+	 * them too large (the PSX GPU's 1024x512 limit). A check that is off by a
+	 * pixel drops exactly the big close-up ground quads. */
+	uint32_t ogx_coord_rej;
 
 	/* Slice granularity: why the recompiler keeps exiting.
 	 *
