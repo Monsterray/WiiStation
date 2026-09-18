@@ -1337,25 +1337,11 @@ static int left_R, delta_left_R, right_R, delta_right_R;
 static int left_G, delta_left_G, right_G, delta_right_G;
 static int left_B, delta_left_B, right_B, delta_right_B;
 
-#ifdef VC_INLINE
-
-#pragma warning  (disable : 4035)
-
-__inline__ int shl10idiv(int x, int y)
-{
- __asm
-  {
-   mov   eax,x
-   mov   ebx,y
-   mov   edx, eax
-   shl   eax, 10
-   sar   edx, 22
-   idiv  ebx
-   // return result in eax
-  }
-}
-
-#else
+// The Visual C++ variant of this function (guarded by VC_INLINE) was removed:
+// it was x86 MSVC inline assembly -- `__asm { mov eax, x ... }` -- in a
+// PowerPC-only project, and VC_INLINE is commented out at the top of this file
+// and defined nowhere else, so it could never be compiled here. It also broke
+// tree-sitter parsing of this entire 8000-line file for the code-graph indexer.
 
 __inline__ int shl10idiv(int x, int y)
 {
@@ -1363,7 +1349,6 @@ __inline__ int shl10idiv(int x, int y)
  bi<<=10;
  return bi/y;
 }
-#endif
 
 /*
 
