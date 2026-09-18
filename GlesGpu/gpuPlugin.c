@@ -1556,7 +1556,12 @@ void RestoreDispCopyInfo(void)
     GX_SetScissor(0,0,vmode->fbWidth,vmode->efbHeight);
     GX_SetDispCopySrc(0,0,vmode->fbWidth,vmode->efbHeight);
     GX_SetDispCopyDst(vmode->fbWidth,xfbHeight);
-    GX_SetCopyFilter(vmode->aa,vmode->sample_pattern,GX_TRUE,vmode->vfilter);
+    // Honour the user's Deflicker setting rather than forcing it on: this runs
+    // after every EFB snapshot capture in the VRAM-readback path, i.e. during
+    // gameplay, so hardcoding GX_TRUE here silently re-enabled deflicker on
+    // this plugin whenever a readback happened. (GraphicsGX.cpp deliberately
+    // forces GX_TRUE for menu / return-to-menu contexts -- that stays as is.)
+    GX_SetCopyFilter(vmode->aa,vmode->sample_pattern,(deflickerFilter)?GX_TRUE:GX_FALSE,vmode->vfilter);
     GX_SetFieldMode(vmode->field_rendering,((vmode->viHeight==2*vmode->xfbHeight)?GX_ENABLE:GX_DISABLE));
 }
 

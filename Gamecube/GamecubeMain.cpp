@@ -462,12 +462,13 @@ void loadSettings(int argc, char *argv[])
 
 	//Sync settings with config
 	Config.Cpu=dynacore;
-	// Seed the live frame-limit value from the just-loaded setting. Only
-	// frameLimit[1] is persisted ("LimitFrames"); frameLimit[0] is what the
-	// GPU plugins actually gate FrameCap() on, and it is zero-initialised
-	// (FRAMELIMIT_NONE), so without this it stays "off" until something
-	// happens to propagate it -- which is why the menu could read AUTO while
-	// the emulator ran unthrottled.
+	// Seed the live frame-limit value from the just-loaded setting. go() also
+	// refreshes it on every gameplay entry, but this boot-time seed is still
+	// required: SysInit() -> OpenPlugins() runs BEFORE the first go(), and the
+	// old/P.E.Op.S. GPU plugins latch UseFrameLimit from frameLimit[0] at
+	// plugin-open time (PEOPS_GPUopen -> GPUsetframelimit). Without this they
+	// would open with the zero-initialised FRAMELIMIT_NONE and never correct
+	// it, since their per-frame re-check only fires on a *change*.
 	frameLimit[0] = frameLimit[1];
 	//iUseDither = useDithering;
 	setSpuInterpolation(spuInterpolation);
@@ -954,6 +955,14 @@ void go(void) {
 	stop = 0;
 	perf_reset();
 
+	// Refresh live state from the persisted settings on every entry, the same
+	// way frameskip/dithering are refreshed below -- reaching the settings
+	// menu means leaving go(), so anything refreshed here is current by the
+	// time gameplay resumes. Unconditional (not inside the newSoftGpu guard):
+	// every GPU plugin reads frameLimit[0], unlike gc_rearmed_cbs which is
+	// newSoftGpu-only.
+	frameLimit[0] = frameLimit[1];
+
 	if (gpuPtr == &newSoftGpu)
     {
         plugin_call_rearmed_cbs(Config.hacks.dwActFixes, useDithering);
@@ -993,12 +1002,6 @@ void SysReset() {
 }
 
 void SysStartCPU() {
-	// frameLimit[1] is the persisted "LimitFrames" setting; frameLimit[0] is
-	// the live value the GPU plugins actually gate FrameCap() on. Func_PlayGame
-	// copies one to the other before its own go(), but this path (reset/
-	// autoboot) did not -- leaving the limiter off entirely, since
-	// frameLimit[0] is zero-initialised (FRAMELIMIT_NONE).
-	frameLimit[0] = frameLimit[1];
 	go();
 }
 
