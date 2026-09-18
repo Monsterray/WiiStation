@@ -84,22 +84,32 @@ static void perf_vram_dump(void)
  * (x0,y0 = new position). Arms on the first untextured semi-transparent
  * polygon at least 200x150 PSX pixels; records the next 96 events and
  * per-present counts for 8 presents. */
+#ifndef PERF_PT_ARM_PRESENT
+#define PERF_PT_ARM_PRESENT 0      /* 0 = arm only on a large untextured semi-transparent polygon */
+#endif
 void perf_prim_trace(unsigned cmd, unsigned flags, unsigned abr, unsigned color, int x0, int y0, int x1, int y1)
 {
 	unsigned idx;
-#ifndef PERF_PT_ARM_PRESENT
-#define PERF_PT_ARM_PRESENT 1725   /* autoboot intro: 'Entering demo mode' loading screen */
-#endif
+	int trigger = ((flags & 3) == 1 && cmd >= 0x20 && cmd < 0x80 && (x1 - x0) >= 200 && (y1 - y0) >= 150) ||
+	              (PERF_PT_ARM_PRESENT && !g_perf.pt_armed && g_perf.present_frames >= PERF_PT_ARM_PRESENT);
 	if (!g_perf.pt_armed) {
-		if (((flags & 3) == 1 && cmd >= 0x20 && cmd < 0x80 && (x1 - x0) >= 200 && (y1 - y0) >= 150) ||
-		    (PERF_PT_ARM_PRESENT && g_perf.present_frames >= PERF_PT_ARM_PRESENT)) {
-			g_perf.pt_armed = 1; g_perf.pt_start_present = g_perf.present_frames;
-		} else return;
+		if (!trigger) return;
+	} else if (g_perf.present_frames - g_perf.pt_start_present >= 8) {
+		/* episode complete: keep it until the next overlay starts a new one, so
+		 * the report always shows the most recent episode (e.g. the pause
+		 * screen, not the boot fade) */
+		if (!trigger) return;
+		g_perf.pt_n = 0;
+		memset(g_perf.pt_prims, 0, sizeof(g_perf.pt_prims));
+		memset(g_perf.pt_semi, 0, sizeof(g_perf.pt_semi));
+		memset(g_perf.pt_fills, 0, sizeof(g_perf.pt_fills));
+		g_perf.pt_armed = 0;
 	}
+	if (!g_perf.pt_armed) { g_perf.pt_armed = 1; g_perf.pt_start_present = g_perf.present_frames; }
 	idx = g_perf.present_frames - g_perf.pt_start_present;
 	if (idx < 8) {
 		if (cmd == 0x02) g_perf.pt_fills[idx]++;
-		else if (cmd != 0xF5) { g_perf.pt_prims[idx]++; if (flags & 1) g_perf.pt_semi[idx]++; }
+		else if (cmd != 0xF5 && cmd < 0xE0) { g_perf.pt_prims[idx]++; if (flags & 1) g_perf.pt_semi[idx]++; }
 	}
 	if (g_perf.pt_n < 96) {
 		unsigned k = g_perf.pt_n++;

@@ -29,6 +29,41 @@
 #include "../psemu_plugin_defs.h"
 #include "gc_input/controller.h"
 #include "wiiSXconfig.h"
+#include "../psxcounters.h"
+
+/* Scripted input for unattended runs: sd:/wiisxrx/autoinput.txt holds lines
+ * "<vblank> <hex button mask>"; from that emulated vblank on, the listed
+ * buttons are held on PSX port 1 until the next line. Bits are the PSX pad
+ * word (Start 0008, Select 0001, Up 0010, Right 0020, Down 0040, Left 0080,
+ * L2 0100, R2 0200, L1 0400, R1 0800, Triangle 1000, Circle 2000,
+ * Cross 4000, Square 8000). Together with autoboot.txt this makes a boot
+ * deterministic up to any screen -- e.g. Start at the title, Start again in
+ * the level to hold the pause menu -- with no host input. A missing file
+ * means no effect. Real buttons still work; the script only adds presses.
+ * Applied in PadSSSPSX.c (the bound pad plugin) and here. */
+static struct { unsigned vbl; unsigned short mask; } autoin[64];
+static int autoin_n = -1;
+unsigned short autoinput_mask(void)
+{
+	int i;
+	unsigned short m = 0;
+	if (autoin_n < 0) {
+		FILE *f = fopen("sd:/wiisxrx/autoinput.txt", "r");
+		char line[128];
+		autoin_n = 0;
+		if (f) {
+			while (autoin_n < 64 && fgets(line, sizeof line, f)) {
+				unsigned v, k;
+				if (line[0] == '#' || sscanf(line, "%u %x", &v, &k) != 2) continue;
+				autoin[autoin_n].vbl = v; autoin[autoin_n].mask = (unsigned short)k; autoin_n++;
+			}
+			fclose(f);
+		}
+	}
+	for (i = 0; i < autoin_n; i++)
+		if (frame_counter >= autoin[i].vbl) m = autoin[i].mask;
+	return m;
+}
 
 extern virtualControllers_t virtualControllers[10];
 extern int stop;
@@ -88,7 +123,7 @@ long PAD__readPort1(PadDataS* ppad)
 			stop = 1;
 
 
-    ppad->buttonStatus = (PAD_1.btns.All&0xFFFF);
+    ppad->buttonStatus = (PAD_1.btns.All&0xFFFF) & ~autoinput_mask();   /* active low: clearing a bit presses it */
 	if ( controllerType == CONTROLLERTYPE_ANALOG )
 	{
 		ppad->controllerType = PSE_PAD_TYPE_ANALOGPAD; 

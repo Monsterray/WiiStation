@@ -174,6 +174,7 @@ WiiStation starts the network only when `smbsharename` and `smbipaddr` are both 
 | File or folder | Purpose |
 |---|---|
 | `autoboot.txt` | Starts a game without the menu. See section 10. |
+| `autoinput.txt` | Presses controller buttons at given times. See section 11. |
 | `bios/SCPH1001.BIN` | The PlayStation BIOS. Needed when `BiosDevice` is 1 or 2. |
 | `ppf/` | PPF patch files. WiiStation applies a patch with the same name as the game. |
 | `lang/` | Menu language files. |
@@ -198,7 +199,36 @@ Spyro the Dragon [NTSC-U] [SCUS-94228].cue
 
 WiiStation ignores the file when a loader already gives a game as an argument. Delete the file to get the menu back.
 
-## 11. Known differences between the code and the menu
+## 11. Scripted controller input
+
+The file `sd:/wiisxrx/autoinput.txt` presses controller buttons at given times. It is a test aid. It works with `autoboot.txt`: a boot with both files is deterministic up to any screen. WiiStation reads the file at the first controller poll. A missing file has no effect. Real controllers keep working. The script only adds presses.
+
+Each line has a vblank number and a button mask. From that vblank on, WiiStation holds the listed buttons on PlayStation port 1. The next line replaces the mask. A mask of `0000` releases all buttons. Lines that start with `#` are comments.
+
+```
+# vblank  mask (hexadecimal)
+1400 0008
+1440 0000
+2100 0008
+2140 0000
+```
+
+This example presses Start at the title screen and presses Start again in the game to open the pause menu.
+
+| Button | Mask | Button | Mask |
+|---|---|---|---|
+| Select | `0001` | L2 | `0100` |
+| Start | `0008` | R2 | `0200` |
+| Up | `0010` | L1 | `0400` |
+| Right | `0020` | R1 | `0800` |
+| Down | `0040` | Triangle | `1000` |
+| Left | `0080` | Circle | `2000` |
+| | | Cross | `4000` |
+| | | Square | `8000` |
+
+Add the masks to hold more than one button. Delete the file to stop the script.
+
+## 12. Known differences between the code and the menu
 
 - `BiosDevice`, `BilinearFilter`, `TrapFilter`, `Interlaced`, `DeflickerFilter`, and `LightGun` get their default from the variable initialiser. The function `loadSettings()` does not set them.
 - `Interpolation` and `Dithering` start at 0 in the variable initialiser. The function `loadSettings()` then sets them to 1 before it reads the file.

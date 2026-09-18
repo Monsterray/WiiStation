@@ -307,6 +307,14 @@ static void UpdateState (const int pad) //Note: pad = 0 or 1
 	PAD_Data.rightStickY = SetSensitivity(PAD_Data.rightStickY, sensitivity);
 
 	global.padStat[pad] = (((PAD_Data.btns.All>>8)&0xFF) | ( (PAD_Data.btns.All<<8) & 0xFF00 )) &0xFFFF;
+	if (pad == 0) {
+		extern unsigned short autoinput_mask(void);   /* PadWiiSX.c: scripted presses from sd:/wiisxrx/autoinput.txt */
+		/* padStat is byte-swapped so that the big-endian 16-bit store in the
+		 * 0x42 response emits the two PSX bytes in wire order; the script's
+		 * masks are in PSX order (Start 0008), so swap them the same way. */
+		unsigned short m = autoinput_mask();
+		global.padStat[pad] &= ~(unsigned short)(((m << 8) | (m >> 8)) & 0xFFFF);   /* active low */
+	}
 
 
 	if ((global.padID[pad] == 0x31) || (global.padID[pad] == 0x63) || (global.padID[pad] == 0x12)){
