@@ -174,8 +174,11 @@ typedef struct {
 	struct { uint16_t texid, mode, page, clut, pu, pv, x, y, exp, got; uint8_t nv; } ogx_eq[8];
 	uint32_t ogx_eq_r;
 	/* Primitive-stream trace (see perf_prim_trace in perf_prof.c). */
-	struct { uint16_t present; uint8_t cmd, flags, abr; uint32_t color; int16_t x0, y0, x1, y1; } pt[96];
-	uint32_t pt_n, pt_armed, pt_start_present;
+	struct { uint16_t present; uint8_t cmd, flags, abr; uint32_t color; int16_t x0, y0, x1, y1; } pt[2600];   /* one full PSX frame */
+	uint32_t pt_n, pt_armed, pt_start_present, pt_start_vblank, pt_printed;
+	/* scripted-input events (autoinput.txt): vblank, mask, present index */
+	struct { uint32_t vbl, present; uint16_t mask; } ai_ev[16];
+	uint32_t ai_n;
 	uint16_t pt_prims[8], pt_semi[8], pt_fills[8];
 	uint32_t vram_dumped;                /* one-shot VRAM snapshot taken (see perf_prof.c) */
 
@@ -264,6 +267,7 @@ void perf_report(void);
  * Accumulates present time and auto-reports ~every 30 s. */
 void perf_present_tick(unsigned long long present_us);
 void perf_prim_trace(unsigned cmd, unsigned flags, unsigned abr, unsigned color, int x0, int y0, int x1, int y1);
+void perf_autoinput_event(unsigned vblank, unsigned mask);
 
 #else /* !PERF_PROF: everything is a no-op */
 
@@ -276,6 +280,7 @@ static inline void perf_report(void) {}
 static inline void perf_present_tick(unsigned long long present_us) { (void)present_us; }
 static inline void perf_prim_trace(unsigned cmd, unsigned flags, unsigned abr, unsigned color, int x0, int y0, int x1, int y1)
 { (void)cmd; (void)flags; (void)abr; (void)color; (void)x0; (void)y0; (void)x1; (void)y1; }
+static inline void perf_autoinput_event(unsigned vblank, unsigned mask) { (void)vblank; (void)mask; }
 
 #endif /* PERF_PROF */
 

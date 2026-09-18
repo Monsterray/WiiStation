@@ -30,6 +30,7 @@
 #include "gc_input/controller.h"
 #include "wiiSXconfig.h"
 #include "../psxcounters.h"
+#include "perf_prof.h"
 
 /* Scripted input for unattended runs: sd:/wiisxrx/autoinput.txt holds lines
  * "<vblank> <hex button mask>"; from that emulated vblank on, the listed
@@ -43,6 +44,12 @@
  * Applied in PadSSSPSX.c (the bound pad plugin) and here. */
 static struct { unsigned vbl; unsigned short mask; } autoin[64];
 static int autoin_n = -1;
+/* "trace <vblank>" lines: the debug build's primitive trace arms at these
+ * vblanks (perf_prof.c reads the table), so a capture can be scheduled
+ * right after a scripted press instead of guessing the overlay's shape. */
+unsigned autoinput_trace_vbl[8];
+int autoinput_trace_n = 0;
+unsigned autoinput_dump_vbl = 0;   /* "dump <vblank>": debug build writes sd:/wiisxrx/vram.bin then */
 unsigned short autoinput_mask(void)
 {
 	int i;
@@ -54,6 +61,8 @@ unsigned short autoinput_mask(void)
 		if (f) {
 			while (autoin_n < 64 && fgets(line, sizeof line, f)) {
 				unsigned v, k;
+				if (sscanf(line, "dump %u", &v) == 1) { autoinput_dump_vbl = v; continue; }
+				if (sscanf(line, "trace %u", &v) == 1) { if (autoinput_trace_n < 8) autoinput_trace_vbl[autoinput_trace_n++] = v; continue; }
 				if (line[0] == '#' || sscanf(line, "%u %x", &v, &k) != 2) continue;
 				autoin[autoin_n].vbl = v; autoin[autoin_n].mask = (unsigned short)k; autoin_n++;
 			}
@@ -62,6 +71,10 @@ unsigned short autoinput_mask(void)
 	}
 	for (i = 0; i < autoin_n; i++)
 		if (frame_counter >= autoin[i].vbl) m = autoin[i].mask;
+	{
+		static unsigned short last = 0; static int first = 1;
+		if (first || m != last) { perf_autoinput_event(frame_counter, m); last = m; first = 0; }
+	}
 	return m;
 }
 

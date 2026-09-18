@@ -42,6 +42,12 @@ unsigned long long perf_now_ticks(void)
 
 void perf_reset(void)
 {
+	{
+		/* one log per boot: the SD image keeps files across runs, so appending
+		 * across boots made the log grow and mixed runs */
+		static int fresh = 0;
+		if (!fresh) { FILE *f = fopen("sd:/wiisxrx/perf.log", "w"); if (f) fclose(f); fresh = 1; }
+	}
 	memset(&g_perf, 0, sizeof(g_perf));
 	g_perf.wall_start_ticks = gettime();
 }
@@ -63,6 +69,8 @@ static void perf_sample_mem(void)
  * through the one psxVuw global. */
 #define PERF_VRAM_DUMP_VBLANK 6000
 extern unsigned short *psxVuw;
+extern unsigned autoinput_dump_vbl;
+static int autoinput_dump_vbl_set(void) { return autoinput_dump_vbl != 0; }
 static void perf_vram_dump(void)
 {
 	size_t n = 0;
@@ -87,11 +95,29 @@ static void perf_vram_dump(void)
 #ifndef PERF_PT_ARM_PRESENT
 #define PERF_PT_ARM_PRESENT 0      /* 0 = arm only on a large untextured semi-transparent polygon */
 #endif
+extern unsigned int frame_counter;            /* psxcounters.c: +1 per VBlank */
+extern unsigned autoinput_trace_vbl[8];       /* PadWiiSX.c: 'trace <vblank>' lines */
+extern int autoinput_trace_n;
+static int trace_sched_next = 0;
+static void perf_trace_flush(void);
 void perf_prim_trace(unsigned cmd, unsigned flags, unsigned abr, unsigned color, int x0, int y0, int x1, int y1)
 {
 	unsigned idx;
+	int sched = 0;
+	if (trace_sched_next < autoinput_trace_n && frame_counter >= autoinput_trace_vbl[trace_sched_next]) {
+		trace_sched_next++; sched = 1;
+	}
 	int trigger = ((flags & 3) == 1 && cmd >= 0x20 && cmd < 0x80 && (x1 - x0) >= 200 && (y1 - y0) >= 150) ||
 	              (PERF_PT_ARM_PRESENT && !g_perf.pt_armed && g_perf.present_frames >= PERF_PT_ARM_PRESENT);
+	if (sched) {
+		/* scheduled capture: start a fresh episode now, whatever the primitive */
+		if (g_perf.pt_armed && !g_perf.pt_printed) perf_trace_flush();
+		g_perf.pt_n = 0;
+		memset(g_perf.pt_prims, 0, sizeof(g_perf.pt_prims));
+		memset(g_perf.pt_semi, 0, sizeof(g_perf.pt_semi));
+		memset(g_perf.pt_fills, 0, sizeof(g_perf.pt_fills));
+		g_perf.pt_armed = 0; g_perf.pt_printed = 0; trigger = 1;
+	}
 	if (!g_perf.pt_armed) {
 		if (!trigger) return;
 	} else if (g_perf.present_frames - g_perf.pt_start_present >= 8) {
@@ -99,19 +125,21 @@ void perf_prim_trace(unsigned cmd, unsigned flags, unsigned abr, unsigned color,
 		 * the report always shows the most recent episode (e.g. the pause
 		 * screen, not the boot fade) */
 		if (!trigger) return;
+		if (!g_perf.pt_printed) perf_trace_flush();
+		g_perf.pt_printed = 0;
 		g_perf.pt_n = 0;
 		memset(g_perf.pt_prims, 0, sizeof(g_perf.pt_prims));
 		memset(g_perf.pt_semi, 0, sizeof(g_perf.pt_semi));
 		memset(g_perf.pt_fills, 0, sizeof(g_perf.pt_fills));
 		g_perf.pt_armed = 0;
 	}
-	if (!g_perf.pt_armed) { g_perf.pt_armed = 1; g_perf.pt_start_present = g_perf.present_frames; }
+	if (!g_perf.pt_armed) { g_perf.pt_armed = 1; g_perf.pt_start_present = g_perf.present_frames; g_perf.pt_start_vblank = g_perf.vblanks; }
 	idx = g_perf.present_frames - g_perf.pt_start_present;
 	if (idx < 8) {
 		if (cmd == 0x02) g_perf.pt_fills[idx]++;
 		else if (cmd != 0xF5 && cmd < 0xE0) { g_perf.pt_prims[idx]++; if (flags & 1) g_perf.pt_semi[idx]++; }
 	}
-	if (g_perf.pt_n < 96) {
+	if (g_perf.pt_n < 2600) {
 		unsigned k = g_perf.pt_n++;
 		g_perf.pt[k].present = (uint16_t)idx; g_perf.pt[k].cmd = (uint8_t)cmd; g_perf.pt[k].flags = (uint8_t)flags;
 		g_perf.pt[k].abr = (uint8_t)abr; g_perf.pt[k].color = color & 0xffffff;
@@ -119,11 +147,55 @@ void perf_prim_trace(unsigned cmd, unsigned flags, unsigned abr, unsigned color,
 	}
 }
 
+void perf_autoinput_event(unsigned vblank, unsigned mask)
+{
+	if (g_perf.ai_n < 16) {
+		g_perf.ai_ev[g_perf.ai_n].vbl = vblank; g_perf.ai_ev[g_perf.ai_n].mask = (uint16_t)mask;
+		g_perf.ai_ev[g_perf.ai_n].present = g_perf.present_frames; g_perf.ai_n++;
+	}
+}
+
+/* Write the current trace episode to perf.log (also printed by perf_report). */
+static void perf_trace_lines(FILE *f)
+{
+	unsigned k;
+	fprintf(f, "ptrace: armed_at_present=%lu vblank=%lu prims/semi/fills per present:", (unsigned long)g_perf.pt_start_present, (unsigned long)g_perf.pt_start_vblank);
+	for (k = 0; k < 8; k++) fprintf(f, " %u/%u/%u", g_perf.pt_prims[k], g_perf.pt_semi[k], g_perf.pt_fills[k]);
+	fprintf(f, "\n");
+	for (k = 0; k < g_perf.pt_n; k++)
+		fprintf(f, "pt: +%u cmd=%02x %s%s%s%s abr=%u col=%06lx (%d,%d)-(%d,%d)\n",
+			g_perf.pt[k].present, g_perf.pt[k].cmd,
+			(g_perf.pt[k].flags & 1) ? "S" : "-", (g_perf.pt[k].flags & 2) ? "T" : "-",
+			(g_perf.pt[k].flags & 4) ? "Q" : "-", (g_perf.pt[k].flags & 8) ? "G" : "-",
+			g_perf.pt[k].abr, (unsigned long)g_perf.pt[k].color,
+			g_perf.pt[k].x0, g_perf.pt[k].y0, g_perf.pt[k].x1, g_perf.pt[k].y1);
+}
+static void perf_trace_flush(void)
+{
+	/* own file, rewritten per episode: a 2600-line flush appended to perf.log
+	 * left a broken FAT chain when Dolphin was killed mid-write */
+	FILE *f = fopen("sd:/wiisxrx/ptrace.log", "w");
+	if (!f) return;
+	fprintf(f, "--- trace episode (flushed at present %lu) ---\n", (unsigned long)g_perf.present_frames);
+	perf_trace_lines(f);
+	fclose(f);
+	g_perf.pt_printed = 1;
+}
+
 void perf_present_tick(unsigned long long present_us)
 {
 	g_perf.present_frames++;
+	if (g_perf.pt_armed && !g_perf.pt_printed && g_perf.present_frames - g_perf.pt_start_present >= 8)
+		perf_trace_flush();
 	g_perf.present_us += present_us;
-	if (!g_perf.vram_dumped && g_perf.vblanks >= PERF_VRAM_DUMP_VBLANK) {
+	{
+		extern unsigned autoinput_dump_vbl;   /* PadWiiSX.c: 'dump <vblank>' in autoinput.txt */
+		if (!g_perf.vram_dumped && autoinput_dump_vbl && frame_counter >= autoinput_dump_vbl) {
+			g_perf.vram_dumped = 1;
+			perf_vram_dump();
+		}
+	}
+	if (!g_perf.vram_dumped && g_perf.vblanks >= PERF_VRAM_DUMP_VBLANK && !autoinput_dump_vbl_set()) {
 		g_perf.vram_dumped = 1;
 		perf_vram_dump();
 	}
@@ -244,9 +316,14 @@ void perf_report(void)
 					g_perf.ogx_op[k].x0, g_perf.ogx_op[k].y0, g_perf.ogx_op[k].x1, g_perf.ogx_op[k].y1,
 					g_perf.ogx_op[k].color);
 		}
+		{
+			unsigned k;
+			for (k = 0; k < g_perf.ai_n; k++)
+				fprintf(f, "autoinput: vblank=%lu mask=%04x at_present=%lu\n", (unsigned long)g_perf.ai_ev[k].vbl, g_perf.ai_ev[k].mask, (unsigned long)g_perf.ai_ev[k].present);
+		}
 		if (g_perf.pt_armed) {
 			unsigned k;
-			fprintf(f, "ptrace: armed_at_present=%lu prims/semi/fills per present:", (unsigned long)g_perf.pt_start_present);
+			fprintf(f, "ptrace: armed_at_present=%lu vblank=%lu prims/semi/fills per present:", (unsigned long)g_perf.pt_start_present, (unsigned long)g_perf.pt_start_vblank);
 			/* cmd legend: 02 fill, E3/E4 draw area start/end (x,y), E5 draw offset, F5 display address (x,y),
 			 * F6 horizontal range (x1,x2), F7 vertical range (y1,y2), F8 display mode (raw in col) */
 			for (k = 0; k < 8; k++) fprintf(f, " %u/%u/%u", g_perf.pt_prims[k], g_perf.pt_semi[k], g_perf.pt_fills[k]);
