@@ -140,12 +140,30 @@ static void lightrec_tansition_from_pcsx(struct lightrec_state *state)
 	}
 }
 
+/* Every hardware-register access made by recompiled code lands in one of the
+ * six callbacks below, which is also where all of the I/O emulation runs --
+ * including the DMA-channel kick that rasterizes an entire display list. It
+ * all happens inside lightrec_execute(), so without this timing it is
+ * indistinguishable from JIT time in the profile. */
+#define HW_TIMED(expr) do { \
+	unsigned long long hw_t0_ = perf_now_ticks(), hw_dt_; \
+	expr; \
+	hw_dt_ = perf_now_ticks() - hw_t0_; \
+	PERF_ADD(hw_ticks, hw_dt_); \
+	PERF_INC(hw_calls); \
+	/* 0x1810: GP0/GP1; 0x10a0: DMA2 -- the two paths that rasterize. */ \
+	if ((mem & 0xfff0) == 0x1810 || (mem & 0xfff0) == 0x10a0) { \
+		PERF_ADD(hw_gpu_ticks, hw_dt_); \
+		PERF_INC(hw_gpu_calls); \
+	} \
+} while (0)
+
 static void hw_write_byte(struct lightrec_state *state,
 			  u32 op, void *host, u32 mem, u32 val)
 {
 	lightrec_tansition_to_pcsx(state);
 
-	psxHwWrite8(mem, val);
+	HW_TIMED(psxHwWrite8(mem, val));
 
 	lightrec_tansition_from_pcsx(state);
 }
@@ -155,7 +173,7 @@ static void hw_write_half(struct lightrec_state *state,
 {
 	lightrec_tansition_to_pcsx(state);
 
-	psxHwWrite16(mem, val);
+	HW_TIMED(psxHwWrite16(mem, val));
 
 	lightrec_tansition_from_pcsx(state);
 }
@@ -165,7 +183,7 @@ static void hw_write_word(struct lightrec_state *state,
 {
 	lightrec_tansition_to_pcsx(state);
 
-	psxHwWrite32(mem, val);
+	HW_TIMED(psxHwWrite32(mem, val));
 
 	lightrec_tansition_from_pcsx(state);
 }
@@ -176,7 +194,7 @@ static u8 hw_read_byte(struct lightrec_state *state, u32 op, void *host, u32 mem
 
 	lightrec_tansition_to_pcsx(state);
 
-	val = psxHwRead8(mem);
+	HW_TIMED(val = psxHwRead8(mem));
 
 	lightrec_tansition_from_pcsx(state);
 
@@ -190,7 +208,7 @@ static u16 hw_read_half(struct lightrec_state *state,
 
 	lightrec_tansition_to_pcsx(state);
 
-	val = psxHwRead16(mem);
+	HW_TIMED(val = psxHwRead16(mem));
 
 	lightrec_tansition_from_pcsx(state);
 
@@ -204,7 +222,7 @@ static u32 hw_read_word(struct lightrec_state *state,
 
 	lightrec_tansition_to_pcsx(state);
 
-	val = psxHwRead32(mem);
+	HW_TIMED(val = psxHwRead32(mem));
 
 	lightrec_tansition_from_pcsx(state);
 
@@ -480,6 +498,11 @@ static void irqNoOp() {
 
 typedef void (irq_func)();
 
+/* perf_prof.h sizes its per-event histogram without including r3000a.h, so
+ * verify the two agree here, where both are visible. */
+_Static_assert(PSXINT_COUNT <= PERF_IRQ_SLOTS,
+	"PERF_IRQ_SLOTS too small for PSXINT_COUNT");
+
 static irq_func * const irq_funcs[] = {
 	[PSXINT_SIO]	= sioInterrupt,
 	[PSXINT_CDR]	= cdrInterrupt,
@@ -510,6 +533,7 @@ void irq_test(psxCP0Regs *cp0)
 		if ((s32)(cycle - event_cycles[irq]) >= 0) {
 			// note: irq_funcs() also modify psxRegs.interrupt
 			psxRegs.interrupt &= ~(1u << irq);
+			PERF_INC(irq_fires[irq]);
 			irq_funcs[irq]();
 		}
 	}
@@ -535,12 +559,27 @@ static void lightrec_plugin_execute_internal(bool block_only)
 {
 	struct lightrec_registers *regs;
 	u32 flags, cycles_pcsx;
-	unsigned long long slice_t0 = perf_now_us();
+	unsigned long long t_start = perf_now_ticks(), t_sched, t_jit, t_end;
+
+	/* HLE softCall()/softCallInException() re-enter this function through
+	 * ExecuteBlock while an outer slice is still open. That inner time is
+	 * already inside the outer slice's t_end - t_start, so only the
+	 * outermost level may accumulate or every nested slice counts twice. */
+	static int depth;
+	depth++;
 
 	regs = lightrec_get_registers(lightrec_state);
 	gen_interupt((psxCP0Regs *)regs->cp0);
+	t_sched = perf_now_ticks();
 	cycles_pcsx = next_interupt - psxRegs.cycle;
 	assert((s32)cycles_pcsx > 0);
+
+	/* Record the budget the scheduler actually chose, before block_stepping
+	 * overrides it below -- that override is an early-boot special case, not
+	 * what governs steady-state slice length. */
+	PERF_ADD(slice_cycles, cycles_pcsx);
+	if (cycles_pcsx < SLICE_TINY_CYCLES)
+		PERF_INC(slice_tiny);
 
 	// step during early boot so that 0x80030000 fastboot hack works
 	block_stepping = block_only;
@@ -557,10 +596,16 @@ static void lightrec_plugin_execute_internal(bool block_only)
 		psxRegs.pc = lightrec_execute(lightrec_state,
 					      psxRegs.pc, cycles_lightrec);
 	}
+	t_jit = perf_now_ticks();
 
 	lightrec_tansition_to_pcsx(lightrec_state);
 
 		flags = lightrec_exit_flags(lightrec_state);
+
+	if (flags == LIGHTREC_EXIT_NORMAL)
+		PERF_INC(exit_normal);
+	if (flags & LIGHTREC_EXIT_CHECK_INTERRUPT)
+		PERF_INC(exit_check_irq);
 
 	if (flags & LIGHTREC_EXIT_SEGFAULT) {
 		#ifdef SHOW_DEBUG
@@ -600,7 +645,15 @@ static void lightrec_plugin_execute_internal(bool block_only)
 	}
 
 	PERF_INC(jit_slices);
-	PERF_ADD(cpu_us, perf_now_us() - slice_t0);
+	t_end = perf_now_ticks();
+	if (--depth == 0) {
+		PERF_ADD(slice_sched_ticks, t_sched - t_start);
+		PERF_ADD(slice_jit_ticks,   t_jit   - t_sched);
+		PERF_ADD(slice_post_ticks,  t_end   - t_jit);
+		PERF_ADD(cpu_ticks,         t_end   - t_start);
+	} else {
+		PERF_INC(jit_nested);
+	}
 }
 
 static void lightrec_plugin_execute(void)

@@ -26,6 +26,7 @@
 #include "Gamecube/DEBUG.h"
 #include "Gamecube/wiiSXconfig.h"
 #include "psxcommon.h"
+#include "Gamecube/perf_prof.h"
 
 /******************************************************************************/
 
@@ -399,6 +400,7 @@ void psxRcntUpdate()
         // VSync irq.
         if( hSyncCount == VBlankStart )
         {
+            PERF_INC(vblanks);
             HW_GPU_STATUS &= SWAP32(~PSXGPU_LCF);
             gInterlaceLine = !((frame_counter+1) & 0x1);
             //GPU_vBlank( 1, 0 );
@@ -461,7 +463,13 @@ void psxRcntUpdate()
     }
 
     if ((cycle - rcnts[4].cycleStart) >= rcnts[4].cycle) {
+        /* The whole audio mixer runs here, once per frame, inside the rcnt
+         * callback -- i.e. inside a CPU slice. Timed so it can be separated
+         * from scheduler cost in the profile. */
+        unsigned long long spu_t0 = perf_now_ticks();
         SPU_async(cycle, 1, Config.PsxType);
+        PERF_ADD(spu_ticks, perf_now_ticks() - spu_t0);
+        PERF_INC(spu_calls);
         psxRcntReset(4);
     }
 

@@ -1062,7 +1062,13 @@ void SysUpdate()
 	if (gpuPtr == &newSoftGpu)
     {
 		extern void pl_frame_limit(void);
+		// Contains the FrameCap() spin-wait. This runs from the VBlank rcnt
+		// callback, i.e. inside a CPU slice, so it is timed separately or it
+		// shows up in the profile as scheduler cost.
+		unsigned long long limit_t0 = perf_now_ticks();
 		pl_frame_limit();
+		PERF_ADD(limit_ticks, perf_now_ticks() - limit_t0);
+		PERF_INC(limit_calls);
 	}
 #ifdef PROFILE
 	refresh_stat();

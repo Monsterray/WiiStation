@@ -24,6 +24,15 @@
 extern "C" {
 #endif
 
+/* Size of the per-event histogram below. Must be >= PSXINT_COUNT (r3000a.h);
+ * checked at compile time in lightrec.c so this header needs no emulator
+ * includes. */
+#define PERF_IRQ_SLOTS 20
+
+/* A slice below this many PSX cycles does less work than the dispatch around
+ * it costs, so these are counted separately as pure overhead. */
+#define SLICE_TINY_CYCLES 64
+
 typedef struct {
 	/* CPU / JIT (Wii adapter level, lightrec.c) */
 	uint32_t jit_slices;          /* lightrec execute slices run */
@@ -33,7 +42,73 @@ typedef struct {
 	uint32_t jit_hle;             /* unknown-op handled as PSX HLE call */
 	uint32_t jit_exceptions;      /* syscall/break/RI taken from JIT */
 	uint32_t int_slices;          /* interpreter execute entries */
-	uint64_t cpu_us;              /* accumulated JIT slice time */
+
+	/* Slice cost breakdown, in RAW libogc timebase ticks -- converted to
+	 * microseconds only at report time. ticks_to_microsecs() does a 64-bit
+	 * divide, which has no hardware instruction on this 32-bit PPC and so
+	 * costs ~100 cycles in a software routine; this path is entered ~32000
+	 * times a second, so four conversions per slice would distort the very
+	 * measurement they exist to take. Accumulate raw, divide once. */
+	uint64_t cpu_ticks;           /* whole slice */
+	uint64_t slice_sched_ticks;   /* gen_interupt: irq_test + reschedule */
+	uint64_t slice_jit_ticks;     /* inside lightrec_execute */
+	uint64_t slice_post_ticks;    /* transition back + exit-flag handling */
+
+	/* Why the recompiler handed control back. NORMAL means it believes it
+	 * used up the cycle budget; CHECK_INTERRUPT means a hardware access
+	 * found an interrupt pending and bailed out. */
+	uint32_t exit_normal;
+	uint32_t exit_check_irq;
+
+	/* Ground truth for speed. Everything above is time *inside* slices;
+	 * wall_start_ticks anchors real elapsed time since perf_reset() so the
+	 * report can state presents-per-second and slice-time-per-wall-second
+	 * without inferring either from an assumed 60 Hz. vblanks counts
+	 * emulated VBlanks: a 30 fps title presents on every other one, so
+	 * presents alone under-report speed by 2x. */
+	uint64_t wall_start_ticks;
+	uint32_t vblanks;
+
+	/* Work that runs INSIDE a slice but is not emulation, so the phase
+	 * buckets above mislabel it. Kept separate so they can be subtracted:
+	 *  - limit: the FrameCap() spin in pl_frame_limit(), reached from the
+	 *    VBlank rcnt callback, so it lands in slice_sched_ticks;
+	 *  - spu: SPU_async() -- the whole audio mixer -- same path;
+	 *  - hw: the hw_read/hw_write callbacks, i.e. all I/O emulation
+	 *    including the DMA kick that rasterizes a display list; these run
+	 *    inside lightrec_execute and so inflate slice_jit_ticks.
+	 * jit_nested counts slices entered re-entrantly (HLE softCall); their
+	 * time is already inside the outer slice, so the guard in lightrec.c
+	 * keeps them out of the accumulators to avoid double counting. */
+	uint64_t limit_ticks;
+	uint32_t limit_calls;
+	uint64_t spu_ticks;
+	uint32_t spu_calls;
+	uint64_t hw_ticks;
+	uint32_t hw_calls;
+	/* Subset of hw_*: GPU data/status registers (0x1f801810) and the DMA2
+	 * channel (0x1f8010a0), i.e. the accesses that rasterize -- a primitive
+	 * on its final GP0 word, or a whole ordering table on the D2 kick.
+	 * hw_ticks - hw_gpu_ticks is every other peripheral combined. */
+	uint64_t hw_gpu_ticks;
+	uint32_t hw_gpu_calls;
+	uint32_t jit_nested;
+
+	/* Slice granularity: why the recompiler keeps exiting.
+	 *
+	 * A slice runs until the nearest pending PSX event, so the event that
+	 * fires most often is the one setting the slice length -- and a slice
+	 * shorter than a basic block is nearly all dispatch overhead (exit,
+	 * irq_test, reschedule, re-enter) rather than emulation. slice_cycles
+	 * / jit_slices gives the average slice in PSX cycles; compare against
+	 * 564480 cycles per NTSC frame to see how many slices a frame costs.
+	 *
+	 * irq_fires[] is indexed by PSXINT_*. PERF_IRQ_SLOTS must be >=
+	 * PSXINT_COUNT; lightrec.c static-asserts that, since this header is
+	 * deliberately free of emulator headers. */
+	uint32_t irq_fires[PERF_IRQ_SLOTS];
+	uint64_t slice_cycles;        /* summed PSX-cycle budget over all slices */
+	uint32_t slice_tiny;          /* slices shorter than SLICE_TINY_CYCLES */
 
 	/* RAM (sampled at report; fails counted live) */
 	uint32_t mem2_alloc_fails;    /* _mem2_memalign NULL returns */
@@ -88,6 +163,10 @@ extern perf_counters_t g_perf;
 /* Microsecond timestamp (libogc ticks). Declared here, defined in
  * perf_prof.c so this header stays dependency-free (no gccore.h). */
 unsigned long long perf_now_us(void);
+
+/* Raw timebase ticks, no unit conversion -- for hot paths that accumulate and
+ * convert once at report time. See the cpu_ticks comment above. */
+unsigned long long perf_now_ticks(void);
 
 /* Zero all counters (called when a game session starts). */
 void perf_reset(void);

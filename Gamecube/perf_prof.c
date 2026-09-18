@@ -30,9 +30,15 @@ unsigned long long perf_now_us(void)
 	return ticks_to_microsecs(gettime());
 }
 
+unsigned long long perf_now_ticks(void)
+{
+	return gettime();
+}
+
 void perf_reset(void)
 {
 	memset(&g_perf, 0, sizeof(g_perf));
+	g_perf.wall_start_ticks = gettime();
 }
 
 /* Every N presented frames, append one block. 1800 ~= 30 s at 60 fps. */
@@ -53,6 +59,22 @@ void perf_present_tick(unsigned long long present_us)
 		perf_report();
 }
 
+/* Labels for the irq_fires[] histogram, in PSXINT_* order (r3000a.h). Kept as
+ * a local table rather than including r3000a.h here, which would drag the
+ * emulator core into every file that profiles. lightrec.c static-asserts that
+ * the array is large enough; if an event is ever inserted mid-enum, this list
+ * needs the same edit. */
+static const char *perf_irq_name(unsigned i)
+{
+	static const char * const names[] = {
+		"sio", "cdr", "cdread", "gpudma", "mdecoutdma", "spudma",
+		"gpubusy", "mdecindma", "gpuotcdma", "cdrdma", "newdrc",
+		"rcnt", "cdrlid", "cdrplay", "spu_update", "spu_irq",
+		"lightgun"
+	};
+	return (i < sizeof(names) / sizeof(names[0])) ? names[i] : "?";
+}
+
 void perf_report(void)
 {
 	char line[160];
@@ -69,10 +91,44 @@ void perf_report(void)
 		fprintf(f, "--- perf frames=%lu ---\n", (unsigned long)g_perf.present_frames);
 		fprintf(f, "cpu: slices=%lu int=%lu cpu_us=%llu jit_full=%lu jit_part=%lu interp_fb=%lu hle=%lu exc=%lu\n",
 			(unsigned long)g_perf.jit_slices, (unsigned long)g_perf.int_slices,
-			g_perf.cpu_us, (unsigned long)g_perf.jit_resets_full,
+			(unsigned long long)ticks_to_microsecs(g_perf.cpu_ticks),
+			(unsigned long)g_perf.jit_resets_full,
 			(unsigned long)g_perf.jit_resets_partial,
 			(unsigned long)g_perf.jit_interp_fallbacks,
 			(unsigned long)g_perf.jit_hle, (unsigned long)g_perf.jit_exceptions);
+		fprintf(f, "wall: wall_us=%llu vblanks=%lu nested=%lu\n",
+			(unsigned long long)ticks_to_microsecs(gettime() - g_perf.wall_start_ticks),
+			(unsigned long)g_perf.vblanks,
+			(unsigned long)g_perf.jit_nested);
+		fprintf(f, "inside: limit_us=%llu limit=%lu spu_us=%llu spu=%lu hw_us=%llu hw=%lu hw_gpu_us=%llu hw_gpu=%lu\n",
+			(unsigned long long)ticks_to_microsecs(g_perf.limit_ticks),
+			(unsigned long)g_perf.limit_calls,
+			(unsigned long long)ticks_to_microsecs(g_perf.spu_ticks),
+			(unsigned long)g_perf.spu_calls,
+			(unsigned long long)ticks_to_microsecs(g_perf.hw_ticks),
+			(unsigned long)g_perf.hw_calls,
+			(unsigned long long)ticks_to_microsecs(g_perf.hw_gpu_ticks),
+			(unsigned long)g_perf.hw_gpu_calls);
+		fprintf(f, "slicecost: sched_us=%llu jit_us=%llu post_us=%llu exit_norm=%lu exit_irq=%lu\n",
+			(unsigned long long)ticks_to_microsecs(g_perf.slice_sched_ticks),
+			(unsigned long long)ticks_to_microsecs(g_perf.slice_jit_ticks),
+			(unsigned long long)ticks_to_microsecs(g_perf.slice_post_ticks),
+			(unsigned long)g_perf.exit_normal,
+			(unsigned long)g_perf.exit_check_irq);
+		fprintf(f, "slice: cycles=%llu avg=%lu tiny=%lu\n",
+			g_perf.slice_cycles,
+			(unsigned long)(g_perf.jit_slices
+				? g_perf.slice_cycles / g_perf.jit_slices : 0),
+			(unsigned long)g_perf.slice_tiny);
+		fprintf(f, "irq:");
+		{
+			unsigned i;
+			for (i = 0; i < PERF_IRQ_SLOTS; i++)
+				if (g_perf.irq_fires[i])
+					fprintf(f, " %s=%lu", perf_irq_name(i),
+						(unsigned long)g_perf.irq_fires[i]);
+		}
+		fprintf(f, "\n");
 		fprintf(f, "ram: mem1_free_kb=%lu mem2=%lu/%luKB peak=%luKB fails=%lu null_read=%lu\n",
 			(unsigned long)mem1_kb, (unsigned long)m2used, (unsigned long)m2tot,
 			(unsigned long)g_perf.mem2_peak_kb, (unsigned long)g_perf.mem2_alloc_fails,
@@ -103,7 +159,7 @@ void perf_report(void)
 	 * the existing DBG_* slots; DEBUG_update ages them after 5 s). */
 	snprintf(line, sizeof(line), "perf f=%lu cpu=%llums jitR=%lu/%lu fb=%lu",
 		(unsigned long)g_perf.present_frames,
-		g_perf.cpu_us / 1000,
+		(unsigned long long)ticks_to_microsecs(g_perf.cpu_ticks) / 1000,
 		(unsigned long)g_perf.jit_resets_full,
 		(unsigned long)g_perf.jit_resets_partial,
 		(unsigned long)g_perf.jit_interp_fallbacks);
