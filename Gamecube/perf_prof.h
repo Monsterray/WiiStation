@@ -44,12 +44,16 @@ typedef struct {
 	 * it by design). */
 	uint32_t mem_null_read;
 
-	/* GPU (deps/opengx gc_gl.c + present paths) */
-	uint32_t gx_tex_hits;         /* texture-cache hits */
-	uint32_t gx_tex_misses;       /* texture-cache misses */
-	uint32_t gx_tex_resets;       /* full "8 full -> discard all" evicts */
-	uint32_t gx_tex_loads;        /* glTexImage2D uploads */
-	uint64_t gx_tex_bytes;        /* uploaded texture bytes */
+	/* GPU. Cache hit/miss/batch counters come from deps/opengx gc_gl.c and so
+	 * only move on the OpenGX (GlesGpu) plugin; the SoftGPU plugin does not go
+	 * through that layer, and reports resets/loads/bytes/convert_us/drawdone
+	 * from SoftGPU/drawGX.c instead. Present counters work on both. */
+	uint32_t gx_tex_hits;         /* texture-cache hits (OpenGX only) */
+	uint32_t gx_tex_misses;       /* texture-cache misses (OpenGX only) */
+	uint32_t gx_tex_resets;       /* OpenGX: evicts; SoftGPU: tex re-inits */
+	uint32_t gx_tex_loads;        /* OpenGX: uploads; SoftGPU: per-frame blits */
+	uint64_t gx_tex_bytes;        /* uploaded/converted texture bytes */
+	uint64_t gx_convert_us;       /* SoftGPU: CPU time converting PSX fb -> GX */
 	uint32_t gx_drawdone;         /* blocking GX_DrawDone calls */
 	uint64_t gx_drawdone_us;      /* time spent inside them */
 	uint32_t gx_batches;          /* glDrawArrays batches submitted */

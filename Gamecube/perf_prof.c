@@ -21,7 +21,13 @@ perf_counters_t g_perf;
 
 unsigned long long perf_now_us(void)
 {
-	return ticks_to_microsecs(gettick());
+	// gettime() (u64), NOT gettick() (u32): the Wii time base advances at
+	// TB_TIMER_CLOCK*1000 == 60,750,000 ticks/sec, so a 32-bit tick counter
+	// wraps every 2^32/60.75e6 ~= 70.7 seconds. Reports are emitted every
+	// 1800 frames (~30 s), so wraps landed inside measurement windows
+	// routinely, and every "perf_now_us() - t0" that straddled one underflowed
+	// into a huge u64 (cpu_us/present_us showing ~1.8e19 in perf.log).
+	return ticks_to_microsecs(gettime());
 }
 
 void perf_reset(void)
@@ -75,9 +81,9 @@ void perf_report(void)
 			(unsigned long)g_perf.gx_tex_hits, (unsigned long)g_perf.gx_tex_misses,
 			(unsigned long)g_perf.gx_tex_resets, (unsigned long)g_perf.gx_tex_loads,
 			g_perf.gx_tex_bytes, (unsigned long)g_perf.gx_batches);
-		fprintf(f, "gpu: drawdone=%lu drawdone_us=%llu present_us=%llu\n",
+		fprintf(f, "gpu: drawdone=%lu drawdone_us=%llu convert_us=%llu present_us=%llu\n",
 			(unsigned long)g_perf.gx_drawdone, g_perf.gx_drawdone_us,
-			g_perf.present_us);
+			g_perf.gx_convert_us, g_perf.present_us);
 		fprintf(f, "cd: reads=%lu bytes=%llu seq=%lu rand=%lu worst_us=%lu total_us=%llu\n",
 			(unsigned long)g_perf.cd_reads, g_perf.cd_bytes,
 			(unsigned long)g_perf.cd_seq, (unsigned long)g_perf.cd_rand,

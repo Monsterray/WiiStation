@@ -200,7 +200,12 @@ void gx_vout_wait_idle(void)
 	 * token cannot be mistaken for this XFB copy.  This is a rare lifecycle
 	 * boundary, not a per-frame synchronization point. */
 	GX_SetDrawDoneCallback(NULL);
-	GX_DrawDone();
+	{
+		unsigned long long dd_t0 = perf_now_us();
+		GX_DrawDone();
+		PERF_INC(gx_drawdone);
+		PERF_ADD(gx_drawdone_us, perf_now_us() - dd_t0);
+	}
 	if (had_pending_copy && gx_present_inflight)
 	{
 		gc_vout_copydone();
@@ -259,6 +264,8 @@ static void GX_Flip(const void *buffer, int pitch, u8 fmt,
 		return;
 
 
+	unsigned long long convert_t0 = perf_now_us();
+
 	if ((oldwidth != width) || (oldheight != height) || (oldformat != fmt))
 	{ //adjust texture conversion
 		oldwidth = width;
@@ -266,6 +273,7 @@ static void GX_Flip(const void *buffer, int pitch, u8 fmt,
 		oldformat = fmt;
 		memset(GXtexture,0,sizeof(GXtexture));
 		GX_InitTexObj(&GXtexobj, GXtexture, width, height, fmt, GX_CLAMP, GX_CLAMP, GX_FALSE);
+		PERF_INC(gx_tex_resets);
 	}
 
 	if (originalMode == ORIGINALMODE_ENABLE || bilinearFilter != BILINEARFILTER_ENABLE)
@@ -374,6 +382,15 @@ static void GX_Flip(const void *buffer, int pitch, u8 fmt,
 		}
 	}
 	GX_RestoreWriteGatherPipe();
+
+	// The loops above are the per-frame cost on this plugin: the PSX
+	// framebuffer is converted into GX texel order by the CPU. The OpenGX
+	// texture counters in gc_gl.c never move here, so account for it directly.
+	PERF_ADD(gx_convert_us, perf_now_us() - convert_t0);
+	PERF_INC(gx_tex_loads);
+	PERF_ADD(gx_tex_bytes, (unsigned long long)width * height *
+			 ((fmt == GX_TF_RGBA8) ? 4 : 2));
+	PERF_INC(gx_batches);
 
 	GX_LoadTexObj(&GXtexobj, GX_TEXMAP0);
 
