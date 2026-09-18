@@ -50,6 +50,7 @@
 #include <stdbool.h>
 #include "../Gamecube/DEBUG.h"
 #include "../Gamecube/wiiSXconfig.h"
+#include "../Gamecube/perf_prof.h"
 
 ////////////////////////////////////////////////////////////////////////
 // FPS stuff
@@ -155,6 +156,11 @@ void FrameCap (void)
 //	DEBUG_print(txtbuffer,DBG_GPU3);
 #endif //SHOW_DEBUG
      BOOL Waiting = TRUE;
+     /* This spin serves both the Old Soft and OpenGX plugins (via
+      * OldGpuCheckFrameRate) and runs from the VBlank rcnt callback, i.e.
+      * inside a CPU slice -- timed so the profile can tell "capped" from
+      * "CPU-bound", which otherwise look identical. */
+     unsigned long long limit_t0 = perf_now_ticks();
      while (Waiting)
       {
        curticks = timeGetTime();
@@ -171,6 +177,9 @@ void FrameCap (void)
          TicksToWait = dwFrameRateTicks;
         }
       }
+     PERF_ADD(limit_ticks, perf_now_ticks() - limit_t0);
+     PERF_INC(limit_calls);
+     g_perf.limit_target = dwFrameRateTicks;
     }
 }
 

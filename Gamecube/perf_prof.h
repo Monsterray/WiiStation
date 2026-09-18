@@ -68,6 +68,7 @@ typedef struct {
 	 * presents alone under-report speed by 2x. */
 	uint64_t wall_start_ticks;
 	uint32_t vblanks;
+	uint32_t psx_pal;             /* Config.PsxType at last VBlank: 0 NTSC, 1 PAL */
 
 	/* Work that runs INSIDE a slice but is not emulation, so the phase
 	 * buckets above mislabel it. Kept separate so they can be subtracted:
@@ -82,6 +83,7 @@ typedef struct {
 	 * keeps them out of the accumulators to avoid double counting. */
 	uint64_t limit_ticks;
 	uint32_t limit_calls;
+	uint32_t limit_target;        /* dwFrameRateTicks being paced to, 10us units */
 	uint64_t spu_ticks;
 	uint32_t spu_calls;
 	uint64_t hw_ticks;

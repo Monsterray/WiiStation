@@ -401,6 +401,7 @@ void psxRcntUpdate()
         if( hSyncCount == VBlankStart )
         {
             PERF_INC(vblanks);
+            g_perf.psx_pal = Config.PsxType;
             HW_GPU_STATUS &= SWAP32(~PSXGPU_LCF);
             gInterlaceLine = !((frame_counter+1) & 0x1);
             //GPU_vBlank( 1, 0 );

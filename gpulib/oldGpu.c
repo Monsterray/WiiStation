@@ -484,7 +484,11 @@ void updateDisplayIfChanged(void)                      // UPDATE DISPLAY IF CHAN
 
 void PEOPS_GPUupdateLace(void)
 {
-  static char oldframeLimit = 1;
+  /* -1 sentinel so the limiter is re-applied on the first lace after any
+   * plugin switch. PEOPS_GPUopen() covers boot, but a menu switch into this
+   * plugin does not re-open it, and 1 == FRAMELIMIT_AUTO (the default) made
+   * the compare false forever. Same fix as GlesGpu/gpuPlugin.c. */
+  static char oldframeLimit = -1;
   lGPUstatusRet^=0x80000000;                           // odd/even bit
 
   if ( frameLimit[0] != oldframeLimit)

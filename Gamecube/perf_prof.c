@@ -96,13 +96,15 @@ void perf_report(void)
 			(unsigned long)g_perf.jit_resets_partial,
 			(unsigned long)g_perf.jit_interp_fallbacks,
 			(unsigned long)g_perf.jit_hle, (unsigned long)g_perf.jit_exceptions);
-		fprintf(f, "wall: wall_us=%llu vblanks=%lu nested=%lu\n",
+		fprintf(f, "wall: wall_us=%llu vblanks=%lu pal=%lu nested=%lu\n",
 			(unsigned long long)ticks_to_microsecs(gettime() - g_perf.wall_start_ticks),
 			(unsigned long)g_perf.vblanks,
+			(unsigned long)g_perf.psx_pal,
 			(unsigned long)g_perf.jit_nested);
-		fprintf(f, "inside: limit_us=%llu limit=%lu spu_us=%llu spu=%lu hw_us=%llu hw=%lu hw_gpu_us=%llu hw_gpu=%lu\n",
+		fprintf(f, "inside: limit_us=%llu limit=%lu target=%lu spu_us=%llu spu=%lu hw_us=%llu hw=%lu hw_gpu_us=%llu hw_gpu=%lu\n",
 			(unsigned long long)ticks_to_microsecs(g_perf.limit_ticks),
 			(unsigned long)g_perf.limit_calls,
+			(unsigned long)g_perf.limit_target,
 			(unsigned long long)ticks_to_microsecs(g_perf.spu_ticks),
 			(unsigned long)g_perf.spu_calls,
 			(unsigned long long)ticks_to_microsecs(g_perf.hw_ticks),

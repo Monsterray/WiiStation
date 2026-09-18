@@ -1005,7 +1005,13 @@ void CALLBACK GL_GPUupdateLace(void)
 if(!(dwActFixes&AUTO_FIX_CHRONO_CROSS))
  STATUSREG^=0x80000000;                               // interlaced bit toggle, if the CC game fix is not active (see gpuReadStatus)
 
-    static char oldframeLimit = 1;
+    /* -1 is a sentinel no frameLimit value takes, so the limiter is always
+     * applied on the first lace. It used to start at 1 == FRAMELIMIT_AUTO,
+     * the default, so with AUTO from boot the compare was never true and
+     * GPUsetframelimit() never ran: this plugin then inherited whatever
+     * UseFrameLimit the previous plugin's close left behind (0), and ran
+     * unthrottled at ~180% while the FPS display sat clamped at 59.94. */
+    static char oldframeLimit = -1;
 
     if ( frameLimit[0] != oldframeLimit)
         GPUsetframelimit(0);
