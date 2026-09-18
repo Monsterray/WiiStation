@@ -19,6 +19,7 @@
 #include "../compiler_features.h"
 #include "../SoftGPU/externals.h"
 #include "../Gamecube/wiiSXconfig.h"
+#include "../Gamecube/perf_prof.h"
 
 unsigned long  dwEmuFixes;
 
@@ -449,6 +450,21 @@ static int do_vram_io(uint32_t *data, int count, int is_read)
   count *= 2; // operate in 16bpp pixels
 
   renderer_sync();
+#ifdef PERF_PROF
+  if (is_read) {
+    /* debug trace: each VRAM->CPU transfer once (C0) plus a hash of the rect's first 8 rows (C3) */
+    static int lx = -1, ly = -1, lw = -1, lh = -1;
+    if (x != lx || y != ly || w != lw || h != lh) {
+      unsigned hsh = 2166136261u, nz = 0; int r, c;
+      lx = x; ly = y; lw = w; lh = h;
+      perf_prim_trace(0xC0, 0, 0, 0, x, y, x + w, y + h);
+      for (r = 0; r < 8 && r < h; r++) for (c = 0; c < w; c++) {
+        unsigned short v = gpu.vram[((y + r) & 511) * 1024 + ((x + c) & 1023)];
+        hsh = (hsh ^ v) * 16777619u; if (v & 0x7fff) nz++; }
+      perf_prim_trace(0xC3, 0, 0, hsh & 0xffffff, x, y, (int)nz, w * 8);
+    }
+  }
+#endif
 
   if (gpu.dma.offset) {
     l = w - gpu.dma.offset;

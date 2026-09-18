@@ -2683,6 +2683,7 @@ static void primStoreImage ( unsigned char * baseAddr )
 
     iDataReadMode = DR_VRAMTRANSFER;
     g_readbackState = READBACK_PENDING;
+    perf_prim_trace(0xC0, 0, 0, 0, VRAMRead.x, VRAMRead.y, VRAMRead.x + VRAMRead.Width, VRAMRead.y + VRAMRead.Height);   /* VRAM->CPU read */
 
     readMapping = ClassifyReadMapping(VRAMRead.x, VRAMRead.y,
                                       VRAMRead.Width, VRAMRead.Height);

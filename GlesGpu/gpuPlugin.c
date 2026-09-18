@@ -1692,6 +1692,24 @@ if (g_readbackState == READBACK_PENDING)
   writeLogFile(txtbuffer);
 #endif
   g_readbackState = READBACK_DONE;
+#ifdef PERF_PROF
+  /* trace: C1 = readback outcome for this VRAM->CPU read (flags = mapping kind, abr = capture result + 8, col = merged pixels) */
+  perf_prim_trace(0xC1, (unsigned)g_lastReadMapping, (unsigned)(g_lastCaptureResult + 8), (unsigned)g_lastMergedPixels, VRAMRead.x, VRAMRead.y, VRAMRead.x + VRAMRead.Width, VRAMRead.y + VRAMRead.Height);
+  /* C2 = readback state bits: b0 pendingPresented b1 contaminated b2 mixed b3 untracked b4 prevSnapValid b5 liveSnapValid
+   * b6 mapValid b7 contentValid b8 contentDirty b9 asyncInFlight; x1 = prev snapshot FULL tiles, y1 = live snapshot FULL tiles */
+  perf_prim_trace(0xC2, 0, 0,
+      (g_pendingPresentedReady ? 1 : 0) | (g_efbContaminated ? 2 : 0) | (g_mixedMappingSeen ? 4 : 0) | (g_untrackedEfbWrite ? 8 : 0) |
+      (PREV_SNAP()->valid ? 16 : 0) | (LIVE_SNAP()->valid ? 32 : 0) | (g_activeMap.map_valid ? 64 : 0) | (g_activeMap.content_valid ? 128 : 0) |
+      (g_activeMap.content_dirty ? 256 : 0) | (g_asyncCaptureInFlight ? 512 : 0),
+      (int)g_activeMap.map_id, (int)g_prevMapId, CountSnapshotTiles(PREV_SNAP(), EFB_TILE_FULL), CountSnapshotTiles(LIVE_SNAP(), EFB_TILE_FULL));
+  { /* C3 = FNV hash of the rect's first 8 rows in psxVuw after the merge = what the CPU will read; x1 = non-black words */
+    unsigned hsh = 2166136261u, nz = 0; int r, c;
+    for (r = 0; r < 8 && r < VRAMRead.Height; r++) for (c = 0; c < VRAMRead.Width; c++) {
+      unsigned short w = psxVuw[((VRAMRead.y + r) & 511) * 1024 + ((VRAMRead.x + c) & 1023)];
+      hsh = (hsh ^ w) * 16777619u; if (w & 0x7fff) nz++; }
+    perf_prim_trace(0xC3, 0, 0, hsh & 0xffffff, VRAMRead.x, VRAMRead.y, (int)nz, VRAMRead.Width * 8);
+  }
+#endif /* PERF_PROF */
  }
 
 // adjust read ptr, if necessary

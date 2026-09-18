@@ -179,7 +179,7 @@ typedef struct {
 	/* scripted-input events (autoinput.txt): vblank, mask, present index */
 	struct { uint32_t vbl, present; uint16_t mask; } ai_ev[16];
 	uint32_t ai_n;
-	uint16_t pt_prims[8], pt_semi[8], pt_fills[8];
+	uint16_t pt_prims[16], pt_semi[16], pt_fills[16];
 	uint32_t vram_dumped;                /* one-shot VRAM snapshot taken (see perf_prof.c) */
 
 	/* Slice granularity: why the recompiler keeps exiting.

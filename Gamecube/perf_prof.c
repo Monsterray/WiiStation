@@ -120,7 +120,7 @@ void perf_prim_trace(unsigned cmd, unsigned flags, unsigned abr, unsigned color,
 	}
 	if (!g_perf.pt_armed) {
 		if (!trigger) return;
-	} else if (g_perf.present_frames - g_perf.pt_start_present >= 8) {
+	} else if (g_perf.present_frames - g_perf.pt_start_present >= 16) {
 		/* episode complete: keep it until the next overlay starts a new one, so
 		 * the report always shows the most recent episode (e.g. the pause
 		 * screen, not the boot fade) */
@@ -135,10 +135,13 @@ void perf_prim_trace(unsigned cmd, unsigned flags, unsigned abr, unsigned color,
 	}
 	if (!g_perf.pt_armed) { g_perf.pt_armed = 1; g_perf.pt_start_present = g_perf.present_frames; g_perf.pt_start_vblank = g_perf.vblanks; }
 	idx = g_perf.present_frames - g_perf.pt_start_present;
-	if (idx < 8) {
+	if (idx < 16) {
 		if (cmd == 0x02) g_perf.pt_fills[idx]++;
 		else if (cmd != 0xF5 && cmd < 0xE0) { g_perf.pt_prims[idx]++; if (flags & 1) g_perf.pt_semi[idx]++; }
 	}
+	/* keep the ring for what matters: once a quarter full, small opaque
+	 * polygons are counted but no longer stored */
+	if (g_perf.pt_n >= 650 && cmd >= 0x20 && cmd < 0x80 && !(flags & 1) && (x1 - x0) * (y1 - y0) < 60000) return;
 	if (g_perf.pt_n < 2600) {
 		unsigned k = g_perf.pt_n++;
 		g_perf.pt[k].present = (uint16_t)idx; g_perf.pt[k].cmd = (uint8_t)cmd; g_perf.pt[k].flags = (uint8_t)flags;
@@ -160,7 +163,7 @@ static void perf_trace_lines(FILE *f)
 {
 	unsigned k;
 	fprintf(f, "ptrace: armed_at_present=%lu vblank=%lu prims/semi/fills per present:", (unsigned long)g_perf.pt_start_present, (unsigned long)g_perf.pt_start_vblank);
-	for (k = 0; k < 8; k++) fprintf(f, " %u/%u/%u", g_perf.pt_prims[k], g_perf.pt_semi[k], g_perf.pt_fills[k]);
+	for (k = 0; k < 16; k++) fprintf(f, " %u/%u/%u", g_perf.pt_prims[k], g_perf.pt_semi[k], g_perf.pt_fills[k]);
 	fprintf(f, "\n");
 	for (k = 0; k < g_perf.pt_n; k++)
 		fprintf(f, "pt: +%u cmd=%02x %s%s%s%s abr=%u col=%06lx (%d,%d)-(%d,%d)\n",
@@ -185,7 +188,7 @@ static void perf_trace_flush(void)
 void perf_present_tick(unsigned long long present_us)
 {
 	g_perf.present_frames++;
-	if (g_perf.pt_armed && !g_perf.pt_printed && g_perf.present_frames - g_perf.pt_start_present >= 8)
+	if (g_perf.pt_armed && !g_perf.pt_printed && g_perf.present_frames - g_perf.pt_start_present >= 16)
 		perf_trace_flush();
 	g_perf.present_us += present_us;
 	{
@@ -233,6 +236,10 @@ void perf_report(void)
 		uint32_t m2tot = gx_mem2_total() >> 10;
 
 		fprintf(f, "--- perf frames=%lu ---\n", (unsigned long)g_perf.present_frames);
+		{
+			extern uint32_t dwActFixes; extern char CdromId[10];
+			fprintf(f, "fixes: dwActFixes=%08lx cdrom=%s\n", (unsigned long)dwActFixes, CdromId);
+		}
 		fprintf(f, "cpu: slices=%lu int=%lu cpu_us=%llu jit_full=%lu jit_part=%lu interp_fb=%lu hle=%lu exc=%lu\n",
 			(unsigned long)g_perf.jit_slices, (unsigned long)g_perf.int_slices,
 			(unsigned long long)ticks_to_microsecs(g_perf.cpu_ticks),
@@ -326,7 +333,7 @@ void perf_report(void)
 			fprintf(f, "ptrace: armed_at_present=%lu vblank=%lu prims/semi/fills per present:", (unsigned long)g_perf.pt_start_present, (unsigned long)g_perf.pt_start_vblank);
 			/* cmd legend: 02 fill, E3/E4 draw area start/end (x,y), E5 draw offset, F5 display address (x,y),
 			 * F6 horizontal range (x1,x2), F7 vertical range (y1,y2), F8 display mode (raw in col) */
-			for (k = 0; k < 8; k++) fprintf(f, " %u/%u/%u", g_perf.pt_prims[k], g_perf.pt_semi[k], g_perf.pt_fills[k]);
+			for (k = 0; k < 16; k++) fprintf(f, " %u/%u/%u", g_perf.pt_prims[k], g_perf.pt_semi[k], g_perf.pt_fills[k]);
 			fprintf(f, "\n");
 			for (k = 0; k < g_perf.pt_n; k++)
 				fprintf(f, "pt: +%u cmd=%02x %s%s%s%s abr=%u col=%06lx (%d,%d)-(%d,%d)\n",

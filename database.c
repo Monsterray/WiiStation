@@ -146,6 +146,11 @@ static const char * const special_game_hack_vram_readback[] =
     "SLES03221", "SLES03222", "SLES03223", "SLES03224", "SLES03225",
     /* Vagrant Story */
     "SLPS02377", "SCPS45486", "SLPS91457", "SLPM87393", "SLUS01040",
+    /* Spyro the Dragon: the pause screen reads the rendered frame back
+     * (GP0 C0), converts it to an 8-bit texture at VRAM (512,0) and redraws
+     * it tinted over a green fill; without readback the texture is empty
+     * and only the green fill shows (NTSC-U, PAL, NTSC-J) */
+    "SCUS94228", "SCES01438", "SCPS10083",
 };
 
 #define HACK_ENTRY(var, list) \
