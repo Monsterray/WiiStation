@@ -17,8 +17,13 @@
  *   51 Franklin Street, Fifth Floor, Boston, MA 02111-1307 USA.           *
  ***************************************************************************/
 
+#include <string.h>
+#include <stdio.h>
+#include <unistd.h>
 #include <ogc/machine/processor.h>
 #include <ogc/lwp.h>
+#include <ogc/ipc.h>
+#include <ogc/cache.h>
 #include "KernelHID.h"
 #include "usb.h"
 #include "../Gamecube/DEBUG.h"

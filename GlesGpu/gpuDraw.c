@@ -37,6 +37,11 @@
 #include "../gpulib/stdafx.h"
 #include "../Gamecube/DEBUG.h"
 
+extern void SetScanTrans(void); // gpuPrim.h -- declared locally rather than
+                                 // including that header here (see the
+                                 // commented-out #include "gpuPrim.h" above)
+extern void ogx_initialize(void); // deps/opengx/opengx.h
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>

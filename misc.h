@@ -71,6 +71,7 @@ int SendPcsxInfo();
 int RecvPcsxInfo();
 
 void trim(char *str);
+int BiosBootBypass();
 u16 calcCrc(u8 *d, int len);
 
 extern char *LabelAuthors;

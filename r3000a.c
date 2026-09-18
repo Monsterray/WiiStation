@@ -21,6 +21,8 @@
 * R3000A CPU functions.
 */
 
+#include "psxcommon.h"
+#include "misc.h"
 #include "r3000a.h"
 #include "psxhw.h"
 #include "psxdma.h"

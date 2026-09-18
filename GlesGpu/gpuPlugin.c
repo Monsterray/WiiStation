@@ -57,6 +57,13 @@
 #include "../Gamecube/MEM2.h"
 #include "../Gamecube/perf_prof.h"
 
+extern int gx_vout_open(void); // SoftGPU/drawGX.c
+// _Bool, not bool: this file sees "#define bool unsigned short" (2 bytes,
+// from gpuPlugin.h/gpulib/stdafx.h), but the real definition in
+// Gamecube/libgui/GraphicsGX.cpp is genuine C++ bool (1 byte) -- writing
+// "bool" here would silently declare the wrong parameter width.
+extern void switchToTVMode(short dWidth, short dHeight, _Bool retMenu);
+
 static short DrawSemiTrans=FALSE;
 static short ly0,lx0,ly1,lx1,ly2,lx2,ly3,lx3;        // global psx vertex coords
 static int   GlobalTextAddrX, GlobalTextAddrY, GlobalTextTP;

@@ -6,6 +6,7 @@
 #include <assert.h>
 #include <sys/stat.h>
 
+#include "psxcommon.h"
 #include "cdrom.h"
 #include "gte.h"
 #include "mdec.h"

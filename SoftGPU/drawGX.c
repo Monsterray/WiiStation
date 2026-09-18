@@ -86,6 +86,7 @@ void drawLine(float x1, float y1, float x2, float y2, char r, char g, char b);
 void drawCircle(int x, int y, int radius, int numSegments, char r, char g, char b);
 
 void switchToTVMode(short dWidth, short dHeight, bool retMenu);
+void pl_chg_psxtype(int is_pal_); // defined below; used earlier in this file
 
 static int vsync_enable;
 static int new_frame;

@@ -29,6 +29,7 @@ static signed long long cdOpenCaseTime = 0;
 
 #define EXT
 #include "../psxcommon.h"
+#include "../cdriso.h"
 #include "GamecubePlugins.h"
 #define CheckErr(func) \
     err = SysLibError(); \

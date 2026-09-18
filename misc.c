@@ -22,6 +22,7 @@
 */
 
 #include <assert.h>
+#include "psxcommon.h"
 #include "misc.h"
 #include "cdrom.h"
 #include "psxhw.h"

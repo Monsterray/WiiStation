@@ -19,6 +19,7 @@
 
 #include <stdio.h>
 #include <unistd.h>
+#include <ogc/cache.h>
 
 #include "global.h"
 #include "KernelHID.h"

@@ -37,5 +37,6 @@ void SetAutoFrameCap(void);
 void SetFPSHandler(void);
 void InitFPS(void);
 void CheckFrameRate(void);
+void OldGpuCheckFrameRate(void);
 
 #endif // _FPS_INTERNALS_H

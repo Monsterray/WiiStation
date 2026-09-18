@@ -1,3 +1,4 @@
+#include "psxcommon.h"
 #include "misc.h"
 #include "sio.h"
 #include "ppf.h"

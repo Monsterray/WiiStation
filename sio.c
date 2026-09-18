@@ -29,6 +29,8 @@
 #include "Gamecube/wiiSXconfig.h"
 #include "Gamecube/PadSSSPSX.h"
 
+void netError(void); // defined below; used earlier in this file
+
 // *** FOR WORKS ON PADS AND MEMORY CARDS *****
 
 static unsigned char buf[256];

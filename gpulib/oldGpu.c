@@ -121,10 +121,13 @@
 
 #include "../SoftGPU/externals.h"
 #include "../SoftGPU/oldGpuFps.h"
+#include "../SoftGPU/draw.h"
 #include "gpu.h"
 #include "../gpu.h"
 #include "../database.h"
 
+void CALLBACK GPUsetframelimit(unsigned long option); // defined below; used earlier in this file
+int gc_vout_open(void); // SoftGPU/drawGX.c
 
 ////////////////////////////////////////////////////////////////////////
 // PPDK developer must change libraryName field and can change revision and build

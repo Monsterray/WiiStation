@@ -42,6 +42,7 @@
 extern char mcd1Written;
 extern char mcd2Written;
 
+#include "psxcommon.h"
 #include "psxbios.h"
 #include "psxhw.h"
 #include "gpu.h"
@@ -49,6 +50,8 @@ extern char mcd2Written;
 #include "cdrom.h"
 #include "psxhle.h"
 #include "psxinterpreter.h"
+
+extern void irq_test(psxCP0Regs *cp0); // lightrec.c
 
 #ifndef PSXBIOS_LOG
 //#define PSXBIOS_LOG printf
@@ -674,6 +677,7 @@ void psxBios_atoi() { // 0x10
 		switch (*p) {
 			case ' ': case '\t': continue;
 			case '-': f++;
+				/* fall through */
 			case '+': p++;
 		}
 		break;
@@ -4612,32 +4616,6 @@ void psxBiosCheckExe(u32 t_addr, u32 t_size, int loading_state)
 			SysPrintf("HLE vsync @%08x\n", start + i * 4);
 		psxRegs.biosBranchCheck = (t_addr & 0xa01ffffc) + i * 4;
 	}
-}
-
-void psxBiosCheckBranch(void)
-{
-#if 1
-	// vsync HLE hack
-	static u32 cycles_prev, v0_prev;
-	u32 cycles_passed, waste_cycles;
-	u32 loops, v0_expect = v0_prev - 1;
-	if (v0 != 1)
-		return;
-	execI(&psxRegs);
-	cycles_passed = psxRegs.cycle - cycles_prev;
-	cycles_prev = psxRegs.cycle;
-	v0_prev = v0;
-	if (cycles_passed < 10 || cycles_passed > 50 || v0 != v0_expect)
-		return;
-
-	waste_cycles = schedule_timeslice() - psxRegs.cycle;
-	loops = waste_cycles / cycles_passed;
-	if (loops > v0)
-		loops = v0;
-	v0 -= loops;
-	psxRegs.cycle += loops * cycles_passed;
-	//printf("c %4u %d\n", loops, cycles_passed);
-#endif
 }
 
 #define bfreeze(ptr, size) { \
