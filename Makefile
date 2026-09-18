@@ -23,6 +23,7 @@ opengx.a:
 	@echo "Building opengx.a library for PPC"
 	@echo " "
 	$(MAKE) -C deps/opengx -f Makefile
+	$(MAKE) -C deps/opengx -f Makefile PROF=1
 
 lightrecNoLog.a:
 	@echo " "

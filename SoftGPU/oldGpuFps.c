@@ -179,7 +179,9 @@ void FrameCap (void)
       }
      PERF_ADD(limit_ticks, perf_now_ticks() - limit_t0);
      PERF_INC(limit_calls);
+#ifdef PERF_PROF
      g_perf.limit_target = dwFrameRateTicks;
+#endif
     }
 }
 

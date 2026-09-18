@@ -704,6 +704,7 @@ static unsigned short upload_semi_flag(unsigned w, unsigned h, int x, int y, int
     if (st) PERF_INC(ogx_upl_semi); else PERF_INC(ogx_upl_opaque);
     if (st != gl) {
         PERF_INC(ogx_upl_mismatch);
+#ifdef PERF_PROF
         if (g_perf.ogx_mm_n < 8) {
             unsigned k = g_perf.ogx_mm_n++;
             g_perf.ogx_mm[k].w = w;   g_perf.ogx_mm[k].h = h;
@@ -711,6 +712,7 @@ static unsigned short upload_semi_flag(unsigned w, unsigned h, int x, int y, int
             g_perf.ogx_mm[k].dw = dw; g_perf.ogx_mm[k].dh = dh;
             g_perf.ogx_mm[k].blend = gl; g_perf.ogx_mm[k].semi = st;
         }
+#endif
     }
     return st;
 }
@@ -3296,6 +3298,7 @@ static void draw_arrays_general(float *ptr_pos, float *ptr_normal, float *ptr_te
 }
 
 
+#ifdef PERF_PROF
 /* Probe for the flat-polygon investigation: is the texture this draw is
  * about to sample uniform over the region it samples? Texels are read from
  * the texture's tiled RAM buffer (RGB5A3, 4x4 blocks of 32 bytes), i.e.
@@ -3433,6 +3436,11 @@ static void probe_equiv(const void *vertexAdr, int nv)
         g_perf.ogx_eq[k].exp = exp0; g_perf.ogx_eq[k].got = got; g_perf.ogx_eq[k].nv = nv;
     }
 }
+
+#else
+static inline void probe_uniform(int gt, const void *vertexAdr, int nv) { (void)gt; (void)vertexAdr; (void)nv; }
+static inline void probe_equiv(const void *vertexAdr, int nv) { (void)vertexAdr; (void)nv; }
+#endif /* PERF_PROF */
 
 void glPRIMdrawTexturedQuad( void* vertexAdr, int changePointOrder )
 {

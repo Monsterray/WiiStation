@@ -11,8 +11,18 @@ include $(DEVKITPPC)/wii_rules
 
 INCLUDES := ./
 
-# Directories.
+# Directories. PROF=1 builds the profiler-instrumented variant that the
+# debug executable links (-DPERF_PROF, see Gamecube/perf_prof.h); the plain
+# build is what the release executable links.
+ifeq ($(PROF),1)
+OBJ_DIR			:= obj_prof
+LIB_NAME		:= libOpengx_prof.a
+PROF_DEFINES	:= -DPERF_PROF
+else
 OBJ_DIR			:= obj
+LIB_NAME		:= libOpengx.a
+PROF_DEFINES	:=
+endif
 LIB_DIR			:= lib
 OPENGX_OBJ_DIR		:= $(OBJ_DIR)
 OPENGX_SRC_DIR		:= ./
@@ -35,12 +45,12 @@ export INCLUDE	:=	$(foreach dir,$(INCLUDES),-I$(CURDIR)/$(dir)) \
 			        -I$(LIBOGC_INC)
 
 # What's a full build?
-all: $(LIB_DIR)/libOpengx.a
+all: $(LIB_DIR)/$(LIB_NAME)
 
 # How to delete the intermediate files.
 clean:
 	@echo Cleaning $(LIB_DIR) $(OPENGX_OBJS)
-	@rm -fr $(LIB_DIR) $(OPENGX_OBJS) $(OPENGX_OBJS:.o=.d)
+	@rm -fr $(LIB_DIR) obj obj_prof
 
 install: all
 	@mkdir -p $(INSTALL_HEADER_DIR) $(INSTALL_LIB_DIR)
@@ -52,7 +62,7 @@ install: all
 run: all install
 
 # How to build a library.
-$(LIB_DIR)/libOpengx.a: $(OPENGX_OBJS)
+$(LIB_DIR)/$(LIB_NAME): $(OPENGX_OBJS)
 	@echo Archiving $@
 	@-mkdir -p $(dir $@)
 	powerpc-eabi-ar crs $@ $(OPENGX_OBJS)
@@ -61,7 +71,7 @@ $(LIB_DIR)/libOpengx.a: $(OPENGX_OBJS)
 # Compilation flags.
 COMMON_FLAGS	:= -g -O2 -w $(MACHDEP) -fvisibility=hidden
 INCLUDES		:= -Iinclude -I$(LIBOGC_INC)
-DEFINES			:= -DGEKKO
+DEFINES			:= -DGEKKO $(PROF_DEFINES)
 CFLAGS			:= $(COMMON_FLAGS) $(INCLUDES) $(INCLUDE) $(DEFINES) --pedantic -D__BIG_ENDIAN -D__powerpc__ -DBIG_ENDIAN -DLOG_LEVEL=0 -DNDEBUG
 
 # Test link flags.

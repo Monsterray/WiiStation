@@ -758,6 +758,7 @@ void InvalidateTextureArea(int X,int Y,int W, int H)
 {
  /* probe: every VRAM area whose cached textures are dropped (image loads,
   * moves, CPU writes) -- i.e. every way VRAM gets new content. */
+#ifdef PERF_PROF
  PERF_INC(ogx_va_all);
  if (X <= 895 && X + W >= 768 && Y <= 255) {
   PERF_INC(ogx_va_roi);
@@ -766,6 +767,7 @@ void InvalidateTextureArea(int X,int Y,int W, int H)
    g_perf.ogx_va[k].x0 = X; g_perf.ogx_va[k].y0 = Y; g_perf.ogx_va[k].x1 = X + W; g_perf.ogx_va[k].y1 = Y + H;
   }
  }
+#endif
  if(W==0 && H==0) return;
 
  if(iMaxTexWnds) InvalidateWndTextureArea(X,Y,W,H);
@@ -3140,11 +3142,13 @@ void CompressTextureSpace(void)
 
 GLuint SelectSubTextureS(int TextureMode, unsigned int GivenClutId)
 {
+#ifdef PERF_PROF
  g_perf.ogx_cur_mode = TextureMode;   /* probe: mode of the texture the next draw samples */
  g_perf.ogx_cur_clut = GivenClutId; g_perf.ogx_cur_page = GlobalTexturePage;
  g_perf.ogx_cur_tx = GlobalTextAddrX; g_perf.ogx_cur_ty = GlobalTextAddrY;
  g_perf.ogx_cur_semi = DrawSemiTrans; g_perf.ogx_cur_twin = bUsingTWin;
  { int qi; for (qi = 0; qi < 4; qi++) { g_perf.ogx_cur_u[qi] = gl_ux[qi]; g_perf.ogx_cur_v[qi] = gl_vy[qi]; } }
+#endif
  textureSubCacheEntryS *newEntry;
  uint64_t clutKey;
  unsigned short iCache;short cx,cy;

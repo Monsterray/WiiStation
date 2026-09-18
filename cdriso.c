@@ -219,8 +219,12 @@ static void perf_cd_done(unsigned long long t0, int ret)
 		PERF_INC(cd_reads);
 		PERF_ADD(cd_bytes, (unsigned long long)ret);
 	}
+#ifdef PERF_PROF
 	if ((uint32_t)dt > g_perf.io_worst_us)
 		g_perf.io_worst_us = (uint32_t)dt;
+#else
+	(void)dt;
+#endif
 }
 
 // Track the position a successful read actually left the stream at (not

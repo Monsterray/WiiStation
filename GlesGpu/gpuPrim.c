@@ -1260,6 +1260,7 @@ static BOOL bDrawOffscreen3 ( void )
 }
 
 
+#ifdef PERF_PROF
 /* Probe (render-to-texture investigation). kind 1/2: a quad/tri whose
  * destination is outside the visible buffers -- offsetPSX*() makes lx and ly
  * absolute VRAM coordinates and bDrawOffscreen*() applies the same test the
@@ -1299,6 +1300,9 @@ static void probe_offscreen(int kind, unsigned int color)
         g_perf.ogx_op[k].color = (uint16_t)BGR24to16(color);
     }
 }
+#else
+static inline void probe_offscreen(int kind, unsigned int color) { (void)kind; (void)color; }
+#endif /* PERF_PROF */
 
 ////////////////////////////////////////////////////////////////////////
 static PSXRect_t xUploadArea;

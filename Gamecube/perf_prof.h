@@ -33,6 +33,12 @@ extern "C" {
  * it costs, so these are counted separately as pure overhead. */
 #define SLICE_TINY_CYCLES 64
 
+/* The profiler exists only in builds compiled with -DPERF_PROF (the debug
+ * Makefile and the matching libOpengx_prof.a). Release builds get no-op
+ * macros and inline zero timers below, so every call site compiles away and
+ * real hardware pays nothing for the instrumentation. */
+#ifdef PERF_PROF
+
 typedef struct {
 	/* CPU / JIT (Wii adapter level, lightrec.c) */
 	uint32_t jit_slices;          /* lightrec execute slices run */
@@ -253,6 +259,18 @@ void perf_report(void);
 /* Call once per presented emulated frame with the flip cost in us.
  * Accumulates present time and auto-reports ~every 30 s. */
 void perf_present_tick(unsigned long long present_us);
+
+#else /* !PERF_PROF: everything is a no-op */
+
+#define PERF_INC(f)    ((void)0)
+#define PERF_ADD(f, n) ((void)(n))
+static inline unsigned long long perf_now_us(void) { return 0; }
+static inline unsigned long long perf_now_ticks(void) { return 0; }
+static inline void perf_reset(void) {}
+static inline void perf_report(void) {}
+static inline void perf_present_tick(unsigned long long present_us) { (void)present_us; }
+
+#endif /* PERF_PROF */
 
 #ifdef __cplusplus
 }

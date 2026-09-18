@@ -145,6 +145,9 @@ static void lightrec_tansition_from_pcsx(struct lightrec_state *state)
  * including the DMA-channel kick that rasterizes an entire display list. It
  * all happens inside lightrec_execute(), so without this timing it is
  * indistinguishable from JIT time in the profile. */
+#ifndef PERF_PROF
+#define HW_TIMED(expr) do { expr; } while (0)
+#else
 #define HW_TIMED(expr) do { \
 	unsigned long long hw_t0_ = perf_now_ticks(), hw_dt_; \
 	expr; \
@@ -157,6 +160,7 @@ static void lightrec_tansition_from_pcsx(struct lightrec_state *state)
 		PERF_INC(hw_gpu_calls); \
 	} \
 } while (0)
+#endif /* PERF_PROF */
 
 static void hw_write_byte(struct lightrec_state *state,
 			  u32 op, void *host, u32 mem, u32 val)

@@ -1,3 +1,4 @@
+#ifdef PERF_PROF
 /* perf_prof.c - Phase 1 profiling counters + report.
  *
  * Report sinks (best effort, never fatal):
@@ -277,3 +278,6 @@ void perf_report(void)
 	DEBUG_print(line, 25);
 #endif
 }
+#else
+typedef int perf_prof_disabled_in_this_build;
+#endif /* PERF_PROF */
