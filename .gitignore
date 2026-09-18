@@ -25,3 +25,6 @@ AGENTS.md
 # path to the codebase-memory-mcp binary, so it would not work elsewhere.
 # (.cbmignore is deliberately NOT ignored: those rules are portable.)
 .mcp.json
+
+# Dolphin input movies and their savestates used for local testing
+movies/
