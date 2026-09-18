@@ -354,8 +354,40 @@ int fileBrowser_libfat_readFile(fileBrowser_file* file, void* buffer, unsigned i
 	return bytes_read;
 }
 
+/* fopen(..., "wb") fails outright if the parent directory does not exist, and
+ * nothing else in the tree ever creates sd:/wiisxrx/saves. On a card that only
+ * has wiisxrx/isos (the usual hand-made layout), every memory-card write
+ * therefore failed and the only symptom was "Failed to save game" when leaving
+ * a game -- a whole session's progress lost to a missing folder. Create the
+ * chain on demand so saving works on a fresh card with no setup step.
+ *
+ * Only the directories are created, never the file itself: the loop acts on
+ * each '/' in turn and the last path component (the filename) has no trailing
+ * slash to trigger on. An existing directory just returns EEXIST, which is the
+ * normal case and is deliberately ignored. */
+static void makeParentDirs(const char* path) {
+	char dir[FILE_BROWSER_MAX_PATH_LEN];
+	char* p;
+
+	strncpy(dir, path, sizeof(dir) - 1);
+	dir[sizeof(dir) - 1] = '\0';
+
+	/* Skip the "sd:/" / "usb:/" mount prefix -- mkdir on a mount point is
+	 * meaningless and would only fail. */
+	p = strchr(dir, '/');
+	if(!p) return;
+
+	for(p = p + 1; *p; ++p) {
+		if(*p != '/') continue;
+		*p = '\0';
+		mkdir(dir, 0777);
+		*p = '/';
+	}
+}
+
 int fileBrowser_libfat_writeFile(fileBrowser_file* file, void* buffer, unsigned int length){
   pauseRemovalThread();
+	makeParentDirs(file->name);
 	FILE* f = fopen( file->name, "wb" );
 	if(!f) { continueRemovalThread(); return FILE_BROWSER_ERROR; }
 
