@@ -79,6 +79,36 @@ static void perf_vram_dump(void)
 	}
 }
 
+/* Primitive-stream trace. flags: bit0 semi-transparent, bit1 textured,
+ * bit2 quad, bit3 gouraud. cmd 0x02 = fill, 0xF5 = display address change
+ * (x0,y0 = new position). Arms on the first untextured semi-transparent
+ * polygon at least 200x150 PSX pixels; records the next 96 events and
+ * per-present counts for 8 presents. */
+void perf_prim_trace(unsigned cmd, unsigned flags, unsigned abr, unsigned color, int x0, int y0, int x1, int y1)
+{
+	unsigned idx;
+#ifndef PERF_PT_ARM_PRESENT
+#define PERF_PT_ARM_PRESENT 1725   /* autoboot intro: 'Entering demo mode' loading screen */
+#endif
+	if (!g_perf.pt_armed) {
+		if (((flags & 3) == 1 && cmd >= 0x20 && cmd < 0x80 && (x1 - x0) >= 200 && (y1 - y0) >= 150) ||
+		    (PERF_PT_ARM_PRESENT && g_perf.present_frames >= PERF_PT_ARM_PRESENT)) {
+			g_perf.pt_armed = 1; g_perf.pt_start_present = g_perf.present_frames;
+		} else return;
+	}
+	idx = g_perf.present_frames - g_perf.pt_start_present;
+	if (idx < 8) {
+		if (cmd == 0x02) g_perf.pt_fills[idx]++;
+		else if (cmd != 0xF5) { g_perf.pt_prims[idx]++; if (flags & 1) g_perf.pt_semi[idx]++; }
+	}
+	if (g_perf.pt_n < 96) {
+		unsigned k = g_perf.pt_n++;
+		g_perf.pt[k].present = (uint16_t)idx; g_perf.pt[k].cmd = (uint8_t)cmd; g_perf.pt[k].flags = (uint8_t)flags;
+		g_perf.pt[k].abr = (uint8_t)abr; g_perf.pt[k].color = color & 0xffffff;
+		g_perf.pt[k].x0 = (int16_t)x0; g_perf.pt[k].y0 = (int16_t)y0; g_perf.pt[k].x1 = (int16_t)x1; g_perf.pt[k].y1 = (int16_t)y1;
+	}
+}
+
 void perf_present_tick(unsigned long long present_us)
 {
 	g_perf.present_frames++;
@@ -203,6 +233,21 @@ void perf_report(void)
 					g_perf.ogx_op[k].kind, g_perf.ogx_op[k].tex,
 					g_perf.ogx_op[k].x0, g_perf.ogx_op[k].y0, g_perf.ogx_op[k].x1, g_perf.ogx_op[k].y1,
 					g_perf.ogx_op[k].color);
+		}
+		if (g_perf.pt_armed) {
+			unsigned k;
+			fprintf(f, "ptrace: armed_at_present=%lu prims/semi/fills per present:", (unsigned long)g_perf.pt_start_present);
+			/* cmd legend: 02 fill, E3/E4 draw area start/end (x,y), E5 draw offset, F5 display address (x,y),
+			 * F6 horizontal range (x1,x2), F7 vertical range (y1,y2), F8 display mode (raw in col) */
+			for (k = 0; k < 8; k++) fprintf(f, " %u/%u/%u", g_perf.pt_prims[k], g_perf.pt_semi[k], g_perf.pt_fills[k]);
+			fprintf(f, "\n");
+			for (k = 0; k < g_perf.pt_n; k++)
+				fprintf(f, "pt: +%u cmd=%02x %s%s%s%s abr=%u col=%06lx (%d,%d)-(%d,%d)\n",
+					g_perf.pt[k].present, g_perf.pt[k].cmd,
+					(g_perf.pt[k].flags & 1) ? "S" : "-", (g_perf.pt[k].flags & 2) ? "T" : "-",
+					(g_perf.pt[k].flags & 4) ? "Q" : "-", (g_perf.pt[k].flags & 8) ? "G" : "-",
+					g_perf.pt[k].abr, (unsigned long)g_perf.pt[k].color,
+					g_perf.pt[k].x0, g_perf.pt[k].y0, g_perf.pt[k].x1, g_perf.pt[k].y1);
 		}
 		fprintf(f, "ogxeq: n=%lu mism=%lu hole=%lu\n",
 			(unsigned long)g_perf.ogx_eq_n, (unsigned long)g_perf.ogx_eq_mism, (unsigned long)g_perf.ogx_eq_hole);

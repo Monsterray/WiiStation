@@ -974,6 +974,18 @@ static inline void SetRenderState ( unsigned int DrawAttributes )
 
 static void SetRenderMode ( unsigned int DrawAttributes, BOOL bSCol )
 {
+#ifdef PERF_PROF
+    {
+        unsigned cmd = (DrawAttributes >> 24) & 0xff;
+        int nv = (cmd & 0x08) ? 4 : 3, i, x0 = 4096, y0 = 4096, x1 = -4096, y1 = -4096;
+        for (i = 0; i < nv; i++) {
+            int x = (int)vertex[i].x, y = (int)vertex[i].y;
+            if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+        }
+        perf_prim_trace(cmd, (DrawSemiTrans ? 1 : 0) | (bDrawTextured ? 2 : 0) | ((cmd & 0x08) ? 4 : 0) | ((cmd & 0x10) ? 8 : 0),
+                        GlobalTextABR, DrawAttributes, x0, y0, x1, y1);
+    }
+#endif
     SetSemiTrans();
 
     glSetTextureMask( sSetMask ? 1 : 0 );
@@ -2256,6 +2268,8 @@ static void cmdDrawAreaStart ( unsigned char * baseAddr )
 
     PSXDisplay.DrawArea.y0 = ( short ) drawY;             // for OGL drawing
     PSXDisplay.DrawArea.x0 = ( short ) drawX;
+    perf_prim_trace(0xE3, 0, 0, gdata, drawX, drawY, 0, 0);
+    bDisplayNotSet = TRUE;                                // -> re-apply the drawing-area clip
 
     #if defined(DISP_DEBUG)
     sprintf ( txtbuffer, "cmdDrawAreaStart %d %d\r\n", drawX, drawY);
@@ -2289,6 +2303,8 @@ static void cmdDrawAreaEnd ( unsigned char * baseAddr )
 
     PSXDisplay.DrawArea.y1 = ( short ) drawH;             // for OGL drawing
     PSXDisplay.DrawArea.x1 = ( short ) drawW;
+    perf_prim_trace(0xE4, 0, 0, gdata, drawW, drawH, 0, 0);
+    bDisplayNotSet = TRUE;                                // -> re-apply the drawing-area clip
 
     #if defined(DISP_DEBUG)
     sprintf ( txtbuffer, "cmdDrawAreaEnd %d %d\r\n", drawW, drawH);
@@ -2359,6 +2375,7 @@ static void cmdDrawOffset ( unsigned char * baseAddr )
 //sprintf(txtbuffer, "drawOffset %d %d %d %d %d %d %d %d\r\n", PSXDisplay.CumulOffset.x, PSXDisplay.CumulOffset.y, PSXDisplay.DrawOffset.x, PSXDisplay.DrawOffset.y, PreviousPSXDisplay.Range.x0, PreviousPSXDisplay.Range.y0, PSXDisplay.GDrawOffset.x, PSXDisplay.GDrawOffset.y);
 //DEBUG_print(txtbuffer, DBG_GPU2);
 #endif // DISP_DEBUG
+    perf_prim_trace(0xE5, 0, 0, 0, PSXDisplay.DrawOffset.x, PSXDisplay.DrawOffset.y, 0, 0);
 }
 
 #define CHK_FPS_DISP1(x, y, w, h) { \
@@ -2750,6 +2767,7 @@ static void primBlkFill ( unsigned char * baseAddr )
     sprtH = GETLEs16 ( &sgpuData[5] ) & iGPUHeightMask;
 
     probe_offscreen(0, GETLE32 ( &gpuData[0] ));
+    perf_prim_trace(0x02, 0, 0, GETLE32(&gpuData[0]), sprtX, sprtY, sprtX + sprtW, sprtY + sprtH);
     if (sprtW == 0 || sprtH == 0)
     {
         #if defined(DISP_DEBUG) && defined(CMD_LOG_2D)
@@ -2849,9 +2867,11 @@ static void primBlkFill ( unsigned char * baseAddr )
             bDrawSmoothShaded = FALSE;
             SetRenderState ( ( unsigned int ) 0x01000000 );
             SetRenderMode ( ( unsigned int ) 0x01000000, FALSE );
+            glScissor(rRatioRect.left, rRatioRect.top, rRatioRect.right, rRatioRect.bottom); /* GP0 02 ignores the drawing area */
             vertex[0].c.lcol = gpuData[0] | 0xFF;
             SETCOL ( vertex[0] );
             glPRIMdrawQuad ( &vertex[0] );
+            bSetClip = TRUE; bDisplayNotSet = TRUE;                  /* next primitive re-applies the clip */
         }
         gl_z = 0.0f;
     }
@@ -2870,9 +2890,11 @@ static void primBlkFill ( unsigned char * baseAddr )
         bDrawSmoothShaded = FALSE;
         SetRenderState ( ( unsigned int ) 0x01000000 );
         SetRenderMode ( ( unsigned int ) 0x01000000, FALSE );
+        glScissor(rRatioRect.left, rRatioRect.top, rRatioRect.right, rRatioRect.bottom); /* GP0 02 ignores the drawing area */
         vertex[0].c.lcol = gpuData[0] | 0xFF;
         SETCOL ( vertex[0] );
         glPRIMdrawQuad ( &vertex[0] );
+        bSetClip = TRUE; bDisplayNotSet = TRUE;                  /* next primitive re-applies the clip */
     }
 
     if (!clearNext)

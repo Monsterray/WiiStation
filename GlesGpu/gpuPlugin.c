@@ -1172,6 +1172,7 @@ switch(lCommand)
 
   // setting display position
   case 0x05:
+   perf_prim_trace(0xF5, 0, 0, gdata, (int)(gdata & 0x3ff), (int)((gdata >> 10) & 0x1ff), 0, 0);
    {
     short sx=(short)(gdata & 0x3ff);
     short sy;
@@ -1302,6 +1303,7 @@ switch(lCommand)
 
   // setting width
   case 0x06:
+   perf_prim_trace(0xF6, 0, 0, gdata, (int)(gdata & 0xfff), (int)((gdata >> 12) & 0xfff), 0, 0);
    {
     short oldRangeX0 = PSXDisplay.Range.x0;
     short oldRangeX1 = PSXDisplay.Range.x1;
@@ -1331,6 +1333,7 @@ switch(lCommand)
 
   // setting height
   case 0x07:
+   perf_prim_trace(0xF7, 0, 0, gdata, (int)(gdata & 0x3ff), (int)((gdata >> 10) & 0x3ff), 0, 0);
    {
     int txStarted = 0;
 
@@ -1368,6 +1371,7 @@ switch(lCommand)
 
   // setting display infos
   case 0x08:
+   perf_prim_trace(0xF8, 0, 0, gdata, 0, 0, 0, 0);
    {
     GXDisplayMap proposed;
     int txStarted;

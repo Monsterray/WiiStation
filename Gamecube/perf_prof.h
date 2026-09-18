@@ -173,6 +173,10 @@ typedef struct {
 	uint32_t ogx_eq_n, ogx_eq_mism, ogx_eq_hole;
 	struct { uint16_t texid, mode, page, clut, pu, pv, x, y, exp, got; uint8_t nv; } ogx_eq[8];
 	uint32_t ogx_eq_r;
+	/* Primitive-stream trace (see perf_prim_trace in perf_prof.c). */
+	struct { uint16_t present; uint8_t cmd, flags, abr; uint32_t color; int16_t x0, y0, x1, y1; } pt[96];
+	uint32_t pt_n, pt_armed, pt_start_present;
+	uint16_t pt_prims[8], pt_semi[8], pt_fills[8];
 	uint32_t vram_dumped;                /* one-shot VRAM snapshot taken (see perf_prof.c) */
 
 	/* Slice granularity: why the recompiler keeps exiting.
@@ -259,6 +263,7 @@ void perf_report(void);
 /* Call once per presented emulated frame with the flip cost in us.
  * Accumulates present time and auto-reports ~every 30 s. */
 void perf_present_tick(unsigned long long present_us);
+void perf_prim_trace(unsigned cmd, unsigned flags, unsigned abr, unsigned color, int x0, int y0, int x1, int y1);
 
 #else /* !PERF_PROF: everything is a no-op */
 
@@ -269,6 +274,8 @@ static inline unsigned long long perf_now_ticks(void) { return 0; }
 static inline void perf_reset(void) {}
 static inline void perf_report(void) {}
 static inline void perf_present_tick(unsigned long long present_us) { (void)present_us; }
+static inline void perf_prim_trace(unsigned cmd, unsigned flags, unsigned abr, unsigned color, int x0, int y0, int x1, int y1)
+{ (void)cmd; (void)flags; (void)abr; (void)color; (void)x0; (void)y0; (void)x1; (void)y1; }
 
 #endif /* PERF_PROF */
 
