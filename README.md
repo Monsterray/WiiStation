@@ -84,6 +84,10 @@ WiiStation (formerly WiiSXRX_2022), is a Sony PlayStation 1 (PS1/PSX/PSone) emul
 
 Any help is appreciated.
 
+## Configuration
+
+All settings of the `settingsRX2022.cfg` file, the per-game settings files, `autoboot.txt` and the other files in `wiisxrx/` are described in [SETTINGS.md](SETTINGS.md).
+
 ## Compilation information
 
 * devkitPPC r41-2 + libOGC2 (until git [7456c4ab](https://github.com/extremscorner/libogc2/commit/7456c4abf3e8e8ccd7eac7bb7cbe808128befa55)) + SDL + GNU Lightning + Lightrec
