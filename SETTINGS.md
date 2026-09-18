@@ -67,8 +67,20 @@ On the Wii, a loader can give settings as arguments after the program name. Each
 | `BiosDevice` | 0 = HLE, 1 = SD, 2 = USB | 0 | General, Select Bios | Selects the BIOS source. HLE is the built-in BIOS emulation. The file `SCPH1001.BIN` must exist in `wiisxrx/bios/` on the device. If the file does not exist, WiiStation uses HLE. The DVD option in the menu is not implemented. |
 | `BootThruBios` | 0 = No, 1 = Yes | 0 | General, Boot Through Bios | Shows the PlayStation start screen before the game starts. |
 | `gpuPlugin` | 0 = Old Soft, 1 = New Soft, 2 = OpenGX | 0 | General, GPU Plugin | Selects the graphics renderer. Old Soft and New Soft draw with the CPU. OpenGX draws with the Wii graphics hardware. A change resets the current game. |
-| `lang` | 0 = English, 1 = Simplified Chinese, 2 = Korean, 3 = Spanish, 4 = Portuguese, 5 = Italian, 6 = German, 7 = Traditional Chinese, 8 = Japanese, 9 = French, 10 = Brazilian Portuguese, 11 = Catalan, 12 = Turkish | 0 | General, Select language | Selects the menu language. The language files are in `wiisxrx/lang/`. The menu does not show a language if its font file is missing. |
+| `lang` | 0 to 12, see the language table below | 0 | General, Select language | Selects the menu language. The language files are in `wiisxrx/lang/`. The menu does not show a language if its font file is missing. |
 | `fastLoad` | 0 = No, 1 = Yes | 0 | General, Fast Load | Makes CD reads faster than a real console. Some games do not work correctly with this setting. |
+
+The values of `lang` are:
+
+| Value | Language | Value | Language |
+|---|---|---|---|
+| 0 | English | 7 | Traditional Chinese |
+| 1 | Simplified Chinese | 8 | Japanese |
+| 2 | Korean | 9 | French |
+| 3 | Spanish | 10 | Brazilian Portuguese |
+| 4 | Portuguese | 11 | Catalan |
+| 5 | Italian | 12 | Turkish |
+| 6 | German | | |
 
 ## 3. Video settings
 
