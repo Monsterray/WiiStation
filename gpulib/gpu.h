@@ -33,7 +33,10 @@ extern "C" {
 #define SWAP32(x) __builtin_bswap32(x)
 
 #define SWAP16_C(x) (((x)>>8 & 0xff) | ((x)<<8 & 0xff00))
-#define SWAP32_C(x) (((x)>>24 & 0xfful) | ((x)>>8 & 0xff00ul) | ((x)<<8 & 0xff0000ul) | ((x)<<24 & 0xff000000ul))
+// Cast to unsigned long before shifting: with a plain (signed) int argument,
+// the left-shifts here can compute a bit pattern that overflows what a
+// 32-bit signed int can represent before the mask below narrows it back down.
+#define SWAP32_C(x) ((((unsigned long)(x))>>24 & 0xfful) | (((unsigned long)(x))>>8 & 0xff00ul) | (((unsigned long)(x))<<8 & 0xff0000ul) | (((unsigned long)(x))<<24 & 0xff000000ul))
 
 
 #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
@@ -49,15 +52,15 @@ inline unsigned short GETLE16(unsigned short *ptr) {
     unsigned short ret; __asm__ ("lhbrx %0, 0, %1" : "=r" (ret) : "r" (ptr));
     return ret;
 }
-inline unsigned long GETLE32(unsigned long *ptr) {
-    unsigned long ret; __asm__ ("lwbrx %0, 0, %1" : "=r" (ret) : "r" (ptr));
+inline uint32_t GETLE32(uint32_t *ptr) {
+    uint32_t ret; __asm__ ("lwbrx %0, 0, %1" : "=r" (ret) : "r" (ptr));
     return ret;
 }
 
 inline void PUTLE16(unsigned short *ptr, unsigned short val) {
     __asm__ ("sthbrx %0, 0, %1" : : "r" (val), "r" (ptr) : "memory");
 }
-inline void PUTLE32(unsigned long *ptr, unsigned long val) {
+inline void PUTLE32(uint32_t *ptr, uint32_t val) {
     __asm__ ("stwbrx %0, 0, %1" : : "r" (val), "r" (ptr) : "memory");
 }
 
@@ -79,7 +82,7 @@ inline void PUTLE32(unsigned long *ptr, unsigned long val) {
 #endif
 
 #define GETLEs16(X) ((short)GETLE16((unsigned short *)X))
-#define GETLEs32(X) ((long)GETLE32((unsigned long *)X))
+#define GETLEs32(X) ((long)GETLE32((uint32_t *)X))
 
 
 #define BIT(x) (1 << (x))

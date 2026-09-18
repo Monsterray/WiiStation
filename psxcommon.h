@@ -58,6 +58,12 @@ typedef uintptr_t uptr;
 #include "system.h"
 #include "coredebug.h"
 
+// Also declared in ppc/pR3000A.h (its original home); redeclared here since
+// this is the header nearly every core file already includes, and several
+// of them (database.c, lightrec.c, misc.c, psxbios.c, r3000a.c) call
+// SysPrintf without ever pulling in the CPU-recompiler-specific header.
+extern void SysPrintf(char *fmt, ...);
+
 /* Ryan TODO WTF is this? */
 #if defined (__LINUX__) || defined (__MACOSX__) || defined(HW_RVL) || defined(HW_DOL)
 #define strnicmp strncasecmp
@@ -171,10 +177,14 @@ enum {
 };	/* PSX Type */
 
 // To improve execution efficiency, use built-in instructions lhbrx, lwbrx, sthbrx, stwbrx to accelerate byte swapping
-#define LOAD_SWAP16p(ptr) ({u16 __ret, *__ptr=(ptr); __asm__ ("lhbrx %0, 0, %1" : "=r" (__ret) : "r" (__ptr)); __ret;})
-#define LOAD_SWAP32p(ptr) ({u32 __ret, *__ptr=(ptr); __asm__ ("lwbrx %0, 0, %1" : "=r" (__ret) : "r" (__ptr)); __ret;})
-#define STORE_SWAP16p(ptr,val) ({u16 __val=(val), *__ptr=(ptr); __asm__ ("sthbrx %0, 0, %1" : : "r" (__val), "r" (__ptr) : "memory");})
-#define STORE_SWAP32p(ptr,val) ({u32 __val=(val), *__ptr=(ptr); __asm__ ("stwbrx %0, 0, %1" : : "r" (__val), "r" (__ptr) : "memory");})
+// Callers pass all sorts of pointer types (s8*, u8*, ...) reinterpreted as
+// wider PSX RAM/register accesses -- the explicit casts below make that
+// reinterpretation visible instead of leaving it as an implicit conversion
+// GCC has to warn about at every call site.
+#define LOAD_SWAP16p(ptr) ({u16 __ret, *__ptr=(u16*)(ptr); __asm__ ("lhbrx %0, 0, %1" : "=r" (__ret) : "r" (__ptr)); __ret;})
+#define LOAD_SWAP32p(ptr) ({u32 __ret, *__ptr=(u32*)(ptr); __asm__ ("lwbrx %0, 0, %1" : "=r" (__ret) : "r" (__ptr)); __ret;})
+#define STORE_SWAP16p(ptr,val) ({u16 __val=(val), *__ptr=(u16*)(ptr); __asm__ ("sthbrx %0, 0, %1" : : "r" (__val), "r" (__ptr) : "memory");})
+#define STORE_SWAP32p(ptr,val) ({u32 __val=(val), *__ptr=(u32*)(ptr); __asm__ ("stwbrx %0, 0, %1" : : "r" (__val), "r" (__ptr) : "memory");})
 #define STORE_SWAP32p2(ptr,val) ({u32 __val=(val); __asm__ ("stwbrx %0, 0, %1" : : "r" (__val), "r" (ptr) : "memory");})
 
 #define FIK0(fid)    (FK0[fid])

@@ -16,20 +16,20 @@
 #define BE2HOST16(x) (x)
 
 #define GETLEs16(X) ((short)GETLE16((unsigned short *)X))
-#define GETLEs32(X) ((short)GETLE32((unsigned short *)X))
+#define GETLEs32(X) ((short)GETLE32((uint32_t *)X))
 
 #ifdef _BIG_ENDIAN
 inline unsigned short GETLE16(unsigned short *ptr) {
     unsigned short ret; __asm__ ("lhbrx %0, 0, %1" : "=r" (ret) : "r" (ptr));
     return ret;
 }
-inline unsigned long GETLE32(unsigned long *ptr) {
-    unsigned long ret;
+inline uint32_t GETLE32(uint32_t *ptr) {
+    uint32_t ret;
     __asm__ ("lwbrx %0, 0, %1" : "=r" (ret) : "r" (ptr));
     return ret;
 }
-inline unsigned long GETLE16D(unsigned long *ptr) {
-    unsigned long ret;
+inline uint32_t GETLE16D(uint32_t *ptr) {
+    uint32_t ret;
     __asm__ ("lwbrx %0, 0, %1\n"
              "rlwinm %0, %0, 16, 0, 31" : "=r" (ret) : "r" (ptr));
     return ret;
@@ -38,7 +38,7 @@ inline unsigned long GETLE16D(unsigned long *ptr) {
 inline void PUTLE16(unsigned short *ptr, unsigned short val) {
     __asm__ ("sthbrx %0, 0, %1" : : "r" (val), "r" (ptr) : "memory");
 }
-inline void PUTLE32(unsigned long *ptr, unsigned long val) {
+inline void PUTLE32(uint32_t *ptr, uint32_t val) {
     __asm__ ("stwbrx %0, 0, %1" : : "r" (val), "r" (ptr) : "memory");
 }
 
