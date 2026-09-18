@@ -8,9 +8,17 @@
 # the one this is tested against.
 #
 # Usage:
-#   scripts/build.sh            # debug build (WiiSXRX_debug.dol)
-#   scripts/build.sh release    # release build (WiiSXRX_Release.dol)
-#   scripts/build.sh clean      # clean all build artifacts
+#   scripts/build.sh              # debug build (WiiSXRX_debug.dol)
+#   scripts/build.sh release      # release build (WiiSXRX_Release.dol)
+#   scripts/build.sh debug-warn   # debug build with -Wall -Wextra (WARN=1)
+#   scripts/build.sh release-warn # release build with -Wall -Wextra (WARN=1)
+#   scripts/build.sh clean        # clean all build artifacts
+#
+# The *-warn variants build with real compiler warnings enabled instead of
+# the default fully-quiet (-w) build -- use them when auditing the codebase
+# for real bugs; expect several hundred warnings that are legacy-C style
+# noise (unused parameters in plugin callbacks, sign-compare, etc.) rather
+# than a regression -- see Gamecube/Makefile_Wii's CWARNFLAGS comment.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -53,16 +61,26 @@ case "${1:-debug}" in
 		make -C Gamecube -f Makefile_Wii
 		echo "Output: Gamecube/WiiSXRX_debug.dol"
 		;;
+	debug-warn)
+		make opengx.a lightrecWithLog.a zstd.a lzma.a zlibstatic.a chdrstatic.a
+		make -C Gamecube -f Makefile_Wii WARN=1
+		echo "Output: Gamecube/WiiSXRX_debug.dol"
+		;;
 	release)
 		make opengx.a lightrecNoLog.a zstd.a lzma.a zlibstatic.a chdrstatic.a
 		make -C Gamecube -f Makefile_Wii_Release
+		echo "Output: Gamecube/WiiSXRX_Release.dol"
+		;;
+	release-warn)
+		make opengx.a lightrecNoLog.a zstd.a lzma.a zlibstatic.a chdrstatic.a
+		make -C Gamecube -f Makefile_Wii_Release WARN=1
 		echo "Output: Gamecube/WiiSXRX_Release.dol"
 		;;
 	clean)
 		make clean
 		;;
 	*)
-		echo "Usage: $0 [debug|release|clean]"
+		echo "Usage: $0 [debug|release|debug-warn|release-warn|clean]"
 		exit 1
 		;;
 esac
