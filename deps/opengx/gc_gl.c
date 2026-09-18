@@ -1906,6 +1906,23 @@ int glTexSubImage2D(GLenum target, GLint level,
     gltexture_ *currtex = &texture_list[glparamstate.glcurtex];
     unsigned char * semiTransBufPtr = (currtex->semiTransData == 0 ? semiTransBuf : currtex->semiTransData);
 
+    /* semiTransBuf is a shared scratch that is never cleared. On a texture's
+     * first semi-transparent sub-upload, the scramble below writes only the
+     * sub-rectangle into it, and the lazy-alloc path further down then
+     * memcpy()s the whole w*h*2 extent into the new semiTransData -- so every
+     * texel outside the sub-rect was whatever the last full scramble of some
+     * OTHER texture left behind. Semi-transparent draws of this texture then
+     * sampled that ghost, and which ghost depended on upload order: textures
+     * popping in and out under OpenGX. Zero the extent first, only on the
+     * lazy path, so the copy materialises "transparent everywhere except the
+     * sub-rect". RGB5A3 zero is transparent black, the correct neutral; the
+     * extent is <= sizeof(semiTransBuf) by the same 256x256 contract the
+     * opaque data path already relies on; and the scratch is never bound to
+     * GX, so nothing races the GPU. Covers both the block-aligned and the
+     * per-pixel unaligned paths, which write within the same extent. */
+    if (currtex->semiTransData == 0)
+        memset(semiTransBuf, 0, currtex->w * currtex->h * 2);
+
     if ((xoffset & 3) == 0 && (yoffset & 3) == 0)
     {
         // The position happens to be the integer position of the Block
