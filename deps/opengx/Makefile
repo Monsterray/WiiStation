@@ -40,7 +40,7 @@ all: $(LIB_DIR)/libOpengx.a
 # How to delete the intermediate files.
 clean:
 	@echo Cleaning $(LIB_DIR) $(OPENGX_OBJS)
-	@rm -fr $(LIB_DIR) $(OPENGX_OBJS)
+	@rm -fr $(LIB_DIR) $(OPENGX_OBJS) $(OPENGX_OBJS:.o=.d)
 
 install: all
 	@mkdir -p $(INSTALL_HEADER_DIR) $(INSTALL_LIB_DIR)
@@ -71,4 +71,12 @@ LDFLAGS			:= $(COMMON_FLAGS) -L$(LIB_DIR) -L$(LIBOGC_LIB) $(PORTLIBS_PATH)/wii/l
 $(OPENGX_OBJ_DIR)/%.o: $(OPENGX_SRC_DIR)/%.c
 	@echo Compiling $<
 	@-mkdir -p $(dir $@)
-	powerpc-eabi-gcc $(CFLAGS) -c $< -o $@ $(PIPE_TO_SED)
+	powerpc-eabi-gcc $(CFLAGS) -MMD -MP -c $< -o $@ $(PIPE_TO_SED)
+
+# This rule bypasses devkitPro's base_rules, so it gets no automatic header
+# tracking: gc_gl.c includes ../../Gamecube/perf_prof.h and writes into its
+# struct, and without these two lines a header change left a stale
+# libOpengx.a storing profiler counters at the wrong offsets. -MMD above
+# emits obj/<name>.d beside each object; include them so a header edit
+# rebuilds what depends on it.
+-include $(OPENGX_OBJS:.o=.d)
