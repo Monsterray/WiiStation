@@ -462,6 +462,13 @@ void loadSettings(int argc, char *argv[])
 
 	//Sync settings with config
 	Config.Cpu=dynacore;
+	// Seed the live frame-limit value from the just-loaded setting. Only
+	// frameLimit[1] is persisted ("LimitFrames"); frameLimit[0] is what the
+	// GPU plugins actually gate FrameCap() on, and it is zero-initialised
+	// (FRAMELIMIT_NONE), so without this it stays "off" until something
+	// happens to propagate it -- which is why the menu could read AUTO while
+	// the emulator ran unthrottled.
+	frameLimit[0] = frameLimit[1];
 	//iUseDither = useDithering;
 	setSpuInterpolation(spuInterpolation);
 
@@ -986,6 +993,12 @@ void SysReset() {
 }
 
 void SysStartCPU() {
+	// frameLimit[1] is the persisted "LimitFrames" setting; frameLimit[0] is
+	// the live value the GPU plugins actually gate FrameCap() on. Func_PlayGame
+	// copies one to the other before its own go(), but this path (reset/
+	// autoboot) did not -- leaving the limiter off entirely, since
+	// frameLimit[0] is zero-initialised (FRAMELIMIT_NONE).
+	frameLimit[0] = frameLimit[1];
 	go();
 }
 
