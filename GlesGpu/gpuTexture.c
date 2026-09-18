@@ -2489,6 +2489,7 @@ void DefineSubTextureSort(void)
   #endif // DISP_DEBUG
 
   int textureType;
+  PERF_INC(ogx_sub_new);
   textureType = glTexSubImage2D(GL_TEXTURE_2D, 0, XTexS, YTexS,
                  DXTexS, DYTexS,
                  GL_RGBA, GL_UNSIGNED_BYTE, texturepart); glError();
@@ -2510,6 +2511,7 @@ void DefineSubTextureSort(void)
 void DoTexGarbageCollection(void)
 {
  static unsigned short LRUCleaned=0;
+ PERF_INC(ogx_gc);
  unsigned short iC,iC1,iC2;
  int i,j,iMax;textureSubCacheEntryS * tsb;
 
@@ -2600,6 +2602,7 @@ textureSubCacheEntryS *CheckTextureInSubSCache(
 
          ubOpaqueDraw=DrawInfoOpaque(tsb->drawInfo);
          *pCache=tsb->cTexID;
+         PERF_INC(ogx_sub_hit);
          return NULL;
         }
       }

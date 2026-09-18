@@ -96,6 +96,16 @@ typedef struct {
 	uint32_t hw_gpu_calls;
 	uint32_t jit_nested;
 
+	/* OpenGX texture-cache behaviour (GlesGpu/gpuTexture.c + deps/opengx),
+	 * for the texture pop-in investigation: how hard the 64-page sub-texture
+	 * pool is churning, and how often the opaque/semi-transparent layer
+	 * split drops a draw outright. */
+	uint32_t ogx_gc;          /* DoTexGarbageCollection calls (4 pages recycled each) */
+	uint32_t ogx_sub_new;     /* sub-texture uploads, i.e. cache misses */
+	uint32_t ogx_sub_hit;     /* sub-texture cache hits */
+	uint32_t ogx_skip;        /* draws dropped: layer lacks the needed texel type */
+	uint32_t ogx_unaligned;   /* glTexSubImage2D took the per-pixel (unaligned) path */
+
 	/* Slice granularity: why the recompiler keeps exiting.
 	 *
 	 * A slice runs until the nearest pending PSX event, so the event that

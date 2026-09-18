@@ -1932,6 +1932,7 @@ int glTexSubImage2D(GLenum target, GLint level,
     }
     else
     {
+        PERF_INC(ogx_unaligned);
         // It is not the position of the integer Block, so we need to write data to different blocks
         unsigned char * dstBlock = currtex->data;
         unsigned char * semiTransDstBlock = semiTransBufPtr;
@@ -2892,6 +2893,7 @@ static inline int _ogx_apply_state(int texen, int color_enabled)
                 }
                 else
                 {
+                    PERF_INC(ogx_skip);
                     return 0;
                 }
             }
@@ -2904,6 +2906,7 @@ static inline int _ogx_apply_state(int texen, int color_enabled)
                 }
                 else
                 {
+                    PERF_INC(ogx_skip);
                     return 0;
                 }
             }
@@ -2923,6 +2926,7 @@ static inline int _ogx_apply_state(int texen, int color_enabled)
             }
             else
             {
+                PERF_INC(ogx_skip);
                 return 0;
             }
         }

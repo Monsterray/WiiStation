@@ -142,6 +142,10 @@ void perf_report(void)
 		fprintf(f, "gpu: drawdone=%lu drawdone_us=%llu convert_us=%llu present_us=%llu\n",
 			(unsigned long)g_perf.gx_drawdone, g_perf.gx_drawdone_us,
 			g_perf.gx_convert_us, g_perf.present_us);
+		fprintf(f, "ogx: gc=%lu sub_new=%lu sub_hit=%lu skip=%lu unaligned=%lu\n",
+			(unsigned long)g_perf.ogx_gc, (unsigned long)g_perf.ogx_sub_new,
+			(unsigned long)g_perf.ogx_sub_hit, (unsigned long)g_perf.ogx_skip,
+			(unsigned long)g_perf.ogx_unaligned);
 		fprintf(f, "cd: reads=%lu bytes=%llu seq=%lu rand=%lu worst_us=%lu total_us=%llu\n",
 			(unsigned long)g_perf.cd_reads, g_perf.cd_bytes,
 			(unsigned long)g_perf.cd_seq, (unsigned long)g_perf.cd_rand,
