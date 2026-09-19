@@ -141,6 +141,7 @@ void IplFont::setVmode(GXRModeObj *rmode)
 }
 
 extern "C" char menuActive;
+extern "C" char menuFont[];     /* GamecubeMain.cpp, global namespace */
 
 FILE* IplFont::getFontFile(char* sdUsb)
 {
@@ -149,6 +150,17 @@ FILE* IplFont::getFontFile(char* sdUsb)
     configFile_init(configFile_file);
 
     char fontPathBuf[256];
+    /* A font chosen in the settings file (MenuFont = "Name") replaces the
+     * language's default file for every script the .dat files can hold
+     * (Latin); the CJK and Korean languages keep their own glyph sets. */
+    if (menuFont[0] && lang != SIMP_CHINESE && lang != TRAD_CHINESE &&
+        lang != KOREAN && lang != JAPANESE)
+    {
+        FILE* f;
+        snprintf(fontPathBuf, sizeof(fontPathBuf), "%s:/wiisxrx/fonts/%s.dat", sdUsb, menuFont);
+        f = fopen(fontPathBuf, "rb");
+        if (f) return f;
+    }
     switch(lang)
     {
         case SIMP_CHINESE:

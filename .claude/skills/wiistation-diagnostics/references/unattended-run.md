@@ -32,8 +32,11 @@ Timing: boot to menu ≈ 15 s, autoboot into a game ≈ 20 s; a PSX vblank is 1/
 time and the emulation runs near real time, so vblank N happens ≈ 20 + N/60 s after launch;
 frame dumping slows Dolphin (allow 1.5x). Frame index ≈ vblank for NTSC titles.
 
-Only one Dolphin may run: `tasklist | grep -i dolphin` before every run; if it is the user's,
-wait or ask. The frames of a previous run must be moved out before the next.
+Only one Dolphin may run. `dolphin_run.sh` refuses to start while a `Dolphin.exe` exists and
+kills only the PID it launched; earlier versions killed by image name and closed the user's own
+session twice. The symptom of a collision is `Rename failed ... Access is denied` in dolphin.log
+and a boot without SD card (no autoboot, no frames). The frames of a previous run must be moved
+out before the next.
 
 ## Files that drive the run
 

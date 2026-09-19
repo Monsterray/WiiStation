@@ -180,6 +180,7 @@ enum padAutoAssign
 };
 
 extern char padType[10];
+extern char menuFont[];          // menu font file name without .dat (empty = built-in)
 enum padType
 {
 	PADTYPE_NONE=0,

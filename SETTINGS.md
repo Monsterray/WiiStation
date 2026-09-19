@@ -68,6 +68,7 @@ On the Wii, a loader can give settings as arguments after the program name. Each
 | `BootThruBios` | 0 = No, 1 = Yes | 0 | General, Boot Through Bios | Shows the PlayStation start screen before the game starts. |
 | `gpuPlugin` | 0 = Old Soft, 1 = New Soft, 2 = OpenGX | 0 | General, GPU Plugin | Selects the graphics renderer. Old Soft and New Soft draw with the CPU. OpenGX draws with the Wii graphics hardware. A change resets the current game. |
 | `lang` | 0 to 12, see the language table below | 0 | General, Select language | Selects the menu language. The language files are in `wiisxrx/lang/`. The menu does not show a language if its font file is missing. |
+| `MenuFont` | `"Name"` | empty | none, settings file only | Selects the menu font. WiiStation loads `wiisxrx/fonts/Name.dat` from the SD card or the USB device. An empty value or a missing file gives the built-in font. The value does not apply to the Chinese, Japanese and Korean languages, which have their own glyph files. See section 9 for the font files. |
 | `fastLoad` | 0 = No, 1 = Yes | 0 | General, Fast Load | Makes CD reads faster than a real console. Some games do not work correctly with this setting. |
 
 The values of `lang` are:
@@ -176,6 +177,7 @@ WiiStation starts the network only when `smbsharename` and `smbipaddr` are both 
 | `autoboot.txt` | Starts a game without the menu. See section 10. |
 | `autoinput.txt` | Presses controller buttons at given times. See section 11. |
 | `bios/SCPH1001.BIN` | The PlayStation BIOS. Needed when `BiosDevice` is 1 or 2. |
+| `fonts/<Name>.dat` | A menu font, selected with `MenuFont`. The repository has three in `fonts/menu/`: `Classic` (the original glyphs, descenders cut), `Segoe` (the built-in face with full descenders and Latin accents) and `Times` (a Times New Roman face). Make a new one with `scripts/genfont.py`. |
 | `ppf/` | PPF patch files. WiiStation applies a patch with the same name as the game. |
 | `lang/` | Menu language files. |
 | `fonts/chs.dat` | Font file for the Chinese menu language. |

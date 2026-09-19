@@ -12,6 +12,9 @@ set -u
 OUT="$1"; SECS="${2:-170}"; AIN="${3:-}"; SET="${4:-}"; ABOOT="${5:-}"
 D="/c/tools/Dolphin-x64"; CFG="$D/User/Config"; S="$D/User/Load/WiiSDSync/wiisxrx"; P="$D/User/Load/WiiSDSync_paused_by_claude"
 SP="$(cd "$(dirname "$0")" && pwd)"   # sheet.py and sdimage_read.py live next to this script
+if tasklist 2>/dev/null | grep -qi "Dolphin.exe"; then
+  echo "refusing to start: a Dolphin instance is already running (the SD image would be locked and the kill below would hit it)"; exit 2
+fi
 mkdir -p "$OUT/frames"
 cp "$CFG/Dolphin.ini" "$OUT/Dolphin.ini.orig"; cp "$CFG/GFX.ini" "$OUT/GFX.ini.orig"; cp "$CFG/Logger.ini" "$OUT/Logger.ini.orig" 2>/dev/null || true
 python - "$CFG/Dolphin.ini" "$CFG/GFX.ini" <<'PY'
@@ -43,8 +46,10 @@ cp "${AIN:-$P/autoinput.txt}" "$S/autoinput.txt"; cp "${SET:-$P/settingsRX2022.c
 if [ -n "$ABOOT" ]; then cp "$S/autoboot.txt" "$OUT/autoboot.txt.orig"; cp "$ABOOT" "$S/autoboot.txt"; fi
 echo "framedump run: start $(date +%T)"
 "$D/Dolphin.exe" -b -e /c/projects/WiiStation/Gamecube/WiiSXRX_debug.dol &
+DPID=$!; sleep 2; WPID=$(ps -p $DPID 2>/dev/null | awk 'NR==2{print $4}')
 sleep "$SECS"
-taskkill //IM Dolphin.exe //F >/dev/null 2>&1 || true
+# kill only the instance this script started, never every Dolphin on the machine
+if [ -n "$WPID" ]; then taskkill //PID "$WPID" //F >/dev/null 2>&1 || true; else kill $DPID 2>/dev/null || true; fi
 sleep 3
 cp "$OUT/Dolphin.ini.orig" "$CFG/Dolphin.ini"; cp "$OUT/GFX.ini.orig" "$CFG/GFX.ini"; [ -f "$OUT/Logger.ini.orig" ] && cp "$OUT/Logger.ini.orig" "$CFG/Logger.ini"
 rm -f "$S/autoinput.txt" "$S/settingsRX2022.cfg"

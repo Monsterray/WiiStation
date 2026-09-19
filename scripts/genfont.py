@@ -80,7 +80,8 @@ def build(ttf, px, glyphs, keep_widths):
             lowered.append((ch, base - baseline))
         img = Image.new("L", (CELL, CELL), 0)
         ImageDraw.Draw(img).text((1, base), ch, font=font, fill=255, anchor="ls")
-        adv = old_w if keep_widths else max(1, round(font.getlength(ch)) + 1)
+        # drawString() itself advances by width + 1, so store the bare advance
+        adv = old_w if keep_widths else max(1, round(font.getlength(ch)))
         bbox = img.getbbox()
         if bbox and bbox[2] > adv + 1:
             # keep layouts stable but never let a glyph run into the next one
@@ -109,19 +110,31 @@ def preview(path, old, new, text, scale=3):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--ref", required=True, help=".dat or .zip containing one .dat")
+    ap.add_argument("--ref", help=".dat or .zip containing one .dat (character set and widths)")
+    ap.add_argument("--charset", choices=["ascii", "latin"],
+                    help="instead of --ref: ASCII 0x20-0x7E, or Latin = ASCII + Latin-1 Supplement + Latin Extended-A")
     ap.add_argument("--ttf", required=True); ap.add_argument("--out", required=True)
     ap.add_argument("--px", type=int, default=24); ap.add_argument("--preview")
     ap.add_argument("--new-widths", action="store_true")
     ap.add_argument("--text", default="Settings Play Game Quit gjpqy@Q")
     a = ap.parse_args()
-    if a.ref.lower().endswith(".zip"):
-        with zipfile.ZipFile(a.ref) as z:
-            name = [n for n in z.namelist() if n.lower().endswith(".dat")][0]
-            ref = z.read(name)
+    name = None
+    if a.charset:
+        codes = list(range(0x20, 0x7F))
+        if a.charset == "latin":
+            codes += list(range(0xA0, 0x100)) + list(range(0x100, 0x180))
+        old = [(c, 0, b"") for c in codes]
+        a.new_widths = True                      # no reference widths to keep
+    elif a.ref:
+        if a.ref.lower().endswith(".zip"):
+            with zipfile.ZipFile(a.ref) as z:
+                name = [n for n in z.namelist() if n.lower().endswith(".dat")][0]
+                ref = z.read(name)
+        else:
+            ref = open(a.ref, "rb").read()
+        old = read_dat(ref)
     else:
-        name = None; ref = open(a.ref, "rb").read()
-    old = read_dat(ref)
+        sys.exit("give --ref or --charset")
     data, px, baseline = build(a.ttf, a.px, old, not a.new_widths)
     if a.out.lower().endswith(".zip"):
         with zipfile.ZipFile(a.out, "w", zipfile.ZIP_DEFLATED) as z:

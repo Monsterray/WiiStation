@@ -156,6 +156,7 @@ char smbUserName[CONFIG_STRING_SIZE];
 char smbPassWord[CONFIG_STRING_SIZE];
 char smbShareName[CONFIG_STRING_SIZE];
 char smbIpAddr[CONFIG_STRING_SIZE];
+char menuFont[CONFIG_STRING_SIZE];   /* MenuFont = "Name": sd:/wiisxrx/fonts/Name.dat replaces the built-in menu font */
 
 int stop = 0;
 bool needInitCpu = true;
@@ -213,6 +214,7 @@ static struct {
   { "smbpassword", smbPassWord, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "smbsharename", smbShareName, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "smbipaddr", smbIpAddr, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
+  { "MenuFont", menuFont, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "lang", &lang, ENGLISH, TURKISH },
   { "fastLoad", &fastLoad, 0, 1 },
   { "TVMode", &originalMode, ORIGINALMODE_DISABLE, ORIGINALMODE_ENABLE },
@@ -376,6 +378,7 @@ void loadSettings(int argc, char *argv[])
 	videoMode		 = VIDEOMODE_AUTO;
 	fileSortMode	 = FILESORT_DIRS_FIRST;
 	padAutoAssign	 = PADAUTOASSIGN_AUTOMATIC;
+	menuFont[0]		 = 0;              // built-in font
 	for (int i = 0; i < 10; i++){
 		padType[i]		 = PADTYPE_NONE;
 		padAssign[i]	 = PADASSIGN_INPUT0;
