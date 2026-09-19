@@ -143,7 +143,8 @@ def main():
         open(a.out, "wb").write(data)
     print(f"wrote {a.out}: {len(old)} glyphs, {len(data)} bytes", file=sys.stderr)
     if a.preview:
-        preview(a.preview, old, read_dat(data), a.text)
+        # with --charset there is no reference font: the top row stays empty
+        preview(a.preview, [] if a.charset else old, read_dat(data), a.text)
 
 if __name__ == "__main__":
     main()
