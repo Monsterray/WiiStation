@@ -66,7 +66,7 @@ traces. Read it before forming a theory about display buffers, textures or input
 symptom → probe → mechanism, including the wrong turns; skim it to calibrate how much theory
 a run should be spent on.
 
-`docs/BACKENDS.md` maps every backend (CPU core, GPU, SPU, CD, pad, host input, fonts,
+`Docs/BACKENDS.md` maps every backend (CPU core, GPU, SPU, CD, pad, host input, fonts,
 settings) to its vtable, its selector and its traps; start there before adding or swapping one.
 
 ## Reading, asking, checking

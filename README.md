@@ -101,7 +101,7 @@ The unattended test loop (scripted input, debug-build probes, frame and VRAM dum
 
 ## Backends
 
-The CPU cores, GPU renderers, sound, CD-ROM, pad and font backends, how each is selected and what a new one must provide, are described in [docs/BACKENDS.md](docs/BACKENDS.md).
+The CPU cores, GPU renderers, sound, CD-ROM, pad and font backends, how each is selected and what a new one must provide, are described in [Docs/BACKENDS.md](Docs/BACKENDS.md).
 
 ## Compilation information
 
