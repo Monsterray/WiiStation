@@ -1864,6 +1864,134 @@ extern const unsigned char primTableCX[];
 // processes data send to GPU data register
 ////////////////////////////////////////////////////////////////////////
 
+////////////////////////////////////////////////////////////////////////
+// Off-screen primitives -> software rasterizer.
+//
+// GX only renders what lands in the display buffers; a primitive whose
+// destination is VRAM outside both buffers never reaches the EFB and the
+// software copy of VRAM (psxVuw) does not get it either. Games and the BIOS
+// shell draw into such areas on purpose -- the shell renders its spheres and
+// button splashes off-screen and then paints them as 15-bit textures, which
+// this port then sampled as black. Those primitives are rasterized here with
+// the New Soft renderer (SoftGPU/gpulib_if.c, same psxVuw), preceded by the
+// current E1..E6 state so its clip/texture/offset match. Lines are left to
+// GX (their word count is only known to the primitive itself).
+////////////////////////////////////////////////////////////////////////
+
+/* do_cmd_list() comes from ../gpulib/gpu.h (SoftGPU/gpulib_if.c implements it) */
+static uint32_t g_gp0TexWindow;            /* last GP0 E2 word (little-endian) */
+
+static inline int Gp0SignExtend11(unsigned int v)
+{
+    return ((int)(v & 0x7FF) << 21) >> 21;
+}
+
+static int OffscreenPrimBounds(unsigned char cmd, const unsigned long *d, int n,
+                               int *bx0, int *by0, int *bx1, int *by1)
+{
+    int x0 = 4096, y0 = 4096, x1 = -4096, y1 = -4096;
+    int k, nv, stride, idx;
+    uint32_t w;
+
+    if (cmd >= 0x20 && cmd <= 0x3F)
+    {
+        nv = (cmd & 0x08) ? 4 : 3;
+        stride = 1 + ((cmd & 0x04) ? 1 : 0) + ((cmd & 0x10) ? 1 : 0);
+        if (1 + (nv - 1) * stride >= n) return 0;
+        for (k = 0, idx = 1; k < nv; k++, idx += stride)
+        {
+            int x, y;
+            w = GETLE32(&d[idx]);
+            x = Gp0SignExtend11(w) + PSXDisplay.DrawOffset.x;
+            y = Gp0SignExtend11(w >> 16) + PSXDisplay.DrawOffset.y;
+            if (x < x0) x0 = x;
+            if (y < y0) y0 = y;
+            if (x + 1 > x1) x1 = x + 1;
+            if (y + 1 > y1) y1 = y + 1;
+        }
+    }
+    else if (cmd >= 0x60 && cmd <= 0x7F)
+    {
+        int sw, sh;
+        if (n < 2) return 0;
+        w = GETLE32(&d[1]);
+        x0 = Gp0SignExtend11(w) + PSXDisplay.DrawOffset.x;
+        y0 = Gp0SignExtend11(w >> 16) + PSXDisplay.DrawOffset.y;
+        switch ((cmd >> 3) & 3)
+        {
+            case 0:
+                idx = 2 + ((cmd & 0x04) ? 1 : 0);
+                if (idx >= n) return 0;
+                w = GETLE32(&d[idx]);
+                sw = w & 0x3FF; sh = (w >> 16) & 0x1FF;
+                break;
+            case 1: sw = sh = 1; break;
+            case 2: sw = sh = 8; break;
+            default: sw = sh = 16; break;
+        }
+        x1 = x0 + sw; y1 = y0 + sh;
+    }
+    else
+        return 0;
+
+    if (x1 <= x0 || y1 <= y0) return 0;
+    *bx0 = x0; *by0 = y0; *bx1 = x1; *by1 = y1;
+    return 1;
+}
+
+static int RectHitsDisplay(int x0, int y0, int x1, int y1, const PSXDisplay_t *dsp)
+{
+    return x0 < dsp->DisplayEnd.x && x1 > dsp->DisplayPosition.x &&
+           y0 < dsp->DisplayEnd.y && y1 > dsp->DisplayPosition.y;
+}
+
+/* Returns 1 when the primitive was consumed by the software rasterizer. */
+static int OffscreenSoftDraw(unsigned char cmd, unsigned long *data, int n)
+{
+    uint32_t list[6 + 16];
+    int x0, y0, x1, y1, k, cs = 0, cl = 0, lc = 0;
+
+    if (cmd < 0x20 || cmd > 0x7F || (cmd >= 0x40 && cmd <= 0x5F) || n > 16)
+        return 0;
+    /* no display set up yet (boot): nothing is "off-screen" */
+    if (PSXDisplay.DisplayEnd.x <= PSXDisplay.DisplayPosition.x ||
+        PSXDisplay.DisplayEnd.y <= PSXDisplay.DisplayPosition.y)
+        return 0;
+    if (!OffscreenPrimBounds(cmd, data, n, &x0, &y0, &x1, &y1))
+        return 0;
+    if (RectHitsDisplay(x0, y0, x1, y1, &PSXDisplay) ||
+        RectHitsDisplay(x0, y0, x1, y1, &PreviousPSXDisplay))
+        return 0;
+    /* must stay inside VRAM (the real GPU wraps; not worth emulating here) */
+    if (x0 < 0 || y0 < 0 || x1 > 1024 || y1 > 512)
+    {
+        PERF_INC(off_soft_rejected);
+        return 0;
+    }
+
+    /* E1 texpage/dither/mask-out-of-status, E2 window, E3/E4 draw area,
+     * E5 offset, E6 mask -- the state the software primitive functions read */
+    PUTLE32(&list[0], 0xE1000000u | (lGPUstatusRet & 0x7FFu) | (((lGPUstatusRet >> 15) & 1u) << 11));
+    list[1] = g_gp0TexWindow ? g_gp0TexWindow : 0;
+    if (!list[1]) PUTLE32(&list[1], 0xE2000000u);
+    PUTLE32(&list[2], 0xE3000000u | ((uint32_t)(PSXDisplay.DrawArea.y0 & 0x3FF) << 10) | (PSXDisplay.DrawArea.x0 & 0x3FF));
+    PUTLE32(&list[3], 0xE4000000u | ((uint32_t)(PSXDisplay.DrawArea.y1 & 0x3FF) << 10) | (PSXDisplay.DrawArea.x1 & 0x3FF));
+    PUTLE32(&list[4], 0xE5000000u | ((uint32_t)(PSXDisplay.DrawOffset.y & 0x7FF) << 11) | (PSXDisplay.DrawOffset.x & 0x7FF));
+    PUTLE32(&list[5], 0xE6000000u | ((lGPUstatusRet >> 11) & 3u));
+    for (k = 0; k < n; k++)
+        list[6 + k] = (uint32_t)data[k];          /* already little-endian (PUTLE32 on receive) */
+
+    do_cmd_list(list, 6 + n, &cs, &cl, &lc);
+
+    InvalidateTextureArea(x0, y0, x1 - x0, y1 - y0);
+    MarkCpuVramWrite(x0, y0, x1 - x0, y1 - y0);
+    PERF_INC(off_soft_prims);
+#ifdef PERF_PROF
+    perf_prim_trace(0xC8, cmd & 0x04 ? 2 : 0, 0, (unsigned)cmd, x0, y0, x1, y1);   /* C8 = software-rasterized off-screen primitive */
+#endif
+    return 1;
+}
+
 void CALLBACK GL_GPUwriteDataMem(unsigned long * pMem, int iSize)
 {
 unsigned char command;
@@ -1972,6 +2100,7 @@ if(iDataWriteMode==DR_NORMAL)
         gpuCommand = command;
          PUTLE32(&gpuDataM[0], gdata);
         gpuDataP = 1;
+        if (command == 0xE2) PUTLE32(&g_gp0TexWindow, gdata);   /* for OffscreenSoftDraw */
        }
       else continue;
      }
@@ -1992,7 +2121,10 @@ if(iDataWriteMode==DR_NORMAL)
 
     if(gpuDataP == gpuDataC)
      {
+      int nWords = gpuDataC;
       gpuDataC=gpuDataP=0;
+      if (nWords <= 128 && OffscreenSoftDraw(gpuCommand, gpuDataM, nWords))
+       continue;                                   /* drawn into VRAM by the software rasterizer */
       BeginEfbDrawContext();
       primFunc[gpuCommand]((unsigned char *)gpuDataM);
       EndEfbDrawContext();
