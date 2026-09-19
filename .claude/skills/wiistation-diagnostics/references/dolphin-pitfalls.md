@@ -37,7 +37,10 @@ disc change. Decode the presses with `scripts/dtm2autoinput.py` and use autoinpu
 
 - The SD image `User\Load\WiiSD.raw` is exclusively locked while Dolphin runs; the sync folder
   is copied INTO it at launch and never back on a kill. Deleting the image makes Dolphin
-  rebuild it from the folder.
+  rebuild it from the folder. The rebuild writes `WiiSD.raw.xxx` and renames it over the image;
+  if anything holds the image open at that moment (an indexer, a reader you just ran) the log
+  says `Rename failed ... Access denied` then `Could not create file ... aborting`, and the boot
+  runs with NO SD card: no autoboot, no settings, nothing dumped. Just rerun.
 - Killing Dolphin leaves the last-written file with a directory size ahead of its flushed
   clusters: 7-Zip says "Data Error". `scripts/sdimage_read.py` walks the FAT chain and returns
   what is there.

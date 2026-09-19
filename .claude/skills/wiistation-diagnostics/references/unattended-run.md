@@ -39,7 +39,11 @@ wait or ask. The frames of a previous run must be moved out before the next.
 
 **`autoboot.txt`** (SD sync folder, read after settings load): line 1 the ISO folder, line 2
 the file name (matched with `strcasestr`, so it must be unique); or just `BIOS` to run the
-BIOS shell via the menu's Execute Bios path. Delete it to get the menu back. A savestate-
+BIOS shell via the menu's Execute Bios path. Delete it (or pass an empty file as the run
+script's autoboot argument, `WiiSDSync_paused_by_claude/autoboot_none.txt`) to boot to the
+WiiStation menu itself — that is how menu rendering (fonts, buttons) gets frame-dumped. The
+menu cannot be navigated by autoinput.txt (it reads the host pads, not the PSX port), so only
+the first screen is reachable unattended. A savestate-
 anchored Dolphin movie (`.dtm` with `from_savestate=1`) cannot replace it: it restores the
 recorded binary, so code changes are invisible under it.
 

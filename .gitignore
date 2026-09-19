@@ -28,3 +28,4 @@ AGENTS.md
 
 # Dolphin input movies and their savestates used for local testing
 movies/
+__pycache__/
