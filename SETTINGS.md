@@ -191,7 +191,7 @@ WiiStation starts the network only when `smbsharename` and `smbipaddr` are both 
 
 A menu font file holds one 24 x 24 pixel image for each character. The script `scripts/genfont.py` makes the file from a TrueType font. It needs Python 3 and the Pillow package (`python -m pip install --user pillow`).
 
-1. Run the script. This example makes a bold Calibri font with all Latin characters:
+1. Open a shell in the repository folder (`C:\projects\WiiStation`, not a subfolder) and run the script. This example makes a bold Calibri font with all Latin characters:
 
    ```
    python scripts/genfont.py --charset latin --ttf C:/Windows/Fonts/calibrib.ttf --out fonts/menu/CalibriBold.dat --preview preview.png

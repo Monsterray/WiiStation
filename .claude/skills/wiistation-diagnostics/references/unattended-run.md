@@ -56,7 +56,7 @@ has one). Keys that unattended runs need:
 
 ```
 gpuPlugin = 2        # 0 Old Soft (ground truth), 1 New Soft, 2 OpenGX
-FPS = 0              # no overlay in the frames
+FPS = 1              # the user wants the FPS overlay visible while runs play; it lands in the frames too
 PadType1 = 1         # sio.c polls a port only when padType[0] != 0
 PadAutoAssign = 0    # otherwise auto-assign resets PadType1 to 0 when no host pad exists
 BiosDevice = 1       # for BIOS runs; SCPH1001.BIN in wiisxrx/bios/
