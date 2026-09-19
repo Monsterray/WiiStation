@@ -77,4 +77,9 @@ LDFLAGS			:= $(COMMON_FLAGS) -L$(LIB_DIR) -L$(LIBOGC_LIB) $(PORTLIBS_PATH)/wii/l
 $(LIGHTREC_OBJ_DIR)/%.o: $(LIGHTREC_SRC_DIR)/%.c
 	@echo Compiling $<
 	@-mkdir -p $(dir $@)
-	powerpc-eabi-gcc $(CFLAGS) -c $< -o $@ $(PIPE_TO_SED)
+	powerpc-eabi-gcc $(CFLAGS) -MMD -MP -c $< -o $@ $(PIPE_TO_SED)
+
+# Header dependency tracking: the core's structs change between vendored Lightrec
+# versions, and without this a worktree switched between two of them keeps objects
+# compiled against the other version's headers in the archive (boots, then hangs).
+-include $(LIGHRREC_OBJS:.o=.d)

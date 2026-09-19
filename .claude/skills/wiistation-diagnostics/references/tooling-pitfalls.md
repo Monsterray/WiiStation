@@ -57,3 +57,8 @@ Valid because the plugin's interface to the core is stable.
   attribution line the session requires; push only when asked.
 - Write memory notes as you go (`memory/` index): a mechanism that took a session to find must
   not be rediscovered.
+
+- **Never edit `scripts/dolphin_run.sh` while a run is in progress.** bash reads a script lazily, so the sleeping instance resumes at a byte offset in the new text, dies with a syntax error, and leaves Dolphin running, the INIs unrestored and the test files staged (2026-09-19). Recover by killing that PID, copying the `*.ini.orig` files from the run directory back into `User/Config`, and deleting `autoinput.txt`/`settingsRX2022.cfg` from the SD sync folder. Copy the script to the scratchpad if you must change it mid-run.
+- **Always pass the autoboot file** (fifth argument) for a game run: the user keeps their own `autoboot.txt` renamed to `.disabled`, so without it WiiStation sits in its menu for the whole run. The script now prints a note when the argument is missing.
+
+- **`deps/lightrec` has no header dependency tracking.** A worktree that is switched between branches with different vendored Lightrec cores (for example `try/phase-2-on-main` back to `main`) rebuilds only the `.c` files whose mtime changed and keeps the other objects, compiled against the other core's headers, in `libLightrecWithLog.a`. The result boots, shows the PS logo and hangs. Before building after such a switch: `rm -rf deps/lightrec/obj deps/lightrec/lib`. `deps/opengx` is fine (its Makefile uses `-MMD`), and the Gamecube Makefiles track headers through `DEPENDS`.

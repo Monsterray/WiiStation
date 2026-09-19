@@ -50,3 +50,9 @@ disc change. Decode the presses with `scripts/dtm2autoinput.py` and use autoinpu
 - Dolphin's own source is indexed in the codebase MCP as project `dolphin`
   (`C:\projects\dolphin-src`, shallow clone). `raw.githubusercontent.com` files fetch fine with
   `llm_fetch_summarize`; `dolphin-emu.org/docs` returns 403 to server-side fetches.
+
+## A crashed or exiting guest pops a dialog
+
+When WiiStation crashes, libogc prints its exception screen and later reloads (`SYS_ResetSystem`); when it exits, the same call runs. Dolphin turns that into a host stop request and, with `[Interface] ConfirmStop = True` (its default), shows "Do you want to stop the current emulation?" and waits for a human, in batch mode too. `scripts/dolphin_run.sh` now writes `ConfirmStop = False` into `Dolphin.ini` for the run (restored afterwards) so the emulation just ends. If you drive Dolphin by hand for a run, set it yourself first.
+
+The exception screen itself is invisible under Dolphin's default `XFBToTextureEnable = True`: only GPU-made XFB copies are presented, never a CPU-written framebuffer. Run with `XFB_RAM=1` (the script sets `[Hacks] XFBToTextureEnable = False`) and the crash dump with PC, LR and the stack trace appears in the frame dump; resolve the addresses with `powerpc-eabi-addr2line -e Gamecube/WiiSXRX_debug.elf`.
