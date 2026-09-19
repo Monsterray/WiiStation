@@ -72,6 +72,28 @@ static void perf_drawdone(void)
 	PERF_ADD(gx_drawdone_us, perf_now_us() - t0);
 }
 
+/* VTXFMT0 attribute formats: every opengx batch uses the same ones
+ * (POS_XYZ/F32, NRM_XYZ/F32, TEX_ST/F32, CLR_RGBA/RGBA8 x2), so they are
+ * sent once and then left alone. Other VTXFMT0 writers exist (the menu's
+ * GraphicsGX/Logo, the soft GPU's drawGX) but none of them runs while the
+ * OpenGX plugin is drawing a game: the in-game FPS text uses VTXFMT1, and
+ * every menu or plugin transition passes through go(), which calls
+ * ogx_mark_vtxfmt_dirty(). The vertex *descriptors* still change per batch. */
+static bool ogx_vtxfmt_clean = false;
+static void ogx_emit_vtxfmt(void)
+{
+	GX_SetVtxAttrFmt(GX_VTXFMT0, GX_VA_POS, GX_POS_XYZ, GX_F32, 0);
+	GX_SetVtxAttrFmt(GX_VTXFMT0, GX_VA_NRM, GX_NRM_XYZ, GX_F32, 0);
+	GX_SetVtxAttrFmt(GX_VTXFMT0, GX_VA_TEX0, GX_TEX_ST, GX_F32, 0);
+	GX_SetVtxAttrFmt(GX_VTXFMT0, GX_VA_CLR0, GX_CLR_RGBA, GX_RGBA8, 0);
+	GX_SetVtxAttrFmt(GX_VTXFMT0, GX_VA_CLR1, GX_CLR_RGBA, GX_RGBA8, 0);
+	ogx_vtxfmt_clean = true;
+}
+void ogx_mark_vtxfmt_dirty(void)
+{
+	ogx_vtxfmt_clean = false;
+}
+
 #define ROUND_32B(x) (((x) + 31) & (~31))
 #define min(a,b)     (((a) < (b)) ? (a) : (b))
 
@@ -871,25 +893,44 @@ static void checkLoadTextureObj( int textureType )
     writeLogFile(txtbuffer);
     #endif // DISP_DEBUG
 
-    // no free texture cache, run GX_DrawDone and clear texture cache
+    /* No free slot: recycle one slot, round robin, instead of dropping all
+     * eight tags. The eight TMEM regions are independent, so the other
+     * seven textures stay resident. GX_DrawDone is kept for now: draws
+     * already queued may still be sampling the victim region. */
     perf_drawdone();
-    PERF_INC(gx_tex_resets);
-    resetTexCacheInfo();
+    PERF_INC(gx_tex_evicts);
+    {
+        static unsigned victim = 0;
+        unsigned slot = victim;
+        victim = (victim + 1) & 7;
 
-    if (textureType == TEX_TYPE_1)
-    {
-        gxTexMapSemi = 0;
-        GX_InvalidateTexRegion(&texCacheRegionS[0]);
-        GX_LoadTexObjPreloaded(&currtex->semiTransTexobj, &texCacheRegionS[0], 0);
-        texCacheUsedInfo[0] = curTexId + _MAX_GL_TEX;
+        if (textureType == TEX_TYPE_1)
+        {
+            gxTexMapSemi = slot;
+            GX_InvalidateTexRegion(&texCacheRegionS[slot]);
+            GX_LoadTexObjPreloaded(&currtex->semiTransTexobj, &texCacheRegionS[slot], gxTexMapSemi);
+            texCacheUsedInfo[slot] = curTexId + _MAX_GL_TEX;
+        }
+        else
+        {
+            gxTexMap = slot;
+            GX_InvalidateTexRegion(&texCacheRegionS[slot]);
+            GX_LoadTexObjPreloaded(&currtex->texobj, &texCacheRegionS[slot], gxTexMap);
+            texCacheUsedInfo[slot] = curTexId;
+        }
     }
-    else
-    {
-        gxTexMap = 0;
-        GX_InvalidateTexRegion(&texCacheRegionS[0]);
-        GX_LoadTexObjPreloaded(&currtex->texobj, &texCacheRegionS[0], 0);
-        texCacheUsedInfo[0] = curTexId;
-    }
+}
+
+/* Called by the GlesGpu present path once per frame. Texture slot tags are
+ * kept across frames: a texture that is still tagged is still resident,
+ * because every texture upload (glTexImage2D, glTexSubImage2D, the movie
+ * textures) drops all eight tags and nothing else writes TMEM during a
+ * game frame -- except the FPS text, which IPLFont loads into region 0
+ * (GXTexRegionCallback returns region 0 for every plain GX_LoadTexObj). */
+void ogx_on_frame_present(int font_drew)
+{
+    if (font_drew)
+        texCacheUsedInfo[0] = -1;
 }
 
 void glDeleteTextures(GLsizei n, const GLuint *textures)
@@ -3011,19 +3052,20 @@ static inline void glDrawCommon(int texen, int color_enabled)
     // Not using indices
     GX_ClearVtxDesc();
     GX_SetVtxDesc(GX_VA_POS, GX_DIRECT);
-    GX_SetVtxAttrFmt(GX_VTXFMT0, GX_VA_POS, GX_POS_XYZ, GX_F32, 0);
 
     if (color_enabled)
     {
         GX_SetVtxDesc(GX_VA_CLR0, GX_DIRECT);
-        GX_SetVtxAttrFmt(GX_VTXFMT0, GX_VA_CLR0, GX_CLR_RGBA, GX_RGBA8, 0);
     }
 
     if (texen)
     {
         GX_SetVtxDesc(GX_VA_TEX0, GX_DIRECT);
-        GX_SetVtxAttrFmt(GX_VTXFMT0, GX_VA_TEX0, GX_TEX_ST, GX_F32, 0);
     }
+
+    /* Formats are invariant (see ogx_emit_vtxfmt); descriptors above vary. */
+    if (!ogx_vtxfmt_clean)
+        ogx_emit_vtxfmt();
 
     // Invalidate vertex data as may have been modified by the user
     GX_InvVtxCache();
@@ -3103,12 +3145,9 @@ void glDrawArrays(GLenum mode, GLint first, GLsizei count)
     if (texen)
         GX_SetVtxDesc(GX_VA_TEX0, GX_DIRECT);
 
-    // Using floats
-    GX_SetVtxAttrFmt(GX_VTXFMT0, GX_VA_POS, GX_POS_XYZ, GX_F32, 0);
-    GX_SetVtxAttrFmt(GX_VTXFMT0, GX_VA_NRM, GX_NRM_XYZ, GX_F32, 0);
-    GX_SetVtxAttrFmt(GX_VTXFMT0, GX_VA_TEX0, GX_TEX_ST, GX_F32, 0);
-    GX_SetVtxAttrFmt(GX_VTXFMT0, GX_VA_CLR0, GX_CLR_RGBA, GX_RGBA8, 0);
-    GX_SetVtxAttrFmt(GX_VTXFMT0, GX_VA_CLR1, GX_CLR_RGBA, GX_RGBA8, 0);
+    /* Formats are invariant (see ogx_emit_vtxfmt); descriptors above vary. */
+    if (!ogx_vtxfmt_clean)
+        ogx_emit_vtxfmt();
 
     // Invalidate vertex data as may have been modified by the user
     GX_InvVtxCache();

@@ -2350,12 +2350,15 @@ static void flipEGL(void)
     needFlipEGL = presentSubmitted ? FALSE : TRUE;
     if (presentSubmitted)
         canClearFrameBuf = FALSE;
+    // Texture slot tags survive the present (see ogx_on_frame_present); the
+    // FPS text is the one in-game drawer of TMEM region 0, so tell it whether
+    // that slot was overwritten this frame.
+    extern void ogx_on_frame_present(int font_drew);
+    ogx_on_frame_present(canShowFps);
+
     canShowFps = FALSE;
     RGB24Uploaded = 0;
     glSetLoadMtxFlg();
-
-    extern void resetTexCacheInfo(void);
-    resetTexCacheInfo();
     perf_present_tick(perf_now_us() - flip_t0);
 }
 

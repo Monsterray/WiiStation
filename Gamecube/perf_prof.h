@@ -220,7 +220,8 @@ typedef struct {
 	 * from SoftGPU/drawGX.c instead. Present counters work on both. */
 	uint32_t gx_tex_hits;         /* texture-cache hits (OpenGX only) */
 	uint32_t gx_tex_misses;       /* texture-cache misses (OpenGX only) */
-	uint32_t gx_tex_resets;       /* OpenGX: evicts; SoftGPU: tex re-inits */
+	uint32_t gx_tex_resets;       /* OpenGX: all eight TMEM slot tags dropped (texture uploads); SoftGPU: tex re-inits */
+	uint32_t gx_tex_evicts;       /* OpenGX: one TMEM slot recycled because all eight were taken */
 	uint32_t gx_tex_loads;        /* OpenGX: uploads; SoftGPU: per-frame blits */
 	uint64_t gx_tex_bytes;        /* uploaded/converted texture bytes */
 	uint64_t gx_convert_us;       /* SoftGPU: CPU time converting PSX fb -> GX */

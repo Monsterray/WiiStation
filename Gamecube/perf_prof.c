@@ -287,9 +287,10 @@ void perf_report(void)
 			(unsigned long)mem1_kb, (unsigned long)m2used, (unsigned long)m2tot,
 			(unsigned long)g_perf.mem2_peak_kb, (unsigned long)g_perf.mem2_alloc_fails,
 			(unsigned long)g_perf.mem_null_read, (unsigned)gx_mem2_check());
-		fprintf(f, "gpu: tex_hit=%lu miss=%lu resets=%lu loads=%lu bytes=%llu batches=%lu\n",
+		fprintf(f, "gpu: tex_hit=%lu miss=%lu resets=%lu evicts=%lu loads=%lu bytes=%llu batches=%lu\n",
 			(unsigned long)g_perf.gx_tex_hits, (unsigned long)g_perf.gx_tex_misses,
-			(unsigned long)g_perf.gx_tex_resets, (unsigned long)g_perf.gx_tex_loads,
+			(unsigned long)g_perf.gx_tex_resets, (unsigned long)g_perf.gx_tex_evicts,
+			(unsigned long)g_perf.gx_tex_loads,
 			g_perf.gx_tex_bytes, (unsigned long)g_perf.gx_batches);
 		fprintf(f, "gpu: drawdone=%lu drawdone_us=%llu convert_us=%llu present_us=%llu\n",
 			(unsigned long)g_perf.gx_drawdone, g_perf.gx_drawdone_us,

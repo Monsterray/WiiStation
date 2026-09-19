@@ -965,6 +965,11 @@ void writeConfig(FILE* f){
 	}
 }
 
+/* TMEM slot tags (libgui/GraphicsGX.cpp) and the OpenGX vertex-format flag
+ * (deps/opengx/gc_gl.c); both are C symbols. */
+extern "C" void resetTexCacheInfo(void);
+extern "C" void ogx_mark_vtxfmt_dirty(void);
+
 extern "C" {
 //System Functions
 void go(void) {
@@ -979,6 +984,14 @@ void go(void) {
 	// every GPU plugin reads frameLimit[0], unlike gc_rearmed_cbs which is
 	// newSoftGpu-only.
 	frameLimit[0] = frameLimit[1];
+
+	// The menu (and any other GPU plugin) has been drawing since the last
+	// session: it loads its own textures into TMEM region 0 and sets its own
+	// VTXFMT0 formats. OpenGX keeps texture tags and the vertex format across
+	// frames on the strength of no one else touching them, so every entry
+	// into the emulator loop starts them from scratch.
+	resetTexCacheInfo();
+	ogx_mark_vtxfmt_dirty();
 
 	if (gpuPtr == &newSoftGpu)
     {
