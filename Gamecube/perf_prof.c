@@ -196,6 +196,7 @@ void perf_present_tick(unsigned long long present_us)
 		if (!g_perf.vram_dumped && autoinput_dump_vbl && frame_counter >= autoinput_dump_vbl) {
 			g_perf.vram_dumped = 1;
 			perf_vram_dump();
+			perf_report();     /* a scheduled dump marks the moment of interest: report the counters now, not 1800 presents later */
 		}
 	}
 	if (!g_perf.vram_dumped && g_perf.vblanks >= PERF_VRAM_DUMP_VBLANK && !autoinput_dump_vbl_set()) {
@@ -304,6 +305,15 @@ void perf_report(void)
 			(unsigned long)g_perf.ogx_upl_semi, (unsigned long)g_perf.ogx_upl_opaque,
 			(unsigned long)g_perf.ogx_upl_mismatch);
 		fprintf(f, "ogxgeom: coord_rej=%lu\n", (unsigned long)g_perf.ogx_coord_rej);
+		fprintf(f, "offsoft: prims=%lu rejected=%lu | pad: startpoll=%lu update=%lu ai_calls=%lu\n",
+			(unsigned long)g_perf.off_soft_prims, (unsigned long)g_perf.off_soft_rejected,
+			(unsigned long)g_perf.pad_startpoll, (unsigned long)g_perf.pad_update, (unsigned long)g_perf.ai_calls);
+		{
+			extern char padType[10];
+			fprintf(f, "sio: write8=%lu start=%lu ctrl16=%lu read8=%lu irq=%lu padtype0=%d\n",
+				(unsigned long)g_perf.sio_write8, (unsigned long)g_perf.sio_start, (unsigned long)g_perf.sio_ctrl16,
+				(unsigned long)g_perf.sio_read8, (unsigned long)g_perf.sio_irq, (int)padType[0]);
+		}
 		fprintf(f, "ogxoff: prims=%lu tex=%lu off_roi=%lu fills=%lu fills_off=%lu va=%lu va_roi=%lu\n",
 			(unsigned long)g_perf.ogx_off_prim, (unsigned long)g_perf.ogx_off_prim_tex,
 			(unsigned long)g_perf.ogx_off_roi,

@@ -532,6 +532,7 @@ bool SupportedIOS(u32 ios)
 #endif
 
 bool Autoboot;
+bool AutobootBios;        /* autoboot.txt first line "BIOS": run the BIOS shell, no disc */
 char AutobootROM[1024];
 char AutobootPath[1024];
 
@@ -573,16 +574,22 @@ int main(int argc, char *argv[])
 	 * sd:/wiisxrx/autoboot.txt -- two lines, the ISO's directory and its
 	 * filename -- stands in for argv[1]/argv[2] and boots straight into the
 	 * game with no menu input. Delete the file to boot to the menu as usual.
+	 * A first line of just "BIOS" runs the BIOS shell instead (the menu's
+	 * "Execute Bios"), for testing the shell's own screens.
 	 * Read here rather than in main()'s argv block because the SD card is
 	 * only mounted once loadSettings() has run. */
 	if (!Autoboot) {
 		FILE *ab = fopen("sd:/wiisxrx/autoboot.txt", "r");
 		if (ab) {
-			if (fgets(AutobootPath, sizeof(AutobootPath), ab) &&
-			    fgets(AutobootROM,  sizeof(AutobootROM),  ab)) {
+			if (fgets(AutobootPath, sizeof(AutobootPath), ab)) {
 				AutobootPath[strcspn(AutobootPath, "\r\n")] = 0;
-				AutobootROM [strcspn(AutobootROM,  "\r\n")] = 0;
-				Autoboot = AutobootPath[0] && AutobootROM[0];
+				if (strcasecmp(AutobootPath, "BIOS") == 0) {
+					AutobootBios = true;
+					Autoboot = true;
+				} else if (fgets(AutobootROM, sizeof(AutobootROM), ab)) {
+					AutobootROM[strcspn(AutobootROM, "\r\n")] = 0;
+					Autoboot = AutobootPath[0] && AutobootROM[0];
+				}
 			}
 			fclose(ab);
 		}

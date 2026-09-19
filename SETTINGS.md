@@ -199,9 +199,19 @@ Spyro the Dragon [NTSC-U] [SCUS-94228].cue
 
 WiiStation ignores the file when a loader already gives a game as an argument. Delete the file to get the menu back.
 
+To start the BIOS shell instead of a game, write only the word `BIOS` on line 1:
+
+```
+BIOS
+```
+
+This does the same as the menu item "Execute Bios". `BiosDevice` must be 1 or 2, because the HLE BIOS has no shell.
+
 ## 11. Scripted controller input
 
-The file `sd:/wiisxrx/autoinput.txt` presses controller buttons at given times. It is a test aid. It works with `autoboot.txt`: a boot with both files is deterministic up to any screen. WiiStation reads the file at the first controller poll. A missing file has no effect. Real controllers keep working. The script only adds presses.
+The file `sd:/wiisxrx/autoinput.txt` presses controller buttons at given times. It is a test aid. It works with `autoboot.txt`: a boot with both files is deterministic up to any screen. WiiStation reads the file when the controller plugin opens. A missing file has no effect. Real controllers keep working. The script only adds presses.
+
+Port 1 must have a controller type. Set `PadType1 = 1` and `PadAutoAssign = 0` in the settings file when no controller is connected. With `PadType1 = 0` the PlayStation sees no controller and ignores the script. With `PadAutoAssign = 1` WiiStation sets the type back to 0 when it finds no controller. A script with at least one press line makes port 1 report a connected digital controller, so the BIOS shell and games that check for a controller accept the presses.
 
 Each line has a vblank number and a button mask. From that vblank on, WiiStation holds the listed buttons on PlayStation port 1. The next line replaces the mask. A mask of `0000` releases all buttons. Lines that start with `#` are comments.
 

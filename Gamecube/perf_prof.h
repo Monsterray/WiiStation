@@ -152,6 +152,13 @@ typedef struct {
 	 * software rasterizer would have written into VRAM and this port drops,
 	 * plus GP0 fills. The ring keeps the first eight destination rects. */
 	uint32_t ogx_off_prim, ogx_off_prim_tex, ogx_fill_all, ogx_fill_off;
+	/* off-screen primitives handed to the software rasterizer (gpuPlugin.c
+	 * OffscreenSoftDraw), and pad-plugin activity: SIO start-polls, pad state
+	 * refreshes and calls into the scripted-input mask */
+	uint32_t off_soft_prims, off_soft_rejected, pad_startpoll, pad_update, ai_calls;
+	/* SIO activity (sio.c): data writes, pad-select starts that reached the
+	 * pad plugin, control-register writes, data reads, SIO interrupts */
+	uint32_t sio_write8, sio_start, sio_ctrl16, sio_read8, sio_irq;
 	struct { int16_t x0, y0, x1, y1; uint16_t color; uint8_t kind, tex; } ogx_op[8];
 	uint32_t ogx_op_n;
 	/* Region of interest = PSX texture pages 12/13 (VRAM x 768..895, y 0..255),

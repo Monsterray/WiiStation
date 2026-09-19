@@ -28,6 +28,7 @@
 #include <sys/stat.h>
 #include "Gamecube/wiiSXconfig.h"
 #include "Gamecube/PadSSSPSX.h"
+#include "Gamecube/perf_prof.h"
 
 void netError(void); // defined below; used earlier in this file
 
@@ -74,6 +75,7 @@ void sioWrite8(unsigned char value) {
 #ifdef PAD_LOG
 	PAD_LOG("sio write8 %x\n", value);
 #endif
+	PERF_INC(sio_write8);
 	switch (padst) {
 		case 1: set_event(PSXINT_SIO, SIO_CYCLES);
 			if ((value&0x40) == 0x40) {
@@ -221,6 +223,7 @@ void sioWrite8(unsigned char value) {
 				switch (CtrlReg&0x2002) {
 					case 0x0002:
 						if (padType[0]){
+							PERF_INC(sio_start);
 							SSS_SetMultiPad(0, value);
 							buf[0] = PAD1_startPoll(1);
 							break;
@@ -316,6 +319,7 @@ void sioWrite8(unsigned char value) {
 }
 
 void sioWriteCtrl16(unsigned short value) {
+	PERF_INC(sio_ctrl16);
 	CtrlReg = value & ~RESET_ERR;
 	if (value & RESET_ERR) StatReg &= ~IRQ;
 	if ((CtrlReg & SIO_RESET) || !(CtrlReg & DTR)) {
@@ -328,6 +332,7 @@ void sioWriteCtrl16(unsigned short value) {
 unsigned char sioRead8() {
 	unsigned char ret = 0;
 
+	PERF_INC(sio_read8);
 	if ((StatReg & RX_RDY)/* && (CtrlReg & RX_PERM)*/) {
 //		StatReg &= ~RX_OVERRUN;
 		ret = buf[parp];
@@ -376,6 +381,7 @@ void sioInterrupt() {
 #ifdef PAD_LOG
 	PAD_LOG("Sio Interrupt (CP0.Status = %x)\n", psxRegs.CP0.n.Status);
 #endif
+	PERF_INC(sio_irq);
 //	SysPrintf("Sio Interrupt\n");
 	if (!(StatReg & IRQ)) {
 		StatReg |= IRQ;

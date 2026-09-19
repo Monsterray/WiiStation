@@ -50,25 +50,42 @@ static int autoin_n = -1;
 unsigned autoinput_trace_vbl[8];
 int autoinput_trace_n = 0;
 unsigned autoinput_dump_vbl = 0;   /* "dump <vblank>": debug build writes sd:/wiisxrx/vram.bin then */
+/* Parse the script once. Called from the pad plugin's open (so the trace and
+ * dump schedules exist even before the first pad poll, e.g. in the BIOS
+ * shell) and lazily from autoinput_mask(). */
+void autoinput_load(void)
+{
+	FILE *f;
+	char line[128];
+	if (autoin_n >= 0) return;
+	autoin_n = 0;
+	f = fopen("sd:/wiisxrx/autoinput.txt", "r");
+	if (f) {
+		while (autoin_n < 64 && fgets(line, sizeof line, f)) {
+			unsigned v, k;
+			if (sscanf(line, "dump %u", &v) == 1) { autoinput_dump_vbl = v; continue; }
+			if (sscanf(line, "trace %u", &v) == 1) { if (autoinput_trace_n < 8) autoinput_trace_vbl[autoinput_trace_n++] = v; continue; }
+			if (line[0] == '#' || sscanf(line, "%u %x", &v, &k) != 2) continue;
+			autoin[autoin_n].vbl = v; autoin[autoin_n].mask = (unsigned short)k; autoin_n++;
+		}
+		fclose(f);
+	}
+}
+/* A script with at least one press line stands in for a plugged-in digital
+ * pad on port 1: the BIOS shell (and some games) only accept input from a
+ * port that answers the pad-ID poll, which the pad plugin refuses when no
+ * host controller is mapped -- the usual state of an unattended Dolphin run. */
+int autoinput_active(void)
+{
+	autoinput_load();
+	return autoin_n > 0;
+}
 unsigned short autoinput_mask(void)
 {
 	int i;
 	unsigned short m = 0;
-	if (autoin_n < 0) {
-		FILE *f = fopen("sd:/wiisxrx/autoinput.txt", "r");
-		char line[128];
-		autoin_n = 0;
-		if (f) {
-			while (autoin_n < 64 && fgets(line, sizeof line, f)) {
-				unsigned v, k;
-				if (sscanf(line, "dump %u", &v) == 1) { autoinput_dump_vbl = v; continue; }
-				if (sscanf(line, "trace %u", &v) == 1) { if (autoinput_trace_n < 8) autoinput_trace_vbl[autoinput_trace_n++] = v; continue; }
-				if (line[0] == '#' || sscanf(line, "%u %x", &v, &k) != 2) continue;
-				autoin[autoin_n].vbl = v; autoin[autoin_n].mask = (unsigned short)k; autoin_n++;
-			}
-			fclose(f);
-		}
-	}
+	PERF_INC(ai_calls);
+	autoinput_load();
 	for (i = 0; i < autoin_n; i++)
 		if (frame_counter >= autoin[i].vbl) m = autoin[i].mask;
 	{

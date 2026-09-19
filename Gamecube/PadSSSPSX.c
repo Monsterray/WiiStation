@@ -36,6 +36,7 @@
 #include <sys/types.h>
 #include <ogc/pad.h>
 #include <wiiuse/wpad.h>
+#include "perf_prof.h"
 #include "../plugins.h"
 #include "../psxcommon.h"
 #include "../psemu_plugin_defs.h"
@@ -178,6 +179,7 @@ static void PADsetMode (const int pad, const int mode)	//mode = 0 (digital) or 1
 static void UpdateState (const int pad) //Note: pad = 0 or 1
 {
 	const int vib0 = global.padVibF[pad][0] ? 1 : 0;
+	PERF_INC(pad_update);
 	const int vib1 = global.padVibF[pad][1] ? 1 : 0;
 	int cursorX = 0x1;
 	int cursorY = 0xA;
@@ -294,7 +296,8 @@ static void UpdateState (const int pad) //Note: pad = 0 or 1
 	else
 	{	//TODO: Emulate no controller present in this case.
 		//Reset buttons & sticks if PAD is not in use
-		global.isConnected[pad] = 0;
+		extern int autoinput_active(void);   /* PadWiiSX.c: a scripted run has a digital pad in port 1 */
+		global.isConnected[pad] = (pad == 0 && autoinput_active()) ? 1 : 0;
 		PAD_Data.btns.All = 0xFFFF;
 		PAD_Data.leftStickX = PAD_Data.leftStickY = PAD_Data.rightStickX = PAD_Data.rightStickY = 128;
 	}
@@ -372,6 +375,10 @@ static void UpdateState (const int pad) //Note: pad = 0 or 1
 long SSS_PADopen (void *p)
 {
 	int i;
+	{
+		extern void autoinput_load(void);   /* PadWiiSX.c: sd:/wiisxrx/autoinput.txt incl. trace/dump schedules */
+		autoinput_load();
+	}
 	if (!pad_initialized)
 	{
 		memset (&global, 0, sizeof (global));
@@ -400,6 +407,7 @@ long SSS_PADquery (void)
 
 unsigned char SSS_PADstartPoll (int pad)
 {
+	PERF_INC(pad_startpoll);
 	global.curPad = pad -1;
 	global.curByte = 0;
 	return 0xff;

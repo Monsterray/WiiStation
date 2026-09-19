@@ -21,6 +21,7 @@
 #include <sys/stat.h>
 
 #include "MenuContext.h"
+#include "../perf_prof.h"
 #include "SettingsFrame.h"
 #include "../libgui/Button.h"
 #include "../libgui/TextBox.h"
@@ -1090,6 +1091,7 @@ void Func_ExecuteBios()
 	}
 	executedBios = true;
 	executingBios = true;
+	perf_reset();          /* same as go(): fresh counters and a fresh perf.log for this run */
 	CheckCdrom();
 	SysReset();
 	pauseRemovalThread();

@@ -22,6 +22,12 @@
 #include "../libgui/FocusManager.h"
 #include "../libgui/CursorManager.h"
 
+extern bool AutobootBios;      /* GamecubeMain.cpp: autoboot.txt said "BIOS" */
+void Func_ExecuteBios();       /* SettingsFrame.cpp */
+extern "C" void glResetCacheRegion(void);
+extern int backFromMenu;
+extern char originalMode;
+
 MenuContext *pMenuContext;
 
 MenuContext::MenuContext(GXRModeObj *vmode)
@@ -166,6 +172,20 @@ void MenuContext::draw()
 
 void MenuContext::Autoboot()
 {
+	if(AutobootBios)
+	{
+		/* Same preamble as Func_PlayGame(): one GUI frame so the video output
+		 * is set up, a cleared EFB, the TV-mode switch request and a fresh
+		 * texture cache. Without it the BIOS runs but the screen stays black. */
+		AutobootBios = false;
+		menu::Gui::getInstance().draw();
+		menu::Gui::getInstance().gfx->clearEFB((GXColor){0, 0, 0, 0xFF}, 0x000000);
+		if (originalMode)
+			backFromMenu = 1;
+		glResetCacheRegion();
+		Func_ExecuteBios();
+		return;
+	}
 	if(strcasestr(AutobootPath,"sd:/") != NULL)
 		Func_LoadFromSD();
 	else
