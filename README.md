@@ -97,6 +97,8 @@ Dolphin can run the WiiStation `.dol`. Two Dolphin graphics options change what 
 
 Boot a bare `.dol` with `Dolphin.exe -b -e <path to .dol>`. To boot a game without the menu, put `autoboot.txt` in the SD sync folder (see [SETTINGS.md](SETTINGS.md)).
 
+The unattended test loop (scripted input, debug-build probes, frame and VRAM dumps, log extraction) and the diagnostic method built on it are written up for agents in [.claude/skills/wiistation-diagnostics/SKILL.md](.claude/skills/wiistation-diagnostics/SKILL.md); the scripts it uses are in `scripts/`.
+
 ## Compilation information
 
 * devkitPPC r41-2 + libOGC2 (until git [7456c4ab](https://github.com/extremscorner/libogc2/commit/7456c4abf3e8e8ccd7eac7bb7cbe808128befa55)) + SDL + GNU Lightning + Lightrec

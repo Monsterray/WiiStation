@@ -1,0 +1,24 @@
+{
+  "skill_name": "wiistation-diagnostics",
+  "notes": "Each prompt needs the debug toolchain and Dolphin on this machine; a run costs about five minutes and must not overlap the user's own Dolphin session. Run them only with the user's go-ahead.",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "The pause menu in Spyro looks fine now but the user says the CD Player screen of the PlayStation BIOS shows its two big spheres slightly cut off at the top compared to a real console. Reproduce it in Dolphin without me touching anything, capture frames of that screen and the primitives that draw the spheres, and tell me whether the plugin or the BIOS is responsible.",
+      "expected_output": "Uses autoboot BIOS + the tour input script, keeps frames covering the CD player screen, schedules a trace there, reads ptrace with ptrace_summary.py, compares against examples/ and the Old Soft plugin, and reports the mechanism with counters and frame numbers rather than a guess.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "A user reports that in Vagrant Story under the OpenGX plugin the status window that reads the screen back is black in Dolphin but fine on their Wii. Find out why before changing any code.",
+      "expected_output": "Checks the Dolphin EFB-copy setting first (dolphin-pitfalls), verifies with the c1/c2/c3 read probes and the perf counters in one run, and does not modify the plugin if the host setting explains it.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "I added a new counter to the OpenGX plugin but perf.log comes out empty or 7-Zip says Data Error when I pull it from the SD image. Also my scripted Start presses do nothing in this game. Sort both out.",
+      "expected_output": "Reads perf.log with scripts/sdimage_read.py, explains the kill/flush behaviour, checks PadType1/PadAutoAssign in the test settings and the sio: counters, and points at the per-game settings override if relevant.",
+      "files": []
+    }
+  ]
+}
