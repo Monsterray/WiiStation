@@ -879,13 +879,7 @@ int RecvPcsxInfo() {
 	NET_recvData(&Config.Cpu, sizeof(Config.Cpu), PSE_NET_BLOCKING);
 	if (tmp != Config.Cpu) {
 		psxCpu->Shutdown();
-#ifdef PSXREC
-		if (Config.Cpu)
-			 psxCpu = &psxInt;
-		else psxCpu = &psxLightrec;
-#else
-		psxCpu = &psxInt;
-#endif
+		psxCpuSelect();
 		if (psxCpu->Init() == -1) {
 			SysClose(); return -1;
 		}

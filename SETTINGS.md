@@ -187,6 +187,23 @@ WiiStation starts the network only when `smbsharename` and `smbipaddr` are both 
 | `perf.log` | Performance counters. Only the debug build writes this file. |
 | `vram.bin` | Video memory snapshot. Only the debug build writes this file. |
 
+### 9.1 How to make a menu font
+
+A menu font file holds one 24 x 24 pixel image for each character. The script `scripts/genfont.py` makes the file from a TrueType font. It needs Python 3 and the Pillow package (`python -m pip install --user pillow`).
+
+1. Run the script. This example makes a bold Calibri font with all Latin characters:
+
+   ```
+   python scripts/genfont.py --charset latin --ttf C:/Windows/Fonts/calibrib.ttf --out fonts/menu/CalibriBold.dat --preview preview.png
+   ```
+
+   The script selects the largest size that keeps the tallest and the deepest characters inside the 24 rows. It reports the size and the baseline. Open `preview.png` to check the result.
+2. Copy the file to `sd:/wiisxrx/fonts/CalibriBold.dat`.
+3. Add this line to `settingsRX2022.cfg`: `MenuFont = "CalibriBold"`.
+4. Start WiiStation. To go back to the built-in font, remove the line.
+
+Use `--charset ascii` for a smaller file with only the English characters. Use `--ref fonts/En.dat` instead of `--charset` to keep the character widths of an existing font file, so that the menu layout does not change.
+
 ## 10. Start a game without the menu
 
 The file `sd:/wiisxrx/autoboot.txt` makes WiiStation start a game immediately. WiiStation reads this file only from the SD card. The file has exactly two lines:

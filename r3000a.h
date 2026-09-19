@@ -74,6 +74,7 @@ typedef struct {
 } R3000Acpu;
 
 extern R3000Acpu *psxCpu;
+void psxCpuSelect(void);   /* map Config.Cpu to a core (r3000a.c) */
 extern R3000Acpu psxInt;
 extern R3000Acpu psxIntDbg;
 #if defined(__x86_64__) || defined(__i386__) || defined(__sh__) || defined(__ppc__) || defined(HW_RVL) || defined(HW_DOL)

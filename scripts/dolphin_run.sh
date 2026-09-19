@@ -45,7 +45,9 @@ rm -rf "$D/User/Dump/Frames"
 cp "${AIN:-$P/autoinput.txt}" "$S/autoinput.txt"; cp "${SET:-$P/settingsRX2022.cfg}" "$S/settingsRX2022.cfg"
 if [ -n "$ABOOT" ]; then cp "$S/autoboot.txt" "$OUT/autoboot.txt.orig"; cp "$ABOOT" "$S/autoboot.txt"; fi
 echo "framedump run: start $(date +%T)"
-"$D/Dolphin.exe" -b -e /c/projects/WiiStation/Gamecube/WiiSXRX_debug.dol &
+DOL="${DOL:-/c/projects/WiiStation/Gamecube/WiiSXRX_debug.dol}"   # env DOL=... to test another build (e.g. a worktree)
+echo "dol: $DOL ($(stat -c %y "$DOL" 2>/dev/null | cut -c1-19))"
+"$D/Dolphin.exe" -b -e "$DOL" &
 DPID=$!; sleep 2; WPID=$(ps -p $DPID 2>/dev/null | awk 'NR==2{print $4}')
 sleep "$SECS"
 # kill only the instance this script started, never every Dolphin on the machine

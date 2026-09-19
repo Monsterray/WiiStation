@@ -36,21 +36,21 @@ R3000Acpu *psxCpu;
 psxRegisters psxRegs;
 extern bool needInitCpu;
 
+/* The CPU core is a backend behind the R3000Acpu vtable: interpreter,
+ * Lightrec (deps/lightrec + the Wii adapter in lightrec.c) or the old PPC
+ * dynarec (ppc/). Config.Cpu selects it; this is the one place that maps
+ * the setting to a core, so a new core is added here and nowhere else. */
+void psxCpuSelect(void) {
+	switch (Config.Cpu) {
+	case DYNACORE_DYNAREC:     psxCpu = &psxLightrec; break;
+	case DYNACORE_DYNAREC_OLD: psxCpu = &psxRec;      break;
+	default:                   psxCpu = &psxInt;      break;
+	}
+}
+
 int psxInit() {
 
-	if (Config.Cpu == DYNACORE_INTERPRETER) {
-		psxCpu = &psxInt;
-	}
-#if defined(__x86_64__) || defined(__i386__) || defined(__sh__) || defined(__ppc__) || defined(HW_RVL) || defined(HW_DOL)
-	if (Config.Cpu == DYNACORE_DYNAREC)
-	{
-		psxCpu = &psxLightrec;
-	}
-	if (Config.Cpu == DYNACORE_DYNAREC_OLD)
-	{
-		psxCpu = &psxRec;
-	}
-#endif
+	psxCpuSelect();
 	Log=0;
 
 	int memInitResult = psxMemInit();

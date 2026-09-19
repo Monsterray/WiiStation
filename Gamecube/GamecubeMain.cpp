@@ -657,19 +657,7 @@ int main(int argc, char *argv[])
 
 void psxCpuInit()
 {
-    if (Config.Cpu == DYNACORE_INTERPRETER) {
-		psxCpu = &psxInt;
-	}
-#if defined(__x86_64__) || defined(__i386__) || defined(__sh__) || defined(__ppc__) || defined(HW_RVL) || defined(HW_DOL)
-	if (Config.Cpu == DYNACORE_DYNAREC)
-	{
-		psxCpu = &psxLightrec;
-	}
-	if (Config.Cpu == DYNACORE_DYNAREC_OLD)
-	{
-		psxCpu = &psxRec;
-	}
-#endif
+	psxCpuSelect();
 
     psxCpu->Init();
 }
