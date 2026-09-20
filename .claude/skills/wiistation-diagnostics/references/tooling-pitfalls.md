@@ -58,6 +58,19 @@ believing the symptom.
   modal dialog waiting for the user, and it only ever kills Dolphin by Windows PID with
   `taskkill /F`. Keep both properties if you change it: a POSIX `kill` on the native process
   posts a window close, which raises that dialog instead of ending the run.
+- Settings reach Dolphin as `-C <System>.<Section>.<Key>=<Value>` arguments, never by editing
+  the INI files, so a run that dies half way cannot leave the user's Dolphin misconfigured.
+  The system name for GFX.ini is `Graphics`; `-C GFX.*` is silently ignored.
+- `CACHE=1` turns on `AccurateCPUCache`, which emulates the PPC data cache and so catches
+  missing `DCFlushRange`/`DCInvalidateRange`. Emulation runs several times slower in
+  wall-clock; budget about four times the seconds argument. WiiStation passed this on
+  2026-09-19 (see the memory note), so a *new* divergence under `CACHE=1` means the change
+  under test introduced a coherency bug.
+- WiiStation's own FPS counter reads the emulated time base, so it still shows ~40 fps while
+  Dolphin crawls. The script also turns on Dolphin's `ShowSpeed`/`ShowVPS` overlays, which
+  are the host-side truth.
+- `MMU=1` turns on address translation, so a wild pointer faults instead of landing somewhere
+  harmless; `DOLPHIN_ARGS` appends anything else verbatim.
 - `XFB_RAM=1` makes CPU-written framebuffers visible in the frame dump — the libogc exception
   screen after a guest crash, and the debug console. Resolve its addresses with
   `powerpc-eabi-addr2line -e Gamecube/WiiSXRX_debug.elf`.
