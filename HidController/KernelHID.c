@@ -124,7 +124,7 @@ static s32 ipcCallBack(s32 result, void *usrdata);
 
 static controller *HID_CTRL = (controller*)HID_MEM2_CTRL_ADDR;
 static void *HID_Packet = (void*)HID_MEM2_PACKET_ADDR;
-static vu32 MotorCommand = HID_MEM2_MOTOR_CMD;
+static vu32 MotorCommand = (vu32)HID_MEM2_MOTOR_CMD;   // the MEM2 macros are char*-based
 
 #define HID_STATUS      HID_MEM2_STATUS
 #define HID_CHANGE      HID_MEM2_CHANGE

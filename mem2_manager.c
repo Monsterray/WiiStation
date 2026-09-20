@@ -91,11 +91,13 @@ bool gx_init_mem2(void)
    // Reset mem2 range
    SYS_SetArena2Lo((void *)NEW_MEM2_LO);
 
-   uint32_t newArena2Hi = NEW_MEM2_LO + (2 * MB);
+   /* The MEM2.h region macros are char*-based, so convert explicitly rather than
+    * letting the compiler turn a pointer into an integer and back. */
+   uint32_t newArena2Hi = (uint32_t)(NEW_MEM2_LO + (2 * MB));
    uint32_t oldArena2Hi = (uint32_t) SYS_GetArena2Hi();
    heap_ptr = (void *)newArena2Hi;
 
-   SYS_SetArena2Hi(newArena2Hi);
+   SYS_SetArena2Hi((void *)newArena2Hi);
    __lwp_heap_init(&gx_mem2_heap, heap_ptr, oldArena2Hi - newArena2Hi - 1024 * 1024, 32);
 
    _CPU_ISR_Restore(level);

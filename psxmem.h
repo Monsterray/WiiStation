@@ -128,7 +128,10 @@ extern u8* psxMemRLUT[0x10000] __attribute__((aligned(32)));
 //#define PSXMu8(mem)		(*(u8 *)PSXM(mem))
 //#define PSXMu16(mem)	(SWAP16(*(u16*)PSXM(mem)))
 //#define PSXMu32(mem)	(SWAP32(*(u32*)PSXM(mem)))
-#define PSXMu32(mem)	(psxMemRLUT[(mem) >> 16] == 0 ? NULL : LOAD_SWAP32p(psxMemRLUT[(mem) >> 16] + ((mem) & 0xffff)))
+/* Yields the instruction word, or 0 for an unmapped region. The unmapped branch used to be
+ * NULL, which typed the whole expression as a pointer and made every "u32 code = PSXMu32(pc)"
+ * an implicit pointer-to-integer conversion; the value was the same. */
+#define PSXMu32(mem)	(psxMemRLUT[(mem) >> 16] == 0 ? 0 : LOAD_SWAP32p(psxMemRLUT[(mem) >> 16] + ((mem) & 0xffff)))
 
 #define PSXMu32ref(mem)	(*(u32*)PSXM(mem))
 

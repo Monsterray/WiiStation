@@ -563,7 +563,7 @@ void SettingsFrame::activateSubmenu(int submenu)
 			}
 			FRAME_BUTTONS[54].button->setVisible(true);
 			FRAME_BUTTONS[54].button->setActive(true);
-            FRAME_BUTTONS[54].buttonString = LANG_STRINGS[lang];
+            FRAME_BUTTONS[54].buttonString = LANG_STRINGS[(int)lang];
 
             // Fast load
             FRAME_BUTTONS[55].button->setVisible(true);
@@ -612,7 +612,7 @@ void SettingsFrame::activateSubmenu(int submenu)
 			else								FRAME_BUTTONS[21].button->setSelected(true);
 			if (originalMode == ORIGINALMODE_ENABLE)FRAME_BUTTONS[57].button->setSelected(true);
 			//if (bilinearFilter == BILINEARFILTER_ENABLE)FRAME_BUTTONS[28].button->setSelected(true);
-			FRAME_BUTTONS[28].buttonString = TEXTURE_FILTER_STRINGS[bilinearFilter];
+			FRAME_BUTTONS[28].buttonString = TEXTURE_FILTER_STRINGS[(int)bilinearFilter];
 			if (trapFilter == TRAPFILTER_ENABLE)FRAME_BUTTONS[29].button->setSelected(true);
 			if (interlacedMode == INTERLACED_ENABLE)FRAME_BUTTONS[23].button->setSelected(true);
 			if (deflickerFilter == DEFLICKER_ENABLE)FRAME_BUTTONS[24].button->setSelected(true);
@@ -1130,7 +1130,7 @@ void Func_SelectLanguage()
     ChangeLanguage();
 
     FRAME_BUTTONS[54].button->setSelected(true);
-    FRAME_BUTTONS[54].buttonString = LANG_STRINGS[lang];
+    FRAME_BUTTONS[54].buttonString = LANG_STRINGS[(int)lang];
 }
 
 extern void writeConfig(FILE* f);
@@ -1383,7 +1383,7 @@ void Func_BilinearFilter()
 		bilinearFilter = BILINEARFILTER_DISABLE;
 	}
 
-	FRAME_BUTTONS[28].buttonString = TEXTURE_FILTER_STRINGS[bilinearFilter];
+	FRAME_BUTTONS[28].buttonString = TEXTURE_FILTER_STRINGS[(int)bilinearFilter];
 
 	if (gpuPlugin == OPEN_GX)
     {

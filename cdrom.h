@@ -33,10 +33,13 @@ extern "C" {
 
 //#define btoi(b)     ((b) / 16 * 10 + (b) % 16) /* BCD to u_char */
 //#define btoi(b)		(((b) >> 4) * 10 + ((b) & 15)) /* BCD to u_char */
-#define btoi(b)		(btoiBuf[b]) /* BCD to u_char */
+/* The tables have 256 entries and are indexed by a whole byte. Callers pass values
+ * straight out of disc data, where anything from 0x80 up (a disc over 79 minutes, for
+ * one) is negative in a signed char and would index before the table. */
+#define btoi(b)		(btoiBuf[(unsigned char)(b)]) /* BCD to u_char */
 //#define itob(i)     ((i) / 10 * 16 + (i) % 10) /* u_char to BCD */
 //#define itob(i)		((((i) / 10) << 4) + (i) % 10)  /* u_char to BCD */
-#define itob(i)		(itobBuf[i])  /* u_char to BCD */
+#define itob(i)		(itobBuf[(unsigned char)(i)])  /* u_char to BCD */
 #define MIN_VALUE(a,b) ({ __typeof__ (a) _a = (a); __typeof__ (b) _b = (b); _a < _b ? _a : _b; })
 #define MAX_VALUE(a,b) ({ __typeof__ (a) _a = (a); __typeof__ (b) _b = (b); _a > _b ? _a : _b; })
 

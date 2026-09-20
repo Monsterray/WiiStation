@@ -433,7 +433,9 @@ int CheckCdrom() {
 		for (i = 0; i < len; ++i) {
 			if (exename[i] == ';' || c >= sizeof(CdromId) - 1)
 				break;
-			if (isalnum(exename[i]))
+			/* ctype takes a value representable as unsigned char; a signed char
+			 * from the disc's executable name would index before the table. */
+			if (isalnum((unsigned char)exename[i]))
 				CdromId[c++] = exename[i];
 		}
 	}

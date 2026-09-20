@@ -587,7 +587,10 @@ void ReleasePlugins() {
 }
 
 bool UsingIso(void) {
-	return (&isoFile.name[0] != '\0');
+	/* name is an array, so the old test compared its address with NULL and was
+	 * always true. Both branches of the only caller reach the same ISO backend
+	 * (LoadCDRplugin ignores its argument), so this only makes the test honest. */
+	return (isoFile.name[0] != '\0');
 }
 
 // for CD swap

@@ -427,7 +427,7 @@ void fileBrowserFrame_Error(fileBrowser_file* dir, int error_code)
   	sprintf(feedback_string,"SMB failed to connect");
 	}
 	//set first entry to read 'error' and return to main menu
-	else if(dir->name)
+	else if(dir->name[0])   // name is an array; testing it as a pointer was always true
 	  sprintf(feedback_string,"Error opening directory \"%s\"",&dir->name[0]);
 	else
 	  strcpy(feedback_string,"An error occured");

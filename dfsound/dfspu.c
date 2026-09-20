@@ -387,7 +387,7 @@ static void decode_block_data(s16 *dest, const unsigned char *src, int predict_n
     decodeTmp.IK1 = FIK1(predict_nr);
     decodeTmp.vblockp = (u32)(src);
     decodeTmp.range = shift_factor;
-    decodeTmp.decpAddr = lastF0F1;
+    decodeTmp.decpAddr = (u32)lastF0F1;
 
     psDecodePcmBlock(&decodeTmp, dest - 1, 2);
 // static const int f[16][2] = {
