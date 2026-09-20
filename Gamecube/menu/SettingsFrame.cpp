@@ -102,6 +102,8 @@ void Func_ToggleButtonLoad();
 
 void Func_DisableAudioYes();
 void Func_DisableAudioNo();
+void Func_SoundHwAccelYes();
+void Func_SoundHwAccelNo();
 void Func_DisableXaYes();
 void Func_DisableXaNo();
 void Func_DisableCddaYes();
@@ -154,11 +156,11 @@ void gpuChangePsxType();
 void setSpuInterpolation(int spuInterpolation);
 }
 
-#define NUM_FRAME_BUTTONS 67
+#define NUM_FRAME_BUTTONS 69
 #define NUM_TAB_BUTTONS 5
 #define FRAME_BUTTONS settingsFrameButtons
 #define FRAME_STRINGS settingsFrameStrings
-#define NUM_FRAME_TEXTBOXES 25
+#define NUM_FRAME_TEXTBOXES 26
 #define FRAME_TEXTBOXES settingsFrameTextBoxes
 
 /*
@@ -196,7 +198,7 @@ Auto Save Memcards: Yes; No
 Save States Device: SD; USB
 */
 
-static char FRAME_STRINGS[79][24] =
+static char FRAME_STRINGS[80][24] =
 	{ "General",
 	  "Video",
 	  "Input",
@@ -282,7 +284,9 @@ static char FRAME_STRINGS[79][24] =
 	  "Memcard 2",
 	  "Enable Memcard",
 	  "Separately",
-	  "Force NTSC"
+	  "Force NTSC",
+	//Appended so no existing FRAME_STRINGS index moves
+	  "DSP Sound"			// [79] audio tab: hardware-accelerated sound
       };
 
 static char LANG_STRINGS[13][24] =
@@ -411,6 +415,10 @@ struct ButtonInfo
 	{	NULL,	BTN_A_SEL,	GPU_PLUGIN_STRINGS[1],	215.0,	160.0,	140.0,	56.0,	 5,	 7,	 66, 65,Func_UseOldSoftGpu,		Func_ReturnFromSettingsFrame }, // GpuPlugin: Old Soft
 	{	NULL,	BTN_A_SEL,	GPU_PLUGIN_STRINGS[2],	365.0,	160.0,	130.0,	56.0,	 6,	 9,	 64, 66,Func_UseNewSoftGpu,		Func_ReturnFromSettingsFrame }, // GpuPlugin: New Soft
 	{	NULL,	BTN_A_SEL,	GPU_PLUGIN_STRINGS[3],	505.0,	160.0,	130.0,	56.0,	 6,	 9,	 65, 64,Func_UseOpenGxGpu,		Func_ReturnFromSettingsFrame }, // GpuPlugin: OpenGX
+
+	//Audio tab, appended at the end (starts at button[67]) so no existing index moves
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[16],	345.0,	380.0,	 75.0,	56.0,	45,	 3,	68,	68,	Func_SoundHwAccelYes,	Func_ReturnFromSettingsFrame }, // DSP Sound: Yes
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[17],	440.0,	380.0,	 75.0,	56.0,	45,	 3,	67,	67,	Func_SoundHwAccelNo,	Func_ReturnFromSettingsFrame }, // DSP Sound: No
 };
 
 struct TextBoxInfo
@@ -454,6 +462,8 @@ struct TextBoxInfo
 	{	NULL,	FRAME_STRINGS[76],	150.0,	338.0,	 1.0,	true }, // Memcard enable
     //TextBoxes for Saves Tab (starts at textBox[24]) ..was[24]
 	{	NULL,	GPU_PLUGIN_STRINGS[0],	110.0,	188.0,	 1.0,	true }, // GPU Plugin: Old Soft/New Soft/OpenGX
+	//TextBox for the Audio tab, appended (textBox[25])
+	{	NULL,	FRAME_STRINGS[79],	210.0,	408.0,	 1.0,	true }, // DSP Sound: Yes/No
 };
 
 SettingsFrame::SettingsFrame()
@@ -683,11 +693,21 @@ void SettingsFrame::activateSubmenu(int submenu)
 			if (Config.Cdda == CDDA_DISABLE)	FRAME_BUTTONS[43].button->setSelected(true);
 			else								FRAME_BUTTONS[44].button->setSelected(true);
 			FRAME_BUTTONS[45].buttonString = FRAME_STRINGS[46 + spuInterpolation];
+			if (soundHwAccel == SOUND_HW_ACCEL_ON)	FRAME_BUTTONS[67].button->setSelected(true);
+			else									FRAME_BUTTONS[68].button->setSelected(true);
 			for (int i = 39; i < 46; i++)
 			{
 				FRAME_BUTTONS[i].button->setVisible(true);
 				FRAME_BUTTONS[i].button->setActive(true);
 			}
+			/* DSP Sound lives at the end of the array (see the button table) */
+			for (int i = 67; i <= 68; i++)
+			{
+				FRAME_BUTTONS[i].button->setVisible(true);
+				FRAME_BUTTONS[i].button->setActive(true);
+			}
+			FRAME_BUTTONS[45].button->setNextFocus(menu::Focus::DIRECTION_DOWN, FRAME_BUTTONS[67].button);
+			FRAME_TEXTBOXES[25].textBox->setVisible(true);
 			break;
 		case SUBMENU_SAVES:
 			setDefaultFocus(FRAME_BUTTONS[4].button);
@@ -1667,6 +1687,22 @@ void Func_DisableAudioNo()
 		FRAME_BUTTONS[i].button->setSelected(false);
 	FRAME_BUTTONS[40].button->setSelected(true);
 	audioEnabled = AUDIO_ENABLE;
+}
+
+void Func_SoundHwAccelYes()
+{
+	for (int i = 67; i <= 68; i++)
+		FRAME_BUTTONS[i].button->setSelected(false);
+	FRAME_BUTTONS[67].button->setSelected(true);
+	soundHwAccel = SOUND_HW_ACCEL_ON;
+}
+
+void Func_SoundHwAccelNo()
+{
+	for (int i = 67; i <= 68; i++)
+		FRAME_BUTTONS[i].button->setSelected(false);
+	FRAME_BUTTONS[68].button->setSelected(true);
+	soundHwAccel = SOUND_HW_ACCEL_OFF;
 }
 
 void Func_DisableXaYes()

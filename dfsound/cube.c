@@ -1,5 +1,4 @@
-//cube_audio.c AUDIO output via libOGC
-
+//cube.c -- audio output through the Wii's DSP, via libogc's AESND
 /***************************************************************************
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
@@ -9,123 +8,178 @@
  *   additional informations.                                              *
  *                                                                         *
  ***************************************************************************/
+
+/* The alternative to the SDL driver (dfsound/sdl.c), selected by the SoundHwAccel
+ * setting. Both receive the same thing from the SPU emulator: a signed 16-bit stereo
+ * stream at the PlayStation's own 44100 Hz. The difference is what happens next.
+ *
+ *   SDL driver:   the CPU resamples 44100 -> 48000 in the audio callback, then libSDL
+ *                 hands the result to the audio interface's DMA.
+ *   this driver:  the stream is handed to an AESND voice AT 44100 Hz, and the DSP's
+ *                 microcode does the rate conversion, mixing and volume. The CPU only
+ *                 copies bytes.
+ *
+ * The DSP reads these buffers by DMA and does not see the CPU's cache, so every buffer
+ * is 32-byte aligned, a multiple of 32 bytes long, and flushed before it is handed over.
+ * Getting any of that wrong is inaudible under an emulator that does not model the cache
+ * and produces noise on real hardware.
+ */
+
 #include "out.h"
 #include "../psxcommon.h"
 
-////////////////////////////////////////////////////////////////////////
-// cube audio globals
-////////////////////////////////////////////////////////////////////////
-#include "../Gamecube/DEBUG.h"
+#include <malloc.h>
+#include <string.h>
+#include <ogc/cache.h>
 #include <aesndlib.h>
 
-char audioEnabled;
+#include "../Gamecube/DEBUG.h"
 
-static const u32 freq = PS_SPU_FREQ;
-unsigned int    iVolume = 3;
-static AESNDPB* voice = NULL;
-int	iDisStereo=0;
+char audioEnabled;          /* the "Audio" setting; also read by the menu */
+unsigned int iVolume = 3;
+int iDisStereo = 0;
 
-#define NUM_BUFFERS 4
-static struct { void* buffer; u32 len; } buffers[NUM_BUFFERS];
-static u32 fill_buffer, play_buffer;
+/* Four buffers of 1024 stereo frames: about 23 ms each at 44100 Hz, so at most ~93 ms
+ * of latency when the ring is full, and the emulator is throttled (see cube_busy) well
+ * before that. Bytes per buffer must stay a multiple of 32 for the DMA. */
+#define CUBE_BUFFERS      4
+#define CUBE_BUF_FRAMES   1024
+#define CUBE_BUF_BYTES    (CUBE_BUF_FRAMES * 4)     /* stereo, 16-bit */
+#define CUBE_BUSY_BUFFERS 2                         /* keep roughly this much queued */
 
-static void aesnd_callback(AESNDPB* voice, u32 state);
+static AESNDPB *voice = NULL;
+static unsigned char *ring[CUBE_BUFFERS];
+static int fill_used;                               /* bytes already in ring[fill] */
 
+/* Single producer (the emulator thread) and single consumer (the AESND callback, which
+ * runs at interrupt time). Each side only ever writes its own counter, so neither needs
+ * a lock: a 32-bit aligned store is atomic on this CPU. queued = filled - played. */
+static volatile unsigned int filled = 0, played = 0;
+
+static unsigned int cube_queued(void)
+{
+    return filled - played;
+}
 
 void SetVolume(void)
 {
-	// iVolume goes 1 (loudest) - 4 (lowest); volume goes 255-64
-	u16 volume = (4 - iVolume + 1) * 64 - 1;
-	if (voice) AESND_SetVoiceVolume(voice, volume, volume);
+    // iVolume goes 1 (loudest) - 4 (lowest); volume goes 255-64
+    u16 volume = (4 - iVolume + 1) * 64 - 1;
+    if (voice) AESND_SetVoiceVolume(voice, volume, volume);
 }
 
-void CubeSoundInit(void)
+static void cube_callback(AESNDPB *pb, u32 state)
 {
-	voice = AESND_AllocateVoice(aesnd_callback);
-	AESND_SetVoiceFormat(voice, iDisStereo ? VOICE_MONO16 : VOICE_STEREO16);
-	AESND_SetVoiceFrequency(voice, freq);
-	SetVolume();
-	AESND_SetVoiceStream(voice, true);
-	fill_buffer = play_buffer = 0;
+    if (state != VOICE_STATE_STREAM)
+        return;
+
+    if (filled != played) {
+        AESND_SetVoiceBuffer(pb, ring[played % CUBE_BUFFERS], CUBE_BUF_BYTES);
+        played++;
+    }
+    /* Nothing queued: leave the voice alone. AESND repeats the last buffer rather than
+     * clicking, and the emulator's throttle (cube_busy) will catch up. */
 }
 
-////////////////////////////////////////////////////////////////////////
-// REMOVE SOUND
-////////////////////////////////////////////////////////////////////////
-
-void RemoveSound(void)
+static int cube_init(void)
 {
-	AESND_SetVoiceStop(voice, true);
+    int i;
+
+    AESND_Init();               /* idempotent in libogc; also starts the DSP microcode */
+
+    for (i = 0; i < CUBE_BUFFERS; i++) {
+        if (ring[i] == NULL) {
+            ring[i] = (unsigned char *)memalign(32, CUBE_BUF_BYTES);
+            if (ring[i] == NULL)
+                return -1;
+        }
+        memset(ring[i], 0, CUBE_BUF_BYTES);
+        DCFlushRange(ring[i], CUBE_BUF_BYTES);
+    }
+    filled = played = 0;
+    fill_used = 0;
+
+    voice = AESND_AllocateVoice(cube_callback);
+    if (voice == NULL)
+        return -1;
+
+    AESND_SetVoiceFormat(voice, iDisStereo ? VOICE_MONO16 : VOICE_STEREO16);
+    AESND_SetVoiceFrequency(voice, PS_SPU_FREQ);   /* the DSP resamples to 48 kHz */
+    SetVolume();
+    AESND_SetVoiceStream(voice, true);
+    AESND_SetVoiceStop(voice, false);
+    return 0;
 }
 
-////////////////////////////////////////////////////////////////////////
-// GET BYTES BUFFERED
-////////////////////////////////////////////////////////////////////////
-
-unsigned long SoundGetBytesBuffered(void)
+static void cube_finish(void)
 {
-	unsigned long bytes_buffered = 0, i = fill_buffer;
-	while(1) {
-		bytes_buffered += buffers[i].len;
-
-		if(i == play_buffer) break;
-
-		i = (i + NUM_BUFFERS - 1) & 3;
-	}
-
-	return bytes_buffered;
+    if (voice) {
+        AESND_SetVoiceStop(voice, true);
+        AESND_FreeVoice(voice);
+        voice = NULL;
+    }
+    filled = played = 0;
+    fill_used = 0;
 }
 
-static int SoundBusy(void) {
-	if (SoundGetBytesBuffered() > 8*1024)
-    {
-        return 1;
+/* Non-zero means "enough audio is queued, stop producing". Returning zero makes the SPU
+ * emulator generate more samples to catch up (see DF_SPUasync). */
+static int cube_busy(void)
+{
+    if (voice == NULL) return 1;
+    return cube_queued() >= CUBE_BUSY_BUFFERS;
+}
+
+static int cube_feed(void *data, int bytes)
+{
+    const unsigned char *src = (const unsigned char *)data;
+
+    if (!audioEnabled || voice == NULL) return 0;
+
+    while (bytes > 0) {
+        unsigned char *dst;
+        int space, chunk;
+
+        /* Ring full: drop the excess rather than overwrite a buffer the DSP may be
+         * reading. The throttle above normally prevents this. */
+        if (cube_queued() >= CUBE_BUFFERS)
+            break;
+
+        dst   = ring[filled % CUBE_BUFFERS];
+        space = CUBE_BUF_BYTES - fill_used;
+        chunk = bytes < space ? bytes : space;
+
+        memcpy(dst + fill_used, src, chunk);
+        fill_used += chunk;
+        src       += chunk;
+        bytes     -= chunk;
+
+        if (fill_used == CUBE_BUF_BYTES) {
+            /* The DSP fetches this by DMA and never sees the cache. */
+            DCFlushRange(dst, CUBE_BUF_BYTES);
+            fill_used = 0;
+            filled++;       /* publish only after the flush */
+        }
     }
 
-	return 0;
+    return 0;
 }
 
-static void aesnd_callback(AESNDPB* voice, u32 state){
-	if(state == VOICE_STATE_STREAM) {
-		if(play_buffer != fill_buffer) {
-			AESND_SetVoiceBuffer(voice,
-					buffers[play_buffer].buffer, buffers[play_buffer].len);
-
-			play_buffer = (play_buffer + 1) & 3;
-		}
-	}
-}
-
-////////////////////////////////////////////////////////////////////////
-// FEED SOUND DATA
-////////////////////////////////////////////////////////////////////////
-int SoundFeedStreamData(unsigned char* pSound,long lBytes)
+void pauseAudio(void)
 {
-	if(!audioEnabled) return 0;
-
-	buffers[fill_buffer].buffer = pSound;
-	buffers[fill_buffer].len = lBytes;
-
-	fill_buffer = (fill_buffer + 1) & 3;
-
-	AESND_SetVoiceStop(voice, false);
-
-	return 0;
+    if (voice) AESND_SetVoiceStop(voice, true);
 }
 
-void pauseAudio(void){
-	//AESND_Pause(true);
-}
-
-void resumeAudio(void){
-	//AESND_Pause(false);
+void resumeAudio(void)
+{
+    if (voice) AESND_SetVoiceStop(voice, false);
 }
 
 void out_register_cube(struct out_driver *drv)
 {
-	drv->name = "cube";
-	drv->init = CubeSoundInit;
-	drv->finish = RemoveSound;
-	drv->busy = SoundBusy;
-	drv->feed = SoundFeedStreamData;
+    drv->name   = "cube";
+    drv->init   = cube_init;
+    drv->finish = cube_finish;
+    drv->busy   = cube_busy;
+    drv->feed   = cube_feed;
 }

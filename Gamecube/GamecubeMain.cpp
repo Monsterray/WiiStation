@@ -111,7 +111,8 @@ char LoadCdBios=0;
 char frameLimit[2];
 char frameSkip;
 char useDithering;
-extern char audioEnabled;
+extern char audioEnabled;   // defined in dfsound/cube.c alongside the output drivers
+char soundHwAccel;          // read by dfsound/out.c when it picks an output driver
 char spuInterpolation;
 char showFPSonScreen;
 char printToScreen;
@@ -170,6 +171,7 @@ static struct {
 	char  min, max;
 } OPTIONS[] =
 { { "Audio", &audioEnabled, AUDIO_DISABLE, AUDIO_ENABLE },
+  { "SoundHwAccel", &soundHwAccel, SOUND_HW_ACCEL_OFF, SOUND_HW_ACCEL_ON },
   { "Interpolation", &spuInterpolation, SIMPLE_INTERPOLATION, GAUSSI_INTERPOLATION },
   { "FPS", &showFPSonScreen, FPS_HIDE, FPS_SHOW },
 //  { "Debug", &printToScreen, DEBUG_HIDE, DEBUG_SHOW },
@@ -357,6 +359,7 @@ void loadSettings(int argc, char *argv[])
 {
 	// Default Settings
 	audioEnabled     = 1; // Audio
+	soundHwAccel     = SOUND_HW_ACCEL_OFF; // CPU sound path; the DSP one is opt-in
 	spuInterpolation = SIMPLE_INTERPOLATION;
 #ifdef RELEASE
 	showFPSonScreen  = 0; // Don't show FPS on Screen

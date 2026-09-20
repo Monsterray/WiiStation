@@ -32,6 +32,16 @@ enum audioEnabled
 	AUDIO_ENABLE
 };
 
+/* Which sound output path the SPU emulator feeds (dfsound/out.c): the CPU one, which
+ * resamples 44100 -> 48000 itself and goes out through SDL, or the DSP one, which hands
+ * the stream to an AESND voice at 44100 and lets the DSP microcode convert it. */
+extern char soundHwAccel;
+enum soundHwAccel
+{
+	SOUND_HW_ACCEL_OFF=0,
+	SOUND_HW_ACCEL_ON
+};
+
 enum ConfigXa //Config.Xa
 {
 	XA_ENABLE=0,
