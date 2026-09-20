@@ -30,6 +30,7 @@
 #include "../coredebug.h"
 #include "../psxcommon.h"
 #include "../Gamecube/MEM2.h"
+#include "../Gamecube/perf_prof.h"
 
 #ifdef __arm__
 #include "arm_features.h"
@@ -917,6 +918,7 @@ void do_samples(unsigned int cycles_to, int force_no_thread)
  if (cycle_diff < -2*1048576 || cycle_diff > 2*1048576)
   {
    //xprintf("desync %u %d\n", cycles_to, cycle_diff);
+   PERF_INC(spu_desync);
    spu.cycles_played = cycles_to;
    return;
   }
@@ -937,6 +939,7 @@ void do_samples(unsigned int cycles_to, int force_no_thread)
   //xprintf("ns_to oflow %d %d\n", ns_to, NSSIZE);
   ns_to = NSSIZE;
  }
+ PERF_ADD(spu_ns, ns_to);
 
   //////////////////////////////////////////////////////
   // special irq handling in the decode buffers (0x0000-0x1000)
@@ -1097,12 +1100,24 @@ void CALLBACK DF_SPUasync(unsigned int cycle, unsigned int flags, unsigned int p
    out_current->feed(spu.pSpuBuffer, (unsigned char *)spu.pS - spu.pSpuBuffer);
   spu.pS = (short *)spu.pSpuBuffer;
 
-  //if (spu_config.iTempo) {
-   if (!out_current->busy()) {
+  {
+   int busy = out_current->busy();
+   if (busy) PERF_INC(spu_busy);
+   /* Tempo: when the output driver has run low, pull the mixer's clock back so the next
+    * do_samples() generates half a frame of extra audio. That keeps the driver fed when
+    * the core runs slower than real time, but the SPU then consumes CD-XA faster than the
+    * emulated drive delivers it and streamed speech gets silent gaps (SoundTempo in
+    * SETTINGS.md; upstream pcsx-rearmed ships this off). */
+   if (spu_config.iTempo && !busy) {
     // cause more samples to be generated
     // (and break some games because of bad sync)
         spu.cycles_played -= PS_SPU_FREQ / 60 / 2 * 768;  // Config.PsxType = 0, PAL 60Fps/1s
+        PERF_INC(spu_pulls);
    }
+#ifdef PERF_PROF
+   { static unsigned hb; if (!(++hb & 15)) perf_audio_event('S', cycle, (int)xa_fill(), (int)(cycle - spu.cycles_played), (unsigned)busy); }
+#endif
+  }
  }
 }
 
@@ -1130,6 +1145,25 @@ void DF_SPUplayADPCMchannel(xa_decode_t *xap, unsigned int cycle, int is_start)
   spu.XAPlay = spu.XAFeed = spu.XAStart;
  if (spu.XAPlay == spu.XAFeed)
   do_samples(cycle, 1);                // catch up to prevent source underflows later
+
+#ifdef PERF_PROF
+ {
+  unsigned fill = xa_fill();
+  unsigned dt = cycle - xa_last_cycle;
+  if (!g_perf.xa_sectors || fill < g_perf.xa_fill_min) g_perf.xa_fill_min = fill;
+  if (fill > g_perf.xa_fill_max) g_perf.xa_fill_max = fill;
+  if (!is_start && xa_stream_on)
+   {
+    if (!g_perf.xa_dt_max || dt < g_perf.xa_dt_min) g_perf.xa_dt_min = dt;
+    if (dt > g_perf.xa_dt_max) g_perf.xa_dt_max = dt;
+   }
+  if (is_start) { g_perf.xa_starts++; g_perf.xa_freq = xap->freq; g_perf.xa_stereo = xap->stereo; }
+  g_perf.xa_sectors++;
+  perf_audio_event(is_start ? 'R' : 'F', cycle, (int)fill, (int)(cycle - spu.cycles_played),
+                   (out_current->busy() ? 1u : 0u) | ((spu.XARepeat & 7u) << 1) | ((unsigned)xa_gap_open << 4));
+  xa_last_cycle = cycle; xa_stream_on = 1; xa_gap_open = 0; xa_hold_open = 0; xa_gap_run = 0;
+ }
+#endif
 
  FeedXA(xap);                          // call main XA feeder
  spu.xapGlobal = xap;                  // store info for save states
@@ -1239,7 +1273,7 @@ long DF_SPUinit(void)
   //spu_config.iUseInterpolation = 2;
   spu_config.iXAPitch = 0;
   spu_config.iVolume = 1024;
-  spu_config.iTempo = 0;
+  /* iTempo comes from the SoundTempo setting (spu.c setSpuTempo), like iUseInterpolation */
   spu_config.iUseThread = 0; // no effect if only 1 core is detected
 
   spu.spuMemC = (unsigned char  *)SPU_BUF_LO;

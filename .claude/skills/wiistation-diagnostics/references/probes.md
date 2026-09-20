@@ -30,6 +30,8 @@ scheduled `dump` vblank. Lines and what they mean:
 | `sio: write8 start ctrl16 read8 irq padtype0` | SIO data writes, pad-select starts that reached the plugin, control writes, reads, SIO interrupts, and `padType[0]` as the SIO sees it |
 | `ai_ev: vblank mask` | every change of the scripted button mask |
 | `ptrace:` + `pt:` (older builds) | trace episode, now in ptrace.log |
+| `xa: sectors starts fed trunc fill_min fill_max freq stereo dt_min dt_max filtered` | CD-XA sectors queued into the SPU (`FeedXA`), stream starts, 44.1 kHz samples written, feeds cut short by a full ring, ring fill at feed time, the stream's format, PSX cycles between sectors (37.8 kHz stereo at 2x = 1806336), sectors dropped by the file/channel filter |
+| `xamix: mix hold gaps gap_calls gap_samples \| spu: ns pulls busy desync aev \| out: dry drop` | `MixCD` calls that consumed XA, calls that repeated the last sample (ring empty), silence episodes and their length in calls/samples while a stream was active; mixer samples produced, tempo pull-backs (`SoundTempo`), calls that found the output driver busy, `do_samples` clock resets, audio-timeline records; output frames the driver had no data for (SDL zero-fills, AESND repeats its last buffer) and feeds dropped because the driver was full |
 
 Typical readings: a game polls the pad ~2x per vblank (`start` ≈ 2×vblanks); `padtype0=0`
 means no pad will ever be seen; `ogxeq mism=0` with wrong pictures means the fault is after
@@ -56,6 +58,25 @@ Synthetic commands emitted by the read path and the off-screen path (not GP0 com
 | `c8` | off-screen primitive rasterized in software | flags T=textured, `col` = GP0 command byte, rect |
 
 `scripts/ptrace_summary.py` decodes all of this; read its output, not the raw file.
+
+## Audio timeline (sd:/wiisxrx/atrace.log)
+
+`perf_audio_event(kind, cycle, a, b, c)` appends to a 3072-record ring that starts at
+`atrace <vblank>` in autoinput.txt (without the line: at the first event), fills once and is
+written whole from the present path (and again with every perf report). `dolphin_run.sh`
+extracts it as `<outdir>/atrace.log`; `scripts/atrace_summary.py` turns it into: emulated-vs-
+wall speed between XA sectors, sector intervals in both clocks, ring fill, gap lengths, and
+the fraction of mixer calls that found the output driver busy. Records:
+
+| kind | When | a | b | f |
+|---|---|---|---|---|
+| `F` / `R` | an XA sector was queued (`R` = stream start, ring reset) | ring fill before the feed (samples) | `cycle - cycles_played`, the mixer's lag | bit0 driver busy, bits1-3 `XARepeat`, bit4 this sector ends a gap |
+| `H` | `MixCD` started repeating the last sample: ring empty | `ns_to` | `XARepeat` left | |
+| `G` | `MixCD` started contributing silence: repeats used up | `ns_to` | `cdClearSamples` | |
+| `S` | heartbeat, every 16th `SPU_async` | ring fill | `cycle - cycles_played` after any pull-back | driver busy |
+
+Lines are `ae: <kind> w=<wall_us> c=<psx cycle> a=.. b=.. f=..`. Emulated ms = cycles / 33868.8.
+How this settled the Spyro speech gaps is in case-studies.md.
 
 ## VRAM dump
 

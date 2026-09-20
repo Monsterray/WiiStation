@@ -37,6 +37,19 @@ static int gauss_window[8] = {0, 0, 0, 0, 0, 0, 0, 0};
 #define gvalr0 gauss_window[4+gauss_ptr]
 #define gvalr(x) gauss_window[4+((gauss_ptr+x)&3)]
 
+#ifdef PERF_PROF
+/* Probe state for the XA counters in perf_prof.h. xa_stream_on: a sector was queued and
+ * the mixer has not been silent for ~2 s since; xa_gap_open / xa_hold_open: the current
+ * silence / repeat episode has been recorded, so only its first call counts as an event. */
+static int xa_stream_on, xa_gap_open, xa_hold_open;
+static unsigned xa_gap_run, xa_last_cycle;
+static unsigned xa_fill(void)
+{
+ if (spu.XAFeed >= spu.XAPlay) return (unsigned)(spu.XAFeed - spu.XAPlay);
+ return (unsigned)((spu.XAEnd - spu.XAPlay) + (spu.XAFeed - spu.XAStart));
+}
+#endif
+
 ////////////////////////////////////////////////////////////////////////
 // MIX XA & CDDA
 ////////////////////////////////////////////////////////////////////////
@@ -95,6 +108,14 @@ INLINE void MixCD(int *SSumLR, int *RVB, int ns_to, int decode_pos)
  {
   if(spu.XAPlay == spu.XAFeed)
    spu.XARepeat--;
+#ifdef PERF_PROF
+  if (spu.XAPlay == spu.XAFeed)
+   {
+    g_perf.xa_hold++;
+    if (!xa_hold_open) { xa_hold_open = 1; perf_audio_event('H', spu.cycles_played, ns_to, (int)spu.XARepeat, 0); }
+   }
+  else { g_perf.xa_mix++; xa_hold_open = 0; }
+#endif
 
   for(ns = 0; ns < ns_to*2; ns += 2)
    {
@@ -164,6 +185,17 @@ INLINE void MixCD(int *SSumLR, int *RVB, int ns_to, int decode_pos)
   spu.cdClearSamples -= ns_to;
   spu.XALastVal = 0;
  }
+#ifdef PERF_PROF
+ /* XA ring empty, repeats used up, no CDDA either: this call added silence. Counted only
+  * while a stream is active, i.e. until ~2 s of continuous silence. */
+ if (xa_stream_on && spu.XAPlay == spu.XAFeed && spu.XARepeat == 0 && spu.CDDAPlay == spu.CDDAFeed)
+  {
+   if (!xa_gap_open) { xa_gap_open = 1; g_perf.xa_gaps++; perf_audio_event('G', spu.cycles_played, ns_to, spu.cdClearSamples, 0); }
+   g_perf.xa_gap_calls++; g_perf.xa_gap_samples += ns_to;
+   xa_gap_run += ns_to;
+   if (xa_gap_run > 2 * 44100) xa_stream_on = 0;
+  }
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -204,7 +236,10 @@ void FeedXA(const xa_decode_t *xap)
  iSize = xap->newSize;
 
 #endif
- if(!iSize) return;                                    // none? bye
+ /* nsamples == 0 is cdrom.c's flush on CdlPause. iSize is precomputed here (upstream
+  * derives it from nsamples and gets 0), so without this test the flush re-queued the
+  * previous sector's PCM once more. */
+ if(!iSize || !xap->nsamples) return;                  // none? bye
 
  if(spu.XAFeed<spu.XAPlay) iPlace=spu.XAPlay-spu.XAFeed; // how much space in my buf?
  else              iPlace=(spu.XAEnd-spu.XAFeed) + (spu.XAPlay-spu.XAStart);
@@ -353,6 +388,7 @@ void FeedXA(const xa_decode_t *xap)
          #ifdef SHOW_DEBUG
          DEBUG_print("FeedXA Buffer not enough", DBG_SPU2);
          #endif // DISP_DEBUG
+         PERF_INC(xa_trunc);
          break;
         }
 
@@ -447,6 +483,7 @@ void FeedXA(const xa_decode_t *xap)
          #ifdef SHOW_DEBUG
          DEBUG_print("FeedXA Buffer not enough", DBG_SPU2);
          #endif // DISP_DEBUG
+         PERF_INC(xa_trunc);
          break;
         }
 
@@ -454,6 +491,7 @@ void FeedXA(const xa_decode_t *xap)
       }
     }
   }
+ PERF_ADD(xa_fed, i);
 }
 
 ////////////////////////////////////////////////////////////////////////

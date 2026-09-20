@@ -42,6 +42,16 @@ enum soundHwAccel
 	SOUND_HW_ACCEL_ON
 };
 
+/* dfsound's tempo pull-back (DF_SPUasync): when the output driver runs low, generate extra
+ * audio so it never starves. Keeps sound continuous when the core is slower than real time,
+ * at the price of the SPU consuming CD-XA faster than the drive delivers it. */
+extern char soundTempo;
+enum soundTempo
+{
+	SOUND_TEMPO_OFF=0,
+	SOUND_TEMPO_ON
+};
+
 /* Settings-file mirrors of Config.Xa/Config.Cdda. Those are longs inside PCSX's config
  * struct and the settings table writes a char, so they are stored here and copied across
  * at startup, the same way dynacore mirrors Config.Cpu. Without this the two menu toggles

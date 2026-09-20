@@ -74,3 +74,35 @@ tempting wrong turns.
   `glResetCacheRegion`). The user noticed the black window before the logs did.
 - Lesson: "no frames dumped" is a symptom of the title, not of the dump switches, when the
   switches worked minutes earlier.
+
+## 7. One-sector silent gaps in streamed speech (Spyro, every output path)
+
+- Symptom: `AUDIO_DUMP=1` wavs of the level-intro dialogue held exact-zero gaps of ~53 ms
+  (one 37.8 kHz stereo XA sector) alternating with ~20 ms ones, identical across the SDL and
+  AESND drivers and all resampler modes, so upstream of the output stage. The waveform
+  value after each gap matched the value before it: silence was *inserted*, nothing dropped.
+- Probes in one build (`xa:` / `xamix:` lines, `atrace.log` timeline, `SoundTempo` setting so
+  both behaviours run from one DOL): sectors arrived exactly on the emulated schedule
+  (`dt_min/max` = 1806050..1806618 cycles, nominal 1806336), `trunc=0`, `filtered` = the other
+  7 channels of the interleave. But the XA ring was empty at 45 of 49 feeds and the mixer had
+  produced 27% more samples than emulated time: `pulls=2837`. The timeline gave the core's
+  speed in that scene as a median 0.56x of wall time (debug build under Dolphin).
+- Mechanism: `DF_SPUasync`'s tempo pull-back (`cycles_played -= 367*768` whenever the output
+  driver is not busy; upstream pcsx-rearmed guards it with `iTempo`, default off) makes the
+  mixer run at wall-clock rate while CD-XA is fed at emulated rate, so each sector is used
+  up before the next one arrives. With the pull-back off (`SoundTempo = 0`) the gaps went
+  (`gaps=0`, ring fill median 36 at feed) but the user heard an echo instead. Aligning that
+  dump's speech against the release build's (`align.py`-style chunk cross-correlation)
+  showed the content identical but jumping by exactly +250 ms every few hundred ms: the
+  SDL driver's 250 ms ring was being replayed. Its callback tested `iReadPos != iWritePos`
+  once per output frame and then read two shorts, so with the ring dry it could hop one
+  short past the writer and lap the stale ring. (A first guess from raw autocorrelation, a
+  32 ms repeat, was wrong: the same 32 ms peak is in the clean release dump, it is the
+  speech itself.) The release DOL in the same scene ran near real time and had 2 gaps in
+  110 s instead of 61. At 0.56x no setting is clean; the deficit has to land somewhere.
+- Lesson: an audio gap that is exactly one source block long is a *rate* problem, not a data
+  problem; measure emulated vs wall time around the feed before touching the decoder. The
+  debug build's own slowness is a variable in audio experiments: compare with the release
+  DOL (`DOL=` env of `dolphin_run.sh`) before attributing gaps to the code. And to identify
+  a repeat, align the suspect dump against a clean one and read the offset steps; a bare
+  autocorrelation peak may belong to the signal.

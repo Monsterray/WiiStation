@@ -96,6 +96,44 @@ static void perf_vram_dump(void)
 #define PERF_PT_ARM_PRESENT 0      /* 0 = arm only on a large untextured semi-transparent polygon */
 #endif
 extern unsigned int frame_counter;            /* psxcounters.c: +1 per VBlank */
+extern unsigned autoinput_atrace_vbl;         /* PadWiiSX.c: 'atrace <vblank>' line */
+
+/* Audio timeline (aev[] in perf_prof.h). Record fields per kind:
+ *   F/R  XA sector queued (R = stream start): a = ring fill before the feed (samples),
+ *        b = cycle - cycles_played (mixer lag), c = bit0 output driver busy,
+ *        bits1-3 XARepeat, bit4 a gap was open (this sector ends it)
+ *   H    MixCD started repeating the last sample (ring empty): a = ns_to, b = XARepeat
+ *   G    MixCD started contributing silence: a = ns_to, b = cdClearSamples
+ *   S    heartbeat every 16th SPU_async: a = ring fill, b = cycle - cycles_played
+ *        (after the tempo pull-back, if any), c = driver busy
+ * Own file, rewritten whole: like ptrace.log, appending thousands of lines to perf.log
+ * risks a broken FAT chain when Dolphin is killed mid-write. */
+static void perf_audio_flush(void)
+{
+	unsigned k;
+	FILE *f = fopen("sd:/wiisxrx/atrace.log", "w");
+	if (!f) return;
+	fprintf(f, "--- audio trace events=%lu flushed_at_present=%lu vblank=%lu ---\n",
+		(unsigned long)g_perf.aev_n, (unsigned long)g_perf.present_frames, (unsigned long)g_perf.vblanks);
+	for (k = 0; k < g_perf.aev_n; k++)
+		fprintf(f, "ae: %c w=%lu c=%lu a=%ld b=%ld f=%u\n", g_perf.aev[k].kind,
+			(unsigned long)g_perf.aev[k].wall_us, (unsigned long)g_perf.aev[k].cycle,
+			(long)g_perf.aev[k].a, (long)g_perf.aev[k].b, g_perf.aev[k].c);
+	fclose(f);
+	g_perf.aev_printed = 1;
+}
+void perf_audio_event(unsigned kind, unsigned cycle, int a, int b, unsigned c)
+{
+	unsigned k;
+	if (!g_perf.aev_on) {
+		if (autoinput_atrace_vbl && frame_counter < autoinput_atrace_vbl) return;
+		g_perf.aev_on = 1;
+	}
+	if (g_perf.aev_n >= PERF_AEV_N) return;
+	k = g_perf.aev_n++;
+	g_perf.aev[k].kind = (uint8_t)kind; g_perf.aev[k].wall_us = (uint32_t)perf_now_us();
+	g_perf.aev[k].cycle = cycle; g_perf.aev[k].a = a; g_perf.aev[k].b = b; g_perf.aev[k].c = (uint16_t)c;
+}
 extern unsigned autoinput_trace_vbl[8];       /* PadWiiSX.c: 'trace <vblank>' lines */
 extern int autoinput_trace_n;
 static int trace_sched_next = 0;
@@ -201,6 +239,9 @@ void perf_present_tick(unsigned long long present_us)
 		perf_trace_flush();
 #endif
 	g_perf.present_us += present_us;
+	/* the audio ring is written from the present path, not from inside the mixer */
+	if (g_perf.aev_n == PERF_AEV_N && !g_perf.aev_printed)
+		perf_audio_flush();
 	{
 		extern unsigned autoinput_dump_vbl;   /* PadWiiSX.c: 'dump <vblank>' in autoinput.txt */
 		if (!g_perf.vram_dumped && autoinput_dump_vbl && frame_counter >= autoinput_dump_vbl) {
@@ -400,12 +441,25 @@ void perf_report(void)
 		fprintf(f, "chd: hit=%lu miss=%lu err=%lu chd_us=%llu\n",
 			(unsigned long)g_perf.chd_hit, (unsigned long)g_perf.chd_miss,
 			(unsigned long)g_perf.chd_err, g_perf.chd_us);
+		fprintf(f, "xa: sectors=%lu starts=%lu fed=%lu trunc=%lu fill_min=%lu fill_max=%lu freq=%lu stereo=%lu dt_min=%lu dt_max=%lu filtered=%lu\n",
+			(unsigned long)g_perf.xa_sectors, (unsigned long)g_perf.xa_starts, (unsigned long)g_perf.xa_fed,
+			(unsigned long)g_perf.xa_trunc, (unsigned long)g_perf.xa_fill_min, (unsigned long)g_perf.xa_fill_max,
+			(unsigned long)g_perf.xa_freq, (unsigned long)g_perf.xa_stereo,
+			(unsigned long)g_perf.xa_dt_min, (unsigned long)g_perf.xa_dt_max, (unsigned long)g_perf.xa_filtered);
+		fprintf(f, "xamix: mix=%lu hold=%lu gaps=%lu gap_calls=%lu gap_samples=%lu | spu: ns=%lu pulls=%lu busy=%lu desync=%lu aev=%lu | out: dry=%lu drop=%lu\n",
+			(unsigned long)g_perf.xa_mix, (unsigned long)g_perf.xa_hold, (unsigned long)g_perf.xa_gaps,
+			(unsigned long)g_perf.xa_gap_calls, (unsigned long)g_perf.xa_gap_samples,
+			(unsigned long)g_perf.spu_ns, (unsigned long)g_perf.spu_pulls, (unsigned long)g_perf.spu_busy,
+			(unsigned long)g_perf.spu_desync, (unsigned long)g_perf.aev_n,
+			(unsigned long)g_perf.out_dry, (unsigned long)g_perf.out_drop);
 		fprintf(f, "menu: frames=%lu menu_us=%llu strings=%lu glyphs=%lu texloads=%lu\n",
 			(unsigned long)g_perf.menu_frames, g_perf.menu_us,
 			(unsigned long)g_perf.menu_strings, (unsigned long)g_perf.menu_glyphs,
 			(unsigned long)g_perf.menu_texloads);
 		fclose(f);
 	}
+	if (g_perf.aev_n)
+		perf_audio_flush();
 
 #ifdef SHOW_DEBUG
 	/* Mirror compact lines to overlay rows 22..29 (rows 0..21 are taken by

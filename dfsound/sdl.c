@@ -23,6 +23,7 @@
 #include "../coredebug.h"
 #include "../Gamecube/DEBUG.h"
 #include "../psxcommon.h"
+#include "../Gamecube/perf_prof.h"
 
 // Reverted to the original ~250ms: sdl_busy()'s "keep generating more
 // samples" heuristic targets BUFFER_SIZE/2 fill as its steady-state
@@ -43,6 +44,18 @@
 // current BUFFER_SIZE/2 (11025) so behavior is unchanged by this split.
 #define BUSY_TARGET_SAMPLES 11025
 
+/* Ring of 16-bit samples, L/R interleaved, so a frame is two shorts at an even index
+ * (BUFFER_SIZE is even). iWritePos is the next index the emulator thread writes,
+ * iReadPos the next index the SDL callback reads; equal means empty, and the writer
+ * leaves one frame free so full and empty stay distinct. Each side stores only its
+ * own index and only after its samples are in place, so no lock is needed.
+ *
+ * The ring used to be advanced one short at a time and the callback tested
+ * `iReadPos != iWritePos` once per output frame before reading two shorts. When the
+ * ring ran dry the reader could land one short past the writer, the test then held
+ * for a whole lap and the previous 250 ms of audio played again: heard as an echo
+ * whenever the core fell behind real time (Spyro speech under Dolphin, SoundTempo=0:
+ * the dump's speech jumped by exactly +250 ms every few hundred ms). */
 short            *pSndBuffer = NULL;
 volatile int    iReadPos = 0, iWritePos = 0;
 static int sposTmp = 0x10000L;
@@ -68,14 +81,20 @@ static void SOUND_FillAudio(void *unused, Uint8 *stream, int len) {
 //        --len;
 //    }
     // pitch data from 44100 to 48000
-    while (iReadPos != iWritePos && len > 0)
+    while (len > 0)
     {
         while (sposTmp >= 0x10000L)
         {
-            lastSampleL = pSndBuffer[iReadPos++];
-            if (iReadPos >= BUFFER_SIZE) iReadPos = 0;
-            lastSampleR = pSndBuffer[iReadPos++];
-            if (iReadPos >= BUFFER_SIZE) iReadPos = 0;
+            int rp = iReadPos;
+            int queued = iWritePos - rp;
+            if (queued < 0) queued += BUFFER_SIZE;
+            if (queued < 2)                 /* a whole frame or nothing: never step past the writer */
+                goto dry;
+            lastSampleL = pSndBuffer[rp];
+            lastSampleR = pSndBuffer[rp + 1];
+            rp += 2;
+            if (rp >= BUFFER_SIZE) rp = 0;
+            iReadPos = rp;
             sposTmp -= 0x10000L;
         }
 
@@ -84,6 +103,8 @@ static void SOUND_FillAudio(void *unused, Uint8 *stream, int len) {
         sposTmp += SINC;
         --len;
     }
+dry:
+    PERF_ADD(out_dry, len);
 
     // Ring buffer ran dry before satisfying the full request -- SDL does
     // not guarantee `stream` starts zeroed, so without this the tail would
@@ -162,49 +183,36 @@ static void sdl_finish(void) {
 }
 
 static int sdl_busy(void) {
-    int size;
+    int queued;
 
     if (pSndBuffer == NULL) return 1;
 
-    size = iReadPos - iWritePos;
-    if (size <= 0) size += BUFFER_SIZE;
+    queued = iWritePos - iReadPos;          /* shorts waiting to be played */
+    if (queued < 0) queued += BUFFER_SIZE;
 
-    if (size < BUSY_TARGET_SAMPLES) {
-        #ifdef SHOW_DEBUG
-        //sprintf(txtbuffer, "sdl_busy size = %d\n", size);
-        //DEBUG_print(txtbuffer, DBG_SPU1);
-        #endif // DISP_DEBUG
-        return 1;
-    }
-
-    return 0;
+    return queued > BUSY_TARGET_SAMPLES;    /* enough queued: stop producing */
 }
 
 static int sdl_feed(void *pSound, int lBytes) {
-    short *p = (short *)pSound;
+    const short *p = (const short *)pSound;
+    int wp;
 
     if (pSndBuffer == NULL) return 0;
 
-    while (lBytes > 0) {
-        ++iWritePos;
-        if (iWritePos >= BUFFER_SIZE) iWritePos = 0;
-
-        if (iWritePos == iReadPos)
-        {
-            #ifdef SHOW_DEBUG
-            //sprintf(txtbuffer, "SdlBuffer not enough %d %d %d \n", lBytes, iWritePos, iReadPos);
-            //DEBUG_print(txtbuffer, DBG_SPU1);
-            #endif // DISP_DEBUG
-            iWritePos--;
-            if (iWritePos < 0)
-            {
-                iWritePos = BUFFER_SIZE - 1;
-            }
+    wp = iWritePos;
+    while (lBytes >= 2 * (int)sizeof(short)) {
+        int next = wp + 2;
+        if (next >= BUFFER_SIZE) next = 0;
+        if (next == iReadPos) {             /* full: drop the rest; the throttle normally prevents this */
+            PERF_INC(out_drop);
             break;
         }
-
-        pSndBuffer[iWritePos] = *p++;
-        lBytes -= sizeof(short);
+        pSndBuffer[wp]     = p[0];
+        pSndBuffer[wp + 1] = p[1];
+        p += 2;
+        lBytes -= 2 * sizeof(short);
+        __asm__ __volatile__("" ::: "memory");   /* the frame lands before the index that publishes it */
+        iWritePos = wp = next;
     }
 
     return 0;

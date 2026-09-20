@@ -61,3 +61,8 @@ void setSpuInterpolation(int spuInterpolation)
 {
     spu_config.iUseInterpolation = spuInterpolation;
 }
+
+void setSpuTempo(int soundTempo)
+{
+    spu_config.iTempo = soundTempo;
+}

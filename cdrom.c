@@ -28,6 +28,7 @@
 #include "psxdma.h"
 #include <ogc/lwp_watchdog.h>
 #include "Gamecube/DEBUG.h"
+#include "Gamecube/perf_prof.h"
 /* logging */
 #if 0
 #define CDR_LOG SysPrintf
@@ -1567,8 +1568,10 @@ static void cdrReadInterrupt(void)
 			break;
 		CDR_LOG("f=%d m=%d %d,%3d | %d,%2d | %d,%2d\n", !!(cdr.Mode & MODE_SF), cdr.Muted,
 			subhdr->file, subhdr->chan, cdr.CurFile, cdr.CurChannel, cdr.FilterFile, cdr.FilterChannel);
-		if ((cdr.Mode & MODE_SF) && (subhdr->file != cdr.FilterFile || subhdr->chan != cdr.FilterChannel))
+		if ((cdr.Mode & MODE_SF) && (subhdr->file != cdr.FilterFile || subhdr->chan != cdr.FilterChannel)) {
+			PERF_INC(xa_filtered);
 			break;
+		}
 		if (subhdr->chan & 0x80) { // ?
 			if (subhdr->chan != 0xff)
 				log_unhandled("adpcm %d:%d\n", subhdr->file, subhdr->chan);
@@ -1579,8 +1582,10 @@ static void cdrReadInterrupt(void)
 			cdr.CurChannel = subhdr->chan;
 			cdr.FileChannelSelected = 1;
 		}
-		else if (subhdr->file != cdr.CurFile || subhdr->chan != cdr.CurChannel)
+		else if (subhdr->file != cdr.CurFile || subhdr->chan != cdr.CurChannel) {
+			PERF_INC(xa_filtered);
 			break;
+		}
 
 		// accepted as adpcm
 		deliver_data = 0;

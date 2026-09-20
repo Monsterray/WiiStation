@@ -34,6 +34,7 @@
 #include <aesndlib.h>
 
 #include "../Gamecube/DEBUG.h"
+#include "../Gamecube/perf_prof.h"
 
 char audioEnabled;          /* the "Audio" setting; also read by the menu */
 unsigned int aesndAttenuation = 3;   /* see aesnd_set_volume() */
@@ -83,6 +84,8 @@ static void cube_callback(AESNDPB *pb, u32 state)
         AESND_SetVoiceBuffer(pb, ring[played % CUBE_BUFFERS], CUBE_BUF_BYTES);
         played++;
     }
+    else
+        PERF_ADD(out_dry, CUBE_BUF_FRAMES);
     /* Nothing queued: leave the voice alone. AESND repeats the last buffer rather than
      * clicking, and the emulator's throttle (cube_busy) will catch up. */
 }
@@ -148,8 +151,10 @@ static int cube_feed(void *data, int bytes)
 
         /* Ring full: drop the excess rather than overwrite a buffer the DSP may be
          * reading. The throttle above normally prevents this. */
-        if (cube_queued() >= CUBE_BUFFERS)
+        if (cube_queued() >= CUBE_BUFFERS) {
+            PERF_INC(out_drop);
             break;
+        }
 
         dst   = ring[filled % CUBE_BUFFERS];
         space = CUBE_BUF_BYTES - fill_used;

@@ -29,6 +29,9 @@ extern "C" {
  * includes. */
 #define PERF_IRQ_SLOTS 20
 
+/* Records in the audio timeline ring (perf_audio_event). 3072 x 16 bytes. */
+#define PERF_AEV_N 3072
+
 /* A slice below this many PSX cycles does less work than the dispatch around
  * it costs, so these are counted separately as pure overhead. */
 #define SLICE_TINY_CYCLES 64
@@ -273,6 +276,36 @@ typedef struct {
 	uint64_t io_total_us;         /* total sector-read time */
 	uint32_t io_worst_us;         /* worst single sector-read (stall) */
 
+	/* CD-XA streaming: cdrom.c -> decode_xa.c -> dfsound/xa.c FeedXA -> MixCD. A gap is a
+	 * MixCD call that found the XA ring empty with the repeat count used up while a stream
+	 * was active: the mixer then contributes silence. */
+	uint32_t xa_sectors;          /* sectors decoded and queued (FeedXA calls) */
+	uint32_t xa_starts;           /* stream starts (XA ring reset) */
+	uint32_t xa_fed;              /* 44.1 kHz stereo samples written into the XA ring */
+	uint32_t xa_trunc;            /* FeedXA stopped early: ring full */
+	uint32_t xa_fill_min, xa_fill_max; /* ring fill (samples) at FeedXA entry */
+	uint32_t xa_freq, xa_stereo;  /* format of the last stream start */
+	uint32_t xa_dt_min, xa_dt_max;/* PSX cycles between consecutive sectors of a stream */
+	uint32_t xa_filtered;         /* XA sectors dropped by the file/channel filter */
+	uint32_t xa_mix;              /* MixCD calls that consumed XA data */
+	uint32_t xa_hold;             /* MixCD calls that repeated the last value: ring empty */
+	uint32_t xa_gaps;             /* silence episodes while a stream was active */
+	uint32_t xa_gap_calls, xa_gap_samples;
+	uint32_t spu_ns;              /* mixer samples produced (44.1 kHz) */
+	uint32_t spu_pulls;           /* tempo pull-backs: output driver not busy, SoundTempo on */
+	uint32_t spu_busy;            /* SPU_async calls that found the output driver busy */
+	uint32_t spu_desync;          /* do_samples resets: |cycle gap| > 2M cycles */
+	uint32_t out_dry;             /* output frames the driver had no data for (SDL: zero-filled; AESND: repeated buffer) */
+	uint32_t out_drop;            /* feed() calls that found the driver full and dropped the rest */
+
+	/* Audio timeline: one record per XA sector (F, R = stream start), gap start (G), first
+	 * repeated sample (H) and a mixer heartbeat every 16th SPU_async (S). Recording starts at
+	 * autoinput's 'atrace <vblank>' (or the first event without one), fills once, and is
+	 * written to sd:/wiisxrx/atrace.log; scripts/atrace_summary.py reads it. */
+	struct { uint32_t wall_us, cycle; int32_t a, b; uint16_t c; uint8_t kind; } aev[PERF_AEV_N];
+	uint32_t aev_n;
+	uint8_t  aev_on, aev_printed;
+
 	/* Menu (Gamecube/libgui) */
 	uint32_t menu_frames;         /* Gui::draw calls */
 	uint64_t menu_us;             /* time inside Gui::draw */
@@ -285,6 +318,10 @@ extern perf_counters_t g_perf;
 
 #define PERF_INC(f)    (g_perf.f++)
 #define PERF_ADD(f, n) (g_perf.f += (n))
+
+/* Append one record to the audio timeline (see aev[] above). cycle is the PSX cycle the
+ * event belongs to; a, b, c are event-specific and documented in perf_prof.c. */
+void perf_audio_event(unsigned kind, unsigned cycle, int a, int b, unsigned c);
 
 /* Microsecond timestamp (libogc ticks). Declared here, defined in
  * perf_prof.c so this header stays dependency-free (no gccore.h). */
@@ -321,6 +358,7 @@ void perf_autoinput_event(unsigned vblank, unsigned mask);
 
 #define PERF_INC(f)    ((void)0)
 #define PERF_ADD(f, n) ((void)(n))
+#define perf_audio_event(k, cy, a, b, c) ((void)0)
 static inline unsigned long long perf_now_us(void) { return 0; }
 static inline unsigned long long perf_now_ticks(void) { return 0; }
 static inline void perf_reset(void) {}
