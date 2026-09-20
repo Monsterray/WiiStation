@@ -51,6 +51,7 @@
 #include "../Gamecube/DEBUG.h"
 #include "../Gamecube/wiiSXconfig.h"
 #include "../Gamecube/perf_prof.h"
+double psxGetFps(void);         /* psxcounters.c: the vblank rate the core actually emulates (its header pulls in gctypes.h, which collides with stdafx.h BOOL) */
 
 ////////////////////////////////////////////////////////////////////////
 // FPS stuff
@@ -128,61 +129,86 @@ unsigned long timeGetTime()
 }
 
 extern int newDwFrameRateTicks;
+
+/* The limiter keeps a schedule: each frame is due dwFrameRateTicks after the previous one
+ * was DUE, not after it actually ended, so a frame that ran long leaves a debt and the
+ * following frames run unthrottled until it is paid. The old code carried at most one
+ * period of debt and dropped the rest, so after a disc-read stall of a few frames the
+ * emulated clock stayed that far behind the wall clock for good; the sound output, which
+ * is mixed at emulated rate, then stayed that much lower in its queue and the SPU had to
+ * stretch time to refill it (the pull-back that broke CD-XA, see dfsound/ratectl.c).
+ * The debt is bounded: the sound drivers keep about 125 ms in hand and paying back more
+ * than that would only overfill them, and a long load stall should not turn into seconds
+ * of fast-forward. A stall beyond the bound is dropped as before, minus the bound. */
+#define FRAMECAP_MAX_DEBT_TICKS 1250    /* 100 us ticks: 125 ms (BUSY_TARGET_SAMPLES, CUBE_BUSY_BUFFERS) */
+
+/* The period is the one the core emulates (psxcounters.c: 60 or 50 Hz, or the per-game
+ * fractional rate), kept in 1/256 tick so it does not truncate. Until 2026-09-20 the auto
+ * limiter used the PEOPS table's 59.8275 Hz rounded down to whole ticks (1671 = 59.84 Hz)
+ * against a core that emulates 60.00 Hz vblanks: emulated time ran 0.26 % slower than the
+ * wall clock by construction, and the sound output had to absorb that as a permanent
+ * rate offset, more than half of the +-0.5 % the rate control has. The user-set limit
+ * (iFrameLimit == 1) and the odd/even-frame fix (dwActFixes & 32) keep their own rates. */
+static unsigned long framecap_period256(void)
+{
+ double hz = fFrameRateHz;
+ if (iFrameLimit == 2 && !(dwActFixes & 32))
+  {
+   double emu = psxGetFps();
+   if (emu > 1.0) hz = emu;
+  }
+ if (hz < 1.0) hz = 60.0;
+ return (unsigned long)(TIMEBASE * 256.0 / hz + 0.5);
+}
+
 void FrameCap (void)
 {
- static unsigned long curticks, lastticks, _ticks_since_last_update;
- static unsigned long TicksToWait = 0;
+ static unsigned long due256 = 0;       /* the tick this frame may end at, in 1/256 tick */
+ static int have_due = 0;
+ unsigned long now = timeGetTime();
+ unsigned long period256 = framecap_period256();
+ unsigned long due;
+ long late;
 
-   curticks = timeGetTime();
-   _ticks_since_last_update = curticks - lastticks;
+ if (!have_due) { due256 = (unsigned long)now << 8; have_due = 1; }
+ due  = due256 >> 8;                    /* modulo 2^24 ticks: see the wrap note below */
+ late = (long)((now - due) << 8) >> 8;  /* sign-extend a 24-bit tick difference */
 
-    if((_ticks_since_last_update > TicksToWait) ||
-       (curticks <lastticks))
+ if (late > FRAMECAP_MAX_DEBT_TICKS)
+  {
+   /* a long stall, or a wrap of the tick counter: keep only the bounded debt */
+   due256 = (unsigned long)(now - FRAMECAP_MAX_DEBT_TICKS) << 8;
+   late = FRAMECAP_MAX_DEBT_TICKS;
+   PERF_INC(limit_debt_drops);
+  }
+ else if (late < -(long)(2 * (period256 >> 8) + FRAMECAP_MAX_DEBT_TICKS))
+  {
+   /* far ahead of a schedule that cannot be right (clock went backwards): resync */
+   due256 = (unsigned long)now << 8;
+   late = 0;
+  }
+ /* due256 holds 24 bits of tick; the 100 us tick wraps them every 28 minutes, which the
+  * masked, sign-extended differences above absorb like any other wrap. */
+ due = due256 >> 8;
+#ifdef PERF_PROF
+ if (late > 0 && (unsigned long)late > g_perf.limit_debt_max) g_perf.limit_debt_max = late;
+#endif
+
+ if (late < 0)
     {
-     lastticks = curticks;
-
-     if((_ticks_since_last_update-TicksToWait) > dwFrameRateTicks)
-          TicksToWait=0;
-     else TicksToWait=dwFrameRateTicks-(_ticks_since_last_update-TicksToWait);
-#ifdef SHOW_DEBUG
-//	sprintf(txtbuffer, "FrameCap: No Wait; dwFrameRateTicks %i; TicksToWait %i",(int)dwFrameRateTicks, (int)TicksToWait);
-//	DEBUG_print(txtbuffer,DBG_GPU2);
-#endif //SHOW_DEBUG
-    }
-   else
-    {
-#ifdef SHOW_DEBUG
-//	sprintf(txtbuffer, "FrameCap: Wait; dwFRTicks %i; TicksWait %i; TicksSince %i",(int)dwFrameRateTicks, (int)TicksToWait, (int)_ticks_since_last_update);
-//	DEBUG_print(txtbuffer,DBG_GPU3);
-#endif //SHOW_DEBUG
-     BOOL Waiting = TRUE;
      /* This spin serves both the Old Soft and OpenGX plugins (via
       * OldGpuCheckFrameRate) and runs from the VBlank rcnt callback, i.e.
       * inside a CPU slice -- timed so the profile can tell "capped" from
       * "CPU-bound", which otherwise look identical. */
      unsigned long long limit_t0 = perf_now_ticks();
-     while (Waiting)
-      {
-       curticks = timeGetTime();
-       _ticks_since_last_update = curticks - lastticks;
-       if ((_ticks_since_last_update > TicksToWait) ||
-           (curticks < lastticks))
-        {
-#ifdef SHOW_DEBUG
-//	sprintf(txtbuffer, "FrameCap: Done Wait; TicksWait %i; TicksSince %i; cur %i; last %i",(int)TicksToWait, (int)_ticks_since_last_update, (int)curticks, (int)lastticks);
-//	DEBUG_print(txtbuffer,DBG_GPU3+1);
-#endif //SHOW_DEBUG
-         Waiting = FALSE;
-         lastticks = curticks;
-         TicksToWait = dwFrameRateTicks;
-        }
-      }
+     do { now = timeGetTime(); } while (((long)((now - due) << 8) >> 8) < 0);
      PERF_ADD(limit_ticks, perf_now_ticks() - limit_t0);
      PERF_INC(limit_calls);
 #ifdef PERF_PROF
-     g_perf.limit_target = dwFrameRateTicks;
+     g_perf.limit_target = period256 >> 8;
 #endif
     }
+ due256 += period256;                   /* the next frame is due one period after this one was */
 }
 
 ////////////////////////////////////////////////////////////////////////
