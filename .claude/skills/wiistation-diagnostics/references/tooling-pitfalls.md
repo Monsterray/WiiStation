@@ -63,10 +63,12 @@ believing the symptom.
   the INI files, so a run that dies half way cannot leave the user's Dolphin misconfigured.
   The system name for GFX.ini is `Graphics`; `-C GFX.*` is silently ignored.
 - `CACHE=1` turns on `AccurateCPUCache`, which emulates the PPC data cache and so catches
-  missing `DCFlushRange`/`DCInvalidateRange`. Emulation runs several times slower in
-  wall-clock; budget about four times the seconds argument. WiiStation passed this on
-  2026-09-19 (see the memory note), so a *new* divergence under `CACHE=1` means the change
-  under test introduced a coherency bug.
+  missing `DCFlushRange`/`DCInvalidateRange` -- the bugs that are invisible in a default
+  Dolphin and corrupt memory on the real Wii. **Use it for release testing only** (the user's
+  standing instruction, 2026-09-19): it costs roughly four times the wall clock, which is too
+  slow for the iterate-on-a-hypothesis loop. Ordinary debug runs leave it off. WiiStation
+  passed it on 2026-09-19, so a *new* divergence under `CACHE=1` means the change being
+  released introduced a coherency bug.
 - WiiStation's own FPS counter reads the emulated time base, so it still shows ~40 fps while
   Dolphin crawls. The script also turns on Dolphin's `ShowSpeed`/`ShowVPS` overlays, which
   are the host-side truth.

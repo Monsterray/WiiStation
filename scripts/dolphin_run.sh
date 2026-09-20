@@ -8,7 +8,8 @@
 #          SHEET_STEP=<n> contact-sheet stride (default 20)
 #          CACHE=1        emulate the PPC data cache: catches missing DCFlushRange /
 #                         DCInvalidateRange, which are invisible in a default Dolphin and
-#                         corrupt memory on real hardware. Slower; use for correctness runs.
+#                         corrupt memory on real hardware. Costs ~4x the wall clock, so it is
+#                         for RELEASE TESTING, not for the ordinary iterate-and-measure loop.
 #          XFB_RAM=1      present CPU-written framebuffers, so a libogc crash screen shows
 #                         up in the frame dump (Dolphin otherwise keeps XFB copies on the GPU)
 #          MMU=1          emulate address translation; wild pointers fault instead of landing
@@ -101,6 +102,8 @@ cp "$D/User/Logs/dolphin.log" "$OUT/dolphin.log" 2>/dev/null || true
 # with our own cluster-chain reader instead.
 "/c/Program Files/7-Zip/7z.exe" e -y -o"$OUT" "$D/User/Load/WiiSD.raw" 'wiisxrx/ptrace.log' 'wiisxrx/vram.bin' >/dev/null 2>&1 || echo "7z extract failed"
 python "$SP/sdimage_read.py" "$D/User/Load/WiiSD.raw" wiisxrx/perf.log "$OUT/perf.log" 2>&1 | tail -1
+# 0 bytes is normal for a short run: the guest writes a perf report every N presents, and a run
+# that ends before the first one has nothing to read.
 echo "run done $(date +%T)"
 
 # --- summarise ---------------------------------------------------------------------------
