@@ -648,7 +648,7 @@ void fileBrowserFrame_LoadFile(int i)
             }
             if (Config.hacks.dwActFixes)
             {
-                sprintf(buffer, "Special game auto fixed %08x\n", Config.hacks.dwActFixes);
+                sprintf(buffer, "Special game auto fixed %08lx\n", Config.hacks.dwActFixes);
                 appendBounded(RomInfo, sizeof(RomInfo), buffer);
             }
             if (Config.hacks.lightrec_hacks)

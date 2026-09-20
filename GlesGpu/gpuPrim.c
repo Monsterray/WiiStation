@@ -1045,7 +1045,7 @@ static void SetRenderMode ( unsigned int DrawAttributes, BOOL bSCol )
         #if defined(DISP_DEBUG)
         if (logType)
         {
-            sprintf ( txtbuffer, "SetRenderMode %d %d %d %d %d %d %d %08x %d\r\n", DrawSemiTrans, bDrawTextured, bUsingTWin, GlobalTextABR, bCheckMask, iSetMask, bSCol, vertex[0].c.lcol, gl_ux[8] );
+            sprintf ( txtbuffer, "SetRenderMode %d %d %d %ld %d %d %d %08x %d\r\n", DrawSemiTrans, bDrawTextured, bUsingTWin, GlobalTextABR, bCheckMask, iSetMask, bSCol, vertex[0].c.lcol, gl_ux[8] );
             DEBUG_print ( txtbuffer,  DBG_CDR4 );
             writeLogFile(txtbuffer);
         }
@@ -1058,7 +1058,7 @@ static void SetRenderMode ( unsigned int DrawAttributes, BOOL bSCol )
         #if defined(DISP_DEBUG)
         if (logType)
         {
-            sprintf ( txtbuffer, "SetRenderMode %d %d %d %d %d %d %d %08x %d\r\n", DrawSemiTrans, bDrawTextured, bUsingTWin, GlobalTextABR, bCheckMask, iSetMask, bSCol, SWAP32 ( DrawAttributes ), gl_ux[8] );
+            sprintf ( txtbuffer, "SetRenderMode %d %d %d %ld %d %d %d %08x %d\r\n", DrawSemiTrans, bDrawTextured, bUsingTWin, GlobalTextABR, bCheckMask, iSetMask, bSCol, SWAP32 ( DrawAttributes ), gl_ux[8] );
             DEBUG_print ( txtbuffer,  DBG_CDR4 );
             writeLogFile(txtbuffer);
         }

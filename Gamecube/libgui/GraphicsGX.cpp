@@ -286,7 +286,8 @@ Graphics::~Graphics()
 }
 
 
-GXTexRegion * GXTexRegionCallback(GXTexObj *obj, u8 mapid)
+/* Signature must match libogc's GXTexRegionCallback typedef, which takes a const GXTexObj*. */
+GXTexRegion * GXTexRegionCallback(const GXTexObj *obj, u8 mapid)
 {
     return &texCacheRegionS[0];
 }

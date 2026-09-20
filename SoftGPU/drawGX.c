@@ -486,7 +486,7 @@ static void GX_Flip(const void *buffer, int pitch, u8 fmt,
 	gc_vout_render();
 }
 
-drawCircle(int x, int y, int radius, int numSegments, char r, char g, char b)
+void drawCircle(int x, int y, int radius, int numSegments, char r, char g, char b)
 {
 
 	GX_Begin(GX_LINESTRIP, GX_VTXFMT0, numSegments+1);
@@ -508,7 +508,7 @@ drawCircle(int x, int y, int radius, int numSegments, char r, char g, char b)
 	GX_End();
 }
 
-drawLine(float x1, float y1, float x2, float y2, char r, char g, char b)
+void drawLine(float x1, float y1, float x2, float y2, char r, char g, char b)
 {
 	x1 = (x1/320)-1;
 	y1 = ((y1/240)-1) *-1;

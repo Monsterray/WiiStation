@@ -91,7 +91,9 @@ typedef s32(*ipccallback)(s32 result,void *usrdata);
 
 #include "ipc.h"
 
-#define NULL ((void *)0)
+/* <stddef.h> above already defines NULL. Redefining it as (void *)0 made every NULL in a
+ * C++ translation unit that reaches this header an invalid void* conversion, which only
+ * compiled because of -fpermissive. */
 
 #define ALIGNED(x) __attribute__((aligned(x)))
 #define NORETURN __attribute__ ((noreturn))

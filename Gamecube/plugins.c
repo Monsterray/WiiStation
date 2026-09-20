@@ -473,8 +473,10 @@ int LoadPAD2plugin(char *PAD2dll) {
 
 void *hNETDriver;
 
-void CALLBACK NET__setInfo(netInfo *info) {}
-void CALLBACK NET__keypressed(int key) {}
+/* Return type must match the NETsetInfo typedef; the fallback was cast from a
+ * void-returning function, which is undefined behaviour when called. */
+long CALLBACK NET__setInfo(netInfo *info) { return 0; }
+long CALLBACK NET__keypressed(int key) { return 0; }
 long CALLBACK NET__configure(void) { return 0; }
 long CALLBACK NET__test(void) { return 0; }
 void CALLBACK NET__about(void) {}

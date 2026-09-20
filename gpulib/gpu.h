@@ -48,21 +48,30 @@ extern "C" {
 #define HOST2LE16(x) SWAP16(x)
 #define LE2HOST16(x) SWAP16(x)
 
-inline unsigned short GETLE16(unsigned short *ptr) {
+/* Byte-reversed load/store: the PSX stores little-endian data that this big-endian CPU
+ * reads with a single lhbrx/lwbrx instruction. The public names are macros so that a
+ * caller holding the memory as unsigned long*, u32* or uint32_t* -- all 32 bits here, but
+ * distinct types to the compiler -- does not have to cast at every one of the ~50 call
+ * sites. static, so each translation unit gets its own inline definition. */
+static inline unsigned short le16_load(const unsigned short *ptr) {
     unsigned short ret; __asm__ ("lhbrx %0, 0, %1" : "=r" (ret) : "r" (ptr));
     return ret;
 }
-inline uint32_t GETLE32(uint32_t *ptr) {
+static inline uint32_t le32_load(const uint32_t *ptr) {
     uint32_t ret; __asm__ ("lwbrx %0, 0, %1" : "=r" (ret) : "r" (ptr));
     return ret;
 }
-
-inline void PUTLE16(unsigned short *ptr, unsigned short val) {
+static inline void le16_store(unsigned short *ptr, unsigned short val) {
     __asm__ ("sthbrx %0, 0, %1" : : "r" (val), "r" (ptr) : "memory");
 }
-inline void PUTLE32(uint32_t *ptr, uint32_t val) {
+static inline void le32_store(uint32_t *ptr, uint32_t val) {
     __asm__ ("stwbrx %0, 0, %1" : : "r" (val), "r" (ptr) : "memory");
 }
+
+#define GETLE16(X)    le16_load((const unsigned short *)(X))
+#define GETLE32(X)    le32_load((const uint32_t *)(X))
+#define PUTLE16(X, Y) le16_store((unsigned short *)(X), (unsigned short)(Y))
+#define PUTLE32(X, Y) le32_store((uint32_t *)(X), (uint32_t)(Y))
 
 #else
 
@@ -73,11 +82,13 @@ inline void PUTLE32(uint32_t *ptr, uint32_t val) {
 #define HOST2LE16(x) (x)
 #define LE2HOST16(x) (x)
 
-#define GETLE16(X) ((unsigned short *)X)
-#define GETLE32(X) ((unsigned long *)X)
-
-#define PUTLE16(X, Y) {((unsigned short *)X)=(unsigned short)X}
-#define PUTLE32(X, Y) {((unsigned long *)X)=(unsigned long)X}
+/* Little-endian host: a plain load. (These were previously written as casts that yielded
+ * a pointer, and a store that assigned to a cast and ignored its value -- dead code on a
+ * big-endian target, but wrong if anyone ever built for one.) */
+#define GETLE16(X)    (*(const unsigned short *)(X))
+#define GETLE32(X)    (*(const uint32_t *)(X))
+#define PUTLE16(X, Y) (*(unsigned short *)(X) = (unsigned short)(Y))
+#define PUTLE32(X, Y) (*(uint32_t *)(X) = (uint32_t)(Y))
 
 #endif
 
