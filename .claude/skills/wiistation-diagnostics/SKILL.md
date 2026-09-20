@@ -66,6 +66,11 @@ traces. Read it before forming a theory about display buffers, textures or input
 symptom → probe → mechanism, including the wrong turns; skim it to calibrate how much theory
 a run should be spent on.
 
+The generic Wii side of this — what the GP, DSP, DMA engines, locked cache and paired-single
+FPU are for, and which questions Dolphin answers honestly — is the user-level `wii-homebrew`
+skill. Use it for hardware behaviour and Dolphin's own capabilities; use this one for
+WiiStation's own probes, scripts and history.
+
 `Docs/BACKENDS.md` maps every backend (CPU core, GPU, SPU, CD, pad, host input, fonts,
 settings) to its vtable, its selector and its traps; start there before adding or swapping one.
 
