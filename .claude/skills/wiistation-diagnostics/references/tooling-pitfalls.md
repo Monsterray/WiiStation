@@ -47,10 +47,11 @@ believing the symptom.
 
 - **Never edit the script while a run is in progress.** bash reads a script lazily, so the
   sleeping instance resumes at a byte offset in the new text, dies with a syntax error, and
-  leaves Dolphin running, the INIs unrestored and the test files staged (2026-09-19). Recover
-  by killing that PID, copying the `*.ini.orig` files from the run directory back into
-  `User/Config`, and deleting `autoinput.txt`/`settingsRX2022.cfg` from the SD sync folder.
-  Copy the script to the scratchpad if you must change it mid-run.
+  leaves Dolphin running with the test files still staged (2026-09-19). Recover by killing that
+  PID and deleting `autoinput.txt`/`settingsRX2022.cfg` (and any `autoboot.txt` you staged)
+  from the SD sync folder. Since the run configures Dolphin with `-C` rather than by editing
+  the INI files, there is nothing left to restore in `User/Config`. Copy the script to the
+  scratchpad if you must change it mid-run.
 - **Always pass the autoboot file** (fifth argument) for a game run: the user keeps their own
   `autoboot.txt` renamed to `.disabled`, so without it WiiStation sits in its menu for the
   whole run. The script prints a note when the argument is missing.
