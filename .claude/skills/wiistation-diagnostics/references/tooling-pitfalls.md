@@ -14,6 +14,11 @@
   archive but does not relink unless `build.sh`'s `relink_if_deps_newer()` sees it. Check the
   .dol timestamp AND size before running.
 - Always build release before committing; the debug probes must compile out.
+- `scripts/build.sh release` used to delete `WiiSXRX_debug.dol`: the probe-gate stamp check
+  (PROBES=) ran in every mode and cleaned the debug tree whenever the last debug build had a
+  non-default PROBES. Fixed 2026-09-20 (debug modes only). A run script pointed at the debug
+  DOL then failed with "no such .dol"; keep a copy of the DOL you are measuring in the
+  scratchpad if you build anything between runs.
 - Never boot `WiiSXRX_Release.elf` in Dolphin (BSS not zeroed → crash); test with the debug .dol.
 
 ## Stale dependency archives

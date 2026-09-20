@@ -31,10 +31,16 @@ probe you can think of, because a build plus run costs about five minutes.
    [references/probes.md](references/probes.md). One question per build wastes a cycle;
    the user asked explicitly for many diagnostics per run.
 
-3. **Run it with `scripts/dolphin_run.sh`**, which stages files, turns on Dolphin frame
-   dumping, boots, kills, restores the INIs, keeps the frames you asked for, extracts
-   `ptrace.log`/`vram.bin` and reads `perf.log` straight from the FAT image (7-Zip refuses
-   the file after a kill). Summarise with `scripts/ptrace_summary.py`, render VRAM with
+3. **Run it with `scripts/wsx.sh`** (`build debug|release`, `run NAME [--dol release]
+   [--dsp] [--set K=V] [--input speech|title|FILE]`, `summary NAME...`): one command per
+   step, one screen of output per step, runs kept under `.runs/` with the DOL they booted.
+   It wraps `scripts/dolphin_run.sh`, which stages files, turns on Dolphin frame dumping,
+   boots, kills, restores the INIs, keeps the frames you asked for, extracts
+   `ptrace.log`/`vram.bin`/`atrace.log` and reads `perf.log` straight from the FAT image
+   (7-Zip refuses the file after a kill), and ends with `scripts/run_summary.py`: counters,
+   audio timeline and audio-dump silence runs in ten lines, plus a table when given
+   several runs. Details: [references/unattended-run.md](references/unattended-run.md).
+   Summarise traces with `scripts/ptrace_summary.py`, render VRAM with
    `scripts/vram2png.py`, make contact sheets with `scripts/sheet.py`, and look at single
    frames with the image reader. Frame index ≈ emulated vblank, so runs are comparable.
 

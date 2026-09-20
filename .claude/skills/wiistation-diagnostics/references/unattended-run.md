@@ -12,6 +12,40 @@
 | Dolphin log | `User\Logs\dolphin.log`, timestamps are `MM:SS:mmm`, not hours |
 | Builds | `Gamecube\WiiSXRX_debug.dol` (run this), `Gamecube\WiiSXRX_Release.dol` (never boot the release .elf under Dolphin: unzeroed BSS crashes) |
 
+## The short loop: `scripts/wsx.sh`
+
+Use this first; it exists so that a build-run-read cycle costs three short commands and
+three short outputs instead of long paths, log tails and three analysis tools.
+
+```bash
+scripts/wsx.sh build debug light          # or: build release. Prints the DOL and time, or the first errors.
+scripts/wsx.sh run rc_cpu                 # debug DOL, Spyro speech script, audio dump, then the summary
+scripts/wsx.sh run rc_dsp --dsp           # DSP sound path: SoundHwAccel=1 + Dolphin DSP LLE
+scripts/wsx.sh run legacy --dol release --set SoundRateControl=0,SoundTempo=1
+scripts/wsx.sh run title --input title --secs 120 --nodump
+scripts/wsx.sh summary rc_cpu rc_dsp legacy   # one block per run and a comparison table
+scripts/wsx.sh runs                       # what is in .runs/
+```
+
+- Each run directory (`.runs/NAME`, gitignored) holds `boot.dol` (a copy, so a rebuild
+  between queued runs cannot change what boots), `settings.cfg`, `autoinput.txt`,
+  `run.info` (dol, settings, env, commit), `run.log` and everything dolphin_run.sh collects.
+- `build` refuses while Dolphin is running (a compile skews the run's timing; `FORCE=1`).
+- `run_summary.py` reads `perf.log` (last `xa:`/`xamix:`/`rate:` lines), `atrace.log`
+  (core speed, XA gaps, rate-control nudge and queue per 10 s) and the largest
+  `*dspdump*.wav` (runs of exact digital silence 3..400 ms: count, total, histogram, when;
+  longer ones are the game's own silences). `--detail` lists each silence run.
+- Input scripts live in `scripts/autoinput/` (`spyro_speech.txt`: title, new game, skip the
+  intro, stay in the level with the dragon speech, audio timeline from vblank 2500;
+  `spyro_title.txt`: the same with the timeline from vblank 700).
+- Queue several runs in one shell line (`run a ...; run b ...; summary a b`) and read one
+  table; a Dolphin run cannot overlap another (SD image lock), and nothing else should run
+  alongside it if timing is being measured.
+- Editing sources from a tool: `scripts/patch_text.py SPEC.py` applies exact-match edits
+  from a Python spec (`EDITS = {path: [(old, new), ...]}`) with the file's own line ending
+  and refuses anything that does not match exactly once. Write the spec with the Write
+  tool: shell heredocs lose backslashes.
+
 ## The loop: `scripts/dolphin_run.sh`
 
 ```

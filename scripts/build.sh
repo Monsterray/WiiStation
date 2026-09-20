@@ -69,7 +69,9 @@ esac
 # nothing and you silently get the previous build back. Remember what the objects were
 # compiled with and clean when it changes.
 PROBE_STAMP="Gamecube/build_debug/.probe_defines"
-if [ -d "Gamecube/build_debug" ] && [ "$(cat "$PROBE_STAMP" 2>/dev/null)" != "$PROBE_DEFINES" ]; then
+# Debug builds only: a release build does not use the gates, and cleaning the debug tree
+# from it threw away WiiSXRX_debug.dol whenever the last debug build had PROBES set.
+if [ "${1:-debug}" != "${1#debug}" ] && [ -d "Gamecube/build_debug" ] && [ "$(cat "$PROBE_STAMP" 2>/dev/null)" != "$PROBE_DEFINES" ]; then
 	echo "probe gates changed since the last build -- cleaning so the change takes effect"
 	make -C Gamecube -f Makefile_Wii clean >/dev/null 2>&1 || true
 fi

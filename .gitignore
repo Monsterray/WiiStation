@@ -32,3 +32,6 @@ __pycache__/
 
 # scripts/genfont.py writes its --preview image here (see SETTINGS.md section 9.1)
 /preview.png
+
+# Unattended-run output (scripts/wsx.sh): DOL copies, audio dumps, frame dumps
+.runs/
