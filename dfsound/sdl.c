@@ -55,7 +55,13 @@
  * ring ran dry the reader could land one short past the writer, the test then held
  * for a whole lap and the previous 250 ms of audio played again: heard as an echo
  * whenever the core fell behind real time (Spyro speech under Dolphin, SoundTempo=0:
- * the dump's speech jumped by exactly +250 ms every few hundred ms). */
+ * the dump's speech jumped by exactly +250 ms every few hundred ms).
+ *
+ * The old writer also pre-incremented iWritePos before each store, so the run's first
+ * sample landed at index 1 and every frame the reader took at an even index straddled
+ * two source frames: the right channel came out one 44.1 kHz sample behind the left in
+ * every dump of this path (R[n] == L[n-1] in 75% of Spyro's dual-mono speech frames,
+ * while the AESND path had R == L). Storing at wp and wp+1 keeps the frames whole. */
 short            *pSndBuffer = NULL;
 volatile int    iReadPos = 0, iWritePos = 0;
 static int sposTmp = 0x10000L;

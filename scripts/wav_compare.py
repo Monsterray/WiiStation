@@ -8,7 +8,9 @@ clips, whether it drops to silence in the middle, and how two runs of the same i
 differ.
 
 Reports per file: format, duration, peak and RMS in dBFS, the fraction of windows that are
-silent, and the longest unbroken silence. With two files it also prints the difference in
+silent, the longest unbroken silence, and (stereo) how often the right channel equals the
+left at a shift of -1, 0 and +1 frames: dual-mono content should peak at 0, and a peak at
++1 or -1 means an output stage put the channels one sample apart (case study 8). With two files it also prints the difference in
 those figures, and, when the two have the same length, a sample-by-sample correlation --
 which is the useful number when the same script was run through two different drivers.
 
@@ -66,6 +68,37 @@ def stats(w, window_ms):
     }
 
 
+def stereo_skew(w, floor=64):
+    """For a stereo dump: how often the right channel equals the left channel shifted by
+    -1, 0 or +1 frame, over the frames where either channel is above the silence floor.
+    Most PSX audio here is dual-mono (CD-XA speech, many SFX), so on a healthy path the
+    shift-0 fraction is high and the others are low. A path that interleaves L/R wrongly
+    (the SDL ring's writer used to start at index 1, so every frame straddled two source
+    frames) shows up as the +1 (right lags) or -1 (right leads) fraction winning instead.
+    Returns {shift: fraction} or None for a non-stereo file."""
+    if w["ch"] != 2:
+        return None
+    s = w["samples"]
+    n = w["frames"]
+    hits = {-1: 0, 0: 0, 1: 0}
+    seen = 0
+    for i in range(1, n - 1):
+        l = s[2 * i]
+        r = s[2 * i + 1]
+        if abs(l) < floor and abs(r) < floor:
+            continue
+        seen += 1
+        if r == l:
+            hits[0] += 1
+        if r == s[2 * (i - 1)]:          # R[n] == L[n-1]: right lags by one frame
+            hits[1] += 1
+        if r == s[2 * (i + 1)]:          # R[n] == L[n+1]: right leads by one frame
+            hits[-1] += 1
+    if seen == 0:
+        return None
+    return {k: v / seen for k, v in hits.items()}
+
+
 def correlate(a, b):
     """Pearson correlation over the overlapping part; 1.0 means identical waveforms."""
     n = min(len(a), len(b))
@@ -86,6 +119,14 @@ def show(name, w, st):
     print(f"{name}: {w['ch']}ch {w['rate']}Hz  {st['seconds']:.1f}s")
     print(f"  peak {st['peak_db']:.1f} dBFS   rms {st['rms_db']:.1f} dBFS   clipped {st['clipped']}")
     print(f"  silent windows {st['silent_frac'] * 100:.0f}%   longest silence {st['longest_silence_ms']} ms")
+    sk = stereo_skew(w)
+    if sk is not None:
+        best = max(sk, key=sk.get)
+        # Genuinely stereo content scores low at every shift; only call it a skew when a
+        # shifted match clearly beats the unshifted one on a good share of the frames.
+        skewed = best != 0 and sk[best] > 0.2 and sk[best] > 2 * sk[0]
+        flag = "   <-- CHANNEL SKEW: the output stage interleaves L/R wrongly" if skewed else ""
+        print(f"  R==L at shift -1/0/+1: {sk[-1]:.2f} / {sk[0]:.2f} / {sk[1]:.2f}{flag}")
 
 
 def main():
