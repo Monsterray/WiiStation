@@ -68,7 +68,7 @@ On the Wii, a loader can give settings as arguments after the program name. Each
 | `BootThruBios` | 0 = No, 1 = Yes | 0 | General, Boot Through Bios | Shows the PlayStation start screen before the game starts. |
 | `gpuPlugin` | 0 = Old Soft, 1 = New Soft, 2 = OpenGX | 0 | General, GPU Plugin | Selects the graphics renderer. Old Soft and New Soft draw with the CPU. OpenGX draws with the Wii graphics hardware. A change resets the current game. |
 | `lang` | 0 to 12, see the language table below | 0 | General, Select language | Selects the menu language. The language files are in `wiisxrx/lang/`. The menu does not show a language if its font file is missing. |
-| `SoundHwAccel` | `0`, `1` | `0` | Audio tab, "DSP Sound" | Chooses the sound output path. `0` is the CPU path: the emulator resamples 44100 to 48000 Hz itself and plays through SDL. `1` hands the stream to the Wii's DSP at 44100 Hz through an AESND voice, and the DSP does the rate conversion, so the CPU does less work per frame. If the chosen path fails to open, the other one is used. Note for testing in Dolphin: its high-level DSP emulation recognises libogc's AESND microcode by hash, so a version it does not know falls back and sound may differ from real hardware. |
+| `SoundHwAccel` | `0`, `1` | `0` | Audio tab, "DSP Sound" | Chooses the sound output path. `0` is the CPU path: the emulator resamples 44100 to 48000 Hz itself and plays through SDL. `1` hands the stream to the Wii's DSP at 44100 Hz through an AESND voice, and the DSP does the rate conversion, so the CPU does less work per frame. If the chosen path fails to open, the other one is used. The output driver is chosen when a game starts, so changing this mid-session takes effect the next time a game is loaded. Note for testing in Dolphin: its high-level DSP emulation recognises libogc's AESND microcode by hash, so a version it does not know falls back and sound may differ from real hardware. |
 | `MenuFont` | `"Name"` | empty | none, settings file only | Selects the menu font. WiiStation loads `wiisxrx/fonts/Name.dat` from the SD card or the USB device. An empty value or a missing file gives the built-in font. The value does not apply to the Chinese, Japanese and Korean languages, which have their own glyph files. See section 9 for the font files. |
 | `fastLoad` | 0 = No, 1 = Yes | 0 | General, Fast Load | Makes CD reads faster than a real console. Some games do not work correctly with this setting. |
 
@@ -106,7 +106,9 @@ The values of `lang` are:
 | Key | Values | Default | Menu | Effect |
 |---|---|---|---|---|
 | `Audio` | 0 = Off, 1 = On | 1 | Audio, Disable Audio | Enables the sound output. Note: the menu label is inverted. **Disable Audio = Yes** writes `Audio = 0`. |
-| `Interpolation` | 1 = Simple, 2 = Gaussian | 1 | Audio, Interpolation | Selects the sample interpolation of the sound processor. The value 0 is not permitted. |
+| `Interpolation` | 1 = Simple, 2 = Gaussian | 1 | Audio, Interpolation | Selects the sample interpolation of the sound processor. The value 0 is not permitted. The menu control for this was labelled "Volume" in the source for years; there has never been a volume control. |
+| `DisableXa` | 0 = play XA, 1 = mute it | 0 | Audio, Disable XA | Mutes the disc's XA audio streams, which most games use for music and speech. Before this key existed the menu toggle worked for the session and was forgotten at the next boot. |
+| `DisableCdda` | 0 = play CDDA, 1 = mute it | 0 | Audio, Disable CDDA | Mutes Red Book audio tracks, which is how many games store their music. Same note as above. |
 
 The menu also has the buttons **Disable XA** and **Disable CDDA**. WiiStation does not save these two buttons to the file. They return to Off at each start.
 

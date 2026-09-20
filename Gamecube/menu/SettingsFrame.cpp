@@ -108,7 +108,7 @@ void Func_DisableXaYes();
 void Func_DisableXaNo();
 void Func_DisableCddaYes();
 void Func_DisableCddaNo();
-void Func_VolumeToggle();
+void Func_InterpolationToggle();
 
 void Func_MemcardSaveSD();
 void Func_MemcardSaveUSB();
@@ -189,8 +189,10 @@ Audio Tab:
 Disable Audio: Yes; No
 Disable XA: Yes; No
 Disable CDDA: Yes; No
-Volume Level: ("0: low", "1: medium", "2: loud", "3: loudest")
-	Note: iVolume=4-ComboBox_GetCurSel(hWC);, so 1 is loudest and 4 is low; default is medium
+Interpolation: Simple; Gaussi   (this control was historically labelled "Volume"; it has
+	always set spuInterpolation, and there is no volume control)
+DSP Sound: Yes; No              (SoundHwAccel: hand the stream to the DSP instead of
+	resampling on the CPU)
 
 Saves Tab:
 Memcard Save Device: SD; USB; CardA; CardB
@@ -250,10 +252,10 @@ static char FRAME_STRINGS[80][24] =
 	  "Disable XA",
 	  "Disable CDDA",
 	  "Interpolation",
-	  "Simple",	//iVolume=1
-	  "Gaussi",
-	  "medium",
-	  "low",		//iVolume=4
+	  "Simple",		// [47] spuInterpolation == SIMPLE_INTERPOLATION (1)
+	  "Gaussi",		// [48] spuInterpolation == GAUSSI_INTERPOLATION (2)
+	  "unused1",	// [49] and [50] are unreachable: the label is FRAME_STRINGS[46 + spuInterpolation]
+	  "unused2",
 	//Strings for Saves tab (starting at FRAME_STRINGS[51]) ..was[55]
 	  "Memcard Save Device",
 	  "Auto Save Memcards",
@@ -388,7 +390,7 @@ struct ButtonInfo
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[17],	440.0,	170.0,	 75.0,	56.0,	40,	44,	41,	41,	Func_DisableXaNo,		Func_ReturnFromSettingsFrame }, // Disable XA: No
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[16],	345.0,	240.0,	 75.0,	56.0,	41,	45,	44,	44,	Func_DisableCddaYes,	Func_ReturnFromSettingsFrame }, // Disable CDDA: Yes
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[17],	440.0,	240.0,	 75.0,	56.0,	42,	45,	43,	43,	Func_DisableCddaNo,		Func_ReturnFromSettingsFrame }, // Disable CDDA: No
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[47],	345.0,	310.0,	170.0,	56.0,	43,	 3,	-1,	-1,	Func_VolumeToggle,		Func_ReturnFromSettingsFrame }, // Volume: low/medium/loud/loudest
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[47],	345.0,	310.0,	170.0,	56.0,	43,	 3,	-1,	-1,	Func_InterpolationToggle,	Func_ReturnFromSettingsFrame }, // Interpolation: Simple/Gaussi
 	//Buttons for Saves Tab (starts at button[46]) ..was[54]
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[13],	295.0,	100.0,	 55.0,	56.0,	 4,	50,	49,	47,	Func_MemcardSaveSD,		Func_ReturnFromSettingsFrame }, // Memcard Save: SD
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[14],	360.0,	100.0,	 70.0,	56.0,	 4,	51,	46,	48,	Func_MemcardSaveUSB,	Func_ReturnFromSettingsFrame }, // Memcard Save: USB
@@ -452,7 +454,7 @@ struct TextBoxInfo
 	{	NULL,	FRAME_STRINGS[43],	210.0,	128.0,	 1.0,	true }, // Disable Audio: Yes/No
 	{	NULL,	FRAME_STRINGS[44],	210.0,	198.0,	 1.0,	true }, // Disable XA Audio: Yes/No
 	{	NULL,	FRAME_STRINGS[45],	210.0,	268.0,	 1.0,	true }, // Disable CDDA Audio: Yes/No
-	{	NULL,	FRAME_STRINGS[46],	210.0,	338.0,	 1.0,	true }, // Volume: low/medium/loud/loudest
+	{	NULL,	FRAME_STRINGS[46],	210.0,	338.0,	 1.0,	true }, // Interpolation: Simple/Gaussi
 	//TextBoxes for Saves Tab (starts at textBox[18]) ..was[23]
 	{	NULL,	FRAME_STRINGS[51],	150.0,	128.0,	 1.0,	true }, // Memcard Save Device: SD/USB/CardA/CardB
 	{	NULL,	FRAME_STRINGS[52],	150.0,	198.0,	 1.0,	true }, // Auto Save Memcards: Yes/No
@@ -1710,7 +1712,7 @@ void Func_DisableXaYes()
 	for (int i = 41; i <= 42; i++)
 		FRAME_BUTTONS[i].button->setSelected(false);
 	FRAME_BUTTONS[41].button->setSelected(true);
-	Config.Xa = XA_DISABLE;
+	Config.Xa = xaDisabled = XA_DISABLE;     // shadow is what gets saved
 }
 
 void Func_DisableXaNo()
@@ -1718,7 +1720,7 @@ void Func_DisableXaNo()
 	for (int i = 41; i <= 42; i++)
 		FRAME_BUTTONS[i].button->setSelected(false);
 	FRAME_BUTTONS[42].button->setSelected(true);
-	Config.Xa = XA_ENABLE;
+	Config.Xa = xaDisabled = XA_ENABLE;
 }
 
 #ifdef SHOW_DEBUG
@@ -1729,7 +1731,7 @@ void Func_DisableCddaYes()
 	for (int i = 43; i <= 44; i++)
 		FRAME_BUTTONS[i].button->setSelected(false);
 	FRAME_BUTTONS[43].button->setSelected(true);
-	Config.Cdda = CDDA_DISABLE;
+	Config.Cdda = cddaDisabled = CDDA_DISABLE;
 	#ifdef SHOW_DEBUG
 	canWriteLog = !canWriteLog;
 	sprintf(txtbuffer,"Current Write Log Status %d", canWriteLog);
@@ -1742,7 +1744,7 @@ void Func_DisableCddaNo()
 	for (int i = 43; i <= 44; i++)
 		FRAME_BUTTONS[i].button->setSelected(false);
 	FRAME_BUTTONS[44].button->setSelected(true);
-	Config.Cdda = CDDA_ENABLE;
+	Config.Cdda = cddaDisabled = CDDA_ENABLE;
 	#ifdef SHOW_DEBUG
 	canWriteLog = !canWriteLog;
 	sprintf(txtbuffer,"Current Write Log Status %d", canWriteLog);
@@ -1751,7 +1753,7 @@ void Func_DisableCddaNo()
 	//menu::MessageBox::getInstance().setMessage("CDDA audio is not implemented");
 }
 
-void Func_VolumeToggle()
+void Func_InterpolationToggle()
 {
 	if (spuInterpolation == SIMPLE_INTERPOLATION)
 	{

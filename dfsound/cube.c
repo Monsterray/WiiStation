@@ -36,7 +36,7 @@
 #include "../Gamecube/DEBUG.h"
 
 char audioEnabled;          /* the "Audio" setting; also read by the menu */
-unsigned int iVolume = 3;
+unsigned int aesndAttenuation = 3;   /* see aesnd_set_volume() */
 int iDisStereo = 0;
 
 /* Four buffers of 1024 stereo frames: about 23 ms each at 44100 Hz, so at most ~93 ms
@@ -61,16 +61,16 @@ static unsigned int cube_queued(void)
     return filled - played;
 }
 
-void SetVolume(void)
+static void aesnd_set_volume(void)
 {
-    /* iVolume is a leftover: nothing sets it. The menu's "volume" control actually toggles
-     * SPU interpolation (Func_VolumeToggle in SettingsFrame.cpp), and the CPU output path
-     * ignores iVolume entirely and always plays at full scale. The old mapping here turned
-     * its default of 3 into 127 of 255, which measured as this path being 6.1 dB quieter
-     * than the one it replaces. Full scale at the default; only a deliberately lower
-     * setting attenuates, should anything ever set one. */
+    /* A leftover knob: nothing sets aesndAttenuation, there is no menu control for it (the
+     * one that used to be called "volume" actually toggles SPU interpolation), and the CPU
+     * output path has no volume control at all and always plays at full scale. The old
+     * mapping turned the default of 3 into 127 of 255, which measured as this path being
+     * 6.1 dB quieter than the one it replaces. Full scale at the default; larger values
+     * attenuate, should anything ever set one. */
     u16 volume = 255;
-    if (iVolume > 3) volume = (u16)(255u >> (iVolume - 3));
+    if (aesndAttenuation > 3) volume = (u16)(255u >> (aesndAttenuation - 3));
     if (voice) AESND_SetVoiceVolume(voice, volume, volume);
 }
 
@@ -111,7 +111,7 @@ static int cube_init(void)
 
     AESND_SetVoiceFormat(voice, iDisStereo ? VOICE_MONO16 : VOICE_STEREO16);
     AESND_SetVoiceFrequency(voice, PS_SPU_FREQ);   /* the DSP resamples to 48 kHz */
-    SetVolume();
+    aesnd_set_volume();
     AESND_SetVoiceStream(voice, true);
     AESND_SetVoiceStop(voice, false);
     return 0;
@@ -140,7 +140,7 @@ static int cube_feed(void *data, int bytes)
 {
     const unsigned char *src = (const unsigned char *)data;
 
-    if (!audioEnabled || voice == NULL) return 0;
+    if (voice == NULL) return 0;   /* the audioEnabled gate lives in DF_SPUasync */
 
     while (bytes > 0) {
         unsigned char *dst;

@@ -42,6 +42,13 @@ enum soundHwAccel
 	SOUND_HW_ACCEL_ON
 };
 
+/* Settings-file mirrors of Config.Xa/Config.Cdda. Those are longs inside PCSX's config
+ * struct and the settings table writes a char, so they are stored here and copied across
+ * at startup, the same way dynacore mirrors Config.Cpu. Without this the two menu toggles
+ * worked for the session and were forgotten on the next boot. */
+extern char xaDisabled;
+extern char cddaDisabled;
+
 enum ConfigXa //Config.Xa
 {
 	XA_ENABLE=0,

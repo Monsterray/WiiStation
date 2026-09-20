@@ -1089,7 +1089,12 @@ void CALLBACK DF_SPUasync(unsigned int cycle, unsigned int flags, unsigned int p
     schedule_next_irq();
 
  if (flags & 1) {
-  out_current->feed(spu.pSpuBuffer, (unsigned char *)spu.pS - spu.pSpuBuffer);
+  /* The SPU state above is always emulated -- games poll its registers and rely on its
+   * timing -- but with sound switched off nothing is handed to the output driver. This
+   * is the one place both drivers share, so the setting behaves the same either way. */
+  extern char audioEnabled;
+  if (audioEnabled)
+   out_current->feed(spu.pSpuBuffer, (unsigned char *)spu.pS - spu.pSpuBuffer);
   spu.pS = (short *)spu.pSpuBuffer;
 
   //if (spu_config.iTempo) {

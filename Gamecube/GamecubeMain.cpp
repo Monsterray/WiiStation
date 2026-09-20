@@ -113,6 +113,8 @@ char frameSkip;
 char useDithering;
 extern char audioEnabled;   // defined in dfsound/cube.c alongside the output drivers
 char soundHwAccel;          // read by dfsound/out.c when it picks an output driver
+char xaDisabled;            // mirrors Config.Xa   (see wiiSXconfig.h)
+char cddaDisabled;          // mirrors Config.Cdda
 char spuInterpolation;
 char showFPSonScreen;
 char printToScreen;
@@ -173,6 +175,8 @@ static struct {
 { { "Audio", &audioEnabled, AUDIO_DISABLE, AUDIO_ENABLE },
   { "SoundHwAccel", &soundHwAccel, SOUND_HW_ACCEL_OFF, SOUND_HW_ACCEL_ON },
   { "Interpolation", &spuInterpolation, SIMPLE_INTERPOLATION, GAUSSI_INTERPOLATION },
+  { "DisableXa", &xaDisabled, XA_ENABLE, XA_DISABLE },
+  { "DisableCdda", &cddaDisabled, CDDA_ENABLE, CDDA_DISABLE },
   { "FPS", &showFPSonScreen, FPS_HIDE, FPS_SHOW },
 //  { "Debug", &printToScreen, DEBUG_HIDE, DEBUG_SHOW },
   { "ScreenMode", &screenMode, SCREENMODE_4x3, SCREENMODE_16x9_PILLARBOX },
@@ -361,6 +365,8 @@ void loadSettings(int argc, char *argv[])
 	audioEnabled     = 1; // Audio
 	soundHwAccel     = SOUND_HW_ACCEL_OFF; // CPU sound path; the DSP one is opt-in
 	spuInterpolation = SIMPLE_INTERPOLATION;
+	xaDisabled       = XA_ENABLE;    // XA and CDDA audio both on by default
+	cddaDisabled     = CDDA_ENABLE;
 #ifdef RELEASE
 	showFPSonScreen  = 0; // Don't show FPS on Screen
 #else
@@ -405,8 +411,8 @@ void loadSettings(int argc, char *argv[])
 	strcpy(Config.Net,"Disabled");
 	Config.PsxOut = 1;
 	Config.HLE = 1;
-	Config.Xa = 0;  //XA enabled
-	Config.Cdda = 0; //CDDA enabled
+	Config.Xa = xaDisabled;     // from the settings file; see wiiSXconfig.h
+	Config.Cdda = cddaDisabled;
 	Config.cycle_multiplier = CYCLE_MULT_DEFAULT;
 	Config.PsxAuto = 1; //Autodetect
 	Config.GpuListWalking = -1;
