@@ -65,6 +65,15 @@ case "${PROBES:-all}" in
 esac
 [ -n "$PROBE_DEFINES" ] && echo "probe gates: $PROBE_DEFINES"
 
+# make compares timestamps, not compiler flags, so changing PROBES on its own rebuilds
+# nothing and you silently get the previous build back. Remember what the objects were
+# compiled with and clean when it changes.
+PROBE_STAMP="Gamecube/build_debug/.probe_defines"
+if [ -d "Gamecube/build_debug" ] && [ "$(cat "$PROBE_STAMP" 2>/dev/null)" != "$PROBE_DEFINES" ]; then
+	echo "probe gates changed since the last build -- cleaning so the change takes effect"
+	make -C Gamecube -f Makefile_Wii clean >/dev/null 2>&1 || true
+fi
+
 # The five dependency archives (opengx, zstd, lzma, zlibstatic, chdr) build
 # to their own deps/*/lib directories; Gamecube/Makefile_Wii links against
 # those paths directly via -L, so no "make install" step is needed here.
@@ -92,6 +101,7 @@ case "${1:-debug}" in
 		make opengx.a lightrecWithLog.a zstd.a lzma.a zlibstatic.a chdrstatic.a
 		relink_if_deps_newer Gamecube/WiiSXRX_debug.elf
 		make -C Gamecube -f Makefile_Wii EXTRA_CFLAGS="$PROBE_DEFINES"
+		mkdir -p Gamecube/build_debug && printf '%s' "$PROBE_DEFINES" > "$PROBE_STAMP"
 		echo "Output: Gamecube/WiiSXRX_debug.dol"
 		;;
 	debug-warn)
