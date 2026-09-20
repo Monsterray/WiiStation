@@ -106,6 +106,9 @@ extern unsigned autoinput_atrace_vbl;         /* PadWiiSX.c: 'atrace <vblank>' l
  *   G    MixCD started contributing silence: a = ns_to, b = cdClearSamples
  *   S    heartbeat every 16th SPU_async: a = ring fill, b = cycle - cycles_played
  *        (after the tempo pull-back, if any), c = driver busy
+ *   D    rate control, every 16th update (dfsound/ratectl.c): a = queued frames at the
+ *        driver, b = nudge in ppm, c = bit0 driver (0 sdl, 1 cube), bit1 demand saturated,
+ *        bits2+ the integral term + 4096
  * Own file, rewritten whole: like ptrace.log, appending thousands of lines to perf.log
  * risks a broken FAT chain when Dolphin is killed mid-write. */
 static void perf_audio_flush(void)
@@ -452,6 +455,12 @@ void perf_report(void)
 			(unsigned long)g_perf.spu_ns, (unsigned long)g_perf.spu_pulls, (unsigned long)g_perf.spu_busy,
 			(unsigned long)g_perf.spu_desync, (unsigned long)g_perf.aev_n,
 			(unsigned long)g_perf.out_dry, (unsigned long)g_perf.out_drop);
+		fprintf(f, "rate: ppm=%ld i=%ld min=%ld max=%ld occ_min=%lu occ_max=%lu occ_avg=%lu updates=%lu sat=%lu changes=%lu prefill=%lu | limit: debt_max=%lu debt_drops=%lu\n",
+			(long)g_perf.rate_ppm_now, (long)g_perf.rate_i_now, (long)g_perf.rate_ppm_min, (long)g_perf.rate_ppm_max,
+			(unsigned long)g_perf.rate_occ_min, (unsigned long)g_perf.rate_occ_max,
+			(unsigned long)(g_perf.rate_updates ? g_perf.rate_occ_sum / g_perf.rate_updates : 0),
+			(unsigned long)g_perf.rate_updates, (unsigned long)g_perf.rate_sat, (unsigned long)g_perf.rate_changes,
+			(unsigned long)g_perf.rate_prefill, (unsigned long)g_perf.limit_debt_max, (unsigned long)g_perf.limit_debt_drops);
 		fprintf(f, "menu: frames=%lu menu_us=%llu strings=%lu glyphs=%lu texloads=%lu\n",
 			(unsigned long)g_perf.menu_frames, g_perf.menu_us,
 			(unsigned long)g_perf.menu_strings, (unsigned long)g_perf.menu_glyphs,

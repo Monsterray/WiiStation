@@ -24,6 +24,7 @@
 #include "../Gamecube/DEBUG.h"
 #include "../psxcommon.h"
 #include "../Gamecube/perf_prof.h"
+#include "ratectl.h"
 
 // Reverted to the original ~250ms: sdl_busy()'s "keep generating more
 // samples" heuristic targets BUFFER_SIZE/2 fill as its steady-state
@@ -43,6 +44,18 @@
 // operating latency won't silently move with it. Set to match the
 // current BUFFER_SIZE/2 (11025) so behavior is unchanged by this split.
 #define BUSY_TARGET_SAMPLES 11025
+
+/* Dynamic rate control (ratectl.c): the callback keeps the ring near BUSY_TARGET_SAMPLES
+ * by scaling its 44100 -> 48000 step a fraction of a percent up or down, once per callback
+ * (libSDL asks for half of spec.samples at a time: 1024 output frames, 21 ms, measured as
+ * 47 callbacks a second), from the ring's occupancy. Until the ring has first reached that
+ * target after init, the callback plays silence: the loop starts at its operating point
+ * instead of on the edge of empty. */
+#define SDL_TARGET_FRAMES   (BUSY_TARGET_SAMPLES / 2)
+#define SDL_CALLBACK_FRAMES 2048
+static ratectl_t rate;
+static int primed;                          /* the ring has reached its target since init */
+static unsigned int step = SINC;            /* 16.16 input frames per output frame */
 
 /* Ring of 16-bit samples, L/R interleaved, so a frame is two shorts at an even index
  * (BUFFER_SIZE is even). iWritePos is the next index the emulator thread writes,
@@ -71,9 +84,24 @@ static void SOUND_FillAudio(void *unused, Uint8 *stream, int len) {
     }
 
     int16_t *p = (int16_t *)stream;
+    int queued, ppm;
 
     //len >>= 1;
     len >>= 2;
+
+    queued = iWritePos - iReadPos;          /* shorts waiting to be played */
+    if (queued < 0) queued += BUFFER_SIZE;
+    queued >>= 1;                           /* frames */
+    if (!primed) {
+        if (queued < SDL_TARGET_FRAMES) {
+            memset(stream, 0, len * 2 * sizeof(int16_t));
+            PERF_ADD(rate_prefill, len);
+            return;
+        }
+        primed = 1;
+    }
+    ppm  = ratectl_update(&rate, queued, (int)(((unsigned)len * SINC) >> 16));   /* dt = input frames this callback consumes */
+    step = (unsigned int)(((unsigned long long)SINC * (unsigned)(1000000 + ppm)) / 1000000u);
 
 //    while (iReadPos != iWritePos && len > 0) {
 //        *p++ = pSndBuffer[iReadPos++];
@@ -100,7 +128,7 @@ static void SOUND_FillAudio(void *unused, Uint8 *stream, int len) {
 
         *p++ = lastSampleL;
         *p++ = lastSampleR;
-        sposTmp += SINC;
+        sposTmp += step;
         --len;
     }
 dry:
@@ -151,7 +179,7 @@ static int sdl_init(void) {
     spec.freq = WII_SPU_FREQ;
     spec.format = AUDIO_S16SYS; // AUDIO_S16LSB // //AUDIO_S16MSB; //
     spec.channels = 2;
-    spec.samples = 2048;
+    spec.samples = SDL_CALLBACK_FRAMES;
     spec.callback = SOUND_FillAudio;
 
     if (SDL_OpenAudio(&spec, NULL) < 0) {
@@ -167,6 +195,10 @@ static int sdl_init(void) {
 
     iReadPos = 0;
     iWritePos = 0;
+    primed = 0;
+    step = SINC;
+    sposTmp = 0x10000L;
+    ratectl_init(&rate, SDL_TARGET_FRAMES, RATECTL_SDL);
 
     SDL_PauseAudio(0);
     return 0;

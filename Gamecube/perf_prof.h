@@ -295,8 +295,21 @@ typedef struct {
 	uint32_t spu_pulls;           /* tempo pull-backs: output driver not busy, SoundTempo on */
 	uint32_t spu_busy;            /* SPU_async calls that found the output driver busy */
 	uint32_t spu_desync;          /* do_samples resets: |cycle gap| > 2M cycles */
-	uint32_t out_dry;             /* output frames the driver had no data for (SDL: zero-filled; AESND: repeated buffer) */
+	uint32_t out_dry;             /* output frames the driver had no data for (SDL: zero-filled; AESND: silence) */
 	uint32_t out_drop;            /* feed() calls that found the driver full and dropped the rest */
+
+	/* Output-stage rate control (dfsound/ratectl.c): the nudge applied to the playback
+	 * rate, in ppm, and the queue occupancy it was computed from, in 44.1 kHz frames. */
+	int32_t  rate_ppm_now, rate_ppm_min, rate_ppm_max;
+	int32_t  rate_i_now;          /* the integral term's share of rate_ppm_now */
+	uint32_t rate_occ_min, rate_occ_max;
+	uint64_t rate_occ_sum;
+	uint32_t rate_updates;        /* ratectl_update calls */
+	uint32_t rate_sat;            /* updates whose demand exceeded +-RATECTL_MAX_PPM */
+	uint32_t rate_changes;        /* AESND voice frequency writes (DSP path) */
+	uint32_t rate_prefill;        /* output frames of silence before the queue first reached its target */
+	uint32_t limit_debt_max;      /* FrameCap: largest debt carried, 100 us ticks */
+	uint32_t limit_debt_drops;    /* FrameCap: stalls longer than the debt bound, remainder dropped */
 
 	/* Audio timeline: one record per XA sector (F, R = stream start), gap start (G), first
 	 * repeated sample (H) and a mixer heartbeat every 16th SPU_async (S). Recording starts at

@@ -1103,11 +1103,13 @@ void CALLBACK DF_SPUasync(unsigned int cycle, unsigned int flags, unsigned int p
   {
    int busy = out_current->busy();
    if (busy) PERF_INC(spu_busy);
-   /* Tempo: when the output driver has run low, pull the mixer's clock back so the next
-    * do_samples() generates half a frame of extra audio. That keeps the driver fed when
-    * the core runs slower than real time, but the SPU then consumes CD-XA faster than the
-    * emulated drive delivers it and streamed speech gets silent gaps (SoundTempo in
-    * SETTINGS.md; upstream pcsx-rearmed ships this off). */
+   /* Legacy tempo pull-back (SoundTempo, default off since 2026-09-20): when the output
+    * driver has run low, pull the mixer's clock back so the next do_samples() generates
+    * half a frame of extra audio. That keeps the driver fed when the core runs slower than
+    * real time, but the SPU then consumes CD-XA faster than the emulated drive delivers it
+    * and streamed speech gets silent gaps. Replaced by rate control at the output stage
+    * (dfsound/ratectl.c) plus the frame limiter's bounded catch-up (oldGpuFps.c FrameCap);
+    * kept so the two can be compared from one build. */
    if (spu_config.iTempo && !busy) {
     // cause more samples to be generated
     // (and break some games because of bad sync)

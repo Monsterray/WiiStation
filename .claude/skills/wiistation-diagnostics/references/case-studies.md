@@ -106,3 +106,41 @@ tempting wrong turns.
   DOL (`DOL=` env of `dolphin_run.sh`) before attributing gaps to the code. And to identify
   a repeat, align the suspect dump against a clean one and read the offset steps; a bare
   autocorrelation peak may belong to the signal.
+
+## 8. Replacing the tempo pull-back: rate control at the output stage (follow-up to 7)
+
+- Design (2026-09-20, `dfsound/ratectl.c`): the mixer stays on emulated time; each output
+  driver nudges its playback rate by at most +-0.5 % from its queue occupancy (PI, time
+  constants in audio frames, slew-limited), the SDL callback by scaling its 16.16 step, the
+  DSP driver with `AESND_SetVoiceFrequency`. Each driver plays silence until its queue first
+  reaches the target. Stalls are the frame limiter's job: `FrameCap` now keeps a schedule
+  and carries up to 125 ms of debt, so the core runs unthrottled after a disc-read stall
+  and refills the queue with emulated-time-consistent audio; and it paces on the vblank
+  rate the core emulates (`psxGetFps()`, 60.00 Hz) instead of the PEOPS table's 59.83 Hz
+  rounded down to whole 100 us ticks, a built-in -0.26 % that would have eaten half the
+  controller's authority. `SoundTempo` (the pull-back) stays as a file-only legacy switch,
+  default off; `SoundRateControl` (default on) switches the new loop off for measurements.
+- Probes: `rate:` line (ppm now/min/max, integral share, queue min/max/mean, saturated
+  updates, voice-frequency writes, prefill silence, limiter debt max and drops) and `D`
+  records in atrace.log; `scripts/run_summary.py` reads all of it plus the audio dump.
+- Debug build (0.51x wall in the speech scene): the controller sits at its -0.5 % cap
+  with the queue near empty and `out dry` ~1.17 M frames; XA gaps 0, holds 0 (the
+  `xamix gaps=1 / gap_samples=88260` is the 2 s stream-end tail the detector counts, not
+  a gap). No scheme is clean at half speed, and the debug build never has headroom, so it
+  cannot show the steady state; judge the loop on the release DOL's audio dump.
+- Release DOL, 160 s Spyro speech scene, runs of exact digital silence 3..400 ms in the
+  dump (`run_summary.py`): rate control CPU path 14 runs / 209 ms, all at boot (10 s),
+  title (20-30 s) and the level load (61 s), none in gameplay or speech; DSP path 4 / 203 ms,
+  same places; legacy pull-back 22 / 266 ms, of which 20 are 3-4 ms holes spread through
+  the speech (70-155 s): the XA gaps, shortened by MixCD's 3-call repeat of the last
+  sample. The pull-back's one advantage remains: it refills the ring after a stall in a few
+  frames regardless of headroom, so the boot phase (JIT warm-up, slower than real time)
+  shows 5-6 chopped silences of 10-20 ms with rate control and none with the pull-back.
+- Cadence trap found by the summary table, not by reading code: `SPU_async(cycle, 1, ...)`
+  runs from rcnt 4 every 46080 cycles, 735 times per emulated second, not once per frame,
+  and libSDL asks for 1024-frame halves, 47 times a second. A controller scaled per update
+  had the DSP path's integral 16x too fast (`i=-1002` vs `-75`); scaling by the frames each
+  update covers fixed it (`i=-83`, `sat 0`).
+- Lesson: when a loop's constants are "per update", print the update count and derive the
+  rate from it before trusting the design; and read all runs in one table -- the anomaly
+  was visible only side by side.

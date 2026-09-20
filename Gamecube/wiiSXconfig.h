@@ -42,14 +42,24 @@ enum soundHwAccel
 	SOUND_HW_ACCEL_ON
 };
 
-/* dfsound's tempo pull-back (DF_SPUasync): when the output driver runs low, generate extra
- * audio so it never starves. Keeps sound continuous when the core is slower than real time,
- * at the price of the SPU consuming CD-XA faster than the drive delivers it. */
+/* dfsound's legacy tempo pull-back (DF_SPUasync): when the output driver runs low, generate
+ * extra audio so it never starves. Keeps sound continuous when the core is slower than real
+ * time, at the price of the SPU consuming CD-XA faster than the drive delivers it. Off by
+ * default since the rate control below replaced it. */
 extern char soundTempo;
 enum soundTempo
 {
 	SOUND_TEMPO_OFF=0,
 	SOUND_TEMPO_ON
+};
+
+/* dfsound/ratectl.c: keep the output driver's queue at its target by nudging the playback
+ * rate by at most +-0.5 %, from the queue's occupancy. The mixer stays on emulated time. */
+extern char soundRateControl;
+enum soundRateControl
+{
+	SOUND_RATE_CONTROL_OFF=0,
+	SOUND_RATE_CONTROL_ON
 };
 
 /* Settings-file mirrors of Config.Xa/Config.Cdda. Those are longs inside PCSX's config
