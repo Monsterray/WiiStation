@@ -74,6 +74,17 @@ believing the symptom.
   are the host-side truth.
 - `MMU=1` turns on address translation, so a wild pointer faults instead of landing somewhere
   harmless; `DOLPHIN_ARGS` appends anything else verbatim.
+- `DSP_LLE=1` runs the DSP microcode for real. **Required to test WiiStation's AESND sound
+  path at all**: Dolphin's default high-level DSP emulation matches microcode by hash, does
+  not know libogc's AESND (CRC 8d527c50), instantiates AXWii instead and produces pure
+  silence, with a modal panic dialog saying so. Dolphin ships replacement DSP ROMs in
+  `Sys/GC`, so nothing else is needed.
+- `AUDIO_DUMP=1` writes the mixed audio to the run directory; compare two runs with
+  `scripts/wav_compare.py`. Judge by level and silence structure, not by the correlation:
+  two separate emulator runs are never sample-aligned.
+- `PROBES=all|light|min` on `scripts/build.sh` selects how much instrumentation the debug
+  build carries (see the sub-gates in `Gamecube/perf_prof.h`). Worth about 2% of emulated
+  CPU time, so reach for it only when profiling the guest; the big costs are host-side.
 - `XFB_RAM=1` makes CPU-written framebuffers visible in the frame dump — the libogc exception
   screen after a guest crash, and the debug console. Resolve its addresses with
   `powerpc-eabi-addr2line -e Gamecube/WiiSXRX_debug.elf`.
