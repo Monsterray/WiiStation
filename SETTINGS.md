@@ -177,7 +177,7 @@ WiiStation starts the network only when `smbsharename` and `smbipaddr` are both 
 | `autoboot.txt` | Starts a game without the menu. See section 10. |
 | `autoinput.txt` | Presses controller buttons at given times. See section 11. |
 | `bios/SCPH1001.BIN` | The PlayStation BIOS. Needed when `BiosDevice` is 1 or 2. |
-| `fonts/<Name>.dat` | A menu font, selected with `MenuFont`. The repository has three in `fonts/menu/`: `Classic` (the original glyphs, descenders cut), `Segoe` (the built-in face with full descenders and Latin accents) and `Times` (a Times New Roman face). Make a new one with `scripts/genfont.py`. |
+| `fonts/<Name>.dat` | A menu font, selected with `MenuFont`. The repository has four in `fonts/menu/`: `Classic` (the original glyphs, descenders cut), `Segoe` (the built-in face with full descenders and Latin accents), `Times` (a Times New Roman face) and `CalibriBold` (a bold Calibri face, made with the recipe in section 9.1). Make a new one with `scripts/genfont.py`. |
 | `ppf/` | PPF patch files. WiiStation applies a patch with the same name as the game. |
 | `lang/` | Menu language files. |
 | `fonts/chs.dat` | Font file for the Chinese menu language. |

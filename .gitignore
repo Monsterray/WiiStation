@@ -29,3 +29,6 @@ AGENTS.md
 # Dolphin input movies and their savestates used for local testing
 movies/
 __pycache__/
+
+# scripts/genfont.py writes its --preview image here (see SETTINGS.md section 9.1)
+/preview.png
