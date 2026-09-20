@@ -14,6 +14,12 @@
 #                         up in the frame dump (Dolphin otherwise keeps XFB copies on the GPU)
 #          MMU=1          emulate address translation; wild pointers fault instead of landing
 #                         somewhere harmless
+#          DSP_LLE=1      run the DSP microcode for real instead of Dolphin's high-level
+#                         reimplementations. Needed for any custom ucode -- HLE matches
+#                         ucodes by hash and falls back to a WRONG one otherwise (libogc's
+#                         AESND is not on its list). Uses the DSP ROMs in Sys/GC.
+#          AUDIO_DUMP=1   write the mixed audio to User/Dump/Audio and collect it; compare
+#                         two runs with scripts/wav_compare.py
 #          DOLPHIN_ARGS   extra arguments appended verbatim, e.g. "-C Graphics.Settings.OverlayStats=True"
 #
 # Stages the input script, settings and (optionally) autoboot.txt into the SD sync folder, boots the
@@ -49,6 +55,9 @@ CFGARGS=(
   # The two options the OpenGX renderer needs to behave like hardware (see README).
   -C Graphics.Settings.SafeTextureCacheColorSamples=0
   -C Graphics.Hacks.EFBToTextureEnable=False
+  # A panic dialog is as fatal to an unattended run as the stop dialog: Dolphin puts up a
+  # modal box and waits for a human. They are still written to the log.
+  -C Dolphin.Interface.UsePanicHandlers=False
   -C Logger.Options.WriteToFile=True
   -C Logger.Logs.FRAMEDUMP=True
   # Host-side speed, next to WiiStation's own FPS counter. The guest's counter measures
@@ -60,11 +69,13 @@ CFGARGS=(
 [ -n "${CACHE:-}" ]   && CFGARGS+=(-C Dolphin.Core.AccurateCPUCache=True)
 [ -n "${MMU:-}" ]     && CFGARGS+=(-C Dolphin.Core.MMU=True)
 [ -n "${XFB_RAM:-}" ] && CFGARGS+=(-C Graphics.Hacks.XFBToTextureEnable=False)
+[ -n "${DSP_LLE:-}" ] && CFGARGS+=(-C Dolphin.Core.DSPHLE=False -C Logger.Logs.DSPLLE=True)
+[ -n "${AUDIO_DUMP:-}" ] && CFGARGS+=(-C Dolphin.DSP.DumpAudio=True)
 # shellcheck disable=SC2206
 [ -n "${DOLPHIN_ARGS:-}" ] && CFGARGS+=(${DOLPHIN_ARGS})
 
 # --- stage the guest's files ------------------------------------------------------------
-rm -rf "$D/User/Dump/Frames"
+rm -rf "$D/User/Dump/Frames" "$D/User/Dump/Audio"
 # Dolphin APPENDS to dolphin.log across launches. Keep the previous one aside so the copy this
 # run collects, and the fault grep at the end, describe this run only.
 [ -f "$D/User/Logs/dolphin.log" ] && mv "$D/User/Logs/dolphin.log" "$D/User/Logs/dolphin.log.prev"
@@ -98,6 +109,9 @@ N=$(ls "$D/User/Dump/Frames" 2>/dev/null | wc -l); echo "frames dumped: $N"
 ls "$D/User/Dump/Frames"/framedump_*.png 2>/dev/null | sed -E 's/.*framedump_([0-9]+)\.png/\1/' | sort -n | tail -${KEEP:-120} | while read i; do mv "$D/User/Dump/Frames/framedump_$i.png" "$OUT/frames/"; done
 rm -rf "$D/User/Dump/Frames"
 cp "$D/User/Logs/dolphin.log" "$OUT/dolphin.log" 2>/dev/null || true
+if [ -n "${AUDIO_DUMP:-}" ]; then
+  cp "$D/User/Dump/Audio"/*.wav "$OUT/" 2>/dev/null && ls -la "$OUT"/*.wav | awk '{print "audio dump:", $5, $9}'
+fi
 # Guest-side artifacts: 7-Zip refuses the FAT image after a kill often enough that perf.log is read
 # with our own cluster-chain reader instead.
 "/c/Program Files/7-Zip/7z.exe" e -y -o"$OUT" "$D/User/Load/WiiSD.raw" 'wiisxrx/ptrace.log' 'wiisxrx/vram.bin' >/dev/null 2>&1 || echo "7z extract failed"

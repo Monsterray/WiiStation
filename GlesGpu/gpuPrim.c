@@ -974,7 +974,7 @@ static inline void SetRenderState ( unsigned int DrawAttributes )
 
 static void SetRenderMode ( unsigned int DrawAttributes, BOOL bSCol )
 {
-#ifdef PERF_PROF
+#if PERF_PROF_GPU
     {
         unsigned cmd = (DrawAttributes >> 24) & 0xff;
         int nv = (cmd & 0x08) ? 4 : 3, i, x0 = 4096, y0 = 4096, x1 = -4096, y1 = -4096;
@@ -1272,7 +1272,7 @@ static BOOL bDrawOffscreen3 ( void )
 }
 
 
-#ifdef PERF_PROF
+#if PERF_PROF_GPU
 /* Probe (render-to-texture investigation). kind 1/2: a quad/tri whose
  * destination is outside the visible buffers -- offsetPSX*() makes lx and ly
  * absolute VRAM coordinates and bDrawOffscreen*() applies the same test the

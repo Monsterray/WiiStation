@@ -1692,7 +1692,7 @@ if (g_readbackState == READBACK_PENDING)
   writeLogFile(txtbuffer);
 #endif
   g_readbackState = READBACK_DONE;
-#ifdef PERF_PROF
+#if PERF_PROF_GPU
   /* trace: C1 = readback outcome for this VRAM->CPU read (flags = mapping kind, abr = capture result + 8, col = merged pixels) */
   perf_prim_trace(0xC1, (unsigned)g_lastReadMapping, (unsigned)(g_lastCaptureResult + 8), (unsigned)g_lastMergedPixels, VRAMRead.x, VRAMRead.y, VRAMRead.x + VRAMRead.Width, VRAMRead.y + VRAMRead.Height);
   /* C2 = readback state bits: b0 pendingPresented b1 contaminated b2 mixed b3 untracked b4 prevSnapValid b5 liveSnapValid
@@ -1986,7 +1986,7 @@ static int OffscreenSoftDraw(unsigned char cmd, unsigned long *data, int n)
     InvalidateTextureArea(x0, y0, x1 - x0, y1 - y0);
     MarkCpuVramWrite(x0, y0, x1 - x0, y1 - y0);
     PERF_INC(off_soft_prims);
-#ifdef PERF_PROF
+#if PERF_PROF_GPU
     perf_prim_trace(0xC8, cmd & 0x04 ? 2 : 0, 0, (unsigned)cmd, x0, y0, x1, y1);   /* C8 = software-rasterized off-screen primitive */
 #endif
     return 1;

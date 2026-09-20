@@ -49,6 +49,22 @@ fi
 
 cd "$REPO_ROOT"
 
+# PROBES= selects which groups of debug probes the debug build compiles in. The
+# profiler as a whole stays on; these turn off the expensive per-primitive and
+# per-slice instrumentation, which is what makes a debug build slow to run.
+#   PROBES=all    everything (the default, same as before)
+#   PROBES=light  no primitive tracing, no GX sample rings -- keeps every counter
+#   PROBES=min    also drops the per-slice CPU timing
+#   PROBES="-DPERF_PROF_TRACE=0"   pass your own defines
+# See the sub-gate comments in Gamecube/perf_prof.h for what each group costs.
+case "${PROBES:-all}" in
+	all)   PROBE_DEFINES="" ;;
+	light) PROBE_DEFINES="-DPERF_PROF_TRACE=0 -DPERF_PROF_GPU=0" ;;
+	min)   PROBE_DEFINES="-DPERF_PROF_TRACE=0 -DPERF_PROF_GPU=0 -DPERF_PROF_CPU=0" ;;
+	*)     PROBE_DEFINES="$PROBES" ;;
+esac
+[ -n "$PROBE_DEFINES" ] && echo "probe gates: $PROBE_DEFINES"
+
 # The five dependency archives (opengx, zstd, lzma, zlibstatic, chdr) build
 # to their own deps/*/lib directories; Gamecube/Makefile_Wii links against
 # those paths directly via -L, so no "make install" step is needed here.
@@ -75,7 +91,7 @@ case "${1:-debug}" in
 	debug)
 		make opengx.a lightrecWithLog.a zstd.a lzma.a zlibstatic.a chdrstatic.a
 		relink_if_deps_newer Gamecube/WiiSXRX_debug.elf
-		make -C Gamecube -f Makefile_Wii
+		make -C Gamecube -f Makefile_Wii EXTRA_CFLAGS="$PROBE_DEFINES"
 		echo "Output: Gamecube/WiiSXRX_debug.dol"
 		;;
 	debug-warn)

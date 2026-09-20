@@ -99,6 +99,7 @@ extern unsigned int frame_counter;            /* psxcounters.c: +1 per VBlank */
 extern unsigned autoinput_trace_vbl[8];       /* PadWiiSX.c: 'trace <vblank>' lines */
 extern int autoinput_trace_n;
 static int trace_sched_next = 0;
+#if PERF_PROF_TRACE
 static void perf_trace_flush(void);
 void perf_prim_trace(unsigned cmd, unsigned flags, unsigned abr, unsigned color, int x0, int y0, int x1, int y1)
 {
@@ -150,6 +151,10 @@ void perf_prim_trace(unsigned cmd, unsigned flags, unsigned abr, unsigned color,
 	}
 }
 
+#endif /* PERF_PROF_TRACE */
+
+/* Not part of the trace group: this records scripted input events for the report, and costs
+ * one bounded array write per press. */
 void perf_autoinput_event(unsigned vblank, unsigned mask)
 {
 	if (g_perf.ai_n < 16) {
@@ -157,6 +162,8 @@ void perf_autoinput_event(unsigned vblank, unsigned mask)
 		g_perf.ai_ev[g_perf.ai_n].present = g_perf.present_frames; g_perf.ai_n++;
 	}
 }
+
+#if PERF_PROF_TRACE
 
 /* Write the current trace episode to perf.log (also printed by perf_report). */
 static void perf_trace_lines(FILE *f)
@@ -184,12 +191,15 @@ static void perf_trace_flush(void)
 	fclose(f);
 	g_perf.pt_printed = 1;
 }
+#endif /* PERF_PROF_TRACE */
 
 void perf_present_tick(unsigned long long present_us)
 {
 	g_perf.present_frames++;
+#if PERF_PROF_TRACE
 	if (g_perf.pt_armed && !g_perf.pt_printed && g_perf.present_frames - g_perf.pt_start_present >= 16)
 		perf_trace_flush();
+#endif
 	g_perf.present_us += present_us;
 	{
 		extern unsigned autoinput_dump_vbl;   /* PadWiiSX.c: 'dump <vblank>' in autoinput.txt */

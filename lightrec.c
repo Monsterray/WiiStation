@@ -145,7 +145,9 @@ static void lightrec_tansition_from_pcsx(struct lightrec_state *state)
  * including the DMA-channel kick that rasterizes an entire display list. It
  * all happens inside lightrec_execute(), so without this timing it is
  * indistinguishable from JIT time in the profile. */
-#ifndef PERF_PROF
+/* Gated on PERF_PROF_CPU: two time-base reads per hardware access, and there are
+ * millions of them. See the sub-gate comments in Gamecube/perf_prof.h. */
+#if !PERF_PROF_CPU
 #define HW_TIMED(expr) do { expr; } while (0)
 #else
 #define HW_TIMED(expr) do { \

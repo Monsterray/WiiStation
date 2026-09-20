@@ -50,7 +50,7 @@ endif
 
 CFLAGS	= -flto -Ofast $(CWARNFLAGS) -Wno-stringop-truncation -Wno-strict-aliasing -Wno-misleading-indentation -fno-builtin-gettext -fpermissive $(MACHDEP) $(INCLUDE) -DUSE_LIBCHDR -D__GAMECUBE__ -DWII -DHW_RVL -D__ppc__ -D__BIG_ENDIAN__ -D__powerpc__ -DCPU_IS_BIG_ENDIAN=1 -DWORDS_BIGENDIAN=1 -DPACKAGE_VERSION=\"1.3.2\" -DHAVE_LROUND \
 		  -D__GX__ \
-		  -D_GNU_SOURCE -DDISP_DEBUG -DSHOW_DEBUG -DPERF_PROF
+		  -D_GNU_SOURCE -DDISP_DEBUG -DSHOW_DEBUG -DPERF_PROF $(EXTRA_CFLAGS)
 
 # -Wno-register is C++-only (register was removed in C++17; plain C still
 # allows it) -- GCC's driver warns and ignores it if passed for a .c file,

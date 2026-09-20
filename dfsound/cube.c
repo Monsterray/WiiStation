@@ -63,8 +63,14 @@ static unsigned int cube_queued(void)
 
 void SetVolume(void)
 {
-    // iVolume goes 1 (loudest) - 4 (lowest); volume goes 255-64
-    u16 volume = (4 - iVolume + 1) * 64 - 1;
+    /* iVolume is a leftover: nothing sets it. The menu's "volume" control actually toggles
+     * SPU interpolation (Func_VolumeToggle in SettingsFrame.cpp), and the CPU output path
+     * ignores iVolume entirely and always plays at full scale. The old mapping here turned
+     * its default of 3 into 127 of 255, which measured as this path being 6.1 dB quieter
+     * than the one it replaces. Full scale at the default; only a deliberately lower
+     * setting attenuates, should anything ever set one. */
+    u16 volume = 255;
+    if (iVolume > 3) volume = (u16)(255u >> (iVolume - 3));
     if (voice) AESND_SetVoiceVolume(voice, volume, volume);
 }
 

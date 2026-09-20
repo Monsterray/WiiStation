@@ -39,6 +39,37 @@ extern "C" {
  * real hardware pays nothing for the instrumentation. */
 #ifdef PERF_PROF
 
+/* Sub-gates, so the expensive probe groups can be turned off without giving up the whole
+ * profiler. Each defaults to on inside a PERF_PROF build, so an ordinary debug build is
+ * unchanged; pass e.g. EXTRA_CFLAGS="-DPERF_PROF_TRACE=0" to scripts/build.sh to compile
+ * one group out and get its cycles back.
+ *
+ * Cost, roughly, from the hottest down:
+ *   PERF_PROF_TRACE  per-primitive tracing (perf_prim_trace, 14 call sites in the GX
+ *                    plugin). Runs a scheduling check on EVERY primitive and can write
+ *                    ptrace.log. By far the most expensive group; turn it off unless you
+ *                    are actually reading a primitive trace.
+ *   PERF_PROF_GPU    the per-draw and per-texture sample rings in GlesGpu (ogx_ud, ogx_mm,
+ *                    ogx_eq, ogx_va, ogx_op). Several struct stores per primitive.
+ *   PERF_PROF_CPU    per-slice timing in the CPU cores: two time-base reads per slice,
+ *                    and there are millions of slices.
+ *   PERF_PROF_IO     disc, SIO and pad counters. Cheap; here for completeness.
+ *
+ * Plain PERF_INC/PERF_ADD counters are a single increment and are never gated: they cost
+ * about nothing and they are what most of the reports are built from. */
+#ifndef PERF_PROF_TRACE
+#define PERF_PROF_TRACE 1
+#endif
+#ifndef PERF_PROF_GPU
+#define PERF_PROF_GPU 1
+#endif
+#ifndef PERF_PROF_CPU
+#define PERF_PROF_CPU 1
+#endif
+#ifndef PERF_PROF_IO
+#define PERF_PROF_IO 1
+#endif
+
 typedef struct {
 	/* CPU / JIT (Wii adapter level, lightrec.c) */
 	uint32_t jit_slices;          /* lightrec execute slices run */
@@ -273,10 +304,20 @@ void perf_report(void);
 /* Call once per presented emulated frame with the flip cost in us.
  * Accumulates present time and auto-reports ~every 30 s. */
 void perf_present_tick(unsigned long long present_us);
+#if PERF_PROF_TRACE
 void perf_prim_trace(unsigned cmd, unsigned flags, unsigned abr, unsigned color, int x0, int y0, int x1, int y1);
+#else
+static inline void perf_prim_trace(unsigned cmd, unsigned flags, unsigned abr, unsigned color, int x0, int y0, int x1, int y1)
+{ (void)cmd; (void)flags; (void)abr; (void)color; (void)x0; (void)y0; (void)x1; (void)y1; }
+#endif
 void perf_autoinput_event(unsigned vblank, unsigned mask);
 
 #else /* !PERF_PROF: everything is a no-op */
+
+#define PERF_PROF_TRACE 0
+#define PERF_PROF_GPU   0
+#define PERF_PROF_CPU   0
+#define PERF_PROF_IO    0
 
 #define PERF_INC(f)    ((void)0)
 #define PERF_ADD(f, n) ((void)(n))
