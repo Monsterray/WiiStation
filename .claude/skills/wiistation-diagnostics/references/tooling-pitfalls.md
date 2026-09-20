@@ -16,11 +16,25 @@
 - Always build release before committing; the debug probes must compile out.
 - Never boot `WiiSXRX_Release.elf` in Dolphin (BSS not zeroed → crash); test with the debug .dol.
 
+## Stale dependency archives
+
+`deps/lightrec` and `deps/opengx` are built as archives by their own Makefiles, and the .elf
+does not depend on them (see Building above). Both now emit `-MMD` dependency files, so a
+header change rebuilds what it should. Before that fix (main, 2026-09-19) a worktree switched
+between branches carrying different vendored Lightrec cores kept objects compiled against the
+other core's headers in `libLightrecWithLog.a`; the build succeeded and the guest booted to
+the PS logo and hung. If you work in an older tree, or see a hang that no source change
+explains, `rm -rf deps/lightrec/obj deps/lightrec/lib deps/opengx/obj*` and rebuild before
+believing the symptom.
+
 ## Shell and editing
 
 - Bash-tool heredocs mangle backslash escapes: a `\\n` inside a quoted heredoc reaches Python as
   a real newline and silently writes broken C or Python. Use the Edit/Write tools for anything
-  containing backslashes, or build the backslash from `chr(92)`.
+  containing backslashes, or build the backslash from `chr(92)`. A Python `SyntaxWarning:
+  invalid escape sequence` out of such a heredoc means a level of backslashes has already been
+  eaten: stop and look at what landed in the file, because the damage can be invisible — a
+  Windows path written as `C:\ai\...` becomes a BEL control character that greps will not match.
 - The PowerShell tool refuses `Remove-Item` when the same command line mentions a
   `C:\Program Files` path; do file removals in Bash.
 - Windows Python does not understand `/c/...` paths passed as arguments; give it `C:/...`.
@@ -28,6 +42,25 @@
   original line ending (see the pattern in the session scripts) or Git shows whole-file diffs.
 - Background Bash commands whose output goes through `grep -v` buffer everything until exit;
   wait for the "run done" marker file line instead of polling partial output.
+
+## Driving `scripts/dolphin_run.sh`
+
+- **Never edit the script while a run is in progress.** bash reads a script lazily, so the
+  sleeping instance resumes at a byte offset in the new text, dies with a syntax error, and
+  leaves Dolphin running, the INIs unrestored and the test files staged (2026-09-19). Recover
+  by killing that PID, copying the `*.ini.orig` files from the run directory back into
+  `User/Config`, and deleting `autoinput.txt`/`settingsRX2022.cfg` from the SD sync folder.
+  Copy the script to the scratchpad if you must change it mid-run.
+- **Always pass the autoboot file** (fifth argument) for a game run: the user keeps their own
+  `autoboot.txt` renamed to `.disabled`, so without it WiiStation sits in its menu for the
+  whole run. The script prints a note when the argument is missing.
+- The script sets `ConfirmStop = False` for the run so a guest crash or exit cannot leave a
+  modal dialog waiting for the user, and it only ever kills Dolphin by Windows PID with
+  `taskkill /F`. Keep both properties if you change it: a POSIX `kill` on the native process
+  posts a window close, which raises that dialog instead of ending the run.
+- `XFB_RAM=1` makes CPU-written framebuffers visible in the frame dump — the libogc exception
+  screen after a guest crash, and the debug console. Resolve its addresses with
+  `powerpc-eabi-addr2line -e Gamecube/WiiSXRX_debug.elf`.
 
 ## Bisecting
 
@@ -39,13 +72,45 @@ Valid because the plugin's interface to the core is stable.
 
 - Codebase MCP project `wiistation` (re-index after large commits with
   `index_repository(mode=full)`); it cannot parse `.inc` files — grep those. Project `dolphin`
-  holds Dolphin's source.
+  holds Dolphin's source. To add a third source, see the next section.
 - `llm_fetch_summarize`: pass `model=qwen3-coder:30b`; works on raw GitHub and psx-spx.
 - `llm_court`: read every dissent; verify disputed claims against the code or a run.
 - `llm_vision`: broken routing to the vLLM vision instance as of 2026-09-18; the image reader
   on PNGs is the fallback. Base64 uploads cost the caller their size in output tokens.
 - Do not ask a local model to review controlled-language docs (ASD-STE100) without the rules
   and examples in context; it produced only false findings.
+
+## Indexing another project in the codebase MCP
+
+The server indexes a directory on disk, not a URL, and each index is a named *project* that
+every query tool then takes as its `project` argument (`wiistation` and `dolphin` exist
+already). Add one when a question about someone else's code would otherwise be answered from
+memory or a web summary -- a vendored dependency (`deps/lightrec`, `deps/opengx` upstream),
+libogc2 (what a `GX_*` call actually writes), another emulator to compare behaviour with.
+
+1. Get the source on disk: `git clone --depth 1 <url> C:/projects/<name>-src` keeps a large
+   tree small, and `git -C ... pull --depth 1` refreshes it when the version matters.
+2. Index it: `index_repository(path="C:/projects/<name>-src", name="<name>", mode="fast",
+   persistence=true)`. The `name` is what every later call passes as `project`, and
+   `persistence` is what makes it survive a restart. Dolphin's tree (72k nodes) took a few
+   minutes this way.
+3. Check it: `list_projects` shows the name, `index_status` shows progress on a big tree, and
+   `check_index_coverage` says whether the files you care about were parsed. Two known gaps:
+   the indexer skips `docs/` directories by design, and unity-build includes (`*.inc`) are
+   not parsed at all -- grep those.
+4. Re-index after substantial edits to a project you own; a stale graph will confidently
+   report a call site that no longer exists.
+
+The `mcp__codebase-memory-local__*` tools may be deferred in a fresh session (load them
+through the tool search first), but the same server is reachable from the shell straight
+away, so indexing never has to wait for a session restart:
+
+```
+C:/ai/venvs/codebase-memory/Scripts/codebase-memory-mcp.exe cli --quiet index_repository '{"path":"C:/projects/foo-src","name":"foo","mode":"fast","persistence":true}'
+```
+
+WiiStation itself is registered project-scoped in the repo's `.mcp.json`; fuller notes on the
+server live in `C:\ai\README.md`.
 
 ## Working with the user
 
@@ -57,8 +122,3 @@ Valid because the plugin's interface to the core is stable.
   attribution line the session requires; push only when asked.
 - Write memory notes as you go (`memory/` index): a mechanism that took a session to find must
   not be rediscovered.
-
-- **Never edit `scripts/dolphin_run.sh` while a run is in progress.** bash reads a script lazily, so the sleeping instance resumes at a byte offset in the new text, dies with a syntax error, and leaves Dolphin running, the INIs unrestored and the test files staged (2026-09-19). Recover by killing that PID, copying the `*.ini.orig` files from the run directory back into `User/Config`, and deleting `autoinput.txt`/`settingsRX2022.cfg` from the SD sync folder. Copy the script to the scratchpad if you must change it mid-run.
-- **Always pass the autoboot file** (fifth argument) for a game run: the user keeps their own `autoboot.txt` renamed to `.disabled`, so without it WiiStation sits in its menu for the whole run. The script now prints a note when the argument is missing.
-
-- **`deps/lightrec` has no header dependency tracking.** A worktree that is switched between branches with different vendored Lightrec cores (for example `try/phase-2-on-main` back to `main`) rebuilds only the `.c` files whose mtime changed and keeps the other objects, compiled against the other core's headers, in `libLightrecWithLog.a`. The result boots, shows the PS logo and hangs. Before building after such a switch: `rm -rf deps/lightrec/obj deps/lightrec/lib`. `deps/opengx` is fine (its Makefile uses `-MMD`), and the Gamecube Makefiles track headers through `DEPENDS`.
