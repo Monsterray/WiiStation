@@ -162,9 +162,10 @@ static int _GetKeys(int Control, BUTTONS * Keys, controller_config_t* config,
 		stickX = 512 - wpad->accel.y;
 		stickY = wpad->accel.z - 512;
 	}
-	c->leftStickX  = (u8)(stickX+127) & 0xFF;
-	if(config->invertedYL)	c->leftStickY = (u8)(stickY+127) & 0xFF;
-	else					c->leftStickY = (u8)(-stickY+127) & 0xFF;
+	/* +127 centred this stick one below every other controller, so it rested just left
+	 * of centre and drifted in any game that reads the analog sticks. */
+	c->leftStickX  = psx_analog((float)stickX / 127.0f);
+	c->leftStickY  = psx_analog((float)(config->invertedYL ? stickY : -stickY) / 127.0f);
 
 	stickX = 0;
 	stickY = 0;
@@ -186,9 +187,8 @@ static int _GetKeys(int Control, BUTTONS * Keys, controller_config_t* config,
 		stickX = 512 - wpad->accel.y;
 		stickY = wpad->accel.z - 512;
 	}
-	c->rightStickX  = (u8)(stickX+127) & 0xFF;
-	if(config->invertedYR)	c->rightStickY = (u8)(stickY+127) & 0xFF;
-	else					c->rightStickY = (u8)(-stickY+127) & 0xFF;
+	c->rightStickX  = psx_analog((float)stickX / 127.0f);
+	c->rightStickY  = psx_analog((float)(config->invertedYR ? stickY : -stickY) / 127.0f);
 
 	// Return 1 if exit, 2 if fastforward
 	if (!isHeld(config->exit)) return 1;

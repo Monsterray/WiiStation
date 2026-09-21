@@ -6,32 +6,22 @@
 #include "controller.h"
 #include "../wiiSXconfig.h"
 
+/* Full deflection reads about +/-75. This pad's sticks rest noisily, so a dead zone is
+ * taken out first and what is left is stretched back over the full travel. As WUPC, the
+ * old body returned a negative float as an unsigned int, which C does not define. */
 #define DRC_DEADZONE 0.078f
-static unsigned int convertToPSRange(const int raw)
+static u8 convertToPSRange(const int raw)
 {
-	// Convert raw from a value between [-1, 1].
-	// It's easier to convert to another analog range this way.
-	float converted = (float)(raw / 75.0f);
+	float converted = (float)raw / 75.0f;
 
-	if(converted > DRC_DEADZONE)
-		converted = (converted-DRC_DEADZONE)*1.08f;
-	else if(converted < -DRC_DEADZONE)
-		converted = (converted+DRC_DEADZONE)*1.08f;
+	if (converted > DRC_DEADZONE)
+		converted = (converted - DRC_DEADZONE) / (1.0f - DRC_DEADZONE);
+	else if (converted < -DRC_DEADZONE)
+		converted = (converted + DRC_DEADZONE) / (1.0f - DRC_DEADZONE);
 	else
-		converted = 0;
+		converted = 0.0f;
 
-	if (converted < -1.0f)
-		converted = -1.0f;
-	else if (converted > 1.0f)
-		converted = 1.0f;
-
-	float result = 0.0f;
-	if (converted < 0.0f)
-		result = (converted * 128.0f) - 128.0f;
-	else
-		result = (converted * 127.0f) + 127.0f;
-
-	return result;
+	return psx_analog(converted);
 }
 
 enum {

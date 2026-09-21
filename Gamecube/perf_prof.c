@@ -234,6 +234,56 @@ static void perf_trace_flush(void)
 }
 #endif /* PERF_PROF_TRACE */
 
+/* The pad timeline. One line per change, with the driver's output beside what the game
+ * reads, so a sweep sent in through Dolphin can be checked end to end: the stick should
+ * cover 0..255, sit at 128 when Dolphin sends its centre, and never step backwards.
+ * Own file, rewritten whole, like ptrace.log and atrace.log. */
+static void perf_pad_flush(void)
+{
+	unsigned k;
+	FILE *f;
+	if (!g_perf.pev_n) return;
+	f = fopen("sd:/wiisxrx/padtrace.csv", "w");
+	if (!f) return;
+	fprintf(f, "vbl,pad,type,drv_btns,drv_lx,drv_ly,drv_rx,drv_ry,out_btns,out_lx,out_ly,out_rx,out_ry\n");
+	for (k = 0; k < g_perf.pev_n; k++)
+		fprintf(f, "%lu,%u,%c,%04x,%u,%u,%u,%u,%04x,%u,%u,%u,%u\n",
+			(unsigned long)g_perf.pev[k].vbl, g_perf.pev[k].pad,
+			g_perf.pev[k].type ? g_perf.pev[k].type : '-',
+			g_perf.pev[k].drv_btns, g_perf.pev[k].drv_lx, g_perf.pev[k].drv_ly,
+			g_perf.pev[k].drv_rx, g_perf.pev[k].drv_ry,
+			g_perf.pev[k].out_btns, g_perf.pev[k].out_lx, g_perf.pev[k].out_ly,
+			g_perf.pev[k].out_rx, g_perf.pev[k].out_ry);
+	fclose(f);
+}
+
+void perf_pad_event(unsigned pad, unsigned type, unsigned drv_btns, unsigned drv_l,
+                    unsigned drv_r, unsigned out_btns, unsigned out_l, unsigned out_r)
+{
+	/* Last record per port, so a held stick does not fill the ring. */
+	static uint32_t last[2][3];
+	uint32_t a = (drv_btns << 16) | (out_btns & 0xFFFF);
+	uint32_t b = (drv_l << 16) | (drv_r & 0xFFFF);
+	uint32_t c = (out_l << 16) | (out_r & 0xFFFF);
+	unsigned slot = pad < 2 ? pad : 1;
+	unsigned k;
+
+	if (last[slot][0] == a && last[slot][1] == b && last[slot][2] == c) return;
+	last[slot][0] = a; last[slot][1] = b; last[slot][2] = c;
+
+	if (g_perf.pev_n >= PERF_PEV_N) return;
+	k = g_perf.pev_n++;
+	g_perf.pev[k].vbl = (uint32_t)g_perf.vblanks;
+	g_perf.pev[k].pad = (uint8_t)pad;
+	g_perf.pev[k].type = (uint8_t)type;
+	g_perf.pev[k].drv_btns = (uint16_t)drv_btns;
+	g_perf.pev[k].out_btns = (uint16_t)out_btns;
+	g_perf.pev[k].drv_lx = (uint8_t)(drv_l >> 8); g_perf.pev[k].drv_ly = (uint8_t)drv_l;
+	g_perf.pev[k].drv_rx = (uint8_t)(drv_r >> 8); g_perf.pev[k].drv_ry = (uint8_t)drv_r;
+	g_perf.pev[k].out_lx = (uint8_t)(out_l >> 8); g_perf.pev[k].out_ly = (uint8_t)out_l;
+	g_perf.pev[k].out_rx = (uint8_t)(out_r >> 8); g_perf.pev[k].out_ry = (uint8_t)out_r;
+}
+
 void perf_present_tick(unsigned long long present_us)
 {
 	g_perf.present_frames++;
@@ -479,6 +529,7 @@ void perf_report(void)
 	}
 	if (g_perf.aev_n)
 		perf_audio_flush();
+	perf_pad_flush();
 
 #ifdef SHOW_DEBUG
 	/* Mirror compact lines to overlay rows 22..29 (rows 0..21 are taken by

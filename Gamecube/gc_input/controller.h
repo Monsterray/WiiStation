@@ -30,6 +30,8 @@
 
 #include <stdio.h>
 
+#include "psx_analog.h"     /* psx_analog(), apply_sensitivity() -- the stick path */
+
 /* Every definition here is in a .c file. Most C++ includers wrap this header in
  * extern "C" themselves; two do not, so it says so itself. */
 #ifdef __cplusplus

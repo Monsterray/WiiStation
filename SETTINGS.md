@@ -159,9 +159,27 @@ The ten port numbers map to the PlayStation ports in this order:
 
 ### 6.2 Button mapping files
 
-The button mappings are not in the settings file. WiiStation keeps them in the files `controlG.cfg`, `controlH.cfg`, `controlC.cfg`, `controlN.cfg`, `controlW.cfg`, `controlP.cfg`, and `controlD.cfg` in `wiisxrx/`. The Configure Buttons menu writes these files.
+The button mappings are not in the settings file. WiiStation keeps them in the files `controlG.cfg`, `controlH.cfg`, `controlC.cfg`, `controlN.cfg`, `controlW.cfg`, `controlP.cfg`, and `controlD.cfg` in `wiisxrx/`. The Configure Buttons menu writes these files. Each one also holds that controller's analog sensitivity, below.
 
-### 6.3 HID controller files
+### 6.3 Analog stick sensitivity
+
+Input, Configure Buttons, the `x1.0` control. It is per controller type and per port, adjustable from x0.2 to x2.0 in steps of 0.1, and it is saved in that controller's button-mapping file, not in the settings file.
+
+**What it does.** Each driver already maps its own hardware's full travel onto the range a PlayStation pad reports -- 0 hard left or up, 255 hard right or down, 128 at rest. The sensitivity is one gain applied after that, about the centre:
+
+    reported = 128 + (stick - 128) x sensitivity
+
+So **x1.0 is a true 1:1 stick**: what the game reads is what the hardware measured, and the whole of the stick's travel is used. That is the default and it is what almost everyone should leave it on.
+
+**Above 1.0** the stick reaches full deflection before the end of its physical travel, and the rest of the throw does nothing. It trades range for reach. Two reasons to want it: a worn stick whose springs no longer push it to the gate, and a game that wants full tilt to turn or accelerate where you would rather not push the stick all the way. At x2.0 the outer half of the travel is flat.
+
+**Below 1.0** the stick can no longer reach either end: at x0.5 full deflection reports about a quarter and three quarters instead of 0 and 255. Games read that as a half-pressed stick, which is a way to walk instead of run, or to slow an over-eager camera.
+
+**It does not change the dead zone and it does not change where the centre is.** Rest is 128 at every setting, so raising it never makes a stick drift; it makes an existing drift bigger, because the drift is multiplied too. It also does not affect the digital directions, which come from the D-pad or from a separate threshold on the stick.
+
+Until 2026-09-21 this setting moved the light-gun and mouse pointer only and did nothing to the sticks. What the sticks had instead was a fixed x1.40625, on top of whatever gain the driver had already applied; a Classic Controller reached full deflection at 54 % of its travel and a GameCube pad at 72 %. That is gone -- the setting is the only gain now.
+
+### 6.4 HID controller files
 
 A USB HID controller needs a configuration file in the Nintendont format. The file name is the vendor ID and the product ID of the controller in hexadecimal, for example `0810_0003.ini`. Put the file in `sd:/wiisxrx/controllers/` or `usb:/wiisxrx/controllers/`. See `README.md` for the file format.
 
@@ -197,7 +215,7 @@ WiiStation starts the network only when `smbsharename` and `smbipaddr` are both 
 | `fonts/chs.dat` | Font file for the Chinese menu language. |
 | `settings/` | Settings files for one game. See section 1.4. |
 | `saves/` | Memory card files. WiiStation creates this folder when it saves. |
-| `controllers/` | HID controller files. See section 6.3. |
+| `controllers/` | HID controller files. See section 6.4. |
 | `perf.log` | Performance counters. Only the debug build writes this file. |
 | `vram.bin` | Video memory snapshot. Only the debug build writes this file. |
 

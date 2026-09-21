@@ -108,11 +108,13 @@ static unsigned int getButtons(int Control)
 	return b;
 }
 
+/* A GameCube stick reads about +/-96 at full deflection once libogc has taken the origin
+ * off. If a pad cannot quite reach the corners, raise its sensitivity setting rather than
+ * this: the setting is per controller and needs no rebuild. */
+#define GC_STICK_FULL 96.0f
 static inline u8 GCtoPSXAnalog(int a)
 {
-	a = a * 4 / 3; // GC ranges -96 ~ 96 (192 values, PSX has 256)
-	if(a >= 128) a = 127; else if(a < -128) a = -128; // clamp
-	return a + 128; // PSX controls range 0-255
+	return psx_analog((float)a / GC_STICK_FULL);
 }
 
 static int _GetKeys(int Control, BUTTONS * Keys, controller_config_t* config)

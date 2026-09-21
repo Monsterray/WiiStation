@@ -148,9 +148,10 @@ static int available(int Control) {
 
 static inline u8 CCtoPSXAnalog(int a)
 {
-	a = a * 4 / 3; // adjust reported range to fully cover ps1 range
-	if(a > 127) a = 127; else if(a < -128) a = -128; // clamp
-	return a + 128; // PSX controls range 0-255
+	/* getStickValue() already scales this stick to +/-127, so the 4/3 that used to be
+	 * here was a second gain on top of a full-scale value: the stick hit full deflection
+	 * at three quarters of its travel and the rest of the throw did nothing. */
+	return psx_analog((float)a / 127.0f);
 }
 
 static int _GetKeys(int Control, BUTTONS * Keys, controller_config_t* config)

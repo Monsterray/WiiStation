@@ -6,24 +6,12 @@
 #include "controller.h"
 #include "../wiiSXconfig.h"
 
-static unsigned int convertToPSRange(const int raw)
+/* Full deflection reads about +/-1024. The old body returned a negative float as an
+ * unsigned int and relied on the wrap to land in range, which C does not define, and it
+ * centred on 127 going one way and 128 the other. */
+static u8 convertToPSRange(const int raw)
 {
-	// Convert raw from a value between [-1, 1].
-	// It's easier to convert to another analog range this way.
-	float converted = (float)(raw / 1024.0f);
-
-	if (converted < -1.0f)
-		converted = -1.0f;
-	else if (converted > 1.0f)
-		converted = 1.0f;
-
-	float result = 0.0f;
-	if (converted < 0.0f)
-		result = (converted * 128.0f) - 128.0f;
-	else
-		result = (converted * 127.0f) + 127.0f;
-
-	return result;
+	return psx_analog((float)raw / 1024.0f);
 }
 
 enum {

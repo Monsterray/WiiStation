@@ -45,7 +45,6 @@
 #include "PadSSSPSX.h"
 
 /* Scale factor of analog sticks / 128 */
-#define ANALOG_SCALE_FACTOR 180
 
 //static BUTTONS PAD_1;
 //static BUTTONS PAD_2;
@@ -95,21 +94,6 @@ extern virtualControllers_t virtualControllers[10];
 		virtualControllers[Control].number, ## args)
 
 void assign_controller(int wv, controller_t* type, int wp);
-
-static inline u8 clamp(int value)
-{
-    if (value < 0)
-        return 0;
-    if (value > 255)
-        return 255;
-
-    return (u8)value;
-}
-
-static inline u8 analog_scale(u8 val)
-{
-    return clamp((int)val * ANALOG_SCALE_FACTOR / 128 + 128 - ANALOG_SCALE_FACTOR);
-}
 
 void setIrq( u32 irq )
 {
@@ -295,13 +279,22 @@ static void UpdateState (const int pad) //Note: pad = 0 or 1
 		PAD_Data.leftStickX = PAD_Data.leftStickY = PAD_Data.rightStickX = PAD_Data.rightStickY = 128;
 	}
 
-	/* Fixed range scaling. The per-controller sensitivity setting is read in the mouse
-	 * path above and nowhere else; reading it here dereferenced a NULL config on any port
-	 * with no controller, including multitap slots 2..9, which are never assigned. */
-	PAD_Data.leftStickX  = analog_scale(PAD_Data.leftStickX);
-	PAD_Data.leftStickY  = analog_scale(PAD_Data.leftStickY);
-	PAD_Data.rightStickX = analog_scale(PAD_Data.rightStickX);
-	PAD_Data.rightStickY = analog_scale(PAD_Data.rightStickY);
+	/* Each driver already maps its own hardware's full travel onto 0..255, so the default
+	 * 1.0 is a stick that is exactly what the player moved. What used to be here was a
+	 * fixed 1.40625 on top of that, which reached full deflection at roughly half the
+	 * throw on everything but a GameCube pad and threw the rest away.
+	 * An unassigned port has no config -- including multitap slots 2..9, which are never
+	 * assigned -- so it takes the default rather than dereferencing NULL. */
+	sensitivity = virtualControllers[Control].config
+	            ? virtualControllers[Control].config->sensitivity : 1.0f;
+	if (sensitivity < 0.1f) sensitivity = 1.0f;
+	if (sensitivity != 1.0f)
+	{
+		PAD_Data.leftStickX  = apply_sensitivity(PAD_Data.leftStickX,  sensitivity);
+		PAD_Data.leftStickY  = apply_sensitivity(PAD_Data.leftStickY,  sensitivity);
+		PAD_Data.rightStickX = apply_sensitivity(PAD_Data.rightStickX, sensitivity);
+		PAD_Data.rightStickY = apply_sensitivity(PAD_Data.rightStickY, sensitivity);
+	}
 
 	global.padStat[pad] = (((PAD_Data.btns.All>>8)&0xFF) | ( (PAD_Data.btns.All<<8) & 0xFF00 )) &0xFFFF;
 	if (pad == 0) {
@@ -350,6 +343,22 @@ static void UpdateState (const int pad) //Note: pad = 0 or 1
 			lastport2.rightJoyX = PAD_Data.rightStickX; lastport2.rightJoyY = PAD_Data.rightStickY;
 			lastport2.buttonStatus = global.padStat[pad];
 		}
+	}
+
+	/* Debug builds keep a timeline of what each port handed the PlayStation, with the
+	 * driver's own output beside it, so a scripted Dolphin run can be checked end to end
+	 * (scripts/padtest.py). Repeats are dropped inside perf_pad_event. */
+	{
+		const PadDataS *out = ((pad == 0) || (padType[global.curPad] == PADTYPE_MULTITAP))
+		                    ? &lastport1 : &lastport2;
+		perf_pad_event(pad,
+			virtualControllers[Control].control ? (unsigned char)virtualControllers[Control].control->identifier : 0,
+			PAD_Data.btns.All,
+			(PAD_Data.leftStickX << 8) | PAD_Data.leftStickY,
+			(PAD_Data.rightStickX << 8) | PAD_Data.rightStickY,
+			out->buttonStatus,
+			(out->leftJoyX << 8) | out->leftJoyY,
+			(out->rightJoyX << 8) | out->rightJoyY);
 	}
 
 	/* Small Motor */

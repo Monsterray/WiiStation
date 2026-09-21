@@ -32,6 +32,9 @@ extern "C" {
 /* Records in the audio timeline ring (perf_audio_event). 3072 x 16 bytes. */
 #define PERF_AEV_N 3072
 
+/* Records in the pad timeline ring (perf_pad_event). 1024 x 16 bytes. */
+#define PERF_PEV_N 1024
+
 /* A slice below this many PSX cycles does less work than the dispatch around
  * it costs, so these are counted separately as pure overhead. */
 #define SLICE_TINY_CYCLES 64
@@ -337,6 +340,19 @@ typedef struct {
 	uint32_t aev_n;
 	uint8_t  aev_on, aev_printed;
 
+	/* Pad timeline: one record each time what a virtual port hands the PlayStation
+	 * changes -- buttons or either stick. Both ends of the conversion are kept, so the
+	 * driver's output and the bytes the game finally reads can be compared against the
+	 * input Dolphin was told to send. Written to sd:/wiisxrx/padtrace.csv on every perf
+	 * report; scripts/padtest.py generates the input and checks the result. */
+	struct {
+		uint32_t vbl;
+		uint16_t drv_btns, out_btns;
+		uint8_t  pad, type, drv_lx, drv_ly, drv_rx, drv_ry;
+		uint8_t  out_lx, out_ly, out_rx, out_ry;
+	} pev[PERF_PEV_N];
+	uint32_t pev_n;
+
 	/* Menu (Gamecube/libgui) */
 	uint32_t menu_frames;         /* Gui::draw calls */
 	uint64_t menu_us;             /* time inside Gui::draw */
@@ -380,6 +396,12 @@ static inline void perf_prim_trace(unsigned cmd, unsigned flags, unsigned abr, u
 #endif
 void perf_autoinput_event(unsigned vblank, unsigned mask);
 
+/* One pad record (see pev[] above). `type` is the driver's identifier letter, or 0 for a
+ * port with nothing assigned. Sticks are packed x << 8 | y. Repeats are dropped, so a
+ * stick held still costs one record, not one per poll. */
+void perf_pad_event(unsigned pad, unsigned type, unsigned drv_btns, unsigned drv_l,
+                    unsigned drv_r, unsigned out_btns, unsigned out_l, unsigned out_r);
+
 #else /* !PERF_PROF: everything is a no-op */
 
 #define PERF_PROF_TRACE 0
@@ -398,6 +420,9 @@ static inline void perf_present_tick(unsigned long long present_us) { (void)pres
 static inline void perf_prim_trace(unsigned cmd, unsigned flags, unsigned abr, unsigned color, int x0, int y0, int x1, int y1)
 { (void)cmd; (void)flags; (void)abr; (void)color; (void)x0; (void)y0; (void)x1; (void)y1; }
 static inline void perf_autoinput_event(unsigned vblank, unsigned mask) { (void)vblank; (void)mask; }
+static inline void perf_pad_event(unsigned pad, unsigned type, unsigned drv_btns, unsigned drv_l,
+                                  unsigned drv_r, unsigned out_btns, unsigned out_l, unsigned out_r)
+{ (void)pad; (void)type; (void)drv_btns; (void)drv_l; (void)drv_r; (void)out_btns; (void)out_l; (void)out_r; }
 
 #endif /* PERF_PROF */
 

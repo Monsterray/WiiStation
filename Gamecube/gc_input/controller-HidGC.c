@@ -77,11 +77,11 @@ static button_t menu_combos[] = {
     { 2, PAD_BUTTON_START|PAD_BUTTON_Y, "Start+Y" },
 };
 
+/* As controller-GC.c: full deflection is about +/-96 after the origin is taken off. */
+#define GC_STICK_FULL 96.0f
 static inline u8 GCtoPSXAnalog(int a)
 {
-    a = a * 4 / 3; // GC ranges -96 ~ 96 (192 values, PSX has 256)
-    if(a >= 128) a = 127; else if(a < -128) a = -128; // clamp
-    return a + 128; // PSX controls range 0-255
+    return psx_analog((float)a / GC_STICK_FULL);
 }
 
 static u32 PAD_Pressed = 0;
