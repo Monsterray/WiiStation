@@ -303,7 +303,11 @@ static const OptPage PAGES[] =
  * which MENU_ROW_RIGHT() works out from the line's own y (see MenuLayout.h). */
 #define HELP_TERM_R	152.0		// the term ENDS here
 #define HELP_TEXT_X	162.0		// the text starts here
-#define HELP_Y0			250.0
+/* The help block starts where the page's next row would have been, so the space above it
+ * is the same as the space between two rows. HELP_Y0 is the earliest that can be, which
+ * is what the widgets are first placed at before a page moves them. */
+#define HELP_Y(nrows)	(ROW_Y0 + (nrows) * ROW_DY)
+#define HELP_Y0			HELP_Y(1)
 #define HELP_LINE_DY	19.0	// between the lines of one explanation: tight, they read as one
 #define HELP_CELL_GAP	 9.0	// extra before a line that starts a new term
 #define HELP_SCALE		0.55
@@ -366,8 +370,10 @@ static void (*const SET_FUNCS[OPT_MAX_ROWS][OPT_MAX_CHOICES])() =
 /* Every page must fit on the screen, the page tables must not outgrow the widgets, and a
  * page with help text must leave room for it. */
 #define OPT_PAGE_FITS(rows)		(COUNT(rows) <= OPT_MAX_ROWS)
+/* Worst case for a page: every help line starts a new term, so every one takes the gap. */
 #define OPT_HELP_FITS(rows, help)	(COUNT(help) <= OPT_MAX_HELP && \
-	ROW_Y0 + (COUNT(rows) - 1) * ROW_DY + BUTTON_H <= HELP_Y0)
+	HELP_Y(COUNT(rows)) + (COUNT(help) - 1) * (HELP_LINE_DY + HELP_CELL_GAP) \
+		+ HELP_LINE_H <= MENU_BOTTOM)
 
 typedef char opt_sound_fits  [OPT_PAGE_FITS(SOUND_ROWS)   ? 1 : -1];
 typedef char opt_plugin_fits [OPT_PAGE_FITS(PLUGIN_ROWS)  ? 1 : -1];
@@ -375,10 +381,7 @@ typedef char opt_storage_fits[OPT_PAGE_FITS(STORAGE_ROWS) ? 1 : -1];
 typedef char opt_memory_fits [OPT_PAGE_FITS(MEMORY_ROWS)  ? 1 : -1];
 typedef char opt_plugin_help_fits [OPT_HELP_FITS(PLUGIN_ROWS,  PLUGIN_HELP)  ? 1 : -1];
 typedef char opt_storage_help_fits[OPT_HELP_FITS(STORAGE_ROWS, STORAGE_HELP) ? 1 : -1];
-/* The last help line must stay on screen, and a radio row must not run off the right. */
-/* Worst case: every line starts a new term, so every one of them takes the extra gap. */
-typedef char opt_help_on_screen[HELP_Y0 + (OPT_MAX_HELP - 1) * (HELP_LINE_DY + HELP_CELL_GAP)
-	+ HELP_LINE_H <= MENU_BOTTOM ? 1 : -1];
+/* A radio row must not run off the right, and the term column must end before the text. */
 typedef char opt_help_columns[HELP_TEXT_X > HELP_TERM_R ? 1 : -1];
 /* The rows above the help must not run into it, and the rows themselves must stay on screen. */
 typedef char opt_rows_on_screen[ROW_Y0 + (OPT_MAX_ROWS - 1) * ROW_DY + BUTTON_H <= MENU_BOTTOM ? 1 : -1];
@@ -510,7 +513,7 @@ OptionsFrame::OptionsFrame()
 
 	for (int i = 0; i < OPT_MAX_HELP; i++)
 	{
-		float y = HELP_Y0 + i * (HELP_LINE_DY + HELP_CELL_GAP);   /* moved per page below */
+		float y = HELP_Y0 + i * (HELP_LINE_DY + HELP_CELL_GAP);   /* placed per page below */
 		helpTermString[i] = helpEmpty;
 		helpString[i] = helpEmpty;
 		helpTermBox[i] = new menu::TextBox(&helpTermString[i], HELP_TERM_R, y, HELP_SCALE, false);
@@ -646,7 +649,7 @@ void OptionsFrame::activateSubmenu(int submenu)
 	/* Help text under the rows, if the page has any. */
 	/* The lines of one explanation sit close together so they read as one paragraph; the
 	 * space goes before the line that starts a new term. */
-	float helpY = HELP_Y0;
+	float helpY = HELP_Y(PAGES[currentPage].nrows);
 	for (int i = 0; i < OPT_MAX_HELP; i++)
 	{
 		bool on = i < PAGES[currentPage].nhelp;

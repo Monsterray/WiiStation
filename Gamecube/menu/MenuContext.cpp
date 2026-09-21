@@ -19,6 +19,7 @@
 **/
 
 #include "MenuContext.h"
+#include "MenuLayout.h"
 #include "../libgui/FocusManager.h"
 #include "../libgui/CursorManager.h"
 
@@ -149,6 +150,15 @@ void MenuContext::setActiveFrame(int frameIndex)
 		currentActiveFrame = optionsFrame;
 		break;
 	}
+
+	/* The logo is drawn over every frame, so where it can sit depends on the frame. The
+	 * main screen's top right is empty and that is where it has always been; the Settings
+	 * tabs put a tab button there, so on those it moves to the corner MenuLayout.h reserves
+	 * for it. x and y are the middle of the logo. */
+	if(frameIndex == FRAME_MAIN)
+		menu::Gui::getInstance().menuLogo->setLocation(LOGO_MAIN_X, LOGO_MAIN_Y, LOGO_Z);
+	else
+		menu::Gui::getInstance().menuLogo->setLocation(LOGO_PAGE_X, LOGO_PAGE_Y, LOGO_Z);
 
 	if(currentActiveFrame)
 	{

@@ -26,6 +26,7 @@
 #include "MessageBox.h"
 #include "LoadingBar.h"
 #include "GuiResources.h"
+#include "../menu/MenuLayout.h"   /* where the logo sits; shared with the frames */
 #include "../perf_prof.h"
 
 extern "C" {
@@ -48,9 +49,9 @@ Gui::Gui()
 	: fade(9)
 {
 	menuLogo = new Logo();
-	/* The bottom right corner, which MenuLayout.h reserves for it. It used to sit at
-	 * (570, 70), on top of the Saves tab. x and y are the middle of the logo. */
-	menuLogo->setLocation(578.0, 428.0, -150.0);
+	/* The main screen's position; MenuContext::setActiveFrame moves it per frame, and
+	 * this is what an autoboot (which never shows a frame) leaves it at. */
+	menuLogo->setLocation(LOGO_MAIN_X, LOGO_MAIN_Y, LOGO_Z);
 	menuLogo->setVisible(true);
 }
 

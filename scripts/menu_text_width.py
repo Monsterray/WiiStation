@@ -243,11 +243,21 @@ def check_help(d, w, verbose, bad):
     space = w[' ']
     px = lambda s: (sum(w.get(c, space) + 1 for c in s) + 5) * scale
 
-    for name, body in re.findall(r'static const OptHelp (\w+)\[\] =\s*\{(.*?)\n\};', src, re.S):
+    # A page's help starts where its next row would have been, so the space above it is the
+    # same as the space between two rows. XXX_HELP belongs to XXX_ROWS.
+    rowcount = {}
+    for name, body in re.findall(r'static const OptRow (\w+)_ROWS\[\] =\s*\{(.*?)\n\};', src, re.S):
+        rowcount[name] = len(re.findall(r'\bROW_(?:CYCLE|RADIO|INFO)\s*\(', body))
+
+    for page, body in re.findall(r'static const OptHelp (\w+)_HELP\[\] =\s*\{(.*?)\n\};', src, re.S):
+        name = page + '_HELP'
+        if page not in rowcount:
+            bad.append('%s has no %s_ROWS to sit under' % (name, page))
+            continue
         entries = re.findall(r'\{\s*(NULL|"(?:[^"\\]|\\.)*")\s*,\s*"((?:[^"\\]|\\.)*)"\s*\}', body)
         # The lines of one explanation sit HELP_LINE_DY apart; a line that starts a new
         # term gets HELP_CELL_GAP before it. OptionsFrame::activateSubmenu does the same.
-        y = d['HELP_Y0']
+        y = d['ROW_Y0'] + rowcount[page] * d['ROW_DY']
         for n, (term, text) in enumerate(entries):
             term = '' if term == 'NULL' else term[1:-1]
             text = text.replace('\\"', '"')

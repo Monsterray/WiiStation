@@ -60,6 +60,19 @@
 #define MENU_ROW_RIGHT(bottom)	\
 	((bottom) > MENU_LOGO_Y ? MENU_LOGO_X - MENU_EDGE : MENU_RIGHT)
 
+/*  The spinning logo  */
+
+/* x and y are the middle of the logo; Logo.cpp draws it in 3D about that point, turning,
+ * so it sweeps a little more than its 60 x 90. The main screen's top right is empty and
+ * that is where it has always been. A Settings tab has a tab button there, so on every
+ * page it moves to the corner reserved above -- which is what MENU_ROW_RIGHT() keeps
+ * clear. MenuContext::setActiveFrame chooses between them. */
+#define LOGO_MAIN_X		570.0
+#define LOGO_MAIN_Y		 70.0
+#define LOGO_PAGE_X		578.0
+#define LOGO_PAGE_Y		428.0
+#define LOGO_Z		   -150.0
+
 /*  The Settings tabs' grid  */
 #define TAB_LABEL_CX	150.0	/* the left-hand label of a row, centred here */
 #define TAB_BUTTON_X	295.0	/* the first button of a row that has such a label */
