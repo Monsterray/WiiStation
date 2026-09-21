@@ -269,11 +269,24 @@ typedef struct {
 	uint32_t present_frames;      /* emulated frames presented */
 	uint64_t present_us;          /* time inside present/flip */
 
+	/* CPU texture and decode kernels, timed to size them as locked-cache
+	 * candidates (perf.log "texk:" line). Ticks, converted at report time. */
+	uint64_t ogx_conv_ticks;      /* LoadSubTexturePageSort: CLUT expand into texturepart */
+	uint32_t ogx_conv_calls;
+	uint64_t ogx_conv_texels;     /* texels expanded (dx*dy per call) */
+	uint64_t ogx_tile_ticks;      /* opengx glTexSubImage2D: RGB5A3 4x4 tiling + flush */
+	uint32_t ogx_tile_calls;
+	uint64_t mdec_ticks;          /* psxDma1: MDEC IDCT + YUV->RGB for one DMA */
+	uint32_t mdec_calls;
+
 	/* Storage (cdriso.c) */
 	uint32_t cd_reads;            /* sector-read calls (raw + CHD) */
 	uint64_t cd_bytes;            /* bytes handed to caller */
 	uint32_t cd_seq;              /* sequential (no re-seek) reads */
 	uint32_t cd_rand;             /* reads that needed a seek */
+	uint32_t cd_pf_hit;           /* sector served from the read-ahead ring */
+	uint32_t cd_pf_miss;          /* ring did not have it (or prefetch off: not counted) */
+	uint32_t cd_pf_reads;         /* sectors the read-ahead thread fetched */
 	uint32_t chd_hit;             /* CHD hunk already resident */
 	uint32_t chd_miss;            /* CHD hunk decompressed */
 	uint32_t chd_err;             /* chd_read failures */

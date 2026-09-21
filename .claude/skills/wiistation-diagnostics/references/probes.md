@@ -20,6 +20,8 @@ scheduled `dump` vblank. Lines and what they mean:
 | `irq: cdr=.. gpudma=.. rcnt=..` | interrupt histogram; only non-zero sources are printed — a missing `sio=` means the SIO never interrupted (no pad traffic) |
 | `ram:` | MEM1/MEM2 usage, `heap_ok`, `null_read` |
 | `gpu: tex_hit/miss/resets/loads` | texture cache activity |
+| `cdpf: hit miss reads` | the CD read-ahead thread (`CdPrefetch`): sectors served from its ring, sectors it did not have, sectors it fetched. With the setting off all three stay 0 |
+| `texk: conv_us conv texels tile_us tile mdec_us mdec` | CPU kernels sized as locked-cache candidates: the CLUT expansion (`LoadSubTexturePageSort`, with texel count), opengx's RGB5A3 tiling pass (`glTexSubImage2D`), and the MDEC decode per DMA (`psxDma1`) |
 | `ogx: gc sub_new sub_hit skip unaligned oob` | opengx sub-texture uploads and skips |
 | `ogxskip`, `ogxupl` | why uploads were skipped / semi vs opaque uploads, `mismatch` must be 0 |
 | `ogxoff: prims tex off_roi fills fills_off va va_roi` | primitives whose destination misses both display buffers (render-to-texture), fills, VRAM-area invalidations; `ogxva:` the first rects |

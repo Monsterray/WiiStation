@@ -19,6 +19,7 @@
  ***************************************************************************/
 
 #include "mdec.h"
+#include "Gamecube/perf_prof.h"
 
 /* memory speed is 1 byte per MDEC_BIAS psx clock
  * That mean (PSXCLK / MDEC_BIAS) B/s
@@ -561,7 +562,18 @@ void mdec0Interrupt()
 #define SIZE_OF_24B_BLOCK (16*16*3)
 #define SIZE_OF_16B_BLOCK (16*16*2)
 
+static void psxDma1_body(u32 adr, u32 bcr, u32 chcr);
+
+/* Timed wrapper: the MDEC decode (IDCT + YUV->RGB) for one DMA, measured as
+ * a locked-cache candidate (perf.log "texk:"). */
 void psxDma1(u32 adr, u32 bcr, u32 chcr) {
+	unsigned long long t0 = perf_now_ticks();
+	psxDma1_body(adr, bcr, chcr);
+	PERF_ADD(mdec_ticks, perf_now_ticks() - t0);
+	PERF_INC(mdec_calls);
+}
+
+static void psxDma1_body(u32 adr, u32 bcr, u32 chcr) {
 	u32 words, words_max = 0;
 	int blk[DSIZE2 * 6];
 	u8 * image;

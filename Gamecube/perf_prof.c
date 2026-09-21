@@ -350,6 +350,11 @@ void perf_report(void)
 		fprintf(f, "gpu: drawdone=%lu drawdone_us=%llu convert_us=%llu present_us=%llu\n",
 			(unsigned long)g_perf.gx_drawdone, g_perf.gx_drawdone_us,
 			g_perf.gx_convert_us, g_perf.present_us);
+		fprintf(f, "texk: conv_us=%llu conv=%lu texels=%llu tile_us=%llu tile=%lu mdec_us=%llu mdec=%lu\n",
+			(unsigned long long)ticks_to_microsecs(g_perf.ogx_conv_ticks), (unsigned long)g_perf.ogx_conv_calls,
+			g_perf.ogx_conv_texels,
+			(unsigned long long)ticks_to_microsecs(g_perf.ogx_tile_ticks), (unsigned long)g_perf.ogx_tile_calls,
+			(unsigned long long)ticks_to_microsecs(g_perf.mdec_ticks), (unsigned long)g_perf.mdec_calls);
 		fprintf(f, "ogx: gc=%lu sub_new=%lu sub_hit=%lu skip=%lu unaligned=%lu oob=%lu\n",
 			(unsigned long)g_perf.ogx_gc, (unsigned long)g_perf.ogx_sub_new,
 			(unsigned long)g_perf.ogx_sub_hit, (unsigned long)g_perf.ogx_skip,
@@ -443,6 +448,9 @@ void perf_report(void)
 			(unsigned long)g_perf.cd_reads, g_perf.cd_bytes,
 			(unsigned long)g_perf.cd_seq, (unsigned long)g_perf.cd_rand,
 			(unsigned long)g_perf.io_worst_us, g_perf.io_total_us);
+		fprintf(f, "cdpf: hit=%lu miss=%lu reads=%lu\n",
+			(unsigned long)g_perf.cd_pf_hit, (unsigned long)g_perf.cd_pf_miss,
+			(unsigned long)g_perf.cd_pf_reads);
 		fprintf(f, "chd: hit=%lu miss=%lu err=%lu chd_us=%llu\n",
 			(unsigned long)g_perf.chd_hit, (unsigned long)g_perf.chd_miss,
 			(unsigned long)g_perf.chd_err, g_perf.chd_us);

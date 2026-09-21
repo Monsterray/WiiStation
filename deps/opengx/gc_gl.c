@@ -1920,7 +1920,28 @@ int glInitMovieTextures( GLsizei width, GLsizei height, void * texData )
 }
 
 // Update a Texture
+static int glTexSubImage2D_body(GLenum target, GLint level,
+                   GLint xoffset, GLint yoffset,
+                   GLsizei width, GLsizei height,
+                   GLenum format, GLenum type,
+                   const GLvoid *data );
+
+/* Timed wrapper: the RGB5A3 tiling pass over the staging buffer, measured
+ * with the CLUT expansion as a locked-cache candidate (perf.log "texk:"). */
 int glTexSubImage2D(GLenum target, GLint level,
+                   GLint xoffset, GLint yoffset,
+                   GLsizei width, GLsizei height,
+                   GLenum format, GLenum type,
+                   const GLvoid *data )
+{
+    unsigned long long t0 = perf_now_ticks();
+    int r = glTexSubImage2D_body(target, level, xoffset, yoffset, width, height, format, type, data);
+    PERF_ADD(ogx_tile_ticks, perf_now_ticks() - t0);
+    PERF_INC(ogx_tile_calls);
+    return r;
+}
+
+static int glTexSubImage2D_body(GLenum target, GLint level,
                    GLint xoffset, GLint yoffset,
                    GLsizei width, GLsizei height,
                    GLenum format, GLenum type,

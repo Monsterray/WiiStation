@@ -1769,7 +1769,20 @@ GLuint Fake15BitTexture(void)
 /////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////
 
+static void LoadSubTexturePageSortBody(int pageid, int mode, short cx, short cy);
+
+/* Timed wrapper: this is the CLUT expansion, the CPU kernel measured as a
+ * locked-cache candidate (perf.log "texk:"). gl_ux[4..7] hold the rectangle. */
 void LoadSubTexturePageSort(int pageid, int mode, short cx, short cy)
+{
+ unsigned long long t0 = perf_now_ticks();
+ LoadSubTexturePageSortBody(pageid, mode, cx, cy);
+ PERF_ADD(ogx_conv_ticks, perf_now_ticks() - t0);
+ PERF_INC(ogx_conv_calls);
+ PERF_ADD(ogx_conv_texels, (unsigned long long)(gl_ux[6] - gl_ux[7] + 1) * (gl_ux[4] - gl_ux[5] + 1));
+}
+
+static void LoadSubTexturePageSortBody(int pageid, int mode, short cx, short cy)
 {
  unsigned int  start,row,column,j,sxh,sxm;
  unsigned int   palstart;
