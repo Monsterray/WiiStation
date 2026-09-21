@@ -32,8 +32,9 @@ extern "C" {
 /* Records in the audio timeline ring (perf_audio_event). 3072 x 16 bytes. */
 #define PERF_AEV_N 3072
 
-/* Records in the pad timeline ring (perf_pad_event). 1024 x 16 bytes. */
-#define PERF_PEV_N 1024
+/* Records in the pad timeline ring (perf_pad_event). 2048 x 16 bytes: one full sweep of
+ * four stick axes is about 1030 records, so a smaller ring fills before the buttons. */
+#define PERF_PEV_N 2048
 
 /* A slice below this many PSX cycles does less work than the dispatch around
  * it costs, so these are counted separately as pure overhead. */

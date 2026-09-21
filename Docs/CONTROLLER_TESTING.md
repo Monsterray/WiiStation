@@ -34,54 +34,96 @@ The numbers each driver scales by are repeated in the test rather than included 
 drivers, which need libogc. A driver that changes its scaling without changing the test
 will not be caught, so the test prints the ranges it used.
 
-## 2. The live path, through Dolphin
+## 2. The live path, in a running game
 
-The maths being right does not prove a press arrives. `scripts/padtest.py` drives the whole
-path from Dolphin's side and reads back what the game saw.
+The maths being right does not prove a press arrives. There are two moving parts:
 
-**The debug build keeps a pad timeline.** `perf_pad_event` (`Gamecube/perf_prof.c`) records
-one line each time what a virtual port hands the PlayStation changes, with the driver's own
+**A scripted pad.** `padsweep <vblank>` in `sd:/wiisxrx/autoinput.txt` makes the GameCube
+driver read a generated sweep instead of the pad from that vblank on: each stick axis
+walked end to end a step per vblank, then each button held on its own. The substitution
+happens at the very top of `controller-GC.c`, where the raw libogc reading is taken, so
+everything below it -- that driver's own conversion, the pad plugin, the sensitivity gain,
+the PlayStation packing -- runs on it exactly as on a real pad. It repeats, so a run
+started before the game has finished loading still catches a whole sweep. Being inside the
+emulator, it works on real hardware as well as under Dolphin.
+
+**A pad timeline.** In a debug build `perf_pad_event` (`Gamecube/perf_prof.c`) records one
+line each time what a virtual port hands the PlayStation changes, with the driver's own
 output beside the final bytes, and writes `sd:/wiisxrx/padtrace.csv` on every perf report.
 Repeats are dropped, so a stick held still costs one line. Release builds compile it out.
 
-**Generate the input.** A Dolphin input movie plugs in GameCube controller 1 and sweeps
-each stick axis end to end, then presses each button on its own:
+Running it, with any game that polls the pad:
 
 ```
-python scripts/padtest.py make /c/tools/Dolphin-x64/pad.dtm
-```
-
-**Run it.** The trace only fills while a game is polling the pad -- in the menu nothing
-calls the pad plugin -- so the run needs an autoboot file:
-
-```
-DOLPHIN_ARGS="-m /c/tools/Dolphin-x64/pad.dtm" scripts/dolphin_run.sh out 120 "" "" <autoboot>
-python scripts/sdimage_read.py wiisxrx/padtrace.csv > out/padtrace.csv
-```
-
-**Check it.**
-
-```
+printf 'padsweep 1200\n' > <sync>/wiisxrx/autoinput.txt
+DOLPHIN_ARGS="-C Dolphin.Core.SIDevice0=6" scripts/dolphin_run.sh out 160 \
+    <that autoinput file> <settings with PadType1=1> <an autoboot file>
+python scripts/sdimage_read.py <User>/Load/WiiSD.raw wiisxrx/padtrace.csv out/padtrace.csv
 python scripts/padtest.py check out/padtrace.csv
 ```
 
-It reports, per port, how much of 0..255 each axis actually covered and whether 128 was
-seen at rest, and then how many buttons moved a bit of their own. It deliberately does not
-know which bit belongs to which button: it asserts only that each press moves exactly one
-bit and that every press moves a different one, which tests that the mapping is complete
-and one-to-one without hard-coding the bit order, the active-low sense or the byte swap.
+`-C Dolphin.Core.SIDevice0=6` is needed: SIDEVICE_GC_CONTROLLER. Without a GameCube
+controller on the port, `PAD_ScanPads` reports nothing connected, no driver is assigned to
+the virtual port, and the trace holds one line saying so (`type` of `-`).
 
-`--start` is how many input frames of nothing come before the sweep, to let the game load;
-`--hold` is how long each value is held. The generated movie round-trips through this
-repo's own `scripts/dtm2autoinput.py`, which is a useful check that it is well formed.
+`padtest.py check` reports, per port, how much of 0..255 each axis covered and how many
+buttons moved a bit of their own. It deliberately does not know which bit belongs to which
+button: it asserts only that each press moves exactly one bit and that every press moves a
+different one, which tests that the mapping is complete and one-to-one without hard-coding
+the bit order, the active-low sense or the byte swap.
 
-## 3. What neither tool covers
+Two numbers in it are worth knowing:
 
-- **Two controller families at once.** Dolphin can emulate a GameCube pad and a Wiimote
-  together, but the movie format carries Wiimote reports in a different record kind that
-  `padtest.py` does not write. The bug this would have caught -- one `wpadNeedScan` flag
-  guarding three different hardware polls, so whichever driver ran first left the others
-  unscanned -- was found by reading, not by testing.
+- **193, not 256.** A GameCube stick has 193 usable positions (-96..96), so a perfect
+  sweep of one produces 193 distinct PlayStation values. The check is that the values are
+  finely graded and reach both ends, not that all 256 appear.
+- **14, not 16.** The default GameCube mapping reaches fourteen of the PlayStation's
+  sixteen buttons. L3 and R3 are "None" by default and no press can produce them.
+
+A real result, Ape Escape under Dolphin, which is a good test because the game refuses to
+start without an analog pad and uses both sticks throughout:
+
+```
+port 0: 2047 records, driver 'G'
+  lx     0..255    193 distinct
+  ly     0..255    193 distinct
+  rx     0..255    193 distinct
+  ry     0..255    193 distinct
+buttons: rest word ffff, 14 distinct single-bit presses seen
+pad path intact
+```
+
+Every one of the 193 raw stick steps produced a different value at the other end: no part
+of the travel does nothing.
+
+## 3. Things that did not work, so nobody tries them again
+
+**Dolphin input movies (.dtm).** The obvious way to script a pad is to hand Dolphin a
+movie with `-m`. `scripts/padtest.py make` still writes one, and it is well formed -- it
+round-trips through this repo's own `scripts/dtm2autoinput.py`, which parses 2188 polls and
+recognises every button press with the right mapping. The installed Dolphin
+(`C:\tools\Dolphin-x64`) has the `-m` option in its binary and accepts it without
+complaint, but `Movie::PlayController` never runs: a deliberately corrupt movie does not
+produce the "Invalid recording file" it should, and a 100-frame movie does not produce
+"Premature movie end", with `Logger.Logs.MASTER_LOG=True` and verbosity 5. So the movie is
+not being loaded at all in this build, in batch mode or out of it. That is why the sweep
+lives inside the emulator instead. The generator is kept because it costs nothing and
+would be the better tool if a Dolphin build is found where playback works -- it is the only
+way to test the path *above* the driver, including whether libogc's own SI handling is
+right.
+
+## 4. What neither tool covers
+
+- **Two controller families at once.** The bug that motivated much of this -- one
+  `wpadNeedScan` flag guarding three different hardware polls, so whichever driver ran
+  first left the others unscanned -- needs a Classic Controller and a Wii U Pro Controller
+  plugged in together. It was found by reading, not by testing.
+- **The Wiimote, Classic, Wii U Pro and GamePad drivers' own readings.** The sweep
+  substitutes a GameCube pad only; the other drivers' conversions are covered by the host
+  test but their live paths are not.
 - **Anything about real controller hardware**: worn sticks, dead zones in practice,
   Bluetooth latency, how much travel a Classic Controller really has.
 - **Rumble**, which has no observable output in a trace.
+- **The menus.** Nothing here drives the menu, which reads the pads directly rather than
+  through these drivers. `scripts/menu_text_width.py` checks the Settings tabs' geometry
+  and text widths against the 640-pixel screen instead, which is not the same as looking.

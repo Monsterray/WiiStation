@@ -50,6 +50,13 @@ static int autoin_n = -1;
 unsigned autoinput_trace_vbl[8];
 int autoinput_trace_n = 0;
 unsigned autoinput_dump_vbl = 0;   /* "dump <vblank>": debug build writes sd:/wiisxrx/vram.bin then */
+/* "padsweep <vblank>": from that vblank the GameCube driver reads a generated sweep
+ * instead of the pad -- each stick axis end to end, then every button on its own. It is
+ * read in controller-GC.c, which is the only place that knows what a raw GameCube pad
+ * reading looks like. The point is to exercise the real driver, the real pad plugin and
+ * the real PSX packing with input nobody has to hold, on hardware as well as in Dolphin
+ * (scripts/padtest.py checks what comes out). 0 means no sweep. */
+unsigned autoinput_padsweep_vbl = 0;
 unsigned autoinput_atrace_vbl = 0; /* "atrace <vblank>": debug build starts the audio timeline (perf_prof.c) */
 /* Parse the script once. Called from the pad plugin's open (so the trace and
  * dump schedules exist even before the first pad poll, e.g. in the BIOS
@@ -65,6 +72,7 @@ void autoinput_load(void)
 		while (autoin_n < 64 && fgets(line, sizeof line, f)) {
 			unsigned v, k;
 			if (sscanf(line, "dump %u", &v) == 1) { autoinput_dump_vbl = v; continue; }
+			if (sscanf(line, "padsweep %u", &v) == 1) { autoinput_padsweep_vbl = v; continue; }
 			if (sscanf(line, "atrace %u", &v) == 1) { autoinput_atrace_vbl = v; continue; }
 			if (sscanf(line, "trace %u", &v) == 1) { if (autoinput_trace_n < 8) autoinput_trace_vbl[autoinput_trace_n++] = v; continue; }
 			if (line[0] == '#' || sscanf(line, "%u %x", &v, &k) != 2) continue;

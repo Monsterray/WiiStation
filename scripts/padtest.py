@@ -1,33 +1,21 @@
 #!/usr/bin/env python3
-"""padtest.py - drive WiiStation's controller path from Dolphin and check what came out.
-
-Two halves, because the input and the answer arrive at different times:
-
-  padtest.py make  pad.dtm [--start N] [--hold K]
-      Writes a Dolphin input movie that plugs in GameCube controller 1 and, from frame
-      N onward, sweeps the main stick across X then Y, sweeps the C-stick the same way,
-      and then presses each button on its own. Nothing else touches the pad, so whatever
-      the emulator reports came from this file.
+"""padtest.py - check what WiiStation's controller path did with a known sweep.
 
   padtest.py check padtrace.csv
-      Reads the trace a debug build wrote while that movie played and says whether the
-      path is intact: both sticks reach 0 and 255 and pass through 128, and each button
-      press moves exactly one bit of the pad word, a different one each time.
+      Reads the pad timeline a debug build wrote (sd:/wiisxrx/padtrace.csv) and says
+      whether the path is intact: both sticks reach 0 and 255, pass through 128 and are
+      finely graded the whole way, and each button press moves exactly one bit of the pad
+      word, a different one each time.
 
-Together with tests/psx_analog_test.c this covers the subsystem from both ends: that test
-proves the conversion maths over every possible input, this proves that a real press
-travels from Dolphin through the driver, the pad plugin and out to the game.
+  padtest.py make pad.dtm
+      Writes a Dolphin input movie that sweeps the sticks and presses each button.
+      KEPT BUT NOT WORKING: the installed Dolphin accepts -m and never plays the movie
+      (see Docs/CONTROLLER_TESTING.md section 3). The sweep that actually runs is inside
+      the emulator -- put "padsweep <vblank>" in sd:/wiisxrx/autoinput.txt -- which also
+      works on real hardware. This generator is kept for the day a Dolphin build plays
+      movies, because it is the only way to test the path above the driver.
 
-Running it:
-
-    python scripts/padtest.py make /c/tools/Dolphin-x64/pad.dtm
-    DOLPHIN_ARGS="-m /c/tools/Dolphin-x64/pad.dtm" scripts/dolphin_run.sh out 120 \\
-        "" "" scripts/autoinput/<a script that boots a game>
-    python scripts/sdimage_read.py wiisxrx/padtrace.csv > out/padtrace.csv
-    python scripts/padtest.py check out/padtrace.csv
-
-The trace only fills while a game is polling the pad, so the run needs an autoboot file:
-in the menu nothing calls the pad plugin and the file stays empty.
+The whole recipe, and what the numbers mean, is in Docs/CONTROLLER_TESTING.md.
 """
 import argparse, csv, struct, sys
 
@@ -38,6 +26,13 @@ B1 = {"Left": 0, "Right": 1, "L": 2, "R": 3,
       "disc": 4, "reset": 5, "is_connected": 6, "get_origin": 7}
 BUTTONS = ["A", "B", "X", "Y", "Z", "Start", "L", "R", "Up", "Down", "Left", "Right"]
 CENTRE = 128
+# A GameCube stick has 193 usable positions (-96..96), not 256, so a perfect sweep of one
+# produces 193 distinct values, not 256. What matters is that the values are finely graded
+# and reach both ends -- a stick with dead travel repeats values instead.
+LEAST_VALUES = 150
+# The default GameCube mapping reaches 14 of the PlayStation's 16 buttons; L3 and R3 are
+# "None" and no press can produce them.
+LEAST_BUTTON_BITS = 14
 
 
 def state(buttons=(), sx=CENTRE, sy=CENTRE, cx=CENTRE, cy=CENTRE):
@@ -66,8 +61,14 @@ def sweep(hold):
     return out
 
 
-def make(path, start, hold):
-    frames = [state()] * start + sweep(hold)
+def make(path, start, hold, least):
+    """The movie is read one record per controller poll, not per video frame, and how
+    often the emulator polls is not knowable from here -- it depends on the game and on
+    how libogc drives the SI bus. So the sweep is simply repeated until the movie is long
+    enough that one is always in progress, however fast it is being consumed. A movie that
+    runs out just stops feeding input, which reads as a pad sitting at rest."""
+    one = sweep(hold)
+    frames = [state()] * start + one * max(1, -(-least // len(one)))
     hdr = bytearray(256)
     hdr[0x00:0x04] = b"DTM\x1a"
     hdr[0x04:0x0A] = b"\0" * 6          # homebrew has no game id
@@ -82,8 +83,8 @@ def make(path, start, hold):
         f.write(hdr)
         for fr in frames:
             f.write(fr)
-    print("%s: %d input frames (%d before the sweep, %d per step)"
-          % (path, len(frames), start, hold))
+    print("%s: %d input frames (%d before the first sweep, %d per step, %d sweeps)"
+          % (path, len(frames), start, hold, (len(frames) - start) // len(one)))
 
 
 def check(path):
@@ -100,19 +101,21 @@ def check(path):
             col = "out_" + axis
             vals = sorted({int(r[col]) for r in mine})
             span = "%d..%d" % (vals[0], vals[-1])
-            ok = vals[0] == 0 and vals[-1] == 255 and CENTRE in vals
-            print("  %-6s %-9s %3d distinct%s" % (axis, span, len(vals), "" if ok else "   <== "))
-            if len(vals) == 1:
-                continue            # that stick was never swept in this movie
+            if len(vals) == 1:      # that stick was never swept on this port
+                print("  %-6s %-9s %3d distinct   (not swept)" % (axis, span, len(vals)))
+                continue
+            ok = (vals[0] == 0 and vals[-1] == 255 and CENTRE in vals
+                  and len(vals) >= LEAST_VALUES)
+            print("  %-6s %-9s %3d distinct%s" % (axis, span, len(vals), "" if ok else "   <=="))
             if vals[0] != 0:
                 bad.append("port %s %s never reached 0 (lowest %d)" % (pad, axis, vals[0]))
             if vals[-1] != 255:
                 bad.append("port %s %s never reached 255 (highest %d)" % (pad, axis, vals[-1]))
             if CENTRE not in vals:
                 bad.append("port %s %s never read %d at rest" % (pad, axis, CENTRE))
-            if len(vals) < 200:
-                bad.append("port %s %s produced only %d of 256 values"
-                           % (pad, axis, len(vals)))
+            if len(vals) < LEAST_VALUES:
+                bad.append("port %s %s produced only %d distinct values, so part of its "
+                           "travel does nothing" % (pad, axis, len(vals)))
 
     # Buttons: find the resting word, then every word that differs from it by exactly one
     # bit. A complete, one-to-one mapping gives as many distinct bits as buttons pressed.
@@ -126,9 +129,9 @@ def check(path):
     print("buttons: rest word %04x, %d distinct single-bit presses seen" % (rest, len(single)))
     for d in sorted(single):
         print("  bit %2d  %d records" % (d.bit_length() - 1, single[d]))
-    if len(single) < len(BUTTONS):
-        bad.append("only %d of %d buttons moved a bit of their own"
-                   % (len(single), len(BUTTONS)))
+    if len(single) < LEAST_BUTTON_BITS:
+        bad.append("only %d buttons moved a bit of their own, expected %d"
+                   % (len(single), LEAST_BUTTON_BITS))
 
     for b in bad:
         print("FAIL " + b)
@@ -140,14 +143,16 @@ def main():
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
     m = sub.add_parser("make"); m.add_argument("out")
-    m.add_argument("--start", type=int, default=3600,
-                   help="input frames of nothing before the sweep, to let a game load")
-    m.add_argument("--hold", type=int, default=2,
+    m.add_argument("--start", type=int, default=0,
+                   help="input frames of nothing before the first sweep")
+    m.add_argument("--hold", type=int, default=3,
                    help="input frames each value is held for")
+    m.add_argument("--least", type=int, default=80000,
+                   help="repeat the sweep until the movie is at least this many frames")
     c = sub.add_parser("check"); c.add_argument("trace")
     a = ap.parse_args()
     if a.cmd == "make":
-        make(a.out, a.start, a.hold)
+        make(a.out, a.start, a.hold, a.least)
         return 0
     return check(a.trace)
 

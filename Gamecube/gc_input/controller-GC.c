@@ -85,13 +85,81 @@ static button_t menu_combos[] = {
 
 u32 gc_connected;
 
-static unsigned int getButtons(int Control)
+/* One reading of a GameCube pad: the buttons held and the two sticks, as libogc reports
+ * them (origin already taken off, so the sticks are signed and centred on 0). */
+typedef struct { unsigned int buttons; s8 sx, sy, cx, cy; } gc_raw_t;
+
+/*  The scripted sweep  */
+
+/* "padsweep <vblank>" in sd:/wiisxrx/autoinput.txt (PadWiiSX.c) replaces the pad with a
+ * generated sweep from that vblank on: each stick axis walked end to end a step per
+ * vblank, then each button held on its own. Everything downstream -- this driver's
+ * conversion, the pad plugin, the PSX packing -- runs on it exactly as on a real pad, so
+ * a run of any game produces a trace that says whether the whole path is intact. See
+ * Docs/CONTROLLER_TESTING.md.
+ *
+ * The sticks are swept over GC_STICK_FULL rather than the whole s8 range: past full
+ * deflection every value maps to the same end, which would look like dead travel. */
+#define SWEEP_FULL   96            /* one axis runs -96..96 */
+#define SWEEP_STEPS  (2 * SWEEP_FULL + 1)
+#define SWEEP_HOLD   8             /* vblanks each button is held, and released, for */
+/* The combinations the default mapping below actually uses, not the bare buttons: Z on
+ * its own is not mapped to anything, and L, R and Start each mean one thing alone and
+ * another with Z held. These fourteen reach fourteen of the PlayStation's sixteen
+ * buttons; L3 and R3 are "None" by default and no press can produce them. */
+static const unsigned int SWEEP_BUTTONS[] = {
+	PAD_BUTTON_A, PAD_BUTTON_B, PAD_BUTTON_X, PAD_BUTTON_Y,
+	PAD_TRIGGER_L, PAD_TRIGGER_R,
+	PAD_TRIGGER_L | PAD_TRIGGER_Z, PAD_TRIGGER_R | PAD_TRIGGER_Z,
+	PAD_BUTTON_START, PAD_BUTTON_START | PAD_TRIGGER_Z,
+	PAD_BUTTON_UP, PAD_BUTTON_DOWN, PAD_BUTTON_LEFT, PAD_BUTTON_RIGHT,
+};
+#define SWEEP_NBUTTONS ((int)(sizeof(SWEEP_BUTTONS) / sizeof(SWEEP_BUTTONS[0])))
+#define SWEEP_STICKS   (4 * SWEEP_STEPS)
+#define SWEEP_LEN      (SWEEP_STICKS + SWEEP_NBUTTONS * 2 * SWEEP_HOLD)
+
+extern unsigned autoinput_padsweep_vbl;   /* PadWiiSX.c */
+/* psxcounters.h would drag in unistd.h, whose pause() collides with this file's own. */
+extern u32 frame_counter;
+
+static int gc_sweep(gc_raw_t *r)
 {
-	unsigned int b = PAD_ButtonsHeld(Control);
-	s8 stickX      = PAD_StickX(Control);
-	s8 stickY      = PAD_StickY(Control);
-	s8 substickX   = PAD_SubStickX(Control);
-	s8 substickY   = PAD_SubStickY(Control);
+	int t;
+	s8 *axis[4];
+
+	if (!autoinput_padsweep_vbl || frame_counter < autoinput_padsweep_vbl) return 0;
+	r->buttons = 0;
+	r->sx = r->sy = r->cx = r->cy = 0;
+	/* Repeat, so that a run started before the game finished loading still catches one. */
+	t = (int)((frame_counter - autoinput_padsweep_vbl) % SWEEP_LEN);
+	if (t < SWEEP_STICKS) {
+		axis[0] = &r->sx; axis[1] = &r->sy; axis[2] = &r->cx; axis[3] = &r->cy;
+		*axis[t / SWEEP_STEPS] = (s8)(t % SWEEP_STEPS - SWEEP_FULL);
+	} else {
+		t -= SWEEP_STICKS;
+		if ((t / SWEEP_HOLD) & 1)   /* every other slot is released, so each press is its own */
+			r->buttons = SWEEP_BUTTONS[(t / SWEEP_HOLD / 2) % SWEEP_NBUTTONS];
+	}
+	return 1;
+}
+
+static void gc_read(int Control, gc_raw_t *r)
+{
+	if (gc_sweep(r)) return;
+	r->buttons = PAD_ButtonsHeld(Control);
+	r->sx = PAD_StickX(Control);
+	r->sy = PAD_StickY(Control);
+	r->cx = PAD_SubStickX(Control);
+	r->cy = PAD_SubStickY(Control);
+}
+
+static unsigned int getButtons(const gc_raw_t *r)
+{
+	unsigned int b = r->buttons;
+	s8 stickX      = r->sx;
+	s8 stickY      = r->sy;
+	s8 substickX   = r->cx;
+	s8 substickY   = r->cy;
 	
 	if(stickX    < -48) b |= ANALOG_L;
 	if(stickX    >  48) b |= ANALOG_R;
@@ -129,7 +197,9 @@ static int _GetKeys(int Control, BUTTONS * Keys, controller_config_t* config)
 	controller_GC.available[Control] = (gc_connected & (1<<Control)) ? 1 : 0;
 	if (!controller_GC.available[Control]) return 0;
 
-	unsigned int b = getButtons(Control);
+	gc_raw_t raw;
+	gc_read(Control, &raw);
+	unsigned int b = getButtons(&raw);
 	inline int isHeld(button_tp button){
 		return (b & button->mask) == button->mask ? 0 : 1;
 	}
@@ -158,21 +228,21 @@ static int _GetKeys(int Control, BUTTONS * Keys, controller_config_t* config)
 	//adjust values by 128 cause PSX sticks range 0-255 with a 128 center pos
 	int stickX = 0, stickY = 0;
 	if(config->analogL->mask == ANALOG_AS_ANALOG){
-		stickX = PAD_StickX(Control);
-		stickY = PAD_StickY(Control);
+		stickX = raw.sx;
+		stickY = raw.sy;
 	} else if(config->analogL->mask == C_STICK_AS_ANALOG){
-		stickX = PAD_SubStickX(Control);
-		stickY = PAD_SubStickY(Control);
+		stickX = raw.cx;
+		stickY = raw.cy;
 	}
 	c->leftStickX = GCtoPSXAnalog(stickX);
 	c->leftStickY = GCtoPSXAnalog(config->invertedYL ? stickY : -stickY);
 
 	if(config->analogR->mask == ANALOG_AS_ANALOG){
-		stickX = PAD_StickX(Control);
-		stickY = PAD_StickY(Control);
+		stickX = raw.sx;
+		stickY = raw.sy;
 	} else if(config->analogR->mask == C_STICK_AS_ANALOG){
-		stickX = PAD_SubStickX(Control);
-		stickY = PAD_SubStickY(Control);
+		stickX = raw.cx;
+		stickY = raw.cy;
 	}
 	c->rightStickX = GCtoPSXAnalog(stickX);
 	c->rightStickY = GCtoPSXAnalog(config->invertedYR ? stickY : -stickY);

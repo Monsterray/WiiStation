@@ -289,6 +289,26 @@ This example presses Start at the title screen and presses Start again in the ga
 
 Add the masks to hold more than one button. Delete the file to stop the script.
 
+### 11.1 Sweeping the controller
+
+One more line kind, for testing the controller path rather than a game:
+
+```
+padsweep 1200
+```
+
+From that vblank on, the GameCube driver reads a generated sweep instead of the pad: each
+stick axis walked from one end to the other a step per vblank, then each button held on
+its own, repeating. The substitution happens where the raw reading is taken, so the
+driver's conversion, the pad plugin, the sensitivity setting and the PlayStation packing
+all run on it exactly as on a real pad. Port 1 still needs a GameCube controller
+(`PadType1 = 1`) for a driver to be assigned to it at all.
+
+Unlike the press lines above, this replaces the pad rather than adding to it, so a real
+controller does nothing while it runs. A debug build writes what came out to
+`sd:/wiisxrx/padtrace.csv`; `scripts/padtest.py check` reads it. See
+`Docs/CONTROLLER_TESTING.md`.
+
 ## 12. Known differences between the code and the menu
 
 - `BiosDevice`, `BilinearFilter`, `TrapFilter`, `Interlaced`, `DeflickerFilter`, and `LightGun` get their default from the variable initialiser. The function `loadSettings()` does not set them.
