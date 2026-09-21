@@ -129,6 +129,28 @@ enum ConfigCdda //Config.Cdda
 	CDDA_DISABLE
 };
 
+/* Storage (cdriso.c). All three take effect when the next game is loaded. */
+extern char cdBuffer;            /* stdio buffer per image handle */
+enum cdBuffer
+{
+	CD_BUFFER_16K=0,
+	CD_BUFFER_64K,
+	CD_BUFFER_256K
+};
+extern char cdPrefetch;          /* read-ahead thread for raw images */
+enum cdPrefetch
+{
+	CD_PREFETCH_OFF=0,
+	CD_PREFETCH_ON
+};
+extern char cdChdHunks;          /* CHD decoded-hunk cache depth */
+enum cdChdHunks
+{
+	CD_CHD_HUNKS_2=0,
+	CD_CHD_HUNKS_4,
+	CD_CHD_HUNKS_8
+};
+
 extern char spuInterpolation;
 enum spuInterpolationEnum
 {

@@ -244,26 +244,35 @@ static bool isFileOk(const char *filePath, const char *fileName) {
     // Suffix match, not substring: previously used strstr(), so a file
     // named e.g. "readme.cue.txt" was incorrectly treated as a playable
     // .cue image just for containing that substring anywhere in its name.
-    if (hasExt(fileName, ".cue")
-        || hasExt(fileName, ".ccd")
-        || hasExt(fileName, ".iso")
-        || hasExt(fileName, ".chd"))
-    {
-        return true;
-    }
-    else if (hasExt(fileName, ".sub"))
-    {
+    (void)filePath;
+    if (hasExt(fileName, ".sub"))
         return false;
-    }
-    else if ((hasExt(fileName, ".bin") && isCueCcdFileExist(filePath, fileName, ".cue"))
-             ||
-             (hasExt(fileName, ".img") && isCueCcdFileExist(filePath, fileName, ".ccd"))
-             )
-    {
-        return false;
-    }
-
     return true;
+}
+
+// A .bin/.img is hidden when its .cue/.ccd is in the same listing, so the
+// user sees one entry per game. This used to be decided per entry with
+// access() on the card, which is a directory lookup through libfat for every
+// .bin in the folder: a directory of a few hundred images cost a few hundred
+// extra FAT scans, each of them linear in the directory size, before the
+// list appeared. Now the whole directory is read once into memory and the
+// pairing is resolved there by name. FAT is case-insensitive, so the match is.
+static bool hasPairedSheet(const fileBrowser_file *entries, int count, int idx, const char *sheetExt)
+{
+    const char *bin = strrchr(entries[idx].name, '/');
+    size_t baseLen;
+    int j;
+    bin = bin ? bin + 1 : entries[idx].name;
+    baseLen = strlen(bin) - 4;                       /* strip .bin/.img */
+    for (j = 0; j < count; j++) {
+        const char *other = strrchr(entries[j].name, '/');
+        other = other ? other + 1 : entries[j].name;
+        if (j == idx || (entries[j].attr & FILE_BROWSER_ATTR_DIR))
+            continue;
+        if (strlen(other) == baseLen + 4 && strncasecmp(other, bin, baseLen) == 0 && hasExt(other, sheetExt))
+            return true;
+    }
+    return false;
 }
 
 int fileBrowser_libfat_readDir(fileBrowser_file* file, fileBrowser_file** dir){
@@ -314,8 +323,27 @@ int fileBrowser_libfat_readDir(fileBrowser_file* file, fileBrowser_file** dir){
 		++i;
 	}
 
-	*dir = entries;
 	closedir(dp);
+
+	// Second pass over the listing in memory: drop each .bin/.img whose
+	// .cue/.ccd is present (see hasPairedSheet).
+	{
+		int k, kept = 0;
+		for (k = 0; k < i; k++) {
+			const char *nm = strrchr(entries[k].name, '/');
+			nm = nm ? nm + 1 : entries[k].name;
+			if (!(entries[k].attr & FILE_BROWSER_ATTR_DIR) &&
+			    ((hasExt(nm, ".bin") && hasPairedSheet(entries, i, k, ".cue")) ||
+			     (hasExt(nm, ".img") && hasPairedSheet(entries, i, k, ".ccd"))))
+				continue;
+			if (kept != k)
+				entries[kept] = entries[k];
+			kept++;
+		}
+		i = kept;
+	}
+
+	*dir = entries;
 	continueRemovalThread();
 
 	return i;

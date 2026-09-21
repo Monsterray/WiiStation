@@ -121,6 +121,7 @@ char soundMixerPrecision;   // dfsound: round instead of truncate in the voice m
 char soundXaResampler;      // dfsound/xa.c: real hardware zigzag FIR vs the legacy nearest/Gaussian step (Advanced Sound page)
 char soundRateControl;      // dfsound/ratectl.c: nudge the output rate from the queue's occupancy
 char soundResampler;        // read by dfsound/resample.c on every block it converts
+char cdBuffer, cdPrefetch, cdChdHunks;   // read by cdriso.c when an image is opened
 char xaDisabled;            // mirrors Config.Xa   (see wiiSXconfig.h)
 char cddaDisabled;          // mirrors Config.Cdda
 char spuInterpolation;
@@ -188,6 +189,9 @@ static struct {
   { "SoundXaResampler", &soundXaResampler, SOUND_XA_RESAMPLER_LEGACY, SOUND_XA_RESAMPLER_HIFI },
   { "SoundRateControl", &soundRateControl, SOUND_RATE_CONTROL_OFF, SOUND_RATE_CONTROL_ON },
   { "SoundResampler", &soundResampler, SOUND_RESAMPLE_HOLD, SOUND_RESAMPLE_CUBIC },
+  { "CdBuffer", &cdBuffer, CD_BUFFER_16K, CD_BUFFER_256K },
+  { "CdPrefetch", &cdPrefetch, CD_PREFETCH_OFF, CD_PREFETCH_ON },
+  { "CdChdHunks", &cdChdHunks, CD_CHD_HUNKS_2, CD_CHD_HUNKS_8 },
   { "Interpolation", &spuInterpolation, SIMPLE_INTERPOLATION, GAUSSI_INTERPOLATION },
   { "DisableXa", &xaDisabled, XA_ENABLE, XA_DISABLE },
   { "DisableCdda", &cddaDisabled, CDDA_ENABLE, CDDA_DISABLE },
@@ -385,6 +389,9 @@ void loadSettings(int argc, char *argv[])
 	soundRateControl = SOUND_RATE_CONTROL_ON;
 	soundResampler   = SOUND_RESAMPLE_CUBIC; // hi-fi default: Hold is what both paths always did, Cubic is materially cleaner
 	spuInterpolation = GAUSSI_INTERPOLATION; // the better of the two voice interpolators, and the whole SPU is under 1% of a frame
+	cdBuffer         = CD_BUFFER_16K;       // the size the single shared buffer always had
+	cdPrefetch       = CD_PREFETCH_OFF;     // only real hardware can show what it buys; off until then
+	cdChdHunks       = CD_CHD_HUNKS_2;      // as before, now with a working LRU
 	xaDisabled       = XA_ENABLE;    // XA and CDDA audio both on by default
 	cddaDisabled     = CDDA_ENABLE;
 #ifdef RELEASE

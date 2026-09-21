@@ -40,6 +40,9 @@
 
 #include "Gamecube/DEBUG.h"
 #include "Gamecube/perf_prof.h"
+#include <ogc/semaphore.h>
+#include "mem2_manager.h"
+#include "Gamecube/wiiSXconfig.h"     /* cdBuffer, cdPrefetch, cdChdHunks */
 
 #define OFF_T_MSB ((off_t)1 << (sizeof(off_t) * 8 - 1))
 
@@ -81,7 +84,14 @@ static struct {
 	chd_file* chd;
 	const chd_header* header;
 	unsigned int sectors_per_hunk;
-	unsigned int current_hunk[2];
+	/* An N-way hunk cache (N = the CdChdHunks setting, at most CHD_MAX_WAYS). The first
+	 * version had two ways and, on a miss, decoded into whichever way had been hit last,
+	 * so it kept evicting the most recently used hunk; hunk_stamp[] makes it a real LRU. */
+#define CHD_MAX_WAYS 8
+	unsigned int current_hunk[CHD_MAX_WAYS];
+	unsigned int hunk_stamp[CHD_MAX_WAYS];
+	unsigned int ways;
+	unsigned int stamp;
 	unsigned int current_buffer;
 	unsigned int sector_in_hunk;
 } *chd_img;
@@ -163,7 +173,7 @@ static inline void tok2msf(char *time, char *msf) {
 // sequential (the common case: level loading, FMV playback) and the stream
 // is already positioned exactly there after the previous fread(). newlib's
 // fseek() doesn't special-case a same-position seek -- it unconditionally
-// discards the stdio buffer set_static_stdio_buffer() below deliberately
+// discards the stdio buffer cd_attach_stdio_buffer() below deliberately
 // widens to 16KB, forcing a real underlying read (FAT/DVD I/O on real Wii
 // hardware) on every sector regardless. Skipping the redundant seek lets
 // that buffering actually do its job for sequential access.
@@ -174,16 +184,45 @@ static long cdimg_seek_pos = -1;
 // cd sector size which is bad for performance.
 // Note that NULL setvbuf() is implemented differently by different libs
 // (newlib mallocs a buffer of given size and glibc ignores size and uses it's own).
-static void set_static_stdio_buffer(FILE *f)
+//
+// Every image handle gets its own buffer: the main image, the sub-channel file, the
+// second handle the CDDA reader keeps on a single-file image, and each file of a
+// multi-file .cue. The first version had ONE static 16 KB buffer and attached it to the
+// main handle only, so every CDDA track read went through newlib's 1 KB default: three
+// underlying reads per 2352-byte sector. The size follows the CdBuffer setting (16, 64
+// or 256 KB; a bigger buffer means fewer, longer SD/USB transactions on a sequential
+// stream, and more wasted read-ahead on a random one) and the memory comes from MEM2,
+// which a stdio buffer does not need MEM1's speed for. Sized at open, so a change of the
+// setting takes effect when the next game is loaded.
+#define CD_MAX_STDIO_BUFS (MAXTRACKS + 3)
+static void *cd_stdio_bufs[CD_MAX_STDIO_BUFS];
+static int cd_stdio_buf_count;
+
+static size_t cd_stdio_buffer_bytes(void)
+{
+	switch (cdBuffer) {
+	case CD_BUFFER_64K:  return 64 * 1024;
+	case CD_BUFFER_256K: return 256 * 1024;
+	default:             return 16 * 1024;
+	}
+}
+
+static void cd_attach_stdio_buffer(FILE *f)
 {
 #if !defined(fopen) // no stdio redirect
-	static char buf[16 * 1024];
-	if (f) {
-		int r;
-		errno = 0;
-		r = setvbuf(f, buf, _IOFBF, sizeof(buf));
-		if (r)
-			SysPrintf("cdriso: setvbuf %d %d\n", r, errno);
+	if (f && cd_stdio_buf_count < CD_MAX_STDIO_BUFS) {
+		size_t bytes = cd_stdio_buffer_bytes();
+		void *buf = _mem2_memalign(32, bytes);
+		if (buf) {
+			int r;
+			errno = 0;
+			r = setvbuf(f, buf, _IOFBF, bytes);
+			if (r) {
+				SysPrintf("cdriso: setvbuf %d %d\n", r, errno);
+				_mem2_free(buf);
+			} else
+				cd_stdio_bufs[cd_stdio_buf_count++] = buf;
+		}
 	}
 #endif
 	// A freshly (re)opened stream invalidates whatever position the seek
@@ -191,6 +230,15 @@ static void set_static_stdio_buffer(FILE *f)
 	// address would otherwise skip a seek that's actually needed.
 	cdimg_seek_file = NULL;
 	cdimg_seek_pos = -1;
+}
+
+/* Only after every handle that used one has been fclose()d. */
+static void cd_release_stdio_buffers(void)
+{
+	int i;
+	for (i = 0; i < cd_stdio_buf_count; i++)
+		_mem2_free(cd_stdio_bufs[i]);
+	cd_stdio_buf_count = 0;
 }
 
 static int cdimg_seek(FILE *f, long pos)
@@ -240,6 +288,167 @@ static void cdimg_seek_advance(FILE *f, long pos, int nread)
 		cdimg_seek_file = NULL;
 		cdimg_seek_pos = -1;
 	}
+}
+
+/* Read-ahead for raw images (bin/cue and mode-1 .iso).
+ *
+ * The emulated CD-ROM asks for one sector at a time, and on real hardware that read is a
+ * synchronous SD or USB transaction on the emulator thread: the stdio buffer turns it into
+ * one transaction every 7 (16 KB) to 108 (256 KB) sectors, but that transaction still
+ * stalls the emulated CPU for as long as the card takes. Games stream from disc during
+ * exactly the moments that are already expensive (level loads, FMV, XA music), so the
+ * stall lands on top of the work.
+ *
+ * With CdPrefetch on, a second thread owns a second FILE* on the same image and keeps a
+ * ring of the PF_SLOTS sectors after the emulator's last read filled. The emulator's read
+ * becomes a memcpy from the ring when the sector is there, and the thread is kicked after
+ * every read so it stays ahead. It runs at a HIGHER priority than the emulator thread
+ * (PF_PRIO, above the default 64): the frame limiter busy-waits, so a lower-priority
+ * thread would never run; a higher-priority one preempts just long enough to issue the
+ * read, then blocks in the driver's I/O wait and gives the CPU back. libfat serialises
+ * the two handles with its partition mutex and newlib's FILE locking keeps the streams
+ * apart, so no lock of our own is needed. Single producer, single consumer, one core:
+ * each slot carries its byte position as a tag, set to -1 while the thread writes it and
+ * checked again after the emulator copies it out, so a slot overwritten mid-copy is
+ * simply treated as a miss.
+ *
+ * Dolphin backs the SD card with a host file, so its reads never stall; this thread can
+ * only be judged on hardware (perf.log `cd:` line: pf_hit/pf_miss/pf_reads). Off by
+ * default until that has been done. */
+#define PF_SLOTS 32
+#define PF_PRIO  66
+typedef struct {
+	volatile long pos;                       /* byte position in the image, -1 = empty/being written */
+	unsigned char data[CD_FRAMESIZE_RAW];
+} pf_slot_t;
+static pf_slot_t *pf_ring;
+static FILE *pf_handle;
+static lwp_t pf_thread = LWP_THREAD_NULL;
+static sem_t pf_sem = LWP_SEM_NULL;
+static volatile int pf_active, pf_quit;
+static volatile long pf_want;                /* the position after the emulator's last read */
+static int pf_secbytes;                      /* bytes per sector in this image: 2352 or 2048 */
+static long pf_filepos = -1;                 /* where pf_handle's stream is, to skip redundant seeks */
+static char cd_main_path[MAXPATHLEN];        /* the file cdHandle is open on (the .bin may differ from the .cue) */
+
+static int pf_read_at(long pos, unsigned char *dst)
+{
+	if (pos != pf_filepos && fseek(pf_handle, pos, SEEK_SET)) {
+		pf_filepos = -1;
+		return 0;
+	}
+	if (fread(dst, 1, pf_secbytes, pf_handle) != (size_t)pf_secbytes) {
+		pf_filepos = -1;
+		return 0;
+	}
+	pf_filepos = pos + pf_secbytes;
+	return 1;
+}
+
+static void *pf_main(void *arg)
+{
+	(void)arg;
+	while (!pf_quit) {
+		long next;
+		LWP_SemWait(pf_sem);
+		if (pf_quit)
+			break;
+		next = pf_want;
+		while (!pf_quit) {
+			long want = pf_want;
+			pf_slot_t *s;
+			if (next < want)
+				next = want;                                            /* the emulator jumped ahead: follow it */
+			if (next - want >= (long)(PF_SLOTS - 1) * pf_secbytes)
+				break;                                                  /* far enough ahead; sleep until kicked */
+			s = &pf_ring[(unsigned long)(next / pf_secbytes) % PF_SLOTS];
+			if (s->pos != next) {
+				s->pos = -1;
+				if (!pf_read_at(next, s->data))
+					break;                                              /* end of image or error: wait for the next kick */
+				s->pos = next;
+				PERF_INC(cd_pf_reads);
+			}
+			next += pf_secbytes;
+		}
+	}
+	return NULL;
+}
+
+static void pf_kick(long pos)
+{
+	pf_want = pos + pf_secbytes;
+	LWP_SemPost(pf_sem);
+}
+
+/* Copy the sector at pos out of the ring if it is there. Kicks the thread either way. */
+static int pf_take(long pos, void *dest)
+{
+	pf_slot_t *s = &pf_ring[(unsigned long)(pos / pf_secbytes) % PF_SLOTS];
+	if (s->pos == pos) {
+		memcpy(dest, s->data, pf_secbytes);
+		if (s->pos == pos) {
+			PERF_INC(cd_pf_hit);
+			pf_kick(pos);
+			return 1;
+		}
+	}
+	PERF_INC(cd_pf_miss);
+	pf_kick(pos);
+	return 0;
+}
+
+static void pf_stop(void)
+{
+	if (!pf_active)
+		return;
+	pf_active = 0;
+	pf_quit = 1;
+	LWP_SemPost(pf_sem);
+	LWP_JoinThread(pf_thread, NULL);
+	pf_thread = LWP_THREAD_NULL;
+	LWP_SemDestroy(pf_sem);
+	pf_sem = LWP_SEM_NULL;
+	if (pf_handle) {
+		fclose(pf_handle);          /* its stdio buffer is released with the others in ISOclose */
+		pf_handle = NULL;
+	}
+	if (pf_ring) {
+		_mem2_free(pf_ring);
+		pf_ring = NULL;
+	}
+}
+
+static void pf_start(const char *path, int secbytes)
+{
+	int i;
+	if (pf_active || !cdPrefetch)
+		return;
+	pf_ring = (pf_slot_t *)_mem2_memalign(32, sizeof(pf_slot_t) * PF_SLOTS);
+	pf_handle = fopen(path, "rb");
+	if (pf_ring == NULL || pf_handle == NULL) {
+		SysPrintf("cdriso: prefetch not started\n");
+		goto fail;
+	}
+	cd_attach_stdio_buffer(pf_handle);
+	for (i = 0; i < PF_SLOTS; i++)
+		pf_ring[i].pos = -1;
+	pf_secbytes = secbytes;
+	pf_filepos = 0;
+	pf_want = 0;
+	pf_quit = 0;
+	if (LWP_SemInit(&pf_sem, 0, 1) != 0)
+		goto fail;
+	if (LWP_CreateThread(&pf_thread, pf_main, NULL, NULL, 16 * 1024, PF_PRIO) != 0) {
+		LWP_SemDestroy(pf_sem);
+		pf_sem = LWP_SEM_NULL;
+		goto fail;
+	}
+	pf_active = 1;
+	return;
+fail:
+	if (pf_handle) { fclose(pf_handle); pf_handle = NULL; }
+	if (pf_ring) { _mem2_free(pf_ring); pf_ring = NULL; }
 }
 
 // this function tries to get the .toc file of the given .bin
@@ -525,6 +734,7 @@ static int parsecue(const char *isofile) {
 				tmp = tmpb;
 			strncpy(incue_fname, tmp, incue_max_len);
 			ti[numtracks + 1].handle = fopen(filepath, "rb");
+			cd_attach_stdio_buffer(ti[numtracks + 1].handle);
 
 			// update global offset if this is not first file in this .cue
 			if (numtracks + 1 > 1) {
@@ -548,7 +758,9 @@ static int parsecue(const char *isofile) {
 				// user selected .cue/.cdX as image file, use it's data track instead
 				fclose(cdHandle);
 				cdHandle = fopen(filepath, "rb");
-				set_static_stdio_buffer(cdHandle);
+				cd_attach_stdio_buffer(cdHandle);
+				/* the read-ahead thread opens its own handle on this file, not the .cue */
+				strncpy(cd_main_path, filepath, sizeof(cd_main_path) - 1);
 			}
 		}
 	}
@@ -1042,13 +1254,20 @@ static int handlechd(const char *isofile) {
 
 	chd_img->header = chd_get_header(chd_img->chd);
 
-	chd_img->buffer = malloc(chd_img->header->hunkbytes * 2);
+	chd_img->ways = cdChdHunks == CD_CHD_HUNKS_8 ? 8 : cdChdHunks == CD_CHD_HUNKS_4 ? 4 : 2;
+	chd_img->buffer = _mem2_malloc(chd_img->header->hunkbytes * chd_img->ways);
 	if (chd_img->buffer == NULL)
 		goto fail_io;
 
 	chd_img->sectors_per_hunk = chd_img->header->hunkbytes / (CD_FRAMESIZE_RAW + SUB_FRAMESIZE);
-	chd_img->current_hunk[0] = (unsigned int)-1;
-	chd_img->current_hunk[1] = (unsigned int)-1;
+	{
+		unsigned int w;
+		for (w = 0; w < CHD_MAX_WAYS; w++) {
+			chd_img->current_hunk[w] = (unsigned int)-1;
+			chd_img->hunk_stamp[w] = 0;
+		}
+		chd_img->stamp = 0;
+	}
 
 	cddaBigEndian = FALSE;
 
@@ -1130,9 +1349,10 @@ static int opensubfile(const char *isoname) {
 	subHandle = fopen(subname, "rb");
 	if (subHandle == NULL)
 		return -1;
+	cd_attach_stdio_buffer(subHandle);
 
 	// A freshly opened handle could reuse a stale-tracked FILE* address --
-	// see the identical comment on set_static_stdio_buffer().
+	// see the identical comment on cd_attach_stdio_buffer().
 	cdimg_seek_file = NULL;
 	cdimg_seek_pos = -1;
 
@@ -1168,6 +1388,11 @@ static int cdread_normal(FILE *f, unsigned int base, void *dest, int sector)
 	int ret;
 	long pos = base + sector * CD_FRAMESIZE_RAW;
 	unsigned long long t0 = perf_now_us();
+	int prefetched = pf_active && f == cdHandle;
+	if (prefetched && pf_take(pos, dest)) {
+		perf_cd_done(t0, CD_FRAMESIZE_RAW);
+		return CD_FRAMESIZE_RAW;
+	}
 	if (cdimg_seek(f, pos))
 		goto fail_io;
 	ret = fread(dest, 1, CD_FRAMESIZE_RAW, f);
@@ -1350,37 +1575,52 @@ static unsigned char *chd_get_sector(unsigned int current_buffer, unsigned int s
 		+ sector_in_hunk * (CD_FRAMESIZE_RAW + SUB_FRAMESIZE);
 }
 
+/* Find the hunk in the cache, or decode it into the least recently used way.
+ * Returns the way, or -1 when chd_read failed. */
+static int chd_hunk_way(unsigned int hunk)
+{
+	unsigned int w, lru = 0;
+	unsigned long long ct0;
+
+	for (w = 0; w < chd_img->ways; w++) {
+		if (chd_img->current_hunk[w] == hunk) {
+			PERF_INC(chd_hit);
+			chd_img->hunk_stamp[w] = ++chd_img->stamp;
+			return (int)w;
+		}
+	}
+	for (w = 1; w < chd_img->ways; w++)
+		if (chd_img->hunk_stamp[w] < chd_img->hunk_stamp[lru])
+			lru = w;
+
+	PERF_INC(chd_miss);
+	ct0 = perf_now_us();
+	if (chd_read(chd_img->chd, hunk, chd_img->buffer +
+		lru * chd_img->header->hunkbytes) != CHDERR_NONE) {
+		PERF_INC(chd_err);
+		chd_img->current_hunk[lru] = (unsigned int)-1;
+		return -1;
+	}
+	PERF_ADD(chd_us, perf_now_us() - ct0);
+	chd_img->current_hunk[lru] = hunk;
+	chd_img->hunk_stamp[lru] = ++chd_img->stamp;
+	return (int)lru;
+}
+
 static int cdread_chd(FILE *f, unsigned int base, void *dest, int sector)
 {
-	int hunk;
+	int way;
 	unsigned long long t0 = perf_now_us();
 
 	sector += base;
 
-	hunk = sector / chd_img->sectors_per_hunk;
 	chd_img->sector_in_hunk = sector % chd_img->sectors_per_hunk;
-
-	if (hunk == chd_img->current_hunk[0]) {
-		PERF_INC(chd_hit);
-		chd_img->current_buffer = 0;
+	way = chd_hunk_way(sector / chd_img->sectors_per_hunk);
+	if (way < 0) {
+		perf_cd_done(t0, -1);
+		return -1;
 	}
-	else if (hunk == chd_img->current_hunk[1]) {
-		PERF_INC(chd_hit);
-		chd_img->current_buffer = 1;
-	}
-	else
-	{
-		unsigned long long ct0 = perf_now_us();
-		PERF_INC(chd_miss);
-		if (chd_read(chd_img->chd, hunk, chd_img->buffer +
-			chd_img->current_buffer * chd_img->header->hunkbytes) != CHDERR_NONE) {
-			PERF_INC(chd_err);
-			perf_cd_done(t0, -1);
-			return -1;
-		}
-		PERF_ADD(chd_us, perf_now_us() - ct0);
-		chd_img->current_hunk[chd_img->current_buffer] = hunk;
-	}
+	chd_img->current_buffer = (unsigned int)way;
 
 	if (dest != cdbuffer) // copy avoid HACK
 		memcpy(dest, chd_get_sector(chd_img->current_buffer, chd_img->sector_in_hunk),
@@ -1392,29 +1632,17 @@ static int cdread_chd(FILE *f, unsigned int base, void *dest, int sector)
 static int cdread_sub_chd(FILE *f, int sector)
 {
 	unsigned int sector_in_hunk;
-	unsigned int buffer;
-	int hunk;
+	int way;
 
 	if (!subChanMixed)
 		return -1;
 
-	hunk = sector / chd_img->sectors_per_hunk;
 	sector_in_hunk = sector % chd_img->sectors_per_hunk;
+	way = chd_hunk_way(sector / chd_img->sectors_per_hunk);
+	if (way < 0)
+		return -1;
 
-	if (hunk == chd_img->current_hunk[0])
-		buffer = 0;
-	else if (hunk == chd_img->current_hunk[1])
-		buffer = 1;
-	else
-	{
-		buffer = chd_img->current_buffer ^ 1;
-		if (chd_read(chd_img->chd, hunk, chd_img->buffer +
-			buffer * chd_img->header->hunkbytes) != CHDERR_NONE)
-			return -1;
-		chd_img->current_hunk[buffer] = hunk;
-	}
-
-	memcpy(subbuffer, chd_get_sector(buffer, sector_in_hunk) + CD_FRAMESIZE_RAW, SUB_FRAMESIZE);
+	memcpy(subbuffer, chd_get_sector((unsigned int)way, sector_in_hunk) + CD_FRAMESIZE_RAW, SUB_FRAMESIZE);
 	return SUB_FRAMESIZE;
 }
 #endif // USE_LIBCHDR
@@ -1425,9 +1653,13 @@ static int cdread_2048(FILE *f, unsigned int base, void *dest, int sector)
 	long pos = base + sector * 2048;
 	unsigned long long t0 = perf_now_us();
 
-	cdimg_seek(f, pos);
-	ret = fread((char *)dest + 12 * 2, 1, 2048, f);
-	cdimg_seek_advance(f, pos, ret);
+	if (pf_active && f == cdHandle && pf_take(pos, (char *)dest + 12 * 2)) {
+		ret = 2048;
+	} else {
+		cdimg_seek(f, pos);
+		ret = fread((char *)dest + 12 * 2, 1, 2048, f);
+		cdimg_seek_advance(f, pos, ret);
+	}
 	perf_cd_done(t0, 12*2 + ret);
 
 	// not really necessary, fake mode 2 header
@@ -1494,7 +1726,8 @@ static long CALLBACK ISOopen(void) {
 		return -1;
 	}
 
-	set_static_stdio_buffer(cdHandle);
+	cd_attach_stdio_buffer(cdHandle);
+	strncpy(cd_main_path, GetIsoFile(), sizeof(cd_main_path) - 1);
 	sprintf(image_str, "Loaded CD Image: %s", GetIsoFile());
 
 	cddaBigEndian = TRUE;
@@ -1571,7 +1804,8 @@ static long CALLBACK ISOopen(void) {
 			bin_filename = alt_bin_filename;
 			fclose(cdHandle);
 			cdHandle = tmpf;
-			set_static_stdio_buffer(cdHandle);
+			cd_attach_stdio_buffer(cdHandle);
+			strncpy(cd_main_path, alt_bin_filename, sizeof(cd_main_path) - 1);
 			fseeko(cdHandle, 0, SEEK_END);
 
 			isoFile.size = ftello(cdHandle);
@@ -1608,7 +1842,14 @@ static long CALLBACK ISOopen(void) {
 	// make sure we have another handle open for cdda
 	if (numtracks > 1 && ti[1].handle == NULL) {
 		ti[1].handle = fopen(bin_filename, "rb");
+		cd_attach_stdio_buffer(ti[1].handle);
 	}
+
+	/* Raw images only: the compressed formats decode a block at a time and hold it. */
+	if (cdimg_read_func == cdread_normal)
+		pf_start(cd_main_path, CD_FRAMESIZE_RAW);
+	else if (cdimg_read_func == cdread_2048)
+		pf_start(cd_main_path, 2048);
 
 	return 0;
 }
@@ -1616,6 +1857,7 @@ static long CALLBACK ISOopen(void) {
 static long CALLBACK ISOclose(void) {
 	int i;
 
+	pf_stop();
 	if (cdHandle != NULL) {
 		fclose(cdHandle);
 		cdHandle = NULL;
@@ -1638,7 +1880,7 @@ static long CALLBACK ISOclose(void) {
 #ifdef USE_LIBCHDR
 	if (chd_img != NULL) {
 		chd_close(chd_img->chd);
-		free(chd_img->buffer);
+		_mem2_free(chd_img->buffer);
 		free(chd_img);
 		chd_img = NULL;
 	}
@@ -1652,6 +1894,7 @@ static long CALLBACK ISOclose(void) {
 	}
 	numtracks = 0;
 	ti[1].type = 0;
+	cd_release_stdio_buffers();
 	UnloadSBI();
 
 	memset(cdbuffer, 0, sizeof(cdbuffer));
