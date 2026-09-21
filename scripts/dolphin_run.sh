@@ -18,6 +18,7 @@
 #                         reimplementations. Needed for any custom ucode -- HLE matches
 #                         ucodes by hash and falls back to a WRONG one otherwise (libogc's
 #                         AESND is not on its list). Uses the DSP ROMs in Sys/GC.
+#          OTHER_DOLPHIN_OK=1  run beside another project's Dolphin (own -u profile); the kill is PID-scoped
 #          AUDIO_DUMP=1   write the mixed audio to User/Dump/Audio and collect it; compare
 #                         two runs with scripts/wav_compare.py
 #          DOLPHIN_ARGS   extra arguments appended verbatim, e.g. "-C Graphics.Settings.OverlayStats=True"
@@ -38,8 +39,16 @@ D="/c/tools/Dolphin-x64"; S="$D/User/Load/WiiSDSync/wiisxrx"; P="$D/User/Load/Wi
 SP="$(cd "$(dirname "$0")" && pwd)"   # sheet.py and sdimage_read.py live next to this script
 DOL="${DOL:-/c/projects/WiiStation/Gamecube/WiiSXRX_debug.dol}"
 
+# Another Dolphin already running normally means the SD image is locked (and a bare taskkill
+# would have hit it). The kill below is PID-scoped, so with OTHER_DOLPHIN_OK=1 a run may go ahead
+# beside an instance that uses its OWN user directory (-u ...: its own WiiSD.raw and Dump/), e.g.
+# another project's dev session. Never set it when that instance shares this install's User dir.
 if tasklist 2>/dev/null | grep -qi "Dolphin.exe"; then
-  echo "refusing to start: a Dolphin instance is already running (the SD image would be locked and the kill below would hit it)"; exit 2
+  if [ -n "${OTHER_DOLPHIN_OK:-}" ]; then
+    echo "note: another Dolphin is running (OTHER_DOLPHIN_OK set): timing shares the CPU with it"
+  else
+    echo "refusing to start: a Dolphin instance is already running (the SD image would be locked and the kill below would hit it); OTHER_DOLPHIN_OK=1 overrides for an instance with its own -u profile"; exit 2
+  fi
 fi
 [ -f "$DOL" ] || { echo "no such .dol: $DOL"; exit 2; }
 mkdir -p "$OUT/frames"
