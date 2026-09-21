@@ -27,6 +27,7 @@ namespace menu {
 TextBox::TextBox(char** label, float x, float y, float scale, bool centered)
 		: centered(centered),
 		  bold(false),
+		  rightAligned(false),
 		  textBoxText(label),
 		  x(x),
 		  y(y),
@@ -61,13 +62,22 @@ void TextBox::setBold(bool b)
 	bold = b;
 }
 
+void TextBox::setRightAligned(bool r)
+{
+	rightAligned = r;
+}
+
 void TextBox::drawComponent(Graphics& gfx)
 {
+	int left = (int) x;
+	if (rightAligned)
+		left -= IplFont::getInstance().getStringWidth(*textBoxText, scale);
+
 	IplFont::getInstance().drawInit(labelColor);
-	IplFont::getInstance().drawString((int) x, (int) y, *textBoxText, scale, centered);
+	IplFont::getInstance().drawString(left, (int) y, *textBoxText, scale, centered);
 	/* One weight in the font file, so bold is the same string drawn a pixel to the right. */
 	if (bold)
-		IplFont::getInstance().drawString((int) x + 1, (int) y, *textBoxText, scale, centered);
+		IplFont::getInstance().drawString(left + 1, (int) y, *textBoxText, scale, centered);
 }
 
 } //namespace menu 

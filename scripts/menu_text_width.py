@@ -1,40 +1,93 @@
 #!/usr/bin/env python3
-"""Check the menu's text and the Settings tabs' grid against the 640-pixel screen.
+"""Check the menu's layout against the rules in Gamecube/menu/MenuLayout.h.
 
-The menu font is a bitmap font: fonts/En.dat holds one 1152-byte tile per glyph,
-preceded by the glyph's own advance width.  IplFont::drawString advances by
-(width + 1) * scale per character and IplFont::getStringWidth adds 5, so the same
-arithmetic here gives the exact pixel width the Wii will draw.  Nothing clips a
-TextBox or a Button label, so text that is too long simply runs off.
+Nothing in this menu clips: a button or a string placed past an edge is simply drawn off
+the screen, a label wider than its button is drawn straight over its neighbours, and the
+spinning logo is drawn over whatever a frame left in its corner. So the geometry is worth
+checking without booting anything, which is what this does.
 
-Two checks:
-  - the Options pages' help lines fit their columns (OptionsFrame.cpp);
-  - every Settings tab keeps the same grid, and no row of buttons overlaps itself or
-    runs off the right (SettingsFrame.cpp).  The grid is one x that all the left-hand
-    labels are centred on and one x that the first button of every labelled row starts
-    at, which is what makes the five tabs look alike.
+The font is a bitmap font -- fonts/En.dat holds one 1152-byte tile per glyph, preceded by
+that glyph's advance width -- and IplFont::drawString advances by (width + 1) * scale per
+character while getStringWidth adds 5. Doing the same arithmetic here gives the exact
+pixel width the Wii will draw.
+
+What it checks:
+
+  Settings tabs (SettingsFrame.cpp)
+    - a row with a left-hand label starts at TAB_BUTTON_X, or, when it cannot fit there,
+      as far right as it can;
+    - a row of only buttons is centred on the screen;
+    - the gaps between the buttons of one row are all equal;
+    - every left-hand label is centred on TAB_LABEL_CX;
+    - every label a button can show fits inside that button;
+    - nothing comes within MENU_EDGE of an edge, or enters the logo's corner.
+
+  Options pages (OptionsFrame.cpp)
+    - each help line fits its column, allowing for the logo's corner on the lower lines;
+    - each help entry starts with a capital.
 
     python scripts/menu_text_width.py            # check, exit 1 on any problem
-    python scripts/menu_text_width.py -v         # also print every line and row
+    python scripts/menu_text_width.py -v         # print every row and line as well
 """
 import os, re, struct, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SRC = os.path.join(ROOT, 'Gamecube', 'menu', 'OptionsFrame.cpp')
+OPTS = os.path.join(ROOT, 'Gamecube', 'menu', 'OptionsFrame.cpp')
 TABS = os.path.join(ROOT, 'Gamecube', 'menu', 'SettingsFrame.cpp')
+LAYOUT = os.path.join(ROOT, 'Gamecube', 'menu', 'MenuLayout.h')
 FONT = os.path.join(ROOT, 'fonts', 'En.dat')
 RECORD = 1152 + 4          # [u16 code][u8 ?][u8 width][1152-byte tile]
-SCREEN_RIGHT = 630.0       # leave a few pixels of margin
 
-TAB_LABEL_CX = 150.0       # the Saves tab's grid, which the others were put on
-TAB_BUTTON_X = 295.0
-# Rows of buttons with no left-hand label: they are centred across the tab instead, so
-# they are exempt from the column. Keyed by FRAME_BUTTONS index of a button in the row.
-UNLABELLED_ROWS = {30, 31, 73, 74, 75}
-# Entries that stay in the tables so that no later index moves, but are never shown:
-# the CPU core and GPU plugin (now on the Plugins page) and the three spare audio slots.
+# The rows of each Settings tab, by FRAME_BUTTONS index. The tables cannot say this: all
+# five tabs share one y grid, so buttons from different tabs sit on the same line and
+# nothing in the table distinguishes them. `label` is the FRAME_TEXTBOXES index of the
+# row's left-hand label, or None for a row of only buttons, which is centred instead.
+TAB_ROWS = [
+    ('General', [73, 74, 75],  None),
+    ('General', [7, 8, 9, 10], 1),
+    ('General', [11, 12, 13],  2),
+    ('General', [54],          21),
+    ('General', [55, 56],      22),
+    ('General', [14, 15, 62],  3),
+    ('Video',   [16, 17],      4),
+    ('Video',   [18, 19, 63],  5),
+    ('Video',   [20, 21],      6),
+    ('Video',   [22, 23, 57],  7),
+    ('Video',   [25, 26, 27],  8),
+    ('Video',   [28, 29, 24],  9),
+    ('Input',   [30, 31],      None),
+    ('Input',   [32, 33, 59],  10),
+    ('Input',   [34, 35],      11),
+    ('Input',   [36, 37],      12),
+    ('Input',   [38],          13),
+    ('Audio',   [39, 40, 41],  14),
+    ('Audio',   [45],          17),
+    ('Audio',   [67, 68],      25),
+    ('Audio',   [69, 70, 71],  26),
+    ('Audio',   [72],          None),
+    ('Saves',   [46, 47, 48, 49], 18),
+    ('Saves',   [50, 51],      19),
+    ('Saves',   [52, 53],      20),
+    ('Saves',   [60, 61],      23),
+]
+TAB_STRIP = [0, 1, 2, 3, 4]          # the five tab buttons, their own centred row
+# In the tables so that no later index moves, but never shown on any tab.
 HIDDEN_BUTTONS = {5, 6, 58, 64, 65, 66, 42, 43, 44}
 HIDDEN_LABELS = {0, 15, 16, 24}
+# Buttons whose label is not the string their table entry names: activateSubmenu or a
+# click handler swaps in one of a set, and the button has to fit all of them.
+CYCLING = {
+    22: ['4:3', '16:9', 'Force 16:9'],                  # FRAME_STRINGS[27 + screenMode]
+    28: ['Default', 'Near', 'Bilinear'],                # TEXTURE_FILTER_STRINGS
+    38: ['Default', '1', '2', '3', '4'],                # Auto Load Slot
+    45: ['Simple', 'Gaussian'],                         # FRAME_STRINGS[46 + spuInterpolation]
+    54: ['En', 'Chs', 'Kr', 'Es', 'Pte', 'It', 'De',    # LANG_STRINGS
+         'Cht', 'Jp', 'Fr', 'Br', 'Ca', 'Tu'],
+    59: ['Lightgun', 'GunCon', 'Justifier', 'Mouse'],   # FRAME_STRINGS[70 + lightGun]
+}
+
+STRING_TABLES = ('FRAME_STRINGS', 'LANG_STRINGS', 'GPU_PLUGIN_STRINGS', 'TEXTURE_FILTER_STRINGS')
+BUTTON_LINE = '{\tNULL'
 
 
 def glyph_widths(path):
@@ -46,96 +99,193 @@ def glyph_widths(path):
     return w
 
 
-def defines(src):
+def defines(*paths):
     d = {}
-    for name, value in re.findall(r'^#define\s+(\w+)\s+([0-9.]+)', src, re.M):
-        d[name] = float(value)
+    for p in paths:
+        text = open(p, encoding='utf-8').read()
+        for name, value in re.findall(r'^#define\s+(\w+)\s+([0-9.]+)\s*(?:/\*|//|$)', text, re.M):
+            d[name] = float(value)
     return d
 
 
-def tab_rows():
-    """Every FRAME_BUTTONS entry, in table order, as (index, x, y, width), plus every
-    FRAME_TEXTBOXES entry as (index, x, y). Fields are found by their decimal point:
-    x/y/width/height are the only ones written that way."""
+def _button_body(src):
+    return src[src.index('} FRAME_BUTTONS[NUM_FRAME_BUTTONS] ='):src.index('struct TextBoxInfo')]
+
+
+def button_labels():
+    """Every label every button can show, by index."""
     src = open(TABS, encoding='utf-8').read()
-    def table(opener, closer, n):
-        body = src[src.index(opener) + len(opener):src.index(closer)]
-        out = []
+    strings = {}
+    for name in STRING_TABLES:
+        pattern = 'static char ' + name + r'\[[0-9]+\]\[[0-9]+\] =\s*\{(.*?)\n\s*\};'
+        m = re.search(pattern, src, re.S)
+        if m:
+            strings[name] = re.findall(r'"((?:[^"\\]|\\.)*)"', m.group(1))
+    out, idx = {}, -1
+    for line in _button_body(src).splitlines():
+        if not line.strip().startswith(BUTTON_LINE):
+            continue
+        idx += 1
+        if idx in CYCLING:
+            out[idx] = CYCLING[idx]
+            continue
+        m = re.search(r'(\w+)\[([0-9]+)\]', line.split('//')[0])
+        out[idx] = [strings[m.group(1)][int(m.group(2))]] if m and m.group(1) in strings else []
+    return out
+
+
+def tables():
+    """FRAME_BUTTONS as {index: (x, y, w, h)} and FRAME_TEXTBOXES as {index: (x, y)}.
+    Fields are found by their decimal point: x/y/width/height are the only ones written
+    that way, and the focus indices beside them are plain integers."""
+    src = open(TABS, encoding='utf-8').read()
+
+    def table(body, n):
+        out = {}
         for line in body.splitlines():
-            if not line.strip().startswith('{\tNULL'):
+            if not line.strip().startswith(BUTTON_LINE):
                 continue
             f = [t for t in line.split('\t') if re.match(r'^\s*[0-9]+\.[0-9]+,$', t)]
-            out.append([float(t.strip().rstrip(',')) for t in f[:n]])
+            out[len(out)] = tuple(float(t.strip().rstrip(',')) for t in f[:n])
         return out
-    return (table('} FRAME_BUTTONS[NUM_FRAME_BUTTONS] =', 'struct TextBoxInfo', 4),
-            table('} FRAME_TEXTBOXES[NUM_FRAME_TEXTBOXES] =', 'SettingsFrame::SettingsFrame()', 2))
+
+    a = src.index('} FRAME_TEXTBOXES[NUM_FRAME_TEXTBOXES] =')
+    return (table(_button_body(src), 4),
+            table(src[a:src.index('SettingsFrame::SettingsFrame()', a)], 2))
 
 
-def check_tabs(verbose):
-    """The five tabs share one y grid, so buttons from different tabs sit on the same
-    line and cannot be told apart from the table alone. That is enough for the two
-    things worth checking: nothing runs off the right, and every line that carries a
-    labelled row has a button starting the column."""
-    buttons, labels = tab_rows()
-    bad = []
-    rows = {}
-    for i, (x, y, wd, ht) in enumerate(buttons):
-        if y < 60 or i in HIDDEN_BUTTONS:
-            continue                      # the tab strip, and entries never shown
-        rows.setdefault(y, []).append((i, x, wd))
-    for y in sorted(rows):
-        r = sorted(rows[y], key=lambda t: t[1])
-        right = max(x + wd for _, x, wd in r)
-        note = ''
-        for i, x, wd in r:
-            if x + wd > 640.0:
-                bad.append('button %d at y=%g ends at %g, past the right edge' % (i, y, x + wd))
-                note = '   <== off screen'
-        if not any(x == TAB_BUTTON_X for _, x, _ in r) \
-           and not any(i in UNLABELLED_ROWS for i, _, _ in r):
-            bad.append('no button at y=%g starts the column at %g' % (y, TAB_BUTTON_X))
-            note = '   <== off the grid'
+def right_edge(d, bottom):
+    """How far right something whose lowest pixel is at `bottom` may reach."""
+    if bottom > d['MENU_H'] - d['MENU_LOGO_H']:
+        return d['MENU_W'] - d['MENU_LOGO_W'] - d['MENU_EDGE']
+    return d['MENU_W'] - d['MENU_EDGE']
+
+
+def check_tabs(d, w, verbose, bad):
+    buttons, labels = tables()
+    texts = button_labels()
+    space = w[' ']
+    px = lambda s: sum(w.get(c, space) + 1 for c in s) + 5
+
+    def check_row(tab, idxs, label):
+        centred = label is None
+        geom = [buttons[i] for i in idxs]
+        y, h = geom[0][1], geom[0][3]
+        limit = right_edge(d, y + h)
+        x0, note = geom[0][0], ''
+
+        # The gaps within a row must all be the same; which value is the row's own
+        # business, since the tab strip is deliberately airier than a row of settings.
+        gaps = [round(b[0] - (a[0] + a[2]), 2) for a, b in zip(geom, geom[1:])]
+        if gaps and len(set(gaps)) > 1:
+            bad.append('%s row at y=%g has gaps %s between its buttons; they must be equal'
+                       % (tab, y, gaps))
+            note = '  <== uneven gaps'
+        gap = gaps[0] if gaps else d['TAB_GAP']
+        total = sum(g[2] for g in geom) + gap * (len(geom) - 1)
+
+        for i, g in zip(idxs, geom):
+            for t in texts.get(i, []):
+                if px(t) > g[2]:
+                    bad.append('%s row at y=%g: button %d is %g wide but %r needs %d'
+                               % (tab, y, i, g[2], t, px(t)))
+                    note = '  <== label too wide'
+
+        if centred:
+            want0 = round((d['MENU_W'] - total) / 2)
+            if abs(x0 - want0) > 1:
+                bad.append('%s row at y=%g has no label, so it should be centred at x=%g, not %g'
+                           % (tab, y, want0, x0))
+                note = '  <== not centred'
+        else:
+            want0 = d['TAB_BUTTON_X'] if d['TAB_BUTTON_X'] + total <= limit else limit - total
+            if abs(x0 - want0) > 0.01:
+                bad.append('%s row at y=%g starts at %g; it should start at %g'
+                           % (tab, y, x0, want0))
+                note = '  <== off the grid'
+            lx = labels[label][0]
+            if lx != d['TAB_LABEL_CX']:
+                bad.append('%s row at y=%g: label %d is centred on %g, not %g'
+                           % (tab, y, label, lx, d['TAB_LABEL_CX']))
+                note = '  <== label off the grid'
+
+        if x0 < d['MENU_EDGE']:
+            bad.append('%s row at y=%g starts at %g, inside the %g margin'
+                       % (tab, y, x0, d['MENU_EDGE']))
+            note = '  <== past the left edge'
+        if x0 + total > limit + 0.01:
+            corner = " (the logo's corner)" if limit < d['MENU_W'] - d['MENU_EDGE'] else ''
+            bad.append('%s row at y=%g ends at %g, past %g%s' % (tab, y, x0 + total, limit, corner))
+            note = '  <== too far right'
         if verbose or note:
-            print('  y=%-4g right %3g  %s%s' % (y, right, ' '.join('%d@%g+%g' % t for t in r), note))
-    for i, (x, y) in enumerate(labels):
-        if i in HIDDEN_LABELS:
-            continue
-        if x != TAB_LABEL_CX:
-            bad.append('label %d is centred on %g, not %g' % (i, x, TAB_LABEL_CX))
-            print('  label %d centred on %g, not %g   <== off the grid' % (i, x, TAB_LABEL_CX))
-    print('%d Settings tab problem(s)' % len(bad))
-    return len(bad)
+            print('  %-8s y=%-4g %5.0f..%-5.0f of %-4.0f  %s%s'
+                  % (tab, y, x0, x0 + total, limit,
+                     ' '.join('%d@%g+%g' % (i, g[0], g[2]) for i, g in zip(idxs, geom)), note))
+
+    check_row('Tabs', TAB_STRIP, None)
+    for tab, idxs, label in TAB_ROWS:
+        check_row(tab, idxs, label)
+
+    listed = set(TAB_STRIP) | {i for _, idxs, _ in TAB_ROWS for i in idxs}
+    missing = sorted(set(buttons) - listed - HIDDEN_BUTTONS)
+    if missing:
+        bad.append('buttons %s are in the table but on no row above; add them to TAB_ROWS '
+                   'or to HIDDEN_BUTTONS' % missing)
+    on_a_row = {l for _, _, l in TAB_ROWS if l is not None}
+    for i in sorted(set(labels) - HIDDEN_LABELS - on_a_row):
+        bad.append('label %d is in the table but on no row above' % i)
+
+
+def check_help(d, w, verbose, bad):
+    src = open(OPTS, encoding='utf-8').read()
+    scale = d['HELP_SCALE']
+    line_h = 24.0 * scale
+    space = w[' ']
+    px = lambda s: (sum(w.get(c, space) + 1 for c in s) + 5) * scale
+
+    for name, body in re.findall(r'static const OptHelp (\w+)\[\] =\s*\{(.*?)\n\};', src, re.S):
+        entries = re.findall(r'\{\s*(NULL|"(?:[^"\\]|\\.)*")\s*,\s*"((?:[^"\\]|\\.)*)"\s*\}', body)
+        for n, (term, text) in enumerate(entries):
+            term = '' if term == 'NULL' else term[1:-1]
+            text = text.replace('\\"', '"')
+            y = d['HELP_Y0'] + n * d['HELP_DY']
+            limit = right_edge(d, y + line_h)
+            note = ''
+            if term:
+                left = d['HELP_TERM_R'] - px(term)      # right-aligned: it ends at TERM_R
+                if left < d['MENU_EDGE']:
+                    bad.append('%s line %d: term starts at %.0f, inside the margin'
+                               % (name, n, left))
+                    note = '  <== term too wide'
+            if (n == 0 or term) and text and text[0].isalpha() and not text[0].isupper():
+                bad.append('%s line %d starts lowercase: %r' % (name, n, text[:32]))
+                note = '  <== not capitalised'
+            end = d['HELP_TEXT_X'] + px(text) if text else d['HELP_TEXT_X']
+            if end > limit:
+                corner = " (the logo's corner)" if limit < d['MENU_W'] - d['MENU_EDGE'] else ''
+                bad.append('%s line %d ends at %.0f, past %.0f%s' % (name, n, end, limit, corner))
+                note = '  <== too wide'
+            if verbose or note:
+                print('  %-13s %2d y=%-4.0f %5.0f..%-5.0f of %-4.0f  %-17s %s%s'
+                      % (name, n, y, d['HELP_TEXT_X'], end, limit, term, text, note))
+        bottom = d['HELP_Y0'] + (len(entries) - 1) * d['HELP_DY'] + line_h
+        if bottom > d['MENU_H'] - d['MENU_EDGE']:
+            bad.append('%s has %d lines, whose last ends at %.0f, off the bottom'
+                       % (name, len(entries), bottom))
 
 
 def main():
     verbose = '-v' in sys.argv
-    src = open(SRC, encoding='utf-8').read()
+    d = defines(OPTS, LAYOUT)
     w = glyph_widths(FONT)
-    d = defines(src)
-    scale = d['HELP_SCALE']
-    space = w[' ']
-
-    def px(s):
-        return (sum(w.get(c, space) + 1 for c in s) + 5) * scale
-
-    budgets = [('term', d['HELP_X'], d['HELP_TEXT_X']),
-               ('text', d['HELP_TEXT_X'], SCREEN_RIGHT)]
-    bad = 0
-    for table in re.findall(r'static const OptHelp (\w+)\[\] =\s*\{(.*?)\n\};', src, re.S):
-        name, body = table
-        for term, text in re.findall(r'\{\s*(NULL|"(?:[^"\\]|\\.)*")\s*,\s*"((?:[^"\\]|\\.)*)"\s*\}', body):
-            term = '' if term == 'NULL' else term[1:-1]
-            for (kind, x0, x1), s in zip(budgets, (term, text)):
-                if not s:
-                    continue
-                end = x0 + px(s.replace('\\"', '"'))
-                if verbose or end > x1:
-                    print('%-13s %-4s %6.1f / %6.1f  %s%s'
-                          % (name, kind, end, x1, s, '   <== TOO WIDE' if end > x1 else ''))
-                if end > x1:
-                    bad += 1
-    print('%d line(s) too wide' % bad)
-    bad += check_tabs(verbose)
+    bad = []
+    print('Options pages')
+    check_help(d, w, verbose, bad)
+    print('Settings tabs')
+    check_tabs(d, w, verbose, bad)
+    for b in bad:
+        print('FAIL ' + b)
+    print('\n%d problem(s)' % len(bad) if bad else '\nlayout ok')
     return 1 if bad else 0
 
 

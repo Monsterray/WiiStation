@@ -377,31 +377,31 @@ struct ButtonInfo
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[15],	520.0,	160.0,	 70.0,	56.0,	75,	12,	 9,	 7,	Func_BiosSelectDVD,		Func_ReturnFromSettingsFrame }, // Bios: DVD
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[16],	295.0,	220.0,	 75.0,	56.0,	 7,	54,	13,	12,	Func_BootBiosYes,		Func_ReturnFromSettingsFrame }, // Boot Thru Bios: Yes
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[17],	380.0,	220.0,	 75.0,	56.0,	 8,	54,	11,	13,	Func_BootBiosNo,		Func_ReturnFromSettingsFrame }, // Boot Thru Bios: No
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[8],	460.0,	220.0,	180.0,	56.0,	9,	54,	12,	11,	Func_ExecuteBios,		Func_ReturnFromSettingsFrame }, // Execute Bios
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[8],	465.0,	220.0,	171.0,	56.0,	9,	54,	12,	11,	Func_ExecuteBios,		Func_ReturnFromSettingsFrame }, // Execute Bios
 
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[13],	295.0,	400.0,	 55.0,	56.0,	55,	 0,	62,	15,	Func_SaveSettingsSD,	Func_ReturnFromSettingsFrame }, // Save Settings: SD
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[14],	360.0,	400.0,	 70.0,	56.0,	55,	 0,	14,	62,	Func_SaveSettingsUSB,	Func_ReturnFromSettingsFrame }, // Save Settings: USB
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[13],	231.0,	400.0,	 55.0,	56.0,	55,	 0,	62,	15,	Func_SaveSettingsSD,	Func_ReturnFromSettingsFrame }, // Save Settings: SD
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[14],	296.0,	400.0,	 70.0,	56.0,	55,	 0,	14,	62,	Func_SaveSettingsUSB,	Func_ReturnFromSettingsFrame }, // Save Settings: USB
 
 	//Buttons for Video Tab (starts at button[16])
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[24],	295.0,	100.0,	 75.0,	56.0,	 1,	18,	17,	17,	Func_ShowFpsOn,			Func_ReturnFromSettingsFrame }, // Show FPS: On
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[25],	380.0,	100.0,	 75.0,	56.0,	 1,	19,	16,	16,	Func_ShowFpsOff,		Func_ReturnFromSettingsFrame }, // Show FPS: Off
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[26],	295.0,	160.0,	 75.0,	56.0,	16,	20,	63,	19,	Func_FpsLimitAuto,		Func_ReturnFromSettingsFrame }, // FPS Limit: Auto
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[25],	378.0,	160.0,	 75.0,	56.0,	17,	21,	18,	63,	Func_FpsLimitOff,		Func_ReturnFromSettingsFrame }, // FPS Limit: Off
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[25],	380.0,	160.0,	 75.0,	56.0,	17,	21,	18,	63,	Func_FpsLimitOff,		Func_ReturnFromSettingsFrame }, // FPS Limit: Off
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[24],	295.0,	220.0,	 75.0,	56.0,	18,	23,	21,	21,	Func_FrameSkipOn,		Func_ReturnFromSettingsFrame }, // Frame Skip: On
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[25],	380.0,	220.0,	 75.0,	56.0,	19,	23,	20,	20,	Func_FrameSkipOff,		Func_ReturnFromSettingsFrame }, // Frame Skip: Off
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[27],	295.0,	280.0,	 135.0,	56.0,	20,	25,	57,	23,	Func_ScreenMode,		Func_ReturnFromSettingsFrame }, // ScreenMode: 4:3/16:9/Force16:9
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[67],	437.0,	280.0,	 130.0,	56.0,	20,	26,	22,	57,	Func_Interlaced,		Func_ReturnFromSettingsFrame }, // Interlaced Mode
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[68],	515.0,	400.0,	110.0,	56.0,	27,	 1,	29,	28,	Func_DeflickerFilter,	Func_ReturnFromSettingsFrame }, // Filters: Deflicker Filter
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[30],	295.0,	340.0,	 75.0,	56.0,	22,	28,	27,	26,	Func_DitheringNone,		Func_ReturnFromSettingsFrame }, // Dithering: None
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[32],	380.0,	340.0,	110.0,	56.0,	23,	29,	25,	27,	Func_DitheringDefault,	Func_ReturnFromSettingsFrame }, // Dithering: Game Dependent
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[33],	500.0,	340.0,	110.0,	56.0,	23,	24,	26,	25,	Func_DitheringAlways,	Func_ReturnFromSettingsFrame }, // Dithering: Always
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[65],	295.0,	400.0,	100.0,	56.0,	25,	 1,	24,	29,	Func_BilinearFilter,	Func_ReturnFromSettingsFrame }, // Filters: Bilinear Filter
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[66],	405.0,	400.0,	100.0,	56.0,	26,	 1,	28,	24,	Func_TrapFilter,		Func_ReturnFromSettingsFrame }, // Filters: Trap Filter
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[27],	295.0,	280.0,	 130.0,	56.0,	20,	25,	57,	23,	Func_ScreenMode,		Func_ReturnFromSettingsFrame }, // ScreenMode: 4:3/16:9/Force16:9
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[67],	435.0,	280.0,	 125.0,	56.0,	20,	26,	22,	57,	Func_Interlaced,		Func_ReturnFromSettingsFrame }, // Interlaced Mode
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[68],	406.0,	400.0,	110.0,	56.0,	27,	 1,	29,	28,	Func_DeflickerFilter,	Func_ReturnFromSettingsFrame }, // Filters: Deflicker Filter
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[30],	216.0,	340.0,	 70.0,	56.0,	22,	28,	27,	26,	Func_DitheringNone,		Func_ReturnFromSettingsFrame }, // Dithering: None
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[32],	296.0,	340.0,	105.0,	56.0,	23,	29,	25,	27,	Func_DitheringDefault,	Func_ReturnFromSettingsFrame }, // Dithering: Game Dependent
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[33],	411.0,	340.0,	105.0,	56.0,	23,	24,	26,	25,	Func_DitheringAlways,	Func_ReturnFromSettingsFrame }, // Dithering: Always
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[65],	216.0,	400.0,	 95.0,	56.0,	25,	 1,	24,	29,	Func_BilinearFilter,	Func_ReturnFromSettingsFrame }, // Filters: Bilinear Filter
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[66],	321.0,	400.0,	 75.0,	56.0,	26,	 1,	28,	24,	Func_TrapFilter,		Func_ReturnFromSettingsFrame }, // Filters: Trap Filter
 	//Buttons for Input Tab (starts at button[30])
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[34],	 90.0,	100.0,	220.0,	56.0,	 2,	32,	31,	31,	Func_ConfigureInput,	Func_ReturnFromSettingsFrame }, // Configure Input Assignment
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[35],	325.0,	100.0,	235.0,	56.0,	 2,	32,	30,	30,	Func_ConfigureButtons,	Func_ReturnFromSettingsFrame }, // Configure Button Mappings
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[38],	295.0,	170.0,	115.0,	56.0,	30,	34,	59,	33,	Func_PsxTypeStandard,	Func_ReturnFromSettingsFrame }, // PSX Controller Type: Standard
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[39],	415.0,	170.0,	110.0,	56.0,	31,	35,	32,	59,	Func_PsxTypeAnalog,		Func_ReturnFromSettingsFrame }, // PSX Controller Type: Analog
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[34],	 85.0,	100.0,	220.0,	56.0,	 2,	32,	31,	31,	Func_ConfigureInput,	Func_ReturnFromSettingsFrame }, // Configure Input Assignment
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[35],	320.0,	100.0,	235.0,	56.0,	 2,	32,	30,	30,	Func_ConfigureButtons,	Func_ReturnFromSettingsFrame }, // Configure Button Mappings
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[38],	295.0,	170.0,	110.0,	56.0,	30,	34,	59,	33,	Func_PsxTypeStandard,	Func_ReturnFromSettingsFrame }, // PSX Controller Type: Standard
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[39],	415.0,	170.0,	105.0,	56.0,	31,	35,	32,	59,	Func_PsxTypeAnalog,		Func_ReturnFromSettingsFrame }, // PSX Controller Type: Analog
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[16],	295.0,	240.0,	 75.0,	56.0,	32,	36,	35,	35,	Func_DisableRumbleYes,	Func_ReturnFromSettingsFrame }, // Disable Rumble: Yes
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[17],	380.0,	240.0,	 75.0,	56.0,	33,	37,	34,	34,	Func_DisableRumbleNo,	Func_ReturnFromSettingsFrame }, // Disable Rumble: No
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[13],	295.0,	310.0,	 55.0,	56.0,	34,	38,	37,	37,	Func_SaveButtonsSD,		Func_ReturnFromSettingsFrame }, // Save Button Mappings: SD
@@ -428,15 +428,15 @@ struct ButtonInfo
     //Buttons for Saves Tab (starts at button[55]) ..was[61]
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[16],	295.0,	340.0,	 75.0,	56.0,	54,	14,	56,	56,	Func_FastloadYes,		Func_ReturnFromSettingsFrame }, // Fast load: Yes
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[17],	380.0,	340.0,	 75.0,	56.0,	54,	14,	55,	55,	Func_FastloadNo,		Func_ReturnFromSettingsFrame }, // Fast load: No
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[64],	572.0,	280.0,	 68.0,	56.0,	21,	27,	23,	22,	Func_Screen240p,		Func_ReturnFromSettingsFrame },  // ScreenMode: 240p
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[64],	570.0,	280.0,	 66.0,	56.0,	21,	27,	23,	22,	Func_Screen240p,		Func_ReturnFromSettingsFrame },  // ScreenMode: 240p
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[11],	505.0,	100.0,	130.0,	56.0,	 0,	 9,	 6,	 5,	Func_CpuDynarec,		Func_ReturnFromSettingsFrame },  // CPU: Dynarec
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[70],	530.0,	170.0,	110.0,	56.0,	31,	35,	33,	32,	Func_PsxTypeLightgun,	Func_ReturnFromSettingsFrame },  // PSX Controller Type: Lightgun
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[70],	530.0,	170.0,	106.0,	56.0,	31,	35,	33,	32,	Func_PsxTypeLightgun,	Func_ReturnFromSettingsFrame },  // PSX Controller Type: Lightgun
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[74],	295.0,	310.0,	155.0,	56.0,	52,	4,	61,	61,	Func_Memcard1,			Func_ReturnFromSettingsFrame },  // Memcard 1 toggle
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[75],	460.0,	310.0,	155.0,	56.0,	53,	4,	60,	60,	Func_Memcard2,			Func_ReturnFromSettingsFrame },  // Memcard 2 toggle
 
 	//Buttons for ... (starts at button[62]) ..was[65]
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[77],	445.0,	400.0,	 140.0,	56.0,	56,	 0,	15,	14,	Func_SaveSettingsSeparately,	Func_ReturnFromSettingsFrame }, // Save Settings: Separately
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[78],	461.0,	160.0,	160.0,	56.0,	17,	21,	19,	18,	Func_ForceNTSC,			Func_ReturnFromSettingsFrame },  // Force NTSC toggle
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[77],	376.0,	400.0,	 140.0,	56.0,	56,	 0,	15,	14,	Func_SaveSettingsSeparately,	Func_ReturnFromSettingsFrame }, // Save Settings: Separately
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[78],	465.0,	160.0,	160.0,	56.0,	17,	21,	19,	18,	Func_ForceNTSC,			Func_ReturnFromSettingsFrame },  // Force NTSC toggle
 
 	{	NULL,	BTN_A_SEL,	GPU_PLUGIN_STRINGS[1],	215.0,	160.0,	140.0,	56.0,	 5,	 7,	 66, 65,Func_UseOldSoftGpu,		Func_ReturnFromSettingsFrame }, // GpuPlugin: Old Soft
 	{	NULL,	BTN_A_SEL,	GPU_PLUGIN_STRINGS[2],	365.0,	160.0,	130.0,	56.0,	 6,	 9,	 64, 66,Func_UseNewSoftGpu,		Func_ReturnFromSettingsFrame }, // GpuPlugin: New Soft
@@ -452,7 +452,7 @@ struct ButtonInfo
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[81],	365.0,	310.0,	 90.0,	56.0,	67,	72,	69,	71,	Func_SoundSyncTempo,	Func_ReturnFromSettingsFrame }, // Sync: Tempo
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[82],	465.0,	310.0,	 70.0,	56.0,	68,	72,	70,	69,	Func_SoundSyncRate,		Func_ReturnFromSettingsFrame }, // Sync: Rate
 	//Audio tab, Advanced (button 72): opens the Advanced Sound page (AdvancedSoundFrame.cpp)
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[83],	295.0,	380.0,	125.0,	56.0,	69,	 3,	-1,	-1,	Func_AdvancedSound,		Func_ReturnFromSettingsFrame }, // Advanced: opens the Advanced Sound page
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[83],	258.0,	380.0,	125.0,	56.0,	69,	 3,	-1,	-1,	Func_AdvancedSound,		Func_ReturnFromSettingsFrame }, // Advanced: opens the Advanced Sound page
 	//General tab: one row of sub-pages. The CPU core and GPU plugin moved to Plugins and the
 	//CD settings to Storage; buttons 5/6/58 and 64/65/66 stay in this table but are not shown.
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[84],	100.0,	100.0,	130.0,	56.0,	14,	 7,	75,	74,	Func_PluginsPage,		Func_ReturnFromSettingsFrame }, // Plugins page

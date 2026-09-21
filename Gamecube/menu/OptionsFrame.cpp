@@ -27,8 +27,11 @@
  *   One OptRow[] array, one PAGES[] entry (title, rows, optional help lines, which Settings
  *   tab B returns to, and optional enter/leave hooks), one value in OptionsFrame::OptionsPages,
  *   and a button somewhere in SettingsFrame that calls setActiveFrame(FRAME_OPTIONS, that value).
- *   Help lines are plain text under the rows; a page that has them needs its rows to end
- *   above HELP_Y0 (a compile-time check below enforces it).
+ *   Help is a term and its explanation, in two columns under the rows: the term is drawn
+ *   bold and right-aligned so the colons line up, and a line with no term continues the one
+ *   above it. A page that has help needs its rows to end above HELP_Y0, which a compile-time
+ *   check below enforces; scripts/menu_text_width.py measures the lines themselves against
+ *   the screen and against the spinning logo's corner (Gamecube/menu/MenuLayout.h).
  *
  * Layout, focus order, click handlers and the label refresh are all derived from the
  * tables; nothing else has to be touched.
@@ -58,6 +61,7 @@
 #include "../libgui/resources.h"
 #include "../libgui/FocusManager.h"
 #include "../libgui/CursorManager.h"
+#include "MenuLayout.h"
 #include "../wiiSXconfig.h"
 #include "../MEM2.h"
 
@@ -192,12 +196,12 @@ static const OptRow PLUGIN_ROWS[] =
 
 static const OptHelp PLUGIN_HELP[] =
 {
-	{ "CPU Core:",   "Lightrec, the recompiler most games run best on." },
-	{ NULL,          "Interpreter is exact but slow. Dynarec is the older one." },
-	{ "GPU Plugin:", "OpenGX draws with the Wii's graphics hardware." },
-	{ NULL,          "The software renderers are slower, but avoid its quirks." },
+	{ "CPU Core:",   "Lightrec is the recompiler most games run best on." },
+	{ NULL,          "Interpreter is exact but slow; Dynarec is the older one." },
+	{ "GPU Plugin:", "OpenGX draws with the Wii's graphics hardware. The two" },
+	{ NULL,          "software renderers are slower, but avoid its quirks." },
 	{ NULL,          "" },
-	{ NULL,          "Changing either restarts a loaded game when you leave." },
+	{ NULL,          "Changing either restarts a loaded game." },
 };
 
 static char pluginsCoreOnEntry, pluginsGpuOnEntry;
@@ -225,14 +229,14 @@ static const OptRow STORAGE_ROWS[] =
 
 static const OptHelp STORAGE_HELP[] =
 {
-	{ "CD Read Buffer:", "how much each disc-image file reads at a time." },
-	{ NULL,              "Larger means fewer, longer card reads while streaming." },
-	{ "CD Read-Ahead:",  "a thread keeps the next 31 sectors ready early." },
-	{ NULL,              "Raw bin/cue and .iso only. Helps hardware, not Dolphin." },
-	{ "CHD Hunk Cache:", "decoded CHD hunks kept in memory, about 20 KB each." },
-	{ NULL,              "More keeps two areas of the disc warm at once." },
+	{ "CD Read Buffer:", "How much each disc-image file reads at a time. Larger" },
+	{ NULL,              "means fewer, longer card reads while a game streams." },
+	{ "CD Read-Ahead:",  "A thread keeps the next 31 sectors ready early. Raw" },
+	{ NULL,              "bin/cue and .iso only; it helps hardware, not Dolphin." },
+	{ "CHD Hunk Cache:", "Decoded CHD hunks kept in memory, about 20 KB each." },
+	{ NULL,              "More keeps two areas of the disc warm." },
 	{ NULL,              "" },
-	{ NULL,              "All three take effect the next time a game is loaded." },
+	{ NULL,              "All three apply at the next game load." },
 };
 
 /* Readouts only. Every large MEM2 region is reserved at a fixed address (Gamecube/MEM2.h),
@@ -272,7 +276,7 @@ static const OptPage PAGES[] =
 #define NUM_PAGES		COUNT(PAGES)
 #define OPT_MAX_ROWS	6
 #define OPT_MAX_CHOICES	3
-#define OPT_MAX_HELP	8
+#define OPT_MAX_HELP	9
 
 /*  Layout: title, then a row every ROW_DY from ROW_Y0, then any help text. Rows are 40 high
  *  in a 54-high slot, so there is a clear gap between them. No Back button on a page of
@@ -294,11 +298,15 @@ static const OptPage PAGES[] =
 #define RADIO_W		135.0
 #define RADIO_DX	147.0		// 135 wide with a 12 gap; three of them end at 634
 
-#define HELP_X		35.0		// help is left-aligned in two columns, not centred
-#define HELP_TEXT_X	175.0		// second column: wide enough for the longest bold term
-#define HELP_Y0		262.0
-#define HELP_DY		20.0
-#define HELP_SCALE	0.62		// 24 px glyphs at 0.62 leave room for a full line
+/* Help is two columns: the term right-aligned so its colons line up, then the text.
+ * The lower lines are beside the spinning logo's corner and have to stop short of it,
+ * which MENU_ROW_RIGHT() works out from the line's own y (see MenuLayout.h). */
+#define HELP_TERM_R	152.0		// the term ENDS here
+#define HELP_TEXT_X	162.0		// the text starts here
+#define HELP_Y0		250.0
+#define HELP_DY		26.0
+#define HELP_SCALE	0.55
+#define HELP_LINE_H	(24.0 * HELP_SCALE)
 
 #define VALUE_LEN	32
 
@@ -367,8 +375,10 @@ typedef char opt_memory_fits [OPT_PAGE_FITS(MEMORY_ROWS)  ? 1 : -1];
 typedef char opt_plugin_help_fits [OPT_HELP_FITS(PLUGIN_ROWS,  PLUGIN_HELP)  ? 1 : -1];
 typedef char opt_storage_help_fits[OPT_HELP_FITS(STORAGE_ROWS, STORAGE_HELP) ? 1 : -1];
 /* The last help line must stay on screen, and a radio row must not run off the right. */
-typedef char opt_help_on_screen[HELP_Y0 + (OPT_MAX_HELP - 1) * HELP_DY < 460.0 ? 1 : -1];
-typedef char opt_help_columns[HELP_TEXT_X > HELP_X ? 1 : -1];
+typedef char opt_help_on_screen[HELP_Y0 + (OPT_MAX_HELP - 1) * HELP_DY + HELP_LINE_H <= MENU_BOTTOM ? 1 : -1];
+typedef char opt_help_columns[HELP_TEXT_X > HELP_TERM_R ? 1 : -1];
+/* The rows above the help must not run into it, and the rows themselves must stay on screen. */
+typedef char opt_rows_on_screen[ROW_Y0 + (OPT_MAX_ROWS - 1) * ROW_DY + BUTTON_H <= MENU_BOTTOM ? 1 : -1];
 typedef char opt_radio_on_screen[RADIO_X0 + (OPT_MAX_CHOICES - 1) * RADIO_DX + RADIO_W <= 640.0 ? 1 : -1];
 
 static const OptRow* pageRow(int row)
@@ -500,7 +510,8 @@ OptionsFrame::OptionsFrame()
 		float y = HELP_Y0 + i * HELP_DY;
 		helpTermString[i] = helpEmpty;
 		helpString[i] = helpEmpty;
-		helpTermBox[i] = new menu::TextBox(&helpTermString[i], HELP_X, y, HELP_SCALE, false);
+		helpTermBox[i] = new menu::TextBox(&helpTermString[i], HELP_TERM_R, y, HELP_SCALE, false);
+		helpTermBox[i]->setRightAligned(true);
 		helpTermBox[i]->setBold(true);
 		helpBox[i] = new menu::TextBox(&helpString[i], HELP_TEXT_X, y, HELP_SCALE, false);
 		add(helpTermBox[i]);

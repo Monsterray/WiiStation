@@ -34,10 +34,14 @@ public:
 	void setColor(GXColor *labelColor);
 	void setText(char** strPtr);
 	void setBold(bool bold);
+	/* Right-aligned text ends at x instead of starting there. The font is drawn glyph by
+	 * glyph from a left edge, so this is a measure-then-offset at draw time; the string
+	 * can change between frames, which is why it is not done once at construction. */
+	void setRightAligned(bool rightAligned);
 	void drawComponent(Graphics& gfx);
 
 private:
-	bool centered, bold;
+	bool centered, bold, rightAligned;
 	char** textBoxText;
 	float x, y, scale;
 	GXColor	labelColor;
