@@ -310,7 +310,7 @@ static const OptPage PAGES[] =
 #define HELP_Y0			HELP_Y(1)
 #define HELP_LINE_DY	19.0	// between the lines of one explanation: tight, they read as one
 #define HELP_CELL_GAP	 9.0	// extra before a line that starts a new term
-#define HELP_SCALE		0.55
+#define HELP_SCALE		0.62
 #define HELP_LINE_H		(24.0 * HELP_SCALE)
 
 #define VALUE_LEN	32

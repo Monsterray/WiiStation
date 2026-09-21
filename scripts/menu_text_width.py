@@ -154,10 +154,18 @@ def tables():
             table(src[a:src.index('SettingsFrame::SettingsFrame()', a)], 2))
 
 
+def logo_box(d, cx, cy):
+    """The box the logo sweeps about (cx, cy): left, top, right, bottom."""
+    return (cx - d['MENU_LOGO_W'] / 2, cy - d['MENU_LOGO_H'] / 2,
+            cx + d['MENU_LOGO_W'] / 2, cy + d['MENU_LOGO_H'] / 2)
+
+
 def right_edge(d, bottom):
-    """How far right something whose lowest pixel is at `bottom` may reach."""
-    if bottom > d['MENU_H'] - d['MENU_LOGO_H']:
-        return d['MENU_W'] - d['MENU_LOGO_W'] - d['MENU_EDGE']
+    """How far right something whose lowest pixel is at `bottom` may reach. Same rule as
+    MENU_ROW_RIGHT() in MenuLayout.h."""
+    l, t, _, _ = logo_box(d, d['LOGO_PAGE_X'], d['LOGO_PAGE_Y'])
+    if bottom > t:
+        return l - d['MENU_EDGE']
     return d['MENU_W'] - d['MENU_EDGE']
 
 
@@ -289,6 +297,67 @@ def check_help(d, w, verbose, bad):
                        % (name, len(entries), bottom))
 
 
+FRAME_FILE = {
+    'FRAME_MAIN': 'MainFrame.cpp',
+    'FRAME_LOADROM': 'LoadRomFrame.cpp',
+    'FRAME_FILEBROWSER': 'FileBrowserFrame.cpp',
+    'FRAME_CURRENTROM': 'CurrentRomFrame.cpp',
+    'FRAME_SETTINGS': 'SettingsFrame.cpp',
+    'FRAME_CONFIGUREINPUT': 'ConfigureInputFrame.cpp',
+    'FRAME_CONFIGUREBUTTONS': 'ConfigureButtonsFrame.cpp',
+    'FRAME_OPTIONS': 'OptionsFrame.cpp',
+}
+
+
+def check_logo(d, verbose, bad):
+    """MenuContext.cpp lists the frames that put something where the logo sits in the top
+    right. Measure each frame's own button table and say whether that list is still true.
+
+    MainFrame builds its buttons one by one and OptionsFrame generates its rows, so
+    neither has a table to read; OptionsFrame's widest row is worked out from its own
+    defines and MainFrame draws nothing on the right at all."""
+    menu = os.path.dirname(OPTS)
+    src = open(os.path.join(menu, 'MenuContext.cpp'), encoding='utf-8').read()
+    m = re.search(r'LOGO_BOTTOM_FRAMES\[\] =\s*\{(.*?)\};', src, re.S)
+    if not m:
+        bad.append('MenuContext.cpp has no LOGO_BOTTOM_FRAMES list')
+        return
+    listed = set(re.findall(r'FRAME_\w+', m.group(1)))
+
+    l, t, r, b = logo_box(d, d['LOGO_MAIN_X'], d['LOGO_MAIN_Y'])
+    hits = set()
+    for frame, fname in FRAME_FILE.items():
+        path = os.path.join(menu, fname)
+        if frame == 'FRAME_OPTIONS':
+            # A radio row is the widest thing a page draws, on the first row.
+            x1 = d['RADIO_X0'] + 2 * d['RADIO_DX'] + d['RADIO_W']
+            boxes = [(d['RADIO_X0'], d['ROW_Y0'], x1, d['ROW_Y0'] + d['BUTTON_H'])]
+        else:
+            text = open(path, encoding='utf-8', errors='replace').read()
+            mm = re.search(r'\} FRAME_BUTTONS\[NUM_FRAME_BUTTONS\] =(.*?)\n\};', text, re.S)
+            boxes = []
+            for line in (mm.group(1).splitlines() if mm else []):
+                if not line.strip().startswith(BUTTON_LINE):
+                    continue
+                f = [t2.strip().rstrip(',') for t2 in line.split('\t')
+                     if re.match(r'^\s*[0-9]+\.[0-9]+,$', t2)]
+                if len(f) < 4:
+                    continue
+                x, y, bw, bh = (float(v) for v in f[:4])
+                boxes.append((x, y, x + bw, y + bh))
+        over = [bx for bx in boxes if bx[2] > l and bx[0] < r and bx[3] > t and bx[1] < b]
+        if over:
+            hits.add(frame)
+        if verbose:
+            print('  %-24s %2d buttons, %s' % (fname, len(boxes),
+                  'clear of the logo' if not over else
+                  'under the logo: ' + ', '.join('%g,%g..%g,%g' % bx for bx in over[:3])))
+    for f in sorted(hits - listed):
+        bad.append('%s draws under the logo but is not in LOGO_BOTTOM_FRAMES' % f)
+    for f in sorted(listed - hits):
+        bad.append('%s is in LOGO_BOTTOM_FRAMES but draws nothing under the logo' % f)
+
+
 def main():
     verbose = '-v' in sys.argv
     d = defines(OPTS, LAYOUT)
@@ -298,6 +367,8 @@ def main():
     check_help(d, w, verbose, bad)
     print('Settings tabs')
     check_tabs(d, w, verbose, bad)
+    print('The logo')
+    check_logo(d, verbose, bad)
     for b in bad:
         print('FAIL ' + b)
     print('\n%d problem(s)' % len(bad) if bad else '\nlayout ok')

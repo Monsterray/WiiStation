@@ -84,6 +84,17 @@ MenuContext::~MenuContext()
 	pMenuContext = NULL;
 }
 
+/* The frames that put something where the logo sits in the top right. On these the logo
+ * moves to the bottom right. The reason for each is the widest thing it draws up there;
+ * scripts/menu_text_width.py reads this list, measures the frames' own button tables
+ * against the logo's box, and fails when a frame gains or loses content there. */
+static const int LOGO_BOTTOM_FRAMES[] = {
+	MenuContext::FRAME_SETTINGS,          /* the tab strip reaches x=615 */
+	MenuContext::FRAME_OPTIONS,           /* a radio row reaches x=634 */
+	MenuContext::FRAME_CONFIGUREBUTTONS,  /* one button at (480, 20) */
+	MenuContext::FRAME_CURRENTROM,        /* Swap CD reaches x=540 */
+};
+
 /* sd:/wiisxrx/autoinput.txt's "menupage <n>": see PadWiiSX.c, where it is parsed. */
 extern "C" {
 	void autoinput_load(void);
@@ -151,14 +162,16 @@ void MenuContext::setActiveFrame(int frameIndex)
 		break;
 	}
 
-	/* The logo is drawn over every frame, so where it can sit depends on the frame. The
-	 * main screen's top right is empty and that is where it has always been; the Settings
-	 * tabs put a tab button there, so on those it moves to the corner MenuLayout.h reserves
-	 * for it. x and y are the middle of the logo. */
-	if(frameIndex == FRAME_MAIN)
-		menu::Gui::getInstance().menuLogo->setLocation(LOGO_MAIN_X, LOGO_MAIN_Y, LOGO_Z);
-	else
-		menu::Gui::getInstance().menuLogo->setLocation(LOGO_PAGE_X, LOGO_PAGE_Y, LOGO_Z);
+	/* The logo goes in the top right, where it has always been, unless this frame puts
+	 * something there. Then it goes to the bottom right. */
+	{
+		bool bottom = false;
+		for(unsigned i = 0; i < sizeof(LOGO_BOTTOM_FRAMES)/sizeof(LOGO_BOTTOM_FRAMES[0]); i++)
+			if(LOGO_BOTTOM_FRAMES[i] == frameIndex) bottom = true;
+		menu::Gui::getInstance().menuLogo->setLocation(
+			bottom ? LOGO_PAGE_X : LOGO_MAIN_X,
+			bottom ? LOGO_PAGE_Y : LOGO_MAIN_Y, LOGO_Z);
+	}
 
 	if(currentActiveFrame)
 	{

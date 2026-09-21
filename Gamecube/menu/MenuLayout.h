@@ -40,38 +40,39 @@
 #define MENU_H			480.0
 #define MENU_EDGE		  4.0	/* keep this clear of every edge */
 
-/* The spinning logo's corner. It is drawn last, over whatever a frame put there, so this
- * much of the bottom right belongs to it. Moving the logo means moving these two numbers
- * and re-running scripts/menu_text_width.py, which will say what no longer fits.
- *
- * Measured from a screenshot: the logo is about 60 wide and 90 tall and turns, so it
- * sweeps a little more than that, and Gui.cpp places its middle at (578, 428). Until
- * 2026-09-21 it sat at (570, 70) and was drawn across the Saves tab. */
-#define MENU_LOGO_W		120.0
-#define MENU_LOGO_H		110.0
-#define MENU_LOGO_X		(MENU_W - MENU_LOGO_W)
-#define MENU_LOGO_Y		(MENU_H - MENU_LOGO_H)
-
 #define MENU_LEFT		MENU_EDGE
 #define MENU_RIGHT		(MENU_W - MENU_EDGE)
 #define MENU_BOTTOM		(MENU_H - MENU_EDGE)
 
-/* The right edge a row may reach, given the y its lowest pixel sits on. */
-#define MENU_ROW_RIGHT(bottom)	\
-	((bottom) > MENU_LOGO_Y ? MENU_LOGO_X - MENU_EDGE : MENU_RIGHT)
-
 /*  The spinning logo  */
 
-/* x and y are the middle of the logo; Logo.cpp draws it in 3D about that point, turning,
- * so it sweeps a little more than its 60 x 90. The main screen's top right is empty and
- * that is where it has always been. A Settings tab has a tab button there, so on every
- * page it moves to the corner reserved above -- which is what MENU_ROW_RIGHT() keeps
- * clear. MenuContext::setActiveFrame chooses between them. */
+/* Logo.cpp draws the logo last, over whatever the frame put there, so its space belongs to
+ * it. x and y are its middle. It turns about the view axis, so it sweeps a circle of its
+ * own diagonal: 72 x 72 holds it. Measured on a frame dump with the middle at (570, 70),
+ * the logo covered x 551..590 and y 45..102.
+ *
+ * It sits in the top right, where it has always been. A frame that puts something there --
+ * the Settings tab strip, an Options row, one Configure Buttons button, Swap CD on the
+ * Current ROM frame -- moves it to the bottom right instead.
+ * MenuContext::setActiveFrame holds that list and chooses. */
+#define MENU_LOGO_W		 72.0
+#define MENU_LOGO_H		 72.0
 #define LOGO_MAIN_X		570.0
 #define LOGO_MAIN_Y		 70.0
 #define LOGO_PAGE_X		578.0
 #define LOGO_PAGE_Y		428.0
 #define LOGO_Z		   -150.0
+
+/* The box the logo sweeps, from the middle of either position. */
+#define LOGO_BOX_L(cx)	((cx) - MENU_LOGO_W / 2)
+#define LOGO_BOX_R(cx)	((cx) + MENU_LOGO_W / 2)
+#define LOGO_BOX_T(cy)	((cy) - MENU_LOGO_H / 2)
+#define LOGO_BOX_B(cy)	((cy) + MENU_LOGO_H / 2)
+
+/* The right edge a row may reach, given the y of its lowest pixel. A row level with the
+ * logo's bottom-right position must stop short of it. */
+#define MENU_ROW_RIGHT(bottom)	\
+	((bottom) > LOGO_BOX_T(LOGO_PAGE_Y) ? LOGO_BOX_L(LOGO_PAGE_X) - MENU_EDGE : MENU_RIGHT)
 
 /*  The Settings tabs' grid  */
 #define TAB_LABEL_CX	150.0	/* the left-hand label of a row, centred here */
