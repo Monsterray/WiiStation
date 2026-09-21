@@ -393,7 +393,7 @@ int fileBrowser_libfat_readFile(fileBrowser_file* file, void* buffer, unsigned i
  * each '/' in turn and the last path component (the filename) has no trailing
  * slash to trigger on. An existing directory just returns EEXIST, which is the
  * normal case and is deliberately ignored. */
-static void makeParentDirs(const char* path) {
+void makeParentDirs(const char* path) {
 	char dir[FILE_BROWSER_MAX_PATH_LEN];
 	char* p;
 

@@ -76,12 +76,10 @@ extern void sioInterrupt();
 extern int sioFreeze(gzFile f, int Mode);
 
 extern int LoadMcd(int mcd, fileBrowser_file *savepath);
-extern int LoadMcds(fileBrowser_file *mcd1, fileBrowser_file *mcd2);
 
 extern int SaveMcdByNum(int mcd);
 
 extern int SaveMcd(int mcd, fileBrowser_file *savepath);
-extern int SaveMcds(fileBrowser_file *mcd1, fileBrowser_file *mcd2);
 extern bool CreateMcd(int slot, fileBrowser_file *mcd);
 extern void ConvertMcd(char *mcd, char *data);
 

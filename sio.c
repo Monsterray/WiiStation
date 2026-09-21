@@ -437,13 +437,6 @@ int LoadMcd(int mcd, fileBrowser_file *savepath) {
 	return ret;
 }
 
-//we need to get rid of this joint function and start using the individual versions
-int LoadMcds(fileBrowser_file *mcd1, fileBrowser_file *mcd2) {
-  if((LoadMcd(1, mcd1)) && (LoadMcd(2, mcd2)))
-    return 1;
-  return 0;
-}
-
 // add xjsxjs197 start
 int SaveMcdByNum(int mcd) {
     if (saveFile_dir)
@@ -459,6 +452,7 @@ int SaveMcdByNum(int mcd) {
 
 //call me from menu, takes slot and save path as args
 int SaveMcd(int mcd, fileBrowser_file *savepath) {
+  unsigned long long t0 = perf_now_us();
   bool ret = 0;
   char *data = NULL;
   fileBrowser_file saveFile;
@@ -494,25 +488,24 @@ int SaveMcd(int mcd, fileBrowser_file *savepath) {
           hdrFile.offset = 0;
           if (saveFile_writeFile(&hdrFile, tmp, dataOff + MCD_SIZE) == (int)(dataOff + MCD_SIZE))
             ret = 1;
+          free(tmp);
+          return ret;
         }
         free(tmp);
-        return ret;
       }
-      /* malloc failed: fall through to raw write rather than losing the save. */
+      /* The header could not be read, or there was no memory for it. Write the card in
+       * the plain format instead: the container is worth keeping, the save is worth more.
+       * This path used to return failure and write nothing at all. */
     }
   }
 
   if(saveFile_writeFile(&saveFile, data, MCD_SIZE)==MCD_SIZE)
     ret = 1;
 
+  PERF_INC(mcd_saves);
+  PERF_ADD(mcd_save_us, perf_now_us() - t0);
+  if (!ret) PERF_INC(mcd_fails);
   return ret;
-}
-
-//we need to get rid of this joint function and start using the individual versions
-int SaveMcds(fileBrowser_file *mcd1, fileBrowser_file *mcd2) {
-  if((SaveMcd(1, mcd1)) && (SaveMcd(2, mcd2)))
-    return 1;
-  return 0;
 }
 
 bool CreateMcd(int slot, fileBrowser_file *mcd) {

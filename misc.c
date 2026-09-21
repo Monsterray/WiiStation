@@ -34,6 +34,7 @@
 
 #include "dfsound/externals.h"
 #include "database.h"
+#include "Gamecube/perf_prof.h"
 
 int Log = 0;
 
@@ -563,6 +564,43 @@ void savestates_select_slot(unsigned int s)
    savestates_slot = s;
 }
 
+/* sd:/wiisxrx/savestates/ does not exist on a new card, and gzopen("wb") fails outright
+ * when the folder is missing -- the only symptom was "Error Saving State". The memory-card
+ * writer already creates its own folders; save states now do the same. */
+void makeParentDirs(const char* path);
+
+/* The path of one slot's state file. It was built with sprintf into a 1 KB malloc on every
+ * save and load; a bounded copy on the stack does the same job and cannot overflow. */
+#define STATE_PATH_LEN 256
+static void stateFilename(char *out, unsigned int slot)
+{
+#ifdef HW_RVL
+	snprintf(out, STATE_PATH_LEN, "%s%s%s.st%u",
+		(saveStateDevice == SAVESTATEDEVICE_USB) ? "usb:" : "sd:", statespath, CdromId, slot);
+#else
+	snprintf(out, STATE_PATH_LEN, "sd:%s%s.st%u", statespath, CdromId, slot);
+#endif
+}
+
+/* Does a slot hold a state this build can read? Opens the file and looks at the header
+ * only. This replaces CheckState(), which had no caller and reset the CPU -- a side effect
+ * no "check" should have. */
+int StateExists(unsigned int slot)
+{
+	char filename[STATE_PATH_LEN];
+	char header[32];
+	int ok;
+	gzFile f;
+
+	stateFilename(filename, slot);
+	f = gzopen(filename, "rb");
+	if (!f) return 0;
+	ok = gzread(f, header, sizeof(header)) == (int)sizeof(header)
+	  && strncmp(PcsxHeader, header, sizeof(header)) == 0;
+	gzclose(f);
+	return ok;
+}
+
 #define MISC_MAGIC 0x4353494d
 struct misc_save_data {
 	u32 magic;
@@ -577,14 +615,16 @@ struct misc_save_data {
 };
 
 int SaveState() {
-    struct misc_save_data *misc = (void *)(psxH + 0xf000);
+	unsigned long long t0 = perf_now_us();
+	struct misc_save_data *misc = (void *)(psxH + 0xf000);
     gzFile f;
     GPUFreeze_t *gpufP;
 	SPUFreeze_t *spufP;
 
 	int Size;
-	unsigned char *pMem;
-	char *filename;
+	char filename[STATE_PATH_LEN];
+	static const char zeros[1024] = { 0 };
+	int i;
 
 	//assert(!psxRegs.branching);
 	//assert(!psxRegs.cpuInRecursion);
@@ -599,23 +639,13 @@ int SaveState() {
 	misc->frame_counter = frame_counter;
 	//misc->CdromFrontendId = CdromFrontendId;
 
-    /* fix the filename to %s.st%u format */
-	filename = malloc(1024);
-	if (!filename)
-		return 0;
-
-    #ifdef HW_RVL
-        sprintf(filename, "%s%s%s.st%u",(saveStateDevice==SAVESTATEDEVICE_USB)?"usb:":"sd:",
-                           statespath, CdromId, savestates_slot);
-    #else
-        sprintf(filename, "sd:%s%s.st%u", statespath, CdromId, savestates_slot);
-    #endif
+	stateFilename(filename, savestates_slot);
+	makeParentDirs(filename);
 
 	f = gzopen(filename, "wb");
-    free(filename);
-
-    if (!f) {
-  	    return 0;
+	if (!f) {
+		PERF_INC(state_fails);
+		return 0;
 	}
 
     psxCpu->Notify(R3000ACPU_NOTIFY_BEFORE_SAVE, NULL);
@@ -626,15 +656,12 @@ int SaveState() {
 	gzwrite(f, (void*)PcsxHeader, 32);
 	gzwrite(f, (void *)&Config.HLE, sizeof(bool));
 
-	pMem = (unsigned char *) calloc(1, 128 * 96 * 3);
-	if (pMem == NULL) {
-		gzclose(f);
-		continueRemovalThread();
-		return -1;
-	}
-	//gpuPtr->getScreenPic(pMem);
-	gzwrite(f, pMem, 128 * 96 * 3);
-	free(pMem);
+	/* The slot for a 128 x 96 screenshot. gpuPtr->getScreenPic() is not called, so this is
+	 * 36 KB of zeros; the size has to stay, because LoadState seeks over it. Writing a
+	 * shared zero buffer 36 times costs nothing and drops a 36 KB allocation per save.
+	 * A real thumbnail would go here. */
+	for (i = 0; i < 36; i++)
+		gzwrite(f, (void *)zeros, sizeof(zeros));
 
 	if (Config.HLE) {
 		psxBiosFreeze(1);
@@ -695,58 +722,73 @@ int SaveState() {
 	gzclose(f);
 
 	continueRemovalThread();
-    LoadingBar_showBar(1.0f, SAVE_STATE_MSG);
+	LoadingBar_showBar(1.0f, SAVE_STATE_MSG);
+	PERF_INC(state_saves);
+	PERF_ADD(state_save_us, perf_now_us() - t0);
+	/* What the state holds, uncompressed: RAM, BIOS, hardware, VRAM and the rest. */
+	PERF_SET(state_bytes, 0x00200000 + 0x00080000 + 0x00010000 + 1024 * iGPUHeight * 2);
 	return 1; //ok
 }
 
+/* A short read means the file is truncated or damaged. By then part of the emulated
+ * machine holds the new state and part still holds the old one, which no game can survive,
+ * so the machine is reset to a state it can run from and the failure is reported. */
+static int stateTruncated(gzFile f)
+{
+	gzclose(f);
+	continueRemovalThread();
+	psxReset();
+	return -1;
+}
+
+/* Every read of a state file is this size or the file is not a state file. */
+#define STATE_READ(buf, len) 	do { if (gzread(f, (buf), (len)) != (int)(len)) return stateTruncated(f); } while (0)
+
 int LoadState() {
-    struct misc_save_data *misc = (void *)(psxH + 0xf000);
+	unsigned long long t0 = perf_now_us();
+	struct misc_save_data *misc = (void *)(psxH + 0xf000);
 	u32 biosBranchCheckOld = psxRegs.biosBranchCheck;
 	gzFile f;
 	GPUFreeze_t *gpufP;
 	SPUFreeze_t *spufP;
 	int Size;
 	char header[32];
-	char *filename;
+	char filename[STATE_PATH_LEN];
 
-    /* fix the filename to %s.st%u format */
-	filename = malloc(1024);
-	if (!filename)
-		return 0;
-    #ifdef HW_RVL
-        sprintf(filename, "%s%s%s.st%u",(saveStateDevice==SAVESTATEDEVICE_USB)?"usb:":"sd:",
-                           statespath, CdromId, savestates_slot);
-    #else
-        sprintf(filename, "sd:%s%s.st%u", statespath, CdromId, savestates_slot);
-    #endif
+	stateFilename(filename, savestates_slot);
 
 	f = gzopen(filename, "rb");
-    free(filename);
-
-    if (!f) {
-  	    return 0;
+	if (!f) {
+		return 0;
 	}
 
 	pauseRemovalThread();
 	LoadingBar_showBar(0.0f, LOAD_STATE_MSG);
-	gzread(f, header, sizeof(header));
-	gzread(f, (void *)&Config.HLE, sizeof(bool));
-    LoadingBar_showBar(0.10f, LOAD_STATE_MSG);
 
-
-	if (strncmp(PcsxHeader, header, sizeof(header))) { gzclose(f); return -1; }
+	/* Read the header and judge it before anything else is touched. It used to read
+	 * Config.HLE first, so a file this build cannot read still changed the BIOS mode of
+	 * the game that was running. The early return also used to leave the card-removal
+	 * thread suspended, because only the success path resumed it. */
+	if (gzread(f, header, sizeof(header)) != (int)sizeof(header)
+	 || strncmp(PcsxHeader, header, sizeof(header))) {
+		gzclose(f);
+		continueRemovalThread();
+		return -1;
+	}
+	STATE_READ(&Config.HLE, sizeof(bool));
+	LoadingBar_showBar(0.10f, LOAD_STATE_MSG);
 
 	if (Config.HLE)
 		psxBiosInit();
 
 	gzseek(f, 128 * 96 * 3, SEEK_CUR);
 
-	gzread(f, psxM, 0x00200000);
+	STATE_READ(psxM, 0x00200000);
 	LoadingBar_showBar(0.40f, LOAD_STATE_MSG);
-	gzread(f, psxR, 0x00080000);
+	STATE_READ(psxR, 0x00080000);
 	LoadingBar_showBar(0.60f, LOAD_STATE_MSG);
-	gzread(f, psxH, 0x00010000);
-	gzread(f, (void*)&psxRegs, offsetof(psxRegisters, gteBusyCycle));
+	STATE_READ(psxH, 0x00010000);
+	STATE_READ((void*)&psxRegs, offsetof(psxRegisters, gteBusyCycle));
 	psxRegs.gteBusyCycle = psxRegs.cycle;
 	psxRegs.biosBranchCheck = ~0;
 	psxRegs.gpuIdleAfter = psxRegs.cycle - 1;
@@ -775,16 +817,19 @@ int LoadState() {
 		continueRemovalThread();
 		return -1;
 	}
-	gzread(f, gpufP, sizeof(GPUFreeze_t));
+	if (gzread(f, gpufP, sizeof(GPUFreeze_t)) != (int)sizeof(GPUFreeze_t)) {
+		free(gpufP);
+		return stateTruncated(f);
+	}
 	gpuPtr->freeze(0, gpufP);
 	free(gpufP);
 	// gpu VRAM load (load directly to save memory)
-	gzread(f, &psxVub[0], 1024 * iGPUHeight * 2);
+	STATE_READ(&psxVub[0], 1024 * iGPUHeight * 2);
 	gpuSyncPluginSR();
 	LoadingBar_showBar(0.80f, LOAD_STATE_MSG);
 
 	// spu
-	gzread(f, &Size, 4);
+	STATE_READ(&Size, 4);
 	// Size comes straight from the savestate file -- a corrupted/foreign
 	// file could hand us a bogus or negative value here.
 	if (Size <= 0 || Size > 16 * 1024 * 1024) {
@@ -798,7 +843,10 @@ int LoadState() {
 		continueRemovalThread();
 		return -1;
 	}
-	gzread(f, spufP, Size);
+	if (gzread(f, spufP, Size) != Size) {
+		free(spufP);
+		return stateTruncated(f);
+	}
 	SPU_freeze(0, spufP, psxRegs.cycle);
 	free(spufP);
     LoadingBar_showBar(0.99f, LOAD_STATE_MSG);
@@ -817,27 +865,11 @@ int LoadState() {
 	if (Config.HLE)
 		psxBiosCheckExe(biosBranchCheckOld, 0x60, 1);
 
-    LoadingBar_showBar(1.0f, LOAD_STATE_MSG);
+	LoadingBar_showBar(1.0f, LOAD_STATE_MSG);
+	PERF_INC(state_loads);
+	PERF_ADD(state_load_us, perf_now_us() - t0);
 
 	return 1;
-}
-
-int CheckState(char *file) {
-	gzFile f;
-	char header[32];
-
-	f = gzopen(file, "rb");
-	if (f == NULL) return -1;
-
-	psxCpu->Reset();
-
-	gzread(f, header, 32);
-
-	gzclose(f);
-
-	if (strncmp("STv4 PCSX", header, 9)) return -1;
-
-	return 0;
 }
 
 // NET Function Helpers

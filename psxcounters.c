@@ -28,6 +28,31 @@
 #include "psxcommon.h"
 #include "Gamecube/perf_prof.h"
 
+/* autoinput.txt's "statetest <vblank>": save a state at that vblank and load it back
+ * 120 vblanks later, so a scripted run can time both. A menu cannot be scripted, and the
+ * Current ROM menu is the only other way to reach them.
+ *
+ * THIS DISTURBS THE RUNNING GAME. The menu calls SaveState and LoadState with the
+ * emulator stopped; here they run from inside the vblank handler, so the game freezes for
+ * the length of the write and comes back with its sound ring and its GPU command stream
+ * part way through a frame. The picture tears and the sound breaks for a moment. That is
+ * acceptable for timing the two calls and for nothing else, so it is built only into the
+ * profiling build and does nothing without the script line. */
+#ifdef PERF_PROF
+extern unsigned autoinput_statetest_vbl;
+int SaveState(void);
+int LoadState(void);
+static void autoinput_state_test(void)
+{
+	static int loaded = 0;
+	if (!autoinput_statetest_vbl) return;
+	if (frame_counter == autoinput_statetest_vbl) SaveState();
+	else if (frame_counter == autoinput_statetest_vbl + 120 && !loaded) { loaded = 1; LoadState(); }
+}
+#else
+#define autoinput_state_test() ((void)0)
+#endif
+
 /******************************************************************************/
 
 enum
@@ -431,6 +456,7 @@ void psxRcntUpdate()
             rcnts[3].cycleStart += frameCycles();
             hSyncCount = 0;
             frame_counter++;
+            autoinput_state_test();
 
             gpuSyncPluginSR();
             status = SWAP32(HW_GPU_STATUS) | PSXGPU_FIELD;

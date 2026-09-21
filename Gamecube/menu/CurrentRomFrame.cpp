@@ -98,7 +98,7 @@ struct ButtonInfo
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[4],	150.0,	180.0,	340.0,	56.0,	 2,	 5,	-1,	-1,	Func_ShowRomInfo,	Func_ReturnFromCurrentRomFrame }, // Show ISO Info
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[5],	150.0,	240.0,	220.0,	56.0,	 4,	 6,	 7,	 7,	Func_LoadState,		Func_ReturnFromCurrentRomFrame }, // Load State
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[6],	150.0,	300.0,	220.0,	56.0,	 5,	 0,	 7,	 7,	Func_SaveState,		Func_ReturnFromCurrentRomFrame }, // Save State
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[7],	390.0,	270.0,	100.0,	56.0,	 4,	 1,	 5,	 5,	Func_StateCycle,	Func_ReturnFromCurrentRomFrame }, // Cycle State
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[7],	390.0,	270.0,	120.0,	56.0,	 4,	 1,	 5,	 5,	Func_StateCycle,	Func_ReturnFromCurrentRomFrame }, // Cycle State
 };
 
 CurrentRomFrame::CurrentRomFrame()
@@ -242,6 +242,12 @@ extern "C" char mcd2Written;
 extern "C" int LoadState();
 extern "C" int SaveState();
 extern "C" void savestates_select_slot(unsigned int s);
+extern "C" int StateExists(unsigned int slot);
+static void refreshStateSlot();
+static unsigned int which_slot = 0;
+/* Set whenever the slot, or what is in it, may have changed. drawChildren then opens the
+ * file once to see. Without it the label would cost a file open on every frame. */
+static bool slotLabelStale = true;
 
 void Func_LoadSave()
 {
@@ -251,27 +257,7 @@ void Func_LoadSave()
 		return;
 	}
 
-	switch (nativeSaveDevice)
-  {
-  	case NATIVESAVEDEVICE_SD:
-  	case NATIVESAVEDEVICE_USB:
-  		// Adjust saveFile pointers
-  		saveFile_dir = (nativeSaveDevice==NATIVESAVEDEVICE_SD) ? &saveDir_libfat_Default:&saveDir_libfat_USB;
-  		saveFile_readFile  = fileBrowser_libfat_readFile;
-  		saveFile_writeFile = fileBrowser_libfat_writeFile;
-  		saveFile_init      = fileBrowser_libfat_init;
-  		saveFile_deinit    = fileBrowser_libfat_deinit;
-  		break;
-  	case NATIVESAVEDEVICE_CARDA:
-  	case NATIVESAVEDEVICE_CARDB:
-  		// Adjust saveFile pointers
-  		saveFile_dir       = (nativeSaveDevice==NATIVESAVEDEVICE_CARDA) ? &saveDir_CARD_SlotA:&saveDir_CARD_SlotB;
-  		saveFile_readFile  = fileBrowser_CARD_readFile;
-  		saveFile_writeFile = fileBrowser_CARD_writeFile;
-  		saveFile_init      = fileBrowser_CARD_init;
-  		saveFile_deinit    = fileBrowser_CARD_deinit;
-  		break;
-  }
+	setSaveDevice();   /* fileBrowser.c: point saveFile_* at nativeSaveDevice */
 
   // Try loading everything
   int result = 0;
@@ -308,27 +294,7 @@ void Func_SaveGame()
     menu::MessageBox::getInstance().setMessage("Nothing to save");
     return;
   }
-	switch (nativeSaveDevice)
-  {
-  	case NATIVESAVEDEVICE_SD:
-  	case NATIVESAVEDEVICE_USB:
-  		// Adjust saveFile pointers
-  		saveFile_dir = (nativeSaveDevice==NATIVESAVEDEVICE_SD) ? &saveDir_libfat_Default:&saveDir_libfat_USB;
-  		saveFile_readFile  = fileBrowser_libfat_readFile;
-  		saveFile_writeFile = fileBrowser_libfat_writeFile;
-  		saveFile_init      = fileBrowser_libfat_init;
-  		saveFile_deinit    = fileBrowser_libfat_deinit;
-  		break;
-  	case NATIVESAVEDEVICE_CARDA:
-  	case NATIVESAVEDEVICE_CARDB:
-  		// Adjust saveFile pointers
-  		saveFile_dir       = (nativeSaveDevice==NATIVESAVEDEVICE_CARDA) ? &saveDir_CARD_SlotA:&saveDir_CARD_SlotB;
-  		saveFile_readFile  = fileBrowser_CARD_readFile;
-  		saveFile_writeFile = fileBrowser_CARD_writeFile;
-  		saveFile_init      = fileBrowser_CARD_init;
-  		saveFile_deinit    = fileBrowser_CARD_deinit;
-  		break;
-  }
+	setSaveDevice();   /* fileBrowser.c: point saveFile_* at nativeSaveDevice */
 
 	// Try saving everything
 	int amountSaves = mcd1Written + mcd2Written;
@@ -379,17 +345,28 @@ void Func_SaveState()
   } else {
     menu::MessageBox::getInstance().setMessage("Error Saving State");
   }
+  slotLabelStale = true;
 }
 
-static unsigned int which_slot = 0;
+/* "Slot 3", or "Slot 3 *" when that slot holds a state this build can read. */
+static void refreshStateSlot()
+{
+	sprintf(FRAME_STRINGS[7], "Slot %u%s", which_slot, StateExists(which_slot) ? " *" : "");
+	slotLabelStale = false;
+}
+
+void CurrentRomFrame::drawChildren(menu::Graphics& gfx)
+{
+	if (!isVisible()) return;
+	if (slotLabelStale) refreshStateSlot();
+	menu::Frame::drawChildren(gfx);
+}
 
 void Func_StateCycle()
 {
-
 	which_slot = (which_slot+1) %10;
 	savestates_select_slot(which_slot);
-	FRAME_STRINGS[7][5] = which_slot + '0';
-
+	slotLabelStale = true;
 }
 
 void Func_ReturnFromCurrentRomFrame()

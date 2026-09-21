@@ -28,6 +28,11 @@
 
 extern fileBrowser_file topLevel_libfat_Default;  //GC SD Slots & Wii Front SD Slot
 extern fileBrowser_file topLevel_libfat_USB;      //Wii only, USB
+/* Create every directory in a path, so that a write to it can succeed on a card that has
+ * no such folder yet. The last component is the file name and is not created. Used by the
+ * memory-card writer here and by the save-state writer in misc.c. */
+void makeParentDirs(const char* path);
+
 extern fileBrowser_file saveDir_libfat_Default;   //GC SD Slots & Wii Front SD Slot
 extern fileBrowser_file saveDir_libfat_USB;       //Wii only, USB
 extern fileBrowser_file biosDir_libfat_Default;   //GC SD Slots & Wii Front SD Slot

@@ -29,6 +29,7 @@ class CurrentRomFrame : public menu::Frame
 public:
 	CurrentRomFrame();
 	~CurrentRomFrame();
+	void drawChildren(menu::Graphics& gfx);
 
 private:
 	

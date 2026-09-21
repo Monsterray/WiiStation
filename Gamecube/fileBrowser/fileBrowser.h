@@ -56,6 +56,10 @@ extern fileBrowser_file* isoFile_topLevel;
 // Set this to directory for memory cards & save states
 extern fileBrowser_file* saveFile_dir;
 
+/* Point the saveFile_* calls below at the device the player chose (nativeSaveDevice).
+ * Call this before saveFile_init(). */
+void setSaveDevice(void);
+
 // Set this to directory for the bios file(s)
 extern fileBrowser_file* biosFile_dir;
 

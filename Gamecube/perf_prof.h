@@ -354,6 +354,15 @@ typedef struct {
 	} pev[PERF_PEV_N];
 	uint32_t pev_n;
 
+	/* Saves. A save state writes about 2.8 MB through gzip and a memory card 128 KB, both
+	 * on the main thread with the picture frozen, so their wall time is what a player
+	 * feels. `fail` counts the ones that wrote nothing. */
+	uint32_t state_saves, state_loads, state_fails;
+	uint64_t state_save_us, state_load_us;
+	uint32_t state_bytes;          /* the last state file, uncompressed */
+	uint32_t mcd_saves, mcd_fails;
+	uint64_t mcd_save_us;
+
 	/* Menu (Gamecube/libgui) */
 	uint32_t menu_frames;         /* Gui::draw calls */
 	uint64_t menu_us;             /* time inside Gui::draw */
@@ -366,6 +375,7 @@ extern perf_counters_t g_perf;
 
 #define PERF_INC(f)    (g_perf.f++)
 #define PERF_ADD(f, n) (g_perf.f += (n))
+#define PERF_SET(f, v) (g_perf.f = (v))
 
 /* Append one record to the audio timeline (see aev[] above). cycle is the PSX cycle the
  * event belongs to; a, b, c are event-specific and documented in perf_prof.c. */
@@ -412,6 +422,7 @@ void perf_pad_event(unsigned pad, unsigned type, unsigned drv_btns, unsigned drv
 
 #define PERF_INC(f)    ((void)0)
 #define PERF_ADD(f, n) ((void)(n))
+#define PERF_SET(f, v) ((void)(v))
 #define perf_audio_event(k, cy, a, b, c) ((void)0)
 static inline unsigned long long perf_now_us(void) { return 0; }
 static inline unsigned long long perf_now_ticks(void) { return 0; }

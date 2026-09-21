@@ -521,6 +521,12 @@ void perf_report(void)
 			(unsigned long)(g_perf.rate_updates ? g_perf.rate_occ_sum / g_perf.rate_updates : 0),
 			(unsigned long)g_perf.rate_updates, (unsigned long)g_perf.rate_sat, (unsigned long)g_perf.rate_changes,
 			(unsigned long)g_perf.rate_prefill, (unsigned long)g_perf.limit_debt_max, (unsigned long)g_perf.limit_debt_drops);
+		fprintf(f, "save: states=%lu save_us=%llu loads=%lu load_us=%llu bytes=%lu fails=%lu mcd=%lu mcd_us=%llu mcd_fails=%lu\n",
+			(unsigned long)g_perf.state_saves, g_perf.state_save_us,
+			(unsigned long)g_perf.state_loads, g_perf.state_load_us,
+			(unsigned long)g_perf.state_bytes, (unsigned long)g_perf.state_fails,
+			(unsigned long)g_perf.mcd_saves, g_perf.mcd_save_us,
+			(unsigned long)g_perf.mcd_fails);
 		fprintf(f, "menu: frames=%lu menu_us=%llu strings=%lu glyphs=%lu texloads=%lu\n",
 			(unsigned long)g_perf.menu_frames, g_perf.menu_us,
 			(unsigned long)g_perf.menu_strings, (unsigned long)g_perf.menu_glyphs,
