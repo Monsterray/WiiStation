@@ -2,15 +2,17 @@
 #include <stdlib.h>
 #include <string.h>
 #include "out.h"
+#include "resample.h"
 
-/* Two output drivers, both fed the same 44100 Hz signed 16-bit stereo stream by the SPU
- * emulator:
- *   sdl   -- the CPU resamples to 48000 and libSDL hands the result to the audio
- *            interface's DMA. The DSP is idle.
- *   cube  -- the stream goes to an AESND voice at 44100 Hz and the DSP's microcode does
- *            the rate conversion, mixing and volume.
- * The SoundHwAccel setting picks which one is preferred; if its init() fails the other is
- * used, so a machine where one path is unavailable still gets sound. */
+/* Two output drivers for the SPU emulator's signed 16-bit stereo stream:
+ *   sdl   -- libSDL hands the stream to the audio interface's DMA. The DSP is idle.
+ *   cube  -- the stream goes to an AESND voice and the DSP's microcode does the mixing
+ *            and volume.
+ * The 44100 -> 48000 conversion sits in front of both (resample.c): the CPU interpolates
+ * and the drivers receive 48000 Hz, except for the DSP path in Hold mode, which receives
+ * 44100 Hz and lets the microcode hold, as it always did.
+ * The SoundHwAccel setting picks which driver is preferred; if its init() fails the other
+ * is used, so a machine where one path is unavailable still gets sound. */
 #define HAVE_SDL
 #define HAVE_CUBE
 #define MAX_OUT_DRIVERS 2
@@ -47,6 +49,7 @@ void SetupSound(void)
 	/* Try the preferred driver, then any other, so a failure to open one is not silence. */
 	if (out_drivers[preferred].init() == 0) {
 		out_current = &out_drivers[preferred];
+		resample_reset();
 		return;
 	}
 
@@ -54,6 +57,7 @@ void SetupSound(void)
 		if (i == preferred) continue;
 		if (out_drivers[i].init() == 0) {
 			out_current = &out_drivers[i];
+			resample_reset();
 			return;
 		}
 	}

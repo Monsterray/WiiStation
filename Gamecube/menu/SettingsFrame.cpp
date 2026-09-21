@@ -23,6 +23,7 @@
 #include "MenuContext.h"
 #include "../perf_prof.h"
 #include "SettingsFrame.h"
+#include "AdvancedSoundFrame.h"
 #include "../libgui/Button.h"
 #include "../libgui/TextBox.h"
 #include "../libgui/resources.h"
@@ -104,6 +105,7 @@ void Func_DisableAudioYes();
 void Func_DisableAudioNo();
 void Func_SoundHwAccelYes();
 void Func_SoundHwAccelNo();
+void Func_AdvancedSound();
 void Func_DisableXaYes();
 void Func_DisableXaNo();
 void Func_DisableCddaYes();
@@ -156,7 +158,7 @@ void gpuChangePsxType();
 void setSpuInterpolation(int spuInterpolation);
 }
 
-#define NUM_FRAME_BUTTONS 69
+#define NUM_FRAME_BUTTONS 70
 #define NUM_TAB_BUTTONS 5
 #define FRAME_BUTTONS settingsFrameButtons
 #define FRAME_STRINGS settingsFrameStrings
@@ -193,6 +195,8 @@ Interpolation: Simple; Gaussi   (this control was historically labelled "Volume"
 	always set spuInterpolation, and there is no volume control)
 DSP Sound: Yes; No              (SoundHwAccel: hand the stream to the DSP instead of
 	resampling on the CPU)
+Advanced                        (opens the Advanced Sound page, AdvancedSoundFrame.cpp:
+	options under test, table-driven so rows can be added and removed freely)
 
 Saves Tab:
 Memcard Save Device: SD; USB; CardA; CardB
@@ -200,7 +204,7 @@ Auto Save Memcards: Yes; No
 Save States Device: SD; USB
 */
 
-static char FRAME_STRINGS[80][24] =
+static char FRAME_STRINGS[81][24] =
 	{ "General",
 	  "Video",
 	  "Input",
@@ -288,7 +292,8 @@ static char FRAME_STRINGS[80][24] =
 	  "Separately",
 	  "Force NTSC",
 	//Appended so no existing FRAME_STRINGS index moves
-	  "DSP Sound"			// [79] audio tab: hardware-accelerated sound
+	  "DSP Sound",			// [79] audio tab: hardware-accelerated sound
+	  "Advanced"			// [80] audio tab: the Advanced Sound page
       };
 
 static char LANG_STRINGS[13][24] =
@@ -386,11 +391,11 @@ struct ButtonInfo
 	//Buttons for Audio Tab (starts at button[39]) ..was[45]
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[16],	345.0,	100.0,	 75.0,	56.0,	 3,	41,	40,	40,	Func_DisableAudioYes,	Func_ReturnFromSettingsFrame }, // Disable Audio: Yes
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[17],	440.0,	100.0,	 75.0,	56.0,	 3,	42,	39,	39,	Func_DisableAudioNo,	Func_ReturnFromSettingsFrame }, // Disable Audio: No
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[16],	345.0,	170.0,	 75.0,	56.0,	39,	43,	42,	42,	Func_DisableXaYes,		Func_ReturnFromSettingsFrame }, // Disable XA: Yes
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[17],	440.0,	170.0,	 75.0,	56.0,	40,	44,	41,	41,	Func_DisableXaNo,		Func_ReturnFromSettingsFrame }, // Disable XA: No
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[16],	345.0,	240.0,	 75.0,	56.0,	41,	45,	44,	44,	Func_DisableCddaYes,	Func_ReturnFromSettingsFrame }, // Disable CDDA: Yes
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[17],	440.0,	240.0,	 75.0,	56.0,	42,	45,	43,	43,	Func_DisableCddaNo,		Func_ReturnFromSettingsFrame }, // Disable CDDA: No
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[47],	345.0,	310.0,	170.0,	56.0,	43,	 3,	-1,	-1,	Func_InterpolationToggle,	Func_ReturnFromSettingsFrame }, // Interpolation: Simple/Gaussi
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[16],	345.0,	160.0,	 75.0,	56.0,	39,	43,	42,	42,	Func_DisableXaYes,		Func_ReturnFromSettingsFrame }, // Disable XA: Yes
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[17],	440.0,	160.0,	 75.0,	56.0,	40,	44,	41,	41,	Func_DisableXaNo,		Func_ReturnFromSettingsFrame }, // Disable XA: No
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[16],	345.0,	220.0,	 75.0,	56.0,	41,	45,	44,	44,	Func_DisableCddaYes,	Func_ReturnFromSettingsFrame }, // Disable CDDA: Yes
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[17],	440.0,	220.0,	 75.0,	56.0,	42,	45,	43,	43,	Func_DisableCddaNo,		Func_ReturnFromSettingsFrame }, // Disable CDDA: No
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[47],	345.0,	280.0,	170.0,	56.0,	43,	 3,	-1,	-1,	Func_InterpolationToggle,	Func_ReturnFromSettingsFrame }, // Interpolation: Simple/Gaussi
 	//Buttons for Saves Tab (starts at button[46]) ..was[54]
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[13],	295.0,	100.0,	 55.0,	56.0,	 4,	50,	49,	47,	Func_MemcardSaveSD,		Func_ReturnFromSettingsFrame }, // Memcard Save: SD
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[14],	360.0,	100.0,	 70.0,	56.0,	 4,	51,	46,	48,	Func_MemcardSaveUSB,	Func_ReturnFromSettingsFrame }, // Memcard Save: USB
@@ -419,8 +424,9 @@ struct ButtonInfo
 	{	NULL,	BTN_A_SEL,	GPU_PLUGIN_STRINGS[3],	505.0,	160.0,	130.0,	56.0,	 6,	 9,	 65, 64,Func_UseOpenGxGpu,		Func_ReturnFromSettingsFrame }, // GpuPlugin: OpenGX
 
 	//Audio tab, appended at the end (starts at button[67]) so no existing index moves
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[16],	345.0,	380.0,	 75.0,	56.0,	45,	 3,	68,	68,	Func_SoundHwAccelYes,	Func_ReturnFromSettingsFrame }, // DSP Sound: Yes
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[17],	440.0,	380.0,	 75.0,	56.0,	45,	 3,	67,	67,	Func_SoundHwAccelNo,	Func_ReturnFromSettingsFrame }, // DSP Sound: No
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[16],	345.0,	340.0,	 75.0,	56.0,	45,	69,	68,	68,	Func_SoundHwAccelYes,	Func_ReturnFromSettingsFrame }, // DSP Sound: Yes
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[17],	440.0,	340.0,	 75.0,	56.0,	45,	69,	67,	67,	Func_SoundHwAccelNo,	Func_ReturnFromSettingsFrame }, // DSP Sound: No
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[80],	345.0,	400.0,	170.0,	56.0,	67,	 3,	-1,	-1,	Func_AdvancedSound,		Func_ReturnFromSettingsFrame }, // Advanced: opens the Advanced Sound page
 };
 
 struct TextBoxInfo
@@ -452,9 +458,9 @@ struct TextBoxInfo
 	{	NULL,	FRAME_STRINGS[41],	145.0,	408.0,	 1.0,	true }, // Auto Load Slot: Default/1/2/3/4
 	//TextBoxes for Audio Tab (starts at textBox[14]) ..was[17]
 	{	NULL,	FRAME_STRINGS[43],	210.0,	128.0,	 1.0,	true }, // Disable Audio: Yes/No
-	{	NULL,	FRAME_STRINGS[44],	210.0,	198.0,	 1.0,	true }, // Disable XA Audio: Yes/No
-	{	NULL,	FRAME_STRINGS[45],	210.0,	268.0,	 1.0,	true }, // Disable CDDA Audio: Yes/No
-	{	NULL,	FRAME_STRINGS[46],	210.0,	338.0,	 1.0,	true }, // Interpolation: Simple/Gaussi
+	{	NULL,	FRAME_STRINGS[44],	210.0,	188.0,	 1.0,	true }, // Disable XA Audio: Yes/No
+	{	NULL,	FRAME_STRINGS[45],	210.0,	248.0,	 1.0,	true }, // Disable CDDA Audio: Yes/No
+	{	NULL,	FRAME_STRINGS[46],	210.0,	308.0,	 1.0,	true }, // Interpolation: Simple/Gaussi
 	//TextBoxes for Saves Tab (starts at textBox[18]) ..was[23]
 	{	NULL,	FRAME_STRINGS[51],	150.0,	128.0,	 1.0,	true }, // Memcard Save Device: SD/USB/CardA/CardB
 	{	NULL,	FRAME_STRINGS[52],	150.0,	198.0,	 1.0,	true }, // Auto Save Memcards: Yes/No
@@ -465,7 +471,7 @@ struct TextBoxInfo
     //TextBoxes for Saves Tab (starts at textBox[24]) ..was[24]
 	{	NULL,	GPU_PLUGIN_STRINGS[0],	110.0,	188.0,	 1.0,	true }, // GPU Plugin: Old Soft/New Soft/OpenGX
 	//TextBox for the Audio tab, appended (textBox[25])
-	{	NULL,	FRAME_STRINGS[79],	210.0,	408.0,	 1.0,	true }, // DSP Sound: Yes/No
+	{	NULL,	FRAME_STRINGS[79],	210.0,	368.0,	 1.0,	true }, // DSP Sound: Yes/No
 };
 
 SettingsFrame::SettingsFrame()
@@ -682,7 +688,7 @@ void SettingsFrame::activateSubmenu(int submenu)
 			{
 				FRAME_BUTTONS[i].button->setVisible(true);
 				FRAME_BUTTONS[i].button->setNextFocus(menu::Focus::DIRECTION_DOWN, FRAME_BUTTONS[39].button);
-				FRAME_BUTTONS[i].button->setNextFocus(menu::Focus::DIRECTION_UP, FRAME_BUTTONS[45].button);
+				FRAME_BUTTONS[i].button->setNextFocus(menu::Focus::DIRECTION_UP, FRAME_BUTTONS[69].button);
 				FRAME_BUTTONS[i].button->setActive(true);
 			}
 			for (int i = 14; i < 18; i++)
@@ -702,8 +708,8 @@ void SettingsFrame::activateSubmenu(int submenu)
 				FRAME_BUTTONS[i].button->setVisible(true);
 				FRAME_BUTTONS[i].button->setActive(true);
 			}
-			/* DSP Sound lives at the end of the array (see the button table) */
-			for (int i = 67; i <= 68; i++)
+			/* DSP Sound and Advanced live at the end of the array (see the button table) */
+			for (int i = 67; i <= 69; i++)
 			{
 				FRAME_BUTTONS[i].button->setVisible(true);
 				FRAME_BUTTONS[i].button->setActive(true);
@@ -1463,6 +1469,11 @@ void Func_ConfigureInput()
 {
 //	menu::MessageBox::getInstance().setMessage("Input configuration not implemented");
 	pMenuContext->setActiveFrame(MenuContext::FRAME_CONFIGUREINPUT,ConfigureInputFrame::SUBMENU_REINIT);
+}
+
+void Func_AdvancedSound()
+{
+	pMenuContext->setActiveFrame(MenuContext::FRAME_ADVANCEDSOUND,AdvancedSoundFrame::SUBMENU_REINIT);
 }
 
 void Func_ConfigureButtons()

@@ -30,7 +30,11 @@
 // this also doubled the actual audio latency (~125ms -> ~250ms) --
 // audible as audio lagging behind video. The frame-limiter fix
 // (c19c70f) already removes the speed bursts this was meant to absorb.
-#define BUFFER_SIZE        22050
+//
+// The ring holds 48000 Hz data (the conversion moved to resample.c, in
+// front of the driver), so both sizes below are the old 44100 Hz figures
+// scaled by 48000/44100: the same capacity and latency in milliseconds.
+#define BUFFER_SIZE        24000
 //#define BUFFER_SIZE        12000
 
 // sdl_busy()'s operating point kept as its own literal, deliberately NOT
@@ -40,14 +44,11 @@
 // exactly what caused the latency regression above. If BUFFER_SIZE ever
 // needs to grow again for overflow headroom, this stays fixed and the
 // operating latency won't silently move with it. Set to match the
-// current BUFFER_SIZE/2 (11025) so behavior is unchanged by this split.
-#define BUSY_TARGET_SAMPLES 11025
+// current BUFFER_SIZE/2 (12000) so behavior is unchanged by this split.
+#define BUSY_TARGET_SAMPLES 12000
 
 short            *pSndBuffer = NULL;
 volatile int    iReadPos = 0, iWritePos = 0;
-static int sposTmp = 0x10000L;
-static int16_t lastSampleL;
-static int16_t lastSampleR;
 //extern char audioEnabled;
 
 static void SOUND_FillAudio(void *unused, Uint8 *stream, int len) {
@@ -62,35 +63,21 @@ static void SOUND_FillAudio(void *unused, Uint8 *stream, int len) {
     //len >>= 1;
     len >>= 2;
 
-//    while (iReadPos != iWritePos && len > 0) {
-//        *p++ = pSndBuffer[iReadPos++];
-//        if (iReadPos >= BUFFER_SIZE) iReadPos = 0;
-//        --len;
-//    }
-    // pitch data from 44100 to 48000
+    // The ring already holds 48000 Hz frames (resample.c converted them
+    // before sdl_feed), so this is a plain copy. The 44100 -> 48000 hold
+    // that used to live here is now resample.c's Hold mode.
     while (iReadPos != iWritePos && len > 0)
     {
-        while (sposTmp >= 0x10000L)
-        {
-            lastSampleL = pSndBuffer[iReadPos++];
-            if (iReadPos >= BUFFER_SIZE) iReadPos = 0;
-            lastSampleR = pSndBuffer[iReadPos++];
-            if (iReadPos >= BUFFER_SIZE) iReadPos = 0;
-            sposTmp -= 0x10000L;
-        }
-
-        *p++ = lastSampleL;
-        *p++ = lastSampleR;
-        sposTmp += SINC;
+        *p++ = pSndBuffer[iReadPos++];
+        if (iReadPos >= BUFFER_SIZE) iReadPos = 0;
+        *p++ = pSndBuffer[iReadPos++];
+        if (iReadPos >= BUFFER_SIZE) iReadPos = 0;
         --len;
     }
 
     // Ring buffer ran dry before satisfying the full request -- SDL does
     // not guarantee `stream` starts zeroed, so without this the tail would
     // play back whatever was previously in that memory (an audible pop).
-    // Left un-advanced: sposTmp/lastSample* deliberately aren't touched
-    // here, so the resampler picks back up exactly where it left off once
-    // real data is available again, instead of skipping ahead over the gap.
     if (len > 0) {
         memset(p, 0, len * 2 * sizeof(int16_t));
     }
@@ -217,4 +204,5 @@ void out_register_sdl(struct out_driver *drv)
     drv->finish = sdl_finish;
     drv->busy = sdl_busy;
     drv->feed = sdl_feed;
+    drv->hold_in_hw = 0;    /* nothing behind libSDL converts; always fed 48000 Hz */
 }

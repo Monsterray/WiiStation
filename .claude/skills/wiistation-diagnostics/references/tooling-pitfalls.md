@@ -80,8 +80,22 @@ believing the symptom.
   silence, with a modal panic dialog saying so. Dolphin ships replacement DSP ROMs in
   `Sys/GC`, so nothing else is needed.
 - `AUDIO_DUMP=1` writes the mixed audio to the run directory; compare two runs with
-  `scripts/wav_compare.py`. Judge by level and silence structure, not by the correlation:
-  two separate emulator runs are never sample-aligned.
+  `scripts/wav_compare.py`. Judge by level, silence structure and the **short zero gaps**
+  count, not by the correlation: two separate emulator runs are never sample-aligned. The
+  gap count is the one that catches a stream running dry: AESND mixes in 2 ms blocks, so a
+  DSP-path voice that misses a buffer hand-over leaves a 2 ms hole, and hundreds of those a
+  minute is crackle that the 100 ms window statistics cannot see (found 2026-09-20: 1795
+  gaps on the DSP path against 112 on the CPU path for the same script, with Dolphin at
+  0.72x under DSP LLE on a thread plus frame dumping). For anything about the top of the
+  spectrum (the output resampler, filtering) use `scripts/wav_spectrum.py A.wav B.wav ...`:
+  band energies over one fixed time window, so runs of the same input script line up.
+  The output-stage resampler (`SoundResampler`, Settings -> Audio -> Advanced) has staged
+  settings files `settings_res{0,1,2}.cfg` (CPU path) and `settings_dsp_res{0,1,2}.cfg`
+  (DSP path) in `WiiSDSync_paused_by_claude`, and its cost is `out_us` on perf.log's
+  `inside:` line. Verify the arithmetic natively first: a clang harness (pattern kept in
+  the scratchpad as `rs_test/`) compiles `dfsound/resample.c` against three stub headers
+  and measures image suppression with numpy in seconds; a Dolphin run is for the drivers
+  and the cost, not for the maths.
 - `PROBES=all|light|min` on `scripts/build.sh` selects how much instrumentation the debug
   build carries (see the sub-gates in `Gamecube/perf_prof.h`). Worth about 2% of emulated
   CPU time, so reach for it only when profiling the guest; the big costs are host-side.

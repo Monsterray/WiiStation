@@ -42,6 +42,17 @@ enum soundHwAccel
 	SOUND_HW_ACCEL_ON
 };
 
+/* How the mixer's 44100 Hz output is converted to the audio interface's 48000 Hz
+ * (dfsound/resample.c). Hold is what both paths always did; the other two interpolate on
+ * the CPU. Settings -> Audio -> Advanced. */
+extern char soundResampler;
+enum soundResampler
+{
+	SOUND_RESAMPLE_HOLD=0,
+	SOUND_RESAMPLE_LINEAR,
+	SOUND_RESAMPLE_CUBIC
+};
+
 /* Settings-file mirrors of Config.Xa/Config.Cdda. Those are longs inside PCSX's config
  * struct and the settings table writes a char, so they are stored here and copied across
  * at startup, the same way dynacore mirrors Config.Cpu. Without this the two menu toggles

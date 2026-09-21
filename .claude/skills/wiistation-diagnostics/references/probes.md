@@ -16,7 +16,7 @@ scheduled `dump` vblank. Lines and what they mean:
 |---|---|
 | `--- perf frames=N ---` | presents so far (flipEGL count) |
 | `fixes: dwActFixes=.. cdrom=..` | active per-game hack bits (database.c) and the disc id |
-| `cpu:`, `wall:`, `inside:`, `slicecost:`, `slice:` | CPU core timing; `wall: vblanks=` is the emulated vblank count |
+| `cpu:`, `wall:`, `inside:`, `slicecost:`, `slice:` | CPU core timing; `wall: vblanks=` is the emulated vblank count. `inside: spu_us` is the whole audio mixer per report, and `out_us` the part of it spent in the 44100→48000 output conversion (`dfsound/resample.c`; zero on the DSP path in Hold mode, where the microcode converts) |
 | `irq: cdr=.. gpudma=.. rcnt=..` | interrupt histogram; only non-zero sources are printed — a missing `sio=` means the SIO never interrupted (no pad traffic) |
 | `ram:` | MEM1/MEM2 usage, `heap_ok`, `null_read` |
 | `gpu: tex_hit/miss/resets/loads` | texture cache activity |

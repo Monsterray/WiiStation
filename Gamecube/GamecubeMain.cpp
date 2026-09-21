@@ -113,6 +113,7 @@ char frameSkip;
 char useDithering;
 extern char audioEnabled;   // defined in dfsound/cube.c alongside the output drivers
 char soundHwAccel;          // read by dfsound/out.c when it picks an output driver
+char soundResampler;        // read by dfsound/resample.c on every block it converts
 char xaDisabled;            // mirrors Config.Xa   (see wiiSXconfig.h)
 char cddaDisabled;          // mirrors Config.Cdda
 char spuInterpolation;
@@ -174,6 +175,7 @@ static struct {
 } OPTIONS[] =
 { { "Audio", &audioEnabled, AUDIO_DISABLE, AUDIO_ENABLE },
   { "SoundHwAccel", &soundHwAccel, SOUND_HW_ACCEL_OFF, SOUND_HW_ACCEL_ON },
+  { "SoundResampler", &soundResampler, SOUND_RESAMPLE_HOLD, SOUND_RESAMPLE_CUBIC },
   { "Interpolation", &spuInterpolation, SIMPLE_INTERPOLATION, GAUSSI_INTERPOLATION },
   { "DisableXa", &xaDisabled, XA_ENABLE, XA_DISABLE },
   { "DisableCdda", &cddaDisabled, CDDA_ENABLE, CDDA_DISABLE },
@@ -364,7 +366,8 @@ void loadSettings(int argc, char *argv[])
 	// Default Settings
 	audioEnabled     = 1; // Audio
 	soundHwAccel     = SOUND_HW_ACCEL_OFF; // CPU sound path; the DSP one is opt-in
-	spuInterpolation = SIMPLE_INTERPOLATION;
+	soundResampler   = SOUND_RESAMPLE_HOLD; // the conversion both paths always did; the others are under test
+	spuInterpolation = GAUSSI_INTERPOLATION; // the better of the two voice interpolators, and the whole SPU is under 1% of a frame
 	xaDisabled       = XA_ENABLE;    // XA and CDDA audio both on by default
 	cddaDisabled     = CDDA_ENABLE;
 #ifdef RELEASE

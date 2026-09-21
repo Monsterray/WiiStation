@@ -26,6 +26,7 @@
  */
 
 #include "out.h"
+#include "resample.h"
 #include "../psxcommon.h"
 
 #include <malloc.h>
@@ -39,17 +40,29 @@ char audioEnabled;          /* the "Audio" setting; also read by the menu */
 unsigned int aesndAttenuation = 3;   /* see aesnd_set_volume() */
 int iDisStereo = 0;
 
-/* Four buffers of 1024 stereo frames: about 23 ms each at 44100 Hz, so at most ~93 ms
- * of latency when the ring is full, and the emulator is throttled (see cube_busy) well
- * before that. Bytes per buffer must stay a multiple of 32 for the DMA. */
-#define CUBE_BUFFERS      4
-#define CUBE_BUF_FRAMES   1024
-#define CUBE_BUF_BYTES    (CUBE_BUF_FRAMES * 4)     /* stereo, 16-bit */
-#define CUBE_BUSY_BUFFERS 2                         /* keep roughly this much queued */
+/* Each buffer MUST be a whole number of DSP_STREAMBUFFER_SIZE (1152) bytes. AESND's
+ * stream mode copies an application buffer into the DSP in 1152-byte chunks and zero-fills
+ * whatever a short final chunk lacks (libogc2 aesndlib.c, __aesndfillbuffer), and the DSP
+ * plays that padding. The first version of this driver used 4096-byte buffers: 4096 mod
+ * 1152 = 640, so every buffer ended in 512 bytes of silence, 128 frames, about 2.7 ms,
+ * one hole per buffer, ~1800 of them in 100 s of Spyro, heard as crackle. Halving the
+ * buffers doubled the holes, which is what gave it away. Measured 2026-09-20 in Dolphin
+ * (DSP LLE, audio dump; scripts/wav_compare.py counts the holes).
+ *
+ * Four chunks per buffer (1152 frames, 24 ms at 48000 Hz, 26 at 44100), eight buffers,
+ * the emulator throttled (cube_busy) at five queued: about 120 ms in hand, the same depth
+ * as the SDL path's ring (125 ms), and headroom for the mixer's one-burst-per-frame
+ * delivery. 1152 is also a multiple of 32, as the cache flush needs. */
+#define CUBE_BUF_BYTES    (DSP_STREAMBUFFER_SIZE * 4)
+#define CUBE_BUF_FRAMES   (CUBE_BUF_BYTES / 4)      /* stereo, 16-bit */
+#define CUBE_BUFFERS      8
+#define CUBE_BUSY_BUFFERS 5                         /* keep roughly this much queued */
+typedef char cube_buf_is_whole_chunks[(CUBE_BUF_BYTES % DSP_STREAMBUFFER_SIZE) == 0 && (CUBE_BUF_BYTES % 32) == 0 ? 1 : -1];
 
 static AESNDPB *voice = NULL;
 static unsigned char *ring[CUBE_BUFFERS];
 static int fill_used;                               /* bytes already in ring[fill] */
+static u32 voice_rate;                              /* what the voice is set to play at */
 
 /* Single producer (the emulator thread) and single consumer (the AESND callback, which
  * runs at interrupt time). Each side only ever writes its own counter, so neither needs
@@ -83,8 +96,9 @@ static void cube_callback(AESNDPB *pb, u32 state)
         AESND_SetVoiceBuffer(pb, ring[played % CUBE_BUFFERS], CUBE_BUF_BYTES);
         played++;
     }
-    /* Nothing queued: leave the voice alone. AESND repeats the last buffer rather than
-     * clicking, and the emulator's throttle (cube_busy) will catch up. */
+    /* Nothing queued: leave the voice alone. AESND keeps asking every 2 ms block and plays
+     * silence until a buffer arrives, so a genuinely starved queue would be heard as holes
+     * too; the depth above is what keeps that from happening. */
 }
 
 static int cube_init(void)
@@ -110,7 +124,8 @@ static int cube_init(void)
         return -1;
 
     AESND_SetVoiceFormat(voice, iDisStereo ? VOICE_MONO16 : VOICE_STEREO16);
-    AESND_SetVoiceFrequency(voice, PS_SPU_FREQ);   /* the DSP resamples to 48 kHz */
+    voice_rate = PS_SPU_FREQ;
+    AESND_SetVoiceFrequency(voice, voice_rate);    /* cube_feed follows the resampler mode */
     aesnd_set_volume();
     AESND_SetVoiceStream(voice, true);
     AESND_SetVoiceStop(voice, false);
@@ -140,7 +155,20 @@ static int cube_feed(void *data, int bytes)
 {
     const unsigned char *src = (const unsigned char *)data;
 
+    u32 rate;
+
     if (voice == NULL) return 0;   /* the audioEnabled gate lives in DF_SPUasync */
+
+    /* Hold mode hands the mixer's 44100 Hz stream to the DSP and its microcode holds; the
+     * interpolating modes arrive here already at 48000 Hz and the voice plays them 1:1.
+     * The frequency call is interrupt-safe (it masks interrupts around the write). Up to
+     * four buffers queued at the old rate play at the new one after a change, a ~90 ms
+     * pitch wobble once per switch; the setting is a test knob, changed from the menu. */
+    rate = resample_active() ? WII_SPU_FREQ : PS_SPU_FREQ;
+    if (rate != voice_rate) {
+        AESND_SetVoiceFrequency(voice, rate);
+        voice_rate = rate;
+    }
 
     while (bytes > 0) {
         unsigned char *dst;
@@ -188,4 +216,5 @@ void out_register_cube(struct out_driver *drv)
     drv->finish = cube_finish;
     drv->busy   = cube_busy;
     drv->feed   = cube_feed;
+    drv->hold_in_hw = 1;    /* the microcode's own 16.16 hold, when the mode is Hold */
 }

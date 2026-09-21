@@ -123,6 +123,11 @@ typedef struct {
 	uint32_t limit_target;        /* dwFrameRateTicks being paced to, 10us units */
 	uint64_t spu_ticks;
 	uint32_t spu_calls;
+	/* Subset of spu_*: the 44100 -> 48000 output conversion (dfsound/resample.c),
+	 * so the cost of the SoundResampler modes can be read on its own. Zero on the
+	 * DSP path in Hold mode, where the microcode does it. */
+	uint64_t out_ticks;
+	uint32_t out_calls;
 	uint64_t hw_ticks;
 	uint32_t hw_calls;
 	/* Subset of hw_*: GPU data/status registers (0x1f801810) and the DMA2

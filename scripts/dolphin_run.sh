@@ -66,11 +66,11 @@ CFGARGS=(
   -C Graphics.Settings.ShowSpeed=True
   -C Graphics.Settings.ShowVPS=True
 )
-[ -n "${CACHE:-}" ]   && CFGARGS+=(-C Dolphin.Core.AccurateCPUCache=True)
-[ -n "${MMU:-}" ]     && CFGARGS+=(-C Dolphin.Core.MMU=True)
-[ -n "${XFB_RAM:-}" ] && CFGARGS+=(-C Graphics.Hacks.XFBToTextureEnable=False)
-[ -n "${DSP_LLE:-}" ] && CFGARGS+=(-C Dolphin.Core.DSPHLE=False -C Logger.Logs.DSPLLE=True)
-[ -n "${AUDIO_DUMP:-}" ] && CFGARGS+=(-C Dolphin.DSP.DumpAudio=True)
+[ "${CACHE:-0}" != 0 ]   && CFGARGS+=(-C Dolphin.Core.AccurateCPUCache=True)
+[ "${MMU:-0}" != 0 ]     && CFGARGS+=(-C Dolphin.Core.MMU=True)
+[ "${XFB_RAM:-0}" != 0 ] && CFGARGS+=(-C Graphics.Hacks.XFBToTextureEnable=False)
+[ "${DSP_LLE:-0}" != 0 ] && CFGARGS+=(-C Dolphin.Core.DSPHLE=False -C Logger.Logs.DSPLLE=True)
+[ "${AUDIO_DUMP:-0}" != 0 ] && CFGARGS+=(-C Dolphin.DSP.DumpAudio=True)
 # shellcheck disable=SC2206
 [ -n "${DOLPHIN_ARGS:-}" ] && CFGARGS+=(${DOLPHIN_ARGS})
 
@@ -109,7 +109,7 @@ N=$(ls "$D/User/Dump/Frames" 2>/dev/null | wc -l); echo "frames dumped: $N"
 ls "$D/User/Dump/Frames"/framedump_*.png 2>/dev/null | sed -E 's/.*framedump_([0-9]+)\.png/\1/' | sort -n | tail -${KEEP:-120} | while read i; do mv "$D/User/Dump/Frames/framedump_$i.png" "$OUT/frames/"; done
 rm -rf "$D/User/Dump/Frames"
 cp "$D/User/Logs/dolphin.log" "$OUT/dolphin.log" 2>/dev/null || true
-if [ -n "${AUDIO_DUMP:-}" ]; then
+if [ "${AUDIO_DUMP:-0}" != 0 ]; then
   cp "$D/User/Dump/Audio"/*.wav "$OUT/" 2>/dev/null && ls -la "$OUT"/*.wav | awk '{print "audio dump:", $5, $9}'
 fi
 # Guest-side artifacts: 7-Zip refuses the FAT image after a kill often enough that perf.log is read
