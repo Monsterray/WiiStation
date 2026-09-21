@@ -21,6 +21,8 @@
 #include <stdint.h>
 #include "../psxcommon.h"
 #include "../Gamecube/DEBUG.h"
+#include "../Gamecube/perf_prof.h"
+extern char soundXaResampler;
 
 // will be included from spu.c
 #ifdef _IN_SPU
@@ -221,6 +223,99 @@ static unsigned long timeGetTime_spu()
 // FEED XA
 ////////////////////////////////////////////////////////////////////////
 
+
+////////////////////////////////////////////////////////////////////////
+// HI-FI XA RESAMPLER: real hardware's own 37800 -> 44100 Hz filter
+////////////////////////////////////////////////////////////////////////
+
+/* extern char soundXaResampler (Gamecube/wiiSXconfig.h). This is the SPU's own real 37800 Hz
+ * XA-ADPCM sample rate converter: a 7-phase, 29-tap "zigzag" FIR run on a 32-entry ring
+ * buffer, six input samples in for every seven output samples (37800*7/6 = 44100 exactly,
+ * so the ratio is exact with no drift). Coefficients are DuckStation's ResampleXAADPCM
+ * (src/core/cdrom.cpp), itself matching the real chip's behaviour; not the same filter as
+ * psx-spx's generic description, and not the 18900 Hz stream's own separate table (which
+ * needs its own separately-sourced coefficients and is not included here -- 18900 Hz
+ * streams always use the legacy path below regardless of this setting). Only handles
+ * 37800 Hz; FeedXA falls back to the legacy nearest/Gaussian step otherwise. */
+static const short xa_zigzag_tables[7][29] = {
+ {      0,  0x0000,  0x0000,  0x0000,  0x0000, -0x0002,  0x000A, -0x0022,  0x0041, -0x0054,
+   0x0034,  0x0009, -0x010A,  0x0400, -0x0A78,  0x234C,  0x6794, -0x1780,  0x0BCD, -0x0623,
+   0x0350, -0x016D,  0x006B,  0x000A, -0x0010,  0x0011, -0x0008,  0x0003, -0x0001 },
+ {      0,  0x0000,  0x0000, -0x0002,  0x0000,  0x0003, -0x0013,  0x003C, -0x004B,  0x00A2,
+  -0x00E3,  0x0132, -0x0043, -0x0267,  0x0C9D,  0x74BB, -0x11B4,  0x09B8, -0x05BF,  0x0372,
+  -0x01A8,  0x00A6, -0x001B,  0x0005,  0x0006, -0x0008,  0x0003, -0x0001,  0x0000 },
+ {      0,  0x0000, -0x0001,  0x0003, -0x0002, -0x0005,  0x001F, -0x004A,  0x00B3, -0x0192,
+   0x02B1, -0x039E,  0x04F8, -0x05A6,  0x7939, -0x05A6,  0x04F8, -0x039E,  0x02B1, -0x0192,
+   0x00B3, -0x004A,  0x001F, -0x0005, -0x0002,  0x0003, -0x0001,  0x0000,  0x0000 },
+ {      0, -0x0001,  0x0003, -0x0008,  0x0006,  0x0005, -0x001B,  0x00A6, -0x01A8,  0x0372,
+  -0x05BF,  0x09B8, -0x11B4,  0x74BB,  0x0C9D, -0x0267, -0x0043,  0x0132, -0x00E3,  0x00A2,
+  -0x004B,  0x003C, -0x0013,  0x0003,  0x0000, -0x0002,  0x0000,  0x0000,  0x0000 },
+ { -0x0001,  0x0003, -0x0008,  0x0011, -0x0010,  0x000A,  0x006B, -0x016D,  0x0350, -0x0623,
+   0x0BCD, -0x1780,  0x6794,  0x234C, -0x0A78,  0x0400, -0x010A,  0x0009,  0x0034, -0x0054,
+   0x0041, -0x0022,  0x000A, -0x0001,  0x0000,  0x0001,  0x0000,  0x0000,  0x0000 },
+ {  0x0002, -0x0008,  0x0010, -0x0023,  0x002B,  0x001A, -0x00EB,  0x027B, -0x0548,  0x0AFA,
+  -0x16FA,  0x53E0,  0x3C07, -0x1249,  0x080E, -0x0347,  0x015B, -0x0044, -0x0017,  0x0046,
+  -0x0023,  0x0011, -0x0005,  0x0000,  0x0000,  0x0000,  0x0000,  0x0000,  0x0000 },
+ { -0x0005,  0x0011, -0x0023,  0x0046, -0x0017, -0x0044,  0x015B, -0x0347,  0x080E, -0x1249,
+   0x3C07,  0x53E0, -0x16FA,  0x0AFA, -0x0548,  0x027B, -0x00EB,  0x001A,  0x002B, -0x0023,
+   0x0010, -0x0008,  0x0002,  0x0000,  0x0000,  0x0000,  0x0000,  0x0000,  0x0000 },
+};
+
+/* Persistent across calls (a continuous filter over the whole stream, not per-sector); left
+ * only, duplicated to the right channel for mono. Zero-initialised, like the legacy path's
+ * own gauss_window: a stream restart does not explicitly clear this, matching that existing
+ * convention rather than introducing a new one. */
+static short xa_zz_ring[2][32];
+static unsigned int xa_zz_p = 0;
+static unsigned int xa_zz_sixstep = 6;
+
+INLINE short xa_zigzag_tap(const short *ring, unsigned int table, unsigned int p)
+{
+ const short *coef = xa_zigzag_tables[table];
+ int32_t sum = 0;
+ unsigned int i;
+ for (i = 0; i < 29; i++)
+  sum += ((int32_t)ring[(p - i) & 31] * (int32_t)coef[i]) >> 15;
+ ssat32_to_16(sum);
+ return (short)sum;
+}
+
+/* Returns 0 on success, -1 if the XA ring filled up mid-burst (caller should stop feeding,
+ * same as the legacy path's own "Buffer not enough" break). */
+static int FeedXA_zigzag(const xa_decode_t *xap)
+{
+ unsigned int i;
+
+ for (i = 0; i < (unsigned int)xap->nsamples; i++)
+  {
+   xa_zz_ring[0][xa_zz_p] = xap->pcm[xap->stereo ? 2 * i + 0 : i];
+   xa_zz_ring[1][xa_zz_p] = xap->stereo ? xap->pcm[2 * i + 1] : xa_zz_ring[0][xa_zz_p];
+   xa_zz_p = (xa_zz_p + 1) & 31;
+
+   if (--xa_zz_sixstep == 0)
+    {
+     unsigned int j;
+     xa_zz_sixstep = 6;
+     for (j = 0; j < 7; j++)
+      {
+       short l = xa_zigzag_tap(xa_zz_ring[0], j, xa_zz_p);
+       short r = xa_zigzag_tap(xa_zz_ring[1], j, xa_zz_p);
+       uint32_t packed = ((uint32_t)(unsigned short)l) | ((uint32_t)(unsigned short)r << 16);
+
+       *spu.XAFeed++ = packed;
+       if (spu.XAFeed == spu.XAEnd) spu.XAFeed = spu.XAStart;
+       if (spu.XAFeed == spu.XAPlay)
+        {
+         if (spu.XAPlay != spu.XAStart) spu.XAFeed = spu.XAPlay - 1;
+         PERF_INC(xa_trunc);
+         return -1;
+        }
+      }
+    }
+  }
+ return 0;
+}
+
 void FeedXA(const xa_decode_t *xap)
 {
  int sinc,spos,i,iSize,iPlace,vl,vr;
@@ -245,6 +340,12 @@ void FeedXA(const xa_decode_t *xap)
  else              iPlace=(spu.XAEnd-spu.XAFeed) + (spu.XAPlay-spu.XAStart);
 
  if(iPlace==0) return;                                 // no place at all
+
+ if (soundXaResampler && xap->freq == 37800)
+  {
+   FeedXA_zigzag(xap);
+   return;
+  }
 
  //----------------------------------------------------//
  /*if(spu_config.iXAPitch)                               // pitch change option?

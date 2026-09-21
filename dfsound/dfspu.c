@@ -730,6 +730,13 @@ static int do_samples_noise(int *dst, int ch, int ns_to)
 extern void mix_chan(int *SSumLR, int count, int lv, int rv);
 extern void mix_chan_rvb(int *SSumLR, int count, int lv, int rv, int *rvb);
 #else
+/* extern char soundMixerPrecision (Gamecube/wiiSXconfig.h): round-to-nearest instead of
+ * C's truncate-toward-negative-infinity `>>14`, at every point this file scales a signed
+ * value down by 14 bits. Halves the average quantisation error at that step; the result's
+ * scale is identical either way, so nothing downstream needs to know which mode is active. */
+extern char soundMixerPrecision;
+#define RSHIFT14(x) (soundMixerPrecision ? (((x) + (1 << 13)) >> 14) : ((x) >> 14))
+
 static void mix_chan(int *SSumLR, int count, int lv, int rv)
 {
  const int *src = ChanBuf;
@@ -739,8 +746,8 @@ static void mix_chan(int *SSumLR, int count, int lv, int rv)
   {
    int sval = *src++;
 
-   l = (sval * lv) >> 14;
-   r = (sval * rv) >> 14;
+   l = RSHIFT14(sval * lv);
+   r = RSHIFT14(sval * rv);
    *SSumLR++ += l;
    *SSumLR++ += r;
   }
@@ -757,8 +764,8 @@ static void mix_chan_rvb(int *SSumLR, int count, int lv, int rv, int *rvb)
   {
    int sval = *src++;
 
-   l = (sval * lv) >> 14;
-   r = (sval * rv) >> 14;
+   l = RSHIFT14(sval * lv);
+   r = RSHIFT14(sval * rv);
    *dst++ += l;
    *dst++ += r;
    *drvb++ += l;
@@ -1030,13 +1037,13 @@ static void do_samples_finish(int *SSumLR, int ns_to,
   for (ns = 0; ns < ns_to * 2; )
    {
     d = SSumLR[ns]; SSumLR[ns] = 0;
-    d = d * vol_l >> 14;
+    d = RSHIFT14(d * vol_l);
     ssat32_to_16(d);
     *spu.pS++ = d;
     ns++;
 
     d = SSumLR[ns]; SSumLR[ns] = 0;
-    d = d * vol_r >> 14;
+    d = RSHIFT14(d * vol_r);
     ssat32_to_16(d);
     *spu.pS++ = d;
     ns++;

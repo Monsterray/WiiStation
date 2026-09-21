@@ -63,6 +63,33 @@ enum soundReverb
 	SOUND_REVERB_ON
 };
 
+/* dfsound/dfspu.c mix_chan/mix_chan_rvb/do_samples_finish: round each per-voice and final
+ * volume scale-down to the nearest value instead of truncating (a plain C `>>14` on a
+ * signed value always rounds toward -infinity). Halves the average quantisation error at
+ * each of those steps; the value's scale is unchanged, so nothing downstream (MixCD,
+ * REVERBDo) needs to know or care. Default on: this is pure software bookkeeping with no
+ * real-hardware behaviour to be faithful to, so more precision here is free fidelity. */
+extern char soundMixerPrecision;
+enum soundMixerPrecision
+{
+	SOUND_MIXER_PRECISION_LEGACY=0,
+	SOUND_MIXER_PRECISION_HIFI
+};
+
+/* dfsound/xa.c FeedXA: how 37800 Hz stereo/mono CD-XA is stepped up to 44100 Hz. Legacy is
+ * nearest-sample or the 4-tap Gaussian FeedXA always had (shared with Interpolation).
+ * HiFi replaces it, for 37800 Hz streams only, with the real hardware's own 7-phase,
+ * 29-tap "zigzag" FIR (coefficients from DuckStation's ResampleXAADPCM, itself derived from
+ * the real chip's behaviour) -- an exact 6-in/7-out ratio (37800*7/6 = 44100). 18900 Hz
+ * streams (rare) always use the legacy path regardless of this setting; the real hardware's
+ * filter for that rate uses a different, separately-sourced table not included here. */
+extern char soundXaResampler;
+enum soundXaResampler
+{
+	SOUND_XA_RESAMPLER_LEGACY=0,
+	SOUND_XA_RESAMPLER_HIFI
+};
+
 /* dfsound/ratectl.c: keep the output driver's queue at its target by nudging the playback
  * rate by at most +-0.5 %, from the queue's occupancy. The mixer stays on emulated time. */
 extern char soundRateControl;

@@ -117,6 +117,8 @@ extern char audioEnabled;   // defined in dfsound/cube.c alongside the output dr
 char soundHwAccel;          // read by dfsound/out.c when it picks an output driver
 char soundTempo;            // dfsound: legacy pull-back of the mixer clock when the output runs low
 char soundReverb;           // dfsound: SPU reverb bus on/off (Advanced Sound page)
+char soundMixerPrecision;   // dfsound: round instead of truncate in the voice mixer (Advanced Sound page)
+char soundXaResampler;      // dfsound/xa.c: real hardware zigzag FIR vs the legacy nearest/Gaussian step (Advanced Sound page)
 char soundRateControl;      // dfsound/ratectl.c: nudge the output rate from the queue's occupancy
 char soundResampler;        // read by dfsound/resample.c on every block it converts
 char xaDisabled;            // mirrors Config.Xa   (see wiiSXconfig.h)
@@ -182,6 +184,8 @@ static struct {
   { "SoundHwAccel", &soundHwAccel, SOUND_HW_ACCEL_OFF, SOUND_HW_ACCEL_ON },
   { "SoundTempo", &soundTempo, SOUND_TEMPO_OFF, SOUND_TEMPO_ON },
   { "SoundReverb", &soundReverb, SOUND_REVERB_OFF, SOUND_REVERB_ON },
+  { "SoundMixerPrecision", &soundMixerPrecision, SOUND_MIXER_PRECISION_LEGACY, SOUND_MIXER_PRECISION_HIFI },
+  { "SoundXaResampler", &soundXaResampler, SOUND_XA_RESAMPLER_LEGACY, SOUND_XA_RESAMPLER_HIFI },
   { "SoundRateControl", &soundRateControl, SOUND_RATE_CONTROL_OFF, SOUND_RATE_CONTROL_ON },
   { "SoundResampler", &soundResampler, SOUND_RESAMPLE_HOLD, SOUND_RESAMPLE_CUBIC },
   { "Interpolation", &spuInterpolation, SIMPLE_INTERPOLATION, GAUSSI_INTERPOLATION },
@@ -376,8 +380,10 @@ void loadSettings(int argc, char *argv[])
 	soundHwAccel     = SOUND_HW_ACCEL_OFF; // CPU sound path; the DSP one is opt-in
 	soundTempo       = SOUND_TEMPO_OFF;    // legacy; the rate control below replaced it (2026-09-20)
 	soundReverb      = SOUND_REVERB_ON;    // matches the hardcoded behaviour before this setting existed
+	soundMixerPrecision = SOUND_MIXER_PRECISION_HIFI;  // free fidelity: see wiiSXconfig.h
+	soundXaResampler    = SOUND_XA_RESAMPLER_HIFI;     // matches real hardware's own XA filter for 37800 Hz streams
 	soundRateControl = SOUND_RATE_CONTROL_ON;
-	soundResampler   = SOUND_RESAMPLE_HOLD; // the conversion both paths always did; the others are under test
+	soundResampler   = SOUND_RESAMPLE_CUBIC; // hi-fi default: Hold is what both paths always did, Cubic is materially cleaner
 	spuInterpolation = GAUSSI_INTERPOLATION; // the better of the two voice interpolators, and the whole SPU is under 1% of a frame
 	xaDisabled       = XA_ENABLE;    // XA and CDDA audio both on by default
 	cddaDisabled     = CDDA_ENABLE;
