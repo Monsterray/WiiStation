@@ -116,6 +116,7 @@ extern char audioEnabled;   // defined in dfsound/cube.c alongside the output dr
 char soundHwAccel;          // read by dfsound/out.c when it picks an output driver
 char soundTempo;            // dfsound: legacy pull-back of the mixer clock when the output runs low
 char soundRateControl;      // dfsound/ratectl.c: nudge the output rate from the queue's occupancy
+char soundResampler;        // read by dfsound/resample.c on every block it converts
 char xaDisabled;            // mirrors Config.Xa   (see wiiSXconfig.h)
 char cddaDisabled;          // mirrors Config.Cdda
 char spuInterpolation;
@@ -179,6 +180,7 @@ static struct {
   { "SoundHwAccel", &soundHwAccel, SOUND_HW_ACCEL_OFF, SOUND_HW_ACCEL_ON },
   { "SoundTempo", &soundTempo, SOUND_TEMPO_OFF, SOUND_TEMPO_ON },
   { "SoundRateControl", &soundRateControl, SOUND_RATE_CONTROL_OFF, SOUND_RATE_CONTROL_ON },
+  { "SoundResampler", &soundResampler, SOUND_RESAMPLE_HOLD, SOUND_RESAMPLE_CUBIC },
   { "Interpolation", &spuInterpolation, SIMPLE_INTERPOLATION, GAUSSI_INTERPOLATION },
   { "DisableXa", &xaDisabled, XA_ENABLE, XA_DISABLE },
   { "DisableCdda", &cddaDisabled, CDDA_ENABLE, CDDA_DISABLE },
@@ -371,7 +373,8 @@ void loadSettings(int argc, char *argv[])
 	soundHwAccel     = SOUND_HW_ACCEL_OFF; // CPU sound path; the DSP one is opt-in
 	soundTempo       = SOUND_TEMPO_OFF;    // legacy; the rate control below replaced it (2026-09-20)
 	soundRateControl = SOUND_RATE_CONTROL_ON;
-	spuInterpolation = SIMPLE_INTERPOLATION;
+	soundResampler   = SOUND_RESAMPLE_HOLD; // the conversion both paths always did; the others are under test
+	spuInterpolation = GAUSSI_INTERPOLATION; // the better of the two voice interpolators, and the whole SPU is under 1% of a frame
 	xaDisabled       = XA_ENABLE;    // XA and CDDA audio both on by default
 	cddaDisabled     = CDDA_ENABLE;
 #ifdef RELEASE

@@ -23,6 +23,7 @@
 #include "MenuContext.h"
 #include "../perf_prof.h"
 #include "SettingsFrame.h"
+#include "AdvancedSoundFrame.h"
 #include "../libgui/Button.h"
 #include "../libgui/TextBox.h"
 #include "../libgui/resources.h"
@@ -107,6 +108,7 @@ void Func_SoundHwAccelNo();
 void Func_SoundSyncOff();
 void Func_SoundSyncTempo();
 void Func_SoundSyncRate();
+void Func_AdvancedSound();
 void Func_DisableXaYes();
 void Func_DisableXaNo();
 void Func_DisableCddaYes();
@@ -160,7 +162,7 @@ void setSpuInterpolation(int spuInterpolation);
 void setSpuTempo(int soundTempo);
 }
 
-#define NUM_FRAME_BUTTONS 72
+#define NUM_FRAME_BUTTONS 73
 #define NUM_TAB_BUTTONS 5
 #define FRAME_BUTTONS settingsFrameButtons
 #define FRAME_STRINGS settingsFrameStrings
@@ -199,6 +201,8 @@ DSP Sound: Yes; No              (SoundHwAccel: hand the stream to the DSP instea
 	resampling on the CPU)
 Sync: Off; Tempo; Rate          (SoundTempo / SoundRateControl: how the output keeps pace
 	with the mixer; the two file keys are made exclusive here, see SETTINGS.md)
+Advanced                        (opens the Advanced Sound page, AdvancedSoundFrame.cpp:
+	options under test, table-driven so rows can be added and removed freely)
 
 Saves Tab:
 Memcard Save Device: SD; USB; CardA; CardB
@@ -206,7 +210,7 @@ Auto Save Memcards: Yes; No
 Save States Device: SD; USB
 */
 
-static char FRAME_STRINGS[83][24] =
+static char FRAME_STRINGS[84][24] =
 	{ "General",
 	  "Video",
 	  "Input",
@@ -297,7 +301,8 @@ static char FRAME_STRINGS[83][24] =
 	  "DSP Sound",			// [79] audio tab: hardware-accelerated sound
 	  "Sync",				// [80] audio tab: how the output keeps pace with the mixer
 	  "Tempo",				// [81] Sync: the legacy mixer-clock pull-back (SoundTempo)
-	  "Rate"				// [82] Sync: playback-rate nudge at the output (SoundRateControl)
+	  "Rate",				// [82] Sync: playback-rate nudge at the output (SoundRateControl)
+	  "Advanced"			// [83] audio tab: the Advanced Sound page
       };
 
 static char LANG_STRINGS[13][24] =
@@ -431,9 +436,11 @@ struct ButtonInfo
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[16],	345.0,	340.0,	 75.0,	56.0,	45,	 69,	68,	68,	Func_SoundHwAccelYes,	Func_ReturnFromSettingsFrame }, // DSP Sound: Yes
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[17],	440.0,	340.0,	 75.0,	56.0,	45,	 69,	67,	67,	Func_SoundHwAccelNo,	Func_ReturnFromSettingsFrame }, // DSP Sound: No
 	//Audio tab, Sync group (buttons 69..71): like Dithering, one of three is selected
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[25],	345.0,	400.0,	 60.0,	56.0,	67,	 3,	71,	70,	Func_SoundSyncOff,		Func_ReturnFromSettingsFrame }, // Sync: Off
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[81],	410.0,	400.0,	 75.0,	56.0,	67,	 3,	69,	71,	Func_SoundSyncTempo,	Func_ReturnFromSettingsFrame }, // Sync: Tempo
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[82],	490.0,	400.0,	 65.0,	56.0,	68,	 3,	70,	69,	Func_SoundSyncRate,		Func_ReturnFromSettingsFrame }, // Sync: Rate
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[25],	345.0,	400.0,	 55.0,	56.0,	67,	 3,	72,	70,	Func_SoundSyncOff,		Func_ReturnFromSettingsFrame }, // Sync: Off
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[81],	405.0,	400.0,	 75.0,	56.0,	67,	 3,	69,	71,	Func_SoundSyncTempo,	Func_ReturnFromSettingsFrame }, // Sync: Tempo
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[82],	485.0,	400.0,	 60.0,	56.0,	68,	 3,	70,	72,	Func_SoundSyncRate,		Func_ReturnFromSettingsFrame }, // Sync: Rate
+	//Audio tab, Advanced (button 72): opens the Advanced Sound page (AdvancedSoundFrame.cpp)
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[83],	550.0,	400.0,	 95.0,	56.0,	68,	 3,	71,	69,	Func_AdvancedSound,		Func_ReturnFromSettingsFrame }, // Advanced: opens the Advanced Sound page
 };
 
 struct TextBoxInfo
@@ -717,7 +724,7 @@ void SettingsFrame::activateSubmenu(int submenu)
 				FRAME_BUTTONS[i].button->setVisible(true);
 				FRAME_BUTTONS[i].button->setActive(true);
 			}
-			/* DSP Sound lives at the end of the array (see the button table) */
+			/* DSP Sound and Advanced live at the end of the array (see the button table) */
 			for (int i = 67; i <= 68; i++)
 			{
 				FRAME_BUTTONS[i].button->setVisible(true);
@@ -725,8 +732,9 @@ void SettingsFrame::activateSubmenu(int submenu)
 			}
 			FRAME_BUTTONS[45].button->setNextFocus(menu::Focus::DIRECTION_DOWN, FRAME_BUTTONS[67].button);
 			FRAME_TEXTBOXES[25].textBox->setVisible(true);
-			/* Sync group (buttons 69..71, textBox 26): exactly one selected, from the two file keys */
-			for (int i = 69; i <= 71; i++)
+			/* Sync group (buttons 69..71, textBox 26): exactly one selected, from the two file keys;
+			 * button 72 is Advanced, next to it */
+			for (int i = 69; i <= 72; i++)
 			{
 				FRAME_BUTTONS[i].button->setVisible(true);
 				FRAME_BUTTONS[i].button->setActive(true);
@@ -1486,6 +1494,11 @@ void Func_ConfigureInput()
 {
 //	menu::MessageBox::getInstance().setMessage("Input configuration not implemented");
 	pMenuContext->setActiveFrame(MenuContext::FRAME_CONFIGUREINPUT,ConfigureInputFrame::SUBMENU_REINIT);
+}
+
+void Func_AdvancedSound()
+{
+	pMenuContext->setActiveFrame(MenuContext::FRAME_ADVANCEDSOUND,AdvancedSoundFrame::SUBMENU_REINIT);
 }
 
 void Func_ConfigureButtons()

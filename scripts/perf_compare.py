@@ -10,7 +10,7 @@ B/A so a 5 % change is visible at a glance."""
 import re, sys
 
 KEYS = [("cpu", "cpu_us"), ("cpu", "jit_full"), ("cpu", "jit_part"), ("cpu", "interp_fb"), ("cpu", "exc"),
-        ("wall", "wall_us"), ("wall", "vblanks"), ("inside", "limit_us"), ("inside", "spu_us"),
+        ("wall", "wall_us"), ("wall", "vblanks"), ("inside", "limit_us"), ("inside", "spu_us"), ("inside", "out_us"),
         ("inside", "hw_us"), ("inside", "hw_gpu_us"), ("slice", "cycles"), ("slice", "avg"),
         ("gpu", "present_us"), ("gpu", "drawdone"), ("gpu", "drawdone_us"),
         ("gpu", "tex_hit"), ("gpu", "miss"), ("gpu", "resets"), ("gpu", "evicts"),

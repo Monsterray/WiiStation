@@ -27,6 +27,7 @@
 
 #include "out.h"
 #include "ratectl.h"
+#include "resample.h"
 #include "../psxcommon.h"
 
 #include <malloc.h>
@@ -64,11 +65,14 @@ typedef char cube_buf_is_whole_chunks[(CUBE_BUF_BYTES % DSP_STREAMBUFFER_SIZE) =
 #define CUBE_DSP_FRAME_OUT 96
 
 /* Dynamic rate control (ratectl.c): cube_feed keeps the ring near CUBE_BUSY_BUFFERS by
- * moving the voice frequency a fraction of a percent either side of 44100 Hz, once per
- * feed (the SPU feeds about 16 times per emulated frame, ~46 frames each), from the ring's
- * occupancy. Until the ring has first reached that depth after init the callback hands the
- * DSP nothing, which it plays as silence: the loop starts at its operating point instead
- * of on the edge of empty. */
+ * nudging the playback rate a fraction of a percent, once per feed (the SPU feeds about 16
+ * times per emulated frame, ~46 frames each), from the ring's occupancy. In Hold mode the
+ * DSP microcode does the 44100 -> 48000 conversion (hold_in_hw), so the nudge moves the
+ * voice frequency either side of 44100 Hz; in the interpolating modes resample.c converts
+ * on the CPU and the voice plays 48000 Hz 1:1, so the nudge goes to the converter's ratio
+ * (resample_set_ppm) instead. Until the ring has first reached its depth after init the
+ * callback hands the DSP nothing, which it plays as silence: the loop starts at its
+ * operating point instead of on the edge of empty. */
 #define CUBE_TARGET_FRAMES (CUBE_BUSY_BUFFERS * CUBE_BUF_FRAMES)
 static ratectl_t rate;
 static int primed;                                  /* the ring has reached its target since init */
@@ -150,8 +154,8 @@ static int cube_init(void)
         return -1;
 
     AESND_SetVoiceFormat(voice, iDisStereo ? VOICE_MONO16 : VOICE_STEREO16);
-    voice_rate = PS_SPU_FREQ;
-    AESND_SetVoiceFrequency(voice, voice_rate);    /* the DSP resamples to 48 kHz; cube_feed nudges this */
+    voice_rate = resample_active() ? WII_SPU_FREQ : PS_SPU_FREQ;
+    AESND_SetVoiceFrequency(voice, voice_rate);    /* cube_feed follows the resampler mode and nudges this */
     aesnd_set_volume();
     AESND_SetVoiceStream(voice, true);
     AESND_SetVoiceStop(voice, false);
@@ -216,10 +220,20 @@ static int cube_feed(void *data, int bytes)
      * it is atomic and a value one request stale is fine for a loop this slow. The
      * frequency write masks interrupts and takes effect at the next 2 ms DSP frame; the
      * microcode's 16.16 accumulator just gets a new increment, nothing in the output jumps. */
+    /* Hold mode hands the mixer's 44100 Hz stream to the DSP and its microcode holds; the
+     * interpolating modes arrive here already at 48000 Hz and the voice plays them 1:1.
+     * Up to five buffers queued at the old rate play at the new one after a mode change, a
+     * ~130 ms pitch wobble once per switch; the setting is a test knob, changed from the menu. */
     {
         int queued = (int)cube_queued() * CUBE_BUF_FRAMES + fill_used / 4;
         int ppm    = ratectl_update(&rate, queued, fed);
-        u32 hz     = (u32)(((u64)PS_SPU_FREQ * (u32)(1000000 + ppm)) / 1000000u);
+        u32 hz;
+        if (resample_active()) {
+            resample_set_ppm(ppm);
+            hz = WII_SPU_FREQ;
+        } else {
+            hz = (u32)(((u64)PS_SPU_FREQ * (u32)(1000000 + ppm)) / 1000000u);
+        }
         if (hz != voice_rate) {
             AESND_SetVoiceFrequency(voice, hz);
             voice_rate = hz;
@@ -247,4 +261,5 @@ void out_register_cube(struct out_driver *drv)
     drv->finish = cube_finish;
     drv->busy   = cube_busy;
     drv->feed   = cube_feed;
+    drv->hold_in_hw = 1;    /* the microcode's own 16.16 hold, when the mode is Hold */
 }

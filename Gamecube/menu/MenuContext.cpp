@@ -38,7 +38,8 @@ MenuContext::MenuContext(GXRModeObj *vmode)
 		  currentRomFrame(0),
 		  settingsFrame(0),
 		  configureInputFrame(0),
-		  configureButtonsFrame(0)
+		  configureButtonsFrame(0),
+		  advancedSoundFrame(0)
 {
 	pMenuContext = this;
 
@@ -51,6 +52,7 @@ MenuContext::MenuContext(GXRModeObj *vmode)
 	settingsFrame = new SettingsFrame();
 	configureInputFrame = new ConfigureInputFrame();
 	configureButtonsFrame = new ConfigureButtonsFrame();
+	advancedSoundFrame = new AdvancedSoundFrame();
 
 	menu::Gui::getInstance().addFrame(mainFrame);
 	menu::Gui::getInstance().addFrame(loadRomFrame);
@@ -59,6 +61,7 @@ MenuContext::MenuContext(GXRModeObj *vmode)
 	menu::Gui::getInstance().addFrame(settingsFrame);
 	menu::Gui::getInstance().addFrame(configureInputFrame);
 	menu::Gui::getInstance().addFrame(configureButtonsFrame);
+	menu::Gui::getInstance().addFrame(advancedSoundFrame);
 
 	menu::Focus::getInstance().setFocusActive(true);
 
@@ -69,6 +72,7 @@ MenuContext::MenuContext(GXRModeObj *vmode)
 
 MenuContext::~MenuContext()
 {
+	delete advancedSoundFrame;
 	delete configureButtonsFrame;
 	delete configureInputFrame;
 	delete settingsFrame;
@@ -119,6 +123,9 @@ void MenuContext::setActiveFrame(int frameIndex)
 	case FRAME_CONFIGUREBUTTONS:
 		currentActiveFrame = configureButtonsFrame;
 		break;
+	case FRAME_ADVANCEDSOUND:
+		currentActiveFrame = advancedSoundFrame;
+		break;
 	}
 
 	if(currentActiveFrame)
@@ -159,6 +166,9 @@ menu::Frame* MenuContext::getFrame(int frameIndex)
 		break;
 	case FRAME_CONFIGUREBUTTONS:
 		pFrame = configureButtonsFrame;
+		break;
+	case FRAME_ADVANCEDSOUND:
+		pFrame = advancedSoundFrame;
 		break;
 	}
 

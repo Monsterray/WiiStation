@@ -26,6 +26,7 @@
 #include "externals.h"
 #include "registers.h"
 #include "out.h"
+#include "resample.h"
 #include "spu_config.h"
 #include "../coredebug.h"
 #include "../psxcommon.h"
@@ -1097,7 +1098,7 @@ void CALLBACK DF_SPUasync(unsigned int cycle, unsigned int flags, unsigned int p
    * is the one place both drivers share, so the setting behaves the same either way. */
   extern char audioEnabled;
   if (audioEnabled)
-   out_current->feed(spu.pSpuBuffer, (unsigned char *)spu.pS - spu.pSpuBuffer);
+   resample_feed((short *)spu.pSpuBuffer, (spu.pS - (short *)spu.pSpuBuffer) / 2);
   spu.pS = (short *)spu.pSpuBuffer;
 
   {

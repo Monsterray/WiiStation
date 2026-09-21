@@ -59,7 +59,33 @@ def stats(w, window_ms):
         else:
             runs = 0
     windows = max(1, (len(s) + step - 1) // step)
+
+    # Short runs of EXACT zeros inside the sound: between 1 ms and 1 s, on the first
+    # channel. Music has none; a stream that momentarily runs dry does. The Wii's AESND
+    # mixes in 96-frame (2 ms) blocks, so a voice that misses a buffer hand-over leaves
+    # a 2 ms hole, and hundreds of those per minute is crackle that the window statistics
+    # above cannot see (their windows are 100 ms and a hole is -inf only for 2 ms).
+    ch, rate = w["ch"], max(1, w["rate"])
+    lo, hi = rate // 1000, rate
+    gaps = gap_frames = run = 0
+    first = last = -1
+    for i in range(0, len(s), ch):
+        if s[i] != 0:
+            last = i
+            if first < 0:
+                first = i
+    i = first if first >= 0 else 0
+    while 0 <= first and i <= last:
+        if s[i] == 0:
+            run += 1
+        else:
+            if lo <= run < hi:
+                gaps += 1
+                gap_frames += run
+            run = 0
+        i += ch
     return {
+        "gaps": gaps, "gap_ms": gap_frames * 1000 // rate,
         "seconds": w["frames"] / float(w["rate"]) if w["rate"] else 0.0,
         "peak_db": dbfs(peak), "rms_db": dbfs(rms),
         "clipped": sum(1 for v in s if abs(v) >= 32767),
@@ -127,6 +153,7 @@ def show(name, w, st):
         skewed = best != 0 and sk[best] > 0.2 and sk[best] > 2 * sk[0]
         flag = "   <-- CHANNEL SKEW: the output stage interleaves L/R wrongly" if skewed else ""
         print(f"  R==L at shift -1/0/+1: {sk[-1]:.2f} / {sk[0]:.2f} / {sk[1]:.2f}{flag}")
+    print(f"  short zero gaps (1 ms..1 s, inside the sound) {st['gaps']}   totalling {st['gap_ms']} ms")
 
 
 def main():
