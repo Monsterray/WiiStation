@@ -159,6 +159,7 @@ char interlacedMode = 0;
 char deflickerFilter = 1;
 char lightGun = 0;
 char memCard[2];
+char memCardFile[2];
 char forceNTSC = 0;
 char gpuPlugin = 0;
 
@@ -249,6 +250,8 @@ static struct {
   { "LightGun", &lightGun, LIGHTGUN_DISABLE, LIGHTGUN_MOUSE },
   { "Memcard0", &memCard[0], MEMCARD_DISABLE, MEMCARD_ENABLE },
   { "Memcard1", &memCard[1], MEMCARD_DISABLE, MEMCARD_ENABLE },
+  { "Memcard0File", &memCardFile[0], MEMCARDFILE_SHARED, MEMCARDFILE_PER_GAME },
+  { "Memcard1File", &memCardFile[1], MEMCARDFILE_SHARED, MEMCARDFILE_PER_GAME },
   { "PadLightgun1", &padLightgun[0], PADLIGHTGUN_DISABLE, PADLIGHTGUN_ENABLE },
   { "PadLightgun2", &padLightgun[1], PADLIGHTGUN_DISABLE, PADLIGHTGUN_ENABLE },
   { "PadLightgun3", &padLightgun[2], PADLIGHTGUN_DISABLE, PADLIGHTGUN_ENABLE },
@@ -423,6 +426,8 @@ void loadSettings(int argc, char *argv[])
 	padAssign[1]	 = PADASSIGN_INPUT1;
 	memCard[0]		 = MEMCARD_ENABLE;
 	memCard[1]		 = MEMCARD_ENABLE;
+	memCardFile[0]	 = MEMCARDFILE_PER_GAME;   /* what WiiStation always did */
+	memCardFile[1]	 = MEMCARDFILE_SHARED;
 	rumbleEnabled	 = RUMBLE_ENABLE;
 	loadButtonSlot	 = LOADBUTTON_DEFAULT;
 	controllerType	 = CONTROLLERTYPE_STANDARD;

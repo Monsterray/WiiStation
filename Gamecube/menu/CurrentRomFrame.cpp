@@ -361,7 +361,7 @@ void Func_SaveState()
 /* "Slot 3", or "Slot 3 *" when that slot holds a state this build can read. */
 static void refreshStateSlot()
 {
-	sprintf(FRAME_STRINGS[7], "Slot %u%s", which_slot, StateExists(which_slot) ? " *" : "");
+	sprintf(FRAME_STRINGS[7], "Slot %u%s", which_slot, StateExists(which_slot) ? "*" : "");
 	slotLabelStale = false;
 }
 

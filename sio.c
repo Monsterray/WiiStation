@@ -398,6 +398,19 @@ static unsigned int McdDataOffsetForSize(long size) {
 	return 0;
 }
 
+/* The file one card lives in. Per game it carries the disc's own id, so each game has its
+ * own card; shared, it has a fixed name that every game opens. Card 2's shared name stays
+ * "slot2.mcd" and card 1's per-game name stays "<CdromId>.mcd", so nobody's existing card
+ * is left behind by this setting. */
+static void McdFileName(char *out, int size, int mcd, const char *dir)
+{
+	int perGame = memCardFile[mcd - 1] == MEMCARDFILE_PER_GAME;
+	if (mcd == 1)
+		snprintf(out, size, perGame ? "%s/%s.mcd" : "%s/shared1.mcd", dir, CdromId);
+	else
+		snprintf(out, size, perGame ? "%s/%s-2.mcd" : "%s/slot2.mcd", dir, CdromId);
+}
+
 //call me from menu, takes slot and save path as args
 int LoadMcd(int mcd, fileBrowser_file *savepath) {
 	int temp = 0;
@@ -407,15 +420,14 @@ int LoadMcd(int mcd, fileBrowser_file *savepath) {
 	memcpy(&saveFile, savepath, sizeof(fileBrowser_file));
 	memset(&saveFile.name[0],0,FILE_BROWSER_MAX_PATH_LEN);
 
+	McdFileName((char*)saveFile.name, FILE_BROWSER_MAX_PATH_LEN, mcd, savepath->name);
 	if(mcd == 1) {
-	  sprintf((char*)saveFile.name,"%s/%s.mcd",savepath->name,CdromId);
 	  data = &Mcd1Data[0];
 	  cardh1[1] |= 8; // mark as new
-  }
+	}
 	if (mcd == 2) {
-  	sprintf((char*)saveFile.name,"%s/slot2.mcd",savepath->name);
-  	data = &Mcd2Data[0];
-	cardh2[1] |= 8;
+	  data = &Mcd2Data[0];
+	  cardh2[1] |= 8;
 	}
 
 	if(saveFile_readFile(&saveFile, &temp, 4) == 4) {  //file exists
@@ -460,14 +472,9 @@ int SaveMcd(int mcd, fileBrowser_file *savepath) {
 	memcpy(&saveFile, savepath, sizeof(fileBrowser_file));
 	memset(&saveFile.name[0],0,FILE_BROWSER_MAX_PATH_LEN);
 
-	if(mcd == 1) {
-	  sprintf((char*)saveFile.name,"%s/%s.mcd",savepath->name,CdromId);
-	  data = &Mcd1Data[0];
-  }
-	if (mcd == 2) {
-  	sprintf((char*)saveFile.name,"%s/slot2.mcd",savepath->name);
-  	data = &Mcd2Data[0];
-	}
+	McdFileName((char*)saveFile.name, FILE_BROWSER_MAX_PATH_LEN, mcd, savepath->name);
+	if(mcd == 1) data = &Mcd1Data[0];
+	if (mcd == 2) data = &Mcd2Data[0];
 
   /* Preserve an existing +64/+3904 header so imported saves keep their
    * container format; new cards stay raw MCD_SIZE. */

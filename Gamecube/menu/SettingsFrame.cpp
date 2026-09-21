@@ -125,6 +125,8 @@ void Func_SaveStateSD();
 void Func_SaveStateUSB();
 void Func_Memcard1();
 void Func_Memcard2();
+void Func_CardFile1();
+void Func_CardFile2();
 
 
 void Func_FastloadYes();
@@ -162,11 +164,11 @@ void setSpuInterpolation(int spuInterpolation);
 void setSpuTempo(int soundTempo);
 }
 
-#define NUM_FRAME_BUTTONS 76
+#define NUM_FRAME_BUTTONS 78
 #define NUM_TAB_BUTTONS 5
 #define FRAME_BUTTONS settingsFrameButtons
 #define FRAME_STRINGS settingsFrameStrings
-#define NUM_FRAME_TEXTBOXES 27
+#define NUM_FRAME_TEXTBOXES 28
 #define FRAME_TEXTBOXES settingsFrameTextBoxes
 
 /*
@@ -213,7 +215,7 @@ Auto Save Memcards: Yes; No
 Save States Device: SD; USB
 */
 
-static char FRAME_STRINGS[91][24] =
+static char FRAME_STRINGS[94][24] =
 	{ "General",
 	  "Video",
 	  "Input",
@@ -312,7 +314,10 @@ static char FRAME_STRINGS[91][24] =
 	  "Enable",				// [87] audio tab: label of the three source toggles
 	  "Audio",				// [88] Enable: the sound output as a whole
 	  "XA",					// [89] Enable: the disc's XA streams
-	  "CDDA"				// [90] Enable: Red Book audio tracks
+	  "CDDA",				// [90] Enable: Red Book audio tracks
+	  "Card File",			// [91] saves tab: label of the two card-file buttons
+	  "Shared",				// [92] MEMCARDFILE_SHARED: one card file every game opens
+	  "Game"				// [93] MEMCARDFILE_PER_GAME: one card file per game
       };
 
 static char LANG_STRINGS[13][24] =
@@ -458,6 +463,9 @@ struct ButtonInfo
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[84],	100.0,	100.0,	130.0,	56.0,	14,	 7,	75,	74,	Func_PluginsPage,		Func_ReturnFromSettingsFrame }, // Plugins page
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[85],	255.0,	100.0,	130.0,	56.0,	14,	 8,	73,	75,	Func_StoragePage,		Func_ReturnFromSettingsFrame }, // Storage page
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[86],	410.0,	100.0,	130.0,	56.0,	14,	 9,	74,	73,	Func_MemoryPage,		Func_ReturnFromSettingsFrame }, // Memory page
+	//Saves tab: which file each memory card lives in (buttons 76 and 77)
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[93],	295.0,	380.0,	105.0,	56.0,	60,	 4,	77,	77,	Func_CardFile1,			Func_ReturnFromSettingsFrame }, // Card 1 file: Game/Shared
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[92],	410.0,	380.0,	105.0,	56.0,	61,	 4,	76,	76,	Func_CardFile2,			Func_ReturnFromSettingsFrame }, // Card 2 file: Game/Shared
 };
 
 struct TextBoxInfo
@@ -505,6 +513,8 @@ struct TextBoxInfo
 	{	NULL,	FRAME_STRINGS[79],	150.0,	268.0,	 1.0,	true }, // DSP Sound: Yes/No
 	//TextBox for the Sync group (textBox[26])
 	{	NULL,	FRAME_STRINGS[80],	150.0,	338.0,	 1.0,	true }, // Sync: Off/Tempo/Rate
+	//TextBox for the card-file row on the Saves tab (textBox[27])
+	{	NULL,	FRAME_STRINGS[91],	150.0,	408.0,	 1.0,	true }, // Card File: Game/Shared
 };
 
 SettingsFrame::SettingsFrame()
@@ -765,6 +775,14 @@ void SettingsFrame::activateSubmenu(int submenu)
 			FRAME_BUTTONS[60].button->setActive(true);
 			FRAME_BUTTONS[61].button->setVisible(true);
 			FRAME_BUTTONS[61].button->setActive(true);
+			/* Which file each card lives in: one per game, or one every game sees. */
+			FRAME_TEXTBOXES[27].textBox->setVisible(true);
+			for (int i = 76; i <= 77; i++)
+			{
+				FRAME_BUTTONS[i].buttonString = FRAME_STRINGS[92 + memCardFile[i - 76]];
+				FRAME_BUTTONS[i].button->setVisible(true);
+				FRAME_BUTTONS[i].button->setActive(true);
+			}
 			for (int i = 46; i < NUM_FRAME_BUTTONS; i++)
 			{
 			    if (i >= 54) {
@@ -1623,6 +1641,18 @@ void Func_Memcard2()
 		memCard[1] = MEMCARD_ENABLE;
 	}
 }
+
+/* One file per game, or one file every game sees. It takes effect at the next game load,
+ * because the card in memory was read from the old file. */
+static void cardFileToggle(int card)
+{
+	memCardFile[card] = (memCardFile[card] == MEMCARDFILE_PER_GAME)
+	                  ? MEMCARDFILE_SHARED : MEMCARDFILE_PER_GAME;
+	FRAME_BUTTONS[76 + card].buttonString = FRAME_STRINGS[92 + memCardFile[card]];
+}
+
+void Func_CardFile1() { cardFileToggle(0); }
+void Func_CardFile2() { cardFileToggle(1); }
 
 
 

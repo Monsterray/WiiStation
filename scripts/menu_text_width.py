@@ -69,6 +69,7 @@ TAB_ROWS = [
     ('Saves',   [50, 51],      19),
     ('Saves',   [52, 53],      20),
     ('Saves',   [60, 61],      23),
+    ('Saves',   [76, 77],      27),
 ]
 TAB_STRIP = [0, 1, 2, 3, 4]          # the five tab buttons, their own centred row
 # In the tables so that no later index moves, but never shown on any tab.
@@ -84,6 +85,8 @@ CYCLING = {
     54: ['En', 'Chs', 'Kr', 'Es', 'Pte', 'It', 'De',    # LANG_STRINGS
          'Cht', 'Jp', 'Fr', 'Br', 'Ca', 'Tu'],
     59: ['Lightgun', 'GunCon', 'Justifier', 'Mouse'],   # FRAME_STRINGS[70 + lightGun]
+    76: ['Shared', 'Game'],                             # FRAME_STRINGS[92 + memCardFile[0]]
+    77: ['Shared', 'Game'],                             # FRAME_STRINGS[92 + memCardFile[1]]
 }
 
 STRING_TABLES = ('FRAME_STRINGS', 'LANG_STRINGS', 'GPU_PLUGIN_STRINGS', 'TEXTURE_FILTER_STRINGS')

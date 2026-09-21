@@ -425,6 +425,18 @@ enum memCard
 	MEMCARD_ENABLE
 };
 
+/* Which file each memory card lives in. PER_GAME gives every game its own card, which is
+ * what a real console owner does with one card per game. SHARED gives one card that every
+ * game sees, which is how a real card works when it is moved between games -- and it is
+ * the only way a game can read another game's save, which a few of them do.
+ * The defaults keep what WiiStation always did: card 1 per game, card 2 shared. */
+extern char memCardFile[2];
+enum memCardFile
+{
+	MEMCARDFILE_SHARED=0,
+	MEMCARDFILE_PER_GAME
+};
+
 extern char forceNTSC;
 enum forceNTSC
 {

@@ -642,11 +642,10 @@ int SaveState() {
 	stateFilename(filename, savestates_slot);
 	makeParentDirs(filename);
 
-	/* Level 1, not the default 6. A state is mostly emulated RAM, which compresses well at
-	 * any level; level 6 spends four times the CPU for a few per cent of size, and the game
-	 * is frozen for all of it. Measured on Crash 3: 1.12 s at level 6, and the file is read
-	 * back in 0.24 s, so the write was almost all compression. */
-	f = gzopen(filename, "wb1");
+	/* The default level, 6. Level 1 writes a Crash 3 state in 0.72 s instead of 1.12 s, but
+	 * the file is larger, and a save that takes about a second is fast enough. Space on the
+	 * card matters more: ten slots per game. */
+	f = gzopen(filename, "wb");
 	if (!f) {
 		PERF_INC(state_fails);
 		return 0;
