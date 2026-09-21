@@ -58,6 +58,7 @@
 #include "OptionsFrame.h"
 #include "../libgui/Button.h"
 #include "../libgui/TextBox.h"
+#include "../libgui/IPLFont.h"
 #include "../libgui/resources.h"
 #include "../libgui/FocusManager.h"
 #include "../libgui/CursorManager.h"
@@ -301,8 +302,11 @@ static const OptPage PAGES[] =
 /* Help is two columns: the term right-aligned so its colons line up, then the text.
  * The lower lines are beside the spinning logo's corner and have to stop short of it,
  * which MENU_ROW_RIGHT() works out from the line's own y (see MenuLayout.h). */
+/* Both columns are centred on the screen at page time (activateSubmenu measures the widest
+ * term and the widest explanation), so these are only where the widgets start out. */
 #define HELP_TERM_R	152.0		// the term ENDS here
 #define HELP_TEXT_X	162.0		// the text starts here
+#define HELP_COL_GAP	10.0	// between the term column and the text column
 /* The help block starts where the page's next row would have been, so the space above it
  * is the same as the space between two rows. HELP_Y0 is the earliest that can be, which
  * is what the widgets are first placed at before a page moves them. */
@@ -314,6 +318,14 @@ static const OptPage PAGES[] =
 #define HELP_LINE_H		(24.0 * HELP_SCALE)
 
 #define VALUE_LEN	32
+
+/* What one help string will measure on screen. getStringWidth takes a char*, and the
+ * tables are const, so the cast is here rather than at every call. */
+static int helpWidth(const char *s)
+{
+	if (!s || !*s) return 0;
+	return menu::IplFont::getInstance().getStringWidth((char*)s, HELP_SCALE);
+}
 
 struct OptWidget
 {
@@ -646,7 +658,41 @@ void OptionsFrame::activateSubmenu(int submenu)
 			focusTarget(firstRow, c)->setNextFocus(menu::Focus::DIRECTION_UP, focusTarget(prevRow, c));
 	}
 
-	/* Help text under the rows, if the page has any. */
+	/* Help text under the rows, if the page has any.
+	 *
+	 * The two columns are centred on the screen together, so the block is measured first:
+	 * the widest term and the widest explanation give its width. A page whose lower lines
+	 * reach the logo's corner then moves left far enough to clear it, and no further. */
+	float termR = HELP_TERM_R, textX = HELP_TEXT_X;
+	{
+		const OptHelp *help = PAGES[currentPage].help;
+		int n = PAGES[currentPage].nhelp, wTerm = 0, wText = 0, shift = 0;
+		float y = HELP_Y(PAGES[currentPage].nrows);
+		for (int i = 0; i < n; i++) {
+			if (help[i].term) {
+				int w = helpWidth(help[i].term);
+				if (w > wTerm) wTerm = w;
+			}
+			{
+				int w = helpWidth(help[i].text);
+				if (w > wText) wText = w;
+			}
+		}
+		termR = (MENU_W - (wTerm + HELP_COL_GAP + wText)) / 2 + wTerm;
+		textX = termR + HELP_COL_GAP;
+		/* Nothing may enter the logo's corner, and the term must stay on screen. */
+		for (int i = 0; i < n; i++) {
+			int over;
+			if (i > 0 && help[i].term) y += HELP_CELL_GAP;
+			over = (int)(textX + helpWidth(help[i].text) - MENU_ROW_RIGHT(y + HELP_LINE_H));
+			if (over > shift) shift = over;
+			y += HELP_LINE_DY;
+		}
+		if (termR - wTerm - shift < MENU_EDGE) shift = (int)(termR - wTerm - MENU_EDGE);
+		termR -= shift;
+		textX -= shift;
+	}
+
 	/* The lines of one explanation sit close together so they read as one paragraph; the
 	 * space goes before the line that starts a new term. */
 	float helpY = HELP_Y(PAGES[currentPage].nrows);
@@ -657,8 +703,8 @@ void OptionsFrame::activateSubmenu(int submenu)
 		if (i > 0 && term) helpY += HELP_CELL_GAP;
 		helpTermString[i] = term ? (char*)term : helpEmpty;
 		helpString[i] = on ? (char*)PAGES[currentPage].help[i].text : helpEmpty;
-		helpTermBox[i]->setY(helpY);
-		helpBox[i]->setY(helpY);
+		helpTermBox[i]->setPosition(termR, helpY);
+		helpBox[i]->setPosition(textX, helpY);
 		helpY += HELP_LINE_DY;
 		helpTermBox[i]->setVisible(term != NULL);
 		helpBox[i]->setVisible(on);

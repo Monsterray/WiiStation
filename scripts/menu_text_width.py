@@ -263,9 +263,29 @@ def check_help(d, w, verbose, bad):
             bad.append('%s has no %s_ROWS to sit under' % (name, page))
             continue
         entries = re.findall(r'\{\s*(NULL|"(?:[^"\\]|\\.)*")\s*,\s*"((?:[^"\\]|\\.)*)"\s*\}', body)
+        clean = [('' if t == 'NULL' else t[1:-1], x.replace('\\"', '"')) for t, x in entries]
+        y0 = d['ROW_Y0'] + rowcount[page] * d['ROW_DY']
+
+        # Both columns are centred on the screen together, then moved left far enough to
+        # clear the logo. OptionsFrame::activateSubmenu does exactly this.
+        w_term = max([px(t) for t, _ in clean if t] or [0])
+        w_text = max([px(x) for _, x in clean] or [0])
+        term_r = (d['MENU_W'] - (w_term + d['HELP_COL_GAP'] + w_text)) / 2 + w_term
+        text_x = term_r + d['HELP_COL_GAP']
+        shift, y = 0, y0
+        for n, (term, text) in enumerate(clean):
+            if n > 0 and term:
+                y += d['HELP_CELL_GAP']
+            shift = max(shift, int(text_x + px(text) - right_edge(d, y + line_h)))
+            y += d['HELP_LINE_DY']
+        if term_r - w_term - shift < d['MENU_EDGE']:
+            shift = int(term_r - w_term - d['MENU_EDGE'])
+        term_r -= shift
+        text_x -= shift
+
         # The lines of one explanation sit HELP_LINE_DY apart; a line that starts a new
         # term gets HELP_CELL_GAP before it. OptionsFrame::activateSubmenu does the same.
-        y = d['ROW_Y0'] + rowcount[page] * d['ROW_DY']
+        y = y0
         for n, (term, text) in enumerate(entries):
             term = '' if term == 'NULL' else term[1:-1]
             text = text.replace('\\"', '"')
@@ -274,7 +294,7 @@ def check_help(d, w, verbose, bad):
             limit = right_edge(d, y + line_h)
             note = ''
             if term:
-                left = d['HELP_TERM_R'] - px(term)      # right-aligned: it ends at TERM_R
+                left = term_r - px(term)      # right-aligned: it ends at TERM_R
                 if left < d['MENU_EDGE']:
                     bad.append('%s line %d: term starts at %.0f, inside the margin'
                                % (name, n, left))
@@ -282,14 +302,14 @@ def check_help(d, w, verbose, bad):
             if (n == 0 or term) and text and text[0].isalpha() and not text[0].isupper():
                 bad.append('%s line %d starts lowercase: %r' % (name, n, text[:32]))
                 note = '  <== not capitalised'
-            end = d['HELP_TEXT_X'] + px(text) if text else d['HELP_TEXT_X']
+            end = text_x + px(text) if text else text_x
             if end > limit:
                 corner = " (the logo's corner)" if limit < d['MENU_W'] - d['MENU_EDGE'] else ''
                 bad.append('%s line %d ends at %.0f, past %.0f%s' % (name, n, end, limit, corner))
                 note = '  <== too wide'
             if verbose or note:
                 print('  %-13s %2d y=%-4.0f %5.0f..%-5.0f of %-4.0f  %-17s %s%s'
-                      % (name, n, y, d['HELP_TEXT_X'], end, limit, term, text, note))
+                      % (name, n, y, text_x, end, limit, term, text, note))
             y += d['HELP_LINE_DY']
         bottom = y - d['HELP_LINE_DY'] + line_h
         if bottom > d['MENU_H'] - d['MENU_EDGE']:

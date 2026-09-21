@@ -38,7 +38,7 @@ public:
 	 * glyph from a left edge, so this is a measure-then-offset at draw time; the string
 	 * can change between frames, which is why it is not done once at construction. */
 	void setRightAligned(bool rightAligned);
-	void setY(float y);
+	void setPosition(float x, float y);
 	void drawComponent(Graphics& gfx);
 
 private:

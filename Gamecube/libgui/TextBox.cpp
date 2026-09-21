@@ -67,8 +67,9 @@ void TextBox::setRightAligned(bool r)
 	rightAligned = r;
 }
 
-void TextBox::setY(float newY)
+void TextBox::setPosition(float newX, float newY)
 {
+	x = newX;
 	y = newY;
 }
 
