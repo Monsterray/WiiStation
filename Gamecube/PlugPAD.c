@@ -73,6 +73,20 @@ controller_t* controller_ts[num_controller_t] =
 	virtualControllers[Control].control->func( \
 		virtualControllers[Control].number, ## args)
 
+#ifdef HW_RVL
+#include <wiiuse/wpad.h>
+#include <wupc/wupc.h>
+#include <wiidrc/wiidrc.h>
+
+void wpad_scan_if_needed(void){
+	if(!wpadNeedScan) return;
+	WUPC_UpdateButtonStats();
+	WiiDRC_ScanPads();
+	WPAD_ScanPads();
+	wpadNeedScan = 0;
+}
+#endif
+
 void control_info_init(void){
 	//Call once during emulator start to auto assign controllers
 	init_controller_ts();

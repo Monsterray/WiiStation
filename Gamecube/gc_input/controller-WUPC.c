@@ -134,7 +134,7 @@ static unsigned int getButtons(int Control){
 
 static int _GetKeys(int Control, BUTTONS * Keys, controller_config_t* config)
 {
-	if (wpadNeedScan){ WUPC_UpdateButtonStats(); wpadNeedScan = 0; }
+	wpad_scan_if_needed();
 	BUTTONS* c = Keys;
 	memset(c, 0, sizeof(BUTTONS));
 	//Reset buttons & sticks

@@ -51,7 +51,6 @@
 //static BUTTONS PAD_2;
 extern PadDataS lastport1;
 extern PadDataS lastport2;
-static int pad_initialized = 0;
 
 static struct
 {
@@ -156,15 +155,6 @@ void lightgunInterrupt()
 	}
 }
 
-static inline u8 SetSensitivity(int a, float sensitivity)
-{
-//	a -= 128;
-//	a *= sensitivity;
-//	if(a >= 128) a = 127; else if(a < -128) a = -128; // clamp
-//	return a + 128; // PSX controls range 0-255
-    return clamp((int)a * ANALOG_SCALE_FACTOR / 128 + 128 - ANALOG_SCALE_FACTOR);
-}
-
 static void PADsetMode (const int pad, const int mode)	//mode = 0 (digital) or 1 (analog)
 {
 	static const u8 padID[] = { 0x41, 0x73, 0x41, 0x79 };
@@ -197,7 +187,10 @@ static void UpdateState (const int pad) //Note: pad = 0 or 1
 	int Control = pad;
 #if defined(WII) && !defined(NO_BT)
 	//Need to switch between Classic and WiimoteNunchuck if user swapped extensions
-	if (padType[virtualControllers[Control].number] == PADTYPE_WII)
+	/* Only an assigned port has a physical controller number: unassign_controller() leaves
+	 * it at -1, which indexed padType[] and available[] one byte/entry short of the array. */
+	if (virtualControllers[Control].inUse &&
+		padType[virtualControllers[Control].number] == PADTYPE_WII)
 	{
 		if (virtualControllers[Control].control != &controller_WiiUPro &&
 			virtualControllers[Control].control != &controller_WiiUGamepad)
@@ -302,12 +295,13 @@ static void UpdateState (const int pad) //Note: pad = 0 or 1
 		PAD_Data.leftStickX = PAD_Data.leftStickY = PAD_Data.rightStickX = PAD_Data.rightStickY = 128;
 	}
 
-	sensitivity = virtualControllers[Control].config->sensitivity;
-	if (sensitivity < 0.1) sensitivity = 1.0;
-	PAD_Data.leftStickX = SetSensitivity(PAD_Data.leftStickX, sensitivity);
-	PAD_Data.leftStickY = SetSensitivity(PAD_Data.leftStickY, sensitivity);
-	PAD_Data.rightStickX = SetSensitivity(PAD_Data.rightStickX, sensitivity);
-	PAD_Data.rightStickY = SetSensitivity(PAD_Data.rightStickY, sensitivity);
+	/* Fixed range scaling. The per-controller sensitivity setting is read in the mouse
+	 * path above and nowhere else; reading it here dereferenced a NULL config on any port
+	 * with no controller, including multitap slots 2..9, which are never assigned. */
+	PAD_Data.leftStickX  = analog_scale(PAD_Data.leftStickX);
+	PAD_Data.leftStickY  = analog_scale(PAD_Data.leftStickY);
+	PAD_Data.rightStickX = analog_scale(PAD_Data.rightStickX);
+	PAD_Data.rightStickY = analog_scale(PAD_Data.rightStickY);
 
 	global.padStat[pad] = (((PAD_Data.btns.All>>8)&0xFF) | ( (PAD_Data.btns.All<<8) & 0xFF00 )) &0xFFFF;
 	if (pad == 0) {
@@ -362,13 +356,15 @@ static void UpdateState (const int pad) //Note: pad = 0 or 1
 	if ((global.padVibF[pad][2] != vib0) )
 	{
 		global.padVibF[pad][2] = vib0;
-		if (virtualControllers[pad].control->rumble) DO_CONTROL(pad, rumble, global.padVibF[pad][0]);
+		if (virtualControllers[pad].control && virtualControllers[pad].control->rumble)
+			DO_CONTROL(pad, rumble, global.padVibF[pad][0]);
 	}
 	/* Big Motor */
 	if ((global.padVibF[pad][3] != vib1) )
 	{
 		global.padVibF[pad][3] = vib1;
-		if (virtualControllers[pad].control->rumble) DO_CONTROL(pad, rumble, global.padVibF[pad][1]);
+		if (virtualControllers[pad].control && virtualControllers[pad].control->rumble)
+			DO_CONTROL(pad, rumble, global.padVibF[pad][1]);
 	}
 }
 
@@ -379,24 +375,18 @@ long SSS_PADopen (void *p)
 		extern void autoinput_load(void);   /* PadWiiSX.c: sd:/wiisxrx/autoinput.txt incl. trace/dump schedules */
 		autoinput_load();
 	}
-	if (!pad_initialized)
-	{
-		memset (&global, 0, sizeof (global));
-		memset( &lastport1, 0, sizeof(lastport1) ) ;
-		memset( &lastport2, 0, sizeof(lastport2) ) ;
-		for(i = 0; i < 10; i++){
-			global.padStat[i] = 0xffff;
-			PADsetMode (i, controllerType == CONTROLLERTYPE_ANALOG ? 1 : 0);  //port 0, analog
-		}
+	memset (&global, 0, sizeof (global));
+	memset( &lastport1, 0, sizeof(lastport1) ) ;
+	memset( &lastport2, 0, sizeof(lastport2) ) ;
+	for(i = 0; i < 10; i++){
+		global.padStat[i] = 0xffff;
+		PADsetMode (i, controllerType == CONTROLLERTYPE_ANALOG ? 1 : 0);  //port 0, analog
 	}
 	return 0;
 }
 
 long SSS_PADclose (void)
 {
-	if (pad_initialized) {
-  	pad_initialized=0;
-	}
 	return 0 ;
 }
 

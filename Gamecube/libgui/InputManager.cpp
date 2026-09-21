@@ -88,7 +88,7 @@ void Input::refreshInput()
 	PAD_Read(gcPad);
 	PAD_Clamp(gcPad);
 #ifdef HW_RVL
-	if (wpadNeedScan){ WUPC_UpdateButtonStats(); WiiDRC_ScanPads(); WPAD_ScanPads(); wpadNeedScan = 0; }
+	wpad_scan_if_needed();
 //	WPAD_ScanPads();
 	wiiPad = WPAD_Data(0);
 	wupcData = WUPC_Data(0);

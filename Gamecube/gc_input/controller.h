@@ -30,8 +30,21 @@
 
 #include <stdio.h>
 
+/* Every definition here is in a .c file. Most C++ includers wrap this header in
+ * extern "C" themselves; two do not, so it says so itself. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 extern char padNeedScan, wpadNeedScan, hidPadNeedScan;
 extern u32 gc_connected;
+
+/* Poll every Wii input path once per frame, if the retrace callback has asked for it.
+ * Wiimote/Classic, the Wii U Pro Controller and the Wii U GamePad are three separate
+ * polls behind the one wpadNeedScan flag, so they have to be done together: a driver
+ * that ran only its own and cleared the flag left the other two reading last frame's
+ * data for as long as two different families were in use at once. (PlugPAD.c) */
+void wpad_scan_if_needed(void);
 
 void control_info_init(void);
 void auto_assign_controllers(void);
@@ -178,5 +191,9 @@ void unassign_controller(int whichVirtual);
 
 int load_configurations(FILE*, controller_t*);
 void save_configurations(FILE*, controller_t*);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

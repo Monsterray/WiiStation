@@ -155,7 +155,7 @@ static inline u8 CCtoPSXAnalog(int a)
 
 static int _GetKeys(int Control, BUTTONS * Keys, controller_config_t* config)
 {
-	if(wpadNeedScan){ WPAD_ScanPads(); wpadNeedScan = 0; }
+	wpad_scan_if_needed();
 	WPADData* wpad = WPAD_Data(Control);
 	BUTTONS* c = Keys;
 	memset(c, 0, sizeof(BUTTONS));
