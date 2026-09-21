@@ -33,10 +33,11 @@ public:
 	~TextBox();
 	void setColor(GXColor *labelColor);
 	void setText(char** strPtr);
+	void setBold(bool bold);
 	void drawComponent(Graphics& gfx);
 
 private:
-	bool centered;
+	bool centered, bold;
 	char** textBoxText;
 	float x, y, scale;
 	GXColor	labelColor;

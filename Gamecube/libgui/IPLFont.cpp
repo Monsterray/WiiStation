@@ -377,6 +377,11 @@ void IplFont::drawString(int x, int y, char *string, float scale, bool centered)
     GX_InvalidateTexRegion(&texCacheRegionS[0]);
     PERF_INC(menu_strings);
 
+    /* The glyph quad and the advance both follow `scale`; at 1.0 this is the 24x24 tile
+     * the font file holds, which is what every menu control asks for. */
+    const int gw = (int)(CH_FONT_WIDTH * scale);
+    const int gh = (int)(CH_FONT_HEIGHT * scale);
+
     wchar_t *utf8Txt = charToWideChar(gettext(string));
     wchar_t *tmpPtr = utf8Txt;
     while (*utf8Txt) {
@@ -391,21 +396,21 @@ void IplFont::drawString(int x, int y, char *string, float scale, bool centered)
             GX_Color4u8(fontColor.r, fontColor.g, fontColor.b, fontColor.a);
             GX_TexCoord2f32(0.0f, 0.0f);
 
-            GX_Position2s16(24 + x, y);
+            GX_Position2s16(gw + x, y);
             GX_Color4u8(fontColor.r, fontColor.g, fontColor.b, fontColor.a);
             GX_TexCoord2f32(1.0f, 0.0f);
 
-            GX_Position2s16(24 + x, 24 + y);
+            GX_Position2s16(gw + x, gh + y);
             GX_Color4u8(fontColor.r, fontColor.g, fontColor.b, fontColor.a);
             GX_TexCoord2f32(1.0f, 1.0f);
 
-            GX_Position2s16(x, 24 + y);
+            GX_Position2s16(x, gh + y);
             GX_Color4u8(fontColor.r, fontColor.g, fontColor.b, fontColor.a);
             GX_TexCoord2f32(0.0f, 1.0f);
 
         GX_End();
 
-        x += this->getCharCode(*utf8Txt) + 1; // x + charWidth
+        x += (int)((this->getCharCode(*utf8Txt) + 1) * scale); // x + charWidth
         utf8Txt++;
     }
 
@@ -510,6 +515,7 @@ void IplFont::drawStringAtOrigin(char *string, float scale)
     drawString(x0, y0, string, scale, false);
 }
 
+/* Must match drawString's advance, or centred text lands off centre. */
 int IplFont::getStringWidth(char *string, float scale)
 {
     int strWidth = 0;
@@ -522,12 +528,12 @@ int IplFont::getStringWidth(char *string, float scale)
     }
     delete[] tmpPtr;
 
-    return strWidth + 5;
+    return (int)((strWidth + 5) * scale);
 }
 
 int IplFont::getStringHeight(char *string, float scale)
 {
-    return CH_FONT_HEIGHT;
+    return (int)(CH_FONT_HEIGHT * scale);
 }
 
 } //namespace menu

@@ -26,6 +26,7 @@ namespace menu {
 
 TextBox::TextBox(char** label, float x, float y, float scale, bool centered)
 		: centered(centered),
+		  bold(false),
 		  textBoxText(label),
 		  x(x),
 		  y(y),
@@ -55,10 +56,18 @@ void TextBox::setText(char** strPtr)
 	textBoxText = strPtr;
 }
 
+void TextBox::setBold(bool b)
+{
+	bold = b;
+}
+
 void TextBox::drawComponent(Graphics& gfx)
 {
 	IplFont::getInstance().drawInit(labelColor);
 	IplFont::getInstance().drawString((int) x, (int) y, *textBoxText, scale, centered);
+	/* One weight in the font file, so bold is the same string drawn a pixel to the right. */
+	if (bold)
+		IplFont::getInstance().drawString((int) x + 1, (int) y, *textBoxText, scale, centered);
 }
 
 } //namespace menu 

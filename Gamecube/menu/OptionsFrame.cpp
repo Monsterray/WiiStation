@@ -174,6 +174,12 @@ static const OptRow SOUND_ROWS[] =
 	ROW_CYCLE("XA Resampler",     soundXaResampler,    SOUND_XA_RESAMPLER_LEGACY,    SOUND_XA_RESAMPLER_HIFI,     LEGACY_HIFI_NAMES, NULL),
 };
 
+/* A line of help under the rows. `term` is the setting being explained, drawn bold in its
+ * own column; `text` continues in the second column, so a NULL term indents under the
+ * definition above it. Both columns are measured against the screen by
+ * scripts/menu_text_width.py -- a line that is too long simply runs off the right. */
+struct OptHelp { const char* term; const char* text; };
+
 /* Radio rows, not cycling ones: which core and which renderer is running is worth seeing
  * whole, the way the General tab used to show it. Both tear down and restart the emulator
  * when a game is loaded, so they are applied once on leaving the page (pluginsEnter /
@@ -184,14 +190,14 @@ static const OptRow PLUGIN_ROWS[] =
 	ROW_RADIO("GPU Plugin", gpuPlugin, OLD_SOFT,         OPEN_GX,              GPU_PLUGIN_NAMES, NULL),
 };
 
-static const char* const PLUGIN_HELP[] =
+static const OptHelp PLUGIN_HELP[] =
 {
-	"CPU Core: Lightrec is the recompiler most games run best on.",
-	"Interpreter is slow but exact; Dynarec is the older recompiler.",
-	"GPU Plugin: OpenGX draws through the Wii's graphics hardware.",
-	"The two software renderers are slower but avoid hardware quirks.",
-	"",
-	"Changing either restarts a loaded game when you leave this page.",
+	{ "CPU Core:",   "Lightrec, the recompiler most games run best on." },
+	{ NULL,          "Interpreter is exact but slow. Dynarec is the older one." },
+	{ "GPU Plugin:", "OpenGX draws with the Wii's graphics hardware." },
+	{ NULL,          "The software renderers are slower, but avoid its quirks." },
+	{ NULL,          "" },
+	{ NULL,          "Changing either restarts a loaded game when you leave." },
 };
 
 static char pluginsCoreOnEntry, pluginsGpuOnEntry;
@@ -217,16 +223,16 @@ static const OptRow STORAGE_ROWS[] =
 	ROW_CYCLE("CHD Hunk Cache", cdChdHunks, CD_CHD_HUNKS_2,  CD_CHD_HUNKS_8, CD_HUNKS_NAMES,  NULL),
 };
 
-static const char* const STORAGE_HELP[] =
+static const OptHelp STORAGE_HELP[] =
 {
-	"CD Read Buffer: how much each disc-image file reads at a time.",
-	"Larger means fewer, longer card reads while a game streams.",
-	"CD Read-Ahead: a thread keeps the next 31 sectors ready early.",
-	"Raw bin/cue and .iso only; it helps real hardware, not Dolphin.",
-	"CHD Hunk Cache: decoded CHD hunks kept in memory, ~20 KB each.",
-	"More of them keeps two areas of the disc warm without decoding twice.",
-	"",
-	"All three take effect the next time a game is loaded.",
+	{ "CD Read Buffer:", "how much each disc-image file reads at a time." },
+	{ NULL,              "Larger means fewer, longer card reads while streaming." },
+	{ "CD Read-Ahead:",  "a thread keeps the next 31 sectors ready early." },
+	{ NULL,              "Raw bin/cue and .iso only. Helps hardware, not Dolphin." },
+	{ "CHD Hunk Cache:", "decoded CHD hunks kept in memory, about 20 KB each." },
+	{ NULL,              "More keeps two areas of the disc warm at once." },
+	{ NULL,              "" },
+	{ NULL,              "All three take effect the next time a game is loaded." },
 };
 
 /* Readouts only. Every large MEM2 region is reserved at a fixed address (Gamecube/MEM2.h),
@@ -246,7 +252,7 @@ struct OptPage
 	const char*			title;
 	const OptRow*		rows;
 	int					nrows;
-	const char* const*	help;			// plain text under the rows; NULL for none
+	const OptHelp*		help;			// explanation under the rows; NULL for none
 	int					nhelp;
 	int					returnSubmenu;	// the Settings tab B goes back to
 	void				(*onEnter)(void);
@@ -278,7 +284,7 @@ static const OptPage PAGES[] =
 #define TITLE_X		320.0
 #define TITLE_Y		44.0
 #define ROW_Y0		86.0
-#define ROW_DY		54.0
+#define ROW_DY		56.0
 #define LABEL_X		175.0		// ROW_CYCLE / ROW_INFO label, centred
 #define BUTTON_X	340.0
 #define BUTTON_W	250.0
@@ -288,10 +294,11 @@ static const OptPage PAGES[] =
 #define RADIO_W		135.0
 #define RADIO_DX	147.0		// 135 wide with a 12 gap; three of them end at 634
 
-#define HELP_X		40.0		// help text is left-aligned, not centred
-#define HELP_Y0		258.0
-#define HELP_DY		22.0
-#define HELP_SCALE	0.70
+#define HELP_X		35.0		// help is left-aligned in two columns, not centred
+#define HELP_TEXT_X	175.0		// second column: wide enough for the longest bold term
+#define HELP_Y0		262.0
+#define HELP_DY		20.0
+#define HELP_SCALE	0.62		// 24 px glyphs at 0.62 leave room for a full line
 
 #define VALUE_LEN	32
 
@@ -309,7 +316,9 @@ struct OptWidget
 };
 
 static OptWidget		ROWS[OPT_MAX_ROWS];
+static menu::TextBox*	helpTermBox[OPT_MAX_HELP];
 static menu::TextBox*	helpBox[OPT_MAX_HELP];
+static char*			helpTermString[OPT_MAX_HELP];
 static char*			helpString[OPT_MAX_HELP];
 static char				helpEmpty[1] = "";
 /* Pages of settings are left with B, like every other sub-page, so they carry no Back
@@ -359,6 +368,7 @@ typedef char opt_plugin_help_fits [OPT_HELP_FITS(PLUGIN_ROWS,  PLUGIN_HELP)  ? 1
 typedef char opt_storage_help_fits[OPT_HELP_FITS(STORAGE_ROWS, STORAGE_HELP) ? 1 : -1];
 /* The last help line must stay on screen, and a radio row must not run off the right. */
 typedef char opt_help_on_screen[HELP_Y0 + (OPT_MAX_HELP - 1) * HELP_DY < 460.0 ? 1 : -1];
+typedef char opt_help_columns[HELP_TEXT_X > HELP_X ? 1 : -1];
 typedef char opt_radio_on_screen[RADIO_X0 + (OPT_MAX_CHOICES - 1) * RADIO_DX + RADIO_W <= 640.0 ? 1 : -1];
 
 static const OptRow* pageRow(int row)
@@ -487,8 +497,13 @@ OptionsFrame::OptionsFrame()
 
 	for (int i = 0; i < OPT_MAX_HELP; i++)
 	{
+		float y = HELP_Y0 + i * HELP_DY;
+		helpTermString[i] = helpEmpty;
 		helpString[i] = helpEmpty;
-		helpBox[i] = new menu::TextBox(&helpString[i], HELP_X, HELP_Y0 + i * HELP_DY, HELP_SCALE, false);
+		helpTermBox[i] = new menu::TextBox(&helpTermString[i], HELP_X, y, HELP_SCALE, false);
+		helpTermBox[i]->setBold(true);
+		helpBox[i] = new menu::TextBox(&helpString[i], HELP_TEXT_X, y, HELP_SCALE, false);
+		add(helpTermBox[i]);
 		add(helpBox[i]);
 	}
 
@@ -523,7 +538,10 @@ OptionsFrame::~OptionsFrame()
 		}
 	}
 	for (int i = 0; i < OPT_MAX_HELP; i++)
+	{
+		delete helpTermBox[i];
 		delete helpBox[i];
+	}
 	menu::Cursor::getInstance().removeComponent(this, backButton);
 	delete backButton;
 }
@@ -615,7 +633,10 @@ void OptionsFrame::activateSubmenu(int submenu)
 	for (int i = 0; i < OPT_MAX_HELP; i++)
 	{
 		bool on = i < PAGES[currentPage].nhelp;
-		helpString[i] = on ? (char*)PAGES[currentPage].help[i] : helpEmpty;
+		const char *term = on ? PAGES[currentPage].help[i].term : NULL;
+		helpTermString[i] = term ? (char*)term : helpEmpty;
+		helpString[i] = on ? (char*)PAGES[currentPage].help[i].text : helpEmpty;
+		helpTermBox[i]->setVisible(term != NULL);
 		helpBox[i]->setVisible(on);
 	}
 
