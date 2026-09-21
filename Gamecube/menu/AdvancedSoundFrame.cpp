@@ -67,8 +67,9 @@ static const AdvOption ADV_OPTIONS[] =
 #define ADV_NUM_ROWS	((int)(sizeof(ADV_OPTIONS) / sizeof(ADV_OPTIONS[0])))
 #define ADV_MAX_ROWS	5
 
-/*  Layout: title, then a row every ROW_DY from ROW_Y0, then Back at the bottom. The
- *  numbers match the Audio tab (56-high buttons, labels 28 below the button's top). */
+/*  Layout: title, then a row every ROW_DY from ROW_Y0. No Back button: B returns to the
+ *  Audio tab (setBackFunc), like every other page. The numbers match the Audio tab
+ *  (56-high buttons, labels 28 below the button's top). */
 #define TITLE_X		320.0
 #define TITLE_Y		52.0
 #define ROW_Y0		92.0
@@ -77,13 +78,8 @@ static const AdvOption ADV_OPTIONS[] =
 #define BUTTON_X	340.0
 #define BUTTON_W	250.0
 #define BUTTON_H	56.0
-#define BACK_X		270.0
-#define BACK_Y		418.0
-#define BACK_W		100.0
-#define BACK_H		40.0
 
 static char TITLE_STRING[] = "Advanced Sound";
-static char BACK_STRING[]  = "Back";
 
 struct AdvRow
 {
@@ -94,10 +90,8 @@ struct AdvRow
 };
 
 static AdvRow		ROWS[ADV_MAX_ROWS];
-static menu::Button*	backButton;
 static menu::TextBox*	titleBox;
 static char*		titleString = TITLE_STRING;
-static char*		backString  = BACK_STRING;
 
 /*  One click handler per possible row; the Button API takes a plain function pointer with
  *  no argument, so the row index has to be baked in. Add a line here and to ROW_FUNCS if
@@ -152,25 +146,16 @@ AdvancedSoundFrame::AdvancedSoundFrame()
 		menu::Cursor::getInstance().addComponent(this, ROWS[i].button, BUTTON_X, BUTTON_X + BUTTON_W, y, y + BUTTON_H);
 	}
 
-	backButton = new menu::Button(BTN_A_NRM, &backString, BACK_X, BACK_Y, BACK_W, BACK_H);
-	backButton->setActive(true);
-	backButton->setClicked(Func_ReturnFromAdvancedSoundFrame);
-	backButton->setReturn(Func_ReturnFromAdvancedSoundFrame);
-	add(backButton);
-	menu::Cursor::getInstance().addComponent(this, backButton, BACK_X, BACK_X + BACK_W, BACK_Y, BACK_Y + BACK_H);
-
-	// Focus runs down the rows to Back and wraps.
+	// Focus runs down the rows and wraps.
 	for (int i = 0; i < ADV_NUM_ROWS; i++)
 	{
-		menu::Button* up   = (i == 0) ? backButton : ROWS[i - 1].button;
-		menu::Button* down = (i == ADV_NUM_ROWS - 1) ? backButton : ROWS[i + 1].button;
+		menu::Button* up   = ROWS[(i + ADV_NUM_ROWS - 1) % ADV_NUM_ROWS].button;
+		menu::Button* down = ROWS[(i + 1) % ADV_NUM_ROWS].button;
 		ROWS[i].button->setNextFocus(menu::Focus::DIRECTION_UP, up);
 		ROWS[i].button->setNextFocus(menu::Focus::DIRECTION_DOWN, down);
 	}
-	backButton->setNextFocus(menu::Focus::DIRECTION_UP, ADV_NUM_ROWS ? ROWS[ADV_NUM_ROWS - 1].button : NULL);
-	backButton->setNextFocus(menu::Focus::DIRECTION_DOWN, ADV_NUM_ROWS ? ROWS[0].button : NULL);
 
-	setDefaultFocus(ADV_NUM_ROWS ? ROWS[0].button : backButton);
+	setDefaultFocus(ADV_NUM_ROWS ? ROWS[0].button : NULL);
 	setBackFunc(Func_ReturnFromAdvancedSoundFrame);
 	setEnabled(true);
 	activateSubmenu(SUBMENU_REINIT);
@@ -185,8 +170,6 @@ AdvancedSoundFrame::~AdvancedSoundFrame()
 		menu::Cursor::getInstance().removeComponent(this, ROWS[i].button);
 		delete ROWS[i].button;
 	}
-	menu::Cursor::getInstance().removeComponent(this, backButton);
-	delete backButton;
 }
 
 void AdvancedSoundFrame::activateSubmenu(int submenu)
@@ -195,7 +178,7 @@ void AdvancedSoundFrame::activateSubmenu(int submenu)
 	// the labels are re-read from the variables every time the page is shown.
 	for (int i = 0; i < ADV_NUM_ROWS; i++)
 		refreshRow(i);
-	setDefaultFocus(ADV_NUM_ROWS ? ROWS[0].button : backButton);
+	setDefaultFocus(ADV_NUM_ROWS ? ROWS[0].button : NULL);
 }
 
 void Func_ReturnFromAdvancedSoundFrame()

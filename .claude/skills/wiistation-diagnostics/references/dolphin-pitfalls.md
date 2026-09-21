@@ -44,7 +44,11 @@ disc change. Decode the presses with `scripts/dtm2autoinput.py` and use autoinpu
 - Killing Dolphin leaves the last-written file with a directory size ahead of its flushed
   clusters: 7-Zip says "Data Error". `scripts/sdimage_read.py` walks the FAT chain and returns
   what is there.
-- `taskkill //IM Dolphin.exe //F` kills every instance, including the user's. Check first.
+- `taskkill //IM Dolphin.exe //F` kills every instance, including the user's and other
+  projects'. `dolphin_run.sh` therefore starts its Dolphin with an explicit `-u <User dir>`,
+  finds instances by command line (PowerShell `Get-CimInstance Win32_Process`), refuses to
+  start only when one shares its user directory, and kills only its own PID. A `-u` that
+  points elsewhere is another project's profile with its own SD image: leave it alone.
 - `dolphin.log` timestamps are minutes:seconds:ms; old FRAMEDUMP lines from an earlier session
   stay in the file — filter by frame numbers, not by hour.
 - Dolphin's own source is indexed in the codebase MCP as project `dolphin`

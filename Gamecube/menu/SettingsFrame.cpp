@@ -435,12 +435,14 @@ struct ButtonInfo
 	//Audio tab, appended at the end (starts at button[67]) so no existing index moves
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[16],	345.0,	340.0,	 75.0,	56.0,	45,	 69,	68,	68,	Func_SoundHwAccelYes,	Func_ReturnFromSettingsFrame }, // DSP Sound: Yes
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[17],	440.0,	340.0,	 75.0,	56.0,	45,	 69,	67,	67,	Func_SoundHwAccelNo,	Func_ReturnFromSettingsFrame }, // DSP Sound: No
-	//Audio tab, Sync group (buttons 69..71): like Dithering, one of three is selected
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[25],	345.0,	400.0,	 55.0,	56.0,	67,	 3,	72,	70,	Func_SoundSyncOff,		Func_ReturnFromSettingsFrame }, // Sync: Off
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[81],	405.0,	400.0,	 75.0,	56.0,	67,	 3,	69,	71,	Func_SoundSyncTempo,	Func_ReturnFromSettingsFrame }, // Sync: Tempo
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[82],	485.0,	400.0,	 60.0,	56.0,	68,	 3,	70,	72,	Func_SoundSyncRate,		Func_ReturnFromSettingsFrame }, // Sync: Rate
+	//Audio tab, Sync group (buttons 69..71): like Dithering, one of three is selected. The trio
+	//starts left of the other rows' buttons (the "Sync" label is short) and leaves a gap before
+	//Advanced, which sits in the row's right corner (right edge 645, the tab's widest row).
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[25],	275.0,	400.0,	 60.0,	56.0,	67,	 3,	72,	70,	Func_SoundSyncOff,		Func_ReturnFromSettingsFrame }, // Sync: Off
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[81],	340.0,	400.0,	 90.0,	56.0,	67,	 3,	69,	71,	Func_SoundSyncTempo,	Func_ReturnFromSettingsFrame }, // Sync: Tempo
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[82],	435.0,	400.0,	 70.0,	56.0,	68,	 3,	70,	72,	Func_SoundSyncRate,		Func_ReturnFromSettingsFrame }, // Sync: Rate
 	//Audio tab, Advanced (button 72): opens the Advanced Sound page (AdvancedSoundFrame.cpp)
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[83],	550.0,	400.0,	 95.0,	56.0,	68,	 3,	71,	69,	Func_AdvancedSound,		Func_ReturnFromSettingsFrame }, // Advanced: opens the Advanced Sound page
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[83],	520.0,	400.0,	125.0,	56.0,	68,	 3,	71,	69,	Func_AdvancedSound,		Func_ReturnFromSettingsFrame }, // Advanced: opens the Advanced Sound page
 };
 
 struct TextBoxInfo

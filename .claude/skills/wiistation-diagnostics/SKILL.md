@@ -19,8 +19,11 @@ probe you can think of, because a build plus run costs about five minutes.
    at known emulated vblanks: `autoinput.txt`. Details, timings and the settings keys that
    unattended runs need are in [references/unattended-run.md](references/unattended-run.md).
    Never drive the user's real mouse/keyboard (`DolphinControl.ps1`); the scripted route
-   replaces it. Never run while the user's own Dolphin is open: the SD image is locked and
-   `taskkill` would kill their instance too — check `tasklist | grep -i dolphin` first.
+   replaces it. `dolphin_run.sh` refuses to start while a Dolphin that uses this install's
+   user directory is running (the user's own session, or a stale run: same SD image), and it
+   kills only the instance it started, found by the `-u` it puts on the command line. An
+   instance from another project with its own `-u` profile (Wii64's `.dev/dolphin_test.sh`
+   works the same way) is left alone; the run goes ahead beside it and shares the CPU.
 
 2. **Decide what would distinguish the hypotheses, then instrument for all of them at once.**
    The debug build (`bash scripts/build.sh debug`, only through the devkitPro bash — see

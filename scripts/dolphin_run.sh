@@ -18,7 +18,12 @@
 #                         reimplementations. Needed for any custom ucode -- HLE matches
 #                         ucodes by hash and falls back to a WRONG one otherwise (libogc's
 #                         AESND is not on its list). Uses the DSP ROMs in Sys/GC.
-#          OTHER_DOLPHIN_OK=1  run beside another project's Dolphin (own -u profile); the kill is PID-scoped
+#          Other Dolphin instances: only ones that share this install's user directory (the
+#          portable User/ next to Dolphin.exe, i.e. started without -u, or with -u pointing at
+#          it) block a run -- they hold the same WiiSD.raw. An instance from another project
+#          with its own -u profile is left alone and the run goes ahead beside it (shared CPU
+#          only). The run is started with an explicit -u so its command line identifies it,
+#          and only that PID is killed at the end. (The pattern is Wii64's .dev/dolphin_test.sh.)
 #          AUDIO_DUMP=1   write the mixed audio to User/Dump/Audio and collect it; compare
 #                         two runs with scripts/wav_compare.py
 #          DOLPHIN_ARGS   extra arguments appended verbatim, e.g. "-C Graphics.Settings.OverlayStats=True"
@@ -39,17 +44,30 @@ D="/c/tools/Dolphin-x64"; S="$D/User/Load/WiiSDSync/wiisxrx"; P="$D/User/Load/Wi
 SP="$(cd "$(dirname "$0")" && pwd)"   # sheet.py and sdimage_read.py live next to this script
 DOL="${DOL:-/c/projects/WiiStation/Gamecube/WiiSXRX_debug.dol}"
 
-# Another Dolphin already running normally means the SD image is locked (and a bare taskkill
-# would have hit it). The kill below is PID-scoped, so with OTHER_DOLPHIN_OK=1 a run may go ahead
-# beside an instance that uses its OWN user directory (-u ...: its own WiiSD.raw and Dump/), e.g.
-# another project's dev session. Never set it when that instance shares this install's User dir.
-if tasklist 2>/dev/null | grep -qi "Dolphin.exe"; then
-  if [ -n "${OTHER_DOLPHIN_OK:-}" ]; then
-    echo "note: another Dolphin is running (OTHER_DOLPHIN_OK set): timing shares the CPU with it"
-  else
-    echo "refusing to start: a Dolphin instance is already running (the SD image would be locked and the kill below would hit it); OTHER_DOLPHIN_OK=1 overrides for an instance with its own -u profile"; exit 2
-  fi
+# Which Dolphin instances matter: the ones that use THIS install's user directory, because they
+# hold the same WiiSD.raw and Dump/ folders. Matched on the command line, the way Wii64's
+# .dev/dolphin_test.sh does it: no -u at all means the portable User/ next to the exe (the
+# user's own GUI session, or an older run script), -u <our dir> means one of our runs. An
+# instance with a different -u profile belongs to another project and is left alone.
+USERDIR_WIN=$(cd "$D/User" && pwd -W | tr '/' '\\')
+dolphin_instances() {   # prints "pid|commandline" per Dolphin.exe
+  powershell.exe -NoProfile -Command 'Get-CimInstance Win32_Process | Where-Object Name -eq Dolphin.exe | ForEach-Object { "$($_.ProcessId)|$($_.CommandLine)" }' 2>/dev/null | tr -d '\r'
+}
+same_userdir_pids() {   # instances that share our user directory
+  dolphin_instances | while IFS='|' read -r pid cmd; do
+    [ -n "$pid" ] || continue
+    case "$cmd" in
+      *" -u "*) case "$cmd" in *"$USERDIR_WIN"*) echo "$pid";; esac ;;   # -u elsewhere: another project
+      *) echo "$pid" ;;                                                     # no -u: the portable User/
+    esac
+  done
+}
+BLOCKERS=$(same_userdir_pids | tr '\n' ' ')
+if [ -n "${BLOCKERS// /}" ]; then
+  echo "refusing to start: Dolphin PID(s) $BLOCKERS use this install's user directory ($USERDIR_WIN): same SD image. If stale from a killed run: taskkill //F //PID <pid>"; exit 2
 fi
+OTHERS=$(dolphin_instances | wc -l | tr -d ' ')
+[ "$OTHERS" != "0" ] && echo "note: $OTHERS other Dolphin instance(s) with their own profile are running; this run shares the CPU with them"
 [ -f "$DOL" ] || { echo "no such .dol: $DOL"; exit 2; }
 mkdir -p "$OUT/frames"
 
@@ -98,10 +116,12 @@ echo "framedump run: start $(date +%T)"
 echo "dol: $DOL ($(stat -c %y "$DOL" 2>/dev/null | cut -c1-19))"
 printf 'options:'; printf ' %s' "${CFGARGS[@]}"; echo
 printf '%s\n' "${CFGARGS[@]}" > "$OUT/dolphin-options.txt"
-"$D/Dolphin.exe" -b -e "$DOL" "${CFGARGS[@]}" &
+# -u names the portable User/ Dolphin would use anyway; it puts our directory on the command
+# line so this run can be told apart from any other Dolphin (see same_userdir_pids above).
+"$D/Dolphin.exe" -b -e "$DOL" -u "$USERDIR_WIN" "${CFGARGS[@]}" &
 DPID=$!; sleep 2; WPID=$(ps -p $DPID 2>/dev/null | awk 'NR==2{print $4}')
-# Fallback for the Windows PID: the guard above proved no Dolphin was running, so the only one is ours.
-[ -n "$WPID" ] || WPID=$(tasklist //FI "IMAGENAME eq Dolphin.exe" //FO CSV //NH 2>/dev/null | head -1 | cut -d, -f2 | tr -d '"')
+# Fallback for the Windows PID: the only instance on our user directory is the one just started.
+[ -n "$WPID" ] || WPID=$(same_userdir_pids | head -1)
 echo "dolphin windows pid: ${WPID:-unknown}"
 sleep "$SECS"
 # Kill only the instance this script started, and only with taskkill /F: a POSIX kill on a native
