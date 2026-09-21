@@ -239,7 +239,7 @@ void Func_SwapCD()
 
 extern "C" char mcd1Written;
 extern "C" char mcd2Written;
-extern "C" int LoadState();
+extern "C" int LoadState(int force);
 extern "C" int SaveState();
 extern "C" void savestates_select_slot(unsigned int s);
 extern "C" int StateExists(unsigned int slot);
@@ -328,11 +328,21 @@ void Func_SaveGame()
 
 void Func_LoadState()
 {
-    int status = LoadState();
+    int status = LoadState(0);
+    if (status == -1) {
+        /* The file is from another build, or it is cut short. Neither is safe to load, but
+         * the alternative is losing the state, so let the player decide. What comes back
+         * may not run; Restart Game is next to this button. */
+        if (menu::MessageBox::getInstance().askMessage(
+                "This state is damaged or from another build. Load it anyway?"))
+            status = LoadState(1);
+        else
+            return;
+    }
     if (status == 1) {
         menu::MessageBox::getInstance().setMessage("Save State Loaded Successfully");
     } else if (status == -1) {
-        menu::MessageBox::getInstance().setMessage("Unable to read different versions of Save State");
+        menu::MessageBox::getInstance().setMessage("The state could not be read at all");
     } else {
         menu::MessageBox::getInstance().setMessage("Save doesn't exist");
     }

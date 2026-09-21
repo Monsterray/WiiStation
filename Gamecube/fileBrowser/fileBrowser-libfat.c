@@ -368,7 +368,16 @@ int fileBrowser_libfat_seekFile(fileBrowser_file* file, unsigned int where, unsi
 	return 0;
 }
 
+static int fileBrowser_libfat_exists(const char* name);
+
 int fileBrowser_libfat_readFile(fileBrowser_file* file, void* buffer, unsigned int length){
+	/* A swap that was interrupted between the remove and the rename leaves the whole new
+	 * file under its temporary name and nothing under the real one. Take it. */
+	if(!fileBrowser_libfat_exists(file->name)) {
+		char tmpName[FILE_BROWSER_MAX_PATH_LEN];
+		snprintf(tmpName, sizeof(tmpName), "%s%s", file->name, FILE_BROWSER_TMP_SUFFIX);
+		if(fileBrowser_libfat_exists(tmpName)) rename(tmpName, file->name);
+	}
   pauseRemovalThread();
 	FILE* f = fopen( file->name, "rb" );
 	if(!f) { continueRemovalThread(); return FILE_BROWSER_ERROR; }
@@ -393,6 +402,12 @@ int fileBrowser_libfat_readFile(fileBrowser_file* file, void* buffer, unsigned i
  * each '/' in turn and the last path component (the filename) has no trailing
  * slash to trigger on. An existing directory just returns EEXIST, which is the
  * normal case and is deliberately ignored. */
+/* Is there a file of this name? Used to find a write that was interrupted. */
+static int fileBrowser_libfat_exists(const char* name) {
+	struct stat st;
+	return stat(name, &st) == 0;
+}
+
 void makeParentDirs(const char* path) {
 	char dir[FILE_BROWSER_MAX_PATH_LEN];
 	char* p;
@@ -413,19 +428,62 @@ void makeParentDirs(const char* path) {
 	}
 }
 
+/* Write to a second file, then put it in the place of the first.
+ *
+ * fopen(name, "wb") empties the file before it writes a byte. A memory card is 128 KB and
+ * a state is megabytes, so the card holds an empty or half-written file for as long as the
+ * write takes. Pull the SD card, or lose power, in that time and the save is gone: the old
+ * one has already been thrown away and the new one is not there yet.
+ *
+ * Writing beside it and then swapping means the old file stays whole until the new one is
+ * complete. Only the last two steps can be interrupted, and both leave something to
+ * recover: the old file, or the new one under its temporary name, which readFile looks for.
+ *
+ * A write at an offset (the +64 and +3904 memory-card containers) still has to keep what
+ * is already there, so those go straight to the file as before. */
 int fileBrowser_libfat_writeFile(fileBrowser_file* file, void* buffer, unsigned int length){
-  pauseRemovalThread();
+	char tmpName[FILE_BROWSER_MAX_PATH_LEN];
+	FILE* f;
+	int bytes_written;
+
+	pauseRemovalThread();
 	makeParentDirs(file->name);
-	FILE* f = fopen( file->name, "wb" );
+
+	if(file->offset != 0) {
+		f = fopen( file->name, "r+" );
+		if(!f) f = fopen( file->name, "wb" );
+		if(!f) { continueRemovalThread(); return FILE_BROWSER_ERROR; }
+		fseek(f, file->offset, SEEK_SET);
+		bytes_written = fwrite(buffer, 1, length, f);
+		if(bytes_written > 0) file->offset += bytes_written;
+		fclose(f);
+		continueRemovalThread();
+		return bytes_written;
+	}
+
+	snprintf(tmpName, sizeof(tmpName), "%s%s", file->name, FILE_BROWSER_TMP_SUFFIX);
+	f = fopen( tmpName, "wb" );
 	if(!f) { continueRemovalThread(); return FILE_BROWSER_ERROR; }
 
-	fseek(f, file->offset, SEEK_SET);
-	int bytes_read = fwrite(buffer, 1, length, f);
-	if(bytes_read > 0) file->offset += bytes_read;
-
+	bytes_written = fwrite(buffer, 1, length, f);
 	fclose(f);
+
+	if(bytes_written != (int)length) {
+		remove(tmpName);                  /* leave the old file alone */
+		continueRemovalThread();
+		return FILE_BROWSER_ERROR;
+	}
+
+	remove(file->name);
+	if(rename(tmpName, file->name) != 0) {
+		/* The new file is whole but still under its own name; readFile finds it there. */
+		continueRemovalThread();
+		return FILE_BROWSER_ERROR;
+	}
+
+	file->offset += bytes_written;
 	continueRemovalThread();
-	return bytes_read;
+	return bytes_written;
 }
 
 /* call fileBrowser_libfat_init as much as you like for all devices

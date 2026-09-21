@@ -64,7 +64,7 @@ int CheckCdrom();
 int Load(fileBrowser_file *exe);
 
 int SaveState();
-int LoadState();
+int LoadState(int force);
 int StateExists(unsigned int slot);
 
 int SendPcsxInfo();

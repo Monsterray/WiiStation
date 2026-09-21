@@ -54,6 +54,10 @@ typedef struct {
 extern fileBrowser_file* isoFile_topLevel;
 
 // Set this to directory for memory cards & save states
+/* What a half-finished write is called while it happens. See
+ * fileBrowser_libfat_writeFile. */
+#define FILE_BROWSER_TMP_SUFFIX ".tmp"
+
 extern fileBrowser_file* saveFile_dir;
 
 /* Point the saveFile_* calls below at the device the player chose (nativeSaveDevice).

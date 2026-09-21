@@ -41,13 +41,13 @@
 #ifdef PERF_PROF
 extern unsigned autoinput_statetest_vbl;
 int SaveState(void);
-int LoadState(void);
+int LoadState(int force);
 static void autoinput_state_test(void)
 {
 	static int loaded = 0;
 	if (!autoinput_statetest_vbl) return;
 	if (frame_counter == autoinput_statetest_vbl) SaveState();
-	else if (frame_counter == autoinput_statetest_vbl + 120 && !loaded) { loaded = 1; LoadState(); }
+	else if (frame_counter == autoinput_statetest_vbl + 120 && !loaded) { loaded = 1; LoadState(0); }
 }
 #else
 #define autoinput_state_test() ((void)0)

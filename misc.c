@@ -642,7 +642,11 @@ int SaveState() {
 	stateFilename(filename, savestates_slot);
 	makeParentDirs(filename);
 
-	f = gzopen(filename, "wb");
+	/* Level 1, not the default 6. A state is mostly emulated RAM, which compresses well at
+	 * any level; level 6 spends four times the CPU for a few per cent of size, and the game
+	 * is frozen for all of it. Measured on Crash 3: 1.12 s at level 6, and the file is read
+	 * back in 0.24 s, so the write was almost all compression. */
+	f = gzopen(filename, "wb1");
 	if (!f) {
 		PERF_INC(state_fails);
 		return 0;
@@ -741,10 +745,14 @@ static int stateTruncated(gzFile f)
 	return -1;
 }
 
-/* Every read of a state file is this size or the file is not a state file. */
-#define STATE_READ(buf, len) 	do { if (gzread(f, (buf), (len)) != (int)(len)) return stateTruncated(f); } while (0)
+/* Every read of a state file is this size, or the file is damaged. `force` is the player
+ * saying to go on anyway; `f` is the open file. Both are in scope wherever this is used. */
+#define STATE_READ(buf, len) \
+	do { if (gzread(f, (buf), (len)) != (int)(len) && !force) return stateTruncated(f); } while (0)
 
-int LoadState() {
+/* `force` = 1 loads a file that fails the checks: one from another build, or one that is
+ * cut short. What comes out may not run, which is why the menu asks first. */
+int LoadState(int force) {
 	unsigned long long t0 = perf_now_us();
 	struct misc_save_data *misc = (void *)(psxH + 0xf000);
 	u32 biosBranchCheckOld = psxRegs.biosBranchCheck;
@@ -771,9 +779,11 @@ int LoadState() {
 	 * thread suspended, because only the success path resumed it. */
 	if (gzread(f, header, sizeof(header)) != (int)sizeof(header)
 	 || strncmp(PcsxHeader, header, sizeof(header))) {
-		gzclose(f);
-		continueRemovalThread();
-		return -1;
+		if (!force) {
+			gzclose(f);
+			continueRemovalThread();
+			return -1;
+		}
 	}
 	STATE_READ(&Config.HLE, sizeof(bool));
 	LoadingBar_showBar(0.10f, LOAD_STATE_MSG);
@@ -817,7 +827,7 @@ int LoadState() {
 		continueRemovalThread();
 		return -1;
 	}
-	if (gzread(f, gpufP, sizeof(GPUFreeze_t)) != (int)sizeof(GPUFreeze_t)) {
+	if (gzread(f, gpufP, sizeof(GPUFreeze_t)) != (int)sizeof(GPUFreeze_t) && !force) {
 		free(gpufP);
 		return stateTruncated(f);
 	}
@@ -833,9 +843,12 @@ int LoadState() {
 	// Size comes straight from the savestate file -- a corrupted/foreign
 	// file could hand us a bogus or negative value here.
 	if (Size <= 0 || Size > 16 * 1024 * 1024) {
-		gzclose(f);
-		continueRemovalThread();
-		return -1;
+		if (!force) {
+			gzclose(f);
+			continueRemovalThread();
+			return -1;
+		}
+		Size = 16 * 1024;   /* the file is not to be trusted; take a small, safe amount */
 	}
 	spufP = (SPUFreeze_t *) malloc (Size);
 	if (!spufP) {
@@ -843,7 +856,7 @@ int LoadState() {
 		continueRemovalThread();
 		return -1;
 	}
-	if (gzread(f, spufP, Size) != Size) {
+	if (gzread(f, spufP, Size) != Size && !force) {
 		free(spufP);
 		return stateTruncated(f);
 	}
