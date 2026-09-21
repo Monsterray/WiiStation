@@ -125,8 +125,9 @@ void Func_SaveStateSD();
 void Func_SaveStateUSB();
 void Func_Memcard1();
 void Func_Memcard2();
-void Func_CardFile1();
-void Func_CardFile2();
+void Func_CardType1();
+void Func_CardType2();
+static int cardType(int card);   /* Off, Shared or Game, from the two settings */
 
 
 void Func_FastloadYes();
@@ -168,7 +169,7 @@ void setSpuTempo(int soundTempo);
 #define NUM_TAB_BUTTONS 5
 #define FRAME_BUTTONS settingsFrameButtons
 #define FRAME_STRINGS settingsFrameStrings
-#define NUM_FRAME_TEXTBOXES 28
+#define NUM_FRAME_TEXTBOXES 29
 #define FRAME_TEXTBOXES settingsFrameTextBoxes
 
 /*
@@ -180,7 +181,7 @@ Select Bios: HLE; SD; USB; DVD
 Boot Games Through Bios: Yes; No + Execute Bios
 Select language
 Fast Load: Yes; No
-Save settings: SD; USB; Separately   (kept on the bottom row)
+Save Settings: SD; USB; This Game   (kept on the bottom row)
 
 Video Tab:
 Show FPS: Yes; No
@@ -215,7 +216,7 @@ Auto Save Memcards: Yes; No
 Save States Device: SD; USB
 */
 
-static char FRAME_STRINGS[94][24] =
+static char FRAME_STRINGS[96][24] =
 	{ "General",
 	  "Video",
 	  "Input",
@@ -223,10 +224,10 @@ static char FRAME_STRINGS[94][24] =
 	  "Saves",
 	//Strings for General tab (starting at FRAME_STRINGS[5])
 	  "Select CPU Core",
-	  "Select Bios",
-	  "Boot Through Bios",
-	  "Execute Bios",
-	  "Save settings",
+	  "Select BIOS",
+	  "Boot Through BIOS",
+	  "Execute BIOS",
+	  "Save Settings",
 	  "Interpreter",
 	  "Dynarec",
 	  "HLE",
@@ -260,7 +261,7 @@ static char FRAME_STRINGS[94][24] =
 	  "Standard",
 	  "Analog",
 	  "Save Button Configs",
-	  "Auto Load Slot:",
+	  "Auto Load Slot",
 	  "Default",
 	//Strings for Audio tab (starting at FRAME_STRINGS[43]) ..was[47]
 	  "Disable Audio",
@@ -278,7 +279,7 @@ static char FRAME_STRINGS[94][24] =
 	  "CardA",
 	  "CardB",
       // Strings for display language (starting at FRAME_STRINGS[56]) ..was[62]
-      "Select language",
+      "Select Language",
       "En", // English
       "Chs", // Simplified Chinese
       "Kr", // Korean
@@ -299,8 +300,8 @@ static char FRAME_STRINGS[94][24] =
 	  "Mouse",
 	  "Memcard 1",
 	  "Memcard 2",
-	  "Enable Memcard",
-	  "Separately",
+	  "Memcard Type",
+	  "This Game",
 	  "Force NTSC",
 	//Appended so no existing FRAME_STRINGS index moves
 	  "DSP Sound",			// [79] audio tab: hardware-accelerated sound
@@ -315,9 +316,11 @@ static char FRAME_STRINGS[94][24] =
 	  "Audio",				// [88] Enable: the sound output as a whole
 	  "XA",					// [89] Enable: the disc's XA streams
 	  "CDDA",				// [90] Enable: Red Book audio tracks
-	  "Card File",			// [91] saves tab: label of the two card-file buttons
-	  "Shared",				// [92] MEMCARDFILE_SHARED: one card file every game opens
-	  "Game"				// [93] MEMCARDFILE_PER_GAME: one card file per game
+	  "1",					// [91] saves tab: which card the first Memcard Type button is
+	  "Off",				// [92] the card is not there at all
+	  "Shared",				// [93] one card file every game opens
+	  "Game",				// [94] one card file per game
+	  "2"					// [95] saves tab: which card the second button is
       };
 
 static char LANG_STRINGS[13][24] =
@@ -421,14 +424,14 @@ struct ButtonInfo
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[17],	440.0,	220.0,	 75.0,	56.0,	39,	45,	41,	41,	Func_ToggleCdda,		Func_ReturnFromSettingsFrame }, // (spare, never shown)
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[47],	295.0,	170.0,	170.0,	56.0,	39,	67,	-1,	-1,	Func_InterpolationToggle,	Func_ReturnFromSettingsFrame }, // Interpolation: Simple/Gaussian
 	//Buttons for Saves Tab (starts at button[46]) ..was[54]
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[13],	295.0,	100.0,	 55.0,	56.0,	 4,	50,	49,	47,	Func_MemcardSaveSD,		Func_ReturnFromSettingsFrame }, // Memcard Save: SD
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[14],	360.0,	100.0,	 70.0,	56.0,	 4,	51,	46,	48,	Func_MemcardSaveUSB,	Func_ReturnFromSettingsFrame }, // Memcard Save: USB
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[54],	440.0,	100.0,	 90.0,	56.0,	 4,	51,	47,	49,	Func_MemcardSaveCardA,	Func_ReturnFromSettingsFrame }, // Memcard Save: Card A
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[55],	540.0,	100.0,	 90.0,	56.0,	 4,	51,	48,	46,	Func_MemcardSaveCardB,	Func_ReturnFromSettingsFrame }, // Memcard Save: Card B
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[16],	295.0,	170.0,	 75.0,	56.0,	46,	52,	51,	51,	Func_AutoSaveYes,		Func_ReturnFromSettingsFrame }, // Auto Save Memcards: Yes
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[17],	380.0,	170.0,	 75.0,	56.0,	47,	53,	50,	50,	Func_AutoSaveNo,		Func_ReturnFromSettingsFrame }, // Auto Save Memcards: No
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[13],	295.0,	240.0,	 55.0,	56.0,	50,	60,	53,	53,	Func_SaveStateSD,		Func_ReturnFromSettingsFrame }, // Save State: SD
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[14],	360.0,	240.0,	 70.0,	56.0,	51,	60,	52,	52,	Func_SaveStateUSB,		Func_ReturnFromSettingsFrame }, // Save State: USB
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[13],	295.0,	100.0,	 55.0,	56.0,	 4,	76,	49,	47,	Func_MemcardSaveSD,		Func_ReturnFromSettingsFrame }, // Memcard Save: SD
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[14],	360.0,	100.0,	 70.0,	56.0,	 4,	77,	46,	48,	Func_MemcardSaveUSB,	Func_ReturnFromSettingsFrame }, // Memcard Save: USB
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[54],	440.0,	100.0,	 90.0,	56.0,	 4,	77,	47,	49,	Func_MemcardSaveCardA,	Func_ReturnFromSettingsFrame }, // Memcard Save: Card A
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[55],	540.0,	100.0,	 90.0,	56.0,	 4,	77,	48,	46,	Func_MemcardSaveCardB,	Func_ReturnFromSettingsFrame }, // Memcard Save: Card B
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[16],	295.0,	240.0,	 75.0,	56.0,	76,	52,	51,	51,	Func_AutoSaveYes,		Func_ReturnFromSettingsFrame }, // Auto Save Memcards: Yes
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[17],	380.0,	240.0,	 75.0,	56.0,	77,	53,	50,	50,	Func_AutoSaveNo,		Func_ReturnFromSettingsFrame }, // Auto Save Memcards: No
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[13],	295.0,	310.0,	 55.0,	56.0,	50,	 4,	53,	53,	Func_SaveStateSD,		Func_ReturnFromSettingsFrame }, // Save State: SD
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[14],	360.0,	310.0,	 70.0,	56.0,	51,	 4,	52,	52,	Func_SaveStateUSB,		Func_ReturnFromSettingsFrame }, // Save State: USB
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[57],	295.0,	280.0,	 90.0,	56.0,	 11,55,	-1,	-1,	Func_SelectLanguage,	Func_ReturnFromSettingsFrame }, // Select Language: En
     //Buttons for Saves Tab (starts at button[55]) ..was[61]
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[16],	295.0,	340.0,	 75.0,	56.0,	54,	14,	56,	56,	Func_FastloadYes,		Func_ReturnFromSettingsFrame }, // Fast load: Yes
@@ -464,8 +467,8 @@ struct ButtonInfo
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[85],	255.0,	100.0,	130.0,	56.0,	14,	 8,	73,	75,	Func_StoragePage,		Func_ReturnFromSettingsFrame }, // Storage page
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[86],	410.0,	100.0,	130.0,	56.0,	14,	 9,	74,	73,	Func_MemoryPage,		Func_ReturnFromSettingsFrame }, // Memory page
 	//Saves tab: which file each memory card lives in (buttons 76 and 77)
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[93],	295.0,	380.0,	105.0,	56.0,	60,	 4,	77,	77,	Func_CardFile1,			Func_ReturnFromSettingsFrame }, // Card 1 file: Game/Shared
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[92],	410.0,	380.0,	105.0,	56.0,	61,	 4,	76,	76,	Func_CardFile2,			Func_ReturnFromSettingsFrame }, // Card 2 file: Game/Shared
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[94],	295.0,	170.0,	105.0,	56.0,	46,	50,	77,	77,	Func_CardType1,			Func_ReturnFromSettingsFrame }, // Memcard 1 type: Off/Shared/Game
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[93],	430.0,	170.0,	105.0,	56.0,	47,	51,	76,	76,	Func_CardType2,			Func_ReturnFromSettingsFrame }, // Memcard 2 type: Off/Shared/Game
 };
 
 struct TextBoxInfo
@@ -502,19 +505,20 @@ struct TextBoxInfo
 	{	NULL,	FRAME_STRINGS[46],	150.0,	198.0,	 1.0,	true }, // Interpolation: Simple/Gaussian
 	//TextBoxes for Saves Tab (starts at textBox[18]) ..was[23]
 	{	NULL,	FRAME_STRINGS[51],	150.0,	128.0,	 1.0,	true }, // Memcard Save Device: SD/USB/CardA/CardB
-	{	NULL,	FRAME_STRINGS[52],	150.0,	198.0,	 1.0,	true }, // Auto Save Memcards: Yes/No
-	{	NULL,	FRAME_STRINGS[53],	150.0,	268.0,	 1.0,	true }, // Save State Device: SD/USB
+	{	NULL,	FRAME_STRINGS[52],	150.0,	268.0,	 1.0,	true }, // Auto Save Memcards: Yes/No
+	{	NULL,	FRAME_STRINGS[53],	150.0,	338.0,	 1.0,	true }, // Save State Device: SD/USB
 	{	NULL,	FRAME_STRINGS[56],	150.0,	308.0,	 1.0,	true }, // Select language: En, Chs, ......
 	{	NULL,	FRAME_STRINGS[63],	150.0,	368.0,	 1.0,	true }, // Fast load
-	{	NULL,	FRAME_STRINGS[76],	150.0,	338.0,	 1.0,	true }, // Memcard enable
+	{	NULL,	FRAME_STRINGS[76],	150.0,	198.0,	 1.0,	true }, // Memcard Type: Off/Shared/Game
     //TextBoxes for Saves Tab (starts at textBox[24]) ..was[24]
 	{	NULL,	GPU_PLUGIN_STRINGS[0],	110.0,	188.0,	 1.0,	true }, // GPU Plugin: Old Soft/New Soft/OpenGX
 	//TextBox for the Audio tab, appended (textBox[25])
 	{	NULL,	FRAME_STRINGS[79],	150.0,	268.0,	 1.0,	true }, // DSP Sound: Yes/No
 	//TextBox for the Sync group (textBox[26])
 	{	NULL,	FRAME_STRINGS[80],	150.0,	338.0,	 1.0,	true }, // Sync: Off/Tempo/Rate
-	//TextBox for the card-file row on the Saves tab (textBox[27])
-	{	NULL,	FRAME_STRINGS[91],	150.0,	408.0,	 1.0,	true }, // Card File: Game/Shared
+	//Which card each Memcard Type button belongs to (textBox[27] and [28])
+	{	NULL,	FRAME_STRINGS[91],	285.0,	198.0,	 1.0,	true }, // "1", left of the first button
+	{	NULL,	FRAME_STRINGS[95],	420.0,	198.0,	 1.0,	true }, // "2", left of the second
 };
 
 SettingsFrame::SettingsFrame()
@@ -762,24 +766,20 @@ void SettingsFrame::activateSubmenu(int submenu)
 			}
 			for (int i = 18; i < 21; i++)
 				FRAME_TEXTBOXES[i].textBox->setVisible(true);
-			FRAME_TEXTBOXES[23].textBox->setVisible(true);
+			FRAME_TEXTBOXES[23].textBox->setVisible(true);   /* "Memcard Type" */
 			FRAME_BUTTONS[4].button->setSelected(true);
 			FRAME_BUTTONS[46+nativeSaveDevice].button->setSelected(true);
 			if (autoSave == AUTOSAVE_ENABLE)	FRAME_BUTTONS[50].button->setSelected(true);
 			else								FRAME_BUTTONS[51].button->setSelected(true);
 			if (saveStateDevice == SAVESTATEDEVICE_SD)	FRAME_BUTTONS[52].button->setSelected(true);
 			else										FRAME_BUTTONS[53].button->setSelected(true);
-			if (memCard[0] == MEMCARD_ENABLE)FRAME_BUTTONS[60].button->setSelected(true);
-			if (memCard[1] == MEMCARD_ENABLE)FRAME_BUTTONS[61].button->setSelected(true);
-			FRAME_BUTTONS[60].button->setVisible(true);
-			FRAME_BUTTONS[60].button->setActive(true);
-			FRAME_BUTTONS[61].button->setVisible(true);
-			FRAME_BUTTONS[61].button->setActive(true);
-			/* Which file each card lives in: one per game, or one every game sees. */
+			/* One button per card: Off, or the file it lives in. Buttons 60 and 61 were
+			 * the old Enable Memcard pair and are no longer shown. */
 			FRAME_TEXTBOXES[27].textBox->setVisible(true);
+			FRAME_TEXTBOXES[28].textBox->setVisible(true);
 			for (int i = 76; i <= 77; i++)
 			{
-				FRAME_BUTTONS[i].buttonString = FRAME_STRINGS[92 + memCardFile[i - 76]];
+				FRAME_BUTTONS[i].buttonString = FRAME_STRINGS[92 + cardType(i - 76)];
 				FRAME_BUTTONS[i].button->setVisible(true);
 				FRAME_BUTTONS[i].button->setActive(true);
 			}
@@ -1249,6 +1249,11 @@ void Func_SaveSettingsUSB()
 	menu::MessageBox::getInstance().setMessage("Error saving settings to USB");
 }
 
+/* Save the settings as they are now for the game that is loaded, to
+ * <device>:/wiisxrx/settings/<CdromId>.cfg, which WiiStation reads over the global file
+ * the next time that game starts. USB is used when it has the folder, otherwise SD.
+ * The folder used to have to exist already, and saying so was all this did when it did
+ * not; makeParentDirs creates it, the same as every other save. */
 void Func_SaveSettingsSeparately()
 {
     struct stat s;
@@ -1256,16 +1261,12 @@ void Func_SaveSettingsSeparately()
     fileBrowser_file* configFile_file;
     extern char CdromId[10];
 	if (stat("usb:/wiisxrx/settings/", &s)) {
-		if (stat("sd:/wiisxrx/settings/", &s)) {
-			menu::MessageBox::getInstance().setMessage("Error opening directory sd:/wiisxrx/settings/");
-			return;
-		}
-		else
 		{
 			sprintf(settingPathBuf, "%s%s%s", "sd:/wiisxrx/settings/", CdromId, ".cfg");
 			configFile_file = &saveDir_libfat_Default;
 	        int (*configFile_init)(fileBrowser_file*) = fileBrowser_libfat_init;
 	        if(configFile_init(configFile_file)) {                //only if device initialized ok
+				makeParentDirs(settingPathBuf);
 				FILE* f = fopen( settingPathBuf, "wb" );  //attempt to open file
 				if(f) {
 					writeConfig(f);                                   //write out the config
@@ -1283,6 +1284,7 @@ void Func_SaveSettingsSeparately()
 		configFile_file = &saveDir_libfat_USB;
 	    int (*configFile_init)(fileBrowser_file*) = fileBrowser_libfat_init;
 	    if (configFile_init(configFile_file)) {                //only if device initialized ok
+			makeParentDirs(settingPathBuf);
 			FILE* f = fopen( settingPathBuf, "wb" ); //attempt to open file
 			if(f) {
 				writeConfig(f);                                   //write out the config
@@ -1642,17 +1644,27 @@ void Func_Memcard2()
 	}
 }
 
-/* One file per game, or one file every game sees. It takes effect at the next game load,
- * because the card in memory was read from the old file. */
-static void cardFileToggle(int card)
+/* What one memory card is, in one button: 0 Off, 1 Shared, 2 Game. Two settings hold it
+ * -- whether the card is there at all, and which file it lives in -- because both are
+ * written to the settings file under the names they have always had. */
+static int cardType(int card)
 {
-	memCardFile[card] = (memCardFile[card] == MEMCARDFILE_PER_GAME)
-	                  ? MEMCARDFILE_SHARED : MEMCARDFILE_PER_GAME;
-	FRAME_BUTTONS[76 + card].buttonString = FRAME_STRINGS[92 + memCardFile[card]];
+	if (memCard[card] == MEMCARD_DISABLE) return 0;
+	return memCardFile[card] == MEMCARDFILE_SHARED ? 1 : 2;
 }
 
-void Func_CardFile1() { cardFileToggle(0); }
-void Func_CardFile2() { cardFileToggle(1); }
+/* Off -> Shared -> Game -> Off. The file choice takes effect at the next game load,
+ * because the card in memory was read from the old file. */
+static void cardTypeCycle(int card)
+{
+	int next = (cardType(card) + 1) % 3;
+	memCard[card] = next ? MEMCARD_ENABLE : MEMCARD_DISABLE;
+	if (next) memCardFile[card] = (next == 1) ? MEMCARDFILE_SHARED : MEMCARDFILE_PER_GAME;
+	FRAME_BUTTONS[76 + card].buttonString = FRAME_STRINGS[92 + next];
+}
+
+void Func_CardType1() { cardTypeCycle(0); }
+void Func_CardType2() { cardTypeCycle(1); }
 
 
 

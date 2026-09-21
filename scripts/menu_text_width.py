@@ -66,15 +66,18 @@ TAB_ROWS = [
     ('Audio',   [69, 70, 71],  26),
     ('Audio',   [72],          None),
     ('Saves',   [46, 47, 48, 49], 18),
+    ('Saves',   [76, 77],      23),
     ('Saves',   [50, 51],      19),
     ('Saves',   [52, 53],      20),
-    ('Saves',   [60, 61],      23),
-    ('Saves',   [76, 77],      27),
 ]
 TAB_STRIP = [0, 1, 2, 3, 4]          # the five tab buttons, their own centred row
 # In the tables so that no later index moves, but never shown on any tab.
-HIDDEN_BUTTONS = {5, 6, 58, 64, 65, 66, 42, 43, 44}
+HIDDEN_BUTTONS = {5, 6, 58, 64, 65, 66, 42, 43, 44, 60, 61}
 HIDDEN_LABELS = {0, 15, 16, 24}
+# Not a row's left-hand label: small markers placed inside a row, which say which memory
+# card each Memcard Type button belongs to. They sit where the row puts them, not on the
+# label column.
+MARKER_LABELS = {27, 28}
 # Buttons whose label is not the string their table entry names: activateSubmenu or a
 # click handler swaps in one of a set, and the button has to fit all of them.
 CYCLING = {
@@ -85,8 +88,8 @@ CYCLING = {
     54: ['En', 'Chs', 'Kr', 'Es', 'Pte', 'It', 'De',    # LANG_STRINGS
          'Cht', 'Jp', 'Fr', 'Br', 'Ca', 'Tu'],
     59: ['Lightgun', 'GunCon', 'Justifier', 'Mouse'],   # FRAME_STRINGS[70 + lightGun]
-    76: ['Shared', 'Game'],                             # FRAME_STRINGS[92 + memCardFile[0]]
-    77: ['Shared', 'Game'],                             # FRAME_STRINGS[92 + memCardFile[1]]
+    76: ['Off', 'Shared', 'Game'],                             # FRAME_STRINGS[92 + memCardFile[0]]
+    77: ['Off', 'Shared', 'Game'],                             # FRAME_STRINGS[92 + memCardFile[1]]
 }
 
 STRING_TABLES = ('FRAME_STRINGS', 'LANG_STRINGS', 'GPU_PLUGIN_STRINGS', 'TEXTURE_FILTER_STRINGS')
@@ -243,7 +246,7 @@ def check_tabs(d, w, verbose, bad):
         bad.append('buttons %s are in the table but on no row above; add them to TAB_ROWS '
                    'or to HIDDEN_BUTTONS' % missing)
     on_a_row = {l for _, _, l in TAB_ROWS if l is not None}
-    for i in sorted(set(labels) - HIDDEN_LABELS - on_a_row):
+    for i in sorted(set(labels) - HIDDEN_LABELS - MARKER_LABELS - on_a_row):
         bad.append('label %d is in the table but on no row above' % i)
 
 

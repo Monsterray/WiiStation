@@ -130,9 +130,8 @@ The menu also has the buttons **Disable XA** and **Disable CDDA**. WiiStation do
 | `NativeDevice` | 0 = SD, 1 = USB, 2 = Card A, 3 = Card B | 0 | Saves, Memcard Save Device | Selects where WiiStation keeps the memory card files. Card A and Card B are GameCube memory cards. |
 | `StatesDevice` | 0 = SD, 1 = USB | 0 | Saves, Save States Device | Selects where WiiStation keeps the save states. |
 | `AutoSave` | 0 = No, 1 = Yes | 1 | Saves, Auto Save Memcards | Writes the memory cards to the device when you exit a game. |
-| `Memcard0` | 0 = Off, 1 = On | 1 | Saves, Memcard 1 | Connects memory card 1 to the console. |
-| `Memcard1` | 0 = Off, 1 = On | 1 | Saves, Memcard 2 | Connects memory card 2 to the console. |
-| `Memcard0File`, `Memcard1File` | 0 = Shared, 1 = Game | 1 for card 1, 0 for card 2 | Saves, Card File | Which file each memory card lives in. **Game** gives every disc its own card: card 1 is `<CdromId>.mcd` and card 2 is `<CdromId>-2.mcd`. **Shared** gives one card that every game opens: card 1 is `shared1.mcd` and card 2 is `slot2.mcd`. The defaults keep the names WiiStation always used, so no existing card is left behind. Shared is the only way one game can read another game's save, which a few games do. Applies when the next game is loaded, because the card in memory was read from the old file. |
+| `Memcard0`, `Memcard1` | 0 = Off, 1 = On | 1 | Saves, Memcard Type | Whether each memory card is there at all. The menu shows this and the file setting below as one button per card: **Off**, **Shared** or **Game**. |
+| `Memcard0File`, `Memcard1File` | 0 = Shared, 1 = Game | 1 for card 1, 0 for card 2 | Saves, Memcard Type | Which file each memory card lives in. **Game** gives every disc its own card: card 1 is `<CdromId>.mcd` and card 2 is `<CdromId>-2.mcd`. **Shared** gives one card that every game opens: card 1 is `shared1.mcd` and card 2 is `slot2.mcd`. The defaults keep the names WiiStation always used, so no existing card is left behind. Shared is the only way one game can read another game's save, which a few games do. Applies when the next game is loaded, because the card in memory was read from the old file. |
 
 ## 6. Input settings
 
