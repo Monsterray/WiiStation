@@ -31,7 +31,7 @@
 #include "SettingsFrame.h"
 #include "ConfigureInputFrame.h"
 #include "ConfigureButtonsFrame.h"
-#include "AdvancedSoundFrame.h"
+#include "OptionsFrame.h"
 
 #include "MenuTypes.h"
 
@@ -54,7 +54,7 @@ public:
 		FRAME_SETTINGS,
 		FRAME_CONFIGUREINPUT,
 		FRAME_CONFIGUREBUTTONS,
-		FRAME_ADVANCEDSOUND
+		FRAME_OPTIONS
 	};
 
 private:
@@ -67,7 +67,7 @@ private:
 	SettingsFrame *settingsFrame;
 	ConfigureInputFrame *configureInputFrame;
 	ConfigureButtonsFrame *configureButtonsFrame;
-	AdvancedSoundFrame *advancedSoundFrame;
+	OptionsFrame *optionsFrame;
 
 };
 

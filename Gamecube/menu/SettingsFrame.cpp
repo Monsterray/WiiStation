@@ -23,7 +23,7 @@
 #include "MenuContext.h"
 #include "../perf_prof.h"
 #include "SettingsFrame.h"
-#include "AdvancedSoundFrame.h"
+#include "OptionsFrame.h"
 #include "../libgui/Button.h"
 #include "../libgui/TextBox.h"
 #include "../libgui/resources.h"
@@ -101,18 +101,18 @@ void Func_SaveButtonsUSB();
 void Func_SetButtonLoad();
 void Func_ToggleButtonLoad();
 
-void Func_DisableAudioYes();
-void Func_DisableAudioNo();
+void Func_ToggleAudio();
+void Func_ToggleXa();
+void Func_ToggleCdda();
+void Func_PluginsPage();
+void Func_StoragePage();
+void Func_MemoryPage();
 void Func_SoundHwAccelYes();
 void Func_SoundHwAccelNo();
 void Func_SoundSyncOff();
 void Func_SoundSyncTempo();
 void Func_SoundSyncRate();
 void Func_AdvancedSound();
-void Func_DisableXaYes();
-void Func_DisableXaNo();
-void Func_DisableCddaYes();
-void Func_DisableCddaNo();
 void Func_InterpolationToggle();
 
 void Func_MemcardSaveSD();
@@ -162,7 +162,7 @@ void setSpuInterpolation(int spuInterpolation);
 void setSpuTempo(int soundTempo);
 }
 
-#define NUM_FRAME_BUTTONS 73
+#define NUM_FRAME_BUTTONS 76
 #define NUM_TAB_BUTTONS 5
 #define FRAME_BUTTONS settingsFrameButtons
 #define FRAME_STRINGS settingsFrameStrings
@@ -210,7 +210,7 @@ Auto Save Memcards: Yes; No
 Save States Device: SD; USB
 */
 
-static char FRAME_STRINGS[84][24] =
+static char FRAME_STRINGS[91][24] =
 	{ "General",
 	  "Video",
 	  "Input",
@@ -263,7 +263,7 @@ static char FRAME_STRINGS[84][24] =
 	  "Disable CDDA",
 	  "Interpolation",
 	  "Simple",		// [47] spuInterpolation == SIMPLE_INTERPOLATION (1)
-	  "Gaussi",		// [48] spuInterpolation == GAUSSI_INTERPOLATION (2)
+	  "Gaussian",	// [48] spuInterpolation == GAUSSI_INTERPOLATION (2)
 	  "unused1",	// [49] and [50] are unreachable: the label is FRAME_STRINGS[46 + spuInterpolation]
 	  "unused2",
 	//Strings for Saves tab (starting at FRAME_STRINGS[51]) ..was[55]
@@ -302,7 +302,14 @@ static char FRAME_STRINGS[84][24] =
 	  "Sync",				// [80] audio tab: how the output keeps pace with the mixer
 	  "Tempo",				// [81] Sync: the legacy mixer-clock pull-back (SoundTempo)
 	  "Rate",				// [82] Sync: playback-rate nudge at the output (SoundRateControl)
-	  "Advanced"			// [83] audio tab: the Advanced Sound page
+	  "Advanced",			// [83] audio tab: the Advanced Sound page
+	  "Plugins",			// [84] general tab: the Plugins page
+	  "Storage",			// [85] general tab: the Storage page
+	  "Memory",				// [86] general tab: the Memory page
+	  "Enable",				// [87] audio tab: label of the three source toggles
+	  "Audio",				// [88] Enable: the sound output as a whole
+	  "XA",					// [89] Enable: the disc's XA streams
+	  "CDDA"				// [90] Enable: Red Book audio tracks
       };
 
 static char LANG_STRINGS[13][24] =
@@ -361,10 +368,10 @@ struct ButtonInfo
 	//Buttons for General Tab (starts at button[5])
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[10],	215.0,	100.0,	140.0,	56.0,	 0,	 7,	 58, 6,	Func_CpuInterp,			Func_ReturnFromSettingsFrame }, // CPU: Interp
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[69],	365.0,	100.0,	130.0,	56.0,	 0,	 9,	 5,	 58,Func_CpuLightrec,		Func_ReturnFromSettingsFrame }, // CPU: Lightrec
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[12],	295.0,	220.0,	 70.0,	56.0,	 64,	11,	10,	 8,	Func_BiosSelectHLE,		Func_ReturnFromSettingsFrame }, // Bios: HLE
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[13],	375.0,	220.0,	 55.0,	56.0,	 64,	12,	 7,	 9,	Func_BiosSelectSD,		Func_ReturnFromSettingsFrame }, // Bios: SD
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[14],	440.0,	220.0,	 70.0,	56.0,	 65,	12,	 8,	10,	Func_BiosSelectUSB,		Func_ReturnFromSettingsFrame }, // Bios: USB
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[15],	520.0,	220.0,	 70.0,	56.0,	 65,	12,	 9,	 7,	Func_BiosSelectDVD,		Func_ReturnFromSettingsFrame }, // Bios: DVD
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[12],	295.0,	220.0,	 70.0,	56.0,	73,	11,	10,	 8,	Func_BiosSelectHLE,		Func_ReturnFromSettingsFrame }, // Bios: HLE
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[13],	375.0,	220.0,	 55.0,	56.0,	73,	12,	 7,	 9,	Func_BiosSelectSD,		Func_ReturnFromSettingsFrame }, // Bios: SD
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[14],	440.0,	220.0,	 70.0,	56.0,	74,	12,	 8,	10,	Func_BiosSelectUSB,		Func_ReturnFromSettingsFrame }, // Bios: USB
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[15],	520.0,	220.0,	 70.0,	56.0,	75,	12,	 9,	 7,	Func_BiosSelectDVD,		Func_ReturnFromSettingsFrame }, // Bios: DVD
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[16],	295.0,	280.0,	 75.0,	56.0,	 7,	54,	13,	12,	Func_BootBiosYes,		Func_ReturnFromSettingsFrame }, // Boot Thru Bios: Yes
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[17],	380.0,	280.0,	 75.0,	56.0,	 8,	54,	11,	13,	Func_BootBiosNo,		Func_ReturnFromSettingsFrame }, // Boot Thru Bios: No
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[8],	465.0,	280.0,	180.0,	56.0,	9,	54,	12,	11,	Func_ExecuteBios,		Func_ReturnFromSettingsFrame }, // Execute Bios
@@ -398,13 +405,13 @@ struct ButtonInfo
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[14],	350.0,	310.0,	 70.0,	56.0,	35,	38,	36,	36,	Func_SaveButtonsUSB,	Func_ReturnFromSettingsFrame }, // Save Button Mappings: USB
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[42],	285.0,	380.0,	135.0,	56.0,	36,	 2,	-1,	-1,	Func_ToggleButtonLoad,	Func_ReturnFromSettingsFrame }, // Auto Load Button Config Slot: Default,1,2,3,4
 	//Buttons for Audio Tab (starts at button[39]) ..was[45]
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[16],	345.0,	100.0,	 75.0,	56.0,	 3,	41,	40,	40,	Func_DisableAudioYes,	Func_ReturnFromSettingsFrame }, // Disable Audio: Yes
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[17],	440.0,	100.0,	 75.0,	56.0,	 3,	42,	39,	39,	Func_DisableAudioNo,	Func_ReturnFromSettingsFrame }, // Disable Audio: No
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[16],	345.0,	160.0,	 75.0,	56.0,	39,	43,	42,	42,	Func_DisableXaYes,		Func_ReturnFromSettingsFrame }, // Disable XA: Yes
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[17],	440.0,	160.0,	 75.0,	56.0,	40,	44,	41,	41,	Func_DisableXaNo,		Func_ReturnFromSettingsFrame }, // Disable XA: No
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[16],	345.0,	220.0,	 75.0,	56.0,	41,	45,	44,	44,	Func_DisableCddaYes,	Func_ReturnFromSettingsFrame }, // Disable CDDA: Yes
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[17],	440.0,	220.0,	 75.0,	56.0,	42,	45,	43,	43,	Func_DisableCddaNo,		Func_ReturnFromSettingsFrame }, // Disable CDDA: No
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[47],	345.0,	280.0,	170.0,	56.0,	43,	 3,	-1,	-1,	Func_InterpolationToggle,	Func_ReturnFromSettingsFrame }, // Interpolation: Simple/Gaussi
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[88],	300.0,	100.0,	100.0,	56.0,	 3,	45,	41,	40,	Func_ToggleAudio,		Func_ReturnFromSettingsFrame }, // Enable: Audio
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[89],	410.0,	100.0,	 75.0,	56.0,	 3,	45,	39,	41,	Func_ToggleXa,			Func_ReturnFromSettingsFrame }, // Enable: XA
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[90],	495.0,	100.0,	110.0,	56.0,	 3,	45,	40,	39,	Func_ToggleCdda,		Func_ReturnFromSettingsFrame }, // Enable: CDDA
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[17],	440.0,	160.0,	 75.0,	56.0,	39,	45,	41,	41,	Func_ToggleXa,			Func_ReturnFromSettingsFrame }, // (spare, never shown: the Enable row replaced the three Yes/No pairs; kept so no later index moves)
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[16],	345.0,	220.0,	 75.0,	56.0,	39,	45,	41,	41,	Func_ToggleCdda,		Func_ReturnFromSettingsFrame }, // (spare, never shown)
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[17],	440.0,	220.0,	 75.0,	56.0,	39,	45,	41,	41,	Func_ToggleCdda,		Func_ReturnFromSettingsFrame }, // (spare, never shown)
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[47],	345.0,	170.0,	170.0,	56.0,	39,	67,	-1,	-1,	Func_InterpolationToggle,	Func_ReturnFromSettingsFrame }, // Interpolation: Simple/Gaussian
 	//Buttons for Saves Tab (starts at button[46]) ..was[54]
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[13],	295.0,	100.0,	 55.0,	56.0,	 4,	50,	49,	47,	Func_MemcardSaveSD,		Func_ReturnFromSettingsFrame }, // Memcard Save: SD
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[14],	360.0,	100.0,	 70.0,	56.0,	 4,	51,	46,	48,	Func_MemcardSaveUSB,	Func_ReturnFromSettingsFrame }, // Memcard Save: USB
@@ -433,16 +440,21 @@ struct ButtonInfo
 	{	NULL,	BTN_A_SEL,	GPU_PLUGIN_STRINGS[3],	505.0,	160.0,	130.0,	56.0,	 6,	 9,	 65, 64,Func_UseOpenGxGpu,		Func_ReturnFromSettingsFrame }, // GpuPlugin: OpenGX
 
 	//Audio tab, appended at the end (starts at button[67]) so no existing index moves
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[16],	345.0,	340.0,	 75.0,	56.0,	45,	 69,	68,	68,	Func_SoundHwAccelYes,	Func_ReturnFromSettingsFrame }, // DSP Sound: Yes
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[17],	440.0,	340.0,	 75.0,	56.0,	45,	 69,	67,	67,	Func_SoundHwAccelNo,	Func_ReturnFromSettingsFrame }, // DSP Sound: No
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[16],	345.0,	240.0,	 75.0,	56.0,	45,	69,	68,	68,	Func_SoundHwAccelYes,	Func_ReturnFromSettingsFrame }, // DSP Sound: Yes
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[17],	440.0,	240.0,	 75.0,	56.0,	45,	69,	67,	67,	Func_SoundHwAccelNo,	Func_ReturnFromSettingsFrame }, // DSP Sound: No
 	//Audio tab, Sync group (buttons 69..71): like Dithering, one of three is selected. The trio
 	//starts left of the other rows' buttons (the "Sync" label is short) and leaves a gap before
 	//Advanced, which sits in the row's right corner (right edge 645, the tab's widest row).
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[25],	275.0,	400.0,	 60.0,	56.0,	67,	 3,	72,	70,	Func_SoundSyncOff,		Func_ReturnFromSettingsFrame }, // Sync: Off
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[81],	340.0,	400.0,	 90.0,	56.0,	67,	 3,	69,	71,	Func_SoundSyncTempo,	Func_ReturnFromSettingsFrame }, // Sync: Tempo
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[82],	435.0,	400.0,	 70.0,	56.0,	68,	 3,	70,	72,	Func_SoundSyncRate,		Func_ReturnFromSettingsFrame }, // Sync: Rate
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[25],	275.0,	310.0,	 60.0,	56.0,	67,	72,	71,	70,	Func_SoundSyncOff,		Func_ReturnFromSettingsFrame }, // Sync: Off
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[81],	340.0,	310.0,	 90.0,	56.0,	67,	72,	69,	71,	Func_SoundSyncTempo,	Func_ReturnFromSettingsFrame }, // Sync: Tempo
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[82],	435.0,	310.0,	 70.0,	56.0,	68,	72,	70,	69,	Func_SoundSyncRate,		Func_ReturnFromSettingsFrame }, // Sync: Rate
 	//Audio tab, Advanced (button 72): opens the Advanced Sound page (AdvancedSoundFrame.cpp)
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[83],	520.0,	400.0,	125.0,	56.0,	68,	 3,	71,	69,	Func_AdvancedSound,		Func_ReturnFromSettingsFrame }, // Advanced: opens the Advanced Sound page
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[83],	275.0,	380.0,	125.0,	56.0,	69,	 3,	-1,	-1,	Func_AdvancedSound,		Func_ReturnFromSettingsFrame }, // Advanced: opens the Advanced Sound page
+	//General tab: one row of sub-pages. The CPU core and GPU plugin moved to Plugins and the
+	//CD settings to Storage; buttons 5/6/58 and 64/65/66 stay in this table but are not shown.
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[84],	150.0,	100.0,	150.0,	56.0,	14,	 7,	75,	74,	Func_PluginsPage,		Func_ReturnFromSettingsFrame }, // Plugins page
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[85],	320.0,	100.0,	150.0,	56.0,	14,	 7,	73,	75,	Func_StoragePage,		Func_ReturnFromSettingsFrame }, // Storage page
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[86],	490.0,	100.0,	150.0,	56.0,	14,	 7,	74,	73,	Func_MemoryPage,		Func_ReturnFromSettingsFrame }, // Memory page
 };
 
 struct TextBoxInfo
@@ -473,10 +485,10 @@ struct TextBoxInfo
 	{	NULL,	FRAME_STRINGS[40],	145.0,	338.0,	 1.0,	true }, // Save Button Configs: SD/USB
 	{	NULL,	FRAME_STRINGS[41],	145.0,	408.0,	 1.0,	true }, // Auto Load Slot: Default/1/2/3/4
 	//TextBoxes for Audio Tab (starts at textBox[14]) ..was[17]
-	{	NULL,	FRAME_STRINGS[43],	210.0,	128.0,	 1.0,	true }, // Disable Audio: Yes/No
+	{	NULL,	FRAME_STRINGS[87],	210.0,	128.0,	 1.0,	true }, // Enable: Audio/XA/CDDA
 	{	NULL,	FRAME_STRINGS[44],	210.0,	188.0,	 1.0,	true }, // Disable XA Audio: Yes/No
 	{	NULL,	FRAME_STRINGS[45],	210.0,	248.0,	 1.0,	true }, // Disable CDDA Audio: Yes/No
-	{	NULL,	FRAME_STRINGS[46],	210.0,	308.0,	 1.0,	true }, // Interpolation: Simple/Gaussi
+	{	NULL,	FRAME_STRINGS[46],	210.0,	198.0,	 1.0,	true }, // Interpolation: Simple/Gaussian
 	//TextBoxes for Saves Tab (starts at textBox[18]) ..was[23]
 	{	NULL,	FRAME_STRINGS[51],	150.0,	128.0,	 1.0,	true }, // Memcard Save Device: SD/USB/CardA/CardB
 	{	NULL,	FRAME_STRINGS[52],	150.0,	198.0,	 1.0,	true }, // Auto Save Memcards: Yes/No
@@ -487,9 +499,9 @@ struct TextBoxInfo
     //TextBoxes for Saves Tab (starts at textBox[24]) ..was[24]
 	{	NULL,	GPU_PLUGIN_STRINGS[0],	110.0,	188.0,	 1.0,	true }, // GPU Plugin: Old Soft/New Soft/OpenGX
 	//TextBox for the Audio tab, appended (textBox[25])
-	{	NULL,	FRAME_STRINGS[79],	210.0,	368.0,	 1.0,	true }, // DSP Sound: Yes/No
+	{	NULL,	FRAME_STRINGS[79],	210.0,	268.0,	 1.0,	true }, // DSP Sound: Yes/No
 	//TextBox for the Sync group (textBox[26])
-	{	NULL,	FRAME_STRINGS[80],	210.0,	428.0,	 1.0,	true }, // Sync: Off/Tempo/Rate
+	{	NULL,	FRAME_STRINGS[80],	210.0,	338.0,	 1.0,	true }, // Sync: Off/Tempo/Rate
 };
 
 SettingsFrame::SettingsFrame()
@@ -565,34 +577,28 @@ void SettingsFrame::activateSubmenu(int submenu)
 			for (int i = 0; i < NUM_TAB_BUTTONS; i++)
 			{
 				FRAME_BUTTONS[i].button->setVisible(true);
-				FRAME_BUTTONS[i].button->setNextFocus(menu::Focus::DIRECTION_DOWN, FRAME_BUTTONS[5].button);
+				FRAME_BUTTONS[i].button->setNextFocus(menu::Focus::DIRECTION_DOWN, FRAME_BUTTONS[73].button);
 				FRAME_BUTTONS[i].button->setNextFocus(menu::Focus::DIRECTION_UP, FRAME_BUTTONS[14].button);
 				FRAME_BUTTONS[i].button->setActive(true);
 			}
-			for (int i = 0; i < 4; i++)
+			/* textBox[0] was the CPU Core label and textBox[24] the GPU Plugin label; both
+			 * controls live on the Plugins page now, so neither label is shown here. */
+			for (int i = 1; i < 4; i++)
 				FRAME_TEXTBOXES[i].textBox->setVisible(true);
 
             FRAME_TEXTBOXES[21].textBox->setVisible(true);
             FRAME_TEXTBOXES[22].textBox->setVisible(true);
-            FRAME_TEXTBOXES[24].textBox->setVisible(true);
 			FRAME_BUTTONS[0].button->setSelected(true);
-			if (dynacore == DYNACORE_INTERPRETER)
-			{
-				FRAME_BUTTONS[5].button->setSelected(true);
-			}
-			else if (dynacore == DYNACORE_DYNAREC)
-			{
-				FRAME_BUTTONS[6].button->setSelected(true);
-			}
-			else
-			{
-				FRAME_BUTTONS[58].button->setSelected(true);
-			}
-
 			FRAME_BUTTONS[7+biosDevice].button->setSelected(true);
 			if (LoadCdBios == BOOTTHRUBIOS_YES)	FRAME_BUTTONS[11].button->setSelected(true);
 			else								FRAME_BUTTONS[12].button->setSelected(true);
-			for (int i = 5; i < 16; i++)
+			/* Plugins / Storage / Memory, the one row at the top of this tab */
+			for (int i = 73; i <= 75; i++)
+			{
+				FRAME_BUTTONS[i].button->setVisible(true);
+				FRAME_BUTTONS[i].button->setActive(true);
+			}
+			for (int i = 7; i < 16; i++)
 			{
 				FRAME_BUTTONS[i].button->setVisible(true);
 				FRAME_BUTTONS[i].button->setActive(true);
@@ -609,24 +615,9 @@ void SettingsFrame::activateSubmenu(int submenu)
             FRAME_BUTTONS[55].button->setSelected(fastLoad == 1);
             FRAME_BUTTONS[56].button->setSelected(fastLoad == 0);
 
-            // CPU: Dynarec
-            FRAME_BUTTONS[58].button->setVisible(true);
-            FRAME_BUTTONS[58].button->setActive(true);
-
             // Save Settings: Separately
             FRAME_BUTTONS[62].button->setVisible(true);
             FRAME_BUTTONS[62].button->setActive(hasLoadedISO ? true : false);
-
-            // Gpu Plugin
-            FRAME_BUTTONS[64].button->setVisible(true);
-            FRAME_BUTTONS[65].button->setVisible(true);
-            FRAME_BUTTONS[66].button->setVisible(true);
-            FRAME_BUTTONS[64].button->setActive(true);
-            FRAME_BUTTONS[65].button->setActive(true);
-            FRAME_BUTTONS[66].button->setActive(true);
-            FRAME_BUTTONS[64].button->setSelected(gpuPlugin == OLD_SOFT);
-            FRAME_BUTTONS[65].button->setSelected(gpuPlugin == NEW_SOFT);
-            FRAME_BUTTONS[66].button->setSelected(gpuPlugin == OPEN_GX);
 			break;
 		case SUBMENU_VIDEO:
 			setDefaultFocus(FRAME_BUTTONS[1].button);
@@ -706,33 +697,36 @@ void SettingsFrame::activateSubmenu(int submenu)
 			{
 				FRAME_BUTTONS[i].button->setVisible(true);
 				FRAME_BUTTONS[i].button->setNextFocus(menu::Focus::DIRECTION_DOWN, FRAME_BUTTONS[39].button);
-				FRAME_BUTTONS[i].button->setNextFocus(menu::Focus::DIRECTION_UP, FRAME_BUTTONS[69].button);
+				FRAME_BUTTONS[i].button->setNextFocus(menu::Focus::DIRECTION_UP, FRAME_BUTTONS[72].button);
 				FRAME_BUTTONS[i].button->setActive(true);
 			}
-			for (int i = 14; i < 18; i++)
-				FRAME_TEXTBOXES[i].textBox->setVisible(true);
+			/* textBox[15] and [16] were the XA and CDDA labels; the Enable row carries its
+			 * own button labels now, so only [14] "Enable" and [17] "Interpolation" show. */
+			FRAME_TEXTBOXES[14].textBox->setVisible(true);
+			FRAME_TEXTBOXES[17].textBox->setVisible(true);
 			FRAME_BUTTONS[3].button->setSelected(true);
-			if (audioEnabled == AUDIO_DISABLE)	FRAME_BUTTONS[39].button->setSelected(true);
-			else								FRAME_BUTTONS[40].button->setSelected(true);
-			if (Config.Xa == XA_DISABLE)		FRAME_BUTTONS[41].button->setSelected(true);
-			else								FRAME_BUTTONS[42].button->setSelected(true);
-			if (Config.Cdda == CDDA_DISABLE)	FRAME_BUTTONS[43].button->setSelected(true);
-			else								FRAME_BUTTONS[44].button->setSelected(true);
+			/* Each toggle is lit when that source is ON, so the row reads as what you get.
+			 * The settings file still keeps the historical "Disable" keys; see SETTINGS.md. */
+			FRAME_BUTTONS[39].button->setSelected(audioEnabled == AUDIO_ENABLE);
+			FRAME_BUTTONS[40].button->setSelected(Config.Xa != XA_DISABLE);
+			FRAME_BUTTONS[41].button->setSelected(Config.Cdda != CDDA_DISABLE);
 			FRAME_BUTTONS[45].buttonString = FRAME_STRINGS[46 + spuInterpolation];
 			if (soundHwAccel == SOUND_HW_ACCEL_ON)	FRAME_BUTTONS[67].button->setSelected(true);
 			else									FRAME_BUTTONS[68].button->setSelected(true);
-			for (int i = 39; i < 46; i++)
+			/* 39..41 are the Enable toggles, 45 is Interpolation; 42..44 are spare slots. */
+			for (int i = 39; i <= 41; i++)
 			{
 				FRAME_BUTTONS[i].button->setVisible(true);
 				FRAME_BUTTONS[i].button->setActive(true);
 			}
+			FRAME_BUTTONS[45].button->setVisible(true);
+			FRAME_BUTTONS[45].button->setActive(true);
 			/* DSP Sound and Advanced live at the end of the array (see the button table) */
 			for (int i = 67; i <= 68; i++)
 			{
 				FRAME_BUTTONS[i].button->setVisible(true);
 				FRAME_BUTTONS[i].button->setActive(true);
 			}
-			FRAME_BUTTONS[45].button->setNextFocus(menu::Focus::DIRECTION_DOWN, FRAME_BUTTONS[67].button);
 			FRAME_TEXTBOXES[25].textBox->setVisible(true);
 			/* Sync group (buttons 69..71, textBox 26): exactly one selected, from the two file keys;
 			 * button 72 is Advanced, next to it */
@@ -1500,7 +1494,53 @@ void Func_ConfigureInput()
 
 void Func_AdvancedSound()
 {
-	pMenuContext->setActiveFrame(MenuContext::FRAME_ADVANCEDSOUND,AdvancedSoundFrame::SUBMENU_REINIT);
+	pMenuContext->setActiveFrame(MenuContext::FRAME_OPTIONS, OptionsFrame::PAGE_SOUND);
+}
+
+void Func_PluginsPage()
+{
+	pMenuContext->setActiveFrame(MenuContext::FRAME_OPTIONS, OptionsFrame::PAGE_PLUGINS);
+}
+
+void Func_StoragePage()
+{
+	pMenuContext->setActiveFrame(MenuContext::FRAME_OPTIONS, OptionsFrame::PAGE_STORAGE);
+}
+
+void Func_MemoryPage()
+{
+	pMenuContext->setActiveFrame(MenuContext::FRAME_OPTIONS, OptionsFrame::PAGE_MEMORY);
+}
+
+/* Called once when the Plugins page is left, with the pair the user settled on. Switching
+ * either plugin with a game running means tearing the emulator down and building it again,
+ * which is why it does not happen on every press of a cycling button. Mirrors the ChangeCpu
+ * macro and Func_Use*Gpu, which still serve the (now hidden) General-tab buttons. */
+void ApplyPluginSelection(char wantCore, char wantGpu)
+{
+	int needInit = 0;
+
+	if (hasLoadedISO && (dynacore != wantCore || gpuPlugin != wantGpu)) {
+		SysClose();
+		needInit = 1;
+	}
+	dynacore  = wantCore;
+	gpuPlugin = wantGpu;
+
+	if      (gpuPlugin == OLD_SOFT) gpuPtr = &oldSoftGpu;
+	else if (gpuPlugin == NEW_SOFT) gpuPtr = &newSoftGpu;
+	else                            gpuPtr = &glesGpu;
+
+	if (hasLoadedISO && needInit) {
+		if (dynacore == DYNACORE_DYNAREC)
+			VM_Init(1024*1024, 256*1024);
+		SysInit();
+		CheckCdrom();
+		SysReset();
+		LoadCdrom();
+		Func_SetPlayGame();
+		menu::MessageBox::getInstance().setMessage("Game Reset");
+	}
 }
 
 void Func_ConfigureButtons()
@@ -1713,20 +1753,27 @@ void Func_ToggleButtonLoad()
 	Func_SetButtonLoad();
 }
 
-void Func_DisableAudioYes()
+/* The Audio tab's Enable row: one toggle per sound source, lit when that source plays.
+ * The settings file keeps the historical "Audio" / "DisableXa" / "DisableCdda" keys and
+ * Config.Xa/Config.Cdda keep their inverted sense, so each toggle writes both. */
+void Func_ToggleAudio()
 {
-	for (int i = 39; i <= 40; i++)
-		FRAME_BUTTONS[i].button->setSelected(false);
-	FRAME_BUTTONS[39].button->setSelected(true);
-	audioEnabled = AUDIO_DISABLE;
+	audioEnabled = (audioEnabled == AUDIO_ENABLE) ? AUDIO_DISABLE : AUDIO_ENABLE;
+	FRAME_BUTTONS[39].button->setSelected(audioEnabled == AUDIO_ENABLE);
 }
 
-void Func_DisableAudioNo()
+void Func_ToggleXa()
 {
-	for (int i = 39; i <= 40; i++)
-		FRAME_BUTTONS[i].button->setSelected(false);
-	FRAME_BUTTONS[40].button->setSelected(true);
-	audioEnabled = AUDIO_ENABLE;
+	int on = (Config.Xa == XA_DISABLE);          // was muted -> turn it on
+	Config.Xa = xaDisabled = on ? XA_ENABLE : XA_DISABLE;
+	FRAME_BUTTONS[40].button->setSelected(on);
+}
+
+void Func_ToggleCdda()
+{
+	int on = (Config.Cdda == CDDA_DISABLE);
+	Config.Cdda = cddaDisabled = on ? CDDA_ENABLE : CDDA_DISABLE;
+	FRAME_BUTTONS[41].button->setSelected(on);
 }
 
 void Func_SoundHwAccelYes()
@@ -1762,52 +1809,9 @@ void Func_SoundSyncOff()   { soundSyncSelect(0); }
 void Func_SoundSyncTempo() { soundSyncSelect(1); }
 void Func_SoundSyncRate()  { soundSyncSelect(2); }
 
-void Func_DisableXaYes()
-{
-	for (int i = 41; i <= 42; i++)
-		FRAME_BUTTONS[i].button->setSelected(false);
-	FRAME_BUTTONS[41].button->setSelected(true);
-	Config.Xa = xaDisabled = XA_DISABLE;     // shadow is what gets saved
-}
-
-void Func_DisableXaNo()
-{
-	for (int i = 41; i <= 42; i++)
-		FRAME_BUTTONS[i].button->setSelected(false);
-	FRAME_BUTTONS[42].button->setSelected(true);
-	Config.Xa = xaDisabled = XA_ENABLE;
-}
-
 #ifdef SHOW_DEBUG
 extern bool canWriteLog;
 #endif // SHOW_DEBUG
-void Func_DisableCddaYes()
-{
-	for (int i = 43; i <= 44; i++)
-		FRAME_BUTTONS[i].button->setSelected(false);
-	FRAME_BUTTONS[43].button->setSelected(true);
-	Config.Cdda = cddaDisabled = CDDA_DISABLE;
-	#ifdef SHOW_DEBUG
-	canWriteLog = !canWriteLog;
-	sprintf(txtbuffer,"Current Write Log Status %d", canWriteLog);
-	menu::MessageBox::getInstance().setMessage(txtbuffer);
-	#endif // SHOW_DEBUG
-}
-
-void Func_DisableCddaNo()
-{
-	for (int i = 43; i <= 44; i++)
-		FRAME_BUTTONS[i].button->setSelected(false);
-	FRAME_BUTTONS[44].button->setSelected(true);
-	Config.Cdda = cddaDisabled = CDDA_ENABLE;
-	#ifdef SHOW_DEBUG
-	canWriteLog = !canWriteLog;
-	sprintf(txtbuffer,"Current Write Log Status %d", canWriteLog);
-	menu::MessageBox::getInstance().setMessage(txtbuffer);
-	#endif // SHOW_DEBUG
-	//menu::MessageBox::getInstance().setMessage("CDDA audio is not implemented");
-}
-
 void Func_InterpolationToggle()
 {
 	if (spuInterpolation == SIMPLE_INTERPOLATION)

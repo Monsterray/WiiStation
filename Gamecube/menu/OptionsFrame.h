@@ -1,7 +1,8 @@
 /**
- * WiiStation - AdvancedSoundFrame.h
+ * WiiStation - OptionsFrame.h
  *
- * The "Advanced" page under Settings -> Audio. See the .cpp for how to add a row.
+ * The sub-pages reached from the Settings tabs: Advanced Sound, Plugins, Storage, Memory.
+ * One frame class serves all of them; see the .cpp for how to add a page or a row.
  *
  * This program is free software; you can redistribute it and/
  * or modify it under the terms of the GNU General Public Li-
@@ -15,27 +16,32 @@
  *
 **/
 
-#ifndef ADVANCEDSOUNDFRAME_H
-#define ADVANCEDSOUNDFRAME_H
+#ifndef OPTIONSFRAME_H
+#define OPTIONSFRAME_H
 
 #include "../libgui/Frame.h"
 #include "MenuTypes.h"
 
-class AdvancedSoundFrame : public menu::Frame
+class OptionsFrame : public menu::Frame
 {
 public:
-	AdvancedSoundFrame();
-	~AdvancedSoundFrame();
+	OptionsFrame();
+	~OptionsFrame();
 	void activateSubmenu(int submenu);
+	void drawChildren(menu::Graphics& gfx);
 
-	enum AdvancedSoundSubmenus
+	/* activateSubmenu() takes one of these: which page to show. The tab a page
+	 * returns to on B is part of the page definition (see PAGES[] in the .cpp). */
+	enum OptionsPages
 	{
-		SUBMENU_NONE=0,
-		SUBMENU_REINIT
+		PAGE_SOUND=0,
+		PAGE_PLUGINS,
+		PAGE_STORAGE,
+		PAGE_MEMORY
 	};
 
 private:
-
+	int activePage;
 };
 
 #endif

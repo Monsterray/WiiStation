@@ -106,6 +106,15 @@ void IplFont::loadFontFile(FILE* charPngFile)
     {
         charCodeMap.insert(std::pair<wchar_t, int>(*zhFontBufTemp, *((u8*)(zhFontBufTemp + 1) + 1)));
         u8 * tmpPngBuf = (u8*) __lwp_heap_allocate(GXtexCache, CHAR_IMG_SIZE);
+        /* One 1152-byte tile per glyph out of the fixed CN_FONT_SIZE region, so a font with
+         * more glyphs than the region holds runs it out. __lwp_heap_allocate then returns
+         * NULL and the memcpy below would write to address 0; stop loading instead and keep
+         * the glyphs read so far, which is enough to render the menu and say so. */
+        if (tmpPngBuf == NULL)
+        {
+            charCodeMap.erase(*zhFontBufTemp);
+            break;
+        }
         memcpy(tmpPngBuf, (u8*)(zhFontBufTemp + 2), CHAR_IMG_SIZE);
         charPngBufMap.insert(std::pair<wchar_t, u8*>(*zhFontBufTemp, tmpPngBuf));
 
