@@ -104,6 +104,9 @@ void Func_DisableAudioYes();
 void Func_DisableAudioNo();
 void Func_SoundHwAccelYes();
 void Func_SoundHwAccelNo();
+void Func_SoundSyncOff();
+void Func_SoundSyncTempo();
+void Func_SoundSyncRate();
 void Func_DisableXaYes();
 void Func_DisableXaNo();
 void Func_DisableCddaYes();
@@ -154,13 +157,14 @@ void psxResetRcntRate();
 void pl_chg_psxtype(int is_pal_);
 void gpuChangePsxType();
 void setSpuInterpolation(int spuInterpolation);
+void setSpuTempo(int soundTempo);
 }
 
-#define NUM_FRAME_BUTTONS 69
+#define NUM_FRAME_BUTTONS 72
 #define NUM_TAB_BUTTONS 5
 #define FRAME_BUTTONS settingsFrameButtons
 #define FRAME_STRINGS settingsFrameStrings
-#define NUM_FRAME_TEXTBOXES 26
+#define NUM_FRAME_TEXTBOXES 27
 #define FRAME_TEXTBOXES settingsFrameTextBoxes
 
 /*
@@ -193,6 +197,8 @@ Interpolation: Simple; Gaussi   (this control was historically labelled "Volume"
 	always set spuInterpolation, and there is no volume control)
 DSP Sound: Yes; No              (SoundHwAccel: hand the stream to the DSP instead of
 	resampling on the CPU)
+Sync: Off; Tempo; Rate          (SoundTempo / SoundRateControl: how the output keeps pace
+	with the mixer; the two file keys are made exclusive here, see SETTINGS.md)
 
 Saves Tab:
 Memcard Save Device: SD; USB; CardA; CardB
@@ -200,7 +206,7 @@ Auto Save Memcards: Yes; No
 Save States Device: SD; USB
 */
 
-static char FRAME_STRINGS[80][24] =
+static char FRAME_STRINGS[83][24] =
 	{ "General",
 	  "Video",
 	  "Input",
@@ -288,7 +294,10 @@ static char FRAME_STRINGS[80][24] =
 	  "Separately",
 	  "Force NTSC",
 	//Appended so no existing FRAME_STRINGS index moves
-	  "DSP Sound"			// [79] audio tab: hardware-accelerated sound
+	  "DSP Sound",			// [79] audio tab: hardware-accelerated sound
+	  "Sync",				// [80] audio tab: how the output keeps pace with the mixer
+	  "Tempo",				// [81] Sync: the legacy mixer-clock pull-back (SoundTempo)
+	  "Rate"				// [82] Sync: playback-rate nudge at the output (SoundRateControl)
       };
 
 static char LANG_STRINGS[13][24] =
@@ -386,11 +395,11 @@ struct ButtonInfo
 	//Buttons for Audio Tab (starts at button[39]) ..was[45]
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[16],	345.0,	100.0,	 75.0,	56.0,	 3,	41,	40,	40,	Func_DisableAudioYes,	Func_ReturnFromSettingsFrame }, // Disable Audio: Yes
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[17],	440.0,	100.0,	 75.0,	56.0,	 3,	42,	39,	39,	Func_DisableAudioNo,	Func_ReturnFromSettingsFrame }, // Disable Audio: No
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[16],	345.0,	170.0,	 75.0,	56.0,	39,	43,	42,	42,	Func_DisableXaYes,		Func_ReturnFromSettingsFrame }, // Disable XA: Yes
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[17],	440.0,	170.0,	 75.0,	56.0,	40,	44,	41,	41,	Func_DisableXaNo,		Func_ReturnFromSettingsFrame }, // Disable XA: No
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[16],	345.0,	240.0,	 75.0,	56.0,	41,	45,	44,	44,	Func_DisableCddaYes,	Func_ReturnFromSettingsFrame }, // Disable CDDA: Yes
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[17],	440.0,	240.0,	 75.0,	56.0,	42,	45,	43,	43,	Func_DisableCddaNo,		Func_ReturnFromSettingsFrame }, // Disable CDDA: No
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[47],	345.0,	310.0,	170.0,	56.0,	43,	 3,	-1,	-1,	Func_InterpolationToggle,	Func_ReturnFromSettingsFrame }, // Interpolation: Simple/Gaussi
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[16],	345.0,	160.0,	 75.0,	56.0,	39,	43,	42,	42,	Func_DisableXaYes,		Func_ReturnFromSettingsFrame }, // Disable XA: Yes
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[17],	440.0,	160.0,	 75.0,	56.0,	40,	44,	41,	41,	Func_DisableXaNo,		Func_ReturnFromSettingsFrame }, // Disable XA: No
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[16],	345.0,	220.0,	 75.0,	56.0,	41,	45,	44,	44,	Func_DisableCddaYes,	Func_ReturnFromSettingsFrame }, // Disable CDDA: Yes
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[17],	440.0,	220.0,	 75.0,	56.0,	42,	45,	43,	43,	Func_DisableCddaNo,		Func_ReturnFromSettingsFrame }, // Disable CDDA: No
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[47],	345.0,	280.0,	170.0,	56.0,	43,	 3,	-1,	-1,	Func_InterpolationToggle,	Func_ReturnFromSettingsFrame }, // Interpolation: Simple/Gaussi
 	//Buttons for Saves Tab (starts at button[46]) ..was[54]
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[13],	295.0,	100.0,	 55.0,	56.0,	 4,	50,	49,	47,	Func_MemcardSaveSD,		Func_ReturnFromSettingsFrame }, // Memcard Save: SD
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[14],	360.0,	100.0,	 70.0,	56.0,	 4,	51,	46,	48,	Func_MemcardSaveUSB,	Func_ReturnFromSettingsFrame }, // Memcard Save: USB
@@ -419,8 +428,12 @@ struct ButtonInfo
 	{	NULL,	BTN_A_SEL,	GPU_PLUGIN_STRINGS[3],	505.0,	160.0,	130.0,	56.0,	 6,	 9,	 65, 64,Func_UseOpenGxGpu,		Func_ReturnFromSettingsFrame }, // GpuPlugin: OpenGX
 
 	//Audio tab, appended at the end (starts at button[67]) so no existing index moves
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[16],	345.0,	380.0,	 75.0,	56.0,	45,	 3,	68,	68,	Func_SoundHwAccelYes,	Func_ReturnFromSettingsFrame }, // DSP Sound: Yes
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[17],	440.0,	380.0,	 75.0,	56.0,	45,	 3,	67,	67,	Func_SoundHwAccelNo,	Func_ReturnFromSettingsFrame }, // DSP Sound: No
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[16],	345.0,	340.0,	 75.0,	56.0,	45,	 69,	68,	68,	Func_SoundHwAccelYes,	Func_ReturnFromSettingsFrame }, // DSP Sound: Yes
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[17],	440.0,	340.0,	 75.0,	56.0,	45,	 69,	67,	67,	Func_SoundHwAccelNo,	Func_ReturnFromSettingsFrame }, // DSP Sound: No
+	//Audio tab, Sync group (buttons 69..71): like Dithering, one of three is selected
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[25],	345.0,	400.0,	 60.0,	56.0,	67,	 3,	71,	70,	Func_SoundSyncOff,		Func_ReturnFromSettingsFrame }, // Sync: Off
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[81],	410.0,	400.0,	 75.0,	56.0,	67,	 3,	69,	71,	Func_SoundSyncTempo,	Func_ReturnFromSettingsFrame }, // Sync: Tempo
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[82],	490.0,	400.0,	 65.0,	56.0,	68,	 3,	70,	69,	Func_SoundSyncRate,		Func_ReturnFromSettingsFrame }, // Sync: Rate
 };
 
 struct TextBoxInfo
@@ -452,9 +465,9 @@ struct TextBoxInfo
 	{	NULL,	FRAME_STRINGS[41],	145.0,	408.0,	 1.0,	true }, // Auto Load Slot: Default/1/2/3/4
 	//TextBoxes for Audio Tab (starts at textBox[14]) ..was[17]
 	{	NULL,	FRAME_STRINGS[43],	210.0,	128.0,	 1.0,	true }, // Disable Audio: Yes/No
-	{	NULL,	FRAME_STRINGS[44],	210.0,	198.0,	 1.0,	true }, // Disable XA Audio: Yes/No
-	{	NULL,	FRAME_STRINGS[45],	210.0,	268.0,	 1.0,	true }, // Disable CDDA Audio: Yes/No
-	{	NULL,	FRAME_STRINGS[46],	210.0,	338.0,	 1.0,	true }, // Interpolation: Simple/Gaussi
+	{	NULL,	FRAME_STRINGS[44],	210.0,	188.0,	 1.0,	true }, // Disable XA Audio: Yes/No
+	{	NULL,	FRAME_STRINGS[45],	210.0,	248.0,	 1.0,	true }, // Disable CDDA Audio: Yes/No
+	{	NULL,	FRAME_STRINGS[46],	210.0,	308.0,	 1.0,	true }, // Interpolation: Simple/Gaussi
 	//TextBoxes for Saves Tab (starts at textBox[18]) ..was[23]
 	{	NULL,	FRAME_STRINGS[51],	150.0,	128.0,	 1.0,	true }, // Memcard Save Device: SD/USB/CardA/CardB
 	{	NULL,	FRAME_STRINGS[52],	150.0,	198.0,	 1.0,	true }, // Auto Save Memcards: Yes/No
@@ -465,7 +478,9 @@ struct TextBoxInfo
     //TextBoxes for Saves Tab (starts at textBox[24]) ..was[24]
 	{	NULL,	GPU_PLUGIN_STRINGS[0],	110.0,	188.0,	 1.0,	true }, // GPU Plugin: Old Soft/New Soft/OpenGX
 	//TextBox for the Audio tab, appended (textBox[25])
-	{	NULL,	FRAME_STRINGS[79],	210.0,	408.0,	 1.0,	true }, // DSP Sound: Yes/No
+	{	NULL,	FRAME_STRINGS[79],	210.0,	368.0,	 1.0,	true }, // DSP Sound: Yes/No
+	//TextBox for the Sync group (textBox[26])
+	{	NULL,	FRAME_STRINGS[80],	210.0,	428.0,	 1.0,	true }, // Sync: Off/Tempo/Rate
 };
 
 SettingsFrame::SettingsFrame()
@@ -682,7 +697,7 @@ void SettingsFrame::activateSubmenu(int submenu)
 			{
 				FRAME_BUTTONS[i].button->setVisible(true);
 				FRAME_BUTTONS[i].button->setNextFocus(menu::Focus::DIRECTION_DOWN, FRAME_BUTTONS[39].button);
-				FRAME_BUTTONS[i].button->setNextFocus(menu::Focus::DIRECTION_UP, FRAME_BUTTONS[45].button);
+				FRAME_BUTTONS[i].button->setNextFocus(menu::Focus::DIRECTION_UP, FRAME_BUTTONS[69].button);
 				FRAME_BUTTONS[i].button->setActive(true);
 			}
 			for (int i = 14; i < 18; i++)
@@ -710,6 +725,14 @@ void SettingsFrame::activateSubmenu(int submenu)
 			}
 			FRAME_BUTTONS[45].button->setNextFocus(menu::Focus::DIRECTION_DOWN, FRAME_BUTTONS[67].button);
 			FRAME_TEXTBOXES[25].textBox->setVisible(true);
+			/* Sync group (buttons 69..71, textBox 26): exactly one selected, from the two file keys */
+			for (int i = 69; i <= 71; i++)
+			{
+				FRAME_BUTTONS[i].button->setVisible(true);
+				FRAME_BUTTONS[i].button->setActive(true);
+			}
+			FRAME_BUTTONS[69 + (soundRateControl ? 2 : (soundTempo ? 1 : 0))].button->setSelected(true);
+			FRAME_TEXTBOXES[26].textBox->setVisible(true);
 			break;
 		case SUBMENU_SAVES:
 			setDefaultFocus(FRAME_BUTTONS[4].button);
@@ -1706,6 +1729,23 @@ void Func_SoundHwAccelNo()
 	FRAME_BUTTONS[68].button->setSelected(true);
 	soundHwAccel = SOUND_HW_ACCEL_OFF;
 }
+
+/* Sync: how the sound output keeps pace with the mixer. A three-way group like Dithering:
+ * Off (neither), Tempo (the legacy mixer-clock pull-back, SoundTempo) or Rate (the output-
+ * stage rate control, SoundRateControl). The settings file keeps two keys; this is the one
+ * place that makes them exclusive. ratectl.c reads soundRateControl itself. */
+static void soundSyncSelect(int which)
+{
+	for (int i = 69; i <= 71; i++)
+		FRAME_BUTTONS[i].button->setSelected(false);
+	FRAME_BUTTONS[69 + which].button->setSelected(true);
+	soundTempo       = (which == 1) ? SOUND_TEMPO_ON : SOUND_TEMPO_OFF;
+	soundRateControl = (which == 2) ? SOUND_RATE_CONTROL_ON : SOUND_RATE_CONTROL_OFF;
+	setSpuTempo(soundTempo);
+}
+void Func_SoundSyncOff()   { soundSyncSelect(0); }
+void Func_SoundSyncTempo() { soundSyncSelect(1); }
+void Func_SoundSyncRate()  { soundSyncSelect(2); }
 
 void Func_DisableXaYes()
 {

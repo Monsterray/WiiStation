@@ -35,3 +35,6 @@ __pycache__/
 
 # Unattended-run output (scripts/wsx.sh): DOL copies, audio dumps, frame dumps
 .runs/
+
+# Agent working notes on the SPU/sound output, not project source
+SOUND_SYSTEM.md
