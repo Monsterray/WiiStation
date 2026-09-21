@@ -39,3 +39,7 @@ __pycache__/
 
 # Agent working notes on the SPU/sound output, not project source
 SOUND_SYSTEM.md
+
+# Baseline media (audio dumps, contact sheets): large binaries, kept beside the
+# committed baselines/<id>/perf.log + notes; see baselines/README.md
+baselines/media/

@@ -1,0 +1,16 @@
+framedump run: start 01:06:49
+dol: /c/projects/WiiStation/Gamecube/WiiSXRX_debug.dol (2026-09-21 01:03:50)
+options: -C Dolphin.Interface.ConfirmStop=False -C Dolphin.Movie.DumpFrames=True -C Graphics.Settings.DumpFramesAsImages=True -C Graphics.Settings.PNGCompressionLevel=1 -C Graphics.Settings.SafeTextureCacheColorSamples=0 -C Graphics.Hacks.EFBToTextureEnable=False -C Dolphin.Interface.UsePanicHandlers=False -C Logger.Options.WriteToFile=True -C Logger.Logs.FRAMEDUMP=True -C Graphics.Settings.ShowSpeed=True -C Graphics.Settings.ShowVPS=True -C Dolphin.Movie.DumpFrames=False -C Graphics.Settings.DumpFramesAsImages=False
+dolphin windows pid: 41588
+frames dumped: 0
+C:/Users/Monty Perrotti/AppData/Local/Temp/claude/C--projects-WiiStation/656c506d-9e10-41be-bdd7-a6fdb6c5783b/scratchpad/run92/medievil/perf.log: 48442 bytes
+atrace: 3073 lines
+run done 01:08:45
+kept frames none..none
+no frames kept
+--- perf frames=1800 ---
+offsoft: prims=28897 rejected=152553 | pad: startpoll=2954 update=2954 ai_calls=2954
+sio: write8=16381 start=2954 ctrl16=34641 read8=20946 irq=11816 padtype0=1
+ogxoff: prims=1665 tex=1665 off_roi=0 fills=1331 fills_off=2 va=39348 va_roi=21
+faults in dolphin.log: 0
+0

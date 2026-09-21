@@ -18,7 +18,32 @@ Standard library only (the wave and audioop modules), so it runs anywhere Python
 import sys, wave, math, struct, array
 
 
+def decode_if_needed(path):
+    """Baselines are kept as FLAC (baselines/media/<id>/audio.flac). The wave module
+    reads WAV only, so anything else is decoded with ffmpeg into a temporary WAV first;
+    the caller gets the path to read and a flag saying whether to delete it afterwards."""
+    if path.lower().endswith(".wav"):
+        return path, False
+    import shutil, subprocess, tempfile
+    ff = shutil.which("ffmpeg") or r"C:\Program Files (x86)fmpeginfmpeg.exe"
+    tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False); tmp.close()
+    r = subprocess.run([ff, "-y", "-loglevel", "error", "-i", path, "-c:a", "pcm_s16le", tmp.name])
+    if r.returncode != 0:
+        sys.exit("could not decode %s with ffmpeg" % path)
+    return tmp.name, True
+
+
 def read_wav(path):
+    path, temp = decode_if_needed(path)
+    try:
+        return _read_wav(path)
+    finally:
+        if temp:
+            import os
+            os.unlink(path)
+
+
+def _read_wav(path):
     """Dolphin writes the WAV header when it opens the file and only corrects the length on a
     clean shutdown. An unattended run ends with a kill, so the header's frame count is a
     placeholder far larger than the data. Trust the bytes actually present, not the header."""

@@ -1,0 +1,17 @@
+note: 1 other Dolphin instance(s) with their own profile are running; this run shares the CPU with them
+framedump run: start 01:30:00
+dol: /c/projects/WiiStation/Gamecube/WiiSXRX_debug.dol (2026-09-21 01:17:00)
+options: -C Dolphin.Interface.ConfirmStop=False -C Dolphin.Movie.DumpFrames=True -C Graphics.Settings.DumpFramesAsImages=True -C Graphics.Settings.PNGCompressionLevel=1 -C Graphics.Settings.SafeTextureCacheColorSamples=0 -C Graphics.Hacks.EFBToTextureEnable=False -C Dolphin.Interface.UsePanicHandlers=False -C Logger.Options.WriteToFile=True -C Logger.Logs.FRAMEDUMP=True -C Graphics.Settings.ShowSpeed=True -C Graphics.Settings.ShowVPS=True -C Dolphin.Movie.DumpFrames=False -C Graphics.Settings.DumpFramesAsImages=False
+dolphin windows pid: 32064
+frames dumped: 0
+C:/Users/Monty Perrotti/AppData/Local/Temp/claude/C--projects-WiiStation/656c506d-9e10-41be-bdd7-a6fdb6c5783b/scratchpad/run93/ff7/perf.log: 3188 bytes
+atrace: 3073 lines
+run done 01:32:06
+kept frames none..none
+no frames kept
+--- perf frames=1800 ---
+offsoft: prims=639 rejected=1602 | pad: startpoll=5108 update=5108 ai_calls=2554
+sio: write8=0 start=0 ctrl16=0 read8=0 irq=0 padtype0=1
+ogxoff: prims=1909 tex=1909 off_roi=0 fills=1246 fills_off=0 va=134873 va_roi=14
+faults in dolphin.log: 0
+0

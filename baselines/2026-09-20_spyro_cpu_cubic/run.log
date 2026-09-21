@@ -1,0 +1,21 @@
+framedump run: start 10:00:25
+dol: /c/projects/WiiStation/Gamecube/WiiSXRX_debug.dol (2026-09-20 09:53:14)
+options: -C Dolphin.Interface.ConfirmStop=False -C Dolphin.Movie.DumpFrames=True -C Graphics.Settings.DumpFramesAsImages=True -C Graphics.Settings.PNGCompressionLevel=1 -C Graphics.Settings.SafeTextureCacheColorSamples=0 -C Graphics.Hacks.EFBToTextureEnable=False -C Dolphin.Interface.UsePanicHandlers=False -C Logger.Options.WriteToFile=True -C Logger.Logs.FRAMEDUMP=True -C Graphics.Settings.ShowSpeed=True -C Graphics.Settings.ShowVPS=True -C Dolphin.Core.DSPHLE=False -C Logger.Logs.DSPLLE=True -C Dolphin.DSP.DumpAudio=True
+dolphin windows pid: 31780
+frames dumped: 2187
+audio dump: 197121 10:02
+audio dump: 197121 10:02
+audio dump: 197121 10:02
+C:/Users/Monty Perrotti/AppData/Local/Temp/claude/C--projects-WiiStation/656c506d-9e10-41be-bdd7-a6fdb6c5783b/scratchpad/run88/cpu_cubic/perf.log: 108697 bytes
+run done 10:02:22
+kept frames 2178..2187
+C:/Users/Monty Perrotti/AppData/Local/Temp/claude/C--projects-WiiStation/656c506d-9e10-41be-bdd7-a6fdb6c5783b/scratchpad/run88/cpu_cubic/sheet.png: 1 thumbs  ERR [Parsed_xstack_2 @ 000001d5bba76880] Value 1.000000 for parameter 'inputs' out of range [2 - 2.14748e+09]
+Error applying option 'inputs' to filter 'xstack': Result too large
+Failed to set value '[0:v]scale=206:120,drawtext=text='2178':x=3:y=3:fontsize=13:fontcolor=yellow:box=1:boxcolor=black@0.6[p0]
+sheet: /c/Users/Monty Perrotti/AppData/Local/Temp/claude/C--projects-WiiStation/656c506d-9e10-41be-bdd7-a6fdb6c5783b/scratchpad/run88/cpu_cubic/sheet.png
+--- perf frames=1800 ---
+offsoft: prims=27855 rejected=50097 | pad: startpoll=3638 update=3638 ai_calls=3638
+sio: write8=21828 start=3638 ctrl16=50932 read8=29104 irq=14552 padtype0=1
+ogxoff: prims=53708 tex=52875 off_roi=1 fills=1804 fills_off=0 va=30178 va_roi=3265
+faults in dolphin.log: 0
+0

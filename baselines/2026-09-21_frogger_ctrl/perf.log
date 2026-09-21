@@ -1,0 +1,58 @@
+--- perf frames=1800 ---
+fixes: dwActFixes=00000000 cdrom=SLUS00506
+cpu: slices=2951143 int=0 cpu_us=106326527 jit_full=0 jit_part=13611 interp_fb=0 hle=263913 exc=22
+wall: wall_us=106352995 vblanks=5775 pal=0 nested=2685264
+inside: limit_us=31781466 limit=3667 target=1666 spu_us=1512754 spu=70742 out_us=616347 out=70742 hw_us=44394077 hw=7828028 hw_gpu_us=40166335 hw_gpu=2951048
+slicecost: sched_us=38031358 jit_us=65029526 post_us=3265643 exit_norm=1820796 exit_irq=866412
+slice: cycles=37728888415 avg=12784 tiny=105507
+irq: sio=22704 cdr=136 cdread=13250 gpudma=14445 mdecoutdma=9980 mdecindma=4 gpuotcdma=2498 cdrdma=13611 newdrc=6 rcnt=129579
+ram: mem1_free_kb=5211 mem2=9031/24575KB peak=9031KB fails=0 null_read=0 heap_ok=1
+gpu: tex_hit=786760 miss=128568 resets=56907 loads=0 bytes=0 batches=0
+gpu: drawdone=56907 drawdone_us=181880 convert_us=0 present_us=134402
+texk: conv_us=8512959 conv=55717 texels=38146976 tile_us=7770173 tile=55717 mdec_us=3614052 mdec=9980
+ogx: gc=0 sub_new=55717 sub_hit=859066 skip=217526 unaligned=50604 oob=0
+ogxskip: b1=217322 b2=2 op_empty=202 op_semi=0
+ogxupl: semi=10883 opaque=44834 mismatch=0
+ogxgeom: coord_rej=6
+offsoft: prims=96771 rejected=342036 | pad: startpoll=5676 update=5676 ai_calls=5676
+sio: write8=34056 start=5676 ctrl16=73793 read8=45408 irq=22704 padtype0=1
+ogxoff: prims=402350 tex=332818 off_roi=1104 fills=413 fills_off=0 va=108655 va_roi=488
+ogxva: rect=(832,0)-(895,255)
+ogxva: rect=(768,0)-(813,103)
+ogxva: rect=(768,104)-(831,163)
+ogxva: rect=(768,164)-(812,179)
+ogxva: rect=(768,180)-(805,193)
+ogxva: rect=(808,180)-(830,196)
+ogxva: rect=(768,194)-(793,208)
+ogxva: rect=(816,0)-(830,14)
+ogxop: kind=1 tex=1 rect=(668,240)-(770,480) color=18c6
+ogxop: kind=1 tex=1 rect=(668,120)-(770,134) color=18c6
+ogxop: kind=1 tex=1 rect=(668,120)-(770,134) color=18c6
+ogxop: kind=1 tex=1 rect=(668,120)-(770,134) color=18c6
+ogxop: kind=1 tex=1 rect=(668,120)-(770,134) color=18c6
+ogxop: kind=1 tex=1 rect=(668,120)-(770,134) color=18c6
+ogxop: kind=1 tex=1 rect=(668,120)-(770,134) color=18c6
+ogxop: kind=1 tex=1 rect=(668,120)-(770,134) color=18c6
+autoinput: vblank=22 mask=0000 at_present=1
+ogxeq: n=698210 mism=698 hole=0
+ogxeqr: tex=2 mode=1 page=7 clut=3fdc nv=4 psx_uv=(128,95) gx_xy=(128,120) exp=01c9 got=8000
+ogxeqr: tex=2 mode=1 page=7 clut=3fdc nv=4 psx_uv=(128,95) gx_xy=(32,120) exp=01c9 got=8421
+ogxeqr: tex=2 mode=1 page=7 clut=3fdc nv=4 psx_uv=(128,95) gx_xy=(32,120) exp=01c9 got=fe90
+ogxeqr: tex=2 mode=1 page=7 clut=3fdc nv=4 psx_uv=(128,95) gx_xy=(128,120) exp=01c9 got=cad3
+ogxdraw: ft=369664 gt=545868 uni_ft=12359 uni_gt=140006 vram_wr=108655 inval=55622
+ogxud: gt=0 nv=4 mode=1 page=7 clut=3fdc tex=2 256x240 semi=2 texel=8000 uv1024=(0,0)(1024,0)(1024,1024)(0,1024)
+ogxud: gt=0 nv=4 mode=1 page=7 clut=3fdc tex=2 64x240 semi=2 texel=8000 uv1024=(0,0)(1024,0)(1024,1024)(0,1024)
+ogxud: gt=0 nv=4 mode=1 page=7 clut=3fdc tex=2 256x240 semi=2 texel=8000 uv1024=(0,0)(1024,0)(1024,1024)(0,1024)
+ogxud: gt=0 nv=4 mode=1 page=7 clut=3fdc tex=2 256x240 semi=2 texel=8000 uv1024=(0,0)(1024,0)(1024,1024)(0,1024)
+ogxud: gt=0 nv=4 mode=1 page=7 clut=3fdc tex=2 256x240 semi=2 texel=8000 uv1024=(0,0)(1024,0)(1024,1024)(0,1024)
+ogxud: gt=0 nv=4 mode=0 page=13 clut=7ff3 tex=1 256x256 semi=2 texel=ed61 uv1024=(88,136)(160,136)(88,200)(160,200)
+ogxud: gt=0 nv=4 mode=0 page=13 clut=7ff3 tex=1 256x256 semi=2 texel=ed61 uv1024=(172,136)(244,136)(172,200)(244,200)
+ogxud: gt=0 nv=4 mode=0 page=13 clut=7ff3 tex=1 256x256 semi=2 texel=ed61 uv1024=(928,516)(1000,516)(928,576)(1000,576)
+cd: reads=13229 bytes=31114608 seq=13209 rand=20 worst_us=3178 total_us=342884
+cdpf: hit=0 miss=0 reads=0
+chd: hit=0 miss=0 err=0 chd_us=0
+xa: sectors=1519 starts=7 fed=0 trunc=0 fill_min=0 fill_max=60 freq=37800 stereo=1 dt_min=1796644 dt_max=1816005 filtered=4200
+xamix: mix=59362 hold=13 gaps=4 gap_calls=4152 gap_samples=249108 | spu: ns=4244520 pulls=0 busy=775 desync=0 aev=3072 | out: dry=462103 drop=0
+rate: ppm=-5000 i=-1551 min=-5000 max=117 occ_min=0 occ_max=6510 occ_avg=2545 updates=9955 sat=4568 changes=0 prefill=8192 | limit: debt_max=1250 debt_drops=976
+menu: frames=0 menu_us=0 strings=25584 glyphs=93196 texloads=93196
+vramdump: frames=1913 vblanks=6001 bytes=1048576

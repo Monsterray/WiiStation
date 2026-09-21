@@ -111,6 +111,16 @@ Card, Triangle back, Down, X opens CD Player.
 decodes a Dolphin `.dtm` (8-byte pad polls interleaved with Wiimote records, 2 polls per VI)
 into autoinput lines; find the offset once from the first Start press.
 
+## Keeping a run as a baseline
+
+Runs worth comparing against later go into `baselines/` with `scripts/baseline_add.py <run dir>
+--id <date>_<game>_<variant> --game ... --purpose ... --settings <staged cfg>` (see
+`baselines/README.md`). It keeps perf.log, the run log, the settings and a notes page in git,
+the audio (as FLAC) and the contact sheet under `baselines/media/` outside git, and appends
+the key metrics to `baselines/index.csv`. Compare with `perf_compare.py`, `wav_compare.py`,
+`wav_spectrum.py` (both audio tools read FLAC). The scratchpad is per session and was 9 GB of
+frame PNGs before this existed: file what matters, then delete `frames/` directories.
+
 ## Reading the results
 
 - `python scripts/ptrace_summary.py <outdir>/ptrace.log [--big AREA] [--show N]` — per-present

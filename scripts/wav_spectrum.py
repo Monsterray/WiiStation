@@ -23,6 +23,19 @@ BANDS = [(20, 200), (200, 2000), (2000, 8000), (8000, 16000), (16000, 20000), (2
 
 
 def read(path):
+    # FLAC baselines (baselines/media/<id>/audio.flac) are decoded through wav_compare's helper
+    import os, sys as _sys
+    _sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from wav_compare import decode_if_needed
+    path, temp = decode_if_needed(path)
+    try:
+        return _read(path)
+    finally:
+        if temp:
+            os.unlink(path)
+
+
+def _read(path):
     with wave.open(path, "rb") as w:
         ch, width, rate = w.getnchannels(), w.getsampwidth(), w.getframerate()
         raw = w.readframes(w.getnframes())

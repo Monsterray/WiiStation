@@ -1,0 +1,44 @@
+--- perf frames=1800 ---
+fixes: dwActFixes=00000000 cdrom=SCUS94163
+cpu: slices=1255547 int=0 cpu_us=83887179 jit_full=0 jit_part=4530 interp_fb=0 hle=96219 exc=6
+wall: wall_us=83911717 vblanks=3430 pal=0 nested=1006441
+inside: limit_us=34173837 limit=2854 target=1666 spu_us=1904578 spu=42016 out_us=366232 out=42016 hw_us=11840159 hw=7728181 hw_gpu_us=11584382 hw_gpu=5233481
+slicecost: sched_us=59370617 jit_us=22810063 post_us=1706499 exit_norm=1118589 exit_irq=40733
+slice: cycles=21500186289 avg=17124 tiny=3731
+irq: cdr=70 cdread=478 gpudma=137529 spudma=2 mdecindma=2 gpuotcdma=1499 cdrdma=924 newdrc=8 rcnt=87798
+ram: mem1_free_kb=5607 mem2=7430/24575KB peak=7430KB fails=0 null_read=0 heap_ok=1
+gpu: tex_hit=3133 miss=6635 resets=5304 loads=0 bytes=0 batches=0
+gpu: drawdone=5304 drawdone_us=16999 convert_us=0 present_us=216320
+texk: conv_us=2033360 conv=1986 texels=42643264 tile_us=1657046 tile=1986 mdec_us=0 mdec=0
+ogx: gc=0 sub_new=1986 sub_hit=5570 skip=8662 unaligned=413 oob=0
+ogxskip: b1=7556 b2=0 op_empty=1106 op_semi=0
+ogxupl: semi=1986 opaque=3318 mismatch=0
+ogxgeom: coord_rej=0
+offsoft: prims=639 rejected=1602 | pad: startpoll=5108 update=5108 ai_calls=2554
+sio: write8=0 start=0 ctrl16=0 read8=0 irq=0 padtype0=1
+ogxoff: prims=1909 tex=1909 off_roi=0 fills=1246 fills_off=0 va=134873 va_roi=14
+ogxva: rect=(768,0)-(807,241)
+ogxva: rect=(657,193)-(777,225)
+ogxva: rect=(657,193)-(777,225)
+ogxva: rect=(653,193)-(773,225)
+ogxva: rect=(657,17)-(777,49)
+ogxva: rect=(657,17)-(777,49)
+ogxva: rect=(649,17)-(769,49)
+ogxva: rect=(657,193)-(777,225)
+autoinput: vblank=876 mask=0000 at_present=555
+ogxeq: n=3318 mism=0 hole=0
+ogxdraw: ft=10874 gt=0 uni_ft=2637 uni_gt=0 vram_wr=134873 inval=1981
+ogxud: gt=0 nv=4 mode=0 page=0 clut=0000 tex=1 256x256 semi=2 texel=0000 uv1024=(0,0)(1024,0)(1024,1024)(0,1024)
+ogxud: gt=0 nv=4 mode=0 page=0 clut=0000 tex=1 256x256 semi=2 texel=0000 uv1024=(0,0)(1024,0)(1024,1024)(0,1024)
+ogxud: gt=0 nv=4 mode=0 page=0 clut=0000 tex=1 128x256 semi=2 texel=0000 uv1024=(0,0)(1024,0)(1024,1024)(0,1024)
+ogxud: gt=0 nv=4 mode=0 page=0 clut=0000 tex=1 256x223 semi=0 texel=0000 uv1024=(0,0)(1024,0)(1024,1024)(0,1024)
+ogxud: gt=0 nv=4 mode=0 page=0 clut=0000 tex=1 128x223 semi=0 texel=0000 uv1024=(0,0)(1024,0)(1024,1024)(0,1024)
+ogxud: gt=0 nv=4 mode=0 page=0 clut=0000 tex=1 256x256 semi=2 texel=0000 uv1024=(0,0)(1024,0)(1024,1024)(0,1024)
+ogxud: gt=0 nv=4 mode=0 page=0 clut=0000 tex=1 128x256 semi=2 texel=0000 uv1024=(0,0)(1024,0)(1024,1024)(0,1024)
+ogxud: gt=0 nv=4 mode=0 page=0 clut=0000 tex=1 256x223 semi=0 texel=0000 uv1024=(0,0)(1024,0)(1024,1024)(0,1024)
+cd: reads=462 bytes=1086624 seq=452 rand=10 worst_us=5479 total_us=29032
+chd: hit=0 miss=0 err=0 chd_us=0
+xa: sectors=0 starts=0 fed=0 trunc=0 fill_min=0 fill_max=0 freq=0 stereo=0 dt_min=0 dt_max=0 filtered=0
+xamix: mix=0 hold=0 gaps=0 gap_calls=0 gap_samples=0 | spu: ns=2520960 pulls=0 busy=240 desync=0 aev=3072 | out: dry=1274089 drop=0
+rate: ppm=-2275 i=-1396 min=-4906 max=124 occ_min=0 occ_max=6498 occ_avg=2215 updates=7854 sat=0 changes=0 prefill=6144 | limit: debt_max=1250 debt_drops=563
+menu: frames=0 menu_us=0 strings=51127 glyphs=151578 texloads=151578

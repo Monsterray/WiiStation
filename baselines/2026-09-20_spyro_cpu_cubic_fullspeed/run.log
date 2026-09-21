@@ -1,0 +1,18 @@
+framedump run: start 10:09:01
+dol: /c/projects/WiiStation/Gamecube/WiiSXRX_debug.dol (2026-09-20 10:08:16)
+options: -C Dolphin.Interface.ConfirmStop=False -C Dolphin.Movie.DumpFrames=True -C Graphics.Settings.DumpFramesAsImages=True -C Graphics.Settings.PNGCompressionLevel=1 -C Graphics.Settings.SafeTextureCacheColorSamples=0 -C Graphics.Hacks.EFBToTextureEnable=False -C Dolphin.Interface.UsePanicHandlers=False -C Logger.Options.WriteToFile=True -C Logger.Logs.FRAMEDUMP=True -C Graphics.Settings.ShowSpeed=True -C Graphics.Settings.ShowVPS=True -C Dolphin.DSP.DumpAudio=True -C Dolphin.Movie.DumpFrames=False -C Graphics.Settings.DumpFramesAsImages=False
+dolphin windows pid: 34756
+frames dumped: 0
+audio dump: 197121 10:10
+audio dump: 197121 10:10
+audio dump: 197121 10:10
+C:/Users/Monty Perrotti/AppData/Local/Temp/claude/C--projects-WiiStation/656c506d-9e10-41be-bdd7-a6fdb6c5783b/scratchpad/run89/cpu_cubic/perf.log: 108753 bytes
+run done 10:10:57
+kept frames none..none
+no frames kept
+--- perf frames=1800 ---
+offsoft: prims=27855 rejected=50097 | pad: startpoll=3638 update=3638 ai_calls=3638
+sio: write8=21828 start=3638 ctrl16=50932 read8=29104 irq=14552 padtype0=1
+ogxoff: prims=53708 tex=52875 off_roi=1 fills=1804 fills_off=0 va=30178 va_roi=3265
+faults in dolphin.log: 0
+0
