@@ -144,6 +144,8 @@ tempting wrong turns.
 - Lesson: when a loop's constants are "per update", print the update count and derive the
   rate from it before trusting the design; and read all runs in one table -- the anomaly
   was visible only side by side.
+- Verified after the merge of all sound branches (main 435bc21, 2026-09-20): release CPU Hold 13 zero-runs / 199 ms, DSP Hold 4 / 203, CPU Cubic 14 / 201, DSP Cubic 4 / 132, all at boot, title and level load, none in the speech, no channel skew; debug (0.50x) XA gaps 0, holds 4, pulls 0, `out dry` 1.22 M, controller median -4492 ppm. Same structure as before the merge, with the rate nudge now inside `resample.c`.
+
 ## 9. Right channel one sample behind the left (SDL driver, everything it plays)
 
 - Symptom: in every `AUDIO_DUMP=1` wav of the CPU (SDL) sound path, Spyro's speech had
