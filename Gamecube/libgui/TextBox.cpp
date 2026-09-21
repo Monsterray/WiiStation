@@ -67,6 +67,11 @@ void TextBox::setRightAligned(bool r)
 	rightAligned = r;
 }
 
+void TextBox::setY(float newY)
+{
+	y = newY;
+}
+
 void TextBox::drawComponent(Graphics& gfx)
 {
 	int left = (int) x;

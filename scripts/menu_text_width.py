@@ -245,10 +245,14 @@ def check_help(d, w, verbose, bad):
 
     for name, body in re.findall(r'static const OptHelp (\w+)\[\] =\s*\{(.*?)\n\};', src, re.S):
         entries = re.findall(r'\{\s*(NULL|"(?:[^"\\]|\\.)*")\s*,\s*"((?:[^"\\]|\\.)*)"\s*\}', body)
+        # The lines of one explanation sit HELP_LINE_DY apart; a line that starts a new
+        # term gets HELP_CELL_GAP before it. OptionsFrame::activateSubmenu does the same.
+        y = d['HELP_Y0']
         for n, (term, text) in enumerate(entries):
             term = '' if term == 'NULL' else term[1:-1]
             text = text.replace('\\"', '"')
-            y = d['HELP_Y0'] + n * d['HELP_DY']
+            if n > 0 and term:
+                y += d['HELP_CELL_GAP']
             limit = right_edge(d, y + line_h)
             note = ''
             if term:
@@ -268,7 +272,8 @@ def check_help(d, w, verbose, bad):
             if verbose or note:
                 print('  %-13s %2d y=%-4.0f %5.0f..%-5.0f of %-4.0f  %-17s %s%s'
                       % (name, n, y, d['HELP_TEXT_X'], end, limit, term, text, note))
-        bottom = d['HELP_Y0'] + (len(entries) - 1) * d['HELP_DY'] + line_h
+            y += d['HELP_LINE_DY']
+        bottom = y - d['HELP_LINE_DY'] + line_h
         if bottom > d['MENU_H'] - d['MENU_EDGE']:
             bad.append('%s has %d lines, whose last ends at %.0f, off the bottom'
                        % (name, len(entries), bottom))
