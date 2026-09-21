@@ -68,7 +68,7 @@ machinery decides what it may capture, why off-screen primitives go to the softw
 rasterizer, how the SIO decides a pad exists, and a GP0 command cheat sheet for reading
 traces. Read it before forming a theory about display buffers, textures or input.
 
-[references/case-studies.md](references/case-studies.md) walks through six solved bugs as
+[references/case-studies.md](references/case-studies.md) walks through eight solved bugs as
 symptom → probe → mechanism, including the wrong turns; skim it to calibrate how much theory
 a run should be spent on.
 

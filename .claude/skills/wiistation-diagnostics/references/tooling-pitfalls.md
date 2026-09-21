@@ -86,7 +86,10 @@ believing the symptom.
   `Sys/GC`, so nothing else is needed.
 - `AUDIO_DUMP=1` writes the mixed audio to the run directory; compare two runs with
   `scripts/wav_compare.py`. Judge by level and silence structure, not by the correlation:
-  two separate emulator runs are never sample-aligned.
+  two separate emulator runs are never sample-aligned. Its `R==L at shift -1/0/+1` line
+  should peak at 0 on dual-mono content (CD-XA speech is); a peak at +1 or -1 is an
+  output-stage interleave fault, not a source property (case study 9). A dump from the other
+  driver (`SoundHwAccel=1`, needs `DSP_LLE=1`) tells source faults from driver faults.
 - `PROBES=all|light|min` on `scripts/build.sh` selects how much instrumentation the debug
   build carries (see the sub-gates in `Gamecube/perf_prof.h`). Worth about 2% of emulated
   CPU time, so reach for it only when profiling the guest; the big costs are host-side.

@@ -144,3 +144,22 @@ tempting wrong turns.
 - Lesson: when a loop's constants are "per update", print the update count and derive the
   rate from it before trusting the design; and read all runs in one table -- the anomaly
   was visible only side by side.
+## 9. Right channel one sample behind the left (SDL driver, everything it plays)
+
+- Symptom: in every `AUDIO_DUMP=1` wav of the CPU (SDL) sound path, Spyro's speech had
+  `R[n] == L[n-1]` in 70-75% of non-silent frames and `R == L` in under 10%, with the L/R
+  correlation 0.9999 at a shift of one frame and 0.98 at zero. Same in debug and release
+  builds and in every resampler mode, so not the resampler's doing.
+- Where it came from, by comparing paths instead of decoding the disc: the AESND (DSP) path's
+  dumps of the same scene had `R == L` in 80% of frames at shift 0. Both drivers consume the
+  same SPU buffer, so the SPU output (and the XA source behind it) is plain dual-mono; the
+  SDL driver was adding the skew. Its ring writer pre-incremented (`++iWritePos` before the
+  store), so the first sample of the run landed at index 1 and, the ring size being even,
+  every frame the reader took at an even index straddled two source frames: `R_src[k-1]`
+  came out as left and `L_src[k]` as right. Inherited from the original WiiSX import. The
+  ring rewrite in ce10881 (frame-granular writer that stores at `wp` and `wp+1`) removed it
+  as a side effect; the dumps made with that build peak at shift 0 (`R == L` 76%).
+- Lesson: when two output drivers exist, a dump from each is the cheapest source check
+  there is: a fault the source carries appears in both, a fault one driver adds appears in
+  one. `scripts/wav_compare.py` now prints the shift -1/0/+1 equality fractions and flags a
+  winner other than 0, so this is a one-line check on any future dump.
