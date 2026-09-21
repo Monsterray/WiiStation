@@ -90,6 +90,7 @@ void psxResetRcntRate();
 void plugin_call_rearmed_cbs(unsigned long autoDwActFixes, int cfgUseDithering);
 void setSpuInterpolation(int spuInterpolation);
 void setSpuTempo(int soundTempo);
+void setSpuReverb(int soundReverb);
 }
 
 u32* xfb[3] = { NULL, NULL, NULL };	/*** Framebuffers ***/
@@ -115,6 +116,7 @@ char useDithering;
 extern char audioEnabled;   // defined in dfsound/cube.c alongside the output drivers
 char soundHwAccel;          // read by dfsound/out.c when it picks an output driver
 char soundTempo;            // dfsound: legacy pull-back of the mixer clock when the output runs low
+char soundReverb;           // dfsound: SPU reverb bus on/off (Advanced Sound page)
 char soundRateControl;      // dfsound/ratectl.c: nudge the output rate from the queue's occupancy
 char soundResampler;        // read by dfsound/resample.c on every block it converts
 char xaDisabled;            // mirrors Config.Xa   (see wiiSXconfig.h)
@@ -179,6 +181,7 @@ static struct {
 { { "Audio", &audioEnabled, AUDIO_DISABLE, AUDIO_ENABLE },
   { "SoundHwAccel", &soundHwAccel, SOUND_HW_ACCEL_OFF, SOUND_HW_ACCEL_ON },
   { "SoundTempo", &soundTempo, SOUND_TEMPO_OFF, SOUND_TEMPO_ON },
+  { "SoundReverb", &soundReverb, SOUND_REVERB_OFF, SOUND_REVERB_ON },
   { "SoundRateControl", &soundRateControl, SOUND_RATE_CONTROL_OFF, SOUND_RATE_CONTROL_ON },
   { "SoundResampler", &soundResampler, SOUND_RESAMPLE_HOLD, SOUND_RESAMPLE_CUBIC },
   { "Interpolation", &spuInterpolation, SIMPLE_INTERPOLATION, GAUSSI_INTERPOLATION },
@@ -372,6 +375,7 @@ void loadSettings(int argc, char *argv[])
 	audioEnabled     = 1; // Audio
 	soundHwAccel     = SOUND_HW_ACCEL_OFF; // CPU sound path; the DSP one is opt-in
 	soundTempo       = SOUND_TEMPO_OFF;    // legacy; the rate control below replaced it (2026-09-20)
+	soundReverb      = SOUND_REVERB_ON;    // matches the hardcoded behaviour before this setting existed
 	soundRateControl = SOUND_RATE_CONTROL_ON;
 	soundResampler   = SOUND_RESAMPLE_HOLD; // the conversion both paths always did; the others are under test
 	spuInterpolation = GAUSSI_INTERPOLATION; // the better of the two voice interpolators, and the whole SPU is under 1% of a frame
@@ -495,6 +499,7 @@ void loadSettings(int argc, char *argv[])
 	//iUseDither = useDithering;
 	setSpuInterpolation(spuInterpolation);
 	setSpuTempo(soundTempo);
+	setSpuReverb(soundReverb);
 
 	// Set Gpu Plugin
 	setGpuPlugin();

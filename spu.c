@@ -66,3 +66,8 @@ void setSpuTempo(int soundTempo)
 {
     spu_config.iTempo = soundTempo;
 }
+
+void setSpuReverb(int soundReverb)
+{
+    spu_config.iUseReverb = soundReverb;
+}

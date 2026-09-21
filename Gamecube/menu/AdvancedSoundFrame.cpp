@@ -58,10 +58,17 @@ struct AdvOption
 };
 
 static const char* const RESAMPLER_NAMES[] = { "Hold", "Linear", "Cubic" };
+static const char* const ON_OFF_NAMES[] = { "Off", "On" };
+// setSpuReverb(int) takes the raw setting value; the table's apply slot is void(void), so this
+// wrapper reads the setting itself, the same way Gamecube/GamecubeMain.cpp calls setSpuTempo()
+// at startup.
+extern "C" void setSpuReverb(int soundReverb);   // defined in spu.c (plain C, no name mangling)
+static void applySpuReverb(void) { setSpuReverb(soundReverb); }
 
 static const AdvOption ADV_OPTIONS[] =
 { //	label					variable			min						max						names				apply
 	{	"Output Resampler",		&soundResampler,	SOUND_RESAMPLE_HOLD,	SOUND_RESAMPLE_CUBIC,	RESAMPLER_NAMES,	NULL },
+	{	"Reverb",					&soundReverb,		SOUND_REVERB_OFF,		SOUND_REVERB_ON,		ON_OFF_NAMES,		applySpuReverb },
 };
 
 #define ADV_NUM_ROWS	((int)(sizeof(ADV_OPTIONS) / sizeof(ADV_OPTIONS[0])))

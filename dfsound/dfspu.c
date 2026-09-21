@@ -1271,7 +1271,7 @@ long DF_SPUinit(void)
 {
  int i;
 
-  spu_config.iUseReverb = 1;
+  /* iUseReverb comes from the SoundReverb setting (spu.c setSpuReverb), like iTempo */
   spu_config.idiablofix = 0;
   //spu_config.iUseInterpolation = 2;
   spu_config.iXAPitch = 0;

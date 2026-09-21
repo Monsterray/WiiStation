@@ -53,6 +53,16 @@ enum soundTempo
 	SOUND_TEMPO_ON
 };
 
+/* dfsound/dfspu.c do_samples: whether the SPU's stereo reverb bus (reverb.c) is mixed in.
+ * Was hardcoded on; a setting mainly so it can be turned off as an A/B check on a game's
+ * reverb effect (echo, hall, room) without also touching anything else. */
+extern char soundReverb;
+enum soundReverb
+{
+	SOUND_REVERB_OFF=0,
+	SOUND_REVERB_ON
+};
+
 /* dfsound/ratectl.c: keep the output driver's queue at its target by nudging the playback
  * rate by at most +-0.5 %, from the queue's occupancy. The mixer stays on emulated time. */
 extern char soundRateControl;
