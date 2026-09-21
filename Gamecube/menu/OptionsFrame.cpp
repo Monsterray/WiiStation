@@ -9,19 +9,26 @@
  *               -> "Memory"    : what the machine's memory is doing right now
  *
  * HOW TO ADD A ROW
- *   A setting row (OPT_CYCLE) needs: a `char` variable and an enum of its values in
- *   Gamecube/wiiSXconfig.h; its definition, default and one OPTIONS[] line in
+ *   A setting row (ROW_CYCLE or ROW_RADIO) needs: a `char` variable and an enum of its
+ *   values in Gamecube/wiiSXconfig.h; its definition, default and one OPTIONS[] line in
  *   Gamecube/GamecubeMain.cpp (that line is what saves and loads it); a row in SETTINGS.md;
  *   and one entry below with the label, the variable, its lowest and highest value, the
  *   value names in that order, and an apply function (NULL when the emulator reads the
  *   variable directly).
- *   A readout row (OPT_INFO) needs only a label and a function that writes the right-hand
+ *     ROW_CYCLE is one button that steps through the values: compact, right for a long list
+ *     or for a setting whose values are obvious (On/Off).
+ *     ROW_RADIO shows every value at once as its own button with the current one lit, the
+ *     way the Settings tabs themselves do it: right when the choice is worth seeing whole.
+ *     It fits OPT_MAX_CHOICES values; a row with fewer leaves the trailing slots empty.
+ *   A readout row (ROW_INFO) needs only a label and a function that writes the right-hand
  *   text. Readouts refresh every frame while their page is open.
  *
  * HOW TO ADD A PAGE
- *   One OptRow[] array, one PAGES[] entry (title, rows, which Settings tab B returns to,
- *   and optional enter/leave hooks), one value in OptionsFrame::OptionsPages, and a button
- *   somewhere in SettingsFrame that calls setActiveFrame(FRAME_OPTIONS, that value).
+ *   One OptRow[] array, one PAGES[] entry (title, rows, optional help lines, which Settings
+ *   tab B returns to, and optional enter/leave hooks), one value in OptionsFrame::OptionsPages,
+ *   and a button somewhere in SettingsFrame that calls setActiveFrame(FRAME_OPTIONS, that value).
+ *   Help lines are plain text under the rows; a page that has them needs its rows to end
+ *   above HELP_Y0 (a compile-time check below enforces it).
  *
  * Layout, focus order, click handlers and the label refresh are all derived from the
  * tables; nothing else has to be touched.
@@ -73,20 +80,23 @@ void Func_ReturnFromOptionsFrame();
 
 #define OPT_CYCLE 0
 #define OPT_INFO  1
+#define OPT_RADIO 2
 
 struct OptRow
 {
 	int					kind;
 	const char*			label;		// text on the left
-	char*				var;		// OPT_CYCLE: the setting it edits
-	char				min, max;	// OPT_CYCLE: A cycles min..max and wraps
-	const char* const*	names;		// OPT_CYCLE: names[value - min], shown on the button
-	void				(*apply)(void);	// OPT_CYCLE: tell the emulator; NULL = it reads var itself
-	void				(*info)(char *buf, int len);	// OPT_INFO: writes the right-hand text
+	char*				var;		// CYCLE/RADIO: the setting it edits
+	char				min, max;	// CYCLE: A cycles min..max and wraps. RADIO: one button each
+	const char* const*	names;		// CYCLE/RADIO: names[value - min], shown on the button
+	void				(*apply)(void);	// CYCLE/RADIO: tell the emulator; NULL = it reads var itself
+	void				(*info)(char *buf, int len);	// INFO: writes the right-hand text
 };
 
 #define ROW_CYCLE(label, var, lo, hi, names, apply) \
 	{ OPT_CYCLE, label, (char*)&(var), (char)(lo), (char)(hi), names, apply, NULL }
+#define ROW_RADIO(label, var, lo, hi, names, apply) \
+	{ OPT_RADIO, label, (char*)&(var), (char)(lo), (char)(hi), names, apply, NULL }
 #define ROW_INFO(label, fn) \
 	{ OPT_INFO, label, NULL, 0, 0, NULL, NULL, fn }
 
@@ -96,7 +106,7 @@ static const char* const LEGACY_HIFI_NAMES[] = { "Legacy", "Hi-Fi" };
 static const char* const CD_BUFFER_NAMES[]   = { "16 KB", "64 KB", "256 KB" };
 static const char* const CD_HUNKS_NAMES[]    = { "2", "4", "8" };
 /* dynacore: 0 Lightrec, 1 Interpreter, 2 old PPC dynarec (wiiSXconfig.h) */
-static const char* const CPU_CORE_NAMES[]    = { "Lightrec", "Interpreter", "PPC Dynarec" };
+static const char* const CPU_CORE_NAMES[]    = { "Lightrec", "Interpreter", "Dynarec" };
 /* gpuPlugin: 0 Old Soft, 1 New Soft, 2 OpenGX */
 static const char* const GPU_PLUGIN_NAMES[]  = { "Old Soft", "New Soft", "OpenGX" };
 
@@ -164,12 +174,24 @@ static const OptRow SOUND_ROWS[] =
 	ROW_CYCLE("XA Resampler",     soundXaResampler,    SOUND_XA_RESAMPLER_LEGACY,    SOUND_XA_RESAMPLER_HIFI,     LEGACY_HIFI_NAMES, NULL),
 };
 
-/* Both of these tear down and restart the emulator when a game is loaded, so they are
- * applied once on leaving the page (pluginsEnter/pluginsLeave) rather than per press. */
+/* Radio rows, not cycling ones: which core and which renderer is running is worth seeing
+ * whole, the way the General tab used to show it. Both tear down and restart the emulator
+ * when a game is loaded, so they are applied once on leaving the page (pluginsEnter /
+ * pluginsLeave) rather than on every press. */
 static const OptRow PLUGIN_ROWS[] =
 {
-	ROW_CYCLE("CPU Core",   dynacore,  DYNACORE_DYNAREC, DYNACORE_DYNAREC_OLD, CPU_CORE_NAMES,   NULL),
-	ROW_CYCLE("GPU Plugin", gpuPlugin, OLD_SOFT,         OPEN_GX,              GPU_PLUGIN_NAMES, NULL),
+	ROW_RADIO("CPU Core",   dynacore,  DYNACORE_DYNAREC, DYNACORE_DYNAREC_OLD, CPU_CORE_NAMES,   NULL),
+	ROW_RADIO("GPU Plugin", gpuPlugin, OLD_SOFT,         OPEN_GX,              GPU_PLUGIN_NAMES, NULL),
+};
+
+static const char* const PLUGIN_HELP[] =
+{
+	"CPU Core: Lightrec is the recompiler most games run best on.",
+	"Interpreter is slow but exact; Dynarec is the older recompiler.",
+	"GPU Plugin: OpenGX draws through the Wii's graphics hardware.",
+	"The two software renderers are slower but avoid hardware quirks.",
+	"",
+	"Changing either restarts a loaded game when you leave this page.",
 };
 
 static char pluginsCoreOnEntry, pluginsGpuOnEntry;
@@ -195,6 +217,18 @@ static const OptRow STORAGE_ROWS[] =
 	ROW_CYCLE("CHD Hunk Cache", cdChdHunks, CD_CHD_HUNKS_2,  CD_CHD_HUNKS_8, CD_HUNKS_NAMES,  NULL),
 };
 
+static const char* const STORAGE_HELP[] =
+{
+	"CD Read Buffer: how much each disc-image file reads at a time.",
+	"Larger means fewer, longer card reads while a game streams.",
+	"CD Read-Ahead: a thread keeps the next 31 sectors ready early.",
+	"Raw bin/cue and .iso only; it helps real hardware, not Dolphin.",
+	"CHD Hunk Cache: decoded CHD hunks kept in memory, ~20 KB each.",
+	"More of them keeps two areas of the disc warm without decoding twice.",
+	"",
+	"All three take effect the next time a game is loaded.",
+};
+
 /* Readouts only. Every large MEM2 region is reserved at a fixed address (Gamecube/MEM2.h),
  * so there is nothing here a setting could move at runtime; what this page is for is seeing
  * where the memory went, which is what any change to that layout has to be argued from. */
@@ -209,49 +243,75 @@ static const OptRow MEMORY_ROWS[] =
 
 struct OptPage
 {
-	const char*		title;
-	const OptRow*	rows;
-	int				nrows;
-	int				returnSubmenu;		// the Settings tab B goes back to
-	void			(*onEnter)(void);
-	void			(*onLeave)(void);
+	const char*			title;
+	const OptRow*		rows;
+	int					nrows;
+	const char* const*	help;			// plain text under the rows; NULL for none
+	int					nhelp;
+	int					returnSubmenu;	// the Settings tab B goes back to
+	void				(*onEnter)(void);
+	void				(*onLeave)(void);
 };
+
+#define COUNT(a)	((int)(sizeof(a) / sizeof((a)[0])))
 
 static const OptPage PAGES[] =
 {
-	{ "Advanced Sound", SOUND_ROWS,   (int)(sizeof(SOUND_ROWS)   / sizeof(OptRow)), SettingsFrame::SUBMENU_AUDIO,   NULL,         NULL         },
-	{ "Plugins",        PLUGIN_ROWS,  (int)(sizeof(PLUGIN_ROWS)  / sizeof(OptRow)), SettingsFrame::SUBMENU_GENERAL, pluginsEnter, pluginsLeave },
-	{ "Storage",        STORAGE_ROWS, (int)(sizeof(STORAGE_ROWS) / sizeof(OptRow)), SettingsFrame::SUBMENU_GENERAL, NULL,         NULL         },
-	{ "Memory",         MEMORY_ROWS,  (int)(sizeof(MEMORY_ROWS)  / sizeof(OptRow)), SettingsFrame::SUBMENU_GENERAL, NULL,         NULL         },
+	{ "Advanced Sound", SOUND_ROWS,   COUNT(SOUND_ROWS),   NULL,         0,                    SettingsFrame::SUBMENU_AUDIO,   NULL,         NULL         },
+	{ "Plugins",        PLUGIN_ROWS,  COUNT(PLUGIN_ROWS),  PLUGIN_HELP,  COUNT(PLUGIN_HELP),   SettingsFrame::SUBMENU_GENERAL, pluginsEnter, pluginsLeave },
+	{ "Storage",        STORAGE_ROWS, COUNT(STORAGE_ROWS), STORAGE_HELP, COUNT(STORAGE_HELP),  SettingsFrame::SUBMENU_GENERAL, NULL,         NULL         },
+	{ "Memory",         MEMORY_ROWS,  COUNT(MEMORY_ROWS),  NULL,         0,                    SettingsFrame::SUBMENU_GENERAL, NULL,         NULL         },
 };
 
-#define NUM_PAGES	((int)(sizeof(PAGES) / sizeof(PAGES[0])))
-#define OPT_MAX_ROWS	8
+#define NUM_PAGES		COUNT(PAGES)
+#define OPT_MAX_ROWS	6
+#define OPT_MAX_CHOICES	3
+#define OPT_MAX_HELP	8
 
-/*  Layout: title, then a row every ROW_DY from ROW_Y0. No Back button: B returns to the
- *  tab the page came from (setBackFunc). 40-high buttons, labels 20 below the button top. */
+/*  Layout: title, then a row every ROW_DY from ROW_Y0, then any help text. Rows are 40 high
+ *  in a 54-high slot, so there is a clear gap between them. No Back button on a page of
+ *  settings: B returns to the tab the page came from (setBackFunc).
+ *
+ *  A ROW_CYCLE or ROW_INFO row is a label on the left and one button (or one piece of text)
+ *  in the right-hand column. A ROW_RADIO row needs the whole width, so its label sits
+ *  further left and its buttons occupy OPT_MAX_CHOICES evenly spaced slots. */
 #define TITLE_X		320.0
 #define TITLE_Y		44.0
-#define ROW_Y0		76.0
-#define ROW_DY		46.0
-#define LABEL_X		175.0
+#define ROW_Y0		86.0
+#define ROW_DY		54.0
+#define LABEL_X		175.0		// ROW_CYCLE / ROW_INFO label, centred
 #define BUTTON_X	340.0
 #define BUTTON_W	250.0
 #define BUTTON_H	40.0
+#define RLABEL_X	110.0		// ROW_RADIO label, centred
+#define RADIO_X0	205.0		// first choice button
+#define RADIO_W		135.0
+#define RADIO_DX	147.0		// 135 wide with a 12 gap; three of them end at 634
+
+#define HELP_X		40.0		// help text is left-aligned, not centred
+#define HELP_Y0		258.0
+#define HELP_DY		22.0
+#define HELP_SCALE	0.70
 
 #define VALUE_LEN	32
 
 struct OptWidget
 {
-	menu::Button*	button;
-	menu::TextBox*	textBox;
-	menu::TextBox*	valueBox;		// OPT_INFO rows show text, not a button
-	char*			labelString;	// the TextBox keeps a pointer to this
-	char*			valueString;	// the Button/TextBox keeps a pointer to this
+	menu::Button*	button;							// ROW_CYCLE
+	menu::Button*	choice[OPT_MAX_CHOICES];		// ROW_RADIO
+	menu::TextBox*	textBox;						// the label, in the ROW_CYCLE/ROW_INFO column
+	menu::TextBox*	rlabelBox;						// the same label, further left, for ROW_RADIO
+	menu::TextBox*	valueBox;						// ROW_INFO shows text, not a button
+	char*			labelString;					// the TextBox keeps a pointer to this
+	char*			valueString;					// the Button/TextBox keeps a pointer to this
+	char*			choiceString[OPT_MAX_CHOICES];
 	char			value[VALUE_LEN];
 };
 
 static OptWidget		ROWS[OPT_MAX_ROWS];
+static menu::TextBox*	helpBox[OPT_MAX_HELP];
+static char*			helpString[OPT_MAX_HELP];
+static char				helpEmpty[1] = "";
 /* Pages of settings are left with B, like every other sub-page, so they carry no Back
  * button. A page of readouts has nothing else to focus, though, and focus has to land on
  * something real: this button is shown on those pages only. */
@@ -263,31 +323,57 @@ static char*			titleString;
 static char				titleText[32];
 static int				currentPage;
 
-/*  One click handler per possible row; the Button API takes a plain function pointer with
- *  no argument, so the row index has to be baked in. Add a line here and to ROW_FUNCS if
- *  OPT_MAX_ROWS grows. */
+/*  One click handler per possible row, and per choice within a radio row: the Button API
+ *  takes a plain function pointer with no argument, so the position has to be baked in.
+ *  Grow both tables if OPT_MAX_ROWS or OPT_MAX_CHOICES grows. */
 static void optCycle(int row);
-static void Func_OptRow0() { optCycle(0); }
-static void Func_OptRow1() { optCycle(1); }
-static void Func_OptRow2() { optCycle(2); }
-static void Func_OptRow3() { optCycle(3); }
-static void Func_OptRow4() { optCycle(4); }
-static void Func_OptRow5() { optCycle(5); }
-static void Func_OptRow6() { optCycle(6); }
-static void Func_OptRow7() { optCycle(7); }
-static void (*const ROW_FUNCS[OPT_MAX_ROWS])() =
-	{ Func_OptRow0, Func_OptRow1, Func_OptRow2, Func_OptRow3,
-	  Func_OptRow4, Func_OptRow5, Func_OptRow6, Func_OptRow7 };
+static void optSet(int row, int choice);
 
-/* Every page must fit on the screen, and the page table must not outgrow the widgets. */
-typedef char opt_sound_fits[(int)(sizeof(SOUND_ROWS)   / sizeof(OptRow)) <= OPT_MAX_ROWS ? 1 : -1];
-typedef char opt_plugin_fits[(int)(sizeof(PLUGIN_ROWS)  / sizeof(OptRow)) <= OPT_MAX_ROWS ? 1 : -1];
-typedef char opt_storage_fits[(int)(sizeof(STORAGE_ROWS) / sizeof(OptRow)) <= OPT_MAX_ROWS ? 1 : -1];
-typedef char opt_memory_fits[(int)(sizeof(MEMORY_ROWS)  / sizeof(OptRow)) <= OPT_MAX_ROWS ? 1 : -1];
+#define OPT_CYCLE_FN(r)		static void Func_OptRow##r() { optCycle(r); }
+#define OPT_SET_FN(r, c)	static void Func_OptSet##r##_##c() { optSet(r, c); }
+#define OPT_SET_FNS(r)		OPT_SET_FN(r, 0) OPT_SET_FN(r, 1) OPT_SET_FN(r, 2)
+#define OPT_SET_ROW(r)		{ Func_OptSet##r##_0, Func_OptSet##r##_1, Func_OptSet##r##_2 }
+
+OPT_CYCLE_FN(0) OPT_CYCLE_FN(1) OPT_CYCLE_FN(2)
+OPT_CYCLE_FN(3) OPT_CYCLE_FN(4) OPT_CYCLE_FN(5)
+OPT_SET_FNS(0)  OPT_SET_FNS(1)  OPT_SET_FNS(2)
+OPT_SET_FNS(3)  OPT_SET_FNS(4)  OPT_SET_FNS(5)
+
+static void (*const ROW_FUNCS[OPT_MAX_ROWS])() =
+	{ Func_OptRow0, Func_OptRow1, Func_OptRow2, Func_OptRow3, Func_OptRow4, Func_OptRow5 };
+static void (*const SET_FUNCS[OPT_MAX_ROWS][OPT_MAX_CHOICES])() =
+	{ OPT_SET_ROW(0), OPT_SET_ROW(1), OPT_SET_ROW(2),
+	  OPT_SET_ROW(3), OPT_SET_ROW(4), OPT_SET_ROW(5) };
+
+/* Every page must fit on the screen, the page tables must not outgrow the widgets, and a
+ * page with help text must leave room for it. */
+#define OPT_PAGE_FITS(rows)		(COUNT(rows) <= OPT_MAX_ROWS)
+#define OPT_HELP_FITS(rows, help)	(COUNT(help) <= OPT_MAX_HELP && \
+	ROW_Y0 + (COUNT(rows) - 1) * ROW_DY + BUTTON_H <= HELP_Y0)
+
+typedef char opt_sound_fits  [OPT_PAGE_FITS(SOUND_ROWS)   ? 1 : -1];
+typedef char opt_plugin_fits [OPT_PAGE_FITS(PLUGIN_ROWS)  ? 1 : -1];
+typedef char opt_storage_fits[OPT_PAGE_FITS(STORAGE_ROWS) ? 1 : -1];
+typedef char opt_memory_fits [OPT_PAGE_FITS(MEMORY_ROWS)  ? 1 : -1];
+typedef char opt_plugin_help_fits [OPT_HELP_FITS(PLUGIN_ROWS,  PLUGIN_HELP)  ? 1 : -1];
+typedef char opt_storage_help_fits[OPT_HELP_FITS(STORAGE_ROWS, STORAGE_HELP) ? 1 : -1];
+/* The last help line must stay on screen, and a radio row must not run off the right. */
+typedef char opt_help_on_screen[HELP_Y0 + (OPT_MAX_HELP - 1) * HELP_DY < 460.0 ? 1 : -1];
+typedef char opt_radio_on_screen[RADIO_X0 + (OPT_MAX_CHOICES - 1) * RADIO_DX + RADIO_W <= 640.0 ? 1 : -1];
 
 static const OptRow* pageRow(int row)
 {
 	return &PAGES[currentPage].rows[row];
+}
+
+/* How many buttons a radio row shows. A row that declares more values than there are slots
+ * would silently lose the rest, so it is clamped here and the clamp is the documented limit. */
+static int rowChoices(const OptRow *o)
+{
+	int n = (int)o->max - (int)o->min + 1;
+	if (n < 1) n = 1;
+	if (n > OPT_MAX_CHOICES) n = OPT_MAX_CHOICES;
+	return n;
 }
 
 /* Re-read one row from the thing it reflects: the setting's value name, or the readout. */
@@ -296,6 +382,12 @@ static void refreshRow(int row)
 	const OptRow *o = pageRow(row);
 	if (o->kind == OPT_INFO) {
 		o->info(ROWS[row].value, VALUE_LEN);
+	} else if (o->kind == OPT_RADIO) {
+		int n = rowChoices(o), v = *o->var;
+		if (v < o->min || v > o->max) v = o->min;
+		for (int c = 0; c < n; c++)
+			ROWS[row].choice[c]->setSelected(c == v - o->min);
+		return;
 	} else {
 		int v = *o->var;
 		if (v < o->min || v > o->max) v = o->min;	// a value the file parser let through
@@ -319,6 +411,36 @@ static void optCycle(int row)
 	if (o->apply) o->apply();
 }
 
+static void optSet(int row, int choice)
+{
+	const OptRow *o;
+	if (row >= PAGES[currentPage].nrows) return;
+	o = pageRow(row);
+	if (o->kind != OPT_RADIO || choice >= rowChoices(o)) return;
+	*o->var = (char)(o->min + choice);
+	refreshRow(row);
+	if (o->apply) o->apply();
+}
+
+/* Which button vertical focus should land on when moving into `row`, coming from column
+ * `col`. Keeping the column means Up/Down does not jump back to the left of a radio row. */
+static menu::Button* focusTarget(int row, int col)
+{
+	const OptRow *o = pageRow(row);
+	if (o->kind != OPT_RADIO) return ROWS[row].button;
+	{
+		int n = rowChoices(o);
+		if (col >= n) col = n - 1;
+		return ROWS[row].choice[col];
+	}
+}
+
+static bool rowIsFocusable(int row)
+{
+	int kind = pageRow(row)->kind;
+	return kind == OPT_CYCLE || kind == OPT_RADIO;
+}
+
 OptionsFrame::OptionsFrame()
 		: activePage(PAGE_SOUND)
 {
@@ -333,16 +455,41 @@ OptionsFrame::OptionsFrame()
 		ROWS[i].labelString = (char*)"";
 		ROWS[i].value[0] = '\0';
 		ROWS[i].valueString = ROWS[i].value;
-		ROWS[i].textBox  = new menu::TextBox(&ROWS[i].labelString, LABEL_X, y + 20.0, 1.0, true);
-		ROWS[i].valueBox = new menu::TextBox(&ROWS[i].valueString, BUTTON_X + BUTTON_W / 2, y + 20.0, 1.0, true);
+		/* The label lives in two places depending on the row kind, so it gets two boxes and
+		 * whichever one the current page needs is the one made visible. */
+		ROWS[i].textBox   = new menu::TextBox(&ROWS[i].labelString, LABEL_X,  y + 20.0, 1.0, true);
+		ROWS[i].rlabelBox = new menu::TextBox(&ROWS[i].labelString, RLABEL_X, y + 20.0, 1.0, true);
+		ROWS[i].valueBox  = new menu::TextBox(&ROWS[i].valueString, BUTTON_X + BUTTON_W / 2, y + 20.0, 1.0, true);
 		ROWS[i].button   = new menu::Button(BTN_A_NRM, &ROWS[i].valueString, BUTTON_X, y, BUTTON_W, BUTTON_H);
 		ROWS[i].button->setActive(true);
 		ROWS[i].button->setClicked(ROW_FUNCS[i]);
 		ROWS[i].button->setReturn(Func_ReturnFromOptionsFrame);
 		add(ROWS[i].textBox);
+		add(ROWS[i].rlabelBox);
 		add(ROWS[i].valueBox);
 		add(ROWS[i].button);
 		menu::Cursor::getInstance().addComponent(this, ROWS[i].button, BUTTON_X, BUTTON_X + BUTTON_W, y, y + BUTTON_H);
+
+		for (int c = 0; c < OPT_MAX_CHOICES; c++)
+		{
+			float cx = RADIO_X0 + c * RADIO_DX;
+			ROWS[i].choiceString[c] = (char*)"";
+			/* BTN_A_SEL is the style the Settings tabs use for a one-of-several choice: the
+			 * selected one stays lit whether or not it has focus. */
+			ROWS[i].choice[c] = new menu::Button(BTN_A_SEL, &ROWS[i].choiceString[c], cx, y, RADIO_W, BUTTON_H);
+			ROWS[i].choice[c]->setActive(true);
+			ROWS[i].choice[c]->setClicked(SET_FUNCS[i][c]);
+			ROWS[i].choice[c]->setReturn(Func_ReturnFromOptionsFrame);
+			add(ROWS[i].choice[c]);
+			menu::Cursor::getInstance().addComponent(this, ROWS[i].choice[c], cx, cx + RADIO_W, y, y + BUTTON_H);
+		}
+	}
+
+	for (int i = 0; i < OPT_MAX_HELP; i++)
+	{
+		helpString[i] = helpEmpty;
+		helpBox[i] = new menu::TextBox(&helpString[i], HELP_X, HELP_Y0 + i * HELP_DY, HELP_SCALE, false);
+		add(helpBox[i]);
 	}
 
 	backString = backText;
@@ -365,10 +512,18 @@ OptionsFrame::~OptionsFrame()
 	for (int i = 0; i < OPT_MAX_ROWS; i++)
 	{
 		delete ROWS[i].textBox;
+		delete ROWS[i].rlabelBox;
 		delete ROWS[i].valueBox;
 		menu::Cursor::getInstance().removeComponent(this, ROWS[i].button);
 		delete ROWS[i].button;
+		for (int c = 0; c < OPT_MAX_CHOICES; c++)
+		{
+			menu::Cursor::getInstance().removeComponent(this, ROWS[i].choice[c]);
+			delete ROWS[i].choice[c];
+		}
 	}
+	for (int i = 0; i < OPT_MAX_HELP; i++)
+		delete helpBox[i];
 	menu::Cursor::getInstance().removeComponent(this, backButton);
 	delete backButton;
 }
@@ -387,41 +542,87 @@ void OptionsFrame::activateSubmenu(int submenu)
 
 	for (int i = 0; i < OPT_MAX_ROWS; i++)
 	{
-		bool used = (i < n);
-		bool cycles = used && pageRow(i)->kind == OPT_CYCLE;
+		bool used   = (i < n);
+		int  kind   = used ? pageRow(i)->kind : OPT_INFO;
+		bool cycles = used && kind == OPT_CYCLE;
+		bool radio  = used && kind == OPT_RADIO;
+		int  nc     = radio ? rowChoices(pageRow(i)) : 0;
+
 		if (used) {
 			ROWS[i].labelString = (char*)pageRow(i)->label;
-			refreshRow(i);
+			for (int c = 0; c < nc; c++)
+				ROWS[i].choiceString[c] = (char*)pageRow(i)->names[c];
 		}
-		ROWS[i].textBox->setVisible(used);
+		/* A radio row needs the full width, so its label sits further left. Both boxes read
+		 * the same string; exactly one of them is shown. */
+		ROWS[i].textBox->setVisible(used && !radio);
+		ROWS[i].rlabelBox->setVisible(radio);
 		/* A setting is a button you press; a readout is plain text in the same column. */
 		ROWS[i].button->setVisible(cycles);
 		ROWS[i].button->setActive(cycles);
-		ROWS[i].valueBox->setVisible(used && !cycles);
+		ROWS[i].valueBox->setVisible(used && kind == OPT_INFO);
+		for (int c = 0; c < OPT_MAX_CHOICES; c++)
+		{
+			bool on = radio && c < nc;
+			ROWS[i].choice[c]->setVisible(on);
+			ROWS[i].choice[c]->setActive(on);
+			if (!on) ROWS[i].choice[c]->setSelected(false);
+		}
+		if (used) refreshRow(i);
 	}
 
-	/* Focus runs down the rows that can be pressed, and wraps. A page of readouts has
-	 * none, and B is the only way out, which is what the back function is for. */
-	menu::Button *first = NULL, *prev = NULL;
+	/* Focus runs down the rows that can be pressed, and wraps; left and right step through
+	 * a radio row's choices. A page of readouts has nothing focusable, and B is the only
+	 * way out, which is what the back function is for. */
+	int firstRow = -1, prevRow = -1;
 	for (int i = 0; i < n; i++)
 	{
-		if (pageRow(i)->kind != OPT_CYCLE) continue;
-		if (!first) first = ROWS[i].button;
-		if (prev) {
-			prev->setNextFocus(menu::Focus::DIRECTION_DOWN, ROWS[i].button);
-			ROWS[i].button->setNextFocus(menu::Focus::DIRECTION_UP, prev);
+		if (!rowIsFocusable(i)) continue;
+		if (firstRow < 0) firstRow = i;
+		if (pageRow(i)->kind == OPT_RADIO)
+		{
+			int nc = rowChoices(pageRow(i));
+			for (int c = 0; c < nc; c++)
+			{
+				ROWS[i].choice[c]->setNextFocus(menu::Focus::DIRECTION_LEFT,  ROWS[i].choice[(c + nc - 1) % nc]);
+				ROWS[i].choice[c]->setNextFocus(menu::Focus::DIRECTION_RIGHT, ROWS[i].choice[(c + 1) % nc]);
+			}
 		}
-		prev = ROWS[i].button;
+		if (prevRow >= 0)
+		{
+			int ncPrev = pageRow(prevRow)->kind == OPT_RADIO ? rowChoices(pageRow(prevRow)) : 1;
+			int ncThis = pageRow(i)->kind      == OPT_RADIO ? rowChoices(pageRow(i))      : 1;
+			for (int c = 0; c < ncPrev; c++)
+				focusTarget(prevRow, c)->setNextFocus(menu::Focus::DIRECTION_DOWN, focusTarget(i, c));
+			for (int c = 0; c < ncThis; c++)
+				focusTarget(i, c)->setNextFocus(menu::Focus::DIRECTION_UP, focusTarget(prevRow, c));
+		}
+		prevRow = i;
 	}
-	if (first && prev) {
-		prev->setNextFocus(menu::Focus::DIRECTION_DOWN, first);
-		first->setNextFocus(menu::Focus::DIRECTION_UP, prev);
+	/* Also when there is only one focusable row: it then links to itself, which is what stops
+	 * Up/Down following a link left over from the page shown before. */
+	if (firstRow >= 0)
+	{
+		int ncLast  = pageRow(prevRow)->kind  == OPT_RADIO ? rowChoices(pageRow(prevRow))  : 1;
+		int ncFirst = pageRow(firstRow)->kind == OPT_RADIO ? rowChoices(pageRow(firstRow)) : 1;
+		for (int c = 0; c < ncLast; c++)
+			focusTarget(prevRow, c)->setNextFocus(menu::Focus::DIRECTION_DOWN, focusTarget(firstRow, c));
+		for (int c = 0; c < ncFirst; c++)
+			focusTarget(firstRow, c)->setNextFocus(menu::Focus::DIRECTION_UP, focusTarget(prevRow, c));
+	}
+
+	/* Help text under the rows, if the page has any. */
+	for (int i = 0; i < OPT_MAX_HELP; i++)
+	{
+		bool on = i < PAGES[currentPage].nhelp;
+		helpString[i] = on ? (char*)PAGES[currentPage].help[i] : helpEmpty;
+		helpBox[i]->setVisible(on);
 	}
 
 	/* Only a readout page needs the Back button; elsewhere B is the way out. */
-	backButton->setVisible(first == NULL);
-	backButton->setActive(first == NULL);
-	setDefaultFocus(first ? first : backButton);
+	backButton->setVisible(firstRow < 0);
+	backButton->setActive(firstRow < 0);
+	setDefaultFocus(firstRow >= 0 ? focusTarget(firstRow, 0) : backButton);
 }
 
 /* Readouts are live: the emulator is not running while this page is open, so re-reading a

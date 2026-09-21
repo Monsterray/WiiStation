@@ -171,11 +171,14 @@ void setSpuTempo(int soundTempo);
 
 /*
 General Tab:
-Select CPU Core: Interpreter; Dynarec
-Select Bios: HLE; SD; USB
-Boot Games Through Bios: Yes; No
-Execute Bios
-Save settings: SD; USB
+Plugins; Storage; Memory       (one row of sub-pages, OptionsFrame.cpp; the CPU core and
+	GPU plugin moved to Plugins and the CD settings to Storage, so buttons 5/6/58 and
+	64/65/66 are still in the table below but are never shown)
+Select Bios: HLE; SD; USB; DVD
+Boot Games Through Bios: Yes; No + Execute Bios
+Select language
+Fast Load: Yes; No
+Save settings: SD; USB; Separately   (kept on the bottom row)
 
 Video Tab:
 Show FPS: Yes; No
@@ -368,16 +371,16 @@ struct ButtonInfo
 	//Buttons for General Tab (starts at button[5])
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[10],	215.0,	100.0,	140.0,	56.0,	 0,	 7,	 58, 6,	Func_CpuInterp,			Func_ReturnFromSettingsFrame }, // CPU: Interp
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[69],	365.0,	100.0,	130.0,	56.0,	 0,	 9,	 5,	 58,Func_CpuLightrec,		Func_ReturnFromSettingsFrame }, // CPU: Lightrec
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[12],	295.0,	220.0,	 70.0,	56.0,	73,	11,	10,	 8,	Func_BiosSelectHLE,		Func_ReturnFromSettingsFrame }, // Bios: HLE
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[13],	375.0,	220.0,	 55.0,	56.0,	73,	12,	 7,	 9,	Func_BiosSelectSD,		Func_ReturnFromSettingsFrame }, // Bios: SD
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[14],	440.0,	220.0,	 70.0,	56.0,	74,	12,	 8,	10,	Func_BiosSelectUSB,		Func_ReturnFromSettingsFrame }, // Bios: USB
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[15],	520.0,	220.0,	 70.0,	56.0,	75,	12,	 9,	 7,	Func_BiosSelectDVD,		Func_ReturnFromSettingsFrame }, // Bios: DVD
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[16],	295.0,	280.0,	 75.0,	56.0,	 7,	54,	13,	12,	Func_BootBiosYes,		Func_ReturnFromSettingsFrame }, // Boot Thru Bios: Yes
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[17],	380.0,	280.0,	 75.0,	56.0,	 8,	54,	11,	13,	Func_BootBiosNo,		Func_ReturnFromSettingsFrame }, // Boot Thru Bios: No
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[8],	465.0,	280.0,	180.0,	56.0,	9,	54,	12,	11,	Func_ExecuteBios,		Func_ReturnFromSettingsFrame }, // Execute Bios
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[12],	295.0,	160.0,	 70.0,	56.0,	73,	11,	10,	 8,	Func_BiosSelectHLE,		Func_ReturnFromSettingsFrame }, // Bios: HLE
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[13],	375.0,	160.0,	 55.0,	56.0,	73,	11,	 7,	 9,	Func_BiosSelectSD,		Func_ReturnFromSettingsFrame }, // Bios: SD
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[14],	440.0,	160.0,	 70.0,	56.0,	74,	12,	 8,	10,	Func_BiosSelectUSB,		Func_ReturnFromSettingsFrame }, // Bios: USB
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[15],	520.0,	160.0,	 70.0,	56.0,	75,	12,	 9,	 7,	Func_BiosSelectDVD,		Func_ReturnFromSettingsFrame }, // Bios: DVD
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[16],	295.0,	220.0,	 75.0,	56.0,	 7,	54,	13,	12,	Func_BootBiosYes,		Func_ReturnFromSettingsFrame }, // Boot Thru Bios: Yes
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[17],	380.0,	220.0,	 75.0,	56.0,	 8,	54,	11,	13,	Func_BootBiosNo,		Func_ReturnFromSettingsFrame }, // Boot Thru Bios: No
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[8],	465.0,	220.0,	180.0,	56.0,	9,	54,	12,	11,	Func_ExecuteBios,		Func_ReturnFromSettingsFrame }, // Execute Bios
 
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[13],	235.0,	400.0,	 55.0,	56.0,	54,	 0,	62,	15,	Func_SaveSettingsSD,	Func_ReturnFromSettingsFrame }, // Save Settings: SD
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[14],	300.0,	400.0,	 70.0,	56.0,	54,	 0,	14,	62,	Func_SaveSettingsUSB,	Func_ReturnFromSettingsFrame }, // Save Settings: USB
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[13],	235.0,	400.0,	 55.0,	56.0,	55,	 0,	62,	15,	Func_SaveSettingsSD,	Func_ReturnFromSettingsFrame }, // Save Settings: SD
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[14],	300.0,	400.0,	 70.0,	56.0,	55,	 0,	14,	62,	Func_SaveSettingsUSB,	Func_ReturnFromSettingsFrame }, // Save Settings: USB
 
 	//Buttons for Video Tab (starts at button[16])
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[24],	200.0,	100.0,	 75.0,	56.0,	 1,	18,	17,	17,	Func_ShowFpsOn,			Func_ReturnFromSettingsFrame }, // Show FPS: On
@@ -421,10 +424,10 @@ struct ButtonInfo
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[17],	380.0,	170.0,	 75.0,	56.0,	47,	53,	50,	50,	Func_AutoSaveNo,		Func_ReturnFromSettingsFrame }, // Auto Save Memcards: No
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[13],	295.0,	240.0,	 55.0,	56.0,	50,	60,	53,	53,	Func_SaveStateSD,		Func_ReturnFromSettingsFrame }, // Save State: SD
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[14],	360.0,	240.0,	 70.0,	56.0,	51,	60,	52,	52,	Func_SaveStateUSB,		Func_ReturnFromSettingsFrame }, // Save State: USB
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[57],	235.0,	340.0,	 90.0,	56.0,	 11,55,	56,	55,	Func_SelectLanguage,	Func_ReturnFromSettingsFrame }, // Select Language: En
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[57],	295.0,	280.0,	 90.0,	56.0,	 11,55,	-1,	-1,	Func_SelectLanguage,	Func_ReturnFromSettingsFrame }, // Select Language: En
     //Buttons for Saves Tab (starts at button[55]) ..was[61]
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[16],	490.0,	340.0,	 75.0,	56.0,	12,	15,	54,	56,	Func_FastloadYes,		Func_ReturnFromSettingsFrame }, // Fast load: Yes
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[17],	570.0,	340.0,	 75.0,	56.0,	13,	15,	55,	54,	Func_FastloadNo,		Func_ReturnFromSettingsFrame }, // Fast load: No
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[16],	295.0,	340.0,	 75.0,	56.0,	54,	14,	56,	56,	Func_FastloadYes,		Func_ReturnFromSettingsFrame }, // Fast load: Yes
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[17],	380.0,	340.0,	 75.0,	56.0,	54,	14,	55,	55,	Func_FastloadNo,		Func_ReturnFromSettingsFrame }, // Fast load: No
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[64],	510.0,	280.0,	 75.0,	56.0,	21,	27,	23,	22,	Func_Screen240p,		Func_ReturnFromSettingsFrame },  // ScreenMode: 240p
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[11],	505.0,	100.0,	130.0,	56.0,	 0,	 9,	 6,	 5,	Func_CpuDynarec,		Func_ReturnFromSettingsFrame },  // CPU: Dynarec
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[70],	510.0,	170.0,	115.0,	56.0,	31,	35,	33,	32,	Func_PsxTypeLightgun,	Func_ReturnFromSettingsFrame },  // PSX Controller Type: Lightgun
@@ -432,7 +435,7 @@ struct ButtonInfo
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[75],	460.0,	310.0,	155.0,	56.0,	53,	4,	60,	60,	Func_Memcard2,			Func_ReturnFromSettingsFrame },  // Memcard 2 toggle
 
 	//Buttons for ... (starts at button[62]) ..was[65]
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[77],	385.0,	400.0,	 140.0,	56.0,	54,	 0,	15,	14,	Func_SaveSettingsSeparately,	Func_ReturnFromSettingsFrame }, // Save Settings: Separately
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[77],	385.0,	400.0,	 140.0,	56.0,	56,	 0,	15,	14,	Func_SaveSettingsSeparately,	Func_ReturnFromSettingsFrame }, // Save Settings: Separately
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[78],	390.0,	160.0,	160.0,	56.0,	17,	21,	19,	18,	Func_ForceNTSC,			Func_ReturnFromSettingsFrame },  // Force NTSC toggle
 
 	{	NULL,	BTN_A_SEL,	GPU_PLUGIN_STRINGS[1],	215.0,	160.0,	140.0,	56.0,	 5,	 7,	 66, 65,Func_UseOldSoftGpu,		Func_ReturnFromSettingsFrame }, // GpuPlugin: Old Soft
@@ -452,9 +455,9 @@ struct ButtonInfo
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[83],	275.0,	380.0,	125.0,	56.0,	69,	 3,	-1,	-1,	Func_AdvancedSound,		Func_ReturnFromSettingsFrame }, // Advanced: opens the Advanced Sound page
 	//General tab: one row of sub-pages. The CPU core and GPU plugin moved to Plugins and the
 	//CD settings to Storage; buttons 5/6/58 and 64/65/66 stay in this table but are not shown.
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[84],	150.0,	100.0,	150.0,	56.0,	14,	 7,	75,	74,	Func_PluginsPage,		Func_ReturnFromSettingsFrame }, // Plugins page
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[85],	320.0,	100.0,	150.0,	56.0,	14,	 7,	73,	75,	Func_StoragePage,		Func_ReturnFromSettingsFrame }, // Storage page
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[86],	490.0,	100.0,	150.0,	56.0,	14,	 7,	74,	73,	Func_MemoryPage,		Func_ReturnFromSettingsFrame }, // Memory page
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[84],	100.0,	100.0,	130.0,	56.0,	14,	 7,	75,	74,	Func_PluginsPage,		Func_ReturnFromSettingsFrame }, // Plugins page
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[85],	255.0,	100.0,	130.0,	56.0,	14,	 8,	73,	75,	Func_StoragePage,		Func_ReturnFromSettingsFrame }, // Storage page
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[86],	410.0,	100.0,	130.0,	56.0,	14,	 9,	74,	73,	Func_MemoryPage,		Func_ReturnFromSettingsFrame }, // Memory page
 };
 
 struct TextBoxInfo
@@ -469,8 +472,8 @@ struct TextBoxInfo
 { //	textBox	textBoxString		x		y		scale	centered
 	//TextBoxes for General Tab (starts at textBox[0])
 	{	NULL,	FRAME_STRINGS[5],	105.0,	128.0,	 1.0,	true }, // CPU Core: Pure Interp/Dynarec
-	{	NULL,	FRAME_STRINGS[6],	115.0,	248.0,	 1.0,	true }, // Bios: HLE/SD/USB/DVD
-	{	NULL,	FRAME_STRINGS[7],	115.0,	308.0,	 1.0,	true }, // Boot Thru Bios: Yes/No
+	{	NULL,	FRAME_STRINGS[6],	115.0,	188.0,	 1.0,	true }, // Bios: HLE/SD/USB/DVD
+	{	NULL,	FRAME_STRINGS[7],	115.0,	248.0,	 1.0,	true }, // Boot Thru Bios: Yes/No
 	{	NULL,	FRAME_STRINGS[9],	110.0,	428.0,	 1.0,	true }, // Save settings: SD/USB
 	//TextBoxes for Video Tab (starts at textBox[4])
 	{	NULL,	FRAME_STRINGS[18],	110.0,	128.0,	 1.0,	true }, // Show FPS: On/Off
@@ -493,8 +496,8 @@ struct TextBoxInfo
 	{	NULL,	FRAME_STRINGS[51],	150.0,	128.0,	 1.0,	true }, // Memcard Save Device: SD/USB/CardA/CardB
 	{	NULL,	FRAME_STRINGS[52],	150.0,	198.0,	 1.0,	true }, // Auto Save Memcards: Yes/No
 	{	NULL,	FRAME_STRINGS[53],	150.0,	268.0,	 1.0,	true }, // Save State Device: SD/USB
-	{	NULL,	FRAME_STRINGS[56],	110.0,	368.0,	 1.0,	true }, // Select language: En, Chs, ......
-	{	NULL,	FRAME_STRINGS[63],	405.0,	368.0,	 1.0,	true }, // Fast load
+	{	NULL,	FRAME_STRINGS[56],	115.0,	308.0,	 1.0,	true }, // Select language: En, Chs, ......
+	{	NULL,	FRAME_STRINGS[63],	115.0,	368.0,	 1.0,	true }, // Fast load
 	{	NULL,	FRAME_STRINGS[76],	150.0,	338.0,	 1.0,	true }, // Memcard enable
     //TextBoxes for Saves Tab (starts at textBox[24]) ..was[24]
 	{	NULL,	GPU_PLUGIN_STRINGS[0],	110.0,	188.0,	 1.0,	true }, // GPU Plugin: Old Soft/New Soft/OpenGX
