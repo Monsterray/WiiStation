@@ -96,7 +96,30 @@ pad path intact
 Every one of the 193 raw stick steps produced a different value at the other end: no part
 of the travel does nothing.
 
-## 3. Things that did not work, so nobody tries them again
+## 3. A test disc to look at
+
+The trace says what the emulator handed the game. A PlayStation program written to display
+the pad says what a program actually receives, on screen, which is the check a person can
+make in two seconds. Two exist and both run in WiiStation:
+
+**PadTest 1.1** by Shendo and ggrtk -- https://github.com/ShendoXT/padtest, a bin/cue in
+the release zip. **This is the one to use.** It shows both ports side by side, whether each
+is in digital or analog mode, every button, and each stick twice over: as a crosshair in a
+circle and as numbers. Running it with `padsweep` gives a frame dump in which the crosshair
+walks the circle and the numbers run the range, which is the whole path confirmed by eye.
+Its README says it uses direct SIO access and "may not work on emulators" -- it works here,
+because that SIO protocol is exactly what `SSS_PADpoll` implements.
+
+**PSXTEST 2.3** by Haunted360 -- a general console tester (three songs for the speakers, a
+dead-pixel checker, a pad tester). It runs too, and the trace under it is identical, but its
+pad display is one line of digital button names on a menu screen with no analog readout, so
+it says much less. `psxdev.net` no longer serves it; the Wayback Machine does, at
+`web.archive.org/web/2018/http://psxdev.net/homebrew/files/psxtest.zip`.
+
+Neither is in this repository -- they are third-party binaries. Put the bin/cue in
+`wiisxrx/isos/<name>/` on the SD card and point an autoboot file at it.
+
+## 4. Things that did not work, so nobody tries them again
 
 **Dolphin input movies (.dtm).** The obvious way to script a pad is to hand Dolphin a
 movie with `-m`. `scripts/padtest.py make` still writes one, and it is well formed -- it
@@ -112,7 +135,7 @@ would be the better tool if a Dolphin build is found where playback works -- it 
 way to test the path *above* the driver, including whether libogc's own SI handling is
 right.
 
-## 4. What neither tool covers
+## 5. What neither tool covers
 
 - **Two controller families at once.** The bug that motivated much of this -- one
   `wpadNeedScan` flag guarding three different hardware polls, so whichever driver ran

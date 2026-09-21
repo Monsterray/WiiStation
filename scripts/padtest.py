@@ -89,6 +89,13 @@ def make(path, start, hold, least):
 
 def check(path):
     rows = list(csv.DictReader(open(path)))
+    # A run killed mid-write leaves the last line half flushed in the SD image; drop any
+    # row that is short rather than failing on it.
+    whole = [r for r in rows if all(v is not None and v != "" for v in r.values())]
+    if len(whole) != len(rows):
+        print("note: dropped %d truncated row(s) at the end of the trace"
+              % (len(rows) - len(whole)))
+    rows = whole
     if not rows:
         print("empty trace: did a game actually poll the pad?")
         return 1
