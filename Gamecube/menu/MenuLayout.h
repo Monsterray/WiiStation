@@ -42,7 +42,11 @@
 
 /* The spinning logo's corner. It is drawn last, over whatever a frame put there, so this
  * much of the bottom right belongs to it. Moving the logo means moving these two numbers
- * and re-running scripts/menu_text_width.py, which will say what no longer fits. */
+ * and re-running scripts/menu_text_width.py, which will say what no longer fits.
+ *
+ * Measured from a screenshot: the logo is about 60 wide and 90 tall and turns, so it
+ * sweeps a little more than that, and Gui.cpp places its middle at (578, 428). Until
+ * 2026-09-21 it sat at (570, 70) and was drawn across the Saves tab. */
 #define MENU_LOGO_W		120.0
 #define MENU_LOGO_H		110.0
 #define MENU_LOGO_X		(MENU_W - MENU_LOGO_W)

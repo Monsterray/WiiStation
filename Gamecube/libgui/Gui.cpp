@@ -48,7 +48,9 @@ Gui::Gui()
 	: fade(9)
 {
 	menuLogo = new Logo();
-	menuLogo->setLocation(570.0, 70.0, -150.0);
+	/* The bottom right corner, which MenuLayout.h reserves for it. It used to sit at
+	 * (570, 70), on top of the Saves tab. x and y are the middle of the logo. */
+	menuLogo->setLocation(578.0, 428.0, -150.0);
 	menuLogo->setVisible(true);
 }
 

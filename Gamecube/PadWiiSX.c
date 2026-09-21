@@ -57,6 +57,12 @@ unsigned autoinput_dump_vbl = 0;   /* "dump <vblank>": debug build writes sd:/wi
  * the real PSX packing with input nobody has to hold, on hardware as well as in Dolphin
  * (scripts/padtest.py checks what comes out). 0 means no sweep. */
 unsigned autoinput_padsweep_vbl = 0;
+/* "menupage <n>": open one Settings tab or Options page a few frames after the menu comes
+ * up, so an unattended run can photograph it. Nothing else can -- the menu reads the pads
+ * directly rather than through the controller drivers, so padsweep cannot drive it.
+ * 1..5 are the Settings tabs in order, 6..9 the Options pages. 0 leaves the menu alone.
+ * Read in MenuContext.cpp. */
+unsigned autoinput_menupage = 0;
 unsigned autoinput_atrace_vbl = 0; /* "atrace <vblank>": debug build starts the audio timeline (perf_prof.c) */
 /* Parse the script once. Called from the pad plugin's open (so the trace and
  * dump schedules exist even before the first pad poll, e.g. in the BIOS
@@ -73,6 +79,7 @@ void autoinput_load(void)
 			unsigned v, k;
 			if (sscanf(line, "dump %u", &v) == 1) { autoinput_dump_vbl = v; continue; }
 			if (sscanf(line, "padsweep %u", &v) == 1) { autoinput_padsweep_vbl = v; continue; }
+			if (sscanf(line, "menupage %u", &v) == 1) { autoinput_menupage = v; continue; }
 			if (sscanf(line, "atrace %u", &v) == 1) { autoinput_atrace_vbl = v; continue; }
 			if (sscanf(line, "trace %u", &v) == 1) { if (autoinput_trace_n < 8) autoinput_trace_vbl[autoinput_trace_n++] = v; continue; }
 			if (line[0] == '#' || sscanf(line, "%u %x", &v, &k) != 2) continue;

@@ -309,6 +309,29 @@ controller does nothing while it runs. A debug build writes what came out to
 `sd:/wiisxrx/padtrace.csv`; `scripts/padtest.py check` reads it. See
 `Docs/CONTROLLER_TESTING.md`.
 
+### 11.2 Opening a menu page for a screenshot
+
+```
+menupage 2
+```
+
+Half a second after the menu appears, WiiStation opens the page named and stays there.
+It is the only way an unattended run can photograph a menu: the menu reads the controllers
+directly rather than through the drivers, so `padsweep` cannot drive it and the scripted
+presses above only reach a running game.
+
+| Value | Page | Value | Page |
+|---|---|---|---|
+| 1 | Settings, General | 6 | Advanced Sound |
+| 2 | Settings, Video | 7 | Plugins |
+| 3 | Settings, Input | 8 | Storage |
+| 4 | Settings, Audio | 9 | Memory |
+| 5 | Settings, Saves | | |
+
+Use it with no `autoboot.txt`, so the run stays in the menu, and collect the frames the
+run dumps. `scripts/menu_text_width.py` checks the same pages' geometry without booting
+anything, which is faster but is not the same as looking.
+
 ## 12. Known differences between the code and the menu
 
 - `BiosDevice`, `BilinearFilter`, `TrapFilter`, `Interlaced`, `DeflickerFilter`, and `LightGun` get their default from the variable initialiser. The function `loadSettings()` does not set them.

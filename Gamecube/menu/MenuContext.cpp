@@ -83,10 +83,32 @@ MenuContext::~MenuContext()
 	pMenuContext = NULL;
 }
 
+/* sd:/wiisxrx/autoinput.txt's "menupage <n>": see PadWiiSX.c, where it is parsed. */
+extern "C" {
+	void autoinput_load(void);
+	extern unsigned autoinput_menupage;
+}
+
 bool MenuContext::isRunning()
 {
 	bool isRunning = true;
 //	printf("MenuContext isRunning\n");
+
+	/* A few frames in, so that the menu has drawn itself once and the video mode has
+	 * settled, open the page the script asked for -- then never again. */
+	{
+		static int framesUntilMenuPage = 30;
+		if (framesUntilMenuPage > 0 && --framesUntilMenuPage == 0) {
+			autoinput_load();
+			if (autoinput_menupage >= 1 && autoinput_menupage <= 5)
+				setActiveFrame(FRAME_SETTINGS,
+					SettingsFrame::SUBMENU_GENERAL + (int)autoinput_menupage - 1);
+			else if (autoinput_menupage >= 6 && autoinput_menupage <= 9)
+				setActiveFrame(FRAME_OPTIONS,
+					OptionsFrame::PAGE_SOUND + (int)autoinput_menupage - 6);
+		}
+	}
+
 	draw();
 
 /*	PADStatus* gcPad = menu::Input::getInstance().getPad();
