@@ -142,19 +142,35 @@ void unassign_controller(int wv){
 	virtualControllers[wv].number  = -1;
 }
 
+/* Fill the PlayStation's ports from whatever is plugged into the Wii.
+ *
+ * A port the user set to Multitap has four slots rather than one, and keeps that type:
+ * this used to overwrite padType[] with the driver's own type, so a multitap worked only
+ * with the assignment set to Manual. The ten virtual controllers are port 1, port 2, then
+ * multitap 1 slots A to D, then multitap 2 slots A to D (SETTINGS.md section 6.1). */
 void auto_assign_controllers(void)
 {
-	//TODO: Map 5 or 8 controllers if multitaps are used.
 	int i,t,w;
+	int slots[10], nslots = 0;
 	int num_assigned[num_controller_t];
 
 //	init_controller_ts();
 
 	memset(num_assigned, 0, sizeof(num_assigned));
 
+	for(i=0; i<2; ++i){
+		if(padType[i] == PADTYPE_MULTITAP){
+			int s;
+			for(s=0; s<4; ++s)
+				slots[nslots++] = 2 + i * 4 + s;
+		} else
+			slots[nslots++] = i;
+	}
+
 	// Map controllers in the priority given
 	// Outer loop: virtual controllers
-	for(i=0; i<2; ++i){
+	for(i=0; i<nslots; ++i){
+		int v = slots[i];
 		// Middle loop: controller type
 		for(t=0; t<num_controller_t; ++t){
 			controller_t* type = controller_ts[t];
@@ -165,21 +181,20 @@ void auto_assign_controllers(void)
 			// If we've exhausted this type, move on
 			if(w == 4) continue;
 
-			assign_controller(i, type, w);
-			//padType[i] = type == &controller_GC ? PADTYPE_GAMECUBE : PADTYPE_WII;
+			assign_controller(v, type, w);
 			if (type == &controller_GC)
 			{
-				padType[i] = PADTYPE_GAMECUBE;
+				padType[v] = PADTYPE_GAMECUBE;
 			}
 			else if (type == &controller_HidGC)
 			{
-				padType[i] = PADTYPE_HID;
+				padType[v] = PADTYPE_HID;
 			}
 			else
 			{
-				padType[i] = PADTYPE_WII;
+				padType[v] = PADTYPE_WII;
 			}
-			padAssign[i] = w;
+			padAssign[v] = w;
 
 			// Don't assign the next type over this one or the same controller
 			++num_assigned[t];
@@ -190,9 +205,9 @@ void auto_assign_controllers(void)
 	}
 
 	// 'Initialize' the unmapped virtual controllers
-	for(; i<2; ++i){
-		unassign_controller(i);
-		padType[i] = PADTYPE_NONE;
+	for(; i<nslots; ++i){
+		unassign_controller(slots[i]);
+		padType[slots[i]] = PADTYPE_NONE;
 	}
 }
 
@@ -323,56 +338,3 @@ long PAD__open(void)
 long PAD__close(void) {
 	return PSE_PAD_ERR_SUCCESS;
 }
-/*
-long PAD__readPort1(PadDataS* pad) {
-	//TODO: Multitap support; Light Gun support
-
-	if( virtualControllers[0].inUse && DO_CONTROL(0, GetKeys, (BUTTONS*)&PAD_1) ) {
-		stop = 1;
-	}
-
-	if(controllerType == CONTROLLERTYPE_STANDARD) {
-		pad->controllerType = PSE_PAD_TYPE_STANDARD; 	// Standard Pad
-	}
-	else if(controllerType == CONTROLLERTYPE_ANALOG) {
-		pad->controllerType = PSE_PAD_TYPE_ANALOGPAD; 	// Analog Pad  (Right JoyStick)
-		pad->leftJoyX  = PAD_1.leftStickX;
-		pad->leftJoyY  = PAD_1.leftStickY;
-		pad->rightJoyX = PAD_1.rightStickX;
-		pad->rightJoyY = PAD_1.rightStickY;
-	}
-	else { 
-		//TODO: Light Gun
-	}
-
-	pad->buttonStatus = PAD_1.btns.All;  //set the buttons
-
-	return PSE_PAD_ERR_SUCCESS;
-}
-
-long PAD__readPort2(PadDataS* pad) {
-	//TODO: Multitap support; Light Gun support
-
-	if( virtualControllers[1].inUse && DO_CONTROL(1, GetKeys, (BUTTONS*)&PAD_2) ) {
-		stop = 1;
-	}
-
-	if(controllerType == CONTROLLERTYPE_STANDARD) {
-		pad->controllerType = PSE_PAD_TYPE_STANDARD; 	// Standard Pad
-	}
-	else if(controllerType == CONTROLLERTYPE_ANALOG) {
-		pad->controllerType = PSE_PAD_TYPE_ANALOGPAD; 	// Analog Pad  (Right JoyStick)
-		pad->leftJoyX  = PAD_2.leftStickX;
-		pad->leftJoyY  = PAD_2.leftStickY;
-		pad->rightJoyX = PAD_2.rightStickX;
-		pad->rightJoyY = PAD_2.rightStickY;
-	}
-	else { 
-		//TODO: Light Gun
-	}
-
-	pad->buttonStatus = PAD_2.btns.All;  //set the buttons
-
-	return PSE_PAD_ERR_SUCCESS;
-}
-*/

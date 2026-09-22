@@ -12,6 +12,7 @@
 #include <ogc/lwp_watchdog.h>
 
 #include "perf_prof.h"
+#include "gc_input/controller.h"   /* the ports report below */
 #include "../mem2_manager.h"
 
 /* Diagnostic-only; declared here rather than in mem2_manager.h so the
@@ -598,6 +599,24 @@ void perf_report(void)
 			fprintf(f, "mdec: blocks=%lu dconly=%lu rl_us=%llu yuv_us=%llu\n",
 				(unsigned long)g_perf.mdec_blocks, (unsigned long)g_perf.mdec_dconly,
 				g_perf.mdec_rl_us, g_perf.mdec_yuv_us);
+		{
+			/* What each PlayStation port ended up as, and which physical controllers the
+			 * drivers found. Without this an assignment can only be judged from whether a
+			 * game happens to poll a port. */
+			extern char padType[10], padAssign[10];
+			int p;
+			fprintf(f, "ports:");
+			for (p = 0; p < 10; p++)
+				fprintf(f, " %d:%d/%d", p, padType[p], padAssign[p]);
+			fprintf(f, " | avail");
+			for (p = 0; p < num_controller_t; p++) {
+				const controller_t *c = controller_ts[p];
+				fprintf(f, " %c=%d%d%d%d", c->identifier,
+					c->available[0], c->available[1],
+					c->available[2], c->available[3]);
+			}
+			fprintf(f, "\n");
+		}
 		fprintf(f, "menu: frames=%lu menu_us=%llu strings=%lu glyphs=%lu texloads=%lu\n",
 			(unsigned long)g_perf.menu_frames, g_perf.menu_us,
 			(unsigned long)g_perf.menu_strings, (unsigned long)g_perf.menu_glyphs,
