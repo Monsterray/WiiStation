@@ -634,9 +634,25 @@ static void lightrec_plugin_execute_internal(bool block_only)
 		u32 hlec = op & 0x03ffffff;
 		if ((op >> 26) == 0x3b && hlec < ARRAY_SIZE(psxHLEt) && Config.HLE) {
 			PERF_INC(jit_hle);
+#if PERF_PROF_BIOS
+			{
+				unsigned long long t0 = perf_now_us();
+#endif
 			lightrec_plugin_sync_regs_to_pcsx(0);
 			psxHLEt[hlec]();
 			lightrec_plugin_sync_regs_from_pcsx(0);
+#if PERF_PROF_BIOS
+				unsigned long long dt = perf_now_us() - t0;
+				PERF_ADD(bios_us, dt);
+				/* 1,2,3 are hleA0/B0/C0 and 24,25,26 their trap forms; everything
+				 * else on this table is an exception or boot hook. */
+				if (!(hlec == 1 || hlec == 2 || hlec == 3 ||
+				      hlec == 24 || hlec == 25 || hlec == 26)) {
+					PERF_ADD(bios_exc_us, dt);
+					PERF_INC(bios_exc_calls);
+				}
+			}
+#endif
 		}
 		else {
 			PERF_INC(jit_exceptions);

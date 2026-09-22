@@ -40,6 +40,54 @@ unsigned long long perf_now_ticks(void)
 	return gettime();
 }
 
+#if PERF_PROF_BIOS
+/* The busiest HLE BIOS calls, by name. A game that uses none prints nothing. */
+extern char *biosA0n[256], *biosB0n[256], *biosC0n[256];
+
+static void perf_report_bios(FILE *f)
+{
+	struct { const char *tab; unsigned n; unsigned long c; } top[10], t;
+	const uint32_t *counts[3] = { g_perf.bios_a, g_perf.bios_b, g_perf.bios_c };
+	char *const *names[3] = { biosA0n, biosB0n, biosC0n };
+	static const char tabs[3] = { 'A', 'B', 'C' };
+	unsigned long total = 0;
+	int ntop = 0, i, j, k;
+
+	memset(top, 0, sizeof(top));
+	for (i = 0; i < 3; i++) {
+		for (j = 0; j < 256; j++) {
+			if (!counts[i][j])
+				continue;
+			total += counts[i][j];
+			/* keep the ten biggest, insertion sorted: the list is tiny */
+			t.tab = &tabs[i]; t.n = j; t.c = counts[i][j];
+			for (k = 0; k < ntop && top[k].c >= t.c; k++)
+				;
+			if (k >= 10)
+				continue;
+			if (ntop < 10)
+				ntop++;
+			for (int m = ntop - 1; m > k; m--)
+				top[m] = top[m - 1];
+			top[k] = t;
+		}
+	}
+	if (!total)
+		return;
+
+	fprintf(f, "bios: calls=%lu custom=%lu us=%llu exc=%lu exc_us=%llu |", total,
+		(unsigned long)g_perf.bios_custom, g_perf.bios_us,
+		(unsigned long)g_perf.bios_exc_calls, g_perf.bios_exc_us);
+	for (i = 0; i < ntop; i++) {
+		int tab = top[i].tab - tabs;
+		const char *nm = names[tab][top[i].n];
+		fprintf(f, " %c%02x:%s=%lu", tabs[tab], top[i].n,
+			nm ? nm : "?", top[i].c);
+	}
+	fprintf(f, "\n");
+}
+#endif
+
 unsigned long long g_netwait_old_us, g_netwait_new_us;
 unsigned long g_netwait_old_wakes, g_netwait_new_wakes;
 
@@ -543,6 +591,9 @@ void perf_report(void)
 			fprintf(f, "netwait: old_us=%llu old_wakes=%lu new_us=%llu new_wakes=%lu\n",
 				g_netwait_old_us, g_netwait_old_wakes,
 				g_netwait_new_us, g_netwait_new_wakes);
+		#if PERF_PROF_BIOS
+		perf_report_bios(f);
+		#endif
 		fprintf(f, "menu: frames=%lu menu_us=%llu strings=%lu glyphs=%lu texloads=%lu\n",
 			(unsigned long)g_perf.menu_frames, g_perf.menu_us,
 			(unsigned long)g_perf.menu_strings, (unsigned long)g_perf.menu_glyphs,

@@ -105,7 +105,7 @@ void Func_ToggleAudio();
 void Func_ToggleXa();
 void Func_ToggleCdda();
 void Func_PluginsPage();
-void Func_StoragePage();
+void Func_CDPage();
 void Func_MemoryPage();
 void Func_SoundHwAccelYes();
 void Func_SoundHwAccelNo();
@@ -174,8 +174,8 @@ void setSpuTempo(int soundTempo);
 
 /*
 General Tab:
-Plugins; Storage; Memory       (one row of sub-pages, OptionsFrame.cpp; the CPU core and
-	GPU plugin moved to Plugins and the CD settings to Storage, so buttons 5/6/58 and
+Plugins; CD; Memory            (one row of sub-pages, OptionsFrame.cpp; the CPU core and
+	GPU plugin moved to Plugins and the CD settings to CD, so buttons 5/6/58 and
 	64/65/66 are still in the table below but are never shown)
 Select Bios: HLE; SD; USB; DVD
 Boot Games Through Bios: Yes; No + Execute Bios
@@ -310,7 +310,7 @@ static char FRAME_STRINGS[96][24] =
 	  "Rate",				// [82] Sync: playback-rate nudge at the output (SoundRateControl)
 	  "Advanced",			// [83] audio tab: the Advanced Sound page
 	  "Plugins",			// [84] general tab: the Plugins page
-	  "Storage",			// [85] general tab: the Storage page
+	  "CD",					// [85] general tab: the CD page
 	  "Memory",				// [86] general tab: the Memory page
 	  "Enable",				// [87] audio tab: label of the three source toggles
 	  "Audio",				// [88] Enable: the sound output as a whole
@@ -462,9 +462,9 @@ struct ButtonInfo
 	//Audio tab, Advanced (button 72): opens the Advanced Sound page (AdvancedSoundFrame.cpp)
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[83],	258.0,	380.0,	125.0,	56.0,	69,	 3,	-1,	-1,	Func_AdvancedSound,		Func_ReturnFromSettingsFrame }, // Advanced: opens the Advanced Sound page
 	//General tab: one row of sub-pages. The CPU core and GPU plugin moved to Plugins and the
-	//CD settings to Storage; buttons 5/6/58 and 64/65/66 stay in this table but are not shown.
+	//CD settings to the CD page; buttons 5/6/58 and 64/65/66 stay in this table but are not shown.
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[84],	100.0,	100.0,	130.0,	56.0,	14,	 7,	75,	74,	Func_PluginsPage,		Func_ReturnFromSettingsFrame }, // Plugins page
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[85],	255.0,	100.0,	130.0,	56.0,	14,	 8,	73,	75,	Func_StoragePage,		Func_ReturnFromSettingsFrame }, // Storage page
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[85],	255.0,	100.0,	130.0,	56.0,	14,	 8,	73,	75,	Func_CDPage,			Func_ReturnFromSettingsFrame }, // CD page
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[86],	410.0,	100.0,	130.0,	56.0,	14,	 9,	74,	73,	Func_MemoryPage,		Func_ReturnFromSettingsFrame }, // Memory page
 	//Saves tab: which file each memory card lives in (buttons 76 and 77)
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[94],	295.0,	170.0,	105.0,	56.0,	46,	50,	77,	77,	Func_CardType1,			Func_ReturnFromSettingsFrame }, // Memcard 1 type: Off/Shared/Game
@@ -609,7 +609,7 @@ void SettingsFrame::activateSubmenu(int submenu)
 			FRAME_BUTTONS[7+biosDevice].button->setSelected(true);
 			if (LoadCdBios == BOOTTHRUBIOS_YES)	FRAME_BUTTONS[11].button->setSelected(true);
 			else								FRAME_BUTTONS[12].button->setSelected(true);
-			/* Plugins / Storage / Memory, the one row at the top of this tab */
+			/* Plugins / CD / Memory, the one row at the top of this tab */
 			for (int i = 73; i <= 75; i++)
 			{
 				FRAME_BUTTONS[i].button->setVisible(true);
@@ -1525,7 +1525,7 @@ void Func_PluginsPage()
 	pMenuContext->setActiveFrame(MenuContext::FRAME_OPTIONS, OptionsFrame::PAGE_PLUGINS);
 }
 
-void Func_StoragePage()
+void Func_CDPage()
 {
 	pMenuContext->setActiveFrame(MenuContext::FRAME_OPTIONS, OptionsFrame::PAGE_STORAGE);
 }

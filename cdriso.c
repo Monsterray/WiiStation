@@ -1459,35 +1459,46 @@ fail_io_sub:
 	}
 }
 
+/* Kept between sectors: inflateInit2 allocates a 32 KB window and a reset costs nothing.
+ * At file scope so that ISOclose can give it back -- it used to be a function static, and
+ * so was held for the life of the process. */
+static z_stream z_inflate;
+
 static int uncompress2_pcsx(void *out, unsigned long *out_size, void *in, unsigned long in_size)
 {
-	static z_stream z;
+	z_stream *zp = &z_inflate;
 	int ret = 0;
 
-	if (z.zalloc == NULL) {
-		// XXX: one-time leak here..
-		z.next_in = Z_NULL;
-		z.avail_in = 0;
-		z.zalloc = Z_NULL;
-		z.zfree = Z_NULL;
-		z.opaque = Z_NULL;
-		ret = inflateInit2(&z, -15);
+	if (zp->zalloc == NULL) {
+		zp->next_in = Z_NULL;
+		zp->avail_in = 0;
+		zp->zalloc = Z_NULL;
+		zp->zfree = Z_NULL;
+		zp->opaque = Z_NULL;
+		ret = inflateInit2(zp, -15);
 	}
 	else
-		ret = inflateReset(&z);
+		ret = inflateReset(zp);
 	if (ret != Z_OK)
 		return ret;
 
-	z.next_in = in;
-	z.avail_in = in_size;
-	z.next_out = out;
-	z.avail_out = *out_size;
+	zp->next_in = in;
+	zp->avail_in = in_size;
+	zp->next_out = out;
+	zp->avail_out = *out_size;
 
-	ret = inflate(&z, Z_NO_FLUSH);
-	//inflateEnd(&z);
+	ret = inflate(zp, Z_NO_FLUSH);
 
-	*out_size -= z.avail_out;
+	*out_size -= zp->avail_out;
 	return ret == 1 ? 0 : ret;
+}
+
+static void uncompress2_pcsx_end(void)
+{
+	if (z_inflate.zalloc != NULL) {
+		inflateEnd(&z_inflate);
+		memset(&z_inflate, 0, sizeof(z_inflate));
+	}
 }
 
 static int cdread_compressed(FILE *f, unsigned int base, void *dest, int sector)
@@ -1876,6 +1887,7 @@ static long CALLBACK ISOclose(void) {
 		free(compr_img);
 		compr_img = NULL;
 	}
+	uncompress2_pcsx_end();
 
 #ifdef USE_LIBCHDR
 	if (chd_img != NULL) {

@@ -1,7 +1,7 @@
 /**
  * WiiStation - OptionsFrame.h
  *
- * The sub-pages reached from the Settings tabs: Advanced Sound, Plugins, Storage, Memory.
+ * The sub-pages reached from the Settings tabs: Advanced Sound, Plugins, CD, Memory.
  * One frame class serves all of them; see the .cpp for how to add a page or a row.
  *
  * This program is free software; you can redistribute it and/

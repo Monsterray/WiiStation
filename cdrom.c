@@ -1741,7 +1741,12 @@ void cdrWrite2(unsigned char rt) {
 
 	switch (cdr.Ctrl & 3) {
 	case 0:
-		if (cdr.ParamC < 8) // FIXME: size and wrapping
+		/* The hardware FIFO holds 16 bytes and drops writes once it is full (PRMWRDY in
+		 * the status register goes to 0). This one holds 8 and drops them the same way.
+		 * No command takes more than 3 parameters, so the depth has never mattered; the
+		 * array is inside the save-state struct, so growing it would make every older
+		 * state unreadable for nothing. */
+		if (cdr.ParamC < 8)
 			cdr.Param[cdr.ParamC++] = rt;
 		return;
 	case 1:

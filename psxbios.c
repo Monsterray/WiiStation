@@ -44,6 +44,7 @@ extern char mcd2Written;
 
 #include "psxcommon.h"
 #include "psxbios.h"
+#include "Gamecube/perf_prof.h"   /* PERF_PROF_BIOS: count each call */
 #include "psxhw.h"
 #include "gpu.h"
 #include "sio.h"
@@ -4441,7 +4442,11 @@ static void hleA0() {
 	u32 entry = loadRam32(A_A0_TABLE + call * 4);
 
 	use_cycles(4+7);
+#if PERF_PROF_BIOS
+	g_perf.bios_a[call]++;
+#endif
 	if (call < 192 && entry != A_A0_TRAPS + call * 4) {
+		PERF_INC(bios_custom);
 		PSXBIOS_LOG("custom A%02x %s(0x%x, )  addr=%08x ra=%08x\n",
 			call, biosA0n[call], a0, entry, ra);
 		softCall(entry);
@@ -4461,11 +4466,15 @@ static void hleB0() {
 	int is_custom = 0;
 
 	use_cycles(4+7);
+#if PERF_PROF_BIOS
+	g_perf.bios_b[call]++;
+#endif
 	if (call == 0x5b)
 		is_custom = entry != A_B0_5B_TRAP;
 	else
 		is_custom = entry != A_B0_TRAPS + call * 4;
 	if (is_custom) {
+		PERF_INC(bios_custom);
 		PSXBIOS_LOG("custom B%02x %s(0x%x, )  addr=%08x ra=%08x\n",
 			call, biosB0n[call], a0, entry, ra);
 		softCall(entry);
@@ -4484,7 +4493,11 @@ static void hleC0() {
 	u32 entry = loadRam32(A_C0_TABLE + call * 4);
 
 	use_cycles(4+7);
+#if PERF_PROF_BIOS
+	g_perf.bios_c[call]++;
+#endif
 	if (call < 128 && entry != A_C0_TRAPS + call * 4) {
+		PERF_INC(bios_custom);
 		PSXBIOS_LOG("custom C%02x %s(0x%x, )  addr=%08x ra=%08x\n",
 			call, biosC0n[call], a0, entry, ra);
 		softCall(entry);
@@ -4500,6 +4513,9 @@ static void hleC0() {
 
 static void hleA0t() {
 	u32 call = (pc0 - A_A0_TRAPS) / 4 - 1;
+#if PERF_PROF_BIOS
+	if (call < 256u) g_perf.bios_a[call]++;
+#endif
 	if (call >= 256u || !biosA0[call]) {
 		//log_unhandled("unexpected A trap @%08x ra=%08x\n", pc0 - 4, ra);
 		mips_return_void_c(1000);
@@ -4515,6 +4531,9 @@ static void hleB0t() {
 	u32 call = (pc0 - A_B0_TRAPS) / 4 - 1;
 	if (pc0 - 4 == A_B0_5B_TRAP)
 		call = 0x5b;
+#if PERF_PROF_BIOS
+	if (call < 256u) g_perf.bios_b[call]++;
+#endif
 	if (call >= 256u || !biosB0[call]) {
 		//log_unhandled("unexpected B trap @%08x ra=%08x\n", pc0 - 4, ra);
 		mips_return_void_c(1000);
@@ -4528,6 +4547,9 @@ static void hleB0t() {
 
 static void hleC0t() {
 	u32 call = (pc0 - A_C0_TRAPS) / 4 - 1;
+#if PERF_PROF_BIOS
+	if (call < 128u) g_perf.bios_c[call]++;
+#endif
 	if (call >= 128u || !biosC0[call]) {
 		//log_unhandled("unexpected C trap @%08x ra=%08x\n", pc0 - 4, ra);
 		mips_return_void_c(1000);

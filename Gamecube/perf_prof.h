@@ -84,6 +84,12 @@ extern "C" {
 #ifndef PERF_PROF_NETWAIT
 #define PERF_PROF_NETWAIT 0
 #endif
+/* PERF_PROF_BIOS counts every HLE BIOS call by its number, so perf.log can name the ones a
+ * game really uses. One increment per call and 2.5 KB of counters, so it is on by default;
+ * turn it off with -DPERF_PROF_BIOS=0 to measure without it. */
+#ifndef PERF_PROF_BIOS
+#define PERF_PROF_BIOS 1
+#endif
 
 typedef struct {
 	/* CPU / JIT (Wii adapter level, lightrec.c) */
@@ -374,6 +380,20 @@ typedef struct {
 	uint32_t mcd_saves, mcd_fails;
 	uint64_t mcd_save_us;
 
+	/* HLE BIOS calls by table and number (psxbios.c). `bios_custom` counts the ones a game
+	 * redirected to its own code, which HLE has to run through softCall() instead. */
+	uint32_t bios_a[256], bios_b[256], bios_c[256];
+	uint32_t bios_custom;
+	/* Wall time inside the whole HLE dispatch, from the JIT exit to the JIT re-entry:
+	 * the register sync out, the BIOS function, and the sync back. Compare it with
+	 * cpu_us to see what the HLE path really costs. */
+	uint64_t bios_us;
+	/* Of that, the part spent in the exception and boot hooks rather than in an
+	 * A0/B0/C0 table call. hleop 1,2,3 and 24,25,26 are the tables; the rest are
+	 * psxBiosException and the hleExc* handlers. */
+	uint64_t bios_exc_us;
+	uint32_t bios_exc_calls;
+
 	/* Menu (Gamecube/libgui) */
 	uint32_t menu_frames;         /* Gui::draw calls */
 	uint64_t menu_us;             /* time inside Gui::draw */
@@ -434,6 +454,7 @@ void perf_pad_event(unsigned pad, unsigned type, unsigned drv_btns, unsigned drv
 #else /* !PERF_PROF: everything is a no-op */
 
 #define PERF_PROF_NETWAIT 0
+#define PERF_PROF_BIOS 0
 
 #define PERF_PROF_TRACE 0
 #define PERF_PROF_GPU   0

@@ -5,7 +5,7 @@
  *
  *   Audio tab   -> "Advanced"  : sound options under test
  *   General tab -> "Plugins"   : which CPU core and which GPU renderer
- *               -> "Storage"   : how disc images are read
+ *               -> "CD"        : how disc images are read
  *               -> "Memory"    : what the machine's memory is doing right now
  *
  * HOW TO ADD A ROW
@@ -221,14 +221,14 @@ static void pluginsLeave(void)
 
 /* All three are read when a disc image is opened, so they take effect at the next game
  * load rather than immediately (SETTINGS.md section 2). */
-static const OptRow STORAGE_ROWS[] =
+static const OptRow CD_ROWS[] =
 {
 	ROW_CYCLE("CD Read Buffer", cdBuffer,   CD_BUFFER_16K,   CD_BUFFER_256K, CD_BUFFER_NAMES, NULL),
 	ROW_CYCLE("CD Read-Ahead",  cdPrefetch, CD_PREFETCH_OFF, CD_PREFETCH_ON, ON_OFF_NAMES,    NULL),
 	ROW_CYCLE("CHD Hunk Cache", cdChdHunks, CD_CHD_HUNKS_2,  CD_CHD_HUNKS_8, CD_HUNKS_NAMES,  NULL),
 };
 
-static const OptHelp STORAGE_HELP[] =
+static const OptHelp CD_HELP[] =
 {
 	{ "CD Read Buffer:", "How much each disc-image file reads at a time. Larger" },
 	{ NULL,              "means fewer, longer card reads while a game streams." },
@@ -270,7 +270,7 @@ static const OptPage PAGES[] =
 {
 	{ "Advanced Sound", SOUND_ROWS,   COUNT(SOUND_ROWS),   NULL,         0,                    SettingsFrame::SUBMENU_AUDIO,   NULL,         NULL         },
 	{ "Plugins",        PLUGIN_ROWS,  COUNT(PLUGIN_ROWS),  PLUGIN_HELP,  COUNT(PLUGIN_HELP),   SettingsFrame::SUBMENU_GENERAL, pluginsEnter, pluginsLeave },
-	{ "Storage",        STORAGE_ROWS, COUNT(STORAGE_ROWS), STORAGE_HELP, COUNT(STORAGE_HELP),  SettingsFrame::SUBMENU_GENERAL, NULL,         NULL         },
+	{ "CD",             CD_ROWS,      COUNT(CD_ROWS),      CD_HELP,      COUNT(CD_HELP),       SettingsFrame::SUBMENU_GENERAL, NULL,         NULL         },
 	{ "Memory",         MEMORY_ROWS,  COUNT(MEMORY_ROWS),  NULL,         0,                    SettingsFrame::SUBMENU_GENERAL, NULL,         NULL         },
 };
 
@@ -389,10 +389,10 @@ static void (*const SET_FUNCS[OPT_MAX_ROWS][OPT_MAX_CHOICES])() =
 
 typedef char opt_sound_fits  [OPT_PAGE_FITS(SOUND_ROWS)   ? 1 : -1];
 typedef char opt_plugin_fits [OPT_PAGE_FITS(PLUGIN_ROWS)  ? 1 : -1];
-typedef char opt_storage_fits[OPT_PAGE_FITS(STORAGE_ROWS) ? 1 : -1];
+typedef char opt_cd_fits[OPT_PAGE_FITS(CD_ROWS) ? 1 : -1];
 typedef char opt_memory_fits [OPT_PAGE_FITS(MEMORY_ROWS)  ? 1 : -1];
 typedef char opt_plugin_help_fits [OPT_HELP_FITS(PLUGIN_ROWS,  PLUGIN_HELP)  ? 1 : -1];
-typedef char opt_storage_help_fits[OPT_HELP_FITS(STORAGE_ROWS, STORAGE_HELP) ? 1 : -1];
+typedef char opt_cd_help_fits[OPT_HELP_FITS(CD_ROWS, CD_HELP) ? 1 : -1];
 /* A radio row must not run off the right, and the term column must end before the text. */
 typedef char opt_help_columns[HELP_TEXT_X > HELP_TERM_R ? 1 : -1];
 /* The rows above the help must not run into it, and the rows themselves must stay on screen. */

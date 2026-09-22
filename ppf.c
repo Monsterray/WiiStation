@@ -300,11 +300,17 @@ void BuildPPFCache() {
 			dizlen = 0;
 
 			if (strcmp(".DIZ", buffer) == 0) {
-				fseek(ppffile, -2, SEEK_END);
-				// TODO: Endian/size unsafe?
-				if (fread(&dizlen, 1, 2, ppffile) != 2)
+				/* The length is two little-endian bytes. The old code read them into the
+				 * first two bytes of a 4-byte int and then byte-swapped all four. That
+				 * gives the right answer on this platform, but only because the other two
+				 * bytes happened to be zero. Read the two bytes and put them together. */
+				unsigned char dizbuf[2];
+
+				if (fseek(ppffile, -2, SEEK_END) != 0)
 					goto fail_io;
-				dizlen = SWAP32(dizlen);
+				if (fread(dizbuf, 1, 2, ppffile) != 2)
+					goto fail_io;
+				dizlen = dizbuf[0] | (dizbuf[1] << 8);
 				dizlen += 36;
 			}
 
@@ -372,7 +378,7 @@ void BuildPPFCache() {
 
 		seekpos = seekpos + 5 + anz;
 		count = count - 5 - anz;
-	} while (count != 0); // loop til end
+	} while (count > 0); // loop til end (">" not "!=": a corrupt file can overshoot)
 
 	fclose(ppffile);
 
