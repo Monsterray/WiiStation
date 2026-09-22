@@ -222,19 +222,21 @@ static void pluginsLeave(void)
 
 /* All three are read when a disc image is opened, so they take effect at the next game
  * load rather than immediately (SETTINGS.md section 2). */
-static const char* const DITHER_NAMES[]   = { "None", "Game Dependent", "Always" };
+/* The same three words the Video tab used: "Game Dependent" is 204px and a radio slot
+ * is RADIO_W, 135. The help text below says what Default means. */
+static const char* const DITHER_NAMES[]   = { "None", "Default", "Always" };
 static const char* const CHROMA_NAMES[]   = { "Sharp", "Smooth" };
 
 static const OptRow ADVGFX_ROWS[] =
 {
-	ROW_CYCLE("Dithering",   useDithering, USEDITHER_NONE,    USEDITHER_ALWAYS,  DITHER_NAMES, NULL),
+	ROW_RADIO("Dithering",   useDithering, USEDITHER_NONE,    USEDITHER_ALWAYS,  DITHER_NAMES, NULL),
 	ROW_CYCLE("MDEC Chroma", mdecChroma,   MDECCHROMA_SHARP,  MDECCHROMA_SMOOTH, CHROMA_NAMES, NULL),
 };
 
 static const OptHelp ADVGFX_HELP[] =
 {
 	{ "Dithering:",   "Hides the steps between colours in a 15-bit picture." },
-	{ NULL,           "Game Dependent uses it where the game asks for it." },
+	{ NULL,           "Default uses it only where the game asks for it." },
 	{ "MDEC Chroma:", "How the video decoder makes the colour of each pixel." },
 	{ NULL,           "Sharp is what the console does: one colour sample for" },
 	{ NULL,           "every 2x2 pixels. Smooth mixes the samples, so the" },

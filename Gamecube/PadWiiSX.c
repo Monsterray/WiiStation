@@ -60,7 +60,9 @@ unsigned autoinput_padsweep_vbl = 0;
 /* "menupage <n>": open one Settings tab or Options page a few frames after the menu comes
  * up, so an unattended run can photograph it. Nothing else can -- the menu reads the pads
  * directly rather than through the controller drivers, so padsweep cannot drive it.
- * 1..5 are the Settings tabs in order, 6..9 the Options pages. 0 leaves the menu alone.
+ * 1..5 are the Settings tabs in order, 6..10 the Options pages in the order of
+ * OptionsFrame::OptionsPages: Advanced Sound, Advanced Graphics, Plugins, CD, Memory.
+ * 0 leaves the menu alone.
  * Read in MenuContext.cpp. */
 unsigned autoinput_menupage = 0;
 /* "statetest <vblank>": save a state at that vblank, then load it back 120 vblanks later.
