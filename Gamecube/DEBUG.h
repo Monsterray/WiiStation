@@ -98,6 +98,10 @@ char** DEBUG_get_text(void);
 void openLogFile();
 void closeLogFile();
 void writeLogFile(char* string);
+/* Non-zero when the Debug menu has logging switched on. Test this before building a
+ * message that costs something -- a sprintf on a per-primitive path, or a checksum over
+ * a rectangle of VRAM -- because writeLogFile() can only throw the result away. */
+int logFileEnabled(void);
 void printFunctionName();
 
 #ifdef __cplusplus

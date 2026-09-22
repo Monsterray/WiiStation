@@ -1493,6 +1493,10 @@ BOOL bNeedWriteUpload=FALSE;
 
 static __inline void FinishedVRAMWrite(void)
 {
+#if PERF_PROF_GPUSPLIT
+ unsigned long long fv_t0_ = perf_now_ticks();
+ g_perf.gpu_vramfin_calls++;
+#endif
  if (ReadbackEnabled())
  {
   MarkCpuVramWrite(VRAMWrite.x, VRAMWrite.y,
@@ -1516,6 +1520,9 @@ static __inline void FinishedVRAMWrite(void)
  // reset transfer values, to prevent mis-transfer of data
  VRAMWrite.ColsRemaining = 0;
  VRAMWrite.RowsRemaining = 0;
+#if PERF_PROF_GPUSPLIT
+ g_perf.gpu_vramfin_ticks += perf_now_ticks() - fv_t0_;
+#endif
 }
 
 static __inline void FinishedVRAMRead(void)
@@ -1992,11 +1999,34 @@ static int OffscreenSoftDraw(unsigned char cmd, unsigned long *data, int n)
     return 1;
 }
 
+/* PERF_PROF_GPUSPLIT: time the parts of the loop below that do the work. Whatever is
+ * left over is the reading of the display list itself, charged to `parse` at the end, so
+ * the parts add up to the whole call. */
+#if PERF_PROF_GPUSPLIT
+static unsigned long long gp_last_;     /* what the last GPU_PART took */
+#define GPU_PART(field, calls, expr) do { \
+	unsigned long long gp_t0_ = perf_now_ticks(); \
+	expr; \
+	gp_last_ = perf_now_ticks() - gp_t0_; \
+	g_perf.field += gp_last_; \
+	gp_other_ += gp_last_; \
+	g_perf.calls++; \
+} while (0)
+#else
+#define GPU_PART(field, calls, expr) do { expr; } while (0)
+#endif
+
 void CALLBACK GL_GPUwriteDataMem(unsigned long * pMem, int iSize)
 {
 unsigned char command;
 unsigned long gdata=0;
 int i=0;
+#if PERF_PROF_GPUSPLIT
+/* The image transfer is a loop with a goto through it, so it is timed by hand rather
+ * than with GPU_PART: opened where the transfer starts, closed at ENDVRAM_GL. */
+unsigned long long gp_call_ = perf_now_ticks(), gp_other_ = 0, gp_vram_t0_ = 0;
+int gp_vram_i0_ = 0, gp_vram_open_ = 0;
+#endif
 GPUIsBusy;
 GPUIsNotReadyForCommands;
 
@@ -2004,6 +2034,9 @@ STARTVRAM_GL:
 
 if(iDataWriteMode==DR_VRAMTRANSFER)
  {
+#if PERF_PROF_GPUSPLIT
+  gp_vram_t0_ = perf_now_ticks(); gp_vram_i0_ = i; gp_vram_open_ = 1;
+#endif
 //    #if defined(DISP_DEBUG)
 //    sprintf ( txtbuffer, "GPUwriteDataMem DR_VRAMTRANSFER %d \r\n", iSize );
 //    writeLogFile(txtbuffer);
@@ -2073,6 +2106,17 @@ if(iDataWriteMode==DR_VRAMTRANSFER)
 
 ENDVRAM_GL:
 
+#if PERF_PROF_GPUSPLIT
+if(gp_vram_open_)
+ {
+  unsigned long long gp_dt_ = perf_now_ticks() - gp_vram_t0_;
+  g_perf.gpu_vram_ticks += gp_dt_;
+  gp_other_ += gp_dt_;
+  g_perf.gpu_vram_words += (unsigned)(i - gp_vram_i0_);
+  gp_vram_open_ = 0;
+ }
+#endif
+
 if(iDataWriteMode==DR_NORMAL)
  {
 //    #if defined(DISP_DEBUG)
@@ -2123,11 +2167,24 @@ if(iDataWriteMode==DR_NORMAL)
      {
       int nWords = gpuDataC;
       gpuDataC=gpuDataP=0;
-      if (nWords <= 128 && OffscreenSoftDraw(gpuCommand, gpuDataM, nWords))
-       continue;                                   /* drawn into VRAM by the software rasterizer */
-      BeginEfbDrawContext();
-      primFunc[gpuCommand]((unsigned char *)gpuDataM);
-      EndEfbDrawContext();
+      if (nWords <= 128)
+       {
+        int gp_done_ = 0;
+        GPU_PART(gpu_off_ticks, gpu_off_calls,
+                 gp_done_ = OffscreenSoftDraw(gpuCommand, gpuDataM, nWords));
+        if (gp_done_)
+         continue;                                 /* drawn into VRAM by the software rasterizer */
+       }
+      GPU_PART(gpu_prim_ticks, gpu_prim_calls,
+               (BeginEfbDrawContext(),
+                primFunc[gpuCommand]((unsigned char *)gpuDataM),
+                EndEfbDrawContext()));
+#if PERF_PROF_GPUSPLIT
+      /* GPU_PART just charged gp_other_ with this call; split the same amount out by
+       * class of command, so the classes add up to prim. */
+      g_perf.gpu_cls_ticks[gpuCommand >> 5] += gp_last_;
+      g_perf.gpu_cls_calls[gpuCommand >> 5]++;
+#endif
 
        if (dwActFixes & AUTO_FIX_GPU_BUSY)      // hack for emulating "gpu busy" in some games
        iFakePrimBusy=4;
@@ -2139,6 +2196,9 @@ GPUdataRet=gdata;
 
 GPUIsReadyForCommands;
 GPUIsIdle;
+#if PERF_PROF_GPUSPLIT
+g_perf.gpu_parse_ticks += (perf_now_ticks() - gp_call_) - gp_other_;
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////

@@ -209,6 +209,13 @@ static void DebugLogVramHalf(const char *tag, int x, int y, int w, int h)
     unsigned int hash[2] = {2166136261u, 2166136261u};
     int yy, xx;
 
+    /* This hashes every pixel of the rectangle, and the only thing that reads the
+     * answer is the log line at the end. Without this test the hash still ran with
+     * logging off: it was 24% of a debug run, because the two callers are the image
+     * transfer into VRAM and the screen fill, once or more per frame each. */
+    if (!logFileEnabled())
+        return;
+
     if (!ReadbackEnabled() || w <= 0 || h <= 0)
         return;
 

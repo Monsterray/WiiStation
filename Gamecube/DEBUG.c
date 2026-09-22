@@ -80,6 +80,10 @@ void closeLogFile() {
     }
 }
 
+int logFileEnabled(void) {
+    return canWriteLog ? 1 : 0;
+}
+
 void writeLogFile(char* string) {
     if (!canWriteLog) return;
 

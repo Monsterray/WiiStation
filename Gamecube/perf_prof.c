@@ -642,6 +642,38 @@ void perf_report(void)
 			}
 			fprintf(f, "\n");
 		}
+		#if PERF_PROF_GPUSPLIT
+		if (g_perf.gpu_prim_calls || g_perf.gpu_vram_words)
+			fprintf(f, "gpusplit: parse_us=%llu vram_us=%llu vram_words=%lu "
+				"off_us=%llu off=%lu prim_us=%llu prims=%lu\n",
+				(unsigned long long)ticks_to_microsecs(g_perf.gpu_parse_ticks),
+				(unsigned long long)ticks_to_microsecs(g_perf.gpu_vram_ticks),
+				(unsigned long)g_perf.gpu_vram_words,
+				(unsigned long long)ticks_to_microsecs(g_perf.gpu_off_ticks),
+				(unsigned long)g_perf.gpu_off_calls,
+				(unsigned long long)ticks_to_microsecs(g_perf.gpu_prim_ticks),
+				(unsigned long)g_perf.gpu_prim_calls);
+		if (g_perf.gpu_prim_calls) {
+			static const char *const cls[8] = {
+				"misc", "poly", "line", "rect", "vv", "cv", "vc", "state"
+			};
+			int c;
+			fprintf(f, "gpuprim:");
+			for (c = 0; c < 8; c++)
+				if (g_perf.gpu_cls_calls[c])
+					fprintf(f, " %s=%llu/%lu", cls[c],
+						(unsigned long long)ticks_to_microsecs(g_perf.gpu_cls_ticks[c]),
+						(unsigned long)g_perf.gpu_cls_calls[c]);
+			fprintf(f, "\n");
+			fprintf(f, "gpudeep: fill_gx_us=%llu fill_sw_us=%llu fill_mark_us=%llu "
+				"vramfin_us=%llu vramfin=%lu\n",
+				(unsigned long long)ticks_to_microsecs(g_perf.gpu_fill_gx_ticks),
+				(unsigned long long)ticks_to_microsecs(g_perf.gpu_fill_sw_ticks),
+				(unsigned long long)ticks_to_microsecs(g_perf.gpu_fill_mark_ticks),
+				(unsigned long long)ticks_to_microsecs(g_perf.gpu_vramfin_ticks),
+				(unsigned long)g_perf.gpu_vramfin_calls);
+		}
+		#endif
 		#if PERF_PROF_GTE
 		{
 			/* Only the 22 defined functions can be reached; anything else would be an

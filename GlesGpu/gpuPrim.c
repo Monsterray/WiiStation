@@ -42,10 +42,21 @@
 // defines
 ////////////////////////////////////////////////////////////////////////
 
-#define CMD_LOG_3D
-#define CMD_LOG_2D
-#define CMD_LOG_LINE
-#define CMD_LOG_GT4FT4
+/* Per-primitive command logging. Each of these turns on a block that builds a line with
+ * sprintf and hands it to writeLogFile(), for every primitive of that kind a game draws.
+ * writeLogFile() returns at once unless the Debug menu switched logging on, but the
+ * sprintf runs either way, and a game draws over a million primitives a minute.
+ *
+ * They were all defined here, so every debug build paid for them. Ask for the one you
+ * want instead:
+ *
+ *   PROBES="-DCMD_LOG_2D" bash scripts/build.sh debug
+ *
+ * and turn logging on in the Debug menu, or nothing is written. */
+/* #define CMD_LOG_3D      polygons */
+/* #define CMD_LOG_2D      rectangles, sprites, fills, image moves */
+/* #define CMD_LOG_LINE    lines */
+/* #define CMD_LOG_GT4FT4  the two four-point textured polygons */
 
 static short logType = 0;
 
@@ -2516,6 +2527,8 @@ void CheckWriteUpdate()
     InvalidateTextureArea ( VRAMWrite.x, VRAMWrite.y, VRAMWrite.Width - iX, VRAMWrite.Height - iY );
 
     #if defined(DISP_DEBUG)
+    if (logFileEnabled())
+    {
     sprintf ( txtbuffer, "CheckWriteUpdate %d %d %d %d %d %d %d %d %d %d %d %d\r\n",
              PreviousPSXDisplay.DisplayPosition.x, PreviousPSXDisplay.DisplayPosition.y, PreviousPSXDisplay.DisplayEnd.x, PreviousPSXDisplay.DisplayEnd.y,
              PSXDisplay.DisplayPosition.x,         PSXDisplay.DisplayPosition.y,         PSXDisplay.DisplayEnd.x,         PSXDisplay.DisplayEnd.y,
@@ -2524,6 +2537,7 @@ void CheckWriteUpdate()
     sprintf ( txtbuffer, "screenInfo %d %d %d %d\r\n",
              screenX, screenY, screenWidth, screenHeight);
     writeLogFile ( txtbuffer );
+    }
     #endif // DISP_DEBUG
 
     //if (PSXDisplay.Interlaced && !iOffscreenDrawing) return;
@@ -2868,9 +2882,10 @@ static void primBlkFill ( unsigned char * baseAddr )
             g = baseAddr[1];
             b = baseAddr[2];
 
-            glClearColor2 ( r, g, b, 255 );
-            glClear ( uiBufferBits );
-            OnEfbClearSubmitted();
+            PERF_TIME(gpu_fill_gx_ticks,
+                      (glClearColor2 ( r, g, b, 255 ),
+                       glClear ( uiBufferBits ),
+                       OnEfbClearSubmitted()));
         }
         else
         {
@@ -2881,7 +2896,7 @@ static void primBlkFill ( unsigned char * baseAddr )
             glScissor(rRatioRect.left, rRatioRect.top, rRatioRect.right, rRatioRect.bottom); /* GP0 02 ignores the drawing area */
             vertex[0].c.lcol = gpuData[0] | 0xFF;
             SETCOL ( vertex[0] );
-            glPRIMdrawQuad ( &vertex[0] );
+            PERF_TIME(gpu_fill_gx_ticks, glPRIMdrawQuad ( &vertex[0] ));
             bSetClip = TRUE; bDisplayNotSet = TRUE;                  /* next primitive re-applies the clip */
         }
         gl_z = 0.0f;
@@ -2904,7 +2919,7 @@ static void primBlkFill ( unsigned char * baseAddr )
         glScissor(rRatioRect.left, rRatioRect.top, rRatioRect.right, rRatioRect.bottom); /* GP0 02 ignores the drawing area */
         vertex[0].c.lcol = gpuData[0] | 0xFF;
         SETCOL ( vertex[0] );
-        glPRIMdrawQuad ( &vertex[0] );
+        PERF_TIME(gpu_fill_gx_ticks, glPRIMdrawQuad ( &vertex[0] ));
         bSetClip = TRUE; bDisplayNotSet = TRUE;                  /* next primitive re-applies the clip */
     }
 
@@ -2912,8 +2927,9 @@ static void primBlkFill ( unsigned char * baseAddr )
     {
         // use software blkFill
         unsigned short fillCol = BGR24to16(GETLE32(&gpuData[0]));
-        BlkFillArea(sprtX, sprtY, sprtW, sprtH, fillCol);
-        MarkCpuVramWriteWithSeq(seq, sprtX, sprtY, sprtW, sprtH);
+        PERF_TIME(gpu_fill_sw_ticks, BlkFillArea(sprtX, sprtY, sprtW, sprtH, fillCol));
+        PERF_TIME(gpu_fill_mark_ticks,
+                  MarkCpuVramWriteWithSeq(seq, sprtX, sprtY, sprtW, sprtH));
 #ifdef DISP_DEBUG
         if (sprtH >= 120)
             DebugLogVramHalf("BlkFill", sprtX, sprtY, sprtW, sprtH);

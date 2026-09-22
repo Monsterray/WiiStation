@@ -110,6 +110,30 @@ extern "C" {
 #ifndef PERF_PROF_GTE
 #define PERF_PROF_GTE 0
 #endif
+/* PERF_PROF_GPUSPLIT breaks the GPU command loop up. PERF_PROF_CPU already says that
+ * about two thirds of a run goes behind the GP0 and DMA2 registers -- the "hw_gpu_us"
+ * field of the perf.log "inside:" line -- but that is one number covering everything a
+ * display list asks for. This splits it into the image transfers into VRAM, the
+ * off-screen software rasterizer, and the primitive functions, with the word-by-word
+ * reading of the list itself as the remainder, so the four add up to the whole.
+ *
+ * Two time-base reads per primitive, and a busy game draws under ten thousand a second,
+ * so it is cheap; it is off by default because it only means anything next to
+ * PERF_PROF_CPU, which supplies the total it divides. */
+#ifndef PERF_PROF_GPUSPLIT
+#define PERF_PROF_GPUSPLIT 0
+#endif
+/* One timed region, charged to a g_perf field. Only defined when the gate is on, so a
+ * use of it has to sit behind the same gate. */
+#if PERF_PROF_GPUSPLIT
+#define PERF_TIME(field, expr) do { \
+	unsigned long long pt_t0_ = perf_now_ticks(); \
+	expr; \
+	g_perf.field += perf_now_ticks() - pt_t0_; \
+} while (0)
+#else
+#define PERF_TIME(field, expr) do { expr; } while (0)
+#endif
 /* PERF_PROF_PMC reads Broadway's four performance counters over the whole run. It exists
  * for the locked-cache work, which cannot be judged in Dolphin at all: Dolphin implements
  * the locked-cache DMA as a synchronous copy and models no cache misses, so LC code runs
@@ -407,6 +431,23 @@ typedef struct {
 	 * Ticks, converted at report time: a 3D game issues hundreds of thousands of
 	 * these a second, and perf_now_us() would charge each one a 64-bit divide. */
 	uint64_t gte_ticks;
+
+	/* The GPU command loop, split (PERF_PROF_GPUSPLIT). Ticks, converted at report
+	 * time. `parse` is whatever is left of GL_GPUwriteDataMem once the other three
+	 * are taken out of it. */
+	uint64_t gpu_vram_ticks, gpu_off_ticks, gpu_prim_ticks, gpu_parse_ticks;
+	uint32_t gpu_vram_words, gpu_off_calls, gpu_prim_calls;
+	/* The primitive time again, by class of GP0 command: index is the top three bits
+	 * of the command byte, so 1 is the polygons, 2 the lines, 3 the sprites, and 7 the
+	 * drawing-state commands (E1..E6). */
+	uint64_t gpu_cls_ticks[8];
+	uint32_t gpu_cls_calls[8];
+	/* Inside the two expensive ones: the GP0 02 fill split into its GX half, its
+	 * software half and the write record, and the image transfer split into the pixel
+	 * loop against what FinishedVRAMWrite does afterwards. */
+	uint64_t gpu_fill_gx_ticks, gpu_fill_sw_ticks, gpu_fill_mark_ticks;
+	uint64_t gpu_vramfin_ticks;
+	uint32_t gpu_vramfin_calls;
 	uint32_t gte_calls[64];
 
 	/* Broadway's performance counters, read once at the end of a run (PERF_PROF_PMC). */
@@ -536,6 +577,8 @@ void perf_pad_event(unsigned pad, unsigned type, unsigned drv_btns, unsigned drv
 #define PERF_PROF_SPU 0
 #define PERF_PROF_PMC 0
 #define PERF_PROF_GTE 0
+#define PERF_PROF_GPUSPLIT 0
+#define PERF_TIME(field, expr) do { expr; } while (0)
 
 #define PERF_PROF_TRACE 0
 #define PERF_PROF_GPU   0
