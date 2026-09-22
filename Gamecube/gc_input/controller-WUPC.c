@@ -84,7 +84,7 @@ static void configure(int Control, controller_config_t* config){
 }
 
 static void assign(int p, int v){
-	// TODO: Light up the LEDs appropriately
+	/* No LEDs to set: libogc2's wupc.h exposes none. */
 }
 
 static int available(int Control){

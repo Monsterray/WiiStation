@@ -131,6 +131,12 @@ void assign_controller(int wv, controller_t* type, int wp){
 }
 
 void unassign_controller(int wv){
+	controller_t* type = virtualControllers[wv].control;
+
+	/* Tell the pad it is no longer a player, so it can put its LEDs back. */
+	if(type && virtualControllers[wv].number >= 0)
+		type->assign(virtualControllers[wv].number, -1);
+
 	virtualControllers[wv].control = NULL;
 	virtualControllers[wv].inUse   = 0;
 	virtualControllers[wv].number  = -1;

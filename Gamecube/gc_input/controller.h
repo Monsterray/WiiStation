@@ -126,7 +126,9 @@ typedef struct {
 	// Set the configuration for a controller of this type
 	// You should pass in physical controller num as above
 	void (*configure)(int, controller_config_t*);
-	// Assign actual controller to virtual controller
+	// Assign actual controller to virtual controller.
+	// Second argument is the virtual controller (the player), or -1 when the
+	// physical controller is being given up.
 	void (*assign)(int,int);
 	// Pause/Resume a controller
 	void (*pause)(int);
