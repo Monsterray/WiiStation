@@ -99,6 +99,8 @@ static const int LOGO_BOTTOM_FRAMES[] = {
 extern "C" {
 	void autoinput_load(void);
 	extern unsigned autoinput_menupage;
+	extern unsigned autoinput_menuclick, autoinput_menuclicks;
+	void SettingsFrame_ScriptClick(int button);
 }
 
 bool MenuContext::isRunning()
@@ -118,6 +120,16 @@ bool MenuContext::isRunning()
 			else if (autoinput_menupage >= 6 && autoinput_menupage <= 10)
 				setActiveFrame(FRAME_OPTIONS,
 					OptionsFrame::PAGE_SOUND + (int)autoinput_menupage - 6);
+		}
+	}
+
+	/* Ten frames after that, press what the script asked for: late enough that the page
+	 * has drawn itself once, so the frame dump holds both the before and the after. */
+	{
+		static int framesUntilClick = 40;
+		if (framesUntilClick > 0 && --framesUntilClick == 0 && autoinput_menuclicks) {
+			for (unsigned i = 0; i < autoinput_menuclicks; i++)
+				SettingsFrame_ScriptClick((int)autoinput_menuclick);
 		}
 	}
 

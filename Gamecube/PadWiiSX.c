@@ -63,6 +63,15 @@ unsigned autoinput_padsweep_vbl = 0;
  * 1..5 are the Settings tabs in order, 6..10 the Options pages in the order of
  * OptionsFrame::OptionsPages: Advanced Sound, Advanced Graphics, Plugins, CD, Memory.
  * 0 leaves the menu alone.
+ *
+ * "menuclick <button> <times>": press one button of the Settings tabs, that many times,
+ * ten frames after the page opens. The menu reads the pads directly rather than through
+ * the controller drivers, so nothing else in a scripted run can reach a menu button, and
+ * anything that only happens on a press could not be tested at all. The index is into
+ * SettingsFrame.cpp's FRAME_BUTTONS. */
+unsigned autoinput_menuclick = 0;
+unsigned autoinput_menuclicks = 0;
+/*
  * Read in MenuContext.cpp. */
 unsigned autoinput_menupage = 0;
 /* "statetest <vblank>": save a state at that vblank, then load it back 120 vblanks later.
@@ -86,6 +95,11 @@ void autoinput_load(void)
 			if (sscanf(line, "dump %u", &v) == 1) { autoinput_dump_vbl = v; continue; }
 			if (sscanf(line, "padsweep %u", &v) == 1) { autoinput_padsweep_vbl = v; continue; }
 			if (sscanf(line, "menupage %u", &v) == 1) { autoinput_menupage = v; continue; }
+			{
+				unsigned b, t;
+				if (sscanf(line, "menuclick %u %u", &b, &t) == 2)
+					{ autoinput_menuclick = b; autoinput_menuclicks = t; continue; }
+			}
 			if (sscanf(line, "statetest %u", &v) == 1) { autoinput_statetest_vbl = v; continue; }
 			if (sscanf(line, "atrace %u", &v) == 1) { autoinput_atrace_vbl = v; continue; }
 			if (sscanf(line, "trace %u", &v) == 1) { if (autoinput_trace_n < 8) autoinput_trace_vbl[autoinput_trace_n++] = v; continue; }

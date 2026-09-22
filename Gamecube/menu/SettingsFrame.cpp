@@ -2025,6 +2025,15 @@ void Func_UseOpenGxGpu()
     }
 }
 
+/* Press one Settings button from a script (autoinput.txt "menuclick").
+ * Nothing else in an unattended run can reach a menu button: the menu reads the pads
+ * directly, not through the controller drivers that autoinput feeds. */
+extern "C" void SettingsFrame_ScriptClick(int button)
+{
+	if (button < 0 || button >= NUM_FRAME_BUTTONS) return;
+	if (FRAME_BUTTONS[button].clickedFunc) FRAME_BUTTONS[button].clickedFunc();
+}
+
 void Func_ReturnFromSettingsFrame()
 {
 	menu::Gui::getInstance().menuLogo->setLocation(580.0, 70.0, -50.0);

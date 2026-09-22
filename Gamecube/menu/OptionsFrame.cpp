@@ -265,7 +265,6 @@ static const OptHelp CD_HELP[] =
 	{ NULL,              "bin/cue and .iso only; it helps hardware, not Dolphin." },
 	{ "CHD Hunk Cache:", "Decoded CHD hunks kept in memory, about 20 KB each." },
 	{ NULL,              "More keeps two areas of the disc warm." },
-	{ NULL,              "" },
 	{ NULL,              "All three apply at the next game load." },
 };
 
@@ -309,7 +308,7 @@ static const OptPage PAGES[] =
 #define OPT_MAX_CHOICES	3
 #define OPT_MAX_HELP	8
 
-/*  Layout: title, then a row every ROW_DY from ROW_Y0, then any help text. Rows are 40 high
+/*  Layout: title, then a row every ROW_DY from ROW_Y0, then any help text. Rows are 56 high
  *  in a 54-high slot, so there is a clear gap between them. No Back button on a page of
  *  settings: B returns to the tab the page came from (setBackFunc).
  *
@@ -319,11 +318,11 @@ static const OptPage PAGES[] =
 #define TITLE_X		320.0
 #define TITLE_Y		44.0
 #define ROW_Y0		86.0
-#define ROW_DY		56.0
+#define ROW_DY		60.0		// the tabs' row pitch
 #define LABEL_X		175.0		// ROW_CYCLE / ROW_INFO label, centred
 #define BUTTON_X	340.0
 #define BUTTON_W	250.0
-#define BUTTON_H	40.0
+#define BUTTON_H	56.0		// the height every button on the tabs has
 #define RLABEL_X	110.0		// ROW_RADIO label, centred
 #define RADIO_X0	205.0		// first choice button
 #define RADIO_W		135.0		// the widest a choice may be, and what one is built at
