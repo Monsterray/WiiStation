@@ -34,6 +34,23 @@ init thread, the USB HID thread. None touch the LC. Keep all LC use on the emula
 
 ## 2. What was measured, and what it can and cannot say
 
+> **Correction, 2026-09-22. Every `hw_gpu_us` number below is wrong, and so is every share
+> of wall beside it.** The debug build these runs used had `CMD_LOG_3D`, `CMD_LOG_2D`,
+> `CMD_LOG_LINE` and `CMD_LOG_GT4FT4` defined unconditionally in `GlesGpu/gpuPrim.c`, so it
+> ran a `sprintf` for every primitive a game drew and threw the string away, plus a hash
+> over every pixel of every VRAM image transfer and screen fill in `DebugLogVramHalf()`.
+> All of it was inside the GP0 and DMA2 handlers, so all of it was charged to `hw_gpu_us`.
+>
+> With those made opt-in, the same 1800 frames of Spyro's title: wall 89.56 s -> 63.95 s,
+> `hw_gpu_us` 57.99 s -> 9.98 s, **64.8% of wall -> 15.6%**, emulated speed 0.618x ->
+> 0.936x, and the run drew the identical 1,626,167 primitives either way. The release
+> build never had any of this.
+>
+> So the GPU is not two thirds of anything, step 0 below is no longer about confirming a
+> 66% figure, and the ranking of every other kernel against wall time in this section is
+> understated by roughly the same 40%. `PERF_PROF_GPUSPLIT` now divides `hw_gpu_us` into
+> its parts; use it and re-take these numbers before acting on them.
+
 Debug build with the `texk:` probes (`LoadSubTexturePageSort` = the CLUT expansion into the
 staging buffer; opengx `glTexSubImage2D` = the RGB5A3 4x4 tiling pass; `psxDma1` = MDEC decode
 per DMA), 110 s runs at full speed, no frame dump (scratchpad `run92/`):
@@ -64,15 +81,19 @@ FF7 is the texture-streaming case this plan needed: 2D backgrounds re-uploaded a
 misses, and the CLUT path there is nearly five times Spyro's share. Step 2's payoff is games
 like this, not Spyro.
 
-Three cautions, in order of importance:
+Four cautions, in order of importance:
 
+0. **The GPU rows are measuring the build's own logging** -- see the correction above.
+   They are left here because the shape of the other rows against each other is still
+   informative, not because the numbers are usable.
 1. **These are Dolphin's instruction-count estimates, not time.** Dolphin charges ~80 cycles
    per texel to a loop that is a load, a table lookup and a store, and it models no cache
    misses at all. The locked cache's whole benefit is the removal of misses and of a 128 KB
    `DCFlushRange` per upload, so its gain is invisible here by construction. The same debug
    build writes the same `perf.log` on a real Wii (`sd:/wiisxrx/perf.log`); one hardware run of
    each game is the actual baseline. Earlier hardware notes (OpenGX at 98% speed with 62% wall
-   idle) already contradict the 66% `hw_gpu` figure, so expect the hardware ranking to differ.
+   idle) contradicted the 66% `hw_gpu` figure, and were right to: the figure was an artefact,
+   and the hardware notes were the evidence that should have been believed first.
 2. **The CLUT path is 0.9% of guest time in Spyro gameplay** because the cache hits 99.7% of
    the time. It matters during level loads and in games that stream textures (2D games with
    large per-frame sprite uploads). Sizing it needs such a game on hardware, not Spyro.
@@ -84,6 +105,8 @@ Three cautions, in order of importance:
 ## 3. The order of work
 
 ### Step 0. Hardware baseline (no code)
+Take the Dolphin numbers again first, with the logging fix and `PERF_PROF_GPUSPLIT`: what is
+written below was ordered by figures that no longer hold.
 Run `Gamecube/WiiSXRX_debug.dol` (this build, with the `texk:` probes) on the Wii for Spyro,
 Medievil's intro, and one texture-streaming 2D title; copy `sd:/wiisxrx/perf.log` back. Read
 `hw_gpu_us`, `texk:` and `spu_us` as fractions of `wall_us`. Everything below is ordered by the
@@ -199,6 +222,8 @@ comment in `Gamecube/perf_prof.h`.
 | `PERF_PROF_MDEC` | the video decode split into rl2blk+IDCT and colour conversion |
 | `PERF_PROF_BIOS` | every HLE BIOS call by name, and the time in the whole HLE dispatch |
 | `PERF_PROF_NETWAIT` | what a one-second wait costs, old shape against new |
+| `PERF_PROF_GTE` | the geometry coprocessor, and which of its 22 operations a game uses |
+| `PERF_PROF_GPUSPLIT` | the GP0 and DMA2 time divided into image transfers, the off-screen software rasterizer, the primitive functions by class of command, and the reading of the display list. Needs `PERF_PROF_CPU` beside it. |
 
 Verified encodings for `PMC_MMCR0`/`PMC_MMCR1` (they are also what Dolphin's interpreter
 implements, `PowerPC.cpp` `UpdatePerformanceMonitor`): PMC1 select 1 = processor cycles,
