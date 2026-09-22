@@ -72,7 +72,7 @@ static struct {
 	unsigned int  freeze_ver;
 
 	unsigned char Prev[4];
-	unsigned char Param[8];
+	unsigned char Param[16];   /* the hardware FIFO depth; see cdrWrite2() */
 	unsigned char Result[16];
 
 	unsigned char ParamC;
@@ -1741,12 +1741,11 @@ void cdrWrite2(unsigned char rt) {
 
 	switch (cdr.Ctrl & 3) {
 	case 0:
-		/* The hardware FIFO holds 16 bytes and drops writes once it is full (PRMWRDY in
-		 * the status register goes to 0). This one holds 8 and drops them the same way.
-		 * No command takes more than 3 parameters, so the depth has never mattered; the
-		 * array is inside the save-state struct, so growing it would make every older
-		 * state unreadable for nothing. */
-		if (cdr.ParamC < 8)
+		/* 16 bytes, the hardware FIFO depth. Writes past the end are dropped, which is
+		 * what the hardware does once PRMWRDY goes to 0. (cdrRead0 still reports bits 3
+		 * and 4 as a constant 0x18, so a game that polls for "fifo full" is told it never
+		 * is. No command takes more than 3 parameters, so nothing has met that.) */
+		if (cdr.ParamC < sizeof(cdr.Param))
 			cdr.Param[cdr.ParamC++] = rt;
 		return;
 	case 1:

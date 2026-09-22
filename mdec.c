@@ -20,6 +20,7 @@
 
 #include "mdec.h"
 #include "Gamecube/perf_prof.h"
+#include "Gamecube/wiiSXconfig.h"   /* mdecChroma */
 
 /* memory speed is 1 byte per MDEC_BIAS psx clock
  * That mean (PSXCLK / MDEC_BIAS) B/s
@@ -98,6 +99,9 @@ static void idct(int *block,int used_col) {
 	if (used_col == -1) { 
 		int v = block[0];
 		for (i = 0; i < DSIZE2; i++) block[i] = v;
+#if PERF_PROF_MDEC
+		g_perf.mdec_dconly++;
+#endif
 		return;
 	}
 
@@ -348,8 +352,7 @@ static inline void putlinebw15(u16 *image, int *Yblk) {
 
 	for (i = 0; i < 8; i++, Yblk++) {
 		int Y = *Yblk;
-		// missing rounding
-		image[i] = SWAP16((clamp5(Y >> 3) * 0x421) | A);
+		image[i] = SWAP16((clamp5(SCALER(Y, 3)) * 0x421) | A);
 	}
 }
 
@@ -371,13 +374,104 @@ static inline void putquadrgb15(u16 *image, int *Yblk, int Cr, int Cb) {
 	image[17] = MAKERGB15(CLAMP_SCALE5(Y + R), CLAMP_SCALE5(Y + G), CLAMP_SCALE5(Y + B), A);
 }
 
+/* One colour sample of the 8x8 chroma plane, held at the edges. A macroblock carries no
+ * chroma from its neighbours, so the hold puts a seam at the block edge; every block-based
+ * decoder has it, and it is far less visible than the blocking it replaces. */
+static inline int chroma_at(const int *plane, int cx, int cy)
+{
+	if (cx < 0) cx = 0; else if (cx > 7) cx = 7;
+	if (cy < 0) cy = 0; else if (cy > 7) cy = 7;
+	return plane[cy * DSIZE + cx];
+}
+
+/* Blow one 8x8 colour plane up to the macroblock's 16x16, once, into `out`.
+ *
+ * A colour sample covers 2x2 pixels, so each pixel sits a quarter of a sample from the
+ * centre of its own. Weight the nearer neighbour 3 to 1 on each axis, which is where MPEG
+ * puts 4:2:0 chroma. The console does none of this -- it repeats the sample across the
+ * quad, and that is what makes PS1 video look blocky.
+ *
+ * Done per macroblock rather than per pixel: the first version of this called chroma_at()
+ * four times for every pixel of every plane, which is 2048 bounds-checked reads per
+ * macroblock against the 256 this does. */
+static void chroma_upsample(const int *plane, int *out)
+{
+	int lx, ly;
+
+	for (ly = 0; ly < 16; ly++) {
+		int cy = ly >> 1;
+		int ny = (ly & 1) ? cy + 1 : cy - 1;
+		const int *row  = plane + (cy > 7 ? 7 : cy) * DSIZE;
+		const int *nrow = plane + (ny < 0 ? 0 : (ny > 7 ? 7 : ny)) * DSIZE;
+
+		for (lx = 0; lx < 16; lx++) {
+			int cx = lx >> 1;
+			int nx = (lx & 1) ? cx + 1 : cx - 1;
+
+			if (nx < 0) nx = 0; else if (nx > 7) nx = 7;
+			*out++ = (9 * row[cx] + 3 * row[nx]
+			        + 3 * nrow[cx] +    nrow[nx] + 8) >> 4;
+		}
+	}
+}
+
+/* Cr then Cb, each blown up to 16x16. One buffer, reused: the decode is single threaded
+ * and nothing keeps a pointer into it. */
+static int chroma_up[2][16 * 16];
+
+static void yuv2rgb15_smooth(int *blk, unsigned short *image)
+{
+	int A = (mdec.reg0 & MDEC0_STP) ? 0x8000 : 0;
+	int lx, ly, i = 0;
+
+	chroma_upsample(blk, chroma_up[0]);
+	chroma_upsample(blk + DSIZE2, chroma_up[1]);
+
+	for (ly = 0; ly < 16; ly++) {
+		const int *Yl = blk + DSIZE2 * (2 + ((ly >> 3) << 1)) + (ly & 7) * DSIZE;
+
+		for (lx = 0; lx < 16; lx++, i++) {
+			int Cr = chroma_up[0][i], Cb = chroma_up[1][i];
+			int Y = MULY(Yl[(lx >> 3) * DSIZE2 + (lx & 7)]);
+
+			image[i] = MAKERGB15(CLAMP_SCALE5(Y + MULR(Cr)),
+			                     CLAMP_SCALE5(Y + MULG2(Cb, Cr)),
+			                     CLAMP_SCALE5(Y + MULB(Cb)), A);
+		}
+	}
+}
+
+static void yuv2rgb24_smooth(int *blk, u8 *image)
+{
+	int lx, ly, i = 0;
+
+	chroma_upsample(blk, chroma_up[0]);
+	chroma_upsample(blk + DSIZE2, chroma_up[1]);
+
+	for (ly = 0; ly < 16; ly++) {
+		const int *Yl = blk + DSIZE2 * (2 + ((ly >> 3) << 1)) + (ly & 7) * DSIZE;
+
+		for (lx = 0; lx < 16; lx++, i++) {
+			int Cr = chroma_up[0][i], Cb = chroma_up[1][i];
+			int Y = MULY(Yl[(lx >> 3) * DSIZE2 + (lx & 7)]);
+			u8 *p = image + i * 3;
+
+			p[0] = CLAMP_SCALE8(Y + MULR(Cr));
+			p[1] = CLAMP_SCALE8(Y + MULG2(Cb, Cr));
+			p[2] = CLAMP_SCALE8(Y + MULB(Cb));
+		}
+	}
+}
+
 static inline void yuv2rgb15(int *blk, unsigned short *image) {
 	int x, y;
 	int *Yblk = blk + DSIZE2 * 2;
 	int *Crblk = blk;
 	int *Cbblk = blk + DSIZE2;
 
-	if (!Config.Mdec) {
+	if (mdecChroma == MDECCHROMA_SMOOTH && !Config.Mdec) {
+		yuv2rgb15_smooth(blk, image);
+	} else if (!Config.Mdec) {
 		for (y = 0; y < 16; y += 2, Crblk += 4, Cbblk += 4, Yblk += 8, image += 24) {
 			if (y == 8) Yblk += DSIZE2;
 			for (x = 0; x < 4; x++, image += 2, Crblk++, Cbblk++, Yblk += 2) {
@@ -436,7 +530,9 @@ static void yuv2rgb24(int *blk, u8 *image) {
 	int *Crblk = blk;
 	int *Cbblk = blk + DSIZE2;
 
-	if (!Config.Mdec) {
+	if (mdecChroma == MDECCHROMA_SMOOTH && !Config.Mdec) {
+		yuv2rgb24_smooth(blk, image);
+	} else if (!Config.Mdec) {
 		for (y = 0; y < 16; y += 2, Crblk += 4, Cbblk += 4, Yblk += 8, image += 8 * 3 * 3) {
 			if (y == 8) Yblk += DSIZE2;
 			for (x = 0; x < 4; x++, image += 6, Crblk++, Cbblk++, Yblk += 2) {
@@ -564,6 +660,22 @@ void mdec0Interrupt()
 
 static void psxDma1_body(u32 adr, u32 bcr, u32 chcr);
 
+#if PERF_PROF_MDEC
+/* Split the macroblock: the run-length decode with its IDCT, then the colour conversion.
+ * Two time-base reads per half, which is why this sits behind its own gate. */
+#define MDEC_BLOCK(rl_call, yuv_call) do { \
+	unsigned long long t_ = perf_now_us(); \
+	rl_call; \
+	g_perf.mdec_rl_us += perf_now_us() - t_; \
+	t_ = perf_now_us(); \
+	yuv_call; \
+	g_perf.mdec_yuv_us += perf_now_us() - t_; \
+	g_perf.mdec_blocks++; \
+} while (0)
+#else
+#define MDEC_BLOCK(rl_call, yuv_call) do { rl_call; yuv_call; } while (0)
+#endif
+
 /* Timed wrapper: the MDEC decode (IDCT + YUV->RGB) for one DMA, measured as
  * a locked-cache candidate (perf.log "texk:"). */
 void psxDma1(u32 adr, u32 bcr, u32 chcr) {
@@ -628,15 +740,14 @@ static void psxDma1_body(u32 adr, u32 bcr, u32 chcr) {
 		}
 
 		while(size >= SIZE_OF_16B_BLOCK) {
-			mdec.rl = rl2blk(blk, mdec.rl);
-			yuv2rgb15(blk, (u16 *)image);
+			MDEC_BLOCK(mdec.rl = rl2blk(blk, mdec.rl), yuv2rgb15(blk, (u16 *)image));
 			image += SIZE_OF_16B_BLOCK;
 			size -= SIZE_OF_16B_BLOCK;
 		}
 
 		if(size != 0) {
-			mdec.rl = rl2blk(blk, mdec.rl);
-			yuv2rgb15(blk, (u16 *)mdec.block_buffer);
+			MDEC_BLOCK(mdec.rl = rl2blk(blk, mdec.rl),
+			           yuv2rgb15(blk, (u16 *)mdec.block_buffer));
 			memcpy(image, mdec.block_buffer, size);
 			mdec.block_buffer_pos = mdec.block_buffer + size;
 		}
@@ -664,15 +775,14 @@ static void psxDma1_body(u32 adr, u32 bcr, u32 chcr) {
 		}
 
 		while(size >= SIZE_OF_24B_BLOCK) {
-			mdec.rl = rl2blk(blk, mdec.rl);
-			yuv2rgb24(blk, image);
+			MDEC_BLOCK(mdec.rl = rl2blk(blk, mdec.rl), yuv2rgb24(blk, image));
 			image += SIZE_OF_24B_BLOCK;
 			size -= SIZE_OF_24B_BLOCK;
 		}
 
 		if(size != 0) {
-			mdec.rl = rl2blk(blk, mdec.rl);
-			yuv2rgb24(blk, mdec.block_buffer);
+			MDEC_BLOCK(mdec.rl = rl2blk(blk, mdec.rl),
+			           yuv2rgb24(blk, mdec.block_buffer));
 			memcpy(image, mdec.block_buffer, size);
 			mdec.block_buffer_pos = mdec.block_buffer + size;
 		}

@@ -194,6 +194,17 @@ enum frameSkip
 };
 
 extern int iUseDither;
+/* How the MDEC turns its 4:2:0 output into pixels, for the full-motion video in a game.
+ * SHARP is what the console does: one colour sample covers a 2x2 block of pixels, which
+ * is what makes PS1 video look blocky. SMOOTH interpolates between the colour samples, so
+ * the video looks better than it ever did on hardware, and costs more per pixel. */
+extern char mdecChroma;
+enum mdecChroma
+{
+	MDECCHROMA_SHARP=0,
+	MDECCHROMA_SMOOTH
+};
+
 extern char useDithering;
 enum iUseDither
 {

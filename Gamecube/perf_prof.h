@@ -90,6 +90,11 @@ extern "C" {
 #ifndef PERF_PROF_BIOS
 #define PERF_PROF_BIOS 1
 #endif
+/* PERF_PROF_MDEC splits the video decode into its two halves, so a change to either can
+ * be shown. Two time-base reads per macroblock; turn it off with -DPERF_PROF_MDEC=0. */
+#ifndef PERF_PROF_MDEC
+#define PERF_PROF_MDEC 1
+#endif
 
 typedef struct {
 	/* CPU / JIT (Wii adapter level, lightrec.c) */
@@ -299,6 +304,11 @@ typedef struct {
 	uint32_t ogx_tile_calls;
 	uint64_t mdec_ticks;          /* psxDma1: MDEC IDCT + YUV->RGB for one DMA */
 	uint32_t mdec_calls;
+	/* Inside that: rl2blk (run-length decode, dequantise, IDCT) against the colour
+	 * conversion. mdec_blocks counts macroblocks, mdec_dconly the ones whose IDCT was
+	 * the DC-only short cut. */
+	uint64_t mdec_rl_us, mdec_yuv_us;
+	uint32_t mdec_blocks, mdec_dconly;
 
 	/* Storage (cdriso.c) */
 	uint32_t cd_reads;            /* sector-read calls (raw + CHD) */
@@ -455,6 +465,7 @@ void perf_pad_event(unsigned pad, unsigned type, unsigned drv_btns, unsigned drv
 
 #define PERF_PROF_NETWAIT 0
 #define PERF_PROF_BIOS 0
+#define PERF_PROF_MDEC 0
 
 #define PERF_PROF_TRACE 0
 #define PERF_PROF_GPU   0

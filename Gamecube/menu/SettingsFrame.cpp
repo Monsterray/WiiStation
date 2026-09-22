@@ -106,6 +106,7 @@ void Func_ToggleXa();
 void Func_ToggleCdda();
 void Func_PluginsPage();
 void Func_CDPage();
+void Func_AdvGfxPage();
 void Func_MemoryPage();
 void Func_SoundHwAccelYes();
 void Func_SoundHwAccelNo();
@@ -165,7 +166,7 @@ void setSpuInterpolation(int spuInterpolation);
 void setSpuTempo(int soundTempo);
 }
 
-#define NUM_FRAME_BUTTONS 78
+#define NUM_FRAME_BUTTONS 79
 #define NUM_TAB_BUTTONS 5
 #define FRAME_BUTTONS settingsFrameButtons
 #define FRAME_STRINGS settingsFrameStrings
@@ -189,7 +190,8 @@ Limit FPS: Auto; Off; xxx
 Frame Skip: On; Off
 Screen Mode: 4:3; 16:9
 Scaling: None; 2xSaI
-Dithering: None; Game Dependent; Always
+Filters: Bilinear; Trap; Deflicker
+Advanced                       (Dithering and MDEC Chroma live on that page)
 
 Input Tab:
 Assign Controllers (assign player->pad)
@@ -216,7 +218,7 @@ Auto Save Memcards: Yes; No
 Save States Device: SD; USB
 */
 
-static char FRAME_STRINGS[96][24] =
+static char FRAME_STRINGS[97][24] =
 	{ "General",
 	  "Video",
 	  "Input",
@@ -320,7 +322,8 @@ static char FRAME_STRINGS[96][24] =
 	  "Off",				// [92] the card is not there at all
 	  "Shared",				// [93] one card file every game opens
 	  "Game",				// [94] one card file per game
-	  "2"					// [95] saves tab: which card the second button is
+	  "2",					// [95] saves tab: which card the second button is
+	  "Advanced"			// [96] video tab: the Advanced Graphics page
       };
 
 static char LANG_STRINGS[13][24] =
@@ -399,12 +402,12 @@ struct ButtonInfo
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[25],	380.0,	220.0,	 75.0,	56.0,	19,	23,	20,	20,	Func_FrameSkipOff,		Func_ReturnFromSettingsFrame }, // Frame Skip: Off
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[27],	295.0,	280.0,	 130.0,	56.0,	20,	25,	57,	23,	Func_ScreenMode,		Func_ReturnFromSettingsFrame }, // ScreenMode: 4:3/16:9/Force16:9
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[67],	435.0,	280.0,	 125.0,	56.0,	20,	26,	22,	57,	Func_Interlaced,		Func_ReturnFromSettingsFrame }, // Interlaced Mode
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[68],	428.0,	400.0,	110.0,	56.0,	27,	 1,	29,	28,	Func_DeflickerFilter,	Func_ReturnFromSettingsFrame }, // Filters: Deflicker Filter
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[68],	428.0,	340.0,	110.0,	56.0,	23,	78,	29,	28,	Func_DeflickerFilter,	Func_ReturnFromSettingsFrame }, // Filters: Deflicker Filter
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[30],	238.0,	340.0,	 70.0,	56.0,	22,	28,	27,	26,	Func_DitheringNone,		Func_ReturnFromSettingsFrame }, // Dithering: None
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[32],	318.0,	340.0,	105.0,	56.0,	23,	29,	25,	27,	Func_DitheringDefault,	Func_ReturnFromSettingsFrame }, // Dithering: Game Dependent
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[33],	433.0,	340.0,	105.0,	56.0,	23,	24,	26,	25,	Func_DitheringAlways,	Func_ReturnFromSettingsFrame }, // Dithering: Always
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[65],	238.0,	400.0,	 95.0,	56.0,	25,	 1,	24,	29,	Func_BilinearFilter,	Func_ReturnFromSettingsFrame }, // Filters: Bilinear Filter
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[66],	343.0,	400.0,	 75.0,	56.0,	26,	 1,	28,	24,	Func_TrapFilter,		Func_ReturnFromSettingsFrame }, // Filters: Trap Filter
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[65],	238.0,	340.0,	 95.0,	56.0,	22,	78,	24,	29,	Func_BilinearFilter,	Func_ReturnFromSettingsFrame }, // Filters: Bilinear Filter
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[66],	343.0,	340.0,	 75.0,	56.0,	22,	78,	28,	24,	Func_TrapFilter,		Func_ReturnFromSettingsFrame }, // Filters: Trap Filter
 	//Buttons for Input Tab (starts at button[30])
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[34],	 85.0,	100.0,	220.0,	56.0,	 2,	32,	31,	31,	Func_ConfigureInput,	Func_ReturnFromSettingsFrame }, // Configure Input Assignment
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[35],	320.0,	100.0,	235.0,	56.0,	 2,	32,	30,	30,	Func_ConfigureButtons,	Func_ReturnFromSettingsFrame }, // Configure Button Mappings
@@ -469,6 +472,7 @@ struct ButtonInfo
 	//Saves tab: which file each memory card lives in (buttons 76 and 77)
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[94],	295.0,	170.0,	105.0,	56.0,	46,	50,	77,	77,	Func_CardType1,			Func_ReturnFromSettingsFrame }, // Memcard 1 type: Off/Shared/Game
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[93],	430.0,	170.0,	105.0,	56.0,	47,	51,	76,	76,	Func_CardType2,			Func_ReturnFromSettingsFrame }, // Memcard 2 type: Off/Shared/Game
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[96],	245.0,	400.0,	150.0,	56.0,	28,	 1,	78,	78,	Func_AdvGfxPage,		Func_ReturnFromSettingsFrame }, // Video tab: Advanced Graphics page
 };
 
 struct TextBoxInfo
@@ -492,7 +496,7 @@ struct TextBoxInfo
 	{	NULL,	FRAME_STRINGS[20],	150.0,	248.0,	 1.0,	true }, // Frame Skip: On/Off
 	{	NULL,	FRAME_STRINGS[21],	150.0,	308.0,	 1.0,	true }, // ScreenMode: 4x3/16x9/Force16x9/Interlaced/240p
 	{	NULL,	FRAME_STRINGS[22],	150.0,	368.0,	 1.0,	true }, // Dithering: None/Game Dependent/Always
-	{	NULL,	FRAME_STRINGS[23],	150.0,	428.0,	 1.0,	true }, // Filters
+	{	NULL,	FRAME_STRINGS[23],	150.0,	368.0,	 1.0,	true }, // Filters
 	//TextBoxes for Input Tab (starts at textBox[10])
 	{	NULL,	FRAME_STRINGS[36],	150.0,	198.0,	 1.0,	true }, // PSX Controller Type: Analog/Digital/Light Gun
 	{	NULL,	FRAME_STRINGS[37],	150.0,	268.0,	 1.0,	true }, // Disable Rumble: Yes/No
@@ -646,7 +650,11 @@ void SettingsFrame::activateSubmenu(int submenu)
 				FRAME_BUTTONS[i].button->setActive(true);
 			}
 			for (int i = 4; i < 10; i++)
+			{
+				if (i == 8)      /* the Dithering label, now on Advanced Graphics */
+					continue;
 				FRAME_TEXTBOXES[i].textBox->setVisible(true);
+			}
 			FRAME_BUTTONS[1].button->setSelected(true);
 			if (showFPSonScreen == FPS_SHOW)	FRAME_BUTTONS[16].button->setSelected(true);
 			else								FRAME_BUTTONS[17].button->setSelected(true);
@@ -665,12 +673,18 @@ void SettingsFrame::activateSubmenu(int submenu)
 			FRAME_BUTTONS[57].button->setVisible(true);
 			FRAME_BUTTONS[57].button->setActive(true);
 
-			FRAME_BUTTONS[25+useDithering].button->setSelected(true);
+			/* Buttons 25/26/27 were the Dithering trio and textbox 8 its label. Both
+			 * moved to the Advanced Graphics page, which button 78 opens. They stay in
+			 * the tables because the focus fields reference by index. */
 			for (int i = 16; i < 30; i++)
 			{
+				if (i >= 25 && i <= 27)
+					continue;
 				FRAME_BUTTONS[i].button->setVisible(true);
 				FRAME_BUTTONS[i].button->setActive(true);
 			}
+			FRAME_BUTTONS[78].button->setVisible(true);
+			FRAME_BUTTONS[78].button->setActive(true);
 
 			// force NTSC
             if (forceNTSC == FORCENTSC_ENABLE)FRAME_BUTTONS[63].button->setSelected(true);
@@ -1528,6 +1542,11 @@ void Func_PluginsPage()
 void Func_CDPage()
 {
 	pMenuContext->setActiveFrame(MenuContext::FRAME_OPTIONS, OptionsFrame::PAGE_STORAGE);
+}
+
+void Func_AdvGfxPage()
+{
+	pMenuContext->setActiveFrame(MenuContext::FRAME_OPTIONS, OptionsFrame::PAGE_ADVGFX);
 }
 
 void Func_MemoryPage()

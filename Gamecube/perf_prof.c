@@ -594,6 +594,10 @@ void perf_report(void)
 		#if PERF_PROF_BIOS
 		perf_report_bios(f);
 		#endif
+		if (g_perf.mdec_blocks)
+			fprintf(f, "mdec: blocks=%lu dconly=%lu rl_us=%llu yuv_us=%llu\n",
+				(unsigned long)g_perf.mdec_blocks, (unsigned long)g_perf.mdec_dconly,
+				g_perf.mdec_rl_us, g_perf.mdec_yuv_us);
 		fprintf(f, "menu: frames=%lu menu_us=%llu strings=%lu glyphs=%lu texloads=%lu\n",
 			(unsigned long)g_perf.menu_frames, g_perf.menu_us,
 			(unsigned long)g_perf.menu_strings, (unsigned long)g_perf.menu_glyphs,

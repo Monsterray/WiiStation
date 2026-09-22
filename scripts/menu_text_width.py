@@ -53,8 +53,8 @@ TAB_ROWS = [
     ('Video',   [18, 19, 63],  5),
     ('Video',   [20, 21],      6),
     ('Video',   [22, 23, 57],  7),
-    ('Video',   [25, 26, 27],  8),
     ('Video',   [28, 29, 24],  9),
+    ('Video',   [78],          None),
     ('Input',   [30, 31],      None),
     ('Input',   [32, 33, 59],  10),
     ('Input',   [34, 35],      11),
@@ -72,8 +72,10 @@ TAB_ROWS = [
 ]
 TAB_STRIP = [0, 1, 2, 3, 4]          # the five tab buttons, their own centred row
 # In the tables so that no later index moves, but never shown on any tab.
-HIDDEN_BUTTONS = {5, 6, 58, 64, 65, 66, 42, 43, 44, 60, 61}
-HIDDEN_LABELS = {0, 15, 16, 24}
+# 25/26/27 are the Dithering trio: it moved to the Advanced Graphics page
+# (OptionsFrame), which button 78 opens.
+HIDDEN_BUTTONS = {5, 6, 58, 64, 65, 66, 42, 43, 44, 60, 61, 25, 26, 27}
+HIDDEN_LABELS = {0, 15, 16, 24, 8}   # 8: the Dithering label, now on Advanced Graphics
 # Not a row's left-hand label: small markers placed inside a row, which say which memory
 # card each Memcard Type button belongs to. They sit where the row puts them, not on the
 # label column.

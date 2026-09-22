@@ -114,6 +114,7 @@ char LoadCdBios=0;
 char frameLimit[2];
 char frameSkip;
 char useDithering;
+char mdecChroma;
 extern char audioEnabled;   // defined in dfsound/cube.c alongside the output drivers
 char soundHwAccel;          // read by dfsound/out.c when it picks an output driver
 char soundTempo;            // dfsound: legacy pull-back of the mixer clock when the output runs low
@@ -211,6 +212,7 @@ static struct {
   { "LimitFrames", &frameLimit[1], FRAMELIMIT_NONE, FRAMELIMIT_AUTO },
   { "SkipFrames", &frameSkip, FRAMESKIP_DISABLE, FRAMESKIP_ENABLE },
   { "Dithering", &useDithering, USEDITHER_NONE, USEDITHER_ALWAYS },
+  { "MdecChroma", &mdecChroma, MDECCHROMA_SHARP, MDECCHROMA_SMOOTH },
   { "PadAutoAssign", &padAutoAssign, PADAUTOASSIGN_MANUAL, PADAUTOASSIGN_AUTOMATIC },
   { "PadType1", &padType[0], PADTYPE_NONE, PADTYPE_MULTITAP },
   { "PadType2", &padType[1], PADTYPE_NONE, PADTYPE_MULTITAP },
@@ -408,6 +410,7 @@ void loadSettings(int argc, char *argv[])
 	frameLimit[1]		 = 1; // Auto limit FPS
 	frameSkip		 = 0; // Disable frame skipping
 	useDithering		 = 1; // Default dithering (set to 0 (disabled) in PEOPSgpu)
+	mdecChroma		 = MDECCHROMA_SHARP;   /* what the console does */
 	saveEnabled      = 0; // Don't save game
 	nativeSaveDevice = 0; // SD
 	saveStateDevice	 = 0; // SD

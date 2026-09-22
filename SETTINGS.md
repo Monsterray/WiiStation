@@ -97,6 +97,7 @@ The values of `lang` are:
 | `LimitFrames` | 0 = Off, 1 = Auto | 1 | Video, Limit FPS | Limits the speed to the speed of a real console. A controller button can change the limit during a game. That change is not saved. |
 | `SkipFrames` | 0 = Off, 1 = On | 0 | Video, Frame Skip | Lets the renderer skip frames when the emulation is slow. |
 | `Dithering` | 0 = None, 1 = Default, 2 = Always | 1 | Video, Dithering | Controls the dither pattern of the PlayStation graphics. Default applies dither only when the game requests it. |
+| `MdecChroma` | 0 = Sharp, 1 = Smooth | 0 | Video, Advanced page, "MDEC Chroma" | How the video decoder gives each pixel its colour. The MDEC sends one colour sample for every 2x2 pixels. **Sharp** repeats that sample across the four, which is what the console does and what makes PS1 video look blocky. **Smooth** mixes the neighbouring samples, so the video looks better than it did on hardware. Measured on Medievil's intro: the colour conversion takes about 2.5 times as long, which was 1.3% of the run against 3.3%. Applies to the next video that starts. |
 | `TVMode` | 0 = Off, 1 = On | 0 | Video, 240p | Sets the 240p original mode. The picture uses the original PlayStation resolution. |
 | `BilinearFilter` | 0 = Default, 1 = Near, 2 = Bilinear | 1 | Video, texture filter button | Selects the texture filter of the OpenGX renderer. Near keeps sharp pixels. Bilinear makes textures smooth. |
 | `TrapFilter` | 0 = Off, 1 = On | 1 | Video, Trap | Enables the video trap filter of the Wii video interface. |

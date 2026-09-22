@@ -547,7 +547,19 @@ int Load(fileBrowser_file *exe) {
 
 // STATES
 void LoadingBar_showBar(float percent, const char* string);
-const char PcsxHeader[32] = "STv4 PCSX 3.0";
+/* Bump this whenever the layout of anything a state holds changes, because the whole
+ * file is read back as raw structs and a shifted field is silently wrong, not an error.
+ * LoadState refuses a state whose header does not match and offers "load it anyway";
+ * taking that offer on a state from another layout gives garbage, so the bump is what
+ * makes the refusal happen at all.
+ *
+ *   STv4 -> STv5 (2026-09-22): cdrom.c grew cdr.Param from 8 bytes to the hardware's 16,
+ *                              which moves every field after it in the CD struct.
+ *
+ * What a bump breaks: every save state written by an older build of WiiStation, and by
+ * upstream PCSX builds that still use the older header. Memory cards are a separate
+ * format and are not affected. */
+const char PcsxHeader[32] = "STv5 PCSX 3.0";
 char* statespath = "/wiisxrx/savestates/";
 static unsigned int savestates_slot = 0;
 extern unsigned char  *psxVub;

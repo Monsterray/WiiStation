@@ -2042,7 +2042,10 @@ void psxBios_SetMem() { // 9f
 	pc0 = ra;
 }
 
-/* TODO FIXME : Not compliant. -1 indicates failure but using 1 for now. */
+/* A(A6h). The call reports whether the drive answered; -1 is what the real BIOS
+ * returns when it did not. WiiStation has no drive that can fail to answer -- the
+ * disc is a file, and a file that cannot be read fails earlier, in cdriso -- so
+ * success is the only reachable answer here. */
 static void psxBios_get_cd_status() // a6
 {
 	PSXBIOS_LOG("psxBios_%s\n", biosA0n[0xa6]);
@@ -2052,8 +2055,7 @@ static void psxBios_get_cd_status() // a6
 
 static void psxBios_GetSystemInfo() { // b4
 	u32 ret = 0;
-	//PSXBIOS_LOG("psxBios_%s %x\n", biosA0n[0xb4], a0);
-	SysPrintf("psxBios_%s %x\n", biosA0n[0xb4], a0);
+	PSXBIOS_LOG("psxBios_%s %x\n", biosA0n[0xb4], a0);
 	switch (a0) {
 	case 0:
 	case 1: ret = SWAP32(((u32 *)psxR)[0x100/4 + a0]); break;
