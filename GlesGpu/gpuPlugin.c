@@ -201,6 +201,23 @@ extern GXRModeObj *vmode;     /*** Graphics Mode Object ***/
 
 static void flipEGL(void);
 extern void (*ogx_draw_submitted_cb)(void);
+extern void ogx_state_invalidate(void);   /* deps/opengx/gc_gl.c: the GX state cache */
+
+/* PERF_PROF_GPUSPLIT: the parts of a present, timed from here on (perf.log "gpupres:"). */
+#if PERF_PROF_GPUSPLIT
+static int UploadScreen_t(int p)
+{ int r; PERF_TIME(pres_upload_ticks, r = UploadScreen(p)); g_perf.pres_uploads++; return r; }
+static void PrepareFullScreenUpload_t(int p)
+{ PERF_TIME(pres_prep_ticks, PrepareFullScreenUpload(p)); }
+static int CapturePresentedEfbSnapshot_t(void)
+{ int r; PERF_TIME(pres_capture_ticks, r = CapturePresentedEfbSnapshot()); return r; }
+static int gx_vout_render_t(short c)
+{ int r; PERF_TIME(pres_vout_ticks, r = gx_vout_render(c)); return r; }
+#define UploadScreen UploadScreen_t
+#define PrepareFullScreenUpload PrepareFullScreenUpload_t
+#define CapturePresentedEfbSnapshot CapturePresentedEfbSnapshot_t
+#define gx_vout_render gx_vout_render_t
+#endif
 
 ////////////////////////////////////////////////////////////////////////
 // stuff to make this a true PDK module
@@ -2469,6 +2486,9 @@ static void flipEGL(void)
 
     extern void resetTexCacheInfo(void);
     resetTexCacheInfo();
+    /* The copy to the TV and the FPS overlay above set GX state with raw GX calls, past
+     * OpenGX's state cache: it has to forget what it last set (deps/opengx/gc_gl.c). */
+    ogx_state_invalidate();
     perf_present_tick(perf_now_us() - flip_t0);
 }
 

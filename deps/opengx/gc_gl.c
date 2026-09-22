@@ -62,6 +62,167 @@ POSSIBILITY OF SUCH DAMAGE.
 #include "../../Gamecube/wiiSXconfig.h"
 #include "../../Gamecube/perf_prof.h"
 
+/* ---------------------------------------------------------------------------------------
+ * GX state cache.
+ *
+ * Every PlayStation primitive is one OpenGX draw, and every draw used to send the whole
+ * GX state again -- Z mode, alpha test, blend, the TEV stage, the colour channels, the
+ * vertex format -- twice for a semi-transparent one, although consecutive primitives
+ * mostly share all of it. Each GX_Set* below remembers the arguments it was last called
+ * with and does nothing when they are the same.
+ *
+ * Why this is safe. A GX_Set* call writes a shadow copy of one GX register (and the
+ * register itself, or marks it for GX_Begin). Calling it again with the same arguments
+ * writes the same value, so skipping it changes nothing -- as long as no other code
+ * wrote that register in between. Inside this file that cannot happen: the #defines at
+ * the end of this block send every call in gc_gl.c through the cache. Outside it, two
+ * things write GX state during a game: the copy to the TV and the FPS overlay, both in
+ * flipEGL() (GlesGpu/gpuPlugin.c), and the menu. So ogx_state_invalidate() is called at
+ * the end of flipEGL() and from glResetCacheRegion(), which runs whenever a game starts
+ * or resumes. Anything new that writes GX state directly during a game must call it too.
+ *
+ * Two traps, handled here: GX_SetTevOp() writes the four TEV input and operation
+ * registers from inside libogc, where no macro sees it, so it forgets that stage's four
+ * entries; and GX_SetChanCtrl() on GX_COLOR0 or GX_ALPHA0 overlaps GX_COLOR0A0, so only
+ * the two combined IDs are cached and any other ID forgets all channel entries.
+ *
+ * Build with -DOGX_STATE_CACHE=0 to turn the cache off, to find out whether a rendering
+ * fault is its doing. perf.log "gpudraw:" counts sets and skips.
+ * --------------------------------------------------------------------------------------- */
+#ifndef OGX_STATE_CACHE
+#define OGX_STATE_CACHE 1
+#endif
+
+enum {
+    OGX_S_BLEND, OGX_S_ZMODE, OGX_S_ALPHACMP,
+    OGX_S_NUMCHANS, OGX_S_NUMTEV, OGX_S_NUMTEXGEN,
+    OGX_S_CHAN0A0, OGX_S_CHAN1A1,
+    OGX_S_KCOLOR = OGX_S_CHAN1A1 + 1,          /* 4 konst colours */
+    OGX_S_CIN = OGX_S_KCOLOR + 4,              /* then 16 of each, one per TEV stage */
+    OGX_S_COP = OGX_S_CIN + 16,
+    OGX_S_AIN = OGX_S_COP + 16,
+    OGX_S_AOP = OGX_S_AIN + 16,
+    OGX_S_ORDER = OGX_S_AOP + 16,
+    OGX_S_KCSEL = OGX_S_ORDER + 16,
+    OGX_S_KASEL = OGX_S_KCSEL + 16,
+    OGX_S_COUNT = OGX_S_KASEL + 16
+};
+
+/* A slot is valid while its generation equals ogx_gen: invalidating everything is one
+ * increment. The vertex format has its own key (see glDrawCommon). */
+static unsigned ogx_gen = 1;
+static struct { unsigned gen; unsigned a[7]; } ogx_slot[OGX_S_COUNT];
+static unsigned ogx_vtx_gen, ogx_vtx_key;
+
+void ogx_state_invalidate(void)
+{
+    ogx_gen++;
+}
+
+/* True when slot id already holds these arguments; otherwise records them. */
+static int ogx_same(int id, unsigned a0, unsigned a1, unsigned a2, unsigned a3,
+                    unsigned a4, unsigned a5, unsigned a6)
+{
+#if OGX_STATE_CACHE
+    unsigned *a = ogx_slot[id].a;
+    if (ogx_slot[id].gen == ogx_gen && a[0] == a0 && a[1] == a1 && a[2] == a2 &&
+        a[3] == a3 && a[4] == a4 && a[5] == a5 && a[6] == a6) {
+#if PERF_PROF_GPU
+        PERF_INC(ogx_state_skips);   /* two counters per call cost as much as a GX write */
+#endif
+        return 1;
+    }
+    ogx_slot[id].gen = ogx_gen;
+    a[0] = a0; a[1] = a1; a[2] = a2; a[3] = a3; a[4] = a4; a[5] = a5; a[6] = a6;
+#endif
+#if PERF_PROF_GPU
+    PERF_INC(ogx_state_sets);
+#endif
+    return 0;
+}
+
+static void ogx_forget(int id)
+{
+    ogx_slot[id].gen = 0;
+}
+
+static inline unsigned ogx_col(GXColor c)
+{
+    return ((unsigned)c.r << 24) | ((unsigned)c.g << 16) | ((unsigned)c.b << 8) | c.a;
+}
+
+/* The cached forms. (GX_Set...)(...) calls the real function past the #define below. */
+static void ogx_SetBlendMode(u8 t, u8 s, u8 d, u8 o)
+{ if (!ogx_same(OGX_S_BLEND, t, s, d, o, 0, 0, 0)) (GX_SetBlendMode)(t, s, d, o); }
+static void ogx_SetZMode(u8 e, u8 f, u8 u)
+{ if (!ogx_same(OGX_S_ZMODE, e, f, u, 0, 0, 0, 0)) (GX_SetZMode)(e, f, u); }
+static void ogx_SetAlphaCompare(u8 c0, u8 r0, u8 op, u8 c1, u8 r1)
+{ if (!ogx_same(OGX_S_ALPHACMP, c0, r0, op, c1, r1, 0, 0)) (GX_SetAlphaCompare)(c0, r0, op, c1, r1); }
+static void ogx_SetNumChans(u8 n)
+{ if (!ogx_same(OGX_S_NUMCHANS, n, 0, 0, 0, 0, 0, 0)) (GX_SetNumChans)(n); }
+static void ogx_SetNumTevStages(u8 n)
+{ if (!ogx_same(OGX_S_NUMTEV, n, 0, 0, 0, 0, 0, 0)) (GX_SetNumTevStages)(n); }
+static void ogx_SetNumTexGens(u32 n)
+{ if (!ogx_same(OGX_S_NUMTEXGEN, n, 0, 0, 0, 0, 0, 0)) (GX_SetNumTexGens)(n); }
+static void ogx_SetChanCtrl(s32 ch, u8 en, u8 amb, u8 mat, u8 lit, u8 dif, u8 att)
+{
+    int id = ch == GX_COLOR0A0 ? OGX_S_CHAN0A0 : ch == GX_COLOR1A1 ? OGX_S_CHAN1A1 : -1;
+    if (id < 0) {                                  /* overlaps a combined ID: forget both */
+        ogx_forget(OGX_S_CHAN0A0);
+        ogx_forget(OGX_S_CHAN1A1);
+    } else if (ogx_same(id, en, amb, mat, lit, dif, att, 0))
+        return;
+    (GX_SetChanCtrl)(ch, en, amb, mat, lit, dif, att);
+}
+static void ogx_SetTevKColor(u8 sel, GXColor c)
+{ if (!ogx_same(OGX_S_KCOLOR + (sel & 3), ogx_col(c), 0, 0, 0, 0, 0, 0)) (GX_SetTevKColor)(sel, c); }
+static void ogx_SetTevColorIn(u8 st, u8 a, u8 b, u8 c, u8 d)
+{ if (!ogx_same(OGX_S_CIN + (st & 15), a, b, c, d, 0, 0, 0)) (GX_SetTevColorIn)(st, a, b, c, d); }
+static void ogx_SetTevAlphaIn(u8 st, u8 a, u8 b, u8 c, u8 d)
+{ if (!ogx_same(OGX_S_AIN + (st & 15), a, b, c, d, 0, 0, 0)) (GX_SetTevAlphaIn)(st, a, b, c, d); }
+static void ogx_SetTevColorOp(u8 st, u8 op, u8 bias, u8 scale, u8 clamp, u8 reg)
+{ if (!ogx_same(OGX_S_COP + (st & 15), op, bias, scale, clamp, reg, 0, 0)) (GX_SetTevColorOp)(st, op, bias, scale, clamp, reg); }
+static void ogx_SetTevAlphaOp(u8 st, u8 op, u8 bias, u8 scale, u8 clamp, u8 reg)
+{ if (!ogx_same(OGX_S_AOP + (st & 15), op, bias, scale, clamp, reg, 0, 0)) (GX_SetTevAlphaOp)(st, op, bias, scale, clamp, reg); }
+static void ogx_SetTevOrder(u8 st, u8 coord, u32 map, u8 color)
+{ if (!ogx_same(OGX_S_ORDER + (st & 15), coord, map, color, 0, 0, 0, 0)) (GX_SetTevOrder)(st, coord, map, color); }
+static void ogx_SetTevKColorSel(u8 st, u8 sel)
+{ if (!ogx_same(OGX_S_KCSEL + (st & 15), sel, 0, 0, 0, 0, 0, 0)) (GX_SetTevKColorSel)(st, sel); }
+static void ogx_SetTevKAlphaSel(u8 st, u8 sel)
+{ if (!ogx_same(OGX_S_KASEL + (st & 15), sel, 0, 0, 0, 0, 0, 0)) (GX_SetTevKAlphaSel)(st, sel); }
+static void ogx_SetTevOp(u8 st, u8 mode)
+{
+    ogx_forget(OGX_S_CIN + (st & 15)); ogx_forget(OGX_S_AIN + (st & 15));
+    ogx_forget(OGX_S_COP + (st & 15)); ogx_forget(OGX_S_AOP + (st & 15));
+    (GX_SetTevOp)(st, mode);
+}
+/* Any vertex-format call outside glDrawCommon makes its key stale. */
+static void ogx_ClearVtxDesc(void) { ogx_vtx_gen = 0; (GX_ClearVtxDesc)(); }
+static void ogx_SetVtxDesc(u8 attr, u8 type) { ogx_vtx_gen = 0; (GX_SetVtxDesc)(attr, type); }
+static void ogx_SetVtxAttrFmt(u8 fmt, u32 attr, u32 cnt, u32 type, u32 frac)
+{ ogx_vtx_gen = 0; (GX_SetVtxAttrFmt)(fmt, attr, cnt, type, frac); }
+
+#define GX_SetBlendMode      ogx_SetBlendMode
+#define GX_SetZMode          ogx_SetZMode
+#define GX_SetAlphaCompare   ogx_SetAlphaCompare
+#define GX_SetNumChans       ogx_SetNumChans
+#define GX_SetNumTevStages   ogx_SetNumTevStages
+#define GX_SetNumTexGens     ogx_SetNumTexGens
+#define GX_SetChanCtrl       ogx_SetChanCtrl
+#define GX_SetTevKColor      ogx_SetTevKColor
+#define GX_SetTevColorIn     ogx_SetTevColorIn
+#define GX_SetTevAlphaIn     ogx_SetTevAlphaIn
+#define GX_SetTevColorOp     ogx_SetTevColorOp
+#define GX_SetTevAlphaOp     ogx_SetTevAlphaOp
+#define GX_SetTevOrder       ogx_SetTevOrder
+#define GX_SetTevKColorSel   ogx_SetTevKColorSel
+#define GX_SetTevKAlphaSel   ogx_SetTevKAlphaSel
+#define GX_SetTevOp          ogx_SetTevOp
+#define GX_ClearVtxDesc      ogx_ClearVtxDesc
+#define GX_SetVtxDesc        ogx_SetVtxDesc
+#define GX_SetVtxAttrFmt     ogx_SetVtxAttrFmt
+/* ------------------------------------------------------------------ end of the cache -- */
+
 /* Phase 1 profiling: timed GX_DrawDone wrapper. DrawDone stalls Broadway
  * until the GP goes idle, so the gettick pair is noise next to the wait. */
 static void perf_drawdone(void)
@@ -789,6 +950,7 @@ static short gxTexMapSemi = GX_TEXMAP1;
 
 void glResetCacheRegion()
 {
+    ogx_state_invalidate();   /* a game starts or resumes: the menu drew with raw GX */
     int oldTexId = texCacheUsedInfo[0];
     if (oldTexId > 0)
     {
@@ -1919,6 +2081,19 @@ int glInitMovieTextures( GLsizei width, GLsizei height, void * texData )
     return textureType;
 }
 
+/* Write back the part of a GX-tiled 16-bit texture that texel rows y .. y+h-1 fall in.
+ * A row of 4x4 blocks is contiguous in memory, and so are consecutive block rows, so
+ * this is one range. A sub-upload used to flush the whole texture: up to 128 KB for a
+ * sub-texture of a few hundred texels. */
+static void flush_block_rows(void *base, int w, int y, int h)
+{
+    int row = W_BLOCK(w) * 32;                  /* bytes in one row of blocks */
+    int b0 = y >> 2, b1 = (y + h - 1) >> 2;
+    if (h <= 0)
+        return;
+    DCFlushRange((unsigned char *)base + b0 * row, (b1 - b0 + 1) * row);
+}
+
 // Update a Texture
 static int glTexSubImage2D_body(GLenum target, GLint level,
                    GLint xoffset, GLint yoffset,
@@ -1993,13 +2168,15 @@ static int glTexSubImage2D_body(GLenum target, GLint level,
     }
 
     unsigned short semiFlg = upload_semi_flag(currtex->w, currtex->h, xoffset, yoffset, width, height);
+    const int flush_y = yoffset, flush_h = height;   /* the unaligned path moves yoffset */
+    int semi_new = 0;
 
     if ((xoffset & 3) == 0 && (yoffset & 3) == 0)
     {
         // The position happens to be the integer position of the Block
         int startOffset = ((yoffset >> 2) * W_BLOCK(currtex->w) + (xoffset >> 2)) * 32;
         textureType = _ogx_scramble_4b_sub((unsigned char *)data, currtex->data + startOffset, semiTransBufPtr + startOffset, semiFlg, width, height, currtex->w);
-        DCFlushRange(currtex->data , currtex->w * currtex->h * 2);
+        flush_block_rows(currtex->data, currtex->w, flush_y, flush_h);
     }
     else
     {
@@ -2083,7 +2260,7 @@ static int glTexSubImage2D_body(GLenum target, GLint level,
             xoffset = oldXoffset;
         }
 
-        DCFlushRange(currtex->data , currtex->w * currtex->h * 2);
+        flush_block_rows(currtex->data, currtex->w, flush_y, flush_h);
     }
 
     if (textureType & TEX_TYPE_1)
@@ -2098,8 +2275,13 @@ static int glTexSubImage2D_body(GLenum target, GLint level,
                 GX_InitTexObjFilterMode(&currtex->semiTransTexobj, GX_NEAR, GX_NEAR);
             }
             memcpy(currtex->semiTransData, semiTransBuf, currtex->w * currtex->h * 2);
+            semi_new = 1;
         }
-        DCFlushRange(currtex->semiTransData , currtex->w * currtex->h * 2);
+        /* A fresh copy wrote the whole texture; an existing one only the upload's rows. */
+        if (semi_new)
+            DCFlushRange(currtex->semiTransData , currtex->w * currtex->h * 2);
+        else
+            flush_block_rows(currtex->semiTransData, currtex->w, flush_y, flush_h);
     }
 
     return textureType;
@@ -3029,21 +3211,30 @@ static inline int _ogx_apply_state(int texen, int color_enabled)
 
 static inline void glDrawCommon(int texen, int color_enabled)
 {
+    /* The vertex format depends only on these two, so it is set only when they change
+     * (see the GX state cache at the top of this file). The real functions, past the
+     * cache's #defines, so that setting it here does not make the key stale. */
+    unsigned key = 1 | (texen ? 2 : 0) | (color_enabled ? 4 : 0);
+    if (!OGX_STATE_CACHE || ogx_vtx_gen != ogx_gen || ogx_vtx_key != key)
+    {
     // Not using indices
-    GX_ClearVtxDesc();
-    GX_SetVtxDesc(GX_VA_POS, GX_DIRECT);
-    GX_SetVtxAttrFmt(GX_VTXFMT0, GX_VA_POS, GX_POS_XYZ, GX_F32, 0);
+    (GX_ClearVtxDesc)();
+    (GX_SetVtxDesc)(GX_VA_POS, GX_DIRECT);
+    (GX_SetVtxAttrFmt)(GX_VTXFMT0, GX_VA_POS, GX_POS_XYZ, GX_F32, 0);
 
     if (color_enabled)
     {
-        GX_SetVtxDesc(GX_VA_CLR0, GX_DIRECT);
-        GX_SetVtxAttrFmt(GX_VTXFMT0, GX_VA_CLR0, GX_CLR_RGBA, GX_RGBA8, 0);
+        (GX_SetVtxDesc)(GX_VA_CLR0, GX_DIRECT);
+        (GX_SetVtxAttrFmt)(GX_VTXFMT0, GX_VA_CLR0, GX_CLR_RGBA, GX_RGBA8, 0);
     }
 
     if (texen)
     {
-        GX_SetVtxDesc(GX_VA_TEX0, GX_DIRECT);
-        GX_SetVtxAttrFmt(GX_VTXFMT0, GX_VA_TEX0, GX_TEX_ST, GX_F32, 0);
+        (GX_SetVtxDesc)(GX_VA_TEX0, GX_DIRECT);
+        (GX_SetVtxAttrFmt)(GX_VTXFMT0, GX_VA_TEX0, GX_TEX_ST, GX_F32, 0);
+    }
+    ogx_vtx_gen = ogx_gen;
+    ogx_vtx_key = key;
     }
 
     // Invalidate vertex data as may have been modified by the user

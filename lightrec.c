@@ -679,9 +679,12 @@ static void lightrec_plugin_execute_internal(bool block_only)
 				unsigned long long dt = depth == 1 ? perf_now_us() - t0 : 0;
 				PERF_ADD(bios_us, dt);
 				/* 1,2,3 are hleA0/B0/C0 and 24,25,26 their trap forms; everything
-				 * else on this table is an exception or boot hook. */
+				 * else on this table is an exception or boot hook.
+				 * The soft-call trap (hleop_softcall_end) is neither: it is
+				 * where a handler returns to, and it costs nothing. */
 				if (!(hlec == 1 || hlec == 2 || hlec == 3 ||
-				      hlec == 24 || hlec == 25 || hlec == 26)) {
+				      hlec == 24 || hlec == 25 || hlec == 26 ||
+				      hlec == hleop_softcall_end)) {
 					PERF_ADD(bios_exc_us, dt);
 					PERF_INC(bios_exc_calls);
 				}
@@ -726,7 +729,10 @@ static void lightrec_plugin_execute(void)
 
 static void lightrec_plugin_execute_block(enum blockExecCaller caller)
 {
-	lightrec_plugin_execute_internal(true);
+	/* EXEC_CALLER_HLE_RUN: an HLE soft call known to return to its ROM trap
+	 * (psxbios.c, SOFTCALL_END). Run it with a normal budget; the recompiler exits
+	 * on the trap by itself. Everything else is one block. */
+	lightrec_plugin_execute_internal(caller != EXEC_CALLER_HLE_RUN);
 }
 
 static void lightrec_plugin_clear(u32 addr, u32 size)

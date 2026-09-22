@@ -40,6 +40,7 @@ enum hle_op {
 	hleop_exc3_0_2,
 	hleop_exc_padcard1, hleop_exc_padcard2,
 	hleop_a0t, hleop_b0t, hleop_c0t,
+	hleop_softcall_end,	// the return address of an HLE soft call (psxbios.c)
 	hleop_count_ // must be last
 };
 

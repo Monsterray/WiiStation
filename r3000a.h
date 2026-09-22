@@ -60,6 +60,10 @@ enum R3000Anote {
 enum blockExecCaller {
 	EXEC_CALLER_BOOT,
 	EXEC_CALLER_HLE,
+	/* An HLE soft call that is known to return to its trap: a recompiler may run
+	 * it to the trap in one entry instead of one block. An interpreter can treat
+	 * it as EXEC_CALLER_HLE; the result is the same. */
+	EXEC_CALLER_HLE_RUN,
 };
 
 typedef struct {

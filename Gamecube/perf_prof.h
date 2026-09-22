@@ -437,6 +437,13 @@ typedef struct {
 	 * question of whether the scheduler belongs on that path at all. */
 	uint64_t slice_nested_sched_ticks, slice_nested_jit_ticks;
 
+	/* HLE soft calls (psxbios.c SOFTCALL_END): run in one recompiler entry, stepped one
+	 * block at a time (a handler's first call, or one known to leave the exception),
+	 * stepped calls that left the exception, and run calls that did -- the case the
+	 * per-handler learning cannot cover, which should stay 0. */
+	uint32_t softcall_runs, softcall_steps, softcall_escapes, softcall_run_escapes;
+	uint32_t softcall_hle_exits;  /* left through the HLE's ReturnFromException: safe */
+
 	/* The GPU command loop, split (PERF_PROF_GPUSPLIT). Ticks, converted at report
 	 * time. `parse` is whatever is left of GL_GPUwriteDataMem once the other three
 	 * are taken out of it. */
@@ -451,6 +458,11 @@ typedef struct {
 	 * display moves, and the presentation (updateDisplayGl) it can start. */
 	uint64_t flip_will_ticks, flip_done_ticks, flip_present_ticks;
 	uint32_t flip_presents;
+	/* Inside a present: UploadScreen (VRAM -> GX texture, the 24-bit FMV path), its
+	 * PrepareFullScreenUpload, the EFB snapshot flipEGL takes, and gx_vout_render (the
+	 * copy to the TV, which can wait for the video interface). */
+	uint64_t pres_upload_ticks, pres_prep_ticks, pres_capture_ticks, pres_vout_ticks;
+	uint32_t pres_uploads;
 	/* The primitive time again, by class of GP0 command: index is the top three bits
 	 * of the command byte, so 1 is the polygons, 2 the lines, 3 the sprites, and 7 the
 	 * drawing-state commands (E1..E6). */
@@ -467,6 +479,7 @@ typedef struct {
 	 * format set on every draw and `state` the GX state (Z, alpha test, blend, texture
 	 * object, TEV) set on every draw, twice for a blended one. `tex` and `mode` are two
 	 * parts of the preparation: the texture-cache lookup and SetRenderMode. */
+	uint32_t ogx_state_sets, ogx_state_skips;   /* the GX state cache in gc_gl.c */
 	uint64_t ogx_draw_ticks, ogx_common_ticks, ogx_state_ticks;
 	uint64_t gpu_tex_ticks, gpu_mode_ticks;
 	uint32_t ogx_draw_calls, ogx_state_calls;

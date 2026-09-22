@@ -457,6 +457,12 @@ void perf_report(void)
 			(unsigned long long)ticks_to_microsecs(g_perf.slice_post_ticks),
 			(unsigned long)g_perf.exit_normal,
 			(unsigned long)g_perf.exit_check_irq);
+		if (g_perf.softcall_runs || g_perf.softcall_steps)
+			fprintf(f, "softcall: runs=%lu steps=%lu escapes=%lu run_escapes=%lu hle_exits=%lu\n",
+				(unsigned long)g_perf.softcall_runs, (unsigned long)g_perf.softcall_steps,
+				(unsigned long)g_perf.softcall_escapes,
+				(unsigned long)g_perf.softcall_run_escapes,
+				(unsigned long)g_perf.softcall_hle_exits);
 		if (g_perf.jit_nested)
 			fprintf(f, "nested: n=%lu sched_us=%llu jit_us=%llu\n",
 				(unsigned long)g_perf.jit_nested,
@@ -670,6 +676,13 @@ void perf_report(void)
 				(unsigned long long)ticks_to_microsecs(g_perf.flip_done_ticks),
 				(unsigned long long)ticks_to_microsecs(g_perf.flip_present_ticks),
 				(unsigned long)g_perf.flip_presents);
+		if (g_perf.pres_uploads || g_perf.pres_vout_ticks)
+			fprintf(f, "gpupres: upload_us=%llu uploads=%lu prep_us=%llu capture_us=%llu vout_us=%llu\n",
+				(unsigned long long)ticks_to_microsecs(g_perf.pres_upload_ticks),
+				(unsigned long)g_perf.pres_uploads,
+				(unsigned long long)ticks_to_microsecs(g_perf.pres_prep_ticks),
+				(unsigned long long)ticks_to_microsecs(g_perf.pres_capture_ticks),
+				(unsigned long long)ticks_to_microsecs(g_perf.pres_vout_ticks));
 		if (g_perf.gpu_prim_calls) {
 			static const char *const cls[8] = {
 				"misc", "poly", "line", "rect", "vv", "cv", "vc", "state"
@@ -698,6 +711,8 @@ void perf_report(void)
 				(unsigned long)g_perf.ogx_state_calls,
 				(unsigned long long)ticks_to_microsecs(g_perf.gpu_tex_ticks),
 				(unsigned long long)ticks_to_microsecs(g_perf.gpu_mode_ticks));
+			fprintf(f, "gxcache: sets=%lu skips=%lu\n",
+				(unsigned long)g_perf.ogx_state_sets, (unsigned long)g_perf.ogx_state_skips);
 		}
 		#endif
 		#if PERF_PROF_GTE

@@ -1747,6 +1747,9 @@ static uint16_t ReadSnapshotPixelToPSX(const GXFrameSnapshot *snap,
 #ifdef DISP_DEBUG
 static void DebugComparePresentedToBaseline(const GXFrameSnapshot *snap)
 {
+    /* A whole-frame comparison that only a log line reads. */
+    if (!logFileEnabled())
+        return;
     unsigned int quadrant[4] = {0, 0, 0, 0};
     unsigned int baseHash = 2166136261u;
     unsigned int presentHash = 2166136261u;

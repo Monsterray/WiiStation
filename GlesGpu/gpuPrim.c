@@ -1817,6 +1817,8 @@ int UploadScreen ( int Position )
     xb = xrUploadArea.x1;
 
 #ifdef DISP_DEBUG
+    /* Hashes every byte of the frame: only when the log will be written. */
+    if (logFileEnabled())
     {
         unsigned int sourceNonZero = 0;
         unsigned int sourceHash = 2166136261u;
@@ -1896,6 +1898,8 @@ int UploadScreen ( int Position )
             assignTextureVRAMWrite();
 
 #ifdef DISP_DEBUG
+            /* Hashes every byte of the tile: only when the log will be written. */
+            if (logFileEnabled())
             {
                 const unsigned char *textureBytes = texturepart;
                 unsigned int textureNonZero = 0;

@@ -417,6 +417,66 @@ static void mips_return_void_c(u32 cycle)
 	pc0 = ra;
 }
 
+/* HLE soft calls: the HLE BIOS calls guest code -- an interrupt handler, an event
+ * callback -- and has to know when it returns. It sets $ra to SOFTCALL_END and runs the
+ * guest until the program counter reaches it.
+ *
+ * SOFTCALL_END is a word of the BIOS ROM holding an HLE trap (hleop_softcall_end, planted
+ * in psxBiosInit). It used to be 0x80001000, ordinary RAM, which a recompiler must never
+ * run into, so the guest was run one basic block at a time and the address tested after
+ * each: 81-97% of all recompiler entries in 3D games were these single blocks. A ROM word
+ * cannot be written by a game, so the trap is always there, and a recompiler that reaches
+ * it exits on it by itself.
+ *
+ * A handler can also leave the exception instead of returning. Two ways:
+ *   - through the HLE's own ReturnFromException (B0:17). That is an HLE call, and every
+ *     HLE call stops the recompiler, so the loop sees it at once either way. Safe to run;
+ *     psxBios_ReturnFromException() sets softcall_left_by_hle so it can be told apart.
+ *   - by itself, in guest code: jump to $k0, the interrupted program. A recompiler that
+ *     runs many blocks would carry on into the program inside the soft call; stepping
+ *     sees it after one block.
+ * So each handler is stepped the first time it is called, and softcall_learn() records
+ * how it ended. A handler that returned, or left through the HLE, runs in one entry from
+ * then on; one that left by itself is stepped for good. The residual risk is a handler
+ * that sometimes leaves by itself; perf.log's "softcall:" line counts that case as
+ * run_escapes, which should stay 0. */
+#define SOFTCALL_END 0xbfc01000
+#define SOFTCALL_LEARN_MAX 32
+static struct { u32 pc; u8 returns; } softcall_seen[SOFTCALL_LEARN_MAX];
+static int softcall_seen_n;
+static int softcall_left_by_hle;   /* set by psxBios_ReturnFromException */
+
+/* How to run the handler at pc: EXEC_CALLER_HLE_RUN once it is known to return. */
+static enum blockExecCaller softcall_mode(u32 pc)
+{
+	int i;
+	for (i = 0; i < softcall_seen_n; i++)
+		if (softcall_seen[i].pc == pc)
+			return softcall_seen[i].returns ? EXEC_CALLER_HLE_RUN : EXEC_CALLER_HLE;
+	return EXEC_CALLER_HLE;
+}
+
+/* After a stepped call: remember whether the handler at pc returned to the trap. A full
+ * table keeps stepping the handlers it cannot hold, which is only slower. */
+static void softcall_learn(u32 pc, int returned)
+{
+	int i;
+	for (i = 0; i < softcall_seen_n; i++)
+		if (softcall_seen[i].pc == pc)
+			return;
+	if (softcall_seen_n < SOFTCALL_LEARN_MAX) {
+		softcall_seen[softcall_seen_n].pc = pc;
+		softcall_seen[softcall_seen_n].returns = returned ? 1 : 0;
+		softcall_seen_n++;
+	}
+}
+
+/* The trap's own handler. It does nothing: reaching it is the whole message, and the
+ * program counter stays on it so the loop in softCall() sees the end. */
+static void hleSoftcallEnd(void)
+{
+}
+
 static int returned_from_exception(void)
 {
 	// 0x80000080 means it took another exception just after return
@@ -428,15 +488,17 @@ static inline void softCall(u32 pc) {
 	u32 ssr = psxRegs.CP0.n.SR;
 	u32 lim = 0;
 	pc0 = pc;
-	ra = 0x80001000;
+	ra = SOFTCALL_END;
 	psxRegs.CP0.n.SR &= ~0x404; // disable interrupts
 
 	assert(psxRegs.cpuInRecursion <= 1);
 	psxRegs.cpuInRecursion++;
 	psxCpu->Notify(R3000ACPU_NOTIFY_AFTER_LOAD, PTR_1);
 
-	while (pc0 != 0x80001000 && ++lim < 0x100000)
-		psxCpu->ExecuteBlock(EXEC_CALLER_HLE);
+	/* Not in an exception, so there is nothing to leave: run it to the trap. */
+	PERF_INC(softcall_runs);
+	while (pc0 != SOFTCALL_END && ++lim < 0x100000)
+		psxCpu->ExecuteBlock(EXEC_CALLER_HLE_RUN);
 
 	psxCpu->Notify(R3000ACPU_NOTIFY_BEFORE_SAVE, PTR_1);
 	psxRegs.cpuInRecursion--;
@@ -452,23 +514,44 @@ static inline void softCallInException(u32 pc) {
 	u32 lim = 0;
 	pc0 = pc;
 
-	assert(ra != 0x80001000);
-	if (ra == 0x80001000)
+	enum blockExecCaller mode = softcall_mode(pc);
+
+	assert(ra != SOFTCALL_END);
+	if (ra == SOFTCALL_END)
 		return;
-	ra = 0x80001000;
+	ra = SOFTCALL_END;
 
 	psxRegs.cpuInRecursion++;
 	psxCpu->Notify(R3000ACPU_NOTIFY_AFTER_LOAD, PTR_1);
 
-	while (!returned_from_exception() && pc0 != 0x80001000 && ++lim < 0x100000)
-		psxCpu->ExecuteBlock(EXEC_CALLER_HLE);
+	softcall_left_by_hle = 0;
+	while (!returned_from_exception() && pc0 != SOFTCALL_END && ++lim < 0x100000)
+		psxCpu->ExecuteBlock(mode);
+	{
+		int left = pc0 != SOFTCALL_END;
+		int by_itself = left && !softcall_left_by_hle;
+		if (mode == EXEC_CALLER_HLE) {
+			softcall_learn(pc, !by_itself);
+			PERF_INC(softcall_steps);
+			if (by_itself)
+				PERF_INC(softcall_escapes);
+		} else {
+			PERF_INC(softcall_runs);
+			/* A handler learned as safe left by itself this time: the case the
+			 * learning cannot cover. Counted, so a run shows whether it happens. */
+			if (by_itself)
+				PERF_INC(softcall_run_escapes);
+		}
+		if (left && softcall_left_by_hle)
+			PERF_INC(softcall_hle_exits);
+	}
 
 	psxCpu->Notify(R3000ACPU_NOTIFY_BEFORE_SAVE, PTR_1);
 	psxRegs.cpuInRecursion--;
 
 	if (lim == 0x100000)
 		PSXBIOS_LOG("softCallInException @%x hit lim\n", pc);
-	if (pc0 == 0x80001000)
+	if (pc0 == SOFTCALL_END)
 		ra = sra;
 }
 
@@ -2503,6 +2586,7 @@ static void psxBios_PAD_dr() { // 16
 
 static void psxBios_ReturnFromException() { // 17
 	u32 tcbPtr = loadRam32(A_TT_PCB);
+	softcall_left_by_hle = 1;   /* see SOFTCALL_END */
 	const TCB *tcb = loadRam32ptr(tcbPtr);
 	u32 sr;
 	int i;
@@ -4037,6 +4121,9 @@ void psxBiosInit() {
 	rom32[0x3fffc/4] = HLEOP(hleop_dummy);
 	rom32[0x65ffc/4] = HLEOP(hleop_dummy);
 	rom32[0x7ff2c/4] = HLEOP(hleop_dummy);
+	/* the return address of every HLE soft call; see SOFTCALL_END */
+	rom32[(SOFTCALL_END & 0x7ffff)/4] = HLEOP(hleop_softcall_end);
+	softcall_seen_n = 0;
 
 	/*	Some games like R-Types, CTR, Fade to Black read from adress 0x00000000 due to uninitialized pointers.
 		See Garbage Area at Address 00000000h in Nocash PSX Specfications for more information.
@@ -4596,6 +4683,7 @@ void (* const psxHLEt[hleop_count_])() = {
 	hleExc3_0_2_defint,
 	hleExcPadCard1, hleExcPadCard2,
 	hleA0t, hleB0t, hleC0t,
+	hleSoftcallEnd,
 };
 
 void psxBiosCheckExe(u32 t_addr, u32 t_size, int loading_state)
