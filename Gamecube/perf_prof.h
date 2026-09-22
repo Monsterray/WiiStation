@@ -432,6 +432,11 @@ typedef struct {
 	 * these a second, and perf_now_us() would charge each one a 64-bit divide. */
 	uint64_t gte_ticks;
 
+	/* Nested slices: the one-block steps an HLE exception handler runs through
+	 * ExecuteBlock. `sched` is what gen_interupt() costs on those, which is the
+	 * question of whether the scheduler belongs on that path at all. */
+	uint64_t slice_nested_sched_ticks, slice_nested_jit_ticks;
+
 	/* The GPU command loop, split (PERF_PROF_GPUSPLIT). Ticks, converted at report
 	 * time. `parse` is whatever is left of GL_GPUwriteDataMem once the other three
 	 * are taken out of it. */

@@ -457,6 +457,11 @@ void perf_report(void)
 			(unsigned long long)ticks_to_microsecs(g_perf.slice_post_ticks),
 			(unsigned long)g_perf.exit_normal,
 			(unsigned long)g_perf.exit_check_irq);
+		if (g_perf.jit_nested)
+			fprintf(f, "nested: n=%lu sched_us=%llu jit_us=%llu\n",
+				(unsigned long)g_perf.jit_nested,
+				(unsigned long long)ticks_to_microsecs(g_perf.slice_nested_sched_ticks),
+				(unsigned long long)ticks_to_microsecs(g_perf.slice_nested_jit_ticks));
 		fprintf(f, "slice: cycles=%llu avg=%lu tiny=%lu\n",
 			g_perf.slice_cycles,
 			(unsigned long)(g_perf.jit_slices

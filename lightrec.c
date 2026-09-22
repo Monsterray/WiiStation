@@ -534,6 +534,21 @@ static irq_func * const irq_funcs[] = {
 	[PSXINT_LIGHTGUN] = lightgunInterrupt,
 };
 
+/* The interrupt controller half of irq_test: the Cause bit that follows I_STAT & I_MASK,
+ * and the exception that bit causes. It reads two hardware registers, which any store from
+ * recompiled code can change, so it has to be looked at on every pass -- unlike the event
+ * list, which cannot change its answer until the cycle count moves far enough. */
+static void irq_test_line(psxCP0Regs *cp0)
+{
+	cp0->n.Cause &= ~0x400;
+	if (psxHu32(0x1070) & psxHu32(0x1074))
+		cp0->n.Cause |= 0x400;
+	if (((cp0->n.Cause | 1) & cp0->n.SR & 0x401) == 0x401) {
+		psxException(0, 0, cp0);
+		//pending_exception = 1;
+	}
+}
+
 /* local dupe of psxBranchTest, using event_cycles */
 void irq_test(psxCP0Regs *cp0)
 {
@@ -551,21 +566,28 @@ void irq_test(psxCP0Regs *cp0)
 		}
 	}
 
-	cp0->n.Cause &= ~0x400;
-	if (psxHu32(0x1070) & psxHu32(0x1074))
-		cp0->n.Cause |= 0x400;
-	if (((cp0->n.Cause | 1) & cp0->n.SR & 0x401) == 0x401) {
-		psxException(0, 0, cp0);
-		//pending_exception = 1;
-	}
+	irq_test_line(cp0);
 }
 
 void gen_interupt(psxCP0Regs *cp0)
 {
 	//printf("%08x, %u->%u (%d)\r\n", psxRegs.pc, psxRegs.cycle,
 	//	next_interupt, next_interupt - psxRegs.cycle);
-	irq_test(cp0);
-	schedule_timeslice();
+
+	/* Both of these walk every pending event, and neither can reach a different answer
+	 * until the cycle count gets to the soonest one. set_event() pulls next_interupt
+	 * back whenever something sooner is scheduled, so it is exactly that cycle and the
+	 * test below is not an approximation.
+	 *
+	 * It is here for the HLE exception handlers. They step one basic block at a time
+	 * through ExecuteBlock -- 35 blocks per interrupt, 2,393,115 of them in a 1800-frame
+	 * Spyro run -- and each block was paying for both walks. */
+	if ((s32)(psxRegs.cycle - next_interupt) >= 0) {
+		irq_test(cp0);
+		schedule_timeslice();
+	}
+	else
+		irq_test_line(cp0);
 }
 
 static void lightrec_plugin_execute_internal(bool block_only)
@@ -682,6 +704,8 @@ static void lightrec_plugin_execute_internal(bool block_only)
 		PERF_ADD(cpu_ticks,         t_end   - t_start);
 	} else {
 		PERF_INC(jit_nested);
+		PERF_ADD(slice_nested_sched_ticks, t_sched - t_start);
+		PERF_ADD(slice_nested_jit_ticks,   t_jit   - t_sched);
 	}
 }
 
