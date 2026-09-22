@@ -417,14 +417,19 @@ void fileBrowserFrame_Error(fileBrowser_file* dir, int error_code)
 		FRAME_BUTTONS[i].button->setActive(false);
 	for (int i = 0; i<NUM_FILE_SLOTS; i++)
 		FRAME_BUTTONS[i+2].buttonString = FRAME_STRINGS[2];
+	/* The box is 560px wide and does not wrap, so each line breaks by hand.
+	 * scripts/menu_text_width.py measures them. */
 	if(error_code == SMB_NETINITERR) {
-  	sprintf(feedback_string,"Network not yet initialized");
+  	strcpy(feedback_string,"Still connecting to the network.\nTry again in a moment.");
 	}
 	else if(error_code == SMB_SMBCFGERR) {
-  	sprintf(feedback_string,"SMB not configured");
+  	strcpy(feedback_string,"SMB is not configured.\nSet smbsharename and smbipaddr\nin settingsRX2022.cfg");
+	}
+	else if(error_code == SMB_SMBRETRY) {
+  	strcpy(feedback_string,"Still connecting to the share.\nTry again in a moment.");
 	}
 	else if(error_code == SMB_SMBERR) {
-  	sprintf(feedback_string,"SMB failed to connect");
+  	strcpy(feedback_string,"Cannot connect to the share.\nCheck the SMB settings.");
 	}
 	//set first entry to read 'error' and return to main menu
 	else if(dir->name[0])   // name is an array; testing it as a pointer was always true

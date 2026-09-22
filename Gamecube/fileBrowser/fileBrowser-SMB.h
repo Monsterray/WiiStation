@@ -30,6 +30,7 @@
 #define SMB_NETINITERR -110
 #define SMB_SMBCFGERR  -111
 #define SMB_SMBERR -112
+#define SMB_SMBRETRY   -113   /* the share is not ready yet, or has gone away */
 
 extern fileBrowser_file topLevel_SMB;
 
@@ -40,9 +41,9 @@ int fileBrowser_SMB_seekFile(fileBrowser_file*, unsigned int, unsigned int);
 int fileBrowser_SMB_init(fileBrowser_file* file);
 int fileBrowser_SMB_deinit(fileBrowser_file* file);
 
-void init_network_thread();
-void pause_netinit_thread();
-void resume_netinit_thread();
+void init_network_thread(void);
+void pause_netinit_thread(void);
+void resume_netinit_thread(void);
 
 #endif
 

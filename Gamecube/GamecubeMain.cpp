@@ -38,6 +38,7 @@
 
 #include "../psxcommon.h"
 #include "wiiSXconfig.h"
+#include "config_parse.h"   /* the two scans in the settings parser */
 #include "menu/MenuContext.h"
 #include "libgui/IPLFont.h"
 #include "libgui/MessageBox.h"
@@ -940,11 +941,9 @@ void setOption(char* key, char* valuePointer){
 	bool isString = valuePointer[0] == '"';
 	char value = 0;
 
-	if(isString) {
-		char* p = valuePointer++;
-		while(*++p != '"');
-		*p = 0;
-	} else
+	if(isString)
+		valuePointer = config_unquote(valuePointer);
+	else
 		value = atoi(valuePointer);
 
 	for(unsigned int i=0; i<sizeof(OPTIONS)/sizeof(OPTIONS[0]); i++){
@@ -961,14 +960,12 @@ void setOption(char* key, char* valuePointer){
 }
 
 void handleConfigPair(char* kv){
-	char* vs = kv;
-	while(*vs != ' ' && *vs != '\t' && *vs != ':' && *vs != '=')
-			++vs;
-	*(vs++) = 0;
-	while(*vs == ' ' || *vs == '\t' || *vs == ':' || *vs == '=')
-			++vs;
+	/* A line with no separator holds no setting. A blank line is the common one, and it
+	 * used to walk off the end of the buffer. */
+	char* vs = config_split(kv);
 
-	setOption(kv, vs);
+	if(vs)
+		setOption(kv, vs);
 }
 
 void readConfig(FILE* f){
