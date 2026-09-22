@@ -17,7 +17,8 @@ INCLUDES := ./
 ifeq ($(PROF),1)
 OBJ_DIR			:= obj_prof
 LIB_NAME		:= libOpengx_prof.a
-PROF_DEFINES	:= -DPERF_PROF
+# PROBE_DEFINES: scripts/build.sh's PROBES gates, so the library and the executable agree
+PROF_DEFINES	:= -DPERF_PROF $(PROBE_DEFINES)
 else
 OBJ_DIR			:= obj
 LIB_NAME		:= libOpengx.a

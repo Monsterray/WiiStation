@@ -74,6 +74,7 @@ PROBE_STAMP="Gamecube/build_debug/.probe_defines"
 if [ "${1:-debug}" != "${1#debug}" ] && [ -d "Gamecube/build_debug" ] && [ "$(cat "$PROBE_STAMP" 2>/dev/null)" != "$PROBE_DEFINES" ]; then
 	echo "probe gates changed since the last build -- cleaning so the change takes effect"
 	make -C Gamecube -f Makefile_Wii clean >/dev/null 2>&1 || true
+	rm -rf deps/opengx/obj_prof   # the profiling OpenGX takes the same gates
 fi
 
 # The five dependency archives (opengx, zstd, lzma, zlibstatic, chdr) build
@@ -100,7 +101,10 @@ relink_if_deps_newer() {
 
 case "${1:-debug}" in
 	debug)
-		make opengx.a lightrecWithLog.a zstd.a lzma.a zlibstatic.a chdrstatic.a
+		# PROBE_DEFINES reaches the profiling OpenGX library too: its per-draw probes are
+		# gated like the plugin's, and a library built with other gates than the plugin
+		# reads state the plugin never writes.
+		make opengx.a lightrecWithLog.a zstd.a lzma.a zlibstatic.a chdrstatic.a PROBE_DEFINES="$PROBE_DEFINES"
 		relink_if_deps_newer Gamecube/WiiSXRX_debug.elf
 		make -C Gamecube -f Makefile_Wii EXTRA_CFLAGS="$PROBE_DEFINES"
 		mkdir -p Gamecube/build_debug && printf '%s' "$PROBE_DEFINES" > "$PROBE_STAMP"

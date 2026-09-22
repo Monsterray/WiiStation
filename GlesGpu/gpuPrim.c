@@ -38,6 +38,36 @@
 #include "../Gamecube/DEBUG.h"
 #include "../database.h"
 
+/* PERF_PROF_GPUSPLIT: every call into an OpenGX draw function and into the texture
+ * cache is timed, so a primitive divides into preparation and draw (perf.log
+ * "gpudraw:"). The macros below turn each call in this file into the timed form. */
+#if PERF_PROF_GPUSPLIT
+static void glPRIMdrawTexturedQuad_t(void *v, int c) { PERF_TIME(ogx_draw_ticks, glPRIMdrawTexturedQuad(v, c)); g_perf.ogx_draw_calls++; }
+static void glPRIMdrawTexturedTri_t(void *v) { PERF_TIME(ogx_draw_ticks, glPRIMdrawTexturedTri(v)); g_perf.ogx_draw_calls++; }
+static void glPRIMdrawTexGouraudTriColor_t(void *v) { PERF_TIME(ogx_draw_ticks, glPRIMdrawTexGouraudTriColor(v)); g_perf.ogx_draw_calls++; }
+static void glPRIMdrawTexGouraudTriColorQuad_t(void *v) { PERF_TIME(ogx_draw_ticks, glPRIMdrawTexGouraudTriColorQuad(v)); g_perf.ogx_draw_calls++; }
+static void glPRIMdrawTri_t(void *v) { PERF_TIME(ogx_draw_ticks, glPRIMdrawTri(v)); g_perf.ogx_draw_calls++; }
+static void glPRIMdrawTri2_t(void *v) { PERF_TIME(ogx_draw_ticks, glPRIMdrawTri2(v)); g_perf.ogx_draw_calls++; }
+static void glPRIMdrawGouraudTriColor_t(void *v) { PERF_TIME(ogx_draw_ticks, glPRIMdrawGouraudTriColor(v)); g_perf.ogx_draw_calls++; }
+static void glPRIMdrawGouraudTri2Color_t(void *v) { PERF_TIME(ogx_draw_ticks, glPRIMdrawGouraudTri2Color(v)); g_perf.ogx_draw_calls++; }
+static void glPRIMdrawFlatLine_t(void *v) { PERF_TIME(ogx_draw_ticks, glPRIMdrawFlatLine(v)); g_perf.ogx_draw_calls++; }
+static void glPRIMdrawGouraudLine_t(void *v) { PERF_TIME(ogx_draw_ticks, glPRIMdrawGouraudLine(v)); g_perf.ogx_draw_calls++; }
+static void glPRIMdrawQuad_t(void *v) { PERF_TIME(ogx_draw_ticks, glPRIMdrawQuad(v)); g_perf.ogx_draw_calls++; }
+static GLuint SelectSubTextureS_t(int m, unsigned int c) { GLuint r; PERF_TIME(gpu_tex_ticks, r = SelectSubTextureS(m, c)); return r; }
+#define glPRIMdrawTexturedQuad glPRIMdrawTexturedQuad_t
+#define glPRIMdrawTexturedTri glPRIMdrawTexturedTri_t
+#define glPRIMdrawTexGouraudTriColor glPRIMdrawTexGouraudTriColor_t
+#define glPRIMdrawTexGouraudTriColorQuad glPRIMdrawTexGouraudTriColorQuad_t
+#define glPRIMdrawTri glPRIMdrawTri_t
+#define glPRIMdrawTri2 glPRIMdrawTri2_t
+#define glPRIMdrawGouraudTriColor glPRIMdrawGouraudTriColor_t
+#define glPRIMdrawGouraudTri2Color glPRIMdrawGouraudTri2Color_t
+#define glPRIMdrawFlatLine glPRIMdrawFlatLine_t
+#define glPRIMdrawGouraudLine glPRIMdrawGouraudLine_t
+#define glPRIMdrawQuad glPRIMdrawQuad_t
+#define SelectSubTextureS SelectSubTextureS_t
+#endif
+
 ////////////////////////////////////////////////////////////////////////
 // defines
 ////////////////////////////////////////////////////////////////////////
@@ -983,7 +1013,15 @@ static inline void SetRenderState ( unsigned int DrawAttributes )
 
 ////////////////////////////////////////////////////////////////////////
 
-static void SetRenderMode ( unsigned int DrawAttributes, BOOL bSCol )
+/* PERF_PROF_GPUSPLIT times SetRenderMode through the same kind of wrapper. */
+static void SetRenderMode_ ( unsigned int DrawAttributes, BOOL bSCol );
+#if PERF_PROF_GPUSPLIT
+static void SetRenderMode_t ( unsigned int a, BOOL b ) { PERF_TIME(gpu_mode_ticks, SetRenderMode_(a, b)); }
+#define SetRenderMode SetRenderMode_t
+#else
+#define SetRenderMode SetRenderMode_
+#endif
+static void SetRenderMode_ ( unsigned int DrawAttributes, BOOL bSCol )
 {
 #if PERF_PROF_GPU
     {

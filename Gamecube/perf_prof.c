@@ -658,6 +658,18 @@ void perf_report(void)
 				(unsigned long)g_perf.gpu_off_calls,
 				(unsigned long long)ticks_to_microsecs(g_perf.gpu_prim_ticks),
 				(unsigned long)g_perf.gpu_prim_calls);
+		if (g_perf.gpu_gp1_calls || g_perf.gpu_read_calls)
+			fprintf(f, "gpuregs: gp1_us=%llu gp1=%lu read_us=%llu reads=%lu\n",
+				(unsigned long long)ticks_to_microsecs(g_perf.gpu_gp1_ticks),
+				(unsigned long)g_perf.gpu_gp1_calls,
+				(unsigned long long)ticks_to_microsecs(g_perf.gpu_read_ticks),
+				(unsigned long)g_perf.gpu_read_calls);
+		if (g_perf.gpu_gp1_calls)
+			fprintf(f, "gpuflip: will_us=%llu done_us=%llu present_us=%llu presents=%lu\n",
+				(unsigned long long)ticks_to_microsecs(g_perf.flip_will_ticks),
+				(unsigned long long)ticks_to_microsecs(g_perf.flip_done_ticks),
+				(unsigned long long)ticks_to_microsecs(g_perf.flip_present_ticks),
+				(unsigned long)g_perf.flip_presents);
 		if (g_perf.gpu_prim_calls) {
 			static const char *const cls[8] = {
 				"misc", "poly", "line", "rect", "vv", "cv", "vc", "state"
@@ -677,6 +689,15 @@ void perf_report(void)
 				(unsigned long long)ticks_to_microsecs(g_perf.gpu_fill_mark_ticks),
 				(unsigned long long)ticks_to_microsecs(g_perf.gpu_vramfin_ticks),
 				(unsigned long)g_perf.gpu_vramfin_calls);
+			fprintf(f, "gpudraw: ogx_us=%llu draws=%lu common_us=%llu state_us=%llu "
+				"states=%lu tex_us=%llu mode_us=%llu\n",
+				(unsigned long long)ticks_to_microsecs(g_perf.ogx_draw_ticks),
+				(unsigned long)g_perf.ogx_draw_calls,
+				(unsigned long long)ticks_to_microsecs(g_perf.ogx_common_ticks),
+				(unsigned long long)ticks_to_microsecs(g_perf.ogx_state_ticks),
+				(unsigned long)g_perf.ogx_state_calls,
+				(unsigned long long)ticks_to_microsecs(g_perf.gpu_tex_ticks),
+				(unsigned long long)ticks_to_microsecs(g_perf.gpu_mode_ticks));
 		}
 		#endif
 		#if PERF_PROF_GTE

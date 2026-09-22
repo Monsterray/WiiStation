@@ -1100,7 +1100,44 @@ return STATUSREG;
 // these are always single packet commands.
 ////////////////////////////////////////////////////////////////////////
 
+/* PERF_PROF_GPUSPLIT times GP1 and GPUREAD through wrappers named like the entry points,
+ * which keep the entry points own names, so the plugin table and every caller use them. */
+static void GL_GPUwriteStatus_(unsigned long gdata);
+static unsigned long GL_GPUreadData_(void);
+/* PERF_PROF_GPUSPLIT: the three things a display flip does, timed from here on. */
+#if PERF_PROF_GPUSPLIT
+static int OnDisplayMappingWillChange_t(const GXDisplayMap *p)
+{ int r; PERF_TIME(flip_will_ticks, r = OnDisplayMappingWillChange(p)); return r; }
+static void OnDisplayMappingChanged_t(void)
+{ PERF_TIME(flip_done_ticks, OnDisplayMappingChanged()); }
+static void updateDisplayGl_t(void)
+{ PERF_TIME(flip_present_ticks, updateDisplayGl()); g_perf.flip_presents++; }
+#define OnDisplayMappingWillChange OnDisplayMappingWillChange_t
+#define OnDisplayMappingChanged OnDisplayMappingChanged_t
+#define updateDisplayGl updateDisplayGl_t
+#endif
 void CALLBACK GL_GPUwriteStatus(unsigned long gdata)
+{
+#if PERF_PROF_GPUSPLIT
+ PERF_TIME(gpu_gp1_ticks, GL_GPUwriteStatus_(gdata));
+ g_perf.gpu_gp1_calls++;
+#else
+ GL_GPUwriteStatus_(gdata);
+#endif
+}
+unsigned long CALLBACK GL_GPUreadData(void)
+{
+ unsigned long r;
+#if PERF_PROF_GPUSPLIT
+ PERF_TIME(gpu_read_ticks, r = GL_GPUreadData_());
+ g_perf.gpu_read_calls++;
+#else
+ r = GL_GPUreadData_();
+#endif
+ return r;
+}
+
+static void GL_GPUwriteStatus_(unsigned long gdata)
 {
 unsigned long lCommand=(gdata>>24)&0xff;
 
@@ -1786,7 +1823,7 @@ GPUIsIdle;
  #endif // DISP_DEBUG
 }
 
-unsigned long CALLBACK GL_GPUreadData(void)
+static unsigned long GL_GPUreadData_(void)
 {
  unsigned long l;
  GL_GPUreadDataMem(&l,1);

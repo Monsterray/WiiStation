@@ -442,6 +442,15 @@ typedef struct {
 	 * are taken out of it. */
 	uint64_t gpu_vram_ticks, gpu_off_ticks, gpu_prim_ticks, gpu_parse_ticks;
 	uint32_t gpu_vram_words, gpu_off_calls, gpu_prim_calls;
+	/* The rest of the GPU's register time: GP1 writes (display control -- a moved
+	 * display area is where a new frame is uploaded for presentation) and GPUREAD. What
+	 * hw_gpu_us has beyond these and the four above is the DMA2 chain walk. */
+	uint64_t gpu_gp1_ticks, gpu_read_ticks;
+	uint32_t gpu_gp1_calls, gpu_read_calls;
+	/* Inside GP1's display flip: the VRAM-readback bookkeeping before and after the
+	 * display moves, and the presentation (updateDisplayGl) it can start. */
+	uint64_t flip_will_ticks, flip_done_ticks, flip_present_ticks;
+	uint32_t flip_presents;
 	/* The primitive time again, by class of GP0 command: index is the top three bits
 	 * of the command byte, so 1 is the polygons, 2 the lines, 3 the sprites, and 7 the
 	 * drawing-state commands (E1..E6). */
@@ -453,6 +462,14 @@ typedef struct {
 	uint64_t gpu_fill_gx_ticks, gpu_fill_sw_ticks, gpu_fill_mark_ticks;
 	uint64_t gpu_vramfin_ticks;
 	uint32_t gpu_vramfin_calls;
+	/* One draw, split. `ogx` is every call into OpenGX's glPRIMdraw* functions; the rest
+	 * of a primitive's time is the plugin preparing it. Inside ogx, `common` is the vertex
+	 * format set on every draw and `state` the GX state (Z, alpha test, blend, texture
+	 * object, TEV) set on every draw, twice for a blended one. `tex` and `mode` are two
+	 * parts of the preparation: the texture-cache lookup and SetRenderMode. */
+	uint64_t ogx_draw_ticks, ogx_common_ticks, ogx_state_ticks;
+	uint64_t gpu_tex_ticks, gpu_mode_ticks;
+	uint32_t ogx_draw_calls, ogx_state_calls;
 	uint32_t gte_calls[64];
 
 	/* Broadway's performance counters, read once at the end of a run (PERF_PROF_PMC). */

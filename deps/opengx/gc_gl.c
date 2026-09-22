@@ -3319,7 +3319,11 @@ static void draw_arrays_general(float *ptr_pos, float *ptr_normal, float *ptr_te
 }
 
 
-#ifdef PERF_PROF
+/* PERF_PROF_GPU, not PERF_PROF: GlesGpu writes the g_perf.ogx_cur_* state these read only
+ * under PERF_PROF_GPU. Gated on PERF_PROF they ran in every debug build, and with the gate
+ * off they compared against zeros -- which is where "98% of texels mismatch" came from. They
+ * also cost two dozen texel reads per textured draw. */
+#if PERF_PROF_GPU
 /* Probe for the flat-polygon investigation: is the texture this draw is
  * about to sample uniform over the region it samples? Texels are read from
  * the texture's tiled RAM buffer (RGB5A3, 4x4 blocks of 32 bytes), i.e.
@@ -3461,7 +3465,25 @@ static void probe_equiv(const void *vertexAdr, int nv)
 #else
 static inline void probe_uniform(int gt, const void *vertexAdr, int nv) { (void)gt; (void)vertexAdr; (void)nv; }
 static inline void probe_equiv(const void *vertexAdr, int nv) { (void)vertexAdr; (void)nv; }
-#endif /* PERF_PROF */
+#endif /* PERF_PROF_GPU */
+
+/* PERF_PROF_GPUSPLIT: time the two setup steps every draw below takes. Defined here, after
+ * both, so every draw function from here on calls the timed form. */
+#if PERF_PROF_GPUSPLIT
+static inline void glDrawCommon_timed(int texen, int color_enabled)
+{
+    PERF_TIME(ogx_common_ticks, glDrawCommon(texen, color_enabled));
+}
+static inline int ogx_apply_state_timed(int texen, int color_enabled)
+{
+    int r;
+    PERF_TIME(ogx_state_ticks, r = _ogx_apply_state(texen, color_enabled));
+    g_perf.ogx_state_calls++;
+    return r;
+}
+#define glDrawCommon glDrawCommon_timed
+#define _ogx_apply_state ogx_apply_state_timed
+#endif
 
 void glPRIMdrawTexturedQuad( void* vertexAdr, int changePointOrder )
 {

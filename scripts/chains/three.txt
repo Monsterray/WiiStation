@@ -1,0 +1,13 @@
+CHAIN
+# One game of each kind, 3600 vblanks each, about 3.5 minutes: 3D (Spyro, with its
+# title script), sprites and texture streaming (Crash Bash), FMV (Micro Machines V3).
+# bash scripts/wsx.sh chain NAME three.txt --secs 600
+3600 sd:/wiisxrx/spyro_title.txt
+sd:/wiisxrx/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue
+3600
+sd:/wiisxrx/isos/Crash Bash
+Crash Bash [U] [SCUS-94570].cue
+3600
+sd:/wiisxrx/isos/Micro Machines V3 (USA)
+Micro Machines V3 (USA).cue
