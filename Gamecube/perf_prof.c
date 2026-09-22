@@ -659,7 +659,8 @@ void perf_report(void)
 			for (i = 0; i < 64; i++)
 				total += g_perf.gte_calls[i];
 			if (total) {
-				fprintf(f, "gte: calls=%lu us=%llu |", total, g_perf.gte_us);
+				fprintf(f, "gte: calls=%lu us=%llu |", total,
+					(unsigned long long)ticks_to_microsecs(g_perf.gte_ticks));
 				/* Biggest first, by selection: 64 entries, printed once. */
 				for (n = 0; n < 8; n++) {
 					int best = -1;

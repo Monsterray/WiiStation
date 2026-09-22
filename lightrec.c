@@ -111,11 +111,11 @@ static void cop2_op(struct lightrec_state *state, u32 func)
 		/* This works because regs->cp2c comes right after regs->cp2d,
 		 * so it can be cast to a pcsxCP2Regs pointer. */
 		#if PERF_PROF_GTE
-		unsigned long long t0 = perf_now_us();
+		unsigned long long t0 = perf_now_ticks();
 		#endif
 		cp2_ops[func & 0x3f]((psxCP2Regs *) regs->cp2d);
 		#if PERF_PROF_GTE
-		g_perf.gte_us += perf_now_us() - t0;
+		g_perf.gte_ticks += perf_now_ticks() - t0;
 		g_perf.gte_calls[func & 0x3f]++;
 		#endif
 	}

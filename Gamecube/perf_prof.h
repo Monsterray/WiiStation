@@ -403,8 +403,10 @@ typedef struct {
 	uint32_t spu_chans;
 
 	/* The geometry coprocessor (PERF_PROF_GTE). `gte_calls` is indexed by the CP2
-	 * function field, so the 22 real operations sit at their own opcode numbers. */
-	uint64_t gte_us;
+	 * function field, so the 22 real operations sit at their own opcode numbers.
+	 * Ticks, converted at report time: a 3D game issues hundreds of thousands of
+	 * these a second, and perf_now_us() would charge each one a 64-bit divide. */
+	uint64_t gte_ticks;
 	uint32_t gte_calls[64];
 
 	/* Broadway's performance counters, read once at the end of a run (PERF_PROF_PMC). */
