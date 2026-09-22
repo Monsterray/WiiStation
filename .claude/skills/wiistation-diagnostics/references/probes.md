@@ -25,6 +25,7 @@ scheduled `dump` vblank. Lines and what they mean:
 | `ogx: gc sub_new sub_hit skip unaligned oob` | opengx sub-texture uploads and skips |
 | `ogxskip`, `ogxupl` | why uploads were skipped / semi vs opaque uploads, `mismatch` must be 0 |
 | `ogxoff: prims tex off_roi fills fills_off va va_roi` | primitives whose destination misses both display buffers (render-to-texture), fills, VRAM-area invalidations; `ogxva:` the first rects |
+| `efbloss: upl_calls upl_done \| pres: total clear inflight_skip` | the two ways already-drawn EFB content can go away again: `UploadScreen` calls (the PSX VRAM rect blitted over the EFB, which has no GX-drawn primitives in it) and those that reached the EFB; then presents, presents that cleared the EFB (`GX_CopyDisp(.., GX_TRUE)`, armed only by a GP0 02 fill covering the next screen) and presents refused because a copy was still in flight. Crash 3's title reads `upl_calls=0 ... total=1215 clear=2 inflight_skip=0`: the EFB is never re-uploaded, essentially never cleared, and no present is dropped |
 | `ogxeq: n mism hole` | texel-equivalence detector: GX texel at the UV centroid vs PSX texel from VRAM; `mism=0` means the CPU side (converter, cache, placement) is right |
 | `ogxud: gt nv mode page clut tex semi texel uv1024` | ring of draws that sampled a uniform texture (mode 2 = 15-bit direct, `texel=0000` = black) |
 | `offsoft: prims rejected` | off-screen primitives handed to the software rasterizer |
@@ -45,7 +46,19 @@ the draw (GX state, Dolphin); `offsoft prims` > 0 means the title renders off-sc
 `perf_prim_trace(cmd, flags, abr, color, x0, y0, x1, y1)` appends to a 2600-entry ring;
 an episode is 16 presents, armed by `trace <vblank>` lines in autoinput.txt (or the legacy
 automatic trigger), flushed to `ptrace.log` (rewritten per episode — the file holds the LAST
-episode only; schedule the interesting one last or read between runs). Header:
+episode only; schedule the interesting one last or read between runs).
+
+**Two traps that cost four runs on the Crash 3 starfield.** (1) The automatic trigger is a
+large *semi-transparent, untextured* primitive, which is what a fade-out quad looks like; a
+scene that has none — an ordinary title screen — never re-arms the trace, so the file keeps
+whatever fade came before it, with a header pointing at a vblank hundreds of frames earlier.
+Always read the header's `vblank=` before believing an episode is the scene you wanted, and
+put an explicit `trace <vblank>` in autoinput.txt for scenes that are visually quiet.
+(2) A scene drawing hundreds of small semi-transparent primitives per present (that title:
+2370 prims, 478 of them semi, every frame) fills the 2600-entry ring inside five presents,
+so the whole-screen primitive at the *end* of each present never reaches the log. Past half
+full the ring now keeps only primitives larger than 60000 PSX pixels² whatever their blend.
+Header:
 `ptrace: armed_at_present=P vblank=V prims/semi/fills per present: a/b/c ...`.
 Entry: `pt: +<present> cmd=<hex> <S><T><Q><G> abr=<n> col=<rrggbb> (x0,y0)-(x1,y1)` with
 S semi-transparent, T textured, Q quad, G gouraud; abr = blend mode 0..3.
@@ -59,6 +72,13 @@ Synthetic commands emitted by the read path and the off-screen path (not GP0 com
 | `c2` | readback state | `col` bits: 1 pendingPresented 2 contaminated 4 mixed 8 untracked 16 prevSnap 32 liveSnap 64 mapValid 128 contentValid 256 contentDirty 512 asyncInFlight; x0 map id, y0 previous map id, x1/y1 = FULL tiles in prev/live snapshot |
 | `c3` | content the CPU will read | `col` = FNV hash of the rect's first 8 rows in psxVuw, x1 = non-black words, y1 = words hashed |
 | `c8` | off-screen primitive rasterized in software | flags T=textured, `col` = GP0 command byte, rect |
+| `ea` | a screen re-upload from PSX VRAM was asked for | flags S=`Position`, T=RGB24; `col` = map id; rect = `xrUploadArea` |
+| `eb` | that re-upload actually reached the EFB | same fields |
+| `ec` | one entry per present | flags S=cleared the EFB, T=submitted, Q=`uploadedScreen`, G=`needFlipEGL`; `abr` = `iDrawnSomething`; **`col` = the emulated vblank**; rect = previous display position → new one |
+
+EA/EB/EC are numbered above 0xE0 on purpose: `perf_prim_trace` counts anything below that
+as a primitive in the per-present `prims/semi/fills` header, and a probe that fires every
+present would inflate it.
 
 `scripts/ptrace_summary.py` decodes all of this; read its output, not the raw file.
 

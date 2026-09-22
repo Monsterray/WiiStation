@@ -1,0 +1,6 @@
+# Crash 3 title screen. The title draws no big semi-transparent primitive, so
+# the trace never re-arms itself there: it has to be scheduled. The debug build
+# reaches the title at about vblank 2400 and is still on it past 3800.
+dump 2650
+trace 2600
+trace 3100

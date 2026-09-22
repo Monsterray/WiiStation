@@ -1623,6 +1623,11 @@ int UploadScreen ( int Position )
 
     uploadMapId = ResolveUploadMapId(Position);
     drawnBeforeUpload = iDrawnSomething;
+    PERF_INC(upl_calls);
+    perf_prim_trace(0xEA, (Position ? 1 : 0) | (PSXDisplay.RGB24 ? 2 : 0), 0,
+                    (unsigned)uploadMapId & 0xffffff,
+                    xrUploadArea.x0, xrUploadArea.y0,
+                    xrUploadArea.x1, xrUploadArea.y1);   /* EA = screen re-upload asked for */
     externalRebuildComplete = FALSE;
     externalRebuildUpload =
         ReadbackEnabled() && Position == FALSE &&
@@ -1721,6 +1726,11 @@ int UploadScreen ( int Position )
     }
 
     iDrawnSomething |= 0x2;
+    PERF_INC(upl_done);
+    perf_prim_trace(0xEB, (Position ? 1 : 0) | (PSXDisplay.RGB24 ? 2 : 0), 0,
+                    (unsigned)uploadMapId & 0xffffff,
+                    xrUploadArea.x0, xrUploadArea.y0,
+                    xrUploadArea.x1, xrUploadArea.y1);   /* EB = re-upload reached the EFB */
 
 
 
@@ -3474,7 +3484,19 @@ static void primTile1 ( unsigned char * baseAddr )
     //vertex[0].c.col.a = 0xFF;
     SETCOL ( vertex[0] );
 
-    if ((lx0 + PSXDisplay.CumulOffset.x) > 640 || (ly0 + PSXDisplay.CumulOffset.y) > 480)
+    /* Drop only a dot that lies wholly beyond the picture, judged in SCREEN
+     * coordinates -- the ones offsetST() put in vertex[] (raw + DrawOffset -
+     * GDrawOffset + Range). At this point lx0/ly0 have had offsetPSX4() add the
+     * draw offset a second time (they are VRAM coordinates now), and CumulOffset
+     * already contains it, so the old test lx0 + CumulOffset counted the draw
+     * offset twice. With a back buffer at VRAM x=512 and a draw offset of 512,
+     * that sum crossed 640 for every dot right of screen x~300, on alternate
+     * presents only: Crash 3's title starfield (297 GP0 68 one-pixel rectangles)
+     * blinked across the right 70% of the screen under OpenGX and was steady
+     * under both soft renderers, which have no such test. Measured with
+     * scripts/dot_flicker.py over 16 presents: right-third stars lost between
+     * consecutive presents 88 of 88 before, New Soft 0 of 176. */
+    if (vertex[0].x > 640 || vertex[0].y > 480 || vertex[0].x < -640 || vertex[0].y < -480)
     {
         return;
     }

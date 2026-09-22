@@ -71,7 +71,17 @@ updated after the last cluster flush, which a kill always leaves behind); prints
 
 Timing: boot to menu ≈ 15 s, autoboot into a game ≈ 20 s; a PSX vblank is 1/60 s of emulated
 time and the emulation runs near real time, so vblank N happens ≈ 20 + N/60 s after launch;
-frame dumping slows Dolphin (allow 1.5x). Frame index ≈ vblank for NTSC titles.
+frame dumping slows Dolphin (allow 1.5x).
+
+**Frame index is the PRESENT index, not the vblank.** Dolphin writes one PNG per XFB it is
+given, so a game that swaps buffers every second vblank produces one dump per two emulated
+frames and no duplicates at all (measured on Crash 3's title: 1215 presents over 2652
+vblanks, 0 of 118 consecutive dumps identical; `perf.log`'s `--- perf frames=N ---` is the
+present count and `wall: vblanks=` the vblank count). Treating a dump index as a vblank
+silently doubles every animation period you measure. The debug build's EC trace entries
+carry the vblank of each present, which is also how you tell an even cadence from a
+stutter. Two runs are comparable frame-for-frame only while both present at the same rate;
+a debug DOL reaches a given scene at a similar present index but a much later wall time.
 
 Only one Dolphin may run. `dolphin_run.sh` refuses to start while a `Dolphin.exe` exists and
 kills only the PID it launched; earlier versions killed by image name and closed the user's own
@@ -132,7 +142,19 @@ frame PNGs before this existed: file what matters, then delete `frames/` directo
 
 - `python scripts/ptrace_summary.py <outdir>/ptrace.log [--big AREA] [--show N]` — per-present
   entry counts, control commands (fill / draw area / display), big primitives, semi-transparent
-  ones, and one line per VRAM→CPU read with mapping, capture result, merged pixels, state bits.
+  ones, one line per VRAM→CPU read with mapping, capture result, merged pixels, state bits,
+  and the screen re-uploads (EA/EB) and presents (EC).
+- `python scripts/frame_cycle.py <frames dir> FIRST LAST [--period N] [--grid] [--map OUT.png]`
+  — what changes between consecutive dumps and where: changed pixels, bright→dark against
+  dark→bright (equal both ways is motion, one-sided is content being lost), the same count
+  at six thresholds so a threshold artefact is obvious, a per-cell map of which part of the
+  picture moves, and an image with the changing pixels in red. Reach for it before
+  believing any "N things vanish per frame" count taken at one brightness threshold.
+- `python scripts/dot_flicker.py <frames dir> FIRST LAST --exclude x0,y0,x1,y1` — tracks
+  the small bright dots (a starfield of GP0 68 one-pixel rectangles) frame to frame and
+  reports moved / dimmed / lost / new per third of the picture. This is what aggregate
+  change counts cannot do: see ~90 dots blinking under ~250 pixels of animation. Compare
+  plugins over the same present range with the same exclusion rectangle.
 - `python scripts/vram2png.py vram.bin out.png [--crop X,Y,W,H] [--scale N]` — the 1024x512
   VRAM; display buffers at x<640 (or 512), texture pages and off-screen scratch to the right.
 - `python scripts/sheet.py out.png frames_dir START STEP END [cols] [w]` — contact sheet with
