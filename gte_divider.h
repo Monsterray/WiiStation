@@ -18,7 +18,12 @@
 #ifndef __GTE_DIVIDER_H__
 #define __GTE_DIVIDER_H__
 
-u32 DIVIDE(u16 n, u16 d);
-u32 DIVIDE_INT(u16 n, u16 d);
+/* stdint, not psxcommon.h: these are the same types (u32 is uint32_t) and this way
+ * tests/gte_divider_test.c can build the divider on the host. */
+#include <stdint.h>
+
+/* H / SZ as the GTE itself computes it. Returns 0xffffffff when the result does not fit,
+ * which the caller's limE() turns into the divide-overflow flag. */
+uint32_t DIVIDE(uint16_t n, uint16_t d);
 
 #endif /* __GTE_DIVIDER_H__ */

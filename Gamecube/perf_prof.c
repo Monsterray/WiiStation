@@ -642,6 +642,41 @@ void perf_report(void)
 			}
 			fprintf(f, "\n");
 		}
+		#if PERF_PROF_GTE
+		{
+			/* Only the 22 defined functions can be reached; anything else would be an
+			 * invalid CP2 instruction, which lightrec.c drops. */
+			static const char *const gte_names[64] = {
+				[0x01] = "RTPS",  [0x06] = "NCLIP", [0x0c] = "OP",   [0x10] = "DPCS",
+				[0x11] = "INTPL", [0x12] = "MVMVA", [0x13] = "NCDS", [0x14] = "CDP",
+				[0x16] = "NCDT",  [0x1b] = "NCCS",  [0x1c] = "CC",   [0x1e] = "NCS",
+				[0x20] = "NCT",   [0x28] = "SQR",   [0x29] = "DCPL", [0x2a] = "DPCT",
+				[0x2d] = "AVSZ3", [0x2e] = "AVSZ4", [0x30] = "RTPT", [0x3d] = "GPF",
+				[0x3e] = "GPL",   [0x3f] = "NCCT",
+			};
+			unsigned long total = 0;
+			int i, n;
+			for (i = 0; i < 64; i++)
+				total += g_perf.gte_calls[i];
+			if (total) {
+				fprintf(f, "gte: calls=%lu us=%llu |", total, g_perf.gte_us);
+				/* Biggest first, by selection: 64 entries, printed once. */
+				for (n = 0; n < 8; n++) {
+					int best = -1;
+					for (i = 0; i < 64; i++)
+						if (g_perf.gte_calls[i] &&
+						    (best < 0 || g_perf.gte_calls[i] > g_perf.gte_calls[best]))
+							best = i;
+					if (best < 0)
+						break;
+					fprintf(f, " %s=%lu", gte_names[best] ? gte_names[best] : "?",
+						(unsigned long)g_perf.gte_calls[best]);
+					g_perf.gte_calls[best] = 0;   /* the report is the last reader */
+				}
+				fprintf(f, "\n");
+			}
+		}
+		#endif
 		#if PERF_PROF_SPU
 		if (g_perf.spu_chans)
 			fprintf(f, "spustage: chans=%lu adpcm_us=%llu adsr_us=%llu mix_us=%llu rvb_us=%llu\n",
