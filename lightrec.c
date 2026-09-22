@@ -671,7 +671,12 @@ static void lightrec_plugin_execute_internal(bool block_only)
 			psxHLEt[hlec]();
 			lightrec_plugin_sync_regs_from_pcsx(0);
 #if PERF_PROF_BIOS
-				unsigned long long dt = perf_now_us() - t0;
+				/* Only at the outermost level. An HLE exception handler
+				 * steps its blocks back through this function, and one of
+				 * those blocks can be another HLE call, whose time is
+				 * already inside the outer one's -- counting both put the
+				 * BIOS total above the post-slice time that contains it. */
+				unsigned long long dt = depth == 1 ? perf_now_us() - t0 : 0;
 				PERF_ADD(bios_us, dt);
 				/* 1,2,3 are hleA0/B0/C0 and 24,25,26 their trap forms; everything
 				 * else on this table is an exception or boot hook. */
