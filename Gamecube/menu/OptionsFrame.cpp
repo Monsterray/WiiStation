@@ -321,8 +321,10 @@ static const OptPage PAGES[] =
 #define BUTTON_H	40.0
 #define RLABEL_X	110.0		// ROW_RADIO label, centred
 #define RADIO_X0	205.0		// first choice button
-#define RADIO_W		135.0
+#define RADIO_W		135.0		// the widest a choice may be, and what one is built at
 #define RADIO_DX	147.0		// 135 wide with a 12 gap; three of them end at 634
+#define RADIO_GAP	 12.0		// between two auto-sized choices
+/* The padding around the text is Button's own default; see setAutoSizePadding(). */
 
 /* Help is two columns: the term right-aligned so its colons line up, then the text.
  * The lower lines are beside the spinning logo's corner and have to stop short of it,
@@ -616,6 +618,7 @@ void OptionsFrame::activateSubmenu(int submenu)
 
 	for (int i = 0; i < OPT_MAX_ROWS; i++)
 	{
+		float y     = ROW_Y0 + i * ROW_DY;
 		bool used   = (i < n);
 		int  kind   = used ? pageRow(i)->kind : OPT_INFO;
 		bool cycles = used && kind == OPT_CYCLE;
@@ -643,6 +646,25 @@ void OptionsFrame::activateSubmenu(int submenu)
 			if (!on) ROWS[i].choice[c]->setSelected(false);
 		}
 		if (used) refreshRow(i);
+
+		/* Size each choice to its own label and lay the row out left to right. Here rather
+		 * than in the constructor, because the labels arrive with the page. */
+		if (radio)
+		{
+			float cx = RADIO_X0;
+			for (int c = 0; c < nc; c++)
+			{
+				float w;
+				/* Width from the label, height left as it is: a row of boxes all the same
+				 * height, each as wide as its own word. */
+				ROWS[i].choice[c]->setAutoSize(menu::Button::BTN_FIT_WIDTH);
+				ROWS[i].choice[c]->setBounds(cx, y, RADIO_W, BUTTON_H);
+				w = ROWS[i].choice[c]->getWidth();
+				menu::Cursor::getInstance().moveComponent(this, ROWS[i].choice[c],
+					cx, cx + w, y, y + BUTTON_H);
+				cx += w + RADIO_GAP;
+			}
+		}
 	}
 
 	/* Focus runs down the rows that can be pressed, and wraps; left and right step through

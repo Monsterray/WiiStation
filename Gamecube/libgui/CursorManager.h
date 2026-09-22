@@ -33,6 +33,8 @@ public:
 	void setCursorFocus(Component* component);
 	void addComponent(Frame* frame, Component* component, float x1, float x2, float y1, float y2);
 	void removeComponent(Frame* frame, Component* component);
+	/* Follow a component that moved or changed size; does nothing if it is not known. */
+	void moveComponent(Frame* frame, Component* component, float x1, float x2, float y1, float y2);
 	void setCurrentFrame(Frame* frame);
 	Frame* getCurrentFrame();
 	void clearInputData();

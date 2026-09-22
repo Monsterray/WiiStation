@@ -196,6 +196,24 @@ void Cursor::addComponent(Frame* parentFrame, Component* component, float x1, fl
 	cursorList.push_back(entry);
 }
 
+void Cursor::moveComponent(Frame* parentFrame, Component* component,
+                           float x1, float x2, float y1, float y2)
+{
+	std::vector<CursorEntry>::iterator iter;
+
+	for(iter = cursorList.begin(); iter != cursorList.end(); ++iter)
+	{
+		if((*iter).frame == parentFrame && (*iter).comp == component)
+		{
+			(*iter).xRange[0] = x1;
+			(*iter).xRange[1] = x2;
+			(*iter).yRange[0] = y1;
+			(*iter).yRange[1] = y2;
+			break;
+		}
+	}
+}
+
 void Cursor::removeComponent(Frame* parentFrame, Component* component)
 {
 	std::vector<CursorEntry>::iterator iter;

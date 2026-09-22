@@ -43,6 +43,9 @@ Button::Button(int style, char** label, float x, float y, float width, float hei
 		  x(x),
 		  y(y),
 		  width(width),
+		  autoSizeFlags(BTN_FIT_NONE),
+		  autoPadX(28.0f),
+		  autoPadY(16.0f),
 		  height(height),
 		  fontSize(1.0),
 		  clickedFunc(0),
@@ -119,6 +122,40 @@ void Button::setClicked(ButtonFunc newClickedFunc)
 void Button::doClicked()
 {
 	if (clickedFunc) clickedFunc();
+}
+
+void Button::setAutoSize(int flags)
+{
+	autoSizeFlags = flags;
+	fitToLabel();
+}
+
+void Button::setAutoSizePadding(float padX, float padY)
+{
+	autoPadX = padX;
+	autoPadY = padY;
+	fitToLabel();
+}
+
+/* The text plus the padding. Called when the size is set and when the caller says the
+ * label changed; a button with no flags set is left alone. */
+void Button::fitToLabel()
+{
+	if (!autoSizeFlags || !buttonText || !*buttonText) return;
+
+	if (autoSizeFlags & BTN_FIT_WIDTH)
+		width = (float)IplFont::getInstance().getStringWidth(*buttonText, fontSize) + autoPadX;
+	if (autoSizeFlags & BTN_FIT_HEIGHT)
+		height = (float)IplFont::getInstance().getStringHeight(*buttonText, fontSize) + autoPadY;
+}
+
+void Button::setBounds(float newX, float newY, float newWidth, float newHeight)
+{
+	x = newX;
+	y = newY;
+	width = newWidth;
+	height = newHeight;
+	fitToLabel();
 }
 
 void Button::setText(char** strPtr)

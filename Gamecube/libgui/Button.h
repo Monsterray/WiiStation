@@ -45,6 +45,32 @@ public:
 	void setClicked(ButtonFunc clickedFn);
 	void doClicked();
 	void setText(char** strPtr);
+
+	/* Let the button take its size from its own label, on either axis or both. The label
+	 * is a char** the caller may change at any time, so the fit is applied by setBounds()
+	 * and by fitToLabel(); it is not redone every frame. A dimension the flags do not
+	 * name keeps whatever it was given.
+	 *
+	 *   b->setAutoSize(BTN_FIT_WIDTH);
+	 *   b->setBounds(x, y, 0, 40);     // width comes from the text, height stays 40
+	 */
+	enum
+	{
+		BTN_FIT_NONE   = 0,
+		BTN_FIT_WIDTH  = 1,
+		BTN_FIT_HEIGHT = 2
+	};
+	void setAutoSize(int flags);
+	void setAutoSizePadding(float padX, float padY);
+	void fitToLabel();
+
+	/* Move and resize after construction; the auto-size flags are applied afterwards, so
+	 * an auto-sized dimension may come back different from what was passed. */
+	void setBounds(float x, float y, float width, float height);
+	float getX() const { return x; }
+	float getY() const { return y; }
+	float getWidth() const { return width; }
+	float getHeight() const { return height; }
 	void setFontSize(float size);
 	void setLabelMode(int mode);
 	void setLabelScissor(int scissor);
@@ -82,6 +108,8 @@ private:
 	int buttonStyle, labelMode, labelScissor;
 	unsigned long StartTime;
 	float x, y, width, height, fontSize;
+	int autoSizeFlags;
+	float autoPadX, autoPadY;
 	GXColor	focusColor, inactiveColor, activeColor, selectedColor, labelColor;
 	ButtonFunc clickedFunc, returnFunc;
 
