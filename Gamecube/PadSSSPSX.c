@@ -195,13 +195,16 @@ static void UpdateState (const int pad) //Note: pad = 0 or 1
 			virtualControllers[Control].control == &controller_WiimoteNunchuk){
 				if (lightGun == LIGHTGUN_GUNCON){
 					global.padID[pad] = 0x63;
-					wpad = WPAD_Data(0);
-					if(screenMode == 2)	cursorX = ((wpad[virtualControllers[Control].number].ir.x*848/640 - 104)/1.72) + 75;
-					else cursorX = (wpad[virtualControllers[Control].number].ir.x/1.72) + 75;
+					/* This channel's data. It used to say WPAD_Data(0) and then index the
+					 * result, which happens to work because WPAD_Data returns a pointer
+					 * into libogc's array -- but it reads like a mistake. */
+					wpad = WPAD_Data(virtualControllers[Control].number);
+					if(screenMode == 2)	cursorX = ((wpad->ir.x*848/640 - 104)/1.72) + 75;
+					else cursorX = (wpad->ir.x/1.72) + 75;
 
-					cursorY = (wpad[virtualControllers[Control].number].ir.y/2) + (Config.PsxType ? 48 : 25);
+					cursorY = (wpad->ir.y/2) + (Config.PsxType ? 48 : 25);
 
-					if (!wpad[virtualControllers[Control].number].ir.valid){
+					if (!wpad->ir.valid){
 						cursorX = 0x1;
 						cursorY = 0xA;
 					}
@@ -210,10 +213,10 @@ static void UpdateState (const int pad) //Note: pad = 0 or 1
 					curMouse = virtualControllers[Control].number;
 					global.padID[pad] = 0x12;
 					if (!gMouse[curMouse]){
-						wpad = WPAD_Data(0);
+						wpad = WPAD_Data(curMouse);
 
-						if(screenMode == 2)	cursorX = wpad[curMouse].ir.x*848/640 - 104;
-						else cursorX = wpad[curMouse].ir.x;
+						if(screenMode == 2)	cursorX = wpad->ir.x*848/640 - 104;
+						else cursorX = wpad->ir.x;
 						tempcursorX[curMouse] = cursorX;
 						sensitivity = virtualControllers[Control].config->sensitivity;
 						if (sensitivity < 0.1) sensitivity = 1.0;
@@ -221,7 +224,7 @@ static void UpdateState (const int pad) //Note: pad = 0 or 1
 						if (cursorX > 127) cursorX = 127;
 						if (cursorX < -128) cursorX = -128;
 
-						cursorY = wpad[curMouse].ir.y;
+						cursorY = wpad->ir.y;
 						tempcursorY[curMouse] = cursorY;
 						cursorY = (cursorY - oldcursorY[curMouse]) * sensitivity;
 						if (cursorY > 127) cursorY = 127;
@@ -233,7 +236,7 @@ static void UpdateState (const int pad) //Note: pad = 0 or 1
 						oldcursorY[curMouse] = tempcursorY[curMouse];
 						tempcursorX[curMouse] = cursorX;
 
-						if (!wpad[curMouse].ir.valid){
+						if (!wpad->ir.valid){
 							cursorX = 0;
 						}
 						gMouse[curMouse] = 1;
@@ -265,6 +268,27 @@ static void UpdateState (const int pad) //Note: pad = 0 or 1
 		global.isConnected[pad] = 1;
 
 		miscButton = DO_CONTROL(Control, GetKeys, (BUTTONS*)&PAD_Data, virtualControllers[Control].config);
+
+#ifdef HW_RVL
+		/* A gun takes its buttons from the remote itself, not through the pad mapping.
+		 * Hold a Wii Remote like a gun and B is under the index finger, so B is the
+		 * trigger; the mapping is for a pad, and its Circle is the remote's "2", which
+		 * nobody can reach while aiming. With the plain remote the mapping gives A and B
+		 * no PlayStation button at all, so a light gun had no trigger and no fire.
+		 * The fields are active low: 0 is pressed. */
+		if (lightGun == LIGHTGUN_GUNCON && padLightgun[pad] &&
+		    (virtualControllers[Control].control == &controller_Wiimote ||
+		     virtualControllers[Control].control == &controller_WiimoteNunchuk))
+		{
+			u32 held = WPAD_ButtonsHeld(virtualControllers[Control].number);
+
+			PAD_Data.btns.CIRCLE_BUTTON = (held & WPAD_BUTTON_B) ? 0 : 1;   /* trigger */
+			PAD_Data.btns.START_BUTTON  = (held & WPAD_BUTTON_A) ? 0 : 1;   /* gun A */
+			PAD_Data.btns.CROSS_BUTTON  = (held & WPAD_BUTTON_1) ? 0 : 1;   /* gun B */
+		}
+		/* The Justifier keeps the pad mapping: which of its three bits is the trigger has
+		 * not been checked against hardware, and guessing would be worse than leaving it. */
+#endif
 		if (miscButton == 1)
 			stop = 1;
 		else if (Control == 0 || Control == 2)
