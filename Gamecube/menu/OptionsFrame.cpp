@@ -97,12 +97,17 @@ struct OptRow
 	const char* const*	names;		// CYCLE/RADIO: names[value - min], shown on the button
 	void				(*apply)(void);	// CYCLE/RADIO: tell the emulator; NULL = it reads var itself
 	void				(*info)(char *buf, int len);	// INFO: writes the right-hand text
+	bool				fit;		// RADIO: size each button to its own word, not to RADIO_W
 };
 
 #define ROW_CYCLE(label, var, lo, hi, names, apply) \
 	{ OPT_CYCLE, label, (char*)&(var), (char)(lo), (char)(hi), names, apply, NULL }
 #define ROW_RADIO(label, var, lo, hi, names, apply) \
-	{ OPT_RADIO, label, (char*)&(var), (char)(lo), (char)(hi), names, apply, NULL }
+	{ OPT_RADIO, label, (char*)&(var), (char)(lo), (char)(hi), names, apply, NULL, false }
+/* The same, but each button only as wide as its own word. Right when the words differ a
+ * lot in length; a row whose choices are of a size reads better on the fixed grid. */
+#define ROW_RADIO_FIT(label, var, lo, hi, names, apply) \
+	{ OPT_RADIO, label, (char*)&(var), (char)(lo), (char)(hi), names, apply, NULL, true }
 #define ROW_INFO(label, fn) \
 	{ OPT_INFO, label, NULL, 0, 0, NULL, NULL, fn }
 
@@ -229,7 +234,7 @@ static const char* const CHROMA_NAMES[]   = { "Sharp", "Smooth" };
 
 static const OptRow ADVGFX_ROWS[] =
 {
-	ROW_RADIO("Dithering",   useDithering, USEDITHER_NONE,    USEDITHER_ALWAYS,  DITHER_NAMES, NULL),
+	ROW_RADIO_FIT("Dithering", useDithering, USEDITHER_NONE,  USEDITHER_ALWAYS,  DITHER_NAMES, NULL),
 	ROW_CYCLE("MDEC Chroma", mdecChroma,   MDECCHROMA_SHARP,  MDECCHROMA_SMOOTH, CHROMA_NAMES, NULL),
 };
 
@@ -373,12 +378,6 @@ static menu::TextBox*	helpBox[OPT_MAX_HELP];
 static char*			helpTermString[OPT_MAX_HELP];
 static char*			helpString[OPT_MAX_HELP];
 static char				helpEmpty[1] = "";
-/* Pages of settings are left with B, like every other sub-page, so they carry no Back
- * button. A page of readouts has nothing else to focus, though, and focus has to land on
- * something real: this button is shown on those pages only. */
-static menu::Button*	backButton;
-static char*			backString;
-static char				backText[8] = "Back";
 static menu::TextBox*	titleBox;
 static char*			titleString;
 static char				titleText[32];
@@ -565,14 +564,6 @@ OptionsFrame::OptionsFrame()
 		add(helpBox[i]);
 	}
 
-	backString = backText;
-	backButton = new menu::Button(BTN_A_NRM, &backString, 270.0, 420.0, 100.0, 40.0);
-	backButton->setActive(true);
-	backButton->setClicked(Func_ReturnFromOptionsFrame);
-	backButton->setReturn(Func_ReturnFromOptionsFrame);
-	add(backButton);
-	menu::Cursor::getInstance().addComponent(this, backButton, 270.0, 370.0, 420.0, 460.0);
-
 	setDefaultFocus(ROWS[0].button);
 	setBackFunc(Func_ReturnFromOptionsFrame);
 	setEnabled(true);
@@ -600,8 +591,6 @@ OptionsFrame::~OptionsFrame()
 		delete helpTermBox[i];
 		delete helpBox[i];
 	}
-	menu::Cursor::getInstance().removeComponent(this, backButton);
-	delete backButton;
 }
 
 void OptionsFrame::activateSubmenu(int submenu)
@@ -651,18 +640,20 @@ void OptionsFrame::activateSubmenu(int submenu)
 		 * than in the constructor, because the labels arrive with the page. */
 		if (radio)
 		{
+			bool fit = pageRow(i)->fit;
 			float cx = RADIO_X0;
 			for (int c = 0; c < nc; c++)
 			{
 				float w;
-				/* Width from the label, height left as it is: a row of boxes all the same
-				 * height, each as wide as its own word. */
-				ROWS[i].choice[c]->setAutoSize(menu::Button::BTN_FIT_WIDTH);
+				/* A fitted row takes its width from the label, height left alone, and the
+				 * next button starts after it. A plain row keeps the fixed grid. */
+				ROWS[i].choice[c]->setAutoSize(fit ? menu::Button::BTN_FIT_WIDTH
+				                                   : menu::Button::BTN_FIT_NONE);
 				ROWS[i].choice[c]->setBounds(cx, y, RADIO_W, BUTTON_H);
 				w = ROWS[i].choice[c]->getWidth();
 				menu::Cursor::getInstance().moveComponent(this, ROWS[i].choice[c],
 					cx, cx + w, y, y + BUTTON_H);
-				cx += w + RADIO_GAP;
+				cx += fit ? w + RADIO_GAP : RADIO_DX;
 			}
 		}
 	}
@@ -759,10 +750,9 @@ void OptionsFrame::activateSubmenu(int submenu)
 		helpBox[i]->setVisible(on);
 	}
 
-	/* Only a readout page needs the Back button; elsewhere B is the way out. */
-	backButton->setVisible(firstRow < 0);
-	backButton->setActive(firstRow < 0);
-	setDefaultFocus(firstRow >= 0 ? focusTarget(firstRow, 0) : backButton);
+	/* B leaves every page, so none of them carries a Back button. A page of readouts has
+	 * nothing to focus at all, and the frame itself takes the focus then. */
+	setDefaultFocus(firstRow >= 0 ? focusTarget(firstRow, 0) : NULL);
 }
 
 /* Readouts are live: the emulator is not running while this page is open, so re-reading a
