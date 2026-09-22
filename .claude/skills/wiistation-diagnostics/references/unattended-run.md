@@ -143,6 +143,11 @@ frame PNGs before this existed: file what matters, then delete `frames/` directo
   at six thresholds so a threshold artefact is obvious, a per-cell map of which part of the
   picture moves, and an image with the changing pixels in red. Reach for it before
   believing any "N things vanish per frame" count taken at one brightness threshold.
+- `python scripts/dot_flicker.py <frames dir> FIRST LAST --exclude x0,y0,x1,y1` — tracks
+  the small bright dots (a starfield of GP0 68 one-pixel rectangles) frame to frame and
+  reports moved / dimmed / lost / new per third of the picture. This is what aggregate
+  change counts cannot do: see ~90 dots blinking under ~250 pixels of animation. Compare
+  plugins over the same present range with the same exclusion rectangle.
 - `python scripts/vram2png.py vram.bin out.png [--crop X,Y,W,H] [--scale N]` — the 1024x512
   VRAM; display buffers at x<640 (or 512), texture pages and off-screen scratch to the right.
 - `python scripts/sheet.py out.png frames_dir START STEP END [cols] [w]` — contact sheet with

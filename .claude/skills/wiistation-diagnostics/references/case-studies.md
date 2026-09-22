@@ -207,13 +207,52 @@ tempting wrong turns.
   One pair is not a cycle -- diff all of them. And the first three trace episodes came back
   from fades hundreds of frames away from the title, because the trace re-arms itself only on
   a large semi-transparent primitive and a title screen has none (see probes.md).
-- Left open: whether the glow pulses this hard on real hardware. Everything measurable inside
-  the emulator says it is drawing what the game asked for, identically down three independent
-  renderers, so the next step is not more instrumentation but a frame-for-frame comparison
-  against the reference capture -- and, if it differs, the CPU side that computes the glow
-  colours rather than anything in the GPU path.
+- **This conclusion was wrong** -- see case 11. The eight-frame pulse is real and is the glow,
+  but underneath it the stars themselves WERE blinking, on OpenGX only, and the aggregate
+  counts above could not see ~90 one-pixel dots under ~250 pixels of ribbon animation.
+  "All three renderers agree" was true of the statistics, not of the picture.
 - Lesson: when a report arrives with a pixel count attached, re-take the count at other
   thresholds and diff every consecutive pair before adopting the mechanism the count implies.
   A one-sided appear/disappear pattern is the classic signature of a threshold crossing a
-  smooth ramp, not of a buffer losing its contents.
+  smooth ramp, not of a buffer losing its contents. And then -- case 11 -- still track the
+  objects the report named, because a real defect can hide under the artefact.
+
+## 11. Crash 3's starfield really did blink -- one-pixel rectangles dropped on alternate presents (OpenGX)
+
+- Follow-up to 10, which was wrong in its conclusion. The user came back with a sharper
+  observation than the pixel count: New Soft steady, OpenGX flickering, only the stars,
+  only the right ~70% of the screen. Every clause of that was a measurement waiting to be
+  taken, and case 10's statistics had missed it because they were dominated by the logo's
+  ribbons: ~250 pixels changing each way per frame from the animation swamped ~90 one-pixel
+  dots blinking underneath it.
+- The instrument that saw it: track the dots themselves. `scripts/dot_flicker.py` finds every
+  blob of at most 6 bright pixels outside the logo, matches each to the next frame within
+  3 px, and reports moved / dimmed / lost / new per third of the picture. OpenGX, presents
+  1300-1316, right third: 88 dots present, **88 lost, 88 new, 0 moved, 0 dimmed**. New Soft,
+  same presents: 176 dots, 0 lost, 0 new. So the right-side stars were not moving or
+  dimming; they were absent on every other present, and presents alternate between the two
+  display buffers. A zoomed strip of the right margin shows it to the eye: stars in 1301 and
+  1303, none in 1300 and 1302.
+- What the trace had already said: the stars are 297 GP0 68 one-pixel rectangles (`cmd=68`,
+  opaque), drawn right after the 67 gouraud nebula triangles; E5 alternates (0,12) and
+  (512,12) with the buffers. They are not a texture, whatever they look like.
+- Mechanism, in `primTile1` and nowhere else (the 8x8 and 16x16 tiles have no such line):
+  `if ((lx0 + PSXDisplay.CumulOffset.x) > 640 || ...) return;` evaluated AFTER
+  `offsetPSX4()` had added the draw offset to `lx0`, while `CumulOffset` already contains the
+  draw offset. On the buffer at VRAM x=512 the game's draw offset is 512, so the sum
+  double-counted it and crossed 640 for every dot right of screen x~300; on the buffer at
+  x=0 the offset is 0 and nothing was dropped. Hence: only one-pixel tiles, only alternate
+  presents, only from a certain x rightwards. The guard came in with the repo's initial
+  import (7f067cd). The fix tests the SCREEN coordinates offsetST() had already put in
+  `vertex[]`.
+- Verified on the same presents with the same exclusion: fixed OpenGX right third 176 dots,
+  0 lost, 0 new; mid 480, 0/0 (before: 432, 48/48 -- and 48 dots fewer, because they were
+  missing half the time). Indistinguishable from New Soft.
+- Lessons. (a) A user's "only X, only when Y, only on Z" is three measurements, not a
+  hypothesis to be argued with; take them before theorising. (b) Aggregate change counts
+  cannot see a small population blinking under a large one animating -- track the objects.
+  (c) When a symptom follows the buffer alternation, look for anything computed from the
+  draw offset or display position along the primitive's path; `offsetST()` then
+  `offsetPSX4()` leave `vertex[]` in screen space and `lx0..ly3` in VRAM space, and mixing
+  them with `CumulOffset` counts the offset twice.
 
