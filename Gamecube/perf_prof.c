@@ -184,6 +184,11 @@ void perf_prim_trace(unsigned cmd, unsigned flags, unsigned abr, unsigned color,
 	/* keep the ring for what matters: once a quarter full, small opaque
 	 * polygons are counted but no longer stored */
 	if (g_perf.pt_n >= 650 && cmd >= 0x20 && cmd < 0x80 && !(flags & 1) && (x1 - x0) * (y1 - y0) < 60000) return;
+	/* a scene that draws hundreds of SMALL SEMI-TRANSPARENT primitives per present
+	 * (Crash 3's title glow: 479 of them) fills the ring in five presents, so the
+	 * whole-screen primitive at the end of each present never reaches the log.
+	 * Past half full, keep only the big ones, whatever their blend. */
+	if (g_perf.pt_n >= 1300 && cmd >= 0x20 && cmd < 0x80 && (x1 - x0) * (y1 - y0) < 60000) return;
 	if (g_perf.pt_n < 2600) {
 		unsigned k = g_perf.pt_n++;
 		g_perf.pt[k].present = (uint16_t)idx; g_perf.pt[k].cmd = (uint8_t)cmd; g_perf.pt[k].flags = (uint8_t)flags;
@@ -416,6 +421,10 @@ void perf_report(void)
 			(unsigned long)g_perf.ogx_upl_semi, (unsigned long)g_perf.ogx_upl_opaque,
 			(unsigned long)g_perf.ogx_upl_mismatch);
 		fprintf(f, "ogxgeom: coord_rej=%lu\n", (unsigned long)g_perf.ogx_coord_rej);
+		fprintf(f, "efbloss: upl_calls=%lu upl_done=%lu | pres: total=%lu clear=%lu inflight_skip=%lu\n",
+			(unsigned long)g_perf.upl_calls, (unsigned long)g_perf.upl_done,
+			(unsigned long)g_perf.pres_total, (unsigned long)g_perf.pres_clear,
+			(unsigned long)g_perf.pres_skipped);
 		fprintf(f, "offsoft: prims=%lu rejected=%lu | pad: startpoll=%lu update=%lu ai_calls=%lu\n",
 			(unsigned long)g_perf.off_soft_prims, (unsigned long)g_perf.off_soft_rejected,
 			(unsigned long)g_perf.pad_startpoll, (unsigned long)g_perf.pad_update, (unsigned long)g_perf.ai_calls);

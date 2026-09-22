@@ -165,3 +165,55 @@ tempting wrong turns.
   there is: a fault the source carries appears in both, a fault one driver adds appears in
   one. `scripts/wav_compare.py` now prints the shift -1/0/+1 equality fractions and flags a
   winner other than 0, so this is a one-line check on any future dump.
+
+## 10. "The starfield flickers" on Crash 3's title -- it was the logo's own glow
+
+- Symptom as reported: on Crash 3's title screen the stars twinkle; on hardware they are
+  steady. The evidence handed over was a pixel count: bright pixels (luminance >= 225) in
+  the left and right background margins run an exact eight-frame cycle, 204 -> 441 -> 204,
+  and the transitions are ONE-SIDED -- several frames where stars are added and none go,
+  then a batch that goes with none added. That one-sidedness is what made it look like a
+  buffer retaining part of a starfield and periodically losing it, and the suspects were
+  the OpenGX back-buffer readback gate, the EFB clear on present, and screen re-uploads.
+- Every one of those was wrong, and three cheap measurements said so before any code was read:
+  1. **The two software renderers show the identical cycle.** Old Soft (`gpuPlugin = 0`,
+     ground truth) and New Soft give the same numbers frame for frame, 188 -> 450 -> 188,
+     same shape, same period. Whatever this is, it is upstream of the GPU plugin. This is
+     step 3 of the method and it cost one run; it should have been the first run, not the
+     third.
+  2. **Nothing is lost.** Counting pixels that go from bright (>180) to near black (<60)
+     between consecutive frames gives 218, 278, 242, 313... and the same number coming back
+     the other way, every frame, in both plugins. Equal both ways is motion. The one-sided
+     "gone/new" in the original count was the threshold 225 sitting in the middle of a
+     population being modulated smoothly: at 120 and at 200 the swing is a flat 20-32%,
+     at 240 and 250 it is 175-190%. A count taken at a single brightness threshold cannot
+     tell "it vanished" from "it dimmed by 7%".
+  3. **The stars that move are the ones under the logo.** A map of how much each pixel
+     changes over the cycle (`scripts/frame_cycle.py --map`) draws the answer: the swirling
+     energy ribbons and the halo around the WARPED logo, plus the NEW GAME menu highlight.
+     Per grid cell, 53-100% of bright pixels swing in the band through the logo and 0-2%
+     everywhere else; below y=400 and above y=40, nothing moves at all. The margins the
+     original count sampled are crossed by the ribbons, which reach x~100 on the left and
+     x~720 on the right.
+- What the game is actually doing, from the trace: a rock-steady 30 fps -- one present every
+  two vblanks, exactly, for all 16 presents of the episode -- with 2370 primitives, 478 of
+  them semi-transparent, drawn every single frame, and the display alternating (0,0) <-> (512,0).
+  `efbloss: upl_calls=0 | pres: total=1215 clear=2 inflight_skip=0`: the EFB is never
+  re-uploaded from PSX VRAM, is cleared twice in 1215 presents, and no present is ever
+  dropped. There is no mechanism losing anything, and nothing for a fix to attach to.
+- Wrong turns worth naming. Diffing one pair of frames (the brightest against the dimmest)
+  showed a difference that was *exactly zero* outside the logo and suggested the glow alone;
+  diffing every consecutive pair showed scattered specks across the whole background too.
+  One pair is not a cycle -- diff all of them. And the first three trace episodes came back
+  from fades hundreds of frames away from the title, because the trace re-arms itself only on
+  a large semi-transparent primitive and a title screen has none (see probes.md).
+- Left open: whether the glow pulses this hard on real hardware. Everything measurable inside
+  the emulator says it is drawing what the game asked for, identically down three independent
+  renderers, so the next step is not more instrumentation but a frame-for-frame comparison
+  against the reference capture -- and, if it differs, the CPU side that computes the glow
+  colours rather than anything in the GPU path.
+- Lesson: when a report arrives with a pixel count attached, re-take the count at other
+  thresholds and diff every consecutive pair before adopting the mechanism the count implies.
+  A one-sided appear/disappear pattern is the classic signature of a threshold crossing a
+  smooth ramp, not of a buffer losing its contents.
+

@@ -7,7 +7,9 @@ primitive larger than --big (default 20000 PSX pixels^2) with its position
 in the frame, and the first --show semi-transparent primitives.
 Legend: cmd 02 fill, E3/E4 draw area, E5 draw offset, F5 display address,
 F6/F7 display range, F8 display mode; flags S semi-transparent, T textured,
-Q quad, G gouraud."""
+Q quad, G gouraud. EA/EB a screen re-upload from PSX VRAM (asked for /
+reached the EFB) and EC a present: the two ways already-drawn EFB content
+goes away again."""
 import sys, re
 
 MAPPING = {"S": "previous", "T": "unknown", "-": "current"}
@@ -64,9 +66,26 @@ def main():
         ps = frames[fr]
         semi = [(i, p) for i, p in enumerate(ps) if p[2][0] == "S"]
         bigs = [(i, p) for i, p in enumerate(ps) if (int(p[7]) - int(p[5])) * (int(p[8]) - int(p[6])) > big]
-        ctl = [(i, p) for i, p in enumerate(ps) if p[1] in ("02", "e3", "e4", "e5", "f5", "f6", "f7", "f8")]
+        ctl = [(i, p) for i, p in enumerate(ps)
+               if p[1] in ("02", "e3", "e4", "e5", "f5", "f6", "f7", "f8", "ea", "eb", "ec")]
         print(f"\nframe +{fr}: {len(ps)} entries, {len(semi)} semi, first cmds: {' '.join(p[1] for p in ps[:8])}")
-        for i, p in ctl: print(f"  [{i:4d}] ctl cmd={p[1]} col={p[4]} ({p[5]},{p[6]})-({p[7]},{p[8]})")
+        for i, p in ctl:
+            if p[1] in ("ea", "eb"):
+                what = "asked for" if p[1] == "ea" else "REACHED THE EFB"
+                src = "previous" if p[2][0] == "S" else "current"
+                rgb = " rgb24" if p[2][1] == "T" else ""
+                print(f"  [{i:4d}] re-upload from PSX VRAM {what}:"
+                      f" ({p[5]},{p[6]})-({p[7]},{p[8]}) {src}-buffer{rgb}"
+                      f" map={int(p[4], 16)}")
+            elif p[1] == "ec":
+                f = p[2]
+                st = [n for n, c in zip(("clear", "submitted", "uploadedScreen", "needFlip"),
+                                        f) if c != "-"]
+                print(f"  [{i:4d}] PRESENT {' '.join(st) or '(kept the EFB)'}"
+                      f" drawn={p[3]} vblank={int(p[4], 16)}"
+                      f" display ({p[5]},{p[6]}) -> ({p[7]},{p[8]})")
+            else:
+                print(f"  [{i:4d}] ctl cmd={p[1]} col={p[4]} ({p[5]},{p[6]})-({p[7]},{p[8]})")
         for i, p in bigs: print(f"  [{i:4d}] BIG cmd={p[1]} {p[2]} abr={p[3]} col={p[4]} ({p[5]},{p[6]})-({p[7]},{p[8]})")
         for i, p in semi[:show]: print(f"  [{i:4d}] S   cmd={p[1]} {p[2]} abr={p[3]} col={p[4]} ({p[5]},{p[6]})-({p[7]},{p[8]})")
         if len(semi) > show: print(f"  ... {len(semi) - show} more semi-transparent")

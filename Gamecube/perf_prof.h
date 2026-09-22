@@ -199,6 +199,9 @@ typedef struct {
 	 * OffscreenSoftDraw), and pad-plugin activity: SIO start-polls, pad state
 	 * refreshes and calls into the scripted-input mask */
 	uint32_t off_soft_prims, off_soft_rejected, pad_startpoll, pad_update, ai_calls;
+	/* Where already-drawn EFB content can be lost again: screen re-uploads from
+	 * psxVuw (which has no GX-drawn primitives in it) and the present's clear. */
+	uint32_t upl_calls, upl_done, pres_total, pres_clear, pres_skipped;
 	/* SIO activity (sio.c): data writes, pad-select starts that reached the
 	 * pad plugin, control-register writes, data reads, SIO interrupts */
 	uint32_t sio_write8, sio_start, sio_ctrl16, sio_read8, sio_irq;

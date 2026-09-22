@@ -44,8 +44,12 @@ probe you can think of, because a build plus run costs about five minutes.
    audio timeline and audio-dump silence runs in ten lines, plus a table when given
    several runs. Details: [references/unattended-run.md](references/unattended-run.md).
    Summarise traces with `scripts/ptrace_summary.py`, render VRAM with
-   `scripts/vram2png.py`, make contact sheets with `scripts/sheet.py`, and look at single
-   frames with the image reader. Frame index ≈ emulated vblank, so runs are comparable.
+   `scripts/vram2png.py`, make contact sheets with `scripts/sheet.py`, compare a run of
+   frames with `scripts/frame_cycle.py`, and look at single frames with the image reader.
+   **A frame dump is one image per PRESENT, not per emulated vblank** (measured: no two
+   consecutive dumps are ever identical, and a 30 fps title gives 1215 dumps over 2652
+   vblanks). Dumps are comparable between runs only where the games present alike; the
+   vblank of each present is in the trace's EC entries.
 
 4. **Read the numbers before the pictures.** A counter that is zero where you expected
    thousands (pad polls, SIO starts, merged pixels) points at the mechanism faster than any

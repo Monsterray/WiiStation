@@ -2342,6 +2342,22 @@ static void flipEGL(void)
 
     presentSubmitted = gx_vout_render(canClearFrameBuf);
 
+#ifdef PERF_PROF
+    /* EC = one entry per present: what the present did (flags), how much had been
+     * drawn, and the emulated vblank it happened at -- the vblank is what tells an
+     * even 30 fps cadence from a stutter, since a frame dump is one image per
+     * PRESENT, not one per vblank. */
+    perf_prim_trace(0xEC,
+                    (canClearFrameBuf ? 1 : 0) | (presentSubmitted ? 2 : 0) |
+                    (uploadedScreen ? 4 : 0) | (needFlipEGL ? 8 : 0),
+                    (unsigned)(iDrawnSomething & 0xff), (unsigned)g_perf.vblanks,
+                    PreviousPSXDisplay.DisplayPosition.x, PreviousPSXDisplay.DisplayPosition.y,
+                    PSXDisplay.DisplayPosition.x, PSXDisplay.DisplayPosition.y);
+    PERF_INC(pres_total);
+    if (canClearFrameBuf) PERF_INC(pres_clear);
+    if (!presentSubmitted) PERF_INC(pres_skipped);
+#endif
+
     if (presentSubmitted && canClearFrameBuf)
         EfbDiscardedAfterPresent();
 

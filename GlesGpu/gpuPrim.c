@@ -1623,6 +1623,11 @@ int UploadScreen ( int Position )
 
     uploadMapId = ResolveUploadMapId(Position);
     drawnBeforeUpload = iDrawnSomething;
+    PERF_INC(upl_calls);
+    perf_prim_trace(0xEA, (Position ? 1 : 0) | (PSXDisplay.RGB24 ? 2 : 0), 0,
+                    (unsigned)uploadMapId & 0xffffff,
+                    xrUploadArea.x0, xrUploadArea.y0,
+                    xrUploadArea.x1, xrUploadArea.y1);   /* EA = screen re-upload asked for */
     externalRebuildComplete = FALSE;
     externalRebuildUpload =
         ReadbackEnabled() && Position == FALSE &&
@@ -1721,6 +1726,11 @@ int UploadScreen ( int Position )
     }
 
     iDrawnSomething |= 0x2;
+    PERF_INC(upl_done);
+    perf_prim_trace(0xEB, (Position ? 1 : 0) | (PSXDisplay.RGB24 ? 2 : 0), 0,
+                    (unsigned)uploadMapId & 0xffffff,
+                    xrUploadArea.x0, xrUploadArea.y0,
+                    xrUploadArea.x1, xrUploadArea.y1);   /* EB = re-upload reached the EFB */
 
 
 
