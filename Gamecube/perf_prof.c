@@ -40,6 +40,9 @@ unsigned long long perf_now_ticks(void)
 	return gettime();
 }
 
+unsigned long long g_netwait_old_us, g_netwait_new_us;
+unsigned long g_netwait_old_wakes, g_netwait_new_wakes;
+
 void perf_reset(void)
 {
 	{
@@ -527,6 +530,10 @@ void perf_report(void)
 			(unsigned long)g_perf.state_bytes, (unsigned long)g_perf.state_fails,
 			(unsigned long)g_perf.mcd_saves, g_perf.mcd_save_us,
 			(unsigned long)g_perf.mcd_fails);
+		if(g_netwait_old_us)
+			fprintf(f, "netwait: old_us=%llu old_wakes=%lu new_us=%llu new_wakes=%lu\n",
+				g_netwait_old_us, g_netwait_old_wakes,
+				g_netwait_new_us, g_netwait_new_wakes);
 		fprintf(f, "menu: frames=%lu menu_us=%llu strings=%lu glyphs=%lu texloads=%lu\n",
 			(unsigned long)g_perf.menu_frames, g_perf.menu_us,
 			(unsigned long)g_perf.menu_strings, (unsigned long)g_perf.menu_glyphs,

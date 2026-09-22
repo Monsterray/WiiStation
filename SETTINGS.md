@@ -196,6 +196,27 @@ WiiStation can read games from a Windows network share (SMB). These keys are tex
 
 WiiStation starts the network only when `smbsharename` and `smbipaddr` are both set.
 
+**The password is not encrypted.** WiiStation writes it back to the settings file as
+plain text when you save the settings from the menu. Use an account that can read the
+share and nothing else.
+
+One background thread does all of the network work. It brings the interface up, then it
+connects to the share, and it waits five seconds between attempts. This takes some
+seconds after the menu opens, so the first time you open **Load from Samba** you can get
+*Still connecting to the share*. Try again.
+
+The thread stops while a game runs, and starts again when you go back to the menu.
+
+If the share goes away, the next directory you open fails and the thread makes a new
+connection. You do not have to restart WiiStation.
+
+| Message | What it means |
+|---|---|
+| `SMB is not configured` | `smbsharename` or `smbipaddr` is empty. |
+| `Still connecting to the network` | The interface does not have an address yet. |
+| `Still connecting to the share` | The interface is up and the share is being opened. |
+| `Cannot connect to the share` | The address, the share name or the account is wrong. |
+
 ## 8. File browser settings
 
 | Key | Values | Default | Menu | Effect |

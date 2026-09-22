@@ -32,6 +32,7 @@
 #include "fileBrowser.h"
 #include "fileBrowser-libfat.h"
 #include "fileBrowser-SMB.h"
+#include "../perf_prof.h"
 
 /* One thread owns all of the network. It brings the interface up, and it connects to the
  * share. Nothing that blocks is left on the menu thread: init_samba() used to run from
@@ -118,6 +119,29 @@ static void net_wait(int us)
 		us -= NET_STEP_US;
 	}
 }
+
+#if PERF_PROF_NETWAIT
+/* Wait one second twice: once the way this thread used to, in steps of 100us, and once
+ * the way it does now. What each really takes, less the second it asked for, is what the
+ * wakeups cost. Debug builds only, and once per run. */
+void net_wait_measure(void)
+{
+	unsigned long long t0;
+	int us, n;
+
+	t0 = perf_now_us();
+	for(us = 1000000, n = 0; us > 0; us -= 100, n++)
+		usleep(100);
+	g_netwait_old_us = perf_now_us() - t0;
+	g_netwait_old_wakes = n;
+
+	t0 = perf_now_us();
+	for(us = 1000000, n = 0; us > 0; us -= NET_STEP_US, n++)
+		usleep(NET_STEP_US);
+	g_netwait_new_us = perf_now_us() - t0;
+	g_netwait_new_wakes = n;
+}
+#endif
 
 // Init the GC/Wii net interface (wifi/bba/etc), then connect to the share
 static void* init_network(void *args)

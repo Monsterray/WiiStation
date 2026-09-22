@@ -25,6 +25,7 @@
 #define FILE_BROWSER_SMB_H
 
 #include "fileBrowser.h"
+#include "../perf_prof.h"   /* PERF_PROF_NETWAIT */
 
 // error codes
 #define SMB_NETINITERR -110
@@ -42,6 +43,9 @@ int fileBrowser_SMB_init(fileBrowser_file* file);
 int fileBrowser_SMB_deinit(fileBrowser_file* file);
 
 void init_network_thread(void);
+#if PERF_PROF_NETWAIT
+void net_wait_measure(void);   /* what the old wait cost, and what the new one costs */
+#endif
 void pause_netinit_thread(void);
 void resume_netinit_thread(void);
 

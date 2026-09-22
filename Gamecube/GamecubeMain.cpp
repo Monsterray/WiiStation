@@ -659,7 +659,11 @@ int main(int argc, char *argv[])
 #endif
 
 #ifdef DEBUGON
-	//DEBUG_Init(GDBSTUB_DEVICE_TCP,GDBSTUB_DEF_TCPPORT); //Default port is 2828
+	/* The GDB stub can also run over TCP, on port 2828, which needs the network up
+	 * before this point. USB Gecko is used instead because it works before the
+	 * network does, and a hang in the network stack is one of the things worth
+	 * attaching a debugger to. */
+	//DEBUG_Init(GDBSTUB_DEVICE_TCP,GDBSTUB_DEF_TCPPORT);
 	DEBUG_Init(GDBSTUB_DEVICE_USB, 1);
 	_break();
 #endif
@@ -672,6 +676,11 @@ int main(int argc, char *argv[])
 	if(strlen(&smbShareName[0]) && strlen(&smbIpAddr[0])) {
 	  init_network_thread();
   }
+#if PERF_PROF_NETWAIT
+	/* Two seconds, on this thread, before the menu: the network thread is suspended for
+	 * the whole of a game, so it is not a place a measurement can finish. */
+	net_wait_measure();
+#endif
 #endif
 
 	if(Autoboot)

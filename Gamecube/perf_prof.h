@@ -76,6 +76,14 @@ extern "C" {
 #ifndef PERF_PROF_IO
 #define PERF_PROF_IO 1
 #endif
+/* PERF_PROF_NETWAIT measures what the network thread's wait costs. Off by default,
+ * because it spends two seconds before the menu opens. Turn it on with:
+ *   PROBES="-DPERF_PROF_TRACE=0 -DPERF_PROF_GPU=0 -DPERF_PROF_NETWAIT=1" 
+ *       bash scripts/build.sh debug
+ * from the devkitPro shell. wsx.sh cannot pass this: it sets PROBES itself. */
+#ifndef PERF_PROF_NETWAIT
+#define PERF_PROF_NETWAIT 0
+#endif
 
 typedef struct {
 	/* CPU / JIT (Wii adapter level, lightrec.c) */
@@ -385,6 +393,13 @@ void perf_audio_event(unsigned kind, unsigned cycle, int a, int b, unsigned c);
  * perf_prof.c so this header stays dependency-free (no gccore.h). */
 unsigned long long perf_now_us(void);
 
+/* What a one-second wait really takes, measured once at start-up: the part over 1000000us
+ * is what the wakeups cost. `old` is the shape the network thread used before -- usleep(100)
+ * ten thousand times -- and `new` is the shape it uses now. These sit outside g_perf
+ * because perf_reset() wipes it at every go(). */
+extern unsigned long long g_netwait_old_us, g_netwait_new_us;
+extern unsigned long g_netwait_old_wakes, g_netwait_new_wakes;
+
 /* Raw timebase ticks, no unit conversion -- for hot paths that accumulate and
  * convert once at report time. See the cpu_ticks comment above. */
 unsigned long long perf_now_ticks(void);
@@ -414,6 +429,8 @@ void perf_pad_event(unsigned pad, unsigned type, unsigned drv_btns, unsigned drv
                     unsigned drv_r, unsigned out_btns, unsigned out_l, unsigned out_r);
 
 #else /* !PERF_PROF: everything is a no-op */
+
+#define PERF_PROF_NETWAIT 0
 
 #define PERF_PROF_TRACE 0
 #define PERF_PROF_GPU   0
