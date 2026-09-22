@@ -147,10 +147,65 @@ LC DMA (the soft rasterizer wrote them: `DCStoreRange` first, or convert straigh
 cache), tiles out by LC DMA, double-buffered. Only worth it if the soft plugins are a target;
 they are the ground-truth renderers here, not the fast path.
 
-### Step 5. SPU hot buffers (cheap experiment)
+### Step 5. SPU hot buffers (cheap experiment) -- MEASURED 2026-09-22, see below
 `SSumLR` (NSSIZE*2 ints, ~7 KB), `ChanBuf`, `RVB`: `LCAlloc` them instead of MEM1 statics; no
-DMA. The mixer is 0.9% of guest time, so the ceiling is small; it is a one-line experiment per
-buffer and the gaussian voice interpolation table would also fit.
+DMA. It is a one-line experiment per buffer and the gaussian voice interpolation table would
+also fit.
+
+**The whole sound system does not fit, and the mixer is not 0.9%.** Both numbers above were
+wrong and are corrected here.
+
+`PERF_PROF_SPU` splits the mixer. Crash 3's title, 153 s of wall:
+
+| stage | time | share of wall |
+|---|---|---|
+| ADPCM decode + interpolation | 7.91 s | 5.17% |
+| per-channel mix | 2.77 s | 1.81% |
+| envelope (MixADSR) | 1.70 s | 1.11% |
+| reverb | 0.039 s | 0.025% |
+| SPU total | | about 8.1% |
+
+So the SPU is eight times the 0.9% this plan assumed, and reverb -- which an earlier note in
+this file put at 7.8% -- is one part in four thousand. That 7.8% was the whole SPU figure
+attributed to one part of it.
+
+Sizes, with NSSIZE = 914:
+
+| buffer | bytes |
+|---|---|
+| `iFMod[NSSIZE]` | 3,656 |
+| `RVB[NSSIZE*2]` | 7,312 |
+| `ChanBuf[NSSIZE]` | 3,656 |
+| `SSumLR[NSSIZE*2]` | 7,312 |
+| **flat buffers** | **21,936** |
+
+against a 16,384-byte locked cache: 1.3x over before the 24 channel states, the 24 sample
+buffers and the 2 KB gaussian table, which together come to roughly 29.8 KB, or 1.8x. And the
+memory the decoder actually misses on is the 512 KB of SPU RAM it reads sample data from,
+which can never be locked.
+
+What would fit is the gaussian table (2 KB) plus the channel state (~6 KB). Whether that helps
+cannot be answered here -- see the note in section 1 about Dolphin and cache misses -- so it
+belongs in the hardware session, with the counters below.
+
+### Probes to build the hardware session around
+All of these are in the tree and off by default; each says how to turn it on in its own
+comment in `Gamecube/perf_prof.h`.
+
+| gate | what it gives |
+|---|---|
+| `PERF_PROF_PMC` | Broadway's four performance counters over a whole run. This is the one the locked-cache work needs: it is the only way to see stalls, and Dolphin cannot show them. The event selects are build-time (`PMC_MMCR0`, `PMC_MMCR1`) so a hardware session can try a miss event without a code change. Defaults are processor cycles and instructions completed, whose ratio is what moves when stalls go away. |
+| `PERF_PROF_SPU` | the mixer split above, per stage |
+| `PERF_PROF_MDEC` | the video decode split into rl2blk+IDCT and colour conversion |
+| `PERF_PROF_BIOS` | every HLE BIOS call by name, and the time in the whole HLE dispatch |
+| `PERF_PROF_NETWAIT` | what a one-second wait costs, old shape against new |
+
+Verified encodings for `PMC_MMCR0`/`PMC_MMCR1` (they are also what Dolphin's interpreter
+implements, `PowerPC.cpp` `UpdatePerformanceMonitor`): PMC1 select 1 = processor cycles,
+PMC2 select 1 = processor cycles and 11 = loads and stores completed, PMC3 select 11 = FPU
+instructions completed. PMC1 select 2 = instructions completed is in the 750CL manual and is
+not implemented by Dolphin, so it reads 0 there and counts on a Wii. A 120 s Spyro run under
+Dolphin gave `pmc1=1149497231 pmc2=0`, which is the shape to expect.
 
 ### Not a locked-cache candidate: `hw_gpu`
 Two thirds of guest time in Dolphin's accounting is the GPU command path

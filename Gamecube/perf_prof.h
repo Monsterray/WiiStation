@@ -101,6 +101,41 @@ extern "C" {
 #ifndef PERF_PROF_SPU
 #define PERF_PROF_SPU 0
 #endif
+/* PERF_PROF_PMC reads Broadway's four performance counters over the whole run. It exists
+ * for the locked-cache work, which cannot be judged in Dolphin at all: Dolphin implements
+ * the locked-cache DMA as a synchronous copy and models no cache misses, so LC code runs
+ * correctly there and tells you nothing about its speed. On hardware these counters are
+ * what says whether locking something helped.
+ *
+ * Which event each counter follows is a build-time choice, because the 750CL has far more
+ * events than are worth naming here and the one that matters changes with the question.
+ * The selects live in MMCR0 (PMC1, PMC2) and MMCR1 (PMC3, PMC4); the defaults below count
+ * processor cycles and instructions completed, which give instructions per cycle -- the
+ * number that moves when stalls go away, whatever caused them. For a miss count, look up
+ * the select in the 750CL manual and pass it here:
+ *
+ *   PROBES="-DPERF_PROF_PMC=1 -DPMC_MMCR0=0x...":  bash scripts/build.sh debug
+ *
+ * Verified encodings (they are also what Dolphin's interpreter implements, in
+ * PowerPC.cpp UpdatePerformanceMonitor): PMC1 select 1 = processor cycles, PMC2 select 1
+ * = processor cycles and 11 = loads and stores completed, PMC3 select 11 = FPU
+ * instructions completed. PMC1 select 2 = instructions completed is in the manual but is
+ * not implemented by Dolphin, so it reads 0 there and counts properly on a Wii.
+ *
+ * Measured under Dolphin with the defaults: pmc1 counts (1149497231 over a 120 s Spyro
+ * run) and pmc2 reads 0, because Dolphin implements select 1 and not select 2. So a
+ * Dolphin run gives cycles and nothing else; both count on a Wii. */
+#ifndef PERF_PROF_PMC
+#define PERF_PROF_PMC 0
+#endif
+/* PMC1 = processor cycles (select 1), PMC2 = instructions completed (select 2).
+ * MMCR0: PMC1SELECT is bits 19..25, PMC2SELECT bits 26..31, counting from the MSB. */
+#ifndef PMC_MMCR0
+#define PMC_MMCR0 ((1 << 6) | 2)
+#endif
+#ifndef PMC_MMCR1
+#define PMC_MMCR1 0
+#endif
 
 typedef struct {
 	/* CPU / JIT (Wii adapter level, lightrec.c) */
@@ -357,6 +392,9 @@ typedef struct {
 	uint64_t spu_mix_us;          /* summing a channel into the output, dry or to reverb */
 	uint64_t spu_rvb_us;          /* the reverb itself, once per call */
 	uint32_t spu_chans;
+
+	/* Broadway's performance counters, read once at the end of a run (PERF_PROF_PMC). */
+	uint32_t pmc[4];
 	uint32_t out_dry;             /* output frames the driver had no data for (SDL: zero-filled; AESND: silence) */
 	uint32_t out_drop;            /* feed() calls that found the driver full and dropped the rest */
 
@@ -480,6 +518,7 @@ void perf_pad_event(unsigned pad, unsigned type, unsigned drv_btns, unsigned drv
 #define PERF_PROF_BIOS 0
 #define PERF_PROF_MDEC 0
 #define PERF_PROF_SPU 0
+#define PERF_PROF_PMC 0
 
 #define PERF_PROF_TRACE 0
 #define PERF_PROF_GPU   0

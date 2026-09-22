@@ -89,6 +89,28 @@ static void perf_report_bios(FILE *f)
 }
 #endif
 
+#if PERF_PROF_PMC
+#include <ogc/machine/processor.h>
+
+/* Point the counters at the chosen events and zero them. Called from perf_reset(), so the
+ * numbers cover one run of the emulated machine. */
+static void perf_pmc_start(void)
+{
+	mtmmcr0(0);                 /* stop counting while the selects change */
+	mtpmc1(0); mtpmc2(0); mtpmc3(0); mtpmc4(0);
+	mtmmcr1(PMC_MMCR1);
+	mtmmcr0(PMC_MMCR0);
+}
+
+static void perf_pmc_read(void)
+{
+	g_perf.pmc[0] = mfpmc1();
+	g_perf.pmc[1] = mfpmc2();
+	g_perf.pmc[2] = mfpmc3();
+	g_perf.pmc[3] = mfpmc4();
+}
+#endif
+
 unsigned long long g_netwait_old_us, g_netwait_new_us;
 unsigned long g_netwait_old_wakes, g_netwait_new_wakes;
 
@@ -102,6 +124,9 @@ void perf_reset(void)
 	}
 	memset(&g_perf, 0, sizeof(g_perf));
 	g_perf.wall_start_ticks = gettime();
+#if PERF_PROF_PMC
+	perf_pmc_start();
+#endif
 }
 
 /* Every N presented frames, append one block. 1800 ~= 30 s at 60 fps. */
@@ -622,6 +647,13 @@ void perf_report(void)
 			fprintf(f, "spustage: chans=%lu adpcm_us=%llu adsr_us=%llu mix_us=%llu rvb_us=%llu\n",
 				(unsigned long)g_perf.spu_chans, g_perf.spu_adpcm_us,
 				g_perf.spu_adsr_us, g_perf.spu_mix_us, g_perf.spu_rvb_us);
+		#endif
+		#if PERF_PROF_PMC
+		perf_pmc_read();
+		fprintf(f, "pmc: mmcr0=%08x mmcr1=%08x pmc1=%lu pmc2=%lu pmc3=%lu pmc4=%lu\n",
+			(unsigned)PMC_MMCR0, (unsigned)PMC_MMCR1,
+			(unsigned long)g_perf.pmc[0], (unsigned long)g_perf.pmc[1],
+			(unsigned long)g_perf.pmc[2], (unsigned long)g_perf.pmc[3]);
 		#endif
 		fprintf(f, "menu: frames=%lu menu_us=%llu strings=%lu glyphs=%lu texloads=%lu\n",
 			(unsigned long)g_perf.menu_frames, g_perf.menu_us,
