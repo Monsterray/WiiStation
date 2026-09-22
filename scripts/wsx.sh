@@ -15,6 +15,12 @@
 #        --nodump                   no audio dump
 #        --autoboot spyro|bios|none which autoboot file (default spyro)
 #        --env VAR=VALUE            extra environment for dolphin_run.sh (CACHE=1, XFB_RAM=1 ...)
+#        --card FILE                put FILE in the card's wiisxrx/ folder for the run (repeatable):
+#                                   the per-game input scripts a chained autoboot names
+#   scripts/wsx.sh chain NAME CHAINFILE [options]         a chained autoboot (several games, one
+#                                   boot) from scripts/chains/; stages the input scripts it names,
+#                                   runs until the console powers off, prints scripts/chain_table.py.
+#                                   Same options as run; --secs is the limit for the whole chain.
 #   scripts/wsx.sh summary NAME...                        re-read finished runs (run_summary.py)
 #   scripts/wsx.sh last                                   summary of the newest run
 #   scripts/wsx.sh runs                                   list runs
@@ -67,7 +73,7 @@ build)
 run)
 	name="${1:-}"; shift || true
 	[ -n "$name" ] || { echo "run NAME [options]"; exit 2; }
-	dol="debug"; secs=170; input="speech"; sets=""; dsp=""; dump=1; aboot="spyro"; extra=()
+	dol="debug"; secs=170; input="speech"; sets=""; dsp=""; dump=1; aboot="spyro"; extra=(); cards=()
 	while [ $# -gt 0 ]; do
 		case "$1" in
 			--dol) dol="$2"; shift 2 ;;
@@ -78,6 +84,7 @@ run)
 			--nodump) dump=0; shift ;;
 			--autoboot) aboot="$2"; shift 2 ;;
 			--env) extra+=("$2"); shift 2 ;;
+			--card) cards+=("$2"); shift 2 ;;
 			*) echo "unknown option $1"; exit 2 ;;
 		esac
 	done
@@ -101,6 +108,8 @@ run)
 	dir="$RUNS/$name"; mkdir -p "$dir"
 	cp "$dolsrc" "$dir/boot.dol"
 	cp "$insrc" "$dir/autoinput.txt"
+	rm -rf "$dir/card"
+	for c in "${cards[@]:-}"; do [ -n "$c" ] && mkdir -p "$dir/card" && cp "$c" "$dir/card/"; done
 	{
 		printf 'gpuPlugin = 2\nFPS = 1\nPadType1 = 1\nPadAutoAssign = 0\n'
 		[ -n "$dsp" ] && printf 'SoundHwAccel = 1\n'
@@ -121,6 +130,20 @@ run)
 	grep -E "refusing|no such|faults in dolphin.log: [1-9]|PANIC|Unknown instruction" "$dir/run.log" | head -5
 	[ $rc -ne 0 ] && echo "dolphin_run.sh exit $rc (see $dir/run.log)"
 	python "$REPO/scripts/run_summary.py" "$dir"
+	;;
+
+chain)
+	# A chain file names its input scripts as sd:/wiisxrx/<file>; each is scripts/autoinput/<file>.
+	name="${1:-}"; cf="${2:-}"; shift 2 || { echo "chain NAME CHAINFILE [options]"; exit 2; }
+	[ -f "$cf" ] || cf="$REPO/scripts/chains/$cf"
+	[ -f "$cf" ] || { echo "no such chain file: $cf"; exit 2; }
+	cardargs=()
+	for f in $(tr -d '\r' < "$cf" | sed -n -E 's|^[0-9]+[[:space:]]+sd:/wiisxrx/([^[:space:]]+).*|\1|p' | sort -u); do
+		[ -f "$REPO/scripts/autoinput/$f" ] || { echo "chain names sd:/wiisxrx/$f: no scripts/autoinput/$f"; exit 2; }
+		cardargs+=(--card "$REPO/scripts/autoinput/$f")
+	done
+	bash "$0" run "$name" --autoboot "$cf" --input "$P/autoinput_none.txt" --nodump --env FRAMES_DUMP=False ${cardargs[@]+"${cardargs[@]}"} "$@" | grep -v "^  "
+	python "$REPO/scripts/chain_table.py" "$RUNS/$name"
 	;;
 
 summary)

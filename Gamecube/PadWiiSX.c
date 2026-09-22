@@ -44,6 +44,7 @@
  * Applied in PadSSSPSX.c (the bound pad plugin) and here. */
 static struct { unsigned vbl; unsigned short mask; } autoin[64];
 static int autoin_n = -1;
+static char autoin_path[128] = "sd:/wiisxrx/autoinput.txt";
 /* "trace <vblank>" lines: the debug build's primitive trace arms at these
  * vblanks (perf_prof.c reads the table), so a capture can be scheduled
  * right after a scripted press instead of guessing the overlay's shape. */
@@ -88,7 +89,7 @@ void autoinput_load(void)
 	char line[128];
 	if (autoin_n >= 0) return;
 	autoin_n = 0;
-	f = fopen("sd:/wiisxrx/autoinput.txt", "r");
+	f = autoin_path[0] ? fopen(autoin_path, "r") : NULL;
 	if (f) {
 		while (autoin_n < 64 && fgets(line, sizeof line, f)) {
 			unsigned v, k;
@@ -109,6 +110,22 @@ void autoinput_load(void)
 		fclose(f);
 	}
 }
+/* A chained autoboot (GamecubeMain.cpp) gives each game its own script, or none: an
+ * empty path. Everything the parser sets goes back to its default, so nothing one game's
+ * script scheduled happens in the next. */
+void autoinput_reset(const char *path)
+{
+	snprintf(autoin_path, sizeof autoin_path, "%s", path ? path : "");
+	autoin_n = -1;
+	autoinput_trace_n = 0;
+	autoinput_dump_vbl = 0;
+	autoinput_padsweep_vbl = 0;
+	autoinput_menupage = 0;
+	autoinput_menuclick = autoinput_menuclicks = 0;
+	autoinput_statetest_vbl = 0;
+	autoinput_atrace_vbl = 0;
+}
+
 /* A script with at least one press line stands in for a plugged-in digital
  * pad on port 1: the BIOS shell (and some games) only accept input from a
  * port that answers the pad-ID poll, which the pad plugin refuses when no

@@ -1,0 +1,9 @@
+CHAIN
+# Two short games: proves a chain boots its second game and powers off at the end.
+# bash scripts/wsx.sh chain smoke smoke.txt --secs 400
+600
+sd:/wiisxrx/isos/Crash Bandicoot 3 - Warped
+Crash Bandicoot 3 - Warped [U] [SLUS-94244].cue
+600
+sd:/wiisxrx/isos/Medievil
+Medievil [U] [SCUS-94227].cue

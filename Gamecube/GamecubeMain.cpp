@@ -590,6 +590,116 @@ bool AutobootBios;        /* autoboot.txt first line "BIOS": run the BIOS shell,
 char AutobootROM[1024];
 char AutobootPath[1024];
 
+/* A chained autoboot: autoboot.txt can list several games to run one after another in
+ * one boot. The first line is CHAIN, then three lines per game:
+ *
+ *   CHAIN
+ *   3600 sd:/wiisxrx/spyro_title.txt
+ *   sd:/wiisxrx/isos/Spyro the Dragon
+ *   Spyro the Dragon [NTSC-U] [SCUS-94228].cue
+ *   3600
+ *   sd:/wiisxrx/isos/Medievil
+ *   Medievil [U] [SCUS-94227].cue
+ *
+ * The first line of each game is how many vblanks to run it for, and optionally an
+ * autoinput script of its own (without one, the game gets no scripted input). Blank lines
+ * and lines that start with '#' are skipped.
+ *
+ * Each game starts with a vblank count of zero, so its script means the same as it would
+ * in a run of its own, and its section of perf.log ends with the line
+ *
+ *   === chain <n>/<total> end vblanks=<ran> rom=<file> ===
+ *
+ * which scripts/chain_table.py splits the log on. After the last game the console powers
+ * off. Dolphin in batch mode then exits, and a Wii is off with its SD card ready to take
+ * out: on hardware, moving the card is the slow part, so one boot should collect every
+ * game. */
+#define CHAIN_MAX 24
+static struct { unsigned vbl; char input[128]; char path[256]; char rom[256]; } chainList[CHAIN_MAX];
+static int chainN, chainI;
+extern "C" {
+	unsigned chain_stop_vbl;                   /* psxcounters.c stops the game here; 0 = never */
+	void autoinput_reset(const char *path);    /* PadWiiSX.c */
+	extern u32 frame_counter;                  /* psxcounters.c: +1 per vblank */
+	extern unsigned short *psxVuw;             /* the PlayStation's VRAM, every GPU plugin */
+}
+
+/* The next line that is not blank and not a comment. */
+static bool chainLine(FILE *f, char *buf, int n)
+{
+	while (fgets(buf, n, f)) {
+		buf[strcspn(buf, "\r\n")] = 0;
+		if (buf[0] && buf[0] != '#')
+			return true;
+	}
+	return false;
+}
+
+static int chainLoad(FILE *f)
+{
+	char line[256];
+	while (chainN < CHAIN_MAX && chainLine(f, line, sizeof line)) {
+		auto *e = &chainList[chainN];
+		e->input[0] = 0;
+		if (sscanf(line, "%u %127s", &e->vbl, e->input) < 1 || !e->vbl)
+			continue;
+		if (!chainLine(f, e->path, sizeof e->path) || !chainLine(f, e->rom, sizeof e->rom))
+			break;
+		chainN++;
+	}
+	/* The log belongs to this chain from here. perf_reset() empties it again at the first
+	 * go() in a debug build, before anything is written; a release build never does. */
+	if (chainN) { FILE *p = fopen("sd:/wiisxrx/perf.log", "w"); if (p) fclose(p); }
+	return chainN;
+}
+
+static void chainStart(int i)
+{
+	snprintf(AutobootPath, sizeof AutobootPath, "%s", chainList[i].path);
+	snprintf(AutobootROM, sizeof AutobootROM, "%s", chainList[i].rom);
+	chain_stop_vbl = chainList[i].vbl;
+	frame_counter = 0;
+	autoinput_reset(chainList[i].input);
+	Autoboot = true;
+}
+
+/* A chained game has come back from go(). Close its section of the log and start the
+ * next one; after the last, power off. Returns true when there is another game to boot. */
+static bool chainNext(void)
+{
+	FILE *f;
+	if (!chainN)
+		return false;
+	/* frame_counter is zero only when the game never ran -- a missing file, most often --
+	 * and then g_perf still holds the previous game, so no report. */
+	if (frame_counter) {
+		/* What the game had in VRAM at the end: scripts/chain_table.py turns it into a
+		 * picture, which is how a table row says what the numbers were measured on. */
+		char vp[40];
+		snprintf(vp, sizeof vp, "sd:/wiisxrx/vram_%02d.bin", chainI + 1);
+		if (psxVuw && (f = fopen(vp, "wb"))) {
+			fwrite(psxVuw, 2, 1024 * 512, f);
+			fclose(f);
+		}
+		perf_report();
+	}
+	f = fopen("sd:/wiisxrx/perf.log", "a");
+	if (f) {
+		fprintf(f, "=== chain %d/%d end vblanks=%u rom=%s ===\n", chainI + 1, chainN,
+			(unsigned)frame_counter, chainList[chainI].rom);
+		fclose(f);
+	}
+	if (++chainI < chainN) {
+		chainStart(chainI);
+		return true;
+	}
+	chain_stop_vbl = 0;
+	/* Unmount first: a Wii that powers off with the FAT cache dirty loses the log. */
+	fatUnmount("sd");
+	SYS_ResetSystem(SYS_POWEROFF, 0, 0);
+	return false;
+}
+
 int main(int argc, char *argv[])
 {
 	/* INITIALIZE */
@@ -640,6 +750,11 @@ int main(int argc, char *argv[])
 				if (strcasecmp(AutobootPath, "BIOS") == 0) {
 					AutobootBios = true;
 					Autoboot = true;
+				} else if (strcasecmp(AutobootPath, "CHAIN") == 0) {
+					if (chainLoad(ab))
+						chainStart(0);
+					else
+						AutobootPath[0] = 0;
 				} else if (fgets(AutobootROM, sizeof(AutobootROM), ab)) {
 					AutobootROM[strcspn(AutobootROM, "\r\n")] = 0;
 					Autoboot = AutobootPath[0] && AutobootROM[0];
@@ -692,7 +807,9 @@ int main(int argc, char *argv[])
 
 	if(Autoboot)
 	{
-		menu->Autoboot();
+		do
+			menu->Autoboot();
+		while (chainNext());
 		Autoboot = false;
 	}
 

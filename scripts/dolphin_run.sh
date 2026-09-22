@@ -18,6 +18,8 @@
 #                         reimplementations. Needed for any custom ucode -- HLE matches
 #                         ucodes by hash and falls back to a WRONG one otherwise (libogc's
 #                         AESND is not on its list). Uses the DSP ROMs in Sys/GC.
+#          FRAMES_DUMP=False  no frame dump: for a long run (a chain), where it slows Dolphin
+#                         and fills the disk
 #          AUDIO_DUMP=1   write the mixed audio to the profile's Dump/Audio and collect it;
 #                         compare two runs with scripts/wav_compare.py
 #          WSX_PROFILE=<dir>  this run's Dolphin user directory (default <repo>/.dolphin)
@@ -25,6 +27,11 @@
 #                         "all" for every one. The game the autoboot file names is always
 #                         copied; this is for a run that browses to another one.
 #          DOLPHIN_ARGS   extra arguments appended verbatim, e.g. "-C Graphics.Settings.OverlayStats=True"
+#
+# <seconds> is a limit, not a length: the run ends early if Dolphin exits on its own. A chained
+# autoboot (see GamecubeMain.cpp) powers the console off after its last game, and Dolphin in
+# batch mode exits then. Files in <out_dir>/card/ are put in the card's wiisxrx/ folder for the
+# run and taken off after -- a chain's per-game input scripts go there.
 #
 # ---------------------------------------------------------------------------------------
 # THE PROFILE. This runs against its own Dolphin user directory, not the install's shared
@@ -102,7 +109,7 @@ CFGARGS=(
   -C Dolphin.Core.WiiSDCardAllowWrites=True
   -C Dolphin.Core.WiiSDCardEnableFolderSync=True
   -C Dolphin.DSP.DSPThread=True
-  -C Dolphin.Movie.DumpFrames=True
+  -C Dolphin.Movie.DumpFrames=${FRAMES_DUMP:-True}
   -C Graphics.Settings.DumpFramesAsImages=True
   -C Graphics.Settings.PNGCompressionLevel=1
   # The three options the OpenGX renderer needs to behave like hardware (see README).
@@ -143,10 +150,11 @@ for dir in bios fonts saves; do
   mkdir -p "$S/$dir"
   cp -ru "$SHARED/$dir/." "$S/$dir/" 2>/dev/null || true
 done
-# Games are hundreds of megabytes each, so only the ones this run can reach are copied. The
-# autoboot file's first line is the game's folder on the card.
+# Games are hundreds of megabytes each, so only the ones this run can reach are copied: every
+# line of the autoboot file that is a folder on the card -- one for a single game, one per game
+# for a chain.
 want_isos() {
-  [ -n "$ABOOT" ] && head -1 "$ABOOT" 2>/dev/null | sed -n 's|^sd:/wiisxrx/isos/||p'
+  [ -n "$ABOOT" ] && tr -d '\r' < "$ABOOT" 2>/dev/null | sed -n 's|^sd:/wiisxrx/isos/||p'
   case "${WSX_ISOS:-}" in
     "")    ;;
     all)   ls "$SHARED/isos" 2>/dev/null ;;
@@ -171,6 +179,8 @@ cp "${AIN:-$P/autoinput.txt}" "$S/autoinput.txt"; cp "${SET:-$P/settingsRX2022.c
 # autoboot: without it WiiStation sits in its menu
 [ -n "$ABOOT" ] || echo "note: no autoboot file given -- the run will stay in the menu"
 if [ -n "$ABOOT" ]; then cp "$ABOOT" "$S/autoboot.txt"; fi
+CARDFILES=$(ls "$OUT/card" 2>/dev/null)
+[ -n "$CARDFILES" ] && cp "$OUT/card/"* "$S/" && echo "card files: $(echo $CARDFILES)"
 
 # --- run --------------------------------------------------------------------------------
 echo "framedump run: start $(date +%T)"
@@ -183,7 +193,14 @@ DPID=$!; sleep 2; WPID=$(ps -p $DPID 2>/dev/null | awk 'NR==2{print $4}')
 # Fallback for the Windows PID: the only instance on our profile is the one just started.
 [ -n "$WPID" ] || WPID=$(same_userdir_pids | head -1)
 echo "dolphin windows pid: ${WPID:-unknown}"
-sleep "$SECS"
+# Wait for Dolphin to exit on its own (a chain powers off at its end), up to SECS.
+T0=$(date +%s)
+while [ $(( $(date +%s) - T0 )) -lt "$SECS" ]; do
+  sleep 5
+  if [ -n "$WPID" ] && ! tasklist //FI "PID eq $WPID" 2>/dev/null | grep -q " $WPID "; then
+    echo "dolphin exited by itself after $(( $(date +%s) - T0 )) s"; WPID=""; break
+  fi
+done
 # Kill only the instance this script started, and only with taskkill /F: a POSIX kill on a native
 # process posts a window close, which raises the stop dialog instead of ending the run.
 if [ -n "$WPID" ]; then taskkill //PID "$WPID" //F >/dev/null 2>&1 || true; else echo "no pid: leaving Dolphin running rather than posting a close"; fi
@@ -192,6 +209,7 @@ sleep 3
 # --- unstage ----------------------------------------------------------------------------
 # The card belongs to this profile alone, so only the per-run files are taken back off it.
 rm -f "$S/autoinput.txt" "$S/settingsRX2022.cfg" "$S/autoboot.txt"
+for c in $CARDFILES; do rm -f "$S/$c"; done
 
 # --- collect ----------------------------------------------------------------------------
 N=$(ls "$PROFILE/Dump/Frames" 2>/dev/null | wc -l); echo "frames dumped: $N"

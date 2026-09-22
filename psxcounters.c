@@ -102,6 +102,8 @@ Rcnt rcnts[ CounterQuantity ];
 //#endif
 u32 hSyncCount = 0;
 u32 frame_counter = 0;
+extern unsigned chain_stop_vbl;   /* GamecubeMain.cpp: the vblank a chained game ends at */
+extern int stop;
 static u32 hsync_steps = 0;
 
 u32 psxNextCounter = 0, psxNextsCounter = 0;
@@ -457,6 +459,9 @@ void psxRcntUpdate()
             hSyncCount = 0;
             frame_counter++;
             autoinput_state_test();
+            /* A chained autoboot's game is over: back to GamecubeMain.cpp for the next. */
+            if (chain_stop_vbl && frame_counter >= chain_stop_vbl)
+                stop = 1;
 
             gpuSyncPluginSR();
             status = SWAP32(HW_GPU_STATUS) | PSXGPU_FIELD;
