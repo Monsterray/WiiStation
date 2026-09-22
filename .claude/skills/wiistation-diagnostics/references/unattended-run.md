@@ -2,14 +2,21 @@
 
 ## Layout on this machine
 
+A run uses its OWN Dolphin user directory, `<repo>\.dolphin\` (gitignored, about 1.8 GB).
+Nothing is shared with the user's Dolphin except the executable and the CPU, so a run can go
+while they play something else, and while another project runs its own tests. `WSX_PROFILE=`
+moves it.
+
 | Thing | Where |
 |---|---|
-| Dolphin | `C:\tools\Dolphin-x64\Dolphin.exe`, user dir `C:\tools\Dolphin-x64\User\` |
-| SD sync folder (master; synced INTO the image at launch, never back on a kill) | `User\Load\WiiSDSync\wiisxrx\` |
-| SD image (locked while Dolphin runs) | `User\Load\WiiSD.raw` |
-| Staged test files kept out of the way | `User\Load\WiiSDSync_paused_by_claude\` (autoinput*.txt, settings*.cfg, autoboot_bios.txt) |
-| Frame dumps | `User\Dump\Frames\framedump_<n>.png` (824x480) |
-| Dolphin log | `User\Logs\dolphin.log`, timestamps are `MM:SS:mmm`, not hours |
+| Dolphin | `C:\tools\Dolphin-x64\Dolphin.exe` |
+| This project's user dir (`-u`) | `<repo>\.dolphin\` |
+| SD sync folder (master; synced INTO the image at launch, never back on a kill) | `.dolphin\Load\WiiSDSync\wiisxrx\` |
+| SD image (locked while Dolphin runs) | `.dolphin\Load\WiiSD.raw` |
+| Frame dumps | `.dolphin\Dump\Frames\framedump_<n>.png` (824x480) |
+| Dolphin log | `.dolphin\Logs\dolphin.log`, timestamps are `MM:SS:mmm`, not hours |
+| Where the USER drops games, and where the card is copied FROM | `C:\tools\Dolphin-x64\User\Load\WiiSDSync\wiisxrx\` |
+| Staged test files kept out of the way | `C:\tools\Dolphin-x64\User\Load\WiiSDSync_paused_by_claude\` (autoinput*.txt, settings*.cfg, autoboot_*.txt) |
 | Builds | `Gamecube\WiiSXRX_debug.dol` (run this), `Gamecube\WiiSXRX_Release.dol` (never boot the release .elf under Dolphin: unzeroed BSS crashes) |
 
 ## The short loop: `scripts/wsx.sh`

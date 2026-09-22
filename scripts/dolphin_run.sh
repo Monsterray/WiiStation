@@ -18,56 +18,73 @@
 #                         reimplementations. Needed for any custom ucode -- HLE matches
 #                         ucodes by hash and falls back to a WRONG one otherwise (libogc's
 #                         AESND is not on its list). Uses the DSP ROMs in Sys/GC.
-#          Other Dolphin instances: only ones that share this install's user directory (the
-#          portable User/ next to Dolphin.exe, i.e. started without -u, or with -u pointing at
-#          it) block a run -- they hold the same WiiSD.raw. An instance from another project
-#          with its own -u profile is left alone and the run goes ahead beside it (shared CPU
-#          only). The run is started with an explicit -u so its command line identifies it,
-#          and only that PID is killed at the end. (The pattern is Wii64's .dev/dolphin_test.sh.)
-#          AUDIO_DUMP=1   write the mixed audio to User/Dump/Audio and collect it; compare
-#                         two runs with scripts/wav_compare.py
+#          AUDIO_DUMP=1   write the mixed audio to the profile's Dump/Audio and collect it;
+#                         compare two runs with scripts/wav_compare.py
+#          WSX_PROFILE=<dir>  this run's Dolphin user directory (default <repo>/.dolphin)
+#          WSX_ISOS=<list>    extra game folders to put on the card, comma separated, or
+#                         "all" for every one. The game the autoboot file names is always
+#                         copied; this is for a run that browses to another one.
 #          DOLPHIN_ARGS   extra arguments appended verbatim, e.g. "-C Graphics.Settings.OverlayStats=True"
+#
+# ---------------------------------------------------------------------------------------
+# THE PROFILE. This runs against its own Dolphin user directory, not the install's shared
+# User/, so it can run beside the user's own Dolphin session and beside another project's
+# runs: nothing is shared except the CPU. The pattern is Wii64's .dev/dolphin_test.sh.
+#
+# Only two things have to be brought into it. Dolphin's SD folder sync is fixed at
+# <userdir>/Load/WiiSDSync and does NOT follow junctions -- a junctioned folder syncs as
+# empty, which Wii64 tested -- so the card's files are COPIED (cp -u, once) from the shared
+# drop location the user puts games in. And every Dolphin setting the run depends on is
+# passed with -C below, because a fresh profile has no Dolphin.ini to inherit them from.
+# That is the better way round in any case: the run now says what it is, instead of
+# quietly taking whatever the user last set in the GUI.
+#
+# The first run copies about 700 MB and Dolphin then builds the card image, so it takes a
+# few minutes. Later runs reuse both.
+# ---------------------------------------------------------------------------------------
 #
 # Stages the input script, settings and (optionally) autoboot.txt into the SD sync folder, boots the
 # .dol in batch mode, kills Dolphin after <seconds>, keeps the last KEEP frames, extracts
 # ptrace.log/vram.bin and reads perf.log straight from the FAT image (sdimage_read.py), then builds a
-# contact sheet (sheet.py). Paths are the constants below; adjust for another machine. Defaults for
-# the optional files come from the WiiSDSync_paused_by_claude folder next to the sync dir.
+# contact sheet (sheet.py). Defaults for the optional files come from the
+# WiiSDSync_paused_by_claude folder next to the shared sync dir.
 #
-# Every Dolphin setting is passed with -C <System>.<Section>.<Key>=<Value>, which layers over the
-# user's configuration for this run only. Nothing here writes to Dolphin.ini/GFX.ini/Logger.ini, so a
-# run that dies half way cannot leave the user's Dolphin misconfigured. Note the system name for
-# GFX.ini is "Graphics" -- "-C GFX.*" is silently ignored.
+# Every Dolphin setting is passed with -C <System>.<Section>.<Key>=<Value>. Nothing here writes to
+# Dolphin.ini/GFX.ini/Logger.ini, so a run that dies half way cannot leave anything misconfigured.
+# Note the system name for GFX.ini is "Graphics" -- "-C GFX.*" is silently ignored.
 set -u
 OUT="$1"; SECS="${2:-170}"; AIN="${3:-}"; SET="${4:-}"; ABOOT="${5:-}"
-D="/c/tools/Dolphin-x64"; S="$D/User/Load/WiiSDSync/wiisxrx"; P="$D/User/Load/WiiSDSync_paused_by_claude"
+D="/c/tools/Dolphin-x64"
 SP="$(cd "$(dirname "$0")" && pwd)"   # sheet.py and sdimage_read.py live next to this script
-DOL="${DOL:-/c/projects/WiiStation/Gamecube/WiiSXRX_debug.dol}"
+REPO="$(cd "$SP/.." && pwd)"
+DOL="${DOL:-$REPO/Gamecube/WiiSXRX_debug.dol}"
 
-# Which Dolphin instances matter: the ones that use THIS install's user directory, because they
-# hold the same WiiSD.raw and Dump/ folders. Matched on the command line, the way Wii64's
-# .dev/dolphin_test.sh does it: no -u at all means the portable User/ next to the exe (the
-# user's own GUI session, or an older run script), -u <our dir> means one of our runs. An
-# instance with a different -u profile belongs to another project and is left alone.
-USERDIR_WIN=$(cd "$D/User" && pwd -W | tr '/' '\\')
+# This run's own user directory, and the shared folder the user drops games into.
+PROFILE="${WSX_PROFILE:-$REPO/.dolphin}"
+SHARED="$D/User/Load/WiiSDSync/wiisxrx"
+P="$D/User/Load/WiiSDSync_paused_by_claude"
+S="$PROFILE/Load/WiiSDSync/wiisxrx"
+mkdir -p "$S" "$PROFILE/Logs" "$PROFILE/Load"
+PROFILE_WIN=$(cd "$PROFILE" && pwd -W | tr '/' '\\')
+
+# Only a Dolphin on THIS profile blocks a run: it would hold the same card image. Any other
+# instance -- the user's own session, another project's runs -- has its own directory and is
+# left strictly alone.
 dolphin_instances() {   # prints "pid|commandline" per Dolphin.exe
   powershell.exe -NoProfile -Command 'Get-CimInstance Win32_Process | Where-Object Name -eq Dolphin.exe | ForEach-Object { "$($_.ProcessId)|$($_.CommandLine)" }' 2>/dev/null | tr -d '\r'
 }
-same_userdir_pids() {   # instances that share our user directory
+same_userdir_pids() {   # instances that use our profile
   dolphin_instances | while IFS='|' read -r pid cmd; do
     [ -n "$pid" ] || continue
-    case "$cmd" in
-      *" -u "*) case "$cmd" in *"$USERDIR_WIN"*) echo "$pid";; esac ;;   # -u elsewhere: another project
-      *) echo "$pid" ;;                                                     # no -u: the portable User/
-    esac
+    case "$cmd" in *"$PROFILE_WIN"*) echo "$pid";; esac
   done
 }
 BLOCKERS=$(same_userdir_pids | tr '\n' ' ')
 if [ -n "${BLOCKERS// /}" ]; then
-  echo "refusing to start: Dolphin PID(s) $BLOCKERS use this install's user directory ($USERDIR_WIN): same SD image. If stale from a killed run: taskkill //F //PID <pid>"; exit 2
+  echo "refusing to start: Dolphin PID(s) $BLOCKERS already use this profile ($PROFILE_WIN): same SD image. If stale from a killed run: taskkill //F //PID <pid>"; exit 2
 fi
 OTHERS=$(dolphin_instances | wc -l | tr -d ' ')
-[ "$OTHERS" != "0" ] && echo "note: $OTHERS other Dolphin instance(s) with their own profile are running; this run shares the CPU with them"
+[ "$OTHERS" != "0" ] && echo "note: $OTHERS other Dolphin instance(s) are running on their own profiles; this run shares the CPU with them"
 [ -f "$DOL" ] || { echo "no such .dol: $DOL"; exit 2; }
 mkdir -p "$OUT/frames"
 
@@ -76,16 +93,34 @@ CFGARGS=(
   # A guest crash, reload or exit asks the host to stop; with ConfirmStop on, Dolphin puts up a
   # modal dialog and waits for a human, batch mode included.
   -C Dolphin.Interface.ConfirmStop=False
+  # A fresh profile would otherwise ask about analytics on first launch.
+  -C Dolphin.Analytics.PermissionAsked=True
+  -C Dolphin.Analytics.Enabled=False
+  # The SD card. A fresh profile has none of this set, and without the folder sync the guest
+  # boots to an empty card.
+  -C Dolphin.Core.WiiSDCard=True
+  -C Dolphin.Core.WiiSDCardAllowWrites=True
+  -C Dolphin.Core.WiiSDCardEnableFolderSync=True
+  -C Dolphin.DSP.DSPThread=True
   -C Dolphin.Movie.DumpFrames=True
   -C Graphics.Settings.DumpFramesAsImages=True
   -C Graphics.Settings.PNGCompressionLevel=1
-  # The two options the OpenGX renderer needs to behave like hardware (see README).
+  # The three options the OpenGX renderer needs to behave like hardware (see README).
   -C Graphics.Settings.SafeTextureCacheColorSamples=0
   -C Graphics.Hacks.EFBToTextureEnable=False
+  -C Graphics.Hacks.EFBAccessEnable=True
   # A panic dialog is as fatal to an unattended run as the stop dialog: Dolphin puts up a
   # modal box and waits for a human. They are still written to the log.
   -C Dolphin.Interface.UsePanicHandlers=False
+  # The fault grep at the end reads these. Verbosity 4 and the PowerPC/memory categories are
+  # what make "Unknown instruction" and "Invalid read" appear at all.
   -C Logger.Options.WriteToFile=True
+  -C Logger.Options.Verbosity=4
+  -C Logger.Logs.MASTER=True
+  -C Logger.Logs.BOOT=True
+  -C Logger.Logs.POWERPC=True
+  -C Logger.Logs.MEMMAP=True
+  -C Logger.Logs.OSREPORT=True
   -C Logger.Logs.FRAMEDUMP=True
   # Host-side speed, next to WiiStation's own FPS counter. The guest's counter measures
   # EMULATED time (it reads the PPC time base), so it happily reports 40 fps while Dolphin
@@ -101,26 +136,51 @@ CFGARGS=(
 # shellcheck disable=SC2206
 [ -n "${DOLPHIN_ARGS:-}" ] && CFGARGS+=(${DOLPHIN_ARGS})
 
+# --- put the card together --------------------------------------------------------------
+# Small and always needed: the BIOS, the menu fonts and the memory cards.
+for dir in bios fonts saves; do
+  [ -d "$SHARED/$dir" ] || continue
+  mkdir -p "$S/$dir"
+  cp -ru "$SHARED/$dir/." "$S/$dir/" 2>/dev/null || true
+done
+# Games are hundreds of megabytes each, so only the ones this run can reach are copied. The
+# autoboot file's first line is the game's folder on the card.
+want_isos() {
+  [ -n "$ABOOT" ] && head -1 "$ABOOT" 2>/dev/null | sed -n 's|^sd:/wiisxrx/isos/||p'
+  case "${WSX_ISOS:-}" in
+    "")    ;;
+    all)   ls "$SHARED/isos" 2>/dev/null ;;
+    *)     echo "${WSX_ISOS}" | tr ',' '\n' ;;
+  esac
+}
+want_isos | sed 's/[[:space:]]*$//' | sort -u | while read -r game; do
+  [ -n "$game" ] && [ -d "$SHARED/isos/$game" ] || continue
+  if [ ! -d "$S/isos/$game" ]; then
+    echo "copying game to this profile's card (once): $game ($(du -sh "$SHARED/isos/$game" | cut -f1))"
+  fi
+  mkdir -p "$S/isos/$game"
+  cp -ru "$SHARED/isos/$game/." "$S/isos/$game/" 2>/dev/null || true
+done
+
 # --- stage the guest's files ------------------------------------------------------------
-rm -rf "$D/User/Dump/Frames" "$D/User/Dump/Audio"
+rm -rf "$PROFILE/Dump/Frames" "$PROFILE/Dump/Audio"
 # Dolphin APPENDS to dolphin.log across launches. Keep the previous one aside so the copy this
 # run collects, and the fault grep at the end, describe this run only.
-[ -f "$D/User/Logs/dolphin.log" ] && mv "$D/User/Logs/dolphin.log" "$D/User/Logs/dolphin.log.prev"
+[ -f "$PROFILE/Logs/dolphin.log" ] && mv "$PROFILE/Logs/dolphin.log" "$PROFILE/Logs/dolphin.log.prev"
 cp "${AIN:-$P/autoinput.txt}" "$S/autoinput.txt"; cp "${SET:-$P/settingsRX2022.cfg}" "$S/settingsRX2022.cfg"
-# autoboot: without it WiiStation sits in its menu (the user keeps their own file renamed to .disabled)
-[ -n "$ABOOT" ] || echo "note: no autoboot file given -- the run will stay in the menu unless $S/autoboot.txt already exists"
-if [ -n "$ABOOT" ]; then [ -f "$S/autoboot.txt" ] && cp "$S/autoboot.txt" "$OUT/autoboot.txt.orig"; cp "$ABOOT" "$S/autoboot.txt"; fi
+# autoboot: without it WiiStation sits in its menu
+[ -n "$ABOOT" ] || echo "note: no autoboot file given -- the run will stay in the menu"
+if [ -n "$ABOOT" ]; then cp "$ABOOT" "$S/autoboot.txt"; fi
 
 # --- run --------------------------------------------------------------------------------
 echo "framedump run: start $(date +%T)"
 echo "dol: $DOL ($(stat -c %y "$DOL" 2>/dev/null | cut -c1-19))"
+echo "profile: $PROFILE_WIN"
 printf 'options:'; printf ' %s' "${CFGARGS[@]}"; echo
 printf '%s\n' "${CFGARGS[@]}" > "$OUT/dolphin-options.txt"
-# -u names the portable User/ Dolphin would use anyway; it puts our directory on the command
-# line so this run can be told apart from any other Dolphin (see same_userdir_pids above).
-"$D/Dolphin.exe" -b -e "$DOL" -u "$USERDIR_WIN" "${CFGARGS[@]}" &
+"$D/Dolphin.exe" -b -e "$DOL" -u "$PROFILE_WIN" "${CFGARGS[@]}" &
 DPID=$!; sleep 2; WPID=$(ps -p $DPID 2>/dev/null | awk 'NR==2{print $4}')
-# Fallback for the Windows PID: the only instance on our user directory is the one just started.
+# Fallback for the Windows PID: the only instance on our profile is the one just started.
 [ -n "$WPID" ] || WPID=$(same_userdir_pids | head -1)
 echo "dolphin windows pid: ${WPID:-unknown}"
 sleep "$SECS"
@@ -130,23 +190,25 @@ if [ -n "$WPID" ]; then taskkill //PID "$WPID" //F >/dev/null 2>&1 || true; else
 sleep 3
 
 # --- unstage ----------------------------------------------------------------------------
-rm -f "$S/autoinput.txt" "$S/settingsRX2022.cfg"
-if [ -n "$ABOOT" ]; then if [ -f "$OUT/autoboot.txt.orig" ]; then cp "$OUT/autoboot.txt.orig" "$S/autoboot.txt"; else rm -f "$S/autoboot.txt"; fi; fi
+# The card belongs to this profile alone, so only the per-run files are taken back off it.
+rm -f "$S/autoinput.txt" "$S/settingsRX2022.cfg" "$S/autoboot.txt"
 
 # --- collect ----------------------------------------------------------------------------
-N=$(ls "$D/User/Dump/Frames" 2>/dev/null | wc -l); echo "frames dumped: $N"
-ls "$D/User/Dump/Frames"/framedump_*.png 2>/dev/null | sed -E 's/.*framedump_([0-9]+)\.png/\1/' | sort -n | tail -${KEEP:-120} | while read i; do mv "$D/User/Dump/Frames/framedump_$i.png" "$OUT/frames/"; done
-rm -rf "$D/User/Dump/Frames"
-cp "$D/User/Logs/dolphin.log" "$OUT/dolphin.log" 2>/dev/null || true
+N=$(ls "$PROFILE/Dump/Frames" 2>/dev/null | wc -l); echo "frames dumped: $N"
+ls "$PROFILE/Dump/Frames"/framedump_*.png 2>/dev/null | sed -E 's/.*framedump_([0-9]+)\.png/\1/' | sort -n | tail -${KEEP:-120} | while read i; do mv "$PROFILE/Dump/Frames/framedump_$i.png" "$OUT/frames/"; done
+rm -rf "$PROFILE/Dump/Frames"
+cp "$PROFILE/Logs/dolphin.log" "$OUT/dolphin.log" 2>/dev/null || true
 if [ "${AUDIO_DUMP:-0}" != 0 ]; then
-  cp "$D/User/Dump/Audio"/*.wav "$OUT/" 2>/dev/null && ls -la "$OUT"/*.wav | awk '{print "audio dump:", $5, $9}'
+  cp "$PROFILE/Dump/Audio"/*.wav "$OUT/" 2>/dev/null && ls -la "$OUT"/*.wav | awk '{print "audio dump:", $5, $9}'
 fi
 # Guest-side artifacts: 7-Zip refuses the FAT image after a kill often enough that perf.log is read
 # with our own cluster-chain reader instead.
-"/c/Program Files/7-Zip/7z.exe" e -y -o"$OUT" "$D/User/Load/WiiSD.raw" 'wiisxrx/ptrace.log' 'wiisxrx/vram.bin' >/dev/null 2>&1 || echo "7z extract failed"
-python "$SP/sdimage_read.py" "$D/User/Load/WiiSD.raw" wiisxrx/perf.log "$OUT/perf.log" 2>&1 | tail -1
+CARD="$PROFILE/Load/WiiSD.raw"
+[ -f "$CARD" ] || echo "no card image at $CARD -- did the folder sync run?"
+"/c/Program Files/7-Zip/7z.exe" e -y -o"$OUT" "$CARD" 'wiisxrx/ptrace.log' 'wiisxrx/vram.bin' >/dev/null 2>&1 || echo "7z extract failed"
+python "$SP/sdimage_read.py" "$CARD" wiisxrx/perf.log "$OUT/perf.log" 2>&1 | tail -1
 # audio timeline (debug build, 'atrace <vblank>' in autoinput.txt); absent in most runs
-python "$SP/sdimage_read.py" "$D/User/Load/WiiSD.raw" wiisxrx/atrace.log "$OUT/atrace.log" >/dev/null 2>&1 && [ -s "$OUT/atrace.log" ] && echo "atrace: $(wc -l < "$OUT/atrace.log") lines"
+python "$SP/sdimage_read.py" "$CARD" wiisxrx/atrace.log "$OUT/atrace.log" >/dev/null 2>&1 && [ -s "$OUT/atrace.log" ] && echo "atrace: $(wc -l < "$OUT/atrace.log") lines"
 # 0 bytes is normal for a short run: the guest writes a perf report every N presents, and a run
 # that ends before the first one has nothing to read.
 echo "run done $(date +%T)"

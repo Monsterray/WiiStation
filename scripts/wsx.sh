@@ -29,13 +29,19 @@ P="/c/tools/Dolphin-x64/User/Load/WiiSDSync_paused_by_claude"
 DKP_BASH="/c/devkitPro/msys2/usr/bin/bash.exe"
 cmd="${1:-}"; shift || true
 
-dolphin_running() { tasklist 2>/dev/null | grep -qi "Dolphin.exe"; }
+# Only a run of OUR OWN is a reason not to build: the build would take CPU from it. The
+# user's own Dolphin, and another project's runs, have their own profile and are not ours
+# to stop for. dolphin_run.sh uses the same directory.
+PROFILE="${WSX_PROFILE:-$REPO/.dolphin}"
+dolphin_running() {
+	powershell.exe -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object { \$_.Name -eq 'Dolphin.exe' -and \$_.CommandLine -like '*$(basename "$PROFILE")*' }" 2>/dev/null | grep -q .
+}
 
 case "$cmd" in
 build)
 	mode="${1:-debug}"; probes="${2:-light}"
 	if dolphin_running && [ -z "${FORCE:-}" ]; then
-		echo "Dolphin is running: a build now would skew that run's timing (FORCE=1 to build anyway)"; exit 2
+		echo "one of our runs is going: a build now would skew its timing (FORCE=1 to build anyway)"; exit 2
 	fi
 	mkdir -p "$RUNS"
 	log="$RUNS/build_$mode.log"

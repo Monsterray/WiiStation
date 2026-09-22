@@ -53,13 +53,19 @@ believing the symptom.
 - **Never edit the script while a run is in progress.** bash reads a script lazily, so the
   sleeping instance resumes at a byte offset in the new text, dies with a syntax error, and
   leaves Dolphin running with the test files still staged (2026-09-19). Recover by killing that
-  PID and deleting `autoinput.txt`/`settingsRX2022.cfg` (and any `autoboot.txt` you staged)
-  from the SD sync folder. Since the run configures Dolphin with `-C` rather than by editing
-  the INI files, there is nothing left to restore in `User/Config`. Copy the script to the
-  scratchpad if you must change it mid-run.
-- **Always pass the autoboot file** (fifth argument) for a game run: the user keeps their own
-  `autoboot.txt` renamed to `.disabled`, so without it WiiStation sits in its menu for the
-  whole run. The script prints a note when the argument is missing.
+  PID and deleting `autoinput.txt`/`settingsRX2022.cfg`/`autoboot.txt` from
+  `.dolphin/Load/WiiSDSync/wiisxrx/`. Since the run configures Dolphin with `-C` rather than by
+  editing the INI files, there is nothing to restore in any `Config` folder. Copy the script to
+  the scratchpad if you must change it mid-run.
+- **Always pass the autoboot file** (fifth argument) for a game run: without it WiiStation sits
+  in its menu for the whole run. The script prints a note when the argument is missing. The
+  first line of that file also decides WHICH game is copied onto this profile's card, so a run
+  that browses to a different one needs `WSX_ISOS=<folder name>` as well.
+- **The card is a copy, not the user's.** Games, the BIOS and the fonts are copied from
+  `C:\tools\Dolphin-x64\User\Load\WiiSDSync\wiisxrx\` with `cp -u` on the first run that
+  needs them. A new game the user drops there appears on the next run; a file the guest writes
+  during a run (a memory card, a save state) stays in `.dolphin` and never touches theirs.
+  Delete `.dolphin/` to start clean.
 - The script sets `ConfirmStop = False` for the run so a guest crash or exit cannot leave a
   modal dialog waiting for the user, and it only ever kills Dolphin by Windows PID with
   `taskkill /F`. Keep both properties if you change it: a POSIX `kill` on the native process

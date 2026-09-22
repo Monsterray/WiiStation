@@ -43,3 +43,7 @@ SOUND_SYSTEM.md
 # Baseline media (audio dumps, contact sheets): large binaries, kept beside the
 # committed baselines/<id>/perf.log + notes; see baselines/README.md
 baselines/media/
+
+# Per-project Dolphin user directory for unattended runs (scripts/dolphin_run.sh).
+# Holds a copy of the card content and the SD image, so it is large.
+/.dolphin/
