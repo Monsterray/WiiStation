@@ -394,7 +394,11 @@ void loadSettings(int argc, char *argv[])
 	soundXaResampler    = SOUND_XA_RESAMPLER_HIFI;     // matches real hardware's own XA filter for 37800 Hz streams
 	soundRateControl = SOUND_RATE_CONTROL_ON;
 	soundResampler   = SOUND_RESAMPLE_CUBIC; // hi-fi default: Hold is what both paths always did, Cubic is materially cleaner
-	spuInterpolation = GAUSSI_INTERPOLATION; // the better of the two voice interpolators, and the whole SPU is under 1% of a frame
+	/* The better of the two voice interpolators. Measured on Crash 3 with PERF_PROF_SPU:
+	 * the SPU is about 8% of wall time, of which the ADPCM decode and interpolation is
+	 * 5.2%, and choosing Gaussian over Simple is 2.1% of that. An older comment here said
+	 * the whole SPU was under 1% of a frame, which the measurement does not support. */
+	spuInterpolation = GAUSSI_INTERPOLATION;
 	cdBuffer         = CD_BUFFER_16K;       // the size the single shared buffer always had
 	cdPrefetch       = CD_PREFETCH_OFF;     // only real hardware can show what it buys; off until then
 	cdChdHunks       = CD_CHD_HUNKS_2;      // as before, now with a working LRU

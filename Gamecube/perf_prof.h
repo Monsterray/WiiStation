@@ -95,6 +95,12 @@ extern "C" {
 #ifndef PERF_PROF_MDEC
 #define PERF_PROF_MDEC 1
 #endif
+/* PERF_PROF_SPU splits the sound mixer into its stages. Four time-base reads per channel
+ * per do_channels() call, which is about 0.6% of a run, so it is off by default. Turn it
+ * on with -DPERF_PROF_SPU=1 to decide where the SPU's time goes. */
+#ifndef PERF_PROF_SPU
+#define PERF_PROF_SPU 0
+#endif
 
 typedef struct {
 	/* CPU / JIT (Wii adapter level, lightrec.c) */
@@ -344,6 +350,13 @@ typedef struct {
 	uint32_t spu_pulls;           /* tempo pull-backs: output driver not busy, SoundTempo on */
 	uint32_t spu_busy;            /* SPU_async calls that found the output driver busy */
 	uint32_t spu_desync;          /* do_samples resets: |cycle gap| > 2M cycles */
+	/* Where the mixer's time goes (PERF_PROF_SPU). `chans` counts channel-iterations, not
+	 * channels: one per audible channel per do_channels() call. */
+	uint64_t spu_adpcm_us;        /* ADPCM decode and interpolation, or the noise source */
+	uint64_t spu_adsr_us;         /* the envelope */
+	uint64_t spu_mix_us;          /* summing a channel into the output, dry or to reverb */
+	uint64_t spu_rvb_us;          /* the reverb itself, once per call */
+	uint32_t spu_chans;
 	uint32_t out_dry;             /* output frames the driver had no data for (SDL: zero-filled; AESND: silence) */
 	uint32_t out_drop;            /* feed() calls that found the driver full and dropped the rest */
 
@@ -466,6 +479,7 @@ void perf_pad_event(unsigned pad, unsigned type, unsigned drv_btns, unsigned drv
 #define PERF_PROF_NETWAIT 0
 #define PERF_PROF_BIOS 0
 #define PERF_PROF_MDEC 0
+#define PERF_PROF_SPU 0
 
 #define PERF_PROF_TRACE 0
 #define PERF_PROF_GPU   0

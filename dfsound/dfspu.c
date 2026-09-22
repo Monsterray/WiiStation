@@ -836,6 +836,9 @@ static void do_channels(int ns_to)
  unsigned int mask;
  int do_rvb, ch, d;
  SPUCHAN *s_chan;
+#if PERF_PROF_SPU
+ unsigned long long t_spu;
+#endif
 
  if (unlikely(spu.interpolation != spu_config.iUseInterpolation))
  {
@@ -862,11 +865,18 @@ static void do_channels(int ns_to)
    if (!(mask & 1)) continue;                      // channel not playing? next
 
    s_chan = &spu.s_chan[ch];
+#if PERF_PROF_SPU
+   t_spu = perf_now_us();
+#endif
    if (s_chan->bNoise)
     d = do_samples_noise(ChanBuf, ch, ns_to);
    else
     d = do_samples_adpcm(ChanBuf, decode_block, NULL, ch, ns_to, s_chan->bFMod,
           &spu.sb[ch], s_chan->sinc, &s_chan->spos, &s_chan->iSBPos);
+#if PERF_PROF_SPU
+   { unsigned long long t_ = perf_now_us();
+     g_perf.spu_adpcm_us += t_ - t_spu; t_spu = t_; g_perf.spu_chans++; }
+#endif
 
    if (!s_chan->bStarting) {
     d = MixADSR(&s_chan->ADSRX, d);
@@ -878,6 +888,10 @@ static void do_channels(int ns_to)
      memset(&ChanBuf[d], 0, (ns_to - d) * sizeof(ChanBuf[0]));
     }
    }
+#if PERF_PROF_SPU
+   { unsigned long long t_ = perf_now_us();
+     g_perf.spu_adsr_us += t_ - t_spu; t_spu = t_; }
+#endif
 
    if (ch == 1 || ch == 3)
     {
@@ -893,13 +907,23 @@ static void do_channels(int ns_to)
     mix_chan_rvb(spu.SSumLR, ns_to, s_chan->iLeftVolume, s_chan->iRightVolume, RVB);
    else
     mix_chan(spu.SSumLR, ns_to, s_chan->iLeftVolume, s_chan->iRightVolume);
+#if PERF_PROF_SPU
+   PERF_ADD(spu_mix_us, perf_now_us() - t_spu);
+#endif
   }
 
   MixCD(spu.SSumLR, RVB, ns_to, spu.decode_pos);
 
   if (spu.rvb->StartAddr) {
-   if (do_rvb)
+   if (do_rvb) {
+#if PERF_PROF_SPU
+    unsigned long long t_ = perf_now_us();
+#endif
     REVERBDo(spu.SSumLR, RVB, ns_to, spu.rvb->CurrAddr);
+#if PERF_PROF_SPU
+    PERF_ADD(spu_rvb_us, perf_now_us() - t_);
+#endif
+   }
 
    spu.rvb->CurrAddr += ns_to / 2;
    while (spu.rvb->CurrAddr >= 0x40000)

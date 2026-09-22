@@ -617,6 +617,12 @@ void perf_report(void)
 			}
 			fprintf(f, "\n");
 		}
+		#if PERF_PROF_SPU
+		if (g_perf.spu_chans)
+			fprintf(f, "spustage: chans=%lu adpcm_us=%llu adsr_us=%llu mix_us=%llu rvb_us=%llu\n",
+				(unsigned long)g_perf.spu_chans, g_perf.spu_adpcm_us,
+				g_perf.spu_adsr_us, g_perf.spu_mix_us, g_perf.spu_rvb_us);
+		#endif
 		fprintf(f, "menu: frames=%lu menu_us=%llu strings=%lu glyphs=%lu texloads=%lu\n",
 			(unsigned long)g_perf.menu_frames, g_perf.menu_us,
 			(unsigned long)g_perf.menu_strings, (unsigned long)g_perf.menu_glyphs,
