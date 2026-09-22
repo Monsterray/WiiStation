@@ -56,7 +56,8 @@ TAB_ROWS = [
     ('Video',   [28, 29, 24],  9),
     ('Video',   [78],          None),
     ('Input',   [30, 31],      None),
-    ('Input',   [32, 33, 59],  10),
+    ('Input',   [32, 33],      10),
+    ('Input',   [59],          29),
     ('Input',   [34, 35],      11),
     ('Input',   [36, 37],      12),
     ('Input',   [38],          13),
@@ -89,7 +90,7 @@ CYCLING = {
     45: ['Simple', 'Gaussian'],                         # FRAME_STRINGS[46 + spuInterpolation]
     54: ['En', 'Chs', 'Kr', 'Es', 'Pte', 'It', 'De',    # LANG_STRINGS
          'Cht', 'Jp', 'Fr', 'Br', 'Ca', 'Tu'],
-    59: ['Lightgun', 'GunCon', 'Justifier', 'Mouse'],   # FRAME_STRINGS[70 + lightGun]
+    59: ['Off', 'GunCon', 'Justifier', 'Mouse'],        # FRAME_STRINGS[70 + lightGun]
     76: ['Off', 'Shared', 'Game'],                             # FRAME_STRINGS[92 + memCardFile[0]]
     77: ['Off', 'Shared', 'Game'],                             # FRAME_STRINGS[92 + memCardFile[1]]
 }

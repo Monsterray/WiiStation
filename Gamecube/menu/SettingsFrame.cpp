@@ -170,7 +170,7 @@ void setSpuTempo(int soundTempo);
 #define NUM_TAB_BUTTONS 5
 #define FRAME_BUTTONS settingsFrameButtons
 #define FRAME_STRINGS settingsFrameStrings
-#define NUM_FRAME_TEXTBOXES 29
+#define NUM_FRAME_TEXTBOXES 30
 #define FRAME_TEXTBOXES settingsFrameTextBoxes
 
 /*
@@ -218,7 +218,7 @@ Auto Save Memcards: Yes; No
 Save States Device: SD; USB
 */
 
-static char FRAME_STRINGS[97][24] =
+static char FRAME_STRINGS[98][24] =
 	{ "General",
 	  "Video",
 	  "Input",
@@ -296,7 +296,7 @@ static char FRAME_STRINGS[97][24] =
 	  "Interlaced",
 	  "Deflicker",
 	  "Lightrec",
-	  "Lightgun",
+	  "Off",					// [70] light gun: none, the pad is a pad
 	  "GunCon",
 	  "Justifier",
 	  "Mouse",
@@ -323,7 +323,8 @@ static char FRAME_STRINGS[97][24] =
 	  "Shared",				// [93] one card file every game opens
 	  "Game",				// [94] one card file per game
 	  "2",					// [95] saves tab: which card the second button is
-	  "Advanced"			// [96] video tab: the Advanced Graphics page
+	  "Advanced",			// [96] video tab: the Advanced Graphics page
+	  "Light Gun"			// [97] input tab: the light gun row
       };
 
 static char LANG_STRINGS[13][24] =
@@ -411,13 +412,13 @@ struct ButtonInfo
 	//Buttons for Input Tab (starts at button[30])
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[34],	 85.0,	100.0,	220.0,	56.0,	 2,	32,	31,	31,	Func_ConfigureInput,	Func_ReturnFromSettingsFrame }, // Configure Input Assignment
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[35],	320.0,	100.0,	235.0,	56.0,	 2,	32,	30,	30,	Func_ConfigureButtons,	Func_ReturnFromSettingsFrame }, // Configure Button Mappings
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[38],	295.0,	170.0,	110.0,	56.0,	30,	34,	59,	33,	Func_PsxTypeStandard,	Func_ReturnFromSettingsFrame }, // PSX Controller Type: Standard
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[39],	415.0,	170.0,	105.0,	56.0,	31,	35,	32,	59,	Func_PsxTypeAnalog,		Func_ReturnFromSettingsFrame }, // PSX Controller Type: Analog
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[16],	295.0,	240.0,	 75.0,	56.0,	32,	36,	35,	35,	Func_DisableRumbleYes,	Func_ReturnFromSettingsFrame }, // Disable Rumble: Yes
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[17],	380.0,	240.0,	 75.0,	56.0,	33,	37,	34,	34,	Func_DisableRumbleNo,	Func_ReturnFromSettingsFrame }, // Disable Rumble: No
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[13],	295.0,	310.0,	 55.0,	56.0,	34,	38,	37,	37,	Func_SaveButtonsSD,		Func_ReturnFromSettingsFrame }, // Save Button Mappings: SD
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[14],	360.0,	310.0,	 70.0,	56.0,	35,	38,	36,	36,	Func_SaveButtonsUSB,	Func_ReturnFromSettingsFrame }, // Save Button Mappings: USB
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[42],	295.0,	380.0,	135.0,	56.0,	36,	 2,	-1,	-1,	Func_ToggleButtonLoad,	Func_ReturnFromSettingsFrame }, // Auto Load Button Config Slot: Default,1,2,3,4
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[38],	295.0,	160.0,	133.0,	56.0,	30,	59,	33,	33,	Func_PsxTypeStandard,	Func_ReturnFromSettingsFrame }, // PSX Controller Type: Standard
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[39],	438.0,	160.0,	133.0,	56.0,	31,	59,	32,	32,	Func_PsxTypeAnalog,		Func_ReturnFromSettingsFrame }, // PSX Controller Type: Analog
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[16],	295.0,	280.0,	 75.0,	56.0,	59,	36,	35,	35,	Func_DisableRumbleYes,	Func_ReturnFromSettingsFrame }, // Disable Rumble: Yes
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[17],	380.0,	280.0,	 75.0,	56.0,	59,	37,	34,	34,	Func_DisableRumbleNo,	Func_ReturnFromSettingsFrame }, // Disable Rumble: No
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[13],	295.0,	340.0,	 55.0,	56.0,	34,	38,	37,	37,	Func_SaveButtonsSD,		Func_ReturnFromSettingsFrame }, // Save Button Mappings: SD
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[14],	360.0,	340.0,	 70.0,	56.0,	35,	38,	36,	36,	Func_SaveButtonsUSB,	Func_ReturnFromSettingsFrame }, // Save Button Mappings: USB
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[42],	295.0,	400.0,	135.0,	56.0,	36,	 2,	-1,	-1,	Func_ToggleButtonLoad,	Func_ReturnFromSettingsFrame }, // Auto Load Button Config Slot: Default,1,2,3,4
 	//Buttons for Audio Tab (starts at button[39]) ..was[45]
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[88],	295.0,	100.0,	100.0,	56.0,	 3,	45,	41,	40,	Func_ToggleAudio,		Func_ReturnFromSettingsFrame }, // Enable: Audio
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[89],	405.0,	100.0,	 75.0,	56.0,	 3,	45,	39,	41,	Func_ToggleXa,			Func_ReturnFromSettingsFrame }, // Enable: XA
@@ -441,7 +442,7 @@ struct ButtonInfo
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[17],	380.0,	340.0,	 75.0,	56.0,	54,	14,	55,	55,	Func_FastloadNo,		Func_ReturnFromSettingsFrame }, // Fast load: No
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[64],	570.0,	280.0,	 66.0,	56.0,	21,	27,	23,	22,	Func_Screen240p,		Func_ReturnFromSettingsFrame },  // ScreenMode: 240p
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[11],	505.0,	100.0,	130.0,	56.0,	 0,	 9,	 6,	 5,	Func_CpuDynarec,		Func_ReturnFromSettingsFrame },  // CPU: Dynarec
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[70],	530.0,	170.0,	106.0,	56.0,	31,	35,	33,	32,	Func_PsxTypeLightgun,	Func_ReturnFromSettingsFrame },  // PSX Controller Type: Lightgun
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[70],	295.0,	220.0,	135.0,	56.0,	32,	34,	-1,	-1,	Func_PsxTypeLightgun,	Func_ReturnFromSettingsFrame },  // Light Gun: Off/GunCon/Justifier/Mouse
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[74],	295.0,	310.0,	155.0,	56.0,	52,	4,	61,	61,	Func_Memcard1,			Func_ReturnFromSettingsFrame },  // Memcard 1 toggle
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[75],	460.0,	310.0,	155.0,	56.0,	53,	4,	60,	60,	Func_Memcard2,			Func_ReturnFromSettingsFrame },  // Memcard 2 toggle
 
@@ -498,10 +499,10 @@ struct TextBoxInfo
 	{	NULL,	FRAME_STRINGS[22],	150.0,	368.0,	 1.0,	true }, // Dithering: None/Game Dependent/Always
 	{	NULL,	FRAME_STRINGS[23],	150.0,	368.0,	 1.0,	true }, // Filters
 	//TextBoxes for Input Tab (starts at textBox[10])
-	{	NULL,	FRAME_STRINGS[36],	150.0,	198.0,	 1.0,	true }, // PSX Controller Type: Analog/Digital/Light Gun
-	{	NULL,	FRAME_STRINGS[37],	150.0,	268.0,	 1.0,	true }, // Disable Rumble: Yes/No
-	{	NULL,	FRAME_STRINGS[40],	150.0,	338.0,	 1.0,	true }, // Save Button Configs: SD/USB
-	{	NULL,	FRAME_STRINGS[41],	150.0,	408.0,	 1.0,	true }, // Auto Load Slot: Default/1/2/3/4
+	{	NULL,	FRAME_STRINGS[36],	150.0,	188.0,	 1.0,	true }, // PSX Controller Type: Standard/Analog
+	{	NULL,	FRAME_STRINGS[37],	150.0,	308.0,	 1.0,	true }, // Disable Rumble: Yes/No
+	{	NULL,	FRAME_STRINGS[40],	150.0,	368.0,	 1.0,	true }, // Save Button Configs: SD/USB
+	{	NULL,	FRAME_STRINGS[41],	150.0,	428.0,	 1.0,	true }, // Auto Load Slot: Default/1/2/3/4
 	//TextBoxes for Audio Tab (starts at textBox[14]) ..was[17]
 	{	NULL,	FRAME_STRINGS[87],	150.0,	128.0,	 1.0,	true }, // Enable: Audio/XA/CDDA
 	{	NULL,	FRAME_STRINGS[44],	210.0,	188.0,	 1.0,	true }, // Disable XA Audio: Yes/No
@@ -523,6 +524,8 @@ struct TextBoxInfo
 	//Which card each Memcard Type button belongs to (textBox[27] and [28])
 	{	NULL,	FRAME_STRINGS[91],	285.0,	198.0,	 1.0,	true }, // "1", left of the first button
 	{	NULL,	FRAME_STRINGS[95],	420.0,	198.0,	 1.0,	true }, // "2", left of the second
+	//Input tab: the light gun row's label (textBox[29])
+	{	NULL,	FRAME_STRINGS[97],	150.0,	248.0,	 1.0,	true }, // Light Gun: Off/GunCon/Justifier/Mouse
 };
 
 SettingsFrame::SettingsFrame()
@@ -704,6 +707,7 @@ void SettingsFrame::activateSubmenu(int submenu)
 			}
 			for (int i = 10; i < 14; i++)
 				FRAME_TEXTBOXES[i].textBox->setVisible(true);
+			FRAME_TEXTBOXES[29].textBox->setVisible(true);   /* "Light Gun" */
 			FRAME_BUTTONS[2].button->setSelected(true);
 			if (controllerType == CONTROLLERTYPE_STANDARD)FRAME_BUTTONS[32].button->setSelected(true);
 			if (controllerType == CONTROLLERTYPE_ANALOG)FRAME_BUTTONS[33].button->setSelected(true);
