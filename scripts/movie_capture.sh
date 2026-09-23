@@ -14,7 +14,7 @@
 #
 # How it works: the game boots as a one-game chain, the way every measured run boots, with
 # the same settings and fresh memory cards. Its input script is the single line "record",
-# and WiiStation writes every change of the real pad on port 1 to the card, counted in
+# and WiiStation writes every change of the real pads on ports 1 and 2 to the card, counted in
 # emulated vblanks (Gamecube/PadWiiSX.c). That is the clock playback uses, so the recording
 # replays exactly, however fast Dolphin ran while it was made. A Dolphin input movie (.dtm)
 # counts host frames instead, which drift from the game's whenever the emulation runs
@@ -25,7 +25,9 @@
 # arrow keys (those are the GameCube stick, which a digital pad does not have). Do not press
 # Start+X, which opens WiiStation's menu and ends the game early. Start+Y (fast forward) is
 # safe: the recording counts emulated time. The window closes by itself when the time is up;
-# closing it early keeps what was recorded until then.
+# closing it early keeps what was recorded until then. The script draws both pads with their
+# keys (scripts/pad_layout.py); a port 2 with nothing bound in Dolphin gets a keyboard layout
+# for the run, so a second player can join.
 set -u
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 ALL="$REPO/scripts/chains/all.txt"
@@ -71,7 +73,7 @@ fi
 run="capture_${name}_$(date +%Y%m%d_%H%M%S)"
 dir="$REPO/.runs/$run/src"; mkdir -p "$dir"
 if [ -z "$play" ]; then
-	printf '# scripts/movie_capture.sh: write the real pad on port 1 to sd:/wiisxrx/autoinput_rec.txt\nrecord\n' > "$dir/$input"
+	printf '# scripts/movie_capture.sh: write the real pads on ports 1 and 2 to sd:/wiisxrx/autoinput_rec.txt\nrecord\n' > "$dir/$input"
 	src="$dir/$input"
 fi
 # PadAutoAssign=1: the run's base settings assign no controller (unattended runs have none),
@@ -81,41 +83,37 @@ printf 'CHAIN\n# scripts/movie_capture.sh %s\n%s sd:/wiisxrx/%s PadAutoAssign=1\
 : > "$dir/none.txt"
 
 # The test profile gets the user's controller setup for this run, and its own back after.
-restore_pad=""
-if [ -f "$PAD_USER" ] && ! cmp -s "$PAD_USER" "$PAD_TEST"; then
-	cp "$PAD_TEST" "$PAD_TEST.capture-bak" 2>/dev/null && restore_pad=1
-	cp "$PAD_USER" "$PAD_TEST"
-fi
-key() {   # key GCPad1-entry -> the keyboard key or pad button bound to it
-	tr -d '\r' < "$PAD_TEST" | awk -v k="$1" -F' = ' '/^\[GCPad1\]/{s=1;next} /^\[/{s=0} s && $1==k {gsub(/`/,"",$2); print $2; exit}'
-}
+# A port 2 with no buttons bound (Dolphin's default) gets a keyboard layout in that copy, so
+# two players can share the keyboard (scripts/pad_layout.py); the user's own file is not
+# written. Dolphin connects no pad to port 2 unless told: SIDevice1=6 is a GameCube pad.
+cp "$PAD_TEST" "$PAD_TEST.capture-bak" 2>/dev/null
+python "$REPO/scripts/pad_layout.py" "$PAD_USER" --fill-pad2 "$PAD_TEST" > "$dir/pads.txt"
 if [ -z "$play" ]; then
-	cat <<EOF
-Recording $(basename "$folder"): $mins emulated minutes ($vbl vblanks), then the window closes.
-Click the game window first. The keys (Dolphin GCPad1 -> WiiStation's GameCube mapping):
-  Cross    $(key Buttons/A)          Square   $(key Buttons/B)
-  Circle   $(key Buttons/X)          Triangle $(key Buttons/Y)
-  Start    $(key Buttons/Start)     Select   $(key Buttons/Z) + $(key Buttons/Start)
-  L1 / R1  $(key Triggers/L) / $(key Triggers/R)      L2 / R2  $(key Buttons/Z) + $(key Triggers/L) / $(key Buttons/Z) + $(key Triggers/R)
-  D-pad    $(key D-Pad/Up) $(key D-Pad/Left) $(key D-Pad/Down) $(key D-Pad/Right) (up left down right; NOT the arrow keys)
-  Avoid Start+X ($(key Buttons/Start)+$(key Buttons/X)): WiiStation's menu. Start+Y fast-forwards, which is safe.
-EOF
+	echo "Recording $(basename "$folder"): $mins emulated minutes ($vbl vblanks), then the window closes."
+	echo "Click the game window first. Both pads are recorded; port 2 can stay unused."
+	echo
+	cat "$dir/pads.txt"
+	echo
+	echo "Move with the D-pad keys, not the arrow keys (those are the GameCube stick; the pad is digital)."
+	echo "Avoid Start+X on either pad: it opens WiiStation's menu. Start+Y fast-forwards, which is safe."
 else
 	echo "Playing $name back ($vbl vblanks). Hands off the keyboard while its window has focus."
 fi
 
 rm -f "$SYNC/autoinput_rec.txt"
 bash "$REPO/scripts/wsx.sh" run "$run" --dol "$dol" --autoboot "$dir/chain.txt" --input "$dir/none.txt" \
-	--nodump --env FRAMES_DUMP=False --card "$src" --secs $((vbl / 30 + 180)) | grep -E "refusing|no such|fault|exit"
-[ -n "$restore_pad" ] && mv "$PAD_TEST.capture-bak" "$PAD_TEST"
+	--nodump --env FRAMES_DUMP=False --env "DOLPHIN_ARGS=-C Dolphin.Core.SIDevice1=6" \
+	--card "$src" --secs $((vbl / 30 + 180)) | grep -E "refusing|no such|fault|exit"
+[ -f "$PAD_TEST.capture-bak" ] && mv "$PAD_TEST.capture-bak" "$PAD_TEST"
 [ -n "$play" ] && { echo "done: .runs/$run"; exit 0; }
 
 rec="$REPO/.runs/$run/autoinput_rec.txt"
 python "$REPO/scripts/sdimage_read.py" "$CARD" wiisxrx/autoinput_rec.txt "$rec" >/dev/null 2>&1
 rm -f "$SYNC/autoinput_rec.txt"
 [ -s "$rec" ] || { echo "nothing was recorded (no autoinput_rec.txt on the card): see .runs/$run/run.log"; exit 1; }
-grep -q "has NO controller" "$rec" && echo "WARNING: port 1 had no controller, so the recording holds no presses"
-presses=$(grep -c -E '^[0-9]+ [0-9a-f]{4}' "$rec"); last=$(grep -E '^[0-9]+ ' "$rec" | tail -1 | cut -d' ' -f1)
+grep -q "port 1 has NO controller" "$rec" && echo "WARNING: port 1 had no controller, so the recording holds no presses"
+grep -q "port 2 has a controller" "$rec" || echo "note: port 2 had no controller; the recording plays it unplugged"
+presses=$(grep -c -E '^(p2 )?[0-9]+ [0-9a-f]{4}' "$rec"); last=$(grep -E '^(p2 )?[0-9]+ ' "$rec" | tail -1 | sed 's/^p2 //' | cut -d' ' -f1)
 out="$REPO/scripts/autoinput/${name}_play.txt"
 [ -f "$out" ] && mv "$out" "$out.prev" && echo "kept the previous recording as $(basename "$out").prev"
 {

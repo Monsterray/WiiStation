@@ -297,8 +297,8 @@ static void UpdateState (const int pad) //Note: pad = 0 or 1
 	else
 	{	//TODO: Emulate no controller present in this case.
 		//Reset buttons & sticks if PAD is not in use
-		extern int autoinput_active(void);   /* PadWiiSX.c: a scripted run has a digital pad in port 1 */
-		global.isConnected[pad] = (pad == 0 && autoinput_active()) ? 1 : 0;
+		extern int autoinput_active(int port);   /* PadWiiSX.c: a script has a digital pad on this port */
+		global.isConnected[pad] = autoinput_active(pad) ? 1 : 0;
 		PAD_Data.btns.All = 0xFFFF;
 		PAD_Data.leftStickX = PAD_Data.leftStickY = PAD_Data.rightStickX = PAD_Data.rightStickY = 128;
 	}
@@ -321,16 +321,16 @@ static void UpdateState (const int pad) //Note: pad = 0 or 1
 	}
 
 	global.padStat[pad] = (((PAD_Data.btns.All>>8)&0xFF) | ( (PAD_Data.btns.All<<8) & 0xFF00 )) &0xFFFF;
-	if (pad == 0) {
-		extern unsigned short autoinput_mask(void);   /* PadWiiSX.c: scripted presses from sd:/wiisxrx/autoinput.txt */
+	if (pad < 2) {
+		extern unsigned short autoinput_mask(int port);   /* PadWiiSX.c: scripted presses from sd:/wiisxrx/autoinput.txt */
 		/* padStat is byte-swapped so that the big-endian 16-bit store in the
 		 * 0x42 response emits the two PSX bytes in wire order; the script's
 		 * masks are in PSX order (Start 0008), so swap them the same way. */
-		extern void autoinput_record(unsigned short real);   /* PadWiiSX.c: "record" */
+		extern void autoinput_record(int port, unsigned short real);   /* PadWiiSX.c: "record" */
 		unsigned short s = global.padStat[pad];
 		unsigned short m;
-		autoinput_record(~((s << 8) | (s >> 8)) & 0xFFFF);   /* the real pad, before the script */
-		m = autoinput_mask();
+		autoinput_record(pad, ~((s << 8) | (s >> 8)) & 0xFFFF);   /* the real pad, before the script */
+		m = autoinput_mask(pad);
 		global.padStat[pad] &= ~(unsigned short)(((m << 8) | (m >> 8)) & 0xFFFF);   /* active low */
 	}
 

@@ -54,7 +54,10 @@ WiiStation writes every change of the real pad, in emulated vblanks, to the card
 saves it as `scripts/autoinput/NAME_play.txt` and prints the chain line that plays it
 (`... PadAutoAssign=1`). `--play NAME` boots it back in a window to check it. Use this, not a
 Dolphin movie: a `.dtm` counts host frames, which drift from the game's vblanks whenever the
-emulation runs below full speed (`dtm2autoinput.py` is for old movies only). Digital pad:
+emulation runs below full speed (`dtm2autoinput.py` is for old movies only). Both ports are
+recorded: port 2 lines read `p2 <vblank> <mask>`, and a script with any stands in for a pad
+on port 2. The script draws both pads with their keys (`scripts/pad_layout.py`); a port 2
+with nothing bound gets a keyboard layout (numpad D-pad) in the test profile's copy only. Digital pad:
 buttons and D-pad only, so a game that needs the analog sticks cannot be recorded.
 
 ## Reading and comparing

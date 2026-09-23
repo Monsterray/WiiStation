@@ -49,16 +49,22 @@
  * (scripts/movie_capture.sh), and the file plays it back. It counts emulated vblanks, the
  * clock playback uses; a Dolphin input movie counts host frames, which drift from them
  * whenever the emulation runs below full speed.
+ *
+ * Port 2 lines are the same with "p2 " in front: "p2 <vblank> <mask>". A recording writes
+ * them when port 2 has a controller, starting with its state at the first poll, so a script
+ * with any p2 line also stands in for a pad on port 2 (autoinput_active()).
+ * ponytail: ports 1 and 2 as the pad plugin numbers them; multitap slots are not scripted.
  * ponytail: one mask per vblank. A press and release inside one vblank keep only the
  * release; games poll the pad once a frame, so that has not mattered. */
 #define AUTOIN_MAX 4096   /* a recording makes 2-5 lines a second: about 15 minutes */
-static struct { unsigned vbl; unsigned short mask; } autoin[AUTOIN_MAX];
+static struct { unsigned vbl; unsigned short mask; unsigned char port; } autoin[AUTOIN_MAX];
 static int autoin_n = -1;
+static int autoin_ports;                /* bit per port with at least one line */
 static unsigned short autoin_ev_last;   /* the mask last reported to perf.log ("autoinput:") */
 static int autoin_ev_first = 1;         /* each game reports its first poll */
-static int autoin_cur;              /* autoinput_mask(): the next line to apply */
-static unsigned short autoin_m;     /* ... and the mask the lines before it give */
-static unsigned autoin_fc;          /* ... at this vblank */
+static int autoin_cur[2];           /* autoinput_mask(port): the next line to look at */
+static unsigned short autoin_m[2];  /* ... and the mask the port's lines before it give */
+static unsigned autoin_fc[2];       /* ... at this vblank */
 static FILE *autoin_rec;            /* "record": the recording, or NULL */
 static char autoin_path[128] = "sd:/wiisxrx/autoinput.txt";
 /* "trace <vblank>" lines: the debug build's primitive trace arms at these
@@ -105,6 +111,7 @@ void autoinput_load(void)
 	char line[128];
 	if (autoin_n >= 0) return;
 	autoin_n = 0;
+	autoin_ports = 0;
 	f = autoin_path[0] ? fopen(autoin_path, "r") : NULL;
 	if (f) {
 		while (autoin_n < AUTOIN_MAX && fgets(line, sizeof line, f)) {
@@ -125,8 +132,13 @@ void autoinput_load(void)
 			if (sscanf(line, "statetest %u", &v) == 1) { autoinput_statetest_vbl = v; continue; }
 			if (sscanf(line, "atrace %u", &v) == 1) { autoinput_atrace_vbl = v; continue; }
 			if (sscanf(line, "trace %u", &v) == 1) { if (autoinput_trace_n < 8) autoinput_trace_vbl[autoinput_trace_n++] = v; continue; }
-			if (line[0] == '#' || sscanf(line, "%u %x", &v, &k) != 2) continue;
-			autoin[autoin_n].vbl = v; autoin[autoin_n].mask = (unsigned short)k; autoin_n++;
+			{
+				int port = strncmp(line, "p2 ", 3) ? 0 : 1;
+				if (line[0] == '#' || sscanf(line + 3 * port, "%u %x", &v, &k) != 2) continue;
+				autoin[autoin_n].vbl = v; autoin[autoin_n].mask = (unsigned short)k;
+				autoin[autoin_n].port = (unsigned char)port; autoin_n++;
+				autoin_ports |= 1 << port;
+			}
 		}
 		fclose(f);
 	}
@@ -139,9 +151,9 @@ void autoinput_reset(const char *path)
 	snprintf(autoin_path, sizeof autoin_path, "%s", path ? path : "");
 	autoin_n = -1;
 	autoin_ev_first = 1;
-	autoin_cur = 0;
-	autoin_m = 0;
-	autoin_fc = 0;
+	memset(autoin_cur, 0, sizeof autoin_cur);
+	memset(autoin_m, 0, sizeof autoin_m);
+	memset(autoin_fc, 0, sizeof autoin_fc);
 	if (autoin_rec) {
 		fclose(autoin_rec);
 		autoin_rec = NULL;
@@ -155,31 +167,36 @@ void autoinput_reset(const char *path)
 	autoinput_atrace_vbl = 0;
 }
 
-/* A script with at least one press line stands in for a plugged-in digital
- * pad on port 1: the BIOS shell (and some games) only accept input from a
- * port that answers the pad-ID poll, which the pad plugin refuses when no
- * host controller is mapped -- the usual state of an unattended Dolphin run. */
-int autoinput_active(void)
+/* A script with at least one line for a port stands in for a plugged-in digital
+ * pad on that port (0 = port 1, 1 = port 2): the BIOS shell (and some games) only
+ * accept input from a port that answers the pad-ID poll, which the pad plugin refuses
+ * when no host controller is mapped -- the usual state of an unattended Dolphin run. */
+int autoinput_active(int port)
 {
 	autoinput_load();
-	return autoin_n > 0;
+	return port >= 0 && port < 2 && (autoin_ports >> port & 1);
 }
 /* The lines are in vblank order (a recording always is), so the mask is found by walking
  * forward from the last poll, not by reading the whole script every time. */
-unsigned short autoinput_mask(void)
+unsigned short autoinput_mask(int port)
 {
 	unsigned short m;
+	if (port < 0 || port > 1)
+		return 0;
 	PERF_INC(ai_calls);
 	autoinput_load();
-	if (frame_counter < autoin_fc) {    /* the clock went back: a state load, a new game */
-		autoin_cur = 0;
-		autoin_m = 0;
+	if (frame_counter < autoin_fc[port]) {    /* the clock went back: a state load, a new game */
+		autoin_cur[port] = 0;
+		autoin_m[port] = 0;
 	}
-	autoin_fc = frame_counter;
-	while (autoin_cur < autoin_n && frame_counter >= autoin[autoin_cur].vbl)
-		autoin_m = autoin[autoin_cur++].mask;
-	m = autoin_m;
-	if (autoin_ev_first || m != autoin_ev_last) {
+	autoin_fc[port] = frame_counter;
+	while (autoin_cur[port] < autoin_n && frame_counter >= autoin[autoin_cur[port]].vbl) {
+		if (autoin[autoin_cur[port]].port == port)
+			autoin_m[port] = autoin[autoin_cur[port]].mask;
+		autoin_cur[port]++;
+	}
+	m = autoin_m[port];
+	if (port == 0 && (autoin_ev_first || m != autoin_ev_last)) {   /* perf.log: port 1 only */
 		perf_autoinput_event(frame_counter, m);
 		autoin_ev_last = m;
 		autoin_ev_first = 0;
@@ -189,27 +206,30 @@ unsigned short autoinput_mask(void)
 
 extern virtualControllers_t virtualControllers[10];
 
-/* "record": the real pad's buttons on port 1 (PSX order, a set bit is a press), called on
- * every poll. Each change is written and synced at once, so a run that is closed early
- * keeps what was recorded up to then. */
-void autoinput_record(unsigned short real)
+/* "record": the real pad's buttons on a port (0 = port 1, 1 = port 2; PSX order, a set bit
+ * is a press), called on every poll. Each change is written and synced at once, so a run
+ * that is closed early keeps what was recorded up to then. Port 2 is written only while it
+ * has a controller: a playback then connects port 2 exactly when the recording had it. */
+void autoinput_record(int port, unsigned short real)
 {
-	static int last = -1;
+	static int last[2] = { -1, -1 };
+	if (port < 0 || port > 1)
+		return;
 	if (!autoin_rec) {
-		last = -1;
+		last[port] = -1;
 		return;
 	}
-	if (real == last)
+	if (real == last[port] || (port == 1 && !virtualControllers[1].inUse))
 		return;
-	if (last < 0)   /* the first poll: say whether the recording can see a pad at all */
-		fprintf(autoin_rec, "# recorded by WiiStation (\"record\"); port 1 %s"
-			" (automatic assignment %s, GameCube pad 1 %s)\n",
-			virtualControllers[0].inUse ? "has a controller" :
+	if (last[port] < 0)   /* the first poll: say whether the recording can see a pad at all */
+		fprintf(autoin_rec, "# recorded by WiiStation (\"record\"); port %d %s"
+			" (automatic assignment %s, GameCube pad %d %s)\n", port + 1,
+			virtualControllers[port].inUse ? "has a controller" :
 			"has NO controller, so no press is seen",
-			padAutoAssign ? "on" : "off",
-			controller_GC.available[0] ? "seen" : "not seen");
-	last = real;
-	fprintf(autoin_rec, "%u %04x\n", (unsigned)frame_counter, real);
+			padAutoAssign ? "on" : "off", port + 1,
+			controller_GC.available[port] ? "seen" : "not seen");
+	last[port] = real;
+	fprintf(autoin_rec, "%s%u %04x\n", port ? "p2 " : "", (unsigned)frame_counter, real);
 	fflush(autoin_rec);
 	fsync(fileno(autoin_rec));
 }
@@ -271,8 +291,8 @@ long PAD__readPort1(PadDataS* ppad)
 			stop = 1;
 
 
-    autoinput_record(~PAD_1.btns.All & 0xFFFF);
-    ppad->buttonStatus = (PAD_1.btns.All&0xFFFF) & ~autoinput_mask();   /* active low: clearing a bit presses it */
+    autoinput_record(0, ~PAD_1.btns.All & 0xFFFF);
+    ppad->buttonStatus = (PAD_1.btns.All&0xFFFF) & ~autoinput_mask(0);   /* active low: clearing a bit presses it */
 	if ( controllerType == CONTROLLERTYPE_ANALOG )
 	{
 		ppad->controllerType = PSE_PAD_TYPE_ANALOGPAD; 
@@ -315,7 +335,8 @@ long PAD__readPort2(PadDataS* ppad)
 			stop = 1;
 
 
-    ppad->buttonStatus = (PAD_2.btns.All&0xFFFF);
+    autoinput_record(1, ~PAD_2.btns.All & 0xFFFF);
+    ppad->buttonStatus = (PAD_2.btns.All&0xFFFF) & ~autoinput_mask(1);
 	if ( controllerType == CONTROLLERTYPE_ANALOG )
 	{
 		ppad->controllerType = PSE_PAD_TYPE_ANALOGPAD; 
