@@ -52,6 +52,7 @@ extern bool executedBios;
 extern "C" {
 #include "DEBUG.h"
 #include "perf_prof.h"
+#include "lc.h"
 #include "fileBrowser/fileBrowser.h"
 #include "fileBrowser/fileBrowser-libfat.h"
 #include "fileBrowser/fileBrowser-DVD.h"
@@ -266,7 +267,10 @@ static struct {
   { "PadLightgun9", &padLightgun[8], PADLIGHTGUN_DISABLE, PADLIGHTGUN_ENABLE },
   { "PadLightgun10", &padLightgun[9], PADLIGHTGUN_DISABLE, PADLIGHTGUN_ENABLE },
   { "ForceNTSC", &forceNTSC, FORCENTSC_DISABLE, FORCENTSC_ENABLE },
-  { "gpuPlugin", &gpuPlugin, OLD_SOFT, OPEN_GX }
+  { "gpuPlugin", &gpuPlugin, OLD_SOFT, OPEN_GX },
+  /* The locked cache: one bit per region in Gamecube/lc.c's table, 0 = all off. Not in the
+   * menu -- it is for measuring, and a chained autoboot can set it per game. */
+  { "LockedCache", &lockedCache, 0, 127 }
 };
 void handleConfigPair(char* kv);
 void readConfig(FILE* f);
@@ -601,21 +605,45 @@ char AutobootPath[1024];
  *   sd:/wiisxrx/isos/Medievil
  *   Medievil [U] [SCUS-94227].cue
  *
- * The first line of each game is how many vblanks to run it for, and optionally an
- * autoinput script of its own (without one, the game gets no scripted input). Blank lines
- * and lines that start with '#' are skipped.
+ * The first line of each game is how many vblanks to run it for, then optionally an
+ * autoinput script of its own (without one, the game gets no scripted input) and up to
+ * CHAIN_SETS settings for that game alone, as KEY=VALUE with the settings file's names:
+ *
+ *   3600 sd:/wiisxrx/spyro_title.txt LockedCache=3
+ *
+ * A setting a game changes goes back to the settings file's value before the next game, so
+ * each line says everything that differs for its game. That is what lets one boot compare a
+ * setting on and off: the same game twice, once with it. Blank lines and lines that start
+ * with '#' are skipped.
+ *
+ * Games use their memory cards as usual -- a game with no card can stop at a warning (Spyro
+ * does: "progress will not be saved") and the input script then runs past a screen it was
+ * not written for. sio.c notes every card file a chained game loads or saves, and after the
+ * last game the chain deletes them all. So a chain leaves no cards behind, and the next one
+ * starts from freshly created cards: the runs stay comparable.
  *
  * Each game starts with a vblank count of zero, so its script means the same as it would
  * in a run of its own, and its section of perf.log ends with the line
  *
- *   === chain <n>/<total> end vblanks=<ran> rom=<file> ===
+ *   === chain <n>/<total> end vblanks=<ran> [set=<K=V,...>] rom=<file> ===
  *
  * which scripts/chain_table.py splits the log on. After the last game the console powers
  * off. Dolphin in batch mode then exits, and a Wii is off with its SD card ready to take
  * out: on hardware, moving the card is the slow part, so one boot should collect every
  * game. */
 #define CHAIN_MAX 24
-static struct { unsigned vbl; char input[128]; char path[256]; char rom[256]; } chainList[CHAIN_MAX];
+#define CHAIN_SETS 4
+static struct {
+	unsigned vbl; char input[128]; char path[256]; char rom[256];
+	char set[CHAIN_SETS][32]; int nset;
+} chainList[CHAIN_MAX];
+
+/* The settings a chain entry changed, with the values to put back. */
+static struct { char *value; char orig; } chainSaved[CHAIN_SETS * CHAIN_MAX];
+static int chainSavedN;
+void setOption(char* key, char* valuePointer);
+extern "C" void mcd_track_begin(void);   /* sio.c: note the card files games use */
+extern "C" void mcd_track_delete(void);  /* sio.c: delete them */
 static int chainN, chainI;
 extern "C" {
 	unsigned chain_stop_vbl;                   /* psxcounters.c stops the game here; 0 = never */
@@ -640,9 +668,19 @@ static int chainLoad(FILE *f)
 	char line[256];
 	while (chainN < CHAIN_MAX && chainLine(f, line, sizeof line)) {
 		auto *e = &chainList[chainN];
+		char *tok = strtok(line, " \t");
 		e->input[0] = 0;
-		if (sscanf(line, "%u %127s", &e->vbl, e->input) < 1 || !e->vbl)
+		e->nset = 0;
+		e->vbl = tok ? strtoul(tok, NULL, 10) : 0;
+		if (!e->vbl)
 			continue;
+		while ((tok = strtok(NULL, " \t"))) {
+			if (strchr(tok, '=')) {
+				if (e->nset < CHAIN_SETS)
+					snprintf(e->set[e->nset++], sizeof e->set[0], "%s", tok);
+			} else
+				snprintf(e->input, sizeof e->input, "%s", tok);
+		}
 		if (!chainLine(f, e->path, sizeof e->path) || !chainLine(f, e->rom, sizeof e->rom))
 			break;
 		chainN++;
@@ -653,8 +691,41 @@ static int chainLoad(FILE *f)
 	return chainN;
 }
 
+/* Set KEY to VALUE for this game, remembering what it was. Only the settings file's numeric
+ * settings: a string setting has no business differing per game. */
+static void chainOverride(char *kv)
+{
+	char key[32], *val;
+	unsigned i;
+	snprintf(key, sizeof key, "%s", kv);
+	val = strchr(key, '=');
+	if (!val)
+		return;
+	*val++ = 0;
+	for (i = 0; i < sizeof(OPTIONS) / sizeof(OPTIONS[0]); i++) {
+		if (strcmp(OPTIONS[i].key, key) || OPTIONS[i].max == CONFIG_STRING_TYPE)
+			continue;
+		if (chainSavedN < (int)(sizeof chainSaved / sizeof chainSaved[0])) {
+			chainSaved[chainSavedN].value = OPTIONS[i].value;
+			chainSaved[chainSavedN].orig = *OPTIONS[i].value;
+			chainSavedN++;
+		}
+		setOption(key, val);
+		return;
+	}
+}
+
 static void chainStart(int i)
 {
+	int k;
+	/* Undo the last game's settings, newest first, then apply this one's. */
+	while (chainSavedN > 0) {
+		chainSavedN--;
+		*chainSaved[chainSavedN].value = chainSaved[chainSavedN].orig;
+	}
+	for (k = 0; k < chainList[i].nset; k++)
+		chainOverride(chainList[i].set[k]);
+	mcd_track_begin();
 	snprintf(AutobootPath, sizeof AutobootPath, "%s", chainList[i].path);
 	snprintf(AutobootROM, sizeof AutobootROM, "%s", chainList[i].rom);
 	chain_stop_vbl = chainList[i].vbl;
@@ -685,8 +756,14 @@ static bool chainNext(void)
 	}
 	f = fopen("sd:/wiisxrx/perf.log", "a");
 	if (f) {
-		fprintf(f, "=== chain %d/%d end vblanks=%u rom=%s ===\n", chainI + 1, chainN,
-			(unsigned)frame_counter, chainList[chainI].rom);
+		char sets[CHAIN_SETS * 32 + 8] = "";
+		int k;
+		for (k = 0; k < chainList[chainI].nset; k++) {
+			strcat(sets, k ? "," : " set=");
+			strcat(sets, chainList[chainI].set[k]);
+		}
+		fprintf(f, "=== chain %d/%d end vblanks=%u%s rom=%s ===\n", chainI + 1, chainN,
+			(unsigned)frame_counter, sets, chainList[chainI].rom);
 		fclose(f);
 	}
 	if (++chainI < chainN) {
@@ -694,6 +771,7 @@ static bool chainNext(void)
 		return true;
 	}
 	chain_stop_vbl = 0;
+	mcd_track_delete();   /* the memory cards the chain's games used */
 	/* Unmount first: a Wii that powers off with the FAT cache dirty loses the log. */
 	fatUnmount("sd");
 	SYS_ResetSystem(SYS_POWEROFF, 0, 0);
@@ -1124,6 +1202,7 @@ void go(void) {
 	Config.PsxOut = 0;
 	stop = 0;
 	perf_reset();
+	lc_configure((unsigned char)lockedCache);   /* the regions this game runs with */
 
 	// Refresh live state from the persisted settings on every entry, the same
 	// way frameskip/dithering are refreshed below -- reaching the settings

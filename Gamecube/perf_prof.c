@@ -12,6 +12,7 @@
 #include <ogc/lwp_watchdog.h>
 
 #include "perf_prof.h"
+#include "lc.h"
 #include "gc_input/controller.h"   /* the ports report below */
 #include "../mem2_manager.h"
 
@@ -102,12 +103,18 @@ static void perf_pmc_start(void)
 	mtmmcr0(PMC_MMCR0);
 }
 
+/* Add what each counter moved since the last read. Called at every present (well inside the
+ * 5.9 s it takes a 32-bit cycle count to wrap) and once more at report time. The unsigned
+ * subtraction is right across a wrap. */
 static void perf_pmc_read(void)
 {
-	g_perf.pmc[0] = mfpmc1();
-	g_perf.pmc[1] = mfpmc2();
-	g_perf.pmc[2] = mfpmc3();
-	g_perf.pmc[3] = mfpmc4();
+	uint32_t now[4];
+	int i;
+	now[0] = mfpmc1(); now[1] = mfpmc2(); now[2] = mfpmc3(); now[3] = mfpmc4();
+	for (i = 0; i < 4; i++) {
+		g_perf.pmc[i] += (uint32_t)(now[i] - g_perf.pmc_last[i]);
+		g_perf.pmc_last[i] = now[i];
+	}
 }
 #endif
 
@@ -369,6 +376,9 @@ void perf_pad_event(unsigned pad, unsigned type, unsigned drv_btns, unsigned drv
 void perf_present_tick(unsigned long long present_us)
 {
 	g_perf.present_frames++;
+#if PERF_PROF_PMC
+	perf_pmc_read();
+#endif
 #if PERF_PROF_TRACE
 	if (g_perf.pt_armed && !g_perf.pt_printed && g_perf.present_frames - g_perf.pt_start_present >= 16)
 		perf_trace_flush();
@@ -759,11 +769,12 @@ void perf_report(void)
 		#endif
 		#if PERF_PROF_PMC
 		perf_pmc_read();
-		fprintf(f, "pmc: mmcr0=%08x mmcr1=%08x pmc1=%lu pmc2=%lu pmc3=%lu pmc4=%lu\n",
+		fprintf(f, "pmc: mmcr0=%08x mmcr1=%08x pmc1=%llu pmc2=%llu pmc3=%llu pmc4=%llu\n",
 			(unsigned)PMC_MMCR0, (unsigned)PMC_MMCR1,
-			(unsigned long)g_perf.pmc[0], (unsigned long)g_perf.pmc[1],
-			(unsigned long)g_perf.pmc[2], (unsigned long)g_perf.pmc[3]);
+			(unsigned long long)g_perf.pmc[0], (unsigned long long)g_perf.pmc[1],
+			(unsigned long long)g_perf.pmc[2], (unsigned long long)g_perf.pmc[3]);
 		#endif
+		lc_report(f);
 		fprintf(f, "menu: frames=%lu menu_us=%llu strings=%lu glyphs=%lu texloads=%lu\n",
 			(unsigned long)g_perf.menu_frames, g_perf.menu_us,
 			(unsigned long)g_perf.menu_strings, (unsigned long)g_perf.menu_glyphs,

@@ -1,0 +1,16 @@
+CHAIN
+# The locked cache on and off, same game, same boot: a hardware session runs this file
+# as it is. LockedCache is a bit per region in Gamecube/lc.c (1 spu-gauss, 2 tex-tile).
+# bash scripts/wsx.sh chain NAME lc_ab.txt --secs 900
+3600 sd:/wiisxrx/spyro_title.txt LockedCache=0
+sd:/wiisxrx/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue
+3600 sd:/wiisxrx/spyro_title.txt LockedCache=3
+sd:/wiisxrx/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue
+3600 LockedCache=0
+sd:/wiisxrx/isos/Crash Bash
+Crash Bash [U] [SCUS-94570].cue
+3600 LockedCache=3
+sd:/wiisxrx/isos/Crash Bash
+Crash Bash [U] [SCUS-94570].cue

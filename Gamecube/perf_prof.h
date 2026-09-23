@@ -444,6 +444,10 @@ typedef struct {
 	uint32_t softcall_runs, softcall_steps, softcall_escapes, softcall_run_escapes;
 	uint32_t softcall_hle_exits;  /* left through the HLE's ReturnFromException: safe */
 
+	/* The locked cache's DMA (Gamecube/lc.c). */
+	uint32_t lc_stores, lc_loads;
+	uint64_t lc_store_bytes, lc_load_bytes, lc_wait_ticks;
+
 	/* The GPU command loop, split (PERF_PROF_GPUSPLIT). Ticks, converted at report
 	 * time. `parse` is whatever is left of GL_GPUwriteDataMem once the other three
 	 * are taken out of it. */
@@ -486,7 +490,11 @@ typedef struct {
 	uint32_t gte_calls[64];
 
 	/* Broadway's performance counters, read once at the end of a run (PERF_PROF_PMC). */
-	uint32_t pmc[4];
+	/* Totals since the game started. The counters themselves are 32 bits and a cycle count
+	 * wraps every 2^32 / 729 MHz = 5.9 s, so they are read at every present and the deltas
+	 * summed here; one read at the end would be the total modulo 2^32. */
+	uint64_t pmc[4];
+	uint32_t pmc_last[4];
 	uint32_t out_dry;             /* output frames the driver had no data for (SDL: zero-filled; AESND: silence) */
 	uint32_t out_drop;            /* feed() calls that found the driver full and dropped the rest */
 

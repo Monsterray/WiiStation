@@ -26,6 +26,8 @@
 #include "Gamecube/fileBrowser/fileBrowser-libfat.h"
 #include <stdlib.h>
 #include <sys/stat.h>
+#include <stdio.h>
+#include <string.h>
 #include "Gamecube/wiiSXconfig.h"
 #include "Gamecube/PadSSSPSX.h"
 #include "Gamecube/perf_prof.h"
@@ -412,6 +414,39 @@ static void McdFileName(char *out, int size, int mcd, const char *dir)
 }
 
 //call me from menu, takes slot and save path as args
+/* A chained autoboot (Gamecube/GamecubeMain.cpp) deletes, when it ends, every memory card
+ * file its games loaded or saved: it runs on a development card, and it should leave the
+ * next chain the same fresh start it had. Off until mcd_track_begin(). */
+#define MCD_TRACK_MAX 16
+static char mcd_track_name[MCD_TRACK_MAX][256];
+static int mcd_track_n = -1;
+
+void mcd_track_begin(void)
+{
+	if (mcd_track_n < 0)
+		mcd_track_n = 0;
+}
+
+static void mcd_track_note(const char *name)
+{
+	int i;
+	if (mcd_track_n < 0)
+		return;
+	for (i = 0; i < mcd_track_n; i++)
+		if (!strcmp(mcd_track_name[i], name))
+			return;
+	if (mcd_track_n < MCD_TRACK_MAX)
+		snprintf(mcd_track_name[mcd_track_n++], sizeof mcd_track_name[0], "%s", name);
+}
+
+void mcd_track_delete(void)
+{
+	int i;
+	for (i = 0; i < mcd_track_n; i++)
+		remove(mcd_track_name[i]);
+	mcd_track_n = -1;
+}
+
 int LoadMcd(int mcd, fileBrowser_file *savepath) {
 	int temp = 0;
 	bool ret = 0;
@@ -421,6 +456,7 @@ int LoadMcd(int mcd, fileBrowser_file *savepath) {
 	memset(&saveFile.name[0],0,FILE_BROWSER_MAX_PATH_LEN);
 
 	McdFileName((char*)saveFile.name, FILE_BROWSER_MAX_PATH_LEN, mcd, savepath->name);
+	mcd_track_note((char*)saveFile.name);
 	if(mcd == 1) {
 	  data = &Mcd1Data[0];
 	  cardh1[1] |= 8; // mark as new
@@ -473,6 +509,7 @@ int SaveMcd(int mcd, fileBrowser_file *savepath) {
 	memset(&saveFile.name[0],0,FILE_BROWSER_MAX_PATH_LEN);
 
 	McdFileName((char*)saveFile.name, FILE_BROWSER_MAX_PATH_LEN, mcd, savepath->name);
+	mcd_track_note((char*)saveFile.name);
 	if(mcd == 1) data = &Mcd1Data[0];
 	if (mcd == 2) data = &Mcd2Data[0];
 

@@ -31,6 +31,7 @@
 #include "../coredebug.h"
 #include "../psxcommon.h"
 #include "../Gamecube/MEM2.h"
+#include "../Gamecube/lc.h"
 #include "../Gamecube/perf_prof.h"
 
 #ifdef __arm__
@@ -352,15 +353,21 @@ INLINE int GetInterpolationCubic(const sample_buf *sb, int spos)
 }
 
 
+/* The gaussian table, or its copy in the locked cache (Gamecube/lc.c, LC_SPU_GAUSS): four
+ * reads per sample per voice, from a table the locked cache never lets fall out. do_channels()
+ * picks one or the other once per call. */
+_Static_assert(sizeof(gauss) <= LC_SPU_GAUSS_BYTES, "gauss[] outgrew its locked-cache region");
+static const short *gauss_tab = gauss;
+
 INLINE int GetInterpolationGauss(const sample_buf *sb, int spos)
 {
  int gpos = sb->interp.gauss.pos;
  int vl = (spos >> 6) & ~3;
  int vr;
- vr  = (gauss[vl+0] * gval(0)) >> 15;
- vr += (gauss[vl+1] * gval(1)) >> 15;
- vr += (gauss[vl+2] * gval(2)) >> 15;
- vr += (gauss[vl+3] * gval(3)) >> 15;
+ vr  = (gauss_tab[vl+0] * gval(0)) >> 15;
+ vr += (gauss_tab[vl+1] * gval(1)) >> 15;
+ vr += (gauss_tab[vl+2] * gval(2)) >> 15;
+ vr += (gauss_tab[vl+3] * gval(3)) >> 15;
  //ssat32_to_16(vr);
  return vr;
 }
@@ -839,6 +846,11 @@ static void do_channels(int ns_to)
 #if PERF_PROF_SPU
  unsigned long long t_spu;
 #endif
+
+ {
+  const short *lc = lc_get(LC_SPU_GAUSS);
+  gauss_tab = lc ? lc : gauss;
+ }
 
  if (unlikely(spu.interpolation != spu_config.iUseInterpolation))
  {

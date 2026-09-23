@@ -61,6 +61,7 @@ POSSIBILITY OF SUCH DAMAGE.
 #include "../../mem2_manager.h"
 #include "../../Gamecube/wiiSXconfig.h"
 #include "../../Gamecube/perf_prof.h"
+#include "../../Gamecube/lc.h"
 
 /* ---------------------------------------------------------------------------------------
  * GX state cache.
@@ -1895,7 +1896,8 @@ static inline void _ogx_scramble_4b(unsigned char *src, void *dst,
 
 // The position happens to be the integer position of the Block
 static inline int _ogx_scramble_4b_sub(unsigned char *src, void *dst, void *semiTransDst, unsigned short semiTransFlg,
-                      const unsigned int width, const unsigned int height, const unsigned int oldWidth)
+                      const unsigned int width, const unsigned int height, const unsigned int oldWidth,
+                      const int padZero)
 {
     unsigned int he;
     unsigned int wi;
@@ -1914,7 +1916,15 @@ static inline int _ogx_scramble_4b_sub(unsigned char *src, void *dst, void *semi
                 for (blockWi = 0; blockWi < 4; blockWi++) {
                     if ((wi + blockWi) >= width || (he + blockHe) >= height)
                     {
-                        //*(unsigned short*)p = 0;
+                        /* A texel past the rectangle, inside its last block. Left alone when
+                         * writing the texture in place; zeroed when writing a locked-cache band,
+                         * whose whole block goes out, so the result does not depend on what the
+                         * band held before. G1's rounded reservation makes it this sub-texture's
+                         * own padding either way, never a neighbour's texel. */
+                        if (padZero) {
+                            *(unsigned short*)p = 0;
+                            *(unsigned short*)semiTransP = 0;
+                        }
                     }
                     else
                     {
@@ -2094,6 +2104,35 @@ static void flush_block_rows(void *base, int w, int y, int h)
     DCFlushRange((unsigned char *)base + b0 * row, (b1 - b0 + 1) * row);
 }
 
+/* The locked-cache form of the block path above (Gamecube/lc.c, LC_TEX_TILE). band holds four
+ * LC_TEX_TILE_BAND buffers: opaque and semi-transparent, two banks each. Each row of 4x4
+ * blocks is tiled into one bank and stored to both outputs by DMA, then the next row goes to
+ * the other bank. The DMA writes memory directly, so these rows need no DCFlushRange; lc_wait()
+ * at the end makes the texture complete before anything can draw with it. */
+static int tile_via_lc(unsigned char *band, unsigned char *src, unsigned char *dst,
+                       unsigned char *semiDst, unsigned short semiFlg,
+                       unsigned int width, unsigned int height, unsigned int texWidth)
+{
+    const unsigned int rowBytes = W_BLOCK(width) * 32;        /* the blocks this upload touches */
+    const unsigned int dstStride = W_BLOCK(texWidth) * 32;    /* one row of blocks in the texture */
+    unsigned int he;
+    int textureType = 0, bank = 0;
+
+    for (he = 0; he < height; he += 4, bank ^= 1) {
+        unsigned char *opq = band + (bank * 2) * LC_TEX_TILE_BAND;
+        unsigned char *semi = opq + LC_TEX_TILE_BAND;
+        unsigned int rows = height - he < 4 ? height - he : 4;
+        /* This bank went out two rows ago: once at most the last row's two stores are queued, it is free. */
+        LCQueueWait(2);
+        textureType |= _ogx_scramble_4b_sub(src + he * width * 4, opq, semi, semiFlg,
+                                            width, rows, width, 1);
+        lc_store(dst + (he >> 2) * dstStride, opq, rowBytes);
+        lc_store(semiDst + (he >> 2) * dstStride, semi, rowBytes);
+    }
+    lc_wait();
+    return textureType;
+}
+
 // Update a Texture
 static int glTexSubImage2D_body(GLenum target, GLint level,
                    GLint xoffset, GLint yoffset,
@@ -2175,8 +2214,19 @@ static int glTexSubImage2D_body(GLenum target, GLint level,
     {
         // The position happens to be the integer position of the Block
         int startOffset = ((yoffset >> 2) * W_BLOCK(currtex->w) + (xoffset >> 2)) * 32;
-        textureType = _ogx_scramble_4b_sub((unsigned char *)data, currtex->data + startOffset, semiTransBufPtr + startOffset, semiFlg, width, height, currtex->w);
-        flush_block_rows(currtex->data, currtex->w, flush_y, flush_h);
+        unsigned char *lcband = lc_get(LC_TEX_TILE);
+        if (lcband && W_BLOCK(width) * 32 <= LC_TEX_TILE_BAND)
+            /* Tile into the locked cache, one row of blocks at a time, and send each row out
+             * with the locked cache's DMA: no cache misses on the output and no flush of it
+             * afterwards. Two banks, so one row is tiled while the last one is still going. */
+            textureType = tile_via_lc(lcband, (unsigned char *)data,
+                                      currtex->data + startOffset, semiTransBufPtr + startOffset,
+                                      semiFlg, width, height, currtex->w);
+        else
+        {
+            textureType = _ogx_scramble_4b_sub((unsigned char *)data, currtex->data + startOffset, semiTransBufPtr + startOffset, semiFlg, width, height, currtex->w, 0);
+            flush_block_rows(currtex->data, currtex->w, flush_y, flush_h);
+        }
     }
     else
     {
