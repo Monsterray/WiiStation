@@ -205,6 +205,17 @@ enum mdecChroma
 	MDECCHROMA_SMOOTH
 };
 
+/* How a 24-bit display (most full-motion video) reaches the screen. 24BIT keeps all eight
+ * bits of each colour, as the console shows it: the movie texture is RGBA8. 15BIT cuts each
+ * colour to five bits (RGB5A3, half the texture size), which shows as banding in dark or
+ * smooth scenes. */
+extern char fmvColour;
+enum fmvColour
+{
+	FMVCOLOUR_15BIT=0,
+	FMVCOLOUR_24BIT
+};
+
 extern char useDithering;
 enum iUseDither
 {

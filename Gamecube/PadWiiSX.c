@@ -24,6 +24,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "../psxcommon.h"
 #include "../psemu_plugin_defs.h"
@@ -41,9 +42,22 @@
  * deterministic up to any screen -- e.g. Start at the title, Start again in
  * the level to hold the pause menu -- with no host input. A missing file
  * means no effect. Real buttons still work; the script only adds presses.
- * Applied in PadSSSPSX.c (the bound pad plugin) and here. */
-static struct { unsigned vbl; unsigned short mask; } autoin[64];
+ * Applied in PadSSSPSX.c (the bound pad plugin) and here.
+ *
+ * A line "record" makes the run write every change of the real pad on port 1 to
+ * sd:/wiisxrx/autoinput_rec.txt, in this same format: a person plays the game once
+ * (scripts/movie_capture.sh), and the file plays it back. It counts emulated vblanks, the
+ * clock playback uses; a Dolphin input movie counts host frames, which drift from them
+ * whenever the emulation runs below full speed.
+ * ponytail: one mask per vblank. A press and release inside one vblank keep only the
+ * release; games poll the pad once a frame, so that has not mattered. */
+#define AUTOIN_MAX 4096   /* a recording makes 2-5 lines a second: about 15 minutes */
+static struct { unsigned vbl; unsigned short mask; } autoin[AUTOIN_MAX];
 static int autoin_n = -1;
+static int autoin_cur;              /* autoinput_mask(): the next line to apply */
+static unsigned short autoin_m;     /* ... and the mask the lines before it give */
+static unsigned autoin_fc;          /* ... at this vblank */
+static FILE *autoin_rec;            /* "record": the recording, or NULL */
 static char autoin_path[128] = "sd:/wiisxrx/autoinput.txt";
 /* "trace <vblank>" lines: the debug build's primitive trace arms at these
  * vblanks (perf_prof.c reads the table), so a capture can be scheduled
@@ -91,8 +105,13 @@ void autoinput_load(void)
 	autoin_n = 0;
 	f = autoin_path[0] ? fopen(autoin_path, "r") : NULL;
 	if (f) {
-		while (autoin_n < 64 && fgets(line, sizeof line, f)) {
+		while (autoin_n < AUTOIN_MAX && fgets(line, sizeof line, f)) {
 			unsigned v, k;
+			if (!strncmp(line, "record", 6)) {
+				if (!autoin_rec)
+					autoin_rec = fopen("sd:/wiisxrx/autoinput_rec.txt", "w");
+				continue;
+			}
 			if (sscanf(line, "dump %u", &v) == 1) { autoinput_dump_vbl = v; continue; }
 			if (sscanf(line, "padsweep %u", &v) == 1) { autoinput_padsweep_vbl = v; continue; }
 			if (sscanf(line, "menupage %u", &v) == 1) { autoinput_menupage = v; continue; }
@@ -117,6 +136,13 @@ void autoinput_reset(const char *path)
 {
 	snprintf(autoin_path, sizeof autoin_path, "%s", path ? path : "");
 	autoin_n = -1;
+	autoin_cur = 0;
+	autoin_m = 0;
+	autoin_fc = 0;
+	if (autoin_rec) {
+		fclose(autoin_rec);
+		autoin_rec = NULL;
+	}
 	autoinput_trace_n = 0;
 	autoinput_dump_vbl = 0;
 	autoinput_padsweep_vbl = 0;
@@ -135,14 +161,21 @@ int autoinput_active(void)
 	autoinput_load();
 	return autoin_n > 0;
 }
+/* The lines are in vblank order (a recording always is), so the mask is found by walking
+ * forward from the last poll, not by reading the whole script every time. */
 unsigned short autoinput_mask(void)
 {
-	int i;
-	unsigned short m = 0;
+	unsigned short m;
 	PERF_INC(ai_calls);
 	autoinput_load();
-	for (i = 0; i < autoin_n; i++)
-		if (frame_counter >= autoin[i].vbl) m = autoin[i].mask;
+	if (frame_counter < autoin_fc) {    /* the clock went back: a state load, a new game */
+		autoin_cur = 0;
+		autoin_m = 0;
+	}
+	autoin_fc = frame_counter;
+	while (autoin_cur < autoin_n && frame_counter >= autoin[autoin_cur].vbl)
+		autoin_m = autoin[autoin_cur++].mask;
+	m = autoin_m;
 	{
 		static unsigned short last = 0; static int first = 1;
 		if (first || m != last) { perf_autoinput_event(frame_counter, m); last = m; first = 0; }
@@ -151,6 +184,32 @@ unsigned short autoinput_mask(void)
 }
 
 extern virtualControllers_t virtualControllers[10];
+
+/* "record": the real pad's buttons on port 1 (PSX order, a set bit is a press), called on
+ * every poll. Each change is written and synced at once, so a run that is closed early
+ * keeps what was recorded up to then. */
+void autoinput_record(unsigned short real)
+{
+	static int last = -1;
+	if (!autoin_rec) {
+		last = -1;
+		return;
+	}
+	if (real == last)
+		return;
+	if (last < 0)   /* the first poll: say whether the recording can see a pad at all */
+		fprintf(autoin_rec, "# recorded by WiiStation (\"record\"); port 1 %s"
+			" (automatic assignment %s, GameCube pad 1 %s)\n",
+			virtualControllers[0].inUse ? "has a controller" :
+			"has NO controller, so no press is seen",
+			padAutoAssign ? "on" : "off",
+			controller_GC.available[0] ? "seen" : "not seen");
+	last = real;
+	fprintf(autoin_rec, "%u %04x\n", (unsigned)frame_counter, real);
+	fflush(autoin_rec);
+	fsync(fileno(autoin_rec));
+}
+
 extern int stop;
 
 // Use to invoke func on the mapped controller with args
@@ -208,6 +267,7 @@ long PAD__readPort1(PadDataS* ppad)
 			stop = 1;
 
 
+    autoinput_record(~PAD_1.btns.All & 0xFFFF);
     ppad->buttonStatus = (PAD_1.btns.All&0xFFFF) & ~autoinput_mask();   /* active low: clearing a bit presses it */
 	if ( controllerType == CONTROLLERTYPE_ANALOG )
 	{

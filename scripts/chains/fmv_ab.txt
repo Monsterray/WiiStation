@@ -1,0 +1,19 @@
+CHAIN
+# 24-bit video colour off and on, same game, same boot: two games whose opening 2400
+# vblanks are mostly 24-bit full-motion video. (FF7's opening video is 15-bit: the
+# setting does not touch it.) FmvColour 0 = 15-bit (RGB5A3 movie texture),
+# 1 = 24-bit (RGBA8). Under Dolphin this shows the CPU side (the texture fill and tiling);
+# the GPU's cost of the larger texture shows only on a Wii (a pmc build).
+# bash scripts/wsx.sh chain NAME fmv_ab.txt --secs 900
+2400 FmvColour=0
+sd:/wiisxrx/isos/Micro Machines V3 (USA)
+Micro Machines V3 (USA).cue
+2400 FmvColour=1
+sd:/wiisxrx/isos/Micro Machines V3 (USA)
+Micro Machines V3 (USA).cue
+2400 FmvColour=0
+sd:/wiisxrx/isos/Medievil
+Medievil [U] [SCUS-94227].cue
+2400 FmvColour=1
+sd:/wiisxrx/isos/Medievil
+Medievil [U] [SCUS-94227].cue

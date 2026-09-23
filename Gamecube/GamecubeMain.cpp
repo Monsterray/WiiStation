@@ -116,6 +116,7 @@ char frameLimit[2];
 char frameSkip;
 char useDithering;
 char mdecChroma;
+char fmvColour;
 extern char audioEnabled;   // defined in dfsound/cube.c alongside the output drivers
 char soundHwAccel;          // read by dfsound/out.c when it picks an output driver
 char soundTempo;            // dfsound: legacy pull-back of the mixer clock when the output runs low
@@ -214,6 +215,7 @@ static struct {
   { "SkipFrames", &frameSkip, FRAMESKIP_DISABLE, FRAMESKIP_ENABLE },
   { "Dithering", &useDithering, USEDITHER_NONE, USEDITHER_ALWAYS },
   { "MdecChroma", &mdecChroma, MDECCHROMA_SHARP, MDECCHROMA_SMOOTH },
+  { "FmvColour", &fmvColour, FMVCOLOUR_15BIT, FMVCOLOUR_24BIT },
   { "PadAutoAssign", &padAutoAssign, PADAUTOASSIGN_MANUAL, PADAUTOASSIGN_AUTOMATIC },
   { "PadType1", &padType[0], PADTYPE_NONE, PADTYPE_MULTITAP },
   { "PadType2", &padType[1], PADTYPE_NONE, PADTYPE_MULTITAP },
@@ -419,6 +421,7 @@ void loadSettings(int argc, char *argv[])
 	frameSkip		 = 0; // Disable frame skipping
 	useDithering		 = 1; // Default dithering (set to 0 (disabled) in PEOPSgpu)
 	mdecChroma		 = MDECCHROMA_SHARP;   /* what the console does */
+	fmvColour		 = FMVCOLOUR_24BIT;    /* what the console does */
 	saveEnabled      = 0; // Don't save game
 	nativeSaveDevice = 0; // SD
 	saveStateDevice	 = 0; // SD
@@ -618,9 +621,10 @@ char AutobootPath[1024];
  *
  * Games use their memory cards as usual -- a game with no card can stop at a warning (Spyro
  * does: "progress will not be saved") and the input script then runs past a screen it was
- * not written for. sio.c notes every card file a chained game loads or saves, and after the
- * last game the chain deletes them all. So a chain leaves no cards behind, and the next one
- * starts from freshly created cards: the runs stay comparable.
+ * not written for. sio.c notes every card file a chained game loads or saves, and when the
+ * game ends the chain deletes them. So every game starts from freshly created cards -- the
+ * same game listed twice (an A/B) boots the same way both times, which it did not when the
+ * second run found the card the first had made -- and a chain leaves no cards behind.
  *
  * Each game starts with a vblank count of zero, so its script means the same as it would
  * in a run of its own, and its section of perf.log ends with the line
@@ -693,7 +697,7 @@ static int chainLoad(FILE *f)
 
 /* Set KEY to VALUE for this game, remembering what it was. Only the settings file's numeric
  * settings: a string setting has no business differing per game. */
-static void chainOverride(char *kv)
+static void chainOverride(char *kv, bool remember)
 {
 	char key[32], *val;
 	unsigned i;
@@ -705,7 +709,7 @@ static void chainOverride(char *kv)
 	for (i = 0; i < sizeof(OPTIONS) / sizeof(OPTIONS[0]); i++) {
 		if (strcmp(OPTIONS[i].key, key) || OPTIONS[i].max == CONFIG_STRING_TYPE)
 			continue;
-		if (chainSavedN < (int)(sizeof chainSaved / sizeof chainSaved[0])) {
+		if (remember && chainSavedN < (int)(sizeof chainSaved / sizeof chainSaved[0])) {
 			chainSaved[chainSavedN].value = OPTIONS[i].value;
 			chainSaved[chainSavedN].orig = *OPTIONS[i].value;
 			chainSavedN++;
@@ -713,6 +717,18 @@ static void chainOverride(char *kv)
 		setOption(key, val);
 		return;
 	}
+}
+
+/* Loading the game reads the settings file again (loadSeparatelySetting), which put back
+ * every setting of this game's line that the file also names -- PadAutoAssign, which the
+ * staged settings of a scripted run always set, was silently undone. So they are applied
+ * again after it. The originals were saved the first time. */
+static void chainReapply(void)
+{
+	int k;
+	if (chainI < chainN)
+		for (k = 0; k < chainList[chainI].nset; k++)
+			chainOverride(chainList[chainI].set[k], false);
 }
 
 static void chainStart(int i)
@@ -724,7 +740,7 @@ static void chainStart(int i)
 		*chainSaved[chainSavedN].value = chainSaved[chainSavedN].orig;
 	}
 	for (k = 0; k < chainList[i].nset; k++)
-		chainOverride(chainList[i].set[k]);
+		chainOverride(chainList[i].set[k], true);
 	mcd_track_begin();
 	snprintf(AutobootPath, sizeof AutobootPath, "%s", chainList[i].path);
 	snprintf(AutobootROM, sizeof AutobootROM, "%s", chainList[i].rom);
@@ -766,12 +782,13 @@ static bool chainNext(void)
 			(unsigned)frame_counter, sets, chainList[chainI].rom);
 		fclose(f);
 	}
+	mcd_track_delete();   /* the memory cards this game used */
 	if (++chainI < chainN) {
 		chainStart(chainI);
 		return true;
 	}
 	chain_stop_vbl = 0;
-	mcd_track_delete();   /* the memory cards the chain's games used */
+	autoinput_reset(NULL);   /* closes a recording ("record"), before the card is unmounted */
 	/* Unmount first: a Wii that powers off with the FAT cache dirty loses the log. */
 	fatUnmount("sd");
 	SYS_ResetSystem(SYS_POWEROFF, 0, 0);
@@ -995,6 +1012,7 @@ static void loadSeparatelySetting()
             }
         }
     }
+    chainReapply();   /* a chained game's own settings win over the file */
 
     // If the loadButton Slot changes, reload the key mapping
     if (oldLoadButtonSlot != loadButtonSlot)
@@ -1211,6 +1229,12 @@ void go(void) {
 	// every GPU plugin reads frameLimit[0], unlike gc_rearmed_cbs which is
 	// newSoftGpu-only.
 	frameLimit[0] = frameLimit[1];
+
+	/* Controllers are assigned once at power-on, often before a pad has answered its first
+	 * scan, and after that only while the menu is drawn. An autoboot (a loader's arguments,
+	 * autoboot.txt, a chain) never draws the menu, so its game started with no pad. */
+	if (padAutoAssign == PADAUTOASSIGN_AUTOMATIC)
+		auto_assign_controllers();
 
 	if (gpuPtr == &newSoftGpu)
     {

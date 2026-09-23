@@ -326,7 +326,11 @@ static void UpdateState (const int pad) //Note: pad = 0 or 1
 		/* padStat is byte-swapped so that the big-endian 16-bit store in the
 		 * 0x42 response emits the two PSX bytes in wire order; the script's
 		 * masks are in PSX order (Start 0008), so swap them the same way. */
-		unsigned short m = autoinput_mask();
+		extern void autoinput_record(unsigned short real);   /* PadWiiSX.c: "record" */
+		unsigned short s = global.padStat[pad];
+		unsigned short m;
+		autoinput_record(~((s << 8) | (s >> 8)) & 0xFFFF);   /* the real pad, before the script */
+		m = autoinput_mask();
 		global.padStat[pad] &= ~(unsigned short)(((m << 8) | (m >> 8)) & 0xFFFF);   /* active low */
 	}
 

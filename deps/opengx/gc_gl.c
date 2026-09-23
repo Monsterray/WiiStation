@@ -1894,6 +1894,26 @@ static inline void _ogx_scramble_4b(unsigned char *src, void *dst,
     }
 }
 
+/* RGBA8 tiling of a 24-bit movie tile. src holds one 0xAARRGGBB word per texel. A 4x4
+ * block is 64 bytes: the 16 AR pairs, then the 16 GB pairs. Texels past the edge are 0, so
+ * every byte of the padded blocks is written and the buffer needs no clearing first. */
+static void _ogx_scramble_rgba8(const unsigned int *src, unsigned char *dst,
+                                const unsigned int width, const unsigned int height)
+{
+    unsigned int by, bx, y, x;
+
+    for (by = 0; by < height; by += 4)
+        for (bx = 0; bx < width; bx += 4, dst += 64)
+            for (y = 0; y < 4; y++)
+                for (x = 0; x < 4; x++) {
+                    unsigned int t = (by + y < height && bx + x < width)
+                                     ? src[(by + y) * width + bx + x] : 0;
+                    unsigned short *p = (unsigned short *)(dst + (y * 4 + x) * 2);
+                    p[0] = t >> 16;     /* AR */
+                    p[16] = t;          /* GB, 32 bytes on */
+                }
+}
+
 // The position happens to be the integer position of the Block
 static inline int _ogx_scramble_4b_sub(unsigned char *src, void *dst, void *semiTransDst, unsigned short semiTransFlg,
                       const unsigned int width, const unsigned int height, const unsigned int oldWidth,
@@ -2032,8 +2052,10 @@ int glInitMovieTextures( GLsizei width, GLsizei height, void * texData )
 
     int wi = width; //(width + 3) & ~(unsigned int)3;
     int he = height; //(height + 3) & ~(unsigned int)3;
+    int rgba8 = glparamstate.RGB24 && fmvColour == FMVCOLOUR_24BIT;
 
-    int required_size = wi * he * 4;
+    /* 4 bytes a texel holds either format; RGBA8 also fills the edge blocks out to 4x4. */
+    int required_size = rgba8 ? ((wi + 3) & ~3) * ((he + 3) & ~3) * 4 : wi * he * 4;
     int tex_size_rnd = ROUND_32B(required_size);
     if ((movieUsedSize + tex_size_rnd) > MOVIE_BUF_SIZE)
     {
@@ -2045,7 +2067,8 @@ int glInitMovieTextures( GLsizei width, GLsizei height, void * texData )
     {
         currtex->semiTransData = currtex->data + (tex_size_rnd / 2);
     }
-    memset(currtex->data, 0, tex_size_rnd);
+    if (!rgba8)
+        memset(currtex->data, 0, tex_size_rnd);
     movieTexPtr += tex_size_rnd;
     movieUsedSize += tex_size_rnd;
 
@@ -2055,11 +2078,13 @@ int glInitMovieTextures( GLsizei width, GLsizei height, void * texData )
     if (glparamstate.RGB24)
     {
         textureType = TEX_TYPE_2;
-        _ogx_scramble_4b((unsigned char *)texData, currtex->data, width, height);
-//        GX_InitTexObj(&currtex->texobj, currtex->data,
-//                      currtex->w, currtex->h, GX_TF_RGBA8, currtex->wraps, currtex->wrapt, GX_FALSE);
+        if (rgba8)
+            _ogx_scramble_rgba8((const unsigned int *)texData, currtex->data, width, height);
+        else
+            _ogx_scramble_4b((unsigned char *)texData, currtex->data, width, height);
         GX_InitTexObj(&currtex->texobj, currtex->data,
-                      currtex->w, currtex->h, GX_TF_RGB5A3, currtex->wraps, currtex->wrapt, GX_FALSE);
+                      currtex->w, currtex->h, rgba8 ? GX_TF_RGBA8 : GX_TF_RGB5A3,
+                      currtex->wraps, currtex->wrapt, GX_FALSE);
         if (originalMode == ORIGINALMODE_ENABLE || bilinearFilter == BILINEARFILTER_NEAR)
         {
             GX_InitTexObjFilterMode(&currtex->texobj, GX_NEAR, GX_NEAR);

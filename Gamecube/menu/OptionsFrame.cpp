@@ -231,23 +231,24 @@ static void pluginsLeave(void)
  * is RADIO_W, 135. The help text below says what Default means. */
 static const char* const DITHER_NAMES[]   = { "None", "Default", "Always" };
 static const char* const CHROMA_NAMES[]   = { "Sharp", "Smooth" };
+static const char* const FMV_COLOUR_NAMES[] = { "15-bit", "24-bit" };
 
 static const OptRow ADVGFX_ROWS[] =
 {
 	ROW_RADIO_FIT("Dithering", useDithering, USEDITHER_NONE,  USEDITHER_ALWAYS,  DITHER_NAMES, NULL),
 	ROW_CYCLE("MDEC Chroma", mdecChroma,   MDECCHROMA_SHARP,  MDECCHROMA_SMOOTH, CHROMA_NAMES, NULL),
+	ROW_CYCLE("Video Colour", fmvColour,   FMVCOLOUR_15BIT,   FMVCOLOUR_24BIT,   FMV_COLOUR_NAMES, NULL),
 };
 
 static const OptHelp ADVGFX_HELP[] =
 {
-	{ "Dithering:",   "Hides the steps between colours in a 15-bit picture." },
-	{ NULL,           "Default uses it only where the game asks for it." },
-	{ "MDEC Chroma:", "How the video decoder makes the colour of each pixel." },
-	{ NULL,           "Sharp is what the console does: one colour sample for" },
-	{ NULL,           "every 2x2 pixels. Smooth mixes the samples, so the" },
-	{ NULL,           "video looks better than hardware and costs more time." },
-	{ NULL,           "" },
-	{ NULL,           "Chroma applies to the next video that starts." },
+	{ "Dithering:",    "Hides the steps between colours in a 15-bit picture." },
+	{ NULL,            "Default uses it only where the game asks for it." },
+	{ "MDEC Chroma:",  "Sharp is the console: one colour sample per 2x2 pixels." },
+	{ NULL,            "Smooth mixes the samples: it looks better, costs more." },
+	{ NULL,            "It applies to the next video that starts." },
+	{ "Video Colour:", "24-bit is full colour, as on the console. 15-bit is" },
+	{ NULL,            "the old way: it shows bands in dark scenes." },
 };
 
 static const OptRow CD_ROWS[] =

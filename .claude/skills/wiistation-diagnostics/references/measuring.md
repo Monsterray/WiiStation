@@ -32,14 +32,26 @@ prints the table. Files in `scripts/chains/`:
 | `all.txt` | every game in the sync folder, 3600 vblanks each | ~12 min |
 | `three.txt` | Spyro (3D), Crash Bash (texture streaming), Micro Machines (FMV) | ~3.5 min |
 | `lc_ab.txt` | Spyro and Crash Bash with the locked cache off, then on | ~4.5 min |
+| `fmv_ab.txt` | Micro Machines, Medievil, FF7 video with `FmvColour` 15-bit, then 24-bit | ~4.5 min |
 | `smoke.txt` | two short games: does a chain still work | ~40 s |
 
 A chain line can set settings for its game alone -- `3600 sd:/wiisxrx/x.txt LockedCache=3
 SoundRateControl=0` -- and they go back before the next game. Listing a game twice with
 different settings is how one boot compares a setting on and off (the only way on a Wii,
 where moving the SD card is the slow part). Games use memory cards normally; the chain deletes
-the card files it used when it ends. `--env FRAMES_DUMP=True --env KEEP=100000` keeps every
+each game's card files when that game ends, so both halves of an A/B boot the same way. `--env FRAMES_DUMP=True --env KEEP=100000` keeps every
 frame; `--env AUDIO_DUMP=1` keeps the audio.
+
+## Recording how a game is played
+
+`bash scripts/movie_capture.sh GAME [NAME] [--mins M]` boots GAME (part of its folder name in
+`all.txt`) as a one-game chain whose script is the line `record`; the person plays, and
+WiiStation writes every change of the real pad, in emulated vblanks, to the card. The script
+saves it as `scripts/autoinput/NAME_play.txt` and prints the chain line that plays it
+(`... PadAutoAssign=1`). `--play NAME` boots it back in a window to check it. Use this, not a
+Dolphin movie: a `.dtm` counts host frames, which drift from the game's vblanks whenever the
+emulation runs below full speed (`dtm2autoinput.py` is for old movies only). Digital pad:
+buttons and D-pad only, so a game that needs the analog sticks cannot be recorded.
 
 ## Reading and comparing
 
