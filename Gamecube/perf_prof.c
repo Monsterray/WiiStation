@@ -25,6 +25,7 @@ extern uint32_t gx_mem2_check(void);
 #endif
 
 perf_counters_t g_perf;
+perf_carry_t g_carry;
 
 unsigned long long perf_now_us(void)
 {
@@ -673,6 +674,24 @@ void perf_report(void)
 					c->available[2], c->available[3]);
 			}
 			fprintf(f, "\n");
+		}
+		{
+			const perf_carry_t *c = &g_carry;
+			int k;
+			fprintf(f, "carry: fc=%lu", (unsigned long)c->frame_counter);
+			for (k = 0; k < 3; k++)
+				fprintf(f, " rc%d=%lx/%lx/%lu/%lu", k, (unsigned long)c->rcnt[k][0],
+					(unsigned long)c->rcnt[k][1], (unsigned long)c->rcnt[k][2], (unsigned long)c->rcnt[k][3]);
+			fprintf(f, " spu=%lu/%lu/%04lx/%06lx/%08lx sio=%04lx/%04lx/%lu/%lu pad1=%lu/%c gc=%lx av=%lu"
+				" | rcntfire=%lu,%lu,%lu,%lu\n",
+				(unsigned long)c->spu[0], (unsigned long)c->spu[1], (unsigned long)c->spu[2],
+				(unsigned long)c->spu[3], (unsigned long)c->spu[4],
+				(unsigned long)c->sio[0], (unsigned long)c->sio[1], (unsigned long)c->sio[2],
+				(unsigned long)c->sio[3],
+				(unsigned long)c->pad[0], c->pad[1] ? (char)c->pad[1] : '-',
+				(unsigned long)c->pad[2], (unsigned long)c->pad[3],
+				(unsigned long)g_perf.rcnt_fire[0], (unsigned long)g_perf.rcnt_fire[1],
+				(unsigned long)g_perf.rcnt_fire[2], (unsigned long)g_perf.rcnt_fire[4]);
 		}
 		#if PERF_PROF_GPUSPLIT
 		if (g_perf.gpu_prim_calls || g_perf.gpu_vram_words)

@@ -1,0 +1,12 @@
+CHAIN
+# FF7 three times in one boot: the three rows must match (state carried between games).
+# bash scripts/wsx.sh chain NAME ff7x3.txt --secs 900
+2400
+sd:/wiisxrx/isos/Final Fantasy VII/Final Fantasy VII 1
+Final Fantasy VII [U] [Disc 1] [SLUS-94163].cue
+2400
+sd:/wiisxrx/isos/Final Fantasy VII/Final Fantasy VII 1
+Final Fantasy VII [U] [Disc 1] [SLUS-94163].cue
+2400
+sd:/wiisxrx/isos/Final Fantasy VII/Final Fantasy VII 1
+Final Fantasy VII [U] [Disc 1] [SLUS-94163].cue

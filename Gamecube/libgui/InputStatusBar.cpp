@@ -140,105 +140,36 @@ void InputStatusBar::drawComponent(Graphics& gfx)
 			continue;
 		}
 
+		/* PlugPAD.c fills the port (go() does the same before a game starts); this only
+		 * shows what it found. */
+		controller_t *assigned = manual_assign_port(i);
+		if (assigned)
+		{
+			gfx.setColor(activeColor);
+			IplFont::getInstance().drawInit(activeColor);
+		}
+		else
+		{
+			gfx.setColor(inactiveColor);
+			IplFont::getInstance().drawInit(inactiveColor);
+		}
 		switch (padType[i])
 		{
 		case PADTYPE_GAMECUBE:
-			controller_GC.available[(int)padAssign[i]] = (gc_connected & (1<<padAssign[i])) ? 1 : 0;
-			if (controller_GC.available[(int)padAssign[i]])
-			{
-				assign_controller(i, &controller_GC, (int)padAssign[i]);
-				gfx.setColor(activeColor);
-				IplFont::getInstance().drawInit(activeColor);
-//				gfx.setColor(controllerColors[i]);
-//				IplFont::getInstance().drawInit(controllerColors[i]);
-			}
-			else
-			{
-				gfx.setColor(inactiveColor);
-				IplFont::getInstance().drawInit(inactiveColor);
-			}
 			statusIcon = Resources::getInstance().getImage(Resources::IMAGE_CONTROLLER_GAMECUBE);
-//			sprintf (statusText, "Pad%d: GC%d", i+1, padAssign[i]+1);
 			break;
 #ifdef HW_RVL
-        case PADTYPE_HID:
-			if (hidControllerConnected)
-			{
-				assign_controller(i, &controller_HidGC, (int)padAssign[i]);
-				gfx.setColor(activeColor);
-				IplFont::getInstance().drawInit(activeColor);
-			}
-			else
-			{
-				gfx.setColor(inactiveColor);
-				IplFont::getInstance().drawInit(inactiveColor);
-			}
+		case PADTYPE_HID:
 			statusIcon = Resources::getInstance().getImage(Resources::IMAGE_CONTROLLER_HID_GAMECUBE);
 			break;
 		case PADTYPE_WII:
-			u32 type;
-			s32 err;
-			err = WPAD_Probe((int)padAssign[i], &type);
-			controller_Classic.available[(int)padAssign[i]] = (err == WPAD_ERR_NONE && type == WPAD_EXP_CLASSIC) ? 1 : 0;
-			controller_WiimoteNunchuk.available[(int)padAssign[i]] = (err == WPAD_ERR_NONE && type == WPAD_EXP_NUNCHUK) ? 1 : 0;
-			controller_Wiimote.available[(int)padAssign[i]] = (err == WPAD_ERR_NONE && type == WPAD_EXP_NONE) ? 1 : 0;
-			controller_WiiUPro.available[(int)padAssign[i]] = (WUPC_Data((int)padAssign[i]) != NULL) ? 1 : 0;
-			if((int)padAssign[i] == 0)
-				controller_WiiUGamepad.available[(int)padAssign[i]] = (WiiDRC_Inited() && WiiDRC_Connected()) ? 1 : 0;
-			else
-				controller_WiiUGamepad.available[(int)padAssign[i]] = 0;
-			if (controller_Classic.available[(int)padAssign[i]])
-			{
-				assign_controller(i, &controller_Classic, (int)padAssign[i]);
-				gfx.setColor(activeColor);
-				IplFont::getInstance().drawInit(activeColor);
-//				gfx.setColor(controllerColors[i]);
-//				IplFont::getInstance().drawInit(controllerColors[i]);
+			if (assigned == &controller_Classic || assigned == &controller_WiiUPro ||
+			    assigned == &controller_WiiUGamepad)
 				statusIcon = Resources::getInstance().getImage(Resources::IMAGE_CONTROLLER_CLASSIC);
-//				sprintf (statusText, "Pad%d: CC%d", i+1, padAssign[i]+1);
-			}
-			else if (controller_WiiUPro.available[(int)padAssign[i]])
-			{
-				assign_controller(i, &controller_WiiUPro, (int)padAssign[i]);
-				gfx.setColor(activeColor);
-				IplFont::getInstance().drawInit(activeColor);
-				statusIcon = Resources::getInstance().getImage(Resources::IMAGE_CONTROLLER_CLASSIC);
-			}
-			else if (controller_WiiUGamepad.available[(int)padAssign[i]])
-			{
-				assign_controller(i, &controller_WiiUGamepad, (int)padAssign[i]);
-				gfx.setColor(activeColor);
-				IplFont::getInstance().drawInit(activeColor);
-				statusIcon = Resources::getInstance().getImage(Resources::IMAGE_CONTROLLER_CLASSIC);
-			}
-			else if (controller_WiimoteNunchuk.available[(int)padAssign[i]])
-			{
-				assign_controller(i, &controller_WiimoteNunchuk, (int)padAssign[i]);
-				gfx.setColor(activeColor);
-				IplFont::getInstance().drawInit(activeColor);
-//				gfx.setColor(controllerColors[i]);
-//				IplFont::getInstance().drawInit(controllerColors[i]);
+			else if (assigned == &controller_WiimoteNunchuk)
 				statusIcon = Resources::getInstance().getImage(Resources::IMAGE_CONTROLLER_WIIMOTENUNCHUCK);
-//				sprintf (statusText, "Pad%d: WM+N%d", i+1, padAssign[i]+1);
-			}
-			else if (controller_Wiimote.available[(int)padAssign[i]])
-			{
-				assign_controller(i, &controller_Wiimote, (int)padAssign[i]);
-				gfx.setColor(activeColor);
-				IplFont::getInstance().drawInit(activeColor);
-//				gfx.setColor(controllerColors[i]);
-//				IplFont::getInstance().drawInit(controllerColors[i]);
-				statusIcon = Resources::getInstance().getImage(Resources::IMAGE_CONTROLLER_WIIMOTE);
-//				sprintf (statusText, "Pad%d: WM%d", i+1, padAssign[i]+1);
-			}
 			else
-			{
-				gfx.setColor(inactiveColor);
-				IplFont::getInstance().drawInit(inactiveColor);
 				statusIcon = Resources::getInstance().getImage(Resources::IMAGE_CONTROLLER_WIIMOTE);
-//				sprintf (statusText, "Pad%d: Wii%d", i+1, padAssign[i]+1);
-			}
-
 			break;
 #endif
 		case PADTYPE_MULTITAP:

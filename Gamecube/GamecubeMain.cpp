@@ -1230,11 +1230,21 @@ void go(void) {
 	// newSoftGpu-only.
 	frameLimit[0] = frameLimit[1];
 
+#ifdef PERF_PROF
+	g_carry.pad[0] = virtualControllers[0].inUse;
+	g_carry.pad[1] = (virtualControllers[0].inUse && virtualControllers[0].control)
+		? (unsigned char)virtualControllers[0].control->identifier : 0;
+	g_carry.pad[2] = gc_connected;
+	g_carry.pad[3] = controller_GC.available[0];
+#endif
+
 	/* Controllers are assigned once at power-on, often before a pad has answered its first
 	 * scan, and after that only while the menu is drawn. An autoboot (a loader's arguments,
 	 * autoboot.txt, a chain) never draws the menu, so its game started with no pad. */
 	if (padAutoAssign == PADAUTOASSIGN_AUTOMATIC)
 		auto_assign_controllers();
+	else
+		manual_assign_controllers();
 
 	if (gpuPtr == &newSoftGpu)
     {

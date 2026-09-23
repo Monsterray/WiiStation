@@ -54,6 +54,8 @@
 #define AUTOIN_MAX 4096   /* a recording makes 2-5 lines a second: about 15 minutes */
 static struct { unsigned vbl; unsigned short mask; } autoin[AUTOIN_MAX];
 static int autoin_n = -1;
+static unsigned short autoin_ev_last;   /* the mask last reported to perf.log ("autoinput:") */
+static int autoin_ev_first = 1;         /* each game reports its first poll */
 static int autoin_cur;              /* autoinput_mask(): the next line to apply */
 static unsigned short autoin_m;     /* ... and the mask the lines before it give */
 static unsigned autoin_fc;          /* ... at this vblank */
@@ -136,6 +138,7 @@ void autoinput_reset(const char *path)
 {
 	snprintf(autoin_path, sizeof autoin_path, "%s", path ? path : "");
 	autoin_n = -1;
+	autoin_ev_first = 1;
 	autoin_cur = 0;
 	autoin_m = 0;
 	autoin_fc = 0;
@@ -176,9 +179,10 @@ unsigned short autoinput_mask(void)
 	while (autoin_cur < autoin_n && frame_counter >= autoin[autoin_cur].vbl)
 		autoin_m = autoin[autoin_cur++].mask;
 	m = autoin_m;
-	{
-		static unsigned short last = 0; static int first = 1;
-		if (first || m != last) { perf_autoinput_event(frame_counter, m); last = m; first = 0; }
+	if (autoin_ev_first || m != autoin_ev_last) {
+		perf_autoinput_event(frame_counter, m);
+		autoin_ev_last = m;
+		autoin_ev_first = 0;
 	}
 	return m;
 }

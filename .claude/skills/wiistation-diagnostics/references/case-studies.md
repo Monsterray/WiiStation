@@ -281,3 +281,38 @@ tempting wrong turns.
   IRQ count (`rcnt=60359` first, 67870 after), CPU slice counts, and pad `avail G=1000`.
 - Lesson: a plugin "init" that lists the fields it resets is a list of the fields it forgot.
   When a later game in a chain differs from the same game booted first, zero the structs.
+- The non-GPU part is case 13.
+
+
+## 13. A second game in one boot ran on the last game's timers, SPU clock and pad (core)
+
+- Symptom (2026-09-22): FF7 booted second or third in a chain had `irq: rcnt=67870`, `slice:
+  cycles=4233507259`, `desync=1` and `avail G=1000`; booted first, `rcnt=60359`, `cycles=
+  4810858936`, `desync=0`, `avail G=0000`. After Medievil it also had `xamix: hold=3 gaps=1
+  gap_samples=88260`. Same `cdr`/`gpudma` counts: the guest did the same work.
+- Probe: `carry:` (probes.md) -- each init writes the state it is about to reset -- plus
+  `rcntfire=` per root counter, on `scripts/chains/carry.txt` (FF7, Medievil, FF7, FF7). One
+  run answered all of it:
+  - root counter 2 arrived with the last game's mode and target (`rc2=e58/43d1` after FF7,
+    `c00/43d1` after Medievil) and fired 21288 times instead of 13740: `psxRcntInit` set
+    only `rate` and `irq`, and the new game ran on the old target until it reprogrammed it;
+  - the SPU arrived with `cycles_played=1354752000` (so the first `do_samples` saw a 1.35 G
+    cycle gap, counted a desync and resynced, 60 samples short) and, after Medievil,
+    `XARepeat=3`, which is `hold=3`. `DF_SPUinit` never cleared `spu`, the channels, reverb
+    or sound RAM. `gaps=1 gap_samples=88260` was the probe's own static (`xa_stream_on`) left
+    on by Medievil's stream: 2 s of "gap" and then off;
+  - port 1 was EMPTY in the first game (`pad1=0/-` with `gc=1`): with PadAutoAssign off the
+    only code that fills a manual port is the menu's status bar, drawn once in an autoboot
+    before the pad had answered. The later games found it filled by their own draw.
+  - SIO arrived clean (`0005/0/0/0`) but had no reset at all.
+- Direction: power-on is the reference. The first game is right for the counters and the
+  SPU (BSS zero), the later games are right for the pad (the pad IS connected).
+- Fix: `psxRcntInit` zeroes `rcnts` and `frame_counter`; `DF_SPUinit` zeroes `spu` (keeping
+  `bSPUIsOpen`), `s_chan`, `rvb`, sound RAM and the XA decoder's history and probe statics;
+  new `sioReset()` from `psxHwReset`; `manual_assign_port()` in PlugPAD.c is the status bar's
+  manual assignment, now also run by go(). Verified on carry.txt, gpu_carry.txt, ff7x3.txt:
+  every FF7 row equal in `slice`, `irq`, `rcntfire`, `spu ns/desync`, `xamix`, `ports`,
+  GPU counts. What still differs is Wii-side: `*_us`, the frame limiter count, MEM1 free,
+  menu glyphs and the output rate controller (`rate: prefill` is SDL callback timing).
+- Lesson: when a later game differs, read what the inits did NOT touch, and decide the
+  direction per field from power-on; "first is right" was true for three of four.

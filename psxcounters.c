@@ -302,6 +302,7 @@ void psxRcntReset( u32 index )
 {
     u32 rcycles;
 
+    PERF_INC(rcnt_fire[index]);
     rcnts[index].mode |= RcUnknown10;
 
     if( rcnts[index].counterState == CountToTarget )
@@ -618,6 +619,23 @@ void psxResetRcntRate()
 void psxRcntInit()
 {
     s32 i;
+
+#ifdef PERF_PROF
+    for (i = 0; i < 3; i++) {
+        g_carry.rcnt[i][0] = rcnts[i].mode;
+        g_carry.rcnt[i][1] = rcnts[i].target;
+        g_carry.rcnt[i][2] = rcnts[i].irqState;
+        g_carry.rcnt[i][3] = rcnts[i].counterState;
+    }
+    g_carry.frame_counter = frame_counter;
+#endif
+    /* A reset is a power-on: the counters start from zero, as they do the first time (BSS).
+     * Only rate and irq used to be set here, so a second game in the same boot (a chain, or
+     * a game loaded from the menu) inherited the last game's mode, target and irqState,
+     * and a counter the new game never reprogrammed kept firing on the old game's target.
+     * frame_counter drives the interlace field and the chained runs' vblank limits. */
+    memset(rcnts, 0, sizeof(rcnts));
+    frame_counter = 0;
 
     // rcnt 0.
     rcnts[0].rate   = 1;

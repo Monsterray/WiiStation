@@ -35,6 +35,8 @@ prints the table. Files in `scripts/chains/`:
 | `fmv_ab.txt` | Micro Machines, Medievil, FF7 video with `FmvColour` 15-bit, then 24-bit | ~4.5 min |
 | `smoke.txt` | two short games: does a chain still work | ~40 s |
 | `gpu_carry.txt` | FF7, Medievil, FF7: does a game inherit GPU state from the last one (rows 1 and 3 must match) | ~3 min |
+| `carry.txt` | FF7, Medievil, FF7, FF7: any state carried between games (every FF7 row must match; `carry:` line) | ~4 min |
+| `ff7x3.txt` | FF7 three times: the three rows must match | ~3 min |
 
 A chain line can set settings for its game alone -- `3600 sd:/wiisxrx/x.txt LockedCache=3
 SoundRateControl=0` -- and they go back before the next game. Listing a game twice with

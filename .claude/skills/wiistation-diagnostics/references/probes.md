@@ -124,6 +124,15 @@ one 10 s game, 728.6 per microsecond. Build it with `PROBES=pmc`.
 are in the `deep` preset except `lc:`, which is always written. `scripts/chain_table.py
 --detail` reads them; the reference is references/measuring.md.
 
+`carry:` (every debug build) is what a game found left over from the game before it in the
+same boot, written by each module's init just before it resets and by go() for port 1:
+`rc0..2=mode/target/irqState/counterState`, `spu=cycles_played/XARepeat/spuCtrl/audible
+channels/cd volume`, `sio=StatReg/CtrlReg/padst/parp`, `pad1=inUse/driver gc=gc_connected
+av=GC available[0]`, then `rcntfire=` psxRcntReset counts for counters 0, 1, 2 and the SPU
+timer. The first game of a boot shows zeros (and `sio=0005/...`); later games show the
+previous game's values, which since case 13 the inits then clear. A later game whose rows
+differ from the same game booted first: read `carry:` before theorising.
+
 ## VRAM dump
 
 `dump <vblank>` (autoinput.txt) or the fallback at vblank 6000 writes the whole 1 MB `psxVuw`

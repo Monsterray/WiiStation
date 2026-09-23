@@ -74,6 +74,7 @@ extern void sioWrite8(unsigned char value);
 extern void sioWriteCtrl16(unsigned short value);
 extern void sioInterrupt();
 extern int sioFreeze(gzFile f, int Mode);
+extern void sioReset(void);
 
 extern int LoadMcd(int mcd, fileBrowser_file *savepath);
 

@@ -423,6 +423,7 @@ typedef struct {
 	uint32_t spu_pulls;           /* tempo pull-backs: output driver not busy, SoundTempo on */
 	uint32_t spu_busy;            /* SPU_async calls that found the output driver busy */
 	uint32_t spu_desync;          /* do_samples resets: |cycle gap| > 2M cycles */
+	uint32_t rcnt_fire[5];        /* psxRcntReset per root counter (3, the vblank base, never) */
 	/* Where the mixer's time goes (PERF_PROF_SPU). `chans` counts channel-iterations, not
 	 * channels: one per audible channel per do_channels() call. */
 	uint64_t spu_adpcm_us;        /* ADPCM decode and interpolation, or the noise source */
@@ -569,6 +570,19 @@ typedef struct {
 } perf_counters_t;
 
 extern perf_counters_t g_perf;
+
+/* What a game found left behind by the game before it in the same boot (a chain, or a
+ * second game loaded from the menu): each module's init writes the state it is about to
+ * reset, go() writes port 1's controller. perf_reset() does not clear it, because the inits
+ * run before go(). Printed as "carry:"; at power-on every field is zero. */
+typedef struct {
+	uint32_t rcnt[3][4];          /* root counters 0..2: mode, target, irqState, counterState */
+	uint32_t frame_counter;
+	uint32_t spu[5];              /* cycles_played, XARepeat, spuCtrl, dwChannelsAudible, cdv */
+	uint32_t sio[4];              /* StatReg, CtrlReg, padst, parp */
+	uint32_t pad[4];              /* port 1 at go(): inUse, driver identifier, gc_connected, GC available[0] */
+} perf_carry_t;
+extern perf_carry_t g_carry;
 
 #define PERF_INC(f)    (g_perf.f++)
 #define PERF_ADD(f, n) (g_perf.f += (n))

@@ -737,6 +737,23 @@ void ConvertMcd(char *mcd, char *data) {
 //	strncpy(Info->Name, ptr, 16);
 //}
 
+/* Called from psxHwReset(). Puts the port back as it is at power-on: nothing reset it before,
+ * so a game started while the last one was part way through a pad or card transfer. */
+void sioReset(void) {
+#ifdef PERF_PROF
+	g_carry.sio[0] = StatReg;
+	g_carry.sio[1] = CtrlReg;
+	g_carry.sio[2] = padst;
+	g_carry.sio[3] = parp;
+#endif
+	memset(buf, 0, sizeof(buf));
+	StatReg = TX_RDY | TX_EMPTY;
+	ModeReg = CtrlReg = BaudReg = 0;
+	bufcount = parp = mcdst = rdwr = padst = 0;
+	adrH = adrL = 0;
+	memset(&pad, 0, sizeof(pad));
+}
+
 int sioFreeze(gzFile f, int Mode) {
 	char Unused[4096];
 

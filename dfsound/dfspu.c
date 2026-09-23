@@ -1314,6 +1314,37 @@ long DF_SPUinit(void)
 {
  int i;
 
+#ifdef PERF_PROF
+ g_carry.spu[0] = spu.cycles_played;
+ g_carry.spu[1] = spu.XARepeat;
+ g_carry.spu[2] = spu.spuCtrl;
+ g_carry.spu[3] = spu.dwChannelsAudible;
+ g_carry.spu[4] = (spu.cdv.ll << 24) | (spu.cdv.lr << 16) | (spu.cdv.rl << 8) | spu.cdv.rr;
+#endif
+ /* Called for every game (SysInit), and a game must find the SPU as it is at power-on --
+  * all zero, like the first game finds it -- not as the last game left it: its sample
+  * clock (cycles_played, which the reset CPU clock no longer matches), its XA repeat
+  * count, channels, registers, reverb and sound RAM, and the XA decoder's history.
+  * Upstream's SPUinit clears spu the same way. bSPUIsOpen is kept: the output driver
+  * stays open when init is called again without a close. */
+ {
+  unsigned int open = spu.bSPUIsOpen;
+  memset(&spu, 0, sizeof(spu));
+  spu.bSPUIsOpen = open;
+ }
+ memset(s_chan, 0, sizeof(s_chan));
+ memset(rvb, 0, sizeof(rvb));
+ memset((void *)SPU_BUF_LO, 0, SPU_BUF_SIZE);
+ memset(gauss_window, 0, sizeof(gauss_window));
+ gauss_ptr = 0;
+ memset(xa_zz_ring, 0, sizeof(xa_zz_ring));
+ xa_zz_p = 0;
+ xa_zz_sixstep = 6;
+#ifdef PERF_PROF
+ xa_stream_on = xa_gap_open = xa_hold_open = 0;
+ xa_gap_run = xa_last_cycle = 0;
+#endif
+
   /* iUseReverb comes from the SoundReverb setting (spu.c setSpuReverb), like iTempo */
   spu_config.idiablofix = 0;
   //spu_config.iUseInterpolation = 2;

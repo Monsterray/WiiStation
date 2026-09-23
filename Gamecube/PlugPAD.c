@@ -87,6 +87,68 @@ void wpad_scan_if_needed(void){
 }
 #endif
 
+/* The manual assignment (PadAutoAssign off): port i takes controller padAssign[i] of the
+ * family padType[i] names, if that controller answers. Returns the driver it assigned, or
+ * NULL, when the port keeps what it had (a manual port is never unassigned here).
+ *
+ * The menu's status bar calls this on every frame it draws, and that used to be the only
+ * place a manual port was filled. An autoboot draws the menu once, just after power-on, and
+ * a GameCube pad that had not answered its first scan yet left the first game with nothing
+ * in port 1 -- while a second game in the same boot found the pad. go() calls it too. */
+controller_t *manual_assign_port(int i)
+{
+	int w = padAssign[i];
+	controller_t *type = NULL;
+
+	switch (padType[i]) {
+	case PADTYPE_GAMECUBE:
+		controller_GC.refreshAvailable();   /* PAD_ScanPads when one is due */
+		controller_GC.available[w] = (gc_connected & (1 << w)) ? 1 : 0;
+		if (controller_GC.available[w])
+			type = &controller_GC;
+		break;
+#if defined(HW_RVL) && defined(WII) && !defined(NO_BT)
+	case PADTYPE_HID: {
+		extern s32 hidControllerConnected;   /* HidController/KernelHID.c */
+		if (hidControllerConnected)
+			type = &controller_HidGC;
+		break;
+	}
+	case PADTYPE_WII: {
+		u32 exp;
+		s32 err = WPAD_Probe(w, &exp);
+		controller_Classic.available[w] = (err == WPAD_ERR_NONE && exp == WPAD_EXP_CLASSIC) ? 1 : 0;
+		controller_WiimoteNunchuk.available[w] = (err == WPAD_ERR_NONE && exp == WPAD_EXP_NUNCHUK) ? 1 : 0;
+		controller_Wiimote.available[w] = (err == WPAD_ERR_NONE && exp == WPAD_EXP_NONE) ? 1 : 0;
+		controller_WiiUPro.available[w] = (WUPC_Data(w) != NULL) ? 1 : 0;
+		controller_WiiUGamepad.available[w] = (w == 0 && WiiDRC_Inited() && WiiDRC_Connected()) ? 1 : 0;
+		if (controller_Classic.available[w])             type = &controller_Classic;
+		else if (controller_WiiUPro.available[w])        type = &controller_WiiUPro;
+		else if (controller_WiiUGamepad.available[w])    type = &controller_WiiUGamepad;
+		else if (controller_WiimoteNunchuk.available[w]) type = &controller_WiimoteNunchuk;
+		else if (controller_Wiimote.available[w])        type = &controller_Wiimote;
+		break;
+	}
+#endif
+	default:
+		break;
+	}
+	if (type)
+		assign_controller(i, type, w);
+	return type;
+}
+
+/* Every port the manual assignment uses: 1 and 2, or a multitap's four slots in their place. */
+void manual_assign_controllers(void)
+{
+	int i;
+	for (i = 0; i < 10; i++) {
+		if (i >= 2 && i < 6 && padType[0] != PADTYPE_MULTITAP) continue;
+		if (i >= 6 && padType[1] != PADTYPE_MULTITAP) continue;
+		manual_assign_port(i);
+	}
+}
+
 void control_info_init(void){
 	//Call once during emulator start to auto assign controllers
 	init_controller_ts();

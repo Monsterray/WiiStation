@@ -191,6 +191,8 @@ extern controller_t* controller_ts[num_controller_t];
 
 void init_controller_ts(void);
 void assign_controller(int whichVirtual, controller_t*, int whichPhysical);
+controller_t *manual_assign_port(int i);   /* PlugPAD.c: PadAutoAssign off */
+void manual_assign_controllers(void);
 void unassign_controller(int whichVirtual);
 
 int load_configurations(FILE*, controller_t*);
