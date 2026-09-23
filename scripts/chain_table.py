@@ -43,7 +43,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
 END = re.compile(r'^=== chain (\d+)/(\d+) end vblanks=(\d+)(?: set=(\S+))? rom=(.*) ===')
-PAIR = re.compile(r'(\w+)=(-?\d+)(?:/(\d+))?')
+PAIR = re.compile(r'(\w+)=(-?\d+(?:/\d+)*)')   # a number, or a/b/c... (a tuple)
 
 
 def parse_block(lines):
@@ -54,8 +54,9 @@ def parse_block(lines):
         if not m:
             continue
         d = out.setdefault(m.group(1), {})
-        for k, a, b in PAIR.findall(ln[m.end():]):
-            d[k] = (int(a), int(b)) if b else int(a)
+        for k, v in PAIR.findall(ln[m.end():]):
+            v = tuple(int(x) for x in v.split('/'))
+            d[k] = v if len(v) > 1 else v[0]
     return out
 
 
@@ -131,6 +132,16 @@ DETAIL = {
     'pmc': [('pmc1#', 'pmc', 'pmc1', '#'), ('pmc2#', 'pmc', 'pmc2', '#'),
             ('pmc3#', 'pmc', 'pmc3', '#'), ('pmc4#', 'pmc', 'pmc4', '#')],
     # screen re-uploads (UploadScreen) asked for, done, and each early return that skipped one
+    # the CD image (cd:, cdriso.c), the SD card's own commands beneath it (sd:, the driver
+    # wrapper in fileBrowser-libfat.c; times real only on a Wii), read-ahead and CHD.
+    # h1..hbig: card read commands of 1, 2-8, 9-32, 33-128, >128 sectors; kind 'k' = KB
+    'cd':  [('cdus', 'cd', 'total_us', '%'), ('reads#', 'cd', 'reads', '#'),
+            ('rand#', 'cd', 'rand', '#'), ('sdrd#', 'sd', 'rd', '#'), ('sdkb#', 'sd', 'sec', 'k'),
+            ('h1#', 'sd', 'h[0]', '#'), ('h8#', 'sd', 'h[1]', '#'), ('h32#', 'sd', 'h[2]', '#'),
+            ('h128#', 'sd', 'h[3]', '#'), ('hbig#', 'sd', 'h[4]', '#'), ('bg#', 'sd', 'bg', '#'),
+            ('sdus#', 'sd', 'us', '#'), ('worst#', 'sd', 'worst_us', '#'),
+            ('pfhit#', 'cdpf', 'hit', '#'), ('pfmiss#', 'cdpf', 'miss', '#'),
+            ('chdmiss#', 'chd', 'miss', '#')],
     'upl': [('calls#', 'efbloss', 'upl_calls', '#'), ('done#', 'efbloss', 'upl_done', '#'),
             ('dis#', 'uplret', 'dis', '#'), ('skip#', 'uplret', 'skip', '#'),
             ('rgb24#', 'uplret', 'rgb24', '#'), ('px1#', 'uplret', 'px1', '#'),
@@ -143,10 +154,13 @@ def detail(b, group):
     wall = b.get('wall', {}).get('wall_us', 0) or 1
     out = {}
     for col, line, key, kind in DETAIL[group]:
+        key, _, i = key.partition('[')   # 'h[2]': element 2 of h=a/b/c/...
         v = b.get(line, {}).get(key, 0)
         if isinstance(v, tuple):
-            v = v[0]
-        out[col] = 100.0 * v / wall if kind in '%/' else v
+            v = v[int(i[:-1]) if i else 0]
+        elif i and i != '0]':
+            v = 0
+        out[col] = 100.0 * v / wall if kind in '%/' else v // 2 if kind == 'k' else v
     return out
 
 

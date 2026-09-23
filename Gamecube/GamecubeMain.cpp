@@ -405,9 +405,16 @@ void loadSettings(int argc, char *argv[])
 	 * 5.2%, and choosing Gaussian over Simple is 2.1% of that. An older comment here said
 	 * the whole SPU was under 1% of a frame, which the measurement does not support. */
 	spuInterpolation = GAUSSI_INTERPOLATION;
-	cdBuffer         = CD_BUFFER_16K;       // the size the single shared buffer always had
-	cdPrefetch       = CD_PREFETCH_OFF;     // only real hardware can show what it buys; off until then
-	cdChdHunks       = CD_CHD_HUNKS_2;      // as before, now with a working LRU
+	/* The CD defaults, measured 2026-09-22 on eleven games (SETTINGS.md section 2):
+	 * 16 KB -- libfat reads the card in 32 KB pages whatever stdio asks, so a larger buffer
+	 *   only reads more (256 KB: +20% card commands); the counts are the same on a Wii.
+	 * read-ahead off -- it takes 77-90% of the card waits off the emulator thread with
+	 *   99.7% hits and no change in behaviour, but it is a disc-path thread only a Wii can
+	 *   clear: scripts/chains/cd_ab.txt decides it.
+	 * 8 hunks -- a true LRU never misses more with more ways; 8 cost about 160 KB of MEM2. */
+	cdBuffer         = CD_BUFFER_16K;
+	cdPrefetch       = CD_PREFETCH_OFF;
+	cdChdHunks       = CD_CHD_HUNKS_8;
 	xaDisabled       = XA_ENABLE;    // XA and CDDA audio both on by default
 	cddaDisabled     = CDDA_ENABLE;
 #ifdef RELEASE

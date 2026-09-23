@@ -33,6 +33,8 @@
 #include <sys/stat.h>
 #include "fileBrowser.h"
 #include <sdcard/gcsd.h>
+#include <ogc/lwp_watchdog.h>
+#include "../perf_prof.h"
 
 extern BOOL hasLoadedROM;
 extern int stop;
@@ -44,7 +46,53 @@ extern int stop;
 #ifdef HW_RVL
 #include <sdcard/wiisd_io.h>
 #include <ogc/usbstorage.h>
-const DISC_INTERFACE* frontsd = &__io_wiisd;
+/* The front SD slot is mounted through a copy of the driver's table whose read and write
+ * are counted and timed (perf.log "sd:", Gamecube/perf_prof.h), so a run says what the card
+ * itself was asked to do -- how many commands, of what size, and on a Wii how long each
+ * took. That is what decides the CD settings (SETTINGS.md CdBuffer, CdPrefetch). */
+extern int cd_prefetch_thread_is_self(void);   /* cdriso.c */
+static DISC_INTERFACE frontsd_counted;
+
+static bool sd_read_counted(sec_t sector, sec_t n, void *buffer)
+{
+	u64 t0 = gettime();
+	bool ok = __io_wiisd.readSectors(sector, n, buffer);
+	unsigned us = diff_usec(t0, gettime());
+	(void)us;
+	PERF_INC(sd_rd);
+	PERF_ADD(sd_rd_sec, n);
+	PERF_INC(sd_rd_hist[n <= 1 ? 0 : n <= 8 ? 1 : n <= 32 ? 2 : n <= 128 ? 3 : 4]);
+	if (cd_prefetch_thread_is_self()) {
+		PERF_INC(sd_rd_bg);
+		PERF_ADD(sd_rd_bg_us, us);
+	} else {
+		PERF_ADD(sd_rd_us, us);
+		PERF_MAX(sd_rd_worst_us, us);
+	}
+	return ok;
+}
+
+static bool sd_write_counted(sec_t sector, sec_t n, const void *buffer)
+{
+	u64 t0 = gettime();
+	bool ok = __io_wiisd.writeSectors(sector, n, buffer);
+	unsigned us = diff_usec(t0, gettime());
+	(void)us;
+	PERF_INC(sd_wr);
+	PERF_ADD(sd_wr_sec, n);
+	PERF_ADD(sd_wr_us, us);
+	PERF_MAX(sd_wr_worst_us, us);
+	return ok;
+}
+
+/* Before anything can use frontsd: the removal thread calls isInserted before a mount. */
+__attribute__((constructor)) static void frontsd_counted_init(void)
+{
+	frontsd_counted = __io_wiisd;
+	frontsd_counted.readSectors = sd_read_counted;
+	frontsd_counted.writeSectors = sd_write_counted;
+}
+const DISC_INTERFACE* frontsd = &frontsd_counted;
 const DISC_INTERFACE* usb = &__io_usbstorage;
 #endif
 const DISC_INTERFACE* carda = &__io_gcsda;

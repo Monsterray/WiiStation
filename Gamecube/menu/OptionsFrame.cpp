@@ -260,12 +260,12 @@ static const OptRow CD_ROWS[] =
 
 static const OptHelp CD_HELP[] =
 {
-	{ "CD Read Buffer:", "How much each disc-image file reads at a time. Larger" },
-	{ NULL,              "means fewer, longer card reads while a game streams." },
-	{ "CD Read-Ahead:",  "A thread keeps the next 31 sectors ready early. Raw" },
-	{ NULL,              "bin/cue and .iso only; it helps hardware, not Dolphin." },
+	{ "CD Read Buffer:", "16 KB is best: the card is read in 32 KB pages anyway," },
+	{ NULL,              "and a larger buffer only reads more than the game uses." },
+	{ "CD Read-Ahead:",  "A thread reads the next sectors early, so the game" },
+	{ NULL,              "waits less for the card. Raw bin/cue and .iso only." },
 	{ "CHD Hunk Cache:", "Decoded CHD hunks kept in memory, about 20 KB each." },
-	{ NULL,              "More keeps two areas of the disc warm." },
+	{ NULL,              "More never decodes more often: 8 is best." },
 	{ NULL,              "All three apply at the next game load." },
 };
 

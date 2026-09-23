@@ -397,6 +397,15 @@ typedef struct {
 	uint32_t cd_pf_hit;           /* sector served from the read-ahead ring */
 	uint32_t cd_pf_miss;          /* ring did not have it (or prefetch off: not counted) */
 	uint32_t cd_pf_reads;         /* sectors the read-ahead thread fetched */
+	/* The front SD card's own commands, beneath libfat's cache and stdio's buffers
+	 * (fileBrowser-libfat.c wraps the driver). Times are real on a Wii and ~0 under
+	 * Dolphin, whose card answers at once; the counts are exact on both. "bg" = issued by
+	 * the CD read-ahead thread, so the game did not wait for it. hist = read commands by
+	 * size: 1 sector, 2-8 (4 KB), 9-32 (16 KB), 33-128 (64 KB), more. */
+	uint32_t sd_rd, sd_rd_bg, sd_rd_worst_us, sd_rd_hist[5];
+	uint64_t sd_rd_sec, sd_rd_us, sd_rd_bg_us;
+	uint32_t sd_wr, sd_wr_worst_us;
+	uint64_t sd_wr_sec, sd_wr_us;
 	uint32_t chd_hit;             /* CHD hunk already resident */
 	uint32_t chd_miss;            /* CHD hunk decompressed */
 	uint32_t chd_err;             /* chd_read failures */
@@ -587,6 +596,7 @@ extern perf_carry_t g_carry;
 #define PERF_INC(f)    (g_perf.f++)
 #define PERF_ADD(f, n) (g_perf.f += (n))
 #define PERF_SET(f, v) (g_perf.f = (v))
+#define PERF_MAX(f, v) do { if ((v) > g_perf.f) g_perf.f = (v); } while (0)
 
 /* Append one record to the audio timeline (see aev[] above). cycle is the PSX cycle the
  * event belongs to; a, b, c are event-specific and documented in perf_prof.c. */
@@ -650,6 +660,7 @@ void perf_pad_event(unsigned pad, unsigned type, unsigned drv_btns, unsigned drv
 #define PERF_INC(f)    ((void)0)
 #define PERF_ADD(f, n) ((void)(n))
 #define PERF_SET(f, v) ((void)(v))
+#define PERF_MAX(f, v) ((void)(v))
 #define perf_audio_event(k, cy, a, b, c) ((void)0)
 static inline unsigned long long perf_now_us(void) { return 0; }
 static inline unsigned long long perf_now_ticks(void) { return 0; }

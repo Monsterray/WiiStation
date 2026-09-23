@@ -32,6 +32,7 @@ prints the table. Files in `scripts/chains/`:
 | `all.txt` | every game in the sync folder, 3600 vblanks each | ~12 min |
 | `three.txt` | Spyro (3D), Crash Bash (texture streaming), Micro Machines (FMV) | ~3.5 min |
 | `lc_ab.txt` | Spyro and Crash Bash with the locked cache off, then on | ~4.5 min |
+| `cd_ab.txt` | Spyro, Medievil, CTR, Point Blank with a 16/64/256 KB CD buffer, then 64 KB + read-ahead | ~17 min |
 | `fmv_ab.txt` | Micro Machines, Medievil, FF7 video with `FmvColour` 15-bit, then 24-bit | ~4.5 min |
 | `smoke.txt` | two short games: does a chain still work | ~40 s |
 | `gpu_carry.txt` | FF7, Medievil, FF7: does a game inherit GPU state from the last one (rows 1 and 3 must match) | ~3 min |
@@ -65,6 +66,7 @@ buttons and D-pad only, so a game that needs the analog sticks cannot be recorde
 | `wsx.sh table NAME --detail tex` | texture uploads: CLUT, tiling, new/unaligned/invalidated |
 | `wsx.sh table NAME --detail cpu` | slices, HLE soft calls, nested entries, BIOS, GTE |
 | `wsx.sh table NAME --detail lc` | locked-cache regions and DMA |
+| `wsx.sh table NAME --detail cd` | CD reads, the SD card's own commands (count, KB, size histogram, wait; times real on a Wii only), read-ahead hits, CHD misses |
 | `wsx.sh table NAME --detail pmc` | performance counters (a `pmc` build) |
 | `wsx.sh table NAME --detail upl` | screen re-uploads asked for and done, and which early return skipped the rest |
 | `wsx.sh compare A B [--detail G]` | two chains game by game: A, B, B - A |

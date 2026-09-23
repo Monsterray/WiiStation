@@ -375,6 +375,12 @@ static void *pf_main(void *arg)
 	return NULL;
 }
 
+/* fileBrowser-libfat.c's SD probe: is this card read the read-ahead thread's? */
+int cd_prefetch_thread_is_self(void)
+{
+	return pf_thread != LWP_THREAD_NULL && LWP_GetSelf() == pf_thread;
+}
+
 static void pf_kick(long pos)
 {
 	pf_want = pos + pf_secbytes;

@@ -617,6 +617,14 @@ void perf_report(void)
 			(unsigned long)g_perf.cd_reads, g_perf.cd_bytes,
 			(unsigned long)g_perf.cd_seq, (unsigned long)g_perf.cd_rand,
 			(unsigned long)g_perf.io_worst_us, g_perf.io_total_us);
+		fprintf(f, "sd: rd=%lu sec=%llu us=%llu worst_us=%lu bg=%lu bg_us=%llu"
+			" h=%lu/%lu/%lu/%lu/%lu wr=%lu wsec=%llu wus=%llu wworst_us=%lu\n",
+			(unsigned long)g_perf.sd_rd, g_perf.sd_rd_sec, g_perf.sd_rd_us,
+			(unsigned long)g_perf.sd_rd_worst_us, (unsigned long)g_perf.sd_rd_bg, g_perf.sd_rd_bg_us,
+			(unsigned long)g_perf.sd_rd_hist[0], (unsigned long)g_perf.sd_rd_hist[1],
+			(unsigned long)g_perf.sd_rd_hist[2], (unsigned long)g_perf.sd_rd_hist[3],
+			(unsigned long)g_perf.sd_rd_hist[4], (unsigned long)g_perf.sd_wr, g_perf.sd_wr_sec,
+			g_perf.sd_wr_us, (unsigned long)g_perf.sd_wr_worst_us);
 		fprintf(f, "cdpf: hit=%lu miss=%lu reads=%lu\n",
 			(unsigned long)g_perf.cd_pf_hit, (unsigned long)g_perf.cd_pf_miss,
 			(unsigned long)g_perf.cd_pf_reads);
