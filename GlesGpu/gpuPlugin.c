@@ -168,7 +168,7 @@ static BOOL    needUploadScreen = FALSE;
 static BOOL    uploadedScreen = FALSE;
 static BOOL    needFlipEGL = FALSE;
 static unsigned short    RGB24Uploaded = 0;
-extern u32 hSyncCount;   /* psxcounters.c: 0 in the picture, 240+ in the vblank (trace only) */
+extern u32 hSyncCount, frame_counter;   /* psxcounters.c: 0 in the picture, 240+ in the vblank (trace); vblanks */
 static unsigned short    GPUupdateLace5Flg = 0;
 
 // When display window / display mode has just changed, PreviousPSXDisplay may be stale.
@@ -854,6 +854,54 @@ glViewport(rRatioRect.left,
 // big ass check, if an ogl swap buffer is needed
 ////////////////////////////////////////////////////////////////////////
 
+/* The EFB size 240p mode (the TVMode setting) needs for the current PlayStation display:
+ * 240 lines for a display of 288 lines or fewer, 480 otherwise or with 240p off. Returns
+ * TRUE when iResX/iResY changed. This used to run only when the menu's 240p button had just
+ * been pressed (displayModeChanged), while GL_GPUopen() resets the size to 640x480 at every
+ * game start and switchToTVMode() puts the TV in 240p whenever the setting is on: with 240p
+ * saved in the settings, or on any game after the first, the EFB was drawn at 480 lines
+ * for a 240-line TV mode, and the picture was garbage (a purple screen in Spyro, a
+ * shifted, cropped one in Crash 3) until the button was pressed again. */
+/* switchToTVMode() for the current display, counted in perf.log ("tvmode:"). */
+static void SwitchTVModeForDisplay(void)
+{
+#ifdef PERF_PROF
+ if (g_perf.tv_calls < 8)
+  {
+   g_perf.tv_log[g_perf.tv_calls][0] = PSXDisplay.DisplayModeNew.x;
+   g_perf.tv_log[g_perf.tv_calls][1] = PSXDisplay.DisplayModeNew.y;
+   g_perf.tv_log[g_perf.tv_calls][2] = (unsigned short)frame_counter;
+  }
+#endif
+ PERF_INC(tv_calls);
+ PERF_SET(tv_w, PSXDisplay.DisplayModeNew.x);
+ PERF_SET(tv_h, PSXDisplay.DisplayModeNew.y);
+ PERF_SET(tv_y0, PSXDisplay.Range.y0);
+ PERF_SET(tv_y1, PSXDisplay.Range.y1);
+ PERF_SET(tv_height, PSXDisplay.Height);
+ PERF_SET(tv_double, PSXDisplay.Double);
+ gx_vout_wait_idle();
+ switchToTVMode(PSXDisplay.DisplayModeNew.x, PSXDisplay.DisplayModeNew.y, 0);
+}
+
+static BOOL TVModeResolution(void)
+{
+ int x = 640, y = 480;
+ if (originalMode == ORIGINALMODE_ENABLE && PSXDisplay.DisplayModeNew.y <= 288)
+  {
+   x = (PSXDisplay.DisplayModeNew.x <= 320) ? 640 : PSXDisplay.DisplayModeNew.x;
+   y = 240;
+  }
+ displayModeChanged = 0;
+ if (x == iResX && y == iResY)
+  return FALSE;
+ iResX = x;
+ iResY = y;
+ rRatioRect.right  = iResX;
+ rRatioRect.bottom = iResY;
+ return TRUE;
+}
+
 void updateDisplayIfChangedGl(void)
 {
 BOOL bUp;
@@ -883,27 +931,8 @@ else                                                  // some res change?
     txStarted = OnDisplayMappingWillChange(&proposed);
 
     if (originalMode == ORIGINALMODE_ENABLE)
-	{
-		gx_vout_wait_idle();
-		switchToTVMode(PSXDisplay.DisplayModeNew.x, PSXDisplay.DisplayModeNew.y, 0);
-	}
-    // Check if TVMode needs to be changed (240 or 480 lines)
-    if (displayModeChanged)
-    {
-        if (originalMode == ORIGINALMODE_ENABLE && PSXDisplay.DisplayModeNew.y <= 288)
-        {
-            iResX = (PSXDisplay.DisplayModeNew.x <= 320) ? 640 : PSXDisplay.DisplayModeNew.x;
-            iResY = 240;
-        }
-        else
-        {
-            iResX = 640;
-            iResY = 480;
-        }
-        rRatioRect.right  = iResX;
-        rRatioRect.bottom = iResY;
-        displayModeChanged = 0;
-    }
+		SwitchTVModeForDisplay();
+    TVModeResolution();   /* 240 or 480 lines, from the TVMode setting */
 
   glMatrixMode(GL_PROJECTION);
   glLoadIdentity(); glError();
@@ -1645,18 +1674,23 @@ void CheckVRamReadEx(int x, int y, int dx, int dy)
 
 void RestoreDispCopyInfo(void)
 {
-    float yscale = GX_GetYScaleFactor(vmode->efbHeight,vmode->xfbHeight);
+    /* The mode on the TV now: in 240p that is switchToTVMode()'s, not the menu's vmode,
+     * which put the display copy back to 480 lines after every EFB capture. The source goes
+     * first, because GX_SetDispCopyYScale() reads its height. */
+    extern GXRModeObj *g_tv_mode;   /* Gamecube/libgui/GraphicsGX.cpp */
+    GXRModeObj *m = g_tv_mode ? g_tv_mode : vmode;
+    GX_SetDispCopySrc(0,0,m->fbWidth,m->efbHeight);
+    float yscale = GX_GetYScaleFactor(m->efbHeight,m->xfbHeight);
     int xfbHeight = GX_SetDispCopyYScale(yscale);
-    GX_SetScissor(0,0,vmode->fbWidth,vmode->efbHeight);
-    GX_SetDispCopySrc(0,0,vmode->fbWidth,vmode->efbHeight);
-    GX_SetDispCopyDst(vmode->fbWidth,xfbHeight);
+    GX_SetScissor(0,0,m->fbWidth,m->efbHeight);
+    GX_SetDispCopyDst(VIDEO_PadFramebufferWidth(m->fbWidth),xfbHeight);
     // Honour the user's Deflicker setting rather than forcing it on: this runs
     // after every EFB snapshot capture in the VRAM-readback path, i.e. during
     // gameplay, so hardcoding GX_TRUE here silently re-enabled deflicker on
     // this plugin whenever a readback happened. (GraphicsGX.cpp deliberately
     // forces GX_TRUE for menu / return-to-menu contexts -- that stays as is.)
-    GX_SetCopyFilter(vmode->aa,vmode->sample_pattern,(deflickerFilter)?GX_TRUE:GX_FALSE,vmode->vfilter);
-    GX_SetFieldMode(vmode->field_rendering,((vmode->viHeight==2*vmode->xfbHeight)?GX_ENABLE:GX_DISABLE));
+    GX_SetCopyFilter(m->aa,m->sample_pattern,(deflickerFilter)?GX_TRUE:GX_FALSE,m->vfilter);
+    GX_SetFieldMode(m->field_rendering,((m->viHeight==2*m->xfbHeight)?GX_ENABLE:GX_DISABLE));
 }
 
 static inline unsigned short ReadGXRGB5A3PixelRaw(const unsigned char* buf, int texWidth, int px, int py)
@@ -2465,6 +2499,11 @@ static void flipEGL(void)
         g_efbContaminated = TRUE;
     }
 
+    /* The 240p button was pressed in the menu: a game that does not change its display mode
+     * again would otherwise keep the old EFB size. */
+    if (displayModeChanged && TVModeResolution() && bKeepRatio)
+        SetAspectRatio();
+
     // Check if TVMode needs to be changed (240 or 480 lines)
     if (originalMode == ORIGINALMODE_ENABLE)
     {
@@ -2472,8 +2511,7 @@ static void flipEGL(void)
         if(backFromMenu)
         {
             backFromMenu = 0;
-            gx_vout_wait_idle();
-            switchToTVMode(PSXDisplay.DisplayModeNew.x, PSXDisplay.DisplayModeNew.y, 0);
+            SwitchTVModeForDisplay();
         }
     }
 

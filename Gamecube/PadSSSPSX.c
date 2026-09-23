@@ -251,17 +251,23 @@ static void UpdateState (const int pad) //Note: pad = 0 or 1
 			}
 		else{
 			if ((global.padID[pad] == 0x31) || (global.padID[pad] == 0x63) || (global.padID[pad] == 0x12))
-			PADsetMode( pad, controllerType == CONTROLLERTYPE_ANALOG ? 1 : 0);
+			PADsetMode( pad, 0);   /* back from a light gun: a pad, in digital mode */
 		}
 	}
 	else{
 		if ((global.padID[pad] == 0x31) || (global.padID[pad] == 0x63) || (global.padID[pad] == 0x12))
-		PADsetMode( pad, controllerType == CONTROLLERTYPE_ANALOG ? 1 : 0);
+		PADsetMode( pad, 0);
 	}
 #endif
 
-	if (global.padMode1[pad] != controllerType)
-		PADsetMode( pad, controllerType == CONTROLLERTYPE_ANALOG ? 1 : 0);
+	/* ControllerType Analog is a DualShock: digital at power-on (SSS_PADopen), and the game
+	 * switches it to analog with config command 0x44 when it wants the sticks. This used to
+	 * force analog mode on every poll, which undid the game's own choice and left games that
+	 * only understand a digital pad (ID 0x41) ignoring every button -- as a real PlayStation
+	 * does with the DualShock's analog light on. Standard ignores config commands, so a pad
+	 * left in analog mode goes back to digital here. */
+	if (controllerType != CONTROLLERTYPE_ANALOG && global.padMode1[pad])
+		PADsetMode( pad, 0);
 
 	if(virtualControllers[Control].inUse)
 	{
@@ -417,7 +423,7 @@ long SSS_PADopen (void *p)
 	memset( &lastport2, 0, sizeof(lastport2) ) ;
 	for(i = 0; i < 10; i++){
 		global.padStat[i] = 0xffff;
-		PADsetMode (i, controllerType == CONTROLLERTYPE_ANALOG ? 1 : 0);  //port 0, analog
+		PADsetMode (i, 0);   /* digital at power-on, as a DualShock is: the game switches it */
 	}
 	return 0;
 }
@@ -517,6 +523,8 @@ unsigned char SSS_PADpoll (const unsigned char value)
 	{
 		global.curByte++;
 		global.curCmd = value;
+		if (pad == 0 && (value & 0xf0) == 0x40)
+			PERF_INC(pad_cmd[value & 0x0f]);
 		if (controllerType != CONTROLLERTYPE_ANALOG)
 		{
 			if (value != 0x42)
@@ -591,6 +599,13 @@ unsigned char SSS_PADpoll (const unsigned char value)
 				//{
   				// do some pressure stuff (this is for PS2 only!)
 				//}
+#ifdef PERF_PROF
+				if (pad == 0 && !g_perf.pad_press_len && global.padStat[pad] != 0xffff) {
+					g_perf.pad_press_id = (u8)global.padID[pad];
+					g_perf.pad_press_len = (u8)global.cmdLen;
+					memcpy(g_perf.pad_press, buf.b8, 8);
+				}
+#endif
 				return (u8)global.padID[pad];
 			}
 			break;

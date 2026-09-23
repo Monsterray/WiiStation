@@ -292,6 +292,10 @@ typedef struct {
 	 * OffscreenSoftDraw), and pad-plugin activity: SIO start-polls, pad state
 	 * refreshes and calls into the scripted-input mask */
 	uint32_t off_soft_prims, off_soft_rejected, pad_startpoll, pad_update, ai_calls;
+	/* Port 1's protocol (Gamecube/PadSSSPSX.c): commands by type (0x40..0x4F), and the
+	 * first reply to a 0x42 poll sent while a button was held: its ID and bytes. */
+	uint32_t pad_cmd[16];
+	uint8_t pad_press_id, pad_press_len, pad_press[8];
 	/* Where already-drawn EFB content can be lost again: screen re-uploads from
 	 * psxVuw (which has no GX-drawn primitives in it) and the present's clear. */
 	uint32_t upl_calls, upl_done, pres_total, pres_clear, pres_skipped;
@@ -406,6 +410,10 @@ typedef struct {
 	uint64_t sd_rd_sec, sd_rd_us, sd_rd_bg_us;
 	uint32_t sd_wr, sd_wr_worst_us;
 	uint64_t sd_wr_sec, sd_wr_us;
+	/* 240p mode (GlesGpu/gpuPlugin.c): switchToTVMode() calls, and the last one's size and
+	 * the display range and height it came from. */
+	uint32_t tv_calls, tv_w, tv_h, tv_y0, tv_y1, tv_height, tv_double;
+	uint16_t tv_log[8][3];        /* the first 8 calls: width, height, vblank */
 	uint32_t chd_hit;             /* CHD hunk already resident */
 	uint32_t chd_miss;            /* CHD hunk decompressed */
 	uint32_t chd_err;             /* chd_read failures */

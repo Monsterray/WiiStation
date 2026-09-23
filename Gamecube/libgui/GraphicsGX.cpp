@@ -68,6 +68,12 @@ short      texCacheUsedInfo[8];
 
 
 extern u32* xfb[3];
+/* The XFB size switchToTVMode() last set up (bytes per line / 2, lines): perf_prof.c's
+ * 'dump <vblank>' writes the front XFB with it (xfb.bin, scripts/xfb2png.py). */
+extern "C" { unsigned g_xfb_w = 640, g_xfb_h = 480; }
+/* The video mode switchToTVMode() last set (NULL until then: the menu's vmode). A display
+ * copy reset during a game has to use this one, not vmode (GlesGpu RestoreDispCopyInfo). */
+extern "C" { GXRModeObj *g_tv_mode = NULL; }
 enum {
 	FB_BACK,
 	FB_NEXT,
@@ -166,13 +172,20 @@ extern "C" void switchToTVMode(short dWidth, short dHeight, bool retMenu){
 
 	GX_SetCopyClear(background, 0x00ffffff);
 	GX_SetViewport(0.0F, 0.0F, rmode->fbWidth, rmode->efbHeight, 0.0F, 1.0F);
+	/* The source first: GX_SetDispCopyYScale() works out the XFB's line count from the copy
+	 * source height already set. Called before it, it used the previous mode's height, so
+	 * a switch from 480 lines to 240p copied 480 lines into a 240-line XFB: the picture came
+	 * out as four narrow copies with interleaved lines. */
+	GX_SetDispCopySrc(0,0,rmode->fbWidth,rmode->efbHeight);
 	yscale = GX_GetYScaleFactor(rmode->efbHeight,rmode->xfbHeight);
 	xfbHeight = GX_SetDispCopyYScale(yscale);
 	xfbWidth = VIDEO_PadFramebufferWidth(rmode->fbWidth);
 	GX_SetScissor(0,0,rmode->fbWidth,rmode->efbHeight);
 	GX_SetPixelFmt(GX_PF_RGB8_Z24, GX_ZC_LINEAR);
-	GX_SetDispCopySrc(0,0,rmode->fbWidth,rmode->efbHeight);
 	GX_SetDispCopyDst(xfbWidth, xfbHeight);
+	g_xfb_w = xfbWidth;
+	g_xfb_h = xfbHeight;
+	g_tv_mode = rmode;
 	GX_SetFieldMode(rmode->field_rendering,((rmode->viHeight==2*rmode->xfbHeight)?GX_ENABLE:GX_DISABLE));
 	GX_SetCullMode(GX_CULL_NONE);
 	GX_SetDispCopyGamma(GX_GM_1_0);
@@ -307,10 +320,10 @@ void Graphics::init()
 	GX_SetCopyClear(background, GX_MAX_Z24);
 
 	GX_SetViewport(0,0,vmode->fbWidth,vmode->efbHeight,0,1);
+	GX_SetDispCopySrc(0,0,vmode->fbWidth,vmode->efbHeight);   /* before the scale: see switchToTVMode */
 	yscale = GX_GetYScaleFactor(vmode->efbHeight,vmode->xfbHeight);
 	xfbHeight = GX_SetDispCopyYScale(yscale);
 	GX_SetScissor(0,0,vmode->fbWidth,vmode->efbHeight);
-	GX_SetDispCopySrc(0,0,vmode->fbWidth,vmode->efbHeight);
 	GX_SetDispCopyDst(vmode->fbWidth,xfbHeight);
 	GX_SetCopyFilter(vmode->aa,vmode->sample_pattern,GX_TRUE,vmode->vfilter);
 	GX_SetFieldMode(vmode->field_rendering,((vmode->viHeight==2*vmode->xfbHeight)?GX_ENABLE:GX_DISABLE));

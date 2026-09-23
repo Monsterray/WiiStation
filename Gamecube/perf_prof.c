@@ -164,6 +164,20 @@ static void perf_vram_dump(void)
 		if (psxVuw) n = fwrite(psxVuw, 1, 1024u * 512u * 2u, f);
 		fclose(f);
 	}
+	/* The XFB the TV shows: an 8-byte header (width, height, big-endian u32) and YUYV.
+	 * Under Dolphin it holds the copies only with XFB_RAM=1 (XFBToTextureEnable=False). */
+	{
+		extern u32 *xfb[3];
+		extern unsigned g_xfb_w, g_xfb_h;
+		unsigned hdr[2] = { g_xfb_w, g_xfb_h };
+		f = fopen("sd:/wiisxrx/xfb.bin", "wb");
+		if (f) {
+			fwrite(hdr, 4, 2, f);
+			if (xfb[2])   /* FB_FRONT in SoftGPU/drawGX.c */
+				fwrite(MEM_K1_TO_K0(xfb[2]), 2, g_xfb_w * g_xfb_h, f);
+			fclose(f);
+		}
+	}
 	f = fopen("sd:/wiisxrx/perf.log", "a");
 	if (f) {
 		fprintf(f, "vramdump: frames=%lu vblanks=%lu bytes=%lu\n",
@@ -539,6 +553,17 @@ void perf_report(void)
 			(unsigned long)g_perf.off_soft_prims, (unsigned long)g_perf.off_soft_rejected,
 			(unsigned long)g_perf.pad_startpoll, (unsigned long)g_perf.pad_update, (unsigned long)g_perf.ai_calls);
 		{
+			unsigned k;
+			fprintf(f, "padproto:");
+			for (k = 0; k < 16; k++)
+				if (g_perf.pad_cmd[k])
+					fprintf(f, " %02x=%lu", 0x40 + k, (unsigned long)g_perf.pad_cmd[k]);
+			fprintf(f, " | press id=%02x len=%u bytes=", g_perf.pad_press_id, g_perf.pad_press_len);
+			for (k = 0; k < 8; k++)
+				fprintf(f, "%02x", g_perf.pad_press[k]);
+			fprintf(f, "\n");
+		}
+		{
 			extern char padType[10];
 			fprintf(f, "sio: write8=%lu start=%lu ctrl16=%lu read8=%lu irq=%lu padtype0=%d\n",
 				(unsigned long)g_perf.sio_write8, (unsigned long)g_perf.sio_start, (unsigned long)g_perf.sio_ctrl16,
@@ -625,6 +650,16 @@ void perf_report(void)
 			(unsigned long)g_perf.sd_rd_hist[2], (unsigned long)g_perf.sd_rd_hist[3],
 			(unsigned long)g_perf.sd_rd_hist[4], (unsigned long)g_perf.sd_wr, g_perf.sd_wr_sec,
 			g_perf.sd_wr_us, (unsigned long)g_perf.sd_wr_worst_us);
+		fprintf(f, "tvmode: calls=%lu w=%lu h=%lu range=%lu-%lu height=%lu double=%lu\n",
+			(unsigned long)g_perf.tv_calls, (unsigned long)g_perf.tv_w, (unsigned long)g_perf.tv_h,
+			(unsigned long)g_perf.tv_y0, (unsigned long)g_perf.tv_y1,
+			(unsigned long)g_perf.tv_height, (unsigned long)g_perf.tv_double);
+		{
+			unsigned k;
+			for (k = 0; k < g_perf.tv_calls && k < 8; k++)
+				fprintf(f, "tvlog: %ux%u at vblank %u\n", g_perf.tv_log[k][0],
+					g_perf.tv_log[k][1], g_perf.tv_log[k][2]);
+		}
 		fprintf(f, "cdpf: hit=%lu miss=%lu reads=%lu\n",
 			(unsigned long)g_perf.cd_pf_hit, (unsigned long)g_perf.cd_pf_miss,
 			(unsigned long)g_perf.cd_pf_reads);
