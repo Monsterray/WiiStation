@@ -2,7 +2,7 @@
 # wsx.sh -- the short way round the build / run / read loop, for people and for models
 # working with a small context: one command per step, one screen of output per step.
 #
-#   scripts/wsx.sh build debug|release [all|light|min]   build through the devkitPro shell;
+#   scripts/wsx.sh build debug|release [all|light|min|deep|pmc]  build through the devkitPro shell;
 #                                                         prints the DOL and its time, or the errors
 #   scripts/wsx.sh run NAME [options]                     one unattended Dolphin run, then its summary
 #        --dol debug|release|PATH   what to boot (default debug). The DOL is COPIED into the
@@ -22,6 +22,10 @@
 #                                   runs until the console powers off, prints scripts/chain_table.py.
 #                                   Same options as run; --secs is the limit for the whole chain.
 #   scripts/wsx.sh summary NAME...                        re-read finished runs (run_summary.py)
+#   scripts/wsx.sh table NAME [--detail gpu|tex|cpu|lc|pmc]  a chain's per-game table (chain_table.py)
+#   scripts/wsx.sh compare A [B] [--detail GROUP]         two chains, or one A/B chain's pairs (chain_compare.py)
+#   scripts/wsx.sh frames A B [--crop OUT.png]            two runs' frame dumps, pixel by pixel (frame_compare.py)
+#   scripts/wsx.sh audio A B                              two runs' audio dumps, sample by sample (wav_compare.py --exact)
 #   scripts/wsx.sh last                                   summary of the newest run
 #   scripts/wsx.sh runs                                   list runs
 #
@@ -144,6 +148,22 @@ chain)
 	done
 	bash "$0" run "$name" --autoboot "$cf" --input "$P/autoinput_none.txt" --nodump --env FRAMES_DUMP=False ${cardargs[@]+"${cardargs[@]}"} "$@" | grep -v "^  "
 	python "$REPO/scripts/chain_table.py" "$RUNS/$name"
+	;;
+
+table)
+	n="$1"; shift; python "$REPO/scripts/chain_table.py" "$RUNS/$n" "$@"
+	;;
+compare)
+	a=(); for x in "$@"; do case "$x" in --*|gpu|tex|cpu|lc|pmc) a+=("$x") ;; *) a+=("$RUNS/$x") ;; esac; done
+	python "$REPO/scripts/chain_compare.py" "${a[@]}"
+	;;
+frames)
+	a="$1"; b="$2"; shift 2; python "$REPO/scripts/frame_compare.py" "$RUNS/$a" "$RUNS/$b" "$@"
+	;;
+audio)
+	wa=$(ls "$RUNS/$1"/*dspdump1.wav 2>/dev/null | head -1); wb=$(ls "$RUNS/$2"/*dspdump1.wav 2>/dev/null | head -1)
+	[ -n "$wa" ] && [ -n "$wb" ] || { echo "no *dspdump1.wav in both runs (run them without --nodump)"; exit 2; }
+	python "$REPO/scripts/wav_compare.py" "$wa" "$wb" --exact | tail -3
 	;;
 
 summary)

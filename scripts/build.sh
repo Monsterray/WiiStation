@@ -55,12 +55,19 @@ cd "$REPO_ROOT"
 #   PROBES=all    everything (the default, same as before)
 #   PROBES=light  no primitive tracing, no GX sample rings -- keeps every counter
 #   PROBES=min    also drops the per-slice CPU timing
+#   PROBES=deep   light plus the GPU, GTE and SPU splits (chain_table.py --detail)
+#   PROBES=pmc    light plus Broadway's performance counters (hardware sessions)
 #   PROBES="-DPERF_PROF_TRACE=0"   pass your own defines
 # See the sub-gate comments in Gamecube/perf_prof.h for what each group costs.
 case "${PROBES:-all}" in
 	all)   PROBE_DEFINES="" ;;
 	light) PROBE_DEFINES="-DPERF_PROF_TRACE=0 -DPERF_PROF_GPU=0" ;;
 	min)   PROBE_DEFINES="-DPERF_PROF_TRACE=0 -DPERF_PROF_GPU=0 -DPERF_PROF_CPU=0" ;;
+	# deep: every split used to rank the subsystems (Docs/GPU_CPU_PLAN.md) -- the GPU, the GTE
+	# and the SPU split on top of light. What chain_table.py --detail reads. Costs ~1% of wall.
+	deep)  PROBE_DEFINES="-DPERF_PROF_TRACE=0 -DPERF_PROF_GPU=0 -DPERF_PROF_GPUSPLIT=1 -DPERF_PROF_GTE=1 -DPERF_PROF_SPU=1" ;;
+	# pmc: light plus Broadway's performance counters, for a hardware session.
+	pmc)   PROBE_DEFINES="-DPERF_PROF_TRACE=0 -DPERF_PROF_GPU=0 -DPERF_PROF_PMC=1" ;;
 	*)     PROBE_DEFINES="$PROBES" ;;
 esac
 [ -n "$PROBE_DEFINES" ] && echo "probe gates: $PROBE_DEFINES"

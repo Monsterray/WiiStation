@@ -1,6 +1,17 @@
 # GPU and recompiled-code plan
 
-Status: plan, 2026-09-22. No item below is implemented yet unless it says so.
+Status, end of 2026-09-22 (commits b11b30d and after). Eleven-game means before -> after:
+HLE 4.7% -> 3.3% of wall, load 50.0% -> 48.7%.
+
+| item | state | measured |
+|---|---|---|
+| C1 HLE handlers | **done** | 81-97% of recompiler entries were single blocks; HLE share halved in the 3D games |
+| G2 FMV present | **split done; most of it was a debug-only hash**, now guarded | Micro Machines 14.4% -> 4.2%. The rest waits for the LC; 24-bit FMV is shown at 15-bit colour -- a fidelity question for the user |
+| G1 tiling | **1 and 2 done** (block-aligned placement, flush only the rows written); 3 not needed yet | unaligned uploads 83% -> 0; Crash Bash 6.1% -> 4.0% |
+| G3 GX state cache | **done** | skips 96% of GX state calls; 0.6-0.7% of wall in Dolphin, more GP traffic saved on a Wii |
+| LC | **system done** (`Docs/LOCKED_CACHE.md`): `spu-gauss`, `tex-tile`, off by default | frames and audio proven identical; the gain needs a Wii |
+
+The sections below are the plan as written, kept for its reasoning.
 Evidence: the eleven-game chained run `baselines/chain_all_20260922/` (debug build, every
 probe on, Dolphin) and the three-game runs `.runs/three_flip`, `.runs/three_nolog`.
 

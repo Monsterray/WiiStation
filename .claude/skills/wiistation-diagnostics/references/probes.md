@@ -101,6 +101,29 @@ the fraction of mixer calls that found the output driver busy. Records:
 Lines are `ae: <kind> w=<wall_us> c=<psx cycle> a=.. b=.. f=..`. Emulated ms = cycles / 33868.8.
 How this settled the Spyro speech gaps is in case-studies.md.
 
+## Broadway performance counters (PERF_PROF_PMC) -- the wrap below is FIXED
+
+`perf_pmc_read()` (`Gamecube/perf_prof.c`) reads PMC1..4 once, at report time, over the
+whole run. The counters are 32 bits: at 729 MHz a cycle count wraps every ~5.9 s, so on a
+Wii any run longer than that reports the total modulo 2^32 -- meaningless, and it will not
+look wrong. (Found while porting the probe to Wii64, September 2026; Dolphin's numbers hide
+it because a Dolphin run's cycle count is not the Wii's.) The fix Wii64 uses
+(`main/perf_prof.c` there): read the four counters at every periodic sample (well under
+5.9 s apart) and add `(u32)(now - last)` into 64-bit totals. See the wii-homebrew skill's
+"Standards shared by the projects here".
+
+**Fixed 2026-09-22:** `perf_pmc_read()` now runs at every present and sums 32-bit deltas into
+64-bit totals (`g_perf.pmc[]`, `pmc_last[]`). Checked under Dolphin: 7.6 billion cycles in
+one 10 s game, 728.6 per microsecond. Build it with `PROBES=pmc`.
+
+## Probes added 2026-09-22 (perf.log lines)
+
+`gte:` (PERF_PROF_GTE), `gpusplit:`/`gpuprim:`/`gpudeep:`/`gpudraw:`/`gpuregs:`/`gpuflip:`/
+`gpupres:`/`gxcache:` (PERF_PROF_GPUSPLIT), `nested:` (slices entered re-entrantly by HLE),
+`softcall:` (HLE soft calls: runs/steps/escapes), `lc:` (locked-cache regions and DMA). All
+are in the `deep` preset except `lc:`, which is always written. `scripts/chain_table.py
+--detail` reads them; the reference is references/measuring.md.
+
 ## VRAM dump
 
 `dump <vblank>` (autoinput.txt) or the fallback at vblank 6000 writes the whole 1 MB `psxVuw`

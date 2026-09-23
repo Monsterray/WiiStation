@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""wav_compare.py A.wav [B.wav] [--window-ms N]
+"""wav_compare.py A.wav [B.wav] [--window-ms N] [--exact]
 
 Summarise, and optionally compare, the audio Dolphin dumps with
 `-C Dolphin.DSP.DumpAudio=True` (User/Dump/Audio/*_dspdump.wav). Used to check an output
@@ -13,6 +13,13 @@ left at a shift of -1, 0 and +1 frames: dual-mono content should peak at 0, and 
 +1 or -1 means an output stage put the channels one sample apart (case study 9). With two files it also prints the difference in
 those figures, and, when the two have the same length, a sample-by-sample correlation --
 which is the useful number when the same script was run through two different drivers.
+
+--exact: are the two dumps the same samples? Prints the first differing frame, how many
+differ and by how much, and exits 1 when they differ. Two runs of the same build and chain
+under Dolphin are bit-identical, so this proves a change leaves the audio alone -- or, when
+they differ, says from which frame. Note the output stage's rate control (dfsound/ratectl.c)
+steers by Wii time: a change that moves Wii-side timing moves the resampled output even when
+the SPU's samples are the same, so a difference here is not by itself a mixer fault.
 
 Standard library only (the wave and audioop modules), so it runs anywhere Python does."""
 import sys, wave, math, struct, array
@@ -181,6 +188,30 @@ def show(name, w, st):
     print(f"  short zero gaps (1 ms..1 s, inside the sound) {st['gaps']}   totalling {st['gap_ms']} ms")
 
 
+def exact(a, b):
+    """Sample-for-sample comparison; returns the exit status."""
+    x, y, ch = a["samples"], b["samples"], a["ch"]
+    if a["ch"] != b["ch"] or a["rate"] != b["rate"]:
+        print("different formats"); return 1
+    n = min(len(x), len(y))
+    first, count, big = None, 0, 0
+    for i in range(n):
+        d = abs(x[i] - y[i])
+        if d:
+            count += 1
+            big = max(big, d)
+            if first is None:
+                first = i // ch
+    print("frames: A %d, B %d; compared %d" % (a["frames"], b["frames"], n // ch))
+    if first is None and a["frames"] == b["frames"]:
+        print("identical"); return 0
+    if first is None:
+        print("identical over the overlap; lengths differ"); return 1
+    print("first difference at frame %d (%.3f s); %d samples differ, largest by %d"
+          % (first, first / a["rate"], count, big))
+    return 1
+
+
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     window = int(sys.argv[sys.argv.index("--window-ms") + 1]) if "--window-ms" in sys.argv else 100
@@ -192,7 +223,10 @@ def main():
     if len(args) < 2:
         return
 
-    b = read_wav(args[1]); sb = stats(b, window)
+    b = read_wav(args[1])
+    if "--exact" in sys.argv:
+        sys.exit(exact(a, b))
+    sb = stats(b, window)
     print()
     show("B " + args[1], b, sb)
     print()

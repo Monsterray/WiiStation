@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""chain_table.py RUN_DIR [--csv OUT.csv]
+"""chain_table.py RUN_DIR [--csv OUT.csv] [--detail GROUP]
 
 Split the perf.log of a chained autoboot (several games in one boot; see GamecubeMain.cpp)
 into its games, and print where each game's time went, as shares of its wall time.
 
 perf.log holds, per game, one or more "--- perf" blocks -- each a running total since the
-game started -- and then the line "=== chain <n>/<total> end vblanks=<v> rom=<file> ===".
+game started -- and then the line "=== chain <n>/<total> end vblanks=<v> [set=K=V,...] rom=<file> ===".
+A game run with settings of its own is named with them, e.g. "Crash Bash LockedCache=2".
 The last block before each end line is that game's whole run.
 
 Also takes each game's VRAM snapshot (sd:/wiisxrx/vram_NN.bin) off the card image and draws
@@ -23,6 +24,16 @@ The columns, all percent of wall except where named:
   spu     the sound mixer, its output resampler included
   mdec    video decode (psxDma1)
   cd      CD sector reads
+
+--detail GROUP prints one of these instead: the sub-lines each probe writes, per game, so a
+question about one subsystem needs no hand-written parsing. Percent of wall unless a name
+ends in '#' (a count). The groups and their fields are the DETAIL table below; add a field
+there when a probe gains one.
+  gpu   the GPU split: command loop parts, primitive classes, the OpenGX draw, GP1, present
+  tex   texture uploads: CLUT expansion, tiling, new/unaligned/invalidated counts
+  cpu   slices, the HLE soft calls, nested entries, BIOS, GTE
+  lc    the locked cache: which regions, DMA traffic, waiting
+  pmc   Broadway's counters (needs a PERF_PROF_PMC=1 build)
 """
 import os
 import re
@@ -31,7 +42,7 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
-END = re.compile(r'^=== chain (\d+)/(\d+) end vblanks=(\d+) rom=(.*) ===')
+END = re.compile(r'^=== chain (\d+)/(\d+) end vblanks=(\d+)(?: set=(\S+))? rom=(.*) ===')
 PAIR = re.compile(r'(\w+)=(-?\d+)(?:/(\d+))?')
 
 
@@ -59,7 +70,8 @@ def games(path):
             continue
         m = END.match(ln)
         if m:
-            res.append((int(m.group(1)), m.group(4), int(m.group(3)),
+            rom = m.group(5) + (' {%s}' % m.group(4) if m.group(4) else '')
+            res.append((int(m.group(1)), rom, int(m.group(3)),
                         parse_block(blocks[-1]) if blocks else {}))
             blocks, cur = [], None
             continue
@@ -93,6 +105,49 @@ def row(b, vbl):
 
 COLS = ['load', 'speed', 'psx', 'gte', 'gpu', 'poly', 'hle', 'spu', 'mdec', 'cd']
 
+# (column, perf.log line, field, kind): kind '%' = microseconds shown as percent of wall,
+# '#' = a count, '/' = the first number of a "time/count" pair as percent of wall.
+DETAIL = {
+    'gpu': [('gpu', 'inside', 'hw_gpu_us', '%'), ('parse', 'gpusplit', 'parse_us', '%'),
+            ('vram', 'gpusplit', 'vram_us', '%'), ('offscr', 'gpusplit', 'off_us', '%'),
+            ('prim', 'gpusplit', 'prim_us', '%'), ('poly', 'gpuprim', 'poly', '/'),
+            ('rect', 'gpuprim', 'rect', '/'), ('fill', 'gpuprim', 'misc', '/'),
+            ('ogx', 'gpudraw', 'ogx_us', '%'), ('state', 'gpudraw', 'state_us', '%'),
+            ('vfmt', 'gpudraw', 'common_us', '%'), ('texsel', 'gpudraw', 'tex_us', '%'),
+            ('gp1', 'gpuregs', 'gp1_us', '%'), ('upload', 'gpupres', 'upload_us', '%')],
+    'tex': [('conv', 'texk', 'conv_us', '%'), ('tile', 'texk', 'tile_us', '%'),
+            ('new#', 'ogx', 'sub_new', '#'), ('unalgn#', 'ogx', 'unaligned', '#'),
+            ('hits#', 'ogx', 'sub_hit', '#'), ('inval#', 'ogxdraw', 'inval', '#'),
+            ('ddone#', 'gpu', 'drawdone', '#')],
+    'cpu': [('sched', 'slicecost', 'sched_us', '%'), ('jit', 'slicecost', 'jit_us', '%'),
+            ('post', 'slicecost', 'post_us', '%'), ('nest#', 'nested', 'n', '#'),
+            ('nsched', 'nested', 'sched_us', '%'), ('njit', 'nested', 'jit_us', '%'),
+            ('runs#', 'softcall', 'runs', '#'), ('steps#', 'softcall', 'steps', '#'),
+            ('escp#', 'softcall', 'escapes', '#'), ('runesc#', 'softcall', 'run_escapes', '#'),
+            ('bios', 'bios', 'us', '%'), ('exc#', 'bios', 'exc', '#'), ('gte', 'gte', 'us', '%')],
+    'lc':  [('mask#', 'lc', 'mask', '#'), ('stores#', 'lc', 'stores', '#'),
+            ('storekb#', 'lc', 'store_kb', '#'), ('loads#', 'lc', 'loads', '#'),
+            ('waitus#', 'lc', 'wait_us', '#')],
+    'pmc': [('pmc1#', 'pmc', 'pmc1', '#'), ('pmc2#', 'pmc', 'pmc2', '#'),
+            ('pmc3#', 'pmc', 'pmc3', '#'), ('pmc4#', 'pmc', 'pmc4', '#')],
+}
+
+
+def detail(b, group):
+    """{column: value} for one game's block."""
+    wall = b.get('wall', {}).get('wall_us', 0) or 1
+    out = {}
+    for col, line, key, kind in DETAIL[group]:
+        v = b.get(line, {}).get(key, 0)
+        if isinstance(v, tuple):
+            v = v[0]
+        out[col] = 100.0 * v / wall if kind in '%/' else v
+    return out
+
+
+def fmt(col, v):
+    return '%8d' % v if col.endswith('#') else '%8.2f' % v
+
 
 def vram_pictures(run, n):
     card = os.path.join(os.environ.get('WSX_PROFILE', os.path.join(REPO, '.dolphin')),
@@ -117,20 +172,33 @@ def main():
         sys.exit('%s: no "=== chain" lines -- not a chained run, or it ended before the '
                  'first game did' % log)
     vram_pictures(run, len(gs))
-    print('%-34s %6s %6s ' % ('game', 'vbl', 'wall') + ' '.join('%6s' % c for c in COLS))
+    if '--detail' in sys.argv:
+        group = sys.argv[sys.argv.index('--detail') + 1]
+        cols = [c for c, _, _, _ in DETAIL[group]]
+        print('%-46s ' % 'game' + ' '.join('%8s' % c for c in cols))
+        for n, rom, vbl, b in gs:
+            base, _, sets = rom.partition(' {')
+            name = re.sub(r'\s*[\[(].*$', '', os.path.splitext(base)[0])
+            name = (name + (' ' + sets.rstrip('}') if sets else ''))[:46]
+            d = detail(b, group)
+            print('%-46s ' % name + ' '.join(fmt(c, d[c]) for c in cols))
+        return
+    print('%-46s %6s %6s ' % ('game', 'vbl', 'wall') + ' '.join('%6s' % c for c in COLS))
     rows = []
     for n, rom, vbl, b in gs:
-        name = re.sub(r'\s*[\[(].*$', '', os.path.splitext(rom)[0])[:34]
+        base, _, sets = rom.partition(' {')
+        name = re.sub(r'\s*[\[(].*$', '', os.path.splitext(base)[0])
+        name = (name + (' ' + sets.rstrip('}') if sets else ''))[:46]
         r = row(b, vbl)
         if r is None:
-            print('%-34s %6d   (no perf block: did not start, or a release build)' % (name, vbl))
+            print('%-46s %6d   (no perf block: did not start, or a release build)' % (name, vbl))
             continue
         rows.append((name, vbl, r))
-        print('%-34s %6d %6.1f ' % (name, vbl, r['wall_s'])
+        print('%-46s %6d %6.1f ' % (name, vbl, r['wall_s'])
               + ' '.join('%6.1f' % r[c] if c != 'speed' else '%6.2f' % r[c] for c in COLS))
     if len(rows) > 1:
         m = {c: sum(r[c] for _, _, r in rows) / len(rows) for c in COLS}
-        print('%-34s %6s %6s ' % ('mean of %d' % len(rows), '', '')
+        print('%-46s %6s %6s ' % ('mean of %d' % len(rows), '', '')
               + ' '.join('%6.1f' % m[c] if c != 'speed' else '%6.2f' % m[c] for c in COLS))
     if '--csv' in sys.argv:
         with open(sys.argv[sys.argv.index('--csv') + 1], 'w') as f:

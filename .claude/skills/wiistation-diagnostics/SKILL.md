@@ -1,6 +1,6 @@
 ---
 name: wiistation-diagnostics
-description: How to triage and fix WiiStation (Wii/GameCube PlayStation 1 emulator) rendering, input and timing bugs without a human at the controls — boot a game or the BIOS shell unattended in Dolphin, drive it with a scripted input file, instrument the debug build with counters and primitive traces, dump frames and VRAM, read the logs back out of the SD image, and decide from evidence instead of guessing. Use this skill whenever the task touches the OpenGX/GlesGpu plugin, the soft GPU plugins, "artifacts", "black screen", "missing textures", "transparent/opaque", "pause screen", the PSX BIOS shell, controller/pad input not working, a Dolphin frame dump or movie, perf.log or ptrace.log, autoboot.txt or autoinput.txt, or any request to reproduce, bisect or verify emulator behaviour on this machine — even if the user just says "the game looks wrong" or "can you check what the emulator does".
+description: How to triage and fix WiiStation (Wii/GameCube PlayStation 1 emulator) rendering, input and timing bugs without a human at the controls — boot a game or the BIOS shell unattended in Dolphin, drive it with a scripted input file, instrument the debug build with counters and primitive traces, dump frames and VRAM, read the logs back out of the SD image, and decide from evidence instead of guessing. Use this skill whenever the task touches the OpenGX/GlesGpu plugin, the soft GPU plugins, "artifacts", "black screen", "missing textures", "transparent/opaque", "pause screen", the PSX BIOS shell, controller/pad input not working, a Dolphin frame dump or movie, perf.log or ptrace.log, autoboot.txt or autoinput.txt, any request to reproduce, bisect or verify emulator behaviour on this machine, and any request to measure or compare performance -- a chained multi-game run, an A/B of a setting or build, "is it faster", "does it still look/sound the same", the locked cache, a hardware session -- even if the user just says "the game looks wrong" or "can you check what the emulator does".
 ---
 
 # WiiStation diagnostics
@@ -50,6 +50,14 @@ probe you can think of, because a build plus run costs about five minutes.
    consecutive dumps are ever identical, and a 30 fps title gives 1215 dumps over 2652
    vblanks). Dumps are comparable between runs only where the games present alike; the
    vblank of each present is in the trace's EC entries.
+
+3b. **Measure and compare with the tools, not inline scripts.** `wsx.sh chain NAME FILE`
+   runs many games in one boot (`scripts/chains/*.txt`, per-game settings for A/B),
+   `wsx.sh table NAME [--detail gpu|tex|cpu|lc|pmc]` reads it, `wsx.sh compare A [B]`
+   diffs two chains or one A/B chain's pairs, `wsx.sh frames A B` and `wsx.sh audio A B`
+   prove rendering and sound unchanged, and `wsx.sh build debug deep|pmc` picks the probes.
+   What each proves, and the audio rate-control trap: [references/measuring.md](references/measuring.md).
+   Restart the user's own WiiStation window only with `scripts/wiistation_play.sh`.
 
 4. **Read the numbers before the pictures.** A counter that is zero where you expected
    thousands (pad polls, SIO starts, merged pixels) points at the mechanism faster than any
