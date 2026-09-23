@@ -133,7 +133,11 @@ What it found on 2026-09-23 (commit of this section), against psx-spx:
   (DualShock 2); a PS1 DualShock reports 01h. The exit reply was fixed the same day: 10/10.
 - Standard: acts as a digital pad without config commands, except that `sio.c` answers 43h
   with ID 43h and 45h with F3h; a real digital pad answers 41h to every command.
-- /ACK comes after each byte but the last (about 20 loops of the ROM's wait), as on hardware.
+- /ACK comes after each byte but the last, as on hardware, 15.7 us after the byte: exactly
+  `SIO_CYCLES` (535 cycles) in `sio.c`, which the ROM's timer confirms.
+- A byte takes 0.5 us: the reply is ready as soon as the byte is written. On hardware 8 bits
+  at 250 kHz take 32 us, so a whole poll here runs about twice as fast as on a console.
+  Nothing found so far depends on it.
 
 **PSXTEST 2.3** by Haunted360 -- a general console tester (three songs for the speakers, a
 dead-pixel checker, a pad tester). It runs too, and the trace under it is identical, but its
