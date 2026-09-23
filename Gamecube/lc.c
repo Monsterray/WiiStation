@@ -115,6 +115,23 @@ void lc_wait(void)
 #endif
 }
 
+unsigned lc_usage(char *buf, int len)
+{
+	unsigned used = 0;
+	int r, n = 0;
+	if (len > 0)
+		buf[0] = 0;
+	for (r = 0; r < LC_REGION_COUNT; r++)
+		if (lc_base[r]) {
+			used += (lc_regions[r].bytes + 31) & ~31u;
+			if (n < len)
+				n += snprintf(buf + n, len - n, "%s%s", n ? ", " : "", lc_regions[r].name);
+		}
+	if (!used && len > 0)
+		snprintf(buf, len, "off");
+	return used;
+}
+
 void lc_report(FILE *f)
 {
 	int r;

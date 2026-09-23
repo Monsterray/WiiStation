@@ -68,6 +68,10 @@ void lc_wait(void);
 /* perf.log: which regions are on, where, and how much DMA they did. */
 void lc_report(FILE *f);
 
+/* The menu's Memory page: bytes the regions of the last lc_configure() take (0 = the cache
+ * is not locked), and their names in buf, comma separated ("off" when none). */
+unsigned lc_usage(char *buf, int len);
+
 /* The LockedCache setting (Gamecube/GamecubeMain.cpp): one bit per region, 0 = all off. */
 extern char lockedCache;
 

@@ -69,6 +69,7 @@
 
 extern "C" {
 #include "../../mem2_manager.h"
+#include "../lc.h"
 }
 
 extern MenuContext *pMenuContext;
@@ -131,9 +132,21 @@ static void applySpuReverb(void) { setSpuReverb(soundReverb); }
 /* MEM1 is the 24 MB of fast 1T-SRAM on the graphics die: emulated PSX RAM, the GPU's
  * buffers and everything the CPU touches per frame live here. What is left is what any
  * future allocation has to fit into. */
+#define MEM1_KB (24u * 1024)
 static void infoMem1(char *buf, int len)
 {
-	snprintf(buf, len, "%lu KB free", (unsigned long)(SYS_GetArena1Size() >> 10));
+	unsigned long free_kb = (unsigned long)(SYS_GetArena1Size() >> 10);
+	snprintf(buf, len, "%lu / %u KB", MEM1_KB - free_kb, MEM1_KB);
+}
+
+/* The locked cache: half of the CPU's 32 KB data cache, locked as 16 KB of scratch memory
+ * for the regions the LockedCache setting turns on (Gamecube/lc.c, Docs/LOCKED_CACHE.md).
+ * It is set up when a game starts, so this shows the last game's regions. */
+static void infoLockedCache(char *buf, int len)
+{
+	char names[48];
+	unsigned used = lc_usage(names, sizeof names);
+	snprintf(buf, len, "%u / %u KB (%s)", used >> 10, LC_TOTAL_BYTES >> 10, names);
 }
 
 /* MEM2 is the 64 MB of slower off-die GDDR3. This is the general heap the emulator carves
@@ -171,7 +184,7 @@ static void infoJitBuffer(char *buf, int len)
 /* Sound and disc buffers, both fixed regions. */
 static void infoFixedBuffers(char *buf, int len)
 {
-	snprintf(buf, len, "SPU %lu KB, BIOS %lu KB",
+	snprintf(buf, len, "%lu + %lu KB",
 		(unsigned long)SPU_BUF_SIZE >> 10, (unsigned long)PSXR_BUF_SIZE >> 10);
 }
 
@@ -274,11 +287,12 @@ static const OptHelp CD_HELP[] =
  * where the memory went, which is what any change to that layout has to be argued from. */
 static const OptRow MEMORY_ROWS[] =
 {
-	ROW_INFO("MEM1 (fast, 24 MB)",  infoMem1),
+	ROW_INFO("MEM1 (fast)",         infoMem1),
 	ROW_INFO("MEM2 heap",           infoMem2),
+	ROW_INFO("Locked cache",        infoLockedCache),
 	ROW_INFO("Font glyph cache",    infoFontCache),
 	ROW_INFO("Recompiler buffer",   infoJitBuffer),
-	ROW_INFO("Fixed buffers",       infoFixedBuffers),
+	ROW_INFO("SPU + BIOS buffers",  infoFixedBuffers),
 };
 
 struct OptPage
