@@ -110,13 +110,38 @@ walks the circle and the numbers run the range, which is the whole path confirme
 Its README says it uses direct SIO access and "may not work on emulators" -- it works here,
 because that SIO protocol is exactly what `SSS_PADpoll` implements.
 
+**PadTest DX** -- the same program, forked to github.com/Monsterray/padtest and cloned to
+`C:\projects\padtest`, ported to PSn00bSDK (installed at `C:\PSn00bSDK`) and extended for
+this work. Build it with `bash build.sh` in that folder. Besides the pad it shows, per port,
+the raw reply in pairs, the reply length, `cfg n/10` (config replies that match a DualShock)
+and `btn n` (button bits pressed so far), and for analog pads `axes` (distinct values per
+axis). Each frame it copies a status block to VRAM (640,256), 64x8 halfwords, layout in the
+fork's `include/dx.h`. One command runs it with the sweep and decodes the block:
+
+```
+bash scripts/padtest_dx.sh --ct 1        # 0 = Standard, 1 = Analog; --frames for pictures
+```
+
+It ends in `sweep: PASS` or `sweep: FAIL: <what>`, judged on port 1 (the port the sweep
+drives; port 2 is Dolphin's emulated Wiimote and fails on its own). The ROM puts itself on
+the test profile's card (`.dolphin`) only. Use `vram.bin` for the block, not for pictures:
+the hardware GPU draws on the GX side, so the dump holds uploads, not the rendered screen.
+
+What it found on 2026-09-23 (commit of this section), against psx-spx:
+- Analog: 9 of 10 config replies match a DualShock. Config-mode 43h (exit) returns
+  `F3 5A FF FF 00..` where a DualShock returns `F3 5A 00 00 00..`. 45h reports type 03h
+  (DualShock 2); a PS1 DualShock reports 01h.
+- Standard: acts as a digital pad without config commands, except that `sio.c` answers 43h
+  with ID 43h and 45h with F3h; a real digital pad answers 41h to every command.
+- /ACK comes after each byte but the last (about 20 loops of the ROM's wait), as on hardware.
+
 **PSXTEST 2.3** by Haunted360 -- a general console tester (three songs for the speakers, a
 dead-pixel checker, a pad tester). It runs too, and the trace under it is identical, but its
 pad display is one line of digital button names on a menu screen with no analog readout, so
 it says much less. `psxdev.net` no longer serves it; the Wayback Machine does, at
 `web.archive.org/web/2018/http://psxdev.net/homebrew/files/psxtest.zip`.
 
-Neither is in this repository -- they are third-party binaries. Put the bin/cue in
+PadTest 1.1 and PSXTEST are third-party binaries and not in this repository. Put the bin/cue in
 `wiisxrx/isos/<name>/` on the SD card and point an autoboot file at it.
 
 ## 4. Things that did not work, so nobody tries them again
