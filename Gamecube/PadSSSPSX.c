@@ -576,6 +576,10 @@ unsigned char SSS_PADpoll (const unsigned char value)
 			buf.b16[1] = global.padStat[pad];
 			if (value == 0x43 && global.padModeE[pad])
 			{
+				/* In config mode 43h answers F3h 5Ah and six 00h bytes, not the
+				 * buttons, whatever mode the pad is in (psx-spx, DuckStation, PCSX-Redux). */
+				global.cmdLen = 8;
+				buf.b16[1] = 0;
 				buf.b16[2] = 0;
 				buf.b16[3] = 0;
 				return 0xf3;

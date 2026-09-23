@@ -130,7 +130,7 @@ the hardware GPU draws on the GX side, so the dump holds uploads, not the render
 What it found on 2026-09-23 (commit of this section), against psx-spx:
 - Analog: 9 of 10 config replies match a DualShock. Config-mode 43h (exit) returns
   `F3 5A FF FF 00..` where a DualShock returns `F3 5A 00 00 00..`. 45h reports type 03h
-  (DualShock 2); a PS1 DualShock reports 01h.
+  (DualShock 2); a PS1 DualShock reports 01h. The exit reply was fixed the same day: 10/10.
 - Standard: acts as a digital pad without config commands, except that `sio.c` answers 43h
   with ID 43h and 45h with F3h; a real digital pad answers 41h to every command.
 - /ACK comes after each byte but the last (about 20 loops of the ROM's wait), as on hardware.
