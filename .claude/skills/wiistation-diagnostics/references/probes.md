@@ -74,6 +74,7 @@ Synthetic commands emitted by the read path and the off-screen path (not GP0 com
 | `c8` | off-screen primitive rasterized in software | flags T=textured, `col` = GP0 command byte, rect |
 | `ea` | a screen re-upload from PSX VRAM was asked for | flags S=`Position`, T=RGB24; `col` = map id; rect = `xrUploadArea` |
 | `eb` | that re-upload actually reached the EFB | same fields |
+| `f3` `f5` `f8` | GP1 display on/off, display start, display mode (gpuPlugin.c) | `col` = the GP1 word's low 24 bits; f5 x0,y0 = start; f3 x0 = 1 off; **x1 = the scanline counter: 0 in the picture, 240+ in the vblank** |
 | `ec` | one entry per present | flags S=cleared the EFB, T=submitted, Q=`uploadedScreen`, G=`needFlipEGL`; `abr` = `iDrawnSomething`; **`col` = the emulated vblank**; rect = previous display position → new one |
 
 EA/EB/EC are numbered above 0xE0 on purpose: `perf_prim_trace` counts anything below that

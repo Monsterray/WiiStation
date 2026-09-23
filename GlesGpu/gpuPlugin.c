@@ -110,6 +110,8 @@ unsigned long   ulStatusControl[256];
 static long     GPUdataRet;
 static unsigned long gpuDataM[256];
 static unsigned char gpuCommand = 0;
+
+
 static long          gpuDataC = 0;
 static long          gpuDataP = 0;
 
@@ -166,6 +168,7 @@ static BOOL    needUploadScreen = FALSE;
 static BOOL    uploadedScreen = FALSE;
 static BOOL    needFlipEGL = FALSE;
 static unsigned short    RGB24Uploaded = 0;
+extern u32 hSyncCount;   /* psxcounters.c: 0 in the picture, 240+ in the vblank (trace only) */
 static unsigned short    GPUupdateLace5Flg = 0;
 
 // When display window / display mode has just changed, PreviousPSXDisplay may be stale.
@@ -1205,6 +1208,7 @@ switch(lCommand)
   case 0x03:
    PreviousPSXDisplay.Disabled = PSXDisplay.Disabled;
    PSXDisplay.Disabled = (gdata & 1);
+   perf_prim_trace(0xF3, 0, 0, gdata, (int)(gdata & 1), 0, (int)hSyncCount, 0);   /* F3 = display on (0) / off (1); x1 = scanline */
 
    if(PSXDisplay.Disabled)
         STATUSREG|=GPUSTATUS_DISPLAYDISABLED;
@@ -1245,7 +1249,7 @@ switch(lCommand)
 
   // setting display position
   case 0x05:
-   perf_prim_trace(0xF5, 0, 0, gdata, (int)(gdata & 0x3ff), (int)((gdata >> 10) & 0x1ff), 0, 0);
+   perf_prim_trace(0xF5, 0, 0, gdata, (int)(gdata & 0x3ff), (int)((gdata >> 10) & 0x1ff), (int)hSyncCount, 0);
    {
     short sx=(short)(gdata & 0x3ff);
     short sy;
@@ -1444,7 +1448,7 @@ switch(lCommand)
 
   // setting display infos
   case 0x08:
-   perf_prim_trace(0xF8, 0, 0, gdata, 0, 0, 0, 0);
+   perf_prim_trace(0xF8, 0, 0, gdata, 0, 0, (int)hSyncCount, 0);   /* x1 = scanline: 0 in the picture, 240+ in the vblank */
    {
     GXDisplayMap proposed;
     int txStarted;
