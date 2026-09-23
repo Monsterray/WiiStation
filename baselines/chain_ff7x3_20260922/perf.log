@@ -1,0 +1,150 @@
+--- perf frames=1285 ---
+fixes: dwActFixes=00000000 cdrom=SCUS94163
+cpu: slices=267355 int=0 cpu_us=50821666 jit_full=0 jit_part=3502 interp_fb=0 hle=69102 exc=6
+wall: wall_us=50862086 vblanks=2400 pal=0 nested=54560
+inside: limit_us=22343218 limit=1824 target=1666 spu_us=1187865 spu=29400 out_us=399224 out=29400 hw_us=8316890 hw=7659993 hw_gpu_us=8065011 hw_gpu=5209217
+slicecost: sched_us=32999752 jit_us=17144857 post_us=677057 exit_norm=196413 exit_irq=1834
+softcall: runs=54242 steps=10 escapes=0 run_escapes=0 hle_exits=6198
+nested: n=54560 sched_us=346569 jit_us=132610
+slice: cycles=4810858936 avg=17994 tiny=1232
+irq: cdr=70 cdread=478 gpudma=135987 spudma=2 mdecindma=2 gpuotcdma=985 cdrdma=924 newdrc=4 rcnt=60359
+ram: mem1_free_kb=5707 mem2=14888/24575KB peak=14888KB fails=0 null_read=0 heap_ok=1
+gpu: tex_hit=1043 miss=3951 resets=4137 loads=0 bytes=0 batches=0
+gpu: drawdone=4137 drawdone_us=13302 convert_us=0 present_us=118838
+texk: conv_us=781308 conv=819 texels=16663616 tile_us=632208 tile=819 mdec_us=0 mdec=0
+ogx: gc=0 sub_new=819 sub_hit=1963 skip=3888 unaligned=0 oob=0
+ogxskip: b1=2782 b2=0 op_empty=1106 op_semi=0
+ogxupl: semi=819 opaque=3318 mismatch=0
+ogxgeom: coord_rej=0
+efbloss: upl_calls=554 upl_done=553 | pres: total=1285 clear=2 inflight_skip=0
+uplret: dis=1 skip=0 rgb24=0 px1=0
+uplst0: 0 0 0 0 0 0 0 1 2 0 0 0 640 480 0 0 0 0 640 479 135 1
+uplst1: 1 0 0 0 0 0 0 1 2 0 0 0 640 480 0 0 0 1 640 480 688 1
+offsoft: prims=273 rejected=638 | pad: startpoll=3048 update=3048 ai_calls=1524
+sio: write8=0 start=0 ctrl16=0 read8=0 irq=0 padtype0=1
+ogxoff: prims=0 tex=0 off_roi=0 fills=0 fills_off=0 va=0 va_roi=0
+autoinput: vblank=876 mask=0000 at_present=555
+ogxeq: n=0 mism=0 hole=0
+ogxdraw: ft=0 gt=0 uni_ft=0 uni_gt=0 vram_wr=133993 inval=807
+cd: reads=462 bytes=1086624 seq=452 rand=10 worst_us=10338 total_us=43510
+cdpf: hit=0 miss=0 reads=0
+chd: hit=0 miss=0 err=0 chd_us=0
+xa: sectors=0 starts=0 fed=0 trunc=0 fill_min=0 fill_max=0 freq=0 stereo=0 dt_min=0 dt_max=0 filtered=0
+xamix: mix=0 hold=0 gaps=0 gap_calls=0 gap_samples=0 | spu: ns=1764000 pulls=0 busy=295 desync=0 aev=2134 | out: dry=511742 drop=0
+rate: ppm=-2526 i=-1052 min=-4813 max=156 occ_min=0 occ_max=6512 occ_avg=2078 updates=4754 sat=0 changes=0 prefill=6144 | limit: debt_max=1250 debt_drops=562
+save: states=0 save_us=0 loads=0 load_us=0 bytes=0 fails=0 mcd=0 mcd_us=0 mcd_fails=0
+bios: calls=5717 custom=0 us=653176 exc=57206 exc_us=633715 | B17:ReturnFromException=2948 A2a:memcpy=2578 B07:DeliverEvent=68 A17:strcmp=50 B0a:WaitEvent=40 A18:strncmp=11 A3f:printf=2 B08:OpenEvent=2 B0c:EnableEvent=2 B3f:puts=2
+ports: 0:1/0 1:0/1 2:0/0 3:0/0 4:0/0 5:0/0 6:0/0 7:0/0 8:0/0 9:0/0 | avail G=1000 C=0000 N=0000 W=0000 P=0000 D=0000 H=0000
+carry: fc=0 rc0=0/0/0/0 rc1=0/0/0/0 rc2=0/0/0/0 spu=0/0/0000/000000/00000000 sio=0005/0000/0/0 pad1=0/- gc=1 av=0 | rcntfire=20671,17,13740,29400
+gpusplit: parse_us=93349 vram_us=5201058 vram_words=42639115 off_us=5696 off=145771 prim_us=1918364 prims=145498
+gpuregs: gp1_us=173656 gp1=271027 read_us=36 reads=10
+gpuflip: will_us=228 done_us=23314 present_us=117342 presents=734
+gpupres: upload_us=9647427 uploads=554 prep_us=0 capture_us=58 vout_us=351
+gpuprim: misc=67554/732 poly=798632/2782 rect=1539/257 cv=1027547/132986 state=23090/8741
+gpudeep: fill_gx_us=1814 fill_sw_us=64950 fill_mark_us=20 vramfin_us=2369214 vramfin=135995
+gpudraw: ogx_us=14363 draws=7089 common_us=710 state_us=10308 states=9871 tex_us=788767 mode_us=10410338
+gxcache: sets=0 skips=0
+spustage: chans=41079 adpcm_us=265294 adsr_us=69594 mix_us=113934 rvb_us=207229
+lc: mask=0 | stores=0 store_kb=0 loads=0 load_kb=0 wait_us=0
+menu: frames=0 menu_us=0 strings=30012 glyphs=75016 texloads=75016
+=== chain 1/3 end vblanks=2400 rom=Final Fantasy VII [U] [Disc 1] [SLUS-94163].cue ===
+--- perf frames=1285 ---
+fixes: dwActFixes=00000000 cdrom=SCUS94163
+cpu: slices=267355 int=0 cpu_us=50821526 jit_full=0 jit_part=3502 interp_fb=0 hle=69102 exc=6
+wall: wall_us=50861870 vblanks=2400 pal=0 nested=54560
+inside: limit_us=22342845 limit=1824 target=1666 spu_us=1188442 spu=29400 out_us=399411 out=29400 hw_us=8315170 hw=7659993 hw_gpu_us=8063153 hw_gpu=5209217
+slicecost: sched_us=33000954 jit_us=17143693 post_us=676878 exit_norm=196413 exit_irq=1834
+softcall: runs=54242 steps=10 escapes=0 run_escapes=0 hle_exits=6198
+nested: n=54560 sched_us=346555 jit_us=132509
+slice: cycles=4810858936 avg=17994 tiny=1232
+irq: cdr=70 cdread=478 gpudma=135987 spudma=2 mdecindma=2 gpuotcdma=985 cdrdma=924 newdrc=4 rcnt=60359
+ram: mem1_free_kb=5655 mem2=14888/24575KB peak=14888KB fails=0 null_read=0 heap_ok=1
+gpu: tex_hit=1043 miss=3951 resets=4137 loads=0 bytes=0 batches=0
+gpu: drawdone=4137 drawdone_us=13279 convert_us=0 present_us=118506
+texk: conv_us=781220 conv=819 texels=16663616 tile_us=631558 tile=819 mdec_us=0 mdec=0
+ogx: gc=0 sub_new=819 sub_hit=1963 skip=3888 unaligned=0 oob=0
+ogxskip: b1=2782 b2=0 op_empty=1106 op_semi=0
+ogxupl: semi=819 opaque=3318 mismatch=0
+ogxgeom: coord_rej=0
+efbloss: upl_calls=554 upl_done=553 | pres: total=1285 clear=2 inflight_skip=0
+uplret: dis=1 skip=0 rgb24=0 px1=0
+uplst0: 0 0 0 0 0 0 0 1 2 0 0 0 640 480 0 0 0 0 640 479 135 1
+uplst1: 1 0 0 0 0 0 0 1 2 0 0 0 640 480 0 0 0 1 640 480 688 1
+offsoft: prims=273 rejected=638 | pad: startpoll=3048 update=3048 ai_calls=1524
+sio: write8=0 start=0 ctrl16=0 read8=0 irq=0 padtype0=1
+ogxoff: prims=0 tex=0 off_roi=0 fills=0 fills_off=0 va=0 va_roi=0
+autoinput: vblank=876 mask=0000 at_present=555
+ogxeq: n=0 mism=0 hole=0
+ogxdraw: ft=0 gt=0 uni_ft=0 uni_gt=0 vram_wr=133993 inval=807
+cd: reads=462 bytes=1086624 seq=452 rand=10 worst_us=10677 total_us=44240
+cdpf: hit=0 miss=0 reads=0
+chd: hit=0 miss=0 err=0 chd_us=0
+xa: sectors=0 starts=0 fed=0 trunc=0 fill_min=0 fill_max=0 freq=0 stereo=0 dt_min=0 dt_max=0 filtered=0
+xamix: mix=0 hold=0 gaps=0 gap_calls=0 gap_samples=0 | spu: ns=1764000 pulls=0 busy=231 desync=0 aev=2135 | out: dry=511801 drop=0
+rate: ppm=-2514 i=-1073 min=-4813 max=124 occ_min=0 occ_max=6498 occ_avg=2088 updates=4754 sat=0 changes=0 prefill=6144 | limit: debt_max=1250 debt_drops=563
+save: states=0 save_us=0 loads=0 load_us=0 bytes=0 fails=0 mcd=0 mcd_us=0 mcd_fails=0
+bios: calls=5717 custom=0 us=652981 exc=57206 exc_us=633569 | B17:ReturnFromException=2948 A2a:memcpy=2578 B07:DeliverEvent=68 A17:strcmp=50 B0a:WaitEvent=40 A18:strncmp=11 A3f:printf=2 B08:OpenEvent=2 B0c:EnableEvent=2 B3f:puts=2
+ports: 0:1/0 1:0/1 2:0/0 3:0/0 4:0/0 5:0/0 6:0/0 7:0/0 8:0/0 9:0/0 | avail G=1000 C=0000 N=0000 W=0000 P=0000 D=0000 H=0000
+carry: fc=0 rc0=1400/0/0/0 rc1=1507/0/0/0 rc2=e58/43d1/1/1 spu=1354752000/0/c081/007c00/80000080 sio=0005/0000/0/0 pad1=1/G gc=1 av=1 | rcntfire=20671,17,13740,29400
+gpusplit: parse_us=93376 vram_us=5201029 vram_words=42639115 off_us=5682 off=145771 prim_us=1917718 prims=145498
+gpuregs: gp1_us=172858 gp1=271027 read_us=0 reads=10
+gpuflip: will_us=230 done_us=23211 present_us=116999 presents=734
+gpupres: upload_us=9647350 uploads=554 prep_us=0 capture_us=57 vout_us=348
+gpuprim: misc=67311/732 poly=798551/2782 rect=1543/257 cv=1027455/132986 state=22856/8741
+gpudeep: fill_gx_us=1760 fill_sw_us=64794 fill_mark_us=19 vramfin_us=2369298 vramfin=135995
+gpudraw: ogx_us=14337 draws=7089 common_us=708 state_us=10290 states=9871 tex_us=788669 mode_us=10410191
+gxcache: sets=0 skips=0
+spustage: chans=41079 adpcm_us=265179 adsr_us=69665 mix_us=114052 rvb_us=207621
+lc: mask=0 | stores=0 store_kb=0 loads=0 load_kb=0 wait_us=0
+menu: frames=0 menu_us=0 strings=30012 glyphs=75421 texloads=75421
+=== chain 2/3 end vblanks=2400 rom=Final Fantasy VII [U] [Disc 1] [SLUS-94163].cue ===
+--- perf frames=1285 ---
+fixes: dwActFixes=00000000 cdrom=SCUS94163
+cpu: slices=267355 int=0 cpu_us=50810037 jit_full=0 jit_part=3502 interp_fb=0 hle=69102 exc=6
+wall: wall_us=50850365 vblanks=2400 pal=0 nested=54560
+inside: limit_us=22351338 limit=1824 target=1666 spu_us=1186226 spu=29400 out_us=398526 out=29400 hw_us=8309934 hw=7659993 hw_gpu_us=8058283 hw_gpu=5209217
+slicecost: sched_us=33002257 jit_us=17130923 post_us=676856 exit_norm=196413 exit_irq=1834
+softcall: runs=54242 steps=10 escapes=0 run_escapes=0 hle_exits=6198
+nested: n=54560 sched_us=346671 jit_us=132399
+slice: cycles=4810858936 avg=17994 tiny=1232
+irq: cdr=70 cdread=478 gpudma=135987 spudma=2 mdecindma=2 gpuotcdma=985 cdrdma=924 newdrc=4 rcnt=60359
+ram: mem1_free_kb=5655 mem2=14888/24575KB peak=14888KB fails=0 null_read=0 heap_ok=1
+gpu: tex_hit=1043 miss=3951 resets=4137 loads=0 bytes=0 batches=0
+gpu: drawdone=4137 drawdone_us=13280 convert_us=0 present_us=117801
+texk: conv_us=780970 conv=819 texels=16663616 tile_us=631894 tile=819 mdec_us=0 mdec=0
+ogx: gc=0 sub_new=819 sub_hit=1963 skip=3888 unaligned=0 oob=0
+ogxskip: b1=2782 b2=0 op_empty=1106 op_semi=0
+ogxupl: semi=819 opaque=3318 mismatch=0
+ogxgeom: coord_rej=0
+efbloss: upl_calls=554 upl_done=553 | pres: total=1285 clear=2 inflight_skip=0
+uplret: dis=1 skip=0 rgb24=0 px1=0
+uplst0: 0 0 0 0 0 0 0 1 2 0 0 0 640 480 0 0 0 0 640 479 135 1
+uplst1: 1 0 0 0 0 0 0 1 2 0 0 0 640 480 0 0 0 1 640 480 688 1
+offsoft: prims=273 rejected=638 | pad: startpoll=3048 update=3048 ai_calls=1524
+sio: write8=0 start=0 ctrl16=0 read8=0 irq=0 padtype0=1
+ogxoff: prims=0 tex=0 off_roi=0 fills=0 fills_off=0 va=0 va_roi=0
+autoinput: vblank=876 mask=0000 at_present=555
+ogxeq: n=0 mism=0 hole=0
+ogxdraw: ft=0 gt=0 uni_ft=0 uni_gt=0 vram_wr=133993 inval=807
+cd: reads=462 bytes=1086624 seq=452 rand=10 worst_us=10697 total_us=44507
+cdpf: hit=0 miss=0 reads=0
+chd: hit=0 miss=0 err=0 chd_us=0
+xa: sectors=0 starts=0 fed=0 trunc=0 fill_min=0 fill_max=0 freq=0 stereo=0 dt_min=0 dt_max=0 filtered=0
+xamix: mix=0 hold=0 gaps=0 gap_calls=0 gap_samples=0 | spu: ns=1764000 pulls=0 busy=68 desync=0 aev=2134 | out: dry=511261 drop=0
+rate: ppm=-2493 i=-983 min=-4826 max=7 occ_min=0 occ_max=6275 occ_avg=2016 updates=4753 sat=0 changes=0 prefill=6144 | limit: debt_max=1250 debt_drops=563
+save: states=0 save_us=0 loads=0 load_us=0 bytes=0 fails=0 mcd=0 mcd_us=0 mcd_fails=0
+bios: calls=5717 custom=0 us=653080 exc=57206 exc_us=633592 | B17:ReturnFromException=2948 A2a:memcpy=2578 B07:DeliverEvent=68 A17:strcmp=50 B0a:WaitEvent=40 A18:strncmp=11 A3f:printf=2 B08:OpenEvent=2 B0c:EnableEvent=2 B3f:puts=2
+ports: 0:1/0 1:0/1 2:0/0 3:0/0 4:0/0 5:0/0 6:0/0 7:0/0 8:0/0 9:0/0 | avail G=1000 C=0000 N=0000 W=0000 P=0000 D=0000 H=0000
+carry: fc=0 rc0=1400/0/0/0 rc1=1507/0/0/0 rc2=e58/43d1/1/1 spu=1354752000/0/c081/007c00/80000080 sio=0005/0000/0/0 pad1=1/G gc=1 av=1 | rcntfire=20671,17,13740,29400
+gpusplit: parse_us=93284 vram_us=5197972 vram_words=42639115 off_us=5690 off=145771 prim_us=1917045 prims=145498
+gpuregs: gp1_us=172174 gp1=271027 read_us=0 reads=10
+gpuflip: will_us=240 done_us=23214 present_us=116286 presents=734
+gpupres: upload_us=9642133 uploads=554 prep_us=0 capture_us=57 vout_us=346
+gpuprim: misc=67423/732 poly=798272/2782 rect=1537/257 cv=1026996/132986 state=22814/8741
+gpudeep: fill_gx_us=1762 fill_sw_us=64905 fill_mark_us=20 vramfin_us=2367955 vramfin=135995
+gpudraw: ogx_us=14326 draws=7089 common_us=709 state_us=10264 states=9871 tex_us=788419 mode_us=10404719
+gxcache: sets=0 skips=0
+spustage: chans=41079 adpcm_us=264943 adsr_us=69647 mix_us=113778 rvb_us=207176
+lc: mask=0 | stores=0 store_kb=0 loads=0 load_kb=0 wait_us=0
+menu: frames=0 menu_us=0 strings=30012 glyphs=75421 texloads=75421
+=== chain 3/3 end vblanks=2400 rom=Final Fantasy VII [U] [Disc 1] [SLUS-94163].cue ===
