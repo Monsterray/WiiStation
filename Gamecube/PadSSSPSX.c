@@ -58,12 +58,14 @@ static struct
 	u16 padStat[10];		//Digital Buttons
 	int padID[10];
 	int padMode1[10];	//0 = digital, 1 = analog
-	int padMode2[10];
-	int padModeE[10];	//Config/Escape mode??
+	int padModeE[10];	//Config mode (DualShock, after command 43h 01h)
 	int padModeC[10];
 	int padModeF[10];
 	int padVib0[10];		//Command byte for small motor
 	int padVib1[10];		//Command byte for large motor
+	u8 dsRumble[10][6];	//Rumble map set by 4Dh: meaning of 42h command bytes 3..8 (psx-spx)
+	int dsNewRumble[10];	//Config mode was used: 4Dh map, not the one-motor method
+	u8 legacyXX[10];		//Byte 3 of the last 42h, for the one-motor method
 	int padVibF[10][4];	//Sm motor value; Big motor value; Sm motor running?; Big motor running?
 	//int padVibC[10];		//unused
 	u64 padPress[10][16];//unused?
@@ -139,15 +141,29 @@ void lightgunInterrupt()
 	}
 }
 
-static void PADsetMode (const int pad, const int mode)	//mode = 0 (digital) or 1 (analog)
+/* No motor mapped: what power-on, command 44h and the Analog button leave (psx-spx) */
+static void RumbleReset (const int pad)
 {
-	static const u8 padID[] = { 0x41, 0x73, 0x41, 0x79 };
-	global.padMode1[pad] = mode;
+	memset(global.dsRumble[pad], 0xff, sizeof(global.dsRumble[pad]));
 	global.padVib0[pad] = 0;
 	global.padVib1[pad] = 0;
 	global.padVibF[pad][0] = 0;
 	global.padVibF[pad][1] = 0;
-	global.padID[pad] = padID[global.padMode2[pad] * 2 + mode];
+}
+
+/* A DualShock answers config commands; a digital pad, a mouse and a light gun do not */
+static int IsDualShock (const int pad)
+{
+	return controllerType == CONTROLLERTYPE_ANALOG && global.padID[pad] != 0x31 &&
+		global.padID[pad] != 0x63 && global.padID[pad] != 0x12;
+}
+
+static void PADsetMode (const int pad, const int mode)	//mode = 0 (digital) or 1 (analog)
+{
+	static const u8 padID[] = { 0x41, 0x73 };
+	global.padMode1[pad] = mode;
+	global.padID[pad] = padID[mode];
+	RumbleReset(pad);
 }
 
 static void UpdateState (const int pad) //Note: pad = 0 or 1
@@ -454,43 +470,14 @@ void SSS_SetMultiPad(int pad, int mpad)
 		global.multiPad[0] = mpad+1;
 }
 
-static const u8 cmd40[8] =
+/* Config-mode replies of a DualShock (SCPH-1200): F3h, then these bytes from index 1 on
+ * (psx-spx "Configuration Commands"; DuckStation, MiSTer and PsxNewLib agree). Always 9
+ * bytes long. Commands whose data depend on their parameter start from cmdcfg and are
+ * filled in when the parameter arrives (cur == 2). */
+static const u8 cmdcfg[8] = { 0xff, 0x5a, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+static const u8 cmd45[8] =		/* Type 01h = PS1 DualShock (03h is a DualShock 2), LED, constants */
 {
-	0xff, 0x5a, 0x00, 0x00, 0x02, 0x00, 0x00, 0x5a
-};
-static const u8 cmd41[8] = //Find out what buttons are included in poll response
-{
-	0xff, 0x5a, 0xff, 0xff, 0x03, 0x00, 0x00, 0x5a,
-};
-static const u8 cmd44[8] = //Switch modes between digital and analog
-{
-	0xff, 0x5a, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-};
-static const u8 cmd45[8] = //Get more status info
-{	//          DS         LED ON
-	0xff, 0x5a, 0x03, 0x02, 0x01, 0x02, 0x01, 0x00,
-};
-// Following commands always issued in sequence: 46, 46, 47, 4C, 4C; Also, only works in config mode (0xF3)
-static const u8 cmd46[8] = //Read unknown constant value from controller (called twice)
-{	//Note this is the first 5 bytes for Katana Wireless pad.
-	//May need to change or implement 2nd response, which is indicated by 4th command byte
-	0xff, 0x5a, 0x00, 0x00, 0x01, 0x02, 0x00, 0x0a,
-};
-static const u8 cmd47[8] = //Read unknown constant value from controller (called once)
-{	//Note this is response for Katana Wireless pad
-	0xff, 0x5a, 0x00, 0x00, 0x02, 0x00, 0x01, 0x00,
-};
-static const u8 cmd4c[8] = //Read unknown constant value from controller (called twice)
-{	//Note this response seems to be incorrect. May also need to implement 1st/2nd responses
-	0xff, 0x5a, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-};
-static const u8 cmd4d[8] = //Map bytes in 42 command to actuate motors; only works in config mode (0xF3)
-{	//These data bytes should be changed to 00 or 01 if currently mapped to a motor
-	0xff, 0x5a, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-};
-static const u8 cmd4f[8] = //Enable/disable digital/analog responses bits; only works in config mode (0xF3)
-{	//            FF    FF    03 <- each bit here corresponds to response byte
-	0xff, 0x5a, 0x00, 0x00, 0x00, 0x00, 0x00, 0x5a,
+	0xff, 0x5a, 0x01, 0x02, 0x00, 0x02, 0x01, 0x00,
 };
 
 unsigned char multitap[34] = { 0x80, 0x5a,
@@ -525,24 +512,18 @@ unsigned char SSS_PADpoll (const unsigned char value)
 		global.curCmd = value;
 		if (pad == 0 && (value & 0xf0) == 0x40)
 			PERF_INC(pad_cmd[value & 0x0f]);
-		if (controllerType != CONTROLLERTYPE_ANALOG)
+		/* Which commands answer (psx-spx "Configuration Commands"; DuckStation and MiSTer):
+		 * a digital pad, a mouse and a light gun answer 42h only. A DualShock answers 42h
+		 * and 43h in normal mode, and 40h..4Fh in config mode. Any other command gets no
+		 * /ACK: FFh, and sio.c ends the transfer. */
+		if (value != 0x42 && !(IsDualShock(pad) &&
+		    (value == 0x43 || (global.padModeE[pad] && (value & 0xf0) == 0x40))))
 		{
-			if (value != 0x42)
-				if (padType[slot] == PADTYPE_MULTITAP)
-					return 0xFF;
-				else
-				global.curCmd = 0x42;
+			global.cmdLen = 0;
+			return 0xFF;
 		}
 		switch (global.curCmd)
 		{
-		case 0x40:
-			global.cmdLen = sizeof (cmd40);
-			memcpy (buf.b8, cmd40, sizeof (cmd40));
-			return 0xf3;
-		case 0x41:
-			global.cmdLen = sizeof (cmd41);
-			memcpy (buf.b8, cmd41, sizeof (cmd41));
-			return 0xf3;
 		case 0x42:
 			if (padType[slot] == PADTYPE_MULTITAP){
 				if (global.trAll[slot] == 1){
@@ -610,114 +591,116 @@ unsigned char SSS_PADpoll (const unsigned char value)
 					memcpy(g_perf.pad_press, buf.b8, 8);
 				}
 #endif
+				/* In config mode 42h answers F3h with the sticks, even in digital mode. A pad
+				 * switched to Standard since keeps no config mode. */
+				if (global.padModeE[pad] && IsDualShock(pad))
+				{
+					global.cmdLen = 8;
+					return 0xf3;
+				}
 				return (u8)global.padID[pad];
 			}
 			break;
 		case 0x44:
-			global.cmdLen = sizeof (cmd44);
-			memcpy (buf.b8, cmd44, sizeof (cmd44));
+			/* Setting the LED resets the rumble map, whatever the parameters */
+			RumbleReset(pad);
+			global.cmdLen = sizeof (cmdcfg);
+			memcpy (buf.b8, cmdcfg, sizeof (cmdcfg));
 			return 0xf3;
 		case 0x45:
 			global.cmdLen = sizeof (cmd45);
 			memcpy (buf.b8, cmd45, sizeof (cmd45));
 			buf.b8[4] = (u8)global.padMode1[pad];
 			return 0xf3;
-		case 0x46:
-			global.cmdLen = sizeof (cmd46);
-			memcpy (buf.b8, cmd46, sizeof (cmd46));
-			return 0xf3;
-		case 0x47:
-			global.cmdLen = sizeof (cmd47);
-			memcpy (buf.b8, cmd47, sizeof (cmd47));
-			return 0xf3;
-		case 0x4c:
-			global.cmdLen = sizeof (cmd4c);
-			memcpy (buf.b8, cmd4c, sizeof (cmd4c));
-			return 0xf3;
 		case 0x4d:
-			global.cmdLen = sizeof (cmd4d);
-			memcpy (buf.b8, cmd4d, sizeof (cmd4d));
+			/* Returns the old map, byte by byte, as the new one arrives */
+			global.cmdLen = sizeof (cmdcfg);
+			buf.b8[1] = 0x5a;
+			memcpy (&buf.b8[2], global.dsRumble[pad], 6);
 			return 0xf3;
-		case 0x4f:
-			global.padID[pad] = 0x79;
-			global.padMode2[pad] = 1;
-			global.cmdLen = sizeof (cmd4f);
-			memcpy (buf.b8, cmd4f, sizeof (cmd4f));
+		default:
+			/* 46h, 47h, 48h, 4Ch: filled in from their parameter below. 40h, 41h, 49h..4Bh,
+			 * 4Eh, 4Fh: unused on a PS1 DualShock (the DualShock 2 ones), all 00h. */
+			global.cmdLen = sizeof (cmdcfg);
+			memcpy (buf.b8, cmdcfg, sizeof (cmdcfg));
 			return 0xf3;
 		}
 	}
 	switch (global.curCmd)
 	{
 	case 0x42:
+		/* Motors (psx-spx "Vibration/Rumble Control"): the small one is bit 0 of its byte,
+		 * the large one takes the whole byte. Before config mode is used, the one-motor
+		 * method: byte 3 40h..7Fh and byte 4 odd run the small motor. */
 		if (cur == global.padVib0[pad])
-			global.padVibF[pad][0] = value;
+			global.padVibF[pad][0] = value & 1;
 		if (cur == global.padVib1[pad])
 			global.padVibF[pad][1] = value;
 		if (cur == 2)
+		{
 			global.irq10En[slot] = value;
+			global.legacyXX[pad] = value;
+		}
+		if (cur == 3 && IsDualShock(pad) && !global.dsNewRumble[pad])
+			global.padVibF[pad][0] = (global.legacyXX[pad] & 0xc0) == 0x40 && (value & 1);
 		if (cur == 1 && padType[slot] == PADTYPE_MULTITAP)
 			global.trAll[slot] = value & 1;
 		break;
 	case 0x43:
-		if (cur == 2)
+		/* 01h enters config mode, 00h leaves it; other values change nothing */
+		if (cur == 2 && value <= 1)
 		{
-			global.padModeE[pad] = value; // cmd[3]==1 ? enter : exit escape mode
+			global.padModeE[pad] = value;
 			global.padModeC[pad] = 0;
+			if (value) global.dsNewRumble[pad] = 1;
 		}
 		break;
 	case 0x44:
-		if (cur == 2)
-			PADsetMode (pad, value);	// cmd[3]==1 ? analog : digital
+		/* LED 00h digital, 01h analog, others ignored. Key: AND 3 = 3 locks the Analog button */
+		if (cur == 2 && value <= 1)
+			PADsetMode (pad, value);
 		if (cur == 3)
-			global.padModeF[pad] = (value == 3); //cmd[4]==3 ? lock : don't log analog/digital button
+			global.padModeF[pad] = (value & 3) == 3;
 		break;
-	case 0x46:
-		if (cur == 2)
+	case 0x46:		/* Actuator info: 0 = small motor, 1 = large motor, others 00h */
+		if (cur == 2 && value <= 1)
 		{
-			switch(value)
-			{
-			case 0x00:
-				buf.b8[5] = 0x02;
-				buf.b8[6] = 0x00;
-				buf.b8[7] = 0x0A;
-				break;
-			case 0x01:
-				buf.b8[5] = 0x01;
-				buf.b8[6] = 0x01;
-				buf.b8[7] = 0x14;
-				break;
-			}
+			static const u8 act[2][4] = { { 0x01, 0x02, 0x00, 0x0a }, { 0x01, 0x01, 0x01, 0x14 } };
+			memcpy (&buf.b8[4], act[value], 4);
 		}
+		break;
+	case 0x47:
+		if (cur == 2 && value == 0)
+		{
+			buf.b8[4] = 0x02;
+			buf.b8[6] = 0x01;
+		}
+		break;
+	case 0x48:
+		if (cur == 2 && value <= 1)
+			buf.b8[6] = 0x01;
 		break;
 	case 0x4c:
-		if (cur == 2)
-		{
-			static const u8 buf5[] = { 0x04, 0x07, 0x02, 0x05 };
-			buf.b8[5] = buf5[value & 0x03];
-		}
+		if (cur == 2 && value <= 1)
+			buf.b8[5] = value ? 0x07 : 0x04;
 		break;
 	case 0x4d:
-		if (cur >= 2)
+		/* Bytes 3..8 set the new map (00h small motor, 01h large motor, FFh nothing) */
+		if (cur >= 2 && cur < 8)
 		{
-			if (cur == global.padVib0[pad])
-				buf.b8[cur] = 0x00;
-			else if (cur == global.padVib1[pad])
-				buf.b8[cur] = 0x01;
-
-			switch (value)
+			int i;
+			global.dsRumble[pad][cur - 2] = value;
+			global.padVib0[pad] = global.padVib1[pad] = 0;
+			for (i = 0; i < 6; i++)
 			{
-			case 0x00:
-				global.padVib0[pad] = cur;
-				/* fall through */
-			case 0x01:
-				if ((global.padID[pad] & 0x0f) < (cur - 1) / 2)
-					 global.padID[pad] = (global.padID[pad] & 0xf0) + (cur - 1) / 2;
-				if(value) global.padVib1[pad] = cur;
+				if (global.dsRumble[pad][i] == 0x00) global.padVib0[pad] = i + 2;
+				if (global.dsRumble[pad][i] == 0x01) global.padVib1[pad] = i + 2;
 			}
+			if (!global.padVib0[pad]) global.padVibF[pad][0] = 0;
+			if (!global.padVib1[pad]) global.padVibF[pad][1] = 0;
 		}
 		break;
 	}
-
 
 	if (cur >= global.cmdLen)
 		return 0;

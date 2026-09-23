@@ -127,12 +127,18 @@ drives; port 2 is Dolphin's emulated Wiimote and fails on its own). The ROM puts
 the test profile's card (`.dolphin`) only. Use `vram.bin` for the block, not for pictures:
 the hardware GPU draws on the GX side, so the dump holds uploads, not the rendered screen.
 
-What it found on 2026-09-23 (commit of this section), against psx-spx:
-- Analog: 9 of 10 config replies match a DualShock. Config-mode 43h (exit) returns
-  `F3 5A FF FF 00..` where a DualShock returns `F3 5A 00 00 00..`. 45h reports type 03h
-  (DualShock 2); a PS1 DualShock reports 01h. The exit reply was fixed the same day: 10/10.
-- Standard: acts as a digital pad without config commands, except that `sio.c` answers 43h
-  with ID 43h and 45h with F3h; a real digital pad answers 41h to every command.
+What it found on 2026-09-23, against psx-spx, DuckStation, MiSTer's PSX core and PsxNewLib,
+and what was changed so that both pad types act as the real pads do:
+- Analog had DualShock 2 replies: 45h type 03h (a PS1 DualShock says 01h) and 4Fh switching
+  to ID 79h. It answered config commands outside config mode, 42h in config mode gave the
+  normal ID instead of F3h, and config-mode 43h returned the buttons. 44h with an LED value
+  of 2 or more indexed past a table. 46h, 47h and 4Ch ignored their parameter; 48h was missing.
+  4Dh did not return the old map, and a motor mapped late grew the reply (ID 42h, which no pad
+  has). The small motor ran on any value, not bit 0, and the one-motor method did not work.
+- Standard answered every command as a read, and `sio.c` changed the ID to 43h for 43h and
+  to F3h for 45h. A real digital pad answers 42h only; anything else gets no /ACK.
+- Now, 16/16 config checks pass for each type, the sweep passes, and the replies match:
+  `bash scripts/padtest_dx.sh --ct 1` and `--ct 0`.
 - /ACK comes after each byte but the last, as on hardware, 15.7 us after the byte: exactly
   `SIO_CYCLES` (535 cycles) in `sio.c`, which the ROM's timer confirms.
 - A byte takes 0.5 us: the reply is ready as soon as the byte is written. On hardware 8 bits

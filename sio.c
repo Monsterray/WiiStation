@@ -79,7 +79,7 @@ void sioWrite8(unsigned char value) {
 #endif
 	PERF_INC(sio_write8);
 	switch (padst) {
-		case 1: set_event(PSXINT_SIO, SIO_CYCLES);
+		case 1:
 			if ((value&0x40) == 0x40) {
 				padst = 2; parp = 1;
 				if (!Config.UseNet) {
@@ -91,28 +91,21 @@ void sioWrite8(unsigned char value) {
 							buf[parp] = PAD2_poll(value);
 							break;
 					}
-				}/* else {
-//					SysPrintf("%x: %x, %x, %x, %x\n", CtrlReg&0x2002, buf[2], buf[3], buf[4], buf[5]);
-				}*/
+				}
 
+				/* FFh: the device does not take this command. It sends no /ACK, so no IRQ,
+				 * and the transfer ends (psx-spx; DuckStation and MiSTer do the same). */
+				if (buf[parp] == 0xFF) {
+					bufcount = parp;
+					padst = 0;
+					return;
+				}
 				if (!(buf[parp] & 0x0f)) {
 					bufcount = 2 + 32;
 				} else {
 					bufcount = 2 + (buf[parp] & 0x0f) * 2;
 				}
-				if (buf[parp] == 0xFF)
-					bufcount = 3;
-
-				if (buf[parp] == 0x41) {
-					switch (value) {
-						case 0x43:
-							buf[1] = 0x43;
-							break;
-						case 0x45:
-							buf[1] = 0xf3;
-							break;
-					}
-				}
+				set_event(PSXINT_SIO, SIO_CYCLES);
 			}
 			else padst = 0;
 			return;
