@@ -295,6 +295,11 @@ typedef struct {
 	/* Where already-drawn EFB content can be lost again: screen re-uploads from
 	 * psxVuw (which has no GX-drawn primitives in it) and the present's clear. */
 	uint32_t upl_calls, upl_done, pres_total, pres_clear, pres_skipped;
+	/* UploadScreen early returns, by path, and the state its paths read at the first and
+	 * the latest call of this game (upl_st[0] / [1]; upl_st_n = calls seen) */
+	uint32_t upl_r_dis, upl_r_skip, upl_r_rgb24, upl_r_1px;
+	int32_t upl_st[2][22];
+	uint32_t upl_st_n;
 	/* SIO activity (sio.c): data writes, pad-select starts that reached the
 	 * pad plugin, control-register writes, data reads, SIO interrupts */
 	uint32_t sio_write8, sio_start, sio_ctrl16, sio_read8, sio_irq;

@@ -22,7 +22,7 @@
 #                                   runs until the console powers off, prints scripts/chain_table.py.
 #                                   Same options as run; --secs is the limit for the whole chain.
 #   scripts/wsx.sh summary NAME...                        re-read finished runs (run_summary.py)
-#   scripts/wsx.sh table NAME [--detail gpu|tex|cpu|lc|pmc]  a chain's per-game table (chain_table.py)
+#   scripts/wsx.sh table NAME [--detail gpu|tex|cpu|lc|pmc|upl]  a chain's per-game table (chain_table.py)
 #   scripts/wsx.sh compare A [B] [--detail GROUP]         two chains, or one A/B chain's pairs (chain_compare.py)
 #   scripts/wsx.sh frames A B [--crop OUT.png]            two runs' frame dumps, pixel by pixel (frame_compare.py)
 #   scripts/wsx.sh audio A B                              two runs' audio dumps, sample by sample (wav_compare.py --exact)

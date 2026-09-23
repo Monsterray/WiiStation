@@ -1653,6 +1653,27 @@ static short clearMovieGarbageX1 = 0;
 static short clearMovieGarbageY0 = 0;
 static short clearMovieGarbageY1 = 0;
 
+#ifdef PERF_PROF
+/* The state UploadScreen's early returns read, at the first call of a game (slot 0) and
+ * at the latest (slot 1). Printed as uplst0/uplst1 in perf.log. */
+static void UploadScreenSnapshot(int Position)
+{
+    extern unsigned int frame_counter;
+    int32_t *v = g_perf.upl_st[g_perf.upl_st_n++ ? 1 : 0];
+    v[0] = PSXDisplay.Disabled;       v[1] = iOffscreenDrawing;
+    v[2] = bSkipNextFrame;            v[3] = PSXDisplay.RGB24;
+    v[4] = RGB24Uploaded;             v[5] = clearMovieGarbageFlg;
+    v[6] = clearMovieGarbageCnt;      v[7] = PSXDisplay.Interlaced;
+    v[8] = PSXDisplay.InterlacedTest; v[9] = UseFrameSkip;
+    v[10] = PreviousPSXDisplay.DisplayPosition.x; v[11] = PreviousPSXDisplay.DisplayPosition.y;
+    v[12] = PreviousPSXDisplay.DisplayEnd.x;      v[13] = PreviousPSXDisplay.DisplayEnd.y;
+    v[14] = PSXDisplay.DisplayPosition.x;         v[15] = PSXDisplay.DisplayPosition.y;
+    v[16] = xrUploadArea.x0; v[17] = xrUploadArea.y0;
+    v[18] = xrUploadArea.x1; v[19] = xrUploadArea.y1;
+    v[20] = (int32_t)frame_counter;   v[21] = Position;
+}
+#endif
+
 int UploadScreen ( int Position )
 {
     short x, y, YStep, XStep, U, s, UStep, ux[4], vy[4];
@@ -1673,6 +1694,9 @@ int UploadScreen ( int Position )
     uploadMapId = ResolveUploadMapId(Position);
     drawnBeforeUpload = iDrawnSomething;
     PERF_INC(upl_calls);
+#ifdef PERF_PROF
+    UploadScreenSnapshot(Position);
+#endif
     perf_prim_trace(0xEA, (Position ? 1 : 0) | (PSXDisplay.RGB24 ? 2 : 0), 0,
                     (unsigned)uploadMapId & 0xffffff,
                     xrUploadArea.x0, xrUploadArea.y0,
@@ -1709,18 +1733,20 @@ int UploadScreen ( int Position )
         sprintf ( txtbuffer, "UploadScreen Dis %d %d %d %d\r\n", xrUploadArea.x0, xrUploadArea.y0, xrUploadArea.x1 - xrUploadArea.x0, xrUploadArea.y1 - xrUploadArea.y0);
         writeLogFile ( txtbuffer );
         #endif // DISP_DEBUG
+        PERF_INC(upl_r_dis);
         return 0;
     }
 
     iLastRGB24 = PSXDisplay.RGB24 + 1;
 
-    if ( bSkipNextFrame ) return 0;
+    if ( bSkipNextFrame ) { PERF_INC(upl_r_skip); return 0; }
 
     // Clear Movie garbage
     if (PSXDisplay.RGB24)
     {
         if (RGB24Uploaded == 0)
         {
+            PERF_INC(upl_r_rgb24);
             return 1;
         }
 
@@ -1764,6 +1790,7 @@ int UploadScreen ( int Position )
             // The GX processor appears to have issues when handling textures with length or width of 1 pixel.
             // This causes crashes in specific scenes of Dino Crisis 2 or Resident Evil 3.
             // Therefore, such textures are deliberately skipped in this implementation.
+            PERF_INC(upl_r_1px);
             return 1;
         }
 

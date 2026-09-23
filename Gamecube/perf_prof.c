@@ -523,6 +523,17 @@ void perf_report(void)
 			(unsigned long)g_perf.upl_calls, (unsigned long)g_perf.upl_done,
 			(unsigned long)g_perf.pres_total, (unsigned long)g_perf.pres_clear,
 			(unsigned long)g_perf.pres_skipped);
+		fprintf(f, "uplret: dis=%lu skip=%lu rgb24=%lu px1=%lu\n",
+			(unsigned long)g_perf.upl_r_dis, (unsigned long)g_perf.upl_r_skip,
+			(unsigned long)g_perf.upl_r_rgb24, (unsigned long)g_perf.upl_r_1px);
+		{
+			int k, j;
+			for (k = 0; k < 2 && g_perf.upl_st_n; k++) {
+				fprintf(f, "uplst%d:", k);
+				for (j = 0; j < 22; j++) fprintf(f, " %ld", (long)g_perf.upl_st[k][j]);
+				fprintf(f, "\n");
+			}
+		}
 		fprintf(f, "offsoft: prims=%lu rejected=%lu | pad: startpoll=%lu update=%lu ai_calls=%lu\n",
 			(unsigned long)g_perf.off_soft_prims, (unsigned long)g_perf.off_soft_rejected,
 			(unsigned long)g_perf.pad_startpoll, (unsigned long)g_perf.pad_update, (unsigned long)g_perf.ai_calls);

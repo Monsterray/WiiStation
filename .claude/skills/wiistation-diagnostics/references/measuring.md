@@ -34,6 +34,7 @@ prints the table. Files in `scripts/chains/`:
 | `lc_ab.txt` | Spyro and Crash Bash with the locked cache off, then on | ~4.5 min |
 | `fmv_ab.txt` | Micro Machines, Medievil, FF7 video with `FmvColour` 15-bit, then 24-bit | ~4.5 min |
 | `smoke.txt` | two short games: does a chain still work | ~40 s |
+| `gpu_carry.txt` | FF7, Medievil, FF7: does a game inherit GPU state from the last one (rows 1 and 3 must match) | ~3 min |
 
 A chain line can set settings for its game alone -- `3600 sd:/wiisxrx/x.txt LockedCache=3
 SoundRateControl=0` -- and they go back before the next game. Listing a game twice with
@@ -63,6 +64,7 @@ buttons and D-pad only, so a game that needs the analog sticks cannot be recorde
 | `wsx.sh table NAME --detail cpu` | slices, HLE soft calls, nested entries, BIOS, GTE |
 | `wsx.sh table NAME --detail lc` | locked-cache regions and DMA |
 | `wsx.sh table NAME --detail pmc` | performance counters (a `pmc` build) |
+| `wsx.sh table NAME --detail upl` | screen re-uploads asked for and done, and which early return skipped the rest |
 | `wsx.sh compare A B [--detail G]` | two chains game by game: A, B, B - A |
 | `wsx.sh compare A [--detail G]` | one A/B chain: each on/off pair |
 | `wsx.sh frames A B [--crop out.png]` | two runs' frame dumps pixel by pixel, overlay masked |

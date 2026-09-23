@@ -1,0 +1,14 @@
+CHAIN
+# GPU plugin state carried from one game into the next. FF7 booted after Medievil made no
+# screen uploads (upl_done=0 of 132960 calls) while FF7 booted first made 553 of 554.
+# FF7 first, then Medievil, then FF7 again: the two FF7 rows must match.
+# bash scripts/wsx.sh chain NAME gpu_carry.txt --secs 900
+2400
+sd:/wiisxrx/isos/Final Fantasy VII/Final Fantasy VII 1
+Final Fantasy VII [U] [Disc 1] [SLUS-94163].cue
+2400
+sd:/wiisxrx/isos/Medievil
+Medievil [U] [SCUS-94227].cue
+2400
+sd:/wiisxrx/isos/Final Fantasy VII/Final Fantasy VII 1
+Final Fantasy VII [U] [Disc 1] [SLUS-94163].cue

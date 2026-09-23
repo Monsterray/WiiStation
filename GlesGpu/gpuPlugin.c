@@ -275,6 +275,25 @@ memset(ulGPUInfoVals,0x00,16*sizeof(unsigned long));
 
 //InitFrameCap();                                       // init frame rate stuff
 
+/* Loading another game runs this again, without a power cycle, and the fields the lines
+ * below do not name kept the last game's values. updateDisplayIfChangedGl copies
+ * InterlacedNew and RGB24New over the reset Interlaced and RGB24, so the next game started
+ * "already interlaced": its switch to interlace never raised InterlacedTest, and every
+ * line of its line-by-line screen writes went to UploadScreen as a 1-row upload, which is
+ * skipped (FF7 after Medievil: 132960 upload calls, 0 done; FF7 first: 554, 553). Zero the
+ * lot, as at power-on, then set what this plugin wants. */
+memset(&PSXDisplay, 0, sizeof(PSXDisplay));
+memset(&PreviousPSXDisplay, 0, sizeof(PreviousPSXDisplay));
+memset(&xrUploadArea, 0, sizeof(xrUploadArea));
+memset(&xrUploadAreaIL, 0, sizeof(xrUploadAreaIL));
+bNeedInterlaceUpdate = bNeedRGB24Update = FALSE;
+bNeedUploadAfter = bNeedUploadTest = bNeedWriteUpload = FALSE;
+needUploadScreen = uploadedScreen = skipPreviousDisplayCheckOnce = FALSE;
+RGB24Uploaded = 0;
+GPUupdateLace5Flg = 0;
+iLastRGB24 = 0;
+clearMovieGarbageFlg = clearMovieGarbageCnt = 0;
+
 PSXDisplay.RGB24        = 0;                          // init vars
 PreviousPSXDisplay.RGB24= 0;
 PSXDisplay.Interlaced   = 0;

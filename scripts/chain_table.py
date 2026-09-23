@@ -130,6 +130,11 @@ DETAIL = {
             ('waitus#', 'lc', 'wait_us', '#')],
     'pmc': [('pmc1#', 'pmc', 'pmc1', '#'), ('pmc2#', 'pmc', 'pmc2', '#'),
             ('pmc3#', 'pmc', 'pmc3', '#'), ('pmc4#', 'pmc', 'pmc4', '#')],
+    # screen re-uploads (UploadScreen) asked for, done, and each early return that skipped one
+    'upl': [('calls#', 'efbloss', 'upl_calls', '#'), ('done#', 'efbloss', 'upl_done', '#'),
+            ('dis#', 'uplret', 'dis', '#'), ('skip#', 'uplret', 'skip', '#'),
+            ('rgb24#', 'uplret', 'rgb24', '#'), ('px1#', 'uplret', 'px1', '#'),
+            ('pres#', 'gpuflip', 'presents', '#')],
 }
 
 

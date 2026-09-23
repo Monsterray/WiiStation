@@ -256,3 +256,28 @@ tempting wrong turns.
   `offsetPSX4()` leave `vertex[]` in screen space and `lx0..ly3` in VRAM space, and mixing
   them with `CumulOffset` counts the offset twice.
 
+
+## 12. FF7 after Medievil made no screen uploads -- display state carried from the last game (OpenGX)
+
+- Symptom (2026-09-22, an A/B chain): FF7 booted after Medievil in one boot had
+  `efbloss: upl_calls=132960 upl_done=0` and `gpupres: uploads=0`; FF7 booted first, or after
+  another FF7, had 554/553. Same `irq:` counts, so the guest did the same thing both times.
+- Probe: a counter per UploadScreen early return (`uplret:`) and the state those returns read
+  at the first and latest call (`uplst0/1:`), read with `wsx.sh table NAME --detail upl`, on
+  `scripts/chains/gpu_carry.txt` (FF7, Medievil, FF7). One run: every broken call was the
+  1-row guard (`px1=132960`) with Position 0 (from CheckWriteUpdate), and the one differing
+  field was `PSXDisplay.InterlacedTest`: 2 in the good FF7, 0 in the broken one.
+- Mechanism: GP1(08) raises InterlacedTest only when it turns interlace on while
+  `PSXDisplay.Interlaced` is still 0. `GL_GPUinit` (run again for every game) zeroed
+  Interlaced but not InterlacedNew, and `updateDisplayIfChangedGl` copies InterlacedNew into
+  Interlaced -- so FF7 started "already interlaced" from Medievil's value, its switch was not
+  seen, and CheckWriteUpdate sent each line of its line-by-line screen writes to UploadScreen
+  as a 1-row upload, which is skipped. Not explained: why FF7 after FF7 escaped (it also
+  ends interlaced); the rest of the carried state differs.
+- Fix: `GL_GPUinit` zeroes `PSXDisplay`, `PreviousPSXDisplay`, the upload rects and the
+  upload bookkeeping statics before setting its own values. Verified: FF7 after Medievil
+  554/553, uploads 554, and every GPU counter equal to FF7 first.
+- Not GPU, still carried between games in one boot (the same in FF7 x3): the root-counter
+  IRQ count (`rcnt=60359` first, 67870 after), CPU slice counts, and pad `avail G=1000`.
+- Lesson: a plugin "init" that lists the fields it resets is a list of the fields it forgot.
+  When a later game in a chain differs from the same game booted first, zero the structs.
