@@ -130,6 +130,25 @@ static void gc_vout_vsync(unsigned int)
 	}
 }
 
+/* The TV mode is changing (switchToTVMode: the copy settings for the new mode are in place, the
+ * VI not yet switched, no copy in flight). The XFB on screen, and any frame waiting in FB_NEXT,
+ * were copied for the old mode,
+ * and the new mode reads them with the wrong layout until the game's next frame is copied: on
+ * a Wii a garbled frame, and in Dolphin -- whose XFB cache has no copy of the size the VI now
+ * reads -- a solid purple screen (MediEvil's 240p -> 480i switch before its loading screen).
+ * So the waiting frame is dropped, and a black frame is copied for the new mode and shown: the
+ * first copy clears the EFB (what it writes to FB_BACK is overwritten by the next frame), the
+ * second copies the cleared EFB to the front. A TV blanks while it takes a new mode too. */
+void gx_vout_mode_changed(void)
+{
+	new_frame = 0;
+	GX_CopyDisp(xfb[FB_BACK], GX_TRUE);
+	GX_CopyDisp(xfb[FB_FRONT], GX_TRUE);
+	GX_DrawDone();
+	VIDEO_SetNextFramebuffer(xfb[FB_FRONT]);
+	VIDEO_Flush();
+}
+
 static void gc_vout_copydone(void)
 {
 	u32 *tmp;

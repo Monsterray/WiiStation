@@ -20,6 +20,7 @@
 
 #include <math.h>
 #include "GraphicsGX.h"
+#include "../wiiSXconfig.h"
 extern "C" {
     #include "../../gpu.h"
 }
@@ -68,6 +69,7 @@ short      texCacheUsedInfo[8];
 
 
 extern u32* xfb[3];
+extern "C" void gx_vout_mode_changed(void);   /* SoftGPU/drawGX.c */
 /* The XFB size switchToTVMode() last set up (bytes per line / 2, lines): perf_prof.c's
  * 'dump <vblank>' writes the front XFB with it (xfb.bin, scripts/xfb2png.py). */
 extern "C" { unsigned g_xfb_w = 640, g_xfb_h = 480; }
@@ -160,16 +162,6 @@ extern "C" void switchToTVMode(short dWidth, short dHeight, bool retMenu){
 
 	GX_SetCopyFilter(rmode->aa,rmode->sample_pattern,(deflickerFilter)?GX_TRUE:GX_FALSE,rmode->vfilter);
 
-	VIDEO_Configure (rmode);
-	VIDEO_Flush();
-	if (retMenu){
-		GX_SetCopyFilter(rmode->aa,rmode->sample_pattern,GX_TRUE,rmode->vfilter);
-		VIDEO_ClearFrameBuffer (rmode, xfb[FB_FRONT], COLOR_BLACK);
-		VIDEO_Flush ();
-	}
-	VIDEO_WaitVSync();
-	if(rmode->viTVMode&VI_NON_INTERLACE) VIDEO_WaitVSync();
-
 	GX_SetCopyClear(background, 0x00ffffff);
 	GX_SetViewport(0.0F, 0.0F, rmode->fbWidth, rmode->efbHeight, 0.0F, 1.0F);
 	/* The source first: GX_SetDispCopyYScale() works out the XFB's line count from the copy
@@ -199,6 +191,24 @@ extern "C" void switchToTVMode(short dWidth, short dHeight, bool retMenu){
 	GX_LoadProjectionMtx(perspective, GX_ORTHOGRAPHIC);
 	GX_SetDither(GX_FALSE);
 
+	/* The copy settings for the new mode are in place before the VI takes it, and the VI takes
+	 * it showing a black frame copied with them (SoftGPU/drawGX.c). The VI used to switch
+	 * first and wait a vsync or two showing the last copy, made for the old mode: on a Wii a
+	 * garbled frame, in Dolphin -- whose XFB cache has no copy of the size the VI then reads --
+	 * a solid purple one (MediEvil, each 320 <-> 512 switch around its loading screen). The old
+	 * soft GPU presents through its own PeopsSoftGPU/drawGX.c and is left as it was. */
+	if (!retMenu && gpuPlugin != OLD_SOFT)
+		gx_vout_mode_changed();
+
+	VIDEO_Configure (rmode);
+	VIDEO_Flush();
+	if (retMenu){
+		GX_SetCopyFilter(rmode->aa,rmode->sample_pattern,GX_TRUE,rmode->vfilter);
+		VIDEO_ClearFrameBuffer (rmode, xfb[FB_FRONT], COLOR_BLACK);
+		VIDEO_Flush ();
+	}
+	VIDEO_WaitVSync();
+	if(rmode->viTVMode&VI_NON_INTERLACE) VIDEO_WaitVSync();
 }
 
 
