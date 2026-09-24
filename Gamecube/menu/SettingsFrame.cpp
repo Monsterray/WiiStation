@@ -94,8 +94,8 @@ void Func_ConfigureButtons();
 void Func_PsxTypeStandard();
 void Func_PsxTypeAnalog();
 void Func_PsxTypeLightgun();
-void Func_DisableRumbleYes();
-void Func_DisableRumbleNo();
+void Func_EnableRumbleYes();
+void Func_EnableRumbleNo();
 void Func_SaveButtonsSD();
 void Func_SaveButtonsUSB();
 void Func_SetButtonLoad();
@@ -259,7 +259,7 @@ static char FRAME_STRINGS[98][24] =
 	  "Configure Input",
 	  "Configure Buttons",
 	  "PSX Controller Type",
-	  "Disable Rumble",
+	  "Enable Rumble",
 	  "Standard",
 	  "Analog",
 	  "Save Button Configs",
@@ -414,8 +414,8 @@ struct ButtonInfo
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[35],	320.0,	100.0,	235.0,	56.0,	 2,	32,	30,	30,	Func_ConfigureButtons,	Func_ReturnFromSettingsFrame }, // Configure Button Mappings
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[38],	295.0,	160.0,	133.0,	56.0,	30,	59,	33,	33,	Func_PsxTypeStandard,	Func_ReturnFromSettingsFrame }, // PSX Controller Type: Standard
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[39],	438.0,	160.0,	133.0,	56.0,	31,	59,	32,	32,	Func_PsxTypeAnalog,		Func_ReturnFromSettingsFrame }, // PSX Controller Type: Analog
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[16],	295.0,	280.0,	 75.0,	56.0,	59,	36,	35,	35,	Func_DisableRumbleYes,	Func_ReturnFromSettingsFrame }, // Disable Rumble: Yes
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[17],	380.0,	280.0,	 75.0,	56.0,	59,	37,	34,	34,	Func_DisableRumbleNo,	Func_ReturnFromSettingsFrame }, // Disable Rumble: No
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[16],	295.0,	280.0,	 75.0,	56.0,	59,	36,	35,	35,	Func_EnableRumbleYes,	Func_ReturnFromSettingsFrame }, // Enable Rumble: Yes
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[17],	380.0,	280.0,	 75.0,	56.0,	59,	37,	34,	34,	Func_EnableRumbleNo,	Func_ReturnFromSettingsFrame }, // Enable Rumble: No
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[13],	295.0,	340.0,	 55.0,	56.0,	34,	38,	37,	37,	Func_SaveButtonsSD,		Func_ReturnFromSettingsFrame }, // Save Button Mappings: SD
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[14],	360.0,	340.0,	 70.0,	56.0,	35,	38,	36,	36,	Func_SaveButtonsUSB,	Func_ReturnFromSettingsFrame }, // Save Button Mappings: USB
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[42],	295.0,	400.0,	135.0,	56.0,	36,	 2,	-1,	-1,	Func_ToggleButtonLoad,	Func_ReturnFromSettingsFrame }, // Auto Load Button Config Slot: Default,1,2,3,4
@@ -467,9 +467,10 @@ struct ButtonInfo
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[83],	258.0,	380.0,	125.0,	56.0,	69,	 3,	-1,	-1,	Func_AdvancedSound,		Func_ReturnFromSettingsFrame }, // Advanced: opens the Advanced Sound page
 	//General tab: one row of sub-pages. The CPU core and GPU plugin moved to Plugins and the
 	//CD settings to the CD page; buttons 5/6/58 and 64/65/66 stay in this table but are not shown.
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[84],	100.0,	100.0,	130.0,	56.0,	14,	 7,	75,	74,	Func_PluginsPage,		Func_ReturnFromSettingsFrame }, // Plugins page
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[85],	255.0,	100.0,	130.0,	56.0,	14,	 8,	73,	75,	Func_CDPage,			Func_ReturnFromSettingsFrame }, // CD page
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[86],	410.0,	100.0,	130.0,	56.0,	14,	 9,	74,	73,	Func_MemoryPage,		Func_ReturnFromSettingsFrame }, // Memory page
+	//Up goes to the General tab, as the first row of every other tab goes to its tab.
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[84],	100.0,	100.0,	130.0,	56.0,	 0,	 7,	75,	74,	Func_PluginsPage,		Func_ReturnFromSettingsFrame }, // Plugins page
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[85],	255.0,	100.0,	130.0,	56.0,	 0,	 8,	73,	75,	Func_CDPage,			Func_ReturnFromSettingsFrame }, // CD page
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[86],	410.0,	100.0,	130.0,	56.0,	 0,	 9,	74,	73,	Func_MemoryPage,		Func_ReturnFromSettingsFrame }, // Memory page
 	//Saves tab: which file each memory card lives in (buttons 76 and 77)
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[94],	295.0,	170.0,	105.0,	56.0,	46,	50,	77,	77,	Func_CardType1,			Func_ReturnFromSettingsFrame }, // Memcard 1 type: Off/Shared/Game
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[93],	430.0,	170.0,	105.0,	56.0,	47,	51,	76,	76,	Func_CardType2,			Func_ReturnFromSettingsFrame }, // Memcard 2 type: Off/Shared/Game
@@ -500,7 +501,7 @@ struct TextBoxInfo
 	{	NULL,	FRAME_STRINGS[23],	150.0,	368.0,	 1.0,	true }, // Filters
 	//TextBoxes for Input Tab (starts at textBox[10])
 	{	NULL,	FRAME_STRINGS[36],	150.0,	188.0,	 1.0,	true }, // PSX Controller Type: Standard/Analog
-	{	NULL,	FRAME_STRINGS[37],	150.0,	308.0,	 1.0,	true }, // Disable Rumble: Yes/No
+	{	NULL,	FRAME_STRINGS[37],	150.0,	308.0,	 1.0,	true }, // Enable Rumble: Yes/No
 	{	NULL,	FRAME_STRINGS[40],	150.0,	368.0,	 1.0,	true }, // Save Button Configs: SD/USB
 	{	NULL,	FRAME_STRINGS[41],	150.0,	428.0,	 1.0,	true }, // Auto Load Slot: Default/1/2/3/4
 	//TextBoxes for Audio Tab (starts at textBox[14]) ..was[17]
@@ -715,7 +716,7 @@ void SettingsFrame::activateSubmenu(int submenu)
 			else FRAME_BUTTONS[59].button->setSelected(false);
 			FRAME_BUTTONS[59].buttonString = FRAME_STRINGS[70 + lightGun];
 
-			FRAME_BUTTONS[34+rumbleEnabled].button->setSelected(true);
+			FRAME_BUTTONS[rumbleEnabled == RUMBLE_ENABLE ? 34 : 35].button->setSelected(true);
 
 			FRAME_BUTTONS[59].button->setVisible(true);
 			FRAME_BUTTONS[59].button->setActive(true);
@@ -1623,20 +1624,20 @@ void Func_PsxTypeLightgun()
     FRAME_BUTTONS[59].buttonString = FRAME_STRINGS[70 + lightGun];
 }
 
-void Func_DisableRumbleYes()
+void Func_EnableRumbleYes()
 {
 	for (int i = 34; i <= 35; i++)
 		FRAME_BUTTONS[i].button->setSelected(false);
 	FRAME_BUTTONS[34].button->setSelected(true);
-	rumbleEnabled = RUMBLE_DISABLE;
+	rumbleEnabled = RUMBLE_ENABLE;
 }
 
-void Func_DisableRumbleNo()
+void Func_EnableRumbleNo()
 {
 	for (int i = 34; i <= 35; i++)
 		FRAME_BUTTONS[i].button->setSelected(false);
 	FRAME_BUTTONS[35].button->setSelected(true);
-	rumbleEnabled = RUMBLE_ENABLE;
+	rumbleEnabled = RUMBLE_DISABLE;
 }
 
 void Func_Memcard1()

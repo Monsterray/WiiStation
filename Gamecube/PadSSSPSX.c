@@ -411,19 +411,15 @@ static void UpdateState (const int pad) //Note: pad = 0 or 1
 			(out->rightJoyX << 8) | out->rightJoyY);
 	}
 
-	/* Small Motor */
-	if ((global.padVibF[pad][2] != vib0) )
+	/* A Wii-side controller has one motor. It runs while either DualShock motor runs:
+	 * before, the small motor stopping stopped it while the big one still ran. */
+	if (global.padVibF[pad][2] != vib0 || global.padVibF[pad][3] != vib1)
 	{
 		global.padVibF[pad][2] = vib0;
-		if (virtualControllers[pad].control && virtualControllers[pad].control->rumble)
-			DO_CONTROL(pad, rumble, global.padVibF[pad][0]);
-	}
-	/* Big Motor */
-	if ((global.padVibF[pad][3] != vib1) )
-	{
 		global.padVibF[pad][3] = vib1;
+		if (vib0 | vib1) PERF_INC(rumble_on); else PERF_INC(rumble_off);
 		if (virtualControllers[pad].control && virtualControllers[pad].control->rumble)
-			DO_CONTROL(pad, rumble, global.padVibF[pad][1]);
+			DO_CONTROL(pad, rumble, vib0 | vib1);
 	}
 }
 

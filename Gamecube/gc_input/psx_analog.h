@@ -46,6 +46,24 @@ static inline uint8_t psx_analog(float unit)
 	return (uint8_t)(v < 0 ? 0 : (v > 255 ? 255 : v));
 }
 
+/* A stick position (x, y, each a fraction of full travel) stretched from a Nintendo stick's
+ * gate to a DualShock's range. A GameCube or Classic Controller stick has an octagonal gate
+ * with its corners at full cardinal travel, so a full diagonal reads about 0.71 on each axis;
+ * a DualShock's full diagonal reads close to the corner of its square (emulators scale modern
+ * round sticks by about 1.33 for the same reason). Each direction is stretched so that the
+ * octagon's edge lands on the square's edge: straight up, down, left and right are unchanged,
+ * a full diagonal becomes (1, 1), and rest stays at rest. psx_analog() clamps what goes
+ * past the square, which a stick between gate corners can do by a few percent. */
+static inline void psx_square(float *x, float *y)
+{
+	float ax = *x < 0.0f ? -*x : *x, ay = *y < 0.0f ? -*y : *y;
+	float big = ax > ay ? ax : ay, small = ax > ay ? ay : ax, k;
+	if (big <= 0.0f) return;
+	k = (big + 0.41421356f * small) / big;   /* octagon norm / square norm; tan(22.5) */
+	*x *= k;
+	*y *= k;
+}
+
 /* The one gain applied to a stick after its driver has mapped it. At 1.0 the stick is
  * exactly what the hardware reported. Above 1.0 the travel is stretched and its outer part
  * saturates, which is the trade the sensitivity setting exists to make: a worn stick that

@@ -292,6 +292,7 @@ typedef struct {
 	 * OffscreenSoftDraw), and pad-plugin activity: SIO start-polls, pad state
 	 * refreshes and calls into the scripted-input mask */
 	uint32_t off_soft_prims, off_soft_rejected, pad_startpoll, pad_update, ai_calls;
+	uint32_t rumble_on, rumble_off;   /* motor on/off calls into the controller driver */
 	/* Port 1's protocol (Gamecube/PadSSSPSX.c): commands by type (0x40..0x4F), and the
 	 * first reply to a 0x42 poll sent while a button was held: its ID and bytes. */
 	uint32_t pad_cmd[16];

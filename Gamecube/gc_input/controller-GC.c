@@ -180,9 +180,12 @@ static unsigned int getButtons(const gc_raw_t *r)
  * off. If a pad cannot quite reach the corners, raise its sensitivity setting rather than
  * this: the setting is per controller and needs no rebuild. */
 #define GC_STICK_FULL 96.0f
-static inline u8 GCtoPSXAnalog(int a)
+static void GCtoPSX(int x, int y, int invertY, u8 *px, u8 *py)
 {
-	return psx_analog((float)a / GC_STICK_FULL);
+	float fx = (float)x / GC_STICK_FULL, fy = (float)(invertY ? y : -y) / GC_STICK_FULL;
+	psx_square(&fx, &fy);
+	*px = psx_analog(fx);
+	*py = psx_analog(fy);
 }
 
 static int _GetKeys(int Control, BUTTONS * Keys, controller_config_t* config)
@@ -234,9 +237,10 @@ static int _GetKeys(int Control, BUTTONS * Keys, controller_config_t* config)
 		stickX = raw.cx;
 		stickY = raw.cy;
 	}
-	c->leftStickX = GCtoPSXAnalog(stickX);
-	c->leftStickY = GCtoPSXAnalog(config->invertedYL ? stickY : -stickY);
+	GCtoPSX(stickX, stickY, config->invertedYL, &c->leftStickX, &c->leftStickY);
 
+	/* A right stick set to none rests; it used to repeat the left stick's reading. */
+	stickX = stickY = 0;
 	if(config->analogR->mask == ANALOG_AS_ANALOG){
 		stickX = raw.sx;
 		stickY = raw.sy;
@@ -244,8 +248,7 @@ static int _GetKeys(int Control, BUTTONS * Keys, controller_config_t* config)
 		stickX = raw.cx;
 		stickY = raw.cy;
 	}
-	c->rightStickX = GCtoPSXAnalog(stickX);
-	c->rightStickY = GCtoPSXAnalog(config->invertedYR ? stickY : -stickY);
+	GCtoPSX(stickX, stickY, config->invertedYR, &c->rightStickX, &c->rightStickY);
 
 	// Return 1 if exit, 2 if fastforward
 	if (!isHeld(config->exit)) return 1;

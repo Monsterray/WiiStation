@@ -549,9 +549,10 @@ void perf_report(void)
 				fprintf(f, "\n");
 			}
 		}
-		fprintf(f, "offsoft: prims=%lu rejected=%lu | pad: startpoll=%lu update=%lu ai_calls=%lu\n",
+		fprintf(f, "offsoft: prims=%lu rejected=%lu | pad: startpoll=%lu update=%lu ai_calls=%lu rumble=%lu/%lu\n",
 			(unsigned long)g_perf.off_soft_prims, (unsigned long)g_perf.off_soft_rejected,
-			(unsigned long)g_perf.pad_startpoll, (unsigned long)g_perf.pad_update, (unsigned long)g_perf.ai_calls);
+			(unsigned long)g_perf.pad_startpoll, (unsigned long)g_perf.pad_update, (unsigned long)g_perf.ai_calls,
+			(unsigned long)g_perf.rumble_on, (unsigned long)g_perf.rumble_off);
 		{
 			unsigned k;
 			fprintf(f, "padproto:");

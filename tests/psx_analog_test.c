@@ -104,6 +104,40 @@ int main(void)
 	check("Wii U Pro",       wupc,    -1024, 1024, 0.0f);
 	check("Wii U GamePad",   wiidrc,  -75,   75,   DRC_DEADZONE);
 
+	printf("gate to square\n");
+	{
+		/* The octagon's corners -- a full push in each of the 8 directions -- must reach the
+		 * square's: 0 or 255 on a moved axis, 128 on an unmoved one. */
+		int d;
+		float x, y, prev, r;
+		char msg[80];
+		for (d = 0; d < 8; d++) {
+			x = cosf(d * 3.14159265f / 4.0f);
+			y = sinf(d * 3.14159265f / 4.0f);
+			psx_square(&x, &y);
+			if ((psx_analog(x) % 255 && psx_analog(x) != 128) || (psx_analog(y) % 255 && psx_analog(y) != 128)) {
+				snprintf(msg, sizeof msg, "corner %d reads (%u, %u)", d, psx_analog(x), psx_analog(y));
+				fail("gate to square", msg);
+			}
+		}
+		x = y = 0.0f;
+		psx_square(&x, &y);
+		if (psx_analog(x) != 128 || psx_analog(y) != 128) fail("gate to square", "rest moved");
+		/* Pushing further along any direction never comes back in. */
+		for (d = 0; d < 64; d++) {
+			prev = 0.0f;
+			for (i = 1; i <= 100; i++) {
+				x = cosf(d * 3.14159265f / 32.0f) * i / 100.0f;
+				y = sinf(d * 3.14159265f / 32.0f) * i / 100.0f;
+				psx_square(&x, &y);
+				r = x * x + y * y;
+				if (r < prev) { fail("gate to square", "goes backwards along a direction"); break; }
+				prev = r;
+			}
+		}
+		printf("  8 gate corners reach the square's; rest stays; outward stays outward\n");
+	}
+
 	printf("sensitivity\n");
 	/* 1.0 must be the identity, or the default setting is not a 1:1 stick. */
 	for (i = 0; i <= 255; i++)

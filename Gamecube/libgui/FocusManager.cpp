@@ -18,6 +18,7 @@
  *
 **/
 
+#include <math.h>
 #include "FocusManager.h"
 #include "InputManager.h"
 #include "Frame.h"
@@ -26,6 +27,91 @@
 #include "../../HidController/KernelHID.h"
 
 namespace menu {
+
+/* The menu with the stick as well as the D-pad (2026-09-23). A stick pushed past STICK_ON of
+ * its full travel reads as that D-pad direction until it falls back under STICK_OFF: the gap
+ * stops a stick resting near the edge from flickering, and a thumb resting on the stick, or a
+ * worn stick's drift, stays well under STICK_ON. The larger axis wins, so a diagonal gives one
+ * direction; a held stick is one press, as a held D-pad is. Each device's result is ORed into
+ * its own D-pad bits, so everything below treats the stick exactly as the D-pad. */
+#define STICK_ON  0.60f
+#define STICK_OFF 0.35f
+enum { STICK_UP = 1, STICK_DOWN = 2, STICK_LEFT = 4, STICK_RIGHT = 8 };
+
+/* x right +, y up +, each -1..1 of full travel. held: this stick's direction last time. */
+static int stickDirection(float x, float y, int *held)
+{
+	float ax = x < 0 ? -x : x, ay = y < 0 ? -y : y;
+	float m = ax > ay ? ax : ay;
+	int dir = 0;
+
+	if (m >= STICK_ON)
+		dir = ax > ay ? (x > 0 ? STICK_RIGHT : STICK_LEFT) : (y > 0 ? STICK_UP : STICK_DOWN);
+	else if (m >= STICK_OFF)
+		dir = *held;
+	*held = dir;
+	return dir;
+}
+
+static u32 stickBits(int dir, u32 up, u32 down, u32 left, u32 right)
+{
+	return (dir & STICK_UP ? up : 0) | (dir & STICK_DOWN ? down : 0) |
+	       (dir & STICK_LEFT ? left : 0) | (dir & STICK_RIGHT ? right : 0);
+}
+
+#define GC_STICK_FULL 96.0f
+
+static u16 stickGC(int i)
+{
+	static int held[4];
+	int d = stickDirection(PAD_StickX(i) / GC_STICK_FULL, PAD_StickY(i) / GC_STICK_FULL, &held[i]);
+	return (u16)stickBits(d, PAD_BUTTON_UP, PAD_BUTTON_DOWN, PAD_BUTTON_LEFT, PAD_BUTTON_RIGHT);
+}
+
+#ifdef HW_RVL
+/* A Wii joystick reports angle (degrees, 0 = up, clockwise) and magnitude (0..1) */
+static int stickJoy(const joystick_t *j, int *held)
+{
+	float a = j->ang * 3.14159265f / 180.0f;
+	return stickDirection(j->mag * sinf(a), j->mag * cosf(a), held);
+}
+
+/* The Classic Controller's left stick in Classic D-pad bits; the Nunchuk's in the Wiimote's */
+static u32 stickWii(const WPADData *w, int i)
+{
+	static int held[4];
+	if (w->exp.type == WPAD_EXP_CLASSIC)
+		return stickBits(stickJoy(&w->exp.classic.ljs, &held[i]), WPAD_CLASSIC_BUTTON_UP,
+			WPAD_CLASSIC_BUTTON_DOWN, WPAD_CLASSIC_BUTTON_LEFT, WPAD_CLASSIC_BUTTON_RIGHT);
+	if (w->exp.type == WPAD_EXP_NUNCHUK)
+		return stickBits(stickJoy(&w->exp.nunchuk.js, &held[i]), WPAD_BUTTON_UP,
+			WPAD_BUTTON_DOWN, WPAD_BUTTON_LEFT, WPAD_BUTTON_RIGHT);
+	held[i] = 0;
+	return 0;
+}
+
+static u32 stickWiiUPro(int i)
+{
+	static int held[4];
+	int d = stickDirection(WUPC_lStickX(i) / 1024.0f, WUPC_lStickY(i) / 1024.0f, &held[i]);
+	return stickBits(d, WPAD_CLASSIC_BUTTON_UP, WPAD_CLASSIC_BUTTON_DOWN,
+		WPAD_CLASSIC_BUTTON_LEFT, WPAD_CLASSIC_BUTTON_RIGHT);
+}
+
+static u16 stickWiiUGamepad(void)
+{
+	static int held;
+	int d = stickDirection(WiiDRC_lStickX() / 75.0f, WiiDRC_lStickY() / 75.0f, &held);
+	return (u16)stickBits(d, WIIDRC_BUTTON_UP, WIIDRC_BUTTON_DOWN, WIIDRC_BUTTON_LEFT, WIIDRC_BUTTON_RIGHT);
+}
+
+static u16 stickGCHid(const PADStatus *p, int i)
+{
+	static int held[4];
+	int d = stickDirection(p->stickX / GC_STICK_FULL, p->stickY / GC_STICK_FULL, &held[i]);
+	return (u16)stickBits(d, PAD_BUTTON_UP, PAD_BUTTON_DOWN, PAD_BUTTON_LEFT, PAD_BUTTON_RIGHT);
+}
+#endif
 
 Focus::Focus()
 		: focusActive(false),
@@ -77,13 +163,13 @@ void Focus::updateFocus()
 	{
 		for (int i=0; i<4; i++)
 		{
-			previousButtonsGC[i] = PAD_ButtonsHeld(i);
+			previousButtonsGC[i] = PAD_ButtonsHeld(i) | stickGC(i);
 #ifdef HW_RVL
-			previousButtonsGCHid[i] = hidGcPad[i].button;
-			previousButtonsWii[i] = wiiPad[i].btns_h;
-			previousButtonsWiiUPro[i] = WUPC_ButtonsHeld(i);
+			previousButtonsGCHid[i] = hidGcPad[i].button | stickGCHid(&hidGcPad[i], i);
+			previousButtonsWii[i] = wiiPad[i].btns_h | stickWii(&wiiPad[i], i);
+			previousButtonsWiiUPro[i] = WUPC_ButtonsHeld(i) | stickWiiUPro(i);
 			if(i == 0)
-				previousButtonsWiiUGamepad[i] = WiiDRC_ButtonsHeld();
+				previousButtonsWiiUGamepad[i] = WiiDRC_ButtonsHeld() | stickWiiUGamepad();
 			else
 				previousButtonsWiiUGamepad[i] = 0;
 #endif
@@ -94,14 +180,16 @@ void Focus::updateFocus()
 	for (int i=0; i<4; i++)
 	{
 #ifdef HW_RVL
-		u32 currentButtonsWiiUPro = WUPC_ButtonsHeld(i);
+		u32 currentButtonsWiiUPro = WUPC_ButtonsHeld(i) | stickWiiUPro(i);
 		u16 currentButtonsWiiUGamepad;
+		u32 currentButtonsWii = wiiPad[i].btns_h | stickWii(&wiiPad[i], i);
+		u16 currentButtonsGCHid = hidGcPad[i].button | stickGCHid(&hidGcPad[i], i);
 		if(i == 0)
-			currentButtonsWiiUGamepad = WiiDRC_ButtonsHeld();
+			currentButtonsWiiUGamepad = WiiDRC_ButtonsHeld() | stickWiiUGamepad();
 		else
 			currentButtonsWiiUGamepad = 0;
 #endif
-		u16 currentButtonsGC = PAD_ButtonsHeld(i);
+		u16 currentButtonsGC = PAD_ButtonsHeld(i) | stickGC(i);
 		if (currentButtonsGC ^ previousButtonsGC[i])
 		{
 			u16 currentButtonsDownGC = (currentButtonsGC ^ previousButtonsGC[i]) & currentButtonsGC;
@@ -134,9 +222,9 @@ void Focus::updateFocus()
 			break;
 		}
 #ifdef HW_RVL
-		else if (wiiPad[i].btns_h ^ previousButtonsWii[i])
+		else if (currentButtonsWii ^ previousButtonsWii[i])
 		{
-			u32 currentButtonsDownWii = (wiiPad[i].btns_h ^ previousButtonsWii[i]) & wiiPad[i].btns_h;
+			u32 currentButtonsDownWii = (currentButtonsWii ^ previousButtonsWii[i]) & currentButtonsWii;
 			if (wiiPad[i].exp.type == WPAD_EXP_CLASSIC)
 			{
 				switch (currentButtonsDownWii & 0xc0030000) {
@@ -184,7 +272,7 @@ void Focus::updateFocus()
 			}
 			if (primaryFocusOwner) primaryFocusOwner = primaryFocusOwner->updateFocus(focusDirection,buttonsDown);
 			else primaryFocusOwner = currentFrame->updateFocus(focusDirection,buttonsDown);
-			previousButtonsWii[i] = wiiPad[i].btns_h;
+			previousButtonsWii[i] = currentButtonsWii;
 			break;
 		}
 		else if (currentButtonsWiiUPro ^ previousButtonsWiiUPro[i])
@@ -247,9 +335,9 @@ void Focus::updateFocus()
 			previousButtonsWiiUGamepad[i] = currentButtonsWiiUGamepad;
 			break;
 		}
-		else if (hidGcPad[i].button ^ previousButtonsGCHid[i])
+		else if (currentButtonsGCHid ^ previousButtonsGCHid[i])
 		{
-			switch (hidGcPad[i].button & 0x0F) {
+			switch (currentButtonsGCHid & 0x0F) {
 			case PAD_BUTTON_LEFT:
 				focusDirection = DIRECTION_LEFT;
 				break;
@@ -265,8 +353,8 @@ void Focus::updateFocus()
 			default:
 				focusDirection = DIRECTION_NONE;
 			}
-			if (hidGcPad[i].button & PAD_BUTTON_A) buttonsDown |= ACTION_SELECT;
-			if (hidGcPad[i].button & PAD_BUTTON_B) buttonsDown |= ACTION_BACK;
+			if (currentButtonsGCHid & PAD_BUTTON_A) buttonsDown |= ACTION_SELECT;
+			if (currentButtonsGCHid & PAD_BUTTON_B) buttonsDown |= ACTION_BACK;
 			if (freezeAction)
 			{
 				focusDirection = DIRECTION_NONE;
@@ -274,7 +362,7 @@ void Focus::updateFocus()
 			}
 			if (primaryFocusOwner) primaryFocusOwner = primaryFocusOwner->updateFocus(focusDirection, buttonsDown);
 			else primaryFocusOwner = currentFrame->updateFocus(focusDirection, buttonsDown);
-			previousButtonsGCHid[i] = hidGcPad[i].button;
+			previousButtonsGCHid[i] = currentButtonsGCHid;
 			break;
 		}
 #endif
