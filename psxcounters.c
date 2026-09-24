@@ -28,30 +28,8 @@
 #include "psxcommon.h"
 #include "Gamecube/perf_prof.h"
 
-/* autoinput.txt's "statetest <vblank>": save a state at that vblank and load it back
- * 120 vblanks later, so a scripted run can time both. A menu cannot be scripted, and the
- * Current ROM menu is the only other way to reach them.
- *
- * THIS DISTURBS THE RUNNING GAME. The menu calls SaveState and LoadState with the
- * emulator stopped; here they run from inside the vblank handler, so the game freezes for
- * the length of the write and comes back with its sound ring and its GPU command stream
- * part way through a frame. The picture tears and the sound breaks for a moment. That is
- * acceptable for timing the two calls and for nothing else, so it is built only into the
- * profiling build and does nothing without the script line. */
-#ifdef PERF_PROF
-extern unsigned autoinput_statetest_vbl;
-int SaveState(void);
-int LoadState(int force);
-static void autoinput_state_test(void)
-{
-	static int loaded = 0;
-	if (!autoinput_statetest_vbl) return;
-	if (frame_counter == autoinput_statetest_vbl) SaveState();
-	else if (frame_counter == autoinput_statetest_vbl + 120 && !loaded) { loaded = 1; LoadState(0); }
-}
-#else
-#define autoinput_state_test() ((void)0)
-#endif
+/* Scripted save states (Gamecube/statetool.cpp): stops the CPU when one is due. */
+void statetool_vblank(void);
 
 /******************************************************************************/
 
@@ -459,7 +437,7 @@ void psxRcntUpdate()
             rcnts[3].cycleStart += frameCycles();
             hSyncCount = 0;
             frame_counter++;
-            autoinput_state_test();
+            statetool_vblank();
             /* A chained autoboot's game is over: back to GamecubeMain.cpp for the next. */
             if (chain_stop_vbl && frame_counter >= chain_stop_vbl)
                 stop = 1;
@@ -672,6 +650,21 @@ void psxRcntInit()
 
 /******************************************************************************/
 
+/* The timers exactly as a state held them. psxRcntFreeze recomputes them on a load (below),
+ * which rounds each counter's phase and moves the next timer event -- by 8077 cycles in Gex,
+ * and every game then drifts. A state that says its timers are exact (misc.c, section TIM1)
+ * gets these back instead; an older state keeps the recomputation it always had. */
+static Rcnt rcntExact[CounterQuantity];
+static u32 hSyncExact, nextCounterExact, nextsCounterExact;
+
+void psxRcntRestoreExact(void)
+{
+    memcpy(rcnts, rcntExact, sizeof(rcnts));
+    hSyncCount = hSyncExact;
+    psxNextCounter = nextCounterExact;
+    psxNextsCounter = nextsCounterExact;
+}
+
 s32 psxRcntFreeze( gzFile f, s32 Mode )
 {
     u32 spuSyncCount = 0;
@@ -686,6 +679,10 @@ s32 psxRcntFreeze( gzFile f, s32 Mode )
 
     if (Mode == 0)
     {
+        memcpy(rcntExact, rcnts, sizeof(rcntExact));
+        hSyncExact = hSyncCount;
+        nextCounterExact = psxNextCounter;
+        nextsCounterExact = psxNextsCounter;
         // rcnt base.
         rcnts[3].rate = 1;
         // spu timer

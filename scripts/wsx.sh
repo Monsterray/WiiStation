@@ -21,6 +21,13 @@
 #                                   boot) from scripts/chains/; stages the input scripts it names,
 #                                   runs until the console powers off, prints scripts/chain_table.py.
 #                                   Same options as run; --secs is the limit for the whole chain.
+#   scripts/wsx.sh state NAME GAME --at V [--rec REC] [--ct 0|1] [options]
+#                                   boot GAME (part of its folder name in chains/all.txt, or the game
+#                                   of recording REC), play REC if given, and save the game at vblank V
+#                                   as save state NAME on the test card (Docs/SAVE_STATES.md)
+#   scripts/wsx.sh abstate RUN STATE VBL SETS... [--rec REC] [options]
+#                                   one boot: each SETS ("K=V,K=V", or - for none) runs VBL vblanks
+#                                   from save state STATE; prints the table. --rec plays REC on.
 #   scripts/wsx.sh summary NAME...                        re-read finished runs (run_summary.py)
 #   scripts/wsx.sh table NAME [--detail gpu|tex|cpu|lc|pmc|upl]  a chain's per-game table (chain_table.py)
 #   scripts/wsx.sh compare A [B] [--detail GROUP]         two chains, or one A/B chain's pairs (chain_compare.py)
@@ -148,6 +155,80 @@ chain)
 	done
 	bash "$0" run "$name" --autoboot "$cf" --input "$P/autoinput_none.txt" --nodump --env FRAMES_DUMP=False ${cardargs[@]+"${cardargs[@]}"} "$@" | grep -v "^  "
 	python "$REPO/scripts/chain_table.py" "$RUNS/$name"
+	;;
+
+state)
+	# Save a game at a vblank: a one-game chain whose input script is "state save NAME V", plus
+	# the pad lines of a recording if one is given. The state stays on the test card.
+	name="${1:-}"; game="${2:-}"; shift 2 || { echo "state NAME GAME --at V [--rec REC] [--ct 0|1]"; exit 2; }
+	at=""; rec=""; ct=0; rest=()
+	while [ $# -gt 0 ]; do
+		case "$1" in
+			--at) at="$2"; shift 2 ;;
+			--rec) rec="$2"; shift 2 ;;
+			--ct) ct="$2"; shift 2 ;;
+			*) rest+=("$1"); shift ;;
+		esac
+	done
+	[ -n "$at" ] || { echo "state: --at VBLANK is needed"; exit 2; }
+	if [ -n "$rec" ]; then
+		rf="$REPO/scripts/autoinput/${rec}_play.txt"
+		[ -f "$rf" ] || { echo "no recording $rf"; exit 2; }
+		folder=$(sed -n 's/^# folder: //p' "$rf" | tr -d '\r'); cue=$(sed -n 's/^# cue: //p' "$rf" | tr -d '\r')
+		c=$(sed -n 's/^# chain line: .*ControllerType=\([0-9]\).*/\1/p' "$rf" | tr -d '\r'); ct=${c:-$ct}
+	else
+		hit=$(tr -d '\r' < "$REPO/scripts/chains/all.txt" | grep -n '^sd:/wiisxrx/isos/' | grep -i -F -- "$game")
+		[ "$(printf '%s' "$hit" | grep -c .)" = 1 ] || { echo "\"$game\" must match one game in scripts/chains/all.txt"; exit 2; }
+		folder=${hit#*:}; cue=$(tr -d '\r' < "$REPO/scripts/chains/all.txt" | sed -n "$(( ${hit%%:*} + 1 ))p")
+	fi
+	mkdir -p "$RUNS/state_$name"
+	sf="$REPO/scripts/autoinput/_state_$name.txt"
+	{ echo "state save $name $at"; [ -n "$rec" ] && grep -v '^#' "$rf"; } > "$sf"
+	printf 'CHAIN\n%s sd:/wiisxrx/_state_%s.txt PadAutoAssign=1 ControllerType=%s\n%s\n%s\n' \
+		"$((at + 30))" "$name" "$ct" "$folder" "$cue" > "$RUNS/state_$name/chain.txt"
+	bash "$0" chain "state_$name" "$RUNS/state_$name/chain.txt" --secs $((at / 30 + 200)) ${rest[@]+"${rest[@]}"} > /dev/null
+	rm -f "$sf"
+	grep -a "^state:" "$RUNS/state_$name/perf.log"
+	card="${WSX_PROFILE:-$REPO/.dolphin}/Load/WiiSDSync/wiisxrx/states"
+	[ -f "$card/$name.txt" ] && sed -n '1,8p' "$card/$name.txt"
+	;;
+
+abstate)
+	# Several settings from one saved moment, in one boot: a chain line per SETS, each loading
+	# the state (State=NAME) and running VBL vblanks from it.
+	run="${1:-}"; st="${2:-}"; vbl="${3:-}"; shift 3 || { echo "abstate RUN STATE VBL SETS... [--rec REC]"; exit 2; }
+	card="${WSX_PROFILE:-$REPO/.dolphin}/Load/WiiSDSync/wiisxrx/states"
+	[ -f "$card/$st.txt" ] || { echo "no save state $st on the test card ($card); make it with wsx.sh state"; exit 2; }
+	folder=$(sed -n 's/^# folder: //p' "$card/$st.txt" | tr -d '\r'); cue=$(sed -n 's/^# cue: //p' "$card/$st.txt" | tr -d '\r')
+	rec=""; sets=(); rest=()
+	while [ $# -gt 0 ]; do
+		case "$1" in
+			--rec) rec="$2"; shift 2 ;;
+			--*) rest+=("$1" "$2"); shift 2 ;;
+			*) sets+=("$1"); shift ;;
+		esac
+	done
+	[ ${#sets[@]} -gt 0 ] || { echo "abstate: give at least one SETS (\"K=V,K=V\" or -)"; exit 2; }
+	# Every group ends with a fingerprint of the machine (statefp), so the groups can be
+	# compared: the same settings twice must give the same line.
+	sv=$(sed -n 's/^# vblank: //p' "$card/$st.txt" | tr -d '\r')
+	ai="$REPO/scripts/autoinput/_abstate_$run.txt"
+	{ echo "statefp $((sv + vbl - 1))"; [ -n "$rec" ] && grep -v '^#' "$REPO/scripts/autoinput/${rec}_play.txt"; } > "$ai"
+	pad=""
+	if [ -n "$rec" ]; then   # the recording's pad type
+		c=$(sed -n 's/^# chain line: .*ControllerType=\([0-9]\).*/\1/p' "$REPO/scripts/autoinput/${rec}_play.txt" | tr -d '\r')
+		[ -n "$c" ] && pad=" ControllerType=$c"
+	fi
+	mkdir -p "$RUNS/$run"
+	cf="$RUNS/$run.chain.txt"; echo CHAIN > "$cf"
+	for s in "${sets[@]}"; do
+		kv=""; [ "$s" != "-" ] && kv=" $(echo "$s" | tr ',' ' ')"
+		printf '\n%s sd:/wiisxrx/_abstate_%s.txt PadAutoAssign=1%s State=%s%s\n%s\n%s\n' "$vbl" "$run" "$pad" "$st" "$kv" "$folder" "$cue" >> "$cf"
+	done
+	rm -rf "$RUNS/$run"
+	bash "$0" chain "$run" "$cf" --secs $(( ${#sets[@]} * (vbl / 30 + 90) )) ${rest[@]+"${rest[@]}"}
+	rm -f "$ai"
+	grep -a "^state:\|^statefp:" "$RUNS/$run/perf.log"
 	;;
 
 table)

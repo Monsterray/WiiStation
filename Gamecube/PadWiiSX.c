@@ -97,10 +97,10 @@ unsigned autoinput_menuclicks = 0;
 /*
  * Read in MenuContext.cpp. */
 unsigned autoinput_menupage = 0;
-/* "statetest <vblank>": save a state at that vblank, then load it back 120 vblanks later.
- * The Current ROM menu is the only other way to reach SaveState, and no script can drive a
- * menu. perf.log's "save:" line then holds the time each one took. 0 means do nothing. */
-unsigned autoinput_statetest_vbl = 0;
+/* "state save NAME <vblank>", "state load NAME <vblank>", "statecheck <vblank> <n>" (and the
+ * old "statetest <vblank>", now statecheck with n = 120): Gamecube/statetool.cpp. */
+void statetool_request(int op, const char *name, unsigned vbl, unsigned n);
+void statetool_reset(void);
 unsigned autoinput_atrace_vbl = 0; /* "atrace <vblank>": debug build starts the audio timeline (perf_prof.c) */
 /* Parse the script once. Called from the pad plugin's open (so the trace and
  * dump schedules exist even before the first pad poll, e.g. in the BIOS
@@ -129,7 +129,15 @@ void autoinput_load(void)
 				if (sscanf(line, "menuclick %u %u", &b, &t) == 2)
 					{ autoinput_menuclick = b; autoinput_menuclicks = t; continue; }
 			}
-			if (sscanf(line, "statetest %u", &v) == 1) { autoinput_statetest_vbl = v; continue; }
+			{   /* save states (statetool.cpp) */
+				char nm[48];
+				unsigned n2;
+				if (sscanf(line, "state save %47s %u", nm, &v) == 2) { statetool_request(1, nm, v, 0); continue; }
+				if (sscanf(line, "state load %47s %u", nm, &v) == 2) { statetool_request(2, nm, v, 0); continue; }
+				if (sscanf(line, "statecheck %u %u", &v, &n2) == 2) { statetool_request(3, "", v, n2); continue; }
+				if (sscanf(line, "statetest %u", &v) == 1) { statetool_request(3, "", v, 120); continue; }
+				if (sscanf(line, "statefp %u", &v) == 1) { statetool_request(4, "", v, strstr(line, "dump") != NULL); continue; }
+			}
 			if (sscanf(line, "atrace %u", &v) == 1) { autoinput_atrace_vbl = v; continue; }
 			if (sscanf(line, "trace %u", &v) == 1) { if (autoinput_trace_n < 8) autoinput_trace_vbl[autoinput_trace_n++] = v; continue; }
 			{
@@ -163,8 +171,8 @@ void autoinput_reset(const char *path)
 	autoinput_padsweep_vbl = 0;
 	autoinput_menupage = 0;
 	autoinput_menuclick = autoinput_menuclicks = 0;
-	autoinput_statetest_vbl = 0;
 	autoinput_atrace_vbl = 0;
+	statetool_reset();
 }
 
 /* A script with at least one line for a port stands in for a plugged-in digital

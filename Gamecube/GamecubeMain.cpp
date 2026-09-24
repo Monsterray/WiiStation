@@ -643,9 +643,9 @@ char AutobootPath[1024];
  * out: on hardware, moving the card is the slow part, so one boot should collect every
  * game. */
 #define CHAIN_MAX 24
-#define CHAIN_SETS 4
+#define CHAIN_SETS 8
 static struct {
-	unsigned vbl; char input[128]; char path[256]; char rom[256];
+	unsigned vbl; char input[128]; char path[256]; char rom[256]; char state[48];
 	char set[CHAIN_SETS][32]; int nset;
 } chainList[CHAIN_MAX];
 
@@ -659,6 +659,8 @@ static int chainN, chainI;
 extern "C" {
 	unsigned chain_stop_vbl;                   /* psxcounters.c stops the game here; 0 = never */
 	void autoinput_reset(const char *path);    /* PadWiiSX.c */
+	int statetool_service(void);               /* statetool.cpp */
+	void statetool_request(int op, const char *name, unsigned vbl, unsigned n);
 	extern u32 frame_counter;                  /* psxcounters.c: +1 per vblank */
 	extern unsigned short *psxVuw;             /* the PlayStation's VRAM, every GPU plugin */
 }
@@ -681,12 +683,15 @@ static int chainLoad(FILE *f)
 		auto *e = &chainList[chainN];
 		char *tok = strtok(line, " \t");
 		e->input[0] = 0;
+		e->state[0] = 0;
 		e->nset = 0;
 		e->vbl = tok ? strtoul(tok, NULL, 10) : 0;
 		if (!e->vbl)
 			continue;
 		while ((tok = strtok(NULL, " \t"))) {
-			if (strchr(tok, '=')) {
+			if (!strncasecmp(tok, "State=", 6))   /* start from a save state (statetool.cpp) */
+				snprintf(e->state, sizeof e->state, "%s", tok + 6);
+			else if (strchr(tok, '=')) {
 				if (e->nset < CHAIN_SETS)
 					snprintf(e->set[e->nset++], sizeof e->set[0], "%s", tok);
 			} else
@@ -754,6 +759,8 @@ static void chainStart(int i)
 	chain_stop_vbl = chainList[i].vbl;
 	frame_counter = 0;
 	autoinput_reset(chainList[i].input);
+	if (chainList[i].state[0])   /* load it once the game has booted: its first vblank */
+		statetool_request(2, chainList[i].state, 1, 0);
 	Autoboot = true;
 }
 
@@ -1258,7 +1265,11 @@ void go(void) {
         plugin_call_rearmed_cbs(Config.hacks.dwActFixes, useDithering);
     }
 
-	psxCpu->Execute();
+	/* A scripted save or load (statetool.cpp) stops the CPU at its vblank; it is carried out
+	 * here, with the CPU stopped as the menu has it, and the game goes on. */
+	do
+		psxCpu->Execute();
+	while (statetool_service());
 
 	// remove this callback to avoid any issues when returning to the menu.
 	GX_SetDrawDoneCallback(NULL);

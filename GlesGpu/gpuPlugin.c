@@ -2407,6 +2407,15 @@ if(ulGetFreezeData==1)
   memcpy(pF->ulControl,ulStatusControl,256*sizeof(unsigned long));
   //memcpy(pF->psxVRam,  psxVub,         1024*iGPUHeight*2);
 
+  /* The drawing environment, GP0 E1-E6, in slots 0xE1-0xE6 that GP1 never uses -- where
+   * gpulib keeps it too. Without it a state loaded into another boot drew with that boot's
+   * draw area, offset and texture window until the game set its own again. */
+  pF->ulControl[0xE1] = 0xE1000000u | (STATUSREG & 0x7FFu) | (((STATUSREG >> 15) & 1u) << 11);
+  pF->ulControl[0xE2] = g_gp0TexWindow ? GETLE32(&g_gp0TexWindow) : 0xE2000000u;
+  pF->ulControl[0xE3] = 0xE3000000u | ((uint32_t)(PSXDisplay.DrawArea.y0 & 0x3FF) << 10) | (PSXDisplay.DrawArea.x0 & 0x3FF);
+  pF->ulControl[0xE4] = 0xE4000000u | ((uint32_t)(PSXDisplay.DrawArea.y1 & 0x3FF) << 10) | (PSXDisplay.DrawArea.x1 & 0x3FF);
+  pF->ulControl[0xE5] = 0xE5000000u | ((uint32_t)(PSXDisplay.DrawOffset.y & 0x7FF) << 11) | (PSXDisplay.DrawOffset.x & 0x7FF);
+  pF->ulControl[0xE6] = 0xE6000000u | ((STATUSREG >> 11) & 3u);
   return 1;
  }
 
@@ -2418,6 +2427,11 @@ memcpy(ulStatusControl,pF->ulControl,256*sizeof(unsigned long));
 
 ResetTextureArea(TRUE);
 
+ {
+  /* The replay starts with GP1(00), a reset, which clears the draw-mode bits of the status
+   * (texture page, dither, mask, texture disable: bits 0-12 and 15) that GP0 E1 and E6 set.
+   * They are put back after it; a game that reads the status before its next E1 sees them. */
+  unsigned long drawmode = pF->ulStatus & 0x9FFF;
  GL_GPUwriteStatus(ulStatusControl[0]);
  GL_GPUwriteStatus(ulStatusControl[1]);
  GL_GPUwriteStatus(ulStatusControl[2]);
@@ -2427,7 +2441,89 @@ ResetTextureArea(TRUE);
  GL_GPUwriteStatus(ulStatusControl[7]);
  GL_GPUwriteStatus(ulStatusControl[5]);
  GL_GPUwriteStatus(ulStatusControl[4]);
+  STATUSREG = (STATUSREG & ~0x9FFFUL) | drawmode;
+ }
+ /* The drawing environment (above). An older state has zeros there: it keeps the one it had. */
+ if ((pF->ulControl[0xE1] >> 24) == 0xE1)
+  {
+   int k;
+   for (k = 0; k < 6; k++)
+    {
+     uint32_t w;
+     PUTLE32(&w, (uint32_t)pF->ulControl[0xE1 + k]);
+     if (k == 1) g_gp0TexWindow = w;
+     primTableJGx[0xE1 + k]((unsigned char *)&w);
+    }
+  }
+ memset(&ulStatusControl[0xE1], 0, 6 * sizeof(ulStatusControl[0]));   /* not GP1 history */
  return 1;
+}
+
+/* Save states, section GPU1 (misc.c): what this plugin keeps between GP0/GP1 accesses and
+ * GL_GPUfreeze does not -- a command half received, a VRAM transfer part done, and the
+ * busy/ready countdown a status poll sees after drawing (iFakePrimBusy), which decides how
+ * many times a game's GPUSTAT loop goes round. gpulib flushes the first two on a save; here
+ * all three are kept. Only a state saved and loaded with this plugin carries it. */
+struct gl_extra {
+ uint32_t version;
+ int32_t  fakebusy, dataret, command, dataC, dataP, writeMode, readMode;
+ int16_t  w[6], r[6];      /* VRAMWrite, VRAMRead: x y Width Height RowsRemaining ColsRemaining */
+ int32_t  wptr, rptr;      /* their ImagePtr as an offset into VRAM, -1 = none */
+ uint32_t status;          /* the whole status register */
+ uint32_t dataM[256];
+};
+
+static void gl_vram_get(int16_t *o, int32_t *ptr, const VRAMLoad_t *v)
+{
+ o[0] = v->x; o[1] = v->y; o[2] = v->Width; o[3] = v->Height;
+ o[4] = v->RowsRemaining; o[5] = v->ColsRemaining;
+ *ptr = v->ImagePtr ? (int32_t)(v->ImagePtr - psxVuw) : -1;
+}
+
+static void gl_vram_put(VRAMLoad_t *v, const int16_t *o, int32_t ptr)
+{
+ v->x = o[0]; v->y = o[1]; v->Width = o[2]; v->Height = o[3];
+ v->RowsRemaining = o[4]; v->ColsRemaining = o[5];
+ v->ImagePtr = (ptr >= 0 && ptr < 1024 * iGPUHeight) ? psxVuw + ptr : NULL;
+}
+
+int GL_GPUfreezeExtra(int save, void *data, int len)
+{
+ struct gl_extra e;
+ int k;
+
+ if (!data) return sizeof(e);
+ if (save) {
+  e.version = 1;
+  e.fakebusy = iFakePrimBusy;
+  e.dataret = GPUdataRet;
+  e.command = gpuCommand;
+  e.dataC = gpuDataC;
+  e.dataP = gpuDataP;
+  e.writeMode = iDataWriteMode;
+  e.readMode = iDataReadMode;
+  gl_vram_get(e.w, &e.wptr, &VRAMWrite);
+  gl_vram_get(e.r, &e.rptr, &VRAMRead);
+  e.status = (uint32_t)STATUSREG;
+  for (k = 0; k < 256; k++) e.dataM[k] = (uint32_t)gpuDataM[k];
+  memcpy(data, &e, sizeof(e));
+  return sizeof(e);
+ }
+ if (len != (int)sizeof(e)) return -1;
+ memcpy(&e, data, sizeof(e));
+ if (e.version != 1) return -1;
+ iFakePrimBusy = e.fakebusy;
+ GPUdataRet = e.dataret;
+ gpuCommand = (unsigned char)e.command;
+ gpuDataC = e.dataC;
+ gpuDataP = e.dataP;
+ iDataWriteMode = e.writeMode;
+ iDataReadMode = e.readMode;
+ gl_vram_put(&VRAMWrite, e.w, e.wptr);
+ gl_vram_put(&VRAMRead, e.r, e.rptr);
+ STATUSREG = e.status;
+ for (k = 0; k < 256; k++) gpuDataM[k] = e.dataM[k];
+ return 0;
 }
 
 ////////////////////////////////////////////////////////////////////////

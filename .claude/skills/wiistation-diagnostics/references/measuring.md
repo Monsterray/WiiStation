@@ -57,8 +57,22 @@ Dolphin movie: a `.dtm` counts host frames, which drift from the game's vblanks 
 emulation runs below full speed (`dtm2autoinput.py` is for old movies only). Both ports are
 recorded: port 2 lines read `p2 <vblank> <mask>`, and a script with any stands in for a pad
 on port 2. The script draws both pads with their keys (`scripts/pad_layout.py`); a port 2
-with nothing bound gets a keyboard layout (numpad D-pad) in the test profile's copy only. Digital pad:
-buttons and D-pad only, so a game that needs the analog sticks cannot be recorded.
+with nothing bound gets a keyboard layout (numpad D-pad) in the test profile's copy only.
+`--ct 1` records with a DualShock (analog games). The recording's header names its build
+(commit, DOL SHA-1), settings and pad type, and its chain line sets ControllerType: replay it
+with that line, alone -- 4th in a chain with the wrong pad type it went its own way.
+
+## Save states: run settings from one moment
+
+Docs/SAVE_STATES.md. `wsx.sh state NAME GAME --at V [--rec REC]` saves a game at vblank V on
+the test card; `wsx.sh abstate RUN NAME VBL SETS...` runs each settings group ("K=V,K=V", `-`
+for none) from that moment for VBL vblanks, in one boot, and prints the table. A chain line's
+`State=NAME` does the same by hand. Script lines: `state save|load NAME V`, `statefp V`,
+`statecheck V N` (save, run N, fingerprint; load, run N, fingerprint; `match` or the parts
+that differ, plus the bytes a load did not restore). A loaded state continues exactly as the
+saved game did -- checked on seven games, and across boots -- because of four fixes found
+this way (timers, events, SPU mixer, GPU draw state; see the doc). Run `statecheck` again
+after changing anything a state holds.
 
 ## Reading and comparing
 

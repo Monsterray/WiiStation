@@ -120,6 +120,9 @@ static void events_restore(void)
 	event_cycles[PSXINT_RCNT] = psxNextsCounter + psxNextCounter;
 	psxRegs.interrupt |=  1 << PSXINT_RCNT;
 	psxRegs.interrupt &= (1 << PSXINT_COUNT) - 1;
+	/* next_interupt still held the running game's next event, from before the load: events
+	 * could be handled late until it came round. Now the next slice looks at every event. */
+	next_interupt = psxRegs.cycle;
 }
 
 int GetCdromFile(u8 *mdir, u8 *time, char *filename) {
@@ -547,6 +550,12 @@ int Load(fileBrowser_file *exe) {
 
 // STATES
 void LoadingBar_showBar(float percent, const char* string);
+
+/* Set by statetool.cpp around scripted saves and loads: no loading bar. It is drawn with raw
+ * GX calls in the middle of a running game, which changes the GPU plugin's state -- and the
+ * point of a scripted state is that nothing but the state changes. */
+int state_quiet;
+#define STATE_BAR(v, msg) do { if (!state_quiet) LoadingBar_showBar((v), (msg)); } while (0)
 /* Bump this whenever the layout of anything a state holds changes, because the whole
  * file is read back as raw structs and a shifted field is silently wrong, not an error.
  * LoadState refuses a state whose header does not match and offers "load it anyway";
@@ -626,7 +635,95 @@ struct misc_save_data {
 	int CdromFrontendId;
 };
 
-int SaveState() {
+/* Sections after the PCSX layout, which ends with mdecFreeze. Older builds stop reading
+ * before them, so they still load these states; an older state has none, and loading it
+ * leaves what a section would hold as it is. Layout: "WSXE", then sections of a 4-byte tag,
+ * a u32 length and that many bytes, ended by the tag "END0". A reader skips a tag it does
+ * not know, so a later build can add sections without breaking this one.
+ *   PAD1  the pad plugin: DualShock mode, config mode, rumble map (PadSSSPSX.c)
+ *   SPU1  the SPU mixer: interpolation history, FM buffer, XA and CD-DA samples waiting
+ *         (dfsound/dfspu.c spu_ext_save)
+ *   GPU1  the OpenGX GPU plugin between commands: a command half received, a VRAM transfer
+ *         part done, the busy countdown (GlesGpu/gpuPlugin.c GL_GPUfreezeExtra); only
+ *         written and read with that plugin
+ *   TIM1  no data: the timers and the event table were saved exactly, and are put back as
+ *         they were, after the devices' own restores have rescheduled their events
+ *         (psxcounters.c psxRcntRestoreExact) */
+int SSS_PADfreeze(int save, void *data, int len);
+void psxRcntRestoreExact(void);
+int spu_ext_save(void *data, int len);
+int spu_ext_load(const void *data, int len);
+int GL_GPUfreezeExtra(int save, void *data, int len);
+#define STATE_EXT_TIMERS 1   /* stateExtRead: section TIM1 was there */
+
+static void stateExtSection(gzFile f, const char *tag, const void *data, u32 len)
+{
+	gzwrite(f, (void *)tag, 4);
+	gzwrite(f, &len, 4);
+	if (len) gzwrite(f, (void *)data, len);
+}
+
+static void stateExtWrite(gzFile f)
+{
+	int n = SSS_PADfreeze(1, NULL, 0);
+	void *pad = malloc(n);
+
+	gzwrite(f, (void *)"WSXE", 4);
+	if (pad) {
+		SSS_PADfreeze(1, pad, n);
+		stateExtSection(f, "PAD1", pad, (u32)n);
+		free(pad);
+	}
+	n = spu_ext_save(NULL, 0);
+	if ((pad = malloc(n)) != NULL) {
+		if (spu_ext_save(pad, n) == n)
+			stateExtSection(f, "SPU1", pad, (u32)n);
+		free(pad);
+	}
+	if (gpuPtr == &glesGpu) {
+		n = GL_GPUfreezeExtra(1, NULL, 0);
+		if ((pad = malloc(n)) != NULL) {
+			GL_GPUfreezeExtra(1, pad, n);
+			stateExtSection(f, "GPU1", pad, (u32)n);
+			free(pad);
+		}
+	}
+	stateExtSection(f, "TIM1", NULL, 0);
+	stateExtSection(f, "END0", NULL, 0);
+}
+
+static int stateExtRead(gzFile f)
+{
+	char tag[4];
+	u32 len;
+	int found = 0;
+
+	if (gzread(f, tag, 4) != 4 || memcmp(tag, "WSXE", 4))
+		return 0;   /* an older state: no sections */
+	while (gzread(f, tag, 4) == 4 && gzread(f, &len, 4) == 4 && memcmp(tag, "END0", 4)) {
+		void *data = NULL;
+		if (!memcmp(tag, "TIM1", 4) && !len) {
+			found |= STATE_EXT_TIMERS;
+			continue;
+		}
+		if (!memcmp(tag, "PAD1", 4) && len <= 4096 && (data = malloc(len)) != NULL
+		 && gzread(f, data, len) == (int)len)
+			SSS_PADfreeze(0, data, (int)len);
+		else if (!memcmp(tag, "SPU1", 4) && len <= 0x200000 && (data = malloc(len)) != NULL
+		 && gzread(f, data, len) == (int)len)
+			spu_ext_load(data, (int)len);
+		else if (!memcmp(tag, "GPU1", 4) && gpuPtr == &glesGpu && len <= 4096
+		 && (data = malloc(len)) != NULL && gzread(f, data, len) == (int)len)
+			GL_GPUfreezeExtra(0, data, (int)len);
+		else if (!data)
+			gzseek(f, len, SEEK_CUR);
+		free(data);
+	}
+	return found;
+}
+
+/* A state in a file of its own name (statetool.cpp), rather than a slot. */
+int SaveStateFile(const char *filename) {
 	unsigned long long t0 = perf_now_us();
 	struct misc_save_data *misc = (void *)(psxH + 0xf000);
     gzFile f;
@@ -634,7 +731,6 @@ int SaveState() {
 	SPUFreeze_t *spufP;
 
 	int Size;
-	char filename[STATE_PATH_LEN];
 	static const char zeros[1024] = { 0 };
 	int i;
 
@@ -651,7 +747,6 @@ int SaveState() {
 	misc->frame_counter = frame_counter;
 	//misc->CdromFrontendId = CdromFrontendId;
 
-	stateFilename(filename, savestates_slot);
 	makeParentDirs(filename);
 
 	/* The default level, 6. Level 1 writes a Crash 3 state in 0.72 s instead of 1.12 s, but
@@ -665,7 +760,7 @@ int SaveState() {
 
     psxCpu->Notify(R3000ACPU_NOTIFY_BEFORE_SAVE, NULL);
 
-    LoadingBar_showBar(0.0f, SAVE_STATE_MSG);
+    STATE_BAR(0.0f, SAVE_STATE_MSG);
     pauseRemovalThread();
 
 	gzwrite(f, (void*)PcsxHeader, 32);
@@ -681,15 +776,15 @@ int SaveState() {
 	if (Config.HLE) {
 		psxBiosFreeze(1);
 	}
-    LoadingBar_showBar(0.10f, SAVE_STATE_MSG);
+    STATE_BAR(0.10f, SAVE_STATE_MSG);
 	gzwrite(f, psxM, 0x00200000);
-	LoadingBar_showBar(0.40f, SAVE_STATE_MSG);
+	STATE_BAR(0.40f, SAVE_STATE_MSG);
 	gzwrite(f, psxR, 0x00080000);
-	LoadingBar_showBar(0.60f, SAVE_STATE_MSG);
+	STATE_BAR(0.60f, SAVE_STATE_MSG);
 	gzwrite(f, psxH, 0x00010000);
 	// only partial save of psxRegisters to maintain savestate compat
 	gzwrite(f, (void*)&psxRegs, offsetof(psxRegisters, gteBusyCycle));
-    LoadingBar_showBar(0.70f, SAVE_STATE_MSG);
+    STATE_BAR(0.70f, SAVE_STATE_MSG);
 	// gpu
 	gpufP = (GPUFreeze_t *) malloc(sizeof(GPUFreeze_t));
 	if (!gpufP) {
@@ -704,7 +799,7 @@ int SaveState() {
 	// When using the lightrec core at that time, the memory of WiiStation was already less than 2MB
     // so the VRAM data was directly saved to file
 	gzwrite(f, &psxVub[0], 1024 * iGPUHeight * 2);
-    LoadingBar_showBar(0.80f, SAVE_STATE_MSG);
+    STATE_BAR(0.80f, SAVE_STATE_MSG);
 	// spu
 	spufP = (SPUFreeze_t *) malloc(16);
 	if (!spufP) {
@@ -724,7 +819,7 @@ int SaveState() {
 	SPU_freeze(1, spufP, psxRegs.cycle);
 	gzwrite(f, spufP, Size);
 	free(spufP);
-    LoadingBar_showBar(0.90f, SAVE_STATE_MSG);
+    STATE_BAR(0.90f, SAVE_STATE_MSG);
 
 	sioFreeze(f, 1);
 	cdrFreeze(f, 1);
@@ -732,17 +827,48 @@ int SaveState() {
 	psxRcntFreeze(f, 1);
 	mdecFreeze(f, 1);
 	//new_dyna_freeze(f, 1);
+	stateExtWrite(f);
 
-    LoadingBar_showBar(0.99f, SAVE_STATE_MSG);
+    STATE_BAR(0.99f, SAVE_STATE_MSG);
 	gzclose(f);
 
 	continueRemovalThread();
-	LoadingBar_showBar(1.0f, SAVE_STATE_MSG);
+	STATE_BAR(1.0f, SAVE_STATE_MSG);
 	PERF_INC(state_saves);
 	PERF_ADD(state_save_us, perf_now_us() - t0);
 	/* What the state holds, uncompressed: RAM, BIOS, hardware, VRAM and the rest. */
 	PERF_SET(state_bytes, 0x00200000 + 0x00080000 + 0x00010000 + 1024 * iGPUHeight * 2);
 	return 1; //ok
+}
+
+/* For statetool.cpp's check: a CRC of each part of the emulated machine a state holds, so a
+ * state that loses something shows which part. out[]: RAM, VRAM, hardware registers, CPU
+ * registers, SPU RAM, and the CPU cycle count itself. */
+void state_fingerprint(unsigned out[6])
+{
+	/* Lightrec keeps the CPU registers itself; copy them to psxRegs first, as a save does */
+	psxCpu->Notify(R3000ACPU_NOTIFY_BEFORE_SAVE, NULL);
+	out[0] = crc32(0, (const Bytef *)psxM, 0x00200000);
+	out[1] = crc32(0, (const Bytef *)psxVub, 1024 * iGPUHeight * 2);
+	out[2] = crc32(0, (const Bytef *)psxH, 0x00010000);
+	/* The CPU: registers, pc, cycle, the pending events and when each is due. An event's start
+	 * cycle alone is history -- a finished event keeps the one it had -- and is left out. */
+	{
+		u32 due[32];
+		int k;
+		out[3] = crc32(0, (const Bytef *)&psxRegs, offsetof(psxRegisters, interrupt) + 4);
+		for (k = 0; k < 32; k++)
+			due[k] = (psxRegs.interrupt >> k & 1) ? psxRegs.intCycle[k].sCycle + psxRegs.intCycle[k].cycle : 0;
+		out[3] = crc32(out[3], (const Bytef *)due, sizeof(due));
+	}
+	out[4] = spu.spuMemC ? crc32(0, (const Bytef *)spu.spuMemC, 512 * 1024) : 0;
+	out[5] = psxRegs.cycle;
+}
+
+int SaveState() {
+	char filename[STATE_PATH_LEN];
+	stateFilename(filename, savestates_slot);
+	return SaveStateFile(filename);
 }
 
 /* A short read means the file is truncated or damaged. By then part of the emulated
@@ -763,8 +889,10 @@ static int stateTruncated(gzFile f)
 
 /* `force` = 1 loads a file that fails the checks: one from another build, or one that is
  * cut short. What comes out may not run, which is why the menu asks first. */
-int LoadState(int force) {
+int LoadStateFile(const char *filename, int force) {
 	unsigned long long t0 = perf_now_us();
+	typeof(psxRegs.intCycle[0]) savedEvents[32];
+	u32 savedPending;
 	struct misc_save_data *misc = (void *)(psxH + 0xf000);
 	u32 biosBranchCheckOld = psxRegs.biosBranchCheck;
 	gzFile f;
@@ -772,9 +900,6 @@ int LoadState(int force) {
 	SPUFreeze_t *spufP;
 	int Size;
 	char header[32];
-	char filename[STATE_PATH_LEN];
-
-	stateFilename(filename, savestates_slot);
 
 	f = gzopen(filename, "rb");
 	if (!f) {
@@ -782,7 +907,7 @@ int LoadState(int force) {
 	}
 
 	pauseRemovalThread();
-	LoadingBar_showBar(0.0f, LOAD_STATE_MSG);
+	STATE_BAR(0.0f, LOAD_STATE_MSG);
 
 	/* Read the header and judge it before anything else is touched. It used to read
 	 * Config.HLE first, so a file this build cannot read still changed the BIOS mode of
@@ -797,7 +922,7 @@ int LoadState(int force) {
 		}
 	}
 	STATE_READ(&Config.HLE, sizeof(bool));
-	LoadingBar_showBar(0.10f, LOAD_STATE_MSG);
+	STATE_BAR(0.10f, LOAD_STATE_MSG);
 
 	if (Config.HLE)
 		psxBiosInit();
@@ -805,11 +930,14 @@ int LoadState(int force) {
 	gzseek(f, 128 * 96 * 3, SEEK_CUR);
 
 	STATE_READ(psxM, 0x00200000);
-	LoadingBar_showBar(0.40f, LOAD_STATE_MSG);
+	STATE_BAR(0.40f, LOAD_STATE_MSG);
 	STATE_READ(psxR, 0x00080000);
-	LoadingBar_showBar(0.60f, LOAD_STATE_MSG);
+	STATE_BAR(0.60f, LOAD_STATE_MSG);
 	STATE_READ(psxH, 0x00010000);
 	STATE_READ((void*)&psxRegs, offsetof(psxRegisters, gteBusyCycle));
+	/* The event table as saved: the SPU, CD and timer restores reschedule their events */
+	memcpy(savedEvents, psxRegs.intCycle, sizeof(savedEvents));
+	savedPending = psxRegs.interrupt;
 	psxRegs.gteBusyCycle = psxRegs.cycle;
 	psxRegs.biosBranchCheck = ~0;
 	psxRegs.gpuIdleAfter = psxRegs.cycle - 1;
@@ -824,7 +952,7 @@ int LoadState(int force) {
 		frame_counter = misc->frame_counter;
 		//CdromFrontendId = misc->CdromFrontendId;
 	}
-    LoadingBar_showBar(0.70f, LOAD_STATE_MSG);
+    STATE_BAR(0.70f, LOAD_STATE_MSG);
 
 	psxCpu->Notify(R3000ACPU_NOTIFY_AFTER_LOAD, NULL);
 
@@ -847,7 +975,7 @@ int LoadState(int force) {
 	// gpu VRAM load (load directly to save memory)
 	STATE_READ(&psxVub[0], 1024 * iGPUHeight * 2);
 	gpuSyncPluginSR();
-	LoadingBar_showBar(0.80f, LOAD_STATE_MSG);
+	STATE_BAR(0.80f, LOAD_STATE_MSG);
 
 	// spu
 	STATE_READ(&Size, 4);
@@ -873,7 +1001,7 @@ int LoadState(int force) {
 	}
 	SPU_freeze(0, spufP, psxRegs.cycle);
 	free(spufP);
-    LoadingBar_showBar(0.99f, LOAD_STATE_MSG);
+    STATE_BAR(0.99f, LOAD_STATE_MSG);
 
 	sioFreeze(f, 0);
 	cdrFreeze(f, 0);
@@ -881,6 +1009,11 @@ int LoadState(int force) {
 	psxRcntFreeze(f, 0);
 	mdecFreeze(f, 0);
 	//new_dyna_freeze(f, 0);
+	if (stateExtRead(f) & STATE_EXT_TIMERS) {
+		psxRcntRestoreExact();
+		memcpy(psxRegs.intCycle, savedEvents, sizeof(savedEvents));
+		psxRegs.interrupt = savedPending;
+	}
 
 	gzclose(f);
     continueRemovalThread();
@@ -889,11 +1022,17 @@ int LoadState(int force) {
 	if (Config.HLE)
 		psxBiosCheckExe(biosBranchCheckOld, 0x60, 1);
 
-	LoadingBar_showBar(1.0f, LOAD_STATE_MSG);
+	STATE_BAR(1.0f, LOAD_STATE_MSG);
 	PERF_INC(state_loads);
 	PERF_ADD(state_load_us, perf_now_us() - t0);
 
 	return 1;
+}
+
+int LoadState(int force) {
+	char filename[STATE_PATH_LEN];
+	stateFilename(filename, savestates_slot);
+	return LoadStateFile(filename, force);
 }
 
 // NET Function Helpers

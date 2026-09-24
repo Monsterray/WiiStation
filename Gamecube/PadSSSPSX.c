@@ -486,6 +486,34 @@ unsigned char multitap[34] = { 0x80, 0x5a,
 									0x41, 0x5a, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
 									0x41, 0x5a, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 
+/* The reply being sent. At file scope so that a save state holds it (SSS_PADfreeze). */
+static union
+{
+	u16 b16[20];
+	u8  b8[40];
+} buf;
+
+/* Save states (misc.c, section PAD1): everything the pad keeps between polls -- DualShock
+ * or digital mode, config mode, the rumble map, a reply half sent. With data NULL, returns
+ * the size. A different size on load is another build's layout: the pad stays as it is. */
+int SSS_PADfreeze (int save, void *data, int len)
+{
+	const int size = (int)(sizeof(global) + sizeof(buf));
+
+	if (!data)
+		return size;
+	if (save) {
+		memcpy(data, &global, sizeof(global));
+		memcpy((char *)data + sizeof(global), &buf, sizeof(buf));
+		return size;
+	}
+	if (len != size)
+		return -1;
+	memcpy(&global, data, sizeof(global));
+	memcpy(&buf, (char *)data + sizeof(global), sizeof(buf));
+	return size;
+}
+
 unsigned char SSS_PADpoll (const unsigned char value)
 {
 	int i, offset, offsetSlot;
@@ -496,16 +524,6 @@ unsigned char SSS_PADpoll (const unsigned char value)
 
 	const int cur = global.curByte;
 
-//Pragma to avoid packing on "buffer" union
-//Not sure if necessary on PPC
-#pragma pack(push,1)
-	union buffer
-	{
-		u16 b16[20];
-		u8  b8[40];
-	};
-
-	static union buffer buf;
 	if (cur == 0)
 	{
 		global.curByte++;
@@ -705,8 +723,6 @@ unsigned char SSS_PADpoll (const unsigned char value)
 	if (cur >= global.cmdLen)
 		return 0;
 	return buf.b8[global.curByte++];
-//Revert packing
-#pragma pack(pop)
 }
 
 long SSS_PADreadPort1 (PadDataS* pads)

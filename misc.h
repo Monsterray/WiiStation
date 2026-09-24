@@ -65,6 +65,8 @@ int Load(fileBrowser_file *exe);
 
 int SaveState();
 int LoadState(int force);
+int SaveStateFile(const char *filename);
+int LoadStateFile(const char *filename, int force);
 int StateExists(unsigned int slot);
 
 int SendPcsxInfo();

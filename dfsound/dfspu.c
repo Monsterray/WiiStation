@@ -1242,6 +1242,114 @@ void DF_SPUsetCDvol(unsigned char ll, unsigned char lr,
 }
 
 // to be called after state load
+/* Save states, section SPU1 (misc.c): the mixer's state that DF_SPUfreeze does not keep, or
+ * rebuilds only roughly on a load -- each voice's interpolation history, the FM buffer, the XA
+ * and CD-DA samples waiting to be mixed (DF_SPUfreeze keeps one XA sector or a capped CD-DA
+ * tail), every voice as it runs (the PCSX voice layout DF_SPUfreeze writes has no room for
+ * sinc_inv, prevflags or bStarting), and a few counters. With it a loaded game mixes the same samples the saved one did;
+ * without it (an older state) the load stays as it was. */
+struct spu_ext_hdr {
+ uint32_t version, size_sb, size_fmod, size_chan, xa_n, cdda_n;
+ int cdClearSamples, iLeftXAVol, iRightXAVol, interpolation;
+ uint32_t dwNewChannel, dwChannelsAudible, dwChannelDead;
+};
+
+static uint32_t ring_n(const uint32_t *play, const uint32_t *feed, const uint32_t *start, const uint32_t *end)
+{
+ return feed >= play ? (uint32_t)(feed - play) : (uint32_t)((end - play) + (feed - start));
+}
+
+static void ring_get(uint32_t *out, const uint32_t *play, uint32_t n, const uint32_t *start, const uint32_t *end)
+{
+ uint32_t first = (uint32_t)(end - play);
+ if (first > n) first = n;
+ memcpy(out, play, first * 4);
+ memcpy(out + first, start, (n - first) * 4);
+}
+
+int spu_ext_save(void *data, int len)
+{
+ struct spu_ext_hdr h;
+ int size;
+ unsigned char *p = data;
+
+ h.version = 2;
+ h.size_sb = sizeof(spu.sb);
+ h.size_fmod = sizeof(iFMod);
+ h.size_chan = MAXCHAN * (sizeof(SPUCHAN) + 8);   /* each voice, then its two pointers as offsets */
+ h.xa_n = spu.XAStart ? ring_n(spu.XAPlay, spu.XAFeed, spu.XAStart, spu.XAEnd) : 0;
+ h.cdda_n = spu.CDDAStart ? ring_n(spu.CDDAPlay, spu.CDDAFeed, spu.CDDAStart, spu.CDDAEnd) : 0;
+ size = sizeof(h) + h.size_sb + h.size_fmod + h.size_chan + (h.xa_n + h.cdda_n) * 4;
+ if (!data) return size;
+ if (len < size) return -1;
+ h.cdClearSamples = spu.cdClearSamples;
+ h.iLeftXAVol = spu.iLeftXAVol;
+ h.iRightXAVol = spu.iRightXAVol;
+ h.interpolation = spu.interpolation;
+ h.dwNewChannel = spu.dwNewChannel;
+ h.dwChannelsAudible = spu.dwChannelsAudible;
+ h.dwChannelDead = spu.dwChannelDead;
+ memcpy(p, &h, sizeof(h)); p += sizeof(h);
+ memcpy(p, spu.sb, h.size_sb); p += h.size_sb;
+ memcpy(p, iFMod, h.size_fmod); p += h.size_fmod;
+ {
+  int ch;
+  for (ch = 0; ch < MAXCHAN; ch++) {
+   uint32_t off[2];
+   off[0] = spu.s_chan[ch].pCurr ? (uint32_t)(spu.s_chan[ch].pCurr - spu.spuMemC) : 0xffffffffu;
+   off[1] = spu.s_chan[ch].pLoop ? (uint32_t)(spu.s_chan[ch].pLoop - spu.spuMemC) : 0xffffffffu;
+   memcpy(p, &spu.s_chan[ch], sizeof(SPUCHAN)); p += sizeof(SPUCHAN);
+   memcpy(p, off, 8); p += 8;
+  }
+ }
+ if (h.xa_n) ring_get((uint32_t *)p, spu.XAPlay, h.xa_n, spu.XAStart, spu.XAEnd);
+ p += h.xa_n * 4;
+ if (h.cdda_n) ring_get((uint32_t *)p, spu.CDDAPlay, h.cdda_n, spu.CDDAStart, spu.CDDAEnd);
+ return size;
+}
+
+/* After DF_SPUfreeze's own load: put back what it did not keep. The rings restart at their
+ * start with the waiting samples in order; where in a ring they sit makes no difference. */
+int spu_ext_load(const void *data, int len)
+{
+ struct spu_ext_hdr h;
+ const unsigned char *p = data;
+
+ if (len < (int)sizeof(h)) return -1;
+ memcpy(&h, p, sizeof(h)); p += sizeof(h);
+ if (h.version != 2 || h.size_sb != sizeof(spu.sb) || h.size_fmod != sizeof(iFMod)
+  || h.size_chan != MAXCHAN * (sizeof(SPUCHAN) + 8)
+  || len != (int)(sizeof(h) + h.size_sb + h.size_fmod + h.size_chan + (h.xa_n + h.cdda_n) * 4)
+  || h.xa_n >= (uint32_t)(spu.XAEnd - spu.XAStart) || h.cdda_n >= (uint32_t)(spu.CDDAEnd - spu.CDDAStart))
+  return -1;   /* another build's layout: keep DF_SPUfreeze's load */
+ memcpy(spu.sb, p, h.size_sb); p += h.size_sb;
+ memcpy(iFMod, p, h.size_fmod); p += h.size_fmod;
+ {
+  int ch;
+  for (ch = 0; ch < MAXCHAN; ch++) {
+   uint32_t off[2];
+   memcpy(&spu.s_chan[ch], p, sizeof(SPUCHAN)); p += sizeof(SPUCHAN);
+   memcpy(off, p, 8); p += 8;
+   spu.s_chan[ch].pCurr = off[0] < 0x80000 ? spu.spuMemC + off[0] : NULL;
+   spu.s_chan[ch].pLoop = off[1] < 0x80000 ? spu.spuMemC + off[1] : NULL;
+  }
+ }
+ memcpy(spu.XAStart, p, h.xa_n * 4); p += h.xa_n * 4;
+ spu.XAPlay = spu.XAStart;
+ spu.XAFeed = spu.XAStart + h.xa_n;
+ memcpy(spu.CDDAStart, p, h.cdda_n * 4);
+ spu.CDDAPlay = spu.CDDAStart;
+ spu.CDDAFeed = spu.CDDAStart + h.cdda_n;
+ spu.cdClearSamples = h.cdClearSamples;
+ spu.iLeftXAVol = h.iLeftXAVol;
+ spu.iRightXAVol = h.iRightXAVol;
+ spu.interpolation = h.interpolation;
+ spu.dwNewChannel = h.dwNewChannel;
+ spu.dwChannelsAudible = h.dwChannelsAudible;
+ spu.dwChannelDead = h.dwChannelDead;
+ return 0;
+}
+
 void ClearWorkingState(void)
 {
  memset(iFMod, 0, sizeof(iFMod));
