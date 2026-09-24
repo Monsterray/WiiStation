@@ -28,7 +28,7 @@ scheduled `dump` vblank. Lines and what they mean:
 | `efbloss: upl_calls upl_done \| pres: total clear inflight_skip` | the two ways already-drawn EFB content can go away again: `UploadScreen` calls (the PSX VRAM rect blitted over the EFB, which has no GX-drawn primitives in it) and those that reached the EFB; then presents, presents that cleared the EFB (`GX_CopyDisp(.., GX_TRUE)`, armed only by a GP0 02 fill covering the next screen) and presents refused because a copy was still in flight. Crash 3's title reads `upl_calls=0 ... total=1215 clear=2 inflight_skip=0`: the EFB is never re-uploaded, essentially never cleared, and no present is dropped |
 | `ogxeq: n mism hole` | texel-equivalence detector: GX texel at the UV centroid vs PSX texel from VRAM; `mism=0` means the CPU side (converter, cache, placement) is right |
 | `ogxud: gt nv mode page clut tex semi texel uv1024` | ring of draws that sampled a uniform texture (mode 2 = 15-bit direct, `texel=0000` = black) |
-| `offsoft: prims rejected` | off-screen primitives handed to the software rasterizer |
+| `offsoft: prims rejected` | off-screen primitives handed to the software rasterizer; rejected = off-screen but wholly outside the drawing area (draws nothing; left to GX) |
 | `pad: startpoll update ai_calls` | SSS pad plugin start-polls, state refreshes, scripted-input mask calls |
 | `sio: write8 start ctrl16 read8 irq padtype0` | SIO data writes, pad-select starts that reached the plugin, control writes, reads, SIO interrupts, and `padType[0]` as the SIO sees it |
 | `ai_ev: vblank mask` | every change of the scripted button mask |

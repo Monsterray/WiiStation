@@ -332,6 +332,11 @@ PSXDisplay.DisplayModeNew.y=0;
 //PreviousPSXDisplay.Height = PSXDisplay.Height = 239;
 
 iDataWriteMode = DR_NORMAL;
+/* Also as at power-on: no command half received and no busy countdown left from the last
+ * game, which would change how often the next game's first status polls go round. */
+iDataReadMode = DR_NORMAL;
+gpuCommand = 0; gpuDataC = gpuDataP = 0;
+iFakePrimBusy = 0;
 
 // Reset transfer values, to prevent mis-transfer of data
 memset(&VRAMWrite,0,sizeof(VRAMLoad_t));
@@ -2080,10 +2085,17 @@ static int OffscreenSoftDraw(unsigned char cmd, unsigned long *data, int n)
     if (RectHitsDisplay(x0, y0, x1, y1, &PSXDisplay) ||
         RectHitsDisplay(x0, y0, x1, y1, &PreviousPSXDisplay))
         return 0;
-    /* must stay inside VRAM (the real GPU wraps; not worth emulating here) */
-    if (x0 < 0 || y0 < 0 || x1 > 1024 || y1 > 512)
+    /* The GPU clips every primitive to the drawing area (E4's end is inclusive), so only
+     * that part can change VRAM. A primitive whose box went past the edge of VRAM used to
+     * be sent to GX, which never writes VRAM: MediEvil's headstone draws its menu text
+     * off-screen that way and lost part of every letter. */
+    if (x0 < PSXDisplay.DrawArea.x0) x0 = PSXDisplay.DrawArea.x0;
+    if (y0 < PSXDisplay.DrawArea.y0) y0 = PSXDisplay.DrawArea.y0;
+    if (x1 > PSXDisplay.DrawArea.x1 + 1) x1 = PSXDisplay.DrawArea.x1 + 1;
+    if (y1 > PSXDisplay.DrawArea.y1 + 1) y1 = PSXDisplay.DrawArea.y1 + 1;
+    if (x1 <= x0 || y1 <= y0)
     {
-        PERF_INC(off_soft_rejected);
+        PERF_INC(off_soft_rejected);   /* draws nothing: GX culls it too */
         return 0;
     }
 
