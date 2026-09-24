@@ -66,6 +66,7 @@ The file is the PCSX layout WiiStation always wrote, then optional sections afte
 | `PAD1` | the pad plugin: DualShock or digital mode, config mode, the rumble map, a reply half sent (`SSS_PADfreeze`). Before it, a state loaded into Ape Escape came back with a digital pad |
 | `SPU1` | the SPU mixer: every voice as it runs, each voice's interpolation history, the FM buffer, the XA and CD-DA samples waiting to be mixed, a few counters (`dfsound/dfspu.c` `spu_ext_save`). The PCSX layout keeps one XA sector or a capped CD-DA tail and rebuilds the rest roughly |
 | `GPU1` | the OpenGX GPU plugin between commands: a command half received, a VRAM transfer part done, the busy countdown, the whole status (`GL_GPUfreezeExtra`). Written and read only with that plugin |
+| `BIO1` | the HLE BIOS's learned interrupt handlers (`psxbios.c` `psxBiosSoftcallFreeze`). Written only with the HLE BIOS |
 | `TIM1` | no data: the timers and the event table were saved exactly and are put back as they were, after the devices' own restores rescheduled their events |
 
 A section whose size does not match this build's layout is skipped, and that part loads as
@@ -95,6 +96,11 @@ fingerprint, with or without audio rate control), so each difference was state l
 6. **The GPU plugin between commands** (`GPU1`): Crash 3 loaded into another boot ran 74
    cycles apart without it.
 7. **The pad** (`PAD1`).
+8. **The HLE BIOS's learned handlers** (`BIO1`, 2026-09-23). The HLE BIOS runs a game's
+   interrupt handler one block at a time the first time it is called, and in one go after
+   that (`softcall_seen`, psxbios.c). The two ways deliver timer and CD events at different
+   points. A state loaded into a new boot stepped every handler again, so Ape Escape ran
+   116 cycles late after one vblank and had a counter one lower 300 vblanks on.
 
 Measuring it also needed: the CPU registers copied out of Lightrec before a fingerprint
 (`R3000ACPU_NOTIFY_BEFORE_SAVE`; `psxRegs` is stale while Lightrec runs), and the "saved"
@@ -115,11 +121,25 @@ fingerprint taken after the save, which writes its own block into `psxH` at 0xF0
 - **An older state** (made by the build before this work, no sections) loads with `State=`,
   and the game goes on; a `statecheck` from there matches.
 
-**Still open**: what differs depends on which games ran earlier in the same boot, so it is
-state carried from one game to the next inside a plugin -- a static the per-game reset does
-not clear (the same family as the fixes in 372a470 and 627af35) -- not state a file could
-hold. The Crash 3 case is one 16-bit counter at 0x8005E268, one lower in the loaded run.
-`statefp V dump` writes RAM to `sd:/wiisxrx/fpram_<k>.bin` to find such words.
+**Update 2026-09-23 (with `BIO1`):** the four-game same-boot `statecheck` (Spyro, FF7, Crash
+Bash, Ape Escape) matches in every game, Crash Bash after the others included. Ape Escape's
+save/load first in a boot matches. Games run after other games fingerprint the same as
+when they run first (Ape Escape after Crash Bash, after a digital-pad game, after a
+save/load pair; Crash Bash after Spyro and FF7).
+
+**Still open**, reproducible: chain `Ape save@2400 (2800 vbl)`, `Ape load (400)`,
+`Crash 3 save@3000 + recording (3400)`, `Crash 3 load + recording (400)`, `Ape save@2400`,
+`Ape load`. The Crash 3 load ends 74 cycles apart, and the second Ape run fingerprints
+differently from the first (its own save/load pair matches). What is known:
+- the Crash 3 state file is complete: loaded first in a fresh boot it gives the saving
+  run's exact fingerprint;
+- it is not the RAM dumps, the pad type, a load by itself, or Crash 3 with its recording:
+  each of those before Ape leaves Ape exactly as first;
+- Ape's run past about vblank 2450 (VRAM changes there) is in the diverging chains and not
+  in the clean ones, so the suspect is state Ape sets there that the next game's reset does
+  not clear. 74 cycles is the gap `GPU1` closed, so look in the GPU plugin first.
+`statefp` takes up to 8 requests per script (`ST_MAX`); `statefp V dump` writes RAM to
+`sd:/wiisxrx/fpram_<k>.bin` for a word diff.
 
 ## What a state cannot carry
 

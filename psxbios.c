@@ -471,6 +471,30 @@ static void softcall_learn(u32 pc, int returned)
 	}
 }
 
+/* Save states, section BIO1 (misc.c): the handlers learned so far. A state loaded into a
+ * boot that had not learned them stepped each one again on its first call, and stepping
+ * delivers events between blocks where a learned handler's run does not, so the loaded
+ * run went its own way: Ape Escape had a counter one lower 300 vblanks on, and was 116
+ * cycles late after one. With data NULL, returns the size. */
+int psxBiosSoftcallFreeze(int save, void *data, int len)
+{
+	const int size = (int)(sizeof(softcall_seen_n) + sizeof(softcall_seen));
+	int n;
+
+	if (!data) return size;
+	if (save) {
+		memcpy(data, &softcall_seen_n, sizeof(softcall_seen_n));
+		memcpy((char *)data + sizeof(softcall_seen_n), softcall_seen, sizeof(softcall_seen));
+		return size;
+	}
+	if (len != size) return -1;
+	memcpy(&n, data, sizeof(n));
+	if (n < 0 || n > SOFTCALL_LEARN_MAX) return -1;
+	softcall_seen_n = n;
+	memcpy(softcall_seen, (const char *)data + sizeof(softcall_seen_n), sizeof(softcall_seen));
+	return 0;
+}
+
 /* The trap's own handler. It does nothing: reaching it is the whole message, and the
  * program counter stays on it so the loop in softCall() sees the end. */
 static void hleSoftcallEnd(void)

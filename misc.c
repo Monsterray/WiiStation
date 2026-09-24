@@ -646,6 +646,8 @@ struct misc_save_data {
  *   GPU1  the OpenGX GPU plugin between commands: a command half received, a VRAM transfer
  *         part done, the busy countdown (GlesGpu/gpuPlugin.c GL_GPUfreezeExtra); only
  *         written and read with that plugin
+ *   BIO1  the HLE BIOS's learned interrupt handlers (psxbios.c psxBiosSoftcallFreeze); only
+ *         written with the HLE BIOS
  *   TIM1  no data: the timers and the event table were saved exactly, and are put back as
  *         they were, after the devices' own restores have rescheduled their events
  *         (psxcounters.c psxRcntRestoreExact) */
@@ -654,6 +656,7 @@ void psxRcntRestoreExact(void);
 int spu_ext_save(void *data, int len);
 int spu_ext_load(const void *data, int len);
 int GL_GPUfreezeExtra(int save, void *data, int len);
+int psxBiosSoftcallFreeze(int save, void *data, int len);
 #define STATE_EXT_TIMERS 1   /* stateExtRead: section TIM1 was there */
 
 static void stateExtSection(gzFile f, const char *tag, const void *data, u32 len)
@@ -688,6 +691,14 @@ static void stateExtWrite(gzFile f)
 			free(pad);
 		}
 	}
+	if (Config.HLE) {
+		n = psxBiosSoftcallFreeze(1, NULL, 0);
+		if ((pad = malloc(n)) != NULL) {
+			psxBiosSoftcallFreeze(1, pad, n);
+			stateExtSection(f, "BIO1", pad, (u32)n);
+			free(pad);
+		}
+	}
 	stateExtSection(f, "TIM1", NULL, 0);
 	stateExtSection(f, "END0", NULL, 0);
 }
@@ -715,6 +726,9 @@ static int stateExtRead(gzFile f)
 		else if (!memcmp(tag, "GPU1", 4) && gpuPtr == &glesGpu && len <= 4096
 		 && (data = malloc(len)) != NULL && gzread(f, data, len) == (int)len)
 			GL_GPUfreezeExtra(0, data, (int)len);
+		else if (!memcmp(tag, "BIO1", 4) && Config.HLE && len <= 4096
+		 && (data = malloc(len)) != NULL && gzread(f, data, len) == (int)len)
+			psxBiosSoftcallFreeze(0, data, (int)len);
 		else if (!data)
 			gzseek(f, len, SEEK_CUR);
 		free(data);
