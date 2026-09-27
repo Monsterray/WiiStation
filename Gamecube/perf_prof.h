@@ -643,6 +643,9 @@ static inline void perf_prim_trace(unsigned cmd, unsigned flags, unsigned abr, u
 { (void)cmd; (void)flags; (void)abr; (void)color; (void)x0; (void)y0; (void)x1; (void)y1; }
 #endif
 void perf_autoinput_event(unsigned vblank, unsigned mask);
+/* A VRAM transfer for sd:/wiisxrx/vramio.log (perf_prof.c). kind: 0xC0 read, 0xA0 load,
+ * 0x80 move, 0xC1 readback outcome. */
+void perf_vram_event(unsigned kind, int x, int y, int w, int h, int a, int b);
 
 /* One pad record (see pev[] above). `type` is the driver's identifier letter, or 0 for a
  * port with nothing assigned. Sticks are packed x << 8 | y. Repeats are dropped, so a
@@ -679,6 +682,8 @@ static inline void perf_present_tick(unsigned long long present_us) { (void)pres
 static inline void perf_prim_trace(unsigned cmd, unsigned flags, unsigned abr, unsigned color, int x0, int y0, int x1, int y1)
 { (void)cmd; (void)flags; (void)abr; (void)color; (void)x0; (void)y0; (void)x1; (void)y1; }
 static inline void perf_autoinput_event(unsigned vblank, unsigned mask) { (void)vblank; (void)mask; }
+static inline void perf_vram_event(unsigned kind, int x, int y, int w, int h, int a, int b)
+{ (void)kind; (void)x; (void)y; (void)w; (void)h; (void)a; (void)b; }
 static inline void perf_pad_event(unsigned pad, unsigned type, unsigned drv_btns, unsigned drv_l,
                                   unsigned drv_r, unsigned out_btns, unsigned out_l, unsigned out_r)
 { (void)pad; (void)type; (void)drv_btns; (void)drv_l; (void)drv_r; (void)out_btns; (void)out_l; (void)out_r; }

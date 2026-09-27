@@ -188,6 +188,12 @@ void gc_vout_render(void)
 	GX_SetDrawDone();
 }
 
+/* 1 while a copy to the XFB is in flight: gx_vout_render() would skip the next one */
+int gx_vout_busy(void)
+{
+	return gx_present_inflight;
+}
+
 int gx_vout_render(short canSwapFrameBuf)
 {
 	/* Keep displaying the last completed XFB while the next copy is pending.

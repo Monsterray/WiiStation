@@ -124,6 +124,8 @@ unsigned long g_netwait_old_wakes, g_netwait_new_wakes;
 
 void perf_reset(void)
 {
+	/* vramio.log: a line where each game of a chain starts (kind FF) */
+	perf_vram_event(0xFF, 0, 0, 1024, 512, 0, 0);
 	{
 		/* one log per boot: the SD image keeps files across runs, so appending
 		 * across boots made the log grow and mixed runs */
@@ -337,6 +339,62 @@ static void perf_trace_flush(void)
 	g_perf.pt_printed = 1;
 }
 #endif /* PERF_PROF_TRACE */
+
+/* VRAM transfers, whole run (sd:/wiisxrx/vramio.log). One line per distinct event: a CPU
+ * read of VRAM (C0), an image load (A0), a VRAM-to-VRAM move (80) or a readback outcome
+ * (C1), with the rect, two values the caller chooses and, when the same event repeats,
+ * a count and the last vblank. Only transfers of 32x32 or more are kept: that is where a
+ * game moves pictures (a pause screen's frozen frame, a fade's last frame), and it keeps
+ * the file to a few dozen lines instead of the primitive trace's thousands. */
+#define VIO_MAX 2048
+static struct { uint32_t vbl, last, n; uint16_t kind, x, y, w, h; int32_t a, b; } vio[VIO_MAX];
+static unsigned vio_n, vio_count[4], vio_dropped;
+
+void perf_vram_event(unsigned kind, int x, int y, int w, int h, int a, int b)
+{
+	unsigned k = kind == 0xC0 ? 0 : kind == 0xA0 ? 1 : kind == 0x80 ? 2 : 3;
+	if (kind != 0xFF) vio_count[k]++;
+	if (w * h < 32 * 32 && kind != 0xFF) return;
+	if (vio_n && vio[vio_n - 1].kind == kind && vio[vio_n - 1].x == x && vio[vio_n - 1].y == y &&
+	    vio[vio_n - 1].w == w && vio[vio_n - 1].h == h && vio[vio_n - 1].a == a && vio[vio_n - 1].b == b) {
+		vio[vio_n - 1].n++; vio[vio_n - 1].last = frame_counter;
+		return;
+	}
+	/* two events alternating (a double-buffered game) fold into the one before last */
+	if (vio_n >= 2 && vio[vio_n - 2].kind == kind && vio[vio_n - 2].x == x && vio[vio_n - 2].y == y &&
+	    vio[vio_n - 2].w == w && vio[vio_n - 2].h == h && vio[vio_n - 2].a == a && vio[vio_n - 2].b == b) {
+		vio[vio_n - 2].n++; vio[vio_n - 2].last = frame_counter;
+		return;
+	}
+	if (vio_n >= VIO_MAX) { vio_dropped++; return; }
+	vio[vio_n].vbl = vio[vio_n].last = frame_counter; vio[vio_n].n = 1;
+	vio[vio_n].kind = (uint16_t)kind;
+	vio[vio_n].x = (uint16_t)x; vio[vio_n].y = (uint16_t)y; vio[vio_n].w = (uint16_t)w; vio[vio_n].h = (uint16_t)h;
+	vio[vio_n].a = a; vio[vio_n].b = b;
+	vio_n++;
+}
+
+static void perf_vram_flush(void)
+{
+	unsigned k;
+	FILE *f;
+	if (!vio_n) return;
+	f = fopen("sd:/wiisxrx/vramio.log", "w");
+	if (!f) return;
+	fprintf(f, "# vblank[-last] xN kind x,y wxh a b   (C0 read: a=mapping 0 cur 1 prev 2 other, b=capture+8;"
+		" FF: a game starts; C1 outcome: a=capture+8 b=%% from EFB; C5 display flip: a=old map bits as C2, b=1 draws seen since last flip; C4 present snapshot: a=1 taken 0 refused, b=bits as C2; C2 state: a=bits 1 pendingPresented 2 unused 4 mixed 8 untracked 16 prevSnap 32 liveSnap 64 mapValid 128 contentValid 256 dirty 512 async, b=map id; A0 load, 80 move: a=src x b=src y)\n");
+	fprintf(f, "# counts all sizes: c0=%u a0=%u 80=%u c1=%u, lines dropped=%u\n",
+		vio_count[0], vio_count[1], vio_count[2], vio_count[3], vio_dropped);
+	for (k = 0; k < vio_n; k++) {
+		if (vio[k].n > 1)
+			fprintf(f, "%lu-%lu x%lu ", (unsigned long)vio[k].vbl, (unsigned long)vio[k].last, (unsigned long)vio[k].n);
+		else
+			fprintf(f, "%lu ", (unsigned long)vio[k].vbl);
+		fprintf(f, "%02X %u,%u %ux%u %ld %ld\n", vio[k].kind, vio[k].x, vio[k].y, vio[k].w, vio[k].h,
+			(long)vio[k].a, (long)vio[k].b);
+	}
+	fclose(f);
+}
 
 /* The pad timeline. One line per change, with the driver's output beside what the game
  * reads, so a sweep sent in through Dolphin can be checked end to end: the stick should
@@ -858,6 +916,7 @@ void perf_report(void)
 	if (g_perf.aev_n)
 		perf_audio_flush();
 	perf_pad_flush();
+	perf_vram_flush();
 
 #ifdef SHOW_DEBUG
 	/* Mirror compact lines to overlay rows 22..29 (rows 0..21 are taken by

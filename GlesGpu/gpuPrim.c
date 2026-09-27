@@ -2468,18 +2468,6 @@ static void cmdDrawOffset ( unsigned char * baseAddr )
     perf_prim_trace(0xE5, 0, 0, 0, PSXDisplay.DrawOffset.x, PSXDisplay.DrawOffset.y, 0, 0);
 }
 
-#define CHK_FPS_DISP1(x, y, w, h) { \
-    if (showFPSonScreen == 1 && canShowFps == FALSE \
-        && x <= 10 && y <= 35 && (x + w) >= 160 && (y + h) >= 50) \
-        canShowFps = TRUE; \
-}
-
-#define CHK_FPS_DISP2(x0, y0, x1, y1) { \
-    if (showFPSonScreen == 1 && canShowFps == FALSE \
-        && x0 <= 10 && y0 <= 35 && x1 >= 160 && y1 >= 50) \
-        canShowFps = TRUE; \
-}
-
 ////////////////////////////////////////////////////////////////////////
 // cmd: load image to vram
 ////////////////////////////////////////////////////////////////////////
@@ -2577,7 +2565,6 @@ static void PrepareRGB24Upload ( void )
         RGB24Uploaded |= 0x8;
     }
 
-    canShowFps = TRUE;
     #if defined(DISP_DEBUG)
     sprintf ( txtbuffer, "PrepareRGB24Upload %x\r\n", RGB24Uploaded);
     writeLogFile ( txtbuffer );
@@ -2617,7 +2604,10 @@ void CheckWriteUpdate()
         return;
     }
 
-    CHK_FPS_DISP1(VRAMWrite.x, VRAMWrite.y, VRAMWrite.Width, VRAMWrite.Height);
+    /* trace A0: a CPU->VRAM image load finished; rect = where it went */
+    perf_prim_trace(0xA0, 0, 0, 0, VRAMWrite.x, VRAMWrite.y,
+                    VRAMWrite.x + VRAMWrite.Width, VRAMWrite.y + VRAMWrite.Height);
+    perf_vram_event(0xA0, VRAMWrite.x, VRAMWrite.y, VRAMWrite.Width, VRAMWrite.Height, 0, 0);
 
     int uploaded = 0;
     #if defined(DISP_DEBUG)
@@ -2777,6 +2767,7 @@ static void primStoreImage ( unsigned char * baseAddr )
     iDataReadMode = DR_VRAMTRANSFER;
     g_readbackState = READBACK_PENDING;
     perf_prim_trace(0xC0, 0, 0, 0, VRAMRead.x, VRAMRead.y, VRAMRead.x + VRAMRead.Width, VRAMRead.y + VRAMRead.Height);   /* VRAM->CPU read */
+    perf_vram_event(0xC0, VRAMRead.x, VRAMRead.y, VRAMRead.Width, VRAMRead.Height, 0, 0);
 
     readMapping = ClassifyReadMapping(VRAMRead.x, VRAMRead.y,
                                       VRAMRead.Width, VRAMRead.Height);
@@ -2882,7 +2873,6 @@ static void primBlkFill ( unsigned char * baseAddr )
     lx0 = lx3 = sprtX;
     lx1 = lx2 = ( sprtX + sprtW );
 
-    CHK_FPS_DISP1(sprtX, sprtY, sprtW, sprtH);
 
     offsetBlk();
 
@@ -2929,7 +2919,6 @@ static void primBlkFill ( unsigned char * baseAddr )
         lClearOnSwapColor = COLOR(GETLE32(&gpuData[0]));
         lClearOnSwap = 1;
         canClearFrameBuf = TRUE;
-        canShowFps = TRUE;
     }
 
     if (clearCurrent)
@@ -2941,7 +2930,6 @@ static void primBlkFill ( unsigned char * baseAddr )
 
         needUploadScreen = FALSE;
         uploadedScreen = FALSE;
-        canShowFps = TRUE;
 
         // Clear all Screen
         if ((sprtX + sprtW) >= 1023 && (sprtY + sprtH) >= 511)
@@ -3094,6 +3082,10 @@ static void primMoveImage ( unsigned char * baseAddr )
     if ( ( imageX0 == imageX1 ) && ( imageY0 == imageY1 ) ) return;
     if ( imageSX <= 0 ) return;
     if ( imageSY <= 0 ) return;
+    /* trace: rect = destination, col = source x << 12 | y */
+    perf_prim_trace(0x80, 0, 0, ((unsigned)imageX0 << 12) | (unsigned)imageY0,
+                    imageX1, imageY1, imageX1 + imageSX, imageY1 + imageSY);
+    perf_vram_event(0x80, imageX1, imageY1, imageSX, imageSY, imageX0, imageY0);
 
     /* Only DC2's five full-height strip copies are proven to consume GX-only
      * EFB content.  Applying the read barrier to unrelated 80h commands can
@@ -3407,7 +3399,6 @@ static void primTileS ( unsigned char * baseAddr )
 
     offsetST();
 
-    CHK_FPS_DISP2(lx0, ly0, lx0 + sprtW + PSXDisplay.CumulOffset.x, ly0 + sprtY + PSXDisplay.CumulOffset.y);
 
     if (CLEAR_SCREEN(sprtX, sprtY, sprtX + sprtW, sprtY + sprtH))
     {
@@ -4086,7 +4077,6 @@ static void primSprtSRest ( unsigned char * baseAddr, unsigned short type )
 
     offsetST();
 
-    CHK_FPS_DISP2(lx0, ly0, lx0 + sprtW + PSXDisplay.CumulOffset.x, ly0 + sprtY + PSXDisplay.CumulOffset.y);
 
     ulClutID = GETLE16 ( &sgpuData[5] );
 
@@ -4250,7 +4240,6 @@ static void primSprtS ( unsigned char * baseAddr )
 
     offsetST();
 
-    CHK_FPS_DISP2(lx0, ly0, lx0 + sprtW + PSXDisplay.CumulOffset.x, ly0 + sprtY + PSXDisplay.CumulOffset.y);
 
     ulClutID = GETLE16 ( &sgpuData[5] );
 
@@ -4349,7 +4338,6 @@ static void primPolyF4 ( unsigned char *baseAddr )
 
     if ( offset4() ) return;
 
-    CHK_FPS_DISP2(lx0, ly0, lx2 + PSXDisplay.CumulOffset.x, ly2 + PSXDisplay.CumulOffset.y);
 
     bDrawTextured = FALSE;
     bDrawSmoothShaded = FALSE;
@@ -4476,7 +4464,6 @@ static void primPolyG4 ( unsigned char * baseAddr )
 
     if ( offset4() ) return;
 
-    CHK_FPS_DISP2(lx0, ly0, lx2 + PSXDisplay.CumulOffset.x, ly2 + PSXDisplay.CumulOffset.y);
 
     bDrawTextured = FALSE;
     bDrawSmoothShaded = TRUE;
@@ -5131,7 +5118,6 @@ static void primPolyFT4 ( unsigned char * baseAddr )
 
     if ( offset4() ) return;
 
-    CHK_FPS_DISP2(lx0, ly0, lx2 + PSXDisplay.CumulOffset.x, ly2 + PSXDisplay.CumulOffset.y);
 
     gl_vy[0] = baseAddr[9]; //((gpuData[2]>>8)&0xff);
     gl_vy[1] = baseAddr[17]; //((gpuData[4]>>8)&0xff);
@@ -5372,7 +5358,6 @@ static void primPolyGT4 ( unsigned char *baseAddr )
 
     if ( offset4() ) return;
 
-    CHK_FPS_DISP2(lx0, ly0, lx2 + PSXDisplay.CumulOffset.x, ly2 + PSXDisplay.CumulOffset.y);
 
 // do texture stuff
     gl_ux[0] = baseAddr[8]; //gpuData[2]&0xff;

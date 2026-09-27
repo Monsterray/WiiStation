@@ -154,7 +154,6 @@ static uint64_t g_psxWriteTileEpoch[VRAM_READBACK_TILE_Y][VRAM_READBACK_TILE_X];
 static EfbTileState g_efbTileState[VRAM_READBACK_TILE_Y][VRAM_READBACK_TILE_X];
 static EfbTileState g_pendingPresentedTile[VRAM_READBACK_TILE_Y][VRAM_READBACK_TILE_X];
 
-static BOOL g_efbContaminated;
 static unsigned int g_debugDrawSubmitted;
 static BOOL g_mixedMappingSeen;
 static BOOL g_untrackedEfbWrite;
@@ -676,7 +675,6 @@ static int ContainsPixel(const GXFrameSnapshot *snap, int px, int py)
 
 static void EfbHazardsReset(void)
 {
-    g_efbContaminated  = FALSE;
     g_mixedMappingSeen = FALSE;
     g_untrackedEfbWrite = FALSE;
 }
@@ -1025,7 +1023,6 @@ static BOOL CanCaptureActiveEfb(void)
 
     return g_activeMap.map_valid &&
            g_activeMap.content_valid &&
-           !g_efbContaminated &&
            !g_mixedMappingSeen &&
            !g_untrackedEfbWrite;
 }
@@ -1145,7 +1142,7 @@ static int TryCapturePreviousReadRect(int x, int y, int w, int h)
         (STATUSREG & GPUSTATUS_RGB24) || PSXDisplay.RGB24 ||
         g_prevMapId == INVALID_MAP_ID || !g_activeMap.map_valid ||
         !g_activeMap.content_valid || !g_activeMap.content_dirty ||
-        g_efbContaminated || g_mixedMappingSeen || g_untrackedEfbWrite)
+        g_mixedMappingSeen || g_untrackedEfbWrite)
         return 0;
     /* Two callers.  The small-read fallback (Dino Crisis 2 / Vagrant Story,
      * gated on AUTO_FIX_NO_SWAP_BUF, at most 64 wide / 4096 pixels), and a
@@ -1253,7 +1250,7 @@ static int CapturePresentedEfbSnapshot(void)
     {
         if (!ReadbackEnabled() ||
             (STATUSREG & GPUSTATUS_RGB24) || PSXDisplay.RGB24 ||
-            g_efbContaminated || g_mixedMappingSeen ||
+            g_mixedMappingSeen ||
             g_untrackedEfbWrite)
             return 0;
         map = g_pendingPresentedMap;
@@ -1595,6 +1592,19 @@ static int OnDisplayMappingWillChange(const GXDisplayMap *proposed)
     if (g_displayMapTxDepth++ > 0)
         return 1;
 
+    /* vramio C5: the display is about to show another buffer; a = the old map's state bits
+     * (as C2), b = draw hooks since the last flip -- 0 means the tracking never saw a draw */
+    {
+        static unsigned drawsAtLastFlip;
+        perf_vram_event(0xC5, g_activeMap.vram_x0, g_activeMap.vram_y0,
+            g_activeMap.vram_x1 - g_activeMap.vram_x0, g_activeMap.vram_y1 - g_activeMap.vram_y0,
+            (g_pendingPresentedReady ? 1 : 0) | (g_mixedMappingSeen ? 4 : 0) | (g_untrackedEfbWrite ? 8 : 0) |
+            (g_activeMap.map_valid ? 64 : 0) | (g_activeMap.content_valid ? 128 : 0) |
+            (g_activeMap.content_dirty ? 256 : 0),
+            g_debugDrawSubmitted - drawsAtLastFlip ? 1 : 0);
+        drawsAtLastFlip = g_debugDrawSubmitted;
+    }
+
     if (CanCaptureActiveEfb() && g_activeMap.content_dirty)
         CapturePresentedEfbSnapshot();
 
@@ -1653,7 +1663,6 @@ static void ResetVramReadbackState(void)
     memset(g_pendingPresentedTile, 0, sizeof(g_pendingPresentedTile));
     ResetRebuildCandidate();
 
-    g_efbContaminated  = FALSE;
     g_mixedMappingSeen = FALSE;
     g_untrackedEfbWrite = FALSE;
 
@@ -2235,7 +2244,7 @@ static void MaterializeEfbForVramMove(int x, int y, int w, int h)
          g_pendingPresentedMap.vram_x1 != g_activeMap.vram_x1 ||
          g_pendingPresentedMap.vram_y1 != g_activeMap.vram_y1) &&
         !(STATUSREG & GPUSTATUS_RGB24) && !PSXDisplay.RGB24 &&
-        !g_efbContaminated && !g_mixedMappingSeen &&
+        !g_mixedMappingSeen &&
         !g_untrackedEfbWrite &&
         WrappedReadOverlapsMap(x, y, w, h,
                                g_pendingPresentedMap.vram_x0,

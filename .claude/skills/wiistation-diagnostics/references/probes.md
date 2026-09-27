@@ -48,7 +48,25 @@ the draw (GX state, Dolphin); `offsoft prims` > 0 means the title renders off-sc
 - `padproto:` -- port 1's controller commands by type (0x42 poll, 0x43 config, 0x44 mode, 0x4D rumble map, ...) and the first 0x42 reply sent while a button was held (ID and bytes). A digital pad replies `id=41 len=4`, an analog one `id=73 len=8`.
 - A scheduled `dump`/`trace` fires only at a present after that vblank: a game that is loading (Spyro presents once in its first 300 vblanks) needs a later vblank.
 
+## VRAM transfers, whole run (sd:/wiisxrx/vramio.log) -- look here before tracing
+
+`perf_vram_event()` (perf_prof.c) logs every transfer of 32x32 or more for the whole run,
+one line per distinct event, repeats merged (`first-last xN`, and two alternating events --
+a double-buffered game -- fold too), 2048 lines max. `dolphin_run.sh` extracts it to
+`.runs/NAME/vramio.log`; its two header lines explain the fields. Kinds: `C0` CPU read,
+`C1` readback outcome (a = capture result + 8, b = % from the EFB), `C2` readback state
+bits, `C4` snapshot at each present (a = taken), `C5` display flip (b = draws seen), `A0`
+image load, `80` move (a,b = source), `FF` a chained game starts. Works in the default
+`light` debug build. It found Ape Escape's pause mechanism (a C0 read of the frame, then an
+A0 upload of it every paused frame) in one run, after several trace windows had missed it.
+
 ## Primitive trace (sd:/wiisxrx/ptrace.log)
+
+**Three traps (2026-09-27).** (1) `wsx.sh build debug` defaults to the `light` preset, which
+compiles the trace out: build with `wsx.sh build debug all`. (2) An episode is written to the
+file only when the NEXT trace fires: schedule a second `trace` line after the one you want.
+(3) A stale ptrace.log from an earlier run stays on the card, so check the header's
+`vblank=` before believing an episode.
 
 `perf_prim_trace(cmd, flags, abr, color, x0, y0, x1, y1)` appends to a 2600-entry ring;
 an episode is 16 presents, armed by `trace <vblank>` lines in autoinput.txt (or the legacy
@@ -76,7 +94,7 @@ Synthetic commands emitted by the read path and the off-screen path (not GP0 com
 |---|---|---|
 | `c0` | a VRAM→CPU read (GP0 C0) was issued | rect |
 | `c1` | readback outcome | flags S=previous-display mapping, T=unknown, none=current; `abr` = capture result + 8 (3 = captured back buffer, 1 = live, -5 = previous with no capture, -6 = unknown mapping); `col` = merged pixel count |
-| `c2` | readback state | `col` bits: 1 pendingPresented 2 contaminated 4 mixed 8 untracked 16 prevSnap 32 liveSnap 64 mapValid 128 contentValid 256 contentDirty 512 asyncInFlight; x0 map id, y0 previous map id, x1/y1 = FULL tiles in prev/live snapshot |
+| `c2` | readback state | `col` bits: 1 pendingPresented 2 unused (was overlay contamination, removed 2026-09-27) 4 mixed 8 untracked 16 prevSnap 32 liveSnap 64 mapValid 128 contentValid 256 contentDirty 512 asyncInFlight; x0 map id, y0 previous map id, x1/y1 = FULL tiles in prev/live snapshot |
 | `c3` | content the CPU will read | `col` = FNV hash of the rect's first 8 rows in psxVuw, x1 = non-black words, y1 = words hashed |
 | `c8` | off-screen primitive rasterized in software | flags T=textured, `col` = GP0 command byte, rect |
 | `ea` | a screen re-upload from PSX VRAM was asked for | flags S=`Position`, T=RGB24; `col` = map id; rect = `xrUploadArea` |

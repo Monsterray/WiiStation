@@ -31,6 +31,7 @@
 #define _IN_GPU_LIB
 
 #include <stdlib.h>
+#include <malloc.h>   /* memalign */
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
@@ -162,7 +163,6 @@ static unsigned short screenY1 = 240;
 static unsigned short screenWidth = 320;
 static unsigned short screenHeight = 240;
 BOOL    canClearFrameBuf = FALSE;
-BOOL    canShowFps = FALSE;
 
 static BOOL    needUploadScreen = FALSE;
 static BOOL    uploadedScreen = FALSE;
@@ -200,6 +200,7 @@ extern GXRModeObj *vmode;     /*** Graphics Mode Object ***/
 #include "gpuDraw.c"
 #include "gpuTexture.c"
 #include "gpuVramReadback.inc"
+
 #include "gpuPrim.c"
 
 static void flipEGL(void);
@@ -1807,7 +1808,7 @@ if (g_readbackState == READBACK_PENDING)
           CountEfbTiles(EFB_TILE_PARTIAL),
           g_activeMap.map_id, g_activeMap.map_valid,
           g_activeMap.content_valid, g_activeMap.content_dirty,
-          g_efbContaminated, g_mixedMappingSeen, g_untrackedEfbWrite,
+          0, g_mixedMappingSeen, g_untrackedEfbWrite,
           LIVE_SNAP()->valid, LIVE_SNAP()->map_id, LIVE_SNAP()->source,
           CountSnapshotTiles(LIVE_SNAP(), EFB_TILE_FULL),
           PREV_SNAP()->valid, PREV_SNAP()->map_id, PREV_SNAP()->source,
@@ -1818,10 +1819,18 @@ if (g_readbackState == READBACK_PENDING)
 #if PERF_PROF_GPU
   /* trace: C1 = readback outcome for this VRAM->CPU read (flags = mapping kind, abr = capture result + 8, col = merged pixels) */
   perf_prim_trace(0xC1, (unsigned)g_lastReadMapping, (unsigned)(g_lastCaptureResult + 8), (unsigned)g_lastMergedPixels, VRAMRead.x, VRAMRead.y, VRAMRead.x + VRAMRead.Width, VRAMRead.y + VRAMRead.Height);
-  /* C2 = readback state bits: b0 pendingPresented b1 contaminated b2 mixed b3 untracked b4 prevSnapValid b5 liveSnapValid
+  /* b = how much of the read came from the EFB, in percent */
+  perf_vram_event(0xC1, VRAMRead.x, VRAMRead.y, VRAMRead.Width, VRAMRead.Height, g_lastCaptureResult + 8,
+                  VRAMRead.Width * VRAMRead.Height ? (int)(100u * g_lastMergedPixels / (unsigned)(VRAMRead.Width * VRAMRead.Height)) : 0);
+  /* vramio C2: the state bits below (a) and the active map id (b) -- why a capture was refused */
+  perf_vram_event(0xC2, VRAMRead.x, VRAMRead.y, VRAMRead.Width, VRAMRead.Height,
+      (g_pendingPresentedReady ? 1 : 0) | (g_mixedMappingSeen ? 4 : 0) | (g_untrackedEfbWrite ? 8 : 0) |
+      (PREV_SNAP()->valid ? 16 : 0) | (LIVE_SNAP()->valid ? 32 : 0) | (g_activeMap.map_valid ? 64 : 0) | (g_activeMap.content_valid ? 128 : 0) |
+      (g_activeMap.content_dirty ? 256 : 0) | (g_asyncCaptureInFlight ? 512 : 0), (int)g_activeMap.map_id);
+  /* C2 = readback state bits: b0 pendingPresented b1 unused (was: overlay text in the EFB) b2 mixed b3 untracked b4 prevSnapValid b5 liveSnapValid
    * b6 mapValid b7 contentValid b8 contentDirty b9 asyncInFlight; x1 = prev snapshot FULL tiles, y1 = live snapshot FULL tiles */
   perf_prim_trace(0xC2, 0, 0,
-      (g_pendingPresentedReady ? 1 : 0) | (g_efbContaminated ? 2 : 0) | (g_mixedMappingSeen ? 4 : 0) | (g_untrackedEfbWrite ? 8 : 0) |
+      (g_pendingPresentedReady ? 1 : 0) | (g_mixedMappingSeen ? 4 : 0) | (g_untrackedEfbWrite ? 8 : 0) |
       (PREV_SNAP()->valid ? 16 : 0) | (LIVE_SNAP()->valid ? 32 : 0) | (g_activeMap.map_valid ? 64 : 0) | (g_activeMap.content_valid ? 128 : 0) |
       (g_activeMap.content_dirty ? 256 : 0) | (g_asyncCaptureInFlight ? 512 : 0),
       (int)g_activeMap.map_id, (int)g_prevMapId, CountSnapshotTiles(PREV_SNAP(), EFB_TILE_FULL), CountSnapshotTiles(LIVE_SNAP(), EFB_TILE_FULL));
@@ -2588,9 +2597,109 @@ void CALLBACK GL_GPUrearmedCallbacks(const struct rearmed_cbs *_cbs)
   vout_set_config(_cbs);
 }
 
+/* The FPS and debug text go on the picture sent to the TV, not into the game's frame.
+ * They are drawn into the EFB just before its copy to the XFB, and the EFB is also the
+ * frame the game goes on drawing into when it does not clear it. The text used to stay
+ * there: it was only drawn on frames where the game had redrawn the top-left corner (a
+ * guess, so it flashed on and off), and the frame was marked unfit for readback while it
+ * was there (Ape Escape's pause screen reads its frame back: it got the blue clear).
+ * Now the EFB is copied to a texture before the text, and drawn back after the copy to
+ * the XFB -- unless that copy clears the EFB anyway. The cost, only with the overlay on
+ * and only on such presents: one EFB-sized copy and one full-screen textured quad. */
+static void *ovl_buf;
+static int ovl_cap, ovl_w, ovl_h;
+
+static int OverlaySaveEfb(void)
+{
+    extern GXRModeObj *g_tv_mode;   /* Gamecube/libgui/GraphicsGX.cpp: the mode on the TV */
+    GXRModeObj *m = g_tv_mode ? g_tv_mode : vmode;
+    int size = GX_GetTexBufferSize(m->fbWidth, m->efbHeight, GX_TF_RGBA8, 0, GX_FALSE);
+
+    if (size > ovl_cap)
+    {
+        free(ovl_buf);
+        ovl_buf = memalign(32, size);
+        ovl_cap = ovl_buf ? size : 0;
+        if (!ovl_buf) return 0;
+        /* only the GP touches it from here on: no CPU line may be written back over it */
+        DCInvalidateRange(ovl_buf, size);
+    }
+    ovl_w = m->fbWidth;
+    ovl_h = m->efbHeight;
+    /* no vertical filter or deflicker: they would soften the frame each time it is kept */
+    GX_SetCopyFilter(m->aa, m->aa ? m->sample_pattern : NULL, GX_FALSE, NULL);
+    GX_SetTexCopySrc(0, 0, ovl_w, ovl_h);
+    GX_SetTexCopyDst(ovl_w, ovl_h, GX_TF_RGBA8, GX_FALSE);
+    GX_CopyTex(ovl_buf, GX_FALSE);
+    GX_PixModeSync();
+    RestoreDispCopyInfo();
+    return 1;
+}
+
+static void OverlayRestoreEfb(void)
+{
+    extern GXRModeObj *g_tv_mode;
+    GXRModeObj *m = g_tv_mode ? g_tv_mode : vmode;
+    GXTexObj tex;
+    Mtx44 proj;
+    Mtx mv;
+
+    /* the mode changed between the save and now (SwitchTVModeForDisplay): nothing to restore */
+    if (m->fbWidth != ovl_w || m->efbHeight != ovl_h)
+        return;
+
+    GX_InvalidateTexAll();   /* the texture cache may hold last present's copy at this address */
+    GX_InitTexObj(&tex, ovl_buf, ovl_w, ovl_h, GX_TF_RGBA8, GX_CLAMP, GX_CLAMP, GX_FALSE);
+    GX_InitTexObjFilterMode(&tex, GX_NEAR, GX_NEAR);
+    GX_LoadTexObj(&tex, GX_TEXMAP0);
+
+    /* EFB pixels exactly: its own viewport and projection, the plugin's put back below */
+    GX_SetViewport(0, 0, ovl_w, ovl_h, 0.0f, 1.0f);
+    GX_SetScissor(0, 0, ovl_w, ovl_h);
+    guOrtho(proj, 0, ovl_h, 0, ovl_w, 0, 1);
+    GX_LoadProjectionMtx(proj, GX_ORTHOGRAPHIC);
+    guMtxIdentity(mv);
+    GX_LoadPosMtxImm(mv, GX_PNMTX0);
+    GX_SetCurrentMtx(GX_PNMTX0);
+
+    GX_ClearVtxDesc();
+    GX_SetVtxDesc(GX_VA_POS, GX_DIRECT);
+    GX_SetVtxDesc(GX_VA_TEX0, GX_DIRECT);
+    GX_SetVtxAttrFmt(GX_VTXFMT7, GX_VA_POS, GX_POS_XY, GX_F32, 0);
+    GX_SetVtxAttrFmt(GX_VTXFMT7, GX_VA_TEX0, GX_TEX_ST, GX_F32, 0);
+    GX_SetNumChans(0);
+    GX_SetNumTexGens(1);
+    GX_SetTexCoordGen(GX_TEXCOORD0, GX_TG_MTX2x4, GX_TG_TEX0, GX_IDENTITY);
+    GX_SetNumTevStages(1);
+    GX_SetTevOrder(GX_TEVSTAGE0, GX_TEXCOORD0, GX_TEXMAP0, GX_COLORNULL);
+    GX_SetTevOp(GX_TEVSTAGE0, GX_REPLACE);
+    /* the copy holds the EFB's own channel order: no swap on the way back */
+    GX_SetTevSwapModeTable(GX_TEV_SWAP0, GX_CH_RED, GX_CH_GREEN, GX_CH_BLUE, GX_CH_ALPHA);
+    GX_SetTevSwapMode(GX_TEVSTAGE0, GX_TEV_SWAP0, GX_TEV_SWAP0);
+    GX_SetBlendMode(GX_BM_NONE, GX_BL_ONE, GX_BL_ZERO, GX_LO_CLEAR);
+    GX_SetZMode(GX_FALSE, GX_ALWAYS, GX_FALSE);
+    GX_SetAlphaCompare(GX_ALWAYS, 0, GX_AOP_AND, GX_ALWAYS, 0);
+    GX_SetColorUpdate(GX_TRUE);
+    GX_SetCullMode(GX_CULL_NONE);
+
+    GX_Begin(GX_QUADS, GX_VTXFMT7, 4);
+    GX_Position2f32(0, 0);                         GX_TexCoord2f32(0, 0);
+    GX_Position2f32((f32)ovl_w, 0);                GX_TexCoord2f32(1, 0);
+    GX_Position2f32((f32)ovl_w, (f32)ovl_h);       GX_TexCoord2f32(1, 1);
+    GX_Position2f32(0, (f32)ovl_h);                GX_TexCoord2f32(0, 1);
+    GX_End();
+
+    /* the plugin's state: the BGR swap table (gx_vout_render), its viewport, its clip */
+    GX_SetTevSwapModeTable(GX_TEV_SWAP0, GX_CH_BLUE, GX_CH_GREEN, GX_CH_RED, GX_CH_ALPHA);
+    glViewport(rRatioRect.left, iResY - (rRatioRect.top + rRatioRect.bottom),
+               rRatioRect.right, rRatioRect.bottom);
+    bSetClip = TRUE;
+}
+
 static void flipEGL(void)
 {
     int presentSubmitted;
+    int overlaySaved = 0;
     unsigned long long flip_t0 = perf_now_us();
     #ifdef DISP_DEBUG
     sprintf(txtbuffer, "flipEGL %d \r\n", canClearFrameBuf);
@@ -2598,13 +2707,27 @@ static void flipEGL(void)
     writeLogFile(txtbuffer);
     #endif // DISP_DEBUG
 
-    CapturePresentedEfbSnapshot();
-
-    if (canShowFps)
     {
-        // Write menu/debug text on screen
-        showFpsAndDebugInfo();
-        g_efbContaminated = TRUE;
+        /* vramio C4: the presented frame's snapshot (a = 1 taken, 0 refused) and the state
+         * bits of C2 (b), for games on the readback list */
+        unsigned bits = (g_pendingPresentedReady ? 1 : 0) | (g_mixedMappingSeen ? 4 : 0) |
+            (g_untrackedEfbWrite ? 8 : 0) | (g_activeMap.map_valid ? 64 : 0) |
+            (g_activeMap.content_valid ? 128 : 0) | (g_activeMap.content_dirty ? 256 : 0);
+        int taken = CapturePresentedEfbSnapshot();
+        if (ReadbackEnabled())
+            perf_vram_event(0xC4, g_activeMap.vram_x0, g_activeMap.vram_y0,
+                            g_activeMap.vram_x1 - g_activeMap.vram_x0,
+                            g_activeMap.vram_y1 - g_activeMap.vram_y0, taken, (int)bits);
+    }
+
+    /* a frame that will not reach the TV gets no text */
+    if (showFPSonScreen == 1 && !gx_vout_busy())
+    {
+        /* a copy that clears the EFB takes the text with it; otherwise keep what it covers */
+        if (!canClearFrameBuf)
+            overlaySaved = OverlaySaveEfb();
+        if (overlaySaved || canClearFrameBuf)
+            showFpsAndDebugInfo();
     }
 
     /* The 240p button was pressed in the menu: a game that does not change its display mode
@@ -2624,6 +2747,9 @@ static void flipEGL(void)
     }
 
     presentSubmitted = gx_vout_render(canClearFrameBuf);
+    /* the text is in the XFB copy (or the copy was skipped): take it out of the game's frame */
+    if (overlaySaved && (!presentSubmitted || !canClearFrameBuf))
+        OverlayRestoreEfb();
 
 #ifdef PERF_PROF
     /* EC = one entry per present: what the present did (flags), how much had been
@@ -2649,7 +2775,6 @@ static void flipEGL(void)
     needFlipEGL = presentSubmitted ? FALSE : TRUE;
     if (presentSubmitted)
         canClearFrameBuf = FALSE;
-    canShowFps = FALSE;
     RGB24Uploaded = 0;
     glSetLoadMtxFlg();
 
