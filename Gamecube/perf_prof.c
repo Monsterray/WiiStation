@@ -831,6 +831,23 @@ void perf_report(void)
 				(unsigned long long)ticks_to_microsecs(g_perf.pres_prep_ticks),
 				(unsigned long long)ticks_to_microsecs(g_perf.pres_capture_ticks),
 				(unsigned long long)ticks_to_microsecs(g_perf.pres_vout_ticks));
+		{   /* the ten GP0 commands that took longest, any GPU plugin: cmd=us/calls */
+			int c, k, best, used[128] = { 0 };
+			fprintf(f, "gpucmd:");
+			for (k = 0; k < 10; k++) {
+				best = -1;
+				for (c = 0; c < 128; c++)
+					if (!used[c] && g_perf.gpu_cmd_calls[c] &&
+					    (best < 0 || g_perf.gpu_cmd_ticks[c] > g_perf.gpu_cmd_ticks[best]))
+						best = c;
+				if (best < 0) break;
+				used[best] = 1;
+				fprintf(f, " %02x=%llu/%lu", best,
+					(unsigned long long)ticks_to_microsecs(g_perf.gpu_cmd_ticks[best]),
+					(unsigned long)g_perf.gpu_cmd_calls[best]);
+			}
+			fprintf(f, "\n");
+		}
 		if (g_perf.gpu_prim_calls) {
 			static const char *const cls[8] = {
 				"misc", "poly", "line", "rect", "vv", "cv", "vc", "state"

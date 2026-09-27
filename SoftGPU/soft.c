@@ -118,29 +118,17 @@ static unsigned char dithertable[16] =
     4, 3, 5, 2
 };
 
+#include "dither5.h"
+
+// r, g, b: 0..255 (every caller clamps first)
 static inline void Dither16(unsigned short * pdest,uint32_t r,uint32_t g,uint32_t b,unsigned short sM)
 {
- unsigned char coeff;
- unsigned char rlow, glow, blow;
- int x,y;
+ int x=pdest-psxVuw;
+ const unsigned char *t=dith5[dithertable[((x>>8)&0xC)|(x&3)]];
 
- x=pdest-psxVuw;
- y=x>>10;
- x-=(y<<10);
-
- coeff = dithertable[(y&3)*4+(x&3)];
-
- rlow = r&7; glow = g&7; blow = b&7;
-
- r>>=3; g>>=3; b>>=3;
-
- if ((r < 0x1F) && rlow > coeff) r++;
- if ((g < 0x1F) && glow > coeff) g++;
- if ((b < 0x1F) && blow > coeff) b++;
-
- PUTLE16(pdest, ((unsigned short)b<<10) |
-        ((unsigned short)g<<5) |
-        (unsigned short)r | sM);
+ PUTLE16(pdest, ((unsigned short)t[b&0xFF]<<10) |
+        ((unsigned short)t[g&0xFF]<<5) |
+        (unsigned short)t[r&0xFF] | sM);
 }
 
 /////////////////////////////////////////////////////////////////
@@ -4827,6 +4815,49 @@ static inline void drawPoly3Gi(short x1,short y1,short x2,short y2,short x3,shor
         }
        if(j==xmax)
         PUTLE16(&psxVuw[(i<<10)+j], (((cR1 >> 9)&0x7c00)|((cG1 >> 14)&0x03e0)|((cB1 >> 19)&0x001f))|sSetMask);
+      }
+     if(NextRow_G()) return;
+    }
+   return;
+  }
+
+ // dithered, opaque, no mask test: GetShadeTransCol_Dither's result, with the globals
+ // read once instead of per pixel
+ if(!bCheckMask && !DrawSemiTrans)
+  {
+   const unsigned short sM=sSetMask;
+   for (i=ymin;i<=ymax;i++)
+    {
+	if (checkInterlace(i)){
+		 if(NextRow_G()) return;
+	 continue;}
+     xmin=(left_x >> 16);
+     xmax=(right_x >> 16)-1;if(drawW<xmax) xmax=drawW;
+
+     if(xmax>=xmin)
+      {
+       const unsigned char *drow=&dithertable[(i&3)*4];
+       unsigned short *d=&psxVuw[i<<10];
+       cR1=left_R;
+       cG1=left_G;
+       cB1=left_B;
+
+       if(xmin<drawX)
+        {j=drawX-xmin;xmin=drawX;cR1+=j*difR;cG1+=j*difG;cB1+=j*difB;}
+
+       for(j=xmin;j<=xmax;j++)
+        {
+         int32_t r=cR1>>16,g=cG1>>16,b=cB1>>16;
+         const unsigned char *t=dith5[drow[j&3]];
+         if(r&0x7FFFFF00) r=0xff;
+         if(g&0x7FFFFF00) g=0xff;
+         if(b&0x7FFFFF00) b=0xff;
+         PUTLE16(&d[j], ((unsigned short)t[r]<<10)|((unsigned short)t[g]<<5)|t[b]|sM);
+
+         cR1+=difR;
+         cG1+=difG;
+         cB1+=difB;
+        }
       }
      if(NextRow_G()) return;
     }

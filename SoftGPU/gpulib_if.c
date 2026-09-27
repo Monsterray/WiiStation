@@ -17,6 +17,7 @@
 #include <string.h>
 #include "../gpulib/gpu.h"
 #include "../compiler_features.h"
+#include "../Gamecube/perf_prof.h"   /* PERF_GPU_CMD */
 #include "externals.h"
 
 
@@ -305,7 +306,7 @@ int do_cmd_list(uint32_t *list, int list_len,
       gpu.ex_regs[cmd & 7] = GETLE32(list);
 #endif
 
-    primTableJ[cmd]((void *)list);
+    PERF_GPU_CMD(cmd, primTableJ[cmd]((void *)list));
 
     switch(cmd)
     {

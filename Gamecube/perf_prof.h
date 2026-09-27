@@ -131,8 +131,20 @@ extern "C" {
 	expr; \
 	g_perf.field += perf_now_ticks() - pt_t0_; \
 } while (0)
+/* Time one GP0 command of any GPU plugin: gpu_cmd_* by command byte, gpu_cls_* by class.
+ * The expression runs either way. */
+#define PERF_GPU_CMD(cmd, expr) do { \
+	unsigned long long pgc_t0_ = perf_now_ticks(); \
+	unsigned pgc_c_ = (unsigned)(cmd) & 0xFF; \
+	expr; \
+	pgc_t0_ = perf_now_ticks() - pgc_t0_; \
+	if (pgc_c_ < 128) { g_perf.gpu_cmd_ticks[pgc_c_] += pgc_t0_; g_perf.gpu_cmd_calls[pgc_c_]++; } \
+	g_perf.gpu_cls_ticks[pgc_c_ >> 5] += pgc_t0_; \
+	g_perf.gpu_cls_calls[pgc_c_ >> 5]++; \
+} while (0)
 #else
 #define PERF_TIME(field, expr) do { expr; } while (0)
+#define PERF_GPU_CMD(cmd, expr) do { expr; } while (0)
 #endif
 /* PERF_PROF_PMC reads Broadway's four performance counters over the whole run. It exists
  * for the locked-cache work, which cannot be judged in Dolphin at all: Dolphin implements
@@ -496,6 +508,10 @@ typedef struct {
 	 * drawing-state commands (E1..E6). */
 	uint64_t gpu_cls_ticks[8];
 	uint32_t gpu_cls_calls[8];
+	/* By GP0 command byte (00h-7Fh), for every GPU plugin (PERF_GPU_CMD): which primitive
+	 * a renderer spends its time on. perf.log "gpucmd:", the ten most expensive. */
+	uint64_t gpu_cmd_ticks[128];
+	uint32_t gpu_cmd_calls[128];
 	/* Inside the two expensive ones: the GP0 02 fill split into its GX half, its
 	 * software half and the write record, and the image transfer split into the pixel
 	 * loop against what FinishedVRAMWrite does afterwards. */
@@ -663,6 +679,7 @@ void perf_pad_event(unsigned pad, unsigned type, unsigned drv_btns, unsigned drv
 #define PERF_PROF_GTE 0
 #define PERF_PROF_GPUSPLIT 0
 #define PERF_TIME(field, expr) do { expr; } while (0)
+#define PERF_GPU_CMD(cmd, expr) do { expr; } while (0)
 
 #define PERF_PROF_TRACE 0
 #define PERF_PROF_GPU   0

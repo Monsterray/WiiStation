@@ -1,6 +1,6 @@
 ---
 name: wiistation-diagnostics
-description: How to triage and fix WiiStation (Wii/GameCube PlayStation 1 emulator) rendering, input and timing bugs without a human at the controls — boot a game or the BIOS shell unattended in Dolphin, drive it with a scripted input file, instrument the debug build with counters and primitive traces, dump frames and VRAM, read the logs back out of the SD image, and decide from evidence instead of guessing. Use this skill whenever the task touches the OpenGX/GlesGpu plugin, the soft GPU plugins, "artifacts", "black screen", "missing textures", "transparent/opaque", "pause screen", the PSX BIOS shell, controller/pad input not working, a Dolphin frame dump or movie, perf.log or ptrace.log, autoboot.txt or autoinput.txt, any request to reproduce, bisect or verify emulator behaviour on this machine, and any request to measure or compare performance -- a chained multi-game run, an A/B of a setting or build, "is it faster", "does it still look/sound the same", the locked cache, a hardware session -- even if the user just says "the game looks wrong" or "can you check what the emulator does".
+description: How to triage and fix WiiStation rendering, input and timing bugs without a human at the controls. Boot a game or the BIOS shell unattended in Dolphin, drive it with a scripted input file, instrument the debug build with counters and primitive traces, dump frames and VRAM, read the logs back out of the SD image, and decide from evidence instead of guessing. Use this skill whenever the task touches the OpenGX/GlesGpu plugin, the soft GPU plugins, "artifacts", "black screen", "missing textures", "transparent/opaque", "pause screen", the PSX BIOS shell, controller/pad input not working, a Dolphin frame dump or movie, perf.log or ptrace.log, autoboot.txt or autoinput.txt, any request to reproduce, bisect or verify emulator behavior on this machine, and any request to measure or compare performance -- a chained multi-game run, an A/B of a setting or build, "is it faster", "does it still look/sound the same", the locked cache, a hardware session -- even if the user just says "the game looks wrong" or "can you check what the emulator does".
 ---
 
 # WiiStation diagnostics
@@ -65,7 +65,7 @@ probe you can think of, because a build plus run costs about five minutes.
    (`gpuPlugin = 0`) renders the same command stream correctly but slowly, and the user's
    reference screenshots live in `examples/`.
 
-5. **Separate the Wii-side bug from the Dolphin-side artefact.** Two Dolphin defaults have
+5. **Separate the Wii-side bug from the Dolphin-side artifact.** Two Dolphin defaults have
    already masqueraded as emulator bugs (texture-cache hashing, EFB copies never reaching
    RAM). Before blaming the plugin for something that only happens under Dolphin, check
    [references/dolphin-pitfalls.md](references/dolphin-pitfalls.md).

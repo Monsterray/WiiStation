@@ -1,0 +1,36 @@
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue | PadAutoAssign=1,ControllerType=0,gpuPlugin=0 | statefp: vblank 600: ram ccf51dcb vram 0d0bb841 hw 213382c7 cpu b2f591ba spu 4a2d9122
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue | PadAutoAssign=1,ControllerType=0,gpuPlugin=0 | statefp: vblank 1200: ram d9162f07 vram ca573c99 hw 2517c9bf cpu 21feba1e spu 4a2d9122
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue | PadAutoAssign=1,ControllerType=0,gpuPlugin=0 | statefp: vblank 2370: ram 0e629ebb vram 77bba5e1 hw 3480d78e cpu df79a757 spu e5cfa745
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue | PadAutoAssign=1,ControllerType=0,gpuPlugin=1 | statefp: vblank 600: ram 8ce79dad vram deebf8a2 hw f19e0f3b cpu d1e54007 spu 4a2d9122
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue | PadAutoAssign=1,ControllerType=0,gpuPlugin=1 | statefp: vblank 1200: ram 3b7d9719 vram ca573c99 hw a91ce1e3 cpu 6a45a822 spu 4a2d9122
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue | PadAutoAssign=1,ControllerType=0,gpuPlugin=1 | statefp: vblank 2370: ram d4ddacb9 vram 7fc5997c hw ae2ea19f cpu d0496172 spu e5cfa745
+Crash Bandicoot 3 - Warped [U] [SLUS-94244].cue | PadAutoAssign=1,ControllerType=0,gpuPlugin=0 | statefp: vblank 750: ram 1ca160f9 vram 60fd3f0e hw cd435ece cpu c7e2d278 spu 495b1721
+Crash Bandicoot 3 - Warped [U] [SLUS-94244].cue | PadAutoAssign=1,ControllerType=0,gpuPlugin=0 | statefp: vblank 1500: ram b4b325a8 vram 01ed8621 hw d44ba220 cpu cf01227b spu 9c17cb7d
+Crash Bandicoot 3 - Warped [U] [SLUS-94244].cue | PadAutoAssign=1,ControllerType=0,gpuPlugin=0 | statefp: vblank 2970: ram b8fc6520 vram c92924f6 hw 3f1e2b54 cpu d2f4f0d6 spu 383efeb1
+Crash Bandicoot 3 - Warped [U] [SLUS-94244].cue | PadAutoAssign=1,ControllerType=0,gpuPlugin=1 | statefp: vblank 750: ram 1d62d1c5 vram 60fd3f0e hw 97171f3e cpu 7a916db3 spu 495b1721
+Crash Bandicoot 3 - Warped [U] [SLUS-94244].cue | PadAutoAssign=1,ControllerType=0,gpuPlugin=1 | statefp: vblank 1500: ram 80b6e348 vram 01ed8621 hw 9dc6a678 cpu d459f9cd spu 9c17cb7d
+Crash Bandicoot 3 - Warped [U] [SLUS-94244].cue | PadAutoAssign=1,ControllerType=0,gpuPlugin=1 | statefp: vblank 2970: ram b1eec254 vram 75c7e6a6 hw 6ff6d9cf cpu 775aa37f spu 383efeb1
+Crash Bash [U] [SCUS-94570].cue | PadAutoAssign=1,ControllerType=0,gpuPlugin=0 | statefp: vblank 600: ram 2859f4b8 vram fa441c51 hw 72701b20 cpu b04fd274 spu 8310cbf2
+Crash Bash [U] [SCUS-94570].cue | PadAutoAssign=1,ControllerType=0,gpuPlugin=0 | statefp: vblank 1200: ram f03a43d3 vram 0db312f8 hw b3a45bc3 cpu 9ea5b563 spu b830b3d1
+Crash Bash [U] [SCUS-94570].cue | PadAutoAssign=1,ControllerType=0,gpuPlugin=0 | statefp: vblank 2370: ram 8f54f11c vram a99ea02d hw 0286dbd2 cpu 63967c00 spu f7abb4fc
+Crash Bash [U] [SCUS-94570].cue | PadAutoAssign=1,ControllerType=0,gpuPlugin=1 | statefp: vblank 600: ram fb209683 vram 597791f3 hw f7bbce59 cpu b04fd274 spu 8310cbf2
+Crash Bash [U] [SCUS-94570].cue | PadAutoAssign=1,ControllerType=0,gpuPlugin=1 | statefp: vblank 1200: ram a438c2cd vram 0db312f8 hw 3faf739f cpu 10fc6f8c spu b830b3d1
+Crash Bash [U] [SCUS-94570].cue | PadAutoAssign=1,ControllerType=0,gpuPlugin=1 | statefp: vblank 2370: ram f7634bc3 vram 3ee340b2 hw 761f5b85 cpu c3014c82 spu f7abb4fc
+Ape Escape [U] [SCUS-94423].cue | PadAutoAssign=1,ControllerType=1,gpuPlugin=0 | statefp: vblank 900: ram 306c3167 vram 68382fdb hw 01985a7d cpu 283e7f04 spu ca0c1d12
+Ape Escape [U] [SCUS-94423].cue | PadAutoAssign=1,ControllerType=1,gpuPlugin=0 | statefp: vblank 1800: ram 61b7a9ad vram c5374ee3 hw 6d09817c cpu b6253ae0 spu 41330d07
+Ape Escape [U] [SCUS-94423].cue | PadAutoAssign=1,ControllerType=1,gpuPlugin=0 | statefp: vblank 3570: ram f9c4e69a vram 3f402687 hw 5c9c2364 cpu 8b8c0bac spu d7f35d2e
+Ape Escape [U] [SCUS-94423].cue | PadAutoAssign=1,ControllerType=1,gpuPlugin=1 | statefp: vblank 900: ram 3232218f vram e2ab2be8 hw f810eba0 cpu 38f7186f spu ca0c1d12
+Ape Escape [U] [SCUS-94423].cue | PadAutoAssign=1,ControllerType=1,gpuPlugin=1 | statefp: vblank 1800: ram 8d745ccd vram 23ce721d hw 568bf787 cpu f25889a3 spu 41330d07
+Ape Escape [U] [SCUS-94423].cue | PadAutoAssign=1,ControllerType=1,gpuPlugin=1 | statefp: vblank 3570: ram fd83d8fa vram 3a5f33d1 hw c70ddd82 cpu 3f4757c7 spu 24b13583
+Final Fantasy VII [U] [Disc 1] [SLUS-94163].cue | PadAutoAssign=1,ControllerType=0,gpuPlugin=0 | statefp: vblank 375: ram 7ffd1aba vram d7b01cd8 hw cf738953 cpu e6a235fa spu 9b8349f7
+Final Fantasy VII [U] [Disc 1] [SLUS-94163].cue | PadAutoAssign=1,ControllerType=0,gpuPlugin=0 | statefp: vblank 750: ram 149f7ec9 vram a8d4329d hw f8eeea38 cpu 7c4d0831 spu 9b8349f7
+Final Fantasy VII [U] [Disc 1] [SLUS-94163].cue | PadAutoAssign=1,ControllerType=0,gpuPlugin=0 | statefp: vblank 1470: ram 7c378402 vram 6aa36cf8 hw 01a55ca2 cpu 7c86e248 spu 1dda6661
+Final Fantasy VII [U] [Disc 1] [SLUS-94163].cue | PadAutoAssign=1,ControllerType=0,gpuPlugin=1 | statefp: vblank 375: ram 41194ab5 vram 7ed7ac3c hw 4378a10f cpu e6a235fa spu 9b8349f7
+Final Fantasy VII [U] [Disc 1] [SLUS-94163].cue | PadAutoAssign=1,ControllerType=0,gpuPlugin=1 | statefp: vblank 750: ram 149f7ec9 vram a8d4329d hw 74e5c264 cpu d91e9ef6 spu 9b8349f7
+Final Fantasy VII [U] [Disc 1] [SLUS-94163].cue | PadAutoAssign=1,ControllerType=0,gpuPlugin=1 | statefp: vblank 1470: ram 4dda4373 vram 6aa36cf8 hw 8dae74fe cpu 9bf165b4 spu 1dda6661
+Gex (USA).cue | PadAutoAssign=1,ControllerType=0,gpuPlugin=0 | statefp: vblank 375: ram b6a05348 vram bee18fbc hw decb78e2 cpu 0bddb879 spu 9b8349f7
+Gex (USA).cue | PadAutoAssign=1,ControllerType=0,gpuPlugin=0 | statefp: vblank 750: ram 36dcf3c0 vram df2437f1 hw 482637d7 cpu e8b99466 spu aedcead5
+Gex (USA).cue | PadAutoAssign=1,ControllerType=0,gpuPlugin=0 | statefp: vblank 1470: ram bd0ad3a0 vram bdc562e1 hw bcb69cbd cpu e6e3476a spu 6c34c5bd
+Gex (USA).cue | PadAutoAssign=1,ControllerType=0,gpuPlugin=1 | statefp: vblank 375: ram 0ff35706 vram bee18fbc hw 52c050be cpu 9d031ed9 spu 9b8349f7
+Gex (USA).cue | PadAutoAssign=1,ControllerType=0,gpuPlugin=1 | statefp: vblank 750: ram 16435e21 vram df2437f1 hw c42d1f8b cpu 4f3a5654 spu fda38811
+Gex (USA).cue | PadAutoAssign=1,ControllerType=0,gpuPlugin=1 | statefp: vblank 1470: ram 72d99d6d vram fdbb867a hw 30bdb4e1 cpu a3ac5380 spu 8a8900ac

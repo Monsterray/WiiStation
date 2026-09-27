@@ -125,6 +125,7 @@
 #include "gpu.h"
 #include "../gpu.h"
 #include "../database.h"
+#include "../Gamecube/perf_prof.h"   /* PERF_GPU_CMD */
 
 void CALLBACK GPUsetframelimit(unsigned long option); // defined below; used earlier in this file
 int gc_vout_open(void); // SoftGPU/drawGX.c
@@ -1133,7 +1134,7 @@ ENDVRAM:
 	DEBUG_print("close",DBG_SDGECKOCLOSE);
 #endif //PEOPS_SDLOG
        gpuDataC=gpuDataP=0;
-       primFunc[gpuCommand]((unsigned char *)gpuDataM);
+       PERF_GPU_CMD(gpuCommand, primFunc[gpuCommand]((unsigned char *)gpuDataM));
 
        if (dwActFixes & AUTO_FIX_GPU_BUSY)      // hack for emulating "gpu busy" in some games
         iFakePrimBusy=4;

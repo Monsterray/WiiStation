@@ -121,3 +121,16 @@ Check a probe's cost and gate before trusting a debug-build share of wall: four 
 costs were charged to the GPU until 2026-09-22 (per-primitive sprintf, VRAM hashes, frame
 hashes in UploadScreen, OpenGX texel checks). The pattern to grep for is a loop or a
 `sprintf` whose only consumer is a log line; guard it with `logFileEnabled()`.
+
+## Soft GPU accuracy and cost
+
+- `scripts/softgpu_check.sh --compare before` -- six games on both soft plugins (0 old,
+  1 new), statefp VRAM/RAM hashes at fixed vblanks. Emulation is deterministic, so any
+  change to the soft rasterizer that changes a pixel shows as DIFFERENT. Use it for every
+  soft GPU optimization; `--save NAME` stores a new baseline in `baselines/softgpu/`.
+- Both soft plugins use one rasterizer, `SoftGPU/soft.c` (plugin 0 dispatches from
+  `gpulib/oldGpu.c`, plugin 1 from `SoftGPU/gpulib_if.c`). `PeopsSoftGPU/` is not built.
+- A `PROBES=deep` debug build writes `gpucmd:` (time per GP0 command) for every GPU
+  plugin; `scripts/gpucmd_table.sh [perf.log]` sums it per chained game.
+- `le16_store` (gpulib/gpu.h) has a memory clobber: every global is read again after each
+  pixel store. Read the globals into locals before a span loop (see `drawPoly3Gi`).
