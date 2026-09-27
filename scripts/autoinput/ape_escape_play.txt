@@ -1,0 +1,37 @@
+# Ape Escape: played by hand, recorded 2026-09-27 11:04:23 with scripts/movie_capture.sh
+# folder: sd:/wiisxrx/isos/Ape Escape
+# cue: Ape Escape [U] [SCUS-94423].cue
+# vblanks: 7200
+# build: commit 1da326f+dirty, debug, WiiSXRX_debug.dol, 2026-09-27 09:04:50, sha1 66f2f3eda87e9281c05f9970b13ae30666f5a2b6
+#   (if it drifts on a later build: build that commit and pass the DOL with --dol)
+# settings: gpuPlugin=2 FPS=1 PadType1=1 PadAutoAssign=0 
+# pad: ControllerType=1 (DualShock); Dolphin: port 1 keyboard GameCube pad, port 2 GameCube pad (SIDevice1=6)
+# chain line: 7200 sd:/wiisxrx/ape_escape_play.txt PadAutoAssign=1 ControllerType=1
+# recorded by WiiStation ("record"); port 1 has a controller (automatic assignment on, GameCube pad 1 seen)
+10 0000
+# recorded by WiiStation ("record"); port 2 has a controller (automatic assignment on, GameCube pad 2 seen)
+p2 10 0000
+1358 4000
+1371 0000
+1845 4000
+1855 0000
+2245 4000
+2256 0000
+2792 4000
+2806 0000
+3172 4000
+3186 0000
+3923 0008
+3937 0000
+4058 1000
+4069 0000
+4109 0008
+4121 0000
+4146 4000
+4154 0000
+4180 0008
+4191 0000
+4232 2000
+4240 0000
+4279 0008
+4291 0000

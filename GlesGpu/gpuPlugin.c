@@ -190,8 +190,7 @@ static BOOL    skipPreviousDisplayCheckOnce = FALSE;
 
 static short   texChgType = 0;
 
-static void ResetVramReadbackState(void);
-static void BuildActiveMapFromDisplay(void);
+static void efb_reset(void);   /* efbSync.inc, used by gpuDraw.c */
 static inline unsigned short ReadGXRGB5A3PixelRaw(
     const unsigned char *buf, int texWidth, int px, int py);
 static inline unsigned short GXRGB5A3ToPSX15(unsigned short gx);
@@ -199,7 +198,8 @@ extern GXRModeObj *vmode;     /*** Graphics Mode Object ***/
 
 #include "gpuDraw.c"
 #include "gpuTexture.c"
-#include "gpuVramReadback.inc"
+#include "efbSync.inc"
+
 
 #include "gpuPrim.c"
 
@@ -213,13 +213,10 @@ static int UploadScreen_t(int p)
 { int r; PERF_TIME(pres_upload_ticks, r = UploadScreen(p)); g_perf.pres_uploads++; return r; }
 static void PrepareFullScreenUpload_t(int p)
 { PERF_TIME(pres_prep_ticks, PrepareFullScreenUpload(p)); }
-static int CapturePresentedEfbSnapshot_t(void)
-{ int r; PERF_TIME(pres_capture_ticks, r = CapturePresentedEfbSnapshot()); return r; }
 static int gx_vout_render_t(short c)
 { int r; PERF_TIME(pres_vout_ticks, r = gx_vout_render(c)); return r; }
 #define UploadScreen UploadScreen_t
 #define PrepareFullScreenUpload PrepareFullScreenUpload_t
-#define CapturePresentedEfbSnapshot CapturePresentedEfbSnapshot_t
 #define gx_vout_render gx_vout_render_t
 #endif
 
@@ -911,8 +908,6 @@ static BOOL TVModeResolution(void)
 void updateDisplayIfChangedGl(void)
 {
 BOOL bUp;
-int txStarted = 0;
-GXDisplayMap proposed;
 
 if ((PSXDisplay.DisplayMode.y == PSXDisplay.DisplayModeNew.y) &&
     (PSXDisplay.DisplayMode.x == PSXDisplay.DisplayModeNew.x))
@@ -923,18 +918,12 @@ if ((PSXDisplay.DisplayMode.y == PSXDisplay.DisplayModeNew.y) &&
 
   if (PSXDisplay.RGB24 != PSXDisplay.RGB24New)
    {
-    GetProposedActiveMap(&proposed);
-    proposed.rgb24 = PSXDisplay.RGB24New;
-    txStarted = OnDisplayMappingWillChange(&proposed);
+    efb_before_geometry_change();
    }
  }
 else                                                  // some res change?
  {
-    GetProposedActiveMap(&proposed);
-    proposed.vram_x1 = PSXDisplay.DisplayPosition.x + PSXDisplay.DisplayModeNew.x;
-    proposed.vram_y1 = PSXDisplay.DisplayPosition.y + PSXDisplay.DisplayModeNew.y + PreviousPSXDisplay.DisplayModeNew.y;
-    proposed.rgb24 = PSXDisplay.RGB24New;
-    txStarted = OnDisplayMappingWillChange(&proposed);
+    efb_before_geometry_change();
 
     if (originalMode == ORIGINALMODE_ENABLE)
 		SwitchTVModeForDisplay();
@@ -997,8 +986,6 @@ if(iFrameLimit==2) SetAutoFrameCap();                 // set new fps limit vals 
     updateDisplayGl();                              // yeah, real update (swap buffer)
 }
 
-if (txStarted)
-    OnDisplayMappingChanged();
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -1180,14 +1167,8 @@ static void GL_GPUwriteStatus_(unsigned long gdata);
 static unsigned long GL_GPUreadData_(void);
 /* PERF_PROF_GPUSPLIT: the three things a display flip does, timed from here on. */
 #if PERF_PROF_GPUSPLIT
-static int OnDisplayMappingWillChange_t(const GXDisplayMap *p)
-{ int r; PERF_TIME(flip_will_ticks, r = OnDisplayMappingWillChange(p)); return r; }
-static void OnDisplayMappingChanged_t(void)
-{ PERF_TIME(flip_done_ticks, OnDisplayMappingChanged()); }
 static void updateDisplayGl_t(void)
 { PERF_TIME(flip_present_ticks, updateDisplayGl()); g_perf.flip_presents++; }
-#define OnDisplayMappingWillChange OnDisplayMappingWillChange_t
-#define OnDisplayMappingChanged OnDisplayMappingChanged_t
 #define updateDisplayGl updateDisplayGl_t
 #endif
 void CALLBACK GL_GPUwriteStatus(unsigned long gdata)
@@ -1288,8 +1269,6 @@ switch(lCommand)
    {
     short sx=(short)(gdata & 0x3ff);
     short sy;
-    GXDisplayMap proposed;
-    int txStarted = 0;
 
     if(iGPUHeight==1024)
      {
@@ -1314,21 +1293,13 @@ switch(lCommand)
       usFirstPos--;
       if(usFirstPos)
        {
-        GetProposedActiveMap(&proposed);
-        proposed.vram_x0 = sx;
-        proposed.vram_y0 = sy;
-        proposed.vram_x1 = sx + PSXDisplay.DisplayMode.x;
-        proposed.vram_y1 = sy + PSXDisplay.DisplayMode.y + PreviousPSXDisplay.DisplayModeNew.y;
-        txStarted = OnDisplayMappingWillChange(&proposed);
+        efb_before_geometry_change();
 
         PreviousPSXDisplay.DisplayPosition.x = sx;
         PreviousPSXDisplay.DisplayPosition.y = sy;
         PSXDisplay.DisplayPosition.x = sx;
         PSXDisplay.DisplayPosition.y = sy;
 
-        if (txStarted)
-            OnDisplayMappingChanged();
-        txStarted = 0;
        }
      }
 
@@ -1339,12 +1310,7 @@ switch(lCommand)
          PreviousPSXDisplay.DisplayPosition.y == sy)
        return;
 
-      GetProposedActiveMap(&proposed);
-      proposed.vram_x0 = PreviousPSXDisplay.DisplayPosition.x;
-      proposed.vram_y0 = PreviousPSXDisplay.DisplayPosition.y;
-      proposed.vram_x1 = proposed.vram_x0 + PSXDisplay.DisplayMode.x;
-      proposed.vram_y1 = proposed.vram_y0 + PSXDisplay.DisplayMode.y + PreviousPSXDisplay.DisplayModeNew.y;
-      txStarted = OnDisplayMappingWillChange(&proposed);
+      efb_before_geometry_change();
 
       PSXDisplay.DisplayPosition.x = PreviousPSXDisplay.DisplayPosition.x;
       PSXDisplay.DisplayPosition.y = PreviousPSXDisplay.DisplayPosition.y;
@@ -1357,12 +1323,7 @@ switch(lCommand)
          PSXDisplay.DisplayPosition.x == sx  &&
          PSXDisplay.DisplayPosition.y == sy)
        return;
-      GetProposedActiveMap(&proposed);
-      proposed.vram_x0 = sx;
-      proposed.vram_y0 = sy;
-      proposed.vram_x1 = sx + PSXDisplay.DisplayMode.x;
-      proposed.vram_y1 = sy + PSXDisplay.DisplayMode.y + PreviousPSXDisplay.DisplayModeNew.y;
-      txStarted = OnDisplayMappingWillChange(&proposed);
+      efb_before_geometry_change();
 
       PreviousPSXDisplay.DisplayPosition.x = PSXDisplay.DisplayPosition.x;
       PreviousPSXDisplay.DisplayPosition.y = PSXDisplay.DisplayPosition.y;
@@ -1380,8 +1341,6 @@ switch(lCommand)
     PreviousPSXDisplay.DisplayEnd.y=
      PreviousPSXDisplay.DisplayPosition.y+ PSXDisplay.DisplayMode.y+PreviousPSXDisplay.DisplayModeNew.y;
 
-    if (txStarted)
-        OnDisplayMappingChanged();
 
     bDisplayNotSet = TRUE;
 
@@ -1419,7 +1378,6 @@ switch(lCommand)
    {
     short oldRangeX0 = PSXDisplay.Range.x0;
     short oldRangeX1 = PSXDisplay.Range.x1;
-    int txStarted = 0;
 
     PSXDisplay.Range.x0=gdata & 0x7ff;      //0x3ff;
     PSXDisplay.Range.x1=(gdata>>12) & 0xfff;//0x7ff;
@@ -1428,7 +1386,7 @@ switch(lCommand)
 
     if (oldRangeX0 != PSXDisplay.Range.x0 ||
         oldRangeX1 != PSXDisplay.Range.x1)
-        txStarted = OnDisplayMappingWillChange(NULL);
+        efb_before_geometry_change();
 
     CHECK_SCREEN_INFO();
     #ifdef DISP_DEBUG
@@ -1437,8 +1395,6 @@ switch(lCommand)
       #endif // DISP_DEBUG
     ChangeDispOffsetsXGl();
 
-    if (txStarted)
-        OnDisplayMappingChanged();
 
     return;
    }
@@ -1447,7 +1403,6 @@ switch(lCommand)
   case 0x07:
    perf_prim_trace(0xF7, 0, 0, gdata, (int)(gdata & 0x3ff), (int)((gdata >> 10) & 0x3ff), 0, 0);
    {
-    int txStarted = 0;
 
     PreviousPSXDisplay.Height = PSXDisplay.Height;
 
@@ -1460,7 +1415,7 @@ switch(lCommand)
 
     if (PreviousPSXDisplay.Height != PSXDisplay.Height)
      {
-      txStarted = OnDisplayMappingWillChange(NULL);
+      efb_before_geometry_change();
 
       PSXDisplay.DisplayModeNew.y=PSXDisplay.Height*PSXDisplay.Double;
       ChangeDispOffsetsYGl();
@@ -1474,8 +1429,6 @@ switch(lCommand)
       skipPreviousDisplayCheckOnce = TRUE;
       updateDisplayIfChangedGl();
 
-      if (txStarted)
-          OnDisplayMappingChanged();
      }
 
     return;
@@ -1485,17 +1438,8 @@ switch(lCommand)
   case 0x08:
    perf_prim_trace(0xF8, 0, 0, gdata, 0, 0, (int)hSyncCount, 0);   /* x1 = scanline: 0 in the picture, 240+ in the vblank */
    {
-    GXDisplayMap proposed;
-    int txStarted;
 
-    GetProposedActiveMap(&proposed);
-    proposed.rgb24 = (gdata & 0x10) ? TRUE : FALSE;
-    proposed.vram_x1 = PSXDisplay.DisplayPosition.x +
-                       dispWidths[(gdata & 0x03) | ((gdata & 0x40) >> 4)];
-    proposed.vram_y1 = PSXDisplay.DisplayPosition.y +
-                       PSXDisplay.Height * ((gdata & 0x04) ? 2 : 1) +
-                       PreviousPSXDisplay.DisplayModeNew.y;
-    txStarted = OnDisplayMappingWillChange(&proposed);
+    efb_before_geometry_change();
 
     PSXDisplay.DisplayModeNew.x = dispWidths[(gdata & 0x03) | ((gdata & 0x40) >> 4)];
 
@@ -1555,8 +1499,6 @@ switch(lCommand)
    skipPreviousDisplayCheckOnce = TRUE;
    updateDisplayIfChangedGl();
 
-   if (txStarted)
-       OnDisplayMappingChanged();
 
    return;
    }
@@ -1609,16 +1551,7 @@ static __inline void FinishedVRAMWrite(void)
  unsigned long long fv_t0_ = perf_now_ticks();
  g_perf.gpu_vramfin_calls++;
 #endif
- if (ReadbackEnabled())
- {
-  MarkCpuVramWrite(VRAMWrite.x, VRAMWrite.y,
-                   VRAMWrite.Width, VRAMWrite.Height);
-#ifdef DISP_DEBUG
-  if (VRAMWrite.Height >= 120)
-   DebugLogVramHalf("A0Done", VRAMWrite.x, VRAMWrite.y,
-                    VRAMWrite.Width, VRAMWrite.Height);
-#endif
- }
+ efb_cpu_write(VRAMWrite.x, VRAMWrite.y, VRAMWrite.Width, VRAMWrite.Height);   /* efbSync.inc */
 
  if(bNeedWriteUpload)
   {
@@ -1639,8 +1572,6 @@ static __inline void FinishedVRAMWrite(void)
 
 static __inline void FinishedVRAMRead(void)
 {
- g_readbackState = READBACK_IDLE;
-
  // set register to NORMAL operation
  iDataReadMode = DR_NORMAL;
  // reset transfer values, to prevent mis-transfer of data
@@ -1742,8 +1673,7 @@ static inline unsigned short GXRGB5A3ToPSX15(unsigned short gx)
 
 static inline void CheckVRamRead(int x, int y, int dx, int dy)
 {
- if (!ReadbackEnabled()) return;
- MergeReadbackToPsxVuw(x, y, dx - x, dy - y);
+ efb_sync(x, y, dx - x, dy - y);
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -1754,99 +1684,10 @@ void CALLBACK GL_GPUreadDataMem(unsigned long * pMem, int iSize)
 {
 int i;
 
-#ifdef DISP_DEBUG
-static unsigned int readCallCount;
-readCallCount++;
-if (readCallCount <= 4 || iDataReadMode == DR_VRAMTRANSFER ||
-    g_readbackState == READBACK_PENDING)
- {
-  sprintf(txtbuffer,
-          "VRB READ call=%u size=%d mode=%d state=%d enabled=%d "
-          "rect=%d,%d %dx%d\r\n",
-          readCallCount, iSize, iDataReadMode, g_readbackState,
-          ReadbackEnabled(), VRAMRead.x, VRAMRead.y,
-          VRAMRead.Width, VRAMRead.Height);
-  writeLogFile(txtbuffer);
- }
-#endif
-
 if(iDataReadMode!=DR_VRAMTRANSFER) return;
 
 GPUIsBusy;
 
-if (g_readbackState == READBACK_PENDING)
- {
-  g_lastReadMapping = ClassifyReadMapping(VRAMRead.x, VRAMRead.y,
-                                          VRAMRead.Width, VRAMRead.Height);
-  if (g_lastReadMapping == MAPPING_CURRENT)
-   TryCaptureLiveFrame();
-  else if (g_lastReadMapping == MAPPING_PREVIOUS &&
-           TryCapturePreviousReadRect(VRAMRead.x, VRAMRead.y,
-                                      VRAMRead.Width, VRAMRead.Height))
-   g_lastCaptureResult = 3;
-  else
-   g_lastCaptureResult = (g_lastReadMapping == MAPPING_PREVIOUS) ? -5 : -6;
-  MergeReadbackToPsxVuw(VRAMRead.x, VRAMRead.y,
-                        VRAMRead.Width, VRAMRead.Height);
-#ifdef DISP_DEBUG
-  sprintf(txtbuffer,
-          "VRB RESULT kind=%d capture=%d merged=%u src=%u/%u/%u "
-          "changed=%u old=%08X new=%08X "
-          "maskOnly=%u rgbChanged=%u mask=%u/%u "
-          "full=%d partial=%d "
-          "map=%u mv=%d cv=%d dirty=%d contam=%d mixed=%d untracked=%d "
-          "live=%d/%u/%d/%d prev=%d/%u/%d/%d\r\n",
-          g_lastReadMapping, g_lastCaptureResult, g_lastMergedPixels,
-          g_lastMergedCurrentPixels, g_lastMergedPresentedPixels,
-          g_lastMergedRebuildPixels,
-          g_lastMergedChangedPixels,
-          g_lastMergeOldHash, g_lastMergeNewHash,
-          g_lastMergedMaskOnlyPixels,
-          g_lastMergedRgbChangedPixels,
-          g_lastMergeOldMaskPixels, g_lastMergeNewMaskPixels,
-          CountEfbTiles(EFB_TILE_FULL),
-          CountEfbTiles(EFB_TILE_PARTIAL),
-          g_activeMap.map_id, g_activeMap.map_valid,
-          g_activeMap.content_valid, g_activeMap.content_dirty,
-          0, g_mixedMappingSeen, g_untrackedEfbWrite,
-          LIVE_SNAP()->valid, LIVE_SNAP()->map_id, LIVE_SNAP()->source,
-          CountSnapshotTiles(LIVE_SNAP(), EFB_TILE_FULL),
-          PREV_SNAP()->valid, PREV_SNAP()->map_id, PREV_SNAP()->source,
-          CountSnapshotTiles(PREV_SNAP(), EFB_TILE_FULL));
-  writeLogFile(txtbuffer);
-#endif
-  g_readbackState = READBACK_DONE;
-  /* vramio (every debug build): C1 = the mapping (a: 0 current 1 previous 2 unknown) and the
-   * capture result (b); C2 = the state bits (a, as the trace's C2) and how much of the read
-   * came from the EFB (b, percent) -- why a read of the frame came back empty */
-#ifdef PERF_PROF
-  perf_vram_event(0xC1, VRAMRead.x, VRAMRead.y, VRAMRead.Width, VRAMRead.Height,
-                  (int)g_lastReadMapping, g_lastCaptureResult);
-  perf_vram_event(0xC2, VRAMRead.x, VRAMRead.y, VRAMRead.Width, VRAMRead.Height,
-      (g_pendingPresentedReady ? 1 : 0) | (g_mixedMappingSeen ? 4 : 0) | (g_untrackedEfbWrite ? 8 : 0) |
-      (PREV_SNAP()->valid ? 16 : 0) | (LIVE_SNAP()->valid ? 32 : 0) | (g_activeMap.map_valid ? 64 : 0) | (g_activeMap.content_valid ? 128 : 0) |
-      (g_activeMap.content_dirty ? 256 : 0) | (g_asyncCaptureInFlight ? 512 : 0),
-      VRAMRead.Width * VRAMRead.Height ? (int)(100u * g_lastMergedPixels / (unsigned)(VRAMRead.Width * VRAMRead.Height)) : 0);
-#endif
-#if PERF_PROF_GPU
-  /* trace: C1 = readback outcome for this VRAM->CPU read (flags = mapping kind, abr = capture result + 8, col = merged pixels) */
-  perf_prim_trace(0xC1, (unsigned)g_lastReadMapping, (unsigned)(g_lastCaptureResult + 8), (unsigned)g_lastMergedPixels, VRAMRead.x, VRAMRead.y, VRAMRead.x + VRAMRead.Width, VRAMRead.y + VRAMRead.Height);
-  /* C2 = readback state bits: b0 pendingPresented b1 unused (was: overlay text in the EFB) b2 mixed b3 untracked b4 prevSnapValid b5 liveSnapValid
-   * b6 mapValid b7 contentValid b8 contentDirty b9 asyncInFlight; x1 = prev snapshot FULL tiles, y1 = live snapshot FULL tiles */
-  perf_prim_trace(0xC2, 0, 0,
-      (g_pendingPresentedReady ? 1 : 0) | (g_mixedMappingSeen ? 4 : 0) | (g_untrackedEfbWrite ? 8 : 0) |
-      (PREV_SNAP()->valid ? 16 : 0) | (LIVE_SNAP()->valid ? 32 : 0) | (g_activeMap.map_valid ? 64 : 0) | (g_activeMap.content_valid ? 128 : 0) |
-      (g_activeMap.content_dirty ? 256 : 0) | (g_asyncCaptureInFlight ? 512 : 0),
-      (int)g_activeMap.map_id, (int)g_prevMapId, CountSnapshotTiles(PREV_SNAP(), EFB_TILE_FULL), CountSnapshotTiles(LIVE_SNAP(), EFB_TILE_FULL));
-  { /* C3 = FNV hash of the rect's first 8 rows in psxVuw after the merge = what the CPU will read; x1 = non-black words */
-    unsigned hsh = 2166136261u, nz = 0; int r, c;
-    for (r = 0; r < 8 && r < VRAMRead.Height; r++) for (c = 0; c < VRAMRead.Width; c++) {
-      unsigned short w = psxVuw[((VRAMRead.y + r) & 511) * 1024 + ((VRAMRead.x + c) & 1023)];
-      hsh = (hsh ^ w) * 16777619u; if (w & 0x7fff) nz++; }
-    perf_prim_trace(0xC3, 0, 0, hsh & 0xffffff, VRAMRead.x, VRAMRead.y, (int)nz, VRAMRead.Width * 8);
-  }
-#endif /* PERF_PROF */
- }
 
 // adjust read ptr, if necessary
 while(VRAMRead.ImagePtr>=psxVuw_eom)
@@ -2075,10 +1916,24 @@ static int OffscreenPrimBounds(unsigned char cmd, const unsigned long *d, int n,
     return 1;
 }
 
-static int RectHitsDisplay(int x0, int y0, int x1, int y1, const PSXDisplay_t *dsp)
+/* Before a GX primitive (20h-7Fh) from the display list: it writes the buffer being drawn.
+ * The display offset is applied first, as the primitive's offset function would, so the EFB
+ * sync sees the buffer it lands in; its bounds come from its GP0 words (lines, whose bounds
+ * are not worked out here, take the drawing area). */
+static void EfbBeforeGxCommand(unsigned char cmd, unsigned long *data, int n)
 {
-    return x0 < dsp->DisplayEnd.x && x1 > dsp->DisplayPosition.x &&
-           y0 < dsp->DisplayEnd.y && y1 > dsp->DisplayPosition.y;
+    int x0, y0, x1, y1;
+
+    if (cmd < 0x20 || cmd > 0x7F)
+        return;
+    if (bDisplayNotSet)
+        SetOGLDisplaySettings(1);
+    if (!OffscreenPrimBounds(cmd, data, n, &x0, &y0, &x1, &y1))
+    {
+        x0 = PSXDisplay.DrawArea.x0; y0 = PSXDisplay.DrawArea.y0;
+        x1 = PSXDisplay.DrawArea.x1 + 1; y1 = PSXDisplay.DrawArea.y1 + 1;
+    }
+    efb_gx_draw(x0, y0, x1, y1);
 }
 
 /* Returns 1 when the primitive was consumed by the software rasterizer. */
@@ -2095,9 +1950,20 @@ static int OffscreenSoftDraw(unsigned char cmd, unsigned long *data, int n)
         return 0;
     if (!OffscreenPrimBounds(cmd, data, n, &x0, &y0, &x1, &y1))
         return 0;
-    if (RectHitsDisplay(x0, y0, x1, y1, &PSXDisplay) ||
-        RectHitsDisplay(x0, y0, x1, y1, &PreviousPSXDisplay))
-        return 0;
+    /* GX draws only the buffer the EFB holds (efbSync.inc "live": the one at GDrawOffset);
+     * a primitive anywhere else -- off-screen, or in the displayed buffer while the game
+     * draws the other one (Ape Escape darkening its paused frame) -- is drawn in software
+     * into VRAM. It used to go to GX unless it missed both display buffers, and GX put a
+     * primitive outside live at coordinates outside the EFB: it was lost. */
+    {
+        EfbGeom g;
+        if (bDisplayNotSet)
+            SetOGLDisplaySettings(1);
+        efb_geom_now(&g);
+        if (!efb_geom_ok(&g) ||
+            (x0 < g.x + g.w && x1 > g.x && y0 < g.y + g.h && y1 > g.y))
+            return 0;
+    }
     /* The GPU clips every primitive to the drawing area (E4's end is inclusive), so only
      * that part can change VRAM. A primitive whose box went past the edge of VRAM used to
      * be sent to GX, which never writes VRAM: MediEvil's headstone draws its menu text
@@ -2124,10 +1990,15 @@ static int OffscreenSoftDraw(unsigned char cmd, unsigned long *data, int n)
     for (k = 0; k < n; k++)
         list[6 + k] = (uint32_t)data[k];          /* already little-endian (PUTLE32 on receive) */
 
+    /* the pixels under it may be GX's (a frame in a snapshot): VRAM gets them first, so a
+     * semi-transparent primitive blends with the real picture and the tiles it touches
+     * can be marked as written by the CPU without losing GX pixels next to it */
+    efb_sync(x0, y0, x1 - x0, y1 - y0);
+
     do_cmd_list(list, 6 + n, &cs, &cl, &lc);
 
     InvalidateTextureArea(x0, y0, x1 - x0, y1 - y0);
-    MarkCpuVramWrite(x0, y0, x1 - x0, y1 - y0);
+    efb_cpu_write(x0, y0, x1 - x0, y1 - y0);
     PERF_INC(off_soft_prims);
 #if PERF_PROF_GPU
     perf_prim_trace(0xC8, cmd & 0x04 ? 2 : 0, 0, (unsigned)cmd, x0, y0, x1, y1);   /* C8 = software-rasterized off-screen primitive */
@@ -2312,9 +2183,8 @@ if(iDataWriteMode==DR_NORMAL)
          continue;                                 /* drawn into VRAM by the software rasterizer */
        }
       GPU_PART(gpu_prim_ticks, gpu_prim_calls,
-               (BeginEfbDrawContext(),
-                primFunc[gpuCommand]((unsigned char *)gpuDataM),
-                EndEfbDrawContext()));
+               (EfbBeforeGxCommand(gpuCommand, gpuDataM, nWords),
+                primFunc[gpuCommand]((unsigned char *)gpuDataM)));
 #if PERF_PROF_GPUSPLIT
       /* GPU_PART just charged gp_other_ with this call; split the same amount out by
        * class of command, so the classes add up to prim. */
@@ -2711,18 +2581,7 @@ static void flipEGL(void)
     writeLogFile(txtbuffer);
     #endif // DISP_DEBUG
 
-    {
-        /* vramio C4: the presented frame's snapshot (a = 1 taken, 0 refused) and the state
-         * bits of C2 (b), for games on the readback list */
-        unsigned bits = (g_pendingPresentedReady ? 1 : 0) | (g_mixedMappingSeen ? 4 : 0) |
-            (g_untrackedEfbWrite ? 8 : 0) | (g_activeMap.map_valid ? 64 : 0) |
-            (g_activeMap.content_valid ? 128 : 0) | (g_activeMap.content_dirty ? 256 : 0);
-        int taken = CapturePresentedEfbSnapshot();
-        if (ReadbackEnabled())
-            perf_vram_event(0xC4, g_activeMap.vram_x0, g_activeMap.vram_y0,
-                            g_activeMap.vram_x1 - g_activeMap.vram_x0,
-                            g_activeMap.vram_y1 - g_activeMap.vram_y0, taken, (int)bits);
-    }
+    efb_present();   /* efbSync.inc: keep the frame the copy to the XFB may clear */
 
     /* a frame that will not reach the TV gets no text */
     if (showFPSonScreen == 1 && !gx_vout_busy())
@@ -2771,8 +2630,6 @@ static void flipEGL(void)
     if (!presentSubmitted) PERF_INC(pres_skipped);
 #endif
 
-    if (presentSubmitted && canClearFrameBuf)
-        EfbDiscardedAfterPresent();
 
     clearLargeRange = 0;
     uploadedScreen = FALSE;
@@ -2826,15 +2683,12 @@ long GL_GPUopen()
 
  gx_vout_open();
 
- ogx_draw_submitted_cb = OnEfbDrawSubmitted;
-
  return ret;
 }
 
 long GL_GPUclose(void)
 {
- ogx_draw_submitted_cb = NULL;
- ResetVramReadbackState();
+ efb_reset();
  GLcleanup();                                          // close OGL
  return 0;
 }

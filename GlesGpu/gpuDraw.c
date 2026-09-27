@@ -446,8 +446,7 @@ static int created_gles_context;
 
 int GLinitialize(void *ext_gles_display, void *ext_gles_surface)
 {
- ResetVramReadbackState();
- BuildActiveMapFromDisplay();
+ efb_reset();   /* efbSync.inc */
 
 // if(ext_gles_display != NULL && ext_gles_surface != NULL) {
 //  display = (EGLDisplay)ext_gles_display;

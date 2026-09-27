@@ -385,8 +385,10 @@ static void perf_vram_flush(void)
 	if (!vio_n) return;
 	f = fopen("sd:/wiisxrx/vramio.log", "w");
 	if (!f) return;
-	fprintf(f, "# vblank[-last] xN kind x,y wxh a b   (C0 read: a=mapping 0 cur 1 prev 2 other, b=capture+8;"
-		" FF: a game starts; C1 readback (list games only): a=mapping 0 cur 1 prev 2 unknown, b=capture result; C5 display flip: a=old map bits as C2, b=1 draws seen since last flip; C4 present snapshot: a=1 taken 0 refused, b=bits as C2; C2 state: a=bits 1 pendingPresented 2 unused 4 mixed 8 untracked 16 prevSnap 32 liveSnap 64 mapValid 128 contentValid 256 dirty 512 async, b=%% from EFB; A0 load, 80 move: a=src x b=src y)\n");
+	fprintf(f, "# vblank[-last] xN kind x,y wxh a b   (C0 CPU read; A0 image load; 80 move: a,b = source;"
+		" C1 EFB sync of a read (GlesGpu/efbSync.inc): a = tiles GX drew, b = tiles no snapshot could fill;"
+		" C2: a = %% of the rect written, b = 1 if the live EFB was copied for it;"
+		" C4 present: a = frames kept (snapshots on), b = a read has missed; FF: a game starts)\n");
 	fprintf(f, "# counts all sizes: c0=%u a0=%u 80=%u c1=%u, lines dropped=%u\n",
 		vio_count[0], vio_count[1], vio_count[2], vio_count[3], vio_dropped);
 	for (k = 0; k < vio_n; k++) {

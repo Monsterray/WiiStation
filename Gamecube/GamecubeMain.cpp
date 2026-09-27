@@ -150,6 +150,8 @@ char padType[10];
 char padAssign[10];
 char padLightgun[10];
 char rumbleEnabled;
+/* OpenGX EFB sync into VRAM (GlesGpu/efbSync.inc): 0 auto, 1 always keep frames, 2 never */
+extern "C" { char efbSyncSetting = 0; }
 char loadButtonSlot;
 char controllerType;
 char numMultitaps;
@@ -238,6 +240,7 @@ static struct {
   { "PadAssign9", &padAssign[8], PADASSIGN_INPUT0, PADASSIGN_INPUT1D },
   { "PadAssign10", &padAssign[9], PADASSIGN_INPUT0, PADASSIGN_INPUT1D },
   { "RumbleEnabled", &rumbleEnabled, RUMBLE_DISABLE, RUMBLE_ENABLE },
+  { "EfbSync", &efbSyncSetting, 0, 2 },
   { "LoadButtonSlot", &loadButtonSlot, LOADBUTTON_SLOT0, LOADBUTTON_DEFAULT },
   { "ControllerType", &controllerType, CONTROLLERTYPE_STANDARD, CONTROLLERTYPE_ANALOG },
 //  { "NumberMultitaps", &numMultitaps, MULTITAPS_NONE, MULTITAPS_TWO },

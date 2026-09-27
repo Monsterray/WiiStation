@@ -96,17 +96,7 @@ static const char * const fractional_Framerate_hack_db[] =
 };
 
 // For special game correction
-static const char * const special_game_hack_db[] =
-{
-    /* Star Wars - Dark Forces */
-    "SLUS00297", "SLPS00685", "SLES00585", "SLES00640", "SLES00646",
-};
 
-static const char * const special_game_hack_db2[] =
-{
-    /* Dino Crisis2 For GX gpu fix */
-    "SLUS01279", "SLPM86627", "SLES03221", "SLES03222", "SLES03223", "SLES03224", "SLES03225",
-};
 
 //static const char * const special_game_hack_need_soft_title[] =
 //{
@@ -119,38 +109,69 @@ static const char * const special_game_hack_db2[] =
 //    "SLUS00639", "SLES00606",
 //};
 
-static const char * const special_game_hack_chrono_cross[] =
-{
-    /* CHRONO_CROSS For GX gpu fix */
-    "SCPS45447", "SCPS45448", "SLPS02364", "SLPS02365", "SLPS91464", "SLPS91465", "SLPS02777", "SLPS02778",
-    "SLPM87395", "SLPM87396", "SLUS01041", "SLUS01080",
-};
 
-static const char * const special_game_hack_no_swap_framebuf[] =
+
+
+/* GPU fixes by game. Config.hacks.dwActFixes gets the flags of the running game's ID
+ * (database.h AUTO_FIX_*); the GPU plugins read them. To add a per-game fix: a line
+ * here with the game's IDs, and a flag in database.h if none fits. */
+static const struct { const char *id; unsigned int fixes; } gpu_game_fixes[] =
 {
-    /* TOMB RAIDER For GX gpu fix */
-    "SLUS00152", "SLUS00437", "SLUS00691", "SLUS00885", "SLUS01311", "SLES00024", "SLES00485", "SLES00486",
-    "SLES00718", "SLES00719", "SLES00720", "SLES00107", "SLES01649",
-    "SLES01682", "SLES01683", "SLES01684", "SLES01685", "SLES02238", "SLES02239", "SLES02240", "SLES02241", "SLES02242",
-    "SLES03331", "SLES03333", "SLES03334", "SLES03335", "SLES03336",
-    "SLPS00617", "SLPS91049", "SLPS91433", "SLPS01200", "SLPS91119", "SLPS91434", "SCPS45385",
-    "SCPS45386", "SLPM86196", "SLPM86197", "SLPS02803", "SLPM86896", "SLPM86779", "SLPM87160",
+    /* Star Wars - Dark Forces */
+    { "SLUS00297", AUTO_FIX_GPU_BUSY }, { "SLPS00685", AUTO_FIX_GPU_BUSY },
+    { "SLES00585", AUTO_FIX_GPU_BUSY }, { "SLES00640", AUTO_FIX_GPU_BUSY },
+    { "SLES00646", AUTO_FIX_GPU_BUSY },
+    /* Dino Crisis2 */
+    { "SLUS01279", AUTO_FIX_DINO_CRISIS2 | AUTO_FIX_VRAM_READBACK },
+    { "SLPM86627", AUTO_FIX_DINO_CRISIS2 | AUTO_FIX_VRAM_READBACK },
+    { "SLES03221", AUTO_FIX_DINO_CRISIS2 | AUTO_FIX_VRAM_READBACK },
+    { "SLES03222", AUTO_FIX_DINO_CRISIS2 | AUTO_FIX_VRAM_READBACK },
+    { "SLES03223", AUTO_FIX_DINO_CRISIS2 | AUTO_FIX_VRAM_READBACK },
+    { "SLES03224", AUTO_FIX_DINO_CRISIS2 | AUTO_FIX_VRAM_READBACK },
+    { "SLES03225", AUTO_FIX_DINO_CRISIS2 | AUTO_FIX_VRAM_READBACK },
+    /* CHRONO_CROSS */
+    { "SCPS45447", AUTO_FIX_CHRONO_CROSS }, { "SCPS45448", AUTO_FIX_CHRONO_CROSS },
+    { "SLPS02364", AUTO_FIX_CHRONO_CROSS }, { "SLPS02365", AUTO_FIX_CHRONO_CROSS },
+    { "SLPS91464", AUTO_FIX_CHRONO_CROSS }, { "SLPS91465", AUTO_FIX_CHRONO_CROSS },
+    { "SLPS02777", AUTO_FIX_CHRONO_CROSS }, { "SLPS02778", AUTO_FIX_CHRONO_CROSS },
+    { "SLPM87395", AUTO_FIX_CHRONO_CROSS }, { "SLPM87396", AUTO_FIX_CHRONO_CROSS },
+    { "SLUS01041", AUTO_FIX_CHRONO_CROSS }, { "SLUS01080", AUTO_FIX_CHRONO_CROSS },
+    /* TOMB RAIDER */
+    { "SLUS00152", AUTO_FIX_NO_SWAP_BUF }, { "SLUS00437", AUTO_FIX_NO_SWAP_BUF },
+    { "SLUS00691", AUTO_FIX_NO_SWAP_BUF }, { "SLUS00885", AUTO_FIX_NO_SWAP_BUF },
+    { "SLUS01311", AUTO_FIX_NO_SWAP_BUF }, { "SLES00024", AUTO_FIX_NO_SWAP_BUF },
+    { "SLES00485", AUTO_FIX_NO_SWAP_BUF }, { "SLES00486", AUTO_FIX_NO_SWAP_BUF },
+    { "SLES00718", AUTO_FIX_NO_SWAP_BUF }, { "SLES00719", AUTO_FIX_NO_SWAP_BUF },
+    { "SLES00720", AUTO_FIX_NO_SWAP_BUF }, { "SLES00107", AUTO_FIX_NO_SWAP_BUF },
+    { "SLES01649", AUTO_FIX_NO_SWAP_BUF }, { "SLES01682", AUTO_FIX_NO_SWAP_BUF },
+    { "SLES01683", AUTO_FIX_NO_SWAP_BUF }, { "SLES01684", AUTO_FIX_NO_SWAP_BUF },
+    { "SLES01685", AUTO_FIX_NO_SWAP_BUF }, { "SLES02238", AUTO_FIX_NO_SWAP_BUF },
+    { "SLES02239", AUTO_FIX_NO_SWAP_BUF }, { "SLES02240", AUTO_FIX_NO_SWAP_BUF },
+    { "SLES02241", AUTO_FIX_NO_SWAP_BUF }, { "SLES02242", AUTO_FIX_NO_SWAP_BUF },
+    { "SLES03331", AUTO_FIX_NO_SWAP_BUF }, { "SLES03333", AUTO_FIX_NO_SWAP_BUF },
+    { "SLES03334", AUTO_FIX_NO_SWAP_BUF }, { "SLES03335", AUTO_FIX_NO_SWAP_BUF },
+    { "SLES03336", AUTO_FIX_NO_SWAP_BUF }, { "SLPS00617", AUTO_FIX_NO_SWAP_BUF },
+    { "SLPS91049", AUTO_FIX_NO_SWAP_BUF }, { "SLPS91433", AUTO_FIX_NO_SWAP_BUF },
+    { "SLPS01200", AUTO_FIX_NO_SWAP_BUF }, { "SLPS91119", AUTO_FIX_NO_SWAP_BUF },
+    { "SLPS91434", AUTO_FIX_NO_SWAP_BUF }, { "SCPS45385", AUTO_FIX_NO_SWAP_BUF },
+    { "SCPS45386", AUTO_FIX_NO_SWAP_BUF }, { "SLPM86196", AUTO_FIX_NO_SWAP_BUF },
+    { "SLPM86197", AUTO_FIX_NO_SWAP_BUF }, { "SLPS02803", AUTO_FIX_NO_SWAP_BUF },
+    { "SLPM86896", AUTO_FIX_NO_SWAP_BUF }, { "SLPM86779", AUTO_FIX_NO_SWAP_BUF },
+    { "SLPM87160", AUTO_FIX_NO_SWAP_BUF },
     /* VAGRANT STORY */
-    "SLPS02377", "SCPS45486", "SLPS91457", "SLPM87393", "SLUS01040",
-};
-
-static const char * const special_game_hack_vram_readback[] =
-{
-    /* Dino Crisis 2 */
-    "SLUS01279", "SLPM86627",
-    "SLES03221", "SLES03222", "SLES03223", "SLES03224", "SLES03225",
-    /* Vagrant Story */
-    "SLPS02377", "SCPS45486", "SLPS91457", "SLPM87393", "SLUS01040",
-    /* Spyro the Dragon: the pause screen reads the rendered frame back
-     * (GP0 C0), converts it to an 8-bit texture at VRAM (512,0) and redraws
-     * it tinted over a green fill; without readback the texture is empty
-     * and only the green fill shows (NTSC-U, PAL, NTSC-J) */
-    "SCUS94228", "SCES01438", "SCPS10083",
+    { "SLPS02377", AUTO_FIX_NO_SWAP_BUF | AUTO_FIX_VRAM_READBACK },
+    { "SCPS45486", AUTO_FIX_NO_SWAP_BUF | AUTO_FIX_VRAM_READBACK },
+    { "SLPS91457", AUTO_FIX_NO_SWAP_BUF | AUTO_FIX_VRAM_READBACK },
+    { "SLPM87393", AUTO_FIX_NO_SWAP_BUF | AUTO_FIX_VRAM_READBACK },
+    { "SLUS01040", AUTO_FIX_NO_SWAP_BUF | AUTO_FIX_VRAM_READBACK },
+    /* Spyro the Dragon: the pause screen reads the frame back (GP0 C0) and redraws it
+     * tinted; without the frame only its green fill shows. And */
+    { "SCUS94228", AUTO_FIX_VRAM_READBACK }, { "SCES01438", AUTO_FIX_VRAM_READBACK },
+    { "SCPS10083", AUTO_FIX_VRAM_READBACK },
+    /* Ape Escape: the pause screen and the fades between scenes read the displayed frame
+     * back (GP0 C0) and redraw it; without it: blue pause, fades cut to black */
+    { "SCUS94423", AUTO_FIX_VRAM_READBACK }, { "SCES01564", AUTO_FIX_VRAM_READBACK },
+    { "SCPS10091", AUTO_FIX_VRAM_READBACK },
 };
 
 #define HACK_ENTRY(var, list) \
@@ -352,48 +373,9 @@ void Apply_Hacks_Cdrom()
 
     // For special game correction
     Config.hacks.dwActFixes = 0;
-    for (i = 0; i < ARRAY_SIZE(special_game_hack_db); i++) {
-        if (strcmp(CdromId, special_game_hack_db[i]) == 0)
-        {
-            Config.hacks.dwActFixes |= AUTO_FIX_GPU_BUSY;
-            break;
-        }
-    }
-    for (i = 0; i < ARRAY_SIZE(special_game_hack_db2); i++) {
-        if (strcmp(CdromId, special_game_hack_db2[i]) == 0)
-        {
-            Config.hacks.dwActFixes |= AUTO_FIX_DINO_CRISIS2;
-            break;
-        }
-    }
-//    for (i = 0; i < ARRAY_SIZE(special_game_hack_need_soft_title); i++) {
-//        if (strcmp(CdromId, special_game_hack_need_soft_title[i]) == 0)
-//        {
-//            Config.hacks.dwActFixes |= AUTO_FIX_NEED_SOFT_TITLE;
-//            break;
-//        }
-//    }
-    for (i = 0; i < ARRAY_SIZE(special_game_hack_chrono_cross); i++) {
-        if (strcmp(CdromId, special_game_hack_chrono_cross[i]) == 0)
-        {
-            Config.hacks.dwActFixes |= AUTO_FIX_CHRONO_CROSS;
-            break;
-        }
-    }
-    for (i = 0; i < ARRAY_SIZE(special_game_hack_no_swap_framebuf); i++) {
-        if (strcmp(CdromId, special_game_hack_no_swap_framebuf[i]) == 0)
-        {
-            Config.hacks.dwActFixes |= AUTO_FIX_NO_SWAP_BUF;
-            break;
-        }
-    }
-    for (i = 0; i < ARRAY_SIZE(special_game_hack_vram_readback); i++) {
-        if (strcmp(CdromId, special_game_hack_vram_readback[i]) == 0)
-        {
-            Config.hacks.dwActFixes |= AUTO_FIX_VRAM_READBACK;
-            break;
-        }
-    }
+    for (i = 0; i < ARRAY_SIZE(gpu_game_fixes); i++)
+        if (strcmp(CdromId, gpu_game_fixes[i].id) == 0)
+            Config.hacks.dwActFixes |= gpu_game_fixes[i].fixes;
 }
 
 // from duckstation's gamedb.json

@@ -46,6 +46,11 @@ the space scene of the intro, vblank ~986 onward (trace `trace 985` + `trace 106
 The earlier Crash 3 star bug (stars dropped on alternate frames, draw offset counted twice
 in `primTile1`, fixed) is a different mechanism.
 
+**2026-09-27 update: the readback tracker was redesigned (GlesGpu/efbSync.inc,
+Docs/EFB_SYNC.md). Ape Escape's pause screen now shows the frozen game; Spyro's pause is
+unchanged. Still open: Ape Escape's scene fades and WARNING screen (a presentation problem,
+see the end of EFB_SYNC.md).** The analysis below is the record of how it was found.
+
 ## Bug 2: Ape Escape pause screen blue; no CRT fade between scenes
 
 **Reference:** video b21k8NFfVtk, 17:10-17:13 (fade: the picture folds in on itself, then a
@@ -122,8 +127,8 @@ Vagrant Story (the other readback games), then Ape Escape's fades, WARNING scree
 - Per-game lists and fixes: `database.c` `special_game_hack_vram_readback` (Dino Crisis 2,
   Vagrant Story, Spyro), `AUTO_FIX_*` flags in `dwActFixes`; `primMoveImage` materializes the
   EFB only for Dino Crisis 2's exact copy shape.
-- Readback tracker (`gpuVramReadback.inc`, ~2300 lines): active / previous / pending-presented
-  maps, EFB tile coverage, live and previous snapshots, rebuild candidates, async captures.
+- EFB sync (`efbSync.inc`, replaced the ~2300-line `gpuVramReadback.inc` on 2026-09-27):
+  per-tile CPU/GX stamps, the live buffer at GDrawOffset, 4 snapshots; see Docs/EFB_SYNC.md.
 - Off-screen drawing: `OffscreenSoftDraw` rasterizes primitives outside both display buffers
   in software (`do_cmd_list`), clipped to the drawing area (fixed 2026-09-23 for MediEvil).
 - Screen re-upload from VRAM (`UploadScreen`, trace `ea`/`eb`) after CPU image loads that
