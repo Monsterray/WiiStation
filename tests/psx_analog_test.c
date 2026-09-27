@@ -25,10 +25,11 @@
  * including the drivers (which need libogc) means a driver that changes its conversion
  * without changing this file will not be caught -- so the numbers are named after the
  * files they come from and the test prints them. */
-#define GC_STICK_FULL  96.0f     /* controller-GC.c, controller-HidGC.c */
 #define DRC_DEADZONE   0.078f    /* controller-WiiDRC.c */
 
-static uint8_t gc(int raw)       { return psx_analog((float)raw / GC_STICK_FULL); }
+/* GC_MAIN_FULL and GC_CSTICK_FULL come from psx_analog.h, as the drivers take them */
+static uint8_t gc(int raw)       { return psx_analog((float)raw / GC_MAIN_FULL); }
+static uint8_t gc_c(int raw)     { return psx_analog((float)raw / GC_CSTICK_FULL); }
 static uint8_t classic(int raw)  { return psx_analog((float)raw / 127.0f); }
 static uint8_t nunchuk(int raw)  { return psx_analog((float)raw / 127.0f); }
 static uint8_t wupc(int raw)     { return psx_analog((float)raw / 1024.0f); }
@@ -99,6 +100,11 @@ int main(void)
 
 	printf("stick curves\n");
 	check("GameCube",        gc,      -96,   96,   0.0f);
+	check("GameCube C stick", gc_c,   -87,   87,   0.0f);
+	/* A full push as Dolphin's pad model reads it (gates 0.794 and 0.722 of 127) must reach
+	 * the end straight out, or Ape Escape takes no swing from the C stick */
+	if (gc(101) != 255 || gc(-101) != 0) fail("GameCube", "a full push (101) does not reach the end");
+	if (gc_c(92) != 255 || gc_c(-92) != 0) fail("GameCube C stick", "a full push (92) does not reach the end");
 	check("Classic",         classic, -127,  127,  0.0f);
 	check("Wiimote+Nunchuk", nunchuk, -127,  127,  0.0f);
 	check("Wii U Pro",       wupc,    -1024, 1024, 0.0f);

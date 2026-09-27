@@ -176,13 +176,22 @@ static unsigned int getButtons(const gc_raw_t *r)
 	return b;
 }
 
-/* A GameCube stick reads about +/-96 at full deflection once libogc has taken the origin
- * off. If a pad cannot quite reach the corners, raise its sensitivity setting rather than
- * this: the setting is per controller and needs no rebuild. */
-#define GC_STICK_FULL 96.0f
-static void GCtoPSX(int x, int y, int invertY, u8 *px, u8 *py)
+/* One PlayStation stick from the GameCube stick the config names (psx_analog.h has the two
+ * sticks' full travel). If a pad cannot quite reach the edges, raise its sensitivity setting
+ * rather than the constants: the setting is per controller and needs no rebuild. A source
+ * of none rests. */
+static void GCtoPSX(const gc_raw_t *r, unsigned int source, int invertY, u8 *px, u8 *py)
 {
-	float fx = (float)x / GC_STICK_FULL, fy = (float)(invertY ? y : -y) / GC_STICK_FULL;
+	float fx = 0.0f, fy = 0.0f;
+
+	if (source == ANALOG_AS_ANALOG) {
+		fx = (float)r->sx / GC_MAIN_FULL;
+		fy = (float)r->sy / GC_MAIN_FULL;
+	} else if (source == C_STICK_AS_ANALOG) {
+		fx = (float)r->cx / GC_CSTICK_FULL;
+		fy = (float)r->cy / GC_CSTICK_FULL;
+	}
+	if (!invertY) fy = -fy;
 	psx_square(&fx, &fy);
 	*px = psx_analog(fx);
 	*py = psx_analog(fy);
@@ -228,27 +237,8 @@ static int _GetKeys(int Control, BUTTONS * Keys, controller_config_t* config)
 	c->btns.L3_BUTTON    = isHeld(config->L3);
 	c->btns.SELECT_BUTTON = isHeld(config->SELECT);
 
-	//adjust values by 128 cause PSX sticks range 0-255 with a 128 center pos
-	int stickX = 0, stickY = 0;
-	if(config->analogL->mask == ANALOG_AS_ANALOG){
-		stickX = raw.sx;
-		stickY = raw.sy;
-	} else if(config->analogL->mask == C_STICK_AS_ANALOG){
-		stickX = raw.cx;
-		stickY = raw.cy;
-	}
-	GCtoPSX(stickX, stickY, config->invertedYL, &c->leftStickX, &c->leftStickY);
-
-	/* A right stick set to none rests; it used to repeat the left stick's reading. */
-	stickX = stickY = 0;
-	if(config->analogR->mask == ANALOG_AS_ANALOG){
-		stickX = raw.sx;
-		stickY = raw.sy;
-	} else if(config->analogR->mask == C_STICK_AS_ANALOG){
-		stickX = raw.cx;
-		stickY = raw.cy;
-	}
-	GCtoPSX(stickX, stickY, config->invertedYR, &c->rightStickX, &c->rightStickY);
+	GCtoPSX(&raw, config->analogL->mask, config->invertedYL, &c->leftStickX, &c->leftStickY);
+	GCtoPSX(&raw, config->analogR->mask, config->invertedYR, &c->rightStickX, &c->rightStickY);
 
 	// Return 1 if exit, 2 if fastforward
 	if (!isHeld(config->exit)) return 1;

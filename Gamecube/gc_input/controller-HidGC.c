@@ -77,11 +77,10 @@ static button_t menu_combos[] = {
     { 2, PAD_BUTTON_START|PAD_BUTTON_Y, "Start+Y" },
 };
 
-/* As controller-GC.c: full deflection is about +/-96 after the origin is taken off. */
-#define GC_STICK_FULL 96.0f
-static void GCtoPSX(int x, int y, int invertY, u8 *px, u8 *py)
+/* As controller-GC.c; full is the stick's travel, GC_MAIN_FULL or GC_CSTICK_FULL (psx_analog.h). */
+static void GCtoPSX(int x, int y, int invertY, float full, u8 *px, u8 *py)
 {
-    float fx = (float)x / GC_STICK_FULL, fy = (float)(invertY ? y : -y) / GC_STICK_FULL;
+    float fx = (float)x / full, fy = (float)(invertY ? y : -y) / full;
     psx_square(&fx, &fy);
     *px = psx_analog(fx);
     *py = psx_analog(fy);
@@ -156,11 +155,11 @@ static int _GetKeys(int Control, BUTTONS * Keys, controller_config_t* config)
     int stickX = 0, stickY = 0;
     stickX = PAD_Stick_X;
     stickY = PAD_Stick_Y;
-    GCtoPSX(stickX, stickY, config->invertedYL, &c->leftStickX, &c->leftStickY);
+    GCtoPSX(stickX, stickY, config->invertedYL, GC_MAIN_FULL, &c->leftStickX, &c->leftStickY);
 
     stickX = PAD_SubStick_X;
     stickY = PAD_SubStick_Y;
-    GCtoPSX(stickX, stickY, config->invertedYR, &c->rightStickX, &c->rightStickY);
+    GCtoPSX(stickX, stickY, config->invertedYR, GC_CSTICK_FULL, &c->rightStickX, &c->rightStickY);
 
     // Return 1 if exit, 2 if fastforward
     if (!isHeld(config->exit))

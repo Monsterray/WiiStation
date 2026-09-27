@@ -46,6 +46,15 @@ static inline uint8_t psx_analog(float unit)
 	return (uint8_t)(v < 0 ? 0 : (v > 255 ? 255 : v));
 }
 
+/* Full travel of a GameCube pad's two sticks once libogc has taken the origin off. They
+ * differ: Dolphin's pad model, taken from real pads, puts the main stick's gate at 0.794 of
+ * the range and the C stick's at 0.722, so a full push reads about +/-101 and +/-92. Each
+ * value is about 5% under that, so a worn pad still reaches the edge. With the main stick's
+ * 96 used for both, a C stick pushed straight out read 250 or 5, never 255 or 0, and Ape
+ * Escape did not take it as a swing (a diagonal did: it reached the corner). */
+#define GC_MAIN_FULL   96.0f
+#define GC_CSTICK_FULL 87.0f
+
 /* A stick position (x, y, each a fraction of full travel) stretched from a Nintendo stick's
  * gate to a DualShock's range. A GameCube or Classic Controller stick has an octagonal gate
  * with its corners at full cardinal travel, so a full diagonal reads about 0.71 on each axis;
