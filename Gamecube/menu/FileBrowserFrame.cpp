@@ -673,7 +673,11 @@ void fileBrowserFrame_LoadFile(int i)
                 appendBounded(RomInfo, sizeof(RomInfo), buffer);
             }
 
-			sprintf(buffer,"ISO Size: %u Mb\n",isoFile.size/1024/1024);
+			/* Under 1 MB in KB (rounded up), so a small image does not read "0 MB" */
+			if (isoFile.size < 1024 * 1024)
+				sprintf(buffer, "ISO Size: %u KB\n", (isoFile.size + 1023) / 1024);
+			else
+				sprintf(buffer, "ISO Size: %u MB\n", isoFile.size / 1024 / 1024);
 			appendBounded(RomInfo, sizeof(RomInfo), buffer);
 			sprintf(buffer,"Country: %s\n",forceNTSC == FORCENTSC_ENABLE ? "FORCE NTSC" : ((!Config.PsxType) ? "NTSC":"PAL"));
 			appendBounded(RomInfo, sizeof(RomInfo), buffer);
