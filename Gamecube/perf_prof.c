@@ -345,26 +345,30 @@ static void perf_trace_flush(void)
  * (C1), with the rect, two values the caller chooses and, when the same event repeats,
  * a count and the last vblank. Only transfers of 32x32 or more are kept: that is where a
  * game moves pictures (a pause screen's frozen frame, a fade's last frame), and it keeps
- * the file to a few dozen lines instead of the primitive trace's thousands. */
-#define VIO_MAX 2048
+ * the file to a few dozen lines instead of the primitive trace's thousands.
+ *
+ * A repeat folds into the same event among the last VIO_WINDOW lines, not only the last
+ * one: a game cycles several transfers a frame (two buffers, a few texture strips), and
+ * folding only neighbours filled 2048 lines in four minutes of Ape Escape. The search stops
+ * at a game start (FF), so each game of a chain keeps its own lines. Past VIO_MAX lines new
+ * events are counted, not kept ("lines dropped" in the header). */
+#define VIO_MAX    4096
+#define VIO_WINDOW 64
 static struct { uint32_t vbl, last, n; uint16_t kind, x, y, w, h; int32_t a, b; } vio[VIO_MAX];
 static unsigned vio_n, vio_count[4], vio_dropped;
 
 void perf_vram_event(unsigned kind, int x, int y, int w, int h, int a, int b)
 {
-	unsigned k = kind == 0xC0 ? 0 : kind == 0xA0 ? 1 : kind == 0x80 ? 2 : 3;
+	unsigned k = kind == 0xC0 ? 0 : kind == 0xA0 ? 1 : kind == 0x80 ? 2 : 3, i;
 	if (kind != 0xFF) vio_count[k]++;
 	if (w * h < 32 * 32 && kind != 0xFF) return;
-	if (vio_n && vio[vio_n - 1].kind == kind && vio[vio_n - 1].x == x && vio[vio_n - 1].y == y &&
-	    vio[vio_n - 1].w == w && vio[vio_n - 1].h == h && vio[vio_n - 1].a == a && vio[vio_n - 1].b == b) {
-		vio[vio_n - 1].n++; vio[vio_n - 1].last = frame_counter;
-		return;
-	}
-	/* two events alternating (a double-buffered game) fold into the one before last */
-	if (vio_n >= 2 && vio[vio_n - 2].kind == kind && vio[vio_n - 2].x == x && vio[vio_n - 2].y == y &&
-	    vio[vio_n - 2].w == w && vio[vio_n - 2].h == h && vio[vio_n - 2].a == a && vio[vio_n - 2].b == b) {
-		vio[vio_n - 2].n++; vio[vio_n - 2].last = frame_counter;
-		return;
+	for (i = kind == 0xFF ? 0 : vio_n; i > 0 && vio_n - i < VIO_WINDOW; i--) {   /* a game start never folds */
+		if (vio[i - 1].kind == 0xFF) break;
+		if (vio[i - 1].kind == kind && vio[i - 1].x == x && vio[i - 1].y == y &&
+		    vio[i - 1].w == w && vio[i - 1].h == h && vio[i - 1].a == a && vio[i - 1].b == b) {
+			vio[i - 1].n++; vio[i - 1].last = frame_counter;
+			return;
+		}
 	}
 	if (vio_n >= VIO_MAX) { vio_dropped++; return; }
 	vio[vio_n].vbl = vio[vio_n].last = frame_counter; vio[vio_n].n = 1;
@@ -382,7 +386,7 @@ static void perf_vram_flush(void)
 	f = fopen("sd:/wiisxrx/vramio.log", "w");
 	if (!f) return;
 	fprintf(f, "# vblank[-last] xN kind x,y wxh a b   (C0 read: a=mapping 0 cur 1 prev 2 other, b=capture+8;"
-		" FF: a game starts; C1 outcome: a=capture+8 b=%% from EFB; C5 display flip: a=old map bits as C2, b=1 draws seen since last flip; C4 present snapshot: a=1 taken 0 refused, b=bits as C2; C2 state: a=bits 1 pendingPresented 2 unused 4 mixed 8 untracked 16 prevSnap 32 liveSnap 64 mapValid 128 contentValid 256 dirty 512 async, b=map id; A0 load, 80 move: a=src x b=src y)\n");
+		" FF: a game starts; C1 readback (list games only): a=mapping 0 cur 1 prev 2 unknown, b=capture result; C5 display flip: a=old map bits as C2, b=1 draws seen since last flip; C4 present snapshot: a=1 taken 0 refused, b=bits as C2; C2 state: a=bits 1 pendingPresented 2 unused 4 mixed 8 untracked 16 prevSnap 32 liveSnap 64 mapValid 128 contentValid 256 dirty 512 async, b=%% from EFB; A0 load, 80 move: a=src x b=src y)\n");
 	fprintf(f, "# counts all sizes: c0=%u a0=%u 80=%u c1=%u, lines dropped=%u\n",
 		vio_count[0], vio_count[1], vio_count[2], vio_count[3], vio_dropped);
 	for (k = 0; k < vio_n; k++) {

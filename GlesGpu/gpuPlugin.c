@@ -1816,17 +1816,21 @@ if (g_readbackState == READBACK_PENDING)
   writeLogFile(txtbuffer);
 #endif
   g_readbackState = READBACK_DONE;
-#if PERF_PROF_GPU
-  /* trace: C1 = readback outcome for this VRAM->CPU read (flags = mapping kind, abr = capture result + 8, col = merged pixels) */
-  perf_prim_trace(0xC1, (unsigned)g_lastReadMapping, (unsigned)(g_lastCaptureResult + 8), (unsigned)g_lastMergedPixels, VRAMRead.x, VRAMRead.y, VRAMRead.x + VRAMRead.Width, VRAMRead.y + VRAMRead.Height);
-  /* b = how much of the read came from the EFB, in percent */
-  perf_vram_event(0xC1, VRAMRead.x, VRAMRead.y, VRAMRead.Width, VRAMRead.Height, g_lastCaptureResult + 8,
-                  VRAMRead.Width * VRAMRead.Height ? (int)(100u * g_lastMergedPixels / (unsigned)(VRAMRead.Width * VRAMRead.Height)) : 0);
-  /* vramio C2: the state bits below (a) and the active map id (b) -- why a capture was refused */
+  /* vramio (every debug build): C1 = the mapping (a: 0 current 1 previous 2 unknown) and the
+   * capture result (b); C2 = the state bits (a, as the trace's C2) and how much of the read
+   * came from the EFB (b, percent) -- why a read of the frame came back empty */
+#ifdef PERF_PROF
+  perf_vram_event(0xC1, VRAMRead.x, VRAMRead.y, VRAMRead.Width, VRAMRead.Height,
+                  (int)g_lastReadMapping, g_lastCaptureResult);
   perf_vram_event(0xC2, VRAMRead.x, VRAMRead.y, VRAMRead.Width, VRAMRead.Height,
       (g_pendingPresentedReady ? 1 : 0) | (g_mixedMappingSeen ? 4 : 0) | (g_untrackedEfbWrite ? 8 : 0) |
       (PREV_SNAP()->valid ? 16 : 0) | (LIVE_SNAP()->valid ? 32 : 0) | (g_activeMap.map_valid ? 64 : 0) | (g_activeMap.content_valid ? 128 : 0) |
-      (g_activeMap.content_dirty ? 256 : 0) | (g_asyncCaptureInFlight ? 512 : 0), (int)g_activeMap.map_id);
+      (g_activeMap.content_dirty ? 256 : 0) | (g_asyncCaptureInFlight ? 512 : 0),
+      VRAMRead.Width * VRAMRead.Height ? (int)(100u * g_lastMergedPixels / (unsigned)(VRAMRead.Width * VRAMRead.Height)) : 0);
+#endif
+#if PERF_PROF_GPU
+  /* trace: C1 = readback outcome for this VRAM->CPU read (flags = mapping kind, abr = capture result + 8, col = merged pixels) */
+  perf_prim_trace(0xC1, (unsigned)g_lastReadMapping, (unsigned)(g_lastCaptureResult + 8), (unsigned)g_lastMergedPixels, VRAMRead.x, VRAMRead.y, VRAMRead.x + VRAMRead.Width, VRAMRead.y + VRAMRead.Height);
   /* C2 = readback state bits: b0 pendingPresented b1 unused (was: overlay text in the EFB) b2 mixed b3 untracked b4 prevSnapValid b5 liveSnapValid
    * b6 mapValid b7 contentValid b8 contentDirty b9 asyncInFlight; x1 = prev snapshot FULL tiles, y1 = live snapshot FULL tiles */
   perf_prim_trace(0xC2, 0, 0,

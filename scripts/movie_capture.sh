@@ -9,7 +9,7 @@
 #           not work, "final fantasy" does); run with no GAME to list them
 #   NAME    the script's name (default: from the folder); saved as
 #           scripts/autoinput/NAME_play.txt, the previous one kept as .prev
-#   --mins  how long to record, in emulated minutes (default 4)
+#   --mins  how long to record, in emulated minutes (default 4; decimals work: 1.5)
 #   --ct    PlayStation pad: 0 = digital pad (default), 1 = DualShock (Ape Escape needs it)
 #   --play  boot a saved recording in a window and watch it play itself, to check it. It
 #           uses the recording's pad type, and says whether the build is the one it was made on
@@ -91,7 +91,9 @@ else
 	ln=${hit%%:*}; folder=${hit#*:}
 	cue=$(tr -d '\r' < "$ALL" | sed -n "$((ln + 1))p")
 	[ -n "$name" ] || name=$(basename "$folder" | tr 'A-Z' 'a-z' | sed -E 's/[^a-z0-9]+/_/g; s/^_+|_+$//g')
-	vbl=$((mins * 3600))
+	# emulated minutes to vblanks (60 a second); decimals allowed
+	vbl=$(awk -v m="$mins" 'BEGIN { if (m !~ /^[0-9]*\.?[0-9]+$/ || m <= 0) exit 1; printf "%d", m * 3600 + 0.5 }') ||
+		{ echo "--mins takes a number of minutes, like 2 or 1.5 (got \"$mins\")"; exit 2; }
 	input="capture_record.txt"
 fi
 
@@ -139,6 +141,14 @@ rm -f "$SYNC/autoinput_rec.txt"
 grep -q "port 1 has NO controller" "$rec" && echo "WARNING: port 1 had no controller, so the recording holds no presses"
 grep -q "port 2 has a controller" "$rec" || echo "note: port 2 had no controller; the recording plays it unplugged"
 presses=$(grep -c -E '^(p2 )?[0-9]+ [0-9a-f]{4}' "$rec"); last=$(grep -E '^(p2 )?[0-9]+ ' "$rec" | tail -1 | sed 's/^p2 //' | cut -d' ' -f1)
+# Closed early: the recording ends where it stopped, not at the planned length. WiiStation
+# writes "# alive <vblank>" every 5 seconds; the last one, or the last press if later, is
+# where the run got to, and a second on top keeps the last press's release.
+reached=$( { grep '^# alive ' "$rec" | sed 's/^# alive //'; echo "${last:-0}"; } | tr -d '\r' | sort -n | tail -1)
+if [ -n "$reached" ] && [ "$reached" -gt 0 ] && [ $((reached + 60)) -lt "$vbl" ]; then
+	echo "the window was closed at about vblank $reached of $vbl: the recording ends there"
+	vbl=$((reached + 60))
+fi
 out="$REPO/scripts/autoinput/${name}_play.txt"
 [ -f "$out" ] && mv "$out" "$out.prev" && echo "kept the previous recording as $(basename "$out").prev"
 # What it replays exactly on: the build, its settings and the pad setup (run.info, settings.cfg)

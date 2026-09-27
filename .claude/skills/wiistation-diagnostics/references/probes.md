@@ -54,8 +54,8 @@ the draw (GX state, Dolphin); `offsoft prims` > 0 means the title renders off-sc
 one line per distinct event, repeats merged (`first-last xN`, and two alternating events --
 a double-buffered game -- fold too), 2048 lines max. `dolphin_run.sh` extracts it to
 `.runs/NAME/vramio.log`; its two header lines explain the fields. Kinds: `C0` CPU read,
-`C1` readback outcome (a = capture result + 8, b = % from the EFB), `C2` readback state
-bits, `C4` snapshot at each present (a = taken), `C5` display flip (b = draws seen), `A0`
+`C1` readback outcome (readback-list games only; a = mapping 0 current 1 previous 2
+unknown, b = capture result), `C2` readback state bits (a) and % from the EFB (b), `C4` snapshot at each present (a = taken), `C5` display flip (b = draws seen), `A0`
 image load, `80` move (a,b = source), `FF` a chained game starts. Works in the default
 `light` debug build. It found Ape Escape's pause mechanism (a C0 read of the frame, then an
 A0 upload of it every paused frame) in one run, after several trace windows had missed it.

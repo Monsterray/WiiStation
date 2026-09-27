@@ -221,11 +221,20 @@ extern virtualControllers_t virtualControllers[10];
 void autoinput_record(int port, unsigned short real)
 {
 	static int last[2] = { -1, -1 };
+	static unsigned alive;
 	if (port < 0 || port > 1)
 		return;
 	if (!autoin_rec) {
 		last[port] = -1;
 		return;
+	}
+	/* Every 5 seconds: how far the recording got, so one ended by closing the window says
+	 * where it stopped (scripts/movie_capture.sh takes the length from it). */
+	if (frame_counter >= alive + 300) {
+		alive = frame_counter;
+		fprintf(autoin_rec, "# alive %u\n", (unsigned)frame_counter);
+		fflush(autoin_rec);
+		fsync(fileno(autoin_rec));
 	}
 	if (real == last[port] || (port == 1 && !virtualControllers[1].inUse))
 		return;
