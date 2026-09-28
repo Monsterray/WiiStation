@@ -119,7 +119,9 @@ run)
 	dir="$RUNS/$name"; mkdir -p "$dir"
 	cp "$dolsrc" "$dir/boot.dol"
 	cp "$insrc" "$dir/autoinput.txt"
-	rm -rf "$dir/card"
+	rm -rf "$dir/card" "$dir/frames"
+	# what the last run under this name collected: a result this run does not produce must not stay behind
+	rm -f "$dir"/*.log "$dir"/vram*.bin "$dir"/vram*.png "$dir"/xfb*.bin "$dir"/*.wav
 	for c in "${cards[@]:-}"; do [ -n "$c" ] && mkdir -p "$dir/card" && cp "$c" "$dir/card/"; done
 	{
 		printf 'gpuPlugin = 2\nFPS = 1\nPadType1 = 1\nPadAutoAssign = 0\n'
