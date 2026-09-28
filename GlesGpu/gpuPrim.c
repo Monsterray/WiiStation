@@ -1775,11 +1775,6 @@ int UploadScreen ( int Position )
          * Evil 3. The cause was opengx sizing 16-bit textures from w*h instead of whole 4x4
          * blocks (gc_gl.c ogx_tex16_bytes), so the tiler overran the buffer; fixed there. */
 
-        // VAGRANT STORY For GX gpu fix
-//        if ((dwActFixes & AUTO_FIX_NO_SWAP_BUF) && (xrUploadArea.x1 - xrUploadArea.x0) == 511 && (xrUploadArea.y1 - xrUploadArea.y0) == 480)
-//        {
-//            canClearFrameBuf = FALSE;
-//        }
     }
 
     iDrawnSomething |= 0x2;
@@ -3139,9 +3134,6 @@ static void primMoveImage ( unsigned char * baseAddr )
 
 static inline BOOL ShouldDoSoftTitleFill(short x0, short y0, short w, short h)
 {
-    //if (!(dwActFixes & AUTO_FIX_NEED_SOFT_TITLE))
-    //    return FALSE;
-
     if (PSXDisplay.RGB24)
         return FALSE;
 
@@ -3255,10 +3247,6 @@ static void primTileS ( unsigned char * baseAddr )
     {
         CheckFullScreenUpload();
     }
-
-    if ( ( dwActFixes & 1 ) &&                            // FF7 special game gix (battle cursor)
-            sprtX == 0 && sprtY == 0 && sprtW == 24 && sprtH == 16 )
-        return;
 
     bDrawTextured = FALSE;
     bDrawSmoothShaded = FALSE;
@@ -4010,16 +3998,6 @@ static void primSprtS ( unsigned char * baseAddr )
         return;
     }
 
-    // TOMB RAIDER For GX gpu fix
-//    if ((dwActFixes & AUTO_FIX_NO_SWAP_BUF) && sprtW == 256 && sprtH == 240)
-//    {
-//        canClearFrameBuf = FALSE;
-//        #if defined(DISP_DEBUG)
-//        sprintf ( txtbuffer, "primSprtS TOMB RAIDER For GX gpu fix\r\n");
-//        writeLogFile(txtbuffer);
-//        #endif // DISP_DEBUG
-//    }
-
     iSpriteTex = 1;
 
 // do texture stuff
@@ -4224,68 +4202,6 @@ static void primPolyF4 ( unsigned char *baseAddr )
 
 static void primPolyG4 ( unsigned char * baseAddr );
 
-BOOL bDrawOffscreenFrontFF9G4 ( void )
-{
-    if ( lx0 < PSXDisplay.DisplayPosition.x ) return FALSE; // must be complete in front
-    if ( lx0 > PSXDisplay.DisplayEnd.x )      return FALSE;
-    if ( ly0 < PSXDisplay.DisplayPosition.y ) return FALSE;
-    if ( ly0 > PSXDisplay.DisplayEnd.y )      return FALSE;
-    if ( lx1 < PSXDisplay.DisplayPosition.x ) return FALSE;
-    if ( lx1 > PSXDisplay.DisplayEnd.x )      return FALSE;
-    if ( ly1 < PSXDisplay.DisplayPosition.y ) return FALSE;
-    if ( ly1 > PSXDisplay.DisplayEnd.y )      return FALSE;
-    if ( lx2 < PSXDisplay.DisplayPosition.x ) return FALSE;
-    if ( lx2 > PSXDisplay.DisplayEnd.x )      return FALSE;
-    if ( ly2 < PSXDisplay.DisplayPosition.y ) return FALSE;
-    if ( ly2 > PSXDisplay.DisplayEnd.y )      return FALSE;
-    if ( lx3 < PSXDisplay.DisplayPosition.x ) return FALSE;
-    if ( lx3 > PSXDisplay.DisplayEnd.x )      return FALSE;
-    if ( ly3 < PSXDisplay.DisplayPosition.y ) return FALSE;
-    if ( ly3 > PSXDisplay.DisplayEnd.y )      return FALSE;
-    return TRUE;
-}
-
-BOOL bCheckFF9G4 ( unsigned char * baseAddr )
-{
-    static unsigned char pFF9G4Cache[32];
-    static int iFF9Fix = 0;
-
-    if ( baseAddr )
-    {
-        if ( iFF9Fix == 0 )
-        {
-            if ( bDrawOffscreenFrontFF9G4() )
-            {
-                short *sgpuData = ( ( short * ) pFF9G4Cache );
-                iFF9Fix = 2;
-                memcpy ( pFF9G4Cache, baseAddr, 32 );
-
-                if ( GETLEs16 ( &sgpuData[2] ) == 142 )
-                {
-                    PUTLE16 ( &sgpuData[2], GETLEs16 ( &sgpuData[2] ) + 65 );
-                    PUTLE16 ( &sgpuData[10], GETLEs16 ( &sgpuData[10] ) + 65 );
-                }
-                return TRUE;
-            }
-            else iFF9Fix = 1;
-        }
-        return FALSE;
-    }
-
-    if ( iFF9Fix == 2 )
-    {
-        int labr = GlobalTextABR;
-        GlobalTextABR = 1;
-        primPolyG4 ( pFF9G4Cache );
-        GlobalTextABR = labr;
-    }
-    iFF9Fix = 0;
-
-    return FALSE;
-}
-
-////////////////////////////////////////////////////////////////////////
-
 static void primPolyG4 ( unsigned char * baseAddr )
 {
     CheckFullScreenUpload();
@@ -4314,8 +4230,6 @@ static void primPolyG4 ( unsigned char * baseAddr )
     /* if(iOffscreenDrawing)
       {
        offsetPSX4();
-
-       if((dwActFixes&512) && bCheckFF9G4(baseAddr)) return;
 
        if(bDrawOffscreen4())
         {
@@ -4565,10 +4479,7 @@ static void primPolyFT3 ( unsigned char * baseAddr )
 
     assignTexture3();
 
-    if ( ! ( dwActFixes & 0x10 ) )
-    {
-        if ( DoLineCheck ( gpuData ) ) return;
-    }
+    if ( DoLineCheck ( gpuData ) ) return;
 
     glPRIMdrawTexturedTri ( &vertex[0] );
 

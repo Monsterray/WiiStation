@@ -1162,8 +1162,7 @@ void PEOPS_GPUwriteData(unsigned long gdata)
 
 void SetFixes(void)
  {
-  if(dwActFixes&0x02) sDispWidths[4]=384;
-  else                sDispWidths[4]=368;
+  sDispWidths[4]=368;
  }
 
 ////////////////////////////////////////////////////////////////////////

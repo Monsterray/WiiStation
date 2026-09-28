@@ -480,7 +480,6 @@ if(bNeedInterlaceUpdate)                              // smaller upload?
   UploadScreen(TRUE);
  }
 
-if (dwActFixes & AUTO_FIX_FF9) bCheckFF9G4(NULL);                 // special game fix for FF9
 
 if(PreviousPSXDisplay.Range.x0||                      // paint black borders around display area, if needed
    PreviousPSXDisplay.Range.y0)
@@ -1317,21 +1316,6 @@ switch(lCommand)
        }
      }
 
-    if(dwActFixes&8)
-     {
-      if((!PSXDisplay.Interlaced) &&
-         PreviousPSXDisplay.DisplayPosition.x == sx  &&
-         PreviousPSXDisplay.DisplayPosition.y == sy)
-       return;
-
-      efb_before_geometry_change();
-
-      PSXDisplay.DisplayPosition.x = PreviousPSXDisplay.DisplayPosition.x;
-      PSXDisplay.DisplayPosition.y = PreviousPSXDisplay.DisplayPosition.y;
-      PreviousPSXDisplay.DisplayPosition.x = sx;
-      PreviousPSXDisplay.DisplayPosition.y = sy;
-     }
-    else
      {
       if((!PSXDisplay.Interlaced) &&
          PSXDisplay.DisplayPosition.x == sx  &&

@@ -97,30 +97,16 @@ static const char * const fractional_Framerate_hack_db[] =
 
 // For special game correction
 
-
-//static const char * const special_game_hack_need_soft_title[] =
-//{
-//    // For GX gpu fix(need software primTitle)
-//    /* BRAVE FENCER MUSASHIDEN */
-//    "SLPS01490", "SLPS01491", "SCPS45291", "SLUS00726", "SLUS90029",
-//    /* VAGRANT STORY */
-//    "SLPS02377", "SCPS45486", "SLPS91457", "SLPM87393", "SLUS01040",
-//    /* PRO PINBALL - TIMESHOCK! */
-//    "SLUS00639", "SLES00606",
-//};
-
-
-
-
 /* GPU fixes by game. Config.hacks.dwActFixes gets the flags of the running game's ID
  * (database.h AUTO_FIX_*); the GPU plugins read them. To add a per-game fix: a line
  * here with the game's IDs, and a flag in database.h if none fits. */
 static const struct { const char *id; unsigned int fixes; } gpu_game_fixes[] =
 {
-    /* Star Wars - Dark Forces */
-    { "SLUS00297", AUTO_FIX_GPU_BUSY }, { "SLPS00685", AUTO_FIX_GPU_BUSY },
-    { "SLES00585", AUTO_FIX_GPU_BUSY }, { "SLES00640", AUTO_FIX_GPU_BUSY },
-    { "SLES00646", AUTO_FIX_GPU_BUSY },
+    /* Star Wars - Dark Forces: the busy status in OpenGX, the flat-textured triangle path in
+     * the soft GPU (both were one bit) */
+    { "SLUS00297", AUTO_FIX_GPU_BUSY | AUTO_FIX_FLAT_TEX_WRAP }, { "SLPS00685", AUTO_FIX_GPU_BUSY | AUTO_FIX_FLAT_TEX_WRAP },
+    { "SLES00585", AUTO_FIX_GPU_BUSY | AUTO_FIX_FLAT_TEX_WRAP }, { "SLES00640", AUTO_FIX_GPU_BUSY | AUTO_FIX_FLAT_TEX_WRAP },
+    { "SLES00646", AUTO_FIX_GPU_BUSY | AUTO_FIX_FLAT_TEX_WRAP },
     /* Dino Crisis2 */
     { "SLUS01279", AUTO_FIX_DINO_CRISIS2 | AUTO_FIX_VRAM_READBACK },
     { "SLPM86627", AUTO_FIX_DINO_CRISIS2 | AUTO_FIX_VRAM_READBACK },
@@ -136,34 +122,12 @@ static const struct { const char *id; unsigned int fixes; } gpu_game_fixes[] =
     { "SLPS02777", AUTO_FIX_CHRONO_CROSS }, { "SLPS02778", AUTO_FIX_CHRONO_CROSS },
     { "SLPM87395", AUTO_FIX_CHRONO_CROSS }, { "SLPM87396", AUTO_FIX_CHRONO_CROSS },
     { "SLUS01041", AUTO_FIX_CHRONO_CROSS }, { "SLUS01080", AUTO_FIX_CHRONO_CROSS },
-    /* TOMB RAIDER */
-    { "SLUS00152", AUTO_FIX_NO_SWAP_BUF }, { "SLUS00437", AUTO_FIX_NO_SWAP_BUF },
-    { "SLUS00691", AUTO_FIX_NO_SWAP_BUF }, { "SLUS00885", AUTO_FIX_NO_SWAP_BUF },
-    { "SLUS01311", AUTO_FIX_NO_SWAP_BUF }, { "SLES00024", AUTO_FIX_NO_SWAP_BUF },
-    { "SLES00485", AUTO_FIX_NO_SWAP_BUF }, { "SLES00486", AUTO_FIX_NO_SWAP_BUF },
-    { "SLES00718", AUTO_FIX_NO_SWAP_BUF }, { "SLES00719", AUTO_FIX_NO_SWAP_BUF },
-    { "SLES00720", AUTO_FIX_NO_SWAP_BUF }, { "SLES00107", AUTO_FIX_NO_SWAP_BUF },
-    { "SLES01649", AUTO_FIX_NO_SWAP_BUF }, { "SLES01682", AUTO_FIX_NO_SWAP_BUF },
-    { "SLES01683", AUTO_FIX_NO_SWAP_BUF }, { "SLES01684", AUTO_FIX_NO_SWAP_BUF },
-    { "SLES01685", AUTO_FIX_NO_SWAP_BUF }, { "SLES02238", AUTO_FIX_NO_SWAP_BUF },
-    { "SLES02239", AUTO_FIX_NO_SWAP_BUF }, { "SLES02240", AUTO_FIX_NO_SWAP_BUF },
-    { "SLES02241", AUTO_FIX_NO_SWAP_BUF }, { "SLES02242", AUTO_FIX_NO_SWAP_BUF },
-    { "SLES03331", AUTO_FIX_NO_SWAP_BUF }, { "SLES03333", AUTO_FIX_NO_SWAP_BUF },
-    { "SLES03334", AUTO_FIX_NO_SWAP_BUF }, { "SLES03335", AUTO_FIX_NO_SWAP_BUF },
-    { "SLES03336", AUTO_FIX_NO_SWAP_BUF }, { "SLPS00617", AUTO_FIX_NO_SWAP_BUF },
-    { "SLPS91049", AUTO_FIX_NO_SWAP_BUF }, { "SLPS91433", AUTO_FIX_NO_SWAP_BUF },
-    { "SLPS01200", AUTO_FIX_NO_SWAP_BUF }, { "SLPS91119", AUTO_FIX_NO_SWAP_BUF },
-    { "SLPS91434", AUTO_FIX_NO_SWAP_BUF }, { "SCPS45385", AUTO_FIX_NO_SWAP_BUF },
-    { "SCPS45386", AUTO_FIX_NO_SWAP_BUF }, { "SLPM86196", AUTO_FIX_NO_SWAP_BUF },
-    { "SLPM86197", AUTO_FIX_NO_SWAP_BUF }, { "SLPS02803", AUTO_FIX_NO_SWAP_BUF },
-    { "SLPM86896", AUTO_FIX_NO_SWAP_BUF }, { "SLPM86779", AUTO_FIX_NO_SWAP_BUF },
-    { "SLPM87160", AUTO_FIX_NO_SWAP_BUF },
     /* VAGRANT STORY */
-    { "SLPS02377", AUTO_FIX_NO_SWAP_BUF | AUTO_FIX_VRAM_READBACK },
-    { "SCPS45486", AUTO_FIX_NO_SWAP_BUF | AUTO_FIX_VRAM_READBACK },
-    { "SLPS91457", AUTO_FIX_NO_SWAP_BUF | AUTO_FIX_VRAM_READBACK },
-    { "SLPM87393", AUTO_FIX_NO_SWAP_BUF | AUTO_FIX_VRAM_READBACK },
-    { "SLUS01040", AUTO_FIX_NO_SWAP_BUF | AUTO_FIX_VRAM_READBACK },
+    { "SLPS02377", AUTO_FIX_VRAM_READBACK },
+    { "SCPS45486", AUTO_FIX_VRAM_READBACK },
+    { "SLPS91457", AUTO_FIX_VRAM_READBACK },
+    { "SLPM87393", AUTO_FIX_VRAM_READBACK },
+    { "SLUS01040", AUTO_FIX_VRAM_READBACK },
     /* Spyro the Dragon: the pause screen reads the frame back (GP0 C0) and redraws it
      * tinted; without the frame only its green fill shows. And */
     { "SCUS94228", AUTO_FIX_VRAM_READBACK }, { "SCES01438", AUTO_FIX_VRAM_READBACK },
@@ -322,16 +286,31 @@ void Apply_Hacks_Cdrom()
         }
     }
 
-    /* Apply Memory card hack for Codename Tenka. (The game needs one of the memory card slots to be empty) */
-    for (i = 0; i < ARRAY_SIZE(MemorycardHack_db); i++)
+    /* Apply Memory card hack for Codename Tenka. (The game needs one of the memory card slots to be empty)
+     * It is undone for the next game: it used to stay, so card 2 was off for every game
+     * started after Tenka until the Wii was restarted. */
     {
-        if (strncmp(CdromId, MemorycardHack_db[i], 9) == 0)
+        static int mcd_hack_on;
+        static char mcd2_saved;
+
+        if (mcd_hack_on)
         {
-            /* Disable the second memory card slot for the game */
-            Config.Mcd2[0] = 0;
-            /* This also needs to be done because in sio.c, they don't use Config.Mcd2 for that purpose */
-            McdDisable[1] = 1;
-            break;
+            Config.Mcd2[0] = mcd2_saved;
+            McdDisable[1] = 0;
+            mcd_hack_on = 0;
+        }
+        for (i = 0; i < ARRAY_SIZE(MemorycardHack_db); i++)
+        {
+            if (strncmp(CdromId, MemorycardHack_db[i], 9) == 0)
+            {
+                /* Disable the second memory card slot for the game */
+                mcd2_saved = Config.Mcd2[0];
+                Config.Mcd2[0] = 0;
+                /* This also needs to be done because in sio.c, they don't use Config.Mcd2 for that purpose */
+                McdDisable[1] = 1;
+                mcd_hack_on = 1;
+                break;
+            }
         }
     }
 

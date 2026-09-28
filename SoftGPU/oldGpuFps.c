@@ -87,7 +87,6 @@ void OldGpuCheckFrameRate(void)
 #endif
  if(UseFrameSkip)                                      // skipping mode?
   {
-   if(!(dwActFixes&0x80))                              // not old skipping mode?
     {
      dwLaceCnt++;                                      // -> store cnt of vsync between frames
      if(dwLaceCnt>=MAXLACE && UseFrameLimit)           // -> if there are many laces without screen toggling,
@@ -96,11 +95,6 @@ void OldGpuCheckFrameRate(void)
 
        FrameCap();
       }
-    }
-   else
-   if(UseFrameLimit)
-    {
-     FrameCap();
     }
    calcfps();                                          // -> calc fps display in skipping mode
   }
@@ -148,11 +142,11 @@ extern int newDwFrameRateTicks;
  * against a core that emulates 60.00 Hz vblanks: emulated time ran 0.26 % slower than the
  * wall clock by construction, and the sound output had to absorb that as a permanent
  * rate offset, more than half of the +-0.5 % the rate control has. The user-set limit
- * (iFrameLimit == 1) and the odd/even-frame fix (dwActFixes & 32) keep their own rates. */
+ * (iFrameLimit == 1) keeps its own rate. */
 static unsigned long framecap_period256(void)
 {
  double hz = fFrameRateHz;
- if (iFrameLimit == 2 && !(dwActFixes & 32))
+ if (iFrameLimit == 2)
   {
    double emu = psxGetFps();
    if (emu > 1.0) hz = emu;
@@ -399,13 +393,6 @@ void SetAutoFrameCap(void)
    return;
   }
 
- if(dwActFixes&32)
-  {
-   if (PSXDisplay.Interlaced)
-        fFrameRateHz = PSXDisplay.PAL?50.0f:60.0f;
-   else fFrameRateHz = PSXDisplay.PAL?25.0f:30.0f;
-  }
- else
   {
    //fFrameRateHz = PSXDisplay.PAL?50.0f:59.94f;
    if(PSXDisplay.PAL)

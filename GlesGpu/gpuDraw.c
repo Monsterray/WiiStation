@@ -183,16 +183,7 @@ void SetExtGLFuncs(void)
 
  if(bOpaquePass)                                        // opaque mode?
   {
-   if(dwActFixes&32)
-    {
-     TCF[0]=CP8RGBA_0;
-     //PalTexturedColourFn=CP8RGBA;                      // -> init col func
-    }
-   else
-    {
-     TCF[0]=XP8RGBA_0;
-     //PalTexturedColourFn=XP8RGBA;                      // -> init col func
-    }
+   TCF[0]=XP8RGBA_0;
 
    TCF[1]=XP8RGBA_1;
    glAlphaFunc(GL_GREATER,0.49f); glError();
@@ -720,7 +711,6 @@ BOOL offsetline(void)
  if(bDisplayNotSet)
   SetOGLDisplaySettings(1);
 
- if(!(dwActFixes&16))
   {
    lx0=(short)(((int)lx0<<SIGNSHIFT)>>SIGNSHIFT);
    lx1=(short)(((int)lx1<<SIGNSHIFT)>>SIGNSHIFT);
@@ -815,7 +805,6 @@ BOOL offset2(void)
  if(bDisplayNotSet)
   SetOGLDisplaySettings(1);
 
- if(!(dwActFixes&16))
   {
    lx0=(short)(((int)lx0<<SIGNSHIFT)>>SIGNSHIFT);
    lx1=(short)(((int)lx1<<SIGNSHIFT)>>SIGNSHIFT);
@@ -840,7 +829,6 @@ BOOL offset3(void)
  if(bDisplayNotSet)
   SetOGLDisplaySettings(1);
 
- if(!(dwActFixes&16))
   {
    lx0=(short)(((int)lx0<<SIGNSHIFT)>>SIGNSHIFT);
    lx1=(short)(((int)lx1<<SIGNSHIFT)>>SIGNSHIFT);
@@ -869,7 +857,6 @@ BOOL offset4(void)
  if(bDisplayNotSet)
   SetOGLDisplaySettings(1);
 
- if(!(dwActFixes&16))
   {
    lx0=(short)(((int)lx0<<SIGNSHIFT)>>SIGNSHIFT);
    lx1=(short)(((int)lx1<<SIGNSHIFT)>>SIGNSHIFT);
@@ -902,7 +889,6 @@ void offsetST(void)
  if(bDisplayNotSet)
   SetOGLDisplaySettings(1);
 
- if(!(dwActFixes&16))
   {
    lx0=(short)(((int)lx0<<SIGNSHIFT)>>SIGNSHIFT);
    ly0=(short)(((int)ly0<<SIGNSHIFT)>>SIGNSHIFT);

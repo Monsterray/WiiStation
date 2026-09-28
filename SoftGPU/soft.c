@@ -6651,7 +6651,7 @@ static void drawPoly3FT(unsigned char * baseAddr)
 {
  uint32_t *gpuData = ((uint32_t *) baseAddr);
 
- if(!bUsingTWin && !(dwActFixes&AUTO_FIX_GPU_BUSY))
+ if(!bUsingTWin && !(dwActFixes&AUTO_FIX_FLAT_TEX_WRAP))
   {
    switch(GlobalTextTP)   // depending on texture mode
     {

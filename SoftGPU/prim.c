@@ -78,9 +78,6 @@ static inline void SetRenderMode(uint32_t DrawAttributes)
   {g_m1=g_m2=g_m3=128;}
  else
   {
-   if((dwActFixes&4) && ((DrawAttributes&0x00ffffff)==0))
-    DrawAttributes|=0x007f7f7f;
-
    g_m1=(short)(DrawAttributes&0xff);
    g_m2=(short)((DrawAttributes>>8)&0xff);
    g_m3=(short)((DrawAttributes>>16)&0xff);
@@ -628,7 +625,7 @@ static void primTileS(unsigned char * baseAddr)
  lx0 = GETLEs16(&sgpuData[2]);
  ly0 = GETLEs16(&sgpuData[3]);
 
- if(!(dwActFixes&8)) AdjustCoord1();
+ AdjustCoord1();
 
  // x and y of start
  ly2 = ly3 = ly0+sH +PSXDisplay.DrawOffset.y;
@@ -658,7 +655,7 @@ static void primTile1(unsigned char * baseAddr)
  lx0 = GETLEs16(&sgpuData[2]);
  ly0 = GETLEs16(&sgpuData[3]);
 
- if(!(dwActFixes&8)) AdjustCoord1();
+ AdjustCoord1();
 
  // x and y of start
  ly2 = ly3 = ly0+sH +PSXDisplay.DrawOffset.y;
@@ -688,7 +685,7 @@ static void primTile8(unsigned char * baseAddr)
  lx0 = GETLEs16(&sgpuData[2]);
  ly0 = GETLEs16(&sgpuData[3]);
 
- if(!(dwActFixes&8)) AdjustCoord1();
+ AdjustCoord1();
 
  // x and y of start
  ly2 = ly3 = ly0+sH +PSXDisplay.DrawOffset.y;
@@ -718,7 +715,7 @@ static void primTile16(unsigned char * baseAddr)
  lx0 = GETLEs16(&sgpuData[2]);
  ly0 = GETLEs16(&sgpuData[3]);
 
- if(!(dwActFixes&8)) AdjustCoord1();
+ AdjustCoord1();
 
  // x and y of start
  ly2 = ly3 = ly0+sH +PSXDisplay.DrawOffset.y;
@@ -746,7 +743,7 @@ static void primSprt8(unsigned char * baseAddr)
  lx0 = GETLEs16(&sgpuData[2]);
  ly0 = GETLEs16(&sgpuData[3]);
 
- if(!(dwActFixes&8)) AdjustCoord1();
+ AdjustCoord1();
 
  SetRenderMode(GETLE32(&gpuData[0]));
 
@@ -772,7 +769,7 @@ static void primSprt16(unsigned char * baseAddr)
  lx0 = GETLEs16(&sgpuData[2]);
  ly0 = GETLEs16(&sgpuData[3]);
 
- if(!(dwActFixes&8)) AdjustCoord1();
+ AdjustCoord1();
 
  SetRenderMode(GETLE32(&gpuData[0]));
 
@@ -861,7 +858,7 @@ static void primSprtSRest(unsigned char * baseAddr,unsigned short type)
  lx0 = sX;
  ly0 = sY;
 
- if(!(dwActFixes&8)) AdjustCoord1();
+ AdjustCoord1();
 
  DrawSoftwareSprite(baseAddr,sW,sH,tX,tY);
 
@@ -885,7 +882,7 @@ static void primSprtS(unsigned char * baseAddr)
  lx0 = GETLEs16(&sgpuData[2]);
  ly0 = GETLEs16(&sgpuData[3]);
 
- if(!(dwActFixes&8)) AdjustCoord1();
+ AdjustCoord1();
 
  sW = GETLEs16(&sgpuData[6]) & 0x3ff;
  sH = GETLEs16(&sgpuData[7]) & 0x1ff;
@@ -936,7 +933,6 @@ static void primPolyF4(unsigned char *baseAddr)
  lx3 = GETLEs16(&sgpuData[8]);
  ly3 = GETLEs16(&sgpuData[9]);
 
- if(!(dwActFixes&8))
   {
    AdjustCoord4();
    if(CheckCoord4()) return;
@@ -968,7 +964,6 @@ static void primPolyG4(unsigned char * baseAddr)
  lx3 = GETLEs16(&sgpuData[14]);
  ly3 = GETLEs16(&sgpuData[15]);
 
- if(!(dwActFixes&8))
   {
    AdjustCoord4();
    if(CheckCoord4()) return;
@@ -1002,7 +997,6 @@ static void primPolyFT3(unsigned char * baseAddr)
  lLowerpart=GETLE32(&gpuData[4])>>16;
  UpdateGlobalTP((unsigned short)lLowerpart);
 
- if(!(dwActFixes&8))
   {
    AdjustCoord3();
    if(CheckCoord3()) return;
@@ -1037,7 +1031,6 @@ static void primPolyFT4(unsigned char * baseAddr)
  lLowerpart=GETLE32(&gpuData[4])>>16;
  UpdateGlobalTP((unsigned short)lLowerpart);
 
- if(!(dwActFixes&8))
   {
    AdjustCoord4();
    if(CheckCoord4()) return;
@@ -1071,7 +1064,6 @@ static void primPolyGT3(unsigned char *baseAddr)
  lLowerpart=GETLE32(&gpuData[5])>>16;
  UpdateGlobalTP((unsigned short)lLowerpart);
 
- if(!(dwActFixes&8))
   {
    AdjustCoord3();
    if(CheckCoord3()) return;
@@ -1108,7 +1100,6 @@ static void primPolyG3(unsigned char *baseAddr)
  lx2 = GETLEs16(&sgpuData[10]);
  ly2 = GETLEs16(&sgpuData[11]);
 
- if(!(dwActFixes&8))
   {
    AdjustCoord3();
    if(CheckCoord3()) return;
@@ -1143,7 +1134,6 @@ static void primPolyGT4(unsigned char *baseAddr)
  lLowerpart=GETLE32(&gpuData[5])>>16;
  UpdateGlobalTP((unsigned short)lLowerpart);
 
- if(!(dwActFixes&8))
   {
    AdjustCoord4();
    if(CheckCoord4()) return;
@@ -1181,7 +1171,6 @@ static void primPolyF3(unsigned char *baseAddr)
  lx2 = GETLEs16(&sgpuData[6]);
  ly2 = GETLEs16(&sgpuData[7]);
 
- if(!(dwActFixes&8))
   {
    AdjustCoord3();
    if(CheckCoord3()) return;
@@ -1231,7 +1220,6 @@ static void primLineGEx(unsigned char *baseAddr)
  sly1 = (short)((GETLE32(&gpuData[1])>>16) & 0xffff);
  slx1 = (short)(GETLE32(&gpuData[1]) & 0xffff);
 
- if(!(dwActFixes&8))
   {
    slx1=(short)(((int)slx1<<SIGNSHIFT)>>SIGNSHIFT);
    sly1=(short)(((int)sly1<<SIGNSHIFT)>>SIGNSHIFT);
@@ -1254,7 +1242,6 @@ static void primLineGEx(unsigned char *baseAddr)
    sly1 = (short)((GETLE32(&gpuData[i])>>16) & 0xffff);
    slx1 = (short)(GETLE32(&gpuData[i]) & 0xffff);
 
-   if(!(dwActFixes&8))
     {
      slx1=(short)(((int)slx1<<SIGNSHIFT)>>SIGNSHIFT);
      sly1=(short)(((int)sly1<<SIGNSHIFT)>>SIGNSHIFT);
@@ -1292,7 +1279,6 @@ static void primLineG2(unsigned char *baseAddr)
  lx1 = GETLEs16(&sgpuData[6]);
  ly1 = GETLEs16(&sgpuData[7]);
 
- if(!(dwActFixes&8))
   {
    AdjustCoord2();
    if(CheckCoord2()) return;
@@ -1341,7 +1327,6 @@ static void primLineFEx(unsigned char *baseAddr)
 
  sly1 = (short)((GETLE32(&gpuData[1])>>16) & 0xffff);
  slx1 = (short)(GETLE32(&gpuData[1]) & 0xffff);
- if(!(dwActFixes&8))
   {
    slx1=(short)(((int)slx1<<SIGNSHIFT)>>SIGNSHIFT);
    sly1=(short)(((int)sly1<<SIGNSHIFT)>>SIGNSHIFT);
@@ -1354,7 +1339,6 @@ static void primLineFEx(unsigned char *baseAddr)
    sly0 = sly1;slx0=slx1;
    sly1 = (short)((GETLE32(&gpuData[i])>>16) & 0xffff);
    slx1 = (short)(GETLE32(&gpuData[i]) & 0xffff);
-   if(!(dwActFixes&8))
     {
      slx1=(short)(((int)slx1<<SIGNSHIFT)>>SIGNSHIFT);
      sly1=(short)(((int)sly1<<SIGNSHIFT)>>SIGNSHIFT);
@@ -1390,7 +1374,6 @@ static void primLineF2(unsigned char *baseAddr)
  lx1 = GETLEs16(&sgpuData[4]);
  ly1 = GETLEs16(&sgpuData[5]);
 
- if(!(dwActFixes&8))
   {
    AdjustCoord2();
    if(CheckCoord2()) return;

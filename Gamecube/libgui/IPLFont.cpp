@@ -441,8 +441,13 @@ void IplFont::drawString(int x, int y, char *string, float scale, bool centered)
     /* All printable ASCII: one texture load, then one GX_Begin for the whole string (the
      * load stays outside Begin/End: AGENTS.md). Anything else, such as CJK text, takes the
      * glyph-by-glyph path below. */
+    /* control characters (the debug overlay's lines end in 
+) are not in the font: the
+     * glyph path draws them as the blank glyph, and so does the atlas, from the space cell */
     int n = 0;
-    while (atlas != NULL && utf8Txt[n] >= ATLAS_FIRST && utf8Txt[n] <= ATLAS_LAST)
+    while (atlas != NULL && utf8Txt[n] &&
+           ((utf8Txt[n] >= ATLAS_FIRST && utf8Txt[n] <= ATLAS_LAST) ||
+            (utf8Txt[n] < ATLAS_FIRST && charPngBufMap.find(utf8Txt[n]) == charPngBufMap.end())))
         n++;
     if (atlas != NULL && utf8Txt[n] == 0)
     {
@@ -454,7 +459,7 @@ void IplFont::drawString(int x, int y, char *string, float scale, bool centered)
             GX_Begin(GX_QUADS, GX_VTXFMT1, 4 * n);
             for (int k = 0; k < n; k++)
             {
-                int slot = utf8Txt[k] - ATLAS_FIRST;
+                int slot = utf8Txt[k] < ATLAS_FIRST ? 0 : utf8Txt[k] - ATLAS_FIRST;
                 float u0 = (float)((slot % ATLAS_COLS) * ATLAS_CELL + ATLAS_PAD) / ATLAS_W;
                 float v0 = (float)((slot / ATLAS_COLS) * ATLAS_CELL + ATLAS_PAD) / ATLAS_H;
                 float u1 = u0 + (float)CH_FONT_WIDTH / ATLAS_W, v1 = v0 + (float)CH_FONT_HEIGHT / ATLAS_H;
