@@ -938,6 +938,13 @@ void psxHLE() {
     } else {
         psxHLEt[hleCode]();
     }
+    /* An HLE trap moves the PC (back to ra, or into a handler) like a taken branch, so
+     * it ends the block. psxbios.c runs an exception's handlers as soft calls:
+     * ExecuteBlock() until the PC is SOFTCALL_END (0xbfc01000). Without this the block
+     * ran on through that address into the BIOS ROM's printf on the handler's stack,
+     * which returned to address 0: the interpreter core never got past a game's first
+     * interrupt (black screen at 0 fps). Lightrec ends its block at every HLE exit. */
+    branch2 = 1;
 }
 
 void (*psxBSC[64])() = {
@@ -1006,9 +1013,58 @@ static void intReset() {
 	psxRegs.ICache_valid = FALSE;
 }
 
+#ifdef PERF_PROF
+/* The last 4096 PCs and their sp, written once to sd:/wiisxrx/pcring.log the first time the PC leaves
+ * the places code can be (RAM, the BIOS ROM): how the interpreter got to address 0. */
+static u32 pcring[4096], pcsp[4096], pcra[4096], pcring_n;
+static int pcring_done;
+static void pcring_add(u32 pc)
+{
+	u32 seg = pc >> 24, off = pc & 0x1fffffff;
+	pcsp[pcring_n & 4095] = psxRegs.GPR.n.sp;
+	pcra[pcring_n & 4095] = psxRegs.GPR.n.ra;
+	pcring[pcring_n++ & 4095] = pc;
+	/* code lives in RAM from the exception vector (0x80) up, or in the BIOS ROM */
+	if (pcring_done || ((seg == 0x00 || seg == 0x80 || seg == 0xa0 || seg == 0x9f || seg == 0xbf) &&
+	    ((off >= 0x80 && off < 0x200000) || (off >= 0x1fc00000 && off < 0x1fc80000))))
+		return;
+	{
+		FILE *f = fopen("sd:/wiisxrx/pcring.log", "w");
+		u32 i;
+		pcring_done = 1;
+		if (!f)
+			return;
+		fprintf(f, "PC left code at %08lx, cycle %lu; the 4096 PCs before (pc sp ra), oldest first:\n",
+			(unsigned long)pc, (unsigned long)psxRegs.cycle);
+		for (i = pcring_n > 4096 ? pcring_n - 4096 : 0; i < pcring_n; i++)
+			fprintf(f, "%08lx %08lx %08lx\n", (unsigned long)pcring[i & 4095], (unsigned long)pcsp[i & 4095],
+				(unsigned long)pcra[i & 4095]);
+		fprintf(f, "ra=%08lx sp=%08lx sr=%08lx epc=%08lx cause=%08lx\n",
+			(unsigned long)psxRegs.GPR.n.ra, (unsigned long)psxRegs.GPR.n.sp,
+			(unsigned long)psxRegs.CP0.n.SR, (unsigned long)psxRegs.CP0.n.EPC,
+			(unsigned long)psxRegs.CP0.n.Cause);
+		{   /* the memory tables for page 0, and the stack a returning function read */
+			u32 base = (psxRegs.GPR.n.sp - 0x230) & 0x1ffffc, k;
+			fprintf(f, "psxM=%p RLUT[0]=%p WLUT[0]=%p RLUT[8000]=%p WLUT[8000]=%p\n",
+				(void *)psxM, (void *)psxMemRLUT[0], (void *)psxMemWLUT[0],
+				(void *)psxMemRLUT[0x8000], (void *)psxMemWLUT[0x8000]);
+			fprintf(f, "stack at %06lx:", (unsigned long)base);
+			for (k = 0; k < 24; k++)
+				fprintf(f, " %08lx", (unsigned long)SWAP32(*(u32 *)(psxM + base + k * 4)));
+			fprintf(f, "\n");
+		}
+		fclose(f);
+	}
+}
+#else
+#define pcring_add(pc) ((void)0)
+#endif
+
 // interpreter execution
 static void execI() {
-	u32 *code = Read_ICache(psxRegs.pc, FALSE);
+	u32 *code;
+	pcring_add(psxRegs.pc);
+	code = Read_ICache(psxRegs.pc, FALSE);
 	psxRegs.code = ((code == NULL) ? 0 : SWAP32(*code));
 
 	debugI();
