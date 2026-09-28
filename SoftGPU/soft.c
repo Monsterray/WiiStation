@@ -834,6 +834,77 @@ static inline void GetTextureTransColGX_Dither(unsigned short * pdest,unsigned s
 
 ////////////////////////////////////////////////////////////////////////
 
+// GetTextureTransColGX_Dither with semi-transparency on and no mask test, the blend mode and
+// set mask passed in (read once per polygon, like GetTextureTransColGX_DitherO)
+static inline void GetTextureTransColGX_DitherS(unsigned short * pdest,unsigned short color,int32_t m1,int32_t m2,int32_t m3,int abr,unsigned short sM)
+{
+ int32_t r,g,b;
+
+ if(color==0) return;
+
+ m1=(((XCOL1D(color)))*m1)>>4;
+ m2=(((XCOL2D(color)))*m2)>>4;
+ m3=(((XCOL3D(color)))*m3)>>4;
+
+ if(color&0x8000)
+  {
+   r=((XCOL1D(GETLE16(pdest)))<<3);
+   b=((XCOL2D(GETLE16(pdest)))<<3);
+   g=((XCOL3D(GETLE16(pdest)))<<3);
+
+   if(abr==0)
+    {
+     r=(r>>1)+(m1>>1);
+     b=(b>>1)+(m2>>1);
+     g=(g>>1)+(m3>>1);
+    }
+   else
+   if(abr==1)
+    {
+     r+=m1;
+     b+=m2;
+     g+=m3;
+    }
+   else
+   if(abr==2)
+    {
+     r-=m1;
+     b-=m2;
+     g-=m3;
+     if(r&0x80000000) r=0;
+     if(b&0x80000000) b=0;
+     if(g&0x80000000) g=0;
+    }
+   else
+    {
+#ifdef HALFBRIGHTMODE3
+     r+=(m1>>2);
+     b+=(m2>>2);
+     g+=(m3>>2);
+#else
+     r+=(m1>>1);
+     b+=(m2>>1);
+     g+=(m3>>1);
+#endif
+    }
+  }
+ else
+  {
+   r=m1;
+   b=m2;
+   g=m3;
+  }
+
+ if(r&0x7FFFFF00) r=0xff;
+ if(b&0x7FFFFF00) b=0xff;
+ if(g&0x7FFFFF00) g=0xff;
+
+ Dither16(pdest,r,b,g,sM|(color&0x8000));
+
+}
+
+////////////////////////////////////////////////////////////////////////
+
 // GetTextureTransColGX_Dither without semi-transparency or the mask test, with the set
 // mask passed in: the span loops read the globals once per polygon, not per pixel (each
 // pixel store has a memory clobber, so the compiler reloads every global after it)
@@ -5072,6 +5143,8 @@ static void drawPoly3TGEx4(short x1, short y1, short x2, short y2, short x3, sho
 #endif
 
  const BOOL fastD=iDither && !bCheckMask && !DrawSemiTrans;
+ const BOOL semiD=iDither && !bCheckMask && DrawSemiTrans;
+ const int abr=GlobalTextABR;
  const unsigned short sM=sSetMask;
  for (i=ymin;i<=ymax;i++)
   {
@@ -5102,6 +5175,10 @@ static void drawPoly3TGEx4(short x1, short y1, short x2, short y2, short x3, sho
         GetTextureTransColGX_DitherO(&psxVuw[(i<<10)+j],
             GETLE16(&psxVuw[clutP+tC1]),
             (cB1>>16),(cG1>>16),(cR1>>16),sM);
+       else if(semiD)
+        GetTextureTransColGX_DitherS(&psxVuw[(i<<10)+j],
+            GETLE16(&psxVuw[clutP+tC1]),
+            (cB1>>16),(cG1>>16),(cR1>>16),abr,sM);
        else if(iDither)
         GetTextureTransColGX_Dither(&psxVuw[(i<<10)+j],
             GETLE16(&psxVuw[clutP+tC1]),
@@ -5232,6 +5309,8 @@ static void drawPoly3TGEx4_TW(short x1, short y1, short x2, short y2, short x3, 
 #endif
 
  const BOOL fastD=iDither && !bCheckMask && !DrawSemiTrans;
+ const BOOL semiD=iDither && !bCheckMask && DrawSemiTrans;
+ const int abr=GlobalTextABR;
  const unsigned short sM=sSetMask;
  for (i=ymin;i<=ymax;i++)
   {
@@ -5263,6 +5342,10 @@ static void drawPoly3TGEx4_TW(short x1, short y1, short x2, short y2, short x3, 
         GetTextureTransColGX_DitherO(&psxVuw[(i<<10)+j],
             GETLE16(&psxVuw[clutP+tC1]),
             (cB1>>16),(cG1>>16),(cR1>>16),sM);
+       else if(semiD)
+        GetTextureTransColGX_DitherS(&psxVuw[(i<<10)+j],
+            GETLE16(&psxVuw[clutP+tC1]),
+            (cB1>>16),(cG1>>16),(cR1>>16),abr,sM);
        else if(iDither)
         GetTextureTransColGX_Dither(&psxVuw[(i<<10)+j],
             GETLE16(&psxVuw[clutP+tC1]),
@@ -5425,6 +5508,8 @@ static void drawPoly4TGEx4(short x1, short y1, short x2, short y2, short x3, sho
 #endif
 
  const BOOL fastD=iDither && !bCheckMask && !DrawSemiTrans;
+ const BOOL semiD=iDither && !bCheckMask && DrawSemiTrans;
+ const int abr=GlobalTextABR;
  const unsigned short sM=sSetMask;
  for (i=ymin;i<=ymax;i++)
   {
@@ -5470,6 +5555,10 @@ static void drawPoly4TGEx4(short x1, short y1, short x2, short y2, short x3, sho
         GetTextureTransColGX_DitherO(&psxVuw[(i<<10)+j],
            GETLE16(&psxVuw[clutP+tC1]),
            (cB1>>16),(cG1>>16),(cR1>>16),sM);
+       else if(semiD)
+        GetTextureTransColGX_DitherS(&psxVuw[(i<<10)+j],
+           GETLE16(&psxVuw[clutP+tC1]),
+           (cB1>>16),(cG1>>16),(cR1>>16),abr,sM);
        else if(iDither)
         GetTextureTransColGX_Dither(&psxVuw[(i<<10)+j],
            GETLE16(&psxVuw[clutP+tC1]),
@@ -5607,6 +5696,8 @@ static void drawPoly3TGEx8(short x1, short y1, short x2, short y2, short x3, sho
 #endif
 
  const BOOL fastD=iDither && !bCheckMask && !DrawSemiTrans;
+ const BOOL semiD=iDither && !bCheckMask && DrawSemiTrans;
+ const int abr=GlobalTextABR;
  const unsigned short sM=sSetMask;
  for (i=ymin;i<=ymax;i++)
   {
@@ -5635,6 +5726,10 @@ static void drawPoly3TGEx8(short x1, short y1, short x2, short y2, short x3, sho
         GetTextureTransColGX_DitherO(&psxVuw[(i<<10)+j],
             GETLE16(&psxVuw[clutP+tC1]),
             (cB1>>16),(cG1>>16),(cR1>>16),sM);
+       else if(semiD)
+        GetTextureTransColGX_DitherS(&psxVuw[(i<<10)+j],
+            GETLE16(&psxVuw[clutP+tC1]),
+            (cB1>>16),(cG1>>16),(cR1>>16),abr,sM);
        else if(iDither)
         GetTextureTransColGX_Dither(&psxVuw[(i<<10)+j],
             GETLE16(&psxVuw[clutP+tC1]),
@@ -5759,6 +5854,8 @@ static void drawPoly3TGEx8_TW(short x1, short y1, short x2, short y2, short x3, 
 #endif
 
  const BOOL fastD=iDither && !bCheckMask && !DrawSemiTrans;
+ const BOOL semiD=iDither && !bCheckMask && DrawSemiTrans;
+ const int abr=GlobalTextABR;
  const unsigned short sM=sSetMask;
  for (i=ymin;i<=ymax;i++)
   {
@@ -5788,6 +5885,10 @@ static void drawPoly3TGEx8_TW(short x1, short y1, short x2, short y2, short x3, 
         GetTextureTransColGX_DitherO(&psxVuw[(i<<10)+j],
             GETLE16(&psxVuw[clutP+tC1]),
             (cB1>>16),(cG1>>16),(cR1>>16),sM);
+       else if(semiD)
+        GetTextureTransColGX_DitherS(&psxVuw[(i<<10)+j],
+            GETLE16(&psxVuw[clutP+tC1]),
+            (cB1>>16),(cG1>>16),(cR1>>16),abr,sM);
        else if(iDither)
         GetTextureTransColGX_Dither(&psxVuw[(i<<10)+j],
             GETLE16(&psxVuw[clutP+tC1]),
@@ -5936,6 +6037,8 @@ static void drawPoly4TGEx8(short x1, short y1, short x2, short y2, short x3, sho
 #endif
 
  const BOOL fastD=iDither && !bCheckMask && !DrawSemiTrans;
+ const BOOL semiD=iDither && !bCheckMask && DrawSemiTrans;
+ const int abr=GlobalTextABR;
  const unsigned short sM=sSetMask;
  for (i=ymin;i<=ymax;i++)
   {
@@ -5978,6 +6081,10 @@ static void drawPoly4TGEx8(short x1, short y1, short x2, short y2, short x3, sho
         GetTextureTransColGX_DitherO(&psxVuw[(i<<10)+j],
             GETLE16(&psxVuw[clutP+tC1]),
            (cB1>>16),(cG1>>16),(cR1>>16),sM);
+       else if(semiD)
+        GetTextureTransColGX_DitherS(&psxVuw[(i<<10)+j],
+            GETLE16(&psxVuw[clutP+tC1]),
+           (cB1>>16),(cG1>>16),(cR1>>16),abr,sM);
        else if(iDither)
         GetTextureTransColGX_Dither(&psxVuw[(i<<10)+j],
             GETLE16(&psxVuw[clutP+tC1]),
@@ -6103,6 +6210,8 @@ static void drawPoly3TGD(short x1, short y1, short x2, short y2, short x3, short
 #endif
 
  const BOOL fastD=iDither && !bCheckMask && !DrawSemiTrans;
+ const BOOL semiD=iDither && !bCheckMask && DrawSemiTrans;
+ const int abr=GlobalTextABR;
  const unsigned short sM=sSetMask;
  for (i=ymin;i<=ymax;i++)
   {
@@ -6130,6 +6239,10 @@ static void drawPoly3TGD(short x1, short y1, short x2, short y2, short x3, short
         GetTextureTransColGX_DitherO(&psxVuw[(i<<10)+j],
           GETLE16(&psxVuw[(((posY>>16)+GlobalTextAddrY)<<10)+(posX>>16)+GlobalTextAddrX]),
           (cB1>>16),(cG1>>16),(cR1>>16),sM);
+       else if(semiD)
+        GetTextureTransColGX_DitherS(&psxVuw[(i<<10)+j],
+          GETLE16(&psxVuw[(((posY>>16)+GlobalTextAddrY)<<10)+(posX>>16)+GlobalTextAddrX]),
+          (cB1>>16),(cG1>>16),(cR1>>16),abr,sM);
        else if(iDither)
         GetTextureTransColGX_Dither(&psxVuw[(i<<10)+j],
           GETLE16(&psxVuw[(((posY>>16)+GlobalTextAddrY)<<10)+(posX>>16)+GlobalTextAddrX]),
@@ -6242,6 +6355,8 @@ static void drawPoly3TGD_TW(short x1, short y1, short x2, short y2, short x3, sh
 #endif
 
  const BOOL fastD=iDither && !bCheckMask && !DrawSemiTrans;
+ const BOOL semiD=iDither && !bCheckMask && DrawSemiTrans;
+ const int abr=GlobalTextABR;
  const unsigned short sM=sSetMask;
  for (i=ymin;i<=ymax;i++)
   {
@@ -6270,6 +6385,11 @@ static void drawPoly3TGD_TW(short x1, short y1, short x2, short y2, short x3, sh
           GETLE16(&psxVuw[((((posY>>16)&TWin.ymask)+GlobalTextAddrY+TWin.Position.y0)<<10)+
                  ((posX>>16)&TWin.xmask)+GlobalTextAddrX+TWin.Position.x0]),
           (cB1>>16),(cG1>>16),(cR1>>16),sM);
+       else if(semiD)
+        GetTextureTransColGX_DitherS(&psxVuw[(i<<10)+j],
+          GETLE16(&psxVuw[((((posY>>16)&TWin.ymask)+GlobalTextAddrY+TWin.Position.y0)<<10)+
+                 ((posX>>16)&TWin.xmask)+GlobalTextAddrX+TWin.Position.x0]),
+          (cB1>>16),(cG1>>16),(cR1>>16),abr,sM);
        else if(iDither)
         GetTextureTransColGX_Dither(&psxVuw[(i<<10)+j],
           GETLE16(&psxVuw[((((posY>>16)&TWin.ymask)+GlobalTextAddrY+TWin.Position.y0)<<10)+
@@ -6400,6 +6520,8 @@ static void drawPoly4TGD(short x1, short y1, short x2, short y2, short x3, short
 #endif
 
  const BOOL fastD=iDither && !bCheckMask && !DrawSemiTrans;
+ const BOOL semiD=iDither && !bCheckMask && DrawSemiTrans;
+ const int abr=GlobalTextABR;
  const unsigned short sM=sSetMask;
  for (i=ymin;i<=ymax;i++)
   {
@@ -6441,6 +6563,10 @@ static void drawPoly4TGD(short x1, short y1, short x2, short y2, short x3, short
         GetTextureTransColGX_DitherO(&psxVuw[(i<<10)+j],
           GETLE16(&psxVuw[(((posY>>16)+GlobalTextAddrY)<<10)+(posX>>16)+GlobalTextAddrX]),
           (cB1>>16),(cG1>>16),(cR1>>16),sM);
+       else if(semiD)
+        GetTextureTransColGX_DitherS(&psxVuw[(i<<10)+j],
+          GETLE16(&psxVuw[(((posY>>16)+GlobalTextAddrY)<<10)+(posX>>16)+GlobalTextAddrX]),
+          (cB1>>16),(cG1>>16),(cR1>>16),abr,sM);
        else if(iDither)
         GetTextureTransColGX_Dither(&psxVuw[(i<<10)+j],
           GETLE16(&psxVuw[(((posY>>16)+GlobalTextAddrY)<<10)+(posX>>16)+GlobalTextAddrX]),
