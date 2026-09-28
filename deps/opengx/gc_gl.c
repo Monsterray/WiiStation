@@ -226,10 +226,29 @@ static void ogx_SetVtxAttrFmt(u8 fmt, u32 attr, u32 cnt, u32 type, u32 frac)
 
 /* Phase 1 profiling: timed GX_DrawDone wrapper. DrawDone stalls Broadway
  * until the GP goes idle, so the gettick pair is noise next to the wait. */
+static void perf_drawdone(void);
+/* One per GX_DrawDone: every draw queued before it is finished. A texture records the
+ * epoch of the last draw that used it (checkLoadTextureObj); if that is not the current
+ * epoch, no draw that can still be running reads it, and it can be rewritten or freed
+ * without waiting. GX runs its FIFO in order, so rebinding the texture-cache slots needs
+ * no wait at all. The waits here used to be unconditional: before every sub-upload,
+ * texture load, full slot table and delete (Crash Bash: 415 a second). */
+static unsigned ogx_dd_epoch = 1;
+
+/* wait only if a draw that may still be running reads this texture */
+static void ogx_wait_for(const gltexture_ *t)
+{
+	if (t->used_epoch == ogx_dd_epoch)
+		perf_drawdone();
+	else
+		PERF_INC(gx_drawdone_skip);
+}
+
 static void perf_drawdone(void)
 {
 	unsigned long long t0 = perf_now_us();
 	GX_DrawDone();
+	ogx_dd_epoch++;
 	PERF_INC(gx_drawdone);
 	PERF_ADD(gx_drawdone_us, perf_now_us() - t0);
 }
@@ -976,6 +995,7 @@ static void checkLoadTextureObj( int textureType )
     gltexture_ *currtex = &texture_list[glparamstate.glcurtex];
 
     int i;
+    currtex->used_epoch = ogx_dd_epoch;   /* a draw will read it (ogx_wait_for) */
     // check loaded texture cache
     for (i = 0; i < 8; i++)
     {
@@ -1034,8 +1054,9 @@ static void checkLoadTextureObj( int textureType )
     writeLogFile(txtbuffer);
     #endif // DISP_DEBUG
 
-    // no free texture cache, run GX_DrawDone and clear texture cache
-    perf_drawdone();
+    // no free texture cache: clear it. No GX_DrawDone: the rebinding below is queued behind
+    // the draws that used the old bindings, and no texture data changes
+    PERF_INC(gx_drawdone_skip);
     PERF_INC(gx_tex_resets);
     resetTexCacheInfo();
 
@@ -1058,7 +1079,18 @@ static void checkLoadTextureObj( int textureType )
 void glDeleteTextures(GLsizei n, const GLuint *textures)
 {
     const GLuint *texlist = textures;
-    perf_drawdone();
+    {   /* free nothing a running draw may read */
+        GLsizei k;
+        int busy = 0;
+        for (k = 0; k < n; k++)
+            if (!(textures[k] < 0 || textures[k] >= _MAX_GL_TEX) &&
+                texture_list[textures[k]].used_epoch == ogx_dd_epoch)
+                busy = 1;
+        if (busy)
+            perf_drawdone();
+        else
+            PERF_INC(gx_drawdone_skip);
+    }
     while (n-- > 0) {
         int i = *texlist++;
         if (!(i < 0 || i >= _MAX_GL_TEX)) {
@@ -2051,7 +2083,7 @@ int glInitMovieTextures( GLsizei width, GLsizei height, void * texData )
 {
     int textureType = 0;
     //GX_WaitDrawDone();
-    perf_drawdone();
+    ogx_wait_for(&texture_list[glparamstate.glcurtex]);   /* only if a draw may still read it */
     PERF_INC(gx_tex_resets);
     resetTexCacheInfo();
 
@@ -2202,7 +2234,7 @@ static int glTexSubImage2D_body(GLenum target, GLint level,
 {
     int textureType = 0;
     //GX_WaitDrawDone();
-    perf_drawdone();
+    ogx_wait_for(&texture_list[glparamstate.glcurtex]);   /* only if a draw may still read it */
     PERF_INC(gx_tex_resets);
     resetTexCacheInfo();
 
@@ -2391,7 +2423,7 @@ int glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei width
     //GX_DrawDone(); // Very ugly, we should have a list of used textures and only wait if we are using the curr tex.
                    // This way we are sure that we are not modifying a texture which is being drawn
     //GX_WaitDrawDone();
-    perf_drawdone();
+    ogx_wait_for(&texture_list[glparamstate.glcurtex]);   /* only if a draw may still read it */
     PERF_INC(gx_tex_resets);
     PERF_INC(gx_tex_loads);
     resetTexCacheInfo();

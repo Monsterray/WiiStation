@@ -387,6 +387,8 @@ typedef struct {
 	uint64_t gx_convert_us;       /* SoftGPU: CPU time converting PSX fb -> GX */
 	uint32_t gx_drawdone;         /* blocking GX_DrawDone calls */
 	uint64_t gx_drawdone_us;      /* time spent inside them */
+	uint32_t gx_drawdone_skip;    /* texture writes that needed none: the texture was not
+	                               * drawn with since the last one (gc_gl.c ogx_dd_epoch) */
 	uint32_t gx_batches;          /* glDrawArrays batches submitted */
 	uint32_t present_frames;      /* emulated frames presented */
 	uint64_t present_us;          /* time inside present/flip */

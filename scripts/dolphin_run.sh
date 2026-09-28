@@ -184,7 +184,7 @@ rm -rf "$PROFILE/Dump/Frames" "$PROFILE/Dump/Audio"
 [ -f "$PROFILE/Logs/dolphin.log" ] && mv "$PROFILE/Logs/dolphin.log" "$PROFILE/Logs/dolphin.log.prev"
 # the logs a run leaves: an earlier run's must not pass for this one's (a run cut off before
 # its trace fired read the previous run's ptrace.log)
-rm -f "$S/perf.log" "$S/ptrace.log" "$S/vramio.log" "$S/atrace.log" "$S/lab.log" "$S/pcring.log" "$S/"vram_*.bin
+rm -f "$S/perf.log" "$S/ptrace.log" "$S/vramio.log" "$S/atrace.log" "$S/lab.log" "$S/pcring.log" "$S/xfb.bin" "$S/"vram_*.bin
 cp "${AIN:-$P/autoinput.txt}" "$S/autoinput.txt"; cp "${SET:-$P/settingsRX2022.cfg}" "$S/settingsRX2022.cfg"
 # autoboot: without it WiiStation sits in its menu
 [ -n "$ABOOT" ] || echo "note: no autoboot file given -- the run will stay in the menu"
@@ -241,6 +241,8 @@ python "$SP/sdimage_read.py" "$CARD" wiisxrx/ptrace.log "$OUT/ptrace.log" >/dev/
 python "$SP/sdimage_read.py" "$CARD" wiisxrx/vramio.log "$OUT/vramio.log" >/dev/null 2>&1 && [ -s "$OUT/vramio.log" ] && echo "vramio: $(sed -n 2p "$OUT/vramio.log" | sed 's/^# //'), $(grep -vc '^#' "$OUT/vramio.log") lines"
 # audio timeline (debug build, 'atrace <vblank>' in autoinput.txt); absent in most runs
 python "$SP/sdimage_read.py" "$CARD" wiisxrx/atrace.log "$OUT/atrace.log" >/dev/null 2>&1 && [ -s "$OUT/atrace.log" ] && echo "atrace: $(wc -l < "$OUT/atrace.log") lines"
+# the front XFB a scheduled `dump` wrote (scripts/xfb2png.py; XFB_RAM=1 for the real TV image)
+python "$SP/sdimage_read.py" "$CARD" wiisxrx/xfb.bin "$OUT/xfb.bin" >/dev/null 2>&1 && [ -s "$OUT/xfb.bin" ] && echo "xfb: $(wc -c < "$OUT/xfb.bin") bytes"
 # the interpreter's PC ring (psxinterpreter.c), written once if the PC leaves code
 python "$SP/sdimage_read.py" "$CARD" wiisxrx/pcring.log "$OUT/pcring.log" >/dev/null 2>&1 && [ -s "$OUT/pcring.log" ] && echo "pcring: $(head -1 "$OUT/pcring.log")"
 # 0 bytes is normal for a short run: the guest writes a perf report every N presents, and a run

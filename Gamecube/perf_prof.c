@@ -596,8 +596,8 @@ void perf_report(void)
 			(unsigned long)g_perf.gx_tex_hits, (unsigned long)g_perf.gx_tex_misses,
 			(unsigned long)g_perf.gx_tex_resets, (unsigned long)g_perf.gx_tex_loads,
 			g_perf.gx_tex_bytes, (unsigned long)g_perf.gx_batches);
-		fprintf(f, "gpu: drawdone=%lu drawdone_us=%llu convert_us=%llu present_us=%llu\n",
-			(unsigned long)g_perf.gx_drawdone, g_perf.gx_drawdone_us,
+		fprintf(f, "gpu: drawdone=%lu dd_skip=%lu drawdone_us=%llu convert_us=%llu present_us=%llu\n",
+			(unsigned long)g_perf.gx_drawdone, (unsigned long)g_perf.gx_drawdone_skip, g_perf.gx_drawdone_us,
 			g_perf.gx_convert_us, g_perf.present_us);
 		fprintf(f, "texk: conv_us=%llu conv=%lu texels=%llu tile_us=%llu tile=%lu mdec_us=%llu mdec=%lu\n",
 			(unsigned long long)ticks_to_microsecs(g_perf.ogx_conv_ticks), (unsigned long)g_perf.ogx_conv_calls,
