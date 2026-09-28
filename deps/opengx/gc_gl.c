@@ -968,6 +968,17 @@ extern short      texCacheUsedInfo[8];
 static short gxTexMap = GX_TEXMAP0;
 static short gxTexMapSemi = GX_TEXMAP1;
 
+/* A texture's data changed: only its own slots (opaque, and semi-transparent at
+ * id + _MAX_GL_TEX) are stale. The other textures stay resident in TMEM. Uploads used to
+ * drop all eight slots (resetTexCacheInfo), so every texture after one upload missed. */
+static void ogx_drop_tex_tags(int id)
+{
+    int i;
+    for (i = 0; i < 8; i++)
+        if (texCacheUsedInfo[i] == id || texCacheUsedInfo[i] == id + _MAX_GL_TEX)
+            texCacheUsedInfo[i] = -1;
+}
+
 void glResetCacheRegion()
 {
     ogx_state_invalidate();   /* a game starts or resumes: the menu drew with raw GX */
@@ -1054,25 +1065,30 @@ static void checkLoadTextureObj( int textureType )
     writeLogFile(txtbuffer);
     #endif // DISP_DEBUG
 
-    // no free texture cache: clear it. No GX_DrawDone: the rebinding below is queued behind
-    // the draws that used the old bindings, and no texture data changes
+    // No free slot: recycle one, round robin, and keep the other seven resident (this used
+    // to drop all eight, and wait for the GPU first). No GX_DrawDone: the rebinding below is
+    // queued behind the draws that used the old binding, and no texture data changes.
     PERF_INC(gx_drawdone_skip);
     PERF_INC(gx_tex_resets);
-    resetTexCacheInfo();
+    {
+        static unsigned victim;
+        unsigned slot = victim;
+        victim = (victim + 1) & 7;
 
-    if (textureType == TEX_TYPE_1)
-    {
-        gxTexMapSemi = 0;
-        GX_InvalidateTexRegion(&texCacheRegionS[0]);
-        GX_LoadTexObjPreloaded(&currtex->semiTransTexobj, &texCacheRegionS[0], 0);
-        texCacheUsedInfo[0] = curTexId + _MAX_GL_TEX;
-    }
-    else
-    {
-        gxTexMap = 0;
-        GX_InvalidateTexRegion(&texCacheRegionS[0]);
-        GX_LoadTexObjPreloaded(&currtex->texobj, &texCacheRegionS[0], 0);
-        texCacheUsedInfo[0] = curTexId;
+        if (textureType == TEX_TYPE_1)
+        {
+            gxTexMapSemi = slot;
+            GX_InvalidateTexRegion(&texCacheRegionS[slot]);
+            GX_LoadTexObjPreloaded(&currtex->semiTransTexobj, &texCacheRegionS[slot], slot);
+            texCacheUsedInfo[slot] = curTexId + _MAX_GL_TEX;
+        }
+        else
+        {
+            gxTexMap = slot;
+            GX_InvalidateTexRegion(&texCacheRegionS[slot]);
+            GX_LoadTexObjPreloaded(&currtex->texobj, &texCacheRegionS[slot], slot);
+            texCacheUsedInfo[slot] = curTexId;
+        }
     }
 }
 
@@ -2085,7 +2101,7 @@ int glInitMovieTextures( GLsizei width, GLsizei height, void * texData )
     //GX_WaitDrawDone();
     ogx_wait_for(&texture_list[glparamstate.glcurtex]);   /* only if a draw may still read it */
     PERF_INC(gx_tex_resets);
-    resetTexCacheInfo();
+    ogx_drop_tex_tags(glparamstate.glcurtex);   /* only this texture changed */
 
     gltexture_ *currtex = &texture_list[glparamstate.glcurtex];
 
@@ -2236,7 +2252,7 @@ static int glTexSubImage2D_body(GLenum target, GLint level,
     //GX_WaitDrawDone();
     ogx_wait_for(&texture_list[glparamstate.glcurtex]);   /* only if a draw may still read it */
     PERF_INC(gx_tex_resets);
-    resetTexCacheInfo();
+    ogx_drop_tex_tags(glparamstate.glcurtex);   /* only this texture changed */
 
     gltexture_ *currtex = &texture_list[glparamstate.glcurtex];
     unsigned char * semiTransBufPtr = (currtex->semiTransData == 0 ? semiTransBuf : currtex->semiTransData);
@@ -2426,7 +2442,7 @@ int glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei width
     ogx_wait_for(&texture_list[glparamstate.glcurtex]);   /* only if a draw may still read it */
     PERF_INC(gx_tex_resets);
     PERF_INC(gx_tex_loads);
-    resetTexCacheInfo();
+    ogx_drop_tex_tags(glparamstate.glcurtex);   /* only this texture changed */
 
     gltexture_ *currtex = &texture_list[glparamstate.glcurtex];
 
