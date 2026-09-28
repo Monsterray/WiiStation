@@ -182,6 +182,9 @@ rm -rf "$PROFILE/Dump/Frames" "$PROFILE/Dump/Audio"
 # Dolphin APPENDS to dolphin.log across launches. Keep the previous one aside so the copy this
 # run collects, and the fault grep at the end, describe this run only.
 [ -f "$PROFILE/Logs/dolphin.log" ] && mv "$PROFILE/Logs/dolphin.log" "$PROFILE/Logs/dolphin.log.prev"
+# the logs a run leaves: an earlier run's must not pass for this one's (a run cut off before
+# its trace fired read the previous run's ptrace.log)
+rm -f "$S/perf.log" "$S/ptrace.log" "$S/vramio.log" "$S/atrace.log" "$S/lab.log" "$S/"vram_*.bin
 cp "${AIN:-$P/autoinput.txt}" "$S/autoinput.txt"; cp "${SET:-$P/settingsRX2022.cfg}" "$S/settingsRX2022.cfg"
 # autoboot: without it WiiStation sits in its menu
 [ -n "$ABOOT" ] || echo "note: no autoboot file given -- the run will stay in the menu"
