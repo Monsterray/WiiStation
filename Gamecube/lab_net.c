@@ -17,6 +17,7 @@
  * Paths are relative to sd:/wiisxrx/ and may not contain "..", ':' or start with '/'. */
 #include <gccore.h>
 #include <network.h>
+#include <ogc/lwp_watchdog.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -53,13 +54,44 @@ int lab_active(void)
 	return lab_host[0] != 0;
 }
 
-/* each step and its result, in sd:/wiisxrx/lab.log: the only witness when the PC never
- * hears from the Wii (wii_lab.py asks for it back on the next run that works) */
+/* Each step and its result, on the TV and in sd:/wiisxrx/lab.log (wii_lab.py asks for it
+ * back): the only witnesses when the PC never hears from the Wii. The console is libogc's,
+ * on a framebuffer of its own, up before WiiStation's graphics exist; the Graphics
+ * constructor (libgui/GraphicsGX.cpp) replaces it with its own video setup later. The log
+ * is synced line by line: libfat keeps directory updates in its cache, and a Wii that is
+ * reset while a step hangs lost the whole file. */
+static int lab_console;
+static u64 lab_t0;
+
+static void lab_console_up(void)
+{
+	GXRModeObj *m;
+	void *fb;
+	CONF_Init();
+	VIDEO_Init();
+	m = VIDEO_GetPreferredMode(NULL);
+	fb = MEM_K0_TO_K1(SYS_AllocateFramebuffer(m));   /* ponytail: kept, 0.6 MB MEM1, lab runs only */
+	console_init(fb, 20, 20, m->fbWidth, m->xfbHeight, m->fbWidth * VI_DISPLAY_PIX_SZ);
+	VIDEO_Configure(m);
+	VIDEO_SetNextFramebuffer(fb);
+	VIDEO_SetBlack(FALSE);
+	VIDEO_Flush();
+	VIDEO_WaitVSync();
+	lab_console = 1;
+	lab_t0 = gettime();
+	printf("\n  WiiStation lab mode: PC %s:%d\n\n", lab_host, lab_port);
+}
+
 static void lab_log(const char *what, long r)
 {
-	FILE *f = fopen(LAB_ROOT "lab.log", "a");
+	FILE *f;
+	if (lab_console)
+		printf("  %6.1f s  %s %ld\n", ticks_to_millisecs(diff_ticks(lab_t0, gettime())) / 1000.0, what, r);
+	f = fopen(LAB_ROOT "lab.log", "a");
 	if (f) {
 		fprintf(f, "%s %ld\n", what, r);
+		fflush(f);
+		fsync(fileno(f));
 		fclose(f);
 	}
 }
@@ -166,9 +198,13 @@ int lab_fetch(void)
 	if (!lab_active())
 		return -1;
 	remove(LAB_ROOT "lab.log");
+	lab_console_up();
 	lab_log(lab_host, lab_port);
-	if ((s = lab_connect()) < 0)
+	if ((s = lab_connect()) < 0) {
+		lab_log("no PC: back to HBC in 5 s", 0);
+		sleep(5);
 		return -1;
+	}
 	lab_send(s, "HELLO WiiStation\n", 17);
 	while (lab_line(s, line, sizeof line) >= 0) {
 		if (!strcmp(line, "GO")) {
@@ -206,6 +242,9 @@ int lab_fetch(void)
 	}
 	lab_send(s, ok ? "FAIL\n" : "OK\n", ok ? 5 : 3);
 	net_close(s);
+	lab_log(ok ? "the PC broke off: back to HBC in 5 s" : "files staged, starting the chain", lab_nwant);
+	if (ok)
+		sleep(5);
 	return ok;
 }
 
