@@ -13,7 +13,7 @@ HLE 4.7% -> 3.3% of wall, load 50.0% -> 48.7%.
 
 **Checked against the code 2026-09-28 (HEAD bc014aa).** Items marked **DONE** are in main;
 **PARTIAL** says what is left; unmarked items are open. Next to work on, in the plan's order:
-G2's real fix (one pass, no `GX_DrawDone`), the per-sub-upload `GX_DrawDone` (G1), the G4 items,
+G2's real fix (one pass, no `GX_DrawDone`), the G4 items,
 C2, then the hardware session (the bench Wii and `scripts/wii_lab.py` are ready).
 
 The sections below are the plan as written, kept for its reasoning.
@@ -88,7 +88,9 @@ The GPU split probes (`PERF_PROF_GPUSPLIT`: perf.log `gpusplit:`, `gpuprim:`, `g
   so the CPU waits until the GPU has drawn everything queued: 415 times a second in Crash
   Bash. It is there for correctness (the GPU may still read the texture). Wait only when the
   texture is in flight: a draw sync token per texture, or two copies of a texture that
-  changes often.
+  changes often. **DONE** (9077042, a simpler rule than tokens: a texture records the
+  `GX_DrawDone` epoch of its last draw, and a write waits only if that is the current one;
+  the full-slot-table wait is gone. `GX_DrawDone` 12884 -> 7017 in the six-game chain)
 - **Verify.** `texk:` tile_us and `ogx:` unaligned fall; the `ogxeq:` texel detector
   (`PERF_PROF_GPU=1`) shows no new mismatches; frame dumps of Crash Bash and FF7 match.
 - **Locked cache.** Yes: tile into the LC and DMA the finished blocks out (step 2 of the LC
