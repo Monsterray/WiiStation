@@ -54,10 +54,17 @@ def wiiload(wii, dol, args):
     data = dol.read_bytes()
     z = zlib.compress(data, 6)
     argb = b"".join(a.encode() + b"\0" for a in [dol.name] + args) + b"\0"
-    with socket.create_connection((wii, 4299), timeout=10) as s:
-        s.sendall(b"HAXX" + bytes([0, 5]) + struct.pack(">HII", len(argb), len(z), len(data)))
-        s.sendall(z)
-        s.sendall(argb)
+    for attempt in range(6):          # HBC takes one connection at a time: a probe or
+        try:                          # another sender can hold it for a moment
+            with socket.create_connection((wii, 4299), timeout=10) as s:
+                s.sendall(b"HAXX" + bytes([0, 5]) + struct.pack(">HII", len(argb), len(z), len(data)))
+                s.sendall(z)
+                s.sendall(argb)
+            return
+        except OSError as e:
+            print(f"  wiiload attempt {attempt + 1}: {e}")
+            time.sleep(5)
+    sys.exit("HBC did not take the DOL")
 
 
 def local_ip_towards(wii):
