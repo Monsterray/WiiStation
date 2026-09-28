@@ -35,14 +35,28 @@ the space scene of the intro, vblank ~986 onward (trace `trace 985` + `trace 106
   (0,12)), 7 exactly at the corner (0,12). Positions pinned to the boundary: off-screen
   stars clamped to the edge instead of culled.
 
-**Not yet known -- next steps, in order:**
-1. Same trace on the interpreter core (`Core=1` on the chain line, allow `--secs 900`: it is
-   slow). Same edge stars there = not Lightrec's GTE; different = a Lightrec GTE bug.
-2. The GTE: screen-coordinate saturation (SX/SY limits and FLAG bits 13/14) and the divide
-   overflow (FLAG bit 17). A game that culls on FLAG draws a clamped star when FLAG is not
-   set. Compare our `gte.c` / Lightrec GTE with psx-spx "GTE Saturation".
-3. Real footage of the same scene (yt-dlp, `C:\tools\yt-dlp`) to rule out authentic
-   behaviour.
+**FIXED (2026-09-28).** The OpenGX tile commands (`primTileS`, `primTile1`, `primTile8`,
+`primTile16`, GlesGpu/gpuPrim.c) pinned a vertex at x <= -1024 to 0 and y <= -512 to 0. The
+GTE saturates an off-screen star's SX/SY to exactly -1024, so every far off-screen star was
+drawn on the left or top edge (the corner when both were saturated). The GPU reads a vertex
+as 11-bit signed and clips it against the drawing area; the tiles now sign-extend 11 bits,
+as the soft plugin (`AdjustCoord1`) does. Same trace after: 2 stars at x = 0 (real ones), 0
+at y = 12, 0 at the corner, against 17 / 13 / 7.
+
+How it was found: the interpreter core gave the identical 313 star tiles (after its own
+fix, below), which ruled Lightrec out; the soft plugin rejects such a tile
+(`FillSoftwareAreaTrans`: the rectangle ends before the drawing area), so the pinning was
+OpenGX's. The soft plugin's earlier "176 dots" were stars genuinely near the border.
+
+**Interpreter core fixed on the way (psxinterpreter.c `psxHLE`).** `Core=1` never got past a
+game's first interrupt (black screen, 0.01x): psxbios.c runs exception handlers as soft
+calls, `ExecuteBlock()` until the PC is `SOFTCALL_END` (0xbfc01000), and the interpreter's
+block only ended at a taken branch. An HLE trap that returned to `ra` did not end it, so it
+ran on into the BIOS ROM's printf on the handler's stack and returned to address 0. HLE
+traps now end the block. Found with `pcs:` (perf.log, PSX PC per vblank) and
+`pcring.log` (psxinterpreter.c, debug builds: the last 4096 PC/sp/ra, written once when the
+PC leaves code).
+
 The earlier Crash 3 star bug (stars dropped on alternate frames, draw offset counted twice
 in `primTile1`, fixed) is a different mechanism.
 

@@ -3226,8 +3226,12 @@ static void primTileS ( unsigned char * baseAddr )
     sprtW = GETLEs16 ( &sgpuData[4] ) & 0x3ff;
     sprtH = GETLEs16 ( &sgpuData[5] ) & iGPUHeightMask;
 
-    sprtX = (sprtX <= -1024 ? 0 : sprtX);
-    sprtY = (sprtY <= -512 ? 0 : sprtY);
+    /* The GPU reads a vertex as 11-bit signed (-1024..1023) and clips what lies outside
+     * the drawing area. This used to pin x <= -1024 to 0 and y <= -512 to 0; the GTE
+     * saturates an off-screen star to exactly -1024, so Crash 3's off-screen stars were
+     * drawn on the left and top edges of the screen (Docs/GPU_REVIEW_BRIEF.md, bug 1). */
+    sprtX = (short)((int)((unsigned)sprtX << 21) >> 21);
+    sprtY = (short)((int)((unsigned)sprtY << 21) >> 21);
 
     sprtW = (sprtW == 0 ? screenWidth : sprtW);
     sprtW = (sprtW == 1023 ? 1024 : sprtW);
@@ -3355,8 +3359,9 @@ static void primTile1 ( unsigned char * baseAddr )
 
     sprtX = GETLEs16 ( &sgpuData[2] );
     sprtY = GETLEs16 ( &sgpuData[3] );
-    sprtX = (sprtX <= -1024 ? 0 : sprtX);
-    sprtY = (sprtY <= -512 ? 0 : sprtY);
+    /* 11-bit signed, as the GPU reads it (see primTileS) */
+    sprtX = (short)((int)((unsigned)sprtX << 21) >> 21);
+    sprtY = (short)((int)((unsigned)sprtY << 21) >> 21);
     sprtW = 1;
     sprtH = 1;
 
@@ -3443,8 +3448,9 @@ static void primTile8 ( unsigned char * baseAddr )
 
     sprtX = GETLEs16 ( &sgpuData[2] );
     sprtY = GETLEs16 ( &sgpuData[3] );
-    sprtX = (sprtX <= -1024 ? 0 : sprtX);
-    sprtY = (sprtY <= -512 ? 0 : sprtY);
+    /* 11-bit signed, as the GPU reads it (see primTileS) */
+    sprtX = (short)((int)((unsigned)sprtX << 21) >> 21);
+    sprtY = (short)((int)((unsigned)sprtY << 21) >> 21);
     sprtW = 8;
     sprtH = 8;
 
@@ -3505,8 +3511,9 @@ static void primTile16 ( unsigned char * baseAddr )
 
     sprtX = GETLEs16 ( &sgpuData[2] );
     sprtY = GETLEs16 ( &sgpuData[3] );
-    sprtX = (sprtX <= -1024 ? 0 : sprtX);
-    sprtY = (sprtY <= -512 ? 0 : sprtY);
+    /* 11-bit signed, as the GPU reads it (see primTileS) */
+    sprtX = (short)((int)((unsigned)sprtX << 21) >> 21);
+    sprtY = (short)((int)((unsigned)sprtY << 21) >> 21);
     sprtW = 16;
     sprtH = 16;
 // x and y of start
