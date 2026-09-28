@@ -1,5 +1,8 @@
 # GPU review brief (2026-09-27)
 
+**Status 2026-09-28: both bugs are fixed. Open: re-check Dino Crisis 2 and Vagrant Story
+(the other readback games) in the scenes that read back; neither has a recording yet.**
+
 Input for a focused session on the OpenGX GPU plugin (`GlesGpu/`, `deps/opengx/`). It holds
 two open bugs, with what is measured and what is not, and the parts of the pipeline that
 make them hard. Read `AGENTS.md` (GX/OpenGX rules) and `.claude/skills/wiistation-diagnostics`
@@ -13,14 +16,15 @@ first.
   0 current 1 previous 2 unknown, b = capture result), `C2` readback state bits (a) and % taken
   from the EFB (b), `C4` snapshot at each present,
   `C5` display flip, `A0` image load, `80` VRAM move, `FF` a game starts. Header lines
-  explain the fields. One run answers "where does the game move pictures".
+  explain the fields. One run answers "where does the game move pictures". **DONE** (kinds
+  now: C0, C1, C2, C4, A0, 80, F1 vblank, F5 GP1 05, FF; see EFB_SYNC.md)
 - **Primitive trace** (`trace <vblank>` in the input script, 16 presents): needs a build with
   `bash scripts/wsx.sh build debug all` -- the default `light` preset compiles it out. The
   file is written when the NEXT trace fires, so schedule a second `trace` line after it.
-  `scripts/ptrace_summary.py` decodes.
-- New trace kinds: `80` VRAM move (col = source x << 12 | y), `A0` image load rect.
+  `scripts/ptrace_summary.py` decodes. **DONE**
+- New trace kinds: `80` VRAM move (col = source x << 12 | y), `A0` image load rect. **DONE**
 
-## Bug 1: white dots on the left and top edges (Crash games)
+## Bug 1: white dots on the left and top edges (Crash games) **DONE** (bc014aa)
 
 **Reproduce:** Crash 3 with the user's recording (`scripts/autoinput/crash_bandicoot_3_warped_play.txt`),
 the space scene of the intro, vblank ~986 onward (trace `trace 985` + `trace 1060`).
@@ -48,7 +52,7 @@ fix, below), which ruled Lightrec out; the soft plugin rejects such a tile
 (`FillSoftwareAreaTrans`: the rectangle ends before the drawing area), so the pinning was
 OpenGX's. The soft plugin's earlier "176 dots" were stars genuinely near the border.
 
-**Interpreter core fixed on the way (psxinterpreter.c `psxHLE`).** `Core=1` never got past a
+**Interpreter core fixed on the way (psxinterpreter.c `psxHLE`). DONE (a77f6ea)** `Core=1` never got past a
 game's first interrupt (black screen, 0.01x): psxbios.c runs exception handlers as soft
 calls, `ExecuteBlock()` until the PC is `SOFTCALL_END` (0xbfc01000), and the interpreter's
 block only ended at a taken branch. An HLE trap that returned to `ra` did not end it, so it
@@ -62,10 +66,10 @@ in `primTile1`, fixed) is a different mechanism.
 
 **2026-09-27 update: the readback tracker was redesigned (GlesGpu/efbSync.inc,
 Docs/EFB_SYNC.md). Ape Escape's pause screen now shows the frozen game; Spyro's pause is
-unchanged. Still open: Ape Escape's scene fades and WARNING screen (a presentation problem,
-see the end of EFB_SYNC.md).** The analysis below is the record of how it was found.
+unchanged. Ape Escape's scene fades, CRT turn-off and WARNING screen were a presentation
+problem, fixed 2026-09-28 (ec16be0, EFB_SYNC.md "When a frame is presented").** The analysis below is the record of how it was found.
 
-## Bug 2: Ape Escape pause screen blue; no CRT fade between scenes
+## Bug 2: Ape Escape pause screen blue; no CRT fade between scenes **DONE** (pause 75f2796, fades ec16be0)
 
 **Reference:** video b21k8NFfVtk, 17:10-17:13 (fade: the picture folds in on itself, then a
 white rectangle shrinks to a line and a dot) and 17:30-17:37 (pause over the frozen game).
@@ -128,25 +132,36 @@ map is the DISPLAYED buffer (`GetProposedActiveMap`: `PSXDisplay.DisplayPosition
 Spyro works through a special case written around this (`TryCapturePreviousReadRect`: a
 read of the back buffer while the drawing area lies over the "previous" display).
 
-**Direction for the fix:** define the tracker's live map as the buffer at `GDrawOffset` (what
+**Direction for the fix -- DONE (75f2796, GlesGpu/efbSync.inc):** define the tracker's live map as the buffer at `GDrawOffset` (what
 the EFB holds), credit draws to it, and label a snapshot with the buffer that was drawn;
 serve a read, move or texture sample of the drawn buffer from the live EFB and of any other
 buffer from the snapshot taken when it was last presented. That makes Spyro's case the
-normal one instead of a special one. Re-check after: Spyro's pause, Dino Crisis 2 and
-Vagrant Story (the other readback games), then Ape Escape's fades, WARNING screen and pause
-(replay the recording above; vramio C1 should say 1/3 with a high C2 percentage).
+normal one instead of a special one. Re-check after:
+- Spyro's pause. **DONE** (live EFB copied, the tinted frame as before)
+- Ape Escape's pause, fades and WARNING screen. **DONE** (pause: vramio `C1 ... 345 0`,
+  95% written; fades and WARNING after ec16be0)
+- Dino Crisis 2 and Vagrant Story, the other readback games. NOT DONE: Dino Crisis 2's
+  intro runs without fault on OpenGX, but no run has reached its readback scenes, and
+  Vagrant Story is not on the test card. Needs a recording of each.
 
 ## The pipeline's special cases (what a cleanup has to account for)
 
-- Per-game lists and fixes: `database.c` `special_game_hack_vram_readback` (Dino Crisis 2,
-  Vagrant Story, Spyro), `AUTO_FIX_*` flags in `dwActFixes`; `primMoveImage` materializes the
-  EFB only for Dino Crisis 2's exact copy shape.
+- Per-game lists and fixes: now one table, `database.c` `gpu_game_fixes[]` (id, `AUTO_FIX_*`
+  flags), which replaced `special_game_hack_vram_readback` and four other lists. **DONE**
+  `primMoveImage` no longer has a Dino Crisis 2-only rule: every move syncs its source
+  (`efb_sync`). **DONE**
 - EFB sync (`efbSync.inc`, replaced the ~2300-line `gpuVramReadback.inc` on 2026-09-27):
   per-tile CPU/GX stamps, the live buffer at GDrawOffset, 4 snapshots; see Docs/EFB_SYNC.md.
-- Off-screen drawing: `OffscreenSoftDraw` rasterizes primitives outside both display buffers
-  in software (`do_cmd_list`), clipped to the drawing area (fixed 2026-09-23 for MediEvil).
+  **DONE**
+- Off-screen drawing: `OffscreenSoftDraw` rasterizes primitives outside the live buffer (was:
+  outside both display buffers) in software (`do_cmd_list`), clipped to the drawing area
+  (fixed 2026-09-23 for MediEvil). When a game draws into the displayed buffer the EFB now
+  follows it (`bDrawFrontBuffer`, ec16be0). **DONE**
 - Screen re-upload from VRAM (`UploadScreen`, trace `ea`/`eb`) after CPU image loads that
-  overlap the display.
+  overlap the display. 1-pixel strips are uploaded again: the crash they were skipped for was
+  an opengx texture-size overrun, fixed (82c28cb). **DONE** Open: the upload could skip the
+  tiles the EFB already holds (FF7's round trip, EFB_SYNC.md "Open").
 - Removed 2026-09-27: the FPS overlay's "draw only when the game redrew the top-left
   corner" guess and the `g_efbContaminated` readback gate. The overlay now saves the EFB,
   draws, copies to the XFB and restores (`OverlaySaveEfb`/`OverlayRestoreEfb`, gpuPlugin.c).
+  **DONE**

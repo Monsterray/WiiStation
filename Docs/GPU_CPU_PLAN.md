@@ -5,11 +5,16 @@ HLE 4.7% -> 3.3% of wall, load 50.0% -> 48.7%.
 
 | item | state | measured |
 |---|---|---|
-| C1 HLE handlers | **done** | 81-97% of recompiler entries were single blocks; HLE share halved in the 3D games |
-| G2 FMV present | **split done; most of it was a debug-only hash**, now guarded | Micro Machines 14.4% -> 4.2%. The rest waits for the LC; 24-bit FMV is shown at 15-bit colour -- a fidelity question for the user |
-| G1 tiling | **1 and 2 done** (block-aligned placement, flush only the rows written); 3 not needed yet | unaligned uploads 83% -> 0; Crash Bash 6.1% -> 4.0% |
-| G3 GX state cache | **done** | skips 96% of GX state calls; 0.6-0.7% of wall in Dolphin, more GP traffic saved on a Wii |
-| LC | **system done** (`Docs/LOCKED_CACHE.md`): `spu-gauss`, `tex-tile`, off by default | frames and audio proven identical; the gain needs a Wii |
+| C1 HLE handlers | **DONE** (b11b30d; interpreter follow-up a77f6ea) | 81-97% of recompiler entries were single blocks; HLE share halved in the 3D games |
+| G2 FMV present | **PARTIAL**: split and hash guard done; the one-pass fix is open. 24-bit FMV now shown at 24 bits (7cb1671) | Micro Machines 14.4% -> 4.2%. The rest waits for the LC; 24-bit FMV is shown at 15-bit colour -- a fidelity question for the user |
+| G1 tiling | **1 and 2 DONE** (block-aligned placement, flush only the rows written); 3 not needed yet | unaligned uploads 83% -> 0; Crash Bash 6.1% -> 4.0% |
+| G3 GX state cache | **DONE** (b11b30d) | skips 96% of GX state calls; 0.6-0.7% of wall in Dolphin, more GP traffic saved on a Wii |
+| LC | **DONE** (805659f, `Docs/LOCKED_CACHE.md`): `spu-gauss`, `tex-tile`, off by default | frames and audio proven identical; the gain needs a Wii |
+
+**Checked against the code 2026-09-28 (HEAD bc014aa).** Items marked **DONE** are in main;
+**PARTIAL** says what is left; unmarked items are open. Next to work on, in the plan's order:
+G2's real fix (one pass, no `GX_DrawDone`), the per-sub-upload `GX_DrawDone` (G1), the G4 items,
+C2, then the hardware session (the bench Wii and `scripts/wii_lab.py` are ready).
 
 The sections below are the plan as written, kept for its reasoning.
 Evidence: the eleven-game chained run `baselines/chain_all_20260922/` (debug build, every
@@ -70,10 +75,11 @@ The GPU split probes (`PERF_PROF_GPUSPLIT`: perf.log `gpusplit:`, `gpuprim:`, `g
      (`GlesGpu/gpuTexture.c`) so uploads take `_ogx_scramble_4b_sub`, the block path. The
      position inside the texture page is the plugin's choice, not the game's, so every upload
      can be aligned. This is step 1 of `Docs/LOCKED_CACHE_PLAN.md`; it needs no locked cache.
+     **DONE** (b11b30d, `SubTexReserve` in gpuTexture.c)
   2. Flush only the blocks written. The upload calls `DCFlushRange` on the whole texture
      (up to 128 KB) for a rectangle of about 700 texels. The written blocks are one
      contiguous range per row of blocks, so this is one flush per block row. *Hardware-only
-     gain.*
+     gain.* **DONE** (`flush_block_rows` in gc_gl.c)
   3. Only if the tiling pass is still above 1% of wall after 1 and 2: expand the CLUT straight
      into RGB5A3 tiles. Today the expansion writes 32-bit texels to `texturepart` and the
      tiling pass reads them back. The saving is that re-read, which no probe has isolated yet;
@@ -86,7 +92,8 @@ The GPU split probes (`PERF_PROF_GPUSPLIT`: perf.log `gpusplit:`, `gpuprim:`, `g
 - **Verify.** `texk:` tile_us and `ogx:` unaligned fall; the `ogxeq:` texel detector
   (`PERF_PROF_GPU=1`) shows no new mismatches; frame dumps of Crash Bash and FF7 match.
 - **Locked cache.** Yes: tile into the LC and DMA the finished blocks out (step 2 of the LC
-  plan). Crash Bash is now the case that plan lacked.
+  plan). Crash Bash is now the case that plan lacked. **DONE** (805659f, `tile_via_lc`,
+  region `tex-tile`, off until a Wii shows it helps)
 
 ### G2. Presenting a 24-bit (FMV) frame
 - **Evidence.** In Micro Machines, GP1 writes are 15.1% of wall, and 99% of that is
@@ -95,12 +102,15 @@ The GPU split probes (`PERF_PROF_GPUSPLIT`: perf.log `gpusplit:`, `gpuprim:`, `g
   polygons).
 - **Next step.** Split `updateDisplayGl` for a 24-bit display (`UploadScreen`, the 24 -> 16
   conversion, the texture upload, the draw). One more `PERF_TIME` split; it decides whether
-  the fix is the conversion loop or the upload.
+  the fix is the conversion loop or the upload. **PARTIAL**: `gpupres:` splits upload, prep,
+  capture and vout (b11b30d); the 24 -> 16 conversion and the texture upload inside
+  `UploadScreen` are still one number.
 - **Optimise (likely).** One pass from 24-bit VRAM to GX tiles; upload only the display
   rectangle; no `GX_DrawDone` in the path.
 - **Locked cache.** Yes, the same pattern as G1: convert into the LC, DMA out.
 - **Accuracy.** The conversion must stay exact. 24-bit FMV is the fidelity case the user
-  named; no shortcut that drops colour depth.
+  named; no shortcut that drops colour depth. **DONE** (7cb1671: an RGBA8 path shows 24-bit
+  FMV at 24 bits, setting `FmvColour`)
 
 ### G3. Per-draw GX state
 - **Evidence.** `gpudraw:` state 0.2-2.8% of wall, vertex format 0.1-1.2%; one OpenGX draw is
@@ -109,14 +119,18 @@ The GPU split probes (`PERF_PROF_GPUSPLIT`: perf.log `gpusplit:`, `gpuprim:`, `g
   code only clears it and never tests it.
 - **Optimise.** Keep the last applied key per group (blend, TEV, Z, alpha, texture object)
   and skip unchanged groups. Set the vertex format only when `texen`/`color_enabled` change.
+  **DONE** (b11b30d: `ogx_same`, per `GX_Set*` call; vertex format by `ogx_vtx_key`)
 - **Risk.** The menu and OSD call raw `GX_Set*`. Invalidate the cache at every entry to PSX
   rendering and at every frame; do not trust it across `GX_DrawDone`, EFB copies or a menu
   visit. Two panel models agreed on this; they disagreed on the size of the gain, so measure.
+  **DONE** (`ogx_state_invalidate` at every flip and in `glResetCacheRegion`)
 - **Verify.** `gpudraw:` state_us falls; frame dumps identical; a menu visit mid-game and back.
 - **Locked cache.** No.
 
 ### G4. Smaller GPU items
 - **Readback bookkeeping on a flip** (`gpuflip:` will_us): 0.7% in Spyro. Check it after G3.
+  The bookkeeping was replaced (75f2796, `efbSync.inc`); its `will_us` probe is now dead and
+  should be removed or pointed at `efb_before_geometry_change`.
 - **Off-screen test** (`OffscreenSoftDraw`), 0.3-1.1%: it computes bounds for every primitive
   to find the few that land off screen. Skip it while the display and draw areas coincide.
 - **Display-list reading**, 0.6-1.5%: word-by-word with a byte swap per word. Low value.
@@ -134,7 +148,8 @@ The GPU split probes (`PERF_PROF_GPUSPLIT`: perf.log `gpusplit:`, `gpuprim:`, `g
   recompiler must not run into it.
 - **Optimise.** Return to an HLE trap in **ROM** instead. A game cannot write ROM, so there
   is no self-modifying-code or data risk. Then run the handler with a normal budget; the
-  recompiler exits when it reaches the trap. Two rules:
+  recompiler exits when it reaches the trap. **DONE** (b11b30d: `SOFTCALL_END` 0xbfc01000, a ROM trap,
+  `hleop_softcall_end`; the interpreter honours it since a77f6ea). Two rules:
   - Do **not** plant the trap at 0x1000 in RAM (the panel caught that).
   - Do **not** reuse `rom32[0]`'s `HLEOP(hleop_dummy)` (psxbios.c:4035): `hleDummy()` sets
     `pc = ra` and adds 1000 cycles, so each interrupt would gain 1000 cycles and not stop.
@@ -175,10 +190,10 @@ All *hardware-only*; none can be judged in Dolphin. The LC is 16 KB.
 
 | candidate | size | why | where it stands |
 |---|---|---|---|
-| Tiling output staging (G1) | a few KB per band | 6.1% of wall in Crash Bash | step 2 of the LC plan; do G1.1 first |
+| Tiling output staging (G1) | a few KB per band | 6.1% of wall in Crash Bash | **DONE**: region `tex-tile` (off by default) |
 | FMV presentation staging (G2) | a few KB per band | 15% in Micro Machines | after the G2 split |
 | PSX scratchpad (C3) | 1 KB | hottest guest data | accessors to audit |
-| SPU gaussian table + channel state | ~8 KB | the SPU is 1.8-10.9% | from the SPU pass |
+| SPU gaussian table + channel state | ~8 KB | the SPU is 1.8-10.9% | **PARTIAL**: region `spu-gauss` holds the 2 KB table; the channel state is not in it |
 | CP2 register block (C2) | 256 B | 8.8 M GTE calls a minute | inside Lightrec; low value |
 
 The first two and the scratchpad do not fit together with the SPU state; choose by the
@@ -192,12 +207,13 @@ double count (`101b1cd`); OpenGX's texel probes ran ungated and compared against
 
 Still to do (fix, not delete):
 - `glparamstate.dirty` is cleared and never read. G3 either uses it or removes the pretence.
-- `glDrawCommon` sets the vertex format on every draw. G3.
+- `glDrawCommon` sets the vertex format on every draw. G3. **DONE** (b11b30d)
 - OpenGX has `#ifdef DISP_DEBUG` blocks that `sprintf` per draw (`_ogx_apply_state`,
   `chkTex`). They are compiled out today only because the library is built without
   `DISP_DEBUG`. Guard them with `logFileEnabled()` like the plugin's, so a debug OpenGX
   cannot bring the trap back.
-- The whole-texture `DCFlushRange` per sub-upload (G1.2).
+- The whole-texture `DCFlushRange` per sub-upload (G1.2). **DONE** (only the first
+  semi-transparent copy still flushes it all, which is correct)
 - `psxinterpreter.c`'s `psxCP2[]` table holds `psxNULL` (no parameters) in a table of
   `void (*)(psxCP2Regs *)`. Harmless on PowerPC, but undefined behaviour; give it a matching
   no-op.
@@ -206,17 +222,24 @@ Still to do (fix, not delete):
 
 - Input scripts for the other ten games, so a chain measures gameplay and not attract
   modes. The `dump`/`trace` lines of `scripts/autoinput/crash3_title.txt` show the form.
+  **PARTIAL**: recordings (`scripts/movie_capture.sh`) exist for Spyro, Crash 3, Crash Bash,
+  Ape Escape and FF7; CTR, MediEvil, Gex, Frogger, Micro Machines and Point Blank have none.
 - The hardware session: `scripts/chains/all.txt` as `autoboot.txt`, a build with
-  `PERF_PROF_PMC=1`, then `chain_table.py`. One boot, one card transfer.
-- Why the same game measures differently in two chain files (caution 2).
+  `PERF_PROF_PMC=1`, then `chain_table.py`. One boot, one card transfer. Not run yet; the tools
+  are ready: the PMC probes (8214a6d) and the bench-Wii loop (`scripts/wii_lab.py` through the
+  `C:/tools/wii-bench` queue), which needs no card transfer.
+- Why the same game measures differently in two chain files (caution 2). **DONE**: a game
+  inherited the previous game's timers, SPU, SIO and pad (372a470) and display state
+  (627af35); both fixed.
 
 ## 7. Order of work
 
-1. C1 (HLE trap in ROM): up to about 8% of wall, measurable in Dolphin, in every game.
+1. C1 (HLE trap in ROM): up to about 8% of wall, measurable in Dolphin, in every game. **DONE**
 2. G2 split, then its fix: the largest single item (15.1% in Micro Machines), and a 5.6 ms
-   present is a frame-time spike a player sees. The split is one probe.
-3. G1.1 (block-aligned placement) and G1.2 (flush the written blocks): both small.
-4. G3 (state cache), with its invalidation rules.
+   present is a frame-time spike a player sees. The split is one probe. **PARTIAL**: the
+   split is done, the fix is open.
+3. G1.1 (block-aligned placement) and G1.2 (flush the written blocks): both small. **DONE**
+4. G3 (state cache), with its invalidation rules. **DONE**
 5. The hardware session, then the LC items in the order the hardware numbers give.
 
 The local model panel reviewed this plan. It moved G2 ahead of G1 (all three models agreed)
