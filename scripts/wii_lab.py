@@ -104,7 +104,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("name")
     ap.add_argument("chain", type=pathlib.Path)
-    ap.add_argument("--wii", default="192.168.8.213")
+    ap.add_argument("--wii", default=os.environ.get("WII_BENCH_IP", "192.168.8.213"))
     ap.add_argument("--port", type=int, default=4300)
     ap.add_argument("--dol", default="debug")
     ap.add_argument("--set", default="")
