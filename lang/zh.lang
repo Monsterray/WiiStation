@@ -611,11 +611,11 @@ msgstr "强制 NTSC"
 msgid "GPU Plugin"
 msgstr "视频插件"
 
-msgid "Old Soft"
-msgstr "旧软件渲染"
+msgid "Soft Fast"
+msgstr "快速软件渲染"
 
-msgid "New Soft"
-msgstr "新软件渲染"
+msgid "Soft Timed"
+msgstr "计时软件渲染"
 
 msgid "OpenGX"
 msgstr "硬件渲染"

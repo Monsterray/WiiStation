@@ -119,8 +119,8 @@ static const char* const CD_BUFFER_NAMES[]   = { "16 KB", "64 KB", "256 KB" };
 static const char* const CD_HUNKS_NAMES[]    = { "2", "4", "8" };
 /* dynacore: 0 Lightrec, 1 Interpreter, 2 old PPC dynarec (wiiSXconfig.h) */
 static const char* const CPU_CORE_NAMES[]    = { "Lightrec", "Interpreter", "Dynarec" };
-/* gpuPlugin: 0 Old Soft, 1 New Soft, 2 OpenGX */
-static const char* const GPU_PLUGIN_NAMES[]  = { "Old Soft", "New Soft", "OpenGX" };
+/* gpuPlugin: 0 Soft Fast (WiiSX P.E.Op.S. path, no GPU timing), 1 Soft Timed (gpulib: GPU time per primitive), 2 OpenGX */
+static const char* const GPU_PLUGIN_NAMES[]  = { "Soft Fast", "Soft Timed", "OpenGX" };
 
 /* setSpuReverb(int) takes the raw setting value; the table's apply slot is void(void), so
  * this wrapper reads the setting itself, the same way GamecubeMain.cpp does at startup. */

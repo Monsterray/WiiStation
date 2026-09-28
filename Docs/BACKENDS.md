@@ -9,7 +9,7 @@ before touching any of them; the traps at the end cost real sessions.
 | Backend | Vtable | Chosen by | Implementations |
 |---|---|---|---|
 | CPU core | `R3000Acpu` (`r3000a.h`) | `psxCpuSelect()` in `r3000a.c`, from `Config.Cpu` (`Core` setting) | interpreter (`psxinterpreter.c`), Lightrec (`deps/lightrec/` + Wii adapter `lightrec.c`), old PPC dynarec (`ppc/`) |
-| GPU | `gpu_t` (`gpu.h`) | `setGpuPlugin()` in `Gamecube/GamecubeMain.cpp`, from `gpuPlugin` setting | Old Soft (`gpulib/oldGpu.c`), New Soft (`SoftGPU/`), OpenGX (`GlesGpu/`, renders through `deps/opengx`) |
+| GPU | `gpu_t` (`gpu.h`) | `setGpuPlugin()` in `Gamecube/GamecubeMain.cpp`, from `gpuPlugin` setting | Soft Fast (`gpulib/oldGpu.c`), Soft Timed (`SoftGPU/`), OpenGX (`GlesGpu/`, renders through `deps/opengx`) |
 | SPU | PCSX plugin API (`SPU_*` pointers in `plugins.h`) | fixed: `DFSOUND_PLUGIN` slot in `Gamecube/GamecubePlugins.h`, resolved by name in `Gamecube/plugins.c` `LoadPlugins()` | dfsound (`dfsound/`) |
 | CD-ROM | PCSX plugin API (`CDR_*`) | fixed: `CDR_ISO_PLUGIN` slot | cdriso (`cdriso.c`, ISO/BIN+CUE/CHD/CCD/PBP) |
 | Pad | PCSX plugin API (`PAD1_*`, `PAD2_*`) | fixed: `SSS_PAD1_PLUGIN`/`SSS_PAD2_PLUGIN` slots | SSSPSX (`Gamecube/PadSSSPSX.c`); `PadWiiSX.c` keeps the scripted-input parser both use |

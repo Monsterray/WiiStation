@@ -345,8 +345,8 @@ static char LANG_STRINGS[13][24] =
 
 static char GPU_PLUGIN_STRINGS[4][24] =
     { "GPU Plugin",
-      "Old Soft",
-      "New Soft",
+      "Soft Fast",
+      "Soft Timed",
       "OpenGX"
       };
 
@@ -450,8 +450,8 @@ struct ButtonInfo
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[77],	398.0,	400.0,	 140.0,	56.0,	56,	 0,	15,	14,	Func_SaveSettingsSeparately,	Func_ReturnFromSettingsFrame }, // Save Settings: Separately
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[78],	465.0,	160.0,	160.0,	56.0,	17,	21,	19,	18,	Func_ForceNTSC,			Func_ReturnFromSettingsFrame },  // Force NTSC toggle
 
-	{	NULL,	BTN_A_SEL,	GPU_PLUGIN_STRINGS[1],	215.0,	160.0,	140.0,	56.0,	 5,	 7,	 66, 65,Func_UseOldSoftGpu,		Func_ReturnFromSettingsFrame }, // GpuPlugin: Old Soft
-	{	NULL,	BTN_A_SEL,	GPU_PLUGIN_STRINGS[2],	365.0,	160.0,	130.0,	56.0,	 6,	 9,	 64, 66,Func_UseNewSoftGpu,		Func_ReturnFromSettingsFrame }, // GpuPlugin: New Soft
+	{	NULL,	BTN_A_SEL,	GPU_PLUGIN_STRINGS[1],	215.0,	160.0,	140.0,	56.0,	 5,	 7,	 66, 65,Func_UseOldSoftGpu,		Func_ReturnFromSettingsFrame }, // GpuPlugin: Soft Fast
+	{	NULL,	BTN_A_SEL,	GPU_PLUGIN_STRINGS[2],	365.0,	160.0,	130.0,	56.0,	 6,	 9,	 64, 66,Func_UseNewSoftGpu,		Func_ReturnFromSettingsFrame }, // GpuPlugin: Soft Timed
 	{	NULL,	BTN_A_SEL,	GPU_PLUGIN_STRINGS[3],	505.0,	160.0,	130.0,	56.0,	 6,	 9,	 65, 64,Func_UseOpenGxGpu,		Func_ReturnFromSettingsFrame }, // GpuPlugin: OpenGX
 
 	//Audio tab, appended at the end (starts at button[67]) so no existing index moves
@@ -517,7 +517,7 @@ struct TextBoxInfo
 	{	NULL,	FRAME_STRINGS[63],	150.0,	368.0,	 1.0,	true }, // Fast load
 	{	NULL,	FRAME_STRINGS[76],	150.0,	198.0,	 1.0,	true }, // Memcard Type: Off/Shared/Game
     //TextBoxes for Saves Tab (starts at textBox[24]) ..was[24]
-	{	NULL,	GPU_PLUGIN_STRINGS[0],	110.0,	188.0,	 1.0,	true }, // GPU Plugin: Old Soft/New Soft/OpenGX
+	{	NULL,	GPU_PLUGIN_STRINGS[0],	110.0,	188.0,	 1.0,	true }, // GPU Plugin: Soft Fast/Soft Timed/OpenGX
 	//TextBox for the Audio tab, appended (textBox[25])
 	{	NULL,	FRAME_STRINGS[79],	150.0,	268.0,	 1.0,	true }, // DSP Sound: Yes/No
 	//TextBox for the Sync group (textBox[26])
