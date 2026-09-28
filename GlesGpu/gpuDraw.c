@@ -1280,6 +1280,7 @@ void assignTexture4(void)
 //                     the ogl clipping (scissor)
 
 BOOL bSetClip=FALSE;
+BOOL bDrawFrontBuffer=FALSE;                            // the game draws into the displayed buffer
 
 void SetOGLDisplaySettings(BOOL DisplaySet)
 {
@@ -1322,8 +1323,23 @@ void SetOGLDisplaySettings(BOOL DisplaySet)
   }
  //----------------------------------------------------//
 
- PSXDisplay.GDrawOffset.y = PreviousPSXDisplay.DisplayPosition.y;
- PSXDisplay.GDrawOffset.x = PreviousPSXDisplay.DisplayPosition.x;
+ /* The EFB holds the buffer being drawn. P.E.Op.S. takes that to be the one not on
+  * screen (the previous display position). A game that stops flipping and draws into
+  * the displayed buffer (Ape Escape's CRT turn-off) left the EFB on the other buffer:
+  * every primitive was then "off-screen", drawn into VRAM in software and never shown.
+  * So when the drawing area starts in the displayed buffer and not in the other one,
+  * the EFB goes there, and GL_GPUupdateLace presents each vblank that drew. */
+ {
+  int dx=PSXDisplay.DisplayPosition.x, dy=PSXDisplay.DisplayPosition.y;
+  int w=PSXDisplay.DisplayEnd.x-dx, h=PSXDisplay.DisplayEnd.y-dy;
+  int px=PreviousPSXDisplay.DisplayPosition.x, py=PreviousPSXDisplay.DisplayPosition.y;
+  int ax=PSXDisplay.DrawArea.x0, ay=PSXDisplay.DrawArea.y0;
+  bDrawFrontBuffer = (px!=dx || py!=dy) && w>0 && h>0 &&
+                     ax>=dx && ax<dx+w && ay>=dy && ay<dy+h &&
+                     !(ax>=px && ax<px+w && ay>=py && ay<py+h);
+ }
+ PSXDisplay.GDrawOffset.y = bDrawFrontBuffer ? PSXDisplay.DisplayPosition.y : PreviousPSXDisplay.DisplayPosition.y;
+ PSXDisplay.GDrawOffset.x = bDrawFrontBuffer ? PSXDisplay.DisplayPosition.x : PreviousPSXDisplay.DisplayPosition.x;
  PSXDisplay.CumulOffset.x = PSXDisplay.DrawOffset.x - PSXDisplay.GDrawOffset.x+PreviousPSXDisplay.Range.x0;
  PSXDisplay.CumulOffset.y = PSXDisplay.DrawOffset.y - PSXDisplay.GDrawOffset.y+PreviousPSXDisplay.Range.y0;
 

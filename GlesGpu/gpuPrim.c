@@ -103,7 +103,7 @@ BOOL           bDrawSmoothShaded;
 BOOL           bOldSmoothShaded;
 BOOL           bDrawNonShaded;
 int            iOffscreenDrawing = 0;
-int            iDrawnSomething=0;
+int            iDrawnSomething=0;                      // since the last present: 0x1 primitives, 0x2 upload, 0x4 fill, 0x8 image load, 0x10 tile
 
 BOOL           bRenderFrontBuffer = FALSE;             // flag for front buffer rendering
 
@@ -3344,7 +3344,7 @@ static void primTileS ( unsigned char * baseAddr )
 
     glPRIMdrawQuad ( &vertex[0] );
 
-    //iDrawnSomething |= 0x1;
+    iDrawnSomething |= 0x10;                  // a tile: a fade or a flash can be tiles only
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -3424,7 +3424,7 @@ static void primTile1 ( unsigned char * baseAddr )
     }
     glPRIMdrawQuad ( &vertex[0] );
 
-    //iDrawnSomething |= 0x1;
+    iDrawnSomething |= 0x10;                  // a tile: a fade or a flash can be tiles only
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -3486,7 +3486,7 @@ static void primTile8 ( unsigned char * baseAddr )
 
     glPRIMdrawQuad ( &vertex[0] );
 
-    //iDrawnSomething |= 0x1;
+    iDrawnSomething |= 0x10;                  // a tile: a fade or a flash can be tiles only
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -3548,7 +3548,7 @@ static void primTile16 ( unsigned char * baseAddr )
 
     glPRIMdrawQuad ( &vertex[0] );
 
-    //iDrawnSomething |= 0x1;
+    iDrawnSomething |= 0x10;                  // a tile: a fade or a flash can be tiles only
 }
 
 ////////////////////////////////////////////////////////////////////////

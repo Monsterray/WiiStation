@@ -80,11 +80,27 @@ A line in `database.c` `gpu_game_fixes[]` with the game's IDs and the flags, and
 a = % of the rect written, b = 1 if live was copied; `C4` per present, a = snapshots on,
 b = a read has missed. See `.claude/skills/wiistation-diagnostics/references/probes.md`.
 
+## When a frame is presented (non-interlaced)
+
+A non-interlaced frame goes to the TV at a GP1 05 display move (`updateDisplayGl`, only
+when `iDrawnSomething` is not 0), or at a vblank after a full-screen upload. Two holes,
+both found on Ape Escape (2026-09-27) by comparing with the soft plugin's frame dumps:
+
+1. **Tile-only frames.** The tile primitives (60-7F) did not set `iDrawnSomething`, so a
+   flip after a frame of tiles only was not presented: Ape's fades (white tiles over a
+   frozen frame copied with GP0 80) froze, then cut to black. Tiles now set 0x10.
+2. **Drawing into the displayed buffer.** P.E.Op.S. puts the EFB at the previous display
+   position (the buffer not on screen). Ape's CRT turn-off and its WARNING / "Capture N
+   monkeys" screen stop flipping and draw into the buffer on screen: every primitive was
+   outside live, drawn into VRAM in software, and never shown. `SetOGLDisplaySettings` now
+   sets `bDrawFrontBuffer` when the drawing area starts in the displayed buffer and not in
+   the other one, and puts the EFB there; `GL_GPUupdateLace` then presents each vblank that
+   drew (0x11), as a CRT shows VRAM.
+
+vramio `F1` (per vblank) and `F5` (per GP1 05) show the decision: display, draw offset,
+`iDrawnSomething`, and why a present happened or did not.
+
 ## Open
 
-- Ape Escape's scene fades cut to black and its WARNING screen does not show: the frames are
-  drawn but not presented (the vblank present decision, `GL_GPUupdateLace`, and the
-  front-buffer rendering this port disabled). Presenting on every drawn vblank changed the
-  game's timing (the present path feeds back into emulation), so it needs its own study.
 - Re-uploads of the live buffer copy its GX pixels out and back in (FF7's cost above); the
   upload could skip tiles the EFB already holds.

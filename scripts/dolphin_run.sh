@@ -27,6 +27,10 @@
 #                         "all" for every one. The game the autoboot file names is always
 #                         copied; this is for a run that browses to another one.
 #          DOLPHIN_ARGS   extra arguments appended verbatim, e.g. "-C Graphics.Settings.OverlayStats=True"
+#          CARDS=1        put your own memory cards (the shared card's saves/*.mcd) on the
+#                         test card. Default: none, so every game starts from a fresh card
+#                         and a run does not change when you save a game in your own window
+#                         (Ape Escape's boot-time card read moved every fingerprint).
 #
 # <seconds> is a limit, not a length: the run ends early if Dolphin exits on its own. A chained
 # autoboot (see GamecubeMain.cpp) powers the console off after its last game, and Dolphin in
@@ -150,6 +154,9 @@ for dir in bios fonts saves; do
   mkdir -p "$S/$dir"
   cp -ru "$SHARED/$dir/." "$S/$dir/" 2>/dev/null || true
 done
+# the memory cards: fresh ones unless CARDS=1 (a chain deletes the cards a game used after
+# it, but the first boot of each game read whatever card was here)
+[ "${CARDS:-0}" = 1 ] || { [ "$(cd "$S" && pwd -P)" != "$(cd "$SHARED" && pwd -P)" ] && rm -f "$S/saves/"*.mcd; }
 # Games are hundreds of megabytes each, so only the ones this run can reach are copied: every
 # line of the autoboot file that is a folder on the card -- one for a single game, one per game
 # for a chain.

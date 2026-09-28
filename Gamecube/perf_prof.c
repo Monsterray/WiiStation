@@ -361,7 +361,7 @@ void perf_vram_event(unsigned kind, int x, int y, int w, int h, int a, int b)
 {
 	unsigned k = kind == 0xC0 ? 0 : kind == 0xA0 ? 1 : kind == 0x80 ? 2 : 3, i;
 	if (kind != 0xFF) vio_count[k]++;
-	if (w * h < 32 * 32 && kind != 0xFF) return;
+	if (w * h < 32 * 32 && kind < 0xF0) return;   /* F1, F5: w,h is the draw offset */
 	for (i = kind == 0xFF ? 0 : vio_n; i > 0 && vio_n - i < VIO_WINDOW; i--) {   /* a game start never folds */
 		if (vio[i - 1].kind == 0xFF) break;
 		if (vio[i - 1].kind == kind && vio[i - 1].x == x && vio[i - 1].y == y &&
@@ -388,7 +388,11 @@ static void perf_vram_flush(void)
 	fprintf(f, "# vblank[-last] xN kind x,y wxh a b   (C0 CPU read; A0 image load; 80 move: a,b = source;"
 		" C1 EFB sync of a read (GlesGpu/efbSync.inc): a = tiles GX drew, b = tiles no snapshot could fill;"
 		" C2: a = %% of the rect written, b = 1 if the live EFB was copied for it;"
-		" C4 present: a = frames kept (snapshots on), b = a read has missed; FF: a game starts)\n");
+		" C4 present: a = frames kept (snapshots on), b = a read has missed;"
+		" F1 vblank (OpenGX, non-interlaced): x,y display, wxh = draw offset, a = iDrawnSomething,"
+		" b = 1 full-screen upload + 2 present pending + 4 presented + 8 drawing the displayed buffer;"
+		" F5 GP1 05 display move: x,y new display, wxh = draw offset, a = iDrawnSomething, b = 1 presented;"
+		" FF: a game starts)\n");
 	fprintf(f, "# counts all sizes: c0=%u a0=%u 80=%u c1=%u, lines dropped=%u\n",
 		vio_count[0], vio_count[1], vio_count[2], vio_count[3], vio_dropped);
 	for (k = 0; k < vio_n; k++) {

@@ -304,6 +304,7 @@ extern PSXDisplay_t   PSXDisplay;
 extern PSXDisplay_t   PreviousPSXDisplay;
 //extern unsigned int   ulKeybits;
 extern BOOL           bDisplayNotSet;
+extern BOOL           bDrawFrontBuffer;
 extern long           lGPUstatusRet;
 extern short          imageX0,imageX1;
 extern short          imageY0,imageY1;

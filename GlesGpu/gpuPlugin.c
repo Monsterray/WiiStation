@@ -1112,11 +1112,25 @@ else if(usFirstPos==1)                                // initial updates (after 
      writeLogFile ( txtbuffer );
      #endif // DISP_DEBUG
      GPUupdateLace5Flg = 0;
-     if (CheckFullScreenUpload() || (needFlipEGL == TRUE && (iDrawnSomething & 0x1) == 0))
+     {
+     int fullUp = CheckFullScreenUpload() ? 1 : 0;
+     /* vramio F1, one per vblank: x,y display, w,h draw offset, a = iDrawnSomething,
+      * b = 1 full-screen upload, 2 a present was pending, 4 presented here, 8 drawing into
+      * the displayed buffer */
+     int why = fullUp | (needFlipEGL == TRUE ? 2 : 0) | (bDrawFrontBuffer ? 8 : 0);
+     int drawn = iDrawnSomething;
+     /* drawing into the displayed buffer: no flip will come, so what was drawn is shown
+      * at the vblank (as a CRT scans VRAM out) */
+     if (fullUp || (needFlipEGL == TRUE && (iDrawnSomething & 0x1) == 0) ||
+         (bDrawFrontBuffer && (iDrawnSomething & 0x11)))
      {
          GPUupdateLace5Flg = 1;
          flipEGL();
          iDrawnSomething = 0;
+         why |= 4;
+     }
+     perf_vram_event(0xF1, PSXDisplay.DisplayPosition.x, PSXDisplay.DisplayPosition.y,
+                     PSXDisplay.GDrawOffset.x, PSXDisplay.GDrawOffset.y, drawn, why);
      }
  }
 }
@@ -1353,12 +1367,15 @@ switch(lCommand)
          #endif // DISP_DEBUG
          CHECK_SCREEN_INFO();
 
+         /* vramio F5: x,y new display, w,h draw offset, a = iDrawnSomething,
+          * b = 1 presented (updateDisplayGl) */
          if (GPUupdateLace5Flg && (iDrawnSomething & ~0x4) == 0)
          {
-
+             perf_vram_event(0xF5, sx, sy, PSXDisplay.GDrawOffset.x, PSXDisplay.GDrawOffset.y, iDrawnSomething, 0);
          }
          else
          {
+             perf_vram_event(0xF5, sx, sy, PSXDisplay.GDrawOffset.x, PSXDisplay.GDrawOffset.y, iDrawnSomething, 1);
              skipPreviousDisplayCheckOnce = TRUE;
              updateDisplayGl();
          }
