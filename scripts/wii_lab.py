@@ -33,7 +33,7 @@ import zlib
 REPO = pathlib.Path(__file__).resolve().parents[1]
 SHARED = pathlib.Path("C:/tools/Dolphin-x64/User/Load/WiiSDSync/wiisxrx")
 BASE_SETTINGS = "gpuPlugin = 2\nFPS = 1\nPadType1 = 1\nPadAutoAssign = 0\n"
-RESULTS = ["perf.log", "vramio.log", "ptrace.log", "atrace.log"]
+RESULTS = ["perf.log", "vramio.log", "ptrace.log", "atrace.log", "lab.log"]
 
 
 def hbc_ready(wii, secs):
@@ -148,7 +148,10 @@ def main():
     try:
         c, _ = srv.accept()
     except socket.timeout:
-        sys.exit("the DOL never connected back (did it start? is the port allowed through the firewall?)")
+        back = hbc_ready(a.wii, 30)
+        sys.exit("the DOL never connected back; " + (
+            "the Wii is back in HBC, so WiiStation started and gave up: its steps are in sd:/wiisxrx/lab.log"
+            if back else "the Wii is not in HBC: it did not start, or it hangs"))
     with c:
         c.settimeout(60)
         hello = recv_line(c)

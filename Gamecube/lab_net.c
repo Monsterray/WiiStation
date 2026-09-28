@@ -21,6 +21,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <errno.h>
+#include <unistd.h>
 #include "lab_net.h"
 
 #define LAB_ROOT "sd:/wiisxrx/"
@@ -51,30 +53,61 @@ int lab_active(void)
 	return lab_host[0] != 0;
 }
 
+/* each step and its result, in sd:/wiisxrx/lab.log: the only witness when the PC never
+ * hears from the Wii (wii_lab.py asks for it back on the next run that works) */
+static void lab_log(const char *what, long r)
+{
+	FILE *f = fopen(LAB_ROOT "lab.log", "a");
+	if (f) {
+		fprintf(f, "%s %ld\n", what, r);
+		fclose(f);
+	}
+}
+
 static s32 lab_connect(void)
 {
 	static int up;
 	struct sockaddr_in sa;
-	char ip[16];
-	s32 s;
+	char ip[16] = "";
+	s32 s, r = 0;
 	int t;
 
-	for (t = 0; !up && t < 5; t++)
-		up = if_config(ip, NULL, NULL, true) >= 0;
-	if (!up)
-		return -1;
-	s = net_socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
-	if (s < 0)
-		return -1;
+	if (!up) {
+		/* IOS brings the network up for a few seconds after a program starts (HBC had it
+		 * a moment ago): net_init() says -EAGAIN until then, and must be asked again */
+		for (t = 0; t < 300 && (r = net_init()) == -EAGAIN; t++)
+			usleep(100 * 1000);
+		lab_log("net_init", r);
+		for (t = 0; t < 10 && !up; t++) {
+			up = (r = if_config(ip, NULL, NULL, true)) >= 0;
+			if (!up)
+				usleep(500 * 1000);
+		}
+		lab_log(up ? ip : "if_config failed", r);
+		if (!up)
+			return -1;
+	}
 	memset(&sa, 0, sizeof sa);
 	sa.sin_family = AF_INET;
 	sa.sin_port = htons(lab_port);
-	if (!inet_aton(lab_host, &sa.sin_addr) ||
-	    net_connect(s, (struct sockaddr *)&sa, sizeof sa) < 0) {
-		net_close(s);
+	if (!inet_aton(lab_host, &sa.sin_addr)) {
+		lab_log("bad lab address", 0);
 		return -1;
 	}
-	return s;
+	for (t = 0; t < 5; t++) {   /* the PC may still be setting up */
+		s = net_socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
+		if (s < 0) {
+			lab_log("net_socket", s);
+			return -1;
+		}
+		r = net_connect(s, (struct sockaddr *)&sa, sizeof sa);
+		lab_log("net_connect", r);
+		if (r >= 0)
+			return s;
+		net_close(s);
+		sleep(1);
+	}
+	return -1;
 }
 
 static int lab_send(s32 s, const void *p, int n)
@@ -130,7 +163,11 @@ int lab_fetch(void)
 	s32 s;
 	int ok = -1;
 
-	if (!lab_active() || (s = lab_connect()) < 0)
+	if (!lab_active())
+		return -1;
+	remove(LAB_ROOT "lab.log");
+	lab_log(lab_host, lab_port);
+	if ((s = lab_connect()) < 0)
 		return -1;
 	lab_send(s, "HELLO WiiStation\n", 17);
 	while (lab_line(s, line, sizeof line) >= 0) {
