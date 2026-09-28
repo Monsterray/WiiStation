@@ -47,7 +47,7 @@ static std::map<wchar_t, u8*> charPngBufMap;
 heap_cntrl* GXtexCache;
 
 IplFont::IplFont()
-        : frameWidth(640)
+        : frameWidth(640), atlas(NULL)
 {
     FILE* charPngFile = getFontFile("sd");
     if (charPngFile == NULL)
@@ -125,10 +125,63 @@ void IplFont::loadFontFile(FILE* charPngFile)
     {
         //__lwp_heap_free(GXtexCache, fontBuffer);
     }
+    buildAtlas();
+}
+
+/* The atlas: 16 x 8 cells of 32x32, IA8, 512x256 (256 KB, from the font heap). Each 24x24
+ * glyph sits at +4,+4 in its cell, and the 4-texel gutter around it repeats its edge
+ * texels: that is what GX_CLAMP gives a glyph drawn from its own texture, so scaled text,
+ * whose bilinear samples reach past a glyph's edge, samples the same values here. Every
+ * texture coordinate is a multiple of 1/128 or 1/64, exact in floating point. */
+#define ATLAS_COLS 16
+#define ATLAS_ROWS 8
+#define ATLAS_CELL 32
+#define ATLAS_PAD ((ATLAS_CELL - CH_FONT_WIDTH) / 2)
+#define ATLAS_W (ATLAS_COLS * ATLAS_CELL)
+#define ATLAS_H (ATLAS_ROWS * ATLAS_CELL)
+#define ATLAS_FIRST 32
+#define ATLAS_LAST 126
+
+/* the 2 bytes of texel (x, y) in a GX IA8 texture w texels wide: 4x4 blocks of 32 bytes */
+static inline int ia8_offset(int w, int x, int y)
+{
+    return (((y >> 2) * (w >> 2) + (x >> 2)) << 5) + (((y & 3) * 4 + (x & 3)) << 1);
+}
+
+void IplFont::buildAtlas(void)
+{
+    int c, x, y;
+
+    atlas = (u8*)__lwp_heap_allocate(GXtexCache, ATLAS_W * ATLAS_H * 2);
+    if (atlas == NULL)
+        return;                                           /* drawString keeps the glyph path */
+    memset(atlas, 0, ATLAS_W * ATLAS_H * 2);
+    for (c = ATLAS_FIRST; c <= ATLAS_LAST; c++)
+    {
+        const u8* glyph = getCharPngBuf((wchar_t)c);      /* the blank glyph if the font lacks it */
+        int slot = c - ATLAS_FIRST;
+        int x0 = (slot % ATLAS_COLS) * ATLAS_CELL, y0 = (slot / ATLAS_COLS) * ATLAS_CELL;
+        for (y = 0; y < ATLAS_CELL; y++)
+            for (x = 0; x < ATLAS_CELL; x++)
+            {
+                int gx = x - ATLAS_PAD, gy = y - ATLAS_PAD;   /* clamped into the glyph */
+                gx = gx < 0 ? 0 : gx >= CH_FONT_WIDTH ? CH_FONT_WIDTH - 1 : gx;
+                gy = gy < 0 ? 0 : gy >= CH_FONT_HEIGHT ? CH_FONT_HEIGHT - 1 : gy;
+                memcpy(atlas + ia8_offset(ATLAS_W, x0 + x, y0 + y),
+                       glyph + ia8_offset(CH_FONT_WIDTH, gx, gy), 2);
+            }
+    }
+    DCFlushRange(atlas, ATLAS_W * ATLAS_H * 2);
+    GX_InitTexObj(&atlasTexObj, atlas, ATLAS_W, ATLAS_H, GX_TF_IA8, GX_CLAMP, GX_CLAMP, GX_FALSE);
 }
 
 void IplFont::releaseFontMem(void)
 {
+    if (atlas != NULL)
+    {
+        __lwp_heap_free(GXtexCache, atlas);
+        atlas = NULL;
+    }
     charCodeMap.clear();
     if (charPngBufMap.size() > 0)
     {
@@ -384,6 +437,52 @@ void IplFont::drawString(int x, int y, char *string, float scale, bool centered)
 
     wchar_t *utf8Txt = charToWideChar(gettext(string));
     wchar_t *tmpPtr = utf8Txt;
+
+    /* All printable ASCII: one texture load, then one GX_Begin for the whole string (the
+     * load stays outside Begin/End: AGENTS.md). Anything else, such as CJK text, takes the
+     * glyph-by-glyph path below. */
+    int n = 0;
+    while (atlas != NULL && utf8Txt[n] >= ATLAS_FIRST && utf8Txt[n] <= ATLAS_LAST)
+        n++;
+    if (atlas != NULL && utf8Txt[n] == 0)
+    {
+        if (n > 0)
+        {
+            PERF_ADD(menu_glyphs, n);
+            PERF_INC(menu_texloads);
+            GX_LoadTexObjPreloaded(&atlasTexObj, &texCacheRegionS[0], GX_TEXMAP0);
+            GX_Begin(GX_QUADS, GX_VTXFMT1, 4 * n);
+            for (int k = 0; k < n; k++)
+            {
+                int slot = utf8Txt[k] - ATLAS_FIRST;
+                float u0 = (float)((slot % ATLAS_COLS) * ATLAS_CELL + ATLAS_PAD) / ATLAS_W;
+                float v0 = (float)((slot / ATLAS_COLS) * ATLAS_CELL + ATLAS_PAD) / ATLAS_H;
+                float u1 = u0 + (float)CH_FONT_WIDTH / ATLAS_W, v1 = v0 + (float)CH_FONT_HEIGHT / ATLAS_H;
+
+                GX_Position2s16(x, y);
+                GX_Color4u8(fontColor.r, fontColor.g, fontColor.b, fontColor.a);
+                GX_TexCoord2f32(u0, v0);
+
+                GX_Position2s16(gw + x, y);
+                GX_Color4u8(fontColor.r, fontColor.g, fontColor.b, fontColor.a);
+                GX_TexCoord2f32(u1, v0);
+
+                GX_Position2s16(gw + x, gh + y);
+                GX_Color4u8(fontColor.r, fontColor.g, fontColor.b, fontColor.a);
+                GX_TexCoord2f32(u1, v1);
+
+                GX_Position2s16(x, gh + y);
+                GX_Color4u8(fontColor.r, fontColor.g, fontColor.b, fontColor.a);
+                GX_TexCoord2f32(u0, v1);
+
+                x += (int)((this->getCharCode(utf8Txt[k]) + 1) * scale); // x + charWidth
+            }
+            GX_End();
+        }
+        delete[] tmpPtr;
+        return;
+    }
+
     while (*utf8Txt) {
         PERF_INC(menu_glyphs);
         PERF_INC(menu_texloads);

@@ -61,6 +61,11 @@ private:
 	GXRModeObj *vmode;
 	GXColor fontColor;
 	wchar_t* blankChar;
+	/* printable ASCII (32-126) as one texture, so a string of it is one texture load and
+	 * one GX_Begin (IPLFont.cpp buildAtlas) */
+	u8* atlas;
+	GXTexObj atlasTexObj;
+	void buildAtlas(void);
 };
 
 } //namespace menu
