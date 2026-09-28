@@ -246,6 +246,16 @@ cycle_multiplier_overrides[] =
     { 200, { "SCES02873" } },
     /* Zero Divide - sometimes too fast */
     { 200, { "SLUS00183", "SLES00159", "SLPS00083", "SLPM80008" } },
+    /* from upstream PCSX-ReARMed, 2026-09-28: */
+    /* Legend of Legaia - some attack moves lag and cause a/v desync */
+    { 160, { "SCUS94254", "SCUS94366", "SCES01752" } },
+    { 160, { "SCES01944", "SCES01945", "SCES01946", "SCES01947" } },
+    /* Tunguska: Legend of Faith - 2x too fast */
+    { 232, { "SLES03298" } },
+    /* Riichi Mahjong - hangs */
+    { 200, { "SLPS03023" } },
+    /* NBA Jam: Tournament Edition - halftime stats */
+    { 161, { "SLUS00002", "SLPS00199", "SLES00068" } },
 };
 
 static const struct
