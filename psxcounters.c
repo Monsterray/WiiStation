@@ -438,6 +438,7 @@ void psxRcntUpdate()
             hSyncCount = 0;
             frame_counter++;
             statetool_vblank();
+            perf_pc_sample(psxRegs.pc);
             /* A chained autoboot's game is over: back to GamecubeMain.cpp for the next. */
             if (chain_stop_vbl && frame_counter >= chain_stop_vbl)
                 stop = 1;

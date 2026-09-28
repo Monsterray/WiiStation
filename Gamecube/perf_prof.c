@@ -357,6 +357,19 @@ static void perf_trace_flush(void)
 static struct { uint32_t vbl, last, n; uint16_t kind, x, y, w, h; int32_t a, b; } vio[VIO_MAX];
 static unsigned vio_n, vio_count[4], vio_dropped;
 
+/* the 16 most frequent PCs at vblank time (space-saving: a new PC replaces the rarest) */
+static struct { uint32_t pc, n; } pcs[16];
+void perf_pc_sample(unsigned pc)
+{
+	int i, low = 0;
+	for (i = 0; i < 16; i++) {
+		if (pcs[i].n && pcs[i].pc == pc) { pcs[i].n++; return; }
+		if (pcs[i].n < pcs[low].n) low = i;
+	}
+	pcs[low].pc = pc;
+	pcs[low].n++;
+}
+
 void perf_vram_event(unsigned kind, int x, int y, int w, int h, int a, int b)
 {
 	unsigned k = kind == 0xC0 ? 0 : kind == 0xA0 ? 1 : kind == 0x80 ? 2 : 3, i;
@@ -616,6 +629,19 @@ void perf_report(void)
 				for (j = 0; j < 22; j++) fprintf(f, " %ld", (long)g_perf.upl_st[k][j]);
 				fprintf(f, "\n");
 			}
+		}
+		{   /* where the PSX CPU was at each vblank, most frequent first: pc=count */
+			int k, j, used[16] = { 0 };
+			fprintf(f, "pcs:");
+			for (k = 0; k < 8; k++) {
+				int best = -1;
+				for (j = 0; j < 16; j++)
+					if (!used[j] && pcs[j].n && (best < 0 || pcs[j].n > pcs[best].n)) best = j;
+				if (best < 0) break;
+				used[best] = 1;
+				fprintf(f, " %08lx=%lu", (unsigned long)pcs[best].pc, (unsigned long)pcs[best].n);
+			}
+			fprintf(f, "\n");
 		}
 		fprintf(f, "offsoft: prims=%lu rejected=%lu | pad: startpoll=%lu update=%lu ai_calls=%lu rumble=%lu/%lu\n",
 			(unsigned long)g_perf.off_soft_prims, (unsigned long)g_perf.off_soft_rejected,
