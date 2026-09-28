@@ -1,6 +1,6 @@
 Spyro the Dragon [NTSC-U] [SCUS-94228].cue | PadAutoAssign=1,ControllerType=0,gpuPlugin=0 | statefp: vblank 600: ram ccf51dcb vram 0d0bb841 hw 213382c7 cpu b2f591ba spu 4a2d9122
-Spyro the Dragon [NTSC-U] [SCUS-94228].cue | PadAutoAssign=1,ControllerType=0,gpuPlugin=0 | statefp: vblank 1200: ram d9162f07 vram ca573c99 hw 2517c9bf cpu 21feba1e spu 4a2d9122
-Spyro the Dragon [NTSC-U] [SCUS-94228].cue | PadAutoAssign=1,ControllerType=0,gpuPlugin=0 | statefp: vblank 2370: ram 0e629ebb vram 77bba5e1 hw 3480d78e cpu df79a757 spu e5cfa745
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue | PadAutoAssign=1,ControllerType=0,gpuPlugin=0 | statefp: vblank 1200: ram 40fd6ffd vram ca573c99 hw 2517c9bf cpu 5c287d7d spu 4a2d9122
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue | PadAutoAssign=1,ControllerType=0,gpuPlugin=0 | statefp: vblank 2370: ram 3a41e5da vram 64f82550 hw d322f754 cpu 22cb1037 spu e5cfa745
 Spyro the Dragon [NTSC-U] [SCUS-94228].cue | PadAutoAssign=1,ControllerType=0,gpuPlugin=1 | statefp: vblank 600: ram 8ce79dad vram deebf8a2 hw f19e0f3b cpu d1e54007 spu 4a2d9122
 Spyro the Dragon [NTSC-U] [SCUS-94228].cue | PadAutoAssign=1,ControllerType=0,gpuPlugin=1 | statefp: vblank 1200: ram 3b7d9719 vram ca573c99 hw a91ce1e3 cpu 6a45a822 spu 4a2d9122
 Spyro the Dragon [NTSC-U] [SCUS-94228].cue | PadAutoAssign=1,ControllerType=0,gpuPlugin=1 | statefp: vblank 2370: ram d4ddacb9 vram 7fc5997c hw ae2ea19f cpu d0496172 spu e5cfa745
