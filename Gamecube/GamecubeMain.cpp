@@ -36,6 +36,9 @@
 # include <debug.h>
 #endif
 
+#include "lab_net.h"
+#include <network.h>
+extern "C" void __exception_setreload(int t);
 #include "../psxcommon.h"
 #include "wiiSXconfig.h"
 #include "config_parse.h"   /* the two scans in the settings parser */
@@ -807,6 +810,12 @@ static bool chainNext(void)
 	chain_stop_vbl = 0;
 	autoinput_reset(NULL);   /* closes a recording ("record"), before the card is unmounted */
 	/* Unmount first: a Wii that powers off with the FAT cache dirty loses the log. */
+	if (lab_active()) {   /* send the results, then back to the Homebrew Channel for the next test */
+		lab_report();
+		net_deinit();
+		fatUnmount("sd");
+		exit(0);
+	}
 	fatUnmount("sd");
 	SYS_ResetSystem(SYS_POWEROFF, 0, 0);
 	return false;
@@ -845,6 +854,19 @@ int main(int argc, char *argv[])
 	control_info_init(); //Perform controller auto assignment at least once at startup.
 
 	loadSettings(argc, argv);
+
+	/* A Wii on the bench (scripts/wii_lab.py): "lab=HOST:PORT" from wiiload fetches this
+	 * run's files -- autoboot.txt among them -- before it is read, and a crash goes back
+	 * to the Homebrew Channel after 10 s instead of waiting for a button. */
+	lab_args(argc, argv);
+	if (lab_active()) {
+		__exception_setreload(10);
+		if (lab_fetch() < 0) {   /* no PC to drive it: back to HBC, not to a menu no one is at */
+			net_deinit();
+			fatUnmount("sd");
+			exit(0);
+		}
+	}
 
 	/* Test automation: a bare .dol booted by Dolphin gets no loader argv, so
 	 * sd:/wiisxrx/autoboot.txt -- two lines, the ISO's directory and its
