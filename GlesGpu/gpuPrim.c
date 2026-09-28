@@ -1771,14 +1771,9 @@ int UploadScreen ( int Position )
         writeLogFile ( txtbuffer );
         #endif // DISP_DEBUG
 
-        if ((xrUploadArea.x1 - xrUploadArea.x0) == 1 || (xrUploadArea.y1 - xrUploadArea.y0) == 1)
-        {
-            // The GX processor appears to have issues when handling textures with length or width of 1 pixel.
-            // This causes crashes in specific scenes of Dino Crisis 2 or Resident Evil 3.
-            // Therefore, such textures are deliberately skipped in this implementation.
-            PERF_INC(upl_r_1px);
-            return 1;
-        }
+        /* 1-pixel strips used to be skipped here: they crashed Dino Crisis 2 and Resident
+         * Evil 3. The cause was opengx sizing 16-bit textures from w*h instead of whole 4x4
+         * blocks (gc_gl.c ogx_tex16_bytes), so the tiler overran the buffer; fixed there. */
 
         // VAGRANT STORY For GX gpu fix
 //        if ((dwActFixes & AUTO_FIX_NO_SWAP_BUF) && (xrUploadArea.x1 - xrUploadArea.x0) == 511 && (xrUploadArea.y1 - xrUploadArea.y0) == 480)

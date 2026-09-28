@@ -2033,6 +2033,13 @@ static inline int _ogx_scramble_4b_5a3(unsigned char *src, void *dst, unsigned s
     return textureType;
 }
 
+/* Bytes of a 16-bit GX texture: GX stores whole 4x4 blocks, so a side that is not a
+ * multiple of 4 still takes the full block (the tilers write the padding as 0). */
+static inline int ogx_tex16_bytes(int w, int h)
+{
+    return ROUND_32B(((w + 3) & ~3) * ((h + 3) & ~3) * 2);
+}
+
 void glResetMovieTexPtr( void )
 {
     movieUsedSize = 0;
@@ -2054,8 +2061,15 @@ int glInitMovieTextures( GLsizei width, GLsizei height, void * texData )
     int he = height; //(height + 3) & ~(unsigned int)3;
     int rgba8 = glparamstate.RGB24 && fmvColour == FMVCOLOUR_24BIT;
 
-    /* 4 bytes a texel holds either format; RGBA8 also fills the edge blocks out to 4x4. */
-    int required_size = rgba8 ? ((wi + 3) & ~3) * ((he + 3) & ~3) * 4 : wi * he * 4;
+    /* GX stores a texture in whole 4x4 blocks: a 16-bit one takes ((w+3)&~3)*((h+3)&~3)*2
+     * bytes, not w*h*2. The 16-bit path below keeps two of them, opaque and semi-transparent.
+     * Sizing from w*h let the block tiler write past its half -- and past the end of the
+     * movie buffer -- whenever a side was not a multiple of 4; a 1-pixel strip overran by
+     * three times its size. That was the crash UploadScreen used to avoid by skipping every
+     * 1-pixel upload (Dino Crisis 2, Resident Evil 3). */
+    int tile16 = ogx_tex16_bytes(wi, he);
+    int required_size = rgba8 ? ((wi + 3) & ~3) * ((he + 3) & ~3) * 4
+                              : glparamstate.RGB24 ? tile16 : 2 * tile16;
     int tex_size_rnd = ROUND_32B(required_size);
     if ((movieUsedSize + tex_size_rnd) > MOVIE_BUF_SIZE)
     {
@@ -2065,7 +2079,7 @@ int glInitMovieTextures( GLsizei width, GLsizei height, void * texData )
     currtex->semiTransData = currtex->data;
     if (!glparamstate.RGB24)
     {
-        currtex->semiTransData = currtex->data + (tex_size_rnd / 2);
+        currtex->semiTransData = currtex->data + tile16;
     }
     if (!rgba8)
         memset(currtex->data, 0, tex_size_rnd);
@@ -2102,7 +2116,7 @@ int glInitMovieTextures( GLsizei width, GLsizei height, void * texData )
         // For Non transparent colors in transparent mode
         if (textureType & TEX_TYPE_1)
         {
-            memcpy(currtex->semiTransData, semiTransBuf, currtex->w * currtex->h * 2);
+            memcpy(currtex->semiTransData, semiTransBuf, tile16);   /* tiled, like the data */
             GX_InitTexObj(&currtex->semiTransTexobj, currtex->semiTransData,
                           currtex->w, currtex->h, GX_TF_RGB5A3, currtex->wraps, currtex->wrapt, GX_FALSE);
             if (originalMode == ORIGINALMODE_ENABLE || bilinearFilter != BILINEARFILTER_ENABLE)
@@ -2210,7 +2224,7 @@ static int glTexSubImage2D_body(GLenum target, GLint level,
      * GX, so nothing races the GPU. Covers both the block-aligned and the
      * per-pixel unaligned paths, which write within the same extent. */
     if (currtex->semiTransData == 0)
-        memset(semiTransBuf, 0, currtex->w * currtex->h * 2);
+        memset(semiTransBuf, 0, ogx_tex16_bytes(currtex->w, currtex->h));
 
     /* The block-aligned fast path below tiles the whole sub-rectangle and
      * never checks it against the texture's own bounds -- only the per-pixel
@@ -2342,19 +2356,19 @@ static int glTexSubImage2D_body(GLenum target, GLint level,
     {
         if (currtex->semiTransData == 0)
         {
-            currtex->semiTransData = _mem2_memalign(32, currtex->w * currtex->h * 2);
+            currtex->semiTransData = _mem2_memalign(32, ogx_tex16_bytes(currtex->w, currtex->h));
             GX_InitTexObj(&currtex->semiTransTexobj, currtex->semiTransData,
                         currtex->w, currtex->h, GX_TF_RGB5A3, currtex->wraps, currtex->wrapt, GX_FALSE);
             if (originalMode == ORIGINALMODE_ENABLE || bilinearFilter == BILINEARFILTER_NEAR)
             {
                 GX_InitTexObjFilterMode(&currtex->semiTransTexobj, GX_NEAR, GX_NEAR);
             }
-            memcpy(currtex->semiTransData, semiTransBuf, currtex->w * currtex->h * 2);
+            memcpy(currtex->semiTransData, semiTransBuf, ogx_tex16_bytes(currtex->w, currtex->h));
             semi_new = 1;
         }
         /* A fresh copy wrote the whole texture; an existing one only the upload's rows. */
         if (semi_new)
-            DCFlushRange(currtex->semiTransData , currtex->w * currtex->h * 2);
+            DCFlushRange(currtex->semiTransData , ogx_tex16_bytes(currtex->w, currtex->h));
         else
             flush_block_rows(currtex->semiTransData, currtex->w, flush_y, flush_h);
     }
@@ -2401,8 +2415,7 @@ int glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei width
             currtex->semiTransData = 0;
         }
 
-        int required_size = wi * he * 2;
-        int tex_size_rnd = ROUND_32B(required_size);
+        int tex_size_rnd = ogx_tex16_bytes(wi, he);   /* whole 4x4 blocks */
         currtex->data = _mem2_memalign(32, tex_size_rnd);
         memset(currtex->data, 0, tex_size_rnd);
     }
@@ -2413,7 +2426,7 @@ int glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei width
 
     textureType = _ogx_scramble_4b_5a3((unsigned char *)data, currtex->data, upload_semi_flag(currtex->w, currtex->h, 0, 0, width, height), width, height);
     PERF_ADD(gx_tex_bytes, (unsigned long long)currtex->w * currtex->h * 2);
-    DCFlushRange(currtex->data, currtex->w * currtex->h * 2);
+    DCFlushRange(currtex->data, ogx_tex16_bytes(currtex->w, currtex->h));
 
     // Slow but necessary! The new textures may be in the same region of some old cached textures
     //GX_InvalidateTexAll();
@@ -2429,7 +2442,7 @@ int glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei width
     {
         if (currtex->semiTransData == 0)
         {
-            currtex->semiTransData = _mem2_memalign(32, currtex->w * currtex->h * 2);
+            currtex->semiTransData = _mem2_memalign(32, ogx_tex16_bytes(currtex->w, currtex->h));
             GX_InitTexObj(&currtex->semiTransTexobj, currtex->semiTransData,
                         currtex->w, currtex->h, GX_TF_RGB5A3, currtex->wraps, currtex->wrapt, GX_FALSE);
             if (originalMode == ORIGINALMODE_ENABLE || bilinearFilter == BILINEARFILTER_NEAR)
@@ -2437,8 +2450,8 @@ int glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei width
                 GX_InitTexObjFilterMode(&currtex->semiTransTexobj, GX_NEAR, GX_NEAR);
             }
         }
-        memcpy(currtex->semiTransData, semiTransBuf, currtex->w * currtex->h * 2);
-        DCFlushRange(currtex->semiTransData, currtex->w * currtex->h * 2);
+        memcpy(currtex->semiTransData, semiTransBuf, ogx_tex16_bytes(currtex->w, currtex->h));
+        DCFlushRange(currtex->semiTransData, ogx_tex16_bytes(currtex->w, currtex->h));
     }
     //GX_InitTexObjFilterMode(&currtex->texobj, GX_LINEAR, GX_LINEAR);
     //GX_InitTexObjLOD(&currtex->texobj, GX_LIN_MIP_LIN, GX_LIN_MIP_LIN, currtex->minlevel, currtex->maxlevel, 0, GX_ENABLE, GX_ENABLE, GX_ANISO_1);
