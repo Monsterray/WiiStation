@@ -322,6 +322,8 @@ typedef struct {
 	/* Where already-drawn EFB content can be lost again: screen re-uploads from
 	 * psxVuw (which has no GX-drawn primitives in it) and the present's clear. */
 	uint32_t upl_calls, upl_done, pres_total, pres_clear, pres_skipped;
+	uint32_t upl_partial_calls, upl_partial_used;   /* CPU loads; with the EFB mirroring psxVuw */
+	uint32_t mirror_geom_restarts, mirror_set, mirror_diff_word, mirror_off[8];   /* first differing int of MirrorGeom */
 	/* UploadScreen early returns, by path, and the state its paths read at the first and
 	 * the latest call of this game (upl_st[0] / [1]; upl_st_n = calls seen) */
 	uint32_t upl_r_dis, upl_r_skip, upl_r_rgb24, upl_r_1px;
@@ -553,7 +555,11 @@ typedef struct {
 	uint32_t tc_n;
 	/* upl: screen uploads that changed nothing -- same rectangle, same VRAM content, no
 	 * primitive and no EFB clear since the last one (TEXCHECK builds: it hashes the rect) */
-	uint32_t upl_checked, upl_redundant;
+	uint32_t upl_checked, upl_redundant, upl_same_content;
+	/* the pixels CPU loads changed since the last screen upload: their bounding box
+	 * (gpuPlugin.c VW_PUT) against the upload's area */
+	int16_t vw_dx0, vw_dy0, vw_dx1, vw_dy1;   /* x1/y1 exclusive; empty when x1 <= x0 */
+	uint64_t upl_area_px, upl_dirty_px;
 	/* One draw, split. `ogx` is every call into OpenGX's glPRIMdraw* functions; the rest
 	 * of a primitive's time is the plugin preparing it. Inside ogx, `common` is the vertex
 	 * format set on every draw and `state` the GX state (Z, alpha test, blend, texture

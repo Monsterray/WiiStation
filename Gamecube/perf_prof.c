@@ -641,10 +641,18 @@ void perf_report(void)
 			(unsigned long)g_perf.ogx_upl_semi, (unsigned long)g_perf.ogx_upl_opaque,
 			(unsigned long)g_perf.ogx_upl_mismatch);
 		fprintf(f, "ogxgeom: coord_rej=%lu\n", (unsigned long)g_perf.ogx_coord_rej);
-		fprintf(f, "efbloss: upl_calls=%lu upl_done=%lu | pres: total=%lu clear=%lu inflight_skip=%lu\n",
+		fprintf(f, "efbloss: upl_calls=%lu upl_done=%lu | pres: total=%lu clear=%lu inflight_skip=%lu | mirror: loads=%lu used=%lu\n",
 			(unsigned long)g_perf.upl_calls, (unsigned long)g_perf.upl_done,
 			(unsigned long)g_perf.pres_total, (unsigned long)g_perf.pres_clear,
-			(unsigned long)g_perf.pres_skipped);
+			(unsigned long)g_perf.pres_skipped,
+			(unsigned long)g_perf.upl_partial_calls, (unsigned long)g_perf.upl_partial_used);
+		fprintf(f, "mirror: set=%lu geom_restarts=%lu first_diff_word=%lu off=%lu,%lu,%lu,%lu,%lu,%lu,%lu\n",
+			(unsigned long)g_perf.mirror_set, (unsigned long)g_perf.mirror_geom_restarts,
+			(unsigned long)g_perf.mirror_diff_word,
+			(unsigned long)g_perf.mirror_off[1], (unsigned long)g_perf.mirror_off[2],
+			(unsigned long)g_perf.mirror_off[3], (unsigned long)g_perf.mirror_off[4],
+			(unsigned long)g_perf.mirror_off[5], (unsigned long)g_perf.mirror_off[6],
+			(unsigned long)g_perf.mirror_off[7]);
 		fprintf(f, "uplret: dis=%lu skip=%lu rgb24=%lu px1=%lu\n",
 			(unsigned long)g_perf.upl_r_dis, (unsigned long)g_perf.upl_r_skip,
 			(unsigned long)g_perf.upl_r_rgb24, (unsigned long)g_perf.upl_r_1px);
@@ -936,8 +944,10 @@ void perf_report(void)
 					(unsigned long)g_perf.tc_hits, (unsigned long long)g_perf.tc_texels,
 					(unsigned long long)g_perf.tc_nonzero,
 					(unsigned long long)g_perf.tc_bad, (unsigned long)g_perf.tc_bad_hits);
-				fprintf(f, "uplcheck: uploads=%lu redundant=%lu\n",
-					(unsigned long)g_perf.upl_checked, (unsigned long)g_perf.upl_redundant);
+				fprintf(f, "uplcheck: uploads=%lu same_content=%lu redundant=%lu area_px=%llu dirty_px=%llu\n",
+					(unsigned long)g_perf.upl_checked, (unsigned long)g_perf.upl_same_content,
+					(unsigned long)g_perf.upl_redundant, (unsigned long long)g_perf.upl_area_px,
+					(unsigned long long)g_perf.upl_dirty_px);
 				for (k = 0; k < g_perf.tc_n; k++)
 					fprintf(f, "texcheckr: vbl=%lu mode=%u page=%u texel=%u,%u entry=(%u,%u)-(%u,%u) want=%04x got=%04x\n",
 						(unsigned long)g_perf.tc_s[k].vbl, g_perf.tc_s[k].mode, g_perf.tc_s[k].page,

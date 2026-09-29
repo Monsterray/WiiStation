@@ -533,6 +533,7 @@ static void efb_sync_texture(void)
 
 static void efb_reset(void)
 {
+    MIRROR_OFF(7);
     int i;
 
     efb_publish(1);

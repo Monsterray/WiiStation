@@ -739,6 +739,9 @@ void InvalidateTextureArea(int X,int Y,int W, int H)
  }
 #endif
  if(W<=0 || H<=0) { ogx_inv_src = 0; return; }
+ /* every way VRAM gets new content comes here: all but a CPU load (whose changed pixels
+  * CheckWriteUpdate uploads) also leave the EFB not mirroring psxVuw */
+ if(ogx_inv_src != 1) MIRROR_OFF(6);
  if(W>1024) W=1024;
  if(H>iGPUHeight) H=iGPUHeight;
  X&=1023;

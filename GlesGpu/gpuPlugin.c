@@ -1574,8 +1574,21 @@ switch(lCommand)
 
 BOOL bNeedWriteUpload=FALSE;
 
+/* The lowest and highest pixel the current CPU->VRAM transfer changed (the copy loop in
+ * GL_GPUwriteDataMem); none while cmax is NULL. CheckWriteUpdate uses them. */
+unsigned short *vw_cmin = (unsigned short *)~(uintptr_t)0, *vw_cmax = NULL;
+
 #if PERF_PROF_GPUSPLIT
 static unsigned vw_changed;   /* pixels the current CPU->VRAM transfer changed */
+static void vw_dirty(const unsigned short *p)   /* grow the changed-pixel box (FF7 probe) */
+{
+ int o = (int)(p - psxVuw), x = o & 1023, y = o >> 10;
+ if (g_perf.vw_dx1 <= g_perf.vw_dx0) { g_perf.vw_dx0 = x; g_perf.vw_dy0 = y; g_perf.vw_dx1 = x + 1; g_perf.vw_dy1 = y + 1; return; }
+ if (x < g_perf.vw_dx0) g_perf.vw_dx0 = x;
+ if (y < g_perf.vw_dy0) g_perf.vw_dy0 = y;
+ if (x + 1 > g_perf.vw_dx1) g_perf.vw_dx1 = x + 1;
+ if (y + 1 > g_perf.vw_dy1) g_perf.vw_dy1 = y + 1;
+}
 #endif
 
 static __inline void FinishedVRAMWrite(void)
@@ -1602,6 +1615,8 @@ static __inline void FinishedVRAMWrite(void)
    g_perf.gpu_cwu_ticks += perf_now_ticks() - cw_t0_; }
 #endif
   }
+ vw_cmin = (unsigned short *)~(uintptr_t)0;   /* the next transfer starts with none */
+ vw_cmax = NULL;
 
  // set register to NORMAL operation
  iDataWriteMode = DR_NORMAL;
@@ -1970,6 +1985,7 @@ static void EfbBeforeGxCommand(unsigned char cmd, unsigned long *data, int n)
 
     if (cmd < 0x20 || cmd > 0x7F)
         return;
+    MIRROR_OFF(1);           /* GX draws into the EFB: it no longer mirrors psxVuw */
     if (bDisplayNotSet)
         SetOGLDisplaySettings(1);
     if (!OffscreenPrimBounds(cmd, data, n, &x0, &y0, &x1, &y1))
@@ -2118,12 +2134,14 @@ if(iDataWriteMode==DR_VRAMTRANSFER)
    short rr = VRAMWrite.RowsRemaining, cr = VRAMWrite.ColsRemaining;
    const short wd = VRAMWrite.Width;
    const int wx = VRAMWrite.Width + VRAMWrite.x, wrap = iGPUHeight * 1024;
-#define VW_SAVE() (VRAMWrite.ImagePtr = ip, VRAMWrite.RowsRemaining = rr, VRAMWrite.ColsRemaining = cr)
-#if PERF_PROF_GPUSPLIT   /* G5 probe: pixels this transfer changed (texinv: in perf.log) */
-#define VW_PUT(d, v) do { unsigned short *d_ = (d); unsigned short v_ = (v);                           vw_changed += GETLE16(d_) != v_; PUTLE16(d_, v_); } while (0)
+   unsigned short *cmin = vw_cmin, *cmax = vw_cmax;   /* the pixels it changes (CheckWriteUpdate) */
+#define VW_SAVE() (VRAMWrite.ImagePtr = ip, VRAMWrite.RowsRemaining = rr, VRAMWrite.ColsRemaining = cr,                    vw_cmin = cmin, vw_cmax = cmax)
+#if PERF_PROF_GPUSPLIT   /* probes: pixels this transfer changed (texinv:), their box (uplcheck:) */
+#define VW_SEEN(d) (vw_changed++, vw_dirty(d))
 #else
-#define VW_PUT(d, v) PUTLE16((d), (v))
+#define VW_SEEN(d) ((void)0)
 #endif
+#define VW_PUT(d, v) do { unsigned short *d_ = (d); unsigned short v_ = (v);                           if (GETLE16(d_) != v_) { if (d_ < cmin) cmin = d_; if (d_ > cmax) cmax = d_; VW_SEEN(d_); }                           PUTLE16(d_, v_); } while (0)
 
    while (cr > 0)
     {
@@ -2172,6 +2190,7 @@ if(iDataWriteMode==DR_VRAMTRANSFER)
    VW_SAVE();
 #undef VW_SAVE
 #undef VW_PUT
+#undef VW_SEEN
   }
 
   FinishedVRAMWrite();
@@ -2381,6 +2400,7 @@ if(ulGetFreezeData==1)
  }
 
 if(ulGetFreezeData!=0) return 0;
+MIRROR_OFF(4);                                        /* a state load: psxVuw changes under the EFB */
 
 STATUSREG=pF->ulStatus;
 memcpy(ulStatusControl,pF->ulControl,256*sizeof(unsigned long));
@@ -2676,6 +2696,8 @@ static void flipEGL(void)
     }
 
     presentSubmitted = gx_vout_render(canClearFrameBuf);
+    if (presentSubmitted && canClearFrameBuf)
+        MIRROR_OFF(2);       /* the copy cleared the EFB */
     /* the text is in the XFB copy (or the copy was skipped): take it out of the game's frame */
     if (overlaySaved && (!presentSubmitted || !canClearFrameBuf))
         OverlayRestoreEfb();
@@ -2718,6 +2740,7 @@ extern char screenMode;
 
 long GL_GPUopen()
 {
+ MIRROR_OFF(3);
  int ret;
 
  InitFPS();
@@ -2754,6 +2777,7 @@ long GL_GPUopen()
 
 long GL_GPUclose(void)
 {
+ MIRROR_OFF(3);
  efb_reset();
  GLcleanup();                                          // close OGL
  return 0;

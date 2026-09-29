@@ -979,9 +979,22 @@ static void ogx_drop_tex_tags(int id)
             texCacheUsedInfo[i] = -1;
 }
 
+/* The EFB holds psxVuw's displayed rectangle as screen uploads left it (the plugin's
+ * CheckWriteUpdate then uploads only what CPU loads changed; gpuPrim.c). The plugin sets
+ * and clears it; a menu visit clears it here. 0 no, 2 uploads adding up to it, 1 yes. */
+int ogx_efb_mirror = 0;
+
+/* Screen uploads (glInitMovieTextures, 16-bit) sample their texels nearest, not
+ * bilinear: then a part uploaded on its own gives the same EFB pixels as a whole upload. */
+int glUploadFilterNear(void)
+{
+    return originalMode == ORIGINALMODE_ENABLE || bilinearFilter != BILINEARFILTER_ENABLE;
+}
+
 void glResetCacheRegion()
 {
     ogx_state_invalidate();   /* a game starts or resumes: the menu drew with raw GX */
+    ogx_efb_mirror = 0;       /* ... into the EFB too */
     int oldTexId = texCacheUsedInfo[0];
     if (oldTexId > 0)
     {

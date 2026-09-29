@@ -1677,6 +1677,27 @@ static void UploadScreenSnapshot(int Position)
 }
 #endif
 
+/* The display geometry the EFB mirror was built under (UploadScreen): the displayed and
+ * previous rectangles, the range, the viewport, the colour depth, interlace. A partial
+ * upload needs the same; an upload under another one starts the mirror again. Compared,
+ * not cleared at every GP1 05: an interlaced game sends it each frame, unchanged. */
+typedef struct { PSXPoint_t p, e, pp, pe; PSXRect_t range; RECT vp; int rgb24, il; } MirrorGeom;
+static MirrorGeom mirror_g;
+static void mirror_geom_now(MirrorGeom *g)
+{
+    memset(g, 0, sizeof *g);
+    g->p = PSXDisplay.DisplayPosition; g->e = PSXDisplay.DisplayEnd;
+    g->pp = PreviousPSXDisplay.DisplayPosition; g->pe = PreviousPSXDisplay.DisplayEnd;
+    g->range = PreviousPSXDisplay.Range; g->vp = rRatioRect;
+    g->rgb24 = PSXDisplay.RGB24; g->il = PSXDisplay.Interlaced;
+}
+static int mirror_geom_same(void)
+{
+    MirrorGeom g;
+    mirror_geom_now(&g);
+    return memcmp(&g, &mirror_g, sizeof g) == 0;
+}
+
 /* UploadScreen(FALSE) offsets by PreviousPSXDisplay: when that is the displayed buffer
  * (a game drawing where it displays), the upload changed what is on screen. The same
  * buffer if the two rectangles overlap: a double buffer's halves never do, and a game can
@@ -1725,12 +1746,13 @@ int UploadScreen ( int Position )
         }
         #endif // DISP_DEBUG
         PERF_INC(upl_r_dis);
+        MIRROR_OFF(5);        /* psxVuw changed, the EFB did not */
         return 0;
     }
 
     iLastRGB24 = PSXDisplay.RGB24 + 1;
 
-    if ( bSkipNextFrame ) { PERF_INC(upl_r_skip); return 0; }
+    if ( bSkipNextFrame ) { PERF_INC(upl_r_skip); MIRROR_OFF(5); return 0; }
 
     // Clear Movie garbage
     if (PSXDisplay.RGB24)
@@ -1797,9 +1819,23 @@ int UploadScreen ( int Position )
                 h = (h ^ psxVuw[(y << 10) + x]) * 16777619u;
         h ^= PSXDisplay.RGB24;
         g_perf.upl_checked++;
+#if PERF_PROF_GPUSPLIT
+        {   /* the part of this upload that CPU loads changed since the last one */
+            int ax0 = xrUploadArea.x0, ay0 = xrUploadArea.y0, ax1 = xrUploadArea.x1, ay1 = xrUploadArea.y1;
+            int dx0 = g_perf.vw_dx0 > ax0 ? g_perf.vw_dx0 : ax0, dy0 = g_perf.vw_dy0 > ay0 ? g_perf.vw_dy0 : ay0;
+            int dx1 = g_perf.vw_dx1 < ax1 ? g_perf.vw_dx1 : ax1, dy1 = g_perf.vw_dy1 < ay1 ? g_perf.vw_dy1 : ay1;
+            g_perf.upl_area_px += (uint64_t)(ax1 - ax0) * (ay1 - ay0);
+            if (dx1 > dx0 && dy1 > dy0) g_perf.upl_dirty_px += (uint64_t)(dx1 - dx0) * (dy1 - dy0);
+            g_perf.vw_dx0 = g_perf.vw_dx1 = 0;
+        }
+#endif
         if (h == last_h && lx0 == xrUploadArea.x0 && ly0 == xrUploadArea.y0 && lx1 == xrUploadArea.x1 &&
-            ly1 == xrUploadArea.y1 && last_prims == g_perf.gpu_prim_calls && last_clears == g_perf.pres_clear)
-            g_perf.upl_redundant++;
+            ly1 == xrUploadArea.y1 && last_clears == g_perf.pres_clear)
+        {
+            g_perf.upl_same_content++;   /* same rect, same VRAM, no clear: primitives may differ */
+            if (last_prims == g_perf.gpu_prim_calls)
+                g_perf.upl_redundant++;
+        }
         last_h = h; last_prims = g_perf.gpu_prim_calls; last_clears = g_perf.pres_clear;
         lx0 = xrUploadArea.x0; ly0 = xrUploadArea.y0; lx1 = xrUploadArea.x1; ly1 = xrUploadArea.y1;
     }
@@ -1964,6 +2000,43 @@ int UploadScreen ( int Position )
 
     bUsingMovie = FALSE;                                  // done...
     bDisplayNotSet = TRUE;
+
+    /* Once uploads since the EFB last stopped mirroring (ogx_efb_mirror 0) cover the whole
+     * displayed rectangle (16-bit), it mirrors psxVuw: 2 while they add up, 1 then. FF7's
+     * interlaced uploads cover rows 1-479 and 0-478 in turn: two of them. */
+    if (ogx_efb_mirror && !mirror_geom_same())
+    {
+#ifdef PERF_PROF
+        MirrorGeom g; unsigned k;
+        mirror_geom_now(&g);
+        for (k = 0; k < sizeof g / sizeof(int); k++)
+            if (((int *)&g)[k] != ((int *)&mirror_g)[k]) break;
+        g_perf.mirror_geom_restarts++;
+        g_perf.mirror_diff_word = k;
+#endif
+        ogx_efb_mirror = 0;   /* an upload under another geometry: start again */
+    }
+    if (!PSXDisplay.RGB24 && Position != -1 && ogx_efb_mirror != 1)
+    {
+        static int cx0, cy0, cx1, cy1;
+        const PSXPoint_t *dp = Position ? &PSXDisplay.DisplayPosition : &PreviousPSXDisplay.DisplayPosition;
+        const PSXPoint_t *de = Position ? &PSXDisplay.DisplayEnd : &PreviousPSXDisplay.DisplayEnd;
+        if (ogx_efb_mirror == 0)
+        {
+            cx0 = xa; cy0 = ya; cx1 = xb; cy1 = yb;
+            mirror_geom_now(&mirror_g);
+            ogx_efb_mirror = 2;
+        }
+        else
+        {
+            cx0 = min(cx0, xa); cy0 = min(cy0, ya); cx1 = max(cx1, xb); cy1 = max(cy1, yb);
+        }
+        if (cx0 <= dp->x && cy0 <= dp->y && cx1 >= min(de->x, 1024) && cy1 >= min(de->y, iGPUHeight))
+        {
+            ogx_efb_mirror = 1;
+            PERF_INC(mirror_set);
+        }
+    }
     noNeedMulConstColor &= ~0x2;
     glNoNeedMulConstColor( noNeedMulConstColor );
 
@@ -2523,10 +2596,62 @@ static void PrepareRGB24Upload ( void )
 
 ////////////////////////////////////////////////////////////////////////
 
+static void CheckWriteUpdateRect(void);
+
+
+/* A CPU->VRAM transfer is done. What it changed: the copy loop's lowest and highest changed
+ * pixel (gpuPlugin.c vw_cmin/vw_cmax) give a one-row transfer's exact columns, a taller one
+ * its own columns and the changed rows; a wrapped one counts whole. A texture holds only
+ * VRAM texels, so only those need dropping. While the EFB mirrors psxVuw (ogx_efb_mirror,
+ * nearest-sampled uploads, one display buffer), only they need uploading: FF7's logos write
+ * 240 rows a frame and change 4% of the screen, and each frame was uploaded whole. */
 void CheckWriteUpdate()
 {
-    ogx_inv_src = 1;
-    InvalidateTextureArea ( VRAMWrite.x, VRAMWrite.y, VRAMWrite.Width, VRAMWrite.Height );
+    short wx = VRAMWrite.x, wy = VRAMWrite.y, ww = VRAMWrite.Width, wh = VRAMWrite.Height;
+    short cx = wx, cy = wy, cw = ww, ch = wh;
+    int changed = vw_cmax != NULL;
+    int partial;
+
+    if (changed && wx + ww <= 1024 && wy + wh <= iGPUHeight)
+    {
+        int o0 = (int)(vw_cmin - psxVuw), o1 = (int)(vw_cmax - psxVuw);
+        cy = o0 >> 10;
+        ch = (o1 >> 10) - cy + 1;
+        if (wh == 1)
+        {
+            cx = o0 & 1023;
+            cw = (o1 & 1023) - cx + 1;
+        }
+    }
+    if (changed)
+    {
+        ogx_inv_src = 1;
+        InvalidateTextureArea ( cx, cy, cw, ch );
+    }
+
+    partial = ogx_efb_mirror == 1 && !PSXDisplay.RGB24 && glUploadFilterNear() && mirror_geom_same() &&
+              PreviousPSXDisplay.DisplayPosition.x == PSXDisplay.DisplayPosition.x &&
+              PreviousPSXDisplay.DisplayPosition.y == PSXDisplay.DisplayPosition.y;
+    PERF_INC(upl_partial_calls);
+    if (!partial)
+    {
+        CheckWriteUpdateRect();
+        return;
+    }
+    PERF_INC(upl_partial_used);
+    if (!changed)
+    {
+        skipPreviousDisplayCheckOnce = FALSE;   /* the EFB already shows it */
+        return;
+    }
+    VRAMWrite.x = cx; VRAMWrite.y = cy; VRAMWrite.Width = cw; VRAMWrite.Height = ch;
+    CheckWriteUpdateRect();
+    VRAMWrite.x = wx; VRAMWrite.y = wy; VRAMWrite.Width = ww; VRAMWrite.Height = wh;
+}
+
+/* The screen side of a finished transfer, for the rectangle in VRAMWrite */
+static void CheckWriteUpdateRect(void)
+{
 
     #if defined(DISP_DEBUG)
     if (logFileEnabled())

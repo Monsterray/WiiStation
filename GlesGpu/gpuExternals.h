@@ -316,7 +316,18 @@ extern unsigned short * psxVuw;
 //extern unsigned int   * psxVul;
 //extern signed int     * psxVsl;
 extern unsigned short * psxVuw_eom;
-extern int ogx_inv_src;   /* gpuTexture.c: who invalidates (probe, gpudeep texinv:) */
+extern int ogx_inv_src;
+extern int ogx_efb_mirror;             /* deps/opengx/gc_gl.c: the EFB mirrors the displayed psxVuw */
+/* End the EFB mirror; debug builds count why (perf.log "mirror: off="): 1 GX primitive,
+ * 2 present that clears, 3 plugin open/close, 4 state load, 5 upload skipped, 6 VRAM changed
+ * other than by a CPU load, 7 EFB sync reset */
+#ifdef PERF_PROF
+#define MIRROR_OFF(why) ((void)(ogx_efb_mirror ? (g_perf.mirror_off[why]++, ogx_efb_mirror = 0) : 0))
+#else
+#define MIRROR_OFF(why) ((void)(ogx_efb_mirror = 0))
+#endif
+extern int glUploadFilterNear(void);
+extern unsigned short *vw_cmin, *vw_cmax;   /* gpuPlugin.c: the pixels the last CPU load changed */   /* gpuTexture.c: who invalidates (probe, gpudeep texinv:) */
 extern GLfloat        gl_z;
 extern BOOL           bNeedRGB24Update;
 extern GLuint         uiScanLine;
