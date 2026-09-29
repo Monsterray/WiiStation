@@ -2064,58 +2064,65 @@ if(iDataWriteMode==DR_VRAMTRANSFER)
   while(VRAMWrite.ImagePtr<psxVuw)
    VRAMWrite.ImagePtr+=iGPUHeight*1024;
 
-  // now do the loop
-  while(VRAMWrite.ColsRemaining>0)
-   {
-    while(VRAMWrite.RowsRemaining>0)
-     {
-      if(i>=iSize) {goto ENDVRAM_GL;}
-      i++;
+  /* The transfer runs on local copies of VRAMWrite. PUTLE16 is an asm store with a
+   * "memory" clobber (gpulib/gpu.h), so with the globals every field, psxVuw_eom and
+   * iGPUHeight were stored and loaded again around each pixel: about 63 cycles a word on a
+   * Wii (FF7: 3.7 s of 67). The steps are the same; the copies go back at every exit. */
+  {
+   unsigned short *ip = VRAMWrite.ImagePtr;
+   unsigned short * const eom = psxVuw_eom;
+   short rr = VRAMWrite.RowsRemaining, cr = VRAMWrite.ColsRemaining;
+   const short wd = VRAMWrite.Width;
+   const int wx = VRAMWrite.Width + VRAMWrite.x, wrap = iGPUHeight * 1024;
+#define VW_SAVE() (VRAMWrite.ImagePtr = ip, VRAMWrite.RowsRemaining = rr, VRAMWrite.ColsRemaining = cr)
 
-       gdata=GETLE32(pMem); pMem++;
+   while (cr > 0)
+    {
+     while (rr > 0)
+      {
+       if (i >= iSize) { VW_SAVE(); goto ENDVRAM_GL; }
+       i++;
+
+       gdata = GETLE32(pMem); pMem++;
 
        // Write odd pixel - Wrap from beginning to next index if going past GPU width
-       if (VRAMWrite.Width + VRAMWrite.x - VRAMWrite.RowsRemaining >= 1024)
-       {
-           PUTLE16(((VRAMWrite.ImagePtr++) - 1024), (unsigned short)gdata);
-       }
+       if (wx - rr >= 1024)
+        PUTLE16((ip++) - 1024, (unsigned short)gdata);
        else
-       {
-           PUTLE16(VRAMWrite.ImagePtr++, (unsigned short)gdata);
-       }
-      if(VRAMWrite.ImagePtr>=psxVuw_eom) VRAMWrite.ImagePtr-=iGPUHeight*1024;
-      VRAMWrite.RowsRemaining --;
+        PUTLE16(ip++, (unsigned short)gdata);
+       if (ip >= eom) ip -= wrap;
+       rr--;
 
-      if(VRAMWrite.RowsRemaining <= 0)
-       {
-        VRAMWrite.ColsRemaining--;
-        if (VRAMWrite.ColsRemaining <= 0)             // last pixel is odd width
-         {
-           gdata=(gdata&0xFFFF)|(((unsigned long)GETLE16(VRAMWrite.ImagePtr))<<16);
-          FinishedVRAMWrite();
-          goto ENDVRAM_GL;
-         }
-        VRAMWrite.RowsRemaining = VRAMWrite.Width;
-        VRAMWrite.ImagePtr += 1024 - VRAMWrite.Width;
-       }
+       if (rr <= 0)
+        {
+         cr--;
+         if (cr <= 0)                                 // last pixel is odd width
+          {
+           gdata = (gdata & 0xFFFF) | (((unsigned long)GETLE16(ip)) << 16);
+           VW_SAVE();
+           FinishedVRAMWrite();
+           goto ENDVRAM_GL;
+          }
+         rr = wd;
+         ip += 1024 - wd;
+        }
 
        // Write even pixel - Wrap from beginning to next index if going past GPU width
-       if (VRAMWrite.Width + VRAMWrite.x - VRAMWrite.RowsRemaining >= 1024)
-       {
-           PUTLE16(((VRAMWrite.ImagePtr++) - 1024), (unsigned short)(gdata>>16));
-       }
+       if (wx - rr >= 1024)
+        PUTLE16((ip++) - 1024, (unsigned short)(gdata >> 16));
        else
-       {
-           PUTLE16(VRAMWrite.ImagePtr++, (unsigned short)(gdata>>16));
-       }
-      if(VRAMWrite.ImagePtr>=psxVuw_eom) VRAMWrite.ImagePtr-=iGPUHeight*1024;
-      VRAMWrite.RowsRemaining --;
-     }
+        PUTLE16(ip++, (unsigned short)(gdata >> 16));
+       if (ip >= eom) ip -= wrap;
+       rr--;
+      }
 
-    VRAMWrite.RowsRemaining = VRAMWrite.Width;
-    VRAMWrite.ColsRemaining--;
-    VRAMWrite.ImagePtr += 1024 - VRAMWrite.Width;
-   }
+     rr = wd;
+     cr--;
+     ip += 1024 - wd;
+    }
+   VW_SAVE();
+#undef VW_SAVE
+  }
 
   FinishedVRAMWrite();
  }
