@@ -798,8 +798,11 @@ static bool chainNext(void)
 			strcat(sets, k ? "," : " set=");
 			strcat(sets, chainList[chainI].set[k]);
 		}
-		fprintf(f, "=== chain %d/%d end vblanks=%u%s rom=%s ===\n", chainI + 1, chainN,
-			(unsigned)frame_counter, sets, chainList[chainI].rom);
+		char when[32];
+		perf_datetime(when, sizeof when);
+		when[10] = 'T';   /* one token: at=2026-09-28T19:50:01 */
+		fprintf(f, "=== chain %d/%d end vblanks=%u%s at=%s rom=%s ===\n", chainI + 1, chainN,
+			(unsigned)frame_counter, sets, when, chainList[chainI].rom);
 		fclose(f);
 	}
 	mcd_track_delete();   /* the memory cards this game used */

@@ -24,6 +24,9 @@
 extern "C" {
 #endif
 
+/* "YYYY-MM-DD HH:MM:SS" wall clock, in every build (perf_prof.c) */
+void perf_datetime(char *buf, int size);
+
 /* Size of the per-event histogram below. Must be >= PSXINT_COUNT (r3000a.h);
  * checked at compile time in lightrec.c so this header needs no emulator
  * includes. */

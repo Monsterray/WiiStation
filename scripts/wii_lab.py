@@ -177,6 +177,7 @@ def main():
 
     srv.settimeout(a.timeout)
     t0 = time.monotonic()
+    started = time.strftime("%Y-%m-%d %H:%M:%S")
     try:
         c, _ = srv.accept()
     except socket.timeout:
@@ -197,6 +198,7 @@ def main():
     srv.close()
     (run / "run.info").write_text(
         f"dol={a.dol} ({dol.name}) wii={a.wii} chain={a.chain} secs={int(time.monotonic() - t0)}\n"
+        f"started={started} ended={time.strftime('%Y-%m-%d %H:%M:%S')} (PC clock)\n"
         f"settings: {settings.strip().replace(chr(10), ' ')}\nplatform: hardware\n")
     print(f"results: {', '.join(got)} -> {run}")
     subprocess.run([sys.executable, str(REPO / "scripts/chain_table.py"), str(run)])

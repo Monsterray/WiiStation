@@ -130,7 +130,16 @@ void perf_reset(void)
 		/* one log per boot: the SD image keeps files across runs, so appending
 		 * across boots made the log grow and mixed runs */
 		static int fresh = 0;
-		if (!fresh) { FILE *f = fopen("sd:/wiisxrx/perf.log", "w"); if (f) fclose(f); fresh = 1; }
+		if (!fresh) {
+			FILE *f = fopen("sd:/wiisxrx/perf.log", "w");
+			if (f) {
+				char when[32];
+				perf_datetime(when, sizeof when);
+				fprintf(f, "# run started %s, build %s %s\n", when, __DATE__, __TIME__);
+				fclose(f);
+			}
+			fresh = 1;
+		}
 	}
 	memset(&g_perf, 0, sizeof(g_perf));
 	g_perf.wall_start_ticks = gettime();
@@ -406,6 +415,11 @@ static void perf_vram_flush(void)
 		" b = 1 full-screen upload + 2 present pending + 4 presented + 8 drawing the displayed buffer;"
 		" F5 GP1 05 display move: x,y new display, wxh = draw offset, a = iDrawnSomething, b = 1 presented;"
 		" FF: a game starts)\n");
+	{
+		char when[32];
+		perf_datetime(when, sizeof when);
+		fprintf(f, "# written %s\n", when);
+	}
 	fprintf(f, "# counts all sizes: c0=%u a0=%u 80=%u c1=%u, lines dropped=%u\n",
 		vio_count[0], vio_count[1], vio_count[2], vio_count[3], vio_dropped);
 	for (k = 0; k < vio_n; k++) {
@@ -529,6 +543,11 @@ void perf_report(void)
 		uint32_t m2tot = gx_mem2_total() >> 10;
 
 		fprintf(f, "--- perf frames=%lu ---\n", (unsigned long)g_perf.present_frames);
+		{
+			char when[32];
+			perf_datetime(when, sizeof when);
+			fprintf(f, "time: %s\n", when);
+		}
 		{
 			extern uint32_t dwActFixes; extern char CdromId[10];
 			fprintf(f, "fixes: dwActFixes=%08lx cdrom=%s\n", (unsigned long)dwActFixes, CdromId);
@@ -1004,3 +1023,19 @@ void perf_report(void)
 #else
 typedef int perf_prof_disabled_in_this_build;
 #endif /* PERF_PROF */
+
+/* outside PERF_PROF: the chain marker and lab.log use it in every build */
+#include <stdio.h>
+#include <time.h>
+
+/* the wall-clock date and time, "2026-09-28 19:50:01": the Wii's clock (RTC) on a Wii, the
+ * PC's in Dolphin. In every log, so a log says when its run was. */
+void perf_datetime(char *buf, int size)
+{
+	time_t now = time(NULL);
+	struct tm *t = localtime(&now);
+	if (t)
+		strftime(buf, size, "%Y-%m-%d %H:%M:%S", t);
+	else
+		snprintf(buf, size, "unknown");
+}

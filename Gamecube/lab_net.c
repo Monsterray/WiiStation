@@ -22,6 +22,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include "perf_prof.h"
 #include <errno.h>
 #include <unistd.h>
 #include "lab_net.h"
@@ -89,7 +90,9 @@ static void lab_log(const char *what, long r)
 		printf("  %6.1f s  %s %ld\n", ticks_to_millisecs(diff_ticks(lab_t0, gettime())) / 1000.0, what, r);
 	f = fopen(LAB_ROOT "lab.log", "a");
 	if (f) {
-		fprintf(f, "%s %ld\n", what, r);
+		char when[32];
+		perf_datetime(when, sizeof when);
+		fprintf(f, "%s %s %ld\n", when, what, r);
 		fflush(f);
 		fsync(fileno(f));
 		fclose(f);

@@ -42,7 +42,7 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
-END = re.compile(r'^=== chain (\d+)/(\d+) end vblanks=(\d+)(?: set=(\S+))? rom=(.*) ===')
+END = re.compile(r'^=== chain (\d+)/(\d+) end vblanks=(\d+)(?: set=(\S+))?(?: at=\S+)? rom=(.*) ===')
 PAIR = re.compile(r'(\w+)=(-?\d+(?:/\d+)*)')   # a number, or a/b/c... (a tuple)
 
 
