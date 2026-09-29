@@ -2337,8 +2337,10 @@ static int glTexSubImage2D_body(GLenum target, GLint level,
      * opaque data path already relies on; and the scratch is never bound to
      * GX, so nothing races the GPU. Covers both the block-aligned and the
      * per-pixel unaligned paths, which write within the same extent. */
-    if (currtex->semiTransData == 0)
-        memset(semiTransBuf, 0, ogx_tex16_bytes(currtex->w, currtex->h));
+    /* ... and only when this upload can make semi-transparent texels at all: TEX_TYPE_1
+     * needs semiFlg (below). The zeroing is 128 KB for a 256x256 page, about 150 us on a
+     * Wii, and it ran for every opaque upload too: most of Crash Bash's tiling time, whose
+     * uploads are a few hundred texels. */
 
     /* The block-aligned fast path below tiles the whole sub-rectangle and
      * never checks it against the texture's own bounds -- only the per-pixel
@@ -2360,6 +2362,8 @@ static int glTexSubImage2D_body(GLenum target, GLint level,
     }
 
     unsigned short semiFlg = upload_semi_flag(currtex->w, currtex->h, xoffset, yoffset, width, height);
+    if (currtex->semiTransData == 0 && semiFlg)
+        memset(semiTransBuf, 0, ogx_tex16_bytes(currtex->w, currtex->h));
     const int flush_y = yoffset, flush_h = height;   /* the unaligned path moves yoffset */
     int semi_new = 0;
 
