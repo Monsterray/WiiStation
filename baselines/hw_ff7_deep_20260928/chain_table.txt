@@ -1,0 +1,2 @@
+game                                              vbl   wall   load  speed    psx    gte    gpu   poly    hle    spu   mdec     cd
+Final Fantasy VII                                3600   70.1   44.4   0.86   11.6    0.0   12.3    3.4    1.8    2.1    0.0    0.5

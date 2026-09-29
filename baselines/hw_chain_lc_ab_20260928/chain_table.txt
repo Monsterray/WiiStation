@@ -1,0 +1,6 @@
+game                                              vbl   wall   load  speed    psx    gte    gpu   poly    hle    spu   mdec     cd
+Spyro the Dragon LockedCache=0                   3600   61.5   42.0   0.98   15.6    0.0   11.4    0.0    2.5    1.2    0.0    7.3
+Spyro the Dragon LockedCache=3                   3600   61.5   42.2   0.98   15.7    0.0   11.3    0.0    2.6    1.2    0.0    7.4
+Crash Bash LockedCache=0                         3600   61.4   43.4   0.98   18.8    0.0   13.3    0.0    2.5    4.4    0.0    1.8
+Crash Bash LockedCache=3                         3600   61.5   43.6   0.98   18.9    0.0   13.4    0.0    2.6    4.4    0.0    1.8
+mean of 4                                                      42.8   0.98   17.3    0.0   12.4    0.0    2.5    2.8    0.0    4.6

@@ -134,12 +134,25 @@ The GPU split probes (`PERF_PROF_GPUSPLIT`: perf.log `gpusplit:`, `gpuprim:`, `g
 ### G4. Smaller GPU items
 - **Readback bookkeeping on a flip** (`gpuflip:` will_us): 0.7% in Spyro. Check it after G3.
   The bookkeeping was replaced (75f2796, `efbSync.inc`); its `will_us` probe is now dead and
-  should be removed or pointed at `efb_before_geometry_change`.
+  should be removed or pointed at `efb_before_geometry_change`. **DONE** (1faf97e: now
+  `gpuflip: geom_us`, the time in `efb_before_geometry_change`)
 - **Off-screen test** (`OffscreenSoftDraw`), 0.3-1.1%: it computes bounds for every primitive
   to find the few that land off screen. Skip it while the display and draw areas coincide.
+  **DONE** (1faf97e: skipped while the drawing area is inside the GX buffer; Spyro -67%,
+  Crash 3 -60%, CTR -63%; Crash Bash keeps it, it really draws off screen)
 - **Display-list reading**, 0.6-1.5%: word-by-word with a byte swap per word. Low value.
 - **FF7's `FinishedVRAMWrite`**, 5.0% in the first chain: texture-cache invalidation for
   42.6 M words of background uploads. Look at `InvalidateSubSTextureArea` after G1.
+  **DONE**, and the cause was not the invalidation (0.2 s, 0 cache entries scanned): the
+  debug build formatted two log lines per transfer, and FF7 sends its logos one row per
+  transfer (c763530, `gpudeep: cwu_us`). Release builds never paid it.
+- **FF7 at 0.86x on the bench Wii** (the only one of eleven games below full speed). Its
+  logos are 640x480 16-bit frames: a full-screen upload of 20 ms each on hardware, more
+  than a frame. **DONE** in three steps, each exact (XFB identical, on the Wii too):
+  one-pass 16-bit upload from VRAM (34413f9), no zeroing and half the flush (dfd5be6), the
+  CPU->VRAM loop on locals instead of globals under PUTLE16's memory clobber (0bc58e3).
+  Hardware: upload 10.9 -> 6.5 s, VRAM loop 3.7 -> 2.9 s, FF7 0.86 -> 0.93x
+  (`baselines/hw_ff7_*`).
 
 ## 3. Recompiled code (Lightrec)
 
