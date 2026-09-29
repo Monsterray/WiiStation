@@ -1932,7 +1932,15 @@ static void LoadSubTexturePageSortBody(int pageid, int mode, short cx, short cy)
     wSRCPtr = psxVuw + start + (y1<<10) + x1;
     LineOffset = 1024 - dx;
 
-    column=dy;do
+    {
+     /* A page at x 768 or more has texels past x 1023; the PS1 wraps them to x 0 of the same
+      * row, and this read went on into the next row (Gex: a 129-wide texture at x 896).
+      * ponytail: 16-bit only; the 8-bit case (128 wide from x 960) can run over the same way. */
+     int over = (int)((start & 1023) + x1 + dx) - 1024;
+     if (over > 0)
+      {
+       unsigned int n0 = dx - over, i;
+       column=dy;do
         {
          for (i = 0; i < dx; i++)
           *ta++ = LTCOL(GETLE16((unsigned short *)(wSRCPtr + (i < n0 ? (int)i : (int)i - 1024))));
