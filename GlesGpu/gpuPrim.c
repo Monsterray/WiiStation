@@ -4033,6 +4033,11 @@ static void primSprtS ( unsigned char * baseAddr )
     if ((dwActFixes & AUTO_FIX_DINO_CRISIS2) &&
         sprtW == 64 && sprtH == 48)
     {
+#ifdef PERF_PROF
+        g_perf.hack_dc2++;
+        g_perf.hack_dc2_x = (uint16_t)(sprtX + PSXDisplay.DrawOffset.x);
+        g_perf.hack_dc2_y = (uint16_t)(sprtY + PSXDisplay.DrawOffset.y);
+#endif
         return;
     }
 

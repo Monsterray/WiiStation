@@ -553,7 +553,11 @@ void perf_report(void)
 		}
 		{
 			extern uint32_t dwActFixes; extern char CdromId[10];
-			fprintf(f, "fixes: dwActFixes=%08lx cdrom=%s\n", (unsigned long)dwActFixes, CdromId);
+			fprintf(f, "fixes: dwActFixes=%08lx cdrom=%s", (unsigned long)dwActFixes, CdromId);
+			if (g_perf.hack_dc2)   /* where the hack still fires, and on what (GAME_HACKS.md) */
+				fprintf(f, " dc2_drop=%lu at=%lu,%lu", (unsigned long)g_perf.hack_dc2,
+					(unsigned long)g_perf.hack_dc2_x, (unsigned long)g_perf.hack_dc2_y);
+			fprintf(f, "\n");
 		}
 		fprintf(f, "cpu: slices=%lu int=%lu cpu_us=%llu jit_full=%lu jit_part=%lu interp_fb=%lu hle=%lu exc=%lu\n",
 			(unsigned long)g_perf.jit_slices, (unsigned long)g_perf.int_slices,

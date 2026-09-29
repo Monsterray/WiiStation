@@ -306,6 +306,8 @@ typedef struct {
 	/* off-screen primitives handed to the software rasterizer (gpuPlugin.c
 	 * OffscreenSoftDraw), and pad-plugin activity: SIO start-polls, pad state
 	 * refreshes and calls into the scripted-input mask */
+	/* hack_dc2: 64x48 sprites AUTO_FIX_DINO_CRISIS2 dropped; the last one's place */
+	uint32_t hack_dc2, hack_dc2_x, hack_dc2_y;
 	uint32_t off_soft_prims, off_soft_rejected, off_soft_inside, pad_startpoll, pad_update, ai_calls;
 	uint32_t rumble_on, rumble_off;   /* motor on/off calls into the controller driver */
 	/* Port 1's protocol (Gamecube/PadSSSPSX.c): commands by type (0x40..0x4F), and the
