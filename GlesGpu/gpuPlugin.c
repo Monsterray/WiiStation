@@ -1137,9 +1137,12 @@ else if(usFirstPos==1)                                // initial updates (after 
      int why = fullUp | (needFlipEGL == TRUE ? 2 : 0) | (bDrawFrontBuffer ? 8 : 0);
      int drawn = iDrawnSomething;
      /* drawing into the displayed buffer: no flip will come, so what was drawn is shown
-      * at the vblank (as a CRT scans VRAM out) */
+      * at the vblank (as a CRT scans VRAM out). Not for a 24-bit display: its picture
+      * reaches the EFB only as the upload at each flip, and the present after that clears
+      * the EFB, so a vblank present showed the game's tiles over black between the video's
+      * frames (FF7's opening video flashed black on every other frame, since ec16be0). */
      if (fullUp || (needFlipEGL == TRUE && (iDrawnSomething & 0x1) == 0) ||
-         (bDrawFrontBuffer && (iDrawnSomething & 0x11)))
+         (bDrawFrontBuffer && !PSXDisplay.RGB24 && (iDrawnSomething & 0x11)))
      {
          GPUupdateLace5Flg = 1;
          flipEGL();
