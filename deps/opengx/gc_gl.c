@@ -1962,6 +1962,40 @@ static void _ogx_scramble_rgba8(const unsigned int *src, unsigned char *dst,
                 }
 }
 
+/* 24-bit FMV straight from PSX VRAM into RGBA8 tiles, in one pass: 3 bytes a pixel, `pitch`
+ * bytes a row. LoadTextureMovie used to expand every pixel to 32 bits in a scratch buffer
+ * for _ogx_scramble_rgba8 to read back. The texel values are the same (0xff, then the
+ * bytes 2, 1, 0 of the pixel), so the texture is identical. */
+static const unsigned char *ogx_rgb24_src;
+static int ogx_rgb24_pitch;
+
+void glSetMovieSourceRGB24(const void *src, int pitch)
+{
+    ogx_rgb24_src = (const unsigned char *)src;
+    ogx_rgb24_pitch = pitch;
+}
+
+static void _ogx_scramble_rgb24(const unsigned char *src, int pitch, unsigned char *dst,
+                                const unsigned int width, const unsigned int height)
+{
+    unsigned int by, bx, y, x;
+
+    for (by = 0; by < height; by += 4)
+        for (bx = 0; bx < width; bx += 4, dst += 64)
+            for (y = 0; y < 4; y++)
+                for (x = 0; x < 4; x++) {
+                    unsigned short *p = (unsigned short *)(dst + (y * 4 + x) * 2);
+                    if (by + y < height && bx + x < width) {
+                        const unsigned char *s = src + (by + y) * pitch + (bx + x) * 3;
+                        p[0] = 0xff00 | s[2];            /* AR */
+                        p[16] = (s[1] << 8) | s[0];      /* GB, 32 bytes on */
+                    } else {
+                        p[0] = 0;
+                        p[16] = 0;
+                    }
+                }
+}
+
 // The position happens to be the integer position of the Block
 static inline int _ogx_scramble_4b_sub(unsigned char *src, void *dst, void *semiTransDst, unsigned short semiTransFlg,
                       const unsigned int width, const unsigned int height, const unsigned int oldWidth,
@@ -2141,7 +2175,10 @@ int glInitMovieTextures( GLsizei width, GLsizei height, void * texData )
     {
         textureType = TEX_TYPE_2;
         if (rgba8)
-            _ogx_scramble_rgba8((const unsigned int *)texData, currtex->data, width, height);
+            if (ogx_rgb24_src)   /* straight from VRAM (glSetMovieSourceRGB24) */
+                _ogx_scramble_rgb24(ogx_rgb24_src, ogx_rgb24_pitch, currtex->data, width, height);
+            else
+                _ogx_scramble_rgba8((const unsigned int *)texData, currtex->data, width, height);
         else
             _ogx_scramble_4b((unsigned char *)texData, currtex->data, width, height);
         GX_InitTexObj(&currtex->texobj, currtex->data,
@@ -2174,7 +2211,7 @@ int glInitMovieTextures( GLsizei width, GLsizei height, void * texData )
         }
     }
     DCFlushRange(currtex->data, tex_size_rnd);
-
+    ogx_rgb24_src = NULL;             /* one texture only */
     return textureType;
 }
 

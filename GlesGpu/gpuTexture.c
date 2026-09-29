@@ -1411,6 +1411,15 @@ GLuint LoadTextureMovie(void)
 //        }
 //      }
 //     else
+      /* 24BIT: opengx tiles the RGBA8 texture straight from these VRAM rows (2048 bytes
+       * apart, 3 bytes a pixel): one pass instead of a 32-bit copy here and a second pass
+       * over it (gc_gl.c glSetMovieSourceRGB24). 15BIT: RGB5A3 in the low half. */
+      if (fmvColour == FMVCOLOUR_24BIT)
+       {
+        extern void glSetMovieSourceRGB24(const void *src, int pitch);
+        glSetMovieSourceRGB24(&psxVuw[(1024*xrMovieArea.y0)+xrMovieArea.x0], 2048);
+       }
+      else
       {
        for(column=xrMovieArea.y0;column<xrMovieArea.y1;column++)
         {
@@ -1418,12 +1427,7 @@ GLuint LoadTextureMovie(void)
          pD=(unsigned char *)&psxVuw[startxy];
          for(row=xrMovieArea.x0;row<xrMovieArea.x1;row++)
           {
-           /* 24BIT: 0xAARRGGBB for the RGBA8 texture (gc_gl.c glInitMovieTextures), the
-            * channels where MOV24to16 puts them. 15BIT: RGB5A3 in the low half. */
-           if (fmvColour == FMVCOLOUR_24BIT)
-             *ta++ = 0xff000000 | (pD[2] << 16) | (pD[1] << 8) | pD[0];
-           else
-             *ta++ = MOV24to16(pD)  | 0x8000;
+           *ta++ = MOV24to16(pD)  | 0x8000;
            pD+=3;
           }
         }
