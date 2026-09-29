@@ -306,7 +306,7 @@ typedef struct {
 	/* off-screen primitives handed to the software rasterizer (gpuPlugin.c
 	 * OffscreenSoftDraw), and pad-plugin activity: SIO start-polls, pad state
 	 * refreshes and calls into the scripted-input mask */
-	uint32_t off_soft_prims, off_soft_rejected, pad_startpoll, pad_update, ai_calls;
+	uint32_t off_soft_prims, off_soft_rejected, off_soft_inside, pad_startpoll, pad_update, ai_calls;
 	uint32_t rumble_on, rumble_off;   /* motor on/off calls into the controller driver */
 	/* Port 1's protocol (Gamecube/PadSSSPSX.c): commands by type (0x40..0x4F), and the
 	 * first reply to a 0x42 poll sent while a button was held: its ID and bytes. */
@@ -501,7 +501,7 @@ typedef struct {
 	uint32_t gpu_gp1_calls, gpu_read_calls;
 	/* Inside GP1's display flip: the VRAM-readback bookkeeping before and after the
 	 * display moves, and the presentation (updateDisplayGl) it can start. */
-	uint64_t flip_will_ticks, flip_done_ticks, flip_present_ticks;
+	uint64_t flip_geom_ticks, flip_present_ticks;
 	uint32_t flip_presents;
 	/* Inside a present: UploadScreen (VRAM -> GX texture, the 24-bit FMV path), its
 	 * PrepareFullScreenUpload, the EFB snapshot flipEGL takes, and gx_vout_render (the

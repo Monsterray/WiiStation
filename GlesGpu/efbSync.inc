@@ -385,7 +385,7 @@ static void efb_present(void)
 /* The display's size or position mapping is about to change (GP1 05-08, resolution) */
 static void efb_before_geometry_change(void)
 {
-    efb_save_live_if_needed();
+    PERF_TIME(flip_geom_ticks, efb_save_live_if_needed());   /* gpuflip: geom_us */
 }
 
 /* Before a read of VRAM rect (x,y,w,h): put the GX-drawn pixels there into psxVuw.

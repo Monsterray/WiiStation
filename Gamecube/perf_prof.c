@@ -662,8 +662,9 @@ void perf_report(void)
 			}
 			fprintf(f, "\n");
 		}
-		fprintf(f, "offsoft: prims=%lu rejected=%lu | pad: startpoll=%lu update=%lu ai_calls=%lu rumble=%lu/%lu\n",
+		fprintf(f, "offsoft: prims=%lu rejected=%lu inside=%lu | pad: startpoll=%lu update=%lu ai_calls=%lu rumble=%lu/%lu\n",
 			(unsigned long)g_perf.off_soft_prims, (unsigned long)g_perf.off_soft_rejected,
+			(unsigned long)g_perf.off_soft_inside,
 			(unsigned long)g_perf.pad_startpoll, (unsigned long)g_perf.pad_update, (unsigned long)g_perf.ai_calls,
 			(unsigned long)g_perf.rumble_on, (unsigned long)g_perf.rumble_off);
 		{
@@ -868,9 +869,8 @@ void perf_report(void)
 				(unsigned long long)ticks_to_microsecs(g_perf.gpu_read_ticks),
 				(unsigned long)g_perf.gpu_read_calls);
 		if (g_perf.gpu_gp1_calls)
-			fprintf(f, "gpuflip: will_us=%llu done_us=%llu present_us=%llu presents=%lu\n",
-				(unsigned long long)ticks_to_microsecs(g_perf.flip_will_ticks),
-				(unsigned long long)ticks_to_microsecs(g_perf.flip_done_ticks),
+			fprintf(f, "gpuflip: geom_us=%llu present_us=%llu presents=%lu\n",
+				(unsigned long long)ticks_to_microsecs(g_perf.flip_geom_ticks),
 				(unsigned long long)ticks_to_microsecs(g_perf.flip_present_ticks),
 				(unsigned long)g_perf.flip_presents);
 		if (g_perf.pres_uploads || g_perf.pres_vout_ticks)

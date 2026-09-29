@@ -1942,6 +1942,7 @@ static int OffscreenSoftDraw(unsigned char cmd, unsigned long *data, int n)
 {
     uint32_t list[6 + 16];
     int x0, y0, x1, y1, k, cs = 0, cl = 0, lc = 0;
+    EfbGeom g;
 
     if (cmd < 0x20 || cmd > 0x7F || (cmd >= 0x40 && cmd <= 0x5F) || n > 16)
         return 0;
@@ -1949,6 +1950,20 @@ static int OffscreenSoftDraw(unsigned char cmd, unsigned long *data, int n)
     if (PSXDisplay.DisplayEnd.x <= PSXDisplay.DisplayPosition.x ||
         PSXDisplay.DisplayEnd.y <= PSXDisplay.DisplayPosition.y)
         return 0;
+    /* The usual case: the drawing area is inside the buffer GX draws. Then a primitive
+     * either reaches that buffer or is clipped away (see below), so none is drawn here, and
+     * its bounds need not be worked out. */
+    if (bDisplayNotSet)
+        SetOGLDisplaySettings(1);
+    efb_geom_now(&g);
+    if (!efb_geom_ok(&g))
+        return 0;
+    if (PSXDisplay.DrawArea.x0 >= g.x && PSXDisplay.DrawArea.x1 < g.x + g.w &&
+        PSXDisplay.DrawArea.y0 >= g.y && PSXDisplay.DrawArea.y1 < g.y + g.h)
+    {
+        PERF_INC(off_soft_inside);
+        return 0;
+    }
     if (!OffscreenPrimBounds(cmd, data, n, &x0, &y0, &x1, &y1))
         return 0;
     /* GX draws only the buffer the EFB holds (efbSync.inc "live": the one at GDrawOffset);
@@ -1956,15 +1971,8 @@ static int OffscreenSoftDraw(unsigned char cmd, unsigned long *data, int n)
      * draws the other one (Ape Escape darkening its paused frame) -- is drawn in software
      * into VRAM. It used to go to GX unless it missed both display buffers, and GX put a
      * primitive outside live at coordinates outside the EFB: it was lost. */
-    {
-        EfbGeom g;
-        if (bDisplayNotSet)
-            SetOGLDisplaySettings(1);
-        efb_geom_now(&g);
-        if (!efb_geom_ok(&g) ||
-            (x0 < g.x + g.w && x1 > g.x && y0 < g.y + g.h && y1 > g.y))
-            return 0;
-    }
+    if (x0 < g.x + g.w && x1 > g.x && y0 < g.y + g.h && y1 > g.y)
+        return 0;
     /* The GPU clips every primitive to the drawing area (E4's end is inclusive), so only
      * that part can change VRAM. A primitive whose box went past the edge of VRAM used to
      * be sent to GX, which never writes VRAM: MediEvil's headstone draws its menu text

@@ -32,6 +32,11 @@ safe to turn off, and what makes on-against-off comparisons possible.
 (the default), `1` spu-gauss, `2` tex-tile, `3` both. Every region stays off by default until
 a hardware run has shown it helps.
 
+**First hardware run (2026-09-28, `baselines/hw_chain_lc_ab_20260928`):** `LockedCache=3`
+against `0`, Spyro and Crash Bash, one emulated minute each. No wall-time gain (every share
+moves by 0.25 points or less). tex-tile: Spyro's tiling time -11%, Crash Bash's +3%, and
+tiling is under 1% of wall on hardware in both. Both regions stay off.
+
 ## Adding a region
 
 1. In `lc.h`: append an id to `enum lc_region` (never renumber: the id is the setting's bit)
