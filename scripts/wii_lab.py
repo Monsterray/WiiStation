@@ -37,11 +37,14 @@ RESULTS = ["perf.log", "vramio.log", "ptrace.log", "atrace.log", "lab.log"]
 
 
 def hbc_ready(wii, secs):
-    """True once TCP 4299 accepts a connection (HBC is in its menu)."""
+    """True once TCP 4299 accepts a connection (HBC is in its menu). The probe sends a
+    header HBC rejects at once: a bare connect and close holds HBC's loader for 10 s, and
+    with a backlog of 3, repeated probes made it stop answering (see wiibench.py hbc_idle)."""
     end = time.monotonic() + secs
     while time.monotonic() < end:
         try:
-            socket.create_connection((wii, 4299), timeout=2).close()
+            with socket.create_connection((wii, 4299), timeout=2) as s:
+                s.sendall(b"PING" + bytes(12))
             return True
         except OSError:
             time.sleep(1)
