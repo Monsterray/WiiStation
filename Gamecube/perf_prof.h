@@ -530,6 +530,17 @@ typedef struct {
 	uint64_t gpu_inv_ticks;
 	uint32_t gpu_inv_calls, gpu_inv_scan;
 	uint64_t gpu_cwu_ticks;   /* CheckWriteUpdate inside FinishedVRAMWrite */
+	/* G5: texture-cache invalidations by source (gpuTexture.c ogx_inv_src: 0 other, 1 CPU
+	 * image load, 2 move, 3 fill, 4 primitive, 5 EFB sync, 6 off-screen soft draw): calls,
+	 * cached sub-textures dropped, and their texels. CPU loads that changed no pixel. */
+	uint32_t inv_src_calls[8], inv_src_drop[8];
+	uint64_t inv_src_texels[8];
+	uint32_t vload_same, vload_changed;
+	uint64_t vload_px_changed;
+	/* the invalidating rects that dropped entries (distinct, first 8) and one dropped
+	 * entry each: its mode, page, rect in page texels */
+	struct { int16_t x, y, w, h; uint8_t src, mode, page, pad; uint8_t ex1, ey1, ex2, ey2; uint32_t n; } inv_rect[8];
+	uint32_t inv_rect_n;
 	/* One draw, split. `ogx` is every call into OpenGX's glPRIMdraw* functions; the rest
 	 * of a primitive's time is the plugin preparing it. Inside ogx, `common` is the vertex
 	 * format set on every draw and `state` the GX state (Z, alpha test, blend, texture

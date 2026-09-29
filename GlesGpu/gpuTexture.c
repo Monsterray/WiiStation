@@ -650,9 +650,35 @@ void MarkFree(textureSubCacheEntryS * tsx)
   }
 }
 
+int ogx_inv_src = 0;
+
+#if PERF_PROF_GPUSPLIT
+static void inv_rect_note(int x, int y, int w, int h, int mode, int page, const textureSubCacheEntryS *t)
+{
+ unsigned i;
+ for (i = 0; i < g_perf.inv_rect_n; i++)
+  if (g_perf.inv_rect[i].x == x && g_perf.inv_rect[i].y == y && g_perf.inv_rect[i].w == w &&
+      g_perf.inv_rect[i].h == h && g_perf.inv_rect[i].src == ogx_inv_src) { g_perf.inv_rect[i].n++; return; }
+ if (i >= 8) return;
+ g_perf.inv_rect_n++;
+ g_perf.inv_rect[i].x = x; g_perf.inv_rect[i].y = y; g_perf.inv_rect[i].w = w; g_perf.inv_rect[i].h = h;
+ g_perf.inv_rect[i].src = ogx_inv_src; g_perf.inv_rect[i].mode = mode; g_perf.inv_rect[i].page = page;
+ g_perf.inv_rect[i].ex1 = t->pos.c.x1; g_perf.inv_rect[i].ey1 = t->pos.c.y1;
+ g_perf.inv_rect[i].ex2 = t->pos.c.x2; g_perf.inv_rect[i].ey2 = t->pos.c.y2;
+ g_perf.inv_rect[i].n = 1;
+}
+#endif
+
 void InvalidateSubSTextureArea(int X,int Y,int W, int H)
 {
  PERF_INC(ogx_vram_wr);
+#if PERF_PROF_GPUSPLIT
+ g_perf.inv_src_calls[ogx_inv_src & 7]++;
+#define INV_DROP(t) (g_perf.inv_src_drop[ogx_inv_src & 7]++,   g_perf.inv_src_texels[ogx_inv_src & 7] += (unsigned)((t)->pos.c.x2 - (t)->pos.c.x1 + 1) * ((t)->pos.c.y2 - (t)->pos.c.y1 + 1),   inv_rect_note(X0_, Y0_, W0_, H0_, k, j, (t)))
+ const int X0_ = X, Y0_ = Y, W0_ = W, H0_ = H;
+#else
+#define INV_DROP(t) ((void)0)
+#endif
  int i,j,k,iMax,px,py,px1,px2,py1,py2,iYM=1;
  EXLong npos;textureSubCacheEntryS * tsb;
  int x1,x2,y1,y2,xa,sw;
@@ -711,27 +737,27 @@ void InvalidateSubSTextureArea(int X,int Y,int W, int H)
          g_perf.gpu_inv_scan += iMax;   /* list A; B-D below are the same length or less */
 #endif
          for(i=0;i<iMax;i++,tsb++)
-          if(tsb->ClutKey && XCHECK(tsb->pos,npos)) {tsb->ClutKey=0;MarkFree(tsb);PERF_INC(ogx_inval);}
+          if(tsb->ClutKey && XCHECK(tsb->pos,npos)) {INV_DROP(tsb);tsb->ClutKey=0;MarkFree(tsb);PERF_INC(ogx_inval);}
 
 //         if(npos.l & 0x00800000)
           {
            tsb=pscSubtexStore[k][j]+SOFFB;iMax=GETLE32(SUBCACHE_COUNT_PTR(tsb));tsb++;
            for(i=0;i<iMax;i++,tsb++)
-            if(tsb->ClutKey && XCHECK(tsb->pos,npos)) {tsb->ClutKey=0;MarkFree(tsb);PERF_INC(ogx_inval);}
+            if(tsb->ClutKey && XCHECK(tsb->pos,npos)) {INV_DROP(tsb);tsb->ClutKey=0;MarkFree(tsb);PERF_INC(ogx_inval);}
           }
 
 //         if(npos.l & 0x00000080)
           {
            tsb=pscSubtexStore[k][j]+SOFFC;iMax=GETLE32(SUBCACHE_COUNT_PTR(tsb));tsb++;
            for(i=0;i<iMax;i++,tsb++)
-            if(tsb->ClutKey && XCHECK(tsb->pos,npos)) {tsb->ClutKey=0;MarkFree(tsb);PERF_INC(ogx_inval);}
+            if(tsb->ClutKey && XCHECK(tsb->pos,npos)) {INV_DROP(tsb);tsb->ClutKey=0;MarkFree(tsb);PERF_INC(ogx_inval);}
           }
 
 //         if(npos.l & 0x00800080)
           {
            tsb=pscSubtexStore[k][j]+SOFFD;iMax=GETLE32(SUBCACHE_COUNT_PTR(tsb));tsb++;
            for(i=0;i<iMax;i++,tsb++)
-            if(tsb->ClutKey && XCHECK(tsb->pos,npos)) {tsb->ClutKey=0;MarkFree(tsb);PERF_INC(ogx_inval);}
+            if(tsb->ClutKey && XCHECK(tsb->pos,npos)) {INV_DROP(tsb);tsb->ClutKey=0;MarkFree(tsb);PERF_INC(ogx_inval);}
           }
         }
       }
@@ -750,10 +776,12 @@ void InvalidateTextureAreaEx(void)
 
  if(W==0 && H==0) return;
 
+ ogx_inv_src = 4;
  if(iMaxTexWnds)
   InvalidateWndTextureArea(sxmin,symin,W,H);
 
  InvalidateSubSTextureArea(sxmin,symin,W,H);
+ ogx_inv_src = 0;
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -772,7 +800,7 @@ void InvalidateTextureArea(int X,int Y,int W, int H)
   }
  }
 #endif
- if(W==0 && H==0) return;
+ if(W==0 && H==0) { ogx_inv_src = 0; return; }
 
 #if PERF_PROF_GPUSPLIT
  {
@@ -786,6 +814,7 @@ void InvalidateTextureArea(int X,int Y,int W, int H)
  g_perf.gpu_inv_ticks += perf_now_ticks() - inv_t0_;
  }
 #endif
+ ogx_inv_src = 0;
 }
 
 

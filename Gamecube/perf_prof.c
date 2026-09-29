@@ -929,6 +929,24 @@ void perf_report(void)
 				(unsigned long long)ticks_to_microsecs(g_perf.gpu_inv_ticks),
 				(unsigned long)g_perf.gpu_inv_calls, (unsigned long)g_perf.gpu_inv_scan,
 				(unsigned long long)ticks_to_microsecs(g_perf.gpu_cwu_ticks));
+			{   /* G5: which source drops cached textures, and how much it drops */
+				static const char *nm[8] = { "other", "load", "move", "fill", "prim", "efb", "soft", "7" };
+				int k;
+				fprintf(f, "texinv: same_loads=%lu changed_loads=%lu changed_px=%llu",
+					(unsigned long)g_perf.vload_same, (unsigned long)g_perf.vload_changed,
+					(unsigned long long)g_perf.vload_px_changed);
+				for (k = 0; k < 8; k++)
+					if (g_perf.inv_src_calls[k])
+						fprintf(f, " %s=%lu/%lu/%llu", nm[k], (unsigned long)g_perf.inv_src_calls[k],
+							(unsigned long)g_perf.inv_src_drop[k], (unsigned long long)g_perf.inv_src_texels[k]);
+				fprintf(f, "\n");
+				for (k = 0; k < (int)g_perf.inv_rect_n; k++)
+					fprintf(f, "texinvr: src=%s rect=%d,%d %dx%d drops=%lu e.g. mode=%u page=%u entry=(%u,%u)-(%u,%u)\n",
+						nm[g_perf.inv_rect[k].src & 7], g_perf.inv_rect[k].x, g_perf.inv_rect[k].y,
+						g_perf.inv_rect[k].w, g_perf.inv_rect[k].h, (unsigned long)g_perf.inv_rect[k].n,
+						g_perf.inv_rect[k].mode, g_perf.inv_rect[k].page,
+						g_perf.inv_rect[k].ex1, g_perf.inv_rect[k].ey1, g_perf.inv_rect[k].ex2, g_perf.inv_rect[k].ey2);
+			}
 			fprintf(f, "gpudraw: ogx_us=%llu draws=%lu common_us=%llu state_us=%llu "
 				"states=%lu tex_us=%llu mode_us=%llu\n",
 				(unsigned long long)ticks_to_microsecs(g_perf.ogx_draw_ticks),

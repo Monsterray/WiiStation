@@ -1574,8 +1574,17 @@ switch(lCommand)
 
 BOOL bNeedWriteUpload=FALSE;
 
+#if PERF_PROF_GPUSPLIT
+static unsigned vw_changed;   /* pixels the current CPU->VRAM transfer changed */
+#endif
+
 static __inline void FinishedVRAMWrite(void)
 {
+#if PERF_PROF_GPUSPLIT
+ if (vw_changed) g_perf.vload_changed++; else g_perf.vload_same++;
+ g_perf.vload_px_changed += vw_changed;
+ vw_changed = 0;
+#endif
 #if PERF_PROF_GPUSPLIT
  unsigned long long fv_t0_ = perf_now_ticks();
  g_perf.gpu_vramfin_calls++;
@@ -2040,6 +2049,7 @@ static int OffscreenSoftDraw(unsigned char cmd, unsigned long *data, int n)
 
     do_cmd_list(list, 6 + n, &cs, &cl, &lc);
 
+    ogx_inv_src = 6;
     InvalidateTextureArea(x0, y0, x1 - x0, y1 - y0);
     efb_cpu_write(x0, y0, x1 - x0, y1 - y0);
     PERF_INC(off_soft_prims);
@@ -2109,6 +2119,11 @@ if(iDataWriteMode==DR_VRAMTRANSFER)
    const short wd = VRAMWrite.Width;
    const int wx = VRAMWrite.Width + VRAMWrite.x, wrap = iGPUHeight * 1024;
 #define VW_SAVE() (VRAMWrite.ImagePtr = ip, VRAMWrite.RowsRemaining = rr, VRAMWrite.ColsRemaining = cr)
+#if PERF_PROF_GPUSPLIT   /* G5 probe: pixels this transfer changed (texinv: in perf.log) */
+#define VW_PUT(d, v) do { unsigned short *d_ = (d); unsigned short v_ = (v);                           vw_changed += GETLE16(d_) != v_; PUTLE16(d_, v_); } while (0)
+#else
+#define VW_PUT(d, v) PUTLE16((d), (v))
+#endif
 
    while (cr > 0)
     {
@@ -2121,9 +2136,9 @@ if(iDataWriteMode==DR_VRAMTRANSFER)
 
        // Write odd pixel - Wrap from beginning to next index if going past GPU width
        if (wx - rr >= 1024)
-        PUTLE16((ip++) - 1024, (unsigned short)gdata);
+        VW_PUT((ip++) - 1024, (unsigned short)gdata);
        else
-        PUTLE16(ip++, (unsigned short)gdata);
+        VW_PUT(ip++, (unsigned short)gdata);
        if (ip >= eom) ip -= wrap;
        rr--;
 
@@ -2143,9 +2158,9 @@ if(iDataWriteMode==DR_VRAMTRANSFER)
 
        // Write even pixel - Wrap from beginning to next index if going past GPU width
        if (wx - rr >= 1024)
-        PUTLE16((ip++) - 1024, (unsigned short)(gdata >> 16));
+        VW_PUT((ip++) - 1024, (unsigned short)(gdata >> 16));
        else
-        PUTLE16(ip++, (unsigned short)(gdata >> 16));
+        VW_PUT(ip++, (unsigned short)(gdata >> 16));
        if (ip >= eom) ip -= wrap;
        rr--;
       }
@@ -2156,6 +2171,7 @@ if(iDataWriteMode==DR_VRAMTRANSFER)
     }
    VW_SAVE();
 #undef VW_SAVE
+#undef VW_PUT
   }
 
   FinishedVRAMWrite();

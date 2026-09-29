@@ -40,6 +40,7 @@ GLuint         LoadTextureWnd(int pageid,int TextureMode,unsigned int GivenClutI
 GLuint         LoadTextureMovie(void);
 void           InvalidateTextureArea(int imageX0,int imageY0,int imageX1,int imageY1);
 void           InvalidateTextureAreaEx(void);
+extern int     ogx_inv_src;   /* probe (PERF_PROF_GPUSPLIT): who invalidates, gpudeep texinv: */
 void           LoadTexturePage(int pageid, int mode, short cx, short cy);
 void           ResetTextureArea(BOOL bDelTex);
 GLuint         SelectSubTextureS(int TextureMode, unsigned int GivenClutId);

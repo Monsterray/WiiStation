@@ -2513,6 +2513,7 @@ void CheckWriteUpdate()
     if ( VRAMWrite.Width )   iX = 1;
     if ( VRAMWrite.Height )  iY = 1;
 
+    ogx_inv_src = 1;
     InvalidateTextureArea ( VRAMWrite.x, VRAMWrite.y, VRAMWrite.Width - iX, VRAMWrite.Height - iY );
 
     #if defined(DISP_DEBUG)
@@ -2735,6 +2736,7 @@ static inline void BlkFillArea(short x0, short y0, short width, short height, un
     if ( (y0 + height) > 512 ) height = 512 - y0;
     if ( (x0 + width) > 1024 ) width = 1024 - x0;
 
+    ogx_inv_src = 3;
     InvalidateTextureArea(x0, y0, width, height);
 
     // clear area
@@ -2914,6 +2916,7 @@ static void MoveImageWrapped ( short imageX0, short imageY0,
 
         if ( imageYE > iGPUHeight && imageXE > 1024 )
         {
+            ogx_inv_src = 2;
             InvalidateTextureArea ( 0, 0,
                                     ( imageXE & 0x3ff ) - 1,
                                     ( imageYE & iGPUHeightMask ) - 1 );
@@ -2921,6 +2924,7 @@ static void MoveImageWrapped ( short imageX0, short imageY0,
 
         if ( imageXE > 1024 )
         {
+            ogx_inv_src = 2;
             InvalidateTextureArea ( 0, imageY1,
                                     ( imageXE & 0x3ff ) - 1,
                                     ( ( imageYE > iGPUHeight ) ? iGPUHeight : imageYE ) - imageY1 - 1 );
@@ -2928,11 +2932,13 @@ static void MoveImageWrapped ( short imageX0, short imageY0,
 
         if ( imageYE > iGPUHeight )
         {
+            ogx_inv_src = 2;
             InvalidateTextureArea ( imageX1, 0,
                                     ( ( imageXE > 1024 ) ? 1024 : imageXE ) - imageX1 - 1,
                                     ( imageYE & iGPUHeightMask ) - 1 );
         }
 
+        ogx_inv_src = 2;
         InvalidateTextureArea ( imageX1, imageY1,
                                 ( ( imageXE > 1024 ) ? 1024 : imageXE ) - imageX1 - 1,
                                 ( ( imageYE > iGPUHeight ) ? iGPUHeight : imageYE ) - imageY1 - 1 );
@@ -3041,6 +3047,7 @@ static void primMoveImage ( unsigned char * baseAddr )
 
     if ( !PSXDisplay.RGB24 )
     {
+        ogx_inv_src = 2;
         InvalidateTextureArea ( imageX1, imageY1, imageSX - 1, imageSY - 1 );
 
         int uploaded = 0;
@@ -3228,6 +3235,7 @@ static inline void TitleFillArea(short x0, short y0, short width, short height, 
     if (!bCheckMask && !DrawSemiTrans)
     {
         unsigned short colTmp = SWAP16_C(colInfo);
+        ogx_inv_src = 3;
         InvalidateTextureArea(x0, y0, width, height);
 
         for (int yy = y0; yy < y1; yy++)

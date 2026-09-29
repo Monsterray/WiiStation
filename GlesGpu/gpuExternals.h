@@ -316,6 +316,7 @@ extern unsigned short * psxVuw;
 //extern unsigned int   * psxVul;
 //extern signed int     * psxVsl;
 extern unsigned short * psxVuw_eom;
+extern int ogx_inv_src;   /* gpuTexture.c: who invalidates (probe, gpudeep texinv:) */
 extern GLfloat        gl_z;
 extern BOOL           bNeedRGB24Update;
 extern GLuint         uiScanLine;
