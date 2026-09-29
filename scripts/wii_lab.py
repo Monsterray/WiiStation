@@ -33,7 +33,8 @@ import zlib
 REPO = pathlib.Path(__file__).resolve().parents[1]
 SHARED = pathlib.Path("C:/tools/Dolphin-x64/User/Load/WiiSDSync/wiisxrx")
 BASE_SETTINGS = "gpuPlugin = 2\nFPS = 1\nPadType1 = 1\nPadAutoAssign = 0\n"
-RESULTS = ["perf.log", "vramio.log", "ptrace.log", "atrace.log", "lab.log"]
+RESULTS = ["perf.log", "vramio.log", "ptrace.log", "atrace.log", "lab.log",
+           "xfb.bin", "vram.bin"]   # a "dump <vblank>": the TV picture and VRAM then
 
 
 def hbc_ready(wii, secs):

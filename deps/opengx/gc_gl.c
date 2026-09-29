@@ -2186,7 +2186,10 @@ int glInitMovieTextures( GLsizei width, GLsizei height, void * texData )
     {
         currtex->semiTransData = currtex->data + tile16;
     }
-    if (!rgba8)
+    /* The 16-bit tiler writes every block of its half, padding included, and the
+     * semi-transparent half is used only when it is copied in whole (below): only the
+     * RGB24 path's tiler needs the buffer zeroed. 256 KB a part, six parts a 640x480 frame. */
+    if (!rgba8 && glparamstate.RGB24)
         memset(currtex->data, 0, tex_size_rnd);
     movieTexPtr += tex_size_rnd;
     movieUsedSize += tex_size_rnd;
@@ -2234,7 +2237,8 @@ int glInitMovieTextures( GLsizei width, GLsizei height, void * texData )
             }
         }
     }
-    DCFlushRange(currtex->data, tex_size_rnd);
+    /* what the CPU wrote: the semi-transparent half only when it was copied in */
+    DCFlushRange(currtex->data, (!glparamstate.RGB24 && !(textureType & TEX_TYPE_1)) ? tile16 : tex_size_rnd);
     ogx_rgb24_src = NULL;             /* one texture only */
     ogx_vram16_src = NULL;
     return textureType;
