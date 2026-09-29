@@ -1577,6 +1577,7 @@ BOOL bNeedWriteUpload=FALSE;
 /* The lowest and highest pixel the current CPU->VRAM transfer changed (the copy loop in
  * GL_GPUwriteDataMem); none while cmax is NULL. CheckWriteUpdate uses them. */
 unsigned short *vw_cmin = (unsigned short *)~(uintptr_t)0, *vw_cmax = NULL;
+int vw_tracked = 1;   /* 0: some of the transfer ran without noting changes: take it whole */
 
 #if PERF_PROF_GPUSPLIT
 static unsigned vw_changed;   /* pixels the current CPU->VRAM transfer changed */
@@ -1617,6 +1618,7 @@ static __inline void FinishedVRAMWrite(void)
   }
  vw_cmin = (unsigned short *)~(uintptr_t)0;   /* the next transfer starts with none */
  vw_cmax = NULL;
+ vw_tracked = 1;
 
  // set register to NORMAL operation
  iDataWriteMode = DR_NORMAL;
@@ -2127,69 +2129,85 @@ if(iDataWriteMode==DR_VRAMTRANSFER)
   /* The transfer runs on local copies of VRAMWrite. PUTLE16 is an asm store with a
    * "memory" clobber (gpulib/gpu.h), so with the globals every field, psxVuw_eom and
    * iGPUHeight were stored and loaded again around each pixel: about 63 cycles a word on a
-   * Wii (FF7: 3.7 s of 67). The steps are the same; the copies go back at every exit. */
+   * Wii (FF7: 3.7 s of 67). The steps are the same; the copies go back at every exit.
+   * It notes the pixels it changes (CheckWriteUpdate) only while the EFB mirrors psxVuw
+   * (ogx_efb_mirror 1): only then does that range save work, and comparing every pixel
+   * doubled the loop for an FMV, which rewrites the whole frame (Gex 1.3 -> 2.4 s). Else
+   * the transfer counts as changed everywhere (vw_tracked 0). The address only grows on
+   * the change path (a wrapped transfer is taken whole), so cmax is simply the last one. */
   {
    unsigned short *ip = VRAMWrite.ImagePtr;
    unsigned short * const eom = psxVuw_eom;
    short rr = VRAMWrite.RowsRemaining, cr = VRAMWrite.ColsRemaining;
    const short wd = VRAMWrite.Width;
    const int wx = VRAMWrite.Width + VRAMWrite.x, wrap = iGPUHeight * 1024;
-   unsigned short *cmin = vw_cmin, *cmax = vw_cmax;   /* the pixels it changes (CheckWriteUpdate) */
-#define VW_SAVE() (VRAMWrite.ImagePtr = ip, VRAMWrite.RowsRemaining = rr, VRAMWrite.ColsRemaining = cr,                    vw_cmin = cmin, vw_cmax = cmax)
+   unsigned short *cmin = vw_cmin, *cmax = vw_cmax;
+#define VW_SAVE() (VRAMWrite.ImagePtr = ip, VRAMWrite.RowsRemaining = rr, VRAMWrite.ColsRemaining = cr, \
+                   vw_cmin = cmin, vw_cmax = cmax)
 #if PERF_PROF_GPUSPLIT   /* probes: pixels this transfer changed (texinv:), their box (uplcheck:) */
 #define VW_SEEN(d) (vw_changed++, vw_dirty(d))
 #else
 #define VW_SEEN(d) ((void)0)
 #endif
-#define VW_PUT(d, v) do { unsigned short *d_ = (d); unsigned short v_ = (v);                           if (GETLE16(d_) != v_) { if (d_ < cmin) cmin = d_; if (d_ > cmax) cmax = d_; VW_SEEN(d_); }                           PUTLE16(d_, v_); } while (0)
+#define VW_PUT_TRACK(d, v) do { unsigned short *d_ = (d); unsigned short v_ = (v); \
+                                if (GETLE16(d_) != v_) { if (!cmax) cmin = d_; cmax = d_; VW_SEEN(d_); } \
+                                PUTLE16(d_, v_); } while (0)
+#define VW_PUT_PLAIN(d, v) PUTLE16((d), (v))
+#define VW_LOOP(VW_PUT) \
+   while (cr > 0) \
+    { \
+     while (rr > 0) \
+      { \
+       if (i >= iSize) { VW_SAVE(); goto ENDVRAM_GL; } \
+       i++; \
+       gdata = GETLE32(pMem); pMem++; \
+       /* odd pixel; past the GPU width it wraps to the start of the row */ \
+       if (wx - rr >= 1024) \
+        VW_PUT((ip++) - 1024, (unsigned short)gdata); \
+       else \
+        VW_PUT(ip++, (unsigned short)gdata); \
+       if (ip >= eom) ip -= wrap; \
+       rr--; \
+       if (rr <= 0) \
+        { \
+         cr--; \
+         if (cr <= 0)                                 /* last pixel is odd width */ \
+          { \
+           gdata = (gdata & 0xFFFF) | (((unsigned long)GETLE16(ip)) << 16); \
+           VW_SAVE(); \
+           FinishedVRAMWrite(); \
+           goto ENDVRAM_GL; \
+          } \
+         rr = wd; \
+         ip += 1024 - wd; \
+        } \
+       /* even pixel */ \
+       if (wx - rr >= 1024) \
+        VW_PUT((ip++) - 1024, (unsigned short)(gdata >> 16)); \
+       else \
+        VW_PUT(ip++, (unsigned short)(gdata >> 16)); \
+       if (ip >= eom) ip -= wrap; \
+       rr--; \
+      } \
+     rr = wd; \
+     cr--; \
+     ip += 1024 - wd; \
+    }
 
-   while (cr > 0)
+   if (ogx_efb_mirror == 1 && !PSXDisplay.RGB24)
     {
-     while (rr > 0)
-      {
-       if (i >= iSize) { VW_SAVE(); goto ENDVRAM_GL; }
-       i++;
-
-       gdata = GETLE32(pMem); pMem++;
-
-       // Write odd pixel - Wrap from beginning to next index if going past GPU width
-       if (wx - rr >= 1024)
-        VW_PUT((ip++) - 1024, (unsigned short)gdata);
-       else
-        VW_PUT(ip++, (unsigned short)gdata);
-       if (ip >= eom) ip -= wrap;
-       rr--;
-
-       if (rr <= 0)
-        {
-         cr--;
-         if (cr <= 0)                                 // last pixel is odd width
-          {
-           gdata = (gdata & 0xFFFF) | (((unsigned long)GETLE16(ip)) << 16);
-           VW_SAVE();
-           FinishedVRAMWrite();
-           goto ENDVRAM_GL;
-          }
-         rr = wd;
-         ip += 1024 - wd;
-        }
-
-       // Write even pixel - Wrap from beginning to next index if going past GPU width
-       if (wx - rr >= 1024)
-        VW_PUT((ip++) - 1024, (unsigned short)(gdata >> 16));
-       else
-        VW_PUT(ip++, (unsigned short)(gdata >> 16));
-       if (ip >= eom) ip -= wrap;
-       rr--;
-      }
-
-     rr = wd;
-     cr--;
-     ip += 1024 - wd;
+     VW_LOOP(VW_PUT_TRACK)
+    }
+   else
+    {
+     vw_tracked = 0;
+     VW_LOOP(VW_PUT_PLAIN)
     }
    VW_SAVE();
+#undef VW_LOOP
+#undef VW_PUT_TRACK
+#undef VW_PUT_PLAIN
 #undef VW_SAVE
-#undef VW_PUT
 #undef VW_SEEN
   }
 

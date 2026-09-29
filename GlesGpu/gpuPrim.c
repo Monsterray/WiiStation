@@ -2609,10 +2609,10 @@ void CheckWriteUpdate()
 {
     short wx = VRAMWrite.x, wy = VRAMWrite.y, ww = VRAMWrite.Width, wh = VRAMWrite.Height;
     short cx = wx, cy = wy, cw = ww, ch = wh;
-    int changed = vw_cmax != NULL;
+    int changed = vw_cmax != NULL || !vw_tracked;
     int partial;
 
-    if (changed && wx + ww <= 1024 && wy + wh <= iGPUHeight)
+    if (vw_tracked && changed && wx + ww <= 1024 && wy + wh <= iGPUHeight)
     {
         int o0 = (int)(vw_cmin - psxVuw), o1 = (int)(vw_cmax - psxVuw);
         cy = o0 >> 10;
@@ -2629,7 +2629,7 @@ void CheckWriteUpdate()
         InvalidateTextureArea ( cx, cy, cw, ch );
     }
 
-    partial = ogx_efb_mirror == 1 && !PSXDisplay.RGB24 && glUploadFilterNear() && mirror_geom_same() &&
+    partial = vw_tracked && ogx_efb_mirror == 1 && !PSXDisplay.RGB24 && glUploadFilterNear() && mirror_geom_same() &&
               PreviousPSXDisplay.DisplayPosition.x == PSXDisplay.DisplayPosition.x &&
               PreviousPSXDisplay.DisplayPosition.y == PSXDisplay.DisplayPosition.y;
     PERF_INC(upl_partial_calls);

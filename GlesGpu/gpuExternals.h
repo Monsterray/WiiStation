@@ -327,7 +327,8 @@ extern int ogx_efb_mirror;             /* deps/opengx/gc_gl.c: the EFB mirrors t
 #define MIRROR_OFF(why) ((void)(ogx_efb_mirror = 0))
 #endif
 extern int glUploadFilterNear(void);
-extern unsigned short *vw_cmin, *vw_cmax;   /* gpuPlugin.c: the pixels the last CPU load changed */   /* gpuTexture.c: who invalidates (probe, gpudeep texinv:) */
+extern unsigned short *vw_cmin, *vw_cmax;   /* gpuPlugin.c: the pixels the last CPU load changed */
+extern int vw_tracked;                      /* ... 0: not noted (the EFB did not mirror): all of it */   /* gpuTexture.c: who invalidates (probe, gpudeep texinv:) */
 extern GLfloat        gl_z;
 extern BOOL           bNeedRGB24Update;
 extern GLuint         uiScanLine;
