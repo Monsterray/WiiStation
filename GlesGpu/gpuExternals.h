@@ -317,7 +317,9 @@ extern unsigned short * psxVuw;
 //extern signed int     * psxVsl;
 extern unsigned short * psxVuw_eom;
 extern int ogx_inv_src;
-extern int ogx_efb_mirror;             /* deps/opengx/gc_gl.c: the EFB mirrors the displayed psxVuw */
+extern int mirror_gx_x0, mirror_gx_y0, mirror_gx_x1, mirror_gx_y1, mirror_gx_any;   /* gpuPlugin.c */
+extern int ogx_efb_mirror;
+extern int efb_sync_upload;                /* gpuTexture.c: 1 during UploadScreen's efb_sync */             /* deps/opengx/gc_gl.c: the EFB mirrors the displayed psxVuw */
 /* End the EFB mirror; debug builds count why (perf.log "mirror: off="): 1 GX primitive,
  * 2 present that clears, 3 plugin open/close, 4 state load, 5 upload skipped, 6 VRAM changed
  * other than by a CPU load, 7 EFB sync reset */

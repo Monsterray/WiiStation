@@ -474,8 +474,10 @@ static int efb_sync(int x, int y, int w, int h)
             if (py1 > iy1) iy1 = py1;
         }
     if (ix1 > ix0)
+    {
         ogx_inv_src = 5;
         InvalidateTextureArea(ix0, iy0, ix1 - ix0, iy1 - iy0);
+    }
     efb_pages_recheck(tx0, ty0, tx1, ty1);
     if (missed)
     {

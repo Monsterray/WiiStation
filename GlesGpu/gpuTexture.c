@@ -615,6 +615,7 @@ void MarkFree(textureSubCacheEntryS * tsx)
 }
 
 int ogx_inv_src = 0;
+int efb_sync_upload = 0;
 
 #if PERF_PROF_GPUSPLIT
 static void inv_rect_note(int x, int y, int w, int h, int mode, int page, const textureSubCacheEntryS *t)
@@ -740,8 +741,11 @@ void InvalidateTextureArea(int X,int Y,int W, int H)
 #endif
  if(W<=0 || H<=0) { ogx_inv_src = 0; return; }
  /* every way VRAM gets new content comes here: all but a CPU load (whose changed pixels
-  * CheckWriteUpdate uploads) also leave the EFB not mirroring psxVuw */
- if(ogx_inv_src != 1) MIRROR_OFF(6);
+  * CheckWriteUpdate uploads), a GX primitive (4: EfbBeforeGxCommand has dealt with the
+  * mirror) and the EFB sync before an upload (5, efb_sync_upload: GX's pixels go into
+  * psxVuw, and the upload then puts psxVuw into the EFB) also leave the EFB not mirroring
+  * psxVuw */
+ if(ogx_inv_src != 1 && ogx_inv_src != 4 && !(ogx_inv_src == 5 && efb_sync_upload)) MIRROR_OFF(6);
  if(W>1024) W=1024;
  if(H>iGPUHeight) H=iGPUHeight;
  X&=1023;
@@ -1927,6 +1931,18 @@ static void LoadSubTexturePageSortBody(int pageid, int mode, short cx, short cy)
 
     wSRCPtr = psxVuw + start + (y1<<10) + x1;
     LineOffset = 1024 - dx;
+
+    column=dy;do
+        {
+         for (i = 0; i < dx; i++)
+          *ta++ = LTCOL(GETLE16((unsigned short *)(wSRCPtr + (i < n0 ? (int)i : (int)i - 1024))));
+         ta+=xalign;
+         wSRCPtr+=1024;column--;
+        }
+       while(column);
+       break;
+      }
+    }
 
     column=dy;do
      {

@@ -2010,6 +2010,38 @@ static int OffscreenPrimBounds(unsigned char cmd, const unsigned long *d, int n,
     return 1;
 }
 
+/* GX draws into the EFB, so there it no longer mirrors psxVuw. A primitive inside the
+ * displayed rectangle only grows mirror_gx (the box the next partial upload also covers,
+ * gpuPrim.c CheckWriteUpdate), from the first upload of a mirror (ogx_efb_mirror 2) on:
+ * FF7's logos draw one fade band a frame over the field they upload, so the mirror never
+ * got whole and each of those frames was uploaded whole. Anything else ends the mirror. */
+int mirror_gx_x0, mirror_gx_y0, mirror_gx_x1, mirror_gx_y1, mirror_gx_any;
+static void mirror_gx_draw(int x0, int y0, int x1, int y1)
+{
+    x0 = max(x0, PSXDisplay.DrawArea.x0); y0 = max(y0, PSXDisplay.DrawArea.y0);
+    x1 = min(x1, PSXDisplay.DrawArea.x1 + 1); y1 = min(y1, PSXDisplay.DrawArea.y1 + 1);
+    if (x1 <= x0 || y1 <= y0 || !ogx_efb_mirror)
+        return;               /* clipped away; or no mirror, and the uploads that make one cover it */
+    if (PSXDisplay.RGB24 ||
+        x0 < PSXDisplay.DisplayPosition.x || y0 < PSXDisplay.DisplayPosition.y ||
+        x1 > PSXDisplay.DisplayEnd.x || y1 > PSXDisplay.DisplayEnd.y)
+    {
+        MIRROR_OFF(1);
+        return;
+    }
+    /* GX may fill the right and bottom edge a PS1 leaves out: one pixel more each way */
+    x0 = max(x0 - 1, PSXDisplay.DisplayPosition.x); y0 = max(y0 - 1, PSXDisplay.DisplayPosition.y);
+    x1 = min(x1 + 1, PSXDisplay.DisplayEnd.x);      y1 = min(y1 + 1, PSXDisplay.DisplayEnd.y);
+    if (!mirror_gx_any)
+    {
+        mirror_gx_x0 = x0; mirror_gx_y0 = y0; mirror_gx_x1 = x1; mirror_gx_y1 = y1;
+        mirror_gx_any = 1;
+        return;
+    }
+    mirror_gx_x0 = min(mirror_gx_x0, x0); mirror_gx_y0 = min(mirror_gx_y0, y0);
+    mirror_gx_x1 = max(mirror_gx_x1, x1); mirror_gx_y1 = max(mirror_gx_y1, y1);
+}
+
 /* Before a GX primitive (20h-7Fh) from the display list: it writes the buffer being drawn.
  * The display offset is applied first, as the primitive's offset function would, so the EFB
  * sync sees the buffer it lands in; its bounds come from its GP0 words (lines, whose bounds
@@ -2020,7 +2052,6 @@ static void EfbBeforeGxCommand(unsigned char cmd, unsigned long *data, int n)
 
     if (cmd < 0x20 || cmd > 0x7F)
         return;
-    MIRROR_OFF(1);           /* GX draws into the EFB: it no longer mirrors psxVuw */
     if (bDisplayNotSet)
         SetOGLDisplaySettings(1);
     if (!OffscreenPrimBounds(cmd, data, n, &x0, &y0, &x1, &y1))
@@ -2029,6 +2060,7 @@ static void EfbBeforeGxCommand(unsigned char cmd, unsigned long *data, int n)
         x1 = PSXDisplay.DrawArea.x1 + 1; y1 = PSXDisplay.DrawArea.y1 + 1;
     }
     efb_gx_draw(x0, y0, x1, y1);
+    mirror_gx_draw(x0, y0, x1, y1);
 }
 
 /* Returns 1 when the primitive was consumed by the software rasterizer. */

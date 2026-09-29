@@ -1727,8 +1727,12 @@ int UploadScreen ( int Position )
     /* the upload copies psxVuw into the EFB: GX-drawn pixels there must be in psxVuw first
      * (efbSync.inc) -- or a paused game's frozen frame is uploaded as its clear colour */
     if (!PSXDisplay.RGB24)
+    {
+        efb_sync_upload = 1;
         efb_sync(xrUploadArea.x0, xrUploadArea.y0,
                  xrUploadArea.x1 - xrUploadArea.x0, xrUploadArea.y1 - xrUploadArea.y0);
+        efb_sync_upload = 0;
+    }
     PERF_INC(upl_calls);
 #ifdef PERF_PROF
     UploadScreenSnapshot(Position);
@@ -2027,6 +2031,7 @@ int UploadScreen ( int Position )
             cx0 = xa; cy0 = ya; cx1 = xb; cy1 = yb;
             mirror_geom_now(&mirror_g);
             ogx_efb_mirror = 2;
+            mirror_gx_any = 0;    /* GX pixels from before: the uploads to come cover them */
         }
         else
         {
@@ -2640,6 +2645,18 @@ void CheckWriteUpdate()
         return;
     }
     PERF_INC(upl_partial_used);
+    if (mirror_gx_any)
+    {
+        /* what GX drew since the last upload: a full upload would have covered it too */
+        int x0 = mirror_gx_x0, y0 = mirror_gx_y0, x1 = mirror_gx_x1, y1 = mirror_gx_y1;
+        if (changed)
+        {
+            x0 = min(x0, cx); y0 = min(y0, cy); x1 = max(x1, cx + cw); y1 = max(y1, cy + ch);
+        }
+        cx = x0; cy = y0; cw = x1 - x0; ch = y1 - y0;
+        changed = 1;
+        mirror_gx_any = 0;
+    }
     if (!changed)
     {
         skipPreviousDisplayCheckOnce = FALSE;   /* the EFB already shows it */
