@@ -137,7 +137,7 @@ def main():
             sys.exit(f"chain names sd:/wiisxrx/{f}: no scripts/autoinput/{f}")
         puts.append((f, p.read_bytes()))
     wants = RESULTS + [f"vram_{i:02d}.bin" for i in range(1, games + 1)]
-    puts += [(w, b"") for w in wants]           # no stale result from an earlier run
+    puts += [(w, b"") for w in wants if w != "lab.log"]   # no stale result from an earlier run (lab.log: WiiStation restarts it, and is writing it now)
     isos = []
     if a.send_isos:
         for d in folders:
