@@ -232,7 +232,13 @@ The GPU split probes (`PERF_PROF_GPUSPLIT`: perf.log `gpusplit:`, `gpuprim:`, `g
     stale texel.
   - Bench Wii: MediEvil deep run, `texsel` 13% -> ~2-3%; XFB via wii_lab.py identical.
 - **Expected.** Most of MediEvil's 13% `texsel` on hardware, from a two-line cause. Games
-  that clear the frame each frame next to a cached texture page get the same.
+  that clear the frame each frame next to a cached texture page get the same. The 11-game
+  probe (1800 vblanks each, `.runs/g5_all`) finds the same pattern, a clear at x = 0 of
+  width w dropping an entry at texel 0 of the page that starts at x = w, in three more:
+  Micro Machines (640 wide, 214 drops, 8.2 M texels), Spyro (512 wide, 498 drops, 1.3 M),
+  FF7 (320 wide, 45 drops, 1.7 M). Every fill drop in the chain is this one.
+- **Lead for later.** 95% of FF7's 135k CPU->VRAM loads change no pixel (`texinv:
+  same_loads`). They cost the VRAM loop and FinishedVRAMWrite, not invalidation.
 - **If not enough.** Only then the partial reconversion idea (re-convert just the written
   rectangle of a kept entry): a texture-cache design change, not needed if the above works.
 
