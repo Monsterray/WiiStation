@@ -853,12 +853,14 @@ int main(int argc, char *argv[])
 
 	control_info_init(); //Perform controller auto assignment at least once at startup.
 
+	/* before loadSettings: its handleConfigPair() cuts every argument at its '=' in place, so
+	 * "lab=HOST:PORT" read afterwards was only "lab" and lab mode never started on a Wii */
+	lab_args(argc, argv);
 	loadSettings(argc, argv);
 
 	/* A Wii on the bench (scripts/wii_lab.py): "lab=HOST:PORT" from wiiload fetches this
 	 * run's files -- autoboot.txt among them -- before it is read, and a crash goes back
 	 * to the Homebrew Channel after 10 s instead of waiting for a button. */
-	lab_args(argc, argv);
 	if (lab_active()) {
 		__exception_setreload(10);
 		if (lab_fetch() < 0) {   /* no PC to drive it: back to HBC, not to a menu no one is at */
