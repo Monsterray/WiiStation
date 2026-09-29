@@ -161,21 +161,80 @@ The GPU split probes (`PERF_PROF_GPUSPLIT`: perf.log `gpusplit:`, `gpuprim:`, `g
   Hardware: upload 10.9 -> 6.5 s, VRAM loop 3.7 -> 2.9 s, FF7 0.86 -> 0.93x
   (`baselines/hw_ff7_*`).
 
-### G5. MediEvil: whole texture pages converted again after small VRAM writes (next)
-- **Evidence (bench Wii, `baselines/hw_chain_all2_20260928`, deep run hw_all_deep).**
-  MediEvil is the costliest game on hardware: GPU 23.6% of wall, `texsel` 13.2%, `rect`
-  14.7%. It converts 4084 sub-textures a minute, 34,784 texels each on average (142 M
-  texels), about 55 ns a texel with the tiling. 12,094 CPU->VRAM writes a minute; almost all
-  are under 32x32 (not in vramio.log), from vblank ~1980 on (the menu). 3207 invalidations.
-- **Cause.** InvalidateSubSTextureArea drops every cached sub-texture whose rectangle a write
-  touches, so a small write costs a whole 256x136-ish reconversion on the next draw.
-- **Optimise.** On a small CPU write into an entry's texels (not its CLUT), keep the entry
-  and re-convert only the written rectangle into the existing GX texture (glTexSubImage2D at
-  an offset), at the next use. A write into the CLUT must still drop it. Semi-transparent
-  copies need the same partial update.
-- **Risk.** It is a texture-cache design change: stale texels if a path is missed. Verify with
-  XFB dumps on hardware (wii_lab.py brings xfb.bin back) and the `ogxeq:` texel detector.
-- **Expected.** Most of MediEvil's 13% texsel on hardware.
+### G5. Texture-cache invalidation: exact rectangles (MediEvil, next)
+- **Evidence (bench Wii).** MediEvil is the costliest game on hardware: GPU 23.6% of wall,
+  `texsel` 13.2% (`baselines/hw_chain_all2_20260928`, deep run hw_all_deep). It converts 4084
+  sub-textures a minute, ~35k texels each.
+- **Cause, measured (Phase 0, be91650: `texinv:`/`texinvr:` in deep builds).** Not CPU
+  uploads (they drop 2 entries; 28% of them change no pixel at all). The per-frame
+  640x480 clear at (0,0) drops a 224x192 15-bit texture whose page starts at x = 640: 2907
+  drops and 125 M texels reconverted by vblank 3450, about 97% of all dropped texels.
+  - `InvalidateTextureArea(x, y, W, H)` takes **width-1, height-1** (P.E.Op.S.):
+    `CheckWriteUpdate`, `primMoveImage`, `MoveImageWrapped` pass `w-1`. The fill paths
+    (`BlkFillArea`, `TitleFillArea`), `efb_sync` and `OffscreenSoftDraw` pass the full
+    width: they invalidate one column and one row too many. Column 640 is page 10.
+  - **Second, opposite bug (found in review).** `InvalidateSubSTextureArea` turns the written
+    halfwords into texels as `x = (hw - page) << (2-k)` for both ends, so for 4-bit
+    (k=0) the last halfword's texels +1..+3 and for 8-bit its texel +1 are not tested. A
+    cached 4/8-bit sub-texture that starts there stays **stale** after a CPU upload or move
+    that ends mid-texture. The fills' extra column hid this for fills only: fixing the
+    fills alone would expose it there too.
+  - The filtering border of a sub-texture is copied from its own converted texels
+    (`LoadSubTexturePageSortBody`, `XTexS`/`YTexS`), so an entry depends on the texels
+    of its rectangle only: an exact invalidation is safe.
+  - A 1x1 write is `W = H = 0` under the width-1 convention, and `InvalidateTextureArea`
+    returns early on it: a 1-pixel write drops nothing (latent).
+- **Plan.**
+  1. **One exact API.** `InvalidateTextureArea(x, y, w, h)` with real sizes (w, h >= 1; <= 0
+     is nothing), used by every caller; the -1 arithmetic moves inside.
+     - It splits at the VRAM edges itself (x = 1024, y = iGPUHeight), as `efb_cpu_write`
+       does. Today a CPU write that wraps at x = 1024 (the write loop wraps) is clamped, and
+       its part at x = 0 is never invalidated (latent, found in review).
+     - Per page, after clipping the halfword range to that page: first texel
+       `(hw0 - page) << (2-k)`, last texel `((hw1 - page + 1) << (2-k)) - 1`.
+     - The page and texel arithmetic goes into a small pure header (like
+       `SoftGPU/dither5.h`), shared by the Wii code and the host test.
+  2. **Host test** `tests/texinval_test.c`: for every depth, page and halfword range, the
+     entries the function drops equal a brute-force "shares a texel" check, over all
+     entry rectangles on a grid. It must fail on today's code (the 4/8-bit end) and pass
+     on the new one.
+  3. **Texture-window cache** (`InvalidateWndTextureArea`, per page): the same size fix,
+     and `px1 = X >> 6` has no widening, so an 8/15-bit window whose page starts left of
+     the write survives it (latent). Not the sub cache's `-3` (a bound, not a rule): an
+     entry of depth k on page p covers halfwords `[64p, 64p + (64 << k) - 1]`; drop it
+     when that span meets the write. The same header, in the same change.
+  - **A staleness oracle first** (`TEXCHECK`, a debug preset): on every sub-cache hit,
+    convert the entry's rectangle from VRAM again into a scratch and compare it with the
+    cached GX texels (untiled); count mismatches and keep the first few (page, rect,
+    source of the last write). It is the positive test the XFB and `ogxeq` checks are not,
+    and it serves any later texture-cache change. Run it before step 1 on the 11 games
+    too: it shows whether the latent bugs above already produce stale texels.
+  4. Nothing MediEvil-specific: with exact rectangles the 640-wide clear no longer
+     reaches page 10.
+  - **Every caller** (code graph `trace_path InvalidateTextureArea` + grep, 11 sites):
+    w-1 today: `CheckWriteUpdate`, `primMoveImage`, `MoveImageWrapped` (4),
+    `PrepareFullScreenUpload`; full size today: `BlkFillArea`, `TitleFillArea`,
+    `OffscreenSoftDraw`, `efb_sync`. `InvalidateTextureAreaEx` (sxmin..sxmax, the
+    primitives' off-screen path) calls the caches directly: check its convention too.
+- **Verify.**
+  - Host test passes (and failed before), including wrapped writes and the page ends.
+  - `TEXCHECK` build, 11 games: 0 mismatches after the change (and the count before it,
+    if the latent bugs show).
+  - Dolphin, MediEvil to vblank 3450: `texinv: fill` drops 2907 -> ~0, `texk: conv` 3709 ->
+    ~800; XFB at 3400 identical (`medievil_dump.txt`).
+  - Dolphin, 11-game chain: cycles, primitives, VRAM at the end of every game identical;
+    `texinv` drops may only fall for fill/efb/soft (exact sizes) and rise slightly for
+    load/move (the stale 4/8-bit texels). XFB dumps of Crash Bash and FF7 identical, or
+    different only where a stale texel was fixed (then look at it).
+  - `PERF_PROF_GPU` build (`build debug all`): the `ogxeq:` texel detector shows no new
+    mismatches in the 11 games. It compares the centre texel of each opaque, non-window
+    draw in the GX texture with VRAM: it catches a stale entry that is drawn, not every
+    stale texel.
+  - Bench Wii: MediEvil deep run, `texsel` 13% -> ~2-3%; XFB via wii_lab.py identical.
+- **Expected.** Most of MediEvil's 13% `texsel` on hardware, from a two-line cause. Games
+  that clear the frame each frame next to a cached texture page get the same.
+- **If not enough.** Only then the partial reconversion idea (re-convert just the written
+  rectangle of a kept entry): a texture-cache design change, not needed if the above works.
 
 ## 3. Recompiled code (Lightrec)
 
