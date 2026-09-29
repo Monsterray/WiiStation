@@ -657,6 +657,8 @@ void perf_report(void);
 /* Call once per presented emulated frame with the flip cost in us.
  * Accumulates present time and auto-reports ~every 30 s. */
 void perf_present_tick(unsigned long long present_us);
+/* Call once per emulated vblank: the "dump <vblank>" of the autoinput script. */
+void perf_vblank_tick(void);
 #if PERF_PROF_TRACE
 void perf_prim_trace(unsigned cmd, unsigned flags, unsigned abr, unsigned color, int x0, int y0, int x1, int y1);
 #else
@@ -703,6 +705,7 @@ static inline unsigned long long perf_now_ticks(void) { return 0; }
 static inline void perf_reset(void) {}
 static inline void perf_report(void) {}
 static inline void perf_present_tick(unsigned long long present_us) { (void)present_us; }
+static inline void perf_vblank_tick(void) {}
 static inline void perf_prim_trace(unsigned cmd, unsigned flags, unsigned abr, unsigned color, int x0, int y0, int x1, int y1)
 { (void)cmd; (void)flags; (void)abr; (void)color; (void)x0; (void)y0; (void)x1; (void)y1; }
 static inline void perf_autoinput_event(unsigned vblank, unsigned mask) { (void)vblank; (void)mask; }

@@ -1441,66 +1441,14 @@ GLuint LoadTextureMovie(void)
     }
    else
     {
-        #ifdef DISP_DEBUG
-        //sprintf(txtbuffer, "LoadMovie2 %d %d %d %d %d %d\r\n", xrMovieArea.x0, xrMovieArea.y0, xrMovieArea.x1, xrMovieArea.y1, b_X, b_Y);
-        //DEBUG_print(txtbuffer, DBG_SPU2);
-        //writeLogFile(txtbuffer);
-        #endif // DISP_DEBUG
-
-     unsigned int (*LTCOL)(unsigned int);
-     unsigned int *ta;
-
-     if (DrawSemiTrans == 0)
-     {
-         LTCOL=P8RGBA_0;//TCF[0];
-     }
-     else
-     {
-         LTCOL=P8RGBA_1;
-     }
+     /* 16BIT: opengx tiles the RGB5A3 texture straight from VRAM, in one pass
+      * (gc_gl.c glSetMovieSource16). The mask is what P8RGBA_0/1 tested when this widened
+      * every pixel to 32 bits first: the whole pixel opaque, its colour bits semi-transparent. */
+     extern void glSetMovieSource16(const void *src, int pitch, unsigned short zero);
 
      ubOpaqueDraw=0;
-     ta=(unsigned int *)texturepart;
-
-//     if(b_X)
-//      {
-//       for(column=xrMovieArea.y0;column<xrMovieArea.y1;column++)
-//        {
-//         startxy=((1024)*column)+xrMovieArea.x0;
-//         for(row=xrMovieArea.x0;row<xrMovieArea.x1;row++)
-//         {
-//             *ta++ = LTCOL(GETLE16(&psxVuw[startxy++]) | 0x8000);
-//         }
-//
-//         *ta++=*(ta-1);
-//        }
-//
-//       if(b_Y)
-//        {
-//         dx=xrMovieArea.x1-xrMovieArea.x0+1;
-//         for(row=xrMovieArea.x0;row<xrMovieArea.x1;row++)
-//          *ta++=*(ta-dx);
-//         *ta++=*(ta-1);
-//        }
-//      }
-//     else
-      {
-       for(column=xrMovieArea.y0;column<xrMovieArea.y1;column++)
-        {
-         startxy=((1024)*column)+xrMovieArea.x0;
-         for(row=xrMovieArea.x0;row<xrMovieArea.x1;row++)
-         {
-             *ta++ = LTCOL(GETLE16(&psxVuw[startxy++]));
-         }
-        }
-
-//       if(b_Y)
-//        {
-//         dx=xrMovieArea.x1-xrMovieArea.x0;
-//         for(row=xrMovieArea.x0;row<xrMovieArea.x1;row++)
-//          *ta++=*(ta-dx);
-//        }
-      }
+     glSetMovieSource16(&psxVuw[(1024*xrMovieArea.y0)+xrMovieArea.x0], 1024,
+                        DrawSemiTrans ? 0x7fff : 0xffff);
     }
 
    //xrMovieArea.x1+=b_X;xrMovieArea.y1+=b_Y;

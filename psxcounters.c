@@ -410,6 +410,7 @@ void psxRcntUpdate()
 #ifdef PERF_PROF
             g_perf.psx_pal = Config.PsxType;
 #endif
+            perf_vblank_tick();
             HW_GPU_STATUS &= SWAP32(~PSXGPU_LCF);
             gInterlaceLine = !((frame_counter+1) & 0x1);
             //GPU_vBlank( 1, 0 );

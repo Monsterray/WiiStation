@@ -173,6 +173,11 @@ void autoinput_reset(const char *path)
 	autoinput_menuclick = autoinput_menuclicks = 0;
 	autoinput_atrace_vbl = 0;
 	statetool_reset();
+	/* Parse it now, not at the first pad poll: a game that polls late (FF7: vblank 876)
+	 * otherwise learns of a "dump 700" after vblank 700, and a chain's game can end
+	 * before the line takes effect. */
+	if (autoin_path[0])
+		autoinput_load();
 }
 
 /* A script with at least one line for a port stands in for a plugged-in digital

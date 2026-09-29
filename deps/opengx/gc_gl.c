@@ -2062,9 +2062,27 @@ static inline int _ogx_scramble_4b_sub(unsigned char *src, void *dst, void *semi
     return textureType;
 }
 
-// 4b texel scrambling, opengx conversion: src(4 bytes bgr555) -> dst(2 bytes bgr5a3)
+/* 16-bit screen upload straight from PSX VRAM (little-endian halfwords, `pitch` pixels a
+ * row) into the RGB5A3 tiles, in one pass. LoadTextureMovie used to widen every pixel to
+ * 32 bits through P8RGBA_0/1 for _ogx_scramble_4b_5a3 to read back. Those only zero a pixel
+ * whose bits under `zero` are all 0 (0xffff opaque, 0x7fff semi-transparent), so the
+ * texels are identical. */
+static const unsigned short *ogx_vram16_src;
+static int ogx_vram16_pitch;
+static unsigned short ogx_vram16_zero;
+
+void glSetMovieSource16(const void *src, int pitch, unsigned short zero)
+{
+    ogx_vram16_src = (const unsigned short *)src;
+    ogx_vram16_pitch = pitch;
+    ogx_vram16_zero = zero;
+}
+
+// 4b texel scrambling, opengx conversion: src(4 bytes bgr555) -> dst(2 bytes bgr5a3).
+// With v16 set, the texels come from there instead (glSetMovieSource16).
 static inline int _ogx_scramble_4b_5a3(unsigned char *src, void *dst, unsigned short semiTransFlg,
-                      const unsigned int width, const unsigned int height)
+                      const unsigned int width, const unsigned int height,
+                      const unsigned short *v16, int pitch, unsigned short zero)
 {
     unsigned int block;
     unsigned int i;
@@ -2086,7 +2104,12 @@ static inline int _ogx_scramble_4b_5a3(unsigned char *src, void *dst, unsigned s
                     }
                     else
                     {
-                        tmpPixel = *(unsigned short*)(src + ((i + argb) + ((block + c) * width)) * 4 + 2);
+                        if (v16) {
+                            tmpPixel = __builtin_bswap16(v16[(block + c) * pitch + i + argb]);
+                            if (!(tmpPixel & zero))
+                                tmpPixel = 0;
+                        } else
+                            tmpPixel = *(unsigned short*)(src + ((i + argb) + ((block + c) * width)) * 4 + 2);
                         if (tmpPixel == 0)
                         {
                             *(unsigned short*)semiTransP = 0;
@@ -2191,7 +2214,8 @@ int glInitMovieTextures( GLsizei width, GLsizei height, void * texData )
     }
     else
     {
-        textureType = _ogx_scramble_4b_5a3((unsigned char *)texData, currtex->data, upload_semi_flag(currtex->w, currtex->h, 0, 0, width, height), width, height);
+        textureType = _ogx_scramble_4b_5a3((unsigned char *)texData, currtex->data, upload_semi_flag(currtex->w, currtex->h, 0, 0, width, height), width, height,
+                                           ogx_vram16_src, ogx_vram16_pitch, ogx_vram16_zero);
         GX_InitTexObj(&currtex->texobj, currtex->data,
                       currtex->w, currtex->h, GX_TF_RGB5A3, currtex->wraps, currtex->wrapt, GX_FALSE);
         if (originalMode == ORIGINALMODE_ENABLE || bilinearFilter != BILINEARFILTER_ENABLE)
@@ -2212,6 +2236,7 @@ int glInitMovieTextures( GLsizei width, GLsizei height, void * texData )
     }
     DCFlushRange(currtex->data, tex_size_rnd);
     ogx_rgb24_src = NULL;             /* one texture only */
+    ogx_vram16_src = NULL;
     return textureType;
 }
 
@@ -2509,7 +2534,8 @@ int glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei width
     currtex->h = he;
     currtex->bytespp = 2;
 
-    textureType = _ogx_scramble_4b_5a3((unsigned char *)data, currtex->data, upload_semi_flag(currtex->w, currtex->h, 0, 0, width, height), width, height);
+    textureType = _ogx_scramble_4b_5a3((unsigned char *)data, currtex->data, upload_semi_flag(currtex->w, currtex->h, 0, 0, width, height), width, height,
+                                       NULL, 0, 0);
     PERF_ADD(gx_tex_bytes, (unsigned long long)currtex->w * currtex->h * 2);
     DCFlushRange(currtex->data, ogx_tex16_bytes(currtex->w, currtex->h));
 

@@ -1,0 +1,5 @@
+CHAIN
+# FF7 alone, deep probes, for the 0.86x on hardware
+3600
+sd:/wiisxrx/isos/Final Fantasy VII/Final Fantasy VII 1
+Final Fantasy VII [U] [Disc 1] [SLUS-94163].cue

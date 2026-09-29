@@ -483,6 +483,17 @@ void perf_pad_event(unsigned pad, unsigned type, unsigned drv_btns, unsigned drv
 	g_perf.pev[k].out_rx = (uint8_t)(out_r >> 8); g_perf.pev[k].out_ry = (uint8_t)out_r;
 }
 
+/* Every emulated vblank (psxcounters.c): the scheduled dump. Not at a present: a game that
+ * stops presenting while it loads (FF7 after vblank 688) never reached a dump set there. */
+void perf_vblank_tick(void)
+{
+	if (!g_perf.vram_dumped && autoinput_dump_vbl && frame_counter >= autoinput_dump_vbl) {
+		g_perf.vram_dumped = 1;
+		perf_vram_dump();
+		perf_report();     /* a scheduled dump marks the moment of interest: report the counters now, not 1800 presents later */
+	}
+}
+
 void perf_present_tick(unsigned long long present_us)
 {
 	g_perf.present_frames++;
@@ -497,14 +508,6 @@ void perf_present_tick(unsigned long long present_us)
 	/* the audio ring is written from the present path, not from inside the mixer */
 	if (g_perf.aev_n == PERF_AEV_N && !g_perf.aev_printed)
 		perf_audio_flush();
-	{
-		extern unsigned autoinput_dump_vbl;   /* PadWiiSX.c: 'dump <vblank>' in autoinput.txt */
-		if (!g_perf.vram_dumped && autoinput_dump_vbl && frame_counter >= autoinput_dump_vbl) {
-			g_perf.vram_dumped = 1;
-			perf_vram_dump();
-			perf_report();     /* a scheduled dump marks the moment of interest: report the counters now, not 1800 presents later */
-		}
-	}
 	if (!g_perf.vram_dumped && g_perf.vblanks >= PERF_VRAM_DUMP_VBLANK && !autoinput_dump_vbl_set()) {
 		g_perf.vram_dumped = 1;
 		perf_vram_dump();
@@ -707,6 +710,9 @@ void perf_report(void)
 			unsigned k;
 			for (k = 0; k < g_perf.ai_n; k++)
 				fprintf(f, "autoinput: vblank=%lu mask=%04x at_present=%lu\n", (unsigned long)g_perf.ai_ev[k].vbl, g_perf.ai_ev[k].mask, (unsigned long)g_perf.ai_ev[k].present);
+			/* what the script scheduled, so a missing dump can be told from a missing script */
+			fprintf(f, "autosched: dump=%u dumped=%u trace=%d atrace=%u\n", autoinput_dump_vbl,
+				(unsigned)g_perf.vram_dumped, autoinput_trace_n, autoinput_atrace_vbl);
 		}
 		if (g_perf.pt_armed) {
 			unsigned k;
