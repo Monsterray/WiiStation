@@ -242,6 +242,21 @@ The GPU split probes (`PERF_PROF_GPUSPLIT`: perf.log `gpusplit:`, `gpuprim:`, `g
 - **If not enough.** Only then the partial reconversion idea (re-convert just the written
   rectangle of a kept entry): a texture-cache design change, not needed if the above works.
 
+### G6. FF7's logos: screen uploads (2026-09-29)
+- **Measured** (texcheck build `uplcheck:`, trace at vblank 500). Each frame the game writes
+  240 rows of 640 pixels, one interlaced field, then the frame is uploaded whole (six
+  256x256 parts). No upload is redundant (the logo fades), but 95% of the rows change no
+  pixel and the changed pixels fill 4.4% of the screen.
+- **DONE** (0fbe257): the copy loop keeps each transfer's changed-pixel range; textures are
+  dropped only under it, and while the EFB mirrors psxVuw (`ogx_efb_mirror`) only it is
+  uploaded. Exact: FF7, MediEvil, Gex, CTR every distinct frame identical; TEXCHECK 0 stale.
+  FF7 900 vblanks in Dolphin: upload 8.66 -> 5.72 s. What is left is the first phase, where
+  every frame also draws with GX (the mirror must be off there: `mirror: off=` 252 by GX).
+- **Next, if needed:** a mirror per region (tiles) so a GX draw ends it only where it drew;
+  the 16-bit upload tiler still writes the unused semi-transparent scratch for every texel.
+- **Found on the way:** Frogger's 24-bit FMV one flip late then black, CTR's Sony screen never
+  presented (both fixed, dcac40b).
+
 ## 3. Recompiled code (Lightrec)
 
 ### C1. HLE exception handlers run one block per recompiler entry
