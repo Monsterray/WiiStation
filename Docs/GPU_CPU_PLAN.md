@@ -84,6 +84,13 @@ The GPU split probes (`PERF_PROF_GPUSPLIT`: perf.log `gpusplit:`, `gpuprim:`, `g
      into RGB5A3 tiles. Today the expansion writes 32-bit texels to `texturepart` and the
      tiling pass reads them back. The saving is that re-read, which no probe has isolated yet;
      the CLUT expansion itself is only 0.2-0.9%.
+     **Hardware (2026-09-28) changed the picture.** `conv` includes `tile`; the expansion alone
+     is 3-40 ns a texel. The tiling had a fixed ~150 us an upload: glTexSubImage2D zeroed 128 KB
+     of the semi-transparent scratch before every upload into a texture without a semi copy,
+     opaque ones included. **DONE** (0b2876e: only when the upload has semiFlg). Crash Bash on
+     the Wii: tiling 473 -> 74 ms a minute, XFB identical. What is left is per texel (MediEvil,
+     ~39 ns: whole 35k-texel pages converted 4084 times a minute because VRAM writes invalidate
+     them); step 3 or finer invalidation is the lever there.
 - **Fix (hardware-only).** Every sub-upload starts with `GX_DrawDone()` (`perf_drawdone()`),
   so the CPU waits until the GPU has drawn everything queued: 415 times a second in Crash
   Bash. It is there for correctness (the GPU may still read the texture). Wait only when the
