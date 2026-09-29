@@ -1700,14 +1700,15 @@ static int mirror_geom_same(void)
 
 /* UploadScreen(FALSE) offsets by PreviousPSXDisplay: when that is the displayed buffer
  * (a game drawing where it displays), the upload changed what is on screen. The same
- * buffer if the two rectangles overlap: a double buffer's halves never do, and a game can
- * move its display start by a line or two without flipping (CTR's Sony screen: y 2 -> 0). */
+ * buffer if the display start moved by less than half the display: a game can move it by a
+ * line or two without flipping (CTR's Sony screen: y 2 -> 0), and a double buffer's halves
+ * can share a few rows (FF7's video: y 0 and 232, 240 high -- taken as one buffer, the first
+ * 24-bit frame decoded into the hidden half was presented in 15-bit mode, green). */
 static int UploadWentToDisplay(void)
 {
-    return PreviousPSXDisplay.DisplayPosition.x < PSXDisplay.DisplayEnd.x &&
-           PSXDisplay.DisplayPosition.x < PreviousPSXDisplay.DisplayEnd.x &&
-           PreviousPSXDisplay.DisplayPosition.y < PSXDisplay.DisplayEnd.y &&
-           PSXDisplay.DisplayPosition.y < PreviousPSXDisplay.DisplayEnd.y;
+    int dx = PSXDisplay.DisplayPosition.x - PreviousPSXDisplay.DisplayPosition.x;
+    int dy = PSXDisplay.DisplayPosition.y - PreviousPSXDisplay.DisplayPosition.y;
+    return abs(dx) * 2 < PSXDisplay.DisplayMode.x && abs(dy) * 2 < PSXDisplay.DisplayMode.y;
 }
 
 int UploadScreen ( int Position )

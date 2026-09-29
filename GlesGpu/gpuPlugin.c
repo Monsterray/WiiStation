@@ -439,9 +439,35 @@ void GPUvSinc(void){
 updateDisplayGl();
 }
 
+/* A flip by GP1 05 is presented once the display settings that come with it are in: PsyQ's
+ * PutDispEnv writes GP1 05 and 08 together, and FF7 flips to its first 24-bit video frame
+ * with 05 before 08 = 24-bit. Presented at the 05, that frame went out in 15-bit mode (green
+ * blotches), and the 24-bit present from the 08 was skipped while that copy was in flight.
+ * So 05 only marks it; the next GPU access other than GP1 06-08 presents it, or any present
+ * that comes first takes its place. */
+static int flip05Pending;
+void updateDisplayGl(void);
+static void flip05Flush(void)
+{
+ if (flip05Pending) updateDisplayGl();
+}
+
+/* The CPU stopped (menu, chained game, reset): the menu or the next game takes the screen,
+ * and a present after the menu would show an EFB the menu has used. */
+void GL_flip05Drop(void)
+{
+ flip05Pending = 0;
+}
+
 void updateDisplayGl(void)                               // UPDATE DISPLAY
 {
 BOOL bBlur=FALSE;
+
+if (flip05Pending)
+ {
+  flip05Pending = 0;
+  skipPreviousDisplayCheckOnce = TRUE;
+ }
 
 
 bFakeFrontBuffer=FALSE;
@@ -1074,6 +1100,7 @@ static unsigned short usFirstPos=2;
 
 void CALLBACK GL_GPUupdateLace(void)
 {
+flip05Flush();
 if(!(dwActFixes&AUTO_FIX_CHRONO_CROSS))
  STATUSREG^=0x80000000;                               // interlaced bit toggle, if the CC game fix is not active (see gpuReadStatus)
 
@@ -1232,6 +1259,8 @@ unsigned long lCommand=(gdata>>24)&0xff;
 
 if(bIsFirstFrame) GLinitialize(NULL, NULL);           // real ogl startup (needed by some emus)
 
+if (lCommand < 0x06 || lCommand > 0x08) flip05Flush();
+
 ulStatusControl[lCommand]=gdata;
 
 switch(lCommand)
@@ -1385,8 +1414,7 @@ switch(lCommand)
          else
          {
              perf_vram_event(0xF5, sx, sy, PSXDisplay.GDrawOffset.x, PSXDisplay.GDrawOffset.y, iDrawnSomething, 1);
-             skipPreviousDisplayCheckOnce = TRUE;
-             updateDisplayGl();
+             flip05Pending = 1;
          }
      }
     else
@@ -1748,6 +1776,8 @@ void CALLBACK GL_GPUreadDataMem(unsigned long * pMem, int iSize)
 {
 int i;
 
+flip05Flush();
+
 if(iDataReadMode!=DR_VRAMTRANSFER) return;
 
 GPUIsBusy;
@@ -2101,6 +2131,8 @@ void CALLBACK GL_GPUwriteDataMem(unsigned long * pMem, int iSize)
 {
 unsigned char command;
 unsigned long gdata=0;
+
+flip05Flush();
 int i=0;
 #if PERF_PROF_GPUSPLIT
 /* The image transfer is a loop with a goto through it, so it is timed by hand rather
@@ -2370,7 +2402,10 @@ do
 
    unsigned long dmaMem=addr+4;
 
-  if(count>0) GL_GPUwriteDataMem(&baseAddrL[dmaMem>>2],count);
+  if(count>0)
+   {
+    GL_GPUwriteDataMem(&baseAddrL[dmaMem>>2],count);
+   }
 
    addr = GETLE32(&baseAddrL[addr>>2])&0xffffff;
   }
@@ -2390,6 +2425,7 @@ do
 
 long CALLBACK GL_GPUfreeze(unsigned long ulGetFreezeData,GPUFreeze_t * pF)
 {
+flip05Flush();
 if(ulGetFreezeData==2)
  {
   long lSlotNum=*((long *)pF);

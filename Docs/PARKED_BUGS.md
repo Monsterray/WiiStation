@@ -6,57 +6,38 @@ without doing the investigation a second time.
 
 ---
 
-## FF7: one green frame at the start of the opening video (OpenGX)
+## FF7: one green frame at the start of the opening video (OpenGX) -- FIXED 2026-09-29
 
-Parked 2026-09-23. Commits of the investigation: `3c8a6dc` (probes).
+Parked 2026-09-23, fixed 2026-09-29. The reproduction below now shows no green frame.
 
-**Symptom.** New Game in Final Fantasy VII (Disc 1): one frame of green blotches at the start
-of the opening star video. It is the video's first 24-bit picture displayed in 15-bit mode.
+**Cause.** Two OpenGX present bugs. The game timing was not the cause.
+1. `UploadWentToDisplay` (gpuPrim.c) took FF7's two video buffers for one buffer: they
+   start at y 0 and y 232 and are 240 lines high, so they share 8 rows. At vblanks 1989-1990
+   the game decodes the first 24-bit frame into the hidden buffer, and each MDEC slice upload
+   set `needFlipEGL`. `GL_GPUupdateLace` then presented that buffer in 15-bit mode. Now it is
+   the same buffer only if the display start moved by less than half the display (CTR's Sony
+   screen moves it by 2 lines).
+2. A flip by GP1 05 presented at once, before the GP1 08 = 24-bit that `PutDispEnv` writes
+   next. The 24-bit present from the 08 was then skipped, because the first copy to the XFB
+   was still in flight. Now GP1 05 marks the present as pending (`flip05Pending`), and the
+   next GPU access other than GP1 06-08 presents it.
 
-**Reproduce.** The user's recording `scripts/autoinput/final_fantasy_vii_1_play.txt` (commit
-it first if it is still untracked). A chain of 2400 vblanks with every frame dumped:
-
-```
-CHAIN
-2400 sd:/wiisxrx/final_fantasy_vii_1_play.txt PadAutoAssign=1
-sd:/wiisxrx/isos/Final Fantasy VII/Final Fantasy VII 1
-Final Fantasy VII [U] [Disc 1] [SLUS-94163].cue
-```
-
+**Reproduce.** The user's recording `scripts/autoinput/final_fantasy_vii_1_play.txt`, 2400
+vblanks (`.runs/ff7_green.txt`), every frame dumped:
 `bash scripts/wsx.sh chain NAME FILE --secs 500 --env FRAMES_DUMP=True --env KEEP=100000`,
 then look for a frame where green covers more than 1% of the picture (g > 100, g > r + 60,
-g > b + 60, below the 80-pixel overlay). It is dump frame 958 (present ~859, vblank 1991).
+g > b + 60, below the 80-pixel overlay). Before the fix: dump frame ~666.
 
-**What is known.**
-- Not caused by the 24-bit video colour change: `FmvColour=0` shows it too.
-- The display commands are timed correctly. All GP1 05/08 writes land in the vblank
-  (trace field x1 = 240), and the present after them shows the field a TV scans next.
-- The game itself shows the frame. At vblank 1990 (OpenGX) it writes GP1 08 = 0x01 (15-bit)
-  and GP1 05 = display start (0,0), where the top buffer already holds 24-bit data; GP1 08 =
-  0x11 (24-bit) comes three vblanks later. PsyQ `PutDispEnv` writes both together, so the
-  display environment the game flips to still has `isrgb24 = 0`.
-- The software renderer (`gpuPlugin=1`, gpulib) does not show it: there the game writes
-  GP1 05 (0,0) and GP1 08 = 0x11 in the same vblank.
-- The difference is GPU timing seen by the game. With gpulib the game reads GPUSTAT busy
-  (0x50......) and then idle (0x54......) around each drawing DMA; with OpenGX it almost
-  never sees busy. `GL_GPUdmaChain` returns the list length in words; `LIB_GPUdmaChain`
-  returns a cost in CPU cycles (`gpulib/gpu_timing.h`, charged per command in
-  `SoftGPU/gpulib_if.c` `do_cmd_list`), and psxdma.c sets `psxRegs.gpuIdleAfter` from it.
-  Block DMA (mem2vram) is timed the same for both plugins.
+**Found on the way, not changed.** With OpenGX the game never saw the GPU busy during a
+block DMA upload. psxdma.c sets the core's nBUSY bit ("idle") at the end of each DMA chain
+and clears it only at the next chain, and psxHwReadGpuSR can only OR "idle" in. With gpulib
+that bit stays 0 and busy comes only from `psxRegs.gpuIdleAfter`. Removing the two writes
+(psxdma.c, the `gpuPtr != &newSoftGpu` blocks) made FF7 write GP1 05 and 08 = 24-bit in the
+same vblank, as with gpulib. It is more correct, but it moves the timing of every game:
+it needs an eleven-game A/B and the user's recordings before it goes in. The per-command
+cost from `GL_GPUdmaChain` (gpulib's `gpu_timing.h`) alone changed nothing visible.
 
-**Tried.** OpenGX returning gpulib's per-command cost from `GL_GPUdmaChain` (a `GpuTiming`
-setting, reverted): the green frame moved by one dump frame (958 to 959) but stayed.
-
-**Next.**
-1. Match gpulib's timing completely: also its slow list walking (`progress_addr`, break
-   after 512 cycles, `gpuInterrupt()` continues the chain -- gated to `newSoftGpu` in
-   psxdma.c today) and the GPU busy bits. Then check the frame, and run all eleven games
-   (`scripts/chains/all.txt`) against a baseline: a timing change moves every game, and can
-   put the user's recordings out of step.
-2. Or hide it in OpenGX: detect a displayed buffer that holds 24-bit data in 15-bit mode
-   (MDEC slices 24 halfwords wide, not 16) and repeat the previous frame.
-
-**Tools that found it.** `wsx.sh build debug all` (primitive trace); `trace <vblank>` in
-the input script (an episode is 16 presents: arm it early enough to finish before the run
-ends); `dump <vblank>` for `vram.bin`. The trace needs `perf_present_tick()` per present,
-which only OpenGX calls; to trace gpulib add a call in `LIB_GPUupdateLace`.
+**Tools that found it.** A GP1 05/08 log per vblank (a temporary probe in psxhw.c), one run
+per plugin, diffed; then `wsx.sh build debug all` and `trace <vblank>` in the input script.
+An episode is 16 presents: the run must go on long enough to finish it, or the report
+prints the previous episode (its `vblank` then looks wrong).

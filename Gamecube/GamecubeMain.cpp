@@ -1260,6 +1260,7 @@ void writeConfig(FILE* f){
 
 extern "C" {
 //System Functions
+extern "C" void GL_flip05Drop(void);
 void go(void) {
 	Config.PsxOut = 0;
 	stop = 0;
@@ -1300,6 +1301,7 @@ void go(void) {
 	do
 		psxCpu->Execute();
 	while (statetool_service());
+	GL_flip05Drop();   /* GlesGpu/gpuPlugin.c: a GP1 05 flip not yet presented */
 
 	// remove this callback to avoid any issues when returning to the menu.
 	GX_SetDrawDoneCallback(NULL);
