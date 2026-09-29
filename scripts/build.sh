@@ -68,6 +68,11 @@ case "${PROBES:-all}" in
 	deep)  PROBE_DEFINES="-DPERF_PROF_TRACE=0 -DPERF_PROF_GPU=0 -DPERF_PROF_GPUSPLIT=1 -DPERF_PROF_GTE=1 -DPERF_PROF_SPU=1" ;;
 	# pmc: light plus Broadway's performance counters, for a hardware session.
 	pmc)   PROBE_DEFINES="-DPERF_PROF_TRACE=0 -DPERF_PROF_GPU=0 -DPERF_PROF_PMC=1" ;;
+	# texcheck: deep plus the texture-cache staleness oracle (gpuTexture.c, "texcheck:" in
+	# perf.log): every cache hit is checked against VRAM. Slow; for correctness runs only.
+	# Its own test: add -DTEXCHECK_SELFTEST=1 (a custom PROBES list); 1 hit in 64 then gets a
+	# changed texel, and texcheck: stale must equal hits/64 (MediEvil: 6668 of 426764).
+	texcheck) PROBE_DEFINES="-DPERF_PROF_TRACE=0 -DPERF_PROF_GPU=0 -DPERF_PROF_GPUSPLIT=1 -DPERF_PROF_GTE=1 -DPERF_PROF_SPU=1 -DPERF_PROF_TEXCHECK=1" ;;
 	*)     PROBE_DEFINES="$PROBES" ;;
 esac
 [ -n "$PROBE_DEFINES" ] && echo "probe gates: $PROBE_DEFINES"

@@ -63,7 +63,7 @@ build)
 	mkdir -p "$RUNS"
 	log="$RUNS/build_$mode.log"
 	case "$mode" in
-		debug*)   out="Gamecube/WiiSXRX_debug.dol"; env="PROBES=$probes" ;;
+		debug*)   out="Gamecube/WiiSXRX_debug.dol"; env="PROBES='$probes'" ;;   # quoted: a custom list of -D flags has spaces
 		release*) out="Gamecube/WiiSXRX_Release.dol"; env="" ;;
 		*) echo "build debug|release"; exit 2 ;;
 	esac

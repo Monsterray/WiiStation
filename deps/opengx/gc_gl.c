@@ -2071,6 +2071,24 @@ static const unsigned short *ogx_vram16_src;
 static int ogx_vram16_pitch;
 static unsigned short ogx_vram16_zero;
 
+/* A texture's GX data, for the texture-cache staleness oracle (gpuTexture.c, TEXCHECK):
+ * RGB5A3 in 4x4 blocks, and its semi-transparent copy (NULL if it has none). Read only. */
+int glGetTexture16(unsigned int name, const unsigned short **data, const unsigned short **semi,
+                   int *w, int *h)
+{
+    const gltexture_ *t;
+    if (name >= _MAX_GL_TEX)
+        return 0;
+    t = &texture_list[name];
+    if (!t->data || t->w <= 0 || t->h <= 0)
+        return 0;
+    *data = (const unsigned short *)t->data;
+    *semi = (const unsigned short *)t->semiTransData;
+    *w = t->w;
+    *h = t->h;
+    return 1;
+}
+
 void glSetMovieSource16(const void *src, int pitch, unsigned short zero)
 {
     ogx_vram16_src = (const unsigned short *)src;

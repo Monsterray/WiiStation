@@ -2603,6 +2603,67 @@ static unsigned int SubTexReserve(unsigned int r, unsigned char *adj)
 /////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////
 
+#if PERF_PROF_TEXCHECK
+/* The staleness oracle: does the cached GX texture still hold what VRAM holds? The
+ * expected texel is the converter's own rule: the palette colour (or the 15-bit texel)
+ * through TCF[semi], then the tiler's split -- 0 transparent, a semi-transparent draw's
+ * texel without bit 15 in the semi copy, the rest in the opaque data with bit 15 set.
+ * 64 texels per hit on a grid that moves each hit, so a kept stale entry is found. */
+extern int glGetTexture16(unsigned int name, const unsigned short **data,
+                          const unsigned short **semi, int *w, int *h);
+extern unsigned int frame_counter;
+static unsigned short tc_vram(int x, int y) { return GETLE16(&psxVuw[((y) & 511) * 1024 + ((x) & 1023)]); }
+static void texcheck_hit(const textureSubCacheEntryS *e, int mode, uint64_t key)
+{
+ static unsigned roll;
+ const unsigned short *data, *semi;
+ int w, h, i, j, bad = 0;
+ unsigned id = (unsigned)(key & CLUT_KEY_ADDRESS_MASK);
+ int ccx = (id << 4) & 0x3F0, ccy = (id >> 6) & CLUTYMASK;
+ int st = ClutKeyDrawSemiTrans(key);
+ int ex = e->pos.c.x1 - e->posTX, ey = e->pos.c.y1 - e->posTY;
+ int W = e->pos.c.x2 - e->pos.c.x1 + 1, H = e->pos.c.y2 - e->pos.c.y1 + 1;
+ if (GlobalTextIL || W <= 0 || H <= 0) return;
+ if (!glGetTexture16(uiStexturePage[e->cTexID], &data, &semi, &w, &h)) return;
+ g_perf.tc_hits++;
+ roll++;
+ for (j = 0; j < 8; j++)
+  for (i = 0; i < 8; i++)
+   {
+    int u = e->pos.c.x1 + (int)((i * W / 8 + roll) % W);
+    int v = e->pos.c.y1 + (int)((j * H / 8 + roll / 8) % H);
+    int gx = u - ex, gy = v - ey, off;
+    unsigned short c, t, want_o, want_s, got_o, got_s;
+    if (gx < 0 || gy < 0 || gx >= w || gy >= h) continue;
+    if (mode == 0)      { t = tc_vram(GlobalTextAddrX + (u >> 2), GlobalTextAddrY + v); c = tc_vram(ccx + ((t >> ((u & 3) * 4)) & 0xf), ccy); }
+    else if (mode == 1) { t = tc_vram(GlobalTextAddrX + (u >> 1), GlobalTextAddrY + v); c = tc_vram(ccx + ((t >> ((u & 1) * 8)) & 0xff), ccy); }
+    else                  c = tc_vram(GlobalTextAddrX + u, GlobalTextAddrY + v);
+#ifdef TEXCHECK_SELFTEST   /* the oracle's own test: a changed texel must be reported */
+    if (i == 0 && j == 0 && (roll & 63) == 0) c ^= 0x0421;
+#endif
+    c = (unsigned short)(TCF[st](c) & 0xffff);
+    if (c) g_perf.tc_nonzero++;
+    want_o = want_s = 0;
+    if (c && st && !(c & 0x8000)) want_s = c | 0x8000;
+    else if (c)                   want_o = c | 0x8000;
+    off = ((gy >> 2) * ((w + 3) >> 2) + (gx >> 2)) * 16 + (gy & 3) * 4 + (gx & 3);
+    got_o = data[off];
+    got_s = semi ? semi[off] : 0;
+    g_perf.tc_texels++;
+    if (got_o == want_o && got_s == want_s) continue;
+    g_perf.tc_bad++;
+    bad = 1;
+    if (g_perf.tc_n < 8) {
+     unsigned k = g_perf.tc_n++;
+     g_perf.tc_s[k].vbl = frame_counter; g_perf.tc_s[k].exp = want_o | want_s; g_perf.tc_s[k].got = got_o | got_s;
+     g_perf.tc_s[k].mode = mode; g_perf.tc_s[k].page = GlobalTexturePage; g_perf.tc_s[k].u = u; g_perf.tc_s[k].v = v;
+     g_perf.tc_s[k].x1 = e->pos.c.x1; g_perf.tc_s[k].y1 = e->pos.c.y1; g_perf.tc_s[k].x2 = e->pos.c.x2; g_perf.tc_s[k].y2 = e->pos.c.y2;
+    }
+   }
+ g_perf.tc_bad_hits += bad;
+}
+#endif
+
 textureSubCacheEntryS *CheckTextureInSubSCache(
  int TextureMode,uint64_t clutKey,unsigned short *pCache)
 {
@@ -2651,6 +2712,9 @@ textureSubCacheEntryS *CheckTextureInSubSCache(
          ubOpaqueDraw=DrawInfoOpaque(tsb->drawInfo);
          *pCache=tsb->cTexID;
          PERF_INC(ogx_sub_hit);
+#if PERF_PROF_TEXCHECK
+         texcheck_hit(tsb, TextureMode, clutKey);
+#endif
          return NULL;
         }
       }

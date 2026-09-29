@@ -929,6 +929,20 @@ void perf_report(void)
 				(unsigned long long)ticks_to_microsecs(g_perf.gpu_inv_ticks),
 				(unsigned long)g_perf.gpu_inv_calls, (unsigned long)g_perf.gpu_inv_scan,
 				(unsigned long long)ticks_to_microsecs(g_perf.gpu_cwu_ticks));
+#if PERF_PROF_TEXCHECK
+			{   /* the staleness oracle: cached texels that no longer match VRAM */
+				unsigned k;
+				fprintf(f, "texcheck: hits=%lu texels=%llu nonzero=%llu stale=%llu stale_hits=%lu\n",
+					(unsigned long)g_perf.tc_hits, (unsigned long long)g_perf.tc_texels,
+					(unsigned long long)g_perf.tc_nonzero,
+					(unsigned long long)g_perf.tc_bad, (unsigned long)g_perf.tc_bad_hits);
+				for (k = 0; k < g_perf.tc_n; k++)
+					fprintf(f, "texcheckr: vbl=%lu mode=%u page=%u texel=%u,%u entry=(%u,%u)-(%u,%u) want=%04x got=%04x\n",
+						(unsigned long)g_perf.tc_s[k].vbl, g_perf.tc_s[k].mode, g_perf.tc_s[k].page,
+						g_perf.tc_s[k].u, g_perf.tc_s[k].v, g_perf.tc_s[k].x1, g_perf.tc_s[k].y1,
+						g_perf.tc_s[k].x2, g_perf.tc_s[k].y2, g_perf.tc_s[k].exp, g_perf.tc_s[k].got);
+			}
+#endif
 			{   /* G5: which source drops cached textures, and how much it drops */
 				static const char *nm[8] = { "other", "load", "move", "fill", "prim", "efb", "soft", "7" };
 				int k;

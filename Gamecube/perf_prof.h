@@ -173,6 +173,11 @@ void perf_datetime(char *buf, int size);
  * Measured under Dolphin with the defaults: pmc1 counts (1149497231 over a 120 s Spyro
  * run) and pmc2 reads 0, because Dolphin implements select 1 and not select 2. So a
  * Dolphin run gives cycles and nothing else; both count on a Wii. */
+/* PERF_PROF_TEXCHECK: the texture-cache staleness oracle (gpuTexture.c). Every sub-cache
+ * hit is checked, 64 texels at a time, against what VRAM holds now. "texcheck:" */
+#ifndef PERF_PROF_TEXCHECK
+#define PERF_PROF_TEXCHECK 0
+#endif
 #ifndef PERF_PROF_PMC
 #define PERF_PROF_PMC 0
 #endif
@@ -541,6 +546,11 @@ typedef struct {
 	 * entry each: its mode, page, rect in page texels */
 	struct { int16_t x, y, w, h; uint8_t src, mode, page, pad; uint8_t ex1, ey1, ex2, ey2; uint32_t n; } inv_rect[8];
 	uint32_t inv_rect_n;
+	/* texcheck: hits checked, texels compared, stale texels and hits, the first 8 stale ones */
+	uint32_t tc_hits, tc_bad_hits;
+	uint64_t tc_texels, tc_bad, tc_nonzero;
+	struct { uint32_t vbl; uint16_t exp, got; uint8_t mode, page, u, v, x1, y1, x2, y2; } tc_s[8];
+	uint32_t tc_n;
 	/* One draw, split. `ogx` is every call into OpenGX's glPRIMdraw* functions; the rest
 	 * of a primitive's time is the plugin preparing it. Inside ogx, `common` is the vertex
 	 * format set on every draw and `state` the GX state (Z, alpha test, blend, texture
