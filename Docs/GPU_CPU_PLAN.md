@@ -6,14 +6,14 @@ HLE 4.7% -> 3.3% of wall, load 50.0% -> 48.7%.
 | item | state | measured |
 |---|---|---|
 | C1 HLE handlers | **DONE** (b11b30d; interpreter follow-up a77f6ea) | 81-97% of recompiler entries were single blocks; HLE share halved in the 3D games |
-| G2 FMV present | **PARTIAL**: split and hash guard done; the one-pass fix is open. 24-bit FMV now shown at 24 bits (7cb1671) | Micro Machines 14.4% -> 4.2%. The rest waits for the LC; 24-bit FMV is shown at 15-bit colour -- a fidelity question for the user |
+| G2 FMV present | **DONE**: split, hash guard, one-pass upload (fcb5390, -33%); 24-bit FMV shown at 24 bits (7cb1671) | Micro Machines 14.4% -> 4.2%. The rest waits for the LC; 24-bit FMV is shown at 15-bit colour -- a fidelity question for the user |
 | G1 tiling | **1 and 2 DONE** (block-aligned placement, flush only the rows written); 3 not needed yet | unaligned uploads 83% -> 0; Crash Bash 6.1% -> 4.0% |
 | G3 GX state cache | **DONE** (b11b30d) | skips 96% of GX state calls; 0.6-0.7% of wall in Dolphin, more GP traffic saved on a Wii |
 | LC | **DONE** (805659f, `Docs/LOCKED_CACHE.md`): `spu-gauss`, `tex-tile`, off by default | frames and audio proven identical; the gain needs a Wii |
 
 **Checked against the code 2026-09-28 (HEAD bc014aa).** Items marked **DONE** are in main;
 **PARTIAL** says what is left; unmarked items are open. Next to work on, in the plan's order:
-G2's real fix (one pass, no `GX_DrawDone`), the G4 items,
+the G4 items,
 C2, then the hardware session (the bench Wii and `scripts/wii_lab.py` are ready).
 
 The sections below are the plan as written, kept for its reasoning.
@@ -108,7 +108,9 @@ The GPU split probes (`PERF_PROF_GPUSPLIT`: perf.log `gpusplit:`, `gpuprim:`, `g
   capture and vout (b11b30d); the 24 -> 16 conversion and the texture upload inside
   `UploadScreen` are still one number.
 - **Optimise (likely).** One pass from 24-bit VRAM to GX tiles; upload only the display
-  rectangle; no `GX_DrawDone` in the path.
+  rectangle; no `GX_DrawDone` in the path. **DONE** (fcb5390: one pass, upload -33% in Micro Machines,
+  XFB identical; the upload was already the display rectangle; its `GX_DrawDone` is now the
+  conditional one of 9077042)
 - **Locked cache.** Yes, the same pattern as G1: convert into the LC, DMA out.
 - **Accuracy.** The conversion must stay exact. 24-bit FMV is the fidelity case the user
   named; no shortcut that drops colour depth. **DONE** (7cb1671: an RGBA8 path shows 24-bit
