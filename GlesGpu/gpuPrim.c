@@ -1536,8 +1536,10 @@ int CheckFullScreenUpload ( void )
             && (screenX1 - 4) <= PreviousPSXDisplay.DisplayEnd.x && (screenY1 - 4) <= PreviousPSXDisplay.DisplayEnd.y)
         {
             #if defined(DISP_DEBUG)
+            if (logFileEnabled()) {
             sprintf(txtbuffer, "Upload Full Screen Pre\r\n");
             writeLogFile(txtbuffer);
+            }
             #endif // DISP_DEBUG
 
             uploadedScreen = TRUE;
@@ -1554,8 +1556,10 @@ int CheckFullScreenUpload ( void )
                     && (screenX1 - 4) <= PSXDisplay.DisplayEnd.x && (screenY1 - 4) <= PSXDisplay.DisplayEnd.y)
         {
             #if defined(DISP_DEBUG)
+            if (logFileEnabled()) {
             sprintf(txtbuffer, "Upload Full Screen Cur\r\n");
             writeLogFile(txtbuffer);
+            }
             #endif // DISP_DEBUG
 
             uploadedScreen = TRUE;
@@ -1716,8 +1720,10 @@ int UploadScreen ( int Position )
     if (PSXDisplay.Disabled && iOffscreenDrawing < 4)
     {
         #if defined(DISP_DEBUG)
+        if (logFileEnabled()) {
         sprintf ( txtbuffer, "UploadScreen Dis %d %d %d %d\r\n", xrUploadArea.x0, xrUploadArea.y0, xrUploadArea.x1 - xrUploadArea.x0, xrUploadArea.y1 - xrUploadArea.y0);
         writeLogFile ( txtbuffer );
+        }
         #endif // DISP_DEBUG
         PERF_INC(upl_r_dis);
         return 0;
@@ -1758,8 +1764,10 @@ int UploadScreen ( int Position )
         }
 
         #if defined(DISP_DEBUG)
+        if (logFileEnabled()) {
         sprintf ( txtbuffer, "UploadScreen24 %d %d %d %d %d\r\n", xrUploadArea.x0, xrUploadArea.y0, xrUploadArea.x1 - xrUploadArea.x0, xrUploadArea.y1 - xrUploadArea.y0, bUsingTWin);
         writeLogFile ( txtbuffer );
+        }
         #endif // DISP_DEBUG
     }
     else
@@ -1798,15 +1806,19 @@ int UploadScreen ( int Position )
     glNoNeedMulConstColor( noNeedMulConstColor );
 
     #if defined(DISP_DEBUG)
+    if (logFileEnabled()) {
     sprintf ( txtbuffer, "DrawOffset BEF_SetOGLD %d %d %d %d %d %d %d %d\r\n", PSXDisplay.DrawOffset.x, PSXDisplay.DrawOffset.y, PSXDisplay.GDrawOffset.x, PSXDisplay.GDrawOffset.y,
               PreviousPSXDisplay.Range.x0, PreviousPSXDisplay.Range.y0, PSXDisplay.CumulOffset.x, PSXDisplay.CumulOffset.y);
     writeLogFile(txtbuffer);
+    }
     #endif // DISP_DEBUG
     SetOGLDisplaySettings ( 0 );
     #if defined(DISP_DEBUG)
+    if (logFileEnabled()) {
     sprintf ( txtbuffer, "DrawOffset AFT_SetOGLD %d %d %d %d %d %d %d %d\r\n", PSXDisplay.DrawOffset.x, PSXDisplay.DrawOffset.y, PSXDisplay.GDrawOffset.x, PSXDisplay.GDrawOffset.y,
               PreviousPSXDisplay.Range.x0, PreviousPSXDisplay.Range.y0, PSXDisplay.CumulOffset.x, PSXDisplay.CumulOffset.y);
     writeLogFile(txtbuffer);
+    }
     #endif // DISP_DEBUG
 
     YStep = 256;                                          // max texture size
@@ -2039,8 +2051,10 @@ static inline void cmdSTP ( unsigned char * baseAddr )
         iDepthFunc = 1;
     }
     #if defined(DISP_DEBUG)
+    if (logFileEnabled()) {
     sprintf ( txtbuffer, "cmdSTP %d %d\r\n", iSetMask, bCheckMask);
     writeLogFile(txtbuffer);
+    }
     #endif // DISP_DEBUG
 }
 
@@ -2051,8 +2065,10 @@ static inline void cmdSTP ( unsigned char * baseAddr )
 static void cmdTexturePage ( unsigned char * baseAddr )
 {
     #if defined(DISP_DEBUG)
+    if (logFileEnabled()) {
     sprintf ( txtbuffer, "cmdTexturePage \r\n");
     writeLogFile(txtbuffer);
+    }
     #endif // DISP_DEBUG
     uint32_t gdata = GETLE32 ( ( uint32_t* ) baseAddr );
 
@@ -2071,8 +2087,10 @@ static void cmdTexturePage ( unsigned char * baseAddr )
 static void cmdTextureWindow ( unsigned char *baseAddr )
 {
     #if defined(DISP_DEBUG)
+    if (logFileEnabled()) {
     sprintf ( txtbuffer, "cmdTextureWindow \r\n");
     writeLogFile(txtbuffer);
+    }
     #endif // DISP_DEBUG
     uint32_t gdata = GETLE32 ( ( uint32_t* ) baseAddr );
     uint32_t YAlign, XAlign;
@@ -2168,8 +2186,10 @@ static void cmdTextureWindow ( unsigned char *baseAddr )
 #endif
 
         #if defined(DISP_DEBUG)
+        if (logFileEnabled()) {
         sprintf ( txtbuffer, "cmdTextureWindow %d %d %d %d %d %d\r\n", TWin.Position.x0, TWin.Position.y0, TWin.Position.x1, TWin.Position.y1, TWin.OPosition.x1, TWin.OPosition.y1);
         writeLogFile ( txtbuffer );
+        }
         #endif // DISP_DEBUG
     }
 }
@@ -2267,8 +2287,10 @@ static void cmdDrawAreaStart ( unsigned char * baseAddr )
     bDisplayNotSet = TRUE;                                // -> re-apply the drawing-area clip
 
     #if defined(DISP_DEBUG)
+    if (logFileEnabled()) {
     sprintf ( txtbuffer, "cmdDrawAreaStart %d %d\r\n", drawX, drawY);
     writeLogFile(txtbuffer);
+    }
     #endif // DISP_DEBUG
 }
 
@@ -2302,8 +2324,10 @@ static void cmdDrawAreaEnd ( unsigned char * baseAddr )
     bDisplayNotSet = TRUE;                                // -> re-apply the drawing-area clip
 
     #if defined(DISP_DEBUG)
+    if (logFileEnabled()) {
     sprintf ( txtbuffer, "cmdDrawAreaEnd %d %d\r\n", drawW, drawH);
     writeLogFile(txtbuffer);
+    }
     #endif // DISP_DEBUG
 
     if ((PSXDisplay.DrawArea.x1 == 1023 && PSXDisplay.DrawArea.y1 == 511)
@@ -2361,9 +2385,11 @@ static void cmdDrawOffset ( unsigned char * baseAddr )
         PSXDisplay.DrawOffset.y - PSXDisplay.GDrawOffset.y + PreviousPSXDisplay.Range.y0;
 
     #if defined(DISP_DEBUG)
+    if (logFileEnabled()) {
     sprintf ( txtbuffer, "cmdDrawOffset %d %d %d %d %d %d %d %d\r\n", PSXDisplay.DrawOffset.x, PSXDisplay.DrawOffset.y, PSXDisplay.GDrawOffset.x, PSXDisplay.GDrawOffset.y,
               PreviousPSXDisplay.Range.x0, PreviousPSXDisplay.Range.y0, PSXDisplay.CumulOffset.x, PSXDisplay.CumulOffset.y);
     writeLogFile(txtbuffer);
+    }
     #endif // DISP_DEBUG
 
 #if defined(DISP_DEBUG)
@@ -2471,8 +2497,10 @@ static void PrepareRGB24Upload ( void )
     }
 
     #if defined(DISP_DEBUG)
+    if (logFileEnabled()) {
     sprintf ( txtbuffer, "PrepareRGB24Upload %x\r\n", RGB24Uploaded);
     writeLogFile ( txtbuffer );
+    }
     #endif // DISP_DEBUG
 }
 
@@ -2544,8 +2572,10 @@ void CheckWriteUpdate()
             uploadAreaY1 = xrUploadArea.y0;
             uploadAreaY2 = xrUploadArea.y1;
             #if defined(DISP_DEBUG)
+            if (logFileEnabled()) {
             sprintf ( txtbuffer, "needUploadScreen\r\n" );
             writeLogFile ( txtbuffer );
+            }
             #endif // DISP_DEBUG
         }
 
@@ -2556,11 +2586,13 @@ void CheckWriteUpdate()
         if ( CheckAgainstFrontScreen  ( VRAMWrite.x, VRAMWrite.y, VRAMWrite.Width, VRAMWrite.Height ) )
         {
             #if defined(DISP_DEBUG)
+            if (logFileEnabled()) {
             sprintf ( txtbuffer, "CheckWriteUpdate2 %d %d %d %d %d %d %d %d %d %d %d %d\r\n",
                      PreviousPSXDisplay.DisplayPosition.x, PreviousPSXDisplay.DisplayPosition.y, PreviousPSXDisplay.DisplayEnd.x, PreviousPSXDisplay.DisplayEnd.y,
                      PSXDisplay.DisplayPosition.x,         PSXDisplay.DisplayPosition.y,         PSXDisplay.DisplayEnd.x,         PSXDisplay.DisplayEnd.y,
                      PSXDisplay.Interlaced, PSXDisplay.InterlacedTest, bCheckMask, sSetMask);
             writeLogFile ( txtbuffer );
+            }
             #endif // DISP_DEBUG
             if ( PSXDisplay.InterlacedTest )
             {
@@ -2589,8 +2621,10 @@ void CheckWriteUpdate()
                     xrUploadAreaIL.y1 = max ( xrUploadAreaIL.y1, xrUploadArea.y1 );
                 }
                 #if defined(DISP_DEBUG)
+                if (logFileEnabled()) {
                 sprintf ( txtbuffer, "CheckWriteUpdate3 %d %d %d %d\r\n", xrUploadAreaIL.x0, xrUploadAreaIL.x1, xrUploadAreaIL.y0, xrUploadAreaIL.y1 );
                 writeLogFile ( txtbuffer );
+                }
                 #endif // DISP_DEBUG
                 return;
             }
@@ -2611,9 +2645,11 @@ void CheckWriteUpdate()
                 xrUploadArea.y1 = max ( xrUploadArea.y1, VRAMWrite.y + VRAMWrite.Height );
             }
             #if defined(DISP_DEBUG)
+            if (logFileEnabled()) {
             sprintf(txtbuffer, "CheckWriteUpdate4 %d %d %d %d %d %d %d %d\r\n", xrUploadArea.x0, xrUploadArea.x1, xrUploadArea.y0, xrUploadArea.y1,
                            VRAMWrite.x, VRAMWrite.Width, VRAMWrite.y, VRAMWrite.Height);
             writeLogFile ( txtbuffer );
+            }
             #endif // DISP_DEBUG
 
 //            if ( dwActFixes & 0x8000 )
@@ -3073,8 +3109,10 @@ static void primMoveImage ( unsigned char * baseAddr )
             }
 
             #if defined(DISP_DEBUG)
+            if (logFileEnabled()) {
             sprintf ( txtbuffer, "MoveImage UploadedScreen\r\n" );
             writeLogFile ( txtbuffer );
+            }
             #endif // DISP_DEBUG
         }
 //        else if ( iOffscreenDrawing )

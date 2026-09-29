@@ -523,6 +523,11 @@ typedef struct {
 	uint64_t gpu_fill_gx_ticks, gpu_fill_sw_ticks, gpu_fill_mark_ticks;
 	uint64_t gpu_vramfin_ticks;
 	uint32_t gpu_vramfin_calls;
+	/* InvalidateTextureArea (every VRAM write drops the cached textures under it): time,
+	 * calls, and the texture-cache entries it looked at */
+	uint64_t gpu_inv_ticks;
+	uint32_t gpu_inv_calls, gpu_inv_scan;
+	uint64_t gpu_cwu_ticks;   /* CheckWriteUpdate inside FinishedVRAMWrite */
 	/* One draw, split. `ogx` is every call into OpenGX's glPRIMdraw* functions; the rest
 	 * of a primitive's time is the plugin preparing it. Inside ogx, `common` is the vertex
 	 * format set on every draw and `state` the GX state (Z, alpha test, blend, texture

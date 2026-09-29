@@ -707,6 +707,9 @@ void InvalidateSubSTextureArea(int X,int Y,int W, int H)
 
         {
          tsb=pscSubtexStore[k][j]+SOFFA;iMax=GETLE32(SUBCACHE_COUNT_PTR(tsb));tsb++;
+#if PERF_PROF_GPUSPLIT
+         g_perf.gpu_inv_scan += iMax;   /* list A; B-D below are the same length or less */
+#endif
          for(i=0;i<iMax;i++,tsb++)
           if(tsb->ClutKey && XCHECK(tsb->pos,npos)) {tsb->ClutKey=0;MarkFree(tsb);PERF_INC(ogx_inval);}
 
@@ -771,9 +774,18 @@ void InvalidateTextureArea(int X,int Y,int W, int H)
 #endif
  if(W==0 && H==0) return;
 
+#if PERF_PROF_GPUSPLIT
+ {
+ unsigned long long inv_t0_ = perf_now_ticks();
+ g_perf.gpu_inv_calls++;
+#endif
  if(iMaxTexWnds) InvalidateWndTextureArea(X,Y,W,H);
 
  InvalidateSubSTextureArea(X,Y,W,H);
+#if PERF_PROF_GPUSPLIT
+ g_perf.gpu_inv_ticks += perf_now_ticks() - inv_t0_;
+ }
+#endif
 }
 
 
@@ -804,8 +816,10 @@ void DefineTextureWnd(void)
         0, GL_RGB, GL_UNSIGNED_BYTE, texturepart); glError();
     gl_ux[8] = textureType;
     #ifdef DISP_DEBUG
+    if (logFileEnabled()) {
     sprintf ( txtbuffer, "DefineTextureWnd %d %d %d\r\n", TWin.Position.x1, TWin.Position.y1, textureType);
     writeLogFile ( txtbuffer );
+    }
     #endif // DISP_DEBUG
 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);

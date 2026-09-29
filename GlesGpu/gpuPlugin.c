@@ -495,9 +495,11 @@ if(PSXDisplay.Disabled)                               // display disabled?
   gl_z=0.0f;
   bDisplayNotSet = TRUE;
   #ifdef DISP_DEBUG
+  if (logFileEnabled()) {
   sprintf(txtbuffer, "updateDisplayGl Disabled\r\n");
   //DEBUG_print(txtbuffer, DBG_CDR1);
   writeLogFile(txtbuffer);
+  }
   #endif // DISP_DEBUG
 
   //gc_vout_disabled();
@@ -608,9 +610,11 @@ if(bNeedUploadAfter)                                  // upload wanted?
   bNeedUploadAfter=FALSE;
   bNeedUploadTest=FALSE;
       #ifdef DISP_DEBUG
+      if (logFileEnabled()) {
       sprintf(txtbuffer, "bNeedUploadAfter %d %d %d %d\r\n", xrUploadArea.x0, xrUploadArea.x1, xrUploadArea.y0, xrUploadArea.y1);
       //DEBUG_print(txtbuffer, DBG_CDR2);
       writeLogFile(txtbuffer);
+      }
       #endif // DISP_DEBUG
   UploadScreen(-1);                                   // -> upload
  }
@@ -626,9 +630,11 @@ if(bNeedUploadTest)
      PreviousPSXDisplay.DisplayEnd.y==PSXDisplay.DisplayEnd.y)
    {
        #ifdef DISP_DEBUG
+       if (logFileEnabled()) {
        sprintf(txtbuffer, "bNeedUploadTest %d %d %d %d\r\n", xrUploadArea.x0, xrUploadArea.x1, xrUploadArea.y0, xrUploadArea.y1);
        //DEBUG_print(txtbuffer, DBG_CDR2);
        writeLogFile(txtbuffer);
+       }
        #endif // DISP_DEBUG
 
     PrepareFullScreenUpload(TRUE);
@@ -933,12 +939,14 @@ else                                                  // some res change?
   glOrtho(0,PSXDisplay.DisplayModeNew.x,              // -> new psx resolution
             PSXDisplay.DisplayModeNew.y, 0, -1, 1); glError();
   #ifdef DISP_DEBUG
+  if (logFileEnabled()) {
   sprintf(txtbuffer, "DisplayChanged glOrtho %d %d\r\n", PSXDisplay.DisplayModeNew.x, PSXDisplay.DisplayModeNew.y);
   writeLogFile(txtbuffer);
   sprintf(txtbuffer, "DisplayChanged GX_SetScissor %d %d %d %d\r\n", rRatioRect.left,
            iResY-(rRatioRect.top+rRatioRect.bottom),
            rRatioRect.right,rRatioRect.bottom);
   writeLogFile(txtbuffer);
+  }
   #endif // DISP_DEBUG
   if(bKeepRatio) SetAspectRatio();
  }
@@ -953,9 +961,11 @@ if(PSXDisplay.RGB24!=PSXDisplay.RGB24New)             // clean up textures, if r
   bUp=TRUE;
  }
  #ifdef DISP_DEBUG
+  if (logFileEnabled()) {
   sprintf(txtbuffer, "updateDisplayIfChangedGl %d %d\r\n", PSXDisplay.RGB24, PSXDisplay.RGB24New);
   //DEBUG_print(txtbuffer, DBG_SPU3);
   writeLogFile(txtbuffer);
+  }
   #endif // DISP_DEBUG
 
 PSXDisplay.RGB24         = PSXDisplay.RGB24New;       // get new infos
@@ -979,8 +989,10 @@ if(iFrameLimit==2) SetAutoFrameCap();                 // set new fps limit vals 
  if(bUp)
 {
     #ifdef DISP_DEBUG
+    if (logFileEnabled()) {
     sprintf(txtbuffer, "updateDisplayIfChangedGl swap buffer\r\n");
     writeLogFile(txtbuffer);
+    }
     #endif // DISP_DEBUG
     updateDisplayGl();                              // yeah, real update (swap buffer)
 }
@@ -1090,8 +1102,10 @@ if(PSXDisplay.Interlaced)                             // interlaced mode?
   if(PSXDisplay.DisplayMode.x>0 && PSXDisplay.DisplayMode.y>0)
    {
        #ifdef DISP_DEBUG
+       if (logFileEnabled()) {
        sprintf ( txtbuffer, "GPUupdateLace1 %d %x\r\n", iDrawnSomething, RGB24Uploaded);
        writeLogFile ( txtbuffer );
+       }
        #endif // DISP_DEBUG
        updateDisplayGl();                                  // -> swap buffers (new frame)
    }
@@ -1099,16 +1113,20 @@ if(PSXDisplay.Interlaced)                             // interlaced mode?
 else if(usFirstPos==1)                                // initial updates (after startup)
  {
      #ifdef DISP_DEBUG
+    if (logFileEnabled()) {
     sprintf ( txtbuffer, "GPUupdateLace3\r\n");
     writeLogFile ( txtbuffer );
+    }
     #endif // DISP_DEBUG
   updateDisplayGl();
  }
  else
  {
      #ifdef DISP_DEBUG
+     if (logFileEnabled()) {
      sprintf ( txtbuffer, "GPUupdateLace5 %x %d %d %d %x\r\n", iDrawnSomething, PSXDisplay.Interlaced, PSXDisplay.Disabled, PSXDisplay.InterlacedTest, RGB24Uploaded);
      writeLogFile ( txtbuffer );
+     }
      #endif // DISP_DEBUG
      GPUupdateLace5Flg = 0;
      {
@@ -1252,9 +1270,11 @@ switch(lCommand)
       {
        PrepareFullScreenUpload(TRUE);
        #ifdef DISP_DEBUG
+       if (logFileEnabled()) {
        sprintf(txtbuffer, "dis/enable display %d %d %d %d\r\n", xrUploadArea.x0, xrUploadArea.x1, xrUploadArea.y0, xrUploadArea.y1);
        //DEBUG_print(txtbuffer, DBG_CDR2);
        writeLogFile(txtbuffer);
+       }
        #endif // DISP_DEBUG
        UploadScreen(TRUE);
        updateDisplayGl();
@@ -1345,9 +1365,11 @@ switch(lCommand)
     if (!(PSXDisplay.Interlaced))
      {
          #ifdef DISP_DEBUG
+         if (logFileEnabled()) {
          sprintf(txtbuffer, "settingDispInfo05 %d %d %d %d\r\n", PSXDisplay.DisplayPosition.x, PSXDisplay.DisplayPosition.y, PSXDisplay.DisplayMode.x * PSXDisplay.Range.x1 / 2560, PSXDisplay.Height);
          //DEBUG_print(txtbuffer, DBG_CDR2);
          writeLogFile(txtbuffer);
+         }
          #endif // DISP_DEBUG
          CHECK_SCREEN_INFO();
 
@@ -1391,8 +1413,10 @@ switch(lCommand)
 
     CHECK_SCREEN_INFO();
     #ifdef DISP_DEBUG
+      if (logFileEnabled()) {
       sprintf(txtbuffer, "settingDispInfo06 width %d %d\r\n", screenWidth, screenHeight);
       writeLogFile(txtbuffer);
+      }
       #endif // DISP_DEBUG
     ChangeDispOffsetsXGl();
 
@@ -1422,8 +1446,10 @@ switch(lCommand)
       ChangeDispOffsetsYGl();
 
       #ifdef DISP_DEBUG
+      if (logFileEnabled()) {
       sprintf(txtbuffer, "settingDispInfo07 height %d %d\r\n", screenWidth, screenHeight);
       writeLogFile(txtbuffer);
+      }
       #endif // DISP_DEBUG
       CHECK_SCREEN_INFO();
 
@@ -1493,8 +1519,10 @@ switch(lCommand)
 
      CHECK_SCREEN_INFO();
      #ifdef DISP_DEBUG
+     if (logFileEnabled()) {
      sprintf(txtbuffer, "settingDispInfo08 %d %d %d %d\r\n", PSXDisplay.DisplayPosition.x, PSXDisplay.DisplayPosition.y, screenWidth, screenHeight);
      writeLogFile(txtbuffer);
+     }
      #endif // DISP_DEBUG
 
    skipPreviousDisplayCheckOnce = TRUE;
@@ -1557,7 +1585,13 @@ static __inline void FinishedVRAMWrite(void)
  if(bNeedWriteUpload)
   {
    bNeedWriteUpload=FALSE;
+#if PERF_PROF_GPUSPLIT
+   { unsigned long long cw_t0_ = perf_now_ticks();
+#endif
    CheckWriteUpdate();
+#if PERF_PROF_GPUSPLIT
+   g_perf.gpu_cwu_ticks += perf_now_ticks() - cw_t0_; }
+#endif
   }
 
  // set register to NORMAL operation

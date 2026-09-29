@@ -916,12 +916,15 @@ void perf_report(void)
 						(unsigned long)g_perf.gpu_cls_calls[c]);
 			fprintf(f, "\n");
 			fprintf(f, "gpudeep: fill_gx_us=%llu fill_sw_us=%llu fill_mark_us=%llu "
-				"vramfin_us=%llu vramfin=%lu\n",
+				"vramfin_us=%llu vramfin=%lu inv_us=%llu inv=%lu inv_scan=%lu cwu_us=%llu\n",
 				(unsigned long long)ticks_to_microsecs(g_perf.gpu_fill_gx_ticks),
 				(unsigned long long)ticks_to_microsecs(g_perf.gpu_fill_sw_ticks),
 				(unsigned long long)ticks_to_microsecs(g_perf.gpu_fill_mark_ticks),
 				(unsigned long long)ticks_to_microsecs(g_perf.gpu_vramfin_ticks),
-				(unsigned long)g_perf.gpu_vramfin_calls);
+				(unsigned long)g_perf.gpu_vramfin_calls,
+				(unsigned long long)ticks_to_microsecs(g_perf.gpu_inv_ticks),
+				(unsigned long)g_perf.gpu_inv_calls, (unsigned long)g_perf.gpu_inv_scan,
+				(unsigned long long)ticks_to_microsecs(g_perf.gpu_cwu_ticks));
 			fprintf(f, "gpudraw: ogx_us=%llu draws=%lu common_us=%llu state_us=%llu "
 				"states=%lu tex_us=%llu mode_us=%llu\n",
 				(unsigned long long)ticks_to_microsecs(g_perf.ogx_draw_ticks),
