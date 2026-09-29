@@ -2124,6 +2124,32 @@ static inline int _ogx_scramble_4b_5a3(unsigned char *src, void *dst, unsigned s
     unsigned short tmpPixel;
     int textureType = 0;
 
+    /* No semi-transparent texels without semiTransFlg, so the semi copy is never used (the
+     * callers copy semiTransBuf only for TEX_TYPE_1): write the opaque texels alone. Half the
+     * stores of every screen upload (FF7: six 256x256 parts a frame). */
+    if (!semiTransFlg) {
+        unsigned short *q = (unsigned short *)dst;
+        for (block = 0; block < height; block += 4)
+            for (i = 0; i < width; i += 4)
+                for (c = 0; c < 4; c++)
+                    for (argb = 0; argb < 4; argb++, q++) {
+                        if ((i + argb) >= width || (block + c) >= height) {
+                            *q = 0;
+                            continue;
+                        }
+                        if (v16) {
+                            tmpPixel = __builtin_bswap16(v16[(block + c) * pitch + i + argb]);
+                            if (!(tmpPixel & zero))
+                                tmpPixel = 0;
+                        } else
+                            tmpPixel = *(unsigned short*)(src + ((i + argb) + ((block + c) * width)) * 4 + 2);
+                        *q = tmpPixel ? (tmpPixel | 0x8000) : 0;
+                        if (tmpPixel)
+                            textureType |= TEX_TYPE_2;
+                    }
+        return textureType;
+    }
+
     for (block = 0; block < height; block += 4) {
         for (i = 0; i < width; i += 4) {
             for (c = 0; c < 4; c++) {
