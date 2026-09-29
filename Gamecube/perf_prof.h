@@ -551,6 +551,9 @@ typedef struct {
 	uint64_t tc_texels, tc_bad, tc_nonzero;
 	struct { uint32_t vbl; uint16_t exp, got; uint8_t mode, page, u, v, x1, y1, x2, y2; } tc_s[8];
 	uint32_t tc_n;
+	/* upl: screen uploads that changed nothing -- same rectangle, same VRAM content, no
+	 * primitive and no EFB clear since the last one (TEXCHECK builds: it hashes the rect) */
+	uint32_t upl_checked, upl_redundant;
 	/* One draw, split. `ogx` is every call into OpenGX's glPRIMdraw* functions; the rest
 	 * of a primitive's time is the plugin preparing it. Inside ogx, `common` is the vertex
 	 * format set on every draw and `state` the GX state (Z, alpha test, blend, texture

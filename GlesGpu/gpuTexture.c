@@ -77,6 +77,7 @@
 #include "gpuExternals.h"
 #include "gpuTexture.h"
 #include "gpuClutKey.h"
+#include "texInval.h"
 #include "gpuPlugin.h"
 #include "gpuPrim.h"
 
@@ -559,58 +560,21 @@ void ResetTextureArea(BOOL bDelTex)
 // Invalidate tex windows
 ////////////////////////////////////////////////////////////////////////
 
-void InvalidateWndTextureArea(int X,int Y,int W, int H)
+/* Drop every texture-window entry whose page shares a halfword with [X0, X1] x [Y0, Y1]
+ * (inclusive, inside VRAM). A page of depth k spans 64 << k halfwords (texInval.h): an
+ * 8- or 15-bit window whose page starts left of the write is reached too, which the old
+ * page-column range missed. */
+void InvalidateWndTextureArea(int X0,int Y0,int X1,int Y1)
 {
- int i,px1,px2,py1,py2,iYM=1;
+ int i;
  textureWndCacheEntry * tsw=wcWndtexStore;
 
- W+=X-1;
- H+=Y-1;
- if(X<0) X=0;if(X>1023) X=1023;
- if(W<0) W=0;if(W>1023) W=1023;
- if(Y<0) Y=0;if(Y>iGPUHeightMask)  Y=iGPUHeightMask;
- if(H<0) H=0;if(H>iGPUHeightMask)  H=iGPUHeightMask;
- W++;H++;
+ for(i=0;i<iMaxTexWnds;i++,tsw++)
+  if(tsw->used &&
+     texinval_page_hit((tsw->pageid & 15) << 6, (tsw->pageid >> 4) << 8, tsw->textureMode,
+                       X0, Y0, X1, Y1))
+   tsw->used=0;
 
- if(iGPUHeight==1024) iYM=3;
-
- py1=min(iYM,Y>>8);
- py2=min(iYM,H>>8);                                    // y: 0 or 1
-
- px1=max(0,(X>>6));
- px2=min(15,(W>>6));
-
- if(py1==py2)
-  {
-   py1=py1<<4;px1+=py1;px2+=py1;                       // change to 0-31
-   for(i=0;i<iMaxTexWnds;i++,tsw++)
-    {
-     if(tsw->used)
-      {
-       if(tsw->pageid>=px1 && tsw->pageid<=px2)
-        {
-         tsw->used=0;
-        }
-      }
-    }
-  }
- else
-  {
-   py1=px1+16;py2=px2+16;
-   for(i=0;i<iMaxTexWnds;i++,tsw++)
-    {
-     if(tsw->used)
-      {
-       if((tsw->pageid>=px1 && tsw->pageid<=px2) ||
-          (tsw->pageid>=py1 && tsw->pageid<=py2))
-        {
-         tsw->used=0;
-        }
-      }
-    }
-  }
-
- // adjust tex window count
  tsw=wcWndtexStore+iMaxTexWnds-1;
  while(iMaxTexWnds && !tsw->used) {iMaxTexWnds--;tsw--;}
 }
@@ -669,67 +633,46 @@ static void inv_rect_note(int x, int y, int w, int h, int mode, int page, const 
 }
 #endif
 
-void InvalidateSubSTextureArea(int X,int Y,int W, int H)
+/* Drop every cached sub-texture with a texel in the halfwords [X0, X1] x lines [Y0, Y1]
+ * (inclusive, inside VRAM: InvalidateTextureArea splits a write at the edges). Per page and
+ * depth, texInval.h gives the texels the write reaches; tests/texinval_test.c checks it
+ * against brute force. It used to test only the first texel of the last written halfword
+ * (a 4/8-bit entry starting in the rest stayed stale) and, with the width-1 convention
+ * some callers did not follow, one column and row past a fill. */
+void InvalidateSubSTextureArea(int X0,int Y0,int X1,int Y1)
 {
  PERF_INC(ogx_vram_wr);
 #if PERF_PROF_GPUSPLIT
  g_perf.inv_src_calls[ogx_inv_src & 7]++;
-#define INV_DROP(t) (g_perf.inv_src_drop[ogx_inv_src & 7]++,   g_perf.inv_src_texels[ogx_inv_src & 7] += (unsigned)((t)->pos.c.x2 - (t)->pos.c.x1 + 1) * ((t)->pos.c.y2 - (t)->pos.c.y1 + 1),   inv_rect_note(X0_, Y0_, W0_, H0_, k, j, (t)))
- const int X0_ = X, Y0_ = Y, W0_ = W, H0_ = H;
+#define INV_DROP(t) (g_perf.inv_src_drop[ogx_inv_src & 7]++,   g_perf.inv_src_texels[ogx_inv_src & 7] += (unsigned)((t)->pos.c.x2 - (t)->pos.c.x1 + 1) * ((t)->pos.c.y2 - (t)->pos.c.y1 + 1),   inv_rect_note(X0, Y0, X1 - X0 + 1, Y1 - Y0 + 1, k, j, (t)))
 #else
 #define INV_DROP(t) ((void)0)
 #endif
- int i,j,k,iMax,px,py,px1,px2,py1,py2,iYM=1;
+ int i,j,k,iMax,px,py,py1,py2,iYM=1;
  EXLong npos;textureSubCacheEntryS * tsb;
- int x1,x2,y1,y2,xa,sw;
-
- W+=X-1;
- H+=Y-1;
- if(X<0) X=0;if(X>1023) X=1023;
- if(W<0) W=0;if(W>1023) W=1023;
- if(Y<0) Y=0;if(Y>iGPUHeightMask)  Y=iGPUHeightMask;
- if(H<0) H=0;if(H>iGPUHeightMask)  H=iGPUHeightMask;
- W++;H++;
 
  if(iGPUHeight==1024) iYM=3;
-
- py1=min(iYM,Y>>8);
- py2=min(iYM,H>>8);                                    // y: 0 or 1
- px1=max(0,(X>>6)-3);
- px2=min(15,(W>>6)+3);                                 // x: 0-15
+ py1=min(iYM,Y0>>8);
+ py2=min(iYM,Y1>>8);
 
  for(py=py1;py<=py2;py++)
   {
-   j=(py<<4)+px1;                                      // get page
+   int y1=max(Y0,py<<8), y2=min(Y1,(py<<8)+255);
+   int vy=((y1&255)<<8)|(y2&255);
+   int pxa=max(0,(X0>>6)-3), pxb=min(15,X1>>6);   /* a 15-bit page reaches 3 columns right */
 
-   y1=py*256;y2=y1+255;
-
-   if(H<y1)  continue;
-   if(Y>y2)  continue;
-
-   if(Y>y1)  y1=Y;
-   if(H<y2)  y2=H;
-   if(y2<y1) {sw=y1;y1=y2;y2=sw;}
-   y1=((y1%256)<<8);
-   y2=(y2%256);
-
-   for(px=px1;px<=px2;px++,j++)
+   for(px=pxa;px<=pxb;px++)
     {
+     j=(py<<4)+px;
      for(k=0;k<3;k++)
       {
-       xa=x1=px<<6;
-       if(W<x1) continue;
-       x2=x1+(64<<k)-1;
-       if(X>x2) continue;
-
-       if(X>x1)  x1=X;
-       if(W<x2)  x2=W;
-       if(x2<x1) {sw=x1;x1=x2;x2=sw;}
+       int t0,t1;
+       if(!texinval_texels(px<<6,k,X0,X1,&t0,&t1)) continue;
 
        if (dwGPUVersion == 2)
         npos.l=SWAP32_C(0x00ff00ff);
        else
-        PUTLE32(&npos.l, ((x1-xa)<<(26-k))|((x2-xa)<<(18-k))|y1|y2);
+        PUTLE32(&npos.l, (t0<<24)|(t1<<16)|vy);
 
         {
          tsb=pscSubtexStore[k][j]+SOFFA;iMax=GETLE32(SUBCACHE_COUNT_PTR(tsb));tsb++;
@@ -763,6 +706,7 @@ void InvalidateSubSTextureArea(int X,int Y,int W, int H)
       }
     }
   }
+#undef INV_DROP
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -771,21 +715,15 @@ void InvalidateSubSTextureArea(int X,int Y,int W, int H)
 
 void InvalidateTextureAreaEx(void)
 {
- short W=sxmax-sxmin;
- short H=symax-symin;
-
- if(W==0 && H==0) return;
-
- ogx_inv_src = 4;
- if(iMaxTexWnds)
-  InvalidateWndTextureArea(sxmin,symin,W,H);
-
- InvalidateSubSTextureArea(sxmin,symin,W,H);
- ogx_inv_src = 0;
+ ogx_inv_src = 4;                 /* sxmin..sxmax, symin..symax: inclusive primitive bounds */
+ InvalidateTextureArea(sxmin, symin, sxmax - sxmin + 1, symax - symin + 1);
 }
 
 ////////////////////////////////////////////////////////////////////////
 
+/* Drop the cached textures under the VRAM rectangle x, y, w x h: real sizes, not w-1 (the
+ * P.E.Op.S. convention some callers followed and some did not). VRAM wraps: the part past
+ * the right or bottom edge is at x = 0 or y = 0, as for efb_cpu_write. */
 void InvalidateTextureArea(int X,int Y,int W, int H)
 {
  /* probe: every VRAM area whose cached textures are dropped (image loads,
@@ -800,16 +738,22 @@ void InvalidateTextureArea(int X,int Y,int W, int H)
   }
  }
 #endif
- if(W==0 && H==0) { ogx_inv_src = 0; return; }
+ if(W<=0 || H<=0) { ogx_inv_src = 0; return; }
+ if(W>1024) W=1024;
+ if(H>iGPUHeight) H=iGPUHeight;
+ X&=1023;
+ Y&=iGPUHeightMask;
+ if(X+W>1024)       { int s0=ogx_inv_src; InvalidateTextureArea(0,Y,X+W-1024,H); ogx_inv_src=s0; W=1024-X; }
+ if(Y+H>iGPUHeight) { int s0=ogx_inv_src; InvalidateTextureArea(X,0,W,Y+H-iGPUHeight); ogx_inv_src=s0; H=iGPUHeight-Y; }
 
 #if PERF_PROF_GPUSPLIT
  {
  unsigned long long inv_t0_ = perf_now_ticks();
  g_perf.gpu_inv_calls++;
 #endif
- if(iMaxTexWnds) InvalidateWndTextureArea(X,Y,W,H);
+ if(iMaxTexWnds) InvalidateWndTextureArea(X,Y,X+W-1,Y+H-1);
 
- InvalidateSubSTextureArea(X,Y,W,H);
+ InvalidateSubSTextureArea(X,Y,X+W-1,Y+H-1);
 #if PERF_PROF_GPUSPLIT
  g_perf.gpu_inv_ticks += perf_now_ticks() - inv_t0_;
  }

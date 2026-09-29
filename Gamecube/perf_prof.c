@@ -936,6 +936,8 @@ void perf_report(void)
 					(unsigned long)g_perf.tc_hits, (unsigned long long)g_perf.tc_texels,
 					(unsigned long long)g_perf.tc_nonzero,
 					(unsigned long long)g_perf.tc_bad, (unsigned long)g_perf.tc_bad_hits);
+				fprintf(f, "uplcheck: uploads=%lu redundant=%lu\n",
+					(unsigned long)g_perf.upl_checked, (unsigned long)g_perf.upl_redundant);
 				for (k = 0; k < g_perf.tc_n; k++)
 					fprintf(f, "texcheckr: vbl=%lu mode=%u page=%u texel=%u,%u entry=(%u,%u)-(%u,%u) want=%04x got=%04x\n",
 						(unsigned long)g_perf.tc_s[k].vbl, g_perf.tc_s[k].mode, g_perf.tc_s[k].page,

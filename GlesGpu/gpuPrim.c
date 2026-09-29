@@ -1581,19 +1581,16 @@ void PrepareFullScreenUpload ( int Position )
 {
     if ( Position == -1 )                                 // rgb24
     {
-        if ( PSXDisplay.Interlaced )
+        /* The buffer on screen now. Non-interlaced, this took PreviousPSXDisplay: the
+         * buffer GP1 05 just flipped away from, so every 24-bit frame was shown one flip
+         * late. Unseen while fills of the next screen skipped psxVuw; since they reach it
+         * (75f2796), a game that clears the old front buffer right before the flip
+         * (Frogger's FMV) showed each frame black. */
         {
             xrUploadArea.x0 = PSXDisplay.DisplayPosition.x;
             xrUploadArea.x1 = PSXDisplay.DisplayEnd.x;
             xrUploadArea.y0 = PSXDisplay.DisplayPosition.y;
             xrUploadArea.y1 = PSXDisplay.DisplayEnd.y;
-        }
-        else
-        {
-            xrUploadArea.x0 = PreviousPSXDisplay.DisplayPosition.x;
-            xrUploadArea.x1 = PreviousPSXDisplay.DisplayEnd.x;
-            xrUploadArea.y0 = PreviousPSXDisplay.DisplayPosition.y;
-            xrUploadArea.y1 = PreviousPSXDisplay.DisplayEnd.y;
         }
 
         if ( bNeedRGB24Update )
@@ -1681,13 +1678,15 @@ static void UploadScreenSnapshot(int Position)
 #endif
 
 /* UploadScreen(FALSE) offsets by PreviousPSXDisplay: when that is the displayed buffer
- * (a game drawing where it displays), the upload changed what is on screen */
+ * (a game drawing where it displays), the upload changed what is on screen. The same
+ * buffer if the two rectangles overlap: a double buffer's halves never do, and a game can
+ * move its display start by a line or two without flipping (CTR's Sony screen: y 2 -> 0). */
 static int UploadWentToDisplay(void)
 {
-    return PreviousPSXDisplay.DisplayPosition.x == PSXDisplay.DisplayPosition.x &&
-           PreviousPSXDisplay.DisplayPosition.y == PSXDisplay.DisplayPosition.y &&
-           PreviousPSXDisplay.DisplayEnd.x == PSXDisplay.DisplayEnd.x &&
-           PreviousPSXDisplay.DisplayEnd.y == PSXDisplay.DisplayEnd.y;
+    return PreviousPSXDisplay.DisplayPosition.x < PSXDisplay.DisplayEnd.x &&
+           PSXDisplay.DisplayPosition.x < PreviousPSXDisplay.DisplayEnd.x &&
+           PreviousPSXDisplay.DisplayPosition.y < PSXDisplay.DisplayEnd.y &&
+           PSXDisplay.DisplayPosition.y < PreviousPSXDisplay.DisplayEnd.y;
 }
 
 int UploadScreen ( int Position )
@@ -1787,6 +1786,24 @@ int UploadScreen ( int Position )
 
     iDrawnSomething |= 0x2;
     PERF_INC(upl_done);
+#if PERF_PROF_TEXCHECK
+    {   /* FF7 probe: would skipping this upload have changed the picture? */
+        static uint32_t last_h, last_prims, last_clears;
+        static short lx0, ly0, lx1, ly1;
+        uint32_t h = 2166136261u;
+        int x, y;
+        for (y = xrUploadArea.y0; y < xrUploadArea.y1; y++)
+            for (x = xrUploadArea.x0; x < xrUploadArea.x1; x++)
+                h = (h ^ psxVuw[(y << 10) + x]) * 16777619u;
+        h ^= PSXDisplay.RGB24;
+        g_perf.upl_checked++;
+        if (h == last_h && lx0 == xrUploadArea.x0 && ly0 == xrUploadArea.y0 && lx1 == xrUploadArea.x1 &&
+            ly1 == xrUploadArea.y1 && last_prims == g_perf.gpu_prim_calls && last_clears == g_perf.pres_clear)
+            g_perf.upl_redundant++;
+        last_h = h; last_prims = g_perf.gpu_prim_calls; last_clears = g_perf.pres_clear;
+        lx0 = xrUploadArea.x0; ly0 = xrUploadArea.y0; lx1 = xrUploadArea.x1; ly1 = xrUploadArea.y1;
+    }
+#endif
     perf_prim_trace(0xEB, (Position ? 1 : 0) | (PSXDisplay.RGB24 ? 2 : 0), 0,
                     0,
                     xrUploadArea.x0, xrUploadArea.y0,
@@ -2508,13 +2525,8 @@ static void PrepareRGB24Upload ( void )
 
 void CheckWriteUpdate()
 {
-    int iX = 0, iY = 0;
-
-    if ( VRAMWrite.Width )   iX = 1;
-    if ( VRAMWrite.Height )  iY = 1;
-
     ogx_inv_src = 1;
-    InvalidateTextureArea ( VRAMWrite.x, VRAMWrite.y, VRAMWrite.Width - iX, VRAMWrite.Height - iY );
+    InvalidateTextureArea ( VRAMWrite.x, VRAMWrite.y, VRAMWrite.Width, VRAMWrite.Height );
 
     #if defined(DISP_DEBUG)
     if (logFileEnabled())
@@ -2557,6 +2569,8 @@ void CheckWriteUpdate()
     if ( !PSXDisplay.InterlacedTest && CheckAgainstScreen ( VRAMWrite.x, VRAMWrite.y, VRAMWrite.Width, VRAMWrite.Height ))
     {
         uploaded = UploadScreen ( FALSE );
+        if (uploaded && UploadWentToDisplay())
+            needFlipEGL = TRUE;   /* a CPU load into the displayed buffer: no flip may come (CTR's Sony screen) */
 
         if (uploaded)
         {
@@ -2918,30 +2932,30 @@ static void MoveImageWrapped ( short imageX0, short imageY0,
         {
             ogx_inv_src = 2;
             InvalidateTextureArea ( 0, 0,
-                                    ( imageXE & 0x3ff ) - 1,
-                                    ( imageYE & iGPUHeightMask ) - 1 );
+                                    ( imageXE & 0x3ff ),
+                                    ( imageYE & iGPUHeightMask ) );
         }
 
         if ( imageXE > 1024 )
         {
             ogx_inv_src = 2;
             InvalidateTextureArea ( 0, imageY1,
-                                    ( imageXE & 0x3ff ) - 1,
-                                    ( ( imageYE > iGPUHeight ) ? iGPUHeight : imageYE ) - imageY1 - 1 );
+                                    ( imageXE & 0x3ff ),
+                                    ( ( imageYE > iGPUHeight ) ? iGPUHeight : imageYE ) - imageY1 );
         }
 
         if ( imageYE > iGPUHeight )
         {
             ogx_inv_src = 2;
             InvalidateTextureArea ( imageX1, 0,
-                                    ( ( imageXE > 1024 ) ? 1024 : imageXE ) - imageX1 - 1,
-                                    ( imageYE & iGPUHeightMask ) - 1 );
+                                    ( ( imageXE > 1024 ) ? 1024 : imageXE ) - imageX1,
+                                    ( imageYE & iGPUHeightMask ) );
         }
 
         ogx_inv_src = 2;
         InvalidateTextureArea ( imageX1, imageY1,
-                                ( ( imageXE > 1024 ) ? 1024 : imageXE ) - imageX1 - 1,
-                                ( ( imageYE > iGPUHeight ) ? iGPUHeight : imageYE ) - imageY1 - 1 );
+                                ( ( imageXE > 1024 ) ? 1024 : imageXE ) - imageX1,
+                                ( ( imageYE > iGPUHeight ) ? iGPUHeight : imageYE ) - imageY1 );
     }
 }
 
@@ -3048,7 +3062,7 @@ static void primMoveImage ( unsigned char * baseAddr )
     if ( !PSXDisplay.RGB24 )
     {
         ogx_inv_src = 2;
-        InvalidateTextureArea ( imageX1, imageY1, imageSX - 1, imageSY - 1 );
+        InvalidateTextureArea ( imageX1, imageY1, imageSX, imageSY );
 
         int uploaded = 0;
         if ( CheckAgainstScreen ( imageX1, imageY1, imageSX, imageSY ) )

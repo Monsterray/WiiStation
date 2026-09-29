@@ -462,7 +462,7 @@ iLastRGB24=0;
 if(PSXDisplay.RGB24)// && !bNeedUploadAfter)          // (mdec) upload wanted?
  {
       PrepareFullScreenUpload(-1);
-      UploadScreen(PSXDisplay.Interlaced);                // -> upload whole screen from psx vram
+      UploadScreen(TRUE);                                 // -> the displayed buffer, from psx vram (PrepareFullScreenUpload)
   bNeedUploadTest=FALSE;
   bNeedInterlaceUpdate=FALSE;
   bNeedUploadAfter=FALSE;
