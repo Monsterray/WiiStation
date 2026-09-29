@@ -161,6 +161,22 @@ The GPU split probes (`PERF_PROF_GPUSPLIT`: perf.log `gpusplit:`, `gpuprim:`, `g
   Hardware: upload 10.9 -> 6.5 s, VRAM loop 3.7 -> 2.9 s, FF7 0.86 -> 0.93x
   (`baselines/hw_ff7_*`).
 
+### G5. MediEvil: whole texture pages converted again after small VRAM writes (next)
+- **Evidence (bench Wii, `baselines/hw_chain_all2_20260928`, deep run hw_all_deep).**
+  MediEvil is the costliest game on hardware: GPU 23.6% of wall, `texsel` 13.2%, `rect`
+  14.7%. It converts 4084 sub-textures a minute, 34,784 texels each on average (142 M
+  texels), about 55 ns a texel with the tiling. 12,094 CPU->VRAM writes a minute; almost all
+  are under 32x32 (not in vramio.log), from vblank ~1980 on (the menu). 3207 invalidations.
+- **Cause.** InvalidateSubSTextureArea drops every cached sub-texture whose rectangle a write
+  touches, so a small write costs a whole 256x136-ish reconversion on the next draw.
+- **Optimise.** On a small CPU write into an entry's texels (not its CLUT), keep the entry
+  and re-convert only the written rectangle into the existing GX texture (glTexSubImage2D at
+  an offset), at the next use. A write into the CLUT must still drop it. Semi-transparent
+  copies need the same partial update.
+- **Risk.** It is a texture-cache design change: stale texels if a path is missed. Verify with
+  XFB dumps on hardware (wii_lab.py brings xfb.bin back) and the `ogxeq:` texel detector.
+- **Expected.** Most of MediEvil's 13% texsel on hardware.
+
 ## 3. Recompiled code (Lightrec)
 
 ### C1. HLE exception handlers run one block per recompiler entry
