@@ -137,6 +137,13 @@ enum cdBuffer
 	CD_BUFFER_64K,
 	CD_BUFFER_256K
 };
+extern char gpuTiming;           /* how long the core keeps the GPU busy (psxdma.c, GL_GPUdmaChain) */
+enum gpuTiming
+{
+	GPU_TIMING_FAST=0,      /* as before: OpenGX lists end at their length in words, and the
+	                         * GPU reads idle between lists, during block uploads too */
+	GPU_TIMING_ACCURATE     /* gpulib's per-command costs, and busy for every transfer */
+};
 extern char cdPrefetch;          /* read-ahead thread for raw images */
 enum cdPrefetch
 {

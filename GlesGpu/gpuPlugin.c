@@ -2407,11 +2407,57 @@ return FALSE;
 // core gives a dma chain to gpu: same as the gpuwrite interface funcs
 ////////////////////////////////////////////////////////////////////////
 
+#include "../gpulib/gpu_timing.h"
+
+/* The GPU time of one DMA packet, with the costs gpulib gives its commands. The core keeps
+ * the GPU busy for this time (psxdma.c: gpuIdleAfter) and ends the DMA after it. Used when
+ * GpuTiming is Accurate; Fast returns the list's length in words, as P.E.Op.S. did, which
+ * ends every list early. */
+static void gl_dma_cost(const uint32_t *list, int count, int *sum, int *last)
+{
+ const uint32_t *end = list + count;
+ while (list < end)
+  {
+   uint32_t w = GETLE32(list);
+   unsigned int cmd = w >> 24, len = cmd_lengths[cmd], c;
+   if (list + 1 + len > end || (cmd >= 0x80 && cmd < 0xe0)) break;
+   switch (cmd >> 2)
+    {
+     case 0x02>>2: c = cmd == 0x02 ? gput_fill(GETLE32(&list[2]) & 0x3ff, (GETLE32(&list[2]) >> 16) & 0x1ff) : 0; break;
+     case 0x20>>2: case 0x28>>2: c = gput_poly_base(); break;
+     case 0x24>>2: case 0x2C>>2: c = gput_poly_base_t(); break;
+     case 0x30>>2: case 0x38>>2: c = gput_poly_base_g(); break;
+     case 0x34>>2: case 0x3C>>2: c = gput_poly_base_gt(); break;
+     case 0x40>>2: case 0x44>>2: case 0x50>>2: case 0x54>>2: c = gput_line(0); break;
+     case 0x48>>2: case 0x4C>>2: case 0x58>>2: case 0x5C>>2:
+      {
+       /* A polyline ends at the 0x5xxx5xxx word; one line per vertex after the first two. */
+       unsigned int step = (cmd & 0x10) ? 2 : 1;
+       const uint32_t *v = list + 1 + len;
+       while (v < end && (GETLE32(v) & 0xf000f000) != 0x50005000) { *sum += *last; *last = gput_line(0); v += step; }
+       if (v >= end) return;
+       len = v - list;
+       c = gput_line(0);
+       break;
+      }
+     case 0x60>>2: c = gput_sprite(GETLE32(&list[2]) & 0x3ff, (GETLE32(&list[2]) >> 16) & 0x1ff); break;
+     case 0x64>>2: c = gput_sprite(GETLE32(&list[3]) & 0x3ff, (GETLE32(&list[3]) >> 16) & 0x1ff); break;
+     case 0x68>>2: case 0x6C>>2: c = gput_sprite(1, 1); break;
+     case 0x70>>2: case 0x74>>2: c = gput_sprite(8, 8); break;
+     case 0x78>>2: case 0x7C>>2: c = gput_sprite(16, 16); break;
+     default: c = 0; break;
+    }
+   if (c) gput_sum(*sum, *last, c);
+   list += 1 + len;
+  }
+}
+
 long CALLBACK GL_GPUdmaChain(unsigned long * baseAddrL, unsigned long addr, uint32_t *progress_addr, int32_t *cycles_last_cmd)
 {
  unsigned char * baseAddrB;
  unsigned int DMACommandCounter = 0;
  long dmaWords = 0;
+ int cyc_sum = 0, cyc_last = 0, accurate = gpuTiming == GPU_TIMING_ACCURATE;
 
 
 if(bIsFirstFrame) GLinitialize(NULL, NULL);
@@ -2431,11 +2477,14 @@ do
 
    short count = baseAddrB[addr+3];
    dmaWords += 1 + count;
+   cyc_sum += 10;
 
    unsigned long dmaMem=addr+4;
 
   if(count>0)
    {
+    cyc_sum += 5 + count;
+    if (accurate) gl_dma_cost(&baseAddrL[dmaMem>>2], count, &cyc_sum, &cyc_last);
     GL_GPUwriteDataMem(&baseAddrL[dmaMem>>2],count);
    }
 
@@ -2446,7 +2495,9 @@ do
 
  GPUIsIdle;
 
- return dmaWords;
+ if (!accurate) return dmaWords;
+ *cycles_last_cmd = cyc_last;
+ return cyc_sum;
 }
 
 ////////////////////////////////////////////////////////////////////////

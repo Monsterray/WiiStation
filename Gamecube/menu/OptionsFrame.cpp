@@ -121,6 +121,7 @@ static const char* const CD_HUNKS_NAMES[]    = { "2", "4", "8" };
 static const char* const CPU_CORE_NAMES[]    = { "Lightrec", "Interpreter", "Dynarec" };
 /* gpuPlugin: 0 Soft Fast (WiiSX P.E.Op.S. path, no GPU timing), 1 Soft Timed (gpulib: GPU time per primitive), 2 OpenGX */
 static const char* const GPU_PLUGIN_NAMES[]  = { "Soft Fast", "Soft Timed", "OpenGX" };
+static const char* const FAST_ACCURATE_NAMES[] = { "Fast", "Accurate" };
 
 /* setSpuReverb(int) takes the raw setting value; the table's apply slot is void(void), so
  * this wrapper reads the setting itself, the same way GamecubeMain.cpp does at startup. */
@@ -212,6 +213,7 @@ static const OptRow PLUGIN_ROWS[] =
 {
 	ROW_RADIO("CPU Core",   dynacore,  DYNACORE_DYNAREC, DYNACORE_DYNAREC_OLD, CPU_CORE_NAMES,   NULL),
 	ROW_RADIO("GPU Plugin", gpuPlugin, OLD_SOFT,         OPEN_GX,              GPU_PLUGIN_NAMES, NULL),
+	ROW_CYCLE("GPU Timing", gpuTiming, GPU_TIMING_FAST,  GPU_TIMING_ACCURATE,  FAST_ACCURATE_NAMES, NULL),
 };
 
 static const OptHelp PLUGIN_HELP[] =
@@ -220,6 +222,7 @@ static const OptHelp PLUGIN_HELP[] =
 	{ NULL,          "Interpreter is exact but slow; Dynarec is the older one." },
 	{ "GPU Plugin:", "OpenGX draws with the Wii's graphics hardware. The two" },
 	{ NULL,          "software renderers are slower, but avoid its quirks." },
+	{ "GPU Timing:", "Accurate keeps the GPU busy as long as a PS1's would." },
 	{ NULL,          "" },
 	{ NULL,          "Changing either restarts a loaded game." },
 };

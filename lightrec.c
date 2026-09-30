@@ -8,6 +8,7 @@
 
 #include "psxcommon.h"
 #include "cdrom.h"
+#include "gpu.h"
 #include "gte.h"
 #include "mdec.h"
 #include "psxdma.h"
@@ -259,6 +260,36 @@ static u16 hw_read_half(struct lightrec_state *state,
 	return val;
 }
 
+/* The same for the GPU: a game waiting for the GPU (PsyQ DrawSync and the like) polls
+ * GPUSTAT until "ready" (bit 26) or DMA channel 2 until its busy bit (24) clears. With
+ * GpuTiming Accurate that wait is as long as on a PS1, and the polls cost MediEvil,
+ * Crash Bash, Ape Escape and Micro Machines 1.6-3.8% of wall in Dolphin. While the GPU is
+ * busy the answer can only change when it goes idle (psxRegs.gpuIdleAfter) or at the next
+ * event (the DMA's end is one), so the CPU goes to the sooner of the two. */
+static u32 gpu_poll_cycle, gpu_poll_addr;
+
+static void gpu_poll_idle(u32 mem, u32 val)
+{
+	u32 addr = mem & 0x1fffffff, target = next_interupt;
+
+	if (addr == 0x1f801814) {
+		if (val & PSXGPU_nBUSY) { gpu_poll_addr = 0; return; }
+		if ((s32)(psxRegs.gpuIdleAfter + 1 - target) < 0)
+			target = psxRegs.gpuIdleAfter + 1;
+	} else if (addr == 0x1f8010a8) {
+		if (!(val & 0x01000000)) { gpu_poll_addr = 0; return; }
+	} else
+		return;
+	if (gpu_poll_addr == addr && psxRegs.cycle - gpu_poll_cycle < CD_POLL_LOOP_CYCLES &&
+	    (s32)(target - psxRegs.cycle) > 0) {
+		PERF_ADD(gpu_idle_cycles, target - psxRegs.cycle);
+		PERF_INC(gpu_idle_skips);
+		psxRegs.cycle = target;
+	}
+	gpu_poll_addr = addr;
+	gpu_poll_cycle = psxRegs.cycle;
+}
+
 static u32 hw_read_word(struct lightrec_state *state,
 			u32 op, void *host, u32 mem)
 {
@@ -267,6 +298,7 @@ static u32 hw_read_word(struct lightrec_state *state,
 	lightrec_tansition_to_pcsx(state);
 
 	HW_TIMED(val = psxHwRead32(mem));
+	gpu_poll_idle(mem, val);
 
 	lightrec_tansition_from_pcsx(state);
 

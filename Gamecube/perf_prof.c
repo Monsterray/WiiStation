@@ -771,11 +771,12 @@ void perf_report(void)
 					g_perf.ogx_mm[k].w, g_perf.ogx_mm[k].h, g_perf.ogx_mm[k].x, g_perf.ogx_mm[k].y,
 					g_perf.ogx_mm[k].dw, g_perf.ogx_mm[k].dh, g_perf.ogx_mm[k].blend, g_perf.ogx_mm[k].semi);
 		}
-		fprintf(f, "cd: reads=%lu bytes=%llu seq=%lu rand=%lu worst_us=%lu total_us=%llu idle_skips=%lu idle_cycles=%llu\n",
+		fprintf(f, "cd: reads=%lu bytes=%llu seq=%lu rand=%lu worst_us=%lu total_us=%llu idle_skips=%lu idle_cycles=%llu gpu_idle_skips=%lu gpu_idle_cycles=%llu\n",
 			(unsigned long)g_perf.cd_reads, g_perf.cd_bytes,
 			(unsigned long)g_perf.cd_seq, (unsigned long)g_perf.cd_rand,
 			(unsigned long)g_perf.io_worst_us, g_perf.io_total_us,
-			(unsigned long)g_perf.cd_idle_skips, g_perf.cd_idle_cycles);
+			(unsigned long)g_perf.cd_idle_skips, g_perf.cd_idle_cycles,
+			(unsigned long)g_perf.gpu_idle_skips, g_perf.gpu_idle_cycles);
 		fprintf(f, "sd: rd=%lu sec=%llu us=%llu worst_us=%lu bg=%lu bg_us=%llu"
 			" h=%lu/%lu/%lu/%lu/%lu wr=%lu wsec=%llu wus=%llu wworst_us=%lu\n",
 			(unsigned long)g_perf.sd_rd, g_perf.sd_rd_sec, g_perf.sd_rd_us,

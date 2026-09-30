@@ -23,6 +23,7 @@
 #include <stdbool.h>
 #include "Gamecube/DEBUG.h"
 #include "psxdma.h"
+#include "Gamecube/wiiSXconfig.h"
 #include "gpu.h"
 
 #ifndef min
@@ -255,8 +256,11 @@ void gpuInterrupt() {
 		HW_DMA2_CHCR &= SWAP32(~0x01000000);
 		DMA_INTERRUPT(2);
 	}
-	// Old Soft Gpu check
-	if (gpuPtr != &newSoftGpu)
+	/* Old Soft Gpu check. GpuTiming Fast: the GPU reads idle from the end of a list until
+	 * the next one, block uploads (mem2vram: video frames, textures) included. Accurate
+	 * leaves the bit clear, so busy is only psxRegs.gpuIdleAfter (psxHwReadGpuSR), as for
+	 * gpulib: FF7 then writes its display changes in the vblank gpulib has them in. */
+	if (gpuPtr != &newSoftGpu && gpuTiming != GPU_TIMING_ACCURATE)
 	{
 		HW_GPU_STATUS |= SWAP32(PSXGPU_nBUSY); // GPU no longer busy
 	}
