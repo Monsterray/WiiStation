@@ -99,6 +99,81 @@ static void lab_log(const char *what, long r)
 	}
 }
 
+/* The buttons while the lab talks to the PC. Nothing else handles them, and a lab that waited
+ * for a PC that did not answer (net_connect timed out after 190 s, five times) left a Wii that
+ * took no power, reset or Wii Remote: it had to be held off. Reset now goes back to the
+ * Homebrew Channel, power powers off, and no wait is longer than a few seconds at a time. */
+#define LAB_CONNECT_MS 10000   /* one connect attempt */
+#define LAB_IDLE_MS    30000   /* the PC silent in the middle of a transfer */
+static volatile int lab_button;     /* 1 reset, 2 power */
+static void lab_on_reset(void) { lab_button = 1; }
+static void lab_on_power(void) { lab_button = 2; }
+static resetcallback lab_old_reset;
+static powercallback lab_old_power;
+
+static void lab_buttons(int on)
+{
+	if (on) {
+		lab_old_reset = SYS_SetResetCallback(lab_on_reset);
+		lab_old_power = SYS_SetPowerCallback(lab_on_power);
+	} else {
+		SYS_SetResetCallback(lab_old_reset);
+		SYS_SetPowerCallback(lab_old_power);
+	}
+}
+
+/* A button was pressed: power goes off from here, reset makes the caller give up */
+static int lab_pressed(void)
+{
+	if (lab_button == 2) {
+		lab_log("power button: off", 0);
+		net_deinit();
+		SYS_ResetSystem(SYS_POWEROFF, 0, 0);
+	}
+	if (lab_button == 1)
+		lab_log("reset button: back to HBC", 0);
+	return lab_button != 0;
+}
+
+/* Wait for s to be ready (POLLIN or POLLOUT), a quarter second at a time */
+static int lab_wait(s32 s, int events, int ms)
+{
+	struct pollsd p;
+	int t;
+	for (t = 0; t < ms; t += 250) {
+		if (lab_pressed())
+			return -1;
+		p.socket = s;
+		p.events = events;
+		p.revents = 0;
+		if (net_poll(&p, 1, 250) > 0 && (p.revents & (events | POLLERR | POLLHUP)))
+			return (p.revents & events) ? 0 : -1;
+	}
+	return -1;
+}
+
+/* One connect that gives up after LAB_CONNECT_MS: the socket is non-blocking meanwhile */
+static s32 lab_connect_one(s32 s, struct sockaddr_in *sa)
+{
+	u32 on = 1, off = 0;
+	u64 t0 = gettime();
+	s32 r;
+	net_ioctl(s, FIONBIO, &on);
+	for (;;) {
+		r = net_connect(s, (struct sockaddr *)sa, sizeof *sa);
+		if (r == -EISCONN) { r = 0; break; }
+		if (r >= 0 || (r != -EINPROGRESS && r != -EALREADY))
+			break;
+		if (lab_pressed() || ticks_to_millisecs(diff_ticks(t0, gettime())) > LAB_CONNECT_MS) {
+			r = -ETIMEDOUT;
+			break;
+		}
+		usleep(100 * 1000);
+	}
+	net_ioctl(s, FIONBIO, &off);
+	return r;
+}
+
 static s32 lab_connect(void)
 {
 	static int up;
@@ -129,13 +204,13 @@ static s32 lab_connect(void)
 		lab_log("bad lab address", 0);
 		return -1;
 	}
-	for (t = 0; t < 5; t++) {   /* the PC may still be setting up */
+	for (t = 0; t < 3 && !lab_pressed(); t++) {   /* the PC may still be setting up */
 		s = net_socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
 		if (s < 0) {
 			lab_log("net_socket", s);
 			return -1;
 		}
-		r = net_connect(s, (struct sockaddr *)&sa, sizeof sa);
+		r = lab_connect_one(s, &sa);
 		lab_log("net_connect", r);
 		if (r >= 0)
 			return s;
@@ -149,7 +224,10 @@ static int lab_send(s32 s, const void *p, int n)
 {
 	const u8 *b = p;
 	while (n > 0) {
-		s32 k = net_send(s, b, n > 32768 ? 32768 : n, 0);
+		s32 k;
+		if (lab_wait(s, POLLOUT, LAB_IDLE_MS))
+			return -1;
+		k = net_send(s, b, n > 32768 ? 32768 : n, 0);
 		if (k <= 0)
 			return -1;
 		b += k;
@@ -163,7 +241,7 @@ static int lab_line(s32 s, char *line, int max)
 	int n = 0;
 	while (n < max - 1) {
 		char c;
-		if (net_recv(s, &c, 1, 0) != 1)
+		if (lab_wait(s, POLLIN, LAB_IDLE_MS) || net_recv(s, &c, 1, 0) != 1)
 			return -1;
 		if (c == '\n')
 			break;
@@ -203,9 +281,11 @@ int lab_fetch(void)
 	remove(LAB_ROOT "lab.log");
 	lab_console_up();
 	lab_log(lab_host, lab_port);
+	lab_buttons(1);
 	if ((s = lab_connect()) < 0) {
 		lab_log("no PC: back to HBC in 5 s", 0);
 		sleep(5);
+		lab_buttons(0);
 		return -1;
 	}
 	lab_send(s, "HELLO WiiStation\n", 17);
@@ -228,7 +308,8 @@ int lab_fetch(void)
 				f = fopen(full, "wb");
 			}
 			while (left > 0) {   /* read it even if it cannot be written, to stay in step */
-				s32 k = net_recv(s, lab_buf, left > (long)sizeof lab_buf ? (s32)sizeof lab_buf : (s32)left, 0);
+				s32 k = lab_wait(s, POLLIN, LAB_IDLE_MS) ? -1 :
+					net_recv(s, lab_buf, left > (long)sizeof lab_buf ? (s32)sizeof lab_buf : (s32)left, 0);
 				if (k <= 0)
 					break;
 				if (f)
@@ -248,6 +329,7 @@ int lab_fetch(void)
 	lab_log(ok ? "the PC broke off: back to HBC in 5 s" : "files staged, starting the chain", lab_nwant);
 	if (ok)
 		sleep(5);
+	lab_buttons(0);
 	return ok;
 }
 
@@ -258,8 +340,13 @@ void lab_report(void)
 	s32 s;
 	int i;
 
-	if (!lab_active() || (s = lab_connect()) < 0)
+	if (!lab_active())
 		return;
+	lab_buttons(1);
+	if ((s = lab_connect()) < 0) {
+		lab_buttons(0);
+		return;
+	}
 	lab_send(s, "RESULTS\n", 8);
 	for (i = 0; i < lab_nwant; i++) {
 		FILE *f;
@@ -277,4 +364,5 @@ void lab_report(void)
 	}
 	lab_send(s, "END\n", 4);
 	net_close(s);
+	lab_buttons(0);
 }
