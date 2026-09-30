@@ -55,6 +55,12 @@ zlibstatic.a:
 	@echo " "
 	$(MAKE) -C deps/libchdr/deps/zlib-1.3.1 -f Makefile.wii
 
+hbcagent.a:
+	@echo " "
+	@echo "Building libhbcagent.a (the Homebrew Channel's in-app agent) for PPC"
+	@echo " "
+	$(MAKE) -C deps/hbc_agent DEVKITPRO=$(DEVKITPRO) DEVKITPPC=$(DEVKITPPC)
+
 chdrstatic.a:
 	@echo " "
 	@echo "Building chdrstatic.a library for PPC"

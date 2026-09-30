@@ -28,6 +28,10 @@ void Func_ExecuteBios();       /* SettingsFrame.cpp */
 extern "C" void glResetCacheRegion(void);
 extern int backFromMenu;
 extern char originalMode;
+#include "../hbc_home.h"
+extern BOOL hasLoadedISO;      /* GamecubeMain.cpp */
+extern char shutdown;          /* GamecubeMain.cpp: 2 = back to the loader, through Gui.cpp's fade */
+extern "C" void SysClose();
 
 MenuContext *pMenuContext;
 
@@ -106,6 +110,14 @@ extern "C" {
 bool MenuContext::isRunning()
 {
 	bool isRunning = true;
+
+	/* The Homebrew Channel's agent (hbc_home.c): HOME opens its overlay; an exit asked for
+	 * from the PC leaves as Exit to Loader does, the game closed first. */
+	if (hbc_home_menu_frame()) {
+		if (hasLoadedISO)
+			SysClose();
+		shutdown = 2;
+	}
 //	printf("MenuContext isRunning\n");
 
 	/* A few frames in, so that the menu has drawn itself once and the video mode has

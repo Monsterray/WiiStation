@@ -33,6 +33,7 @@
 #include "fileBrowser-libfat.h"
 #include "fileBrowser-SMB.h"
 #include "../perf_prof.h"
+#include "../hbc_home.h"
 
 /* One thread owns all of the network. It brings the interface up, and it connects to the
  * share. Nothing that blocks is left on the menu thread: init_samba() used to run from
@@ -150,6 +151,10 @@ static void* init_network(void *args)
 
 	/* Let the menu come up first. */
 	net_wait(NET_FIRST_WAIT_US);
+
+	/* The Homebrew Channel's agent may be starting the network: if_config() below would
+	 * call net_init() during its start-up, which can hang (hbc_home.c) */
+	hbc_home_net_wait();
 
 	while(1) {
 		if(!net_initialized) {

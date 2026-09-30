@@ -195,6 +195,9 @@ void FrameCap (void)
       * inside a CPU slice -- timed so the profile can tell "capped" from
       * "CPU-bound", which otherwise look identical. */
      unsigned long long limit_t0 = perf_now_ticks();
+     /* A spin, not a sleep: usleep() for all but the last millisecond ran FF7 at 0.54x on the
+      * bench Wii (2026-09-29, each wait about 56 ms instead of a few), so threads below this
+      * one -- the Homebrew Channel's agent among them -- get no time while a game runs. */
      do { now = timeGetTime(); } while (((long)((now - due) << 8) >> 8) < 0);
      PERF_ADD(limit_ticks, perf_now_ticks() - limit_t0);
      PERF_INC(limit_calls);

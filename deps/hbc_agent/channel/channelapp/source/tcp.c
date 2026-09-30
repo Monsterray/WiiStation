@@ -1,0 +1,359 @@
+#include <sys/types.h>
+#include <sys/errno.h>
+#include <malloc.h>
+#include <string.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <fcntl.h>
+
+#include <ogcsys.h>
+#include <network.h>
+#include <ogc/mutex.h>
+#include <ogc/lwp_watchdog.h>
+
+#include "../config.h"
+#include "tcp.h"
+
+s32 tcp_socket (void) {
+	s32 s, res;
+	u32 val;
+
+	s = net_socket (PF_INET, SOCK_STREAM, 0);
+	if (s < 0) {
+		gprintf ("net_socket failed: %d\n", s);
+		return s;
+	}
+
+	val = 1;
+	net_setsockopt(s, IPPROTO_TCP, TCP_NODELAY, &val, sizeof(val));
+
+	res = net_fcntl (s, F_GETFL, 0);
+	if (res < 0) {
+		gprintf ("F_GETFL failed: %d\n", res);
+		net_close (s);
+		return res;
+	}
+
+	res = net_fcntl (s, F_SETFL, res | 4);
+	if (res < 0) {
+		gprintf ("F_SETFL failed: %d\n", res);
+		net_close (s);
+		return res;
+	}
+
+	return s;
+}
+
+s32 tcp_connect (char *host, u16 port) {
+	struct hostent *hp;
+	struct sockaddr_in sa;
+	s32 s, res;
+	s64 t;
+
+	hp = net_gethostbyname (host);
+	if (!hp || !(hp->h_addrtype == PF_INET)) {
+		gprintf ("net_gethostbyname failed: %d\n", errno);
+		return errno;
+	}
+
+	s = tcp_socket ();
+	if (s < 0)
+		return s;
+
+	memset (&sa, 0, sizeof (struct sockaddr_in));
+	sa.sin_family= PF_INET;
+	sa.sin_len = sizeof (struct sockaddr_in);
+	sa.sin_port= htons (port);
+	memcpy ((char *) &sa.sin_addr, hp->h_addr_list[0], hp->h_length);
+
+	t = gettime ();
+	while (true) {
+		if (ticks_to_millisecs (diff_ticks (t, gettime ())) >
+				TCP_CONNECT_TIMEOUT) {
+			gprintf ("tcp_connect timeout\n");
+			net_close (s);
+
+			return -ETIMEDOUT;
+		}
+
+		res = net_connect (s, (struct sockaddr *) &sa,
+							sizeof (struct sockaddr_in));
+
+		if (res < 0) {
+			if (res == -EISCONN)
+				break;
+
+			if (res == -EINPROGRESS || res == -EALREADY) {
+				usleep (20 * 1000);
+
+				continue;
+			}
+
+			gprintf ("net_connect failed: %d\n", res);
+			net_close (s);
+
+			return res;
+		}
+
+		break;
+	}
+
+	return s;
+}
+
+s32 tcp_listen (u16 port, s32 backlog) {
+	s32 s, res;
+	struct sockaddr_in sa;
+
+	s = tcp_socket ();
+	if (s < 0)
+		return s;
+
+	memset(&sa, 0, sizeof (struct sockaddr_in));
+	sa.sin_family = PF_INET;
+	sa.sin_port = htons (port);
+	sa.sin_addr.s_addr = net_gethostip ();
+	sa.sin_len = sizeof (struct sockaddr_in);
+
+	res = net_bind (s, (struct sockaddr *) &sa, sizeof (struct sockaddr_in));
+	if (res < 0) {
+		gprintf ("net_bind failed: %d\n", res);
+		net_close (s);
+		return res;
+	}
+
+	res = net_listen (s, backlog);
+	if (res < 0) {
+		gprintf ("net_listen failed: %d\n", res);
+		net_close (s);
+		return res;
+	}
+
+	return s;
+}
+
+// IOS transfers each block through libogc's 64 KiB network heap; 16 KiB
+// keeps IPC overhead low with room for concurrent sockets.
+#define TCP_IO_BLOCK (16 * 1024)
+
+// IOS poll events (libogc 3.1 does not export them).
+#define TCP_POLLIN 0x0003
+#define TCP_POLLOUT 0x0008
+#define TCP_POLLERR 0x0020
+#define TCP_POLLHUP 0x0040
+
+// What the last failed read saw from IOS, for the developer status reply:
+// "r<n>" for each net_read result and "p<revents>/<poll result>" for each
+// wait, then the reason it gave up.
+static char trace[128];
+static char last_failure[128];
+static u32 trace_len;
+
+static void trace_add (const char *fmt, s32 a, s32 b) {
+	if (trace_len < sizeof (trace) - 16)
+		trace_len += snprintf (trace + trace_len, sizeof (trace) - trace_len, fmt, a, b);
+}
+
+const char *tcp_last_failure (void) {
+	return last_failure;
+}
+
+// Sleep until the socket is ready, instead of polling with fixed delays.
+// Returns the events IOS reported, or 0 on a timeout or poll error.
+static u32 tcp_wait (s32 s, u32 events, s32 ms) {
+	struct pollsd sd;
+	s32 res;
+
+	sd.socket = s;
+	sd.events = events;
+	sd.revents = 0;
+	res = net_poll (&sd, 1, ms > 0 ? ms : 0);
+	trace_add ("p%x/%d ", sd.revents, res);
+	if (res < 0) {
+		usleep (1000);
+		return 0;
+	}
+	return sd.revents;
+}
+
+// Reads exactly length bytes. Fails on a timeout (no progress for
+// timeout_ms), an error, or end of stream. On IOS a read of 0 bytes means
+// the peer closed the connection, while an open connection with no data
+// gives -EAGAIN (30 probes on a Wii, idle connections included). IOS's poll
+// can report a closed socket readable only at its timeout, so waiting for
+// it cost up to 2 s per closed connection.
+bool tcp_read_timeout (s32 s, u8 *buffer, u32 length, const mutex_t *mutex,
+					   u32 *progress, s32 timeout_ms) {
+	u32 step, left, block, received;
+	s64 t;
+	s32 res;
+
+	step = 0;
+	left = length;
+	received = 0;
+	trace_len = 0;
+	trace[0] = 0;
+
+	t = gettime ();
+	while (left) {
+		s32 idle = ticks_to_millisecs (diff_ticks (t, gettime ()));
+
+		if (idle > timeout_ms) {
+			gprintf ("tcp_read timeout\n");
+			trace_add ("timeout after %d of %d", received, length);
+
+			break;
+		}
+
+		block = left;
+		if (block > TCP_IO_BLOCK)
+			block = TCP_IO_BLOCK;
+
+		res = net_read (s, buffer, block);
+		if (res <= 0)
+			trace_add ("r%d ", res, 0);
+
+		if (res == 0) {
+			gprintf ("tcp_read: peer closed\n");
+			trace_add ("closed after %d of %d", received, length);
+
+			break;
+		}
+
+		if (res == -EAGAIN) {
+			tcp_wait (s, TCP_POLLIN, timeout_ms - idle);
+
+			continue;
+		}
+
+		if (res < 0) {
+			gprintf ("net_read failed: %d\n", res);
+			trace_add ("error after %d of %d", received, length);
+
+			break;
+		}
+
+		received += res;
+		left -= res;
+		buffer += res;
+
+		if ((received / TCP_BLOCK_SIZE) > step) {
+			t = gettime ();
+			step++;
+		}
+
+		if (mutex && progress) {
+			LWP_MutexLock (*mutex);
+			*progress = received;
+			LWP_MutexUnlock (*mutex);
+		}
+	}
+
+	if (left)
+		memcpy (last_failure, trace, sizeof (last_failure));
+
+	return left == 0;
+}
+
+bool tcp_read (s32 s, u8 *buffer, u32 length, const mutex_t *mutex, u32 *progress) {
+	return tcp_read_timeout (s, buffer, length, mutex, progress,
+							 TCP_BLOCK_RECV_TIMEOUT);
+}
+
+bool tcp_write (s32 s, const u8 *buffer, u32 length, const mutex_t *mutex,
+				u32 *progress) {
+	const u8 *p;
+	u32 step, left, block, sent;
+	bool hangup = false;
+	s64 t;
+	s32 res;
+
+	step = 0;
+	p = buffer;
+	left = length;
+	sent = 0;
+
+	t = gettime ();
+	while (left) {
+		s32 idle = ticks_to_millisecs (diff_ticks (t, gettime ()));
+
+		if (idle > TCP_BLOCK_SEND_TIMEOUT) {
+
+			gprintf ("tcp_write timeout\n");
+			break;
+		}
+
+		block = left;
+		if (block > TCP_IO_BLOCK)
+			block = TCP_IO_BLOCK;
+
+		res = net_write (s, p, block);
+
+		if (res == 0 && hangup) {
+			gprintf ("tcp_write: peer closed\n");
+			break;
+		}
+
+		if ((res == 0) || (res == -EAGAIN)) {
+			hangup = tcp_wait (s, TCP_POLLOUT, TCP_BLOCK_SEND_TIMEOUT - idle) &
+					 (TCP_POLLHUP | TCP_POLLERR);
+			continue;
+		}
+
+		if (res < 0) {
+			gprintf ("net_write failed: %d\n", res);
+			break;
+		}
+
+		hangup = false;
+		sent += res;
+		left -= res;
+		p += res;
+
+		if ((sent / TCP_BLOCK_SIZE) > step) {
+			t = gettime ();
+			step++;
+		}
+
+		if (mutex && progress) {
+			LWP_MutexLock (*mutex);
+			*progress = sent;
+			LWP_MutexUnlock (*mutex);
+		}
+	}
+
+	return left == 0;
+}
+
+// IOS closes a socket with a reset, which drops any reply still queued.
+// Half-close first and give the peer up to a second to finish reading.
+void tcp_close (s32 s) {
+	u8 drain[64];
+	s64 t;
+	s32 res;
+
+	res = net_fcntl (s, F_GETFL, 0);
+	if (res >= 0)
+		net_fcntl (s, F_SETFL, res | 4);
+
+	net_shutdown (s, 1);
+
+	t = gettime ();
+	while (true) {
+		s32 idle = ticks_to_millisecs (diff_ticks (t, gettime ()));
+
+		if (idle >= 1000)
+			break;
+
+		res = net_read (s, drain, sizeof (drain));
+		if (res == -EAGAIN) {
+			if (!tcp_wait (s, TCP_POLLIN, 1000 - idle))
+				break;
+			continue;
+		}
+		if (res <= 0)
+			break;
+	}
+
+	net_close (s);
+}

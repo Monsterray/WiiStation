@@ -37,6 +37,7 @@
 #endif
 
 #include "lab_net.h"
+#include "hbc_home.h"
 #include <network.h>
 extern "C" void __exception_setreload(int t);
 #include "../psxcommon.h"
@@ -563,6 +564,7 @@ void ScanPADSandReset(u32 dummy)
 	hidPadNeedScan = 1;
 	if(!((*(u32*)0xCC003000)>>16))
 		stop = 1;
+	hbc_home_retrace();   /* `hbc.py exit` from the PC: the game comes back to the menu */
 }
 
 #ifdef HW_RVL
@@ -877,6 +879,10 @@ int main(int argc, char *argv[])
 			exit(0);
 		}
 	}
+
+	/* The Homebrew Channel's agent (hbc_home.c): after lab mode, which starts the network
+	 * itself, and before the SMB thread, which waits for the agent's start-up. */
+	hbc_home_start();
 
 	/* Test automation: a bare .dol booted by Dolphin gets no loader argv, so
 	 * sd:/wiisxrx/autoboot.txt -- two lines, the ISO's directory and its
