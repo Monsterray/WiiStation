@@ -422,6 +422,8 @@ typedef struct {
 
 	/* Storage (cdriso.c) */
 	uint32_t cd_reads;            /* sector-read calls (raw + CHD) */
+	uint32_t cd_idle_skips;       /* lightrec.c cd_poll_idle: CD-flag polls that jumped to the next event */
+	unsigned long long cd_idle_cycles;   /* the PSX cycles they jumped */
 	uint64_t cd_bytes;            /* bytes handed to caller */
 	uint32_t cd_seq;              /* sequential (no re-seek) reads */
 	uint32_t cd_rand;             /* reads that needed a seek */

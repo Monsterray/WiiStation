@@ -201,6 +201,36 @@ static void hw_write_word(struct lightrec_state *state,
 	lightrec_tansition_from_pcsx(state);
 }
 
+/* A tight loop that polls the CD-ROM interrupt flags (0x1F801803, index 1) until the drive
+ * answers: the BIOS does it while the drive seeks and reads (the shell at 0x80056f98, the
+ * kernel at 0xbfc0d6b4). Each pass is two hardware accesses out of recompiled code, so an
+ * emulated millisecond of it cost several host ones: FF7/Spyro booted through the BIOS ran
+ * at 0.3-0.6x for 3 s, and the sound output ran dry (the chopped boot sound). While no flag
+ * is set nothing the loop reads can change before the next scheduled event, so the CPU goes
+ * straight there: every interrupt still comes at its own cycle. Only a second poll within a
+ * few cycles of the first counts, so a single read of the register never moves time. */
+#define CD_POLL_LOOP_CYCLES 64
+static u32 cd_poll_cycle;
+static int cd_poll_seen;
+
+static void cd_poll_idle(u32 mem, u8 val)
+{
+	if ((mem & 0x1fffffff) != 0x1f801803)
+		return;
+	if (val & 7) {
+		cd_poll_seen = 0;
+		return;
+	}
+	if (cd_poll_seen && psxRegs.cycle - cd_poll_cycle < CD_POLL_LOOP_CYCLES &&
+	    (s32)(next_interupt - psxRegs.cycle) > 0) {
+		PERF_ADD(cd_idle_cycles, next_interupt - psxRegs.cycle);
+		PERF_INC(cd_idle_skips);
+		psxRegs.cycle = next_interupt;
+	}
+	cd_poll_seen = 1;
+	cd_poll_cycle = psxRegs.cycle;
+}
+
 static u8 hw_read_byte(struct lightrec_state *state, u32 op, void *host, u32 mem)
 {
 	u8 val;
@@ -208,6 +238,7 @@ static u8 hw_read_byte(struct lightrec_state *state, u32 op, void *host, u32 mem
 	lightrec_tansition_to_pcsx(state);
 
 	HW_TIMED(val = psxHwRead8(mem));
+	cd_poll_idle(mem, val);
 
 	lightrec_tansition_from_pcsx(state);
 
