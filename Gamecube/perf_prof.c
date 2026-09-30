@@ -894,12 +894,15 @@ void perf_report(void)
 				(unsigned long long)ticks_to_microsecs(g_perf.flip_present_ticks),
 				(unsigned long)g_perf.flip_presents);
 		if (g_perf.pres_uploads || g_perf.pres_vout_ticks)
-			fprintf(f, "gpupres: upload_us=%llu uploads=%lu prep_us=%llu capture_us=%llu vout_us=%llu\n",
+			fprintf(f, "gpupres: upload_us=%llu uploads=%lu prep_us=%llu capture_us=%llu vout_us=%llu sync_us=%llu efbcap_us=%llu efbcap=%lu\n",
 				(unsigned long long)ticks_to_microsecs(g_perf.pres_upload_ticks),
 				(unsigned long)g_perf.pres_uploads,
 				(unsigned long long)ticks_to_microsecs(g_perf.pres_prep_ticks),
 				(unsigned long long)ticks_to_microsecs(g_perf.pres_capture_ticks),
-				(unsigned long long)ticks_to_microsecs(g_perf.pres_vout_ticks));
+				(unsigned long long)ticks_to_microsecs(g_perf.pres_vout_ticks),
+				(unsigned long long)ticks_to_microsecs(g_perf.pres_sync_ticks),
+				(unsigned long long)ticks_to_microsecs(g_perf.efb_cap_ticks),
+				(unsigned long)g_perf.efb_cap_calls);
 		{   /* the ten GP0 commands that took longest, any GPU plugin: cmd=us/calls */
 			int c, k, best, used[128] = { 0 };
 			fprintf(f, "gpucmd:");

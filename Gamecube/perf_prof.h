@@ -521,6 +521,8 @@ typedef struct {
 	 * copy to the TV, which can wait for the video interface). */
 	uint64_t pres_upload_ticks, pres_prep_ticks, pres_capture_ticks, pres_vout_ticks;
 	uint32_t pres_uploads;
+	uint64_t pres_sync_ticks, efb_cap_ticks;   /* UploadScreen's efb_sync; efb_sync's live captures */
+	uint32_t efb_cap_calls;
 	/* The primitive time again, by class of GP0 command: index is the top three bits
 	 * of the command byte, so 1 is the polygons, 2 the lines, 3 the sprites, and 7 the
 	 * drawing-state commands (E1..E6). */

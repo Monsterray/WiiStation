@@ -425,7 +425,10 @@ static int efb_sync(int x, int y, int w, int h)
     if (!stale)
         return 0;
     if (need_live)
-        efb_capture_live(1);
+    {
+        PERF_TIME(efb_cap_ticks, efb_capture_live(1));
+        PERF_INC(efb_cap_calls);
+    }
     else
         efb_publish(1);
 
@@ -454,6 +457,33 @@ static int efb_sync(int x, int y, int w, int h)
              * clipped to live, which is what snapshots hold, so those were never GX's (the
              * right edge of a 368-wide display leaves most of its last tile outside) */
             px0 = tx * EFB_TILE; py0 = ty * EFB_TILE; px1 = px0 + EFB_TILE; py1 = py0 + EFB_TILE;
+            if (best->g.vw == best->g.w && best->g.vh == best->g.h)
+            {
+                /* A snapshot at VRAM's own scale (the usual case): texel = pixel + offset, so
+                 * the tile is clipped to the snapshot once and read row by row. The same pixels
+                 * as efb_snap_pixel() below, without its two divides and bounds checks per
+                 * pixel: FF7's logos merge 58,000 pixels a frame, 9 ms on a Wii. */
+                int ox = best->g.vx - best->g.x, oy = best->g.vy - best->g.y;
+                int qx0 = max(px0, max(best->g.x, -ox)), qx1 = min(px1, min(best->g.x + best->g.w, best->texW - ox));
+                int qy0 = max(py0, max(best->g.y, -oy)), qy1 = min(py1, min(best->g.y + best->g.h, best->texH - oy));
+                for (py = qy0; py < qy1; py++)
+                {
+                    unsigned short *d = &psxVuw[(py << 10) + qx0];
+                    for (px = qx0; px < qx1; px++, d++)
+                    {
+                        unsigned short c = ReadGXRGB5A3PixelRaw(best->pixels, best->texW, px + ox, py + oy);
+                        c = (unsigned short)((c >> 11) | (((c >> 6) & 0x1F) << 5) | ((c & 0x1F) << 10));
+                        PUTLE16(d, (unsigned short)((c & 0x7FFF) | (GETLE16(d) & 0x8000)));
+                    }
+                }
+                if (qx1 > qx0 && qy1 > qy0)
+                {
+                    int mx0 = max(qx0, x), mx1 = min(qx1, x + w), my0 = max(qy0, y), my1 = min(qy1, y + h);
+                    if (mx1 > mx0 && my1 > my0)
+                        merged += (mx1 - mx0) * (my1 - my0);
+                }
+            }
+            else
             for (py = py0; py < py1; py++)
                 for (px = px0; px < px1; px++)
                 {

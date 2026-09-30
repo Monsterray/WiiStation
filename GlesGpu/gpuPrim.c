@@ -1729,8 +1729,8 @@ int UploadScreen ( int Position )
     if (!PSXDisplay.RGB24)
     {
         efb_sync_upload = 1;
-        efb_sync(xrUploadArea.x0, xrUploadArea.y0,
-                 xrUploadArea.x1 - xrUploadArea.x0, xrUploadArea.y1 - xrUploadArea.y0);
+        PERF_TIME(pres_sync_ticks, efb_sync(xrUploadArea.x0, xrUploadArea.y0,
+                 xrUploadArea.x1 - xrUploadArea.x0, xrUploadArea.y1 - xrUploadArea.y0));
         efb_sync_upload = 0;
     }
     PERF_INC(upl_calls);
