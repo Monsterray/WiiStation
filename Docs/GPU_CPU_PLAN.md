@@ -257,6 +257,26 @@ The GPU split probes (`PERF_PROF_GPUSPLIT`: perf.log `gpusplit:`, `gpuprim:`, `g
 - **Found on the way:** Frogger's 24-bit FMV one flip late then black, CTR's Sony screen never
   presented (both fixed, dcac40b).
 
+### G7. GPU busy time: the GpuTiming setting (2026-09-29, 2ed5587)
+- **What was wrong.** With OpenGX a game almost never saw the GPU busy. psxdma.c set the
+  core's nBUSY at the end of each DMA list and cleared it only at the next one, so the GPU
+  read idle during block uploads (video frames, textures) too; and GL_GPUdmaChain returned
+  the list's word count, so each list ended far too early. gpulib (Soft Timed) has neither.
+- **Now a setting,** GpuTiming Fast (default, as before) or Accurate (gpulib's per-command
+  cost, and busy only from gpuIdleAfter). General > Plugins > "GPU Timing"; SETTINGS.md.
+- **Measured in Dolphin.** Fast: the eleven games frame-for-frame as before. Accurate: 59 small
+  frame differences, no breakage; load +0.2 to +3.8 points from longer GPU poll loops, which
+  lightrec.c gpu_poll_idle() mostly takes back (MediEvil +3.8 -> +0.9). Crash Bash (+2.5)
+  and Ape Escape (+1.9) keep theirs: their extra time is not in GPUSTAT/DMA2 polls.
+- **The user's recordings on Accurate:** FF7 100% the same end VRAM, Ape Escape 99.5%, Crash
+  Bash 91%, Crash 3 and Spyro out of step (another place at the end): they were recorded
+  under Fast timing, and pad input by vblank lands at other moments. To make Accurate the
+  default: re-record those two on Accurate, and a bench Wii run of all eleven.
+- **Dead code found:** OpenGX's AUTO_FIX_GPU_BUSY (iFakePrimBusy) toggles the plugin's busy
+  bit, which gpuSyncPluginSR discards (the core keeps its own timing bits): it does nothing.
+- **Next (CPU):** GTE and multiply/divide stall cycles are not emulated (psxRegs.gteBusyCycle
+  and muldivBusyCycle are only saved and loaded). A CpuTiming setting goes with that work.
+
 ## 3. Recompiled code (Lightrec)
 
 ### C1. HLE exception handlers run one block per recompiler entry

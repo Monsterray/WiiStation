@@ -33,7 +33,7 @@ block DMA upload. psxdma.c sets the core's nBUSY bit ("idle") at the end of each
 and clears it only at the next chain, and psxHwReadGpuSR can only OR "idle" in. With gpulib
 that bit stays 0 and busy comes only from `psxRegs.gpuIdleAfter`. Removing the two writes
 (psxdma.c, the `gpuPtr != &newSoftGpu` blocks) made FF7 write GP1 05 and 08 = 24-bit in the
-same vblank, as with gpulib. It is more correct, but it moves the timing of every game:
+same vblank, as with gpulib. It is now the GpuTiming setting (2ed5587, Docs/GPU_CPU_PLAN.md G7). It moves the timing of every game:
 it needs an eleven-game A/B and the user's recordings before it goes in. The per-command
 cost from `GL_GPUdmaChain` (gpulib's `gpu_timing.h`) alone changed nothing visible.
 
