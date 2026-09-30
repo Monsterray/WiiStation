@@ -608,7 +608,7 @@ static void irq_test_line(psxCP0Regs *cp0)
 	if (psxHu32(0x1070) & psxHu32(0x1074))
 		cp0->n.Cause |= 0x400;
 	if (((cp0->n.Cause | 1) & cp0->n.SR & 0x401) == 0x401) {
-		psxException(0, 0, cp0);
+		PERF_TIME(irq_line_ticks, psxException(0, 0, cp0));
 		//pending_exception = 1;
 	}
 }
@@ -626,7 +626,7 @@ void irq_test(psxCP0Regs *cp0)
 			// note: irq_funcs() also modify psxRegs.interrupt
 			psxRegs.interrupt &= ~(1u << irq);
 			PERF_INC(irq_fires[irq]);
-			irq_funcs[irq]();
+			PERF_TIME(irq_ticks[irq], irq_funcs[irq]());
 		}
 	}
 
@@ -665,6 +665,9 @@ static void lightrec_plugin_execute_internal(bool block_only)
 	 * already inside the outer slice's t_end - t_start, so only the
 	 * outermost level may accumulate or every nested slice counts twice. */
 	static int depth;
+#ifdef PERF_PROF
+	unsigned long long limit0 = g_perf.limit_ticks;   /* the frame limiter's wait inside this slice */
+#endif
 	depth++;
 
 	regs = lightrec_get_registers(lightrec_state);
@@ -778,6 +781,11 @@ static void lightrec_plugin_execute_internal(bool block_only)
 		PERF_INC(jit_nested);
 		PERF_ADD(slice_nested_sched_ticks, t_sched - t_start);
 		PERF_ADD(slice_nested_jit_ticks,   t_jit   - t_sched);
+#ifdef PERF_PROF
+		/* a vblank inside an HLE handler's run spins the frame limiter there: that wait
+		 * is in the nested scheduler time above, and is not the handler's cost */
+		g_perf.slice_nested_limit_ticks += g_perf.limit_ticks - limit0;
+#endif
 	}
 }
 

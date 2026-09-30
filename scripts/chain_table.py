@@ -97,7 +97,9 @@ def row(b, vbl):
         'gte': pct(g('gte', 'us')),
         'gpu': pct(g('inside', 'hw_gpu_us')),
         'poly': pct(poly[0] if isinstance(poly, tuple) else 0),
-        'hle': pct(g('bios', 'us')),
+        # the frame limiter's wait when a vblank lands inside an HLE handler's run is not
+        # the handler's cost: nested limit_us (2026-09-30; 0 in older logs) takes it out
+        'hle': pct(g('bios', 'us') - g('nested', 'limit_us')),
         'spu': pct(g('inside', 'spu_us')),
         'mdec': pct(g('texk', 'mdec_us')),
         'cd': pct(g('cd', 'total_us')),

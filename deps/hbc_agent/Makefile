@@ -1,8 +1,9 @@
 # libhbcagent.a for WiiStation: the Homebrew Channel's in-app agent (sdk/hbc_agent.h), from
 # hbc-reborn commit 0205bf1 (HBC 1.7.6), built against libogc2 with devkitPPC r41-2 like the
 # rest of WiiStation. Two changes from hbc-reborn, both behind HBC_AGENT_LIBOGC2:
-#   sdk/hbc_agent/agent.c    the crash block is written from libogc2's per-exception handler
-#                            (__exception_sethandler), which then calls c_default_exceptionhandler
+#   sdk/hbc_agent/agent.c    the crash hook is NOT installed: libogc2's exception table holds
+#                            assembly entry points, and a C function there froze the Wii hard
+#                            on the first crash (see the comment in hbc_agent_init)
 #   sdk/hbc_agent/overlay.c  WiiMote > Connect: libogc2's WPAD has no pairing call
 # To update: copy the same files from a newer hbc-reborn commit and keep those two changes.
 #

@@ -375,6 +375,8 @@ typedef struct {
 	 * PSXINT_COUNT; lightrec.c static-asserts that, since this header is
 	 * deliberately free of emulator headers. */
 	uint32_t irq_fires[PERF_IRQ_SLOTS];
+	uint64_t irq_ticks[PERF_IRQ_SLOTS];   /* lightrec.c irq_test: each event callback's time */
+	uint64_t irq_line_ticks;               /* irq_test_line: the exceptions interrupts raise */
 	uint64_t slice_cycles;        /* summed PSX-cycle budget over all slices */
 	uint32_t slice_tiny;          /* slices shorter than SLICE_TINY_CYCLES */
 
@@ -489,7 +491,7 @@ typedef struct {
 	/* Nested slices: the one-block steps an HLE exception handler runs through
 	 * ExecuteBlock. `sched` is what gen_interupt() costs on those, which is the
 	 * question of whether the scheduler belongs on that path at all. */
-	uint64_t slice_nested_sched_ticks, slice_nested_jit_ticks;
+	uint64_t slice_nested_sched_ticks, slice_nested_jit_ticks, slice_nested_limit_ticks;
 
 	/* HLE soft calls (psxbios.c SOFTCALL_END): run in one recompiler entry, stepped one
 	 * block at a time (a handler's first call, or one known to leave the exception),

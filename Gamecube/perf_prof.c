@@ -596,10 +596,11 @@ void perf_report(void)
 				(unsigned long)g_perf.softcall_run_escapes,
 				(unsigned long)g_perf.softcall_hle_exits);
 		if (g_perf.jit_nested)
-			fprintf(f, "nested: n=%lu sched_us=%llu jit_us=%llu\n",
+			fprintf(f, "nested: n=%lu sched_us=%llu jit_us=%llu limit_us=%llu\n",
 				(unsigned long)g_perf.jit_nested,
 				(unsigned long long)ticks_to_microsecs(g_perf.slice_nested_sched_ticks),
-				(unsigned long long)ticks_to_microsecs(g_perf.slice_nested_jit_ticks));
+				(unsigned long long)ticks_to_microsecs(g_perf.slice_nested_jit_ticks),
+				(unsigned long long)ticks_to_microsecs(g_perf.slice_nested_limit_ticks));
 		fprintf(f, "slice: cycles=%llu avg=%lu tiny=%lu\n",
 			g_perf.slice_cycles,
 			(unsigned long)(g_perf.jit_slices
@@ -614,6 +615,17 @@ void perf_report(void)
 						(unsigned long)g_perf.irq_fires[i]);
 		}
 		fprintf(f, "\n");
+		/* the time each event's callback took (lightrec.c irq_test), exceptions it raised
+		 * included: what the scheduler's share of wall is made of */
+		fprintf(f, "irqus:");
+		{
+			unsigned i;
+			for (i = 0; i < PERF_IRQ_SLOTS; i++)
+				if (g_perf.irq_ticks[i])
+					fprintf(f, " %s=%llu", perf_irq_name(i),
+						(unsigned long long)ticks_to_microsecs(g_perf.irq_ticks[i]));
+			fprintf(f, " line_exc=%llu\n", (unsigned long long)ticks_to_microsecs(g_perf.irq_line_ticks));
+		}
 		fprintf(f, "ram: mem1_free_kb=%lu mem2=%lu/%luKB peak=%luKB fails=%lu null_read=%lu heap_ok=%u\n",
 			(unsigned long)mem1_kb, (unsigned long)m2used, (unsigned long)m2tot,
 			(unsigned long)g_perf.mem2_peak_kb, (unsigned long)g_perf.mem2_alloc_fails,

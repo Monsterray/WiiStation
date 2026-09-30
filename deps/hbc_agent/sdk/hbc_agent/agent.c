@@ -642,13 +642,16 @@ s32 hbc_agent_init(const hbc_agent_config *config) {
 		if (cfg.crash_reload_s > 0)
 			__exception_setreload(cfg.crash_reload_s);
 #ifdef HBC_AGENT_LIBOGC2
-		{
-			u32 i;
-			/* every exception libogc2 gives its default handler */
-			for (i = 0; i < NUM_EXCEPTIONS; i++)
-				if (i != EX_FP && i != EX_INT && i != EX_DEC)
-					__exception_sethandler(i, agent_exc);
-		}
+		/* Not installed. libogc2's exception table holds assembly entry points, not C
+		 * functions (exception_handler.S: the vector code rfi's into them, and
+		 * default_exceptionhandler builds its stack frame before it calls the C crash
+		 * screen). agent_exc() put there as a C function faulted inside the exception on
+		 * the first real crash: the bench Wii froze hard, no button worked (2026-09-30).
+		 * A crash therefore shows libogc2's own screen and reloads HBC after
+		 * crash_reload_s, and `hbc.py crash` has nothing to report, until an assembly
+		 * entry like default_exceptionhandler calls agent_exc(); test that in Dolphin with
+		 * a forced crash before any Wii sees it. */
+		(void)agent_exc;
 #else
 		prev_panic = PPCExcptCurPanicFn;
 		PPCExcptCurPanicFn = agent_panic;
