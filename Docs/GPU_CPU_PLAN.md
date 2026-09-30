@@ -274,8 +274,14 @@ The GPU split probes (`PERF_PROF_GPUSPLIT`: perf.log `gpusplit:`, `gpuprim:`, `g
   default: re-record those two on Accurate, and a bench Wii run of all eleven.
 - **Dead code found:** OpenGX's AUTO_FIX_GPU_BUSY (iFakePrimBusy) toggles the plugin's busy
   bit, which gpuSyncPluginSR discards (the core keeps its own timing bits): it does nothing.
-- **Next (CPU):** GTE and multiply/divide stall cycles are not emulated (psxRegs.gteBusyCycle
-  and muldivBusyCycle are only saved and loaded). A CpuTiming setting goes with that work.
+- **CPU (d0d97be): the CpuTiming setting.** Fast (default) charges every instruction the same.
+  Accurate adds the cycles a PS1 waits for its GTE (MFC2/CFC2/SWC2/next command while one
+  runs) and its mult/div unit (MFHI/MFLO): Lightrec's last optimizer pass,
+  lightrec_flag_stalls(), works them out per block and keeps them in 8 free opcode-flag bits.
+  Within one block, once through, so it can miss a wait but never adds one. Lightrec only
+  (psxRegs.gteBusyCycle and muldivBusyCycle are still unused by the Interpreter core).
+  Eleven games: 7 small frame differences, identical presents, Crash 3 -0.6 points of host
+  time. The games here have headroom, so the waits change little they show.
 
 ## 3. Recompiled code (Lightrec)
 
