@@ -252,6 +252,10 @@ The GPU split probes (`PERF_PROF_GPUSPLIT`: perf.log `gpusplit:`, `gpuprim:`, `g
   uploaded. Exact: FF7, MediEvil, Gex, CTR every distinct frame identical; TEXCHECK 0 stale.
   FF7 900 vblanks in Dolphin: upload 8.66 -> 5.72 s. What is left is the first phase, where
   every frame also draws with GX (the mirror must be off there: `mirror: off=` 252 by GX).
+- **Bench Wii, FF7 first minute:** 0.96x (c377529) -> 0.98x (14e7cf1, the fade band keeps the
+  mirror) -> 0.99x (e6238c0, the EFB sync merges a same-scale snapshot row by row: upload
+  3.70 -> 2.34 -> 0.89 s, frames over budget 260 -> 257 -> 25). FF7 is now as fast as the
+  other ten games on the Wii.
 - **Next, if needed:** a mirror per region (tiles) so a GX draw ends it only where it drew;
   the 16-bit upload tiler still writes the unused semi-transparent scratch for every texel.
 - **Found on the way:** Frogger's 24-bit FMV one flip late then black, CTR's Sony screen never
