@@ -47,6 +47,14 @@
 #define LIGHTREC_EMULATE_BRANCH	BIT(2)
 #define LIGHTREC_LOCAL_BRANCH	BIT(3)
 
+/* Flags for all opcodes (WiiStation): the cycles this opcode waits for the GTE or the
+ * multiply/divide unit, from lightrec_flag_stalls() (optimizer.c). 0 unless the state's
+ * stall_cycles is on. */
+#define LIGHTREC_STALL_LSB	12
+#define LIGHTREC_STALL(x)	((x) << LIGHTREC_STALL_LSB)
+#define LIGHTREC_STALL_MASK	LIGHTREC_STALL(0xff)
+#define LIGHTREC_FLAGS_GET_STALL(x) 	(((x) & LIGHTREC_STALL_MASK) >> LIGHTREC_STALL_LSB)
+
 /* Flags for div/mult opcodes */
 #define LIGHTREC_NO_LO		BIT(2)
 #define LIGHTREC_NO_HI		BIT(3)

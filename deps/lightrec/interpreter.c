@@ -75,7 +75,7 @@ static inline u32 jump_skip(struct interpreter *inter)
 
 static inline u32 jump_next(struct interpreter *inter)
 {
-	inter->cycles += lightrec_cycles_of_opcode(inter->state, inter->op->c);
+	inter->cycles += lightrec_cycles_of_op(inter->state, inter->op);
 
 	if (unlikely(inter->delay_slot))
 		return 0;
@@ -85,7 +85,7 @@ static inline u32 jump_next(struct interpreter *inter)
 
 static inline u32 jump_after_branch(struct interpreter *inter)
 {
-	inter->cycles += lightrec_cycles_of_opcode(inter->state, inter->op->c);
+	inter->cycles += lightrec_cycles_of_op(inter->state, inter->op);
 
 	if (unlikely(inter->delay_slot))
 		return 0;
@@ -101,11 +101,11 @@ static void update_cycles_before_branch(struct interpreter *inter)
 	u32 cycles;
 
 	if (!inter->delay_slot) {
-		cycles = lightrec_cycles_of_opcode(inter->state, inter->op->c);
+		cycles = lightrec_cycles_of_op(inter->state, inter->op);
 
 		if (!op_flag_no_ds(inter->op->flags) &&
 		    has_delay_slot(inter->op->c))
-			cycles += lightrec_cycles_of_opcode(inter->state, next_op(inter)->c);
+			cycles += lightrec_cycles_of_op(inter->state, next_op(inter));
 
 		inter->cycles += cycles;
 		inter->state->current_cycle += inter->cycles;
@@ -303,7 +303,7 @@ static u32 int_delay_slot(struct interpreter *inter, u32 pc, bool branch)
 	if (dummy_ld)
 		reg_cache[op->r.rt] = new_rt;
 
-	inter->cycles += lightrec_cycles_of_opcode(inter->state, op->c);
+	inter->cycles += lightrec_cycles_of_op(inter->state, op);
 
 	if (branch_at_addr && branch_taken) {
 		/* If the branch at the target of the branch opcode is taken,
@@ -1209,7 +1209,7 @@ static u32 lightrec_emulate_block_list(struct lightrec_state *state,
 	pc = lightrec_int_op(&inter);
 
 	/* Add the cycles of the last branch */
-	inter.cycles += lightrec_cycles_of_opcode(inter.state, inter.op->c);
+	inter.cycles += lightrec_cycles_of_op(inter.state, inter.op);
 
 	state->current_cycle += inter.cycles;
 

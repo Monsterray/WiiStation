@@ -137,6 +137,12 @@ enum cdBuffer
 	CD_BUFFER_64K,
 	CD_BUFFER_256K
 };
+extern char cpuTiming;           /* whether Lightrec charges GTE and mult/div waits */
+enum cpuTiming
+{
+	CPU_TIMING_FAST=0,      /* as before: every instruction costs the same */
+	CPU_TIMING_ACCURATE     /* plus the cycles a PS1 waits for its GTE and its mult/div unit */
+};
 extern char gpuTiming;           /* how long the core keeps the GPU busy (psxdma.c, GL_GPUdmaChain) */
 enum gpuTiming
 {

@@ -128,7 +128,7 @@ char soundMixerPrecision;   // dfsound: round instead of truncate in the voice m
 char soundXaResampler;      // dfsound/xa.c: real hardware zigzag FIR vs the legacy nearest/Gaussian step (Advanced Sound page)
 char soundRateControl;      // dfsound/ratectl.c: nudge the output rate from the queue's occupancy
 char soundResampler;        // read by dfsound/resample.c on every block it converts
-char gpuTiming;
+char gpuTiming, cpuTiming;
 char cdBuffer, cdPrefetch, cdChdHunks;   // read by cdriso.c when an image is opened
 char xaDisabled;            // mirrors Config.Xa   (see wiiSXconfig.h)
 char cddaDisabled;          // mirrors Config.Cdda
@@ -203,6 +203,7 @@ static struct {
   { "CdBuffer", &cdBuffer, CD_BUFFER_16K, CD_BUFFER_256K },
   { "CdPrefetch", &cdPrefetch, CD_PREFETCH_OFF, CD_PREFETCH_ON },
   { "GpuTiming", &gpuTiming, GPU_TIMING_FAST, GPU_TIMING_ACCURATE },
+  { "CpuTiming", &cpuTiming, CPU_TIMING_FAST, CPU_TIMING_ACCURATE },
   { "CdChdHunks", &cdChdHunks, CD_CHD_HUNKS_2, CD_CHD_HUNKS_8 },
   { "Interpolation", &spuInterpolation, SIMPLE_INTERPOLATION, GAUSSI_INTERPOLATION },
   { "DisableXa", &xaDisabled, XA_ENABLE, XA_DISABLE },
@@ -423,6 +424,7 @@ void loadSettings(int argc, char *argv[])
 	cdBuffer         = CD_BUFFER_16K;
 	cdPrefetch       = CD_PREFETCH_OFF;
 	gpuTiming        = GPU_TIMING_FAST;   /* until the eleven games and the recordings pass on Accurate */
+	cpuTiming        = CPU_TIMING_FAST;   /* the same */
 	cdChdHunks       = CD_CHD_HUNKS_8;
 	xaDisabled       = XA_ENABLE;    // XA and CDDA audio both on by default
 	cddaDisabled     = CDDA_ENABLE;
@@ -1298,6 +1300,9 @@ void go(void) {
     {
         plugin_call_rearmed_cbs(Config.hacks.dwActFixes, useDithering);
     }
+
+	/* CPU Timing may have changed in the menu; Lightrec recompiles only if it did */
+	psxCpu->ApplyConfig();
 
 	/* A scripted save or load (statetool.cpp) stops the CPU at its vblank; it is carried out
 	 * here, with the CPU stopped as the menu has it, and the game goes on. */

@@ -1342,6 +1342,13 @@ unsigned int lightrec_cycles_of_opcode(const struct lightrec_state *state,
 	return state->cycles_per_op;
 }
 
+/* The same, plus the wait lightrec_flag_stalls() found for this opcode (1/1024 cycles). */
+unsigned int lightrec_cycles_of_op(const struct lightrec_state *state,
+				   const struct opcode *op)
+{
+	return state->cycles_per_op + (LIGHTREC_FLAGS_GET_STALL(op->flags) << 10);
+}
+
 void lightrec_free_opcode_list(struct lightrec_state *state, struct opcode *ops)
 {
 	struct opcode_list *list = container_of(ops, struct opcode_list, ops);
@@ -1619,7 +1626,7 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 #endif
 		}
 
-		cstate->cycles += lightrec_cycles_of_opcode(state, elm->c);
+		cstate->cycles += lightrec_cycles_of_op(state, elm);
 	}
 
 	for (i = 0; i < cstate->nb_local_branches; i++) {
@@ -2148,6 +2155,26 @@ void lightrec_set_target_cycle_count(struct lightrec_state *state, u32 cycles)
 struct lightrec_registers * lightrec_get_registers(struct lightrec_state *state)
 {
 	return &state->regs;
+}
+
+void lightrec_set_stall_cycles(struct lightrec_state *state, bool on)
+{
+	if (state->stall_cycles == on)
+		return;
+
+	state->stall_cycles = on;
+
+	/* the stalls are worked out when a block is compiled: compile them all again */
+	if (ENABLE_THREADED_COMPILER) {
+		lightrec_recompiler_pause(state->rec);
+		lightrec_reaper_reap(state->reaper);
+	}
+
+	lightrec_invalidate_all(state);
+	lightrec_free_all_blocks(state->block_cache);
+
+	if (ENABLE_THREADED_COMPILER)
+		lightrec_recompiler_unpause(state->rec);
 }
 
 void lightrec_set_cycles_per_opcode(struct lightrec_state *state, u32 cycles)

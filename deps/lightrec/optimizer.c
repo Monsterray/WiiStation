@@ -2323,6 +2323,81 @@ static int lightrec_test_preload_pc(struct lightrec_state *state, struct block *
 	return 0;
 }
 
+/* WiiStation, CpuTiming Accurate: the cycles a PS1 waits for its GTE and its multiply/divide
+ * unit. Both run beside the CPU; the CPU waits only when it wants a result too early: MFC2,
+ * CFC2, SWC2 or the next GTE command while a command runs, MFHI/MFLO while a MULT or DIV
+ * does (psx-spx, GTE Command Summary; CPU Specifications, Multiply/divide). The block is
+ * walked in the order it runs, one cycles_per_op per opcode, and each opcode that waits gets
+ * its wait in its flags; lightrec_cycles_of_op() charges it. Code that hides the latency
+ * behind other work pays nothing, as on a PS1.
+ * ponytail: within one block, once through: a wait across a block's end, or from one pass
+ * of a loop inside the block to the next, is not seen -- so Accurate can only miss a wait,
+ * never add one a PS1 does not have. A MULT counts 9 cycles (6, 9 or 13 on a PS1, by the
+ * size of rs, which is not known here). */
+static const u8 gte_cycles[64] = {
+	[OP_CP2_RTPS] = 15, [OP_CP2_NCLIP] = 8, [OP_CP2_OP] = 6, [OP_CP2_DPCS] = 8,
+	[OP_CP2_INTPL] = 8, [OP_CP2_MVMVA] = 8, [OP_CP2_NCDS] = 19, [OP_CP2_CDP] = 13,
+	[OP_CP2_NCDT] = 44, [OP_CP2_NCCS] = 17, [OP_CP2_CC] = 11, [OP_CP2_NCS] = 14,
+	[OP_CP2_NCT] = 30, [OP_CP2_SQR] = 5, [OP_CP2_DCPL] = 8, [OP_CP2_DPCT] = 17,
+	[OP_CP2_AVSZ3] = 5, [OP_CP2_AVSZ4] = 6, [OP_CP2_RTPT] = 23, [OP_CP2_GPF] = 5,
+	[OP_CP2_GPL] = 5, [OP_CP2_NCCT] = 39,
+};
+
+static int lightrec_flag_stalls(struct lightrec_state *state, struct block *block)
+{
+	u32 t = 0, gte_free = 0, md_free = 0, wait, i;
+
+	for (i = 0; i < block->nb_ops; i++) {
+		struct opcode *op = &block->opcode_list[i];
+		union code c = op->c;
+		bool gte_cmd = c.i.op == OP_CP2 && c.r.op != OP_CP2_BASIC;
+
+		op->flags &= ~LIGHTREC_STALL_MASK;
+		if (!state->stall_cycles)
+			continue;
+
+		wait = 0;
+		if (gte_cmd || c.i.op == OP_SWC2 ||
+		    (c.i.op == OP_CP2 && c.r.op == OP_CP2_BASIC &&
+		     (c.r.rs == OP_CP2_BASIC_MFC2 || c.r.rs == OP_CP2_BASIC_CFC2)))
+			wait = gte_free > t ? gte_free - t : 0;
+		else if (c.i.op == OP_SPECIAL &&
+			 (c.r.op == OP_SPECIAL_MFHI || c.r.op == OP_SPECIAL_MFLO))
+			wait = md_free > t ? md_free - t : 0;
+
+		wait = (wait + 1023) >> 10;           /* whole cycles */
+		if (wait > 0xff)
+			wait = 0xff;
+		op->flags |= LIGHTREC_STALL(wait);
+		t += wait << 10;
+
+		if (gte_cmd)
+			gte_free = t + (gte_cycles[c.r.op] << 10);
+		else if (c.i.op == OP_META_MULT2 || c.i.op == OP_META_MULTU2)
+			md_free = t + (9 << 10);
+		else if (c.i.op == OP_SPECIAL) {
+			switch (c.r.op) {
+			case OP_SPECIAL_MULT:
+			case OP_SPECIAL_MULTU:
+				md_free = t + (9 << 10);
+				break;
+			case OP_SPECIAL_DIV:
+			case OP_SPECIAL_DIVU:
+				md_free = t + (36 << 10);
+				break;
+			case OP_SPECIAL_MTHI:
+			case OP_SPECIAL_MTLO:
+				md_free = t;          /* they abort a running MULT/DIV */
+				break;
+			}
+		}
+
+		t += state->cycles_per_op;
+	}
+
+	return 0;
+}
+
 static int (*lightrec_optimizers[])(struct lightrec_state *state, struct block *) = {
 	IF_OPT(OPT_REMOVE_DIV_BY_ZERO_SEQ, &lightrec_remove_div_by_zero_check_sequence),
 	IF_OPT(OPT_REPLACE_MEMSET, &lightrec_replace_memset),
@@ -2337,6 +2412,7 @@ static int (*lightrec_optimizers[])(struct lightrec_state *state, struct block *
 	IF_OPT(OPT_FLAG_MULT_DIV, &lightrec_flag_mults_divs),
 	IF_OPT(OPT_EARLY_UNLOAD, &lightrec_early_unload),
 	IF_OPT(OPT_PRELOAD_PC, &lightrec_test_preload_pc),
+	&lightrec_flag_stalls,   /* last: it needs the final order of the opcodes */
 };
 
 int lightrec_optimize(struct lightrec_state *state, struct block *block)

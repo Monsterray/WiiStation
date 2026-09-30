@@ -214,17 +214,16 @@ static const OptRow PLUGIN_ROWS[] =
 	ROW_RADIO("CPU Core",   dynacore,  DYNACORE_DYNAREC, DYNACORE_DYNAREC_OLD, CPU_CORE_NAMES,   NULL),
 	ROW_RADIO("GPU Plugin", gpuPlugin, OLD_SOFT,         OPEN_GX,              GPU_PLUGIN_NAMES, NULL),
 	ROW_CYCLE("GPU Timing", gpuTiming, GPU_TIMING_FAST,  GPU_TIMING_ACCURATE,  FAST_ACCURATE_NAMES, NULL),
+	ROW_CYCLE("CPU Timing", cpuTiming, CPU_TIMING_FAST,  CPU_TIMING_ACCURATE,  FAST_ACCURATE_NAMES, NULL),
 };
 
 static const OptHelp PLUGIN_HELP[] =
 {
 	{ "CPU Core:",   "Lightrec is the recompiler most games run best on." },
 	{ NULL,          "Interpreter is exact but slow; Dynarec is the older one." },
-	{ "GPU Plugin:", "OpenGX draws with the Wii's graphics hardware. The two" },
-	{ NULL,          "software renderers are slower, but avoid its quirks." },
-	{ "GPU Timing:", "Accurate keeps the GPU busy as long as a PS1's would." },
-	{ NULL,          "" },
-	{ NULL,          "Changing either restarts a loaded game." },
+	{ "GPU Plugin:", "OpenGX uses the Wii's GPU; the soft ones avoid its quirks." },
+	{ "Timing:",     "Accurate: GPU and 3D-maths waits as on a PS1." },
+	{ NULL,          "A new core or plugin restarts a loaded game." },
 };
 
 static char pluginsCoreOnEntry, pluginsGpuOnEntry;

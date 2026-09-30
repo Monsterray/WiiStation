@@ -71,7 +71,7 @@ static void lightrec_emit_end_of_block(struct lightrec_cstate *state,
 	jit_state_t *_jit = block->_jit;
 	const struct opcode *op = &block->opcode_list[offset],
 			    *ds = get_delay_slot(block->opcode_list, offset);
-	u32 cycles = state->cycles + lightrec_cycles_of_opcode(state->state, op->c);
+	u32 cycles = state->cycles + lightrec_cycles_of_op(state->state, op);
 	bool has_ds = has_delay_slot(op->c);
 
 	jit_note(__FILE__, __LINE__);
@@ -92,7 +92,7 @@ static void lightrec_emit_end_of_block(struct lightrec_cstate *state,
 	}
 
 	if (has_ds && !op_flag_no_ds(op->flags) && !op_flag_local_branch(op->flags)) {
-		cycles += lightrec_cycles_of_opcode(state->state, ds->c);
+		cycles += lightrec_cycles_of_op(state->state, ds);
 
 		/* Recompile the delay slot */
 		if (ds->c.opcode)
@@ -249,7 +249,7 @@ static void rec_b(struct lightrec_cstate *state, const struct block *block, u16 
 	const struct opcode *op = &block->opcode_list[offset],
 			    *ds = get_delay_slot(block->opcode_list, offset);
 	bool is_forward = (s16)op->i.imm >= 0;
-	int op_cycles = lightrec_cycles_of_opcode(state->state, op->c);
+	int op_cycles = lightrec_cycles_of_op(state->state, op);
 	u32 target_offset, cycles = state->cycles + op_cycles;
 	bool no_indirection = false;
 	jit_node_t *addr = NULL;
@@ -259,7 +259,7 @@ static void rec_b(struct lightrec_cstate *state, const struct block *block, u16 
 	jit_note(__FILE__, __LINE__);
 
 	if (!op_flag_no_ds(op->flags))
-		cycles += lightrec_cycles_of_opcode(state->state, ds->c);
+		cycles += lightrec_cycles_of_op(state->state, ds);
 
 	state->cycles = -op_cycles;
 

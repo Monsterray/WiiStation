@@ -177,6 +177,7 @@ struct lightrec_state {
 	u32 exit_flags;
 	u32 old_cycle_counter;
 	u32 cycles_per_op;
+	_Bool stall_cycles;  /* WiiStation CpuTiming Accurate: charge GTE and mult/div waits */
 	void *c_wrapper;
 	struct block *dispatcher, *c_wrapper_block;
 	void *c_wrappers[C_WRAPPERS_COUNT];
@@ -307,6 +308,8 @@ int lightrec_compile_block(struct lightrec_cstate *cstate, struct block *block);
 void lightrec_free_opcode_list(struct lightrec_state *state,
 			       struct opcode *list);
 
+unsigned int lightrec_cycles_of_op(const struct lightrec_state *state,
+				   const struct opcode *op);
 unsigned int lightrec_cycles_of_opcode(const struct lightrec_state *state,
 				       union code code);
 

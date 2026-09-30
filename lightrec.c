@@ -20,6 +20,7 @@
 #include "Gamecube/MEM2.h"
 #include "Gamecube/PadSSSPSX.h"
 #include "Gamecube/perf_prof.h"
+#include "Gamecube/wiiSXconfig.h"
 #include "deps/lightrec/lightrec.h"
 
 #define ARRAY_SIZE(x) (sizeof(x) ? sizeof(x) / sizeof((x)[0]) : 0)
@@ -848,6 +849,7 @@ static void lightrec_plugin_apply_config()
 	}
 	cycles_per_op_old = cycles_per_op;
 	lightrec_set_cycles_per_opcode(lightrec_state, cycles_per_op);
+	lightrec_set_stall_cycles(lightrec_state, cpuTiming == CPU_TIMING_ACCURATE);
 }
 
 static void lightrec_plugin_shutdown(void)
