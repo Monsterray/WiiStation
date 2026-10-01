@@ -247,12 +247,24 @@ lightrec_get_map_idx(struct lightrec_state *state, u32 kaddr)
 {
 	const struct lightrec_mem_map *map;
 	unsigned int i;
+	/* WiiStation: most calls come from lightrec_rw() for I/O, and hit the same map as
+	 * the call before (hprof, Spyro: 1.3% of busy time in this scan). The map that
+	 * matched last is tried first. That gives the same answer as the scan because the
+	 * only overlap is the code buffer's map (pc 0) inside RAM, which comes first: the
+	 * code buffer's map is never a first match, so it is never the one kept here. */
+	static unsigned int last;
+
+	map = &state->maps[last];
+	if (last < state->nb_maps && kaddr >= map->pc && kaddr < map->pc + map->length)
+		return (enum psx_map) last;
 
 	for (i = 0; i < state->nb_maps; i++) {
 		map = &state->maps[i];
 
-		if (kaddr >= map->pc && kaddr < map->pc + map->length)
+		if (kaddr >= map->pc && kaddr < map->pc + map->length) {
+			last = i;
 			return (enum psx_map) i;
+		}
 	}
 
 	return PSX_MAP_UNKNOWN;

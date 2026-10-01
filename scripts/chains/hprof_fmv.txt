@@ -1,0 +1,9 @@
+CHAIN
+# Two FMV-heavy intros for the sampling profiler (PROBES=hprof): where a 24-bit present
+# spends the Wii's time. 30 s each.
+1800
+sd:/wiisxrx/isos/Micro Machines V3 (USA)
+Micro Machines V3 (USA).cue
+1800
+sd:/wiisxrx/isos/Gex (USA)
+Gex (USA).cue

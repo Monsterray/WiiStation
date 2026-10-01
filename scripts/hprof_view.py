@@ -58,14 +58,25 @@ def main():
     starts = [s[0] for s in syms]
 
     def by_function(hist):
+        # A bucket goes to the symbol that covers most of its bytes: a small function
+        # (the idle loop) can start inside a bucket that begins in the one before.
         per, unknown = {}, 0
+        size = 1 << shift
         for i, c in enumerate(hist):
             if not c:
                 continue
-            addr = base + (i << shift)
-            k = bisect.bisect_right(starts, addr) - 1
-            if k >= 0 and addr < syms[k][0] + max(syms[k][1], 1 << shift):
-                per[syms[k][2]] = per.get(syms[k][2], 0) + c
+            lo = base + (i << shift)
+            k = bisect.bisect_right(starts, lo) - 1
+            best, best_n = None, 0
+            while k < len(syms) and (k < 0 or syms[k][0] < lo + size):
+                if k >= 0:
+                    s0, s1 = syms[k][0], syms[k][0] + max(syms[k][1], 4)
+                    n = min(s1, lo + size) - max(s0, lo)
+                    if n > best_n:
+                        best, best_n = syms[k][2], n
+                k += 1
+            if best:
+                per[best] = per.get(best, 0) + c
             else:
                 unknown += c
         return per, unknown
