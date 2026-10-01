@@ -133,8 +133,13 @@ there when a probe gains one. Keep a run you will compare against later with
   within 0.1% for a timing-neutral change; a change that is meant to be exact, like
   `c38d4d1`, matches to the cycle.
 - **Compiler (Lightrec/Lightning):** a change meant to emit the same code must give the
-  same `jitcode: bytes= sum=` lines in every game of a chain (a checksum of all emitted
-  code, deps/lightrec/lightrec.c). VRAM alone is weaker proof. The upstream behaviour of the
+  same `jitcode: bytes= shape=` in every game of a chain (checksums of all emitted code,
+  deps/lightrec/lightrec.c). `sum=` covers every bit, so it also moves when only the heap
+  layout does (Lightrec emits `struct block` pointers as immediates): any change to
+  allocation sizes or to BSS. `shape=` drops each word's low 16 bits. It can still move
+  when the DOL's text layout moves, because `b`/`bl` from generated code to C functions
+  carry displacement bits in the high half (a classify table that grew the text did this,
+  2026-10-01). Then compare A and B builds with the same probes. VRAM alone is weaker proof. The upstream behaviour of the
   Lightning changes is one flag away: `make -C deps/lightning DEVKITPPC=... TMP=... TEMP=...
   EXTRA_CFLAGS=-DLIGHTNING_UPSTREAM=1`, then `wsx.sh build` (touch lightning.c after to go
   back). Compile cost per pass: `lopt:`, `lightning:`, `jitparts:`, `jit:` in perf.log.
