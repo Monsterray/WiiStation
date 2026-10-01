@@ -43,6 +43,13 @@ python scripts/hprof_view.py .runs/NAME/hprof_01.bin --elf DOL.elf --callers
 - Samples land only with MSR[EE] on. Time in exception handlers shows at the next instruction.
 - Dolphin emulates the exception, so the profiler runs there. There it counts instructions
   (no cache misses), and its cycle estimate gives about 1.9x the samples of a Wii.
+- On a Wii the idle thread dozes and PMC1 stops, so there are no idle samples: the shares
+  are of busy time.
+- **Re-arm with isync, interrupt off first.** Written as PMC1 then MMCR0 with no isync, a
+  real Wii sometimes took a second performance-monitor exception at 0x00000F00 itself: HBC
+  showed "performance monitor exception (15)", pc 00000f00, a crash with MSR[RI] clear that
+  only the c_default_exceptionhandler wrap records. Before the wrap these runs came back
+  with "no crash reported". Dolphin never showed it.
 
 ## Chains: many games, one boot
 

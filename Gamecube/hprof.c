@@ -17,6 +17,11 @@
 #include <string.h>
 #include <gccore.h>
 #include <ogc/machine/processor.h>
+#ifndef MSR_PM
+#define MSR_PM 0x00000004       /* the 750 performance-monitor mark bit (ogc/machine/asm.h, assembly only) */
+#endif
+#include <ogc/lwp_objmgr.h>
+#include <ogc/lwp_threads.h>
 #include "perf_prof.h"
 #include "../mem2_manager.h"
 #include "MEM2.h"   /* LIGHTREC_CODE_SIZE */
@@ -32,7 +37,12 @@
 #define HPROF_SHIFT 5                       /* 32-byte buckets */
 #define HPROF_N (HPROF_SPAN >> HPROF_SHIFT)
 /* MMCR0: ENINT (hardware clears it at each exception), PMC1CE, PMC1SELECT = 1 (cycles) */
-#define HPROF_MMCR0 (0x04000000u | 0x00008000u | (1u << 6))
+/* + FCM0 (0x08000000): counters frozen while MSR[PM] = 0. hprof_start sets MSR[PM] in every
+ * thread but the idle one, whose loop keeps writing its boot-time MSR (PM 0) with POW. A real
+ * Wii crashed when the counter overflowed in that doze: a second performance-monitor
+ * exception at 0x00000F00, or a program exception at idle's mtmsr (2026-10-01). Idle samples
+ * were none anyway: the doze stops the clock. */
+#define HPROF_MMCR0 (0x04000000u | 0x08000000u | 0x00008000u | (1u << 6))
 
 extern char code_buffer_mem1[];             /* lightrec.c */
 extern void hprof_entry(void);              /* hprof_entry.s */
@@ -58,8 +68,16 @@ void hprof_sample(u32 pc, u32 lr)
 		hp_jit++;
 	else
 		hp_other++;
+	/* Re-arm in order: interrupt off, the counter below its top bit, then the interrupt on,
+	 * each SPR write finished (isync) before the next. Written as PMC1 then MMCR0 with no
+	 * isync, a real Wii took a second performance-monitor exception at 0x00000F00 itself
+	 * (SRR0 = 0xF00, MSR[RI] clear: an unrecoverable crash, 2026-10-01); Dolphin never did. */
+	mtmmcr0(0);
+	__asm__ volatile ("isync");
 	mtpmc1(0x80000000u - HPROF_PERIOD);
+	__asm__ volatile ("isync");
 	mtmmcr0(HPROF_MMCR0);
+	__asm__ volatile ("isync");
 }
 
 /* perf_reset(): an empty histogram, then sampling on */
@@ -80,9 +98,21 @@ void hprof_start(void)
 	}
 	watch_hi += 0x400;   /* the last helper's size, about 0x390 */
 	__exception_sethandler(EX_PERF, (void (*)(frame_context *))hprof_entry);
+	{   /* MSR[PM] = 1: count in every thread but idle (HPROF_MMCR0 FCM0) */
+		extern lwp_objinfo _lwp_thr_objects;
+		u32 k;
+		for (k = 0; k < _lwp_thr_objects.max_nodes; k++) {
+			lwp_cntrl *t = (lwp_cntrl *)_lwp_thr_objects.local_table[k];
+			if (t && t != _thr_idle && t != _thr_executing)
+				t->context.MSR |= MSR_PM;
+		}
+		mtmsr(mfmsr() | MSR_PM);
+	}
 	mtmmcr1(0);
 	mtpmc1(0x80000000u - HPROF_PERIOD);
+	__asm__ volatile ("isync");
 	mtmmcr0(HPROF_MMCR0);
+	__asm__ volatile ("isync");
 }
 
 /* the perf.log "hprof:" line */
