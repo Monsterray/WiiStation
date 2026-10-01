@@ -181,6 +181,13 @@ void __exception_sethandler(u32 nExcept, void (*pHndl)(frame_context*));
 extern void default_exceptionhandler();
 // use our own exception stub because libogc stupidly requires it
 extern void dsi_handler();
+/* What the DSI entry was before VM_Init hooked it: dsihandler.s passes a DSI the VM does not
+ * handle on to it, and VM_Deinit puts it back. It was always libogc's default entry, which
+ * skipped the HBC agent's crash entry (hbc_home_start runs first): a real DSI then showed
+ * libogc's crash screen and went back to HBC with no crash report (2026-09-30). */
+typedef void (*exc_entry)(frame_context *);
+extern exc_entry _exceptionhandlertable[];
+exc_entry vm_dsi_next = (exc_entry)default_exceptionhandler;
 
 void* VM_Init(u32 VMSize, u32 MEMSize)
 {
@@ -264,7 +271,9 @@ void* VM_Init(u32 VMSize, u32 MEMSize)
 	mtspr(25, MEM_VIRTUAL_TO_PHYSICAL(HTABORG)|HTABMASK);
 	// enable SR
 	asm volatile("mtsrin %0,%1" :: "r"((u32)VM_Base >> 28), "r"(VM_Base));
-	// hook DSI
+	// hook DSI, keeping the entry that was there (the HBC agent's, when it runs)
+	if (_exceptionhandlertable[EX_DSI] != (exc_entry)dsi_handler)
+		vm_dsi_next = _exceptionhandlertable[EX_DSI];
 	__exception_sethandler(EX_DSI, dsi_handler);
 
 	atexit(VM_Deinit);
@@ -281,8 +290,8 @@ void VM_Deinit(void)
 
 	// disable SR
 	asm volatile("mtsrin %0,%1" :: "r"(0x80000000), "r"(VM_Base));
-	// restore default DSI handler
-	__exception_sethandler(EX_DSI, default_exceptionhandler);
+	// restore the DSI entry VM_Init found
+	__exception_sethandler(EX_DSI, vm_dsi_next);
 
 	free(MEM_Base);
 	MEM_Base = NULL;

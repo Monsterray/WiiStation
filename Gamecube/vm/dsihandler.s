@@ -23,7 +23,7 @@
 #include <ogc/machine/asm.h>
 
 	.extern vm_dsi_handler
-	.extern default_exceptionhandler
+	.extern vm_dsi_next
 
 FUNC_START(dsi_handler)
 	stwu        sp,-EXCEPTION_FRAME_END(sp)
@@ -61,9 +61,14 @@ FUNC_START(dsi_handler)
 
 	bne         1f
 	
-	# jump to libogc's default handler
+	# not ours: on to the entry VM_Init found (vm.c vm_dsi_next: the HBC agent's crash entry,
+	# or libogc's default). The vector code saved r3 and CTR in the frame, and both entries
+	# read them from there, so they are free here.
 	addi        sp,sp,EXCEPTION_FRAME_END
-	b           default_exceptionhandler
+	lis         r3,vm_dsi_next@ha
+	lwz         r3,vm_dsi_next@l(r3)
+	mtctr       r3
+	bctr
 
 1:	
 	lwz         r3,CR_OFFSET(sp)
