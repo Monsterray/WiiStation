@@ -796,6 +796,7 @@ static bool chainNext(void)
 			fwrite(psxVuw, 2, 1024 * 512, f);
 			fclose(f);
 		}
+		perf_vtl_flush(chainI + 1);   /* the per-vblank timeline: vtl_NN.bin */
 		perf_report();
 	}
 	f = fopen("sd:/wiisxrx/perf.log", "a");

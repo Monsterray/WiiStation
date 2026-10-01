@@ -512,9 +512,74 @@ void perf_pad_event(unsigned pad, unsigned type, unsigned drv_btns, unsigned drv
 
 /* Every emulated vblank (psxcounters.c): the scheduled dump. Not at a present: a game that
  * stops presenting while it loads (FF7 after vblank 688) never reached a dump set there. */
+/* Per-vblank timeline: for every emulated vblank, the wall time since the last one and how
+ * much of it the core (cpu_ticks), the GPU registers (hw_gpu_ticks), the frame limiter's wait
+ * (limit_ticks) and the SPU took, plus the frames presented. A slowdown a person sees shows
+ * as a run of vblanks with a long wall and no limiter wait; the totals once a minute hide it.
+ * Units of 512 time-base ticks (8.4 us on the Wii), saturating at 0xffff: a shift, no divide.
+ * The ring comes from the MEM2 heap (12 bytes a vblank, 65536 vblanks = 18 emulated minutes)
+ * and each chained game writes it to sd:/wiisxrx/vtl_NN.bin at its end (perf_vtl_flush);
+ * scripts/vtl_view.py reads it. */
+#define VTL_MAX 65536
+#define VTL_SHIFT 9
+typedef struct { unsigned short wall, cpu, gpu, limit, spu, pres; } vtl_t;
+static vtl_t *vtl;
+static unsigned vtl_n;
+static uint64_t vtl_t0, vtl_cpu0, vtl_gpu0, vtl_lim0, vtl_spu0;
+static uint32_t vtl_pres0;
+
+static inline unsigned short vtl_u16(uint64_t ticks)
+{
+	ticks >>= VTL_SHIFT;
+	return ticks > 0xffff ? 0xffff : (unsigned short)ticks;
+}
+
+static void vtl_tick(void)
+{
+	uint64_t now = gettime();
+	if (!vtl) {
+		vtl = (vtl_t *)_mem2_malloc(VTL_MAX * sizeof(vtl_t));
+		if (!vtl)
+			return;
+		vtl_n = 0;
+	} else if (vtl_n < VTL_MAX && vtl_t0) {
+		vtl_t *v = &vtl[vtl_n++];
+		v->wall = vtl_u16(now - vtl_t0);
+		v->cpu = vtl_u16(g_perf.cpu_ticks - vtl_cpu0);
+		v->gpu = vtl_u16(g_perf.hw_gpu_ticks - vtl_gpu0);
+		v->limit = vtl_u16(g_perf.limit_ticks - vtl_lim0);
+		v->spu = vtl_u16(g_perf.spu_ticks - vtl_spu0);
+		v->pres = (unsigned short)(g_perf.present_frames - vtl_pres0);
+	}
+	vtl_t0 = now;
+	vtl_cpu0 = g_perf.cpu_ticks; vtl_gpu0 = g_perf.hw_gpu_ticks;
+	vtl_lim0 = g_perf.limit_ticks; vtl_spu0 = g_perf.spu_ticks;
+	vtl_pres0 = g_perf.present_frames;
+}
+
+/* A chained game's end (GamecubeMain.cpp chainNext): its timeline to vtl_NN.bin, then a fresh
+ * one for the next game. Header: "VTL1", the shift, the vblank count. */
+void perf_vtl_flush(int game)
+{
+	char path[40];
+	FILE *f;
+	unsigned hdr[3] = { 0x56544c31, VTL_SHIFT, vtl_n };
+	if (!vtl)
+		return;
+	snprintf(path, sizeof path, "sd:/wiisxrx/vtl_%02d.bin", game);
+	if ((f = fopen(path, "wb"))) {
+		fwrite(hdr, sizeof hdr, 1, f);
+		fwrite(vtl, sizeof(vtl_t), vtl_n, f);
+		fclose(f);
+	}
+	vtl_n = 0;
+	vtl_t0 = 0;
+}
+
 void perf_vblank_tick(void)
 {
 	extern unsigned autoinput_crash_vbl;
+	vtl_tick();
 	/* "crashtest <vblank>": a DSI on purpose, the way the 2026-09-29 Lightrec crash stored
 	 * through r31 = 0, to prove the crash path (vm dsihandler -> HBC agent -> report) on the Wii. */
 	/* Crash breadcrumb: one line a second, written and closed at once, so the last line
@@ -765,11 +830,12 @@ void perf_report(void)
 			}
 			fprintf(f, "\n");
 		}
-		fprintf(f, "offsoft: prims=%lu rejected=%lu inside=%lu | pad: startpoll=%lu update=%lu ai_calls=%lu rumble=%lu/%lu\n",
+		fprintf(f, "offsoft: prims=%lu rejected=%lu inside=%lu | pad: startpoll=%lu update=%lu ai_calls=%lu rumble=%lu/%lu ambiguous=%lu\n",
 			(unsigned long)g_perf.off_soft_prims, (unsigned long)g_perf.off_soft_rejected,
 			(unsigned long)g_perf.off_soft_inside,
 			(unsigned long)g_perf.pad_startpoll, (unsigned long)g_perf.pad_update, (unsigned long)g_perf.ai_calls,
-			(unsigned long)g_perf.rumble_on, (unsigned long)g_perf.rumble_off);
+			(unsigned long)g_perf.rumble_on, (unsigned long)g_perf.rumble_off,
+			(unsigned long)g_perf.ai_ambiguous);
 		{
 			unsigned k;
 			fprintf(f, "padproto:");

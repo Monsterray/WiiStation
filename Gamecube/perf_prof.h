@@ -314,6 +314,7 @@ typedef struct {
 	/* hack_dc2: 64x48 sprites AUTO_FIX_DINO_CRISIS2 dropped; the last one's place */
 	uint32_t hack_dc2, hack_dc2_x, hack_dc2_y;
 	uint32_t off_soft_prims, off_soft_rejected, off_soft_inside, pad_startpoll, pad_update, ai_calls;
+	uint32_t ai_ambiguous;        /* script lines without a read stamp that took effect in a vblank the game read the port twice */
 	uint32_t rumble_on, rumble_off;   /* motor on/off calls into the controller driver */
 	/* Port 1's protocol (Gamecube/PadSSSPSX.c): commands by type (0x40..0x4F), and the
 	 * first reply to a 0x42 poll sent while a button was held: its ID and bytes. */
@@ -718,6 +719,7 @@ void perf_autoinput_event(unsigned vblank, unsigned mask);
  * 0x80 move, 0xC1 readback outcome. */
 void perf_vram_event(unsigned kind, int x, int y, int w, int h, int a, int b);
 void perf_tty(const char *s);   /* the run's console text, for sd:/wiisxrx/tty.log */
+void perf_vtl_flush(int game);  /* the per-vblank timeline, to sd:/wiisxrx/vtl_NN.bin */
 /* the PSX PC at each vblank: where the CPU spends its time, "pcs:" in perf.log */
 void perf_pc_sample(unsigned pc);
 
@@ -760,6 +762,7 @@ static inline void perf_prim_trace(unsigned cmd, unsigned flags, unsigned abr, u
 static inline void perf_autoinput_event(unsigned vblank, unsigned mask) { (void)vblank; (void)mask; }
 static inline void perf_pc_sample(unsigned pc) { (void)pc; }
 static inline void perf_tty(const char *s) { (void)s; }
+static inline void perf_vtl_flush(int game) { (void)game; }
 static inline void perf_vram_event(unsigned kind, int x, int y, int w, int h, int a, int b)
 { (void)kind; (void)x; (void)y; (void)w; (void)h; (void)a; (void)b; }
 static inline void perf_pad_event(unsigned pad, unsigned type, unsigned drv_btns, unsigned drv_l,

@@ -140,7 +140,7 @@ def main():
         if not p.is_file():
             sys.exit(f"chain names sd:/wiisxrx/{f}: no scripts/autoinput/{f}")
         puts.append((f, p.read_bytes()))
-    wants = RESULTS + [f"vram_{i:02d}.bin" for i in range(1, games + 1)]
+    wants = RESULTS + [f"vram_{i:02d}.bin" for i in range(1, games + 1)] \n        + [f"vtl_{i:02d}.bin" for i in range(1, games + 1)]   # per-vblank timelines (scripts/vtl_view.py)
     puts += [(w, b"") for w in wants if w != "lab.log"]   # no stale result from an earlier run (lab.log: WiiStation restarts it, and is writing it now)
     isos = []
     if a.send_isos:

@@ -31,7 +31,7 @@
 
 static char lab_host[64];
 static int lab_port;
-static char lab_want[32][96];
+static char lab_want[64][96];   /* the files to send back: RESULTS + vram_NN + vtl_NN per game */
 static int lab_nwant;
 static u8 lab_buf[32 * 1024] __attribute__((aligned(32)));
 
@@ -295,7 +295,7 @@ int lab_fetch(void)
 			ok = 0;
 			break;
 		}
-		if (!strncmp(line, "WANT ", 5) && lab_path_ok(line + 5) && lab_nwant < 32) {
+		if (!strncmp(line, "WANT ", 5) && lab_path_ok(line + 5) && lab_nwant < 64) {
 			snprintf(lab_want[lab_nwant++], sizeof lab_want[0], "%s", line + 5);
 			continue;
 		}
