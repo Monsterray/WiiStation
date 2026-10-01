@@ -317,7 +317,7 @@ int lab_fetch(void)
 				if (f)
 					fwrite(lab_buf, 1, k, f);
 				left -= k;
-				ws_progress++;   /* a transfer is progress (ws_crash.c watchdog) */
+				ws_alive();   /* a transfer is progress (the agent's hang watchdog) */
 			}
 			if (f)
 				fclose(f);
@@ -362,7 +362,7 @@ void lab_report(void)
 			size_t k = fread(lab_buf, 1, sizeof lab_buf, f);
 			if (!k || lab_send(s, lab_buf, (int)k))
 				break;
-			ws_progress++;
+			ws_alive();
 		}
 		fclose(f);
 	}

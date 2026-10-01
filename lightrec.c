@@ -718,7 +718,7 @@ static void lightrec_plugin_execute_internal(bool block_only)
 		fprintf(stderr, "Exiting at cycle 0x%08x\n",
 				psxRegs.cycle);
 		#endif // SHOW_DEBUG
-		ws_fatal(WS_CRASH_GUEST_SEGFAULT);   /* was exit(1), with no report */
+		ws_fatal(WS_CRASH_GUEST_SEGFAULT, "Lightrec: guest access to no memory");   /* was exit(1) */
 	}
 
 	if (flags & LIGHTREC_EXIT_SYSCALL) {

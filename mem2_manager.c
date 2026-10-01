@@ -139,6 +139,36 @@ void *_mem2_malloc(uint32_t size)
    return _mem2_memalign(32, size);
 }
 
+#ifdef POISON_HEAP
+/* A debug build's start (-DPOISON_HEAP): fill every free byte of the MEM2 heap and of the
+ * malloc heap with a pattern, then free it again. A Wii app finds what the previous app left
+ * in memory, Dolphin starts from zeros, so a read of memory WiiStation never wrote shows only
+ * on hardware, and only after some apps. With the pattern it shows in Dolphin too. */
+void heap_poison(uint32_t pattern)
+{
+   void *chunks[256];
+   uint32_t size, n = 0, i;
+
+   /* the fixed regions under the heap (Gamecube/MEM2.h): memory cards, HID, SPU, BIOS */
+   for (i = 0; i < (uint32_t)(NEW_MEM2_LO - MEM2_LO) / 4; i++)
+      ((uint32_t *)MEM2_LO)[i] = pattern;
+   for (size = 64u << 20; size >= 4096 && n < 256; ) {
+      void *p = _mem2_memalign(32, size);
+      if (!p) { size >>= 1; continue; }
+      for (i = 0; i < size / 4; i++) ((uint32_t *)p)[i] = pattern;
+      chunks[n++] = p;
+   }
+   while (n) _mem2_free(chunks[--n]);
+   for (size = 16u << 20; size >= 4096 && n < 256; ) {
+      void *p = malloc(size);
+      if (!p) { size >>= 1; continue; }
+      for (i = 0; i < size / 4; i++) ((uint32_t *)p)[i] = pattern;
+      chunks[n++] = p;
+   }
+   while (n) free(chunks[--n]);
+}
+#endif
+
 void _mem2_free(void *ptr)
 {
    if (ptr) {

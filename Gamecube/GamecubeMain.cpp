@@ -868,6 +868,9 @@ int main(int argc, char *argv[])
 	#endif
 
 	gx_init_mem2();
+#ifdef POISON_HEAP
+	heap_poison(0xA5C3E1F7);   /* a debug test: no read of memory WiiStation never wrote (mem2_manager.c) */
+#endif
 
 	control_info_init(); //Perform controller auto assignment at least once at startup.
 
@@ -891,7 +894,6 @@ int main(int argc, char *argv[])
 	/* The Homebrew Channel's agent (hbc_home.c): after lab mode, which starts the network
 	 * itself, and before the SMB thread, which waits for the agent's start-up. */
 	hbc_home_start();
-	ws_watchdog_start();   /* reports a hang; ws_crash.c */
 
 	/* Test automation: a bare .dol booted by Dolphin gets no loader argv, so
 	 * sd:/wiisxrx/autoboot.txt -- two lines, the ISO's directory and its

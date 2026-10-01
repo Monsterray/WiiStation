@@ -64,5 +64,5 @@ void SetupSound(void)
 	}
 
 	//printf("the impossible happened\n");
-	ws_fatal(WS_CRASH_NO_AUDIO);   /* was abort(), with no report */
+	ws_fatal(WS_CRASH_NO_AUDIO, "no sound output driver opened");   /* was abort() */
 }

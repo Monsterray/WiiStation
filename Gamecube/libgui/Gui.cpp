@@ -83,7 +83,7 @@ void Gui::draw()
 //	printf("Gui draw\n");
 	unsigned long long menu_t0 = perf_now_us();
 	PERF_INC(menu_frames);
-	ws_progress++;   /* progress, for the hang watchdog (ws_crash.c) */
+	ws_alive();   /* progress, for the agent's hang watchdog */
 	Input::getInstance().refreshInput();
 	Cursor::getInstance().updateCursor();
 	Focus::getInstance().updateFocus();

@@ -60,11 +60,8 @@ int hbc_home_menu_frame(void)
 	for (chan = 0; chan < WPAD_MAX_WIIMOTES; chan++)
 		if (WPAD_ButtonsDown(chan) & (WPAD_BUTTON_HOME | WPAD_CLASSIC_BUTTON_HOME))
 			break;
-	if (chan < WPAD_MAX_WIIMOTES || hbc_agent_home_pending()) {
-		ws_watchdog_hold++;   /* the HOME menu can stay open for minutes */
-		hbc_agent_home(vmode);
-		ws_watchdog_hold--;
-	}
+	if (chan < WPAD_MAX_WIIMOTES || hbc_agent_home_pending())
+		hbc_agent_home(vmode);   /* the agent pauses its hang watchdog while this is open */
 	return 0;
 }
 

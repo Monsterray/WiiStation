@@ -15,6 +15,7 @@ extern uint32_t gx_mem2_ios_hi;   /* MEM2 top IOS/the loader gave us (perf.log m
 void *_mem2_memalign(uint8_t align, uint32_t size);
 
 void *_mem2_malloc(uint32_t size);
+void heap_poison(uint32_t pattern);   /* -DPOISON_HEAP builds only */
 
 void _mem2_free(void *ptr);
 

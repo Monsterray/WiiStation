@@ -27,6 +27,7 @@
 #include "Gamecube/wiiSXconfig.h"
 #include "psxcommon.h"
 #include "Gamecube/perf_prof.h"
+#include "Gamecube/ws_crash.h"
 
 /* Scripted save states (Gamecube/statetool.cpp): stops the CPU when one is due. */
 void statetool_vblank(void);
@@ -438,6 +439,7 @@ void psxRcntUpdate()
             rcnts[3].cycleStart += frameCycles();
             hSyncCount = 0;
             frame_counter++;
+            ws_alive();   /* progress, for the HBC agent's hang watchdog (Gamecube/ws_crash.h) */
             statetool_vblank();
             perf_pc_sample(psxRegs.pc);
             /* A chained autoboot's game is over: back to GamecubeMain.cpp for the next. */

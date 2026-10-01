@@ -215,19 +215,20 @@ Rules and fixes learned on the bench (2026-09-29/30):
   until someone presses RESET, so ask the user to be at the Wii first. One game per job
   tells which game crashed; if every game alone is clean, run them in one boot.
 - **"No crash reported" but the Wii went back to HBC** (2026-10-01): the death was not one the
-  agent hooks. Three causes, all reported since then by `Gamecube/ws_crash.c`:
-  - an exception with MSR[RI] clear: libogc's vector code jumps straight to
-    `default_exceptionhandler`, past the agent's table hook. The build wraps
-    `c_default_exceptionhandler` (`-Wl,--wrap` in Makefile_Wii*), so every crash screen
-    writes HBC's crash block first;
-  - a hang: a top-priority watchdog thread sees no PS1 vblank and no `ws_progress` (menu
-    frames, lab transfer chunks) for 60 s, writes the block with code 0x81 and calls
-    libogc's `__reload()`. `ws_watchdog_hold` covers the HBC HOME menu. Test it with the input
-    line `hangtest <vblank>` (`scripts/chains/hangtest.txt`);
-  - Lightrec's guest segfault (was `exit(1)`, now code 0x82) and no sound driver (was
-    `abort()`, now 0x83).
-  For the WiiStation codes, `dar` is the guest PC and `dsisr` the vblank. Resolve pc, lr and
-  frames with `hbc.py crash --elf` and the ELF of the DOL that ran.
+  agent hooked. Since agent 1.9 (deps/hbc_agent = hbc-reborn 52eeebd, HBC 1.9.1):
+  - a hang: `ws_alive()` (= `hbc_agent_alive()`) per PS1 vblank, menu frame and lab chunk;
+    the agent's watchdog reports `HBC_CRASH_HANG` after 60 s and pauses during its HOME
+    overlay. Test with the input line `hangtest <vblank>` (`scripts/chains/hangtest.txt`);
+  - Lightrec's guest segfault (code 0x82) and no sound driver (0x83): `ws_fatal(code,
+    reason)` sends the lab results, then `hbc_agent_fatal()`;
+  - an exception with MSR[RI] clear still goes past the agent: libogc's vector code jumps
+    straight to `default_exceptionhandler`. WiiStation wraps `c_default_exceptionhandler`
+    (`-Wl,--wrap` in Makefile_Wii*) and writes the block itself (reason "past the agent's
+    hook");
+  - the agent keeps the app's last 4 KiB of output: `hbc.py lastlog`; wii_crash_job.py saves
+    it to `.runs/NAME/lastlog.txt` when the run failed. The kept log and the version-2
+    block need HBC 1.9 on the Wii.
+  `wii_crash_job.py` passes `--elf` when the DOL copy has its ELF beside it.
 - `wii_lab.py` keeps the files that arrived when the Wii stops sending mid-upload, and writes
   `incomplete:` in run.info (exit 1).
 - A job's output is buffered until wii_lab.py exits: an empty `running/<id>.log` does not

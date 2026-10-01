@@ -17,11 +17,19 @@ hbc = [py, "C:/projects/hbc-reborn/tools/hbc.py", "--wii", os.environ.get("WII_B
 r = subprocess.run(hbc + ["crash", "--clear"])
 print("crash --clear exit", r.returncode, flush=True)
 r = subprocess.run([py, "scripts/wii_lab.py", name, chain, "--dol", dol, "--timeout", secs])
-print("wii_lab exit", r.returncode, flush=True)
+lab = r.returncode
+print("wii_lab exit", lab, flush=True)
+elf = os.path.splitext(dol)[0] + ".elf"   # beside the DOL copy: source lines for the report
 for _ in range(120):
-    r = subprocess.run(hbc + ["crash"], capture_output=True, text=True)
+    r = subprocess.run(hbc + ["crash"] + (["--elf", elf] if os.path.isfile(elf) else []),
+                       capture_output=True, text=True)
     if r.returncode == 0:
         print(r.stdout, flush=True)
+        if lab:   # the app's last output, kept by the agent (HBC 1.9+): why it stopped
+            k = subprocess.run(hbc + ["lastlog"], capture_output=True, text=True)
+            os.makedirs(os.path.join(".runs", name), exist_ok=True)
+            open(os.path.join(".runs", name, "lastlog.txt"), "w").write(k.stdout + k.stderr)
+            print("lastlog (end):", *k.stdout.splitlines()[-15:], sep="\n", flush=True)
         sys.exit(0)
     time.sleep(5)
 print("HBC did not answer in 10 min:", r.stdout, r.stderr)
