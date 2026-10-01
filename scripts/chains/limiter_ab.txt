@@ -1,0 +1,14 @@
+CHAIN
+# The frame limiter spinning (0) against sleeping on a timer alarm (1), same game, same boot.
+1800 sd:/wiisxrx/spyro_title.txt LimiterWait=0
+sd:/wiisxrx/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue
+1800 sd:/wiisxrx/spyro_title.txt LimiterWait=1
+sd:/wiisxrx/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue
+1800 LimiterWait=0
+sd:/wiisxrx/isos/Final Fantasy VII/Final Fantasy VII 1
+Final Fantasy VII [U] [Disc 1] [SLUS-94163].cue
+1800 LimiterWait=1
+sd:/wiisxrx/isos/Final Fantasy VII/Final Fantasy VII 1
+Final Fantasy VII [U] [Disc 1] [SLUS-94163].cue

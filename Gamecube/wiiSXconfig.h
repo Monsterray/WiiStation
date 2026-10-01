@@ -143,6 +143,12 @@ enum cpuTiming
 	CPU_TIMING_FAST=0,      /* as before: every instruction costs the same */
 	CPU_TIMING_ACCURATE     /* plus the cycles a PS1 waits for its GTE and its mult/div unit */
 };
+extern char limiterWait;         /* how the frame limiter waits (SoftGPU/oldGpuFps.c FrameCap) */
+enum limiterWait
+{
+	LIMITER_WAIT_SPIN=0,     /* busy-wait the whole time: exact, but no other thread runs */
+	LIMITER_WAIT_SLEEP       /* sleep on a timer alarm until 1 ms before the frame is due, then spin */
+};
 extern char gpuTiming;           /* how long the core keeps the GPU busy (psxdma.c, GL_GPUdmaChain) */
 enum gpuTiming
 {

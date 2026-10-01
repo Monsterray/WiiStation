@@ -134,7 +134,11 @@ extern int newDwFrameRateTicks;
  * The debt is bounded: the sound drivers keep about 125 ms in hand and paying back more
  * than that would only overfill them, and a long load stall should not turn into seconds
  * of fast-forward. A stall beyond the bound is dropped as before, minus the bound. */
-#define FRAMECAP_MAX_DEBT_TICKS 1250    /* 100 us ticks: 125 ms (BUSY_TARGET_SAMPLES, CUBE_BUSY_BUFFERS) */
+/* NB: the tick is 10 us (timeGetTime() = microseconds / 10, TIMEBASE 100000), not 100 us as
+ * written above and below: this bound is 12.5 ms, not the 125 ms the reasoning above wants,
+ * so every stall over 12.5 ms is dropped (perf.log limit: debt_drops). Left as it is until an
+ * A/B decides (2026-09-30); the stutter work measures it. */
+#define FRAMECAP_MAX_DEBT_TICKS 1250    /* 10 us ticks: 12.5 ms */
 
 /* The period is the one the core emulates (psxcounters.c: 60 or 50 Hz, or the per-game
  * fractional rate), kept in 1/256 tick so it does not truncate. Until 2026-09-20 the auto
@@ -154,6 +158,8 @@ static unsigned long framecap_period256(void)
  if (hz < 1.0) hz = 60.0;
  return (unsigned long)(TIMEBASE * 256.0 / hz + 0.5);
 }
+
+void framecap_sleep(long wait_ticks);   /* Gamecube/framecap_wait.c: LimiterWait=1 */
 
 void FrameCap (void)
 {
@@ -195,6 +201,8 @@ void FrameCap (void)
       * inside a CPU slice -- timed so the profile can tell "capped" from
       * "CPU-bound", which otherwise look identical. */
      unsigned long long limit_t0 = perf_now_ticks();
+     if (limiterWait == LIMITER_WAIT_SLEEP)
+       framecap_sleep(-late);
      /* A spin, not a sleep: usleep() for all but the last millisecond ran FF7 at 0.54x on the
       * bench Wii (2026-09-29, each wait about 56 ms instead of a few), so threads below this
       * one -- the Homebrew Channel's agent among them -- get no time while a game runs. */
