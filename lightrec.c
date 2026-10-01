@@ -333,8 +333,28 @@ static u32 cache_ctrl_read_word(struct lightrec_state *state,
 	return cache_ctrl;
 }
 
+/* 8/16-bit accesses: as the interpreter (psxmem.c), reads give all ones and writes do
+ * nothing. Without them a narrow access called address 0 (ps1-tests cpu/access-time). */
+static u8 cache_ctrl_read_byte(struct lightrec_state *state, u32 op, void *host, u32 mem)
+{
+	return 0xff;
+}
+
+static u16 cache_ctrl_read_half(struct lightrec_state *state, u32 op, void *host, u32 mem)
+{
+	return 0xffff;
+}
+
+static void cache_ctrl_write_narrow(struct lightrec_state *state, u32 op, void *host, u32 mem, u32 val)
+{
+}
+
 static struct lightrec_mem_map_ops cache_ctrl_ops = {
+	.sb = cache_ctrl_write_narrow,
+	.sh = cache_ctrl_write_narrow,
 	.sw = cache_ctrl_write_word,
+	.lb = cache_ctrl_read_byte,
+	.lh = cache_ctrl_read_half,
 	.lw = cache_ctrl_read_word,
 };
 
