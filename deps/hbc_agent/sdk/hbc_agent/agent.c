@@ -23,14 +23,13 @@
 #include <ogc/lwp_watchdog.h>
 #include <ogc/machine/processor.h>
 #include <network.h>
-#ifdef HBC_AGENT_LIBOGC2
-/* WiiStation (libogc2): exceptions go through a handler per exception number, and
- * c_default_exceptionhandler() is libogc2's crash screen and reload. */
-#include <ogc/context.h>
-extern void __exception_sethandler(u32 nExcept, void (*pHndl)(frame_context *));
-extern void c_default_exceptionhandler(frame_context *pCtx);
-#else
+
+#include "ogc_flavor.h"
+#if AGENT_TUXEDO
 #include <tuxedo/ppc/exception.h>
+#else
+#include <stddef.h>
+#include <ogc/context.h>
 #endif
 
 #include "../../channel/channelapp/config.h"
@@ -66,7 +65,7 @@ static lwp_t thread = LWP_THREAD_NULL;
 static u8 *stack;
 static u64 start_ticks;
 static volatile bool exit_requested;
-#ifndef HBC_AGENT_LIBOGC2
+#if AGENT_TUXEDO
 static PPCExcptPanicFn prev_panic;
 #endif
 
@@ -203,11 +202,13 @@ bool hbc_agent_home_pending(void) {
 	u32 level;
 	bool home = false;
 
+	// The overlay is closed, so only HOME means anything: drop whatever
+	// comes before it, or a stray key would block every HOME behind it.
 	_CPU_ISR_Disable(level);
-	if (key_count && keys[key_head] == 'h') {
+	while (key_count && !home) {
+		home = keys[key_head] == 'h';
 		key_head = (key_head + 1) % KEYS;
 		key_count--;
-		home = true;
 	}
 	_CPU_ISR_Restore(level);
 	return home;
@@ -218,7 +219,7 @@ static void push_keys(const u8 *k, u32 n) {
 
 	_CPU_ISR_Disable(level);
 	for (i = 0; i < n && key_count < KEYS; ++i)
-		if (strchr("udlrabh12", k[i])) {
+		if (strchr("udlrabh12w", k[i])) {
 			keys[(key_head + key_count) % KEYS] = k[i];
 			key_count++;
 		}
@@ -315,10 +316,15 @@ static void json_safe(char *dst, const char *src, size_t size) {
 	dst[i] = 0;
 }
 
+// The stack was zeroed before the thread started; the lowest byte still zero
+// marks how deep it has reached. libogc2 and libogc 1.x write 0xDEADBABE into
+// the lowest word when the thread starts, so the scan starts above it.
 static u32 stack_used(void) {
-	u32 i;
+	u32 i = 0;
 
-	for (i = 0; i < AGENT_STACK && !stack[i]; ++i)
+	if (*(u32 *) stack == 0xdeadbabe)
+		i = 4;
+	for (; i < AGENT_STACK && !stack[i]; ++i)
 		;
 	return AGENT_STACK - i;
 }
@@ -573,7 +579,8 @@ static bool ram_word(u32 a) {
 						(a >= 0x90000000 && a < 0x94000000));
 }
 
-static void agent_record(unsigned exid, u32 pc, u32 msr, u32 lr, u32 cr, u32 ctr, u32 sp) {
+// Runs inside the exception, with floating point off: integer code only.
+static void agent_record(u32 exid, u32 pc, u32 msr, u32 lr, u32 cr, u32 ctr, u32 sp) {
 	hbc_crash_block *b = (hbc_crash_block *) HBC_CRASH_ADDR;
 	u32 dar = mfspr(19), dsisr = mfspr(18);
 	u32 i;
@@ -604,16 +611,61 @@ static void agent_record(unsigned exid, u32 pc, u32 msr, u32 lr, u32 cr, u32 ctr
 	DCFlushRange(b, sizeof(*b));
 }
 
-#ifdef HBC_AGENT_LIBOGC2
-static void agent_exc(frame_context *ctx) {
-	agent_record(ctx->EXCPT_Number, ctx->SRR0, ctx->SRR1, ctx->LR, ctx->CR, ctx->CTR, ctx->GPR[1]);
-	c_default_exceptionhandler(ctx);
-}
-#else
+#if AGENT_TUXEDO
 static void agent_panic(unsigned exid, PPCContext *ctx) {
 	agent_record(exid, ctx->pc, ctx->msr, ctx->lr, ctx->cr, ctx->ctr, ctx->gpr[1]);
 	if (prev_panic)
 		prev_panic(exid, ctx);
+}
+
+static void install_crash_hook(void) {
+	prev_panic = PPCExcptCurPanicFn;
+	PPCExcptCurPanicFn = agent_panic;
+}
+#else
+// libogc2 and libogc 1.x: _exceptionhandlertable[] holds assembly entry
+// points, not C functions (ogc_exc.S says what they receive). The agent's
+// entry, agent_exc_entry, builds libogc's frame and calls agent_exc(), which
+// records the crash and then shows libogc's own crash screen.
+_Static_assert(offsetof(frame_context, SRR0) == AGENT_EXC_SRR0 - AGENT_EXC_NUMBER &&
+			   offsetof(frame_context, GPR[1]) == AGENT_EXC_GPR(1) - AGENT_EXC_NUMBER &&
+			   offsetof(frame_context, GQR[0]) == AGENT_EXC_GQR(0) - AGENT_EXC_NUMBER &&
+			   offsetof(frame_context, CR) == AGENT_EXC_CR - AGENT_EXC_NUMBER &&
+			   offsetof(frame_context, XER) == AGENT_EXC_XER - AGENT_EXC_NUMBER,
+			   "ogc_exc.S's frame offsets must match this libogc's frame_context");
+
+typedef void (*agent_exc_fn)(frame_context *);
+extern agent_exc_fn _exceptionhandlertable[NUM_EXCEPTIONS];
+extern void default_exceptionhandler(frame_context *);
+extern void c_default_exceptionhandler(frame_context *);
+extern void agent_exc_entry(frame_context *);
+void agent_exc(frame_context *ctx);
+
+// libogc's exception index to the vector number tuxedo's PPC_EXCPT_* use
+// (vector / 0x100), which is what the crash block and hbc.py report.
+static const u8 exc_vector[NUM_EXCEPTIONS] = {
+	1, 2, 3, 4, 5, 6, 7, 8, 9, 0x0c, 0x0d, 0x0f, 0x13, 0x14, 0x17
+};
+
+void agent_exc(frame_context *ctx) {
+	u32 n = ctx->EXCPT_Number;
+
+	agent_record(n < NUM_EXCEPTIONS ? exc_vector[n] : n, ctx->SRR0, ctx->SRR1, ctx->LR,
+				 ctx->CR, ctx->CTR, ctx->GPR[1]);
+	c_default_exceptionhandler(ctx);
+}
+
+// Take over only the exceptions that would reach libogc's crash screen; the
+// FPU, interrupt and decrementer handlers, and any a debugger (libdb) or the
+// app put in, stay.
+static void install_crash_hook(void) {
+	u32 level, i;
+
+	_CPU_ISR_Disable(level);
+	for (i = 0; i < NUM_EXCEPTIONS; ++i)
+		if (_exceptionhandlertable[i] == default_exceptionhandler)
+			_exceptionhandlertable[i] = agent_exc_entry;
+	_CPU_ISR_Restore(level);
 }
 #endif
 
@@ -641,21 +693,7 @@ s32 hbc_agent_init(const hbc_agent_config *config) {
 	if (!cfg.no_crash_handler) {
 		if (cfg.crash_reload_s > 0)
 			__exception_setreload(cfg.crash_reload_s);
-#ifdef HBC_AGENT_LIBOGC2
-		/* Not installed. libogc2's exception table holds assembly entry points, not C
-		 * functions (exception_handler.S: the vector code rfi's into them, and
-		 * default_exceptionhandler builds its stack frame before it calls the C crash
-		 * screen). agent_exc() put there as a C function faulted inside the exception on
-		 * the first real crash: the bench Wii froze hard, no button worked (2026-09-30).
-		 * A crash therefore shows libogc2's own screen and reloads HBC after
-		 * crash_reload_s, and `hbc.py crash` has nothing to report, until an assembly
-		 * entry like default_exceptionhandler calls agent_exc(); test that in Dolphin with
-		 * a forced crash before any Wii sees it. */
-		(void)agent_exc;
-#else
-		prev_panic = PPCExcptCurPanicFn;
-		PPCExcptCurPanicFn = agent_panic;
-#endif
+		install_crash_hook();
 	}
 
 	// Keep the app's output for the Log page, still passing it on.

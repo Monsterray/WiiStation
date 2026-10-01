@@ -31,6 +31,11 @@ void hbc_home_start(void)
 	cfg.app_polls_exit = true;               /* hbc_home_retrace / hbc_home_menu_frame */
 	cfg.crash_reload_s = lab_active() ? 10 : 0;   /* 0: the agent's 3 s */
 	cfg.gc_pads = true;                       /* the menu called PAD_Init() */
+	/* Lab mode: no listener. With one, WiiStation answers TCP 4299 as HBC's menu does, so
+	 * another workstation's bench queue took the Wii for idle and its `hbc.py run` made the
+	 * agent exit a chain in the middle (2026-09-30, twice, no results). The crash handler
+	 * stays; HBC shows its report after the reload. */
+	cfg.no_network = lab_active();
 	agent_up = hbc_agent_init(&cfg) == 0;
 }
 
