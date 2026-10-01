@@ -24,7 +24,10 @@
 #define OPT_FLAG_MULT_DIV 1
 #define OPT_EARLY_UNLOAD 1
 #define OPT_PRELOAD_PC 1
-#define OPT_DETECT_IDLE 1
+/* WiiStation: off. An idle loop's skip ends the wait at the event's exact cycle; a PS1
+ * leaves the loop up to one iteration later (ps1-tests timers: the frame delays lost
+ * their jitter). It never fired in the 8 test games and gave no speed (2026-10-01). */
+#define OPT_DETECT_IDLE 0
 
 #define OPT_SH4_USE_GBR 0
 
