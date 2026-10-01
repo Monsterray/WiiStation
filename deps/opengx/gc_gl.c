@@ -2021,8 +2021,28 @@ static void _ogx_scramble_rgb24(const unsigned char *src, int pitch, unsigned ch
 {
     unsigned int by, bx, y, x;
 
+    /* Each 64-byte tile is two whole cache lines, all of it written: dcbz claims them without
+     * the read from memory a store miss makes (72% of this function on the bench Wii, hprof
+     * 2026-10-01). A tile inside the frame skips the edge tests. The bytes are the same. */
     for (by = 0; by < height; by += 4)
-        for (bx = 0; bx < width; bx += 4, dst += 64)
+        for (bx = 0; bx < width; bx += 4, dst += 64) {
+#ifdef __powerpc__
+            if (!((unsigned long)dst & 31)) {
+                __asm__ volatile ("dcbz 0,%0" : : "r" (dst) : "memory");
+                __asm__ volatile ("dcbz 0,%0" : : "r" (dst + 32) : "memory");
+            }
+#endif
+            if (by + 4 <= height && bx + 4 <= width) {
+                for (y = 0; y < 4; y++) {
+                    const unsigned char *s = src + (by + y) * pitch + bx * 3;
+                    unsigned short *p = (unsigned short *)(dst + y * 8);
+                    for (x = 0; x < 4; x++, s += 3) {
+                        p[x] = 0xff00 | s[2];              /* AR */
+                        p[16 + x] = (s[1] << 8) | s[0];    /* GB, 32 bytes on */
+                    }
+                }
+                continue;
+            }
             for (y = 0; y < 4; y++)
                 for (x = 0; x < 4; x++) {
                     unsigned short *p = (unsigned short *)(dst + (y * 4 + x) * 2);
@@ -2035,6 +2055,7 @@ static void _ogx_scramble_rgb24(const unsigned char *src, int pitch, unsigned ch
                         p[16] = 0;
                     }
                 }
+        }
 }
 
 // The position happens to be the integer position of the Block

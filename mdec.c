@@ -330,17 +330,22 @@ static const unsigned short *rl2blk(int *blk, const unsigned short *mdec_rl) {
 #define	SCALE8(c)				SCALER(c, 20) 
 #define SCALE5(c)				SCALER(c, 23)
 
+/* Branchless, the same results for every int (checked over [-2^28, 2^28)): Broadway has no
+ * isel, so the ternaries were two branches per channel, which an FMV's colours make
+ * unpredictable. yuv2rgb24 was 11-15% of an FMV's busy time on the bench Wii (hprof). */
 static inline int clamp5(int v)
 {
 	v += 16;
-	v = v < 0 ? 0 : (v > 31 ? 31 : v);
-	return v;
+	v &= ~(v >> 31);           /* below 0: 0 */
+	v |= (31 - v) >> 31;       /* above 31: all ones */
+	return v & 31;
 }
 static inline int clamp8(int v)
 {
 	v += 128;
-	v = v < 0 ? 0 : (v > 255 ? 255 : v);
-	return v;
+	v &= ~(v >> 31);
+	v |= (255 - v) >> 31;
+	return v & 255;
 }
 
 #define CLAMP_SCALE8(a)   (clamp8(SCALE8(a)))
