@@ -41,3 +41,15 @@ cost from `GL_GPUdmaChain` (gpulib's `gpu_timing.h`) alone changed nothing visib
 per plugin, diffed; then `wsx.sh build debug all` and `trace <vblank>` in the input script.
 An episode is 16 presents: the run must go on long enough to finish it, or the report
 prints the previous episode (its `vblank` then looks wrong).
+
+## Old PPC dynarec (Core = 2): jumps to address 0 at the start of a game -- PARKED 2026-09-30
+
+**Symptom.** A chain with `Core=2` on Crash 3 never reaches its first chain end; Dolphin logs
+`ISI exception at 0x00000000` (a branch to 0). Found while moving the dynarec's 10 MB into the
+MEM2 heap (598aaa3), and **not caused by it**: the build before that change (the same tree
+with the fixed RECMEM2 region) fails the same way. Lightrec (the default) and the interpreter
+are not affected.
+
+**Where to start.** `wsx.sh chain NAME FILE` with a `Core=2` chain line and `--dol` a debug
+build; the old core's recError path and 3778ed3's opcode propagation changes in
+ppc/pR3000A.c are the recent edits there. Bisect by transplant (ppc/ only) if needed.
