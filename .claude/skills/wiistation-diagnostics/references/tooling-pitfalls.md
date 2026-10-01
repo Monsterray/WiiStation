@@ -205,3 +205,7 @@ server live in `C:\ai\README.md`.
   Git Bash carries the stale `DEVKITPRO=/opt/devkitpro`; build.sh then stops at opengx.a with
   "Please set DEVKITPPC" (2026-10-01). wsx.sh goes through the devkitPro shell. Do not chain
   `wiistation_play.sh` after a build with `| tail &&`: tail succeeds, and the old DOL starts.
+- **`.claude/` is gitignored, but the skill files in it are tracked.** `git add a b .claude/...`
+  stops with "paths are ignored" yet stages `a` and `b`, so the next commit takes them under
+  the wrong message (2be5ad4, 2026-10-01). Add skill files with `git add -f`, and read
+  `git diff --cached --stat` before each commit.
