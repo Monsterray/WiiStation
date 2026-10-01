@@ -1,4 +1,4 @@
-"""replay_check.py CAPTURE_PERF REPLAY_PERF [--game N]
+"""replay_check.py CAPTURE_PERF REPLAY_PERF [--game N] [--all]
 
 Does a replay of a recording (scripts/movie_capture.sh) follow the session it was recorded
 from? Lines up the two perf.logs' reports by emulated vblank and compares only what the GAME
@@ -10,14 +10,16 @@ did -- interrupts, CD reads, pad and SIO traffic, BIOS calls, GTE calls -- never
 
 Reports come every 1800 presented frames, and presenting depends on the host, so two runs
 report at different vblanks: only reports at the SAME vblank are compared. The first one that
-differs bounds where the replay left the session.
+differs bounds where the replay left the session. --all goes on past it, so a small
+difference that stays small (a timing shift) shows apart from one that grows (a different game).
 """
 import re, sys
 
 # guest-side fields: name -> regex on the report's lines
 FIELDS = {
     'irq': r'^irq:(.*)',
-    'cd': r'^cd: reads=(\d+) bytes=(\d+) seq=(\d+) rand=(\d+)',
+    # seq= and rand= say how the HOST read the image (the read-ahead thread changes them)
+    'cd': r'^cd: reads=(\d+) bytes=(\d+)',
     'sio': r'^sio: (.*)',
     'pad': r'^padproto: (\S+ \S+)',
     'bios': r'^bios: calls=(\d+) custom=\d+ us=\d+ exc=(\d+)',
@@ -62,7 +64,9 @@ def main():
             print(f"vblank {v}: DIFFERENT in {', '.join(diff)}")
             for k in diff:
                 print(f"   capture {k}: {cap[v].get(k)}\n   replay  {k}: {rep[v].get(k)}")
-            return 1
+            if '--all' not in a:
+                return 1
+            continue
         print(f"vblank {v}: identical")
     print(f"the replay follows the session through vblank {common[-1]} ({len(common)} common reports)")
     return 0
