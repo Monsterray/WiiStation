@@ -10,6 +10,8 @@
 #include <string.h>
 #include <gccore.h>
 #include <ogc/lwp_watchdog.h>
+#include <ogc/lwp_objmgr.h>   /* the threads: line (_lwp_thr_objects) */
+#include <ogc/lwp_threads.h>
 
 #include "perf_prof.h"
 #include "lc.h"
@@ -522,10 +524,11 @@ void perf_pad_event(unsigned pad, unsigned type, unsigned drv_btns, unsigned drv
  * scripts/vtl_view.py reads it. */
 #define VTL_MAX 65536
 #define VTL_SHIFT 9
-typedef struct { unsigned short wall, cpu, gpu, limit, spu, pres; } vtl_t;
+typedef struct { unsigned short wall, cpu, gpu, limit, spu, pres, jit; } vtl_t;   /* jit: Lightrec compiling */
 static vtl_t *vtl;
 static unsigned vtl_n;
-static uint64_t vtl_t0, vtl_cpu0, vtl_gpu0, vtl_lim0, vtl_spu0;
+static uint64_t vtl_t0, vtl_cpu0, vtl_gpu0, vtl_lim0, vtl_spu0, vtl_jit0;
+extern unsigned long long lightrec_jit_ticks;   /* deps/lightrec/lightrec.c */
 static uint32_t vtl_pres0;
 
 static inline unsigned short vtl_u16(uint64_t ticks)
@@ -550,11 +553,13 @@ static void vtl_tick(void)
 		v->limit = vtl_u16(g_perf.limit_ticks - vtl_lim0);
 		v->spu = vtl_u16(g_perf.spu_ticks - vtl_spu0);
 		v->pres = (unsigned short)(g_perf.present_frames - vtl_pres0);
+		v->jit = vtl_u16(lightrec_jit_ticks - vtl_jit0);
 	}
 	vtl_t0 = now;
 	vtl_cpu0 = g_perf.cpu_ticks; vtl_gpu0 = g_perf.hw_gpu_ticks;
 	vtl_lim0 = g_perf.limit_ticks; vtl_spu0 = g_perf.spu_ticks;
 	vtl_pres0 = g_perf.present_frames;
+	vtl_jit0 = lightrec_jit_ticks;
 }
 
 /* A chained game's end (GamecubeMain.cpp chainNext): its timeline to vtl_NN.bin, then a fresh
@@ -563,7 +568,7 @@ void perf_vtl_flush(int game)
 {
 	char path[40];
 	FILE *f;
-	unsigned hdr[3] = { 0x56544c31, VTL_SHIFT, vtl_n };
+	unsigned hdr[3] = { 0x56544c32, VTL_SHIFT, vtl_n };   /* "VTL2": 7 fields */
 	if (!vtl)
 		return;
 	snprintf(path, sizeof path, "sd:/wiisxrx/vtl_%02d.bin", game);
@@ -679,6 +684,31 @@ void perf_report(void)
 			(unsigned long)g_perf.jit_resets_partial,
 			(unsigned long)g_perf.jit_interp_fallbacks,
 			(unsigned long)g_perf.jit_hle, (unsigned long)g_perf.jit_exceptions);
+		/* The live LWP threads (libogc2 allows LWP_MAX_THREADS, 16): their count and, for
+		 * each, its entry function, priority and state -- a count that grows from one chained
+		 * game to the next is a leak (the CD read-ahead failed to start late in a 16-game
+		 * chain, 2026-09-30); powerpc-eabi-addr2line -f -e the ELF names the entries. */
+		{
+			extern lwp_objinfo _lwp_thr_objects;
+			unsigned i, live = 0;
+			char tl[16 * 24] = "";
+			for (i = 0; i < _lwp_thr_objects.max_nodes; i++) {
+				lwp_cntrl *t = (lwp_cntrl *)_lwp_thr_objects.local_table[i];
+				if (!t)
+					continue;
+				live++;
+				snprintf(tl + strlen(tl), sizeof tl - strlen(tl), " %08x@%u/%x",
+					(unsigned)t->entry, (unsigned)t->cur_prio, (unsigned)t->cur_state);
+			}
+			fprintf(f, "threads: live=%u of %u free=%u |%s\n", live, (unsigned)_lwp_thr_objects.max_nodes,
+				(unsigned)_lwp_thr_objects.inactives_cnt, tl);
+		}
+		/* LimiterWait=1 (SoftGPU/oldGpuFps.c): how the sleeping wait behaved */
+		fprintf(f, "limitwait: sleeps=%lu sleep_us=%llu over_max_us=%llu overs=%lu\n",
+			(unsigned long)g_perf.limit_sleeps,
+			(unsigned long long)ticks_to_microsecs(g_perf.limit_sleep_ticks),
+			(unsigned long long)ticks_to_microsecs(g_perf.limit_over_max),
+			(unsigned long)g_perf.limit_overs);
 		fprintf(f, "wall: wall_us=%llu vblanks=%lu pal=%lu nested=%lu\n",
 			(unsigned long long)ticks_to_microsecs(gettime() - g_perf.wall_start_ticks),
 			(unsigned long)g_perf.vblanks,

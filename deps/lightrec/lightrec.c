@@ -4,6 +4,16 @@
  */
 
 #include "arch.h"
+/* WiiStation: the time spent compiling, for the debug build's per-vblank timeline
+ * (Gamecube/perf_prof.c vtl): a game that loads new code (a level's overlay) recompiles it
+ * all on first use, which on the Wii is a visible stall. Timebase ticks, block count. */
+unsigned long long lightrec_jit_ticks;
+unsigned int lightrec_jit_blocks;
+#ifdef __powerpc__
+#define JIT_TB() __builtin_ppc_get_timebase()
+#else
+#define JIT_TB() 0ULL
+#endif
 #include "blockcache.h"
 #include "debug.h"
 #include "disassembler.h"
@@ -712,7 +722,9 @@ static struct block * lightrec_get_block(struct lightrec_state *state, u32 pc)
 	}
 
 	if (!block) {
+		unsigned long long jt0 = JIT_TB();
 		block = lightrec_precompile_block(state, pc);
+		lightrec_jit_ticks += JIT_TB() - jt0;
 		if (!block) {
 			pr_err("Unable to recompile block at "PC_FMT"\n", pc);
 			lightrec_set_exit_flags(state, LIGHTREC_EXIT_SEGFAULT);
@@ -758,7 +770,10 @@ static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 			if (ENABLE_THREADED_COMPILER) {
 				lightrec_recompiler_add(state->rec, block);
 			} else {
+				unsigned long long jt0 = JIT_TB();
 				err = lightrec_compile_block(state->cstate, block);
+				lightrec_jit_ticks += JIT_TB() - jt0;
+				lightrec_jit_blocks++;
 				if (err) {
 					state->exit_flags = LIGHTREC_EXIT_NOMEM;
 					return NULL;
@@ -785,7 +800,12 @@ static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 				pc = lightrec_emulate_block(state, block, pc);
 
 			/* Then compile it using the profiled data */
-			err = lightrec_compile_block(state->cstate, block);
+			{
+				unsigned long long jt0 = JIT_TB();
+				err = lightrec_compile_block(state->cstate, block);
+				lightrec_jit_ticks += JIT_TB() - jt0;
+				lightrec_jit_blocks++;
+			}
 			if (err) {
 				state->exit_flags = LIGHTREC_EXIT_NOMEM;
 				return NULL;

@@ -184,7 +184,7 @@ rm -rf "$PROFILE/Dump/Frames" "$PROFILE/Dump/Audio"
 [ -f "$PROFILE/Logs/dolphin.log" ] && mv "$PROFILE/Logs/dolphin.log" "$PROFILE/Logs/dolphin.log.prev"
 # the logs a run leaves: an earlier run's must not pass for this one's (a run cut off before
 # its trace fired read the previous run's ptrace.log)
-rm -f "$S/perf.log" "$S/tty.log" "$S/ptrace.log" "$S/vramio.log" "$S/atrace.log" "$S/lab.log" "$S/pcring.log" "$S/xfb.bin" "$S/"vram_*.bin
+rm -f "$S/perf.log" "$S/tty.log" "$S/ptrace.log" "$S/vramio.log" "$S/atrace.log" "$S/lab.log" "$S/pcring.log" "$S/xfb.bin" "$S/"vram_*.bin "$S/"vtl_*.bin
 cp "${AIN:-$P/autoinput.txt}" "$S/autoinput.txt"; cp "${SET:-$P/settingsRX2022.cfg}" "$S/settingsRX2022.cfg"
 # autoboot: without it WiiStation sits in its menu
 [ -n "$ABOOT" ] || echo "note: no autoboot file given -- the run will stay in the menu"
@@ -241,6 +241,11 @@ python "$SP/sdimage_read.py" "$CARD" wiisxrx/ptrace.log "$OUT/ptrace.log" >/dev/
 python "$SP/sdimage_read.py" "$CARD" wiisxrx/vramio.log "$OUT/vramio.log" >/dev/null 2>&1 && [ -s "$OUT/vramio.log" ] && echo "vramio: $(sed -n 2p "$OUT/vramio.log" | sed 's/^# //'), $(grep -vc '^#' "$OUT/vramio.log") lines"
 # the run's console text (SysPrintf: a PS1 program's printf under the HLE BIOS), debug builds
 python "$SP/sdimage_read.py" "$CARD" wiisxrx/tty.log "$OUT/tty.log" >/dev/null 2>&1 && [ -s "$OUT/tty.log" ] && echo "tty: $(wc -l < "$OUT/tty.log") lines"
+# the per-vblank timelines of a chain (debug builds; scripts/vtl_view.py)
+for i in $(seq -w 1 16); do
+	python "$SP/sdimage_read.py" "$CARD" "wiisxrx/vtl_$i.bin" "$OUT/vtl_$i.bin" >/dev/null 2>&1 || break
+done
+ls "$OUT"/vtl_*.bin >/dev/null 2>&1 && echo "vtl: $(ls "$OUT"/vtl_*.bin | wc -l) timeline(s)"
 # audio timeline (debug build, 'atrace <vblank>' in autoinput.txt); absent in most runs
 python "$SP/sdimage_read.py" "$CARD" wiisxrx/atrace.log "$OUT/atrace.log" >/dev/null 2>&1 && [ -s "$OUT/atrace.log" ] && echo "atrace: $(wc -l < "$OUT/atrace.log") lines"
 # the front XFB a scheduled `dump` wrote (scripts/xfb2png.py; XFB_RAM=1 for the real TV image)

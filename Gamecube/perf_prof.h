@@ -241,6 +241,10 @@ typedef struct {
 	uint64_t limit_ticks;
 	uint32_t limit_calls;
 	uint32_t limit_target;        /* dwFrameRateTicks being paced to, 10us units */
+	uint32_t limit_sleeps;        /* LimiterWait=1: waits that slept on the timer alarm */
+	uint64_t limit_sleep_ticks;   /* ... time asleep (other threads ran) */
+	uint64_t limit_over_max;      /* ... worst wake-up past the alarm, ticks */
+	uint32_t limit_overs;         /* ... wake-ups more than 0.5 ms late */
 	uint64_t spu_ticks;
 	uint32_t spu_calls;
 	/* Subset of spu_*: the 44100 -> 48000 output conversion (dfsound/resample.c),
