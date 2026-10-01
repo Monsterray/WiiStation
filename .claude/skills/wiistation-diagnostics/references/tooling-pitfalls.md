@@ -201,3 +201,7 @@ server live in `C:\ai\README.md`.
   attribution line the session requires; push only when asked.
 - Write memory notes as you go (`memory/` index): a mechanism that took a session to find must
   not be rediscovered.
+- **Build with `wsx.sh build debug|release`, not `bash scripts/build.sh` from Git Bash.**
+  Git Bash carries the stale `DEVKITPRO=/opt/devkitpro`; build.sh then stops at opengx.a with
+  "Please set DEVKITPPC" (2026-10-01). wsx.sh goes through the devkitPro shell. Do not chain
+  `wiistation_play.sh` after a build with `| tail &&`: tail succeeds, and the old DOL starts.
