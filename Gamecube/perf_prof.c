@@ -15,7 +15,7 @@
 #include "lc.h"
 #include "gc_input/controller.h"   /* the ports report below */
 #include "../mem2_manager.h"
-#include "MEM2.h"   /* NEW_MEM2_LO, LIGHTREC_BUF_SIZE: the mem2map: line */
+#include "MEM2.h"   /* NEW_MEM2_LO, LIGHTREC_CODE_SIZE: the mem2map: line */
 
 /* Diagnostic-only; declared here rather than in mem2_manager.h so the
  * profiler stays the single consumer. */
@@ -694,7 +694,7 @@ void perf_report(void)
 				(a2lo - base) >> 10, (a2hi - base) >> 10, (unsigned)gx_mem2_ios_hi,
 				(unsigned)((gx_mem2_ios_hi - (a2hi + gx_mem2_total())) >> 10),
 				*(unsigned *)0x80003130, *(unsigned *)0x80003134,
-				code_kb, code_peak_kb, (unsigned)(LIGHTREC_BUF_SIZE >> 10), mem1_min_kb);
+				code_kb, code_peak_kb, (unsigned)(LIGHTREC_CODE_SIZE >> 10), mem1_min_kb);
 		}
 		{
 			extern void ogx_tex_mem(unsigned *n, unsigned *data_kb, unsigned *semi_kb);

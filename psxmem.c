@@ -86,9 +86,6 @@ s8 *psxH = NULL; // Scratch Pad (1K) & Hardware Registers (8K)
 u8* psxMemWLUT[0x10000] __attribute__((aligned(32)));
 u8* psxMemRLUT[0x10000] __attribute__((aligned(32)));
 
-#define BUF_SIZE 0x400000 // 4 MiB code buffer for Lightrec and DYNAREC
-static char *recBuffer = (char*)LIGHTREC_BUF_LO;
-
 int psxMemInit() {
 	int i;
 
@@ -112,9 +109,6 @@ int psxMemInit() {
 				SysMessage(_("Error mapping BIOS"));
 
 			if (lightrec_mmap(psxM + 0x210000, 0x1f800000, 0x3000))
-				SysMessage(_("Error mapping scratch/IO"));
-
-			if (lightrec_mmap(recBuffer, 0x800000, BUF_SIZE))
 				SysMessage(_("Error mapping scratch/IO"));
 
 			lightrec_mmap_inited = true;

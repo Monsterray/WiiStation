@@ -44,17 +44,18 @@
 #define SPU_BUF_LO   (HID_BUF_HI)
 #define SPU_BUF_HI   (SPU_BUF_LO + SPU_BUF_SIZE)
 
-// We want 4MB for Lightrec code buffer
-#define LIGHTREC_BUF_SIZE (4*MB)
-#define LIGHTREC_BUF_LO   (SPU_BUF_HI)
-#define LIGHTREC_BUF_HI   (LIGHTREC_BUF_LO + LIGHTREC_BUF_SIZE)
+// Lightrec's code buffer is in MEM1 (lightrec.c), not here: an instruction-cache miss in
+// compiled code is served faster from MEM1 -- every one of eleven games ran 0.3-1.3 load
+// points lower on the Wii (2026-09-30). Its code peaked at 1.0 MB in the five recordings;
+// a full buffer makes Lightrec interpret a block (perf.log jit_full), never crash.
+#define LIGHTREC_CODE_SIZE (1536*KB)
 
 // We want 512KB for the PSX BIOS ROM image. It's read-mostly data that HLE
 // mode -- the hardcoded default -- never fetches as code, so it doesn't
 // need MEM1's speed; only opt-in LLE mode (a user-supplied BIOS dump) walks
 // it as executable CPU-core input, and only briefly at boot.
 #define PSXR_BUF_SIZE (512*KB)
-#define PSXR_BUF_LO   (LIGHTREC_BUF_HI)
+#define PSXR_BUF_LO   (SPU_BUF_HI)
 #define PSXR_BUF_HI   (PSXR_BUF_LO + PSXR_BUF_SIZE)
 
 

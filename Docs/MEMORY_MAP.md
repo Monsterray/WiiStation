@@ -85,7 +85,12 @@ items:
 | `semiTransBuf` | 0.13 MB | opengx's semi-transparent texture scratch |
 | `g_perf` | 0.11 MB | the profiler's counters — **debug build only** |
 
-Measured free at runtime, in a game: **5.2-5.6 MB**, consistently, across every title tested.
+Measured free at runtime, in a game: **5.2-5.6 MB**, consistently, across every title tested --
+before 2026-09-30, when Lightrec's code buffer moved here from MEM2 (1.5 MB, `LIGHTREC_CODE_SIZE`):
+an instruction-cache miss in compiled code is served faster from MEM1, and on the Wii every one of
+eleven games ran 0.4-1.4 load points lower (mean 38.2 -> 37.5%). The code peaked at 1.0 MB in the
+five recordings; a full buffer makes Lightrec interpret a block (`jit_full`), never crash. Since
+then the lowest MEM1 free seen on the Wii is 1.67 MB in the debug build (perf.log `mem2map:`).
 There is no MEM1 pressure today.
 
 ### MEM2
@@ -99,17 +104,16 @@ out:
 | Memory card 1 / 2 | 0.25 MB | |
 | HID controller buffer | 0.13 MB | |
 | SPU buffer | 0.50 MB | |
-| Lightrec code | 4.00 MB | the default core's output; peak 1.0 MB in the five recordings on the Wii (perf.log `mem2map:`) |
 | PSX BIOS image | 0.50 MB | read-mostly, cold under the default HLE |
 | libogc arena | 1.84 MB | kept below the heap for libogc's own Arena2 allocations; 0 KB used on the Wii with networking |
-| **reserved total** | **7.2 MB** | |
-| general heap | **43.0 MB** | textures, disc buffers, the font's glyph heap, the old dynarec's code when `Core = 2` |
+| **reserved total** | **3.2 MB** | |
+| general heap | **47.0 MB** | textures, disc buffers, the font's glyph heap, the old dynarec's code when `Core = 2` |
 | gap under IOS's top | 1.16 MB | between the heap's end and the MEM2 top the loader reports (0x933E0000) |
 
 Since 2026-09-30 (598aaa3) the 9 MB font region and the 10 MB old-dynarec region are no
 longer fixed: the font takes a block sized to it (~430 KB for a Latin menu, up to 9 MB for a
 full CJK font) and `Core = 2` takes its 10 MB when it starts. The heap went from 24.6 MB to
-43 MB. Measured on the Wii, five recordings in one boot: peak 22.8 MB (Crash 3's exit
+47 MB (43 MB, then 4 MB more when Lightrec's code buffer moved to MEM1, below). Measured on the Wii, five recordings in one boot: peak 22.8 MB (Crash 3's exit
 transition fills every texture page), no failed allocation. Above 0x933E0000 is IOS's,
 with its IPC buffer at 0x935E0000-0x93600000.
 

@@ -53,16 +53,23 @@ static u32 *psxRecLUT = NULL;
  * reserved, though only Core = 2 uses it). NULL when the heap could not supply it. */
 static char *recMem = NULL;
 
+//static char recRAM[0x200000] __attribute__((aligned(32)));	/* and the ptr to the blocks here */
+//static char recROM[0x080000] __attribute__((aligned(32)));	/* and here */
+/* Its block lookup tables, taken from the MEM2 heap with recMem (they lived in the MEM2
+ * region Lightrec's code buffer used to occupy; that buffer is in MEM1 now). */
+static char* recRAM = NULL;
+static char* recROM = NULL;
+
 static int recMemAlloc(void)
 {
 	if (!recMem)
 		recMem = (char *)_mem2_memalign(32, RECMEM_SIZE);
-	return recMem ? 0 : -1;
+	if (!recRAM)
+		recRAM = (char *)_mem2_memalign(32, 0x200000);
+	if (!recROM)
+		recROM = (char *)_mem2_memalign(32, 0x080000);
+	return (recMem && recRAM && recROM) ? 0 : -1;
 }
-//static char recRAM[0x200000] __attribute__((aligned(32)));	/* and the ptr to the blocks here */
-//static char recROM[0x080000] __attribute__((aligned(32)));	/* and here */
-static char* recRAM = (char*)LIGHTREC_BUF_LO;
-static char* recROM = (char*)LIGHTREC_BUF_LO + 0x200000;
 
 static u32 pc;			/* recompiler pc */
 static u32 pcold;		/* recompiler oldpc */
@@ -1154,11 +1161,11 @@ static int recInit() {
 static void recReset() {
 	psxRegs.ICache_valid = FALSE;
 
-	memset(recRAM, 0, 0x200000);
-	memset(recROM, 0, 0x080000);
+	recMemAlloc();   /* recInit may not have run (needInitCpu); recExecute checks */
+	if (recRAM) memset(recRAM, 0, 0x200000);
+	if (recROM) memset(recROM, 0, 0x080000);
 
 	ppcInit();
-	recMemAlloc();   /* recInit may not have run (needInitCpu); recExecute checks */
 	ppcSetPtr((u32 *)recMem);
 
 	branch = 0;
@@ -1198,6 +1205,10 @@ static void recShutdown() {
 	ppcShutdown();
 	_mem2_free(recMem);
 	recMem = NULL;
+	_mem2_free(recRAM);
+	recRAM = NULL;
+	_mem2_free(recROM);
+	recROM = NULL;
 
 	free(psxRecLUT);
 	psxRecLUT = NULL;
@@ -1246,7 +1257,7 @@ __inline static void execute() {
 
 static void recExecute() {
 
-    if (!recMem) {   /* the MEM2 heap had no RECMEM_SIZE block left: stop before compiling */
+    if (!recMem || !recRAM || !recROM) {   /* the MEM2 heap had no RECMEM_SIZE block left: stop before compiling */
         SysMessage("Not enough memory for the PPC dynarec: choose Lightrec or the interpreter\n");
         stop = 1;
         return;
@@ -1257,7 +1268,7 @@ static void recExecute() {
 }
 
 static void recExecuteBlock(enum blockExecCaller caller) {
-    if (!recMem) {
+    if (!recMem || !recRAM || !recROM) {
         stop = 1;
         return;
     }

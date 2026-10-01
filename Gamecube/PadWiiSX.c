@@ -32,6 +32,7 @@
 #include "wiiSXconfig.h"
 #include "../psxcounters.h"
 #include "perf_prof.h"
+#include "../mem2_manager.h"
 
 /* Scripted input for unattended runs: sd:/wiisxrx/autoinput.txt holds lines
  * "<vblank> <hex button mask>"; from that emulated vblank on, the listed
@@ -56,8 +57,10 @@
  * ponytail: ports 1 and 2 as the pad plugin numbers them; multitap slots are not scripted.
  * ponytail: one mask per vblank. A press and release inside one vblank keep only the
  * release; games poll the pad once a frame, so that has not mattered. */
-#define AUTOIN_MAX 4096   /* a recording makes 2-5 lines a second: about 15 minutes */
-static struct { unsigned vbl; unsigned short mask; unsigned char port; } autoin[AUTOIN_MAX];
+/* A recording makes 2-5 lines a second: 32768 is about two hours of play. The table (256 KB)
+ * comes from the MEM2 heap on the first load, not MEM1, which is kept for what runs hot. */
+#define AUTOIN_MAX 32768
+static struct autoin_line { unsigned vbl; unsigned short mask; unsigned char port; } *autoin;
 static int autoin_n = -1;
 static int autoin_ports;                /* bit per port with at least one line */
 static unsigned short autoin_ev_last;   /* the mask last reported to perf.log ("autoinput:") */
@@ -114,7 +117,9 @@ void autoinput_load(void)
 	if (autoin_n >= 0) return;
 	autoin_n = 0;
 	autoin_ports = 0;
-	f = autoin_path[0] ? fopen(autoin_path, "r") : NULL;
+	if (!autoin)
+		autoin = (struct autoin_line *)_mem2_malloc(AUTOIN_MAX * sizeof(*autoin));
+	f = (autoin && autoin_path[0]) ? fopen(autoin_path, "r") : NULL;
 	if (f) {
 		while (autoin_n < AUTOIN_MAX && fgets(line, sizeof line, f)) {
 			unsigned v, k;
@@ -152,6 +157,8 @@ void autoinput_load(void)
 				autoin_ports |= 1 << port;
 			}
 		}
+		if (autoin_n == AUTOIN_MAX && !feof(f))   /* tty.log: playback would stop pressing here */
+			SysPrintf("autoinput: %s has more than %d lines; the rest is ignored\n", autoin_path, AUTOIN_MAX);
 		fclose(f);
 	}
 }

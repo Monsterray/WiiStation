@@ -179,7 +179,7 @@ static void infoJitBuffer(char *buf, int len)
 	if (dynacore == DYNACORE_DYNAREC_OLD)
 		snprintf(buf, len, "%lu KB (PPC)", (unsigned long)RECMEM2_SIZE >> 10);
 	else
-		snprintf(buf, len, "%lu KB (Lightrec)", (unsigned long)LIGHTREC_BUF_SIZE >> 10);
+		snprintf(buf, len, "%lu KB (Lightrec, MEM1)", (unsigned long)LIGHTREC_CODE_SIZE >> 10);
 }
 
 /* Sound and disc buffers, both fixed regions. */
