@@ -165,6 +165,13 @@ frame PNGs before this existed: file what matters, then delete `frames/` directo
 
 ## Restoring the user's setup
 
+The user's play window (`scripts/wiistation_play.sh`, the shared profile without `-u`) starts
+with folder sync OFF when `scripts/sd_sync.py` finds none of the user's SD files changed (it
+copies WiiStation's own files from `WiiSD.raw` back into the folder first): WiiStation's writes
+there live in the image until the next start through the script. Never start that Dolphin
+another way after a session, or its folder sync repacks over them.
+
+
 The script restores INIs and removes the staged files; `autoboot.txt` stays because the
 user's own movies depend on it. Leave `WiiSDSync_paused_by_claude/` as the parking place.
 Two permanent GFX.ini changes are deliberate (see dolphin-pitfalls.md).
