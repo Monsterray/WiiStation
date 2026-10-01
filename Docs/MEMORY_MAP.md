@@ -98,16 +98,20 @@ out:
 |---|---|---|
 | Memory card 1 / 2 | 0.25 MB | |
 | HID controller buffer | 0.13 MB | |
-| **Font glyph cache** | **9.00 MB** | see section 3 |
-| Old PPC dynarec code | 10.00 MB | only used when `Core = 2` |
 | SPU buffer | 0.50 MB | |
-| Lightrec code | 4.00 MB | the default core's output; `jit_full=0` in every run — it has never filled |
+| Lightrec code | 4.00 MB | the default core's output; peak 1.0 MB in the five recordings on the Wii (perf.log `mem2map:`) |
 | PSX BIOS image | 0.50 MB | read-mostly, cold under the default HLE |
-| **reserved total** | **24.38 MB** | |
-| general heap | ~24 MB | textures, disc buffers, everything dynamic |
+| libogc arena | 1.84 MB | kept below the heap for libogc's own Arena2 allocations; 0 KB used on the Wii with networking |
+| **reserved total** | **7.2 MB** | |
+| general heap | **43.0 MB** | textures, disc buffers, the font's glyph heap, the old dynarec's code when `Core = 2` |
+| gap under IOS's top | 1.16 MB | between the heap's end and the MEM2 top the loader reports (0x933E0000) |
 
-Measured in a game: **7-11 MB of the ~24 MB heap used**, zero allocation failures, across
-every title tested. No MEM2 pressure either.
+Since 2026-09-30 (598aaa3) the 9 MB font region and the 10 MB old-dynarec region are no
+longer fixed: the font takes a block sized to it (~430 KB for a Latin menu, up to 9 MB for a
+full CJK font) and `Core = 2` takes its 10 MB when it starts. The heap went from 24.6 MB to
+43 MB. Measured on the Wii, five recordings in one boot: peak 22.8 MB (Crash 3's exit
+transition fills every texture page), no failed allocation. Above 0x933E0000 is IOS's,
+with its IPC buffer at 0x935E0000-0x93600000.
 
 This is why the Memory page is a set of readouts and not a set of settings: every large
 region above is reserved at a compile-time address, with the next region defined relative to
@@ -168,5 +172,5 @@ get a partial font (gracefully, now, rather than a crash). The honest options ar
    the memory for everyone else. It means the MEM2 layout can no longer be a chain of
    compile-time constants, which is a real refactor of `MEM2.h` and `gx_init_mem2`.
 
-Option 3 is the right answer if the memory is ever needed; option 1 is the right answer now.
-Nothing here has been changed beyond the NULL check and the readout.
+The memory was needed (Crash 3 after FF7 ran the heap out, 2026-09-30), and option 3 is what
+was done: the glyph heap is now a block of the general heap sized to the font (598aaa3).
