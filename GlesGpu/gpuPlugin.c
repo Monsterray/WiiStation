@@ -2253,6 +2253,38 @@ if(iDataWriteMode==DR_VRAMTRANSFER)
            continue; \
           } \
         }
+/* The tracking mode's fast path: the same pairs, compared as words. Equal words change
+ * nothing; otherwise each changed pixel (the first pixel's two bytes are the high half of
+ * the big-endian word) is noted in address order, as VW_PUT_TRACK does, and the word is
+ * stored. FF7 on the bench
+ * Wii spent 1.6 s of 10 s in this loop pixel by pixel (2026-10-01). */
+#define VW_FAST_TRACK \
+       if (rr >= 2 && !(((uintptr_t)ip) & 3) && wx - rr + 1 < 1024) \
+        { \
+         int n_ = rr >> 1, k_; \
+         if (n_ > iSize - i) n_ = iSize - i; \
+         if (n_ > (int)((eom - ip) >> 1)) n_ = (int)((eom - ip) >> 1); \
+         if (n_ > ((1024 - (wx - rr)) >> 1)) n_ = (1024 - (wx - rr)) >> 1; \
+         if (n_ > 0) \
+          { \
+           for (k_ = 0; k_ < n_; k_++) \
+            { \
+             uint32_t *d_ = (uint32_t *)ip + k_; \
+             uint32_t s_ = ((const uint32_t *)pMem)[k_], o_ = *d_; \
+             if (s_ != o_) \
+              { \
+               unsigned short *p_ = (unsigned short *)d_; \
+               if ((s_ ^ o_) & 0xFFFF0000u) { if (!cmax) cmin = p_; cmax = p_; VW_SEEN(p_); } \
+               if ((s_ ^ o_) & 0x0000FFFFu) { if (!cmax) cmin = p_ + 1; cmax = p_ + 1; VW_SEEN(p_ + 1); } \
+               *d_ = s_; \
+              } \
+            } \
+           pMem += n_; i += n_; ip += 2 * n_; rr -= 2 * n_; \
+           gdata = GETLE32(pMem - 1); \
+           if (ip >= eom) ip -= wrap; \
+           continue; \
+          } \
+        }
 #define VW_LOOP(VW_PUT, VW_FAST) \
    while (cr > 0) \
     { \
@@ -2297,7 +2329,7 @@ if(iDataWriteMode==DR_VRAMTRANSFER)
 
    if (ogx_efb_mirror == 1 && !PSXDisplay.RGB24)
     {
-     VW_LOOP(VW_PUT_TRACK, VW_FAST_NONE)
+     VW_LOOP(VW_PUT_TRACK, VW_FAST_TRACK)
     }
    else
     {
@@ -2309,6 +2341,7 @@ if(iDataWriteMode==DR_VRAMTRANSFER)
 #undef VW_PUT_TRACK
 #undef VW_PUT_PLAIN
 #undef VW_FAST_NONE
+#undef VW_FAST_TRACK
 #undef VW_FAST_COPY
 #undef VW_SAVE
 #undef VW_SEEN
