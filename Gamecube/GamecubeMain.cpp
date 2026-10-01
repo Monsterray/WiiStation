@@ -129,7 +129,7 @@ char soundMixerPrecision;   // dfsound: round instead of truncate in the voice m
 char soundXaResampler;      // dfsound/xa.c: real hardware zigzag FIR vs the legacy nearest/Gaussian step (Advanced Sound page)
 char soundRateControl;      // dfsound/ratectl.c: nudge the output rate from the queue's occupancy
 char soundResampler;        // read by dfsound/resample.c on every block it converts
-char gpuTiming, cpuTiming, limiterWait;
+char gpuTiming, cpuTiming, limiterWait, limiterDebt;
 char cdBuffer, cdPrefetch, cdChdHunks;   // read by cdriso.c when an image is opened
 char xaDisabled;            // mirrors Config.Xa   (see wiiSXconfig.h)
 char cddaDisabled;          // mirrors Config.Cdda
@@ -206,6 +206,7 @@ static struct {
   { "GpuTiming", &gpuTiming, GPU_TIMING_FAST, GPU_TIMING_ACCURATE },
   { "CpuTiming", &cpuTiming, CPU_TIMING_FAST, CPU_TIMING_ACCURATE },
   { "LimiterWait", &limiterWait, LIMITER_WAIT_SPIN, LIMITER_WAIT_SLEEP },
+  { "LimiterDebt", &limiterDebt, LIMITER_DEBT_SHORT, LIMITER_DEBT_LONG },
   { "CdChdHunks", &cdChdHunks, CD_CHD_HUNKS_2, CD_CHD_HUNKS_8 },
   { "Interpolation", &spuInterpolation, SIMPLE_INTERPOLATION, GAUSSI_INTERPOLATION },
   { "DisableXa", &xaDisabled, XA_ENABLE, XA_DISABLE },
@@ -424,10 +425,11 @@ void loadSettings(int argc, char *argv[])
 	 *   clear: scripts/chains/cd_ab.txt decides it.
 	 * 8 hunks -- a true LRU never misses more with more ways; 8 cost about 160 KB of MEM2. */
 	cdBuffer         = CD_BUFFER_16K;
-	cdPrefetch       = CD_PREFETCH_OFF;
+	cdPrefetch       = CD_PREFETCH_ON;   /* bench Wii hw_cd_ab: Spyro waits on the card 7.4 -> 1.3% of wall, Medievil 7.9 -> 1.4% */
 	gpuTiming        = GPU_TIMING_FAST;   /* until the eleven games and the recordings pass on Accurate */
 	cpuTiming        = CPU_TIMING_FAST;   /* the same */
 	limiterWait      = LIMITER_WAIT_SLEEP; /* bench Wii 2026-09-30: same speed, 54% of the time to other threads */
+	limiterDebt      = LIMITER_DEBT_LONG;  /* chains/limiter_debt_ab.txt: speed 1.000 vs 0.995, sound queue fuller, no rate saturation */
 	cdChdHunks       = CD_CHD_HUNKS_8;
 	xaDisabled       = XA_ENABLE;    // XA and CDDA audio both on by default
 	cddaDisabled     = CDDA_ENABLE;

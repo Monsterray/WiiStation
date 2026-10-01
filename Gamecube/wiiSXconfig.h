@@ -149,6 +149,12 @@ enum limiterWait
 	LIMITER_WAIT_SPIN=0,     /* busy-wait the whole time: exact, but no other thread runs */
 	LIMITER_WAIT_SLEEP       /* sleep on a timer alarm until 1 ms before the frame is due, then spin */
 };
+extern char limiterDebt;         /* how much lateness the frame limiter pays back (SoftGPU/oldGpuFps.c) */
+enum limiterDebt
+{
+	LIMITER_DEBT_SHORT=0,    /* 12.5 ms: a longer stall is dropped (the value since 2026-09-20) */
+	LIMITER_DEBT_LONG        /* 125 ms: about what the sound drivers keep queued */
+};
 extern char gpuTiming;           /* how long the core keeps the GPU busy (psxdma.c, GL_GPUdmaChain) */
 enum gpuTiming
 {

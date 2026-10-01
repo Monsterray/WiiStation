@@ -144,10 +144,10 @@ extern int newDwFrameRateTicks;
  * than that would only overfill them, and a long load stall should not turn into seconds
  * of fast-forward. A stall beyond the bound is dropped as before, minus the bound. */
 /* NB: the tick is 10 us (timeGetTime() = microseconds / 10, TIMEBASE 100000), not 100 us as
- * written above and below: this bound is 12.5 ms, not the 125 ms the reasoning above wants,
- * so every stall over 12.5 ms is dropped (perf.log limit: debt_drops). Left as it is until an
- * A/B decides (2026-09-30); the stutter work measures it. */
-#define FRAMECAP_MAX_DEBT_TICKS 1250    /* 10 us ticks: 12.5 ms */
+ * written above and below. The bound was 1250 ticks = 12.5 ms, not the 125 ms the reasoning
+ * above wants, so every stall over 12.5 ms was dropped (perf.log limit: debt_drops). The
+ * LimiterDebt setting picks: 0 = 12.5 ms (the default until an A/B decides), 1 = 125 ms. */
+#define FRAMECAP_MAX_DEBT_TICKS (limiterDebt == LIMITER_DEBT_LONG ? 12500L : 1250L)
 
 /* The period is the one the core emulates (psxcounters.c: 60 or 50 Hz, or the per-game
  * fractional rate), kept in 1/256 tick so it does not truncate. Until 2026-09-20 the auto
