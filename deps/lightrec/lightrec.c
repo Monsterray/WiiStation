@@ -394,9 +394,19 @@ u32 lightrec_rw(struct lightrec_state *state, union code op, u32 base,
 	case OP_LWR:
 		return lightrec_lwr(state, ops, opcode, host, addr, data);
 	case OP_META_LWU:
-		return ops->lwu(state, opcode, host, addr);
+		if (ops->lwu)
+			return ops->lwu(state, opcode, host, addr);
+		/* WiiStation: an I/O map's ops have no lwu (the call went to address 0,
+		 * ps1-tests io-access-bitwidth): do the LWR/LWL pair it replaced */
+		data = lightrec_lwr(state, ops, opcode, host, addr, data);
+		return lightrec_lwl(state, ops, opcode, (u8 *)host + 3, addr + 3, data);
 	case OP_META_SWU:
-		ops->swu(state, opcode, host, addr, data);
+		if (ops->swu) {
+			ops->swu(state, opcode, host, addr, data);
+		} else {
+			lightrec_swr(state, ops, opcode, host, addr, data);
+			lightrec_swl(state, ops, opcode, (u8 *)host + 3, addr + 3, data);
+		}
 		return 0;
 	case OP_LW:
 	default:

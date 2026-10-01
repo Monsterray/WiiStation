@@ -1,0 +1,34 @@
+CHAIN
+# JaCzekanski ps1-tests (C:/tools/ps1-tests, build-158): CPU, timer, DMA, GTE tests whose
+# real-PS1 console output is in C:/tools/ps1-tests/ref/*.psx.log; scripts/ps1tests_check.py diffs tty.log.
+# EXEs staged in .dolphin/Load/WiiSDSync/wiisxrx/isos/ps1t_<name>/.
+2400
+sd:/wiisxrx/isos/ps1t_cop
+cop.exe
+2400
+sd:/wiisxrx/isos/ps1t_code-in-io
+code-in-io.exe
+2400
+sd:/wiisxrx/isos/ps1t_timers
+timers.exe
+2400
+sd:/wiisxrx/isos/ps1t_chain-looping
+chain-looping.exe
+2400
+sd:/wiisxrx/isos/ps1t_chopping
+chopping.exe
+2400
+sd:/wiisxrx/isos/ps1t_dpcr
+dpcr.exe
+2400
+sd:/wiisxrx/isos/ps1t_otc-test
+otc-test.exe
+2400
+sd:/wiisxrx/isos/ps1t_test-all
+test-all.exe
+2400
+sd:/wiisxrx/isos/ps1t_access-time
+access-time.exe
+2400
+sd:/wiisxrx/isos/ps1t_io-access-bitwidth
+io-access-bitwidth.exe

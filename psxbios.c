@@ -1641,6 +1641,7 @@ _start:
 				switch (Ra0[++i]) {
 					case '.':
 					case 'l':
+					case '-': case '+': case ' ': case '#':   /* flags: "%-10s" printed "10s" */
 						tmp2[j++] = Ra0[i]; goto _start;
 					default:
 						if (Ra0[i] >= '0' && Ra0[i] <= '9') {
@@ -1659,9 +1660,10 @@ _start:
 					case 'e': case 'E':
 					case 'g': case 'G':
 						ptmp += sprintf(ptmp, tmp2, (double)psxMu32(sp + n * 4)); n++; break;
+					case 'i': case 'd': case 'D':   /* signed, as the BIOS prints it */
+						ptmp += sprintf(ptmp, tmp2, (int)psxMu32(sp + n * 4)); n++; break;
 					case 'p':
-					case 'i': case 'u':
-					case 'd': case 'D':
+					case 'u':
 					case 'o': case 'O':
 					case 'x': case 'X':
 						ptmp += sprintf(ptmp, tmp2, (unsigned int)psxMu32(sp + n * 4)); n++; break;
