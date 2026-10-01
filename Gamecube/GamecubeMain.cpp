@@ -1180,34 +1180,35 @@ int loadISO(fileBrowser_file* file)
 	hasLoadedISO = TRUE;
 
 	char *tempStr = &file->name[0];
-	if((strstr(tempStr,".EXE")!=NULL) || (strstr(tempStr,".exe")!=NULL)) {
-		/* The BIOS file's reader: a disc sets it up in loadSeparatelySetting(), which this path
-		 * skips, and psxReset() called through the NULL pointer (a PS-X EXE loaded first thing
-		 * after boot jumped to address 0) */
-		biosFileInit();
-		SysReset();
-		Load(file);
-	}
-	else {
+	bool isExe = strstr(tempStr,".EXE")!=NULL || strstr(tempStr,".exe")!=NULL;
+	/* A PS-X EXE has no disc ID: no per-game settings file, and not the last game's.
+	 * It needs loadSeparatelySetting() as a disc does: that makes the CPU core
+	 * (psxCpuInit), the BIOS file's reader and the chain line's settings. Without it,
+	 * Lightrec ran on a NULL state (2026-10-01: every EXE stopped at its first block). */
+	if (isExe)
+		CdromId[0] = '\0';
+	else
 		CheckCdrom();
 
-        gpu_t *oldGpuPtr = gpuPtr;
+	gpu_t *oldGpuPtr = gpuPtr;
 
-		loadSeparatelySetting();
+	loadSeparatelySetting();
 
-		gpu_t *newGpuPtr = gpuPtr;
-		if (newGpuPtr != oldGpuPtr)
-        {
-            // Gpu Plugin changed
-            oldGpuPtr->shutdown();
-            oldGpuPtr->close();
-            newGpuPtr->init();
-            newGpuPtr->open();
-        }
-
-		SysReset();
-		LoadCdrom();
+	gpu_t *newGpuPtr = gpuPtr;
+	if (newGpuPtr != oldGpuPtr)
+	{
+		// Gpu Plugin changed
+		oldGpuPtr->shutdown();
+		oldGpuPtr->close();
+		newGpuPtr->init();
+		newGpuPtr->open();
 	}
+
+	SysReset();
+	if (isExe)
+		Load(file);
+	else
+		LoadCdrom();
 
 	if(autoSave==AUTOSAVE_ENABLE) {
 		setSaveDevice();   /* fileBrowser.c: point saveFile_* at nativeSaveDevice */

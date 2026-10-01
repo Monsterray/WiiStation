@@ -133,9 +133,15 @@ static const struct lightrec_mem_map_ops lightrec_default_ops = {
 	.swu = lightrec_default_swu,
 };
 
+/* WiiStation: the last fault, for the crash report (pr_err goes nowhere on the Wii) */
+u32 lightrec_segv_addr, lightrec_segv_block, lightrec_segv_site;
+#define SEGV_AT(a, site) (lightrec_segv_addr = (a), lightrec_segv_site = (site))
+
 static void __segfault_cb(struct lightrec_state *state, u32 addr,
 			  const struct block *block)
 {
+	SEGV_AT(addr, 1);
+	lightrec_segv_block = block ? block->pc : 0;
 	lightrec_set_exit_flags(state, LIGHTREC_EXIT_SEGFAULT);
 	pr_err("Segmentation fault in recompiled code: invalid "
 	       "load/store at address "PC_FMT"\n", addr);
@@ -442,6 +448,7 @@ static void lightrec_rw_generic_cb(struct lightrec_state *state, u32 arg)
 	if (unlikely(!block)) {
 		pr_err("rw_generic: No block found in LUT for "PC_FMT" offset 0x%"PRIx16"\n",
 			 state->curr_pc, offset);
+		SEGV_AT(state->curr_pc, 2);
 		lightrec_set_exit_flags(state, LIGHTREC_EXIT_SEGFAULT);
 		return;
 	}
@@ -750,6 +757,8 @@ static struct block * lightrec_get_block(struct lightrec_state *state, u32 pc)
 		lightrec_jit_pre_blocks++;
 		if (!block) {
 			pr_err("Unable to recompile block at "PC_FMT"\n", pc);
+			if (!lightrec_segv_site)   /* precompile names its own reason */
+				SEGV_AT(pc, 3);
 			lightrec_set_exit_flags(state, LIGHTREC_EXIT_SEGFAULT);
 			return NULL;
 		}
@@ -1118,6 +1127,7 @@ static u32 lightrec_check_load_delay(struct lightrec_state *state, u32 pc, u8 re
 		block = lightrec_get_block(state, pc);
 		if (unlikely(!block)) {
 			pr_err("Unable to get block at "PC_FMT"\n", pc);
+			SEGV_AT(pc, 4);
 			lightrec_set_exit_flags(state, LIGHTREC_EXIT_SEGFAULT);
 			pc = 0;
 		} else {
@@ -1472,8 +1482,11 @@ static struct block * lightrec_precompile_block(struct lightrec_state *state,
 	bool fully_tagged;
 	u8 block_flags = 0;
 
-	if (!map)
+	if (!map) {
+		SEGV_AT(pc, 6);   /* WiiStation: no map for the pc */
+		lightrec_segv_block = state->nb_maps;
 		return NULL;
+	}
 
 	block = lightrec_malloc(state, MEM_FOR_IR, sizeof(*block));
 	if (!block) {
@@ -1483,6 +1496,7 @@ static struct block * lightrec_precompile_block(struct lightrec_state *state,
 
 	list = lightrec_disassemble(state, code, &length);
 	if (!list) {
+		SEGV_AT(pc, 7);   /* WiiStation: no memory for the opcode list */
 		lightrec_free(state, MEM_FOR_IR, sizeof(*block), block);
 		return NULL;
 	}

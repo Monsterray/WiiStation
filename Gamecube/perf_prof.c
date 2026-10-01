@@ -646,6 +646,18 @@ void perf_state_log(int game)
 	}
 }
 
+void perf_fatal_log(unsigned code, const char *reason)
+{
+	FILE *f;
+
+	perf_report();   /* the counters so far, then the reason: the run stops here */
+	if ((f = fopen("sd:/wiisxrx/perf.log", "a"))) {
+		fprintf(f, "fatal: code=0x%02x pc=%08x cycle=%u vblank=%u %s\n", code,
+			(unsigned)psxRegs.pc, (unsigned)psxRegs.cycle, (unsigned)frame_counter, reason);
+		fclose(f);
+	}
+}
+
 void perf_vblank_tick(void)
 {
 	extern unsigned autoinput_crash_vbl;

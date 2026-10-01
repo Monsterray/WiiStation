@@ -18,6 +18,7 @@
 #define HBC_AGENT_LAYOUT_ONLY
 #include "../deps/hbc_agent/sdk/hbc_agent.h"
 #include "ws_crash.h"
+#include "perf_prof.h"
 
 extern int lab_active(void);       /* lab_net.c */
 extern void lab_report(void);
@@ -71,6 +72,7 @@ void __wrap_c_default_exceptionhandler(frame_context *ctx)
 
 void ws_fatal(u32 code, const char *reason)
 {
+	perf_fatal_log(code, reason);   /* a Dolphin run has no HBC to show the report */
 	if (lab_active())
 		lab_report();   /* the results so far; wii_lab's job then asks HBC for the report */
 	hbc_agent_fatal(code, "%s", reason);

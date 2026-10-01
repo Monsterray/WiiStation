@@ -1224,6 +1224,10 @@ u32 lightrec_emulate_block(struct lightrec_state *state, struct block *block, u3
 		return lightrec_emulate_block_list(state, block, offset);
 
 	pr_err(PC_FMT" is outside block at "PC_FMT"\n", pc, block->pc);
+	{	/* WiiStation: for the crash report (lightrec.c) */
+		extern u32 lightrec_segv_addr, lightrec_segv_block, lightrec_segv_site;
+		lightrec_segv_addr = pc; lightrec_segv_block = block->pc; lightrec_segv_site = 5;
+	}
 
 	lightrec_set_exit_flags(state, LIGHTREC_EXIT_SEGFAULT);
 

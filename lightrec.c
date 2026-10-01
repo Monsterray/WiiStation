@@ -718,7 +718,14 @@ static void lightrec_plugin_execute_internal(bool block_only)
 		fprintf(stderr, "Exiting at cycle 0x%08x\n",
 				psxRegs.cycle);
 		#endif // SHOW_DEBUG
-		ws_fatal(WS_CRASH_GUEST_SEGFAULT, "Lightrec: guest access to no memory");   /* was exit(1) */
+		/* deps/lightrec: site 1 load/store to no memory, 2 rw_generic without a block,
+		 * 3 block not compilable, 4 load-delay block, 5 pc outside its block */
+		extern u32 lightrec_segv_addr, lightrec_segv_block, lightrec_segv_site;
+		char why[96];
+		snprintf(why, sizeof(why), "Lightrec: fault %u at %08x (block %08x)",
+			 (unsigned)lightrec_segv_site, (unsigned)lightrec_segv_addr,
+			 (unsigned)lightrec_segv_block);
+		ws_fatal(WS_CRASH_GUEST_SEGFAULT, why);   /* was exit(1) */
 	}
 
 	if (flags & LIGHTREC_EXIT_SYSCALL) {
