@@ -17,6 +17,8 @@
 #include "lc.h"
 #include "gc_input/controller.h"   /* the ports report below */
 #include "../mem2_manager.h"
+#include "../psxcommon.h"
+#include "../r3000a.h"      /* psxRegs, for perf_state_log */
 #include "MEM2.h"   /* NEW_MEM2_LO, LIGHTREC_CODE_SIZE: the mem2map: line */
 
 /* Diagnostic-only; declared here rather than in mem2_manager.h so the
@@ -590,6 +592,30 @@ void perf_vtl_flush(int game)
 #if PERF_PROF_HPROF
 	hprof_flush(game);
 #endif
+}
+
+/* A chained game's end: hashes of the guest's RAM and of VRAM, and its PC and cycle count.
+ * Two runs with equal "state:" lines and different vram_NN.bin had the same guest and a
+ * host-side difference in VRAM; a different ram= is a guest divergence. FNV-1a, 32-bit. */
+void perf_state_log(int game)
+{
+	extern s8 *psxM;
+	extern unsigned short *psxVuw;
+	u32 hr = 2166136261u, hv = 2166136261u, k;
+	const u32 *w = (const u32 *)psxM;
+	FILE *f;
+
+	for (k = 0; k < 0x200000 / 4; k++)
+		hr = (hr ^ w[k]) * 16777619u;
+	if (psxVuw)
+		for (k = 0, w = (const u32 *)psxVuw; k < 1024 * 512 / 2; k++)
+			hv = (hv ^ w[k]) * 16777619u;
+	if ((f = fopen("sd:/wiisxrx/perf.log", "a"))) {
+		fprintf(f, "state: game=%d ram=%08x vram=%08x pc=%08x cycle=%u vblank=%u\n",
+			game, (unsigned)hr, (unsigned)hv, (unsigned)psxRegs.pc, (unsigned)psxRegs.cycle,
+			(unsigned)frame_counter);
+		fclose(f);
+	}
 }
 
 void perf_vblank_tick(void)

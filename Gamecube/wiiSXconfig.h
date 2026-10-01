@@ -147,7 +147,7 @@ extern char limiterWait;         /* how the frame limiter waits (SoftGPU/oldGpuF
 enum limiterWait
 {
 	LIMITER_WAIT_SPIN=0,     /* busy-wait the whole time: exact, but no other thread runs */
-	LIMITER_WAIT_SLEEP       /* sleep on a timer alarm until 1 ms before the frame is due, then spin */
+	LIMITER_WAIT_SLEEP       /* sleep on a timer alarm until 0.2 ms before the frame is due, then spin */
 };
 extern char limiterDebt;         /* how much lateness the frame limiter pays back (SoftGPU/oldGpuFps.c) */
 enum limiterDebt

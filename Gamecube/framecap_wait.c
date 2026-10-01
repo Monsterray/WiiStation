@@ -3,7 +3,7 @@
  * SoftGPU/oldGpuFps.c FrameCap() spins until the next frame is due, so no thread below the
  * emulator gets the CPU while a game runs: the HBC agent, the CD read-ahead, the network.
  * With LimiterWait = 1 it first calls framecap_sleep(): sleep on a timer alarm for all but the
- * last millisecond of the wait, then the spin finishes it exactly. perf.log "limitwait:" has
+ * last 0.2 ms of the wait (FC_MARGIN_US), then the spin finishes it exactly. perf.log "limitwait:" has
  * the sleeps, the time asleep and how late the wake-ups were. The limiter's tick is 10 us
  * (timeGetTime() is microseconds / 10, TIMEBASE 100000 a second), although its comments said
  * 100 us: the usleep() tried on 2026-09-29, which "overslept ~56 ms", most likely asked for
@@ -24,9 +24,14 @@ static void fc_alarm_cb(syswd_t alarm, void *arg)
 	LWP_SemPost(fc_sem);
 }
 
+/* How early to wake; the spin does the rest. The bench Wii woke at most 33 us late over an
+ * 8-game chain (limitwait: over_max_us, 2026-10-01), so 1 ms of spin a frame was 5% of wall
+ * that no other thread could use. */
+#define FC_MARGIN_US 200
+
 void framecap_sleep(long wait_ticks)   /* the wait ahead, in the limiter's 10 us ticks */
 {
-	long us = wait_ticks * 10 - 1000;    /* wake 1 ms early; the spin does the rest */
+	long us = wait_ticks * 10 - FC_MARGIN_US;
 	struct timespec ts;
 	u64 t0, target;
 
@@ -58,7 +63,7 @@ void framecap_sleep(long wait_ticks)   /* the wait ahead, in the limiter's 10 us
 			u64 over = now - target;
 			if (over > g_perf.limit_over_max)
 				g_perf.limit_over_max = over;
-			if (over > microsecs_to_ticks(500))
+			if (over > microsecs_to_ticks(FC_MARGIN_US))   /* later than the frame was due */
 				g_perf.limit_overs++;
 		}
 	}

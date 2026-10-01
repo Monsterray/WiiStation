@@ -801,6 +801,7 @@ static bool chainNext(void)
 			fwrite(psxVuw, 2, 1024 * 512, f);
 			fclose(f);
 		}
+		perf_state_log(chainI + 1);   /* perf.log "state:": guest RAM and VRAM hashes */
 		perf_vtl_flush(chainI + 1);   /* the per-vblank timeline: vtl_NN.bin */
 		perf_report();
 	}
