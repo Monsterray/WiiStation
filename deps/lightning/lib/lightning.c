@@ -797,11 +797,27 @@ _jit_data(jit_state_t *_jit, const void *data,
     return (node);
 }
 
+/* WiiStation: Lightrec makes a jit state per block (about 100 nodes, a few
+ * patches); upstream's first sizes made each one clear 48 KB, which also
+ * flushed the 32 KB L1. Both grow on demand. */
+#if LIGHTNING_UPSTREAM
+#  define JIT_POOL_NODES	1024
+#  define JIT_PATCHES_FIRST	1024
+#else
+#  define JIT_POOL_NODES	128
+#  define JIT_PATCHES_FIRST	64
+#endif
+
 static void
 _new_pool(jit_state_t *_jit)
 {
     jit_node_t		*list;
     jit_int32_t		 offset;
+#if defined(__powerpc__)
+    extern unsigned long long lightning_pool_ticks;
+    extern unsigned int lightning_pools;
+    unsigned long long	 t0 = __builtin_ppc_get_timebase();
+#endif
 
     if (_jitc->pool.offset >= _jitc->pool.length) {
 	jit_int32_t	 length;
@@ -813,13 +829,17 @@ _new_pool(jit_state_t *_jit)
 	_jitc->pool.length = length;
     }
     jit_alloc((jit_pointer_t *)(_jitc->pool.ptr + _jitc->pool.offset),
-	      sizeof(jit_node_t) * 1024);
+	      sizeof(jit_node_t) * JIT_POOL_NODES);
     list = _jitc->pool.ptr[_jitc->pool.offset];
-    for (offset = 1; offset < 1024; offset++, list++)
+    for (offset = 1; offset < JIT_POOL_NODES; offset++, list++)
 	list->next = list + 1;
     list->next = _jitc->list;
     _jitc->list = _jitc->pool.ptr[_jitc->pool.offset];
     ++_jitc->pool.offset;
+#if defined(__powerpc__)
+    lightning_pool_ticks += __builtin_ppc_get_timebase() - t0;
+    lightning_pools++;
+#endif
 }
 
 static jit_node_t *
@@ -914,7 +934,7 @@ jit_new_state(void)
 	      _jitc->reglen * sizeof(jit_value_t));
 
     jit_alloc((jit_pointer_t *)&_jitc->patches.ptr,
-	      (_jitc->patches.length = 1024) * sizeof(jit_patch_t));
+	      (_jitc->patches.length = JIT_PATCHES_FIRST) * sizeof(jit_patch_t));
     jit_alloc((jit_pointer_t *)&_jitc->functions.ptr,
 	      (_jitc->functions.length = 16) * sizeof(jit_function_t));
     jit_alloc((jit_pointer_t *)&_jitc->pool.ptr,
@@ -1992,6 +2012,9 @@ _do_follow(jit_state_t *_jit, jit_bool_t always)
 
 /* WiiStation: _jit_optimize's passes, time-base ticks (perf.log "lopt:") */
 unsigned long long lightning_opt_ticks[10];
+/* new_pool, time-base ticks and calls (perf.log "lpool:") */
+unsigned long long lightning_pool_ticks;
+unsigned int lightning_pools;
 #if defined(__powerpc__)
 #  define OPT_TB() __builtin_ppc_get_timebase()
 #else

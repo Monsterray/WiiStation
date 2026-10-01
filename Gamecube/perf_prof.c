@@ -722,8 +722,9 @@ void perf_report(void)
 				(unsigned long long)ticks_to_microsecs(lightrec_cprof[3]));
 		}
 		{   /* the emitted code's checksum: equal in two runs = the same code was generated */
-			extern unsigned int lightrec_code_sum, lightrec_code_bytes;
-			fprintf(f, "jitcode: bytes=%u sum=%08x\n", lightrec_code_bytes, lightrec_code_sum);
+			extern unsigned int lightrec_code_sum, lightrec_code_bytes, lightrec_code_shape;
+			fprintf(f, "jitcode: bytes=%u sum=%08x shape=%08x\n", lightrec_code_bytes,
+				lightrec_code_sum, lightrec_code_shape);
 		}
 		{   /* _jit_optimize's passes (deps/lightning/lib/lightning.c lightning_opt_ticks) */
 			extern unsigned long long lightning_opt_ticks[10];
@@ -735,6 +736,12 @@ void perf_report(void)
 			for (k = 0; k < 10; k++)
 				fprintf(f, " %s=%llu", nm[k], (unsigned long long)ticks_to_microsecs(lightning_opt_ticks[k]));
 			fprintf(f, " | saves=%u nodes=%u\n", lightning_saves, lightning_patch_nodes);
+		}
+		{   /* Lightning's node-pool allocation (deps/lightning/lib/lightning.c new_pool) */
+			extern unsigned long long lightning_pool_ticks;
+			extern unsigned int lightning_pools;
+			fprintf(f, "lpool: pool_us=%llu pools=%u\n",
+				(unsigned long long)ticks_to_microsecs(lightning_pool_ticks), lightning_pools);
 		}
 		{   /* GNU Lightning's own stages inside gen_us (deps/lightning/lib/lightning.c) */
 			extern unsigned long long lightning_prof_ticks[3];

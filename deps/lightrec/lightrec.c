@@ -15,6 +15,8 @@ unsigned int lightrec_jit_blocks, lightrec_jit_pre_blocks;
 unsigned long long lightrec_cprof[4];
 /* checksum and byte count of every block's emitted code (lightrec_emit_code) */
 unsigned int lightrec_code_sum, lightrec_code_bytes;
+/* the same without each word's low 16 bits (immediates, offsets): blind to heap addresses */
+unsigned int lightrec_code_shape;
 #ifdef __powerpc__
 #define JIT_TB() __builtin_ppc_get_timebase()
 #else
@@ -948,7 +950,10 @@ static void * lightrec_emit_code(struct lightrec_state *state,
 		unsigned int i;
 
 		for (i = 0; i < (unsigned int) new_code_size / 4; i++)
+		{
 			lightrec_code_sum = lightrec_code_sum * 31 + w[i];
+			lightrec_code_shape = lightrec_code_shape * 31 + (w[i] >> 16);
+		}
 		lightrec_code_bytes += new_code_size;
 	}
 
