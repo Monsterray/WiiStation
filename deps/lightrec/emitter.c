@@ -15,6 +15,17 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+#if !ENABLE_DISASSEMBLER
+/* WiiStation: the emitter names every opcode's code (_jit_name) and notes its source line
+ * (jit_note) for the disassembler. Each call is a Lightning node plus a copy of the string into
+ * the block's data (jit_data looks it up to share it), and the optimizer then walks those nodes
+ * too -- all thrown away at emit time (lightrec_emit_code sets JIT_DISABLE_NOTE). Without the
+ * disassembler they are not made at all; the generated code is the same. */
+#  undef jit_note
+#  define jit_note(file, line)	((void)0)
+#  define _jit_name(jit, name)	((void)0)
+#endif
+
 #define LIGHTNING_UNALIGNED_32BIT 4
 
 typedef void (*lightrec_rec_func_t)(struct lightrec_cstate *, const struct block *, u16);

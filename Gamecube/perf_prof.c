@@ -703,6 +703,49 @@ void perf_report(void)
 			fprintf(f, "threads: live=%u of %u free=%u |%s\n", live, (unsigned)_lwp_thr_objects.max_nodes,
 				(unsigned)_lwp_thr_objects.inactives_cnt, tl);
 		}
+		/* Lightrec compiling (deps/lightrec/lightrec.c): new blocks decoded and optimized
+		 * (pre) and blocks turned into PowerPC code; a game that loads new code stalls on it */
+		{
+			extern unsigned long long lightrec_jit_ticks, lightrec_jit_pre_ticks;
+			extern unsigned int lightrec_jit_blocks, lightrec_jit_pre_blocks;
+			fprintf(f, "jit: pre_blocks=%u pre_us=%llu blocks=%u gen_us=%llu\n",
+				lightrec_jit_pre_blocks, (unsigned long long)ticks_to_microsecs(lightrec_jit_pre_ticks),
+				lightrec_jit_blocks,
+				(unsigned long long)ticks_to_microsecs(lightrec_jit_ticks - lightrec_jit_pre_ticks));
+		}
+		{   /* lightrec_compile_block's parts (deps/lightrec/lightrec.c lightrec_cprof) */
+			extern unsigned long long lightrec_cprof[4];
+			fprintf(f, "jitparts: new_state_us=%llu nodes_us=%llu emit_code_us=%llu tail_us=%llu\n",
+				(unsigned long long)ticks_to_microsecs(lightrec_cprof[0]),
+				(unsigned long long)ticks_to_microsecs(lightrec_cprof[1]),
+				(unsigned long long)ticks_to_microsecs(lightrec_cprof[2]),
+				(unsigned long long)ticks_to_microsecs(lightrec_cprof[3]));
+		}
+		{   /* the emitted code's checksum: equal in two runs = the same code was generated */
+			extern unsigned int lightrec_code_sum, lightrec_code_bytes;
+			fprintf(f, "jitcode: bytes=%u sum=%08x\n", lightrec_code_bytes, lightrec_code_sum);
+		}
+		{   /* _jit_optimize's passes (deps/lightning/lib/lightning.c lightning_opt_ticks) */
+			extern unsigned long long lightning_opt_ticks[10];
+			static const char *nm[10] = { "thread", "labels", "split", "setup", "follow",
+				"patch", "simplify", "store", "refollow", "final" };
+			extern unsigned int lightning_saves, lightning_patch_nodes;
+			int k;
+			fprintf(f, "lopt:");
+			for (k = 0; k < 10; k++)
+				fprintf(f, " %s=%llu", nm[k], (unsigned long long)ticks_to_microsecs(lightning_opt_ticks[k]));
+			fprintf(f, " | saves=%u nodes=%u\n", lightning_saves, lightning_patch_nodes);
+		}
+		{   /* GNU Lightning's own stages inside gen_us (deps/lightning/lib/lightning.c) */
+			extern unsigned long long lightning_prof_ticks[3];
+			extern unsigned int lightning_prof_emits, lightning_prof_blocks;
+			fprintf(f, "lightning: blocks=%u optimize_us=%llu size_us=%llu emit_us=%llu emits=%u\n",
+				lightning_prof_blocks,
+				(unsigned long long)ticks_to_microsecs(lightning_prof_ticks[0]),
+				(unsigned long long)ticks_to_microsecs(lightning_prof_ticks[1]),
+				(unsigned long long)ticks_to_microsecs(lightning_prof_ticks[2]),
+				lightning_prof_emits);
+		}
 		/* LimiterWait=1 (SoftGPU/oldGpuFps.c): how the sleeping wait behaved */
 		fprintf(f, "limitwait: sleeps=%lu sleep_us=%llu over_max_us=%llu overs=%lu\n",
 			(unsigned long)g_perf.limit_sleeps,

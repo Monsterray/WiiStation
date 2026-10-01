@@ -40,6 +40,14 @@ believing the symptom.
   invalid escape sequence` out of such a heredoc means a level of backslashes has already been
   eaten: stop and look at what landed in the file, because the damage can be invisible — a
   Windows path written as `C:\ai\...` becomes a BEL control character that greps will not match.
+- **Check every script you edited before committing:** `python -m py_compile scripts/X.py`,
+  `bash -n scripts/X.sh`. A heredoc-driven Python edit wrote a literal `\n` into wii_lab.py
+  (c4c1be5); it was committed, and every bench job failed at once with a SyntaxError until
+  99d7409. The same trap put real newlines into C string literals three times on 2026-09-30:
+  for any text with a backslash, use the Edit tool.
+- The frame limiter's tick (SoftGPU/oldGpuFps.c timeGetTime) is **10 us**, not the 100 us its
+  old comments said: a sleep computed from the comments asks for ten times the wait (the
+  "usleep oversleeps" verdict of 2026-09-29 was this; fc56602).
 - The PowerShell tool refuses `Remove-Item` when the same command line mentions a
   `C:\Program Files` path; do file removals in Bash.
 - Windows Python does not understand `/c/...` paths passed as arguments; give it `C:/...`.

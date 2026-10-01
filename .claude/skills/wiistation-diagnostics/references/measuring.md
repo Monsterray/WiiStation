@@ -132,6 +132,14 @@ there when a probe gains one. Keep a run you will compare against later with
 - **Behaviour:** interrupt counts (`irq:`), exceptions (`bios:` exc) and vblanks match to
   within 0.1% for a timing-neutral change; a change that is meant to be exact, like
   `c38d4d1`, matches to the cycle.
+- **Compiler (Lightrec/Lightning):** a change meant to emit the same code must give the
+  same `jitcode: bytes= sum=` lines in every game of a chain (a checksum of all emitted
+  code, deps/lightrec/lightrec.c). VRAM alone is weaker proof. The upstream behaviour of the
+  Lightning changes is one flag away: `make -C deps/lightning DEVKITPPC=... TMP=... TEMP=...
+  EXTRA_CFLAGS=-DLIGHTNING_UPSTREAM=1`, then `wsx.sh build` (touch lightning.c after to go
+  back). Compile cost per pass: `lopt:`, `lightning:`, `jitparts:`, `jit:` in perf.log.
+  On 32-bit PPC, `__builtin_ctzll` is a libgcc call (`__ctzdi2`); check with
+  `powerpc-eabi-nm build/lightning.o`.
 
 ## Probes that lie, and were fixed
 

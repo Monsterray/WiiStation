@@ -92,9 +92,9 @@ fi
 # The five dependency archives (opengx, zstd, lzma, zlibstatic, chdr) build
 # to their own deps/*/lib directories; Gamecube/Makefile_Wii links against
 # those paths directly via -L, so no "make install" step is needed here.
-# lightrec/lightning are not built at all -- they're prebuilt binaries
-# already installed under devkitPPC-r41-2/powerpc-eabi/lib by the setup
-# script (they came from this project's own bundled zip, not pacman).
+# lightrec (deps/lightrec) and, since 2026-09-30, GNU Lightning (deps/lightning) are built here;
+# the prebuilt liblightning.a still in devkitPPC-r41-2/powerpc-eabi/lib is no longer linked
+# (deps/lightning/lib comes first in the -L list).
 # The Gamecube Makefiles make the .elf depend only on its own objects, not
 # on the dependency archives, so an edit confined to e.g. deps/opengx rebuilds
 # libOpengx.a but never relinks -- and elf2dol then regenerates a fresh-looking
@@ -116,26 +116,26 @@ case "${1:-debug}" in
 		# PROBE_DEFINES reaches the profiling OpenGX library too: its per-draw probes are
 		# gated like the plugin's, and a library built with other gates than the plugin
 		# reads state the plugin never writes.
-		make opengx.a lightrecWithLog.a zstd.a lzma.a zlibstatic.a chdrstatic.a hbcagent.a PROBE_DEFINES="$PROBE_DEFINES"
+		make opengx.a lightrecWithLog.a lightning.a zstd.a lzma.a zlibstatic.a chdrstatic.a hbcagent.a PROBE_DEFINES="$PROBE_DEFINES"
 		relink_if_deps_newer Gamecube/WiiSXRX_debug.elf
 		make -C Gamecube -f Makefile_Wii EXTRA_CFLAGS="$PROBE_DEFINES"
 		mkdir -p Gamecube/build_debug && printf '%s' "$PROBE_DEFINES" > "$PROBE_STAMP"
 		echo "Output: Gamecube/WiiSXRX_debug.dol"
 		;;
 	debug-warn)
-		make opengx.a lightrecWithLog.a zstd.a lzma.a zlibstatic.a chdrstatic.a hbcagent.a
+		make opengx.a lightrecWithLog.a lightning.a zstd.a lzma.a zlibstatic.a chdrstatic.a hbcagent.a
 		relink_if_deps_newer Gamecube/WiiSXRX_debug.elf
 		make -C Gamecube -f Makefile_Wii WARN=1
 		echo "Output: Gamecube/WiiSXRX_debug.dol"
 		;;
 	release)
-		make opengx.a lightrecNoLog.a zstd.a lzma.a zlibstatic.a chdrstatic.a hbcagent.a
+		make opengx.a lightrecNoLog.a lightning.a zstd.a lzma.a zlibstatic.a chdrstatic.a hbcagent.a
 		relink_if_deps_newer Gamecube/WiiSXRX_Release.elf
 		make -C Gamecube -f Makefile_Wii_Release
 		echo "Output: Gamecube/WiiSXRX_Release.dol"
 		;;
 	release-warn)
-		make opengx.a lightrecNoLog.a zstd.a lzma.a zlibstatic.a chdrstatic.a hbcagent.a
+		make opengx.a lightrecNoLog.a lightning.a zstd.a lzma.a zlibstatic.a chdrstatic.a hbcagent.a
 		relink_if_deps_newer Gamecube/WiiSXRX_Release.elf
 		make -C Gamecube -f Makefile_Wii_Release WARN=1
 		echo "Output: Gamecube/WiiSXRX_Release.dol"

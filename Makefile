@@ -55,6 +55,12 @@ zlibstatic.a:
 	@echo " "
 	$(MAKE) -C deps/libchdr/deps/zlib-1.3.1 -f Makefile.wii
 
+lightning.a:
+	@echo " "
+	@echo "Building liblightning.a (GNU Lightning, deps/lightning) for PPC"
+	@echo " "
+	$(MAKE) -C deps/lightning DEVKITPPC=$(DEVKITPPC)
+
 hbcagent.a:
 	@echo " "
 	@echo "Building libhbcagent.a (the Homebrew Channel's in-app agent) for PPC"

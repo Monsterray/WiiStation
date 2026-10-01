@@ -7,8 +7,14 @@
 /* WiiStation: the time spent compiling, for the debug build's per-vblank timeline
  * (Gamecube/perf_prof.c vtl): a game that loads new code (a level's overlay) recompiles it
  * all on first use, which on the Wii is a visible stall. Timebase ticks, block count. */
-unsigned long long lightrec_jit_ticks;
-unsigned int lightrec_jit_blocks;
+unsigned long long lightrec_jit_ticks;      /* all of it: the optimizer passes and the code generation */
+unsigned long long lightrec_jit_pre_ticks;  /* the part in lightrec_precompile_block (decode + optimizer) */
+unsigned int lightrec_jit_blocks, lightrec_jit_pre_blocks;
+/* inside lightrec_compile_block: [0] jit_new_state, [1] the opcode loop building Lightning's
+ * nodes, [2] lightrec_emit_code (Lightning's stages, code buffer, cache flush), [3] the rest */
+unsigned long long lightrec_cprof[4];
+/* checksum and byte count of every block's emitted code (lightrec_emit_code) */
+unsigned int lightrec_code_sum, lightrec_code_bytes;
 #ifdef __powerpc__
 #define JIT_TB() __builtin_ppc_get_timebase()
 #else
@@ -724,7 +730,10 @@ static struct block * lightrec_get_block(struct lightrec_state *state, u32 pc)
 	if (!block) {
 		unsigned long long jt0 = JIT_TB();
 		block = lightrec_precompile_block(state, pc);
-		lightrec_jit_ticks += JIT_TB() - jt0;
+		jt0 = JIT_TB() - jt0;
+		lightrec_jit_ticks += jt0;
+		lightrec_jit_pre_ticks += jt0;
+		lightrec_jit_pre_blocks++;
 		if (!block) {
 			pr_err("Unable to recompile block at "PC_FMT"\n", pc);
 			lightrec_set_exit_flags(state, LIGHTREC_EXIT_SEGFAULT);
@@ -932,6 +941,16 @@ static void * lightrec_emit_code(struct lightrec_state *state,
 
 	jit_get_code(&new_code_size);
 	lightrec_register(MEM_FOR_CODE, new_code_size);
+	{
+		/* WiiStation: checksum of all emitted code (perf.log "jitcode:"),
+		 * to prove a compiler change emits the same bytes */
+		const u32 *w = code;
+		unsigned int i;
+
+		for (i = 0; i < (unsigned int) new_code_size / 4; i++)
+			lightrec_code_sum = lightrec_code_sum * 31 + w[i];
+		lightrec_code_bytes += new_code_size;
+	}
 
 	if (has_code_buffer) {
 		lightrec_realloc_code(state, code, (size_t) new_code_size);
@@ -1593,9 +1612,12 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 	if (fully_tagged)
 		block_set_flags(block, BLOCK_FULLY_TAGGED);
 
+	unsigned long long cp0 = JIT_TB(), cp1;
 	_jit = jit_new_state();
 	if (!_jit)
 		return -ENOMEM;
+	cp1 = JIT_TB();
+	lightrec_cprof[0] += cp1 - cp0;
 
 	oldjit = block->_jit;
 	old_fn = block->function;
@@ -1675,7 +1697,11 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 	jit_ret();
 	jit_epilog();
 
+	cp0 = JIT_TB();
+	lightrec_cprof[1] += cp0 - cp1;
 	new_fn = lightrec_emit_code(state, block, _jit, &block->code_size);
+	cp1 = JIT_TB();
+	lightrec_cprof[2] += cp1 - cp0;
 	if (!new_fn) {
 		if (!ENABLE_THREADED_COMPILER)
 			pr_err("Unable to compile block!\n");
@@ -1807,6 +1833,7 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 
 	pr_debug("Blocks compiled: %u\n", ++state->nb_compile);
 
+	lightrec_cprof[3] += JIT_TB() - cp1;
 	return 0;
 }
 
