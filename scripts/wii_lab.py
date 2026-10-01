@@ -188,28 +188,35 @@ def main():
         c, _ = srv.accept()
     except socket.timeout:
         sys.exit(f"no results after {a.timeout} s: the chain hung or crashed")
-    got = []
+    got, incomplete = [], ""
     with c:
         c.settimeout(120)
         if recv_line(c) != "RESULTS":
             sys.exit("unexpected reply")
-        while True:
-            l = recv_line(c)
-            if l == "END":
-                break
-            _, n, path = l.split(" ", 2)
-            with open(run / pathlib.Path(path).name, "wb") as f:
-                recv_exact(c, int(n), f)
-            if int(n) == 0 and path.startswith("hprof_"):   # not an hprof build
-                (run / pathlib.Path(path).name).unlink()
-                continue
-            got.append(path)
+        try:
+            while True:
+                l = recv_line(c)
+                if l == "END":
+                    break
+                _, n, path = l.split(" ", 2)
+                with open(run / pathlib.Path(path).name, "wb") as f:
+                    recv_exact(c, int(n), f)
+                if int(n) == 0 and path.startswith("hprof_"):   # not an hprof build
+                    (run / pathlib.Path(path).name).unlink()
+                    continue
+                got.append(path)
+        except (socket.timeout, ConnectionError) as e:
+            # The Wii stopped sending (it hung or crashed in lab_report): keep what came.
+            incomplete = f"incomplete: {type(e).__name__} after {len(got)} files\n"
+            print(f"results {incomplete.strip()}")
     srv.close()
     (run / "run.info").write_text(
         f"dol={a.dol} ({dol.name}) wii={a.wii} chain={a.chain} secs={int(time.monotonic() - t0)}\n"
         f"started={started} ended={time.strftime('%Y-%m-%d %H:%M:%S')} (PC clock)\n"
-        f"settings: {settings.strip().replace(chr(10), ' ')}\nplatform: hardware\n")
+        f"settings: {settings.strip().replace(chr(10), ' ')}\nplatform: hardware\n{incomplete}")
     print(f"results: {', '.join(got)} -> {run}")
+    if incomplete:
+        sys.exit(1)
     subprocess.run([sys.executable, str(REPO / "scripts/chain_table.py"), str(run)])
     print("HBC ready for the next test" if hbc_ready(a.wii, 90) else "HBC did not come back within 90 s")
 

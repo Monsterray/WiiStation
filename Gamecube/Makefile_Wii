@@ -59,7 +59,7 @@ CXXFLAGS	=	$(CFLAGS) -Wno-register
 
 ASFLAGS := -DHW_RVL
 
-LDFLAGS	=	-g $(MACHDEP) -Wl,-Map,$(notdir $@).map,-wrap,wiiuse_register
+LDFLAGS	=	-g $(MACHDEP) -Wl,-Map,$(notdir $@).map,-wrap,wiiuse_register,-wrap,c_default_exceptionhandler
 
 #---------------------------------------------------------------------------------
 # any extra libraries we wish to link with the project

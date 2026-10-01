@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "out.h"
+#include "../Gamecube/ws_crash.h"
 #include "resample.h"
 
 /* Two output drivers for the SPU emulator's signed 16-bit stereo stream:
@@ -63,5 +64,5 @@ void SetupSound(void)
 	}
 
 	//printf("the impossible happened\n");
-	abort();
+	ws_fatal(WS_CRASH_NO_AUDIO);   /* was abort(), with no report */
 }

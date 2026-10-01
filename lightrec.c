@@ -7,6 +7,7 @@
 #include <sys/stat.h>
 
 #include "psxcommon.h"
+#include "Gamecube/ws_crash.h"
 #include "cdrom.h"
 #include "gpu.h"
 #include "gte.h"
@@ -717,7 +718,7 @@ static void lightrec_plugin_execute_internal(bool block_only)
 		fprintf(stderr, "Exiting at cycle 0x%08x\n",
 				psxRegs.cycle);
 		#endif // SHOW_DEBUG
-		exit(1);
+		ws_fatal(WS_CRASH_GUEST_SEGFAULT);   /* was exit(1), with no report */
 	}
 
 	if (flags & LIGHTREC_EXIT_SYSCALL) {

@@ -64,6 +64,7 @@ extern "C" {
 #include "fileBrowser/fileBrowser-SMB.h"
 #include "gc_input/controller.h"
 #include "vm/vm.h"
+#include "ws_crash.h"
 #include "../gpu.h"
 #include "../mem2_manager.h"
 }
@@ -889,6 +890,7 @@ int main(int argc, char *argv[])
 	/* The Homebrew Channel's agent (hbc_home.c): after lab mode, which starts the network
 	 * itself, and before the SMB thread, which waits for the agent's start-up. */
 	hbc_home_start();
+	ws_watchdog_start();   /* reports a hang; ws_crash.c */
 
 	/* Test automation: a bare .dol booted by Dolphin gets no loader argv, so
 	 * sd:/wiisxrx/autoboot.txt -- two lines, the ISO's directory and its

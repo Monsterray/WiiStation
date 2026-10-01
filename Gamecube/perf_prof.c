@@ -616,6 +616,16 @@ void perf_vblank_tick(void)
 		perf_report();
 		*(volatile unsigned *)0xFFFFFFF4 = 0x0badc0de;
 	}
+	/* "hangtest <vblank>": spin here for good, interrupts on, to prove the hang watchdog
+	 * (ws_crash.c): a crash block with code 0x81 about 60 s later, then HBC. */
+	{
+		extern unsigned autoinput_hang_vbl;
+		if (autoinput_hang_vbl && frame_counter >= autoinput_hang_vbl) {
+			perf_report();
+			for (;;)
+				__asm__ volatile ("nop");
+		}
+	}
 	if (!g_perf.vram_dumped && autoinput_dump_vbl && frame_counter >= autoinput_dump_vbl) {
 		g_perf.vram_dumped = 1;
 		perf_vram_dump();

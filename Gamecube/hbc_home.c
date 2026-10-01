@@ -15,6 +15,7 @@
 #include "../deps/hbc_agent/sdk/hbc_agent.h"
 #include "hbc_home.h"
 #include "lab_net.h"
+#include "ws_crash.h"
 
 extern char shutdown;             /* GamecubeMain.cpp: 1 power off, 2 back to the loader */
 extern int stop;                  /* GamecubeMain.cpp: leave the CPU loop */
@@ -59,8 +60,11 @@ int hbc_home_menu_frame(void)
 	for (chan = 0; chan < WPAD_MAX_WIIMOTES; chan++)
 		if (WPAD_ButtonsDown(chan) & (WPAD_BUTTON_HOME | WPAD_CLASSIC_BUTTON_HOME))
 			break;
-	if (chan < WPAD_MAX_WIIMOTES || hbc_agent_home_pending())
+	if (chan < WPAD_MAX_WIIMOTES || hbc_agent_home_pending()) {
+		ws_watchdog_hold++;   /* the HOME menu can stay open for minutes */
 		hbc_agent_home(vmode);
+		ws_watchdog_hold--;
+	}
 	return 0;
 }
 
