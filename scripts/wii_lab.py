@@ -142,6 +142,7 @@ def main():
         puts.append((f, p.read_bytes()))
     wants = RESULTS + [f"vram_{i:02d}.bin" for i in range(1, games + 1)] \
         + [f"vtl_{i:02d}.bin" for i in range(1, games + 1)]   # per-vblank timelines (scripts/vtl_view.py)
+    wants += [f"vsig_{i:02d}.bin" for i in range(1, games + 1)]   # per-vblank guest signatures (scripts/vsig_cmp.py)
     wants += [f"hprof_{i:02d}.bin" for i in range(1, games + 1)]   # PROBES=hprof (scripts/hprof_view.py); empty otherwise
     puts += [(w, b"") for w in wants if w != "lab.log"]   # no stale result from an earlier run (lab.log: WiiStation restarts it, and is writing it now)
     isos = []

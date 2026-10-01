@@ -777,6 +777,8 @@ static void chainStart(int i)
 	snprintf(AutobootROM, sizeof AutobootROM, "%s", chainList[i].rom);
 	chain_stop_vbl = chainList[i].vbl;
 	frame_counter = 0;
+	/* stdout: the HBC agent keeps the end of it for `hbc.py lastlog` after a crash or hang */
+	printf("chain %d/%d: %s, %u vblanks\n", i + 1, chainN, chainList[i].rom, (unsigned)chainList[i].vbl);
 	autoinput_reset(chainList[i].input);
 	if (chainList[i].state[0])   /* load it once the game has booted: its first vblank */
 		statetool_request(2, chainList[i].state, 1, 0);

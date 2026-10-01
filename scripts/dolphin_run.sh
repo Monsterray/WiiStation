@@ -186,7 +186,7 @@ rm -rf "$PROFILE/Dump/Frames" "$PROFILE/Dump/Audio"
 [ -f "$PROFILE/Logs/dolphin.log" ] && mv "$PROFILE/Logs/dolphin.log" "$PROFILE/Logs/dolphin.log.prev"
 # the logs a run leaves: an earlier run's must not pass for this one's (a run cut off before
 # its trace fired read the previous run's ptrace.log)
-rm -f "$S/perf.log" "$S/tty.log" "$S/ptrace.log" "$S/vramio.log" "$S/atrace.log" "$S/lab.log" "$S/pcring.log" "$S/xfb.bin" "$S/"vram_*.bin "$S/"vtl_*.bin "$S/"hprof_*.bin
+rm -f "$S/perf.log" "$S/tty.log" "$S/ptrace.log" "$S/vramio.log" "$S/atrace.log" "$S/lab.log" "$S/pcring.log" "$S/xfb.bin" "$S/"vram_*.bin "$S/"vtl_*.bin "$S/"hprof_*.bin "$S/"vsig_*.bin
 cp "${AIN:-$P/autoinput.txt}" "$S/autoinput.txt"; cp "${SET:-$P/settingsRX2022.cfg}" "$S/settingsRX2022.cfg"
 # autoboot: without it WiiStation sits in its menu
 [ -n "$ABOOT" ] || echo "note: no autoboot file given -- the run will stay in the menu"
@@ -248,6 +248,10 @@ for i in $(seq -w 1 16); do
 	python "$SP/sdimage_read.py" "$CARD" "wiisxrx/vtl_$i.bin" "$OUT/vtl_$i.bin" >/dev/null 2>&1 || break
 done
 ls "$OUT"/vtl_*.bin >/dev/null 2>&1 && echo "vtl: $(ls "$OUT"/vtl_*.bin | wc -l) timeline(s)"
+# the per-vblank guest signatures (debug builds; scripts/vsig_cmp.py)
+for i in $(seq -w 1 16); do
+	python "$SP/sdimage_read.py" "$CARD" "wiisxrx/vsig_$i.bin" "$OUT/vsig_$i.bin" >/dev/null 2>&1 || break
+done
 # the sampling profiles (PROBES=hprof builds; scripts/hprof_view.py)
 for i in $(seq -w 1 16); do
 	python "$SP/sdimage_read.py" "$CARD" "wiisxrx/hprof_$i.bin" "$OUT/hprof_$i.bin" >/dev/null 2>&1 || break

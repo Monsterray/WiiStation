@@ -547,16 +547,37 @@ static inline unsigned short vtl_u16(uint64_t ticks)
 	return ticks > 0xffff ? 0xffff : (unsigned short)ticks;
 }
 
+/* The guest's signature per vblank, beside the timeline: a hash of every 8th word of RAM
+ * (0.45 ms a vblank on a Wii), the cycle count and the PC. Two runs that should be the same
+ * show where the guest first differs: scripts/vsig_cmp.py, vsig_NN.bin per chained game. */
+typedef struct { u32 ram, cycle, pc; } vsig_t;
+static vsig_t *vsig;
+
+static void vsig_take(vsig_t *g)
+{
+	extern s8 *psxM;
+	const u32 *w = (const u32 *)psxM;
+	u32 h = 2166136261u, k;
+	for (k = 0; k < 0x200000 / 4; k += 8)
+		h = (h ^ w[k]) * 16777619u;
+	g->ram = h;
+	g->cycle = psxRegs.cycle;
+	g->pc = psxRegs.pc;
+}
+
 static void vtl_tick(void)
 {
 	uint64_t now = gettime();
 	if (!vtl) {
 		vtl = (vtl_t *)_mem2_malloc(VTL_MAX * sizeof(vtl_t));
+		vsig = (vsig_t *)_mem2_malloc(VTL_MAX * sizeof(vsig_t));
 		if (!vtl)
 			return;
 		vtl_n = 0;
 	} else if (vtl_n < VTL_MAX && vtl_t0) {
 		vtl_t *v = &vtl[vtl_n++];
+		if (vsig)
+			vsig_take(&vsig[vtl_n - 1]);
 		v->wall = vtl_u16(now - vtl_t0);
 		v->cpu = vtl_u16(g_perf.cpu_ticks - vtl_cpu0);
 		v->gpu = vtl_u16(g_perf.hw_gpu_ticks - vtl_gpu0);
@@ -585,6 +606,13 @@ void perf_vtl_flush(int game)
 	if ((f = fopen(path, "wb"))) {
 		fwrite(hdr, sizeof hdr, 1, f);
 		fwrite(vtl, sizeof(vtl_t), vtl_n, f);
+		fclose(f);
+	}
+	snprintf(path, sizeof path, "sd:/wiisxrx/vsig_%02d.bin", game);
+	if (vsig && (f = fopen(path, "wb"))) {
+		unsigned vh[2] = { 0x56534731, vtl_n };   /* "VSG1", then {ram, cycle, pc} per vblank */
+		fwrite(vh, sizeof vh, 1, f);
+		fwrite(vsig, sizeof(vsig_t), vtl_n, f);
 		fclose(f);
 	}
 	vtl_n = 0;
