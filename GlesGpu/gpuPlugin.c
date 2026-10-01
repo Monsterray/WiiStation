@@ -462,6 +462,17 @@ void GL_flip05Drop(void)
 void updateDisplayGl(void)                               // UPDATE DISPLAY
 {
 BOOL bBlur=FALSE;
+extern int ogx_tex_alloc_failed;
+
+/* A texture allocation failed (MEM2 pool full, deps/opengx ogx_tex_alloc): drop every
+ * cached texture here, before this frame draws, so the pool empties; the textures are
+ * rebuilt from VRAM as the frame uses them. */
+if (ogx_tex_alloc_failed)
+ {
+  ogx_tex_alloc_failed = 0;
+  ResetTextureArea(TRUE);
+  PERF_INC(ogx_tex_flush);
+ }
 
 if (flip05Pending)
  {

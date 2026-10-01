@@ -1873,6 +1873,30 @@ static int calc_mipmap_offset(int level, int w, int h, int b)
 }
 
 // Create a Blank Texture
+/* A texture's MEM2 block. NULL when the pool is full: the caller leaves the texture empty
+ * (data 0, which glBindTexture and the draws skip) instead of writing through the NULL --
+ * that wrote a texture's worth of zeros over low memory, the exception vectors included,
+ * and the Wii froze and reset with no crash screen (Crash 3 after FF7, 2026-09-30). The
+ * failure sets ogx_tex_alloc_failed; GlesGpu then flushes its texture cache at the next
+ * present (gpuPlugin.c updateDisplayGl), and the textures are rebuilt from VRAM. */
+int ogx_tex_alloc_failed;
+/* perf.log "texmem: ... atfail": the first failure's moment -- what the textures held then. */
+unsigned ogx_fail_n, ogx_fail_data_kb, ogx_fail_semi_kb, ogx_fail_mem2_kb, ogx_fail_want;
+void ogx_tex_mem(unsigned *n, unsigned *data_kb, unsigned *semi_kb);
+static void *ogx_tex_alloc(int bytes)
+{
+    void *p = _mem2_memalign(32, bytes);
+    if (!p) {
+        if (!ogx_fail_want) {
+            ogx_tex_mem(&ogx_fail_n, &ogx_fail_data_kb, &ogx_fail_semi_kb);
+            ogx_fail_mem2_kb = gx_mem2_used() >> 10;
+            ogx_fail_want = bytes;
+        }
+        ogx_tex_alloc_failed = 1;
+    }
+    return p;
+}
+
 void glInitRGBATextures( GLsizei width, GLsizei height )
 {
     gltexture_ *currtex = &texture_list[glparamstate.glcurtex];
@@ -1890,7 +1914,11 @@ void glInitRGBATextures( GLsizei width, GLsizei height )
 
     int required_size = wi * he * 2;
     int tex_size_rnd = ROUND_32B(required_size);
-    currtex->data = _mem2_memalign(32, tex_size_rnd);
+    currtex->data = ogx_tex_alloc(tex_size_rnd);
+    if (!currtex->data) {
+        currtex->w = currtex->h = 0;
+        return;
+    }
     memset(currtex->data, 0, tex_size_rnd);
     DCFlushRange(currtex->data, tex_size_rnd);
 
@@ -2378,6 +2406,8 @@ static int glTexSubImage2D_body(GLenum target, GLint level,
     ogx_drop_tex_tags(glparamstate.glcurtex);   /* only this texture changed */
 
     gltexture_ *currtex = &texture_list[glparamstate.glcurtex];
+    if (!currtex->data)
+        return 0;   /* its allocation failed (ogx_tex_alloc): nothing to write into */
     unsigned char * semiTransBufPtr = (currtex->semiTransData == 0 ? semiTransBuf : currtex->semiTransData);
 
     /* semiTransBuf is a shared scratch that is never cleared. On a texture's
@@ -2531,7 +2561,9 @@ static int glTexSubImage2D_body(GLenum target, GLint level,
     {
         if (currtex->semiTransData == 0)
         {
-            currtex->semiTransData = _mem2_memalign(32, ogx_tex16_bytes(currtex->w, currtex->h));
+            currtex->semiTransData = ogx_tex_alloc(ogx_tex16_bytes(currtex->w, currtex->h));
+            if (!currtex->semiTransData)
+                return textureType;   /* drawn without its semi copy until the flush */
             GX_InitTexObj(&currtex->semiTransTexobj, currtex->semiTransData,
                         currtex->w, currtex->h, GX_TF_RGB5A3, currtex->wraps, currtex->wrapt, GX_FALSE);
             if (originalMode == ORIGINALMODE_ENABLE || bilinearFilter == BILINEARFILTER_NEAR)
@@ -2591,7 +2623,11 @@ int glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei width
         }
 
         int tex_size_rnd = ogx_tex16_bytes(wi, he);   /* whole 4x4 blocks */
-        currtex->data = _mem2_memalign(32, tex_size_rnd);
+        currtex->data = ogx_tex_alloc(tex_size_rnd);
+        if (!currtex->data) {
+            currtex->w = currtex->h = 0;
+            return 0;
+        }
         memset(currtex->data, 0, tex_size_rnd);
     }
 
@@ -2618,7 +2654,9 @@ int glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei width
     {
         if (currtex->semiTransData == 0)
         {
-            currtex->semiTransData = _mem2_memalign(32, ogx_tex16_bytes(currtex->w, currtex->h));
+            currtex->semiTransData = ogx_tex_alloc(ogx_tex16_bytes(currtex->w, currtex->h));
+            if (!currtex->semiTransData)
+                return textureType;   /* drawn without its semi copy until the flush */
             GX_InitTexObj(&currtex->semiTransTexobj, currtex->semiTransData,
                         currtex->w, currtex->h, GX_TF_RGB5A3, currtex->wraps, currtex->wrapt, GX_FALSE);
             if (originalMode == ORIGINALMODE_ENABLE || bilinearFilter == BILINEARFILTER_NEAR)
@@ -4591,3 +4629,21 @@ void glAlphaFunc(GLenum func, GLclampf ref) {} // We need a TEVSTAGE for compari
  GX does only support floats. Simple conversion would be needed.
 
 */
+
+/* perf.log "texmem:": the live textures in the MEM2 pool (movie frames live in GXtexture). */
+void ogx_tex_mem(unsigned *n, unsigned *data_kb, unsigned *semi_kb)
+{
+    unsigned long d = 0, s = 0;
+    int i, k = 0;
+    for (i = 0; i < _MAX_GL_TEX; i++) {
+        gltexture_ *t = &texture_list[i];
+        unsigned char *p = t->data;
+        if (!p || (p >= GXtexture && p < GXtexture + MOVIE_BUF_SIZE))
+            continue;
+        k++;
+        d += (unsigned long)ogx_tex16_bytes(t->w, t->h);
+        if (t->semiTransData && t->semiTransData != t->data)
+            s += (unsigned long)ogx_tex16_bytes(t->w, t->h);
+    }
+    *n = k; *data_kb = d >> 10; *semi_kb = s >> 10;
+}

@@ -382,6 +382,9 @@ typedef struct {
 
 	/* RAM (sampled at report; fails counted live) */
 	uint32_t mem2_alloc_fails;    /* _mem2_memalign NULL returns */
+	uint32_t ogx_tex_flush;       /* texture cache flushes after a failed texture allocation */
+	uint32_t subcache_max;        /* GlesGpu sub-texture area: highest entry count (area size SOFFB-2) */
+	uint32_t subcache_wraps;      /* ... and how often an area was full and wrapped */
 	uint32_t mem2_peak_kb;        /* max sampled MEM2 used */
 	/* PSX LUT health (Phase 3): RLUT-null reads = genuinely unmapped
 	 * region touched (copy-protection probes, bad pointers). WLUT is
@@ -714,6 +717,7 @@ void perf_autoinput_event(unsigned vblank, unsigned mask);
 /* A VRAM transfer for sd:/wiisxrx/vramio.log (perf_prof.c). kind: 0xC0 read, 0xA0 load,
  * 0x80 move, 0xC1 readback outcome. */
 void perf_vram_event(unsigned kind, int x, int y, int w, int h, int a, int b);
+void perf_tty(const char *s);   /* the run's console text, for sd:/wiisxrx/tty.log */
 /* the PSX PC at each vblank: where the CPU spends its time, "pcs:" in perf.log */
 void perf_pc_sample(unsigned pc);
 
@@ -755,6 +759,7 @@ static inline void perf_prim_trace(unsigned cmd, unsigned flags, unsigned abr, u
 { (void)cmd; (void)flags; (void)abr; (void)color; (void)x0; (void)y0; (void)x1; (void)y1; }
 static inline void perf_autoinput_event(unsigned vblank, unsigned mask) { (void)vblank; (void)mask; }
 static inline void perf_pc_sample(unsigned pc) { (void)pc; }
+static inline void perf_tty(const char *s) { (void)s; }
 static inline void perf_vram_event(unsigned kind, int x, int y, int w, int h, int a, int b)
 { (void)kind; (void)x; (void)y; (void)w; (void)h; (void)a; (void)b; }
 static inline void perf_pad_event(unsigned pad, unsigned type, unsigned drv_btns, unsigned drv_l,
