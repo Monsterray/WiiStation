@@ -95,6 +95,11 @@ static void SOUND_FillAudio(void *unused, Uint8 *stream, int len) {
     int16_t *p = (int16_t *)stream;
     int queued, ppm;
 
+    if (pSndBuffer == NULL) {                /* between games: the device stays open (sdl_finish) */
+        memset(stream, 0, len);
+        return;
+    }
+
     //len >>= 1;
     len >>= 2;
 
@@ -169,48 +174,62 @@ static void DestroySDL() {
     }
 }
 
+/* The audio device is opened once and stays open for the session. SDL-for-Wii's
+ * SDL_CloseAudio() leaves its AudioThread behind: one thread per game, and after ten or so
+ * games all 16 of libogc2's threads were taken and the next thread (the CD read-ahead) could
+ * not start (2026-09-30, perf.log "threads:"). A game's end now pauses the device and
+ * drops its ring; the next game reuses the device. */
+static int sdl_opened;
+
 static int sdl_init(void) {
     SDL_AudioSpec                spec;
+    short *buf;
 
     if (pSndBuffer != NULL) return -1;
-    //fill_buffer = play_buffer = 0;
 
-    InitSDL();
+    if (!sdl_opened) {
+        InitSDL();
 
-    spec.freq = WII_SPU_FREQ;
-    spec.format = AUDIO_S16SYS; // AUDIO_S16LSB // //AUDIO_S16MSB; //
-    spec.channels = 2;
-    spec.samples = SDL_CALLBACK_FRAMES;
-    spec.callback = SOUND_FillAudio;
+        spec.freq = WII_SPU_FREQ;
+        spec.format = AUDIO_S16SYS;
+        spec.channels = 2;
+        spec.samples = SDL_CALLBACK_FRAMES;
+        spec.callback = SOUND_FillAudio;
 
-    if (SDL_OpenAudio(&spec, NULL) < 0) {
-        DestroySDL();
-        return -1;
+        if (SDL_OpenAudio(&spec, NULL) < 0) {
+            DestroySDL();
+            return -1;
+        }
+        sdl_opened = 1;
     }
 
-    pSndBuffer = (short *)malloc(BUFFER_SIZE * sizeof(short));
-    if (pSndBuffer == NULL) {
-        SDL_CloseAudio();
+    buf = (short *)malloc(BUFFER_SIZE * sizeof(short));
+    if (buf == NULL)
         return -1;
-    }
 
+    SDL_LockAudio();                         /* the callback runs under this lock */
     iReadPos = 0;
     iWritePos = 0;
     primed = 0;
     ratectl_init(&rate, SDL_TARGET_FRAMES, RATECTL_SDL);
+    pSndBuffer = buf;
+    SDL_UnlockAudio();
 
     SDL_PauseAudio(0);
     return 0;
 }
 
 static void sdl_finish(void) {
+    short *buf;
+
     if (pSndBuffer == NULL) return;
 
-    SDL_CloseAudio();
-    DestroySDL();
-
-    free(pSndBuffer);
+    SDL_PauseAudio(1);                       /* not SDL_CloseAudio(): see sdl_opened */
+    SDL_LockAudio();
+    buf = pSndBuffer;
     pSndBuffer = NULL;
+    SDL_UnlockAudio();
+    free(buf);
 }
 
 static int sdl_busy(void) {

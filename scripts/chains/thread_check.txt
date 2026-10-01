@@ -1,0 +1,26 @@
+CHAIN
+# Thread leak check: eight games of 10 s, read-ahead on (2026-09-30).
+600 CdPrefetch=1
+sd:/wiisxrx/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue
+600 CdPrefetch=1
+sd:/wiisxrx/isos/Crash Bandicoot 3 - Warped
+Crash Bandicoot 3 - Warped [U] [SLUS-94244].cue
+600 CdPrefetch=1
+sd:/wiisxrx/isos/Crash Team Racing
+Crash Team Racing [U] [SCUS-94426].cue
+600 CdPrefetch=1
+sd:/wiisxrx/isos/Crash Bash
+Crash Bash [U] [SCUS-94570].cue
+600 CdPrefetch=1
+sd:/wiisxrx/isos/Ape Escape
+Ape Escape [U] [SCUS-94423].cue
+600 CdPrefetch=1
+sd:/wiisxrx/isos/Medievil
+Medievil [U] [SCUS-94227].cue
+600 CdPrefetch=1
+sd:/wiisxrx/isos/Final Fantasy VII/Final Fantasy VII 1
+Final Fantasy VII [U] [Disc 1] [SLUS-94163].cue
+600 CdPrefetch=1
+sd:/wiisxrx/isos/Gex (USA)
+Gex (USA).cue
