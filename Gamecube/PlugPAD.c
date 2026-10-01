@@ -271,6 +271,20 @@ void auto_assign_controllers(void)
 		unassign_controller(slots[i]);
 		padType[slots[i]] = PADTYPE_NONE;
 	}
+
+	/* A port an input script plays (PadWiiSX.c autoinput_active) is a digital pad whatever is
+	 * plugged into the Wii: a recording is made with a GameCube pad on each port it uses, and a
+	 * replay that left port 2 empty, or gave it to Dolphin's emulated Wiimote, made the game
+	 * talk to a different set of pads -- different pad traffic every frame, and ten-minute
+	 * recordings drifted out of step (2026-09-30). A host GameCube pad on the port may stay. */
+	for(i=0; i<2; ++i){
+		extern int autoinput_active(int port);
+		if(padType[i] == PADTYPE_MULTITAP || !autoinput_active(i))
+			continue;
+		if(virtualControllers[i].inUse && virtualControllers[i].control != &controller_GC)
+			unassign_controller(i);
+		padType[i] = PADTYPE_GAMECUBE;
+	}
 }
 
 int load_configurations(FILE* f, controller_t* controller){

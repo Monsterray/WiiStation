@@ -62,6 +62,24 @@ with nothing bound gets a keyboard layout (numpad D-pad) in the test profile's c
 (commit, DOL SHA-1), settings and pad type, and its chain line sets ControllerType: replay it
 with that line, alone -- 4th in a chain with the wrong pad type it went its own way.
 
+**Does a replay follow the session?** `python scripts/replay_check.py
+.runs/capture_<name>_<date>/perf.log <replay>/perf.log --game N` compares only guest-side
+counters (interrupts, CD reads, SIO/pad traffic, BIOS calls, GTE calls) at reports with the
+SAME vblank -- reports come every 1800 presents, which depend on the host, so compare by
+vblank, never by report number (2026-09-30: a "drift" that was a cut-short run's last report).
+Host microseconds and OpenGX's drawn-primitive counts always differ and mean nothing here.
+
+Fixed 2026-09-30 (ten-minute Spyro and Crash 3 sessions went out of step on replay, in Dolphin
+and on the Wii): **port 2 must be plugged in on replay exactly as it was while recording.**
+A session with a real pad 2 (movie_capture passes SIDevice1=6) has port 2 auto-assigned; the
+replay had no pad there, `PadType2` defaults to none, and the game polled one pad instead of
+two -- half the SIO interrupts from the first second. Now auto_assign_controllers() makes any
+scripted port a GameCube-style digital pad (PlugPAD.c, and no Dolphin emulated Wiimote may
+take it), and recordings with p2 lines carry `PadType2=1` in their chain line. Recordings
+also stamp a change made at a vblank's second pad read (`<vblank> <mask> <read>`;
+perf.log `pad: ... ambiguous=` counts unstamped lines a replay applied in a two-read vblank),
+and the recorder no longer fsyncs on every change (a dropped frame per button press).
+
 ## Save states: run settings from one moment
 
 Docs/SAVE_STATES.md. `wsx.sh state NAME GAME --at V [--rec REC]` saves a game at vblank V on

@@ -60,7 +60,29 @@
 /* A recording makes 2-5 lines a second: 32768 is about two hours of play. The table (256 KB)
  * comes from the MEM2 heap on the first load, not MEM1, which is kept for what runs hot. */
 #define AUTOIN_MAX 32768
-static struct autoin_line { unsigned vbl; unsigned short mask; unsigned char port; } *autoin;
+static struct autoin_line { unsigned vbl; unsigned short mask; unsigned char port, idx; } *autoin;
+/* The pad reads of the current vblank, per port (0 = the first read of the vblank). A game can
+ * read a pad twice in one vblank (Crash 3: 3985 reads in 3600 vblanks), so a change is stamped
+ * with the read that first saw it ("<vblank> <mask> <read>"; no third field = read 0) and
+ * replayed from that same read. Stamped by vblank alone, a change seen at a vblank's second
+ * read was replayed from its first, one read early, and ten-minute recordings drifted. */
+static unsigned rd_fc[2] = { ~0u, ~0u }, rd_n[2];
+static unsigned rd_applied_fc[2] = { ~0u, ~0u };   /* the vblank a line without a read stamp took effect */
+
+/* Every pad read, first of all (autoinput_record is called before autoinput_mask). */
+static void autoinput_read_tick(int port)
+{
+	if (rd_fc[port] != frame_counter) {
+		rd_fc[port] = frame_counter;
+		rd_n[port] = 0;
+	} else {
+		rd_n[port]++;
+		/* a second read in a vblank where an unstamped line took effect: that line's read
+		 * was ambiguous (perf.log "pad: ... ambiguous") -- an old recording may drift here */
+		if (rd_n[port] == 1 && rd_applied_fc[port] == frame_counter)
+			PERF_INC(ai_ambiguous);
+	}
+}
 static int autoin_n = -1;
 static int autoin_ports;                /* bit per port with at least one line */
 static unsigned short autoin_ev_last;   /* the mask last reported to perf.log ("autoinput:") */
@@ -151,9 +173,11 @@ void autoinput_load(void)
 			if (sscanf(line, "trace %u", &v) == 1) { if (autoinput_trace_n < 8) autoinput_trace_vbl[autoinput_trace_n++] = v; continue; }
 			{
 				int port = strncmp(line, "p2 ", 3) ? 0 : 1;
-				if (line[0] == '#' || sscanf(line + 3 * port, "%u %x", &v, &k) != 2) continue;
+				unsigned rd = 0;
+				if (line[0] == '#' || sscanf(line + 3 * port, "%u %x %u", &v, &k, &rd) < 2) continue;
 				autoin[autoin_n].vbl = v; autoin[autoin_n].mask = (unsigned short)k;
-				autoin[autoin_n].port = (unsigned char)port; autoin_n++;
+				autoin[autoin_n].port = (unsigned char)port;
+				autoin[autoin_n].idx = (unsigned char)(rd > 255 ? 255 : rd); autoin_n++;
 				autoin_ports |= 1 << port;
 			}
 		}
@@ -216,9 +240,13 @@ unsigned short autoinput_mask(int port)
 		autoin_m[port] = 0;
 	}
 	autoin_fc[port] = frame_counter;
-	while (autoin_cur[port] < autoin_n && frame_counter >= autoin[autoin_cur[port]].vbl) {
-		if (autoin[autoin_cur[port]].port == port)
+	while (autoin_cur[port] < autoin_n && (frame_counter > autoin[autoin_cur[port]].vbl ||
+	       (frame_counter == autoin[autoin_cur[port]].vbl && rd_n[port] >= autoin[autoin_cur[port]].idx))) {
+		if (autoin[autoin_cur[port]].port == port) {
 			autoin_m[port] = autoin[autoin_cur[port]].mask;
+			if (!autoin[autoin_cur[port]].idx && autoin[autoin_cur[port]].vbl == frame_counter)
+				rd_applied_fc[port] = frame_counter;
+		}
 		autoin_cur[port]++;
 	}
 	m = autoin_m[port];
@@ -239,20 +267,27 @@ extern virtualControllers_t virtualControllers[10];
 void autoinput_record(int port, unsigned short real)
 {
 	static int last[2] = { -1, -1 };
-	static unsigned alive;
+	static unsigned alive, synced;
 	if (port < 0 || port > 1)
 		return;
+	autoinput_read_tick(port);   /* every read, recording or playing back */
 	if (!autoin_rec) {
 		last[port] = -1;
 		return;
 	}
 	/* Every 5 seconds: how far the recording got, so one ended by closing the window says
-	 * where it stopped (scripts/movie_capture.sh takes the length from it). */
+	 * where it stopped (scripts/movie_capture.sh takes the length from it). The lines go to
+	 * the card every 30 s, not at each change: an fsync stalls the frame, and one per button
+	 * press was a stutter while recording. A chain that ends normally unmounts the card and
+	 * writes everything; a window closed early can lose its last 30 s. */
 	if (frame_counter >= alive + 300) {
 		alive = frame_counter;
 		fprintf(autoin_rec, "# alive %u\n", (unsigned)frame_counter);
 		fflush(autoin_rec);
-		fsync(fileno(autoin_rec));
+		if (frame_counter >= synced + 1800) {
+			synced = frame_counter;
+			fsync(fileno(autoin_rec));
+		}
 	}
 	if (real == last[port] || (port == 1 && !virtualControllers[1].inUse))
 		return;
@@ -264,9 +299,10 @@ void autoinput_record(int port, unsigned short real)
 			padAutoAssign ? "on" : "off", port + 1,
 			controller_GC.available[port] ? "seen" : "not seen");
 	last[port] = real;
-	fprintf(autoin_rec, "%s%u %04x\n", port ? "p2 " : "", (unsigned)frame_counter, real);
-	fflush(autoin_rec);
-	fsync(fileno(autoin_rec));
+	if (rd_n[port])   /* not the vblank's first read: say which, so playback uses the same one */
+		fprintf(autoin_rec, "%s%u %04x %u\n", port ? "p2 " : "", (unsigned)frame_counter, real, rd_n[port]);
+	else
+		fprintf(autoin_rec, "%s%u %04x\n", port ? "p2 " : "", (unsigned)frame_counter, real);
 }
 
 extern int stop;

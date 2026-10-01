@@ -70,6 +70,8 @@ if [ -n "$play" ]; then
 	name="$play"; input="${play}_play.txt"; src="$script"
 	# The recording's pad type, and whether this is the build it was made on
 	ct=$(sed -n 's/^# chain line: .*ControllerType=\([0-9]\).*/\1/p' "$script" | tr -d '\r'); ct=${ct:-0}
+	# a recording with port 2 needs the port plugged in on playback, as it was when it was made
+	grep -q '^p2 ' "$script" && p2set=" PadType2=1"
 	built=$(sed -n 's/^# build: //p' "$script" | tr -d '\r')
 	case "$dol" in debug) doli="$REPO/Gamecube/WiiSXRX_debug.dol" ;; release) doli="$REPO/Gamecube/WiiSXRX_Release.dol" ;; *) doli="$dol" ;; esac
 	want=$(printf '%s' "$built" | sed -n 's/.*sha1 \([0-9a-f]*\).*/\1/p')
@@ -105,8 +107,8 @@ if [ -z "$play" ]; then
 fi
 # PadAutoAssign=1: the run's base settings assign no controller (unattended runs have none),
 # and a recording needs the keyboard pad on port 1. Playback sets the same, so it boots alike.
-printf 'CHAIN\n# scripts/movie_capture.sh %s\n%s sd:/wiisxrx/%s PadAutoAssign=1 ControllerType=%s\n%s\n%s\n' \
-	"$name" "$vbl" "$input" "$ct" "$folder" "$cue" > "$dir/chain.txt"
+printf 'CHAIN\n# scripts/movie_capture.sh %s\n%s sd:/wiisxrx/%s PadAutoAssign=1 ControllerType=%s%s\n%s\n%s\n' \
+	"$name" "$vbl" "$input" "$ct" "${p2set:-}" "$folder" "$cue" > "$dir/chain.txt"
 : > "$dir/none.txt"
 
 # The test profile gets the user's controller setup for this run, and its own back after.
@@ -158,6 +160,11 @@ dolinfo=$(sed -n 's/^dol=\([^ ]*\) (\([^)]*\)).*/\1, \2/p' "$info" | tr -d '\r')
 sha=$(sha1sum "$REPO/.runs/$run/boot.dol" | cut -c1-40)
 settings=$(grep -v '^#' "$REPO/.runs/$run/settings.cfg" | tr -d '\r' | sed 's/ = /=/' | tr '\n' ' ')
 [ "$ct" = 1 ] && padname="DualShock" || padname="digital pad"
+# Port 2 is plugged in during a recording only by the user's real pad 2 (PadAutoAssign sees it);
+# on playback nothing is there, and PadType2 defaults to none, so the game would talk to one pad
+# where it talked to two -- different pad traffic every frame, and the replay drifts (2026-09-30,
+# Spyro and Crash 3 ten-minute sessions). A recording with p2 lines plugs port 2 in.
+grep -q '^p2 ' "$rec" && p2set=" PadType2=1"
 {
 	echo "# $(basename "$folder"): played by hand, recorded $(date '+%F %T') with scripts/movie_capture.sh"
 	echo "# folder: $folder"
@@ -167,9 +174,9 @@ settings=$(grep -v '^#' "$REPO/.runs/$run/settings.cfg" | tr -d '\r' | sed 's/ =
 	echo "#   (if it drifts on a later build: build that commit and pass the DOL with --dol)"
 	echo "# settings: $settings"
 	echo "# pad: ControllerType=$ct ($padname); Dolphin: port 1 keyboard GameCube pad, port 2 GameCube pad (SIDevice1=6)"
-	echo "# chain line: $vbl sd:/wiisxrx/${name}_play.txt PadAutoAssign=1 ControllerType=$ct"
+	echo "# chain line: $vbl sd:/wiisxrx/${name}_play.txt PadAutoAssign=1 ControllerType=$ct${p2set:-}"
 	tr -d '\r' < "$rec"
 } > "$out"
 echo "saved scripts/autoinput/${name}_play.txt: $presses changes, the last at vblank ${last:-none}"
 echo "check it plays back:  bash scripts/movie_capture.sh --play $name"
-echo "use it in a chain:    $vbl sd:/wiisxrx/${name}_play.txt PadAutoAssign=1 ControllerType=$ct"
+echo "use it in a chain:    $vbl sd:/wiisxrx/${name}_play.txt PadAutoAssign=1 ControllerType=$ct${p2set:-}"
