@@ -2231,11 +2231,34 @@ if(iDataWriteMode==DR_VRAMTRANSFER)
                                 if (GETLE16(d_) != v_) { if (!cmax) cmin = d_; cmax = d_; VW_SEEN(d_); } \
                                 PUTLE16(d_, v_); } while (0)
 #define VW_PUT_PLAIN(d, v) PUTLE16((d), (v))
-#define VW_LOOP(VW_PUT) \
+/* Plain mode only: two little-endian pixels in VRAM are the bytes of the little-endian word
+ * that carries them, so whole pairs inside one row (aligned, no x wrap, before the end of
+ * VRAM) are copied as words, without the byte swaps and per-pixel tests. Rows still end
+ * after an even pixel, as in the loop below; a word that straddles two rows (odd width) goes
+ * through the loop. gdata is the last word read, as the loop leaves it (GPUdataRet). */
+#define VW_FAST_NONE
+#define VW_FAST_COPY \
+       if (rr >= 2 && !(((uintptr_t)ip) & 3) && wx - rr + 1 < 1024) \
+        { \
+         int n_ = rr >> 1, k_; \
+         if (n_ > iSize - i) n_ = iSize - i; \
+         if (n_ > (int)((eom - ip) >> 1)) n_ = (int)((eom - ip) >> 1); \
+         if (n_ > ((1024 - (wx - rr)) >> 1)) n_ = (1024 - (wx - rr)) >> 1; \
+         if (n_ > 0) \
+          { \
+           for (k_ = 0; k_ < n_; k_++) ((uint32_t *)ip)[k_] = ((const uint32_t *)pMem)[k_]; \
+           pMem += n_; i += n_; ip += 2 * n_; rr -= 2 * n_; \
+           gdata = GETLE32(pMem - 1); \
+           if (ip >= eom) ip -= wrap; \
+           continue; \
+          } \
+        }
+#define VW_LOOP(VW_PUT, VW_FAST) \
    while (cr > 0) \
     { \
      while (rr > 0) \
       { \
+       VW_FAST \
        if (i >= iSize) { VW_SAVE(); goto ENDVRAM_GL; } \
        i++; \
        gdata = GETLE32(pMem); pMem++; \
@@ -2274,17 +2297,19 @@ if(iDataWriteMode==DR_VRAMTRANSFER)
 
    if (ogx_efb_mirror == 1 && !PSXDisplay.RGB24)
     {
-     VW_LOOP(VW_PUT_TRACK)
+     VW_LOOP(VW_PUT_TRACK, VW_FAST_NONE)
     }
    else
     {
      vw_tracked = 0;
-     VW_LOOP(VW_PUT_PLAIN)
+     VW_LOOP(VW_PUT_PLAIN, VW_FAST_COPY)
     }
    VW_SAVE();
 #undef VW_LOOP
 #undef VW_PUT_TRACK
 #undef VW_PUT_PLAIN
+#undef VW_FAST_NONE
+#undef VW_FAST_COPY
 #undef VW_SAVE
 #undef VW_SEEN
   }

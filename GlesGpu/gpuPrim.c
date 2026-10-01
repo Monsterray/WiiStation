@@ -2896,6 +2896,34 @@ static inline void BlkFillArea(short x0, short y0, short width, short height, un
     ogx_inv_src = 3;
     InvalidateTextureArea(x0, y0, width, height);
 
+    /* GP0 02 masks x to 16 pixels and rounds the width up to 16 (primBlkFill), so each row
+     * is whole 32-byte cache lines when psxVuw is 32-byte aligned. Then dcbz claims each line
+     * without reading it from memory first (the bench Wii spent 37-120 ms per 10 s in this
+     * fill, hprof 2026-10-01) and eight 32-bit stores of the byte-swapped colour pair fill it:
+     * the same bytes as PUTLE16 per pixel. Anything else takes the old loop. */
+#ifdef __powerpc__
+    if (!(((uintptr_t)(psxVuw + (y0 << 10) + x0)) & 31) && !(width & 15))
+    {
+        unsigned short s = (unsigned short)((fillCol >> 8) | (fillCol << 8));
+        uint32_t pat = ((uint32_t)s << 16) | s;
+
+        for (y = y0; y < y0 + height; y++)
+        {
+            uint32_t *w = (uint32_t *)(psxVuw + (y << 10) + x0);
+            uint32_t *end = w + (width >> 1);
+            for (; w < end; w += 8)
+            {
+                __asm__ volatile ("dcbz 0,%0" : : "r" (w) : "memory");
+                if (pat)
+                {
+                    w[0] = pat; w[1] = pat; w[2] = pat; w[3] = pat;
+                    w[4] = pat; w[5] = pat; w[6] = pat; w[7] = pat;
+                }
+            }
+        }
+        return;
+    }
+#endif
     // clear area
     if (fillCol == 0)
     {
