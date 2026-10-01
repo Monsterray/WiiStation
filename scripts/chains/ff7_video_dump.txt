@@ -1,0 +1,5 @@
+CHAIN
+# FF7 New Game (the recording) with the XFB at vblank 2100, inside the opening video
+2400 sd:/wiisxrx/ff7_play_dump2100.txt PadAutoAssign=1 ControllerType=0
+sd:/wiisxrx/isos/Final Fantasy VII/Final Fantasy VII 1
+Final Fantasy VII [U] [Disc 1] [SLUS-94163].cue

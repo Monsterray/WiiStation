@@ -47,3 +47,8 @@ baselines/media/
 # Per-project Dolphin user directory for unattended runs (scripts/dolphin_run.sh).
 # Holds a copy of the card content and the SD image, so it is large.
 /.dolphin/
+
+# movie_capture.sh keeps the previous recording as NAME.prev when it records again (local)
+scripts/autoinput/*.prev
+# built probe DOLs (scripts/wii_probe/*.c is the source)
+scripts/wii_probe/*.dol
