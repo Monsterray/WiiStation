@@ -49,6 +49,11 @@ fi
 
 cd "$REPO_ROOT"
 
+# The version lives in Gamecube/version.h and in the HBC meta.xml; warn when they differ.
+v_h=$(sed -n 's/^#define WIISTATION_VERSION "\(.*\)"/\1/p' Gamecube/version.h)
+v_x=$(sed -n 's/.*<version>\(.*\)<\/version>.*/\1/p' Gamecube/release/apps/WiiStation/meta.xml)
+[ "$v_h" = "$v_x" ] || echo "warning: version.h says $v_h, meta.xml says $v_x" >&2
+
 # PROBES= selects which groups of debug probes the debug build compiles in. The
 # profiler as a whole stays on; these turn off the expensive per-primitive and
 # per-slice instrumentation, which is what makes a debug build slow to run.

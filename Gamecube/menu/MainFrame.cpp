@@ -19,6 +19,7 @@
 **/
 
 #include "MenuContext.h"
+#include "../version.h"
 #include "MainFrame.h"
 #include "SettingsFrame.h"
 #include "../libgui/Button.h"
@@ -169,9 +170,9 @@ void Func_Credits()
 {
 	char CreditsInfo[512] = "";
 #ifdef HW_RVL
-	sprintf(CreditsInfo,"WiiStation Beta 4.0\n");
+	sprintf(CreditsInfo,"WiiStation " WIISTATION_VERSION "\n");
 #else
-	sprintf(CreditsInfo,"CubeStation Beta 4.0\n");
+	sprintf(CreditsInfo,"CubeStation " WIISTATION_VERSION "\n");
 #endif
 	strcat(CreditsInfo,"www.github.com/xjsxjs197/WiiSXRX_2022\n");
 	strcat(CreditsInfo,"WiiStation: xjsxjs197 - Icon: Dakangel\n");
