@@ -116,10 +116,19 @@ void OldGpuCheckFrameRate(void)
  long long gettime(void);
  unsigned int diff_usec(long long start,long long end);
 
+/* Time-base ticks to microseconds as ticks * 2^24 / clock-in-MHz. diff_usec() divides a u64,
+ * a libgcc call (__udivdi3) on this CPU, and the limiter's final spin calls this in a loop
+ * (hprof, 2026-10-01). 0.6 ppm low; no overflow before 12 days. This file cannot include
+ * <ogc/lwp_watchdog.h> (it clashes with the plugin's types), so the clocks are written out. */
+#ifdef HW_RVL
+#define TB_US_MUL 276168ULL   /* 60.75 MHz */
+#else
+#define TB_US_MUL 414252ULL   /* 40.5 MHz */
+#endif
+
 unsigned long timeGetTime()
 {
- long long nowTick = gettime();
- return diff_usec(0,nowTick)/10;
+ return (unsigned)(((unsigned long long)gettime() * TB_US_MUL) >> 24) / 10;
 }
 
 extern int newDwFrameRateTicks;

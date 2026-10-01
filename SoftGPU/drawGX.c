@@ -732,8 +732,12 @@ static float  fps_cur  = 0;
 
 static unsigned long timeGetTime()
 {
-    long long nowTick = gettime();
-    return diff_usec(0, nowTick) / 10;
+    /* the same multiply as SoftGPU/oldGpuFps.c timeGetTime(), not diff_usec()'s u64 divide */
+#ifdef HW_RVL
+    return (unsigned)(((unsigned long long)gettime() * 276168ULL) >> 24) / 10;
+#else
+    return (unsigned)(((unsigned long long)gettime() * 414252ULL) >> 24) / 10;
+#endif
 }
 
 static void FrameCap (void)

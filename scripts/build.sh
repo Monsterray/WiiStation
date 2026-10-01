@@ -57,6 +57,7 @@ cd "$REPO_ROOT"
 #   PROBES=min    also drops the per-slice CPU timing
 #   PROBES=deep   light plus the GPU, GTE and SPU splits (chain_table.py --detail)
 #   PROBES=pmc    light plus Broadway's performance counters (hardware sessions)
+#   PROBES=hprof  light plus the sampling profiler (where the Wii's CPU is, per function)
 #   PROBES="-DPERF_PROF_TRACE=0"   pass your own defines
 # See the sub-gate comments in Gamecube/perf_prof.h for what each group costs.
 case "${PROBES:-all}" in
@@ -68,6 +69,9 @@ case "${PROBES:-all}" in
 	deep)  PROBE_DEFINES="-DPERF_PROF_TRACE=0 -DPERF_PROF_GPU=0 -DPERF_PROF_GPUSPLIT=1 -DPERF_PROF_GTE=1 -DPERF_PROF_SPU=1" ;;
 	# pmc: light plus Broadway's performance counters, for a hardware session.
 	pmc)   PROBE_DEFINES="-DPERF_PROF_TRACE=0 -DPERF_PROF_GPU=0 -DPERF_PROF_PMC=1" ;;
+	# hprof: light plus the sampling profiler (Gamecube/hprof.c, hprof_NN.bin per game,
+	# scripts/hprof_view.py). Uses PMC1, so not with pmc.
+	hprof) PROBE_DEFINES="-DPERF_PROF_TRACE=0 -DPERF_PROF_GPU=0 -DPERF_PROF_HPROF=1" ;;
 	# texcheck: deep plus the texture-cache staleness oracle (gpuTexture.c, "texcheck:" in
 	# perf.log): every cache hit is checked against VRAM. Slow; for correctness runs only.
 	# Its own test: add -DTEXCHECK_SELFTEST=1 (a custom PROBES list); 1 hit in 64 then gets a

@@ -33,9 +33,10 @@
 #	define unlikely(x)     (x)
 #endif
 
-/* The code buffer, in MEM1 (Gamecube/MEM2.h LIGHTREC_CODE_SIZE says why and how big). */
+/* The code buffer, in MEM1 (Gamecube/MEM2.h LIGHTREC_CODE_SIZE says why and how big). Not static:
+ * Gamecube/hprof.c tells samples in generated code from the rest by its address. */
 #define BUF_SIZE LIGHTREC_CODE_SIZE
-static s8 code_buffer_mem1[BUF_SIZE] __attribute__((aligned(32)));
+s8 code_buffer_mem1[BUF_SIZE] __attribute__((aligned(32)));
 static s8* code_buffer = code_buffer_mem1;
 static struct lightrec_state *lightrec_state;
 

@@ -65,7 +65,9 @@
 # Note the system name for GFX.ini is "Graphics" -- "-C GFX.*" is silently ignored.
 set -u
 OUT="$1"; SECS="${2:-170}"; AIN="${3:-}"; SET="${4:-}"; ABOOT="${5:-}"
-D="/c/tools/Dolphin-x64"
+# Dolphin 2609 since 2026-10-01. Its User folder is a junction to /c/tools/Dolphin-x64/User (one
+# copy, 16 GB). The old build stays as a fallback: DOLPHIN_DIR=/c/tools/Dolphin-x64.
+D="${DOLPHIN_DIR:-/c/tools/Dolphin-2609}"
 SP="$(cd "$(dirname "$0")" && pwd)"   # sheet.py and sdimage_read.py live next to this script
 REPO="$(cd "$SP/.." && pwd)"
 DOL="${DOL:-$REPO/Gamecube/WiiSXRX_debug.dol}"
@@ -184,7 +186,7 @@ rm -rf "$PROFILE/Dump/Frames" "$PROFILE/Dump/Audio"
 [ -f "$PROFILE/Logs/dolphin.log" ] && mv "$PROFILE/Logs/dolphin.log" "$PROFILE/Logs/dolphin.log.prev"
 # the logs a run leaves: an earlier run's must not pass for this one's (a run cut off before
 # its trace fired read the previous run's ptrace.log)
-rm -f "$S/perf.log" "$S/tty.log" "$S/ptrace.log" "$S/vramio.log" "$S/atrace.log" "$S/lab.log" "$S/pcring.log" "$S/xfb.bin" "$S/"vram_*.bin "$S/"vtl_*.bin
+rm -f "$S/perf.log" "$S/tty.log" "$S/ptrace.log" "$S/vramio.log" "$S/atrace.log" "$S/lab.log" "$S/pcring.log" "$S/xfb.bin" "$S/"vram_*.bin "$S/"vtl_*.bin "$S/"hprof_*.bin
 cp "${AIN:-$P/autoinput.txt}" "$S/autoinput.txt"; cp "${SET:-$P/settingsRX2022.cfg}" "$S/settingsRX2022.cfg"
 # autoboot: without it WiiStation sits in its menu
 [ -n "$ABOOT" ] || echo "note: no autoboot file given -- the run will stay in the menu"
@@ -246,6 +248,11 @@ for i in $(seq -w 1 16); do
 	python "$SP/sdimage_read.py" "$CARD" "wiisxrx/vtl_$i.bin" "$OUT/vtl_$i.bin" >/dev/null 2>&1 || break
 done
 ls "$OUT"/vtl_*.bin >/dev/null 2>&1 && echo "vtl: $(ls "$OUT"/vtl_*.bin | wc -l) timeline(s)"
+# the sampling profiles (PROBES=hprof builds; scripts/hprof_view.py)
+for i in $(seq -w 1 16); do
+	python "$SP/sdimage_read.py" "$CARD" "wiisxrx/hprof_$i.bin" "$OUT/hprof_$i.bin" >/dev/null 2>&1 || break
+done
+ls "$OUT"/hprof_*.bin >/dev/null 2>&1 && echo "hprof: $(ls "$OUT"/hprof_*.bin | wc -l) profile(s)"
 # audio timeline (debug build, 'atrace <vblank>' in autoinput.txt); absent in most runs
 python "$SP/sdimage_read.py" "$CARD" wiisxrx/atrace.log "$OUT/atrace.log" >/dev/null 2>&1 && [ -s "$OUT/atrace.log" ] && echo "atrace: $(wc -l < "$OUT/atrace.log") lines"
 # the front XFB a scheduled `dump` wrote (scripts/xfb2png.py; XFB_RAM=1 for the real TV image)

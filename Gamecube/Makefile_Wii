@@ -178,6 +178,9 @@ $(OUTPUT).elf: $(OFILES)
 dsihandler.o:		./vm/dsihandler.s
 		$(CC) -x assembler-with-cpp $(CFLAGS) -D_LANGUAGE_ASSEMBLY -c -o $@ $<
 
+hprof_entry.o:		hprof_entry.s
+		$(CC) -x assembler-with-cpp $(CFLAGS) -D_LANGUAGE_ASSEMBLY -c -o $@ $<
+
 -include $(DEPENDS)
 
 #---------------------------------------------------------------------------------

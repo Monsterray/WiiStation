@@ -9,7 +9,7 @@ moves it.
 
 | Thing | Where |
 |---|---|
-| Dolphin | `C:\tools\Dolphin-x64\Dolphin.exe` |
+| Dolphin | `C:\tools\Dolphin-2609\Dolphin.exe` (2609, since 2026-10-01). Its `User\` is a junction to `C:\tools\Dolphin-x64\User` (16 GB, one copy), so paths below that name `Dolphin-x64\User` are the same folder. The old build in `Dolphin-x64` is the fallback: `DOLPHIN_DIR=/c/tools/Dolphin-x64`. |
 | This project's user dir (`-u`) | `<repo>\.dolphin\` |
 | SD sync folder (master; synced INTO the image at launch, never back on a kill) | `.dolphin\Load\WiiSDSync\wiisxrx\` |
 | SD image (locked while Dolphin runs) | `.dolphin\Load\WiiSD.raw` |

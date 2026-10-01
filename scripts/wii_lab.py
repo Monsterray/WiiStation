@@ -142,6 +142,7 @@ def main():
         puts.append((f, p.read_bytes()))
     wants = RESULTS + [f"vram_{i:02d}.bin" for i in range(1, games + 1)] \
         + [f"vtl_{i:02d}.bin" for i in range(1, games + 1)]   # per-vblank timelines (scripts/vtl_view.py)
+    wants += [f"hprof_{i:02d}.bin" for i in range(1, games + 1)]   # PROBES=hprof (scripts/hprof_view.py); empty otherwise
     puts += [(w, b"") for w in wants if w != "lab.log"]   # no stale result from an earlier run (lab.log: WiiStation restarts it, and is writing it now)
     isos = []
     if a.send_isos:
@@ -199,6 +200,9 @@ def main():
             _, n, path = l.split(" ", 2)
             with open(run / pathlib.Path(path).name, "wb") as f:
                 recv_exact(c, int(n), f)
+            if int(n) == 0 and path.startswith("hprof_"):   # not an hprof build
+                (run / pathlib.Path(path).name).unlink()
+                continue
             got.append(path)
     srv.close()
     (run / "run.info").write_text(

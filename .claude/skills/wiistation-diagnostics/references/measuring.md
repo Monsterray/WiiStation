@@ -14,12 +14,35 @@ hand-written several times.
 | `light` | counters, no primitive trace, no GX sample rings | ordinary runs (wsx.sh's default) |
 | `deep` | light + GPU split (`PERF_PROF_GPUSPLIT`), GTE, SPU split | ranking subsystems; what `--detail` reads |
 | `pmc` | light + Broadway's performance counters | hardware sessions (Dolphin counts cycles only) |
+| `hprof` | light + the sampling profiler (PMC1 overflow, 100 us) | where the CPU is, per function; not with `pmc` |
 | `min` | light without the per-slice CPU timing | cheapest |
 | `all` | everything, trace included | primitive-trace work |
 
 `PROBES="-D..."` still takes raw defines. Build switches worth knowing:
 `-DOGX_STATE_CACHE=0` (GX state cache off), `-DSUBTEX_ALIGN=0` (old texture placement),
 `-DCMD_LOG_2D` etc. (per-primitive logging, opt-in).
+
+### The sampling profiler (`hprof`)
+
+`Gamecube/hprof.c` + `hprof_entry.s`: PMC1 counts cycles; at each overflow (every 72900
+cycles, 100 us) the 0xF00 exception counts the interrupted PC in 32-byte buckets. Each chained
+game writes `hprof_NN.bin`; `dolphin_run.sh` and `wii_lab.py` bring them back. Keep the ELF of
+the DOL that ran (`cp Gamecube/WiiSXRX_debug.elf` beside the DOL copy):
+
+```bash
+python scripts/hprof_view.py .runs/NAME/hprof_01.bin --elf DOL.elf --top 30
+python scripts/hprof_view.py .runs/NAME/hprof_01.bin --elf DOL.elf --callers
+```
+
+- `busy%` is the share without `idle_func` (the limiter's idle thread). `FrameCap`'s samples
+  are mostly its final spin (up to 1 ms a frame): waiting, not work.
+- `jit` = samples in Lightrec's code buffer (the guest's recompiled code), one number.
+- `--callers` lists who called the 64-bit divide helpers (`__udivdi3` etc.). They are leaves,
+  so LR is the caller. Found 2026-10-01: `timeGetTime()` (limiter) and `perf_now_us()` (probes)
+  divided a u64 per call; both now multiply by 2^24/60.75.
+- Samples land only with MSR[EE] on. Time in exception handlers shows at the next instruction.
+- Dolphin emulates the exception, so the profiler runs there. There it counts instructions
+  (no cache misses), and its cycle estimate gives about 1.9x the samples of a Wii.
 
 ## Chains: many games, one boot
 

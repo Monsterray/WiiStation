@@ -22,7 +22,7 @@
 # emulation?". Both are command-line settings: Dolphin does not write them back to Dolphin.ini.
 set -u
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
-D="/c/tools/Dolphin-x64/Dolphin.exe"
+D="${DOLPHIN_DIR:-/c/tools/Dolphin-2609}/Dolphin.exe"   # see dolphin_run.sh
 CLOSE_WAIT="${CLOSE_WAIT:-15}"
 case "${1:-release}" in
 	release) DOL="$REPO/Gamecube/WiiSXRX_Release.dol" ;;

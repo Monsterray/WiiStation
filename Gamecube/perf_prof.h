@@ -126,6 +126,18 @@ void perf_datetime(char *buf, int size);
 #ifndef PERF_PROF_GPUSPLIT
 #define PERF_PROF_GPUSPLIT 0
 #endif
+/* PERF_PROF_HPROF samples where the Wii's own CPU is, every 100 us, from PMC1's overflow
+ * exception (Gamecube/hprof.c). About 0.2% of a run. It uses PMC1, so not with
+ * PERF_PROF_PMC. PROBES=hprof. */
+#ifndef PERF_PROF_HPROF
+#define PERF_PROF_HPROF 0
+#endif
+#if PERF_PROF_HPROF
+#include <stdio.h>
+void hprof_start(void);
+void hprof_report(FILE *f);
+void hprof_flush(int game);
+#endif
 /* One timed region, charged to a g_perf field. Only defined when the gate is on, so a
  * use of it has to sit behind the same gate. */
 #if PERF_PROF_GPUSPLIT

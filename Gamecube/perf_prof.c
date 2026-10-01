@@ -38,7 +38,12 @@ unsigned long long perf_now_us(void)
 	// 1800 frames (~30 s), so wraps landed inside measurement windows
 	// routinely, and every "perf_now_us() - t0" that straddled one underflowed
 	// into a huge u64 (cpu_us/present_us showing ~1.8e19 in perf.log).
-	return ticks_to_microsecs(gettime());
+	//
+	// ticks_to_microsecs() divides a u64: a libgcc call (__udivdi3) on this 32-bit CPU,
+	// and 11% of a debug run's busy time with the probes that call this per HLE call, per
+	// SPU mix and per CD sector (hprof, 2026-10-01). Multiply by 2^24/TB_TIMER_CLOCK (in
+	// MHz) instead: 0.6 ppm low, no overflow before 12 days of uptime.
+	return (gettime() * (((1ULL << 24) * 1000 + TB_TIMER_CLOCK / 2) / TB_TIMER_CLOCK)) >> 24;
 }
 
 unsigned long long perf_now_ticks(void)
@@ -148,6 +153,9 @@ void perf_reset(void)
 	g_perf.wall_start_ticks = gettime();
 #if PERF_PROF_PMC
 	perf_pmc_start();
+#endif
+#if PERF_PROF_HPROF
+	hprof_start();
 #endif
 }
 
@@ -579,6 +587,9 @@ void perf_vtl_flush(int game)
 	}
 	vtl_n = 0;
 	vtl_t0 = 0;
+#if PERF_PROF_HPROF
+	hprof_flush(game);
+#endif
 }
 
 void perf_vblank_tick(void)
@@ -726,6 +737,9 @@ void perf_report(void)
 			fprintf(f, "jitcode: bytes=%u sum=%08x shape=%08x\n", lightrec_code_bytes,
 				lightrec_code_sum, lightrec_code_shape);
 		}
+#if PERF_PROF_HPROF
+		hprof_report(f);
+#endif
 		{   /* _jit_optimize's passes (deps/lightning/lib/lightning.c lightning_opt_ticks) */
 			extern unsigned long long lightning_opt_ticks[10];
 			static const char *nm[10] = { "thread", "labels", "split", "setup", "follow",
