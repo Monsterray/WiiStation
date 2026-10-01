@@ -26,6 +26,7 @@
 #include <sys/types.h>
 
 #include "../psxcommon.h"
+#include "../mem2_manager.h"
 #include "ppc.h"
 #include "reguse.h"
 #include "pR3000A.h"
@@ -47,7 +48,17 @@
  * 256KiB table; Lightrec is the normal core and never touches it. */
 static u32 *psxRecLUT = NULL;
 //static char recMem[RECMEM_SIZE] __attribute__((aligned(32)));	/* the recompiled blocks will be here */
-static char *recMem = RECMEM2_LO;	/* the recompiled blocks will be here */
+/* The recompiled blocks: a RECMEM_SIZE block of the general MEM2 heap, taken when this core
+ * starts and given back when it shuts down (it was a fixed 10 MB region that every session
+ * reserved, though only Core = 2 uses it). NULL when the heap could not supply it. */
+static char *recMem = NULL;
+
+static int recMemAlloc(void)
+{
+	if (!recMem)
+		recMem = (char *)_mem2_memalign(32, RECMEM_SIZE);
+	return recMem ? 0 : -1;
+}
 //static char recRAM[0x200000] __attribute__((aligned(32)));	/* and the ptr to the blocks here */
 //static char recROM[0x080000] __attribute__((aligned(32)));	/* and here */
 static char* recRAM = (char*)LIGHTREC_BUF_LO;
@@ -1037,6 +1048,22 @@ static void rec##f() { \
 	cop2readypc = pc + psxCP2time[_fFunct_(psxRegs.code)]; \
 }
 
+/*
+ * Keep the lighter CP2_FUNCNC call path, but publish the instruction word for
+ * GTE operations whose C implementations inspect opcode modifiers (SF/LM).
+ */
+#define CP2_FUNCNC_OP(f) \
+void gte##f(); \
+static void rec##f() { \
+	if (pc < cop2readypc) idlecyclecount += ((cop2readypc - pc)>>2); \
+	iFlushRegs(0); \
+	LIW(0, (u32)psxRegs.code); \
+	STW(0, OFFSET(&psxRegs, &psxRegs.code), GetHWRegSpecial(PSXREGS)); \
+	LIW(PutHWRegSpecial(ARG1), (struct psxCP2Regs *)&psxRegs.CP2D); \
+	CALLFunc ((u32)gte##f); \
+	cop2readypc = pc + psxCP2time[_fFunct_(psxRegs.code)]; \
+}
+
 #define gteop (psxRegs.code & 0x1ffffff)
 #define GTE_SF(op) ((op >> 19) & 1)
 #define GTE_MX(op) ((op >> 17) & 3)
@@ -1102,6 +1129,9 @@ static void recMVMVA2() {
 static int allocMem() {
 	int i;
 
+	if (recMemAlloc())
+		return -1;
+
 	if (psxRecLUT == NULL) {
 		psxRecLUT = (u32 *)malloc(0x010000 * sizeof(u32));
 		if (psxRecLUT == NULL)
@@ -1128,6 +1158,7 @@ static void recReset() {
 	memset(recROM, 0, 0x080000);
 
 	ppcInit();
+	recMemAlloc();   /* recInit may not have run (needInitCpu); recExecute checks */
 	ppcSetPtr((u32 *)recMem);
 
 	branch = 0;
@@ -1165,6 +1196,8 @@ static void recApplyConfig() {
 
 static void recShutdown() {
 	ppcShutdown();
+	_mem2_free(recMem);
+	recMem = NULL;
 
 	free(psxRecLUT);
 	psxRecLUT = NULL;
@@ -1213,12 +1246,21 @@ __inline static void execute() {
 
 static void recExecute() {
 
+    if (!recMem) {   /* the MEM2 heap had no RECMEM_SIZE block left: stop before compiling */
+        SysMessage("Not enough memory for the PPC dynarec: choose Lightrec or the interpreter\n");
+        stop = 1;
+        return;
+    }
     recRecompileInit();
 
     while(!stop) execute();
 }
 
 static void recExecuteBlock(enum blockExecCaller caller) {
+    if (!recMem) {
+        stop = 1;
+        return;
+    }
     recRecompileInit();
 
     execute();
@@ -3321,28 +3363,28 @@ CP2_FUNC(CTC2);
 CP2_FUNC(LWC2);
 CP2_FUNC(SWC2);
 
-CP2_FUNCNC(RTPS);
+CP2_FUNCNC_OP(RTPS);
 CP2_FUNC(OP);
 CP2_FUNCNC(NCLIP);
 CP2_FUNC(DPCS);
 CP2_FUNC(INTPL);
 CP2_FUNC(MVMVA);
-CP2_FUNCNC(NCDS);
-CP2_FUNCNC(NCDT);
-CP2_FUNCNC(CDP);
-CP2_FUNCNC(NCCS);
-CP2_FUNCNC(CC);
-CP2_FUNCNC(NCS);
-CP2_FUNCNC(NCT);
+CP2_FUNCNC_OP(NCDS);
+CP2_FUNCNC_OP(NCDT);
+CP2_FUNCNC_OP(CDP);
+CP2_FUNCNC_OP(NCCS);
+CP2_FUNCNC_OP(CC);
+CP2_FUNCNC_OP(NCS);
+CP2_FUNCNC_OP(NCT);
 CP2_FUNC(SQR);
 CP2_FUNC(DCPL);
-CP2_FUNCNC(DPCT);
+CP2_FUNCNC_OP(DPCT);
 CP2_FUNCNC(AVSZ3);
 CP2_FUNCNC(AVSZ4);
 CP2_FUNC(RTPT);
 CP2_FUNC(GPF);
 CP2_FUNC(GPL);
-CP2_FUNCNC(NCCT);
+CP2_FUNCNC_OP(NCCT);
 
 //REC_FUNC(HLE);
 static void recHLE() {
@@ -3578,4 +3620,3 @@ R3000Acpu psxRec = {
 	recApplyConfig,
 	recShutdown
 };
-

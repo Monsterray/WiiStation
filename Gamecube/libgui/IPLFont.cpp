@@ -23,6 +23,9 @@
 
 #include "IPLFont.h"
 #include "../MEM2.h"
+extern "C" {
+#include "../../mem2_manager.h"
+}
 #include "../perf_prof.h"
 
 #include "gui2/gettext.h"
@@ -45,6 +48,9 @@ namespace menu {
 static std::map<wchar_t, int> charCodeMap;
 static std::map<wchar_t, u8*> charPngBufMap;
 heap_cntrl* GXtexCache;
+/* The glyph heap's block of the general MEM2 heap, sized to the loaded font (MEM2.h). */
+static void *fontHeapMem;
+unsigned int fontHeapBytes;   /* OptionsFrame.cpp's Memory page */
 
 IplFont::IplFont()
         : frameWidth(640), atlas(NULL)
@@ -73,20 +79,29 @@ void IplFont::loadFontFile(FILE* charPngFile)
     int searchLen;
     u8 *fontBuffer;
 
-    GXtexCache = (heap_cntrl*)malloc(sizeof(heap_cntrl));
-    __lwp_heap_init(GXtexCache, CN_FONT_LO, CN_FONT_SIZE, 32);
-
+    u8 *fileBuffer = NULL;   /* a font file is read into a temporary MEM2 block */
     if (charPngFile != NULL)
     {
         fseek(charPngFile, 0, SEEK_END);
         fontSize = (int)ftell(charPngFile);
-        searchLen = (int)(fontSize / (CHAR_IMG_SIZE + 4));
-        fontBuffer = (u8*) RECMEM2_LO;
-
-        fseek(charPngFile, 0, SEEK_SET);
-        fread(fontBuffer, 1, fontSize, charPngFile);
+        if (fontSize > 0 && fontSize <= CN_FONT_SIZE)
+            fileBuffer = (u8*)_mem2_malloc(fontSize);
+        if (fileBuffer)
+        {
+            fseek(charPngFile, 0, SEEK_SET);
+            if ((int)fread(fileBuffer, 1, fontSize, charPngFile) != fontSize)
+            {
+                _mem2_free(fileBuffer);
+                fileBuffer = NULL;
+            }
+        }
         fclose(charPngFile);
         charPngFile = NULL;
+    }
+    if (fileBuffer)
+    {
+        fontBuffer = fileBuffer;
+        searchLen = (int)(fontSize / (CHAR_IMG_SIZE + 4));
     }
     else
     {
@@ -98,6 +113,31 @@ void IplFont::loadFontFile(FILE* charPngFile)
         fontSize = En_dat_size;
         searchLen = (int)(fontSize / (CHAR_IMG_SIZE + 4));
     }
+
+    /* The heap: every glyph's tile plus the heap's own per-block header and 32-byte
+     * rounding (64 bytes is ample), the 256 KB atlas, and slack. Taken from the general
+     * heap, so what a Latin font does not need stays there for textures. */
+    fontHeapBytes = (unsigned int)searchLen * (CHAR_IMG_SIZE + 64) + 512 * 256 * 2 + 64 * 1024;
+    fontHeapMem = _mem2_memalign(32, fontHeapBytes);
+    if (!fontHeapMem && fileBuffer)
+    {
+        /* no room for this font: the built-in English one needs a fraction of it */
+        _mem2_free(fileBuffer);
+        fileBuffer = NULL;
+        lang = ENGLISH;
+        fontBuffer = (u8*)En_dat;
+        fontSize = En_dat_size;
+        searchLen = (int)(fontSize / (CHAR_IMG_SIZE + 4));
+        fontHeapBytes = (unsigned int)searchLen * (CHAR_IMG_SIZE + 64) + 512 * 256 * 2 + 64 * 1024;
+        fontHeapMem = _mem2_memalign(32, fontHeapBytes);
+    }
+    if (!fontHeapMem)
+    {
+        fontHeapBytes = 0;
+        return;   /* no menu font at all: text draws nothing, nothing is written anywhere */
+    }
+    GXtexCache = (heap_cntrl*)malloc(sizeof(heap_cntrl));
+    __lwp_heap_init(GXtexCache, fontHeapMem, fontHeapBytes, 32);
 
     blankChar = charToWideChar(" ");
 
@@ -121,10 +161,8 @@ void IplFont::loadFontFile(FILE* charPngFile)
         zhFontBufTemp += skipSetp;
         bufIndex++;
     }
-    if (charPngFile != NULL)
-    {
-        //__lwp_heap_free(GXtexCache, fontBuffer);
-    }
+    if (fileBuffer)
+        _mem2_free(fileBuffer);   /* the glyphs are copied into the heap */
     buildAtlas();
 }
 
@@ -194,6 +232,16 @@ void IplFont::releaseFontMem(void)
          }
 
          charPngBufMap.clear();
+    }
+    if (GXtexCache)
+    {
+        free(GXtexCache);
+        GXtexCache = NULL;
+    }
+    if (fontHeapMem)
+    {
+        _mem2_free(fontHeapMem);
+        fontHeapMem = NULL;
     }
 }
 

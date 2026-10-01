@@ -109,7 +109,12 @@ void               (*LoadSubTexFn) (int,int,short,short);
 
 #define CSUBSIZE  2048
 //#define CSUBSIZEA 8192
-#define CSUBSIZES 4096
+/* Sub-texture info per texture page and colour mode: 4 areas (SOFFA..D) of SOFFB entries,
+ * 16 bytes each, for 3 x MAXTPAGES pages -- 3 MB of MEM2 at 2048. It was 4096 (6 MB), but
+ * the fullest area seen on the Wii in eleven games held 224 entries (Frogger; Crash Team
+ * Racing 185, the rest under 120; perf.log "texmem: subcache max"), against 510 now. A full
+ * area wraps and reuses its slots (subcache wraps), which costs re-uploads, never pictures. */
+#define CSUBSIZES 2048
 
 //#define OFFA 0
 //#define OFFB 2048
@@ -122,9 +127,9 @@ void               (*LoadSubTexFn) (int,int,short,short);
 //#define XOFFD 1536
 
 #define SOFFA 0
-#define SOFFB 1024
-#define SOFFC 2048
-#define SOFFD 3072
+#define SOFFB (CSUBSIZES / 4)
+#define SOFFC (2 * SOFFB)
+#define SOFFD (3 * SOFFB)
 
 //#define MAXWNDTEXCACHE 64
 
@@ -2748,9 +2753,11 @@ textureSubCacheEntryS *CheckTextureInSubSCache(
       }
 
      iMax=1;
+     PERF_INC(subcache_wraps);   /* the area was full: its slots are reused from the start */
     }
    tsx=tsg+iMax;
    PUTLE32(SUBCACHE_COUNT_PTR(tsg),iMax);
+   PERF_MAX(subcache_max, iMax);   /* how full an area gets: sizes CSUBSIZES */
   }
 
  //----------------------------------------------------//

@@ -29,19 +29,19 @@
 #define HID_BUF_LO    (MCD2_HI)
 #define HID_BUF_HI    (HID_BUF_LO + HID_BUF_SIZE)
 
-// We want 9MB for max font
+// The menu font's glyph heap is no longer a fixed region: IPLFont.cpp takes a block of the
+// general MEM2 heap sized to the loaded font (0.1-0.4 MB for a Latin menu, up to ~8 MB for a
+// full CJK font), so the 9 MB this region reserved goes to the heap. CN_FONT_SIZE is only
+// the most a font may take.
 #define CN_FONT_SIZE (9*MB)
-#define CN_FONT_LO   (HID_BUF_HI)
-#define CN_FONT_HI   (CN_FONT_LO + CN_FONT_SIZE)
 
-// We want 10MB for the recompiled blocks of the 'new' PPC Dynarec
+// The old PPC dynarec's 10 MB is no longer a fixed region either: ppc/pR3000A.c takes it
+// from the general MEM2 heap when that core starts (Core = 2) and frees it at shutdown.
 #define RECMEM2_SIZE (10*MB)
-#define RECMEM2_LO   (CN_FONT_HI)
-#define RECMEM2_HI   (RECMEM2_LO + RECMEM2_SIZE)
 
 // We want 512KB for the SPU buffer
 #define SPU_BUF_SIZE (512*KB)
-#define SPU_BUF_LO   (RECMEM2_HI)
+#define SPU_BUF_LO   (HID_BUF_HI)
 #define SPU_BUF_HI   (SPU_BUF_LO + SPU_BUF_SIZE)
 
 // We want 4MB for Lightrec code buffer

@@ -79,7 +79,7 @@ extern MenuContext *pMenuContext;
  * a cycling button. Defined in SettingsFrame.cpp, where the reset machinery already lives. */
 extern void ApplyPluginSelection(char wantCore, char wantGpu);
 
-namespace menu { extern heap_cntrl* GXtexCache; }   /* the font glyph heap, IPLFont.cpp */
+namespace menu { extern heap_cntrl* GXtexCache; extern unsigned int fontHeapBytes; }   /* the font glyph heap, IPLFont.cpp */
 
 void Func_ReturnFromOptionsFrame();
 
@@ -158,12 +158,12 @@ static void infoMem2(char *buf, int len)
 	snprintf(buf, len, "%lu / %lu KB", used, total);
 }
 
-/* The glyph cache: one 1152-byte RGB5A3 tile per character, allocated from a fixed 9 MB
- * MEM2 region (MEM2.h CN_FONT_SIZE) so that a full CJK font would fit. A Latin menu font
- * uses a fraction of it; this row is here to make that visible. */
+/* The glyph cache: one 1152-byte RGB5A3 tile per character, in a block of the general MEM2
+ * heap sized to the loaded font (IPLFont.cpp): a Latin menu takes a few hundred KB, a full
+ * CJK font up to MEM2.h CN_FONT_SIZE. */
 static void infoFontCache(char *buf, int len)
 {
-	unsigned long used = 0, total = (unsigned long)CN_FONT_SIZE >> 10;
+	unsigned long used = 0, total = (unsigned long)menu::fontHeapBytes >> 10;
 	if (menu::GXtexCache) {
 		heap_iblock info;
 		__lwp_heap_getinfo(menu::GXtexCache, &info);
