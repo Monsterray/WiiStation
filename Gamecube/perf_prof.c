@@ -15,6 +15,7 @@
 #include "lc.h"
 #include "gc_input/controller.h"   /* the ports report below */
 #include "../mem2_manager.h"
+#include "MEM2.h"   /* NEW_MEM2_LO, LIGHTREC_BUF_SIZE: the mem2map: line */
 
 /* Diagnostic-only; declared here rather than in mem2_manager.h so the
  * profiler stays the single consumer. */
@@ -368,9 +369,12 @@ static unsigned vio_n, vio_count[4], vio_dropped;
 
 /* the 16 most frequent PCs at vblank time (space-saving: a new PC replaces the rarest) */
 static struct { uint32_t pc, n; } pcs[16];
+static unsigned crumb_pc;   /* the last vblank's guest PC, for the breadcrumb */
+
 void perf_pc_sample(unsigned pc)
 {
 	int i, low = 0;
+	crumb_pc = pc;
 	for (i = 0; i < 16; i++) {
 		if (pcs[i].n && pcs[i].pc == pc) { pcs[i].n++; return; }
 		if (pcs[i].n < pcs[low].n) low = i;
@@ -398,6 +402,29 @@ void perf_vram_event(unsigned kind, int x, int y, int w, int h, int a, int b)
 	vio[vio_n].x = (uint16_t)x; vio[vio_n].y = (uint16_t)y; vio[vio_n].w = (uint16_t)w; vio[vio_n].h = (uint16_t)h;
 	vio[vio_n].a = a; vio[vio_n].b = b;
 	vio_n++;
+}
+
+/* The console text of the run (SysPrintf: the PS1 program's BIOS printf/puts/putchar under
+ * the HLE BIOS, and WiiStation's own messages), for sd:/wiisxrx/tty.log. SysPrintf printed
+ * only in USB Gecko builds, so a test program's results (AmiDog's psxtest_gte prints every
+ * error it finds) were lost. */
+static char tty_buf[64 * 1024];
+static unsigned tty_n;
+
+void perf_tty(const char *s)
+{
+	while (*s && tty_n < sizeof(tty_buf) - 1)
+		tty_buf[tty_n++] = *s++;
+}
+
+static void perf_tty_flush(void)
+{
+	FILE *f;
+	if (!tty_n) return;
+	f = fopen("sd:/wiisxrx/tty.log", "w");
+	if (!f) return;
+	fwrite(tty_buf, 1, tty_n, f);
+	fclose(f);
 }
 
 static void perf_vram_flush(void)
@@ -487,6 +514,27 @@ void perf_pad_event(unsigned pad, unsigned type, unsigned drv_btns, unsigned drv
  * stops presenting while it loads (FF7 after vblank 688) never reached a dump set there. */
 void perf_vblank_tick(void)
 {
+	extern unsigned autoinput_crash_vbl;
+	/* "crashtest <vblank>": a DSI on purpose, the way the 2026-09-29 Lightrec crash stored
+	 * through r31 = 0, to prove the crash path (vm dsihandler -> HBC agent -> report) on the Wii. */
+	/* Crash breadcrumb: one line a second, written and closed at once, so the last line
+	 * survives a freeze (a buffered perf.log block dies with it). Costs one small SD write
+	 * a second (a dropped frame each time on the Wii), so only when the input script says
+	 * "crumbs"; the line says which chained game, vblank, guest PC and presents. */
+	extern int autoinput_crumbs;
+	if (autoinput_crumbs && (frame_counter % 60) == 0) {
+		extern int perf_chain_index(void);
+		FILE *cf = fopen("sd:/wiisxrx/crumb.log", "a");
+		if (cf) {
+			fprintf(cf, "g%d v%u pc%08x p%lu cd%lu\n", perf_chain_index(), frame_counter, crumb_pc,
+				(unsigned long)g_perf.present_frames, (unsigned long)g_perf.cd_reads);
+			fclose(cf);
+		}
+	}
+	if (autoinput_crash_vbl && frame_counter >= autoinput_crash_vbl) {
+		perf_report();
+		*(volatile unsigned *)0xFFFFFFF4 = 0x0badc0de;
+	}
 	if (!g_perf.vram_dumped && autoinput_dump_vbl && frame_counter >= autoinput_dump_vbl) {
 		g_perf.vram_dumped = 1;
 		perf_vram_dump();
@@ -630,6 +678,34 @@ void perf_report(void)
 			(unsigned long)mem1_kb, (unsigned long)m2used, (unsigned long)m2tot,
 			(unsigned long)g_perf.mem2_peak_kb, (unsigned long)g_perf.mem2_alloc_fails,
 			(unsigned long)g_perf.mem_null_read, (unsigned)gx_mem2_check());
+		{
+			/* MEM2 below and above the heap, and the JIT's code: what the fixed reserves and
+			 * the Lightrec buffer are really used for (Docs/MEMORY_MAP.md). arena2 = libogc's
+			 * own allocations from the 2 MB kept for it below the heap (SYS_AllocArena2MemLo
+			 * moves Arena2Lo up); top_gap = from the heap's end to IOS's top. */
+			extern unsigned int lightrec_get_mem_usage(int type);   /* deps/lightrec memmanager.c */
+			static unsigned code_peak_kb, mem1_min_kb = ~0u;
+			unsigned code_kb = lightrec_get_mem_usage(0) >> 10;   /* MEM_FOR_CODE */
+			unsigned a2lo = (unsigned)SYS_GetArena2Lo(), a2hi = (unsigned)SYS_GetArena2Hi();
+			unsigned base = (unsigned)NEW_MEM2_LO;
+			if (code_kb > code_peak_kb) code_peak_kb = code_kb;
+			if (mem1_kb < mem1_min_kb) mem1_min_kb = mem1_kb;
+			fprintf(f, "mem2map: arena2_used_kb=%u of %u ios_hi=%08x heap_end_gap_kb=%u ipc=%08x-%08x | lightrec_code_kb=%u peak=%u of %u | mem1_min_kb=%u\n",
+				(a2lo - base) >> 10, (a2hi - base) >> 10, (unsigned)gx_mem2_ios_hi,
+				(unsigned)((gx_mem2_ios_hi - (a2hi + gx_mem2_total())) >> 10),
+				*(unsigned *)0x80003130, *(unsigned *)0x80003134,
+				code_kb, code_peak_kb, (unsigned)(LIGHTREC_BUF_SIZE >> 10), mem1_min_kb);
+		}
+		{
+			extern void ogx_tex_mem(unsigned *n, unsigned *data_kb, unsigned *semi_kb);
+			unsigned tn, tkb, skb;
+			ogx_tex_mem(&tn, &tkb, &skb);
+			extern unsigned ogx_fail_n, ogx_fail_data_kb, ogx_fail_semi_kb, ogx_fail_mem2_kb, ogx_fail_want;
+			fprintf(f, "texmem: live=%u data_kb=%u semi_kb=%u flushes=%lu | atfail: live=%u data_kb=%u semi_kb=%u mem2_kb=%u want=%u | subcache max=%lu wraps=%lu\n",
+				tn, tkb, skb, (unsigned long)g_perf.ogx_tex_flush,
+				ogx_fail_n, ogx_fail_data_kb, ogx_fail_semi_kb, ogx_fail_mem2_kb, ogx_fail_want,
+				(unsigned long)g_perf.subcache_max, (unsigned long)g_perf.subcache_wraps);
+		}
 		fprintf(f, "gpu: tex_hit=%lu miss=%lu resets=%lu loads=%lu bytes=%llu batches=%lu\n",
 			(unsigned long)g_perf.gx_tex_hits, (unsigned long)g_perf.gx_tex_misses,
 			(unsigned long)g_perf.gx_tex_resets, (unsigned long)g_perf.gx_tex_loads,
@@ -1063,6 +1139,7 @@ void perf_report(void)
 		perf_audio_flush();
 	perf_pad_flush();
 	perf_vram_flush();
+	perf_tty_flush();
 
 #ifdef SHOW_DEBUG
 	/* Mirror compact lines to overlay rows 22..29 (rows 0..21 are taken by

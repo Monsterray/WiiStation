@@ -117,6 +117,21 @@ believing the symptom.
 - `XFB_RAM=1` makes CPU-written framebuffers visible in the frame dump — the libogc exception
   screen after a guest crash, and the debug console. Resolve its addresses with
   `powerpc-eabi-addr2line -e Gamecube/WiiSXRX_debug.elf`.
+- **`wsx.sh build` refuses while one of our runs is going** ("a build now would skew its
+  timing"); `FORCE=1` builds anyway, fine when the running run is not a timing run. It exits
+  0 either way under `| tail`, so `build ... | tail -3 && cp WiiSXRX_debug.dol X` copies the
+  STALE dol: check the "built ... HH:MM:SS" line or the dol timestamp before copying.
+- **Per-line chain settings only reach settings a game load re-reads.** `gpuPlugin` on a
+  chain line is ignored (the plugin is chosen at boot): pass it as `--set gpuPlugin=0` on the
+  `wsx.sh chain` command. vramio.log `F1` lines mean OpenGX was the plugin.
+- **A file the guest wrote may be only in `.dolphin/Load/WiiSD.raw`**: Dolphin's folder
+  sync-back sometimes fails (dolphin.log `Failed to sync SD card with folder`, also when the
+  guest powers off early). Read it with `python scripts/sdimage_read.py .dolphin/Load/WiiSD.raw
+  wiisxrx/<path> OUT` while no Dolphin runs.
+- `tty.log` (debug builds): SysPrintf's text, the HLE BIOS printf included, for PS-X EXE test
+  programs; see [test-roms.md](test-roms.md). Reading a save state's RAM and VRAM is there too.
+- A host harness for a plain-C core file: `tests/gte_ab/` (shim headers, stubbed memory
+  hooks, a global `psxRegs`) is the pattern; clang is at `C:/Program Files/LLVM/bin/clang.exe`.
 
 ## Bisecting
 

@@ -1,0 +1,28 @@
+CHAIN
+# The CPU sound path (SoundHwAccel=0, SDL) and the DSP path (1, AESND) on the same game,
+# same boot. Dolphin HLE cannot run the DSP path (silent), so this is a hardware file.
+# python scripts/wii_lab.py NAME scripts/chains/dsp_ab.txt --dol debug
+3600 sd:/wiisxrx/spyro_title.txt SoundHwAccel=0
+sd:/wiisxrx/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue
+3600 sd:/wiisxrx/spyro_title.txt SoundHwAccel=1
+sd:/wiisxrx/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue
+3600 SoundHwAccel=0
+sd:/wiisxrx/isos/Crash Bandicoot 3 - Warped
+Crash Bandicoot 3 - Warped [U] [SLUS-94244].cue
+3600 SoundHwAccel=1
+sd:/wiisxrx/isos/Crash Bandicoot 3 - Warped
+Crash Bandicoot 3 - Warped [U] [SLUS-94244].cue
+3600 SoundHwAccel=0
+sd:/wiisxrx/isos/Ape Escape
+Ape Escape [U] [SCUS-94423].cue
+3600 SoundHwAccel=1
+sd:/wiisxrx/isos/Ape Escape
+Ape Escape [U] [SCUS-94423].cue
+3600 SoundHwAccel=0
+sd:/wiisxrx/isos/Final Fantasy VII/Final Fantasy VII 1
+Final Fantasy VII [U] [Disc 1] [SLUS-94163].cue
+3600 SoundHwAccel=1
+sd:/wiisxrx/isos/Final Fantasy VII/Final Fantasy VII 1
+Final Fantasy VII [U] [Disc 1] [SLUS-94163].cue

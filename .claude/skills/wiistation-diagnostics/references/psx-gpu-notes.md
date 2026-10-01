@@ -2,7 +2,7 @@
 
 ## Plugins and shared state
 
-- Three GPU plugins: Old Soft (`gpulib/oldGpu.c`, `gpuPlugin = 0`, ground truth), New Soft
+- Three GPU plugins: Soft Fast (`gpulib/oldGpu.c`, `gpuPlugin = 0`, ground truth), Soft Timed
   (`SoftGPU/gpulib_if.c` + `soft.c`/`prim.c`, `gpuPlugin = 1`), OpenGX (`GlesGpu/gpuPlugin.c`,
   a unity build that `#include`s `gpuDraw.c`, `gpuTexture.c`, `gpuVramReadback.inc`,
   `gpuPrim.c`; renders through `deps/opengx/gc_gl.c`).
@@ -11,7 +11,7 @@
   through externs. The software rasterizer therefore draws into the GX plugin's VRAM when
   called while OpenGX is active — that is how off-screen primitives are handled.
 - `do_cmd_list(list, n, &cycles, &last, &cmd)` (declared in `gpulib/gpu.h`) executes raw GP0
-  words with the New Soft rasterizer, including E1..E6 state words; `cmd_lengths[]` gives
+  words with the Soft Timed rasterizer, including E1..E6 state words; `cmd_lengths[]` gives
   word counts.
 
 ## Display buffers and the GX draw origin

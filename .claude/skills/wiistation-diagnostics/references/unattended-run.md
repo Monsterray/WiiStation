@@ -106,7 +106,7 @@ user's values; per-game files in `wiisxrx/settings/<CdromId>.cfg` override it wh
 has one). Keys that unattended runs need:
 
 ```
-gpuPlugin = 2        # 0 Old Soft (ground truth), 1 New Soft, 2 OpenGX
+gpuPlugin = 2        # 0 Soft Fast (ground truth), 1 Soft Timed, 2 OpenGX
 FPS = 1              # the user wants the FPS overlay visible while runs play; it lands in the frames too
 PadType1 = 1         # sio.c polls a port only when padType[0] != 0
 PadAutoAssign = 0    # otherwise auto-assign resets PadType1 to 0 when no host pad exists
@@ -168,3 +168,67 @@ frame PNGs before this existed: file what matters, then delete `frames/` directo
 The script restores INIs and removes the staged files; `autoboot.txt` stays because the
 user's own movies depend on it. Leave `WiiSDSync_paused_by_claude/` as the parking place.
 Two permanent GFX.ini changes are deliberate (see dolphin-pitfalls.md).
+
+## The bench Wii (real hardware, unattended)
+
+The dev Wii is at 192.168.8.213 in the Homebrew Channel. `python scripts/wii_lab.py NAME
+CHAINFILE` sends the DOL with wiiload and `lab=<PC>:4300`; `Gamecube/lab_net.c` fetches the
+chain and its input scripts, runs it, sends the logs back into `.runs/NAME/` and exits to
+HBC, ready for the next one. A crash returns to HBC after 10 s with no results (exit 3).
+It needs an inbound firewall allow for TCP 4300 (the network is Public). Speed numbers
+from it are the real ones: Dolphin cannot show cache or locked-cache effects.
+
+Rules and fixes learned on the bench (2026-09-29/30):
+- **Always through the queue**, never wiiload directly:
+  `python C:/tools/wii-bench/wiibench.py add --cwd C:/projects/WiiStation --name "..." --timeout S -- CMD`,
+  then wait on `C:/tools/wii-bench/queue/done/<id>.json` (its `.log` next to it). Other
+  workstations share the Wii **through the lease server `http://homeserver.local:4310`**
+  (the user's rule, 2026-09-30): the dispatcher takes the lease before each job.
+  `status` must show a `lease http://homeserver.local:4310: ...` line; if it does not
+  (no `C:/tools/wii-bench/server`), run
+  `python C:/projects/hbc-reborn/tools/wii-bench/wiibench.py setup --server http://homeserver.local:4310`.
+  Never talk to the Wii (wiiload, hbc.py) outside a queue job.
+- **Queue commands with the full python path** (`C:/Python312/python.exe ...`). The
+  dispatcher's `bash` is WSL's `C:\Windows\System32\bash.exe`, which has no python: a
+  `bash job.sh` job fails at once with `python: command not found`.
+- **Never queue `hbc.py get` without the user's go-ahead**, and never a large file: it crashed HBC 1.4.1
+  and 1.5.0. On HBC 1.8.6 files up to 28 KB worked (2026-09-30, `scripts/wii_getfiles.py`: size guard,
+  smallest first, waits for HBC).
+  Logs come back only through wii_lab.py's upload. `hbc.py crash [--clear]` is a small
+  status request and is safe.
+- **A DSI used to leave no crash report**: Gamecube/vm/vm.c hooks EX_DSI after the HBC
+  agent and its dsihandler.s passed every foreign DSI to libogc's default entry, skipping
+  the agent. Fixed 2026-09-30 (vm_dsi_next: the entry VM_Init found). Proved on the Wii with
+  the debug input command `crashtest <vblank>` (stores to 0xFFFFFFF4, a DSI like the
+  2026-09-29 crash): crash screen, HBC after 10 s, `hbc.py crash` shows DSI + backtrace;
+  resolve with `powerpc-eabi-addr2line -f -C -e Gamecube/WiiSXRX_debug.elf ADDR...` (the ELF
+  of the DOL that ran). Re-run a crashtest after touching exception or VM code.
+- **Crash hunts:** `scripts/wii_crash_job.py NAME CHAIN DOL SECS` clears HBC's crash
+  report, runs the chain, then reads the report. A crash leaves libogc2's crash screen up
+  until someone presses RESET, so ask the user to be at the Wii first. One game per job
+  tells which game crashed; if every game alone is clean, run them in one boot.
+- A job's output is buffered until wii_lab.py exits: an empty `running/<id>.log` does not
+  mean it is stuck.
+- Before the queue fix of 2026-09-30 (hbc-reborn's dispatcher now reports an agent app as
+  "busy or off"), `wiibench.py status` said "in HBC (free)" whenever TCP 4299 answered, and
+  an app with the HBC agent in it (WiiStation since 7a38145) answers there too: WiiStation
+  still running looked free. A job queued behind it then fails with `HBC did not take the DOL` (wiiload
+  refused). Ask the user what the TV shows before trusting "free" after a job that did
+  not return. Worse, another workstation's queue took a running WiiStation chain for idle
+  HBC and its `hbc.py run` made the agent exit it mid-chain: games "played as normal", then
+  HBC, no results, perf.log cut off mid-game (2026-09-30, twice). Fix: lab mode starts the
+  agent with `no_network` (Gamecube/hbc_home.c), so a running chain does not answer 4299.
+  The queue-side fix (treat an agent app as busy) belongs to hbc-reborn's wiibench.py.
+  A chain that stops mid-game with no crash report: suspect an outside exit first.
+- Other agents and workstations can take the Wii between two of our jobs. A small request
+  job (ls, crash, a tiny get) should retry for minutes rather than fail on the first
+  timeout (pattern: `scripts/wii_getfiles.py`, `ls` every 20 s for 15 min).
+- When a job returns no results, read what the card has (`scripts/wii_getfiles.py`, with the
+  user's go-ahead): `lab.log` names the last lab step (a chain that ends logs nothing more
+  than "starting the chain", then connects to send results; `lab_report()` gives up
+  silently if that connect fails), `perf.log` has a block per 1800 presents and per game end,
+  so its last `time:` line dates the stop, and the size of each `vram_NN.bin` (0 = emptied,
+  never rewritten) says which chained game did not finish.
+- Deep builds for A/Bs: `FORCE=1 bash scripts/wsx.sh build debug deep` (the build refuses
+  while a Dolphin run is going), then copy the DOL to the scratchpad per variant; two DOLs
+  from one tree differing in one file make a clean hardware A/B (`wsx.sh compare A B`).

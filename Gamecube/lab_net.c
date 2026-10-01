@@ -279,6 +279,7 @@ int lab_fetch(void)
 	if (!lab_active())
 		return -1;
 	remove(LAB_ROOT "lab.log");
+	remove(LAB_ROOT "crumb.log");   /* perf_prof.c's breadcrumb: one run's lines only */
 	lab_console_up();
 	lab_log(lab_host, lab_port);
 	lab_buttons(1);

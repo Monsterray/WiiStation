@@ -6,14 +6,14 @@ tempting wrong turns.
 
 ## 1. Missing / swapped textures, popping (Spyro, OpenGX)
 
-- Symptom: flat-shaded polygons, wrong "squares", textures popping in; Old Soft clean.
+- Symptom: flat-shaded polygons, wrong "squares", textures popping in; Soft Fast clean.
 - Wrong turns (18 runs): stale texture cache (forced full reconvert → same counts), heap
   corruption (`heap_ok=1`), upload-state mismatch (`mismatch=0`), CLUT decoding, uniform
   textures (`ogxud` — real, but the game asks for them), render-to-texture (`ogxoff` real,
   but the ROI did not overlap), GX write hazards. `llm_court` endorsed several of these.
 - Decisive: VRAM dumps identical between plugins (CPU side right), then `ogxeq mism=0`
   (draw bound to the right texel), then **Dolphin frame dumps with texture-cache accuracy
-  Fast vs Safe**: Safe matches Old Soft. Mechanism: Dolphin's sampled texture hash misses
+  Fast vs Safe**: Safe matches Soft Fast. Mechanism: Dolphin's sampled texture hash misses
   in-place sub-texture uploads. Not a Wii bug.
 - Lesson: when every in-emulator counter says "correct", change the host, not the code.
 
@@ -176,8 +176,8 @@ tempting wrong turns.
   buffer retaining part of a starfield and periodically losing it, and the suspects were
   the OpenGX back-buffer readback gate, the EFB clear on present, and screen re-uploads.
 - Every one of those was wrong, and three cheap measurements said so before any code was read:
-  1. **The two software renderers show the identical cycle.** Old Soft (`gpuPlugin = 0`,
-     ground truth) and New Soft give the same numbers frame for frame, 188 -> 450 -> 188,
+  1. **The two software renderers show the identical cycle.** Soft Fast (`gpuPlugin = 0`,
+     ground truth) and Soft Timed give the same numbers frame for frame, 188 -> 450 -> 188,
      same shape, same period. Whatever this is, it is upstream of the GPU plugin. This is
      step 3 of the method and it cost one run; it should have been the first run, not the
      third.
@@ -220,7 +220,7 @@ tempting wrong turns.
 ## 11. Crash 3's starfield really did blink -- one-pixel rectangles dropped on alternate presents (OpenGX)
 
 - Follow-up to 10, which was wrong in its conclusion. The user came back with a sharper
-  observation than the pixel count: New Soft steady, OpenGX flickering, only the stars,
+  observation than the pixel count: Soft Timed steady, OpenGX flickering, only the stars,
   only the right ~70% of the screen. Every clause of that was a measurement waiting to be
   taken, and case 10's statistics had missed it because they were dominated by the logo's
   ribbons: ~250 pixels changing each way per frame from the animation swamped ~90 one-pixel
@@ -228,7 +228,7 @@ tempting wrong turns.
 - The instrument that saw it: track the dots themselves. `scripts/dot_flicker.py` finds every
   blob of at most 6 bright pixels outside the logo, matches each to the next frame within
   3 px, and reports moved / dimmed / lost / new per third of the picture. OpenGX, presents
-  1300-1316, right third: 88 dots present, **88 lost, 88 new, 0 moved, 0 dimmed**. New Soft,
+  1300-1316, right third: 88 dots present, **88 lost, 88 new, 0 moved, 0 dimmed**. Soft Timed,
   same presents: 176 dots, 0 lost, 0 new. So the right-side stars were not moving or
   dimming; they were absent on every other present, and presents alternate between the two
   display buffers. A zoomed strip of the right margin shows it to the eye: stars in 1301 and
@@ -247,7 +247,7 @@ tempting wrong turns.
   `vertex[]`.
 - Verified on the same presents with the same exclusion: fixed OpenGX right third 176 dots,
   0 lost, 0 new; mid 480, 0/0 (before: 432, 48/48 -- and 48 dots fewer, because they were
-  missing half the time). Indistinguishable from New Soft.
+  missing half the time). Indistinguishable from Soft Timed.
 - Lessons. (a) A user's "only X, only when Y, only on Z" is three measurements, not a
   hypothesis to be argued with; take them before theorising. (b) Aggregate change counts
   cannot see a small population blinking under a large one animating -- track the objects.

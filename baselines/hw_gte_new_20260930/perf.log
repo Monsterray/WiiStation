@@ -1,0 +1,276 @@
+# run started 2026-09-30 12:56:33, build Sep 30 2026 12:49:26
+--- perf frames=1608 ---
+time: 2026-09-30 12:57:35
+fixes: dwActFixes=00008000 cdrom=SCUS94228
+cpu: slices=234378 int=0 cpu_us=60602777 jit_full=0 jit_part=3936 interp_fb=0 hle=123961 exc=16
+wall: wall_us=61400642 vblanks=3599 pal=0 nested=81497
+inside: limit_us=35219486 limit=3335 target=1666 spu_us=758632 spu=44087 out_us=387900 out=44087 hw_us=6890672 hw=3615230 hw_gpu_us=6672654 hw_gpu=827077
+slicecost: sched_us=41870301 jit_us=17167915 post_us=1564559 exit_norm=102402 exit_irq=7999
+softcall: runs=65526 steps=11 escapes=0 run_escapes=0 hle_exits=16
+nested: n=81497 sched_us=33654 jit_us=973315 limit_us=0
+slice: cycles=4166855536 avg=17778 tiny=804
+irq: sio=13891 cdr=1306 cdread=7819 gpudma=3238 spudma=2 cdrdma=3936 rcnt=81043
+irqus: sio=876 cdr=4505 cdread=5795496 gpudma=833 spudma=0 cdrdma=253 rcnt=36050708 line_exc=2644
+ram: mem1_free_kb=3539 mem2=10471/24575KB peak=10471KB fails=0 null_read=0 heap_ok=1
+gpu: tex_hit=560474 miss=27173 resets=16504 loads=0 bytes=0 batches=0
+gpu: drawdone=702 dd_skip=15802 drawdone_us=45622 convert_us=0 present_us=310864
+texk: conv_us=116901 conv=759 texels=1059410 tile_us=85448 tile=759 mdec_us=0 mdec=0
+ogx: gc=0 sub_new=759 sub_hit=586888 skip=0 unaligned=0 oob=0
+ogxskip: b1=0 b2=0 op_empty=0 op_semi=0
+ogxupl: semi=0 opaque=759 mismatch=0
+ogxgeom: coord_rej=0
+efbloss: upl_calls=2 upl_done=0 | pres: total=1608 clear=4 inflight_skip=0 | mirror: loads=35 used=0
+mirror: set=0 geom_restarts=0 first_diff_word=0 off=0,0,0,0,0,0,0
+uplret: dis=2 skip=0 rgb24=0 px1=0
+uplst0: 1 0 0 0 0 0 0 0 2 0 0 2 640 480 0 2 0 2 640 480 9 1
+uplst1: 1 0 0 1 0 0 0 0 0 0 0 2 512 242 0 0 0 0 512 240 9 1
+pcs: 8005dd80=745 8005dd34=522 8001691c=395 8001f1e8=333 8001f4c8=278 800230e0=181 800246b4=169 80023534=155
+offsoft: prims=0 rejected=0 inside=1595566 | pad: startpoll=3475 update=3472 ai_calls=3472 rumble=0/0
+padproto: 42=3472 43=3 | press id=41 len=4 bytes=005af7ff80808080
+sio: write8=20841 start=3475 ctrl16=48641 read8=27791 irq=13891 padtype0=1
+ogxoff: prims=0 tex=0 off_roi=0 fills=0 fills_off=0 va=0 va_roi=0
+autoinput: vblank=1 mask=0000 at_present=1
+autoinput: vblank=1500 mask=0008 at_present=496
+autoinput: vblank=1504 mask=0000 at_present=498
+autoinput: vblank=1565 mask=0008 at_present=529
+autoinput: vblank=1570 mask=0000 at_present=531
+autoinput: vblank=1712 mask=0008 at_present=602
+autoinput: vblank=1716 mask=0000 at_present=604
+autoinput: vblank=1755 mask=0080 at_present=624
+autoinput: vblank=1764 mask=0000 at_present=628
+autoinput: vblank=1783 mask=0008 at_present=638
+autoinput: vblank=1787 mask=0000 at_present=640
+autoinput: vblank=1793 mask=0008 at_present=643
+autoinput: vblank=1798 mask=0000 at_present=645
+autoinput: vblank=1832 mask=0008 at_present=662
+autoinput: vblank=1838 mask=0000 at_present=665
+autoinput: vblank=2904 mask=0008 at_present=1198
+autosched: dump=0 dumped=0 trace=0 atrace=700
+ogxeq: n=0 mism=0 hole=0
+ogxdraw: ft=0 gt=0 uni_ft=0 uni_gt=0 vram_wr=1647 inval=607
+cd: reads=7800 bytes=18345600 seq=7791 rand=9 worst_us=23994 total_us=4564067 idle_skips=0 idle_cycles=0 gpu_idle_skips=0 gpu_idle_cycles=0
+sd: rd=672 sec=43008 us=4965695 worst_us=15223 bg=0 bg_us=0 h=0/0/0/672/0 wr=84 wsec=3384 wus=526607 wworst_us=11374
+tvmode: calls=0 w=0 h=0 range=0-0 height=0 double=0
+cdpf: hit=0 miss=0 reads=0
+chd: hit=0 miss=0 err=0 chd_us=0
+xa: sectors=730 starts=2 fed=0 trunc=0 fill_min=0 fill_max=52 freq=37800 stereo=1 dt_min=1806143 dt_max=1806521 filtered=5103
+xamix: mix=28557 hold=4 gaps=1 gap_calls=1470 gap_samples=88208 | spu: ns=2645220 pulls=0 busy=2750 desync=0 aev=3072 | out: dry=15322 drop=0
+rate: ppm=-4439 i=-1447 min=-4839 max=233 occ_min=0 occ_max=6638 occ_avg=3523 updates=5663 sat=0 changes=0 prefill=10240 | limit: debt_max=1250 debt_drops=13
+save: states=0 save_us=0 loads=0 load_us=0 bytes=0 fails=0 mcd=4 mcd_us=540454 mcd_fails=0
+bios: calls=51690 custom=0 us=1527117 exc=60814 exc_us=1156791 | B0b:TestEvent=42973 B17:ReturnFromException=6729 B07:DeliverEvent=1248 Aab:_card_info=630 B35:write=61 B08:OpenEvent=9 B0c:EnableEvent=9 B09:CloseEvent=8 B5b:ChangeClearPAD=3 Aac:_card_load=2
+ports: 0:1/0 1:0/1 2:0/0 3:0/0 4:0/0 5:0/0 6:0/0 7:0/0 8:0/0 9:0/0 | avail G=0000 C=0000 N=0000 W=0000 P=0000 D=0000 H=0000
+carry: fc=0 rc0=0/0/0/0 rc1=0/0/0/0 rc2=0/0/0/0 spu=0/0/0000/000000/00000000 sio=0005/0000/0/0 pad1=0/- gc=0 av=0 | rcntfire=30999,14,30999,44087
+gpusplit: parse_us=528418 vram_us=129215 vram_words=3211264 off_us=123510 off=1606897 prim_us=4955251 prims=1606897
+gpuregs: gp1_us=636316 gp1=6549 read_us=0 reads=1
+gpuflip: geom_us=178106 present_us=0 presents=0
+gpupres: upload_us=44 uploads=2 prep_us=2 capture_us=0 vout_us=2018 sync_us=41 efbcap_us=0 efbcap=0
+gpucmd:
+gpuprim: misc=1289079/1611 poly=3660832/1595566 cv=325/35 state=5015/9685
+gpudeep: fill_gx_us=11708 fill_sw_us=1252691 fill_mark_us=15586 vramfin_us=36140 vramfin=3253 inv_us=86009 inv=1647 inv_scan=136 cwu_us=1477
+texinv: same_loads=3253 changed_loads=0 changed_px=0 other=1/0/0 load=35/607/913620 fill=1611/0/0
+texinvr: src=load rect=512,0 512x512 drops=607 e.g. mode=0 page=8 entry=(224,64)-(255,95)
+gpudraw: ogx_us=1549092 draws=1597177 common_us=67022 state_us=1020121 states=1597177 tex_us=661281 mode_us=862796
+gxcache: sets=0 skips=0
+gte: calls=7729016 us=2044599 | RTPS=4282850 NCLIP=2195652 DPCS=585665 INTPL=278754 MVMVA=228985 GPF=84542 CC=72184 SQR=384
+spustage: chans=15436 adpcm_us=69371 adsr_us=4695 mix_us=20299 rvb_us=11076
+lc: mask=0 | stores=0 store_kb=0 loads=0 load_kb=0 wait_us=0
+menu: frames=0 menu_us=0 strings=65928 glyphs=152786 texloads=6908
+=== chain 1/4 end vblanks=3600 at=2026-09-30T12:57:35 rom=Spyro the Dragon [NTSC-U] [SCUS-94228].cue ===
+--- perf frames=1689 ---
+time: 2026-09-30 12:58:39
+fixes: dwActFixes=00000000 cdrom=SCUS94244
+cpu: slices=607912 int=0 cpu_us=60457989 jit_full=0 jit_part=13039 interp_fb=0 hle=444221 exc=3396
+wall: wall_us=60987389 vblanks=3600 pal=0 nested=383265
+inside: limit_us=32676707 limit=3555 target=1666 spu_us=3565128 spu=44100 out_us=388136 out=44100 hw_us=7918111 hw=2821342 hw_gpu_us=7731739 hw_gpu=552543
+slicecost: sched_us=35967047 jit_us=21274776 post_us=3216164 exit_norm=156750 exit_irq=3545
+softcall: runs=358810 steps=14 escapes=0 run_escapes=0 hle_exits=64721
+nested: n=383265 sched_us=1134262 jit_us=927177 limit_us=1245487
+slice: cycles=8753261294 avg=14398 tiny=2054
+irq: sio=14095 cdr=85 cdread=1246 gpudma=3385 spudma=12 cdrdma=2462 newdrc=12 rcnt=141817
+irqus: sio=1010 cdr=130 cdread=815038 gpudma=1117 spudma=2 cdrdma=158 newdrc=1 rcnt=36189792 line_exc=7802
+ram: mem1_free_kb=3431 mem2=10583/24575KB peak=10583KB fails=0 null_read=0 heap_ok=1
+gpu: tex_hit=778545 miss=36292 resets=26001 loads=0 bytes=0 batches=0
+gpu: drawdone=488 dd_skip=25513 drawdone_us=46470 convert_us=0 present_us=300054
+texk: conv_us=115499 conv=686 texels=714862 tile_us=92999 tile=686 mdec_us=0 mdec=0
+ogx: gc=0 sub_new=686 sub_hit=809919 skip=397222 unaligned=0 oob=0
+ogxskip: b1=384990 b2=12232 op_empty=0 op_semi=0
+ogxupl: semi=79 opaque=607 mismatch=0
+ogxgeom: coord_rej=0
+efbloss: upl_calls=0 upl_done=0 | pres: total=1689 clear=2 inflight_skip=0 | mirror: loads=9 used=0
+mirror: set=0 geom_restarts=0 first_diff_word=0 off=0,0,0,0,0,0,0
+uplret: dis=0 skip=0 rgb24=0 px1=0
+pcs: 80043398=1404 8005dd80=745 8004b464=616 8005dd34=522 8004b418=456 8001691c=395 8003cd6c=368 8001f1e8=333
+offsoft: prims=0 rejected=0 inside=2349984 | pad: startpoll=3526 update=3523 ai_calls=3523 rumble=0/0
+padproto: 42=3523 43=3 | press id=00 len=0 bytes=0000000000000000
+sio: write8=21147 start=3526 ctrl16=42303 read8=28199 irq=14095 padtype0=1
+ogxoff: prims=0 tex=0 off_roi=0 fills=0 fills_off=0 va=0 va_roi=0
+autoinput: vblank=23 mask=0000 at_present=2
+autosched: dump=0 dumped=0 trace=0 atrace=0
+ogxeq: n=0 mism=0 hole=0
+ogxdraw: ft=0 gt=0 uni_ft=0 uni_gt=0 vram_wr=1698 inval=8
+cd: reads=1231 bytes=2895312 seq=1218 rand=13 worst_us=18481 total_us=815922 idle_skips=0 idle_cycles=0 gpu_idle_skips=0 gpu_idle_cycles=0
+sd: rd=149 sec=9536 us=1098225 worst_us=16120 bg=0 bg_us=0 h=0/0/0/149/0 wr=42 wsec=2319 wus=290071 wworst_us=8639
+tvmode: calls=0 w=0 h=0 range=0-0 height=0 double=0
+cdpf: hit=0 miss=0 reads=0
+chd: hit=0 miss=0 err=0 chd_us=0
+xa: sectors=0 starts=0 fed=0 trunc=0 fill_min=0 fill_max=0 freq=0 stereo=0 dt_min=0 dt_max=0 filtered=0
+xamix: mix=0 hold=0 gaps=0 gap_calls=0 gap_samples=0 | spu: ns=2646000 pulls=0 busy=5498 desync=0 aev=3072 | out: dry=11936 drop=0
+rate: ppm=-3285 i=-1409 min=-4306 max=7 occ_min=0 occ_max=7064 occ_avg=4329 updates=5659 sat=3 changes=0 prefill=6144 | limit: debt_max=1250 debt_drops=13
+save: states=0 save_us=0 loads=0 load_us=0 bytes=0 fails=0 mcd=0 mcd_us=0 mcd_fails=0
+bios: calls=15942 custom=0 us=3158082 exc=358721 exc_us=3108311 | A28:bzero=7054 B17:ReturnFromException=4765 A2a:memcpy=3470 B0b:TestEvent=380 A18:strncmp=94 B07:DeliverEvent=72 A2b:memset=53 B08:OpenEvent=10 B0c:EnableEvent=10 A1b:strlen=6
+ports: 0:1/0 1:0/1 2:0/0 3:0/0 4:0/0 5:0/0 6:0/0 7:0/0 8:0/0 9:0/0 | avail G=0000 C=0000 N=0000 W=0000 P=0000 D=0000 H=0000
+carry: fc=0 rc0=1400/0/0/0 rc1=1507/0/0/0 rc2=1400/0/0/0 spu=2031528960/0/c001/000001/7f00007f sio=0005/0000/0/0 pad1=0/- gc=0 av=0 | rcntfire=31007,16,61577,44100
+gpusplit: parse_us=660041 vram_us=16060 vram_words=147456 off_us=178060 off=2363390 prim_us=5943005 prims=2363390
+gpuregs: gp1_us=446629 gp1=6780 read_us=0 reads=1
+gpuflip: geom_us=789 present_us=0 presents=0
+gpupres: upload_us=0 uploads=0 prep_us=0 capture_us=0 vout_us=3482 sync_us=0 efbcap_us=0 efbcap=0
+gpucmd:
+gpuprim: misc=1094756/1689 poly=4193370/1909095 rect=647634/440889 cv=112/9 state=7131/11708
+gpudeep: fill_gx_us=16575 fill_sw_us=1049243 fill_mark_us=17077 vramfin_us=9047 vramfin=3387 inv_us=40593 inv=1698 inv_scan=14 cwu_us=174
+texinv: same_loads=3387 changed_loads=0 changed_px=0 load=9/8/32768 fill=1689/0/0
+texinvr: src=load rect=256,384 256x128 drops=8 e.g. mode=2 page=20 entry=(0,192)-(63,255)
+gpudraw: ogx_us=2231009 draws=2310763 common_us=85978 state_us=1534683 states=2712217 tex_us=665664 mode_us=955119
+gxcache: sets=0 skips=0
+gte: calls=9165415 us=2098898 | RTPS=4166532 NCLIP=2702747 AVSZ3=2067522 RTPT=119809 MVMVA=80915 DPCT=27890
+spustage: chans=520870 adpcm_us=1825109 adsr_us=430916 mix_us=646533 rvb_us=10595
+lc: mask=0 | stores=0 store_kb=0 loads=0 load_kb=0 wait_us=0
+menu: frames=0 menu_us=0 strings=69249 glyphs=162404 texloads=7296
+=== chain 2/4 end vblanks=3600 at=2026-09-30T12:58:39 rom=Crash Bandicoot 3 - Warped [U] [SLUS-94244].cue ===
+--- perf frames=1335 ---
+time: 2026-09-30 12:59:43
+fixes: dwActFixes=00000000 cdrom=SCUS94426
+cpu: slices=262739 int=0 cpu_us=60602524 jit_full=0 jit_part=12290 interp_fb=0 hle=153628 exc=102
+wall: wall_us=61184130 vblanks=3600 pal=0 nested=126280
+inside: limit_us=38984349 limit=3543 target=1666 spu_us=2195074 spu=44100 out_us=384352 out=44100 hw_us=4684846 hw=10040853 hw_gpu_us=4090959 hw_gpu=2695195
+slicecost: sched_us=43988292 jit_us=15111075 post_us=1503157 exit_norm=100607 exit_irq=8402
+softcall: runs=107202 steps=11 escapes=0 run_escapes=0 hle_exits=102
+nested: n=126280 sched_us=192572 jit_us=936651 limit_us=84904
+slice: cycles=4538981703 avg=17275 tiny=802
+irq: sio=13536 cdr=174 cdread=3751 gpudma=2682 spudma=1914 gpuotcdma=1333 cdrdma=4241 newdrc=1367 rcnt=81080 spu_update=1881
+irqus: sio=858 cdr=342 cdread=2820212 gpudma=1184 spudma=168 gpuotcdma=199 cdrdma=258 newdrc=150 rcnt=41239658 spu_update=63803 line_exc=3150
+ram: mem1_free_kb=3311 mem2=11095/24575KB peak=11095KB fails=0 null_read=0 heap_ok=1
+gpu: tex_hit=240577 miss=6482 resets=3488 loads=0 bytes=0 batches=0
+gpu: drawdone=920 dd_skip=2620 drawdone_us=73388 convert_us=0 present_us=254615
+texk: conv_us=154336 conv=1158 texels=804919 tile_us=129608 tile=1158 mdec_us=0 mdec=0
+ogx: gc=0 sub_new=1158 sub_hit=244992 skip=16971 unaligned=0 oob=0
+ogxskip: b1=16927 b2=43 op_empty=1 op_semi=0
+ogxupl: semi=320 opaque=848 mismatch=0
+ogxgeom: coord_rej=0
+efbloss: upl_calls=9 upl_done=9 | pres: total=1335 clear=2 inflight_skip=0 | mirror: loads=8 used=0
+mirror: set=0 geom_restarts=0 first_diff_word=0 off=1,0,0,0,0,7,0
+uplret: dis=0 skip=0 rgb24=0 px1=0
+uplst0: 0 0 0 0 0 0 0 0 0 0 0 2 512 218 0 0 0 2 256 216 281 0
+uplst1: 0 0 0 0 0 0 0 0 0 0 0 2 512 218 0 0 256 296 512 512 914 0
+pcs: 80043398=1404 80037894=1366 8005dd80=745 80044e58=639 8004b464=616 8002560c=574 80035920=563 80044b90=562
+offsoft: prims=0 rejected=2 inside=854066 | pad: startpoll=3393 update=3381 ai_calls=3381 rumble=0/0
+padproto: 42=3381 43=12 | press id=00 len=0 bytes=0000000000000000
+sio: write8=20322 start=3393 ctrl16=47466 read8=27108 irq=13536 padtype0=1
+ogxoff: prims=0 tex=0 off_roi=0 fills=0 fills_off=0 va=0 va_roi=0
+autoinput: vblank=111 mask=0000 at_present=1
+autosched: dump=0 dumped=0 trace=0 atrace=0
+ogxeq: n=0 mism=0 hole=0
+ogxdraw: ft=0 gt=0 uni_ft=0 uni_gt=0 vram_wr=1382 inval=984
+cd: reads=3711 bytes=8728272 seq=3683 rand=28 worst_us=30237 total_us=2468763 idle_skips=0 idle_cycles=0 gpu_idle_skips=0 gpu_idle_cycles=0
+sd: rd=363 sec=23232 us=2720683 worst_us=16837 bg=0 bg_us=0 h=0/0/0/363/0 wr=42 wsec=2323 wus=301115 wworst_us=9176
+tvmode: calls=0 w=0 h=0 range=0-0 height=0 double=0
+cdpf: hit=0 miss=0 reads=0
+chd: hit=0 miss=0 err=0 chd_us=0
+xa: sectors=104 starts=4 fed=0 trunc=0 fill_min=0 fill_max=60 freq=37800 stereo=0 dt_min=3611948 dt_max=3613398 filtered=1438
+xamix: mix=9650 hold=8 gaps=2 gap_calls=2943 gap_samples=176520 | spu: ns=2646000 pulls=0 busy=1 desync=0 aev=3072 | out: dry=15981 drop=0
+rate: ppm=-5000 i=-2178 min=-5000 max=7 occ_min=0 occ_max=6009 occ_avg=3272 updates=5672 sat=309 changes=0 prefill=5632 | limit: debt_max=1250 debt_drops=21
+save: states=0 save_us=0 loads=0 load_us=0 bytes=0 fails=0 mcd=0 mcd_us=0 mcd_fails=0
+bios: calls=34176 custom=0 us=1470239 exc=104073 exc_us=1361935 | B17:ReturnFromException=12141 B0b:TestEvent=11938 A2a:memcpy=4901 A28:bzero=3383 A19:strcpy=434 A18:strncmp=372 Aab:_card_info=340 A1b:strlen=284 A17:strcmp=237 A2b:memset=40
+ports: 0:1/0 1:0/1 2:0/0 3:0/0 4:0/0 5:0/0 6:0/0 7:0/0 8:0/0 9:0/0 | avail G=0000 C=0000 N=0000 W=0000 P=0000 D=0000 H=0000
+carry: fc=0 rc0=1400/0/0/0 rc1=1507/0/0/0 rc2=e58/1010/1/1 spu=2032128000/0/c000/03abff/80000080 sio=0005/0000/0/0 pad1=0/- gc=0 av=0 | rcntfire=31007,3,31007,44100
+gpusplit: parse_us=273159 vram_us=37283 vram_words=389120 off_us=68117 off=898115 prim_us=2743699 prims=898115
+gpuregs: gp1_us=471707 gp1=8022 read_us=0 reads=1
+gpuflip: geom_us=68840 present_us=0 presents=0
+gpupres: upload_us=0 uploads=0 prep_us=0 capture_us=0 vout_us=2161 sync_us=47 efbcap_us=42241 efbcap=52
+gpucmd:
+gpuprim: misc=816409/1158 poly=1849123/815432 rect=51730/38636 vv=17601/1340 cv=87/8 state=8747/41541
+gpudeep: fill_gx_us=9138 fill_sw_us=789483 fill_mark_us=10739 vramfin_us=23849 vramfin=2683 inv_us=41525 inv=1382 inv_scan=1568 cwu_us=665
+texinv: same_loads=2683 changed_loads=0 changed_px=0 load=8/695/454596 move=8/0/0 fill=1158/0/0 efb=208/289/295936
+texinvr: src=efb rect=448,208 16x16 drops=31 e.g. mode=0 page=7 entry=(32,216)-(63,247)
+texinvr: src=efb rect=464,208 16x16 drops=55 e.g. mode=0 page=7 entry=(64,216)-(95,247)
+texinvr: src=efb rect=480,208 16x16 drops=48 e.g. mode=0 page=7 entry=(128,216)-(159,247)
+texinvr: src=efb rect=496,208 16x16 drops=38 e.g. mode=0 page=7 entry=(192,216)-(223,247)
+texinvr: src=efb rect=384,208 16x16 drops=39 e.g. mode=0 page=6 entry=(0,216)-(31,247)
+texinvr: src=efb rect=400,208 16x16 drops=31 e.g. mode=0 page=6 entry=(64,216)-(95,247)
+texinvr: src=efb rect=320,208 16x16 drops=21 e.g. mode=0 page=5 entry=(0,216)-(31,247)
+texinvr: src=efb rect=432,208 16x16 drops=10 e.g. mode=0 page=6 entry=(192,216)-(223,247)
+gpudraw: ogx_us=780624 draws=845726 common_us=35165 state_us=518977 states=863596 tex_us=291526 mode_us=480377
+gxcache: sets=0 skips=0
+gte: calls=3009357 us=1029548 | RTPS=936865 NCLIP=836862 RTPT=487689 AVSZ3=479808 MVMVA=250073 OP=15052 SQR=2256 AVSZ4=752
+spustage: chans=265728 adpcm_us=934935 adsr_us=174366 mix_us=308680 rvb_us=188037
+lc: mask=0 | stores=0 store_kb=0 loads=0 load_kb=0 wait_us=0
+menu: frames=0 menu_us=0 strings=54735 glyphs=129819 texloads=5882
+=== chain 3/4 end vblanks=3600 at=2026-09-30T12:59:43 rom=Crash Team Racing [U] [SCUS-94426].cue ===
+--- perf frames=1138 ---
+time: 2026-09-30 13:00:47
+fixes: dwActFixes=00000000 cdrom=SCUS94570
+cpu: slices=220921 int=0 cpu_us=60603514 jit_full=0 jit_part=2988 interp_fb=0 hle=115323 exc=18
+wall: wall_us=61441255 vblanks=3600 pal=0 nested=92943
+inside: limit_us=34464502 limit=3517 target=1666 spu_us=2919413 spu=44100 out_us=383482 out=44100 hw_us=8619292 hw=11534275 hw_gpu_us=7989941 hw_gpu=3338872
+slicecost: sched_us=38534688 jit_us=20462144 post_us=1606680 exit_norm=96995 exit_irq=8585
+softcall: runs=76892 steps=11 escapes=0 run_escapes=0 hle_exits=18
+nested: n=92943 sched_us=73756 jit_us=1106140 limit_us=0
+slice: cycles=4172260429 avg=18885 tiny=547
+irq: sio=13860 cdr=152 cdread=1671 gpudma=3546 spudma=4 gpuotcdma=1417 cdrdma=2988 newdrc=1563 rcnt=81146
+irqus: sio=918 cdr=392 cdread=1102270 gpudma=1239 spudma=0 gpuotcdma=252 cdrdma=228 newdrc=102 rcnt=37456631 line_exc=2160
+ram: mem1_free_kb=3311 mem2=8150/24575KB peak=8150KB fails=0 null_read=0 heap_ok=1
+gpu: tex_hit=369730 miss=1918 resets=114 loads=0 bytes=0 batches=0
+gpu: drawdone=4057 dd_skip=10 drawdone_us=4799 convert_us=0 present_us=201887
+texk: conv_us=12219 conv=104 texels=93324 tile_us=9226 tile=104 mdec_us=0 mdec=0
+ogx: gc=0 sub_new=104 sub_hit=371534 skip=44775 unaligned=0 oob=0
+ogxskip: b1=44775 b2=0 op_empty=0 op_semi=0
+ogxupl: semi=21 opaque=93 mismatch=0
+ogxgeom: coord_rej=24927
+efbloss: upl_calls=5 upl_done=5 | pres: total=1138 clear=2 inflight_skip=0 | mirror: loads=1316 used=0
+mirror: set=2 geom_restarts=2 first_diff_word=1 off=0,0,0,0,0,0,0
+uplret: dis=0 skip=0 rgb24=0 px1=0
+uplst0: 0 0 0 0 0 0 0 0 0 0 0 256 512 490 0 0 0 256 512 490 276 0
+uplst1: 0 0 0 0 0 0 0 0 0 0 0 0 512 234 0 256 0 256 512 490 920 -1
+pcs: 800322d4=1466 80043398=1404 80037894=1366 8003228c=1298 80024688=1025 80032250=797 8005dd80=745 80024648=717
+offsoft: prims=6546 rejected=376643 inside=0 | pad: startpoll=3474 update=3462 ai_calls=3462 rumble=0/0
+padproto: 42=3462 43=12 | press id=00 len=0 bytes=0000000000000000
+sio: write8=20808 start=3474 ctrl16=48600 read8=27756 irq=13860 padtype0=1
+ogxoff: prims=0 tex=0 off_roi=0 fills=0 fills_off=0 va=0 va_roi=0
+autoinput: vblank=2 mask=0000 at_present=0
+autosched: dump=0 dumped=0 trace=0 atrace=0
+ogxeq: n=0 mism=0 hole=0
+ogxdraw: ft=0 gt=0 uni_ft=0 uni_gt=0 vram_wr=14217 inval=21
+cd: reads=1493 bytes=3511536 seq=1471 rand=22 worst_us=21522 total_us=1084737 idle_skips=1036 idle_cycles=25700143 gpu_idle_skips=0 gpu_idle_cycles=0
+sd: rd=217 sec=13888 us=1647618 worst_us=18195 bg=0 bg_us=0 h=0/0/0/217/0 wr=74 wsec=3109 wus=473265 wworst_us=11278
+tvmode: calls=0 w=0 h=0 range=0-0 height=0 double=0
+cdpf: hit=0 miss=0 reads=0
+chd: hit=0 miss=0 err=0 chd_us=0
+xa: sectors=0 starts=0 fed=0 trunc=0 fill_min=0 fill_max=0 freq=0 stereo=0 dt_min=0 dt_max=0 filtered=0
+xamix: mix=0 hold=0 gaps=0 gap_calls=0 gap_samples=0 | spu: ns=2646000 pulls=0 busy=13 desync=0 aev=3072 | out: dry=10246 drop=0
+rate: ppm=-4561 i=-1258 min=-4561 max=164 occ_min=0 occ_max=6270 occ_avg=2872 updates=5660 sat=0 changes=0 prefill=12288 | limit: debt_max=1250 debt_drops=20
+save: states=0 save_us=0 loads=0 load_us=0 bytes=0 fails=0 mcd=3 mcd_us=417941 mcd_fails=0
+bios: calls=30160 custom=0 us=1578478 exc=72838 exc_us=1346684 | B0b:TestEvent=19605 B17:ReturnFromException=8244 B0a:WaitEvent=1239 B07:DeliverEvent=658 Aab:_card_info=353 B35:write=13 B08:OpenEvent=9 B0c:EnableEvent=9 B5b:ChangeClearPAD=5 A44:FlushCache=4
+ports: 0:1/0 1:0/1 2:0/0 3:0/0 4:0/0 5:0/0 6:0/0 7:0/0 8:0/0 9:0/0 | avail G=0000 C=0000 N=0000 W=0000 P=0000 D=0000 H=0000
+carry: fc=0 rc0=1400/0/0/0 rc1=148/ffff/0/1 rc2=400/0/0/0 spu=2032128000/0/c081/9a084a/80000080 sio=0005/0000/0/0 pad1=0/- gc=0 av=0 | rcntfire=31007,15,31007,44100
+gpusplit: parse_us=541031 vram_us=34857 vram_words=482470 off_us=3076278 off=2351990 prim_us=3302018 prims=2345444
+gpuregs: gp1_us=357366 gp1=10498 read_us=0 reads=4
+gpuflip: geom_us=576 present_us=0 presents=0
+gpupres: upload_us=8035 uploads=2 prep_us=0 capture_us=0 vout_us=2323 sync_us=76 efbcap_us=2190064 efbcap=3953
+gpucmd: 34=18069/3886 30=8637/2505 36=943/155
+gpuprim: poly=2571015/1354088 rect=665253/947 vv=19233/1408 cv=7891/1316 state=70200/1033507
+gpudeep: fill_gx_us=0 fill_sw_us=0 fill_mark_us=0 vramfin_us=15842 vramfin=4132 inv_us=40957 inv=14217 inv_scan=28664 cwu_us=11643
+texinv: same_loads=4132 changed_loads=0 changed_px=0 load=1314/21/53888 move=1/0/0 fill=947/0/0 efb=5409/0/0 soft=6546/0/0
+texinvr: src=load rect=496,496 4x16 drops=1 e.g. mode=0 page=23 entry=(192,240)-(207,255)
+texinvr: src=load rect=504,496 4x16 drops=1 e.g. mode=0 page=23 entry=(224,240)-(239,255)
+texinvr: src=load rect=992,320 16x32 drops=1 e.g. mode=0 page=31 entry=(160,64)-(191,95)
+texinvr: src=load rect=768,256 16x64 drops=1 e.g. mode=1 page=28 entry=(0,0)-(63,15)
+texinvr: src=load rect=800,256 32x32 drops=1 e.g. mode=1 page=28 entry=(64,0)-(127,15)
+texinvr: src=load rect=832,256 32x32 drops=1 e.g. mode=1 page=28 entry=(128,0)-(191,25)
+texinvr: src=load rect=864,256 32x32 drops=1 e.g. mode=1 page=28 entry=(192,0)-(255,25)
+texinvr: src=load rect=928,256 32x32 drops=1 e.g. mode=1 page=30 entry=(64,0)-(127,25)
+gpudraw: ogx_us=1228656 draws=1323572 common_us=71097 state_us=800361 states=1368347 tex_us=187870 mode_us=403259
+gxcache: sets=0 skips=0
+gte: calls=7061737 us=1381916 | RTPS=2835364 AVSZ3=2105952 NCLIP=1700878 INTPL=243595 DPCS=120978 MVMVA=44162 SQR=4053 GPF=4053
+spustage: chans=298588 adpcm_us=1139710 adsr_us=282046 mix_us=430171 rvb_us=485283
+lc: mask=0 | stores=0 store_kb=0 loads=0 load_kb=0 wait_us=0
+menu: frames=0 menu_us=0 strings=46658 glyphs=108110 texloads=4932
+=== chain 4/4 end vblanks=3600 at=2026-09-30T13:00:48 rom=Crash Bash [U] [SCUS-94570].cue ===

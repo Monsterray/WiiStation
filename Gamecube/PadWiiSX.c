@@ -73,6 +73,8 @@ static char autoin_path[128] = "sd:/wiisxrx/autoinput.txt";
 unsigned autoinput_trace_vbl[8];
 int autoinput_trace_n = 0;
 unsigned autoinput_dump_vbl = 0;   /* "dump <vblank>": debug build writes sd:/wiisxrx/vram.bin then */
+unsigned autoinput_crash_vbl = 0;  /* "crashtest <vblank>": debug build stores through a NULL base then (a DSI) */
+int autoinput_crumbs = 0;          /* "crumbs": debug build writes sd:/wiisxrx/crumb.log once a second (crash hunts) */
 /* "padsweep <vblank>": from that vblank the GameCube driver reads a generated sweep
  * instead of the pad -- each stick axis end to end, then every button on its own. It is
  * read in controller-GC.c, which is the only place that knows what a raw GameCube pad
@@ -122,6 +124,8 @@ void autoinput_load(void)
 				continue;
 			}
 			if (sscanf(line, "dump %u", &v) == 1) { autoinput_dump_vbl = v; continue; }
+			if (sscanf(line, "crashtest %u", &v) == 1) { autoinput_crash_vbl = v; continue; }
+			if (!strncmp(line, "crumbs", 6)) { autoinput_crumbs = 1; continue; }
 			if (sscanf(line, "padsweep %u", &v) == 1) { autoinput_padsweep_vbl = v; continue; }
 			if (sscanf(line, "menupage %u", &v) == 1) { autoinput_menupage = v; continue; }
 			{
@@ -168,6 +172,8 @@ void autoinput_reset(const char *path)
 	}
 	autoinput_trace_n = 0;
 	autoinput_dump_vbl = 0;
+	autoinput_crash_vbl = 0;
+	autoinput_crumbs = 0;
 	autoinput_padsweep_vbl = 0;
 	autoinput_menupage = 0;
 	autoinput_menuclick = autoinput_menuclicks = 0;

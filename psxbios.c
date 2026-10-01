@@ -1683,8 +1683,9 @@ _start:
 	if (psp != INVALID_PTR)
 		memcpy(psp, save, 4 * 4);
 
-	if (Config.PsxOut)
-		SysPrintf("%s", tmp);
+	/* like putchar/puts: SysPrintf is where a debug build keeps the console (tty.log); go()
+	 * clears Config.PsxOut, so a PS1 program's printf was never seen */
+	SysPrintf("%s", tmp);
 }
 
 void psxBios_printf() { // 0x3f

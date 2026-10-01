@@ -57,7 +57,11 @@ a double-buffered game -- fold too), 2048 lines max. `dolphin_run.sh` extracts i
 `A0` image load, `80` move (a,b = source), and the EFB sync (GlesGpu/efbSync.inc,
 Docs/EFB_SYNC.md): `C1` a = tiles GX drew in the rect, b = tiles no snapshot could fill;
 `C2` a = % of the rect written, b = 1 if the live EFB was copied; `C4` per present, a =
-snapshots on, b = a read has missed. `FF` a chained game starts. Works in the default
+snapshots on, b = a read has missed. `F1` per vblank and `F5` per GP1 05 (any size):
+display x,y, draw offset in the wxh field, a = `iDrawnSomething`, b = why it presented
+(F1: 1 full-screen upload, 2 pending, 4 presented, 8 drawing the displayed buffer; F5: 1
+presented). A run of F5 lines with a = 0 is a flip that showed nothing new (Ape fades,
+before tiles set 0x10); no F1 lines at all = the display is interlaced. `FF` a chained game starts. Works in the default
 `light` debug build. It found Ape Escape's pause mechanism (a C0 read of the frame, then an
 A0 upload of it every paused frame) in one run, after several trace windows had missed it.
 
@@ -164,7 +168,7 @@ differ from the same game booted first: read `carry:` before theorising.
 
 `dump <vblank>` (autoinput.txt) or the fallback at vblank 6000 writes the whole 1 MB `psxVuw`
 to `sd:/wiisxrx/vram.bin` and appends a perf report. Render with `scripts/vram2png.py`.
-Because `psxVuw` is one global shared by all three plugins, dumps from Old Soft and OpenGX at
+Because `psxVuw` is one global shared by all three plugins, dumps from Soft Fast and OpenGX at
 the same vblank are directly comparable: identical texture pages ⇒ the GX plugin's CPU side is
 right; the display buffers legitimately differ (GX draws to the EFB, not to psxVuw).
 
@@ -182,3 +186,18 @@ right; the display buffers legitimately differ (GX draws to the EFB, not to psxV
 
 Files in the GX plugin also carry `DISP_DEBUG` logging (`writeLogFile`) — that is a separate,
 noisier facility writing `sd:/wiisxrx/log.txt`; prefer perf counters and traces.
+
+## Where the PSX CPU is (2026-09-28)
+
+- `pcs:` in perf.log: the PSX PC at each emulated vblank, the 8 most frequent (`pc=count`).
+  Game code is 0x8001xxxx-0x801fxxxx; a run of 0x00000000, 0xffffffff or 0xbfc0xxxx after
+  the boot means the CPU is lost. Every build.
+- `pcring.log` (debug builds, interpreter core only): the last 4096 PC / sp / ra, written
+  once to sd:/wiisxrx/pcring.log the first time the PC leaves code (RAM from 0x80, the BIOS
+  ROM), plus the page-0 memory tables and the stack. It found why `Core=1` returned to
+  address 0 (an HLE trap did not end the block; fixed a77f6ea). Disassemble the BIOS with
+  `C:/PSn00bSDK/bin/mipsel-none-elf-objdump.exe -D -b binary -m mips:3000 -EL
+  --adjust-vma=0xbfc00000 --start-address=A --stop-address=B SCPH1001.BIN`.
+- A result is only this run's if the file is: `wsx.sh` and `dolphin_run.sh` now clear the
+  run directory's and the test card's logs first. A cut-off run used to come back with the
+  previous run's ptrace.log.

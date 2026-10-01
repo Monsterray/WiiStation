@@ -67,6 +67,9 @@ static uint32_t __lwp_heap_block_size(heap_cntrl *theheap, void *ptr)
 #define ROUNDUP32(v) (((uint32_t)(v) + 0x1f) & ~0x1f)
 
 static heap_cntrl gx_mem2_heap;
+#ifdef PERF_PROF
+static uint32_t mem2_live;   /* bytes in use, kept by _mem2_memalign/_mem2_free: the peak below */
+#endif
 
 bool gx_init_mem2(void)
 {
@@ -99,11 +102,16 @@ bool gx_init_mem2(void)
 
    SYS_SetArena2Hi((void *)newArena2Hi);
    __lwp_heap_init(&gx_mem2_heap, heap_ptr, oldArena2Hi - newArena2Hi - 1024 * 1024, 32);
+   gx_mem2_ios_hi = oldArena2Hi;   /* what IOS/the loader said is ours (lowmem 0x80003128) */
 
    _CPU_ISR_Restore(level);
 
    return true;
 }
+
+/* For perf.log "mem2map:": the arena libogc keeps below the heap (2 MB from NEW_MEM2_LO) and
+ * the gap left under IOS's top (1 MB), so how much of each is ever used is on the record. */
+uint32_t gx_mem2_ios_hi;
 
 void *_mem2_memalign(uint8_t align, uint32_t size)
 {
@@ -113,6 +121,16 @@ void *_mem2_memalign(uint8_t align, uint32_t size)
    p = __lwp_heap_allocate(&gx_mem2_heap, size);
    if (!p)
       PERF_INC(mem2_alloc_fails);
+#ifdef PERF_PROF
+   else {   /* the true high-water mark: a burst between two reports was invisible. A running
+             * count, O(1): walking the heap (gx_mem2_used) per allocation cost frames. */
+      uint32_t kb;
+      mem2_live += __lwp_heap_block_size(&gx_mem2_heap, p);
+      kb = mem2_live >> 10;
+      if (kb > g_perf.mem2_peak_kb)
+         g_perf.mem2_peak_kb = kb;
+   }
+#endif
    return p;
 }
 
@@ -123,8 +141,12 @@ void *_mem2_malloc(uint32_t size)
 
 void _mem2_free(void *ptr)
 {
-   if (ptr)
+   if (ptr) {
+#ifdef PERF_PROF
+      mem2_live -= __lwp_heap_block_size(&gx_mem2_heap, ptr);
+#endif
       __lwp_heap_free(&gx_mem2_heap, ptr);
+   }
 }
 
 void *_mem2_realloc(void *ptr, uint32_t newsize)

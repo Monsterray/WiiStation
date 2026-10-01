@@ -669,6 +669,7 @@ void setOption(char* key, char* valuePointer);
 extern "C" void mcd_track_begin(void);   /* sio.c: note the card files games use */
 extern "C" void mcd_track_delete(void);  /* sio.c: delete them */
 static int chainN, chainI;
+extern "C" int perf_chain_index(void) { return chainN ? chainI + 1 : 0; }   /* perf_prof.c breadcrumb */
 extern "C" {
 	unsigned chain_stop_vbl;                   /* psxcounters.c stops the game here; 0 = never */
 	void autoinput_reset(const char *path);    /* PadWiiSX.c */
@@ -1168,6 +1169,10 @@ int loadISO(fileBrowser_file* file)
 
 	char *tempStr = &file->name[0];
 	if((strstr(tempStr,".EXE")!=NULL) || (strstr(tempStr,".exe")!=NULL)) {
+		/* The BIOS file's reader: a disc sets it up in loadSeparatelySetting(), which this path
+		 * skips, and psxReset() called through the NULL pointer (a PS-X EXE loaded first thing
+		 * after boot jumped to address 0) */
+		biosFileInit();
 		SysReset();
 		Load(file);
 	}
@@ -1365,6 +1370,16 @@ void SysClose()
 
 void SysPrintf(const char *fmt, ...)
 {
+#ifdef PERF_PROF
+	{
+		va_list tl;
+		char tm[512];
+		va_start(tl, fmt);
+		vsnprintf(tm, sizeof tm, fmt, tl);
+		va_end(tl);
+		perf_tty(tm);   /* perf_prof.c: sd:/wiisxrx/tty.log */
+	}
+#endif
 #ifdef PRINTGECKO
 	va_list list;
 	char msg[512];

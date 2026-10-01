@@ -58,10 +58,14 @@ probe you can think of, because a build plus run costs about five minutes.
    prove rendering and sound unchanged, and `wsx.sh build debug deep|pmc` picks the probes.
    What each proves, and the audio rate-control trap: [references/measuring.md](references/measuring.md).
    Restart the user's own WiiStation window only with `scripts/wiistation_play.sh`.
+   PS1 test programs (PS-X EXE, e.g. AmiDog's GTE test), reading a save state's RAM/VRAM,
+   and host A/B harnesses for core files (`tests/gte_ab/run.sh`):
+   [references/test-roms.md](references/test-roms.md). The bench Wii's queue rules and crash
+   hunts: [references/unattended-run.md](references/unattended-run.md#the-bench-wii-real-hardware-unattended).
 
 4. **Read the numbers before the pictures.** A counter that is zero where you expected
    thousands (pad polls, SIO starts, merged pixels) points at the mechanism faster than any
-   screenshot. Then confirm on frames, and compare against ground truth: the Old Soft plugin
+   screenshot. Then confirm on frames, and compare against ground truth: the Soft Fast plugin
    (`gpuPlugin = 0`) renders the same command stream correctly but slowly, and the user's
    reference screenshots live in `examples/`.
 
@@ -72,7 +76,10 @@ probe you can think of, because a build plus run costs about five minutes.
 
 6. **Fix, verify with the same scripted run, commit with the evidence in the message,** and
    leave the machine as you found it: test files out of the SD sync folder, INIs restored,
-   no Dolphin running. Record any new mechanism in the reference files here.
+   no Dolphin running. Record any new mechanism in the reference files here, **and every
+   fix to the tooling itself** (a flag that did not apply, a script that failed and why, the
+   workaround): the user's standing instruction (2026-09-30) is that no later session has
+   to rediscover how a problem was solved.
 
 ## What you already know about the code (don't rediscover it)
 
