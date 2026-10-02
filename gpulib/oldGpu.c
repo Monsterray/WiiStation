@@ -1187,6 +1187,7 @@ long PEOPS_GPUdmaChain(unsigned long * baseAddrL, unsigned long addr, uint32_t *
  unsigned char * baseAddrB;
  unsigned int DMACommandCounter = 0;
  long dmaWords = 0;
+ int cyc = 0;
 
  #ifdef PEOPS_SDLOG
 	DEBUG_print("append",DBG_SDGECKOAPPEND);
@@ -1215,11 +1216,21 @@ long PEOPS_GPUdmaChain(unsigned long * baseAddrL, unsigned long addr, uint32_t *
    if(count>0) PEOPS_GPUwriteDataMem(&baseAddrL[dmaMem>>2],count);
 
    addr = GETLE32(&baseAddrL[addr>>2])&0xffffff;
+   /* Games that edit the list while the GPU walks it (database.c gpu_slow_llist_db,
+    * Crash Bash's pause menu among them) get it in slices, as gpulib walks it: about
+    * 512 cycles, then psxdma.c's gpuInterrupt() goes on from *progress_addr. */
+   cyc += 10 + (count > 0 ? 5 + count : 0);
+   if (progress_addr && cyc > 512) break;
   }
  while (addr != 0xffffff);
 
  GPUIsIdle;
 
+ if (progress_addr)
+  {
+   *progress_addr = addr;
+   return cyc;
+  }
  return dmaWords;
 }
 

@@ -234,7 +234,8 @@ void psxDma2(u32 madr, u32 bcr, u32 chcr) { // GPU
 }
 
 void gpuInterrupt() {
-	if (gpuPtr == &newSoftGpu && HW_DMA2_CHCR == SWAP32(0x01000401) && !(HW_DMA2_MADR & SWAP32(0x800000)))
+	/* A list walked in slices (gpu_slow_llist_db): every renderer reports where it stopped */
+	if (HW_DMA2_CHCR == SWAP32(0x01000401) && !(HW_DMA2_MADR & SWAP32(0x800000)))
 	{
 		u32 madr_next = 0xffffff, madr = SWAPu32(HW_DMA2_MADR);
 		s32 cycles_last_cmd = 0;

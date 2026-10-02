@@ -2558,12 +2558,22 @@ do
    }
 
    addr = GETLE32(&baseAddrL[addr>>2])&0xffffff;
+   /* Games that edit the list while the GPU walks it (database.c gpu_slow_llist_db,
+    * Crash Bash's pause menu among them) get it in slices, as gpulib walks it: about
+    * 512 cycles, then psxdma.c's gpuInterrupt() goes on from *progress_addr. */
+   if (progress_addr && cyc_sum > 512) break;
   }
  while (!(addr & 0x800000)); // contrary to some documentation, the end-of-linked-list marker is not actually 0xFF'FFFF
                              // any pointer with bit 23 set will do.
 
  GPUIsIdle;
 
+ if (progress_addr)
+  {
+   *progress_addr = addr;
+   *cycles_last_cmd = cyc_last;
+   return cyc_sum;
+  }
  if (!accurate) return dmaWords;
  *cycles_last_cmd = cyc_last;
  return cyc_sum;
