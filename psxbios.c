@@ -4346,7 +4346,12 @@ static void hleExc0_2_2_syscall() // not in any A/B/C table
 	}
 
 	//printf("%s c=%d a0=%d\n", __func__, code, SWAP32(tcb->reg[4]));
-	tcb->epc += SWAP32(4);
+	/* epc is in guest (little-endian) order. Adding a swapped 4 to it, as this did, lost the
+	 * carry out of the low byte on a big-endian host: a syscall at an address ending in FCh
+	 * went back 256 bytes short of the next instruction (0x80014afc to 0x80014a00, not
+	 * 0x80014b00): PadTest DX hung in ResetGraph, with the real BIOS fine and both CPU cores
+	 * alike. */
+	tcb->epc = SWAP32(SWAP32(tcb->epc) + 4);
 	switch (SWAP32(tcb->reg[4])) { // a0
 		case 0: // noop
 			break;
