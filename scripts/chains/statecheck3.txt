@@ -1,0 +1,12 @@
+CHAIN
+# statecheck in every game of a chain: PadTest DX three times, "statecheck 120 60" each.
+# Every game must log "-> match". The ROM is staged by scripts/padtest_dx.sh.
+300 sd:/wiisxrx/statecheck_padtest.txt PadAutoAssign=1 ControllerType=0
+sd:/wiisxrx/isos/PadTestDX
+padtest.cue
+300 sd:/wiisxrx/statecheck_padtest.txt PadAutoAssign=1 ControllerType=0
+sd:/wiisxrx/isos/PadTestDX
+padtest.cue
+300 sd:/wiisxrx/statecheck_padtest.txt PadAutoAssign=1 ControllerType=0
+sd:/wiisxrx/isos/PadTestDX
+padtest.cue

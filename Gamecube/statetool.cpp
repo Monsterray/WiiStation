@@ -17,6 +17,7 @@
  * with the CPU stopped, as the menu does it. Saving from inside the vblank handler, which the
  * old "statetest" did, stopped the game part way through a frame. */
 
+#include <errno.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
@@ -29,6 +30,7 @@ extern "C" {
 #include "../misc.h"
 #include "../psxmem.h"
 #include "../r3000a.h"
+#include "../mem2_manager.h"
 	extern int stop;
 	extern u32 frame_counter;
 	extern unsigned chain_stop_vbl;
@@ -63,14 +65,26 @@ static int due = -1;   /* the request that stopped the CPU, or -1 */
 
 static void log_line(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 
-/* statecheck: psxH and psxRegs as saved, to name the bytes a load does not put back */
+/* statecheck: psxH and psxRegs as saved, to name the bytes a load does not put back.
+ * The copies (2.1 MB with snap_ram) come from MEM2 and are given back when the check ends.
+ * They were MEM1 mallocs kept for the rest of the boot: in a chain, the next game had
+ * ~700 KB of MEM1 left, and SaveStateFile's 540 KB SPU buffer failed (ENOMEM), so every
+ * statecheck after the first chained game said "save ... FAILED". */
 static u8 *snap_h, *snap_regs, *snap_ram, *snap_regs2;
 static const unsigned SNAP_REGS = sizeof(psxRegisters);
 
+static void snap_free(void)
+{
+	u8 **p[4] = { &snap_h, &snap_regs, &snap_ram, &snap_regs2 };
+	int k;
+	for (k = 0; k < 4; k++)
+		if (*p[k]) { _mem2_free(*p[k]); *p[k] = NULL; }
+}
+
 static void snap_take(void)
 {
-	if (!snap_h) snap_h = (u8 *)malloc(0x10000);
-	if (!snap_regs) snap_regs = (u8 *)malloc(SNAP_REGS);
+	if (!snap_h) snap_h = (u8 *)_mem2_malloc(0x10000);
+	if (!snap_regs) snap_regs = (u8 *)_mem2_malloc(SNAP_REGS);
 	if (snap_h) memcpy(snap_h, psxH, 0x10000);
 	if (snap_regs) memcpy(snap_regs, &psxRegs, SNAP_REGS);
 }
@@ -97,8 +111,8 @@ static void snap_diff(const char *what, const u8 *a, const u8 *b, unsigned len)
 /* statecheck: RAM and psxRegs at the first fingerprint, to name what the second one differs in */
 static void snap_take2(void)
 {
-	if (!snap_ram) snap_ram = (u8 *)malloc(0x200000);
-	if (!snap_regs2) snap_regs2 = (u8 *)malloc(SNAP_REGS);
+	if (!snap_ram) snap_ram = (u8 *)_mem2_malloc(0x200000);
+	if (!snap_regs2) snap_regs2 = (u8 *)_mem2_malloc(SNAP_REGS);
 	if (snap_ram) memcpy(snap_ram, psxM, 0x200000);
 	if (snap_regs2) memcpy(snap_regs2, &psxRegs, SNAP_REGS);
 }
@@ -119,6 +133,7 @@ void statetool_reset(void)
 {
 	nreq = 0;
 	due = -1;
+	snap_free();
 }
 
 void statetool_request(int op, const char *name, unsigned vbl, unsigned n)
@@ -184,13 +199,18 @@ static void write_info(const char *name)
 	fclose(f);
 }
 
+static int save_errno;
+
 static int save_quiet(const char *path)
 {
 	int r;
 	makeParentDirs(path);
 	state_quiet = 1;
+	errno = 0;
 	r = SaveStateFile(path);
 	state_quiet = 0;
+	if (r != 1)   /* r 0: the file did not open; -1: a buffer did not allocate */
+		save_errno = errno;
 	return r;
 }
 
@@ -224,8 +244,8 @@ int statetool_service(void)
 		state_path(path, sizeof path, req[i].name, "st");
 		r = save_quiet(path);
 		if (r == 1) write_info(req[i].name);
-		log_line("state: save %s at vblank %u %s\n", req[i].name, (unsigned)frame_counter,
-			r == 1 ? "ok" : "FAILED");
+		log_line("state: save %s at vblank %u %s%s\n", req[i].name, (unsigned)frame_counter,
+			r == 1 ? "ok" : "FAILED: ", r == 1 ? "" : strerror(save_errno));
 		req[i].done = true;
 		break;
 	case ST_LOAD:
@@ -255,8 +275,10 @@ int statetool_service(void)
 			snap_take();
 			req[i].step = 1;
 			if (r != 1) {
-				log_line("statecheck: save at vblank %u FAILED\n", (unsigned)frame_counter);
+				log_line("statecheck: save at vblank %u FAILED (%d, %s)\n", (unsigned)frame_counter,
+					r, strerror(save_errno));
 				req[i].done = true;
+				snap_free();
 			}
 		} else if (req[i].step == 1) {
 			state_fingerprint(req[i].fp);
@@ -266,6 +288,7 @@ int statetool_service(void)
 			if (r != 1) {
 				log_line("statecheck: load FAILED (%d)\n", r);
 				req[i].done = true;
+				snap_free();
 			} else {
 				/* The machine straight after the load must be the one that was saved */
 				state_fingerprint(fp);
@@ -294,6 +317,7 @@ int statetool_service(void)
 				req[i].fp[2], fp[2], req[i].fp[3], fp[3], req[i].fp[4], fp[4],
 				req[i].fp[5], fp[5], diff[0] ? "DIFFER: " : "match", diff);
 			req[i].done = true;
+			snap_free();
 		}
 		break;
 	}

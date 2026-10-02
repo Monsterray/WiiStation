@@ -64,6 +64,19 @@ compare two versions of a core file on the PC. Every step below cost a run to fi
   (64 KB), psxRegs (to `gteBusyCycle`), GPUFreeze_t (1032 bytes; for a 2026-09-30 build it
   started 8988 bytes after the HW block), then VRAM (1024x512x2, little-endian 15-bit).
   Find GPUFreeze_t by its version word `00 00 00 01` followed by a sane GPUSTAT.
+- **`statecheck` in a chain (fixed 2026-10-02).** It used to work only in the first chained
+  game; every later one logged `statecheck: save at vblank 120 FAILED`. The cause was not the
+  file or the chain: SaveStateFile returned -1 with ENOMEM. statecheck's comparison copies
+  (`snap_ram` 2 MB, `snap_h` 64 KB, two psxRegs) were MEM1 `malloc`s that were never
+  freed, so the next game had ~700 KB of MEM1 left (perf.log `ram: mem1_free_kb=711`) and
+  SaveStateFile's ~540 KB SPU-freeze buffer did not fit. Older chains (Spyro, FF7 and Crash
+  Bash, before 2026-09-30) passed only because MEM1 had more room before Lightrec's 1.5 MB
+  code buffer moved there. Now the copies come from MEM2 and are freed when a check ends and in
+  `statetool_reset`. A failed save names the reason: `FAILED (r, strerror)`, where r 0 = the
+  file did not open and r -1 = a buffer did not allocate. Check: `wsx.sh chain NAME
+  statecheck3.txt` (PadTest DX three times, `statecheck 120 60`): three `-> match`, and
+  `mem1_free_kb` about 2840 after every game. Anything that holds a buffer across a chain's
+  games costs every later game that much MEM1; free it in a reset that `autoinput_reset` runs.
 
 ## AmiDog psxtest_gte (v1.4)
 
