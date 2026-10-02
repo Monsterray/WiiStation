@@ -173,6 +173,38 @@ int main(void)
 	if (v != 0) fail("sensitivity", "2.0 did not saturate at 0");
 	printf("  2.0 saturates instead of wrapping\n");
 
+	printf("stick as D-pad\n");
+	{
+		/* Every stick position: never two opposite directions, nothing inside the dead
+		 * zone, and the same answer mirrored on both axes. */
+		int x, y, d, n = 0;
+		for (x = 0; x <= 255; x++)
+			for (y = 0; y <= 255; y++) {
+				d = stick_dpad(x, y);
+				if ((d & 3) == 3 || (d & 12) == 12) { fail("stick dpad", "opposite directions"); x = 256; break; }
+				if ((x - 128) * (x - 128) + (y - 128) * (y - 128) < STICK_DPAD_DEAD * STICK_DPAD_DEAD && d)
+					{ fail("stick dpad", "pressed inside the dead zone"); x = 256; break; }
+				if (x >= 1 && y >= 1) {   /* 1..255 mirrors about 128 */
+					int m = stick_dpad(256 - x, y), e = (d & 3) | (d & 4 ? 8 : 0) | (d & 8 ? 4 : 0);
+					if (m != e) { fail("stick dpad", "left and right are not mirrored"); x = 256; break; }
+				}
+				n += d != 0;
+			}
+		/* The 8 directions at full travel, in screen terms (0 is left/up) */
+		if (stick_dpad(128, 0) != STICK_DPAD_UP || stick_dpad(128, 255) != STICK_DPAD_DOWN ||
+		    stick_dpad(0, 128) != STICK_DPAD_LEFT || stick_dpad(255, 128) != STICK_DPAD_RIGHT)
+			fail("stick dpad", "a full cardinal push is not exactly its direction");
+		if (stick_dpad(0, 0) != (STICK_DPAD_UP | STICK_DPAD_LEFT) ||
+		    stick_dpad(255, 255) != (STICK_DPAD_DOWN | STICK_DPAD_RIGHT))
+			fail("stick dpad", "a full diagonal is not its two directions");
+		/* 20 degrees off straight up is still only Up; 25 degrees is the diagonal */
+		if (stick_dpad(128 + (int)(120 * sinf(0.349f)), 128 - (int)(120 * cosf(0.349f))) != STICK_DPAD_UP)
+			fail("stick dpad", "20 degrees off up is not Up alone");
+		if (stick_dpad(128 + (int)(120 * sinf(0.436f)), 128 - (int)(120 * cosf(0.436f))) != (STICK_DPAD_UP | STICK_DPAD_RIGHT))
+			fail("stick dpad", "25 degrees off up is not Up+Right");
+		printf("  %d of 65536 positions press a direction; no opposites, none at rest, mirrored\n", n);
+	}
+
 	printf(failures ? "\n%d failure(s)\n" : "\nall checks passed\n", failures);
 	return failures ? 1 : 0;
 }

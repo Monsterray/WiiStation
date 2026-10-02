@@ -93,6 +93,7 @@ void Func_ConfigureInput();
 void Func_ConfigureButtons();
 void Func_PsxTypeStandard();
 void Func_PsxTypeAnalog();
+void Func_PsxTypeStickDpad();
 void Func_PsxTypeLightgun();
 void Func_EnableRumbleYes();
 void Func_EnableRumbleNo();
@@ -166,7 +167,7 @@ void setSpuInterpolation(int spuInterpolation);
 void setSpuTempo(int soundTempo);
 }
 
-#define NUM_FRAME_BUTTONS 79
+#define NUM_FRAME_BUTTONS 80
 #define NUM_TAB_BUTTONS 5
 #define FRAME_BUTTONS settingsFrameButtons
 #define FRAME_STRINGS settingsFrameStrings
@@ -196,7 +197,7 @@ Advanced                       (Dithering and MDEC Chroma live on that page)
 Input Tab:
 Assign Controllers (assign player->pad)
 Configure Button Mappings
-PSX Controller Type: Standard/Analog/Light Gun
+PSX Controller Type: Standard/Analog/Stick D-pad
 Number of Multitaps: 0, 1, 2
 
 Audio Tab:
@@ -218,7 +219,7 @@ Auto Save Memcards: Yes; No
 Save States Device: SD; USB
 */
 
-static char FRAME_STRINGS[98][24] =
+static char FRAME_STRINGS[99][24] =
 	{ "General",
 	  "Video",
 	  "Input",
@@ -324,7 +325,8 @@ static char FRAME_STRINGS[98][24] =
 	  "Game",				// [94] one card file per game
 	  "2",					// [95] saves tab: which card the second button is
 	  "Advanced",			// [96] video tab: the Advanced Graphics page
-	  "Light Gun"			// [97] input tab: the light gun row
+	  "Light Gun",			// [97] input tab: the light gun row
+	  "Stick D-pad"			// [98] input tab: controller type, the stick drives the D-pad
       };
 
 static char LANG_STRINGS[13][24] =
@@ -412,8 +414,8 @@ struct ButtonInfo
 	//Buttons for Input Tab (starts at button[30])
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[34],	 85.0,	100.0,	220.0,	56.0,	 2,	32,	31,	31,	Func_ConfigureInput,	Func_ReturnFromSettingsFrame }, // Configure Input Assignment
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[35],	320.0,	100.0,	235.0,	56.0,	 2,	32,	30,	30,	Func_ConfigureButtons,	Func_ReturnFromSettingsFrame }, // Configure Button Mappings
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[38],	295.0,	160.0,	133.0,	56.0,	30,	59,	33,	33,	Func_PsxTypeStandard,	Func_ReturnFromSettingsFrame }, // PSX Controller Type: Standard
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[39],	438.0,	160.0,	133.0,	56.0,	31,	59,	32,	32,	Func_PsxTypeAnalog,		Func_ReturnFromSettingsFrame }, // PSX Controller Type: Analog
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[38],	295.0,	160.0,	105.0,	56.0,	30,	59,	79,	33,	Func_PsxTypeStandard,	Func_ReturnFromSettingsFrame }, // PSX Controller Type: Standard
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[39],	405.0,	160.0,	100.0,	56.0,	31,	59,	32,	79,	Func_PsxTypeAnalog,		Func_ReturnFromSettingsFrame }, // PSX Controller Type: Analog
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[16],	295.0,	280.0,	 75.0,	56.0,	59,	36,	35,	35,	Func_EnableRumbleYes,	Func_ReturnFromSettingsFrame }, // Enable Rumble: Yes
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[17],	380.0,	280.0,	 75.0,	56.0,	59,	37,	34,	34,	Func_EnableRumbleNo,	Func_ReturnFromSettingsFrame }, // Enable Rumble: No
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[13],	295.0,	340.0,	 55.0,	56.0,	34,	38,	37,	37,	Func_SaveButtonsSD,		Func_ReturnFromSettingsFrame }, // Save Button Mappings: SD
@@ -475,6 +477,8 @@ struct ButtonInfo
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[94],	295.0,	170.0,	105.0,	56.0,	46,	50,	77,	77,	Func_CardType1,			Func_ReturnFromSettingsFrame }, // Memcard 1 type: Off/Shared/Game
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[93],	430.0,	170.0,	105.0,	56.0,	47,	51,	76,	76,	Func_CardType2,			Func_ReturnFromSettingsFrame }, // Memcard 2 type: Off/Shared/Game
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[96],	245.0,	400.0,	150.0,	56.0,	28,	 1,	78,	78,	Func_AdvGfxPage,		Func_ReturnFromSettingsFrame }, // Video tab: Advanced Graphics page
+	//Input tab: the third controller type (button 79), appended so no index moves
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[98],	515.0,	160.0,	120.0,	56.0,	31,	59,	33,	32,	Func_PsxTypeStickDpad,	Func_ReturnFromSettingsFrame }, // PSX Controller Type: Stick D-pad
 };
 
 struct TextBoxInfo
@@ -712,6 +716,9 @@ void SettingsFrame::activateSubmenu(int submenu)
 			FRAME_BUTTONS[2].button->setSelected(true);
 			if (controllerType == CONTROLLERTYPE_STANDARD)FRAME_BUTTONS[32].button->setSelected(true);
 			if (controllerType == CONTROLLERTYPE_ANALOG)FRAME_BUTTONS[33].button->setSelected(true);
+			if (controllerType == CONTROLLERTYPE_STICKDPAD)FRAME_BUTTONS[79].button->setSelected(true);
+			FRAME_BUTTONS[79].button->setVisible(true);
+			FRAME_BUTTONS[79].button->setActive(true);
 			if (lightGun != LIGHTGUN_DISABLE)FRAME_BUTTONS[59].button->setSelected(true);
 			else FRAME_BUTTONS[59].button->setSelected(false);
 			FRAME_BUTTONS[59].buttonString = FRAME_STRINGS[70 + lightGun];
@@ -1596,21 +1603,19 @@ void Func_ConfigureButtons()
 	pMenuContext->setActiveFrame(MenuContext::FRAME_CONFIGUREBUTTONS,ConfigureButtonsFrame::SUBMENU_PSX_PADNONE);
 }
 
-void Func_PsxTypeStandard()
+/* The Controller Type row: buttons 32 (Standard), 33 (Analog) and 79 (Stick D-pad). */
+static void selectPsxType(int button, char type)
 {
-	for (int i = 32; i <= 33; i++)
-		FRAME_BUTTONS[i].button->setSelected(false);
-	FRAME_BUTTONS[32].button->setSelected(true);
-	controllerType = CONTROLLERTYPE_STANDARD;
+	FRAME_BUTTONS[32].button->setSelected(false);
+	FRAME_BUTTONS[33].button->setSelected(false);
+	FRAME_BUTTONS[79].button->setSelected(false);
+	FRAME_BUTTONS[button].button->setSelected(true);
+	controllerType = type;
 }
 
-void Func_PsxTypeAnalog()
-{
-	for (int i = 32; i <= 33; i++)
-		FRAME_BUTTONS[i].button->setSelected(false);
-	FRAME_BUTTONS[33].button->setSelected(true);
-	controllerType = CONTROLLERTYPE_ANALOG;
-}
+void Func_PsxTypeStandard()  { selectPsxType(32, CONTROLLERTYPE_STANDARD); }
+void Func_PsxTypeAnalog()    { selectPsxType(33, CONTROLLERTYPE_ANALOG); }
+void Func_PsxTypeStickDpad() { selectPsxType(79, CONTROLLERTYPE_STICKDPAD); }
 
 void Func_PsxTypeLightgun()
 {

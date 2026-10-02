@@ -4264,6 +4264,7 @@ void psxBiosCnfLoaded(u32 tcb_cnt, u32 evcb_cnt, u32 stack) {
 
 #define psxBios_PADpoll(pad) { \
 	int i; \
+	PERF_INC(hle_padpoll[(pad) - 1]); \
 	PAD##pad##_startPoll(pad); \
 	pad_buf##pad[0] = 0; \
 	pad_buf##pad[1] = PAD##pad##_poll(0x42); \

@@ -390,7 +390,7 @@ enum controllerType
 {
 	CONTROLLERTYPE_STANDARD=0,
 	CONTROLLERTYPE_ANALOG,
-	CONTROLLERTYPE_LIGHTGUN
+	CONTROLLERTYPE_STICKDPAD   /* a digital pad whose D-pad also follows the left stick */
 };
 
 extern char numMultitaps;

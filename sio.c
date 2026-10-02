@@ -31,6 +31,7 @@
 #include "Gamecube/wiiSXconfig.h"
 #include "Gamecube/PadSSSPSX.h"
 #include "Gamecube/perf_prof.h"
+extern unsigned char pad_unplug[2];   /* Gamecube/PlugPAD.c: a port shows as empty for these vblanks */
 
 void netError(void); // defined below; used earlier in this file
 
@@ -217,7 +218,7 @@ void sioWrite8(unsigned char value) {
 			if (!Config.UseNet) {
 				switch (CtrlReg&0x2002) {
 					case 0x0002:
-						if (padType[0]){
+						if (padType[0] && !pad_unplug[0]){
 							PERF_INC(sio_start);
 							SSS_SetMultiPad(0, value);
 							buf[0] = PAD1_startPoll(1);
@@ -231,7 +232,7 @@ void sioWrite8(unsigned char value) {
 						}
 
 					case 0x2002:
-						if (padType[1]){
+						if (padType[1] && !pad_unplug[1]){
 							SSS_SetMultiPad(1, value);
 							buf[0] = PAD1_startPoll(2);
 							break;

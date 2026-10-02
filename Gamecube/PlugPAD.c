@@ -149,6 +149,44 @@ void manual_assign_controllers(void)
 	}
 }
 
+/* A PlayStation port (0 or 1) becomes `type` (PADTYPE_*), as the Configure Input menu sets
+ * it, also while a game runs. A multitap whose slots are all None gets GameCube pads 1..4
+ * in slots A..D; leaving Multitap frees the four slots, which used to stay assigned. */
+/* Vblanks left during which a port answers as empty (sio.c): a new device on a port, while
+ * a game runs, comes after a moment with nothing plugged in, as a real swap does. Crash Bash
+ * read a multitap that became a GameCube pad as a multitap still, and took no more input;
+ * games look for their controllers again when one goes away. */
+unsigned char pad_unplug[2];
+#define PAD_UNPLUG_VBLANKS 30
+
+void set_port_type(int port, int type)
+{
+	int first = port ? 6 : 2, j;
+
+	if (type != padType[port])
+		pad_unplug[port] = PAD_UNPLUG_VBLANKS;
+
+	if (padType[port] == PADTYPE_MULTITAP && type != PADTYPE_MULTITAP)
+		for (j = first; j < first + 4; j++)
+			unassign_controller(j);
+	padType[port] = type;
+	if (type == PADTYPE_MULTITAP) {
+		unassign_controller(port);
+		for (j = first; j < first + 4 && padType[j] == PADTYPE_NONE; j++)
+			;
+		if (j == first + 4)
+			for (j = 0; j < 4; j++) {
+				padType[first + j] = PADTYPE_GAMECUBE;
+				padAssign[first + j] = (char)j;
+			}
+		for (j = first; j < first + 4; j++)
+			if (!(padType[j] && manual_assign_port(j)))
+				unassign_controller(j);
+	}
+	else if (!(type && manual_assign_port(port)))
+		unassign_controller(port);
+}
+
 void control_info_init(void){
 	//Call once during emulator start to auto assign controllers
 	init_controller_ts();
@@ -214,11 +252,13 @@ void auto_assign_controllers(void)
 {
 	int i,t,w;
 	int slots[10], nslots = 0;
-	int num_assigned[num_controller_t];
+	char used[num_controller_t][4], done[10];
+	int gct;   /* controller_GC's place in controller_ts */
 
 //	init_controller_ts();
 
-	memset(num_assigned, 0, sizeof(num_assigned));
+	memset(used, 0, sizeof(used));
+	memset(done, 0, sizeof(done));
 
 	for(i=0; i<2; ++i){
 		if(padType[i] == PADTYPE_MULTITAP){
@@ -229,17 +269,37 @@ void auto_assign_controllers(void)
 			slots[nslots++] = i;
 	}
 
+	/* A multitap's slot A..D is GameCube pad 1..4 when that pad is there, so a player keeps
+	 * the same slot whatever answered first. Slots were filled in order with the first
+	 * controllers found, and a pad that missed the first scan moved every player along and
+	 * could take port 2's pad (2026-10-02, Crash Bash: a "number of players" prompt that
+	 * came and went from one boot to the next). */
+	for(gct=0; gct<num_controller_t && controller_ts[gct] != &controller_GC; ++gct);
+	controller_GC.refreshAvailable();
+	for(i=0; i<nslots && gct<num_controller_t; ++i){
+		int v = slots[i], s = v >= 6 ? v - 6 : v - 2;
+		if(v < 2 || !controller_GC.available[s] || used[gct][s])
+			continue;
+		assign_controller(v, &controller_GC, s);
+		padType[v] = PADTYPE_GAMECUBE;
+		padAssign[v] = s;
+		used[gct][s] = 1;
+		done[v] = 1;
+	}
+
 	// Map controllers in the priority given
 	// Outer loop: virtual controllers
 	for(i=0; i<nslots; ++i){
 		int v = slots[i];
+		if(done[v])
+			continue;
 		// Middle loop: controller type
 		for(t=0; t<num_controller_t; ++t){
 			controller_t* type = controller_ts[t];
 			type->refreshAvailable();
 
-			// Inner loop: which controller
-			for(w=num_assigned[t]; w<4 && !type->available[w]; ++w, ++num_assigned[t]);
+			// Inner loop: which controller, the lowest one of this type still free
+			for(w=0; w<4 && (!type->available[w] || used[t][w]); ++w);
 			// If we've exhausted this type, move on
 			if(w == 4) continue;
 
@@ -258,18 +318,17 @@ void auto_assign_controllers(void)
 			}
 			padAssign[v] = w;
 
-			// Don't assign the next type over this one or the same controller
-			++num_assigned[t];
+			// Don't assign the same controller twice
+			used[t][w] = 1;
+			done[v] = 1;
 			break;
 		}
-		if(t == num_controller_t)
-			break;
-	}
-
-	// 'Initialize' the unmapped virtual controllers
-	for(; i<nslots; ++i){
-		unassign_controller(slots[i]);
-		padType[slots[i]] = PADTYPE_NONE;
+		/* No controller for this one: it stays empty, and the next one still gets a turn
+		 * (an empty multitap slot used to leave port 2 empty too) */
+		if(t == num_controller_t){
+			unassign_controller(v);
+			padType[v] = PADTYPE_NONE;
+		}
 	}
 
 	/* A port an input script plays (PadWiiSX.c autoinput_active) is a digital pad whatever is

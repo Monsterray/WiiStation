@@ -85,4 +85,28 @@ static inline uint8_t apply_sensitivity(uint8_t val, float sensitivity)
 	return (uint8_t)(a + 128);
 }
 
+/* Controller Type "Stick D-pad": which D-pad directions a stick position (0..255, 128 at
+ * rest, 0 left/up) presses. Inside half of full travel it presses nothing. Outside, the
+ * stick's angle picks one of eight 45-degree sectors, so a push within 22.5 degrees of
+ * straight up presses only Up, and a diagonal presses its two directions together; a
+ * per-axis threshold would press two directions for any slightly diagonal push. */
+#define STICK_DPAD_UP    1
+#define STICK_DPAD_DOWN  2
+#define STICK_DPAD_LEFT  4
+#define STICK_DPAD_RIGHT 8
+#define STICK_DPAD_DEAD  64    /* half of the 128 steps from rest to an edge */
+
+static inline int stick_dpad(int x, int y)
+{
+	int dx = x - 128, dy = y - 128, ax = dx < 0 ? -dx : dx, ay = dy < 0 ? -dy : dy, d = 0;
+	if (dx * dx + dy * dy < STICK_DPAD_DEAD * STICK_DPAD_DEAD)
+		return 0;
+	/* tan(22.5 degrees) = 0.41421, as 53/128: a component this far under the other is off */
+	if (ay * 128 > ax * 53)
+		d |= dy < 0 ? STICK_DPAD_UP : STICK_DPAD_DOWN;
+	if (ax * 128 > ay * 53)
+		d |= dx < 0 ? STICK_DPAD_LEFT : STICK_DPAD_RIGHT;
+	return d;
+}
+
 #endif

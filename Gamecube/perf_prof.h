@@ -336,6 +336,10 @@ typedef struct {
 	 * first reply to a 0x42 poll sent while a button was held: its ID and bytes. */
 	uint32_t pad_cmd[16];
 	uint8_t pad_press_id, pad_press_len, pad_press[8];
+	/* Multitap ports (perf.log "mtap:"): 0x42 replies with all four slots or one slot, the
+	 * TAP byte the poll sent (0 or 1, the mode of the next reply), the slot address byte
+	 * (01h..04h) of single-slot polls, and the HLE BIOS's own vblank polls. Per PSX port. */
+	uint32_t mtap_full[2], mtap_single[2], mtap_tap[2][2], mtap_addr[2][4], hle_padpoll[2];
 	/* Where already-drawn EFB content can be lost again: screen re-uploads from
 	 * psxVuw (which has no GX-drawn primitives in it) and the present's clear. */
 	uint32_t upl_calls, upl_done, pres_total, pres_clear, pres_skipped;

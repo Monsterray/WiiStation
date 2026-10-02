@@ -193,6 +193,7 @@ void init_controller_ts(void);
 void assign_controller(int whichVirtual, controller_t*, int whichPhysical);
 controller_t *manual_assign_port(int i);   /* PlugPAD.c: PadAutoAssign off */
 void manual_assign_controllers(void);
+void set_port_type(int port, int type);   /* PlugPAD.c: a port's type, as the menu sets it */
 void unassign_controller(int whichVirtual);
 
 int load_configurations(FILE*, controller_t*);

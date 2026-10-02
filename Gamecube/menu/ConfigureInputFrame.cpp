@@ -316,18 +316,10 @@ void Func_TogglePad0Type()
 {
 	int i = PADASSIGN_INPUT0;
 #ifdef HW_RVL
-	padType[i] = (padType[i]+1) % 5;
+	set_port_type(i, (padType[i]+1) % 5);
 #else
-	padType[i] = (padType[i]+1) & 1;
+	set_port_type(i, (padType[i]+1) & 1);
 #endif
-
-	if (padType[i] == PADTYPE_MULTITAP){
-		unassign_controller(i);
-		for(int j = 2;  j < 6; j++)
-			Func_AssignPad(j);
-	}
-	else if (padType[i]) Func_AssignPad(i);
-	else			unassign_controller(i);
 	pMenuContext->getFrame(MenuContext::FRAME_CONFIGUREINPUT)->activateSubmenu(ConfigureInputFrame::SUBMENU_REINIT);
 }
 
@@ -336,18 +328,10 @@ void Func_TogglePad1Type()
 {
 	int i = PADASSIGN_INPUT1;
 #ifdef HW_RVL
-	padType[i] = (padType[i]+1) % 5;
+	set_port_type(i, (padType[i]+1) % 5);
 #else
-	padType[i] = (padType[i]+1) & 1;
+	set_port_type(i, (padType[i]+1) & 1);
 #endif
-
-	if (padType[i] == PADTYPE_MULTITAP){
-		unassign_controller(i);
-		for(int j = 6;  j < 10; j++)
-			Func_AssignPad(j);
-	}
-	else if (padType[i]) Func_AssignPad(i);
-	else			unassign_controller(i);
 	pMenuContext->getFrame(MenuContext::FRAME_CONFIGUREINPUT)->activateSubmenu(ConfigureInputFrame::SUBMENU_REINIT);
 }
 

@@ -239,20 +239,21 @@ static struct {
   { "PadType8", &padType[7], PADTYPE_NONE, PADTYPE_MULTITAP },
   { "PadType9", &padType[8], PADTYPE_NONE, PADTYPE_MULTITAP },
   { "PadType10", &padType[9], PADTYPE_NONE, PADTYPE_MULTITAP },
-  { "PadAssign1", &padAssign[0], PADASSIGN_INPUT0, PADASSIGN_INPUT1D },
-  { "PadAssign2", &padAssign[1], PADASSIGN_INPUT0, PADASSIGN_INPUT1D },
-  { "PadAssign3", &padAssign[2], PADASSIGN_INPUT0, PADASSIGN_INPUT1D },
-  { "PadAssign4", &padAssign[3], PADASSIGN_INPUT0, PADASSIGN_INPUT1D },
-  { "PadAssign5", &padAssign[4], PADASSIGN_INPUT0, PADASSIGN_INPUT1D },
-  { "PadAssign6", &padAssign[5], PADASSIGN_INPUT0, PADASSIGN_INPUT1D },
-  { "PadAssign7", &padAssign[6], PADASSIGN_INPUT0, PADASSIGN_INPUT1D },
-  { "PadAssign8", &padAssign[7], PADASSIGN_INPUT0, PADASSIGN_INPUT1D },
-  { "PadAssign9", &padAssign[8], PADASSIGN_INPUT0, PADASSIGN_INPUT1D },
-  { "PadAssign10", &padAssign[9], PADASSIGN_INPUT0, PADASSIGN_INPUT1D },
+  /* a physical controller, 0..3: 4..9 indexed the drivers' 4-entry available[] past its end */
+  { "PadAssign1", &padAssign[0], 0, 3 },
+  { "PadAssign2", &padAssign[1], 0, 3 },
+  { "PadAssign3", &padAssign[2], 0, 3 },
+  { "PadAssign4", &padAssign[3], 0, 3 },
+  { "PadAssign5", &padAssign[4], 0, 3 },
+  { "PadAssign6", &padAssign[5], 0, 3 },
+  { "PadAssign7", &padAssign[6], 0, 3 },
+  { "PadAssign8", &padAssign[7], 0, 3 },
+  { "PadAssign9", &padAssign[8], 0, 3 },
+  { "PadAssign10", &padAssign[9], 0, 3 },
   { "RumbleEnabled", &rumbleEnabled, RUMBLE_DISABLE, RUMBLE_ENABLE },
   { "EfbSync", &efbSyncSetting, 0, 2 },
   { "LoadButtonSlot", &loadButtonSlot, LOADBUTTON_SLOT0, LOADBUTTON_DEFAULT },
-  { "ControllerType", &controllerType, CONTROLLERTYPE_STANDARD, CONTROLLERTYPE_ANALOG },
+  { "ControllerType", &controllerType, CONTROLLERTYPE_STANDARD, CONTROLLERTYPE_STICKDPAD },
 //  { "NumberMultitaps", &numMultitaps, MULTITAPS_NONE, MULTITAPS_TWO },
   { "smbusername", smbUserName, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "smbpassword", smbPassWord, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
@@ -463,6 +464,11 @@ void loadSettings(int argc, char *argv[])
 		padLightgun[i]	 = PADLIGHTGUN_ENABLE;
 	}
 	padAssign[1]	 = PADASSIGN_INPUT1;
+	/* A multitap's slots A..D (2..5 on port 1, 6..9 on port 2) start as GameCube pads 1..4 */
+	for (int i = 0; i < 4; i++){
+		padType[2 + i] = padType[6 + i] = PADTYPE_GAMECUBE;
+		padAssign[2 + i] = padAssign[6 + i] = (char)i;
+	}
 	memCard[0]		 = MEMCARD_ENABLE;
 	memCard[1]		 = MEMCARD_ENABLE;
 	memCardFile[0]	 = MEMCARDFILE_PER_GAME;   /* what WiiStation always did */

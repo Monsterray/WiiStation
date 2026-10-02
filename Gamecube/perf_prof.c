@@ -692,6 +692,24 @@ void perf_vblank_tick(void)
 				__asm__ volatile ("nop");
 		}
 	}
+	/* "padtype <vblank> <port> <type>": the port's type changes as the Configure Input menu
+	 * changes it (set_port_type), with the game running. A report first, so the counters
+	 * before and after the change are apart. */
+	{
+		extern unsigned autoinput_padtype_vbl, autoinput_padtype_port, autoinput_padtype_type;
+		extern void set_port_type(int port, int type);
+		if (autoinput_padtype_vbl && frame_counter >= autoinput_padtype_vbl) {
+			FILE *pf;
+			perf_report();
+			set_port_type((int)autoinput_padtype_port, (int)autoinput_padtype_type);
+			if ((pf = fopen("sd:/wiisxrx/perf.log", "a"))) {
+				fprintf(pf, "padtype: vblank=%u port=%u type=%u\n", frame_counter,
+					autoinput_padtype_port + 1, autoinput_padtype_type);
+				fclose(pf);
+			}
+			autoinput_padtype_vbl = 0;
+		}
+	}
 	if (!g_perf.vram_dumped && autoinput_dump_vbl && frame_counter >= autoinput_dump_vbl) {
 		g_perf.vram_dumped = 1;
 		perf_vram_dump();
@@ -1008,6 +1026,14 @@ void perf_report(void)
 			(unsigned long)g_perf.ai_ambiguous);
 		{
 			unsigned k;
+			if (g_perf.mtap_full[0] | g_perf.mtap_single[0] | g_perf.mtap_full[1] | g_perf.mtap_single[1])
+				for (k = 0; k < 2; k++)
+					fprintf(f, "mtap: port=%u full=%lu single=%lu tap0=%lu tap1=%lu addr=%lu/%lu/%lu/%lu hle=%lu\n", k + 1,
+						(unsigned long)g_perf.mtap_full[k], (unsigned long)g_perf.mtap_single[k],
+						(unsigned long)g_perf.mtap_tap[k][0], (unsigned long)g_perf.mtap_tap[k][1],
+						(unsigned long)g_perf.mtap_addr[k][0], (unsigned long)g_perf.mtap_addr[k][1],
+						(unsigned long)g_perf.mtap_addr[k][2], (unsigned long)g_perf.mtap_addr[k][3],
+						(unsigned long)g_perf.hle_padpoll[k]);
 			fprintf(f, "padproto:");
 			for (k = 0; k < 16; k++)
 				if (g_perf.pad_cmd[k])

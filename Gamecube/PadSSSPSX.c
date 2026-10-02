@@ -166,6 +166,16 @@ static void PADsetMode (const int pad, const int mode)	//mode = 0 (digital) or 1
 	RumbleReset(pad);
 }
 
+/* Which autoinput.txt port (0 = port 1, 1 = port 2) drives this pad: ports 1 and 2, and on a
+ * multitap port its slot A (2 or 6), so a script plays a multitap game too. -1: none. */
+static int script_port(int pad)
+{
+	if (pad < 2) return pad;
+	if (pad == 2 && padType[0] == PADTYPE_MULTITAP) return 0;
+	if (pad == 6 && padType[1] == PADTYPE_MULTITAP) return 1;
+	return -1;
+}
+
 static void UpdateState (const int pad) //Note: pad = 0 or 1
 {
 	const int vib0 = global.padVibF[pad][0] ? 1 : 0;
@@ -189,8 +199,10 @@ static void UpdateState (const int pad) //Note: pad = 0 or 1
 	//Need to switch between Classic and WiimoteNunchuck if user swapped extensions
 	/* Only an assigned port has a physical controller number: unassign_controller() leaves
 	 * it at -1, which indexed padType[] and available[] one byte/entry short of the array. */
+	/* padType[] is per port and multitap slot, as Control is; it used to be indexed by the
+	 * Wii channel (.number), which on a multitap slot read some other port's type. */
 	if (virtualControllers[Control].inUse &&
-		padType[virtualControllers[Control].number] == PADTYPE_WII)
+		padType[Control] == PADTYPE_WII)
 	{
 		if (virtualControllers[Control].control != &controller_WiiUPro &&
 			virtualControllers[Control].control != &controller_WiiUGamepad)
@@ -311,6 +323,16 @@ static void UpdateState (const int pad) //Note: pad = 0 or 1
 		/* The Justifier keeps the pad mapping: which of its three bits is the trigger has
 		 * not been checked against hardware, and guessing would be worse than leaving it. */
 #endif
+		/* Controller Type "Stick D-pad": a digital pad whose D-pad the left stick also
+		 * presses (psx_analog.h), for games that take no analog input. Active low. */
+		if (controllerType == CONTROLLERTYPE_STICKDPAD)
+		{
+			int d = stick_dpad(PAD_Data.leftStickX, PAD_Data.leftStickY);
+			if (d & STICK_DPAD_UP)    PAD_Data.btns.U_DPAD = 0;
+			if (d & STICK_DPAD_DOWN)  PAD_Data.btns.D_DPAD = 0;
+			if (d & STICK_DPAD_LEFT)  PAD_Data.btns.L_DPAD = 0;
+			if (d & STICK_DPAD_RIGHT) PAD_Data.btns.R_DPAD = 0;
+		}
 		if (miscButton == 1)
 			stop = 1;
 		else if (Control == 0 || Control == 2)
@@ -320,7 +342,7 @@ static void UpdateState (const int pad) //Note: pad = 0 or 1
 	{	//TODO: Emulate no controller present in this case.
 		//Reset buttons & sticks if PAD is not in use
 		extern int autoinput_active(int port);   /* PadWiiSX.c: a script has a digital pad on this port */
-		global.isConnected[pad] = autoinput_active(pad) ? 1 : 0;
+		global.isConnected[pad] = script_port(pad) >= 0 && autoinput_active(script_port(pad)) ? 1 : 0;
 		PAD_Data.btns.All = 0xFFFF;
 		PAD_Data.leftStickX = PAD_Data.leftStickY = PAD_Data.rightStickX = PAD_Data.rightStickY = 128;
 	}
@@ -343,7 +365,8 @@ static void UpdateState (const int pad) //Note: pad = 0 or 1
 	}
 
 	global.padStat[pad] = (((PAD_Data.btns.All>>8)&0xFF) | ( (PAD_Data.btns.All<<8) & 0xFF00 )) &0xFFFF;
-	if (pad < 2) {
+	if (script_port(pad) >= 0) {
+		const int sp = script_port(pad);
 		extern unsigned short autoinput_mask(int port);   /* PadWiiSX.c: scripted presses from sd:/wiisxrx/autoinput.txt */
 		/* padStat is byte-swapped so that the big-endian 16-bit store in the
 		 * 0x42 response emits the two PSX bytes in wire order; the script's
@@ -351,8 +374,8 @@ static void UpdateState (const int pad) //Note: pad = 0 or 1
 		extern void autoinput_record(int port, unsigned short real);   /* PadWiiSX.c: "record" */
 		unsigned short s = global.padStat[pad];
 		unsigned short m;
-		autoinput_record(pad, ~((s << 8) | (s >> 8)) & 0xFFFF);   /* the real pad, before the script */
-		m = autoinput_mask(pad);
+		autoinput_record(sp, ~((s << 8) | (s >> 8)) & 0xFFFF);   /* the real pad, before the script */
+		m = autoinput_mask(sp);
 		global.padStat[pad] &= ~(unsigned short)(((m << 8) | (m >> 8)) & 0xFFFF);   /* active low */
 	}
 
@@ -431,6 +454,10 @@ long SSS_PADopen (void *p)
 		autoinput_load();
 	}
 	memset (&global, 0, sizeof (global));
+	{
+		extern unsigned char pad_unplug[2];   /* PlugPAD.c: a type change before the game is no swap */
+		pad_unplug[0] = pad_unplug[1] = 0;
+	}
 	memset( &lastport1, 0, sizeof(lastport1) ) ;
 	memset( &lastport2, 0, sizeof(lastport2) ) ;
 	for(i = 0; i < 10; i++){
@@ -460,6 +487,7 @@ unsigned char SSS_PADstartPoll (int pad)
 
 void SSS_SetMultiPad(int pad, int mpad)
 {
+	PERF_INC(mtap_addr[pad & 1][(mpad - 1) & 3]);
 	if (pad)
 		global.multiPad[1] = mpad+5;
 	else
@@ -540,6 +568,7 @@ unsigned char SSS_PADpoll (const unsigned char value)
 		{
 		case 0x42:
 			if (padType[slot] == PADTYPE_MULTITAP){
+				if (global.trAll[slot] == 1) PERF_INC(mtap_full[slot & 1]); else PERF_INC(mtap_single[slot & 1]);
 				if (global.trAll[slot] == 1){
 					global.cmdLen = sizeof (multitap);
 					memcpy (buf.b8, multitap, sizeof (multitap));
@@ -657,8 +686,10 @@ unsigned char SSS_PADpoll (const unsigned char value)
 		}
 		if (cur == 3 && IsDualShock(pad) && !global.dsNewRumble[pad])
 			global.padVibF[pad][0] = (global.legacyXX[pad] & 0xc0) == 0x40 && (value & 1);
-		if (cur == 1 && padType[slot] == PADTYPE_MULTITAP)
+		if (cur == 1 && padType[slot] == PADTYPE_MULTITAP) {
 			global.trAll[slot] = value & 1;
+			PERF_INC(mtap_tap[slot & 1][value & 1]);
+		}
 		break;
 	case 0x43:
 		/* 01h enters config mode, 00h leaves it; other values change nothing */

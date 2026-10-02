@@ -439,6 +439,11 @@ void psxRcntUpdate()
             rcnts[3].cycleStart += frameCycles();
             hSyncCount = 0;
             frame_counter++;
+            {
+                extern unsigned char pad_unplug[2];   /* Gamecube/PlugPAD.c set_port_type() */
+                if (pad_unplug[0]) pad_unplug[0]--;
+                if (pad_unplug[1]) pad_unplug[1]--;
+            }
             ws_alive();   /* progress, for the HBC agent's hang watchdog (Gamecube/ws_crash.h) */
             statetool_vblank();
             perf_pc_sample(psxRegs.pc);
