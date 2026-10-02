@@ -19,18 +19,18 @@
 /* Flags for all opcodes */
 #define LIGHTREC_NO_DS		BIT(0)
 #define LIGHTREC_SYNC		BIT(1)
-
-/* Flags for LUI, ORI, ADDIU */
 #define LIGHTREC_MOVI		BIT(2)
 
+/* Flags for load/store opcodes and MFC/CFC */
+#define LIGHTREC_LOAD_DELAY	BIT(3)
+
 /* Flags for load/store opcodes */
-#define LIGHTREC_SMC		BIT(2)
-#define LIGHTREC_NO_INVALIDATE	BIT(3)
-#define LIGHTREC_NO_MASK	BIT(4)
-#define LIGHTREC_LOAD_DELAY	BIT(5)
+#define LIGHTREC_SMC		BIT(4)
+#define LIGHTREC_NO_INVALIDATE	BIT(5)
+#define LIGHTREC_NO_MASK	BIT(6)
 
 /* I/O mode for load/store opcodes */
-#define LIGHTREC_IO_MODE_LSB	6
+#define LIGHTREC_IO_MODE_LSB	7
 #define LIGHTREC_IO_MODE(x)	((x) << LIGHTREC_IO_MODE_LSB)
 #define LIGHTREC_IO_UNKNOWN	0x0
 #define LIGHTREC_IO_DIRECT	0x1
@@ -44,8 +44,10 @@
 	(((x) & LIGHTREC_IO_MASK) >> LIGHTREC_IO_MODE_LSB)
 
 /* Flags for branches */
-#define LIGHTREC_EMULATE_BRANCH	BIT(2)
-#define LIGHTREC_LOCAL_BRANCH	BIT(3)
+#define LIGHTREC_EMULATE_BRANCH	BIT(3)
+#define LIGHTREC_LOCAL_BRANCH	BIT(4)
+#define LIGHTREC_IDLE_LOOP	BIT(5)
+#define LIGHTREC_EARLY_EXIT	BIT(6)
 
 /* Flags for all opcodes (WiiStation): the cycles this opcode waits for the GTE or the
  * multiply/divide unit, from lightrec_flag_stalls() (optimizer.c). 0 unless the state's
@@ -56,9 +58,9 @@
 #define LIGHTREC_FLAGS_GET_STALL(x) 	(((x) & LIGHTREC_STALL_MASK) >> LIGHTREC_STALL_LSB)
 
 /* Flags for div/mult opcodes */
-#define LIGHTREC_NO_LO		BIT(2)
-#define LIGHTREC_NO_HI		BIT(3)
-#define LIGHTREC_NO_DIV_CHECK	BIT(4)
+#define LIGHTREC_NO_LO		BIT(3)
+#define LIGHTREC_NO_HI		BIT(4)
+#define LIGHTREC_NO_DIV_CHECK	BIT(5)
 
 #define LIGHTREC_REG_RS_LSB	26
 #define LIGHTREC_REG_RS(x)	((x) << LIGHTREC_REG_RS_LSB)
@@ -323,6 +325,16 @@ static inline _Bool op_flag_smc(u32 flags)
 	return OPT_FLAG_IO && (flags & LIGHTREC_SMC);
 }
 
+static inline _Bool op_flag_movi(u32 flags)
+{
+	return OPT_TRANSFORM_OPS && (flags & LIGHTREC_MOVI);
+}
+
+static inline _Bool op_flag_early_exit(u32 flags)
+{
+	return OPT_TRANSFORM_OPS && (flags & LIGHTREC_EARLY_EXIT);
+}
+
 static inline _Bool op_flag_no_invalidate(u32 flags)
 {
 	return OPT_FLAG_IO && (flags & LIGHTREC_NO_INVALIDATE);
@@ -363,5 +375,11 @@ static inline _Bool op_flag_no_div_check(u32 flags)
 {
 	return OPT_FLAG_MULT_DIV && (flags & LIGHTREC_NO_DIV_CHECK);
 }
+
+static inline _Bool op_flag_idle_loop(u32 flags)
+{
+	return OPT_DETECT_IDLE && (flags & LIGHTREC_IDLE_LOOP);
+}
+
 
 #endif /* __DISASSEMBLER_H__ */
