@@ -31,6 +31,12 @@ typedef struct
 } SSSConfig;
 
 void lightgunInterrupt(void);
-void SSS_SetMultiPad(int pad, int mpad);
+
+/* sio.c: a transfer on PlayStation port 0 or 1, a byte at a time. SSS_PortStart takes the
+ * first (address) byte, SSS_PortByte each byte after it; both return the reply, and *ack
+ * says whether the device acknowledged, that is, takes another byte. A plain port answers
+ * address 01h; a multitap answers 01h..04h and the long read of all four slots. */
+unsigned char SSS_PortStart(int port, unsigned char addr, int *ack);
+unsigned char SSS_PortByte(int port, unsigned char value, int *ack);
 
 #endif

@@ -1,2 +1,0 @@
-padsweep 300
-dump 2300

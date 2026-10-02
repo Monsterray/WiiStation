@@ -117,8 +117,17 @@ static const unsigned int SWEEP_BUTTONS[] = {
 #define SWEEP_NBUTTONS ((int)(sizeof(SWEEP_BUTTONS) / sizeof(SWEEP_BUTTONS[0])))
 #define SWEEP_STICKS   (4 * SWEEP_STEPS)
 #define SWEEP_LEN      (SWEEP_STICKS + SWEEP_NBUTTONS * 2 * SWEEP_HOLD)
+/* "padsweep <vblank> fast": a short sweep for runs that check many setups (PadTest DX's
+ * matrix, scripts/padtest_dx.sh). Each button held 3 vblanks; the two X axes walked
+ * together in steps of 3, then the two Y axes: 214 vblanks, against 996. A step of 3 gives
+ * 65 values an axis, still finely graded; the full sweep is what padtest.py's 150 needs. */
+#define FAST_HOLD      3
+#define FAST_STEP      3
+#define FAST_RAMP      (2 * SWEEP_FULL / FAST_STEP + 1)
+#define FAST_LEN       (SWEEP_NBUTTONS * 2 * FAST_HOLD + 2 * FAST_RAMP)
 
 extern unsigned autoinput_padsweep_vbl;   /* PadWiiSX.c */
+extern int autoinput_padsweep_fast;
 /* psxcounters.h would drag in unistd.h, whose pause() collides with this file's own. */
 extern u32 frame_counter;
 
@@ -130,6 +139,20 @@ static int gc_sweep(gc_raw_t *r)
 	if (!autoinput_padsweep_vbl || frame_counter < autoinput_padsweep_vbl) return 0;
 	r->buttons = 0;
 	r->sx = r->sy = r->cx = r->cy = 0;
+	if (autoinput_padsweep_fast) {
+		t = (int)((frame_counter - autoinput_padsweep_vbl) % FAST_LEN);
+		if (t < SWEEP_NBUTTONS * 2 * FAST_HOLD) {
+			if ((t / FAST_HOLD) & 1)
+				r->buttons = SWEEP_BUTTONS[t / FAST_HOLD / 2];
+		} else {
+			t -= SWEEP_NBUTTONS * 2 * FAST_HOLD;
+			if (t < FAST_RAMP)
+				r->sx = r->cx = (s8)(t * FAST_STEP - SWEEP_FULL);
+			else
+				r->sy = r->cy = (s8)((t - FAST_RAMP) * FAST_STEP - SWEEP_FULL);
+		}
+		return 1;
+	}
 	/* Repeat, so that a run started before the game finished loading still catches one. */
 	t = (int)((frame_counter - autoinput_padsweep_vbl) % SWEEP_LEN);
 	if (t < SWEEP_STICKS) {

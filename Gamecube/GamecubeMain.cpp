@@ -130,7 +130,7 @@ char soundMixerPrecision;   // dfsound: round instead of truncate in the voice m
 char soundXaResampler;      // dfsound/xa.c: real hardware zigzag FIR vs the legacy nearest/Gaussian step (Advanced Sound page)
 char soundRateControl;      // dfsound/ratectl.c: nudge the output rate from the queue's occupancy
 char soundResampler;        // read by dfsound/resample.c on every block it converts
-char gpuTiming, cpuTiming, limiterWait, limiterDebt;
+char gpuTiming, cpuTiming, limiterWait, limiterDebt, sioTiming;
 char cdBuffer, cdPrefetch, cdChdHunks;   // read by cdriso.c when an image is opened
 char xaDisabled;            // mirrors Config.Xa   (see wiiSXconfig.h)
 char cddaDisabled;          // mirrors Config.Cdda
@@ -206,6 +206,7 @@ static struct {
   { "CdPrefetch", &cdPrefetch, CD_PREFETCH_OFF, CD_PREFETCH_ON },
   { "GpuTiming", &gpuTiming, GPU_TIMING_FAST, GPU_TIMING_ACCURATE },
   { "CpuTiming", &cpuTiming, CPU_TIMING_FAST, CPU_TIMING_ACCURATE },
+  { "SioTiming", &sioTiming, SIO_TIMING_FAST, SIO_TIMING_ACCURATE },
   { "LimiterWait", &limiterWait, LIMITER_WAIT_SPIN, LIMITER_WAIT_SLEEP },
   { "LimiterDebt", &limiterDebt, LIMITER_DEBT_SHORT, LIMITER_DEBT_LONG },
   { "CdChdHunks", &cdChdHunks, CD_CHD_HUNKS_2, CD_CHD_HUNKS_8 },
@@ -430,6 +431,7 @@ void loadSettings(int argc, char *argv[])
 	cdPrefetch       = CD_PREFETCH_ON;   /* bench Wii hw_cd_ab: Spyro waits on the card 7.4 -> 1.3% of wall, Medievil 7.9 -> 1.4% */
 	gpuTiming        = GPU_TIMING_FAST;   /* until the eleven games and the recordings pass on Accurate */
 	cpuTiming        = CPU_TIMING_FAST;   /* the same */
+	sioTiming        = SIO_TIMING_FAST;   /* the same: Accurate is three times as long per pad byte */
 	limiterWait      = LIMITER_WAIT_SLEEP; /* bench Wii 2026-09-30: same speed, 54% of the time to other threads */
 	limiterDebt      = LIMITER_DEBT_LONG;  /* chains/limiter_debt_ab.txt: speed 1.000 vs 0.995, sound queue fuller, no rate saturation */
 	cdChdHunks       = CD_CHD_HUNKS_8;
@@ -667,7 +669,7 @@ char AutobootPath[1024];
  * out: on hardware, moving the card is the slow part, so one boot should collect every
  * game. */
 #define CHAIN_MAX 24
-#define CHAIN_SETS 8
+#define CHAIN_SETS 16   /* a PadTest DX matrix cell sets 13: PadType1..10, PadAutoAssign, ... */
 static struct {
 	unsigned vbl; char input[128]; char path[256]; char rom[256]; char state[48];
 	char set[CHAIN_SETS][32]; int nset;

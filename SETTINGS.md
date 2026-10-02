@@ -76,6 +76,7 @@ On the Wii, a loader can give settings as arguments after the program name. Each
 | `CdBuffer` | 0 = 16 KB, 1 = 64 KB, 2 = 256 KB | 0 | General, CD page, "CD Read Buffer" | Size of the stdio read buffer each disc-image file handle gets (the main image, the sub-channel file, the CDDA handle, every file of a multi-file cue). **Keep 16 KB.** Beneath it libfat reads the card in 32 KB pages whatever the buffer is, so a larger buffer cannot make the card's commands longer: it only reads ahead data a seek then throws away. Measured 2026-09-22 on eleven games (perf.log `sd:`): 64 KB gave the same card commands to within 6%, 256 KB gave 20% more, and every card read was 32 KB in all three. The counts are the same on a Wii, where only their duration changes. Applies when the next game is loaded. |
 | `GpuTiming` | 0 = Fast, 1 = Accurate | 0 | General, Plugins page, "GPU Timing" | How long the core keeps the GPU busy after the game gives it work, for OpenGX and the Soft Fast renderer (Soft Timed, gpulib, is always accurate). **Fast** is how WiiStation always ran: a draw list ends after as many cycles as it has words, and the GPU reads idle from the end of one list to the start of the next, even while a block upload (a video frame, a texture) is going on. **Accurate** charges gpulib's cost per command (polygons, sprites and fills by size) and leaves the GPU busy for every transfer, so a game sees the GPU as a PS1 shows it. It moves every game's timing a little: games that wait for the GPU run their frames as on a PS1. Takes effect at once. |
 | `CpuTiming` | 0 = Fast, 1 = Accurate | 0 | General, Plugins page, "CPU Timing" | Whether the Lightrec core charges the cycles a PS1 CPU waits for its GTE (3D maths) and its multiply/divide unit. Both run beside the CPU, which waits only when it asks for a result too early: MFC2, CFC2, SWC2 or the next GTE command while a command runs (RTPS 15 cycles, RTPT 23, NCDT 44 ...), MFHI/MFLO while a MULT (9) or DIV (36) runs. **Fast** charges every instruction the same, as WiiStation always did, so heavy 3D code gets more done per frame than on a PS1. **Accurate** works the waits out per block when it is compiled; code that hides them behind other work pays nothing. Lightrec only (the Interpreter and Dynarec cores ignore it). Applies when the game resumes from the menu. |
+| `SioTiming` | 0 = Fast, 1 = Accurate | 0 | Settings file and chain lines only | How long a byte on the controller ports takes. **Fast** is how WiiStation always ran: the controller's reply is there as soon as the game writes a byte, and its /ACK comes 535 cycles (15.8 us) later. **Accurate** times it as a PS1 does: the byte takes its 8 bits at the baud rate the game set (32 us at the BIOS's 250 kHz), and the controller's /ACK comes 450 cycles (13.3 us) after it (hardware: 6.8 to 13.7 us). A pad read then takes about three times as long, as on a PS1, which moves every game's timing a little. Memory card transfers keep the Fast timing in both. PadTest DX measures both (Docs/CONTROLLER_TESTING.md). |
 | `LimiterWait` | 0 = Spin, 1 = Sleep | 1 | Not in the menu | How the frame limiter waits for the next frame. **Spin** busy-waits the whole time: exact, but no other thread runs while a game plays (the Homebrew Channel's agent, the CD read-ahead, the network). **Sleep** sleeps on a hardware timer alarm until 0.2 ms before the frame is due and spins only that last part (1 ms until 2026-10-01; the bench Wii woke at most 33 us late). Measured on the bench Wii 2026-09-30 (Spyro, FF7): the same speed and load, wake-ups at most 4 us late, and 54% of the time handed to other threads. Earlier attempts with usleep() asked for ten times the wait (the limiter's tick is 10 us, not 100 us), which is why they ran games at half speed. |
 | `LimiterDebt` | 0 = Short, 1 = Long | 1 | Not in the menu | How much lateness the frame limiter pays back after a frame runs long. The limiter schedules each frame from when the previous one was due, so after a stall the next frames run unthrottled until the debt is paid. **Short** pays back at most 12.5 ms and drops the rest; the sound queue then refills only through the rate control. **Long** pays back up to 125 ms, about what the sound drivers keep queued. **Long by default since 2026-10-01** (`scripts/chains/limiter_debt_ab.txt`, Spyro through its world-entry stall, Dolphin): emulated speed 1.000 against 0.995, the sound queue on average 7033 samples against 4411, and the rate control never at its limit (240 saturated updates with Short). After a stall the next frames run fast for about 0.1 s. |
 | `CdPrefetch` | 0 = Off, 1 = On | 1 | General, CD page, "CD Read-Ahead" | Runs a thread that keeps the next 31 sectors of a raw image (bin/cue, .iso) read in advance, so the emulated CPU does not stop while the card delivers them. Compressed images (CHD, PBP, .Z) are not affected. Measured 2026-09-22 on eleven games in Dolphin: 99.7% of sector reads were served from the ring, 77-90% of the time the game waited on the card moved to the thread, the card got 5-12% more commands, and every game ran exactly as with it off (same interrupt counts). **On by default since 2026-10-01**: the bench Wii (`.runs/hw_cd_ab`, `scripts/chains/cd_ab.txt`, `wsx.sh table NAME --detail cd`) showed the total wait on the card fall from 7.4% to 1.3% of wall in Spyro and from 7.9% to 1.4% in Medievil, with a shorter worst single wait (18.6 to 15.5 ms, 18.5 to 13.7 ms). CTR and Point Blank did not change. In Dolphin the worst wait grew (Medievil 9.5 to 18.9 ms); its card answers at once, so only the hardware figure counts. Applies when the next game is loaded. |
@@ -335,6 +336,22 @@ This example presses Start at the title screen and presses Start again in the ga
 
 Add the masks to hold more than one button. Delete the file to stop the script.
 
+Lines for another port or a multitap slot start with its name: `p2 <vblank> <mask>` for port
+2, and on a multitap `p1b`, `p1c`, `p1d` (multitap 1, slots B to D) and `p2b`, `p2c`, `p2d`.
+Slot A shares its port's lines (`p1` or no name, `p2`; `p1a` and `p2a` mean the same), so a
+recording made with one pad plays a multitap game too. A slot with lines answers as a
+connected controller when its type is not None (`PadType3` to `PadType10`), whether or not a
+real controller is assigned to it.
+
+```
+100 0008
+p1b 100 4000
+p2c 160 0010
+```
+
+Up to eight `padtype <vblank> <port 1|2> <type 0..4>` lines change a port's type while the game
+runs, as the Configure Input menu does, with the half-second unplug gap the `PadType` rows describe.
+
 ### 11.1 Sweeping the controller
 
 One more line kind, for testing the controller path rather than a game:
@@ -354,6 +371,17 @@ Unlike the press lines above, this replaces the pad rather than adding to it, so
 controller does nothing while it runs. A debug build writes what came out to
 `sd:/wiisxrx/padtrace.csv`; `scripts/padtest.py check` reads it. See
 `Docs/CONTROLLER_TESTING.md`.
+
+`padsweep <vblank> fast` is a short sweep (214 vblanks instead of 996): each button held 3
+vblanks, the two X axes walked together in steps of 3, then the two Y axes.
+
+For ports and slots without a GameCube pad, `sweep <vblank> <name>...` generates input in
+the script instead: from that vblank each port or slot named (`p1`, `p2`, `p1b` ... `p2d`)
+gets each button on its own (held 3 vblanks), then both X sticks end to end, then both Y
+sticks, in steps of 4, repeating every 214 vblanks. Each name presses the buttons in its
+own order, so a controller that turns up in the wrong slot shows. A swept slot counts as
+connected, as with press lines. PadTest DX's controller matrix uses both
+(`scripts/autoinput/padtest_dx_matrix.txt`).
 
 ### 11.2 Opening a menu page for a screenshot
 

@@ -36,6 +36,23 @@ compare two versions of a core file on the PC. Every step below cost a run to fi
   a hot delay loop next to a SIO pad read (`01 42 00 00 00` to 0x1F801040) is a menu
   waiting for input.
 
+## PadTest DX: the controller test ROM
+
+- github.com/Monsterray/padtest at C:\projects\padtest (PSn00bSDK at C:\PSn00bSDK), `bash
+  build.sh`; WiiStation's `scripts/padtest_dx.sh` copies build/padtest.bin+cue to the test
+  card and runs the matrix (measuring.md, "Controller and multitap tests"). What it sends
+  and why: the fork's docs/PROTOCOL.md; status block layout: include/dx.h (version 4, in
+  step with scripts/padtest_dx.py).
+- It boots in under a vblank on the HLE BIOS, so a cell's vblanks are all ROM time.
+- **A PSn00bSDK program that hangs before it draws** (VRAM all black, `gpu 0.0`, PC in
+  DrawSync or `_default_vsync_halt`): read SR from a save state. PSn00bSDK waits for the GPU
+  DMA IRQ to drain its draw queue, so interrupts left off hang it there. The 2026-10-02 case
+  was the HLE BIOS's syscall return (epc + 4 done on byte-swapped words: a syscall at
+  ...FCh went back 256 bytes); `BiosDevice=1` (real BIOS) ran the same ROM, which is the
+  quick way to tell an HLE bug from a program bug. Both CPU cores hung, so not the JIT.
+- psxRegs in a save state are big-endian (the Wii's order); RAM, BIOS and psxH are the
+  PS1's little-endian bytes.
+
 ## Save states as a data source
 
 - `state save NAME <vblank>` in the input script writes `sd:/wiisxrx/states/NAME.st`

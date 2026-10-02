@@ -31,7 +31,6 @@
 #include "Gamecube/wiiSXconfig.h"
 #include "Gamecube/PadSSSPSX.h"
 #include "Gamecube/perf_prof.h"
-extern unsigned char pad_unplug[2];   /* Gamecube/PlugPAD.c: a port shows as empty for these vblanks */
 
 void netError(void); // defined below; used earlier in this file
 
@@ -52,7 +51,8 @@ static unsigned int bufcount;
 static unsigned int parp;
 static unsigned int mcdst, rdwr;
 static unsigned char adrH, adrL;
-static unsigned int padst;
+static unsigned int padst;	/* a controller transfer is going on: each byte goes to padport */
+static int padport;
 
 char mcd1Written = 0;
 char mcd2Written = 0;
@@ -70,8 +70,40 @@ char McdDisable[2];
 
 // clk cycle byte
 // 4us * 8bits = (PSXCLK / 1000000) * 32; (linuzappz)
-// TODO: add SioModePrescaler and BaudReg
 #define SIO_CYCLES		535
+
+/* SioTiming Accurate, controller transfers: a byte takes 8 bits at the baud rate (JOY_BAUD
+ * times the JOY_MODE factor, psx-spx; DuckStation takes JOY_BAUD x 8), so the reply is in the
+ * receive register only then, and the controller's /ACK comes 450 cycles after (DuckStation
+ * measured 6.8..13.7 us on hardware). PadTest DX shows both: "byte 1 took" 32 us at the
+ * BIOS's 250 kHz, "/ACK after" 13.3 us. Fast keeps the old timing: the reply at once, the
+ * /ACK 535 cycles later. Memory card transfers keep the old timing in both. */
+#define SIO_ACK_PAD		450
+static int sio_rx_due;		/* Accurate: the byte in flight ends at the next SIO event */
+static int sio_ack_due;	/* ... and then this many cycles to its /ACK, or 0 for none */
+
+static unsigned int sio_byte_cycles(void)
+{
+	static const unsigned int factor[4] = { 1, 1, 16, 64 };
+	unsigned int baud = BaudReg ? BaudReg : 0x88;
+	return baud * factor[ModeReg & 3] * 8;
+}
+
+/* A controller byte has gone out and its reply is in buf[0]: when does it arrive, and is
+ * there an /ACK (an IRQ, and the next byte) after it */
+static void sio_pad_byte(int ack)
+{
+	if (sioTiming == SIO_TIMING_ACCURATE) {
+		StatReg &= ~RX_RDY;
+		sio_rx_due = 1;
+		sio_ack_due = ack ? SIO_ACK_PAD : 0;
+		set_event(PSXINT_SIO, sio_byte_cycles());
+		return;
+	}
+	StatReg |= RX_RDY;
+	if (ack)
+		set_event(PSXINT_SIO, SIO_CYCLES);
+}
 
 void sioWrite8(unsigned char value) {
 	int more_data = 0;
@@ -79,49 +111,18 @@ void sioWrite8(unsigned char value) {
 	PAD_LOG("sio write8 %x\n", value);
 #endif
 	PERF_INC(sio_write8);
-	switch (padst) {
-		case 1:
-			if ((value&0x40) == 0x40) {
-				padst = 2; parp = 1;
-				if (!Config.UseNet) {
-					switch (CtrlReg&0x2002) {
-						case 0x0002:
-							buf[parp] = PAD1_poll(value);
-							break;
-						case 0x2002:
-							buf[parp] = PAD2_poll(value);
-							break;
-					}
-				}
-
-				/* FFh: the device does not take this command. It sends no /ACK, so no IRQ,
-				 * and the transfer ends (psx-spx; DuckStation and MiSTer do the same). */
-				if (buf[parp] == 0xFF) {
-					bufcount = parp;
-					padst = 0;
-					return;
-				}
-				if (!(buf[parp] & 0x0f)) {
-					bufcount = 2 + 32;
-				} else {
-					bufcount = 2 + (buf[parp] & 0x0f) * 2;
-				}
-				set_event(PSXINT_SIO, SIO_CYCLES);
-			}
-			else padst = 0;
-			return;
-		case 2:
-			parp++;
-			if (!Config.UseNet) {
-				switch (CtrlReg&0x2002) {
-					case 0x0002: buf[parp] = PAD1_poll(value); break;
-					case 0x2002: buf[parp] = PAD2_poll(value); break;
-				}
-			}
-
-			if (parp == bufcount) { padst = 0; return; }
-			set_event(PSXINT_SIO, SIO_CYCLES);
-			return;
+	/* A controller or multitap transfer: each byte goes to the device on the port until it
+	 * stops acknowledging (Gamecube/PadSSSPSX.c). The device decides how long its reply is;
+	 * it used to come from the ID byte here, and a byte after the address byte that was
+	 * not a command (bit 6 clear) ended the transfer without a reply. */
+	if (padst) {
+		int ack;
+		buf[0] = SSS_PortByte(padport, value, &ack);
+		parp = bufcount = 0;
+		if (!ack)
+			padst = 0;
+		sio_pad_byte(ack);
+		return;
 	}
 
 	switch (mcdst) {
@@ -208,110 +209,48 @@ void sioWrite8(unsigned char value) {
 			return;
 	}
 
-	switch (value) {
-		case 0x01: // start pad
-		case 0x02: // start pad
-		case 0x03: // start pad
-		case 0x04: // start pad
-			StatReg |= RX_RDY;		// Transfer is Ready
-
-			if (!Config.UseNet) {
-				switch (CtrlReg&0x2002) {
-					case 0x0002:
-						if (padType[0] && !pad_unplug[0]){
-							PERF_INC(sio_start);
-							SSS_SetMultiPad(0, value);
-							buf[0] = PAD1_startPoll(1);
-							break;
-						}
-						else{
-							buf[0] = 0xff;
-							parp = 0;
-							bufcount = 0;
-							return;
-						}
-
-					case 0x2002:
-						if (padType[1] && !pad_unplug[1]){
-							SSS_SetMultiPad(1, value);
-							buf[0] = PAD1_startPoll(2);
-							break;
-						}
-						else{
-							buf[0] = 0xff;
-							parp = 0;
-							bufcount = 0;
-							return;
-						}
-				}
-			} else {
-				if ((CtrlReg & 0x2002) == 0x0002) {
-					int i, j;
-
-					PAD1_startPoll(1);
-					buf[0] = 0;
-					buf[1] = PAD1_poll(0x42);
-					if (!(buf[1] & 0x0f)) {
-						bufcount = 32;
-					} else {
-						bufcount = (buf[1] & 0x0f) * 2;
-					}
-					buf[2] = PAD1_poll(0);
-					i = 3;
-					j = bufcount;
-					while (j--) {
-						buf[i++] = PAD1_poll(0);
-					}
-					bufcount+= 3;
-
-					if (NET_sendPadData(buf, bufcount) == -1)
-						netError();
-
-					if (NET_recvPadData(buf, 1) == -1)
-						netError();
-					if (NET_recvPadData(buf+128, 2) == -1)
-						netError();
-				} else {
-					memcpy(buf, buf+128, 32);
-				}
-			}
-
-			bufcount = 2;
-			parp = 0;
-			padst = 1;
-			set_event(PSXINT_SIO, SIO_CYCLES);
-			return;
-		case 0x81: // start memcard
-		case 0x82: // start memcard
-		case 0x83: // start memcard
-		case 0x84: // start memcard
-			if (CtrlReg & 0x2000)
-			{
-				if (memCard[1] == MEMCARD_DISABLE || McdDisable[1])
-					goto no_device;
-				memcpy(buf, cardh2, 4);
-			}
-			else
-			{
-				if (memCard[0] == MEMCARD_DISABLE || McdDisable[0])
-					goto no_device;
-				memcpy(buf, cardh1, 4);
-			}
-			StatReg |= RX_RDY;
-			parp = 0;
-			bufcount = 3;
-			mcdst = 1;
-			rdwr = 0;
-			set_event(PSXINT_SIO, SIO_CYCLES);
-			return;
-		default:
-		no_device:
-			StatReg |= RX_RDY;
-			buf[0] = 0xff;
-			parp = 0;
-			bufcount = 0;
-			return;
+	/* The first byte of a transfer: 81h addresses the memory card, anything else a controller.
+	 * A memory card answers 81h only (psx-spx, Mednafen, DuckStation): 82h..84h address the
+	 * cards in a multitap's slots B..D, which WiiStation does not have. */
+	if (value == 0x81) {
+		if (CtrlReg & 0x2000)
+		{
+			if (memCard[1] == MEMCARD_DISABLE || McdDisable[1])
+				goto no_device;
+			memcpy(buf, cardh2, 4);
+		}
+		else
+		{
+			if (memCard[0] == MEMCARD_DISABLE || McdDisable[0])
+				goto no_device;
+			memcpy(buf, cardh1, 4);
+		}
+		StatReg |= RX_RDY;
+		parp = 0;
+		bufcount = 3;
+		mcdst = 1;
+		rdwr = 0;
+		set_event(PSXINT_SIO, SIO_CYCLES);
+		return;
 	}
+	if ((value & 0xf0) != 0x80) {
+		int ack, port = (CtrlReg & 0x2000) ? 1 : 0;
+		if (!port)
+			PERF_INC(sio_start);
+		buf[0] = SSS_PortStart(port, value, &ack);
+		parp = bufcount = 0;
+		if (ack) {
+			padst = 1;
+			padport = port;
+		}
+		sio_pad_byte(ack);
+		return;
+	}
+no_device:
+	StatReg |= RX_RDY;
+	buf[0] = 0xff;
+	parp = 0;
+	bufcount = 0;
 }
 
 void sioWriteCtrl16(unsigned short value) {
@@ -320,6 +259,7 @@ void sioWriteCtrl16(unsigned short value) {
 	if (value & RESET_ERR) StatReg &= ~IRQ;
 	if ((CtrlReg & SIO_RESET) || !(CtrlReg & DTR)) {
 		padst = 0; mcdst = 0; parp = 0;
+		sio_rx_due = sio_ack_due = 0;
 		StatReg = TX_RDY | TX_EMPTY;
 		psxRegs.interrupt &= ~(1 << PSXINT_SIO);
 	}
@@ -349,7 +289,6 @@ unsigned char sioRead8() {
 					}
 				}
 			}
-			if (padst == 2) padst = 0;
 			if (mcdst == 1) {
 				mcdst = 2;
 				StatReg|= RX_RDY;
@@ -377,6 +316,13 @@ void sioInterrupt() {
 #ifdef PAD_LOG
 	PAD_LOG("Sio Interrupt (CP0.Status = %x)\n", psxRegs.CP0.n.Status);
 #endif
+	if (sio_rx_due) {   /* SioTiming Accurate: the byte has arrived; its /ACK follows */
+		sio_rx_due = 0;
+		StatReg |= RX_RDY;
+		if (sio_ack_due)
+			set_event(PSXINT_SIO, sio_ack_due);
+		return;
+	}
 	PERF_INC(sio_irq);
 //	SysPrintf("Sio Interrupt\n");
 	if (!(StatReg & IRQ)) {
@@ -744,6 +690,7 @@ void sioReset(void) {
 	StatReg = TX_RDY | TX_EMPTY;
 	ModeReg = CtrlReg = BaudReg = 0;
 	bufcount = parp = mcdst = rdwr = padst = 0;
+	sio_rx_due = sio_ack_due = 0;
 	adrH = adrL = 0;
 	memset(&pad, 0, sizeof(pad));
 }
@@ -763,7 +710,22 @@ int sioFreeze(gzFile f, int Mode) {
 	gzfreezel(&adrH);
 	gzfreezel(&adrL);
 	gzfreezel(&padst);
+	/* Taken from the old padding, so the size stays: "SIOT", the port of the controller
+	 * transfer, and SioTiming Accurate's byte in flight. Older states hold stack garbage
+	 * there (it was never cleared), hence the tag. */
+	if (Mode == 1) {
+		memset(Unused, 0, sizeof(Unused));
+		memcpy(Unused, "SIOT", 4);
+		Unused[4] = (char)padport;
+		Unused[5] = (char)sio_rx_due;
+		memcpy(&Unused[8], &sio_ack_due, sizeof(sio_ack_due));
+	}
 	gzfreezel(Unused);
+	if (Mode == 0 && !memcmp(Unused, "SIOT", 4)) {
+		padport = Unused[4] & 1;
+		sio_rx_due = Unused[5];
+		memcpy(&sio_ack_due, &Unused[8], sizeof(sio_ack_due));
+	}
 
 	return 0;
 }

@@ -46,11 +46,6 @@
 
 /* Scale factor of analog sticks / 128 */
 
-//static BUTTONS PAD_1;
-//static BUTTONS PAD_2;
-extern PadDataS lastport1;
-extern PadDataS lastport2;
-
 static struct
 {
 	SSSConfig config;	//unused?
@@ -69,15 +64,54 @@ static struct
 	int padVibF[10][4];	//Sm motor value; Big motor value; Sm motor running?; Big motor running?
 	//int padVibC[10];		//unused
 	u64 padPress[10][16];//unused?
-	int curPad;			//0=pad1; 1=pad2
-	int curByte;		//current command/data byte
-	int curCmd;			//current command from PSX/PS2
-	int cmdLen;			//# of bytes in pad reply
+	int curPad;			//0=pad1; 1=pad2: the port SSS_PADstartPoll/SSS_PADpoll talk to
 	int irq10En[10];	// enable IRQ10 output for lightgun port
 	int isConnected[10];	// is controller connected?
-	int trAll[2];			// transfer all mode select
-	int multiPad[2];	// which controller is connected to the multipad
 } global;
+
+/* Each controller's side of the transfer in progress (psx-spx "Controller Communication
+ * Sequence"): the bytes after the address byte, cur = 0 for the command. A multitap clocks
+ * its four slots' controllers at once, so each has its own. len = bytes of the reply, the
+ * ID byte included; the controller acknowledges every byte but its last. */
+typedef struct
+{
+	int cur, cmd, len;
+	union { u16 b16[20]; u8 b8[40]; } buf;
+} PadXfer;
+
+/* A multitap (SCPH-1070) on a port, as Mednafen's psx/input/multitap.cpp models it from
+ * tests on the real thing; the same model gives psx-spx's "garbage" response:
+ * - the first byte 01h..04h addresses slot A..D; a slot with nothing in it, or any other
+ *   address, gets no /ACK;
+ * - bit 0 of the third byte (the TAP byte) chooses the mode of the NEXT transfer, whatever
+ *   slot it went to (setting); a transfer in that mode (full) answers 80h 5Ah, then 8 bytes
+ *   for each slot A..D, FFh where a slot is empty or its controller has finished;
+ * - in a full transfer the four controllers are clocked together during bytes 3..10, with
+ *   the bytes the console sent for their slot blocks in the PREVIOUS full transfer (sb), or
+ *   42h 00h.. when that one did not complete (prev_ok). A command other than 42h, or a
+ *   controller that does not acknowledge its command byte, cuts the transfer after byte 3:
+ *   four bytes, FFh 80h 5Ah and slot A's ID (psx-spx).
+ * The PadTest DX ROM's probe sequence (github.com/Monsterray/padtest, docs/PROTOCOL.md)
+ * checks each rule. */
+typedef struct
+{
+	u8 setting, full, prev_ok, err, dp, done;
+	s8 sel;		/* single-slot transfer: the slot (0..3), or -1 */
+	u8 n;		/* bytes of this transfer so far, the address byte = 0 */
+	u8 sb[4][8], fm[4][8];
+} Mtap;
+
+/* The transfers in progress: per controller, per multitap, and whether a port's single
+ * controller took its address byte. Saved in a save state, after global. */
+static struct
+{
+	PadXfer x[10];
+	Mtap tap[2];
+	int dev[2];
+} io;
+
+/* What each controller hands the PlayStation: buttons (active low, wire order) and sticks */
+static PadDataS padOut[10];
 
 extern void SysPrintf(char *fmt, ...);
 extern int stop;
@@ -166,14 +200,37 @@ static void PADsetMode (const int pad, const int mode)	//mode = 0 (digital) or 1
 	RumbleReset(pad);
 }
 
-/* Which autoinput.txt port (0 = port 1, 1 = port 2) drives this pad: ports 1 and 2, and on a
- * multitap port its slot A (2 or 6), so a script plays a multitap game too. -1: none. */
+/* Which autoinput.txt port drives this pad (PadWiiSX.c): 0 = "p1" (port 1, or multitap 1
+ * slot A), 1 = "p2" (port 2, or multitap 2 slot A), 2..4 = "p1b".."p1d", 5..7 = "p2b".."p2d".
+ * Slot A shares its port's lines, so a recording made with a pad plays a multitap game too.
+ * -1: none. */
 static int script_port(int pad)
 {
 	if (pad < 2) return pad;
-	if (pad == 2 && padType[0] == PADTYPE_MULTITAP) return 0;
-	if (pad == 6 && padType[1] == PADTYPE_MULTITAP) return 1;
-	return -1;
+	if (pad < 6) {
+		if (padType[0] != PADTYPE_MULTITAP) return -1;
+		return pad == 2 ? 0 : pad - 1;
+	}
+	if (padType[1] != PADTYPE_MULTITAP) return -1;
+	return pad == 6 ? 1 : pad - 2;
+}
+
+extern int autoinput_active(int port);   /* PadWiiSX.c: a script has a pad on this port */
+/* PadWiiSX.c "sweep": generated presses (PSX order, 1 = pressed) and sticks LX LY RX RY */
+extern int autoinput_sweep(int port, unsigned short *press, unsigned char *sticks);
+
+/* Is there a controller in this multitap slot (2..9) to answer its address byte? One the
+ * settings put there (a type other than None) that has a host controller, or that an input
+ * script plays. A slot whose type is None is empty, whatever was assigned to it before. */
+static int slot_present(int pad)
+{
+	int sp;
+	if (padType[pad] == PADTYPE_NONE)
+		return 0;
+	if (virtualControllers[pad].inUse)
+		return 1;
+	sp = script_port(pad);
+	return sp >= 0 && autoinput_active(sp);
 }
 
 static void UpdateState (const int pad) //Note: pad = 0 or 1
@@ -323,28 +380,40 @@ static void UpdateState (const int pad) //Note: pad = 0 or 1
 		/* The Justifier keeps the pad mapping: which of its three bits is the trigger has
 		 * not been checked against hardware, and guessing would be worse than leaving it. */
 #endif
-		/* Controller Type "Stick D-pad": a digital pad whose D-pad the left stick also
-		 * presses (psx_analog.h), for games that take no analog input. Active low. */
-		if (controllerType == CONTROLLERTYPE_STICKDPAD)
-		{
-			int d = stick_dpad(PAD_Data.leftStickX, PAD_Data.leftStickY);
-			if (d & STICK_DPAD_UP)    PAD_Data.btns.U_DPAD = 0;
-			if (d & STICK_DPAD_DOWN)  PAD_Data.btns.D_DPAD = 0;
-			if (d & STICK_DPAD_LEFT)  PAD_Data.btns.L_DPAD = 0;
-			if (d & STICK_DPAD_RIGHT) PAD_Data.btns.R_DPAD = 0;
-		}
 		if (miscButton == 1)
 			stop = 1;
 		else if (Control == 0 || Control == 2)
 			frameLimit[0] = (miscButton == 0 ? frameLimit[1] : 0);
 	}
 	else
-	{	//TODO: Emulate no controller present in this case.
-		//Reset buttons & sticks if PAD is not in use
-		extern int autoinput_active(int port);   /* PadWiiSX.c: a script has a digital pad on this port */
+	{	/* No host controller: a script may play it (SSS_PortStart decides whether anything
+		 * answers at all); otherwise the buttons and sticks rest. */
 		global.isConnected[pad] = script_port(pad) >= 0 && autoinput_active(script_port(pad)) ? 1 : 0;
 		PAD_Data.btns.All = 0xFFFF;
 		PAD_Data.leftStickX = PAD_Data.leftStickY = PAD_Data.rightStickX = PAD_Data.rightStickY = 128;
+	}
+
+	/* "sweep" in the input script: generated sticks in place of the controller's (its
+	 * presses are added below, with the script's own) */
+	{
+		unsigned short sw_press = 0;
+		unsigned char st[4];
+		if (script_port(pad) >= 0 && autoinput_sweep(script_port(pad), &sw_press, st)) {
+			PAD_Data.leftStickX = st[0]; PAD_Data.leftStickY = st[1];
+			PAD_Data.rightStickX = st[2]; PAD_Data.rightStickY = st[3];
+		}
+	}
+
+	/* Controller Type "Stick D-pad": a digital pad whose D-pad the left stick also
+	 * presses (psx_analog.h), for games that take no analog input. Active low. After the
+	 * sweep, so that a scripted stick presses the D-pad as a real one does. */
+	if (controllerType == CONTROLLERTYPE_STICKDPAD)
+	{
+		int d = stick_dpad(PAD_Data.leftStickX, PAD_Data.leftStickY);
+		if (d & STICK_DPAD_UP)    PAD_Data.btns.U_DPAD = 0;
+		if (d & STICK_DPAD_DOWN)  PAD_Data.btns.D_DPAD = 0;
+		if (d & STICK_DPAD_LEFT)  PAD_Data.btns.L_DPAD = 0;
+		if (d & STICK_DPAD_RIGHT) PAD_Data.btns.R_DPAD = 0;
 	}
 
 	/* Each driver already maps its own hardware's full travel onto 0..255, so the default
@@ -374,8 +443,12 @@ static void UpdateState (const int pad) //Note: pad = 0 or 1
 		extern void autoinput_record(int port, unsigned short real);   /* PadWiiSX.c: "record" */
 		unsigned short s = global.padStat[pad];
 		unsigned short m;
+		unsigned char st[4];
+		unsigned short sw = 0;
 		autoinput_record(sp, ~((s << 8) | (s >> 8)) & 0xFFFF);   /* the real pad, before the script */
 		m = autoinput_mask(sp);
+		if (autoinput_sweep(sp, &sw, st))
+			m |= sw;
 		global.padStat[pad] &= ~(unsigned short)(((m << 8) | (m >> 8)) & 0xFFFF);   /* active low */
 	}
 
@@ -390,40 +463,21 @@ static void UpdateState (const int pad) //Note: pad = 0 or 1
 		}
 
 
-		if ((pad==0) || (padType[global.curPad] == PADTYPE_MULTITAP))
-		{
-			lastport1.leftJoyX = cursorY & 0xFF; lastport1.leftJoyY = cursorY >> 8;
-			lastport1.rightJoyX = cursorX & 0xFF; lastport1.rightJoyY = cursorX >> 8;
-			lastport1.buttonStatus = global.padStat[pad];
-		}
-		else
-		{
-			lastport2.leftJoyX = cursorY & 0xFF; lastport2.leftJoyY = cursorY >> 8;
-			lastport2.rightJoyX = cursorX & 0xFF; lastport2.rightJoyY = cursorX >> 8;
-			lastport2.buttonStatus = global.padStat[pad];
-		}
+		padOut[pad].leftJoyX = cursorY & 0xFF; padOut[pad].leftJoyY = cursorY >> 8;
+		padOut[pad].rightJoyX = cursorX & 0xFF; padOut[pad].rightJoyY = cursorX >> 8;
+		padOut[pad].buttonStatus = global.padStat[pad];
 	}
 	else{
-		if ((pad==0) || (padType[global.curPad] == PADTYPE_MULTITAP))
-		{
-			lastport1.leftJoyX = PAD_Data.leftStickX; lastport1.leftJoyY = PAD_Data.leftStickY;
-			lastport1.rightJoyX = PAD_Data.rightStickX; lastport1.rightJoyY = PAD_Data.rightStickY;
-			lastport1.buttonStatus = global.padStat[pad];
-		}
-		else
-		{
-			lastport2.leftJoyX = PAD_Data.leftStickX; lastport2.leftJoyY = PAD_Data.leftStickY;
-			lastport2.rightJoyX = PAD_Data.rightStickX; lastport2.rightJoyY = PAD_Data.rightStickY;
-			lastport2.buttonStatus = global.padStat[pad];
-		}
+		padOut[pad].leftJoyX = PAD_Data.leftStickX; padOut[pad].leftJoyY = PAD_Data.leftStickY;
+		padOut[pad].rightJoyX = PAD_Data.rightStickX; padOut[pad].rightJoyY = PAD_Data.rightStickY;
+		padOut[pad].buttonStatus = global.padStat[pad];
 	}
 
 	/* Debug builds keep a timeline of what each port handed the PlayStation, with the
 	 * driver's own output beside it, so a scripted Dolphin run can be checked end to end
 	 * (scripts/padtest.py). Repeats are dropped inside perf_pad_event. */
 	{
-		const PadDataS *out = ((pad == 0) || (padType[global.curPad] == PADTYPE_MULTITAP))
-		                    ? &lastport1 : &lastport2;
+		const PadDataS *out = &padOut[pad];
 		perf_pad_event(pad,
 			virtualControllers[Control].control ? (unsigned char)virtualControllers[Control].control->identifier : 0,
 			PAD_Data.btns.All,
@@ -454,12 +508,12 @@ long SSS_PADopen (void *p)
 		autoinput_load();
 	}
 	memset (&global, 0, sizeof (global));
+	memset (&io, 0, sizeof (io));
 	{
 		extern unsigned char pad_unplug[2];   /* PlugPAD.c: a type change before the game is no swap */
 		pad_unplug[0] = pad_unplug[1] = 0;
 	}
-	memset( &lastport1, 0, sizeof(lastport1) ) ;
-	memset( &lastport2, 0, sizeof(lastport2) ) ;
+	memset( padOut, 0, sizeof(padOut) ) ;
 	for(i = 0; i < 10; i++){
 		global.padStat[i] = 0xffff;
 		PADsetMode (i, 0);   /* digital at power-on, as a DualShock is: the game switches it */
@@ -477,23 +531,6 @@ long SSS_PADquery (void)
 	return 3;
 }
 
-unsigned char SSS_PADstartPoll (int pad)
-{
-	PERF_INC(pad_startpoll);
-	global.curPad = pad -1;
-	global.curByte = 0;
-	return 0xff;
-}
-
-void SSS_SetMultiPad(int pad, int mpad)
-{
-	PERF_INC(mtap_addr[pad & 1][(mpad - 1) & 3]);
-	if (pad)
-		global.multiPad[1] = mpad+5;
-	else
-		global.multiPad[0] = mpad+1;
-}
-
 /* Config-mode replies of a DualShock (SCPH-1200): F3h, then these bytes from index 1 on
  * (psx-spx "Configuration Commands"; DuckStation, MiSTer and PsxNewLib agree). Always 9
  * bytes long. Commands whose data depend on their parameter start from cmdcfg and are
@@ -504,172 +541,146 @@ static const u8 cmd45[8] =		/* Type 01h = PS1 DualShock (03h is a DualShock 2), 
 	0xff, 0x5a, 0x01, 0x02, 0x00, 0x02, 0x01, 0x00,
 };
 
-unsigned char multitap[34] = { 0x80, 0x5a,
-									0x41, 0x5a, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-									0x41, 0x5a, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-									0x41, 0x5a, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-									0x41, 0x5a, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
-
-/* The reply being sent. At file scope so that a save state holds it (SSS_PADfreeze). */
-static union
-{
-	u16 b16[20];
-	u8  b8[40];
-} buf;
-
 /* Save states (misc.c, section PAD1): everything the pad keeps between polls -- DualShock
- * or digital mode, config mode, the rumble map, a reply half sent. With data NULL, returns
- * the size. A different size on load is another build's layout: the pad stays as it is. */
+ * or digital mode, config mode, the rumble map, a transfer half done, a multitap's mode.
+ * With data NULL, returns the size. A different size on load is another build's layout:
+ * the pad stays as it is. */
 int SSS_PADfreeze (int save, void *data, int len)
 {
-	const int size = (int)(sizeof(global) + sizeof(buf));
+	const int size = (int)(sizeof(global) + sizeof(io));
 
 	if (!data)
 		return size;
 	if (save) {
 		memcpy(data, &global, sizeof(global));
-		memcpy((char *)data + sizeof(global), &buf, sizeof(buf));
+		memcpy((char *)data + sizeof(global), &io, sizeof(io));
 		return size;
 	}
 	if (len != size)
 		return -1;
 	memcpy(&global, data, sizeof(global));
-	memcpy(&buf, (char *)data + sizeof(global), sizeof(buf));
+	memcpy(&io, (char *)data + sizeof(global), sizeof(io));
 	return size;
 }
 
-unsigned char SSS_PADpoll (const unsigned char value)
+/* A controller took its address byte (01h): its reply starts with the next byte. */
+static void pad_select (const int pad)
 {
-	int i, offset, offsetSlot;
-	int pad = global.curPad;
-	int slot = pad;
-	if (padType[slot] == PADTYPE_MULTITAP)
-		pad = global.multiPad[slot];
+	io.x[pad].cur = 0;
+	io.x[pad].cmd = 0;
+	io.x[pad].len = 0;
+}
 
-	const int cur = global.curByte;
+/* The ID byte a controller shifts out with a command byte: F3h in config mode. */
+static u8 pad_id_byte (const int pad)
+{
+	return (global.padModeE[pad] && IsDualShock(pad)) ? 0xF3 : (u8)global.padID[pad];
+}
 
+/* One byte after the address byte, to controller pad (0..9). Returns its reply; *ack says
+ * whether it acknowledges, that is, asks for another byte: every byte of its reply but
+ * the last. */
+static unsigned char pad_byte (const int pad, const unsigned char value, int *ack)
+{
+	PadXfer *x = &io.x[pad];
+	const int cur = x->cur;
+	unsigned char r;
+
+	x->cur++;
 	if (cur == 0)
 	{
-		global.curByte++;
-		global.curCmd = value;
+		x->cmd = value;
 		if (pad == 0 && (value & 0xf0) == 0x40)
 			PERF_INC(pad_cmd[value & 0x0f]);
 		/* Which commands answer (psx-spx "Configuration Commands"; DuckStation and MiSTer):
 		 * a digital pad, a mouse and a light gun answer 42h only. A DualShock answers 42h
 		 * and 43h in normal mode, and 40h..4Fh in config mode. Any other command gets no
-		 * /ACK: FFh, and sio.c ends the transfer. */
+		 * /ACK: FFh, and the transfer ends. */
 		if (value != 0x42 && !(IsDualShock(pad) &&
 		    (value == 0x43 || (global.padModeE[pad] && (value & 0xf0) == 0x40))))
 		{
-			global.cmdLen = 0;
+			x->len = 0;
+			*ack = 0;
 			return 0xFF;
 		}
-		switch (global.curCmd)
+		switch (x->cmd)
 		{
 		case 0x42:
-			if (padType[slot] == PADTYPE_MULTITAP){
-				if (global.trAll[slot] == 1) PERF_INC(mtap_full[slot & 1]); else PERF_INC(mtap_single[slot & 1]);
-				if (global.trAll[slot] == 1){
-					global.cmdLen = sizeof (multitap);
-					memcpy (buf.b8, multitap, sizeof (multitap));
-					offsetSlot = 2+(slot*4);
-					for(i = 0; i < 4; i++) {
-						UpdateState (i+offsetSlot);
-						offset = i*8;
-						if (global.isConnected[i+offsetSlot]) {
-							buf.b8[2+offset] = global.padID[i+offsetSlot];
-							}
-						else {
-							buf.b8[2+offset] = 0xFF;
-							buf.b8[3+offset] = 0xFF;
-							}
-						buf.b8[6+offset] = lastport1.rightJoyX ;
-						buf.b8[7+offset] = lastport1.rightJoyY ;
-						buf.b8[8+offset] = lastport1.leftJoyX ;
-						buf.b8[9+offset] = lastport1.leftJoyY ;
-						buf.b16[2+(i*4)] = global.padStat[i+offsetSlot];
-					}
-					return 0x80;
-				}
-			}
 			UpdateState(pad);
 			/* fall through */
 		case 0x43:
-			global.cmdLen = 2 + 2 * (global.padID[pad] & 0x0f);
-			buf.b8[1] = global.padModeC[pad] ? 0x00 : 0x5a;
-			buf.b16[1] = global.padStat[pad];
+			x->len = 2 + 2 * (global.padID[pad] & 0x0f);
+			x->buf.b8[1] = global.padModeC[pad] ? 0x00 : 0x5a;
+			x->buf.b16[1] = global.padStat[pad];
 			if (value == 0x43 && global.padModeE[pad])
 			{
 				/* In config mode 43h answers F3h 5Ah and six 00h bytes, not the
 				 * buttons, whatever mode the pad is in (psx-spx, DuckStation, PCSX-Redux). */
-				global.cmdLen = 8;
-				buf.b16[1] = 0;
-				buf.b16[2] = 0;
-				buf.b16[3] = 0;
-				return 0xf3;
+				x->len = 8;
+				x->buf.b16[1] = 0;
+				x->buf.b16[2] = 0;
+				x->buf.b16[3] = 0;
+				r = 0xf3;
+				break;
 			}
-			else
-			{
-				if (padType[slot] != PADTYPE_MULTITAP){
-					buf.b8[4] = pad ? lastport2.rightJoyX : lastport1.rightJoyX ;
-					buf.b8[5] = pad ? lastport2.rightJoyY : lastport1.rightJoyY ;
-					buf.b8[6] = pad ? lastport2.leftJoyX : lastport1.leftJoyX ;
-					buf.b8[7] = pad ? lastport2.leftJoyY : lastport1.leftJoyY ;
-				}
-				else{
-					buf.b8[4] = lastport1.rightJoyX ;
-					buf.b8[5] = lastport1.rightJoyY ;
-					buf.b8[6] = lastport1.leftJoyX ;
-					buf.b8[7] = lastport1.leftJoyY ;
-				}
+			x->buf.b8[4] = padOut[pad].rightJoyX;
+			x->buf.b8[5] = padOut[pad].rightJoyY;
+			x->buf.b8[6] = padOut[pad].leftJoyX;
+			x->buf.b8[7] = padOut[pad].leftJoyY;
 
-				//if (global.padID[pad] == 0x79)
-				//{
-  				// do some pressure stuff (this is for PS2 only!)
-				//}
+			//if (global.padID[pad] == 0x79)
+			//{
+			// do some pressure stuff (this is for PS2 only!)
+			//}
 #ifdef PERF_PROF
-				if (pad == 0 && !g_perf.pad_press_len && global.padStat[pad] != 0xffff) {
-					g_perf.pad_press_id = (u8)global.padID[pad];
-					g_perf.pad_press_len = (u8)global.cmdLen;
-					memcpy(g_perf.pad_press, buf.b8, 8);
-				}
-#endif
-				/* In config mode 42h answers F3h with the sticks, even in digital mode. A pad
-				 * switched to Standard since keeps no config mode. */
-				if (global.padModeE[pad] && IsDualShock(pad))
-				{
-					global.cmdLen = 8;
-					return 0xf3;
-				}
-				return (u8)global.padID[pad];
+			if (pad == 0 && !g_perf.pad_press_len && global.padStat[pad] != 0xffff) {
+				g_perf.pad_press_id = (u8)global.padID[pad];
+				g_perf.pad_press_len = (u8)x->len;
+				memcpy(g_perf.pad_press, x->buf.b8, 8);
 			}
+#endif
+			/* In config mode 42h answers F3h with the sticks, even in digital mode. A pad
+			 * switched to Standard since keeps no config mode. */
+			if (global.padModeE[pad] && IsDualShock(pad))
+			{
+				x->len = 8;
+				r = 0xf3;
+				break;
+			}
+			r = (u8)global.padID[pad];
 			break;
 		case 0x44:
 			/* Setting the LED resets the rumble map, whatever the parameters */
 			RumbleReset(pad);
-			global.cmdLen = sizeof (cmdcfg);
-			memcpy (buf.b8, cmdcfg, sizeof (cmdcfg));
-			return 0xf3;
+			x->len = sizeof (cmdcfg);
+			memcpy (x->buf.b8, cmdcfg, sizeof (cmdcfg));
+			r = 0xf3;
+			break;
 		case 0x45:
-			global.cmdLen = sizeof (cmd45);
-			memcpy (buf.b8, cmd45, sizeof (cmd45));
-			buf.b8[4] = (u8)global.padMode1[pad];
-			return 0xf3;
+			x->len = sizeof (cmd45);
+			memcpy (x->buf.b8, cmd45, sizeof (cmd45));
+			x->buf.b8[4] = (u8)global.padMode1[pad];
+			r = 0xf3;
+			break;
 		case 0x4d:
 			/* Returns the old map, byte by byte, as the new one arrives */
-			global.cmdLen = sizeof (cmdcfg);
-			buf.b8[1] = 0x5a;
-			memcpy (&buf.b8[2], global.dsRumble[pad], 6);
-			return 0xf3;
+			x->len = sizeof (cmdcfg);
+			x->buf.b8[1] = 0x5a;
+			memcpy (&x->buf.b8[2], global.dsRumble[pad], 6);
+			r = 0xf3;
+			break;
 		default:
 			/* 46h, 47h, 48h, 4Ch: filled in from their parameter below. 40h, 41h, 49h..4Bh,
 			 * 4Eh, 4Fh: unused on a PS1 DualShock (the DualShock 2 ones), all 00h. */
-			global.cmdLen = sizeof (cmdcfg);
-			memcpy (buf.b8, cmdcfg, sizeof (cmdcfg));
-			return 0xf3;
+			x->len = sizeof (cmdcfg);
+			memcpy (x->buf.b8, cmdcfg, sizeof (cmdcfg));
+			r = 0xf3;
+			break;
 		}
+		*ack = x->len > 1;
+		return r;
 	}
-	switch (global.curCmd)
+	switch (x->cmd)
 	{
 	case 0x42:
 		/* Motors (psx-spx "Vibration/Rumble Control"): the small one is bit 0 of its byte,
@@ -681,15 +692,11 @@ unsigned char SSS_PADpoll (const unsigned char value)
 			global.padVibF[pad][1] = value;
 		if (cur == 2)
 		{
-			global.irq10En[slot] = value;
+			global.irq10En[pad] = value;
 			global.legacyXX[pad] = value;
 		}
 		if (cur == 3 && IsDualShock(pad) && !global.dsNewRumble[pad])
 			global.padVibF[pad][0] = (global.legacyXX[pad] & 0xc0) == 0x40 && (value & 1);
-		if (cur == 1 && padType[slot] == PADTYPE_MULTITAP) {
-			global.trAll[slot] = value & 1;
-			PERF_INC(mtap_tap[slot & 1][value & 1]);
-		}
 		break;
 	case 0x43:
 		/* 01h enters config mode, 00h leaves it; other values change nothing */
@@ -711,23 +718,23 @@ unsigned char SSS_PADpoll (const unsigned char value)
 		if (cur == 2 && value <= 1)
 		{
 			static const u8 act[2][4] = { { 0x01, 0x02, 0x00, 0x0a }, { 0x01, 0x01, 0x01, 0x14 } };
-			memcpy (&buf.b8[4], act[value], 4);
+			memcpy (&x->buf.b8[4], act[value], 4);
 		}
 		break;
 	case 0x47:
 		if (cur == 2 && value == 0)
 		{
-			buf.b8[4] = 0x02;
-			buf.b8[6] = 0x01;
+			x->buf.b8[4] = 0x02;
+			x->buf.b8[6] = 0x01;
 		}
 		break;
 	case 0x48:
 		if (cur == 2 && value <= 1)
-			buf.b8[6] = 0x01;
+			x->buf.b8[6] = 0x01;
 		break;
 	case 0x4c:
 		if (cur == 2 && value <= 1)
-			buf.b8[5] = value ? 0x07 : 0x04;
+			x->buf.b8[5] = value ? 0x07 : 0x04;
 		break;
 	case 0x4d:
 		/* Bytes 3..8 set the new map (00h small motor, 01h large motor, FFh nothing) */
@@ -747,93 +754,185 @@ unsigned char SSS_PADpoll (const unsigned char value)
 		break;
 	}
 
-	if (cur >= global.cmdLen)
-		return 0;
-	return buf.b8[global.curByte++];
+	*ack = cur + 1 < x->len;
+	if (cur >= x->len)
+		return 0xFF;
+	return x->buf.b8[cur];
+}
+
+/* A port answers at all: it has a type, and is not in the gap a type change leaves */
+static int port_present (const int port)
+{
+	extern unsigned char pad_unplug[2];   /* PlugPAD.c */
+	return padType[port] != PADTYPE_NONE && !pad_unplug[port];
+}
+
+/* The first byte of a transfer on PlayStation port `port` (0 or 1), not a memory card's
+ * (sio.c sends those elsewhere). Returns the reply (HiZ: FFh); *ack = something answered
+ * and takes the next byte. */
+unsigned char SSS_PortStart (const int port, const unsigned char addr, int *ack)
+{
+	Mtap *t = &io.tap[port & 1];
+	const int base = port ? 6 : 2;
+	int s;
+
+	*ack = 0;
+	io.dev[port & 1] = 0;
+	t->n = 0;
+	t->sel = -1;
+	if (!port_present(port) || (addr & 0xf0))
+		return 0xFF;
+
+	if (padType[port] != PADTYPE_MULTITAP)
+	{
+		/* A controller answers address 01h only (psx-spx, Mednafen, DuckStation); 02h..04h
+		 * are for a multitap's slots B..D, and a plain controller ignores them. */
+		if (addr == 0x01)
+		{
+			pad_select(port);
+			io.dev[port & 1] = 1;
+			*ack = 1;
+		}
+		return 0xFF;
+	}
+
+	/* The slot blocks the controllers get in a full transfer: the console's from the last
+	 * one, if it went all the way, else a plain read */
+	t->full = t->setting;
+	if (!t->prev_ok)
+	{
+		memset(t->sb, 0, sizeof(t->sb));
+		for (s = 0; s < 4; s++)
+			t->sb[s][0] = 0x42;
+	}
+	t->prev_ok = 0;
+	t->err = 0;
+	if (t->full)
+	{
+		/* Every controller sees an address byte 01h, whatever the console sent; the
+		 * multitap acknowledges even with all four slots empty */
+		PERF_INC(mtap_full[port & 1]);
+		memset(t->fm, 0xFF, sizeof(t->fm));
+		t->dp = t->done = 0;
+		for (s = 0; s < 4; s++)
+			if (slot_present(base + s))
+			{
+				pad_select(base + s);
+				t->dp |= 1 << s;
+			}
+		*ack = 1;
+		return 0xFF;
+	}
+
+	/* Single-slot transfer: 01h..04h is slot A..D */
+	PERF_INC(mtap_single[port & 1]);
+	if (addr >= 0x01 && addr <= 0x04)
+	{
+		PERF_INC(mtap_addr[port & 1][addr - 1]);
+		if (slot_present(base + addr - 1))
+		{
+			t->sel = (s8)(addr - 1);
+			pad_select(base + t->sel);
+			*ack = 1;
+		}
+		else
+			PERF_INC(mtap_empty[port & 1]);
+	}
+	return 0xFF;
+}
+
+/* The next byte of a transfer that SSS_PortStart acknowledged. */
+unsigned char SSS_PortByte (const int port, const unsigned char value, int *ack)
+{
+	Mtap *t = &io.tap[port & 1];
+	const int base = port ? 6 : 2;
+	int n, k, s, a;
+	unsigned char r;
+
+	*ack = 0;
+	if (padType[port] != PADTYPE_MULTITAP)
+		return io.dev[port & 1] ? pad_byte(port, value, ack) : 0xFF;
+
+	n = ++t->n;
+	if (n == 2)
+	{
+		t->setting = value & 1;   /* the TAP byte: the next transfer's mode */
+		PERF_INC(mtap_tap[port & 1][value & 1]);
+	}
+	if (!t->full)
+	{
+		if (t->sel < 0)
+			return 0xFF;
+		return pad_byte(base + t->sel, value, ack);
+	}
+
+	if (n == 1)
+	{
+		t->err = value != 0x42;
+		*ack = 1;
+		return 0x80;
+	}
+	if (n == 2)
+	{
+		*ack = t->dp != 0;   /* nothing in any slot: the transfer ends here */
+		return 0x5A;
+	}
+	if (n > 34)
+		return 0xFF;
+	k = n - 3;
+	if (k < 8)
+	{
+		/* Bytes 3..10: the four controllers at once, each with its slot block */
+		for (s = 0; s < 4; s++)
+		{
+			if (!(t->dp & (1 << s)) || (t->done & (1 << s)))
+				continue;
+			t->fm[s][k] = pad_byte(base + s, t->sb[s][k], &a);
+			if (!a)
+				t->done |= 1 << s;
+			if (k == 0 && !a)
+				t->err = 1;   /* a controller there refused its command */
+		}
+	}
+	r = t->fm[k >> 3][k & 7];
+	t->sb[k >> 3][k & 7] = value;
+	if (k == 0 && t->err)
+	{
+		/* Cut short: FFh 80h 5Ah and the ID slot A's controller shifted out with the
+		 * command it refused (psx-spx "garbage"), FFh with no controller there */
+		PERF_INC(mtap_short[port & 1]);
+		return (t->dp & 1) ? pad_id_byte(base) : 0xFF;
+	}
+	if (n == 33)
+		t->prev_ok = 1;
+	*ack = n < 34;
+	return r;
+}
+
+/* The pad plugin's own entry points, for what does not go through sio.c's transfer (the
+ * netplay path): port pad - 1, an address byte 01h, then a byte at a time. */
+unsigned char SSS_PADstartPoll (int pad)
+{
+	int ack;
+	PERF_INC(pad_startpoll);
+	global.curPad = (pad - 1) & 1;
+	return SSS_PortStart(global.curPad, 0x01, &ack);
+}
+
+unsigned char SSS_PADpoll (const unsigned char value)
+{
+	int ack;
+	return SSS_PortByte(global.curPad, value, &ack);
 }
 
 long SSS_PADreadPort1 (PadDataS* pads)
 {
 	//#PADreadPort1 not used in PCSX
-/*
-	pads->buttonStatus = global.padStat[0];
-
-	memset (pads, 0, sizeof (PadDataS));
-	if ((global.padID[0] & 0xf0) == 0x40)
-	{
-		pads->rightJoyX = pads->rightJoyY = pads->leftJoyX = pads->leftJoyY = 128 ;
-		pads->controllerType = PSE_PAD_TYPE_STANDARD;
-	}
-	else
-	{
-		pads->controllerType = PSE_PAD_TYPE_ANALOGPAD;
-		int Control = 0;
-#if defined(WII) && !defined(NO_BT)
-		//Need to switch between Classic and WiimoteNunchuck if user swapped extensions
-		if (padType[virtualControllers[Control].number] == PADTYPE_WII)
-		{
-			if (virtualControllers[Control].control == &controller_Classic &&
-				!controller_Classic.available[virtualControllers[Control].number] &&
-				controller_WiimoteNunchuk.available[virtualControllers[Control].number])
-				assign_controller(Control, &controller_WiimoteNunchuk, virtualControllers[Control].number);
-			else if (virtualControllers[Control].control == &controller_WiimoteNunchuk &&
-				!controller_WiimoteNunchuk.available[virtualControllers[Control].number] &&
-				controller_Classic.available[virtualControllers[Control].number])
-				assign_controller(Control, &controller_Classic, virtualControllers[Control].number);
-		}
-#endif
-		if(virtualControllers[Control].inUse)
-			if(DO_CONTROL(Control, GetKeys, (BUTTONS*)&PAD_1, virtualControllers[Control].config))
-				stop = 1;
-
-		pads->leftJoyX = PAD_1.leftStickX; pads->leftJoyY = PAD_1.leftStickY;
-		pads->rightJoyX = PAD_1.rightStickX; pads->rightJoyY = PAD_1.rightStickY;
-	}
-
-	memcpy( &lastport1, pads, sizeof( lastport1 ) ) ;
-*/
 	return 0;
 }
 
 long SSS_PADreadPort2 (PadDataS* pads)
 {
 	//#PADreadPort2 not used in PCSX
-/*
-	pads->buttonStatus = global.padStat[1];
-
-	memset (pads, 0, sizeof (PadDataS));
-	if ((global.padID[1] & 0xf0) == 0x40)
-	{
-		pads->rightJoyX = pads->rightJoyY = pads->leftJoyX = pads->leftJoyY = 128 ;
-		pads->controllerType = PSE_PAD_TYPE_STANDARD;
-	}
-	else
-	{
-		pads->controllerType = PSE_PAD_TYPE_ANALOGPAD;
-		int Control = 1;
-#if defined(WII) && !defined(NO_BT)
-		//Need to switch between Classic and WiimoteNunchuck if user swapped extensions
-		if (padType[virtualControllers[Control].number] == PADTYPE_WII)
-		{
-			if (virtualControllers[Control].control == &controller_Classic &&
-				!controller_Classic.available[virtualControllers[Control].number] &&
-				controller_WiimoteNunchuk.available[virtualControllers[Control].number])
-				assign_controller(Control, &controller_WiimoteNunchuk, virtualControllers[Control].number);
-			else if (virtualControllers[Control].control == &controller_WiimoteNunchuk &&
-				!controller_WiimoteNunchuk.available[virtualControllers[Control].number] &&
-				controller_Classic.available[virtualControllers[Control].number])
-				assign_controller(Control, &controller_Classic, virtualControllers[Control].number);
-		}
-#endif
-		if(virtualControllers[Control].inUse)
-			if(DO_CONTROL(Control, GetKeys, (BUTTONS*)&PAD_2, virtualControllers[Control].config))
-				stop = 1;
-
-		pads->leftJoyX = PAD_2.leftStickX; pads->leftJoyY = PAD_2.leftStickY;
-		pads->rightJoyX = PAD_2.rightStickX; pads->rightJoyY = PAD_2.rightStickY;
-	}
-
-	memcpy( &lastport2, pads, sizeof( lastport1 ) ) ;
-*/
 	return 0;
 }

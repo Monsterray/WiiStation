@@ -210,6 +210,34 @@ hashes in UploadScreen, OpenGX texel checks). The pattern to grep for is a loop 
 
 ## Controller and multitap tests (2026-10-02)
 
+- **The controller matrix**: `bash scripts/padtest_dx.sh` (about two minutes, one Dolphin
+  boot, ends in `matrix: N/12 cells PASS`, one PASS/FAIL line per cell). It runs PadTest DX
+  2.4.0 (C:\projects\padtest, `bash build.sh` there first) once per setup: ports None / pad /
+  multitap, slots filled or empty, ControllerType 0/1/2, a multitap -> pad -> multitap
+  `padtype` switch, and two `SioTiming=1` cells that also judge byte and /ACK times.
+  `--cells a,b` for some, `-v` for what each received, `--frames` for pictures;
+  `python scripts/padtest_dx.py cells` lists them, `show VRAM.BIN` decodes one status block.
+  The cells are a table in `scripts/padtest_dx.py` (CELLS); add a setup there, not a script.
+- How the matrix tells slots apart: GameCube pad 1 (the only one in the test profile) plays
+  port 1 or slot 1A through the driver (`padsweep 1 fast`); every other port and slot gets
+  the script's `sweep`, each pressing the buttons in its own order, and the ROM records the
+  frame of each button's first press. A slot fed by the wrong controller fails with
+  "buttons in pX order, want pY". Multitap 2's slot A defaults to GameCube pad 1 as well
+  (`PadAssign7=0`): the matrix sets `PadAssign7=1`, or both slot A's get the same pad.
+- Script ports for slots: lines `p1b`..`p1d`, `p2b`..`p2d` (slot A = `p1`/`p2`), `sweep V
+  p1b ...`, up to eight `padtype` lines (SETTINGS.md section 11). `script_port()` in
+  PadSSSPSX.c maps pads to them.
+- The input script's clock (`frame_counter`) ticks at the END of the frame (psxcounters.c,
+  `HSyncTotal`), not at the vblank IRQ (`VBlankStart`), so a scripted button changes in the
+  middle of a game's vblank-time pad reads. Two reads in one frame can differ. Not a game
+  bug, but a test that compares two reads must allow it (the ROM's `long_diff` does).
+- PadTest DX's own frame budget is in its status block (`last frame N scanlines, reading the
+  ports A + B`, root counter 1): eight slots at `SioTiming=1` read in 136 of 263 lines.
+  Formatting text with sprintf per byte once cost a quarter of the frame there.
+- **Test the test on the old code**: the 5.3.0 PadSSSPSX.c/sio.c/psxbios.c over the new
+  tree, with only script_port() and the sweep hooks added to PadSSSPSX.c, failed 10 of 10
+  cells -- the evidence for every protocol fix of that commit. A matrix that passes on new
+  code only shows the code matches its own model.
 - **Replay a recording only as a chain** (`wsx.sh chain NAME FILE`, the chain line from the
   recording's header). `wsx.sh run --autoboot` boots by another path with other timing: the
   user's Crash Bash session went off course at once that way.

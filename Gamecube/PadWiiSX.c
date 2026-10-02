@@ -54,7 +54,9 @@
  * Port 2 lines are the same with "p2 " in front: "p2 <vblank> <mask>". A recording writes
  * them when port 2 has a controller, starting with its state at the first poll, so a script
  * with any p2 line also stands in for a pad on port 2 (autoinput_active()).
- * ponytail: ports 1 and 2 as the pad plugin numbers them; multitap slots are not scripted.
+ * Multitap slots: "p1a" is "p1" (port 1, or multitap 1 slot A), "p1b".."p1d" slots B..D,
+ * "p2a" = "p2", "p2b".."p2d" multitap 2. Script ports: 0 p1, 1 p2, 2..4 p1b..p1d, 5..7
+ * p2b..p2d (PadSSSPSX.c script_port()). A line for a slot stands in for a pad there.
  * ponytail: one mask per vblank. A press and release inside one vblank keep only the
  * release; games poll the pad once a frame, so that has not mattered. */
 /* A recording makes 2-5 lines a second: 32768 is about two hours of play. The table (256 KB)
@@ -66,8 +68,9 @@ static struct autoin_line { unsigned vbl; unsigned short mask; unsigned char por
  * with the read that first saw it ("<vblank> <mask> <read>"; no third field = read 0) and
  * replayed from that same read. Stamped by vblank alone, a change seen at a vblank's second
  * read was replayed from its first, one read early, and ten-minute recordings drifted. */
-static unsigned rd_fc[2] = { ~0u, ~0u }, rd_n[2];
-static unsigned rd_applied_fc[2] = { ~0u, ~0u };   /* the vblank a line without a read stamp took effect */
+#define AUTOIN_PORTS 8                  /* script ports: p1, p2, p1b..p1d, p2b..p2d */
+static unsigned rd_fc[AUTOIN_PORTS] = { ~0u, ~0u, ~0u, ~0u, ~0u, ~0u, ~0u, ~0u }, rd_n[AUTOIN_PORTS];
+static unsigned rd_applied_fc[AUTOIN_PORTS] = { ~0u, ~0u, ~0u, ~0u, ~0u, ~0u, ~0u, ~0u };   /* the vblank a line without a read stamp took effect */
 
 /* Every pad read, first of all (autoinput_record is called before autoinput_mask). */
 static void autoinput_read_tick(int port)
@@ -87,9 +90,15 @@ static int autoin_n = -1;
 static int autoin_ports;                /* bit per port with at least one line */
 static unsigned short autoin_ev_last;   /* the mask last reported to perf.log ("autoinput:") */
 static int autoin_ev_first = 1;         /* each game reports its first poll */
-static int autoin_cur[2];           /* autoinput_mask(port): the next line to look at */
-static unsigned short autoin_m[2];  /* ... and the mask the port's lines before it give */
-static unsigned autoin_fc[2];       /* ... at this vblank */
+static int autoin_cur[AUTOIN_PORTS];           /* autoinput_mask(port): the next line to look at */
+static unsigned short autoin_m[AUTOIN_PORTS];  /* ... and the mask the port's lines before it give */
+static unsigned autoin_fc[AUTOIN_PORTS];       /* ... at this vblank */
+/* "sweep <vblank> <port>...": from that vblank each script port named (p1 p2 p1b..p2d)
+ * gets generated input: its buttons one at a time, then its sticks end to end. Each port
+ * presses the buttons in its own order, so a controller that turns up in the wrong slot
+ * shows (scripts/padtest_dx.py). autoinput_sweep() makes it. */
+static unsigned autoin_sweep_vbl[AUTOIN_PORTS];
+static int autoin_sweeps;                      /* bit per script port with a sweep */
 static FILE *autoin_rec;            /* "record": the recording, or NULL */
 static char autoin_path[128] = "sd:/wiisxrx/autoinput.txt";
 /* "trace <vblank>" lines: the debug build's primitive trace arms at these
@@ -99,7 +108,11 @@ unsigned autoinput_trace_vbl[8];
 int autoinput_trace_n = 0;
 unsigned autoinput_dump_vbl = 0;   /* "dump <vblank>": debug build writes sd:/wiisxrx/vram.bin then */
 unsigned autoinput_crash_vbl = 0;  /* "crashtest <vblank>": debug build stores through a NULL base then (a DSI) */
-unsigned autoinput_padtype_vbl = 0, autoinput_padtype_port, autoinput_padtype_type;   /* "padtype <vblank> <port 1|2> <type>": set_port_type() then */
+/* "padtype <vblank> <port 1|2> <type>": set_port_type() then (perf_prof.c, through
+ * autoinput_padtype_due()). Up to eight lines, in vblank order. */
+#define AUTOIN_PADTYPES 8
+static struct { unsigned vbl, port, type; } autoin_padtype[AUTOIN_PADTYPES];
+static int autoin_padtype_n, autoin_padtype_i;
 unsigned autoinput_hang_vbl = 0;   /* "hangtest <vblank>": debug build spins for good then (ws_crash.c watchdog) */
 int autoinput_crumbs = 0;          /* "crumbs": debug build writes sd:/wiisxrx/crumb.log once a second (crash hunts) */
 /* "padsweep <vblank>": from that vblank the GameCube driver reads a generated sweep
@@ -109,6 +122,7 @@ int autoinput_crumbs = 0;          /* "crumbs": debug build writes sd:/wiisxrx/c
  * the real PSX packing with input nobody has to hold, on hardware as well as in Dolphin
  * (scripts/padtest.py checks what comes out). 0 means no sweep. */
 unsigned autoinput_padsweep_vbl = 0;
+int autoinput_padsweep_fast = 0;   /* "padsweep <vblank> fast": controller-GC.c's short sweep */
 /* "menupage <n>": open one Settings tab or Options page a few frames after the menu comes
  * up, so an unattended run can photograph it. Nothing else can -- the menu reads the pads
  * directly rather than through the controller drivers, so padsweep cannot drive it.
@@ -131,6 +145,22 @@ unsigned autoinput_menupage = 0;
 void statetool_request(int op, const char *name, unsigned vbl, unsigned n);
 void statetool_reset(void);
 unsigned autoinput_atrace_vbl = 0; /* "atrace <vblank>": debug build starts the audio timeline (perf_prof.c) */
+/* A script port's name: p1 (or p1a), p2 (or p2a), p1b..p1d, p2b..p2d. -1 if it is none. */
+static int script_port_name(const char *q)
+{
+	int port, slot = 0;
+	if (q[0] != 'p' || (q[1] != '1' && q[1] != '2'))
+		return -1;
+	port = q[1] - '1';
+	if (q[2] >= 'a' && q[2] <= 'd' && !q[3])
+		slot = q[2] - 'a';
+	else if (q[2])
+		return -1;
+	if (!slot)
+		return port;
+	return (port ? 5 : 2) + slot - 1;
+}
+
 /* Parse the script once. Called from the pad plugin's open (so the trace and
  * dump schedules exist even before the first pad poll, e.g. in the BIOS
  * shell) and lazily from autoinput_mask(). */
@@ -141,6 +171,8 @@ void autoinput_load(void)
 	if (autoin_n >= 0) return;
 	autoin_n = 0;
 	autoin_ports = 0;
+	autoin_sweeps = 0;
+	autoin_padtype_n = autoin_padtype_i = 0;
 	if (!autoin)
 		autoin = (struct autoin_line *)_mem2_malloc(AUTOIN_MAX * sizeof(*autoin));
 	f = (autoin && autoin_path[0]) ? fopen(autoin_path, "r") : NULL;
@@ -157,11 +189,34 @@ void autoinput_load(void)
 			if (sscanf(line, "hangtest %u", &v) == 1) { autoinput_hang_vbl = v; continue; }
 			{
 				unsigned pp, tt;
-				if (sscanf(line, "padtype %u %u %u", &v, &pp, &tt) == 3 && pp >= 1 && pp <= 2 && tt <= 4)
-					{ autoinput_padtype_vbl = v; autoinput_padtype_port = pp - 1; autoinput_padtype_type = tt; continue; }
+				if (sscanf(line, "padtype %u %u %u", &v, &pp, &tt) == 3 && pp >= 1 && pp <= 2 && tt <= 4) {
+					if (autoin_padtype_n < AUTOIN_PADTYPES) {
+						autoin_padtype[autoin_padtype_n].vbl = v;
+						autoin_padtype[autoin_padtype_n].port = pp - 1;
+						autoin_padtype[autoin_padtype_n].type = tt;
+						autoin_padtype_n++;
+					}
+					continue;
+				}
+			}
+			{
+				int off, sp;
+				char *q;
+				if (sscanf(line, "sweep %u%n", &v, &off) == 1) {
+					for (q = strtok(line + off, " \t\r\n"); q; q = strtok(NULL, " \t\r\n"))
+						if ((sp = script_port_name(q)) >= 0) {
+							autoin_sweep_vbl[sp] = v;
+							autoin_sweeps |= 1 << sp;
+						}
+					continue;
+				}
 			}
 			if (!strncmp(line, "crumbs", 6)) { autoinput_crumbs = 1; continue; }
-			if (sscanf(line, "padsweep %u", &v) == 1) { autoinput_padsweep_vbl = v; continue; }
+			if (sscanf(line, "padsweep %u", &v) == 1) {
+				autoinput_padsweep_vbl = v;
+				autoinput_padsweep_fast = strstr(line, "fast") != NULL;
+				continue;
+			}
 			if (sscanf(line, "menupage %u", &v) == 1) { autoinput_menupage = v; continue; }
 			{
 				unsigned b, t;
@@ -180,9 +235,13 @@ void autoinput_load(void)
 			if (sscanf(line, "atrace %u", &v) == 1) { autoinput_atrace_vbl = v; continue; }
 			if (sscanf(line, "trace %u", &v) == 1) { if (autoinput_trace_n < 8) autoinput_trace_vbl[autoinput_trace_n++] = v; continue; }
 			{
-				int port = strncmp(line, "p2 ", 3) ? 0 : 1;
+				int port = 0, skip = 0;
 				unsigned rd = 0;
-				if (line[0] == '#' || sscanf(line + 3 * port, "%u %x %u", &v, &k, &rd) < 2) continue;
+				if (line[0] == 'p') {   /* "p2 ", "p1b " ...: the script port; none is p1 */
+					char name[8];
+					if (sscanf(line, "%7s%n", name, &skip) != 1 || (port = script_port_name(name)) < 0) continue;
+				}
+				if (line[0] == '#' || sscanf(line + skip, "%u %x %u", &v, &k, &rd) < 2) continue;
 				autoin[autoin_n].vbl = v; autoin[autoin_n].mask = (unsigned short)k;
 				autoin[autoin_n].port = (unsigned char)port;
 				autoin[autoin_n].idx = (unsigned char)(rd > 255 ? 255 : rd); autoin_n++;
@@ -212,10 +271,12 @@ void autoinput_reset(const char *path)
 	autoinput_trace_n = 0;
 	autoinput_dump_vbl = 0;
 	autoinput_crash_vbl = 0;
-	autoinput_padtype_vbl = 0;
+	autoin_padtype_n = autoin_padtype_i = 0;
+	autoin_sweeps = 0;
 	autoinput_hang_vbl = 0;
 	autoinput_crumbs = 0;
 	autoinput_padsweep_vbl = 0;
+	autoinput_padsweep_fast = 0;
 	autoinput_menupage = 0;
 	autoinput_menuclick = autoinput_menuclicks = 0;
 	autoinput_atrace_vbl = 0;
@@ -234,14 +295,74 @@ void autoinput_reset(const char *path)
 int autoinput_active(int port)
 {
 	autoinput_load();
-	return port >= 0 && port < 2 && (autoin_ports >> port & 1);
+	return port >= 0 && port < AUTOIN_PORTS && ((autoin_ports | autoin_sweeps) >> port & 1);
+}
+
+/* perf_prof.c, once a vblank: the next "padtype" line that is due, if any. */
+int autoinput_padtype_due(unsigned now, unsigned *port, unsigned *type)
+{
+	if (autoin_padtype_i >= autoin_padtype_n || now < autoin_padtype[autoin_padtype_i].vbl)
+		return 0;
+	*port = autoin_padtype[autoin_padtype_i].port;
+	*type = autoin_padtype[autoin_padtype_i].type;
+	autoin_padtype_i++;
+	return 1;
+}
+
+/* The order "sweep" presses the buttons in (PSX bits: Select 0001, Start 0008, L2 0100, R2
+ * 0200, L1 0400, R1 0800, Triangle 1000, Circle 2000, Cross 4000, Square 8000, then the
+ * D-pad Up 0010, Right 0020, Down 0040, Left 0080): the same fourteen the GameCube padsweep
+ * reaches. Script port k > 0 swaps the pair at k - 1 and k, so no two ports press them in
+ * the same cyclic order; the D-pad stays last, where Stick D-pad presses it from the stick. */
+static const unsigned short SWEEP_ORDER[14] = {
+	0x0001, 0x0008, 0x0100, 0x0200, 0x0400, 0x0800, 0x1000, 0x2000, 0x4000, 0x8000,
+	0x0010, 0x0020, 0x0040, 0x0080,
+};
+#define SWEEP_HOLD   3                    /* vblanks each button is held, and released, for */
+#define SWEEP_BTN    (14 * 2 * SWEEP_HOLD)
+#define SWEEP_STEP   4                    /* stick values 0, 4, .. 252, 255 */
+#define SWEEP_RAMP   (256 / SWEEP_STEP + 1)
+#define SWEEP_PERIOD (SWEEP_BTN + 2 * SWEEP_RAMP)
+
+/* "sweep": this vblank's generated presses (PSX order, a set bit is held) and sticks (LX LY
+ * RX RY, 0..255, 128 at rest) for a script port. Each period: the buttons one at a time,
+ * then LX and RX together end to end, then LY and RY. Returns 0 when the port has none. */
+int autoinput_sweep(int port, unsigned short *press, unsigned char *sticks)
+{
+	unsigned t;
+	int i;
+	autoinput_load();
+	if (port < 0 || port >= AUTOIN_PORTS || !(autoin_sweeps >> port & 1) || frame_counter < autoin_sweep_vbl[port])
+		return 0;
+	t = (frame_counter - autoin_sweep_vbl[port]) % SWEEP_PERIOD;
+	sticks[0] = sticks[1] = sticks[2] = sticks[3] = 128;
+	*press = 0;
+	if (t < SWEEP_BTN) {
+		if ((t / SWEEP_HOLD) & 1)   /* every other step is a release, so each press is its own */
+			return 1;
+		i = (int)(t / SWEEP_HOLD / 2);
+		if (port > 0 && i == port - 1)
+			i++;
+		else if (port > 0 && i == port)
+			i--;
+		*press = SWEEP_ORDER[i];
+		return 1;
+	}
+	t -= SWEEP_BTN;
+	{
+		unsigned v = (t % SWEEP_RAMP) * SWEEP_STEP;
+		int a = t < SWEEP_RAMP ? 0 : 1;   /* 0: the X axes, 1: the Y axes */
+		if (v > 255) v = 255;
+		sticks[a] = sticks[a + 2] = (unsigned char)v;
+	}
+	return 1;
 }
 /* The lines are in vblank order (a recording always is), so the mask is found by walking
  * forward from the last poll, not by reading the whole script every time. */
 unsigned short autoinput_mask(int port)
 {
 	unsigned short m;
-	if (port < 0 || port > 1)
+	if (port < 0 || port >= AUTOIN_PORTS)
 		return 0;
 	PERF_INC(ai_calls);
 	autoinput_load();

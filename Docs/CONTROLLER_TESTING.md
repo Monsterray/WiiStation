@@ -112,20 +112,30 @@ because that SIO protocol is exactly what `SSS_PADpoll` implements.
 
 **PadTest DX** -- the same program, forked to github.com/Monsterray/padtest and cloned to
 `C:\projects\padtest`, ported to PSn00bSDK (installed at `C:\PSn00bSDK`) and extended for
-this work. Build it with `bash build.sh` in that folder. Besides the pad it shows, per port,
-the raw reply in pairs, the reply length, `cfg n/10` (config replies that match a DualShock)
-and `btn n` (button bits pressed so far), and for analog pads `axes` (distinct values per
-axis). Each frame it copies a status block to VRAM (640,256), 64x8 halfwords, layout in the
-fork's `include/dx.h`. One command runs it with the sweep and decodes the block:
+this work. Build it with `bash build.sh` in that folder. Since 2.4.0 (2026-10-02) it reads
+both ports as a game does, multitaps included: per frame and port a request (TAP byte 01h),
+the long read of all four slots, and a single-slot read of each other slot (01h..04h);
+every rule and its source is in the fork's `docs/PROTOCOL.md`. On screen: a pad on its own
+port as before (raw reply, `cfg n/16`, `btn n`, `axes`), a multitap as four slot blocks and
+a `probe` line. Each frame it copies a status block to VRAM (640,256), 64x32 halfwords,
+layout in the fork's `include/dx.h` (version 4). One command runs the **controller
+matrix** -- a dozen setups in one Dolphin boot -- and prints one line per setup:
 
 ```
-bash scripts/padtest_dx.sh --ct 1        # 0 = Standard, 1 = Analog; --frames for pictures
+bash scripts/padtest_dx.sh               # about two minutes; -v for what each cell received
+bash scripts/padtest_dx.sh --cells taps_ct1,switch_ct1   # some cells; --frames for pictures
 ```
 
-It ends in `sweep: PASS` or `sweep: FAIL: <what>`, judged on port 1 (the port the sweep
-drives; port 2 is Dolphin's emulated Wiimote and fails on its own). The ROM puts itself on
-the test profile's card (`.dolphin`) only. Use `vram.bin` for the block, not for pictures:
-the hardware GPU draws on the GX side, so the dump holds uploads, not the rendered screen.
+`python scripts/padtest_dx.py cells` lists the cells: ports None / GameCube pad / Multitap,
+slots filled or empty, ControllerType 0/1/2, a multitap -> pad -> multitap switch while the
+ROM runs (`padtype` lines), and two cells with `SioTiming=1` that also check the byte and
+/ACK times against hardware. GameCube pad 1 (the only one in Dolphin's test profile) plays
+port 1 or slot 1A through the real driver (`padsweep 1 fast`); every other port and slot
+gets the input script's `sweep`, which presses the buttons in an order of its own, so a
+controller that turns up in the wrong slot fails its cell. `python scripts/padtest_dx.py
+show VRAM.BIN` prints one status block. The ROM goes on the test profile's card
+(`.dolphin`) only. Use `vram_NN.bin` for the block, not for pictures: the hardware GPU draws
+on the GX side, so the dump holds uploads, not the rendered screen.
 
 What it found on 2026-09-23, against psx-spx, DuckStation, MiSTer's PSX core and PsxNewLib,
 and what was changed so that both pad types act as the real pads do:
@@ -137,13 +147,29 @@ and what was changed so that both pad types act as the real pads do:
   has). The small motor ran on any value, not bit 0, and the one-motor method did not work.
 - Standard answered every command as a read, and `sio.c` changed the ID to 43h for 43h and
   to F3h for 45h. A real digital pad answers 42h only; anything else gets no /ACK.
-- Now, 16/16 config checks pass for each type, the sweep passes, and the replies match:
-  `bash scripts/padtest_dx.sh --ct 1` and `--ct 0`.
+- Now, 16/16 config checks pass for each type, the sweep passes, and the replies match
+  (the matrix's `pads_ct1` and `pad_ct0` cells).
 - /ACK comes after each byte but the last, as on hardware, 15.7 us after the byte: exactly
   `SIO_CYCLES` (535 cycles) in `sio.c`, which the ROM's timer confirms.
 - A byte takes 0.5 us: the reply is ready as soon as the byte is written. On hardware 8 bits
   at 250 kHz take 32 us, so a whole poll here runs about twice as fast as on a console.
-  Nothing found so far depends on it.
+  Nothing found so far depends on it. `SioTiming = 1` (2026-10-02) times controller bytes
+  as a PS1 does: the ROM then measures 33.0 us a byte and 13.0..13.6 us to /ACK.
+
+What the matrix found on 2026-10-02 (the old code passed 0 of 10 cells; now 12 of 12):
+- A plain pad answered addresses 02h..04h as if four pads were there, and an empty multitap
+  slot answered single-slot reads as a pad. Both now get no /ACK, as on a PS1.
+- In a long read, an empty slot's stick bytes and a digital pad's last four bytes held stick
+  values (`80 80 80 80`, or another slot's) instead of FFh: the slots shared one stick
+  buffer (`lastport1`). Each controller now has its own transfer state and output.
+- The long read was a canned reply, not the four controllers clocked at once: no cut-short
+  read after refused slot blocks, a command other than 42h taken as a read, a multitap with
+  every slot empty still answering, and the request accepted from an empty slot.
+  Gamecube/PadSSSPSX.c now models the multitap as Mednafen does from hardware tests.
+- The HLE BIOS returned from a `syscall` at an address ending in FCh 256 bytes short (a
+  byte-swapped add on the big-endian Wii). PadTest DX 2.4.0 hung in ResetGraph under the HLE
+  BIOS (main's build too); any program can hit it. Fixed in psxbios.c.
+- A memory card answered addresses 82h..84h (multitap slots B..D); now 81h only.
 
 **PSXTEST 2.3** by Haunted360 -- a general console tester (three songs for the speakers, a
 dead-pixel checker, a pad tester). It runs too, and the trace under it is identical, but its

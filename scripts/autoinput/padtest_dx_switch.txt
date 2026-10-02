@@ -1,0 +1,8 @@
+# PadTest DX controller matrix (scripts/padtest_dx.sh, scripts/padtest_dx.py): every cell
+# runs this. GameCube pad 1 (port 1, or multitap 1 slot A) gets the driver's short sweep;
+# every other port and slot a scripted sweep, each pressing the buttons in its own order.
+padsweep 1 fast
+sweep 1 p2 p1b p1c p1d p2b p2c p2d
+# Port 1: multitap -> GameCube pad -> multitap while the ROM runs (padtest_dx.py SWITCH_AT)
+padtype 350 1 1
+padtype 530 1 4

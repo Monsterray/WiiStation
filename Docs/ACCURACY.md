@@ -110,11 +110,18 @@ AmiDog GTE opcode tests (`references/test-roms.md`, "AmiDog psxtest_gte") but co
 One setting selects the option; each item below is a part of it. The Fast option keeps
 today's code paths, so its speed does not change.
 
-Two parts exist already, each a Fast/Accurate setting of its own (SETTINGS.md, section 2):
+Three parts exist already, each a Fast/Accurate setting of its own (SETTINGS.md, section 2):
 - `CpuTiming` (Lightrec): charges the cycles a PS1 CPU waits for the GTE and the
   multiply/divide unit.
 - `GpuTiming` (OpenGX, Soft Fast): keeps the GPU busy for each command and transfer, as
   gpulib measures it.
+- `SioTiming` (2026-10-02, sio.c): a controller byte takes its 8 bits at the baud rate (32 us
+  at 250 kHz) and the /ACK comes 450 cycles later (DuckStation's measurement, 6.8..13.7 us).
+  PadTest DX measures 33.0 us and 13.0..13.6 us with it (Docs/CONTROLLER_TESTING.md); Crash
+  Bash plays its recording to the same screen. Memory card bytes keep the Fast timing: their
+  state machine reads the reply buffer at the write, and a card bug costs saves.
+The controller protocol itself (multitap long reads, empty slots, addresses) is not an
+option: it was wrong, and is now as on a PS1 in both (PadTest DX's matrix, 12 of 12 cells).
 The measurements above are with both at Fast (the defaults). With both at Accurate
 (`.runs/ps1t_520_acc`, 5.2.0) every test line is the same: these tests hardly wait for the GTE
 or the multiply/divide unit, and `dma/chopping` still never sees the "GPU busy" state that a

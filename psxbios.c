@@ -4262,21 +4262,26 @@ void psxBiosCnfLoaded(u32 tcb_cnt, u32 evcb_cnt, u32 stack) {
 	storeRam32(A_CONF_SP, stack);
 }
 
+/* The BIOS's vblank read of a port: 01h 42h 00h.., as sio.c would carry it, so a multitap
+ * answers with slot A as it does to the real BIOS. Buffer: 00h, the ID, then the data (the
+ * 5Ah is dropped). Nothing there: the ID reads FFh. */
+unsigned char SSS_PortStart(int port, unsigned char addr, int *ack);   /* Gamecube/PadSSSPSX.c */
+unsigned char SSS_PortByte(int port, unsigned char value, int *ack);
 #define psxBios_PADpoll(pad) { \
-	int i; \
+	int i, ack; \
 	PERF_INC(hle_padpoll[(pad) - 1]); \
-	PAD##pad##_startPoll(pad); \
+	(void)SSS_PortStart((pad) - 1, 0x01, &ack); \
 	pad_buf##pad[0] = 0; \
-	pad_buf##pad[1] = PAD##pad##_poll(0x42); \
+	pad_buf##pad[1] = ack ? SSS_PortByte((pad) - 1, 0x42, &ack) : 0xff; \
 	if (!(pad_buf##pad[1] & 0x0f)) { \
 		bufcount = 32; \
 	} else { \
 		bufcount = (pad_buf##pad[1] & 0x0f) * 2; \
 	} \
-	PAD##pad##_poll(0); \
+	if (ack) (void)SSS_PortByte((pad) - 1, 0, &ack); \
 	i = 2; \
-	while (bufcount--) { \
-		pad_buf##pad[i++] = PAD##pad##_poll(0); \
+	while (bufcount-- && ack) { \
+		pad_buf##pad[i++] = SSS_PortByte((pad) - 1, 0, &ack); \
 	} \
 }
 

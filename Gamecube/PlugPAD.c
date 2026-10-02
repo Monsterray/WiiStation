@@ -138,13 +138,20 @@ controller_t *manual_assign_port(int i)
 	return type;
 }
 
-/* Every port the manual assignment uses: 1 and 2, or a multitap's four slots in their place. */
+/* Every port the manual assignment uses: 1 and 2, or a multitap's four slots in their place.
+ * One whose type is None gives its controller up: a chain game that set a slot to None
+ * (PadTest DX's matrix) kept the controller an earlier game had assigned there. */
 void manual_assign_controllers(void)
 {
 	int i;
 	for (i = 0; i < 10; i++) {
 		if (i >= 2 && i < 6 && padType[0] != PADTYPE_MULTITAP) continue;
 		if (i >= 6 && padType[1] != PADTYPE_MULTITAP) continue;
+		if (padType[i] == PADTYPE_NONE || (i < 2 && padType[i] == PADTYPE_MULTITAP)) {
+			if (virtualControllers[i].inUse)
+				unassign_controller(i);
+			continue;
+		}
 		manual_assign_port(i);
 	}
 }
@@ -339,6 +346,17 @@ void auto_assign_controllers(void)
 	for(i=0; i<2; ++i){
 		extern int autoinput_active(int port);
 		if(padType[i] == PADTYPE_MULTITAP || !autoinput_active(i))
+			continue;
+		if(virtualControllers[i].inUse && virtualControllers[i].control != &controller_GC)
+			unassign_controller(i);
+		padType[i] = PADTYPE_GAMECUBE;
+	}
+	/* The same for a multitap slot a script plays ("p1b" lines, or a "sweep"): script port
+	 * 0/1 for slot A, 2..4 for multitap 1's B..D, 5..7 for multitap 2's (PadSSSPSX.c). */
+	for(i=2; i<10; ++i){
+		extern int autoinput_active(int port);
+		int sp = i == 2 ? 0 : i == 6 ? 1 : i < 6 ? i - 1 : i - 2;
+		if(padType[i < 6 ? 0 : 1] != PADTYPE_MULTITAP || !autoinput_active(sp))
 			continue;
 		if(virtualControllers[i].inUse && virtualControllers[i].control != &controller_GC)
 			unassign_controller(i);

@@ -162,6 +162,13 @@ enum gpuTiming
 	                         * GPU reads idle between lists, during block uploads too */
 	GPU_TIMING_ACCURATE     /* gpulib's per-command costs, and busy for every transfer */
 };
+extern char sioTiming;           /* how long a controller port byte takes (sio.c) */
+enum sioTiming
+{
+	SIO_TIMING_FAST=0,      /* as before: the reply is there at once, /ACK 535 cycles later */
+	SIO_TIMING_ACCURATE     /* the byte takes its 8 bits at the baud rate (32 us at the BIOS's
+	                         * 250 kHz), then the controller's /ACK comes 450 cycles later */
+};
 extern char cdPrefetch;          /* read-ahead thread for raw images */
 enum cdPrefetch
 {

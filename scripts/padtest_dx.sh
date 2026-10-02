@@ -1,31 +1,43 @@
 #!/usr/bin/env bash
-# padtest_dx.sh [--ct 0|1] [--frames] [--rom DIR]
+# padtest_dx.sh [--cells a,b,..] [--frames] [--rom DIR] [-v] [wsx.sh run options]
 #
-# Run PadTest DX (github.com/Monsterray/padtest, built in C:\projects\padtest) in WiiStation
-# with the scripted pad sweep, then decode what the ROM received (scripts/padtest_dx.py).
-#   --ct N     ControllerType: 0 = Standard (digital), 1 = Analog. Default 1.
-#   --frames   also dump Dolphin frames, to .runs/padtest_dx_ctN/frames.
+# The controller matrix: PadTest DX (github.com/Monsterray/padtest, built in
+# C:\projects\padtest) once per controller setup -- ports None / GameCube pad / Multitap,
+# multitap slots filled or empty, ControllerType 0/1/2, and a multitap -> pad -> multitap
+# switch while the ROM runs -- all in ONE Dolphin boot (a CHAIN autoboot), then one PASS/FAIL
+# line per cell from what the ROM received (scripts/padtest_dx.py; `padtest_dx.py cells`
+# lists them). About two minutes.
+#   --cells    only these cells (comma list of names)
+#   --frames   also dump Dolphin frames, to .runs/padtest_dx/frames
 #   --rom DIR  folder with padtest.bin + padtest.cue. Default C:/projects/padtest/build.
-# The ROM goes on this repo's test profile card only (.dolphin), never the shared SD folder.
+#   -v         print what each cell's ROM received, not just the verdict
+# Other options go to wsx.sh run (e.g. --dol release). The ROM goes on the test profile's
+# card only (.dolphin), never the shared SD folder.
 set -e
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
-ct=1; rom=/c/projects/padtest/build; extra=()
+RUNS="${WSX_RUNS:-$REPO/.runs}"
+cells=""; rom=/c/projects/padtest/build; extra=(); verbose=""
 while [ $# -gt 0 ]; do
 	case "$1" in
-		--ct) ct="$2"; shift ;;
-		--frames) extra=(--env FRAMES_DUMP=True --env KEEP=100000) ;;
+		--cells) cells="$2"; shift ;;
+		--frames) extra+=(--env FRAMES_DUMP=True --env KEEP=100000) ;;
 		--rom) rom="$2"; shift ;;
-		*) echo "unknown option $1"; exit 2 ;;
+		-v) verbose=-v ;;
+		*) extra+=("$1") ;;
 	esac
 	shift
 done
-name=padtest_dx_ct$ct
+name=padtest_dx
 card="${WSX_PROFILE:-$REPO/.dolphin}/Load/WiiSDSync/wiisxrx/isos/PadTestDX"
-mkdir -p "$card" "$REPO/.runs"
+mkdir -p "$card" "$RUNS"
 cp "$rom/padtest.bin" "$rom/padtest.cue" "$card/"
-chain="$REPO/.runs/$name.chain.txt"
-printf 'CHAIN\n2400 sd:/wiisxrx/padtest_dx_sweep.txt PadAutoAssign=1 ControllerType=%s\nsd:/wiisxrx/isos/PadTestDX\npadtest.cue\n' "$ct" > "$chain"
-rm -rf "$REPO/.runs/$name"
-bash "$REPO/scripts/wsx.sh" chain "$name" "$chain" --secs 500 ${extra[@]+"${extra[@]}"} > "$REPO/.runs/$name.out" 2>&1
-python "$REPO/scripts/sdimage_read.py" "${WSX_PROFILE:-$REPO/.dolphin}/Load/WiiSD.raw" wiisxrx/vram.bin "$REPO/.runs/$name/vram.bin" > /dev/null
-python "$REPO/scripts/padtest_dx.py" "$REPO/.runs/$name/vram.bin" --sweep
+chain="$RUNS/$name.chain.txt"
+python "$REPO/scripts/padtest_dx.py" chain "$chain" "$cells"
+# Wall time: Dolphin runs the ROM at about full speed; the chain's own loads add ~3 s a cell
+vbl=$(awk '/^[0-9]+ sd:/ {s += $1; n++} END {print s, n}' "$chain")
+secs=$(( ${vbl% *} / 50 + ${vbl#* } * 5 + 60 ))
+rm -rf "$RUNS/$name"
+t0=$(date +%s)
+bash "$REPO/scripts/wsx.sh" chain "$name" "$chain" --secs "$secs" ${extra[@]+"${extra[@]}"} > "$RUNS/$name.out" 2>&1 || true
+echo "dolphin: $(( $(date +%s) - t0 )) s for ${vbl#* } cells, ${vbl% *} vblanks (log $RUNS/$name.out)"
+python "$REPO/scripts/padtest_dx.py" judge "$RUNS/$name" "$cells" $verbose
