@@ -8,12 +8,18 @@ compare two versions of a core file on the PC. Every step below cost a run to fi
 - Put the `.exe` in its own folder on the automated card:
   `.dolphin/Load/WiiSDSync/wiisxrx/isos/<name>/<file>.exe`. A chain entry is the same as for
   a game: `VBLANKS [input] KEY=V...` / `sd:/wiisxrx/isos/<name>` / `<file>.exe`.
-- **Use the interpreter: `Core=1`.** Lightrec shuts Dolphin down about 2 s after booting an
-  EXE (seen 2026-09-30, not traced; games are fine). The interpreter runs at about 0.29x with
-  `FPS=0`, so 30000 vblanks take about 29 minutes of wall time.
-- Loading an EXE needs `biosFileInit()` before `SysReset(); Load(file);`
-  (`Gamecube/GamecubeMain.cpp`); without it the HLE BIOS jumps to 0 through a NULL
-  `biosFile_readFile`.
+- **Lightrec runs EXEs since 2303729.** The EXE path skipped `loadSeparatelySetting()`, which
+  makes the CPU core (`psxCpuInit`): Lightrec ran on a NULL state and stopped at the EXE's
+  first block (the "Dolphin shuts down 2 s after an EXE" of 2026-09-30). Now an EXE gets the
+  same settings/CPU/GPU steps as a disc, with no disc ID, so chain-line settings apply too.
+  The interpreter (`Core=1`) runs at about 0.29x with `FPS=0`.
+- **A stop says why:** `ws_fatal` writes `fatal: code= pc= cycle= vblank= <reason>` to perf.log;
+  a Lightrec fault names its site (1 load/store to no memory ... 6 no map for the pc).
+- **Use the HLE BIOS for console output.** Only the HLE BIOS printf reaches tty.log; a real
+  BIOS (`BiosDevice=1`) sends putchar to a TTY device a retail PS1 does not have (and
+  `psxJumpTest` is commented out). HLE printf took no flags before 62bfbcf (`%-10s` printed
+  `10s`). HLE calls cost no guest cycles: timing lines that include a BIOS call (per-frame
+  delays) are not a CPU-core measure.
 - **The screen needs the soft GPU:** `--set gpuPlugin=0` on the `wsx.sh chain` command line.
   A `gpuPlugin=0` on the chain line itself does not apply (a plugin change resets the game;
   the run still uses OpenGX -- vramio.log `F1` lines prove it). Under OpenGX the AmiDog
@@ -78,3 +84,17 @@ of cases whose values and FLAG differ, which registers, and ns per command.
 - `tests/gte_ab/shim/` has the few libogc/zlib headers `psxcommon.h` includes; gte.c needs
   none of them. The same pattern (shim headers, stub `psxMemRead32`, a global `psxRegs`)
   works for other plain-C core files.
+
+## JaCzekanski ps1-tests: emulator vs a real PS1
+
+`C:/tools/ps1-tests/` (release build-158, scanned 2026-10-01): `bin/` the EXEs, `ref/` each
+test's `psx.log` -- its console output on a real PlayStation. The EXEs are staged as
+`.dolphin/Load/WiiSDSync/wiisxrx/isos/ps1t_<name>/<name>.exe`.
+- `scripts/wsx.sh chain NAME scripts/chains/ps1tests.txt --dol X` (10 tests x 2400 vblanks,
+  about 8 min on Lightrec), then `python scripts/ps1tests_check.py .runs/A [.runs/B]`: per
+  test SAME or the lines that differ, matched by label (numbers and hex taken out, spacing
+  collapsed). Two runs = an A/B of two cores against the PS1.
+- access-time and io-access-bitwidth touch expansion regions 1-3: keep them last in a chain.
+- Results on main 2026-10-01 (both cores the same where both ran): code-in-io 3 fails (code
+  in scratchpad/MDEC/IRQ registers must raise a bus error); io-access-bitwidth 42/64 lines
+  (BIOS ROM writable, expansion 2/3 read back what was written, register masks).

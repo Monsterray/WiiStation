@@ -98,6 +98,18 @@ counters (interrupts, CD reads, SIO/pad traffic, BIOS calls, GTE calls) at repor
 SAME vblank -- reports come every 1800 presents, which depend on the host, so compare by
 vblank, never by report number (2026-09-30: a "drift" that was a cut-short run's last report).
 Host microseconds and OpenGX's drawn-primitive counts always differ and mean nothing here.
+The `cd` field is `reads`/`bytes` only: `seq`/`rand` say how the host read the image (CdPrefetch
+changes them). `--all` goes past the first difference: an offset that stays fixed is timing,
+one that grows is a different game path.
+
+**A CPU-core change moves every recording's timing.** 2026-10-01, Lightrec synced to upstream
+(phase 2): `vsig_cmp.py` showed main and phase 2 part at vblank 1, in the BIOS, with the vblank
+2-20 cycles apart at another pc. A dynarec services an event at the end of the block that
+crosses it, so different block cuts deliver every IRQ a few cycles off. Spyro absorbed it
+(same CD reads, pad polls and end VRAM); Crash 3 (variable frame rate) polled the pad 12 times
+fewer by vblank 10800 and its input landed on other frames. That is not a bug: re-record. To
+check a core change, A/B the same recording under both DOLs (`state:` lines, pad/CD counters)
+rather than against an old capture log, which earlier core changes have already moved.
 
 Fixed 2026-09-30 (ten-minute Spyro and Crash 3 sessions went out of step on replay, in Dolphin
 and on the Wii): **port 2 must be plugged in on replay exactly as it was while recording.**
