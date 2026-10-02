@@ -2,28 +2,22 @@
  <app version="2">
    <name>WiiStation</name>
    <coder>xjsxjs197</coder>
-   <version>5.1.0</version>
+   <version>5.2.0</version>
    <release_date>20261001</release_date>
    <short_description>PSX Emulator for Wii</short_description>
    <long_description>
 WiiStation - A Sony PlayStation 1 emulator for Wii / Wii U, forked from WiiSXRX by NiuuS.
 Featuring:
-- HID controllers support!
-- New dynamic recompiler (dynarec) Lightrec! The old one is kept as an option in case compatibility changes much.
-- Posibility of select between the old P.E.Op.S. Soft GPU and the new DFXVideo Soft GPU video plugin.
-- CDDA (Compact Disc Digital Audio) tracks support.
-- 240p support!
-- Posibility of enabling/disabling Interlaced (480i) mode, Bilinear/Trap/Deflicker filters.
-- Option for force NTSC video.
-- Lightgun (Namco GunCon/Konami Justifier) support.
-- Multitap support for up to 8 players.
-- Memory Card enabling/disabling support.
-- Multiple languages support.
-- GameCube Controller support.
-- Wii U Pro Controller support.
-- Wii U GamePad Controller support through WiiVC injects.
-- Wii Classic Controller and Pro support.
-- Nintendo Classic Mini Controllers support (NES / SNES).
+- Lightrec dynamic recompiler, synced to upstream (5.2.0). The interpreter and the old PPC dynarec stay as options.
+- OpenGX hardware renderer (Wii GPU) and two software GPU plugins.
+- CPU or DSP sound output, with rate control (no crackle, no drift).
+- HID (USB) controllers; GameCube, Wiimote, Classic and Classic Pro, NES/SNES Classic Mini, Wii U Pro and Wii U GamePad (WiiVC) controllers.
+- CDDA tracks, CHD v1-v5, BIN/CUE, ISO, IMG and PBP images, CD read-ahead.
+- Save states, memory cards on SD/USB, per-game settings.
+- 240p, 480i, bilinear/trap/deflicker filters, force NTSC.
+- Lightguns (GunCon/Justifier), mouse, multitap for up to 8 players.
+- Multiple languages.
+- Crash reports for the Homebrew Channel (hangs, crashes, no audio).
 
 * WiiSX/CubeSX is a PCSX port. The original team was:
 emu_kidid - general coding

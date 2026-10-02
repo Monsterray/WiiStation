@@ -1,5 +1,5 @@
 README : WiiStation
-Ver Beta 4.5
+Version 5.2.0
 
 LICENSE:
     This software is licensed under the GNU General Public License v2
@@ -119,6 +119,26 @@ LATER UPDATES BY:
  * Jokippo
 
 WiiStation CHANGE LOG:
+Ver 5.2.0 (2026-10-01):
+* Lightrec core synced to upstream a7464cc. On a real Wii the emulated CPU
+  costs 0.3-0.8 points less load in each of 8 test games. On the PS1 test
+  programs (ps1-tests) its results are the same as the old core's.
+* PS-X EXE programs run on Lightrec (the CPU core was never made for them).
+* Fixed two emulator crashes on unusual I/O accesses (unaligned words to
+  hardware registers, 8/16-bit cache-control accesses).
+* HLE BIOS printf: field flags (%-10s) and signed %d.
+* Docs/ACCURACY.md: measured differences from a real PS1, and the plan for
+  a Fast and an Accurate option.
+
+Ver 5.1.0 (2026-10-01):
+* VRAM fills 3-4x faster on the Wii; CPU-to-VRAM transfers copy words
+  (FF7 load 65.3 -> 53.9%; mean of 8 games 38.9 -> 35.8%).
+* FMV: 24-bit tiles and MDEC colour clamps faster; output unchanged.
+* XA audio filter 36% cheaper; Lightrec map lookup cached.
+* CD read-ahead on by default. New setting LimiterDebt (125 ms by default).
+* Crash reports for hangs, guest crashes, missing audio and exceptions
+  (HBC agent 1.9.3).
+
 Ver Beta 4.5:
 * Added OpenGx hardware rendering plugin.
   The original code uses GLES from pcsxRearm,

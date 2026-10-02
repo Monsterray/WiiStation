@@ -924,6 +924,10 @@ int main(int argc, char *argv[])
 				}
 			}
 			fclose(ab);
+			/* wii_lab.py sends autoboot.txt with every run; left on the card, the next
+			 * start from the Homebrew Channel ran the lab's chain instead of the menu */
+			if (lab_active())
+				remove("sd:/wiisxrx/autoboot.txt");
 		}
 	}
 

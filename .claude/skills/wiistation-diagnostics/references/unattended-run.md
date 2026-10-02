@@ -256,3 +256,12 @@ Rules and fixes learned on the bench (2026-09-29/30):
 - Deep builds for A/Bs: `FORCE=1 bash scripts/wsx.sh build debug deep` (the build refuses
   while a Dolphin run is going), then copy the DOL to the scratchpad per variant; two DOLs
   from one tree differing in one file make a clean hardware A/B (`wsx.sh compare A B`).
+
+## Installing on the bench Wii (2026-10-01)
+
+`scripts/wii_install.py` (as a queue job) syncs the release DOL to `sd:/apps/WiiStation/boot.dol`
+with meta.xml, icon.png and the `wiisxrx/controllers`, `lang` and `fonts` folders; it deletes
+nothing but `autoboot.txt` with `--remove-autoboot`. Before 5.2.0 a lab run left its chain in
+`sd:/wiisxrx/autoboot.txt`, so the next start from HBC ran that chain and switched the Wii off;
+lab mode now deletes the file once it has read it. A lab run still writes the lab's base settings
+over `sd:/wiisxrx/settingsRX2022.cfg`.

@@ -55,6 +55,8 @@ WiiStation can load a different settings file for one game. The file name is the
 
 A game settings file can contain any key in this document. To write the file, load the game, open the Settings menu, and select **Separately** on the General tab. WiiStation writes the file to `usb:/wiisxrx/settings/` if that folder exists. If not, it writes the file to `sd:/wiisxrx/settings/`.
 
+A PS-X EXE program (a `.exe` file, for example a test program) has no disc serial number. WiiStation uses the common settings file (3 or 4) for it, never the file of the game that ran before it.
+
 ### 1.5 Settings from the loader
 
 On the Wii, a loader can give settings as arguments after the program name. Each argument has the form `Key=Value`. WiiStation applies these arguments after it reads the settings file.
@@ -284,6 +286,23 @@ BIOS
 ```
 
 This does the same as the menu item "Execute Bios". `BiosDevice` must be 1 or 2, because the HLE BIOS has no shell.
+
+### 10.1 Several games in one boot (test runs)
+
+If line 1 is the word `CHAIN`, WiiStation runs a list of games one after the other, and switches the console off after the last one. This is a test aid: it is how one Dolphin run or one session on a real Wii measures many games. Each game takes three lines:
+
+```
+CHAIN
+600 sd:/wiisxrx/spyro_play.txt PadAutoAssign=1 ControllerType=0
+sd:/wiisxrx/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue
+```
+
+- Line 1 of a game: the number of emulated vblanks to run, then optionally an input script (section 11), then optionally `Key=Value` settings for this game only.
+- Lines 2 and 3: the folder and the file name, as in `autoboot.txt`. A `.exe` program can take the place of a disc image.
+- Lines that start with `#` are comments.
+
+Each game writes its results to `sd:/wiisxrx/perf.log` (debug builds). When WiiStation stops because of an error, the last line of `perf.log` is `fatal: code=... <reason>`. The chain files used for testing are in `scripts/chains/`.
 
 ## 11. Scripted controller input
 

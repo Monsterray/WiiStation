@@ -28,6 +28,22 @@ Updating the vendored core means replacing `deps/lightrec/*` only; the adapter's
 `lightrec_init/lightrec_execute/lightrec_invalidate/lightrec_set_*` and has not changed
 between the 2021 snapshot and upstream HEAD a7464cc (2026-09-15).
 
+The core is synced to a7464cc since 5.2.0 (merge 87d77c4). WiiStation's own changes in
+`deps/lightrec/`, which an update must keep (each is marked `WiiStation` in the source):
+- `lightrec_get_map_idx`: the last matching map is tried first (hprof: 1.3% of busy time).
+- `lightrec_emit_code`: code checksums for perf.log `jitcode:` (`lightrec_code_sum/bytes/shape`),
+  and the compile-time probes (`lightrec_cprof`, `lightrec_jit_*_ticks`).
+- Segfault exits record a site and an address (`lightrec_segv_*`) for the `fatal:` line.
+- `lightrec_rw`: `META_LWU`/`META_SWU` fall back to the LWR/LWL (SWR/SWL) pair when a map's
+  ops have no `lwu`/`swu` (the HW-register ops), instead of calling address 0.
+- `lightrec-config.h`: `OPT_DETECT_IDLE 0` (PS1 loop timing; Docs/ACCURACY.md).
+- `CpuTiming` Accurate: per-opcode GTE and multiply/divide wait cycles (`optimizer.c`,
+  `disassembler.h` flags, `stall_cycles` in `lightrec-private.h`, `lightrec.h`).
+- `emitter.c`: each opcode's code is named (`_jit_name`) with its source line, for the
+  profiler.
+Check an update with `scripts/chains/ps1tests.txt` + `scripts/ps1tests_check.py` (same lines
+as before) and with the recordings (`scripts/chains/replay3.txt`, `replay_rest.txt`).
+
 **GPU.** `gpuPtr` points at one of three `gpu_t` tables. All three share the SAME global
 VRAM and display state (`psxVuw`, `psxVub`, `PSXDisplay`, `PreviousPSXDisplay`,
 `lGPUstatusRet`, defined in `SoftGPU/gpulib_if.c`), which is what lets OpenGX hand

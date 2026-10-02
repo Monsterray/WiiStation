@@ -29,6 +29,8 @@ WiiStation (formerly WiiSXRX_2022), is a Sony PlayStation 1 (PS1/PSX/PSone) emul
 
 * Adding the new, updated PSX dynamic recompiler [Lightrec](https://github.com/pcercuei/lightrec) by pcercuei, the speed/performance of the emulation is greatly improved. The 'new' PPC Dynarec is kept as an option in case compatibility or speed changes much.
 
+  Since version 5.2.0 the Lightrec core is synced to upstream a7464cc. On a real Wii it lowers the emulated CPU's share of the load by 0.3 to 0.8 points in each of 8 test games, and its results are the same as the old core's on every PS1 test program (see [Docs/ACCURACY.md](Docs/ACCURACY.md)).
+
 * Posibility of selecting between the old GPU video plugin based on **P.E.Op.S. Soft GPU** (slightly faster) and the new GPU video plugin based on **gpulib + DFXVideo** (more compatible).
 
 * 240p support!
@@ -71,18 +73,21 @@ WiiStation (formerly WiiSXRX_2022), is a Sony PlayStation 1 (PS1/PSX/PSone) emul
 
 ## Goals
 
+* **Two options: Fast and Accurate.** Fast is the emulation of today, with timing tuned for games. Accurate is to behave as a real PlayStation does, at a cost in speed. [Docs/ACCURACY.md](Docs/ACCURACY.md) lists what a real PS1 does that WiiStation does not yet do (measured with PS1 test programs against their output on a real console), and the plan for the Accurate option.
+
 * Improve GTE (Geometry Transformation Engine) code to provide 3D game speed.
   By using the paired single instruction, most of the GTE logic has been rewritten, and FPS has indeed improved by about 2 frames.
-  However, due to accuracy issues, there may be minor image/graphical issues.
+  However, due to accuracy issues, there may be minor image/graphical issues. The more exact upstream GTE is planned for the Accurate option.
 
 * Further improvement of HID controller support via USB.
   By reading and checking the code of [Nintendont](https://github.com/FIX94/Nintendont), we have understood the working principle of the HID controller,
   but it is still a little bit short to port Nintendont's HID control logic to WiiStation.
 
-* Use the graphics display mode of GL to provide image quality and performance.
-  (At least transplant the texture caching logic in OpenGL, it may improve running efficiency/performance.)
-
 Any help is appreciated.
+
+## Accuracy
+
+[Docs/ACCURACY.md](Docs/ACCURACY.md) records the measured differences from a real PlayStation, test by test: CPU and bus timing, timers, DMA time, register behaviour, exceptions and the GTE. To check a change against a real PS1, run JaCzekanski's [ps1-tests](https://github.com/JaCzekanski/ps1-tests) with `scripts/chains/ps1tests.txt` and compare the console output with the real-console logs with `scripts/ps1tests_check.py` (the procedure is in the same file).
 
 ## Configuration
 
@@ -95,7 +100,7 @@ Dolphin can run the WiiStation `.dol`. Two Dolphin graphics options change what 
 - **Graphics > Hacks > Texture Cache > Accuracy: Safe** (`GFX.ini`: `[Settings] SafeTextureCacheColorSamples = 0`). The renderer updates small parts of its texture pages in place. The default "Fast" hash does not see many of these updates, and Dolphin keeps the old texture. You see wrong or missing textures that pop in later. Real hardware does not have this problem.
 - **Graphics > Hacks > Embedded Frame Buffer > Store EFB Copies to Texture Only: off** (`GFX.ini`: `[Hacks] EFBToTextureEnable = False`). Games on the VRAM read-back list (Dino Crisis 2, Vagrant Story, Spyro the Dragon) read the rendered frame back from the GPU. The renderer copies the frame buffer to memory for this. With the option on, Dolphin keeps the copy on the GPU, the game reads zeros, and effects that use the frame (for example the Spyro pause screen) show a flat colour or black. Real hardware does not have this problem.
 
-Boot a bare `.dol` with `Dolphin.exe -b -e <path to .dol>`. To boot a game without the menu, put `autoboot.txt` in the SD sync folder (see [SETTINGS.md](SETTINGS.md)).
+Boot a bare `.dol` with `Dolphin.exe -b -e <path to .dol>`. To boot a game without the menu, put `autoboot.txt` in the SD sync folder (see [SETTINGS.md](SETTINGS.md)). A `CHAIN` autoboot runs several games or PS-X EXE test programs in one boot and switches off after the last one (SETTINGS.md, section 10.1).
 
 The unattended test loop (scripted input, debug-build probes, frame and VRAM dumps, log extraction) and the diagnostic method built on it are written up for agents in [.claude/skills/wiistation-diagnostics/SKILL.md](.claude/skills/wiistation-diagnostics/SKILL.md); the scripts it uses are in `scripts/`.
 
