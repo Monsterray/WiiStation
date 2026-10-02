@@ -207,3 +207,27 @@ hashes in UploadScreen, OpenGX texel checks). The pattern to grep for is a loop 
   plugin; `scripts/gpucmd_table.sh [perf.log]` sums it per chained game.
 - `le16_store` (gpulib/gpu.h) has a memory clobber: every global is read again after each
   pixel store. Read the globals into locals before a span loop (see `drawPoly3Gi`).
+
+## Controller and multitap tests (2026-10-02)
+
+- **Replay a recording only as a chain** (`wsx.sh chain NAME FILE`, the chain line from the
+  recording's header). `wsx.sh run --autoboot` boots by another path with other timing: the
+  user's Crash Bash session went off course at once that way.
+- An input script's port 1 (port 2) also drives multitap slot 1A (2A) when that port is a
+  multitap (`script_port()` in PadSSSPSX.c), so a recording made with a pad plays a multitap game.
+- `padtype <vblank> <port 1|2> <type 0..4>` in the script changes the port's type as the
+  Configure Input menu does (`set_port_type()`, PlugPAD.c), with a perf report just before.
+- perf.log `mtap: port= full= single= tap0= tap1= addr=a/b/c/d hle=` counts multitap replies
+  (all four slots or one), the TAP byte the game sent, single-slot addresses and HLE BIOS polls.
+  Crash Bash: TAP 1 on every poll, all replies full, no HLE polls.
+- **Contact sheets with different steps are not comparable frame by frame**: `sheet.py ... 1
+  $((f1/58+1)) $f1` picks other frames for runs with other frame counts. Two runs part where
+  `vsig_cmp.py A/vsig_01.bin B/vsig_01.bin` says, not where two sheets look different.
+- Automatic assignment raced the pads' first scan (a second Dolphin pad answered or not), and
+  the game saw one or two players; auto mode now gives multitap slots their GameCube pads by
+  position. Use `PadAutoAssign=0` and explicit `PadTypeN` for a deterministic pad setup.
+- Crash Bash's pause text needs the GPU list walked in slices (`gpu_slow_llist_db`): every
+  renderer honours `progress_addr` since 5.3.0 (Docs/GAME_HACKS.md).
+- Soft Timed (gpulib) had its own frame limiter (SoftGPU/drawGX.c) that waited a frame after
+  every call, late or not: in vtl, `limit` > 0 in a vblank that is already over 17 ms is that
+  bug. It now uses the shared limiter (oldGpuFps.c FrameCap).

@@ -1,5 +1,5 @@
 README : WiiStation
-Version 5.2.0
+Version 5.3.0
 
 LICENSE:
     This software is licensed under the GNU General Public License v2
@@ -119,6 +119,20 @@ LATER UPDATES BY:
  * Jokippo
 
 WiiStation CHANGE LOG:
+Ver 5.3.0 (2026-10-02):
+* New controller type "Stick D-pad": a digital pad whose D-pad the left stick
+  also presses (8 directions), for games that read only the D-pad.
+* Multitap: slots A-D start as GameCube pads 1-4, and automatic assignment
+  keeps each GameCube pad in its own slot (players no longer move around when
+  a pad answers late, and port 2 keeps its pad).
+* Changing a port's controller type while a game runs (for example Multitap to
+  GameCube pad) now works: the port is empty for half a second, as with a real
+  swap, so the game finds the new controller.
+* Crash Bash: the pause menu and the rules screens show their text in OpenGX
+  and Soft Fast (the GPU list is walked in slices, as the console does).
+* Soft Timed: the frame limiter no longer waits when the game is already late
+  (Crash Bash on the Wii: 0.91x -> 1.00x).
+
 Ver 5.2.0 (2026-10-01):
 * Lightrec core synced to upstream a7464cc. On a real Wii the emulated CPU
   costs 0.3-0.8 points less load in each of 8 test games. On the PS1 test
