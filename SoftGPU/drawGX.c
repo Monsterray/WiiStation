@@ -740,25 +740,20 @@ static unsigned long timeGetTime()
 #endif
 }
 
-static void FrameCap (void)
-{
-    static unsigned long lastticks;
-    static unsigned long TicksToWait = 0;
-    BOOL Waiting = TRUE;
+/* Soft Timed takes the limiter the other plugins use (SoftGPU/oldGpuFps.c): it keeps a
+ * schedule with a bounded debt (LimiterDebt) and sleeps (LimiterWait). The copy that was here
+ * waited a full frame after each call whatever the frame before had cost, so a game that
+ * alternates a slow and a fast vblank lost the difference every pair: Crash Bash's arena ran
+ * at 0.8x on the bench Wii, about 6.6 ms of each 42 ms pair spent waiting; with this, the
+ * whole session runs at 1.00x there instead of 0.91x (2026-10-02).
+ * iFrameLimit 2 = the rate the core emulates (psxGetFps), which this path never set. */
+void FrameCap(void);
+extern int iFrameLimit;
 
-    while (Waiting)
-    {
-        unsigned long curticks, _ticks_since_last_update;
-        curticks = timeGetTime();
-        _ticks_since_last_update = curticks - lastticks;
-        if ((_ticks_since_last_update > TicksToWait) ||
-                (curticks < lastticks))
-        {
-            Waiting = FALSE;
-            lastticks = curticks;
-            TicksToWait = gc_rearmed_cbs.gpu_peops.dwFrameRateTicks;
-        }
-    }
+static void SoftTimedFrameCap(void)
+{
+    iFrameLimit = 2;
+    FrameCap();
 }
 
 static void CalcFps(void)
@@ -830,7 +825,7 @@ void CheckFrameRate(void)
 //    }
 //    else                                                  // non-skipping mode:
     {
-        if (frameLimit[0] == FRAMELIMIT_AUTO) FrameCap();                      // -> do it
+        if (frameLimit[0] == FRAMELIMIT_AUTO) SoftTimedFrameCap();             // -> do it
         if (showFPSonScreen == FPS_SHOW) CalcFps();          // -> and calc fps display
     }
 }
