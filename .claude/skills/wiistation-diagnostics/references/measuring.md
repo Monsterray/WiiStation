@@ -259,3 +259,32 @@ hashes in UploadScreen, OpenGX texel checks). The pattern to grep for is a loop 
 - Soft Timed (gpulib) had its own frame limiter (SoftGPU/drawGX.c) that waited a frame after
   every call, late or not: in vtl, `limit` > 0 in a vblank that is already over 17 ms is that
   bug. It now uses the shared limiter (oldGpuFps.c FrameCap).
+
+## Co-Op and the input menus (2026-10-04, 5.4.0)
+
+- Co-Op (`PadType1/2` = 5, Gamecube/coop.c): players are virtual controllers 10..25
+  (`COOP_VC`); mixing rules are `coop_buttons`/`coop_axis` in psx_analog.h, host-tested in
+  tests/psx_analog_test.c. A script drives a Co-Op port like a pad (`script_port`), so a
+  recording replays through it: `.runs/inputs/coop_crash.txt` must end in the same `state:`
+  as the plain-pad replay. Mixing two controllers needs real pads (Dolphin: map GC pad 2).
+- Menu screenshots: `menupage 20` (Configure Input), `21..36` (Customize, port*8+player)
+  besides 1..10. The hook re-reads the script: a read before the SD card was mounted (the
+  power-on controller assignment asks for scripted ports) found nothing and was kept, and
+  every `menupage` silently did nothing (fixed 2026-10-04).
+- **Style-A buttons (BTN_A_NRM/BTN_A_SEL) make themselves 56 high in their constructor**,
+  whatever height they are given; a smaller row overlaps the next until `setBounds()` gives
+  the height back. Labels are not clipped: text wider than its button runs over the edge.
+  `setAutoSize(BTN_FIT_WIDTH)` + `setBounds()` fits a button to its label (+28 px).
+- `scripts/menu_text_width.py` checks SettingsFrame's and OptionsFrame's tables (rows,
+  gaps, label fits, logo). A new SettingsFrame button must be added to its TAB_ROWS, or the
+  checker fails: button 79 (Stick D-pad, 5.3.0) was missing, and the row it checked then
+  had uneven gaps and a too-narrow button. ConfigureInputFrame lays itself out in code
+  (layoutTables) and is checked by screenshot only.
+- **A `vram=` difference in chained games 4+ with equal `ram=`/`pc=`/`cycle=`** was the
+  last 7..23 pixels of row 511 keeping game 3's data (CTR's 0x8000). OpenPlugins() points
+  the shared psxVuw at gpulib's gpu.vram (globalVram + 4 KB, aligned up to 64) via
+  renderer_set_config, and GL_GPUinit cleared only its own smaller VRAM_SIZE from
+  globalVram[0]: how much was left moved with the linker's placement of globalVram, so
+  every build had its own hash (first 0x8000 pixel at x 1001/1011/1015/1017 across old
+  runs). Both inits now clear the whole array. Find such a cause by diffing vram_NN.bin
+  (find the first differing pixel) before suspecting the guest.

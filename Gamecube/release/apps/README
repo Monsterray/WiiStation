@@ -1,5 +1,5 @@
 README : WiiStation
-Version 5.3.0
+Version 5.4.0
 
 LICENSE:
     This software is licensed under the GNU General Public License v2
@@ -119,6 +119,22 @@ LATER UPDATES BY:
  * Jokippo
 
 WiiStation CHANGE LOG:
+Ver 5.4.0 (2026-10-04):
+* Co-Op: up to 8 controllers play one PlayStation port together, so more
+  people can play a game made for fewer. Each player gets a layout (whole
+  pad, left or right half, D-pad and sticks, action or shoulder buttons):
+  Settings > Input > Configure Input, Manual, port type Co-Op, Customize.
+* Configure Input laid out like the Settings tabs: "PSX Port 1/2" at the top
+  of each port's column; the Multitap and Co-Op rows appear only when chosen.
+* Switching Configure Input to Automatic turns a Multitap or Co-Op port back
+  into a plain port (a port left as Multitap could not be seen or changed).
+* Wii Remote LEDs show the player number on multitap slots and Co-Op players
+  (they went dark from the third slot on).
+* Settings > Input: the Controller Type buttons line up and "Stick D-pad"
+  fits its button.
+* A game loaded after another one starts with all of VRAM clear; the last
+  few pixels of the last row kept the previous game's data.
+
 Ver 5.3.0 (2026-10-02):
 * New controller type "Stick D-pad": a digital pad whose D-pad the left stick
   also presses (8 directions), for games that read only the D-pad.

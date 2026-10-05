@@ -523,13 +523,14 @@ void loadSettings(int argc, char *argv[])
 		padType[2 + i] = padType[6 + i] = PADTYPE_GAMECUBE;
 		padAssign[2 + i] = padAssign[6 + i] = (char)i;
 	}
-	/* Co-Op: two players, the left and the right half of one pad, on GameCube pads 1 and 2 */
+	/* Co-Op: two players to start with. Every player has the whole pad; players 1..4 are
+	 * GameCube pads 1..4, players 5..8 Wii controllers 1..4. */
 	for (int p = 0; p < 2; p++){
 		coopPlayers[p] = 2;
 		for (int k = 0; k < COOP_MAX; k++){
-			coopType[p][k] = PADTYPE_GAMECUBE;
+			coopType[p][k] = k < 4 ? PADTYPE_GAMECUBE : PADTYPE_WII;
 			coopAssign[p][k] = (char)(k % 4);
-			coopLayout[p][k] = k == 0 ? COOP_LAYOUT_LEFT : k == 1 ? COOP_LAYOUT_RIGHT : COOP_LAYOUT_FULL;
+			coopLayout[p][k] = COOP_LAYOUT_FULL;
 		}
 	}
 	memCard[0]		 = MEMCARD_ENABLE;

@@ -414,8 +414,8 @@ struct ButtonInfo
 	//Buttons for Input Tab (starts at button[30])
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[34],	 85.0,	100.0,	220.0,	56.0,	 2,	32,	31,	31,	Func_ConfigureInput,	Func_ReturnFromSettingsFrame }, // Configure Input Assignment
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[35],	320.0,	100.0,	235.0,	56.0,	 2,	32,	30,	30,	Func_ConfigureButtons,	Func_ReturnFromSettingsFrame }, // Configure Button Mappings
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[38],	295.0,	160.0,	105.0,	56.0,	30,	59,	79,	33,	Func_PsxTypeStandard,	Func_ReturnFromSettingsFrame }, // PSX Controller Type: Standard
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[39],	405.0,	160.0,	100.0,	56.0,	31,	59,	32,	79,	Func_PsxTypeAnalog,		Func_ReturnFromSettingsFrame }, // PSX Controller Type: Analog
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[38],	271.0,	160.0,	105.0,	56.0,	30,	59,	79,	33,	Func_PsxTypeStandard,	Func_ReturnFromSettingsFrame }, // PSX Controller Type: Standard
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[39],	386.0,	160.0,	100.0,	56.0,	31,	59,	32,	79,	Func_PsxTypeAnalog,		Func_ReturnFromSettingsFrame }, // PSX Controller Type: Analog
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[16],	295.0,	280.0,	 75.0,	56.0,	59,	36,	35,	35,	Func_EnableRumbleYes,	Func_ReturnFromSettingsFrame }, // Enable Rumble: Yes
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[17],	380.0,	280.0,	 75.0,	56.0,	59,	37,	34,	34,	Func_EnableRumbleNo,	Func_ReturnFromSettingsFrame }, // Enable Rumble: No
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[13],	295.0,	340.0,	 55.0,	56.0,	34,	38,	37,	37,	Func_SaveButtonsSD,		Func_ReturnFromSettingsFrame }, // Save Button Mappings: SD
@@ -478,7 +478,7 @@ struct ButtonInfo
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[93],	430.0,	170.0,	105.0,	56.0,	47,	51,	76,	76,	Func_CardType2,			Func_ReturnFromSettingsFrame }, // Memcard 2 type: Off/Shared/Game
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[96],	245.0,	400.0,	150.0,	56.0,	28,	 1,	78,	78,	Func_AdvGfxPage,		Func_ReturnFromSettingsFrame }, // Video tab: Advanced Graphics page
 	//Input tab: the third controller type (button 79), appended so no index moves
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[98],	515.0,	160.0,	120.0,	56.0,	31,	59,	33,	32,	Func_PsxTypeStickDpad,	Func_ReturnFromSettingsFrame }, // PSX Controller Type: Stick D-pad
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[98],	496.0,	160.0,	140.0,	56.0,	31,	59,	33,	32,	Func_PsxTypeStickDpad,	Func_ReturnFromSettingsFrame }, // PSX Controller Type: Stick D-pad
 };
 
 struct TextBoxInfo

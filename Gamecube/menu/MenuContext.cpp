@@ -100,7 +100,6 @@ static const int LOGO_BOTTOM_FRAMES[] = {
 	MenuContext::FRAME_SETTINGS,          /* the tab strip reaches x=615 */
 	MenuContext::FRAME_OPTIONS,           /* a radio row reaches x=634 */
 	MenuContext::FRAME_CONFIGUREBUTTONS,  /* one button at (480, 20) */
-	MenuContext::FRAME_CUSTOMIZECOOP,     /* the presets reach x=615 */
 	MenuContext::FRAME_CURRENTROM,        /* Swap CD reaches x=540 */
 };
 
