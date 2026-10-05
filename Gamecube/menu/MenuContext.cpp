@@ -44,7 +44,8 @@ MenuContext::MenuContext(GXRModeObj *vmode)
 		  settingsFrame(0),
 		  configureInputFrame(0),
 		  configureButtonsFrame(0),
-		  optionsFrame(0)
+		  optionsFrame(0),
+		  customizeCoopFrame(0)
 {
 	pMenuContext = this;
 
@@ -58,6 +59,7 @@ MenuContext::MenuContext(GXRModeObj *vmode)
 	configureInputFrame = new ConfigureInputFrame();
 	configureButtonsFrame = new ConfigureButtonsFrame();
 	optionsFrame = new OptionsFrame();
+	customizeCoopFrame = new CustomizeCoopFrame();
 
 	menu::Gui::getInstance().addFrame(mainFrame);
 	menu::Gui::getInstance().addFrame(loadRomFrame);
@@ -67,6 +69,7 @@ MenuContext::MenuContext(GXRModeObj *vmode)
 	menu::Gui::getInstance().addFrame(configureInputFrame);
 	menu::Gui::getInstance().addFrame(configureButtonsFrame);
 	menu::Gui::getInstance().addFrame(optionsFrame);
+	menu::Gui::getInstance().addFrame(customizeCoopFrame);
 
 	menu::Focus::getInstance().setFocusActive(true);
 
@@ -77,6 +80,7 @@ MenuContext::MenuContext(GXRModeObj *vmode)
 
 MenuContext::~MenuContext()
 {
+	delete customizeCoopFrame;
 	delete optionsFrame;
 	delete configureButtonsFrame;
 	delete configureInputFrame;
@@ -96,12 +100,14 @@ static const int LOGO_BOTTOM_FRAMES[] = {
 	MenuContext::FRAME_SETTINGS,          /* the tab strip reaches x=615 */
 	MenuContext::FRAME_OPTIONS,           /* a radio row reaches x=634 */
 	MenuContext::FRAME_CONFIGUREBUTTONS,  /* one button at (480, 20) */
+	MenuContext::FRAME_CUSTOMIZECOOP,     /* the presets reach x=615 */
 	MenuContext::FRAME_CURRENTROM,        /* Swap CD reaches x=540 */
 };
 
 /* sd:/wiisxrx/autoinput.txt's "menupage <n>": see PadWiiSX.c, where it is parsed. */
 extern "C" {
 	void autoinput_load(void);
+	void autoinput_reset(const char *path);
 	extern unsigned autoinput_menupage;
 	extern unsigned autoinput_menuclick, autoinput_menuclicks;
 	void SettingsFrame_ScriptClick(int button);
@@ -125,6 +131,9 @@ bool MenuContext::isRunning()
 	{
 		static int framesUntilMenuPage = 30;
 		if (framesUntilMenuPage > 0 && --framesUntilMenuPage == 0) {
+			/* read the script anew: a read before the SD card was mounted (the controller
+			 * assignment at power-on asks for scripted ports) found nothing, and kept that */
+			autoinput_reset("sd:/wiisxrx/autoinput.txt");
 			autoinput_load();
 			if (autoinput_menupage >= 1 && autoinput_menupage <= 5)
 				setActiveFrame(FRAME_SETTINGS,
@@ -132,6 +141,10 @@ bool MenuContext::isRunning()
 			else if (autoinput_menupage >= 6 && autoinput_menupage <= 10)
 				setActiveFrame(FRAME_OPTIONS,
 					OptionsFrame::PAGE_SOUND + (int)autoinput_menupage - 6);
+			else if (autoinput_menupage == 20)   /* Configure Input */
+				setActiveFrame(FRAME_CONFIGUREINPUT, ConfigureInputFrame::SUBMENU_REINIT);
+			else if (autoinput_menupage >= 21 && autoinput_menupage <= 36)   /* Customize Co-Op */
+				setActiveFrame(FRAME_CUSTOMIZECOOP, (int)autoinput_menupage - 21);
 		}
 	}
 
@@ -183,6 +196,9 @@ void MenuContext::setActiveFrame(int frameIndex)
 		break;
 	case FRAME_OPTIONS:
 		currentActiveFrame = optionsFrame;
+		break;
+	case FRAME_CUSTOMIZECOOP:
+		currentActiveFrame = customizeCoopFrame;
 		break;
 	}
 
@@ -238,6 +254,9 @@ menu::Frame* MenuContext::getFrame(int frameIndex)
 		break;
 	case FRAME_OPTIONS:
 		pFrame = optionsFrame;
+		break;
+	case FRAME_CUSTOMIZECOOP:
+		pFrame = customizeCoopFrame;
 		break;
 	}
 

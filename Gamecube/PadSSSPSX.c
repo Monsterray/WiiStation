@@ -122,7 +122,7 @@ extern long  PadFlags;
 extern int gLightgun;
 extern int gMouse[4];
 
-extern virtualControllers_t virtualControllers[10];
+extern virtualControllers_t virtualControllers[NUM_VIRTUAL_CONTROLLERS];
 
 // Use to invoke func on the mapped controller with args
 #define DO_CONTROL(Control,func,args...) \
@@ -354,7 +354,17 @@ static void UpdateState (const int pad) //Note: pad = 0 or 1
 	if (controllerType != CONTROLLERTYPE_ANALOG && global.padMode1[pad])
 		PADsetMode( pad, 0);
 
-	if(virtualControllers[Control].inUse)
+	if (pad < 2 && padType[pad] == PADTYPE_COOP)
+	{	/* Co-Op: the port's players, mixed into one pad (coop.c) */
+		int any;
+		miscButton = coop_get_keys(pad, (BUTTONS*)&PAD_Data, &any);
+		global.isConnected[pad] = any || (script_port(pad) >= 0 && autoinput_active(script_port(pad)));
+		if (miscButton == 1)
+			stop = 1;
+		else if (pad == 0)
+			frameLimit[0] = (miscButton == 0 ? frameLimit[1] : 0);
+	}
+	else if(virtualControllers[Control].inUse)
 	{
 		global.isConnected[pad] = 1;
 
@@ -495,7 +505,9 @@ static void UpdateState (const int pad) //Note: pad = 0 or 1
 		global.padVibF[pad][2] = vib0;
 		global.padVibF[pad][3] = vib1;
 		if (vib0 | vib1) PERF_INC(rumble_on); else PERF_INC(rumble_off);
-		if (virtualControllers[pad].control && virtualControllers[pad].control->rumble)
+		if (pad < 2 && padType[pad] == PADTYPE_COOP)
+			coop_rumble(pad, vib0 | vib1);
+		else if (virtualControllers[pad].control && virtualControllers[pad].control->rumble)
 			DO_CONTROL(pad, rumble, vib0 | vib1);
 	}
 }

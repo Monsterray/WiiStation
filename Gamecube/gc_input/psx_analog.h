@@ -96,6 +96,22 @@ static inline uint8_t apply_sensitivity(uint8_t val, float sensitivity)
 #define STICK_DPAD_RIGHT 8
 #define STICK_DPAD_DEAD  64    /* half of the 128 steps from rest to an edge */
 
+/* Co-Op (Gamecube/coop.c): several players make one PlayStation pad.
+ * Buttons are active low (0 = pressed): a button is pressed when any player who may use it
+ * presses it; `allowed` has a 1 for each button this player works. */
+static inline uint16_t coop_buttons(uint16_t acc, uint16_t in, uint16_t allowed)
+{
+	return acc & (uint16_t)(in | (uint16_t)~allowed);
+}
+
+/* A stick axis (0..255, 128 at rest): the player who pushes further wins. An average would
+ * halve one player's push whenever the others leave their sticks alone. */
+static inline uint8_t coop_axis(uint8_t acc, uint8_t in)
+{
+	int a = acc - 128, b = in - 128;
+	return (b < 0 ? -b : b) > (a < 0 ? -a : a) ? in : acc;
+}
+
 static inline int stick_dpad(int x, int y)
 {
 	int dx = x - 128, dy = y - 128, ax = dx < 0 ? -dx : dx, ay = dy < 0 ? -dy : dy, d = 0;

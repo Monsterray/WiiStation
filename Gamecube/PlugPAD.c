@@ -52,7 +52,7 @@ extern int stop;
 //extern char controllerType = 0; // 0 = standard, 1 = analog (analog fails on old games)
 long  PadFlags = 0;
 
-virtualControllers_t virtualControllers[10];
+virtualControllers_t virtualControllers[NUM_VIRTUAL_CONTROLLERS];
 
 controller_t* controller_ts[num_controller_t] =
 #if defined(WII) && !defined(NO_BT)
@@ -97,10 +97,18 @@ void wpad_scan_if_needed(void){
  * in port 1 -- while a second game in the same boot found the pad. go() calls it too. */
 controller_t *manual_assign_port(int i)
 {
-	int w = padAssign[i];
+	return assign_port_as(i, padType[i], padAssign[i]);
+}
+
+/* Virtual controller wv takes controller w of family `ptype` (PADTYPE_*), if it answers:
+ * a port or multitap slot through manual_assign_port(), a Co-Op player through coop.c. */
+controller_t *assign_port_as(int i, int ptype, int w)
+{
 	controller_t *type = NULL;
 
-	switch (padType[i]) {
+	if (w < 0 || w > 3)
+		return NULL;
+	switch (ptype) {
 	case PADTYPE_GAMECUBE:
 		controller_GC.refreshAvailable();   /* PAD_ScanPads when one is due */
 		controller_GC.available[w] = (gc_connected & (1 << w)) ? 1 : 0;
@@ -147,9 +155,11 @@ void manual_assign_controllers(void)
 	for (i = 0; i < 10; i++) {
 		if (i >= 2 && i < 6 && padType[0] != PADTYPE_MULTITAP) continue;
 		if (i >= 6 && padType[1] != PADTYPE_MULTITAP) continue;
-		if (padType[i] == PADTYPE_NONE || (i < 2 && padType[i] == PADTYPE_MULTITAP)) {
+		if (padType[i] == PADTYPE_NONE || (i < 2 && (padType[i] == PADTYPE_MULTITAP || padType[i] == PADTYPE_COOP))) {
 			if (virtualControllers[i].inUse)
 				unassign_controller(i);
+			if (i < 2 && padType[i] == PADTYPE_COOP)
+				coop_assign_port(i);
 			continue;
 		}
 		manual_assign_port(i);
@@ -176,8 +186,14 @@ void set_port_type(int port, int type)
 	if (padType[port] == PADTYPE_MULTITAP && type != PADTYPE_MULTITAP)
 		for (j = first; j < first + 4; j++)
 			unassign_controller(j);
+	if (padType[port] == PADTYPE_COOP && type != PADTYPE_COOP)
+		coop_unassign_port(port);
 	padType[port] = type;
-	if (type == PADTYPE_MULTITAP) {
+	if (type == PADTYPE_COOP) {
+		unassign_controller(port);
+		coop_assign_port(port);
+	}
+	else if (type == PADTYPE_MULTITAP) {
 		unassign_controller(port);
 		for (j = first; j < first + 4 && padType[j] == PADTYPE_NONE; j++)
 			;
@@ -228,13 +244,23 @@ void init_controller_ts(void){
 	}
 }
 
+/* The player number a controller shows on its LEDs (0..3 = LED 1..4): port 1 and 2, a
+ * multitap slot A..D, a Co-Op player 1..4 (5..8 again 1..4). The drivers lit LED 1 << wv,
+ * which past wv 3 is no LED at all: multitap slots 1C..2D and Co-Op players went dark. */
+static int led_player(int wv)
+{
+	if (wv < 2)  return wv;
+	if (wv < 10) return (wv - 2) % 4;
+	return (wv - 10) % 4;
+}
+
 void assign_controller(int wv, controller_t* type, int wp){
 	virtualControllers[wv].control = type;
 	virtualControllers[wv].inUse   = 1;
 	virtualControllers[wv].number  = wp;
 	virtualControllers[wv].config  = &type->config[wp];
 
-	type->assign(wp,wv);
+	type->assign(wp, led_player(wv));
 }
 
 void unassign_controller(int wv){
@@ -268,6 +294,19 @@ void auto_assign_controllers(void)
 	memset(done, 0, sizeof(done));
 
 	for(i=0; i<2; ++i){
+		if(padType[i] == PADTYPE_COOP){
+			/* A Co-Op port keeps its own players (coop.c), set by hand */
+			if(virtualControllers[i].inUse)
+				unassign_controller(i);
+			coop_assign_port(i);
+			for(w=0; w<COOP_MAX; ++w){   /* their controllers are taken */
+				virtualControllers_t *vc = &virtualControllers[COOP_VC(i, w)];
+				for(t=0; vc->inUse && t<num_controller_t; ++t)
+					if(controller_ts[t] == vc->control && vc->number >= 0 && vc->number < 4)
+						used[t][vc->number] = 1;
+			}
+			continue;
+		}
 		if(padType[i] == PADTYPE_MULTITAP){
 			int s;
 			for(s=0; s<4; ++s)

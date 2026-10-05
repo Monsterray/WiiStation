@@ -389,7 +389,7 @@ unsigned short autoinput_mask(int port)
 	return m;
 }
 
-extern virtualControllers_t virtualControllers[10];
+extern virtualControllers_t virtualControllers[NUM_VIRTUAL_CONTROLLERS];
 
 /* "record": the real pad's buttons on a port (0 = port 1, 1 = port 2; PSX order, a set bit
  * is a press), called on every poll. Each change is written and synced at once, so a run
