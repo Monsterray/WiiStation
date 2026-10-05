@@ -415,6 +415,7 @@ presses above only reach a running game.
 | 4 | Settings, Audio | 9 | Memory |
 | 5 | Settings, Saves | 20 | Configure Input |
 | | | 21 to 36 | Co-Op Customize, port 1 players 1 to 8 (21 to 28), port 2 players 1 to 8 (29 to 36) |
+| | | 40 to 65 | Configure Buttons for virtual controller N-40: 40/41 ports 1/2, 42 to 49 multitap slots 1A to 2D, 50 to 65 Co-Op players (as 21 to 36). A port that is a multitap or Co-Op opens on its first slot or player |
 
 Use it with no `autoboot.txt`, so the run stays in the menu, and collect the frames the
 run dumps. `scripts/menu_text_width.py` checks the same pages' geometry without booting

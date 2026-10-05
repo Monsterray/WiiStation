@@ -144,6 +144,8 @@ bool MenuContext::isRunning()
 				setActiveFrame(FRAME_CONFIGUREINPUT, ConfigureInputFrame::SUBMENU_REINIT);
 			else if (autoinput_menupage >= 21 && autoinput_menupage <= 36)   /* Customize Co-Op */
 				setActiveFrame(FRAME_CUSTOMIZECOOP, (int)autoinput_menupage - 21);
+			else if (autoinput_menupage >= 40 && autoinput_menupage <= 65)
+				setActiveFrame(FRAME_CONFIGUREBUTTONS, (int)autoinput_menupage - 40);   /* Configure Buttons, by virtual controller */
 		}
 	}
 

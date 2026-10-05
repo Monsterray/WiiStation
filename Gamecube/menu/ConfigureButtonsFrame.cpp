@@ -116,7 +116,7 @@ static char FRAME_STRINGS[36][20] =
 	  "Lift Mouse:",
 	  "Gun/Mouse"};
 
-static char TITLE_STRING[50] = "Gamecube Pad 1 to PSX Pad 1 Mapping";
+static char TITLE_STRING[64] = "Gamecube Pad 1 to PSX Pad 1 Mapping";
 
 struct ButtonInfo
 {
@@ -280,6 +280,55 @@ int activePadType=ACTIVEPADTYPE_NONE;
 int activePadAssigned=ACTIVEPADASSIGNED_TRUE;
 int isLightgun=ISLIGHTGUN_FALSE;
 
+/* The virtual controllers this page can map, in Next Pad order: each port's own, or its
+ * multitap slots, or its Co-Op players (COOP_VC). A Multitap or Co-Op port has no
+ * controller of its own, so mapping the port itself showed "No Physical Controller". */
+static int padList(int *list)
+{
+	int n = 0;
+	for (int p = 0; p < 2; p++)
+	{
+		if (padType[p] == PADTYPE_MULTITAP)
+			for (int k = 0; k < 4; k++) list[n++] = 2 + p * 4 + k;
+		else if (padType[p] == PADTYPE_COOP)
+			for (int k = 0; k < coopPlayers[p] && k < COOP_MAX; k++) list[n++] = COOP_VC(p, k);
+		else
+			list[n++] = p;
+	}
+	return n;
+}
+
+static int padPort(int vc)
+{
+	return vc < 2 ? vc : vc < 10 ? (vc - 2) / 4 : (vc - 10) / COOP_MAX;
+}
+
+/* activePad if this page can still map it, else the first controller of the same port */
+static int padResolve(int vc)
+{
+	int list[NUM_VIRTUAL_CONTROLLERS], n = padList(list);
+	for (int i = 0; i < n; i++)
+		if (list[i] == vc) return vc;
+	for (int i = 0; i < n; i++)
+		if (padPort(list[i]) == padPort(vc)) return list[i];
+	return list[0];
+}
+
+/* A Co-Op player has no light gun: Co-Op mixes buttons and sticks only (coop.c) */
+static char padGun(void)
+{
+	return activePad < 10 ? padLightgun[activePad] : PADLIGHTGUN_DISABLE;
+}
+
+/* "1", "1A".."2D", or "1 P3" for Co-Op player 3 of port 1 */
+static void padName(int vc, char *out, size_t size)
+{
+	if (vc < 10)
+		snprintf(out, size, "%s", padNames[vc]);
+	else
+		snprintf(out, size, "%d P%d", padPort(vc) + 1, (vc - 10) % COOP_MAX + 1);
+}
+
 void ConfigureButtonsFrame::activateSubmenu(int submenu)
 {
 
@@ -288,6 +337,9 @@ void ConfigureButtonsFrame::activateSubmenu(int submenu)
 		activePad = submenu;
 		menu::Gui::getInstance().menuLogo->setVisible(false);
 	}
+	activePad = padResolve(activePad);
+	char name[8];
+	padName(activePad, name, sizeof(name));
 
 	isLightgun=ISLIGHTGUN_FALSE;
 	//Fill out title text
@@ -313,10 +365,12 @@ void ConfigureButtonsFrame::activateSubmenu(int submenu)
 #endif //HW_RVL
 	else
 		activePadType = ACTIVEPADTYPE_NONE;
+	if (activePad >= 10)
+		isLightgun = ISLIGHTGUN_FALSE;   /* see padGun() */
 
 	if (activePadType == ACTIVEPADTYPE_NONE)
 	{
-		sprintf(TITLE_STRING, "PSX Pad %d: No Physical Controller Assigned", activePad+1 );
+		sprintf(TITLE_STRING, "PSX Pad %s: No Physical Controller Assigned", name );
 
 		if (activePadAssigned == ACTIVEPADASSIGNED_TRUE) //Reset to "Next Pad" button
 		{
@@ -335,7 +389,7 @@ void ConfigureButtonsFrame::activateSubmenu(int submenu)
 	}
 	else
 	{
-		sprintf(TITLE_STRING, "PSX Pad %s: %s Pad %d Mapping", padNames[activePad], controllerTypeStrings[activePadType], virtualControllers[activePad].number+1 );
+		sprintf(TITLE_STRING, "PSX Pad %s: %s Pad %d Mapping", name, controllerTypeStrings[activePadType], virtualControllers[activePad].number+1 );
 
 		controller_config_t* currentConfig = virtualControllers[activePad].config;
 
@@ -346,12 +400,12 @@ void ConfigureButtonsFrame::activateSubmenu(int submenu)
 
 		FRAME_TEXTBOXES[4].textBox->setVisible(false);
 		FRAME_TEXTBOXES[2].textBox->setVisible(true);
-		if (padLightgun[activePad] == PADLIGHTGUN_ENABLE)
+		if (padGun() == PADLIGHTGUN_ENABLE)
 			FRAME_BUTTONS[29].button->setSelected(true);
 		else
 			FRAME_BUTTONS[29].button->setSelected(false);
 
-		if ((lightGun == LIGHTGUN_DISABLE) || !isLightgun || padLightgun[activePad] == PADLIGHTGUN_DISABLE){
+		if ((lightGun == LIGHTGUN_DISABLE) || !isLightgun || padGun() == PADLIGHTGUN_DISABLE){
 			FRAME_BUTTONS[0].button->setNextFocus(menu::Focus::DIRECTION_UP, FRAME_BUTTONS[FRAME_BUTTONS[0].focusUp].button);
 			FRAME_BUTTONS[0].button->setNextFocus(menu::Focus::DIRECTION_DOWN, FRAME_BUTTONS[FRAME_BUTTONS[0].focusDown].button);
 			FRAME_BUTTONS[0].button->setNextFocus(menu::Focus::DIRECTION_LEFT, FRAME_BUTTONS[FRAME_BUTTONS[0].focusLeft].button);
@@ -525,7 +579,7 @@ void ConfigureButtonsFrame::drawChildren(menu::Graphics &gfx)
 		menu::Image* controllerIcon = NULL;
 //		gfx.setColor(controllerColors[activePad]);
 		gfx.setColor(controllerColors[5]);
-		if ((lightGun == LIGHTGUN_DISABLE) || !isLightgun || padLightgun[activePad] == PADLIGHTGUN_DISABLE)
+		if ((lightGun == LIGHTGUN_DISABLE) || !isLightgun || padGun() == PADLIGHTGUN_DISABLE)
 			controllerIcon = menu::Resources::getInstance().getImage(menu::Resources::IMAGE_PSX_CONTROLLER);
 		else if (lightGun == LIGHTGUN_GUNCON)
 			controllerIcon = menu::Resources::getInstance().getImage(menu::Resources::IMAGE_GCON);
@@ -541,7 +595,7 @@ void ConfigureButtonsFrame::drawChildren(menu::Graphics &gfx)
 		GX_SetTevAlphaIn(GX_TEVSTAGE0,GX_CA_ZERO,GX_CA_RASA,GX_CA_TEXA,GX_CA_ZERO);
 		GX_SetTevAlphaOp(GX_TEVSTAGE0,GX_TEV_ADD,GX_TB_ZERO,GX_CS_SCALE_1,GX_TRUE,GX_TEVPREV);
 		gfx.enableBlending(true);
-		if ((lightGun == LIGHTGUN_DISABLE) || !isLightgun || padLightgun[activePad] == PADLIGHTGUN_DISABLE)
+		if ((lightGun == LIGHTGUN_DISABLE) || !isLightgun || padGun() == PADLIGHTGUN_DISABLE)
 			gfx.drawImage(0, base_x, base_y, 232, 152, 0, 1, 0, 1);
 		else if (lightGun == LIGHTGUN_GUNCON)
 			gfx.drawImage(0, baseGCon_x, baseGCon_y, 290, 190, 0, 1, 0, 1);
@@ -554,7 +608,7 @@ void ConfigureButtonsFrame::drawChildren(menu::Graphics &gfx)
 		//Draw lines and circles
 		gfx.setColor(controllerColors[5]);
 		gfx.setLineWidth(1);
-		if ((lightGun == LIGHTGUN_DISABLE) || !isLightgun || padLightgun[activePad] == PADLIGHTGUN_DISABLE){
+		if ((lightGun == LIGHTGUN_DISABLE) || !isLightgun || padGun() == PADLIGHTGUN_DISABLE){
 			gfx.drawCircle(115, 300, 60, 33);
 			gfx.drawCircle(525, 300, 60, 33);
 
@@ -591,13 +645,9 @@ extern MenuContext *pMenuContext;
 
 void Func_NextPad()
 {
-	activePad = (activePad+1) %10;
-
-	if (activePad == 2 && padType[0]!=PADTYPE_MULTITAP)
-		activePad += 4;
-	if (activePad == 6 && padType[1]!=PADTYPE_MULTITAP)
-		activePad = 0;
-
+	int list[NUM_VIRTUAL_CONTROLLERS], n = padList(list), i;
+	for (i = 0; i < n && list[i] != activePad; i++) ;
+	activePad = list[i < n ? (i + 1) % n : 0];
 
 	pMenuContext->getFrame(MenuContext::FRAME_CONFIGUREBUTTONS)->activateSubmenu(activePad);
 }
@@ -871,7 +921,8 @@ void Func_ToggleButtonR3()
 
 void Func_ToggleGunMouse()
 {
-	padLightgun[activePad] ^= 1;
+	if (activePad < 10)   /* padLightgun has the ports and multitap slots only */
+		padLightgun[activePad] ^= 1;
 	pMenuContext->getFrame(MenuContext::FRAME_CONFIGUREBUTTONS)->activateSubmenu(activePad);
 }
 
