@@ -287,16 +287,16 @@ msgstr "插槽9"
 msgid "Pad Assignment"
 msgstr "手柄指定"
 
-msgid "PSX Pad 1"
+msgid "PSX Port 1"
 msgstr "PSX手柄1"
 
-msgid "PSX Pad 2"
+msgid "PSX Port 2"
 msgstr "PSX手柄2"
 
-msgid "PSX Pad 3"
+msgid "PSX Port 3"
 msgstr "PSX手柄3"
 
-msgid "PSX Pad 4"
+msgid "PSX Port 4"
 msgstr "PSX手柄4"
 
 msgid "Automatic"
@@ -329,88 +329,88 @@ msgstr "加载"
 msgid "Save"
 msgstr "保存"
 
-msgid "PSX Pad 1: No Physical Controller Assigned"
+msgid "PSX Port 1: No Physical Controller Assigned"
 msgstr "PSX 手柄 1: 没有指定具体手柄"
 
-msgid "PSX Pad 2: No Physical Controller Assigned"
+msgid "PSX Port 2: No Physical Controller Assigned"
 msgstr "PSX 手柄 2: 没有指定具体手柄"
 
-msgid "PSX Pad 3: No Physical Controller Assigned"
+msgid "PSX Port 3: No Physical Controller Assigned"
 msgstr "PSX 手柄 3: 没有指定具体手柄"
 
-msgid "PSX Pad 4: No Physical Controller Assigned"
+msgid "PSX Port 4: No Physical Controller Assigned"
 msgstr "PSX 手柄 4: 没有指定具体手柄"
 
-msgid "Gamecube Pad 1 to PSX Pad 1 Mapping"
+msgid "Gamecube Pad 1 to PSX Port 1 Mapping"
 msgstr "GC手柄 1 到 PSX手柄 1 的映射"
 
-msgid "Gamecube Pad 2 to PSX Pad 2 Mapping"
+msgid "Gamecube Pad 2 to PSX Port 2 Mapping"
 msgstr "GC手柄 2 到 PSX手柄 2 的映射"
 
-msgid "Gamecube Pad 3 to PSX Pad 3 Mapping"
+msgid "Gamecube Pad 3 to PSX Port 3 Mapping"
 msgstr "GC手柄 3 到 PSX手柄 3 的映射"
 
-msgid "Gamecube Pad 4 to PSX Pad 4 Mapping"
+msgid "Gamecube Pad 4 to PSX Port 4 Mapping"
 msgstr "GC手柄 4 到 PSX手柄 4 的映射"
 
-msgid "PSX Pad 1: Gamecube Pad 1 Mapping"
+msgid "PSX Port 1: Gamecube Pad 1 Mapping"
 msgstr "PSX手柄 1: GC手柄 1 映射"
 
-msgid "PSX Pad 2: Gamecube Pad 2 Mapping"
+msgid "PSX Port 2: Gamecube Pad 2 Mapping"
 msgstr "PSX手柄 2: GC手柄 2 映射"
 
-msgid "PSX Pad 1: Gamecube Pad 2 Mapping"
+msgid "PSX Port 1: Gamecube Pad 2 Mapping"
 msgstr "PSX手柄 1: GC手柄 2 映射"
 
-msgid "PSX Pad 2: Gamecube Pad 1 Mapping"
+msgid "PSX Port 2: Gamecube Pad 1 Mapping"
 msgstr "PSX手柄 2: GC手柄 1 映射"
 
-msgid "PSX Pad 1: Classic Pad 1 Mapping"
+msgid "PSX Port 1: Classic Pad 1 Mapping"
 msgstr "PSX手柄 1: 经典手柄 1 映射"
 
-msgid "PSX Pad 2: Classic Pad 2 Mapping"
+msgid "PSX Port 2: Classic Pad 2 Mapping"
 msgstr "PSX手柄 2: 经典手柄 2 映射"
 
-msgid "PSX Pad 1: Classic Pad 2 Mapping"
+msgid "PSX Port 1: Classic Pad 2 Mapping"
 msgstr "PSX手柄 1: 经典手柄 2 映射"
 
-msgid "PSX Pad 2: Classic Pad 1 Mapping"
+msgid "PSX Port 2: Classic Pad 1 Mapping"
 msgstr "PSX手柄 2: 经典手柄 1 映射"
 
-msgid "PSX Pad 1: Wiimote+Nunchuck Pad 1 Mapping"
+msgid "PSX Port 1: Wiimote+Nunchuck Pad 1 Mapping"
 msgstr "PSX手柄 1: Wii左右手柄 1 映射"
 
-msgid "PSX Pad 2: Wiimote+Nunchuck Pad 2 Mapping"
+msgid "PSX Port 2: Wiimote+Nunchuck Pad 2 Mapping"
 msgstr "PSX手柄 2: Wii左右手柄 2 映射"
 
-msgid "PSX Pad 1: Wiimote+Nunchuck Pad 2 Mapping"
+msgid "PSX Port 1: Wiimote+Nunchuck Pad 2 Mapping"
 msgstr "PSX手柄 1: Wii左右手柄 2 映射"
 
-msgid "PSX Pad 2: Wiimote+Nunchuck Pad 1 Mapping"
+msgid "PSX Port 2: Wiimote+Nunchuck Pad 1 Mapping"
 msgstr "PSX手柄 2: Wii左右手柄 1 映射"
 
-msgid "PSX Pad 1: Wiimote Pad 1 Mapping"
+msgid "PSX Port 1: Wiimote Pad 1 Mapping"
 msgstr "PSX手柄 1: Wii右手柄 1 映射"
 
-msgid "PSX Pad 2: Wiimote Pad 2 Mapping"
+msgid "PSX Port 2: Wiimote Pad 2 Mapping"
 msgstr "PSX手柄 2: Wii右手柄 2 映射"
 
-msgid "PSX Pad 1: Wiimote Pad 2 Mapping"
+msgid "PSX Port 1: Wiimote Pad 2 Mapping"
 msgstr "PSX手柄 1: Wii右手柄 2 映射"
 
-msgid "PSX Pad 2: Wiimote Pad 1 Mapping"
+msgid "PSX Port 2: Wiimote Pad 1 Mapping"
 msgstr "PSX手柄 2: Wii右手柄 1 映射"
 
-msgid "PSX Pad 1: Wii U Pro Pad 1 Mapping"
+msgid "PSX Port 1: Wii U Pro Pad 1 Mapping"
 msgstr "PSX手柄 1: WiiU手柄 1 映射"
 
-msgid "PSX Pad 2: Wii U Pro Pad 2 Mapping"
+msgid "PSX Port 2: Wii U Pro Pad 2 Mapping"
 msgstr "PSX手柄 2: WiiU手柄 2 映射"
 
-msgid "PSX Pad 1: Wii U Pro Pad 2 Mapping"
+msgid "PSX Port 1: Wii U Pro Pad 2 Mapping"
 msgstr "PSX手柄 1: WiiU手柄 2 映射"
 
-msgid "PSX Pad 2: Wii U Pro Pad 1 Mapping"
+msgid "PSX Port 2: Wii U Pro Pad 1 Mapping"
 msgstr "PSX手柄 2: WiiU手柄 1 映射"
 
 msgid "Saved current button mapping to slot 1."

@@ -287,16 +287,16 @@ msgstr "Slot 9"
 msgid "Pad Assignment"
 msgstr "Asignar Mando"
 
-msgid "PSX Pad 1"
+msgid "PSX Port 1"
 msgstr "Mando PSX 1"
 
-msgid "PSX Pad 2"
+msgid "PSX Port 2"
 msgstr "Mando PSX 2"
 
-msgid "PSX Pad 3"
+msgid "PSX Port 3"
 msgstr "Mando PSX 3"
 
-msgid "PSX Pad 4"
+msgid "PSX Port 4"
 msgstr "Mando PSX 4"
 
 msgid "Automatic"
@@ -329,88 +329,88 @@ msgstr "Load"
 msgid "Save"
 msgstr "Save"
 
-msgid "PSX Pad 1: No Physical Controller Assigned"
+msgid "PSX Port 1: No Physical Controller Assigned"
 msgstr "Mando de PSX 1: Control Físico No Asignado"
 
-msgid "PSX Pad 2: No Physical Controller Assigned"
+msgid "PSX Port 2: No Physical Controller Assigned"
 msgstr "Mando de PSX 2: Control Físico No Asignado"
 
-msgid "PSX Pad 3: No Physical Controller Assigned"
+msgid "PSX Port 3: No Physical Controller Assigned"
 msgstr "Mando de PSX 3: Control Físico No Asignado"
 
-msgid "PSX Pad 4: No Physical Controller Assigned"
+msgid "PSX Port 4: No Physical Controller Assigned"
 msgstr "Mando de PSX 4: Control Físico No Asignado"
 
-msgid "Gamecube Pad 1 to PSX Pad 1 Mapping"
+msgid "Gamecube Pad 1 to PSX Port 1 Mapping"
 msgstr "Mapeo de Mando de Gamecube 1 a PSX 1"
 
-msgid "Gamecube Pad 2 to PSX Pad 2 Mapping"
+msgid "Gamecube Pad 2 to PSX Port 2 Mapping"
 msgstr "Mapeo de Mando de Gamecube 2 a PSX 2"
 
-msgid "Gamecube Pad 3 to PSX Pad 3 Mapping"
+msgid "Gamecube Pad 3 to PSX Port 3 Mapping"
 msgstr "Mapeo de Mando de Gamecube 3 a PSX 3"
 
-msgid "Gamecube Pad 4 to PSX Pad 4 Mapping"
+msgid "Gamecube Pad 4 to PSX Port 4 Mapping"
 msgstr "Mapeo de Mando de Gamecube 4 a PSX 4"
 
-msgid "PSX Pad 1: Gamecube Pad 1 Mapping"
+msgid "PSX Port 1: Gamecube Pad 1 Mapping"
 msgstr "Mando PSX 1: Mapeo de C.Gamecube 1"
 
-msgid "PSX Pad 2: Gamecube Pad 2 Mapping"
+msgid "PSX Port 2: Gamecube Pad 2 Mapping"
 msgstr "Mando PSX 2: Mapeo de C.Gamecube 2"
 
-msgid "PSX Pad 1: Gamecube Pad 2 Mapping"
+msgid "PSX Port 1: Gamecube Pad 2 Mapping"
 msgstr "Mando PSX 1: Mapeo de C.Gamecube 2"
 
-msgid "PSX Pad 2: Gamecube Pad 1 Mapping"
+msgid "PSX Port 2: Gamecube Pad 1 Mapping"
 msgstr "Mando PSX 2: Mapeo de C.Gamecube 1"
 
-msgid "PSX Pad 1: Classic Pad 1 Mapping"
+msgid "PSX Port 1: Classic Pad 1 Mapping"
 msgstr "Mando PSX 1: Mapeo de C.Clasico 1"
 
-msgid "PSX Pad 2: Classic Pad 2 Mapping"
+msgid "PSX Port 2: Classic Pad 2 Mapping"
 msgstr "Mando PSX 2: Mapeo de C.Clasico 2"
 
-msgid "PSX Pad 1: Classic Pad 2 Mapping"
+msgid "PSX Port 1: Classic Pad 2 Mapping"
 msgstr "Mando PSX 1: Mapeo de C.Clasico 2"
 
-msgid "PSX Pad 2: Classic Pad 1 Mapping"
+msgid "PSX Port 2: Classic Pad 1 Mapping"
 msgstr "Mando PSX 2: Mapeo de C.Clasico 1"
 
-msgid "PSX Pad 1: Wiimote+Nunchuck Pad 1 Mapping"
+msgid "PSX Port 1: Wiimote+Nunchuck Pad 1 Mapping"
 msgstr "Mando PSX 1: Mapeo de Wiimote+Nunchuck 1"
 
-msgid "PSX Pad 2: Wiimote+Nunchuck Pad 2 Mapping"
+msgid "PSX Port 2: Wiimote+Nunchuck Pad 2 Mapping"
 msgstr "Mando PSX 2: Mapeo de Wiimote+Nunchuck 2"
 
-msgid "PSX Pad 1: Wiimote+Nunchuck Pad 2 Mapping"
+msgid "PSX Port 1: Wiimote+Nunchuck Pad 2 Mapping"
 msgstr "Mando PSX 1: Mapeo de Wiimote+Nunchuck 2"
 
-msgid "PSX Pad 2: Wiimote+Nunchuck Pad 1 Mapping"
+msgid "PSX Port 2: Wiimote+Nunchuck Pad 1 Mapping"
 msgstr "Mando PSX 2: Mapeo de Wiimote+Nunchuck 1"
 
-msgid "PSX Pad 1: Wiimote Pad 1 Mapping"
+msgid "PSX Port 1: Wiimote Pad 1 Mapping"
 msgstr "Mando PSX 1: Mapeo de Wiimote 1"
 
-msgid "PSX Pad 2: Wiimote Pad 2 Mapping"
+msgid "PSX Port 2: Wiimote Pad 2 Mapping"
 msgstr "Mando PSX 2: Mapeo de Wiimote 2"
 
-msgid "PSX Pad 1: Wiimote Pad 2 Mapping"
+msgid "PSX Port 1: Wiimote Pad 2 Mapping"
 msgstr "Mando PSX 1: Mapeo de Wiimote+Nunchuck 2"
 
-msgid "PSX Pad 2: Wiimote Pad 1 Mapping"
+msgid "PSX Port 2: Wiimote Pad 1 Mapping"
 msgstr "Mando PSX 2: Mapeo de Wiimote+Nunchuck 1"
 
-msgid "PSX Pad 1: Wii U Pro Pad 1 Mapping"
+msgid "PSX Port 1: Wii U Pro Pad 1 Mapping"
 msgstr "Mando PSX 1: Mapeo de C.Wii U Pro 1"
 
-msgid "PSX Pad 2: Wii U Pro Pad 2 Mapping"
+msgid "PSX Port 2: Wii U Pro Pad 2 Mapping"
 msgstr "Mando PSX 2: Mapeo de C.Wii U Pro 2"
 
-msgid "PSX Pad 1: Wii U Pro Pad 2 Mapping"
+msgid "PSX Port 1: Wii U Pro Pad 2 Mapping"
 msgstr "Mando PSX 1: Mapeo de C.Wii U Pro 2"
 
-msgid "PSX Pad 2: Wii U Pro Pad 1 Mapping"
+msgid "PSX Port 2: Wii U Pro Pad 1 Mapping"
 msgstr "Mando PSX 2: Mapeo de C.Wii U Pro 1"
 
 msgid "Saved current button mapping to slot 1."

@@ -314,16 +314,16 @@ msgstr "슬롯 9"
 msgid "Pad Assignment"
 msgstr "패드 할당"
 
-msgid "PSX Pad 1"
+msgid "PSX Port 1"
 msgstr "PSX 패드 1"
 
-msgid "PSX Pad 2"
+msgid "PSX Port 2"
 msgstr "PSX 패드 2"
 
-msgid "PSX Pad 3"
+msgid "PSX Port 3"
 msgstr "PSX 패드 3"
 
-msgid "PSX Pad 4"
+msgid "PSX Port 4"
 msgstr "PSX 패드 4"
 
 msgid "Multitap 1"
@@ -365,88 +365,88 @@ msgstr "저장"
 msgid "Gun/Mouse"
 msgstr "건/마우스"
 
-msgid "PSX Pad 1: No Physical Controller Assigned"
+msgid "PSX Port 1: No Physical Controller Assigned"
 msgstr "PSX 패드 1: 할당된 물리적 컨트롤러 없음"
 
-msgid "PSX Pad 2: No Physical Controller Assigned"
+msgid "PSX Port 2: No Physical Controller Assigned"
 msgstr "PSX 패드 2: 할당된 물리적 컨트롤러 없음"
 
-msgid "PSX Pad 3: No Physical Controller Assigned"
+msgid "PSX Port 3: No Physical Controller Assigned"
 msgstr "PSX 패드 3: 할당된 물리적 컨트롤러 없음"
 
-msgid "PSX Pad 4: No Physical Controller Assigned"
+msgid "PSX Port 4: No Physical Controller Assigned"
 msgstr "PSX 패드 4: 할당된 물리적 컨트롤러 없음"
 
-msgid "Gamecube Pad 1 to PSX Pad 1 Mapping"
+msgid "Gamecube Pad 1 to PSX Port 1 Mapping"
 msgstr "게임큐브 패드 1에서 PSX 패드 1로 맵핑"
 
-msgid "Gamecube Pad 2 to PSX Pad 2 Mapping"
+msgid "Gamecube Pad 2 to PSX Port 2 Mapping"
 msgstr "게임큐브 패드 2에서 PSX 패드 2로 맵핑"
 
-msgid "Gamecube Pad 3 to PSX Pad 3 Mapping"
+msgid "Gamecube Pad 3 to PSX Port 3 Mapping"
 msgstr "게임큐브 패드 3에서 PSX 패드 3로 맵핑"
 
-msgid "Gamecube Pad 4 to PSX Pad 4 Mapping"
+msgid "Gamecube Pad 4 to PSX Port 4 Mapping"
 msgstr "게임큐브 패드 4에서 PSX 패드 4로 맵핑"
 
-msgid "PSX Pad 1: Gamecube Pad 1 Mapping"
+msgid "PSX Port 1: Gamecube Pad 1 Mapping"
 msgstr "PSX 패드 1: 개임큐브 패드 1 맵핑"
 
-msgid "PSX Pad 2: Gamecube Pad 2 Mapping"
+msgid "PSX Port 2: Gamecube Pad 2 Mapping"
 msgstr "PSX 패드 2: 개임큐브 패드 2 맵핑"
 
-msgid "PSX Pad 1: Gamecube Pad 2 Mapping"
+msgid "PSX Port 1: Gamecube Pad 2 Mapping"
 msgstr "PSX 패드 1: 개임큐브 패드 2 맵핑"
 
-msgid "PSX Pad 2: Gamecube Pad 1 Mapping"
+msgid "PSX Port 2: Gamecube Pad 1 Mapping"
 msgstr "PSX 패드 2: 개임큐브 패드 1 맵핑"
 
-msgid "PSX Pad 1: Classic Pad 1 Mapping"
+msgid "PSX Port 1: Classic Pad 1 Mapping"
 msgstr "PSX 패드 1: 클래식 패드 1 맵핑"
 
-msgid "PSX Pad 2: Classic Pad 2 Mapping"
+msgid "PSX Port 2: Classic Pad 2 Mapping"
 msgstr "PSX 패드 2: 클래식 패드 2 맵핑"
 
-msgid "PSX Pad 1: Classic Pad 2 Mapping"
+msgid "PSX Port 1: Classic Pad 2 Mapping"
 msgstr "PSX 패드 1: 클래식 패드 2 맵핑"
 
-msgid "PSX Pad 2: Classic Pad 1 Mapping"
+msgid "PSX Port 2: Classic Pad 1 Mapping"
 msgstr "PSX 패드 2: 클래식 패드 1 맵핑"
 
-msgid "PSX Pad 1: Wiimote+Nunchuck Pad 1 Mapping"
+msgid "PSX Port 1: Wiimote+Nunchuck Pad 1 Mapping"
 msgstr "PSX 패드 1: 위모트+눈챠크 패드 1 맵핑"
 
-msgid "PSX Pad 2: Wiimote+Nunchuck Pad 2 Mapping"
+msgid "PSX Port 2: Wiimote+Nunchuck Pad 2 Mapping"
 msgstr "PSX 패드 2: 위모트+눈챠크 패드 2 맵핑"
 
-msgid "PSX Pad 1: Wiimote+Nunchuck Pad 2 Mapping"
+msgid "PSX Port 1: Wiimote+Nunchuck Pad 2 Mapping"
 msgstr "PSX 패드 1: 위모트+눈챠크 패드 2 맵핑"
 
-msgid "PSX Pad 2: Wiimote+Nunchuck Pad 1 Mapping"
+msgid "PSX Port 2: Wiimote+Nunchuck Pad 1 Mapping"
 msgstr "PSX 패드 2: 위모트+눈챠크 패드 1 맵핑"
 
-msgid "PSX Pad 1: Wiimote Pad 1 Mapping"
+msgid "PSX Port 1: Wiimote Pad 1 Mapping"
 msgstr "PSX 패드 1: 위모트 패드 1 맵핑"
 
-msgid "PSX Pad 2: Wiimote Pad 2 Mapping"
+msgid "PSX Port 2: Wiimote Pad 2 Mapping"
 msgstr "PSX 패드 2: 위모트 패드 2 맵핑"
 
-msgid "PSX Pad 1: Wiimote Pad 2 Mapping"
+msgid "PSX Port 1: Wiimote Pad 2 Mapping"
 msgstr "PSX 패드 1: 위모트 패드 2 맵핑"
 
-msgid "PSX Pad 2: Wiimote Pad 1 Mapping"
+msgid "PSX Port 2: Wiimote Pad 1 Mapping"
 msgstr "PSX 패드 2: 위모트 패드 1 맵핑"
 
-msgid "PSX Pad 1: Wii U Pro Pad 1 Mapping"
+msgid "PSX Port 1: Wii U Pro Pad 1 Mapping"
 msgstr "PSX 패드 1: Wii U 프로 패드 1 맵핑"
 
-msgid "PSX Pad 2: Wii U Pro Pad 2 Mapping"
+msgid "PSX Port 2: Wii U Pro Pad 2 Mapping"
 msgstr "PSX 패드 2: Wii U 프로 패드 2 맵핑"
 
-msgid "PSX Pad 1: Wii U Pro Pad 2 Mapping"
+msgid "PSX Port 1: Wii U Pro Pad 2 Mapping"
 msgstr "PSX 패드 1: Wii U  프로 패드 2 맵핑"
 
-msgid "PSX Pad 2: Wii U Pro Pad 1 Mapping"
+msgid "PSX Port 2: Wii U Pro Pad 1 Mapping"
 msgstr "PSX 패드 2: Wii U 프로 패드 1 맵핑"
 
 msgid "Saved current button mapping to slot 1."

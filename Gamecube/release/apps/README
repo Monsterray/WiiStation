@@ -1,5 +1,5 @@
 README : WiiStation
-Version 5.4.2
+Version 5.4.3
 
 LICENSE:
     This software is licensed under the GNU General Public License v2
@@ -119,6 +119,10 @@ LATER UPDATES BY:
  * Jokippo
 
 WiiStation CHANGE LOG:
+Ver 5.4.3 (2026-10-05):
+* Configure Buttons says "PSX Port 1" where it said "PSX Pad 1", as
+  Configure Input does.
+
 Ver 5.4.2 (2026-10-05):
 * Configure Buttons: each mapping button grows to fit its label ("Start+Z",
   "D-Down", "RS-Button" ran past their buttons), without touching its

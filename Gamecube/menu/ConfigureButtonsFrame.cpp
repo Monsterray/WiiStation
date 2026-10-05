@@ -117,7 +117,7 @@ static char FRAME_STRINGS[36][20] =
 	  "Lift Mouse:",
 	  "Gun/Mouse"};
 
-static char TITLE_STRING[64] = "Gamecube Pad 1 to PSX Pad 1 Mapping";
+static char TITLE_STRING[64] = "Gamecube Pad 1 to PSX Port 1 Mapping";
 
 struct ButtonInfo
 {
@@ -431,7 +431,7 @@ void ConfigureButtonsFrame::activateSubmenu(int submenu)
 
 	if (activePadType == ACTIVEPADTYPE_NONE)
 	{
-		sprintf(TITLE_STRING, "PSX Pad %s: No Physical Controller Assigned", name );
+		sprintf(TITLE_STRING, "PSX Port %s: No Physical Controller Assigned", name );
 
 		if (activePadAssigned == ACTIVEPADASSIGNED_TRUE) //Reset to "Next Pad" button
 		{
@@ -450,7 +450,7 @@ void ConfigureButtonsFrame::activateSubmenu(int submenu)
 	}
 	else
 	{
-		sprintf(TITLE_STRING, "PSX Pad %s: %s Pad %d Mapping", name, controllerTypeStrings[activePadType], virtualControllers[activePad].number+1 );
+		sprintf(TITLE_STRING, "PSX Port %s: %s Pad %d Mapping", name, controllerTypeStrings[activePadType], virtualControllers[activePad].number+1 );
 
 		controller_config_t* currentConfig = virtualControllers[activePad].config;
 
