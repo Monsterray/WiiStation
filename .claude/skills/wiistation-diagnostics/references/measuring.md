@@ -288,3 +288,10 @@ hashes in UploadScreen, OpenGX texel checks). The pattern to grep for is a loop 
   every build had its own hash (first 0x8000 pixel at x 1001/1011/1015/1017 across old
   runs). Both inits now clear the whole array. Find such a cause by diffing vram_NN.bin
   (find the first differing pixel) before suspecting the guest.
+- **Button sizing is CSS-like (5.4.2):** `setPadding(all | v,h | t,r,b,l)` (default 10/16,
+  was 8/14 as the totals 16/28 of the removed `setAutoSizePadding`), `setMinWidth`,
+  `setMaxWidth` (a label too wide for the max is drawn smaller). Fitted widths are whole
+  even pixels: style-A images are two mirrored halves and a fractional x or width shows a
+  seam down the middle. Configure Buttons fits its mapping buttons every frame
+  (fitMappingButtons): min = table width, max = half the free space to a neighbour beside it.
+  `menupage 40..65` photographs it per virtual controller.

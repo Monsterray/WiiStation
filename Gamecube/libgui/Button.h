@@ -53,6 +53,13 @@ public:
 	 *
 	 *   b->setAutoSize(BTN_FIT_WIDTH);
 	 *   b->setBounds(x, y, 0, 40);     // width comes from the text, height stays 40
+	 *
+	 * The fit is the label plus the padding, given as in CSS: setPadding(all),
+	 * setPadding(top/bottom, left/right) or setPadding(top, right, bottom, left). The
+	 * label is centred in what the padding leaves. setMinWidth()/setMaxWidth() bound a
+	 * fitted width as CSS min-width/max-width do; a label too wide for the maximum is
+	 * drawn smaller to fit (0 = no bound). A fitted width is a whole, even number of
+	 * pixels: the image is drawn as two mirrored halves, which a fraction pulls apart.
 	 */
 	enum
 	{
@@ -61,7 +68,11 @@ public:
 		BTN_FIT_HEIGHT = 2
 	};
 	void setAutoSize(int flags);
-	void setAutoSizePadding(float padX, float padY);
+	void setPadding(float all);
+	void setPadding(float vertical, float horizontal);
+	void setPadding(float top, float right, float bottom, float left);
+	void setMinWidth(float minWidth);
+	void setMaxWidth(float maxWidth);
 	void fitToLabel();
 
 	/* Move and resize after construction; the auto-size flags are applied afterwards, so
@@ -109,7 +120,8 @@ private:
 	unsigned long StartTime;
 	float x, y, width, height, fontSize;
 	int autoSizeFlags;
-	float autoPadX, autoPadY;
+	float padTop, padRight, padBottom, padLeft;
+	float minWidth, maxWidth, labelScale;   /* labelScale < 1: the label shrunk to fit maxWidth */
 	GXColor	focusColor, inactiveColor, activeColor, selectedColor, labelColor;
 	ButtonFunc clickedFunc, returnFunc;
 

@@ -44,8 +44,13 @@ Button::Button(int style, char** label, float x, float y, float width, float hei
 		  y(y),
 		  width(width),
 		  autoSizeFlags(BTN_FIT_NONE),
-		  autoPadX(28.0f),
-		  autoPadY(16.0f),
+		  padTop(10.0f),      /* a few pixels more than the 8 and 14 it used to be */
+		  padRight(16.0f),
+		  padBottom(10.0f),
+		  padLeft(16.0f),
+		  minWidth(0.0f),
+		  maxWidth(0.0f),
+		  labelScale(1.0f),
 		  height(height),
 		  fontSize(1.0),
 		  clickedFunc(0),
@@ -130,10 +135,34 @@ void Button::setAutoSize(int flags)
 	fitToLabel();
 }
 
-void Button::setAutoSizePadding(float padX, float padY)
+void Button::setPadding(float all)
 {
-	autoPadX = padX;
-	autoPadY = padY;
+	setPadding(all, all, all, all);
+}
+
+void Button::setPadding(float vertical, float horizontal)
+{
+	setPadding(vertical, horizontal, vertical, horizontal);
+}
+
+void Button::setPadding(float top, float right, float bottom, float left)
+{
+	padTop = top;
+	padRight = right;
+	padBottom = bottom;
+	padLeft = left;
+	fitToLabel();
+}
+
+void Button::setMinWidth(float w)
+{
+	minWidth = w;
+	fitToLabel();
+}
+
+void Button::setMaxWidth(float w)
+{
+	maxWidth = w;
 	fitToLabel();
 }
 
@@ -143,10 +172,22 @@ void Button::fitToLabel()
 {
 	if (!autoSizeFlags || !buttonText || !*buttonText) return;
 
+	labelScale = 1.0f;
 	if (autoSizeFlags & BTN_FIT_WIDTH)
-		width = (float)IplFont::getInstance().getStringWidth(*buttonText, fontSize) + autoPadX;
+	{
+		float text = (float)IplFont::getInstance().getStringWidth(*buttonText, fontSize);
+		width = 2.0f * ceilf((text + padLeft + padRight) / 2.0f);
+		if (width < minWidth)
+			width = minWidth;
+		if (maxWidth > 0.0f && width > maxWidth)
+		{
+			width = maxWidth;
+			if (text > 0.0f && maxWidth > padLeft + padRight)
+				labelScale = (maxWidth - padLeft - padRight) / text;
+		}
+	}
 	if (autoSizeFlags & BTN_FIT_HEIGHT)
-		height = (float)IplFont::getInstance().getStringHeight(*buttonText, fontSize) + autoPadY;
+		height = (float)IplFont::getInstance().getStringHeight(*buttonText, fontSize * labelScale) + padTop + padBottom;
 }
 
 void Button::setBounds(float newX, float newY, float newWidth, float newHeight)
@@ -289,7 +330,9 @@ void Button::drawComponent(Graphics& gfx)
 		switch (labelMode)
 		{
 			case LABEL_CENTER:
-				IplFont::getInstance().drawString((int) (x+width/2), (int) (y+height/2), *buttonText, fontSize, true);
+				/* centred in the box the padding leaves; the same place when it is even */
+				IplFont::getInstance().drawString((int) (x+padLeft+(width-padLeft-padRight)/2),
+					(int) (y+padTop+(height-padTop-padBottom)/2), *buttonText, fontSize*labelScale, true);
 				break;
 			case LABEL_LEFT:
 				//strWidth = IplFont::getInstance().getStringWidth(*buttonText, fontSize);

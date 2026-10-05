@@ -19,6 +19,7 @@
 **/
 
 
+#include <math.h>
 #include "MenuContext.h"
 #include "ConfigureButtonsFrame.h"
 #include "../libgui/GuiTypes.h"
@@ -189,12 +190,72 @@ struct TextBoxInfo
 	{	NULL,	FRAME_STRINGS[34],	 520.0,	310.0,	 0.9,	true }, // Lift Mouse
 };
 
+/* The buttons that show a mapping (5..25: the menu combination, the PlayStation buttons,
+ * the sticks and their inversion; 28: fast forward). Their labels are whatever the
+ * controller calls its buttons, up to "RS-Button", so each one takes its width from its
+ * label, centred on its place in the table: never narrower than the table's width, and
+ * growing into at most half the space between it and a neighbour beside it. A label too
+ * wide even for that is drawn smaller (Button::setMaxWidth). */
+static bool isMapping(int i) { return (i >= 5 && i <= 25) || i == 28; }
+static float mapMaxWidth[NUM_FRAME_BUTTONS], mapWidth[NUM_FRAME_BUTTONS];
+#define MAP_GAP 4.0f   /* the least space left between two buttons side by side */
+
+static float maxWidthFor(int i)
+{
+	const ButtonInfo &b = FRAME_BUTTONS[i];
+	float cx = b.x + b.width / 2, half = b.width / 2;
+	float room = cx - 4.0f < 636.0f - cx ? cx - 4.0f : 636.0f - cx;   /* the screen edges */
+	for (int j = 0; j < NUM_FRAME_BUTTONS; j++)
+	{
+		const ButtonInfo &o = FRAME_BUTTONS[j];
+		float ocx = o.x + o.width / 2, d = cx > ocx ? cx - ocx : ocx - cx;
+		if (j == i || o.y >= b.y + b.height || b.y >= o.y + o.height || d < 1.0f)
+			continue;   /* not beside it */
+		float free = d - half - o.width / 2;   /* between the two as the table has them */
+		float r = half + (free - MAP_GAP) / 2;
+		if (r < room) room = r;
+	}
+	return 2 * floorf(room);
+}
+
+/* Refit the mapping buttons to their labels; the labels change whenever a mapping does */
+static void fitMappingButtons(menu::Frame *frame)
+{
+	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
+	{
+		if (!isMapping(i)) continue;
+		menu::Button *btn = FRAME_BUTTONS[i].button;
+		btn->fitToLabel();
+		float w = btn->getWidth();
+		if (w == mapWidth[i]) continue;
+		const ButtonInfo &b = FRAME_BUTTONS[i];
+		float x = floorf(b.x + b.width / 2 - w / 2);   /* whole pixels: see Button::fitToLabel */
+		btn->setBounds(x, b.y, w, b.height);
+		menu::Cursor::getInstance().moveComponent(frame, btn, x, x + w, b.y, b.y + b.height);
+		mapWidth[i] = w;
+	}
+}
+
 ConfigureButtonsFrame::ConfigureButtonsFrame()
 {
 	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
+	{
 		FRAME_BUTTONS[i].button = new menu::Button(FRAME_BUTTONS[i].buttonStyle, &FRAME_BUTTONS[i].buttonString,
 										FRAME_BUTTONS[i].x, FRAME_BUTTONS[i].y,
 										FRAME_BUTTONS[i].width, FRAME_BUTTONS[i].height);
+		/* style A makes itself 56 high; the table's rows are 40 apart in places */
+		FRAME_BUTTONS[i].button->setBounds(FRAME_BUTTONS[i].x, FRAME_BUTTONS[i].y,
+										FRAME_BUTTONS[i].width, FRAME_BUTTONS[i].height);
+		if (isMapping(i))
+		{
+			mapMaxWidth[i] = maxWidthFor(i);
+			FRAME_BUTTONS[i].button->setPadding(10.0f, 6.0f);   /* tight: the slots are 90 apart */
+			FRAME_BUTTONS[i].button->setMinWidth(FRAME_BUTTONS[i].width);
+			FRAME_BUTTONS[i].button->setMaxWidth(mapMaxWidth[i]);
+			FRAME_BUTTONS[i].button->setAutoSize(menu::Button::BTN_FIT_WIDTH);
+			mapWidth[i] = -1.0f;   /* placed on the first draw */
+		}
+	}
 
 	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
 	{
@@ -531,6 +592,7 @@ void ConfigureButtonsFrame::drawChildren(menu::Graphics &gfx)
 {
 	if(isVisible())
 	{
+		fitMappingButtons(this);
 		int base_x = 204;
 		int base_y = 188;
 		int lines[NUM_LINES][4] = {{164, 265, 221, 244}, //D-pad (17,56)

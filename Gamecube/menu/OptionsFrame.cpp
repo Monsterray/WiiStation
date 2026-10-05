@@ -345,7 +345,7 @@ static const OptPage PAGES[] =
 #define RADIO_W		135.0		// the widest a choice may be, and what one is built at
 #define RADIO_DX	147.0		// 135 wide with a 12 gap; three of them end at 634
 #define RADIO_GAP	 12.0		// between two auto-sized choices
-/* The padding around the text is Button's own default; see setAutoSizePadding(). */
+/* The padding around the text is Button's own default; see setPadding(). */
 
 /* Help is two columns: the term right-aligned so its colons line up, then the text.
  * The lower lines are beside the spinning logo's corner and have to stop short of it,
