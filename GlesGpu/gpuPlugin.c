@@ -244,6 +244,7 @@ static uint16_t *vram_ptr_orig = NULL;
 // just be a second, smaller, and wrong bound on the same object. Only &globalVram[0]
 // is ever taken in this file -- never subscripted or sizeof'd -- so leave it unsized.
 extern uint8_t globalVram[];
+extern const unsigned globalVramSize;   /* gpulib.c: sizeof globalVram */
 
 long CALLBACK GL_GPUinit()
 {
@@ -271,7 +272,11 @@ psxVuw=(unsigned short *)psxVub;
 
 psxVuw_eom=psxVuw+1024*iGPUHeight;                    // pre-calc of end of vram
 
-memset(vram_ptr_orig,0x00,VRAM_SIZE + (VRAM_ALIGN-1));
+/* All of it: OpenPlugins() then points psxVuw at gpulib's gpu.vram (renderer_set_config),
+ * 4 KB plus up to 63 bytes further in. A clear of this file's VRAM_SIZE ended short of
+ * that VRAM's end, and the last few pixels of row 511 kept the last game's data (how many
+ * moved with globalVram's alignment: 7 to 23 pixels, a different VRAM hash per build). */
+memset(globalVram,0x00,globalVramSize);
 memset(ulGPUInfoVals,0x00,16*sizeof(unsigned long));
 
 //InitFrameCap();                                       // init frame rate stuff

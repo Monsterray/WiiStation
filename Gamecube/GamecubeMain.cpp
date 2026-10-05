@@ -153,6 +153,7 @@ char videoMode = 0;
 char fileSortMode = 1;
 char padAutoAssign;
 char padType[10];
+char coopPlayers[2], coopType[2][COOP_MAX], coopAssign[2][COOP_MAX], coopLayout[2][COOP_MAX];   /* coop.c */
 char padAssign[10];
 char padLightgun[10];
 char rumbleEnabled;
@@ -230,8 +231,8 @@ static struct {
   { "MdecChroma", &mdecChroma, MDECCHROMA_SHARP, MDECCHROMA_SMOOTH },
   { "FmvColour", &fmvColour, FMVCOLOUR_15BIT, FMVCOLOUR_24BIT },
   { "PadAutoAssign", &padAutoAssign, PADAUTOASSIGN_MANUAL, PADAUTOASSIGN_AUTOMATIC },
-  { "PadType1", &padType[0], PADTYPE_NONE, PADTYPE_MULTITAP },
-  { "PadType2", &padType[1], PADTYPE_NONE, PADTYPE_MULTITAP },
+  { "PadType1", &padType[0], PADTYPE_NONE, PADTYPE_COOP },
+  { "PadType2", &padType[1], PADTYPE_NONE, PADTYPE_COOP },
   { "PadType3", &padType[2], PADTYPE_NONE, PADTYPE_MULTITAP },
   { "PadType4", &padType[3], PADTYPE_NONE, PADTYPE_MULTITAP },
   { "PadType5", &padType[4], PADTYPE_NONE, PADTYPE_MULTITAP },
@@ -251,6 +252,57 @@ static struct {
   { "PadAssign8", &padAssign[7], 0, 3 },
   { "PadAssign9", &padAssign[8], 0, 3 },
   { "PadAssign10", &padAssign[9], 0, 3 },
+  /* Co-Op (coop.c): players per port, then each player's controller type, controller and layout */
+  { "CoopPlayers1", &coopPlayers[0], 1, COOP_MAX },
+  { "CoopPlayers2", &coopPlayers[1], 1, COOP_MAX },
+  { "Coop1Type1", &coopType[0][0], PADTYPE_NONE, PADTYPE_HID },
+  { "Coop1Assign1", &coopAssign[0][0], 0, 3 },
+  { "Coop1Layout1", &coopLayout[0][0], COOP_LAYOUT_FULL, COOP_LAYOUT_COUNT - 1 },
+  { "Coop1Type2", &coopType[0][1], PADTYPE_NONE, PADTYPE_HID },
+  { "Coop1Assign2", &coopAssign[0][1], 0, 3 },
+  { "Coop1Layout2", &coopLayout[0][1], COOP_LAYOUT_FULL, COOP_LAYOUT_COUNT - 1 },
+  { "Coop1Type3", &coopType[0][2], PADTYPE_NONE, PADTYPE_HID },
+  { "Coop1Assign3", &coopAssign[0][2], 0, 3 },
+  { "Coop1Layout3", &coopLayout[0][2], COOP_LAYOUT_FULL, COOP_LAYOUT_COUNT - 1 },
+  { "Coop1Type4", &coopType[0][3], PADTYPE_NONE, PADTYPE_HID },
+  { "Coop1Assign4", &coopAssign[0][3], 0, 3 },
+  { "Coop1Layout4", &coopLayout[0][3], COOP_LAYOUT_FULL, COOP_LAYOUT_COUNT - 1 },
+  { "Coop1Type5", &coopType[0][4], PADTYPE_NONE, PADTYPE_HID },
+  { "Coop1Assign5", &coopAssign[0][4], 0, 3 },
+  { "Coop1Layout5", &coopLayout[0][4], COOP_LAYOUT_FULL, COOP_LAYOUT_COUNT - 1 },
+  { "Coop1Type6", &coopType[0][5], PADTYPE_NONE, PADTYPE_HID },
+  { "Coop1Assign6", &coopAssign[0][5], 0, 3 },
+  { "Coop1Layout6", &coopLayout[0][5], COOP_LAYOUT_FULL, COOP_LAYOUT_COUNT - 1 },
+  { "Coop1Type7", &coopType[0][6], PADTYPE_NONE, PADTYPE_HID },
+  { "Coop1Assign7", &coopAssign[0][6], 0, 3 },
+  { "Coop1Layout7", &coopLayout[0][6], COOP_LAYOUT_FULL, COOP_LAYOUT_COUNT - 1 },
+  { "Coop1Type8", &coopType[0][7], PADTYPE_NONE, PADTYPE_HID },
+  { "Coop1Assign8", &coopAssign[0][7], 0, 3 },
+  { "Coop1Layout8", &coopLayout[0][7], COOP_LAYOUT_FULL, COOP_LAYOUT_COUNT - 1 },
+  { "Coop2Type1", &coopType[1][0], PADTYPE_NONE, PADTYPE_HID },
+  { "Coop2Assign1", &coopAssign[1][0], 0, 3 },
+  { "Coop2Layout1", &coopLayout[1][0], COOP_LAYOUT_FULL, COOP_LAYOUT_COUNT - 1 },
+  { "Coop2Type2", &coopType[1][1], PADTYPE_NONE, PADTYPE_HID },
+  { "Coop2Assign2", &coopAssign[1][1], 0, 3 },
+  { "Coop2Layout2", &coopLayout[1][1], COOP_LAYOUT_FULL, COOP_LAYOUT_COUNT - 1 },
+  { "Coop2Type3", &coopType[1][2], PADTYPE_NONE, PADTYPE_HID },
+  { "Coop2Assign3", &coopAssign[1][2], 0, 3 },
+  { "Coop2Layout3", &coopLayout[1][2], COOP_LAYOUT_FULL, COOP_LAYOUT_COUNT - 1 },
+  { "Coop2Type4", &coopType[1][3], PADTYPE_NONE, PADTYPE_HID },
+  { "Coop2Assign4", &coopAssign[1][3], 0, 3 },
+  { "Coop2Layout4", &coopLayout[1][3], COOP_LAYOUT_FULL, COOP_LAYOUT_COUNT - 1 },
+  { "Coop2Type5", &coopType[1][4], PADTYPE_NONE, PADTYPE_HID },
+  { "Coop2Assign5", &coopAssign[1][4], 0, 3 },
+  { "Coop2Layout5", &coopLayout[1][4], COOP_LAYOUT_FULL, COOP_LAYOUT_COUNT - 1 },
+  { "Coop2Type6", &coopType[1][5], PADTYPE_NONE, PADTYPE_HID },
+  { "Coop2Assign6", &coopAssign[1][5], 0, 3 },
+  { "Coop2Layout6", &coopLayout[1][5], COOP_LAYOUT_FULL, COOP_LAYOUT_COUNT - 1 },
+  { "Coop2Type7", &coopType[1][6], PADTYPE_NONE, PADTYPE_HID },
+  { "Coop2Assign7", &coopAssign[1][6], 0, 3 },
+  { "Coop2Layout7", &coopLayout[1][6], COOP_LAYOUT_FULL, COOP_LAYOUT_COUNT - 1 },
+  { "Coop2Type8", &coopType[1][7], PADTYPE_NONE, PADTYPE_HID },
+  { "Coop2Assign8", &coopAssign[1][7], 0, 3 },
+  { "Coop2Layout8", &coopLayout[1][7], COOP_LAYOUT_FULL, COOP_LAYOUT_COUNT - 1 },
   { "RumbleEnabled", &rumbleEnabled, RUMBLE_DISABLE, RUMBLE_ENABLE },
   { "EfbSync", &efbSyncSetting, 0, 2 },
   { "LoadButtonSlot", &loadButtonSlot, LOADBUTTON_SLOT0, LOADBUTTON_DEFAULT },
@@ -470,6 +522,16 @@ void loadSettings(int argc, char *argv[])
 	for (int i = 0; i < 4; i++){
 		padType[2 + i] = padType[6 + i] = PADTYPE_GAMECUBE;
 		padAssign[2 + i] = padAssign[6 + i] = (char)i;
+	}
+	/* Co-Op: two players to start with. Every player has the whole pad; players 1..4 are
+	 * GameCube pads 1..4, players 5..8 Wii controllers 1..4. */
+	for (int p = 0; p < 2; p++){
+		coopPlayers[p] = 2;
+		for (int k = 0; k < COOP_MAX; k++){
+			coopType[p][k] = k < 4 ? PADTYPE_GAMECUBE : PADTYPE_WII;
+			coopAssign[p][k] = (char)(k % 4);
+			coopLayout[p][k] = COOP_LAYOUT_FULL;
+		}
 	}
 	memCard[0]		 = MEMCARD_ENABLE;
 	memCard[1]		 = MEMCARD_ENABLE;

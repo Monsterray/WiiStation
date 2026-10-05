@@ -143,6 +143,12 @@ void InputStatusBar::drawComponent(Graphics& gfx)
 		/* PlugPAD.c fills the port (go() does the same before a game starts); this only
 		 * shows what it found. */
 		controller_t *assigned = manual_assign_port(i);
+		if (i < 2 && padType[i] == PADTYPE_COOP) {   /* its players, as this frame finds them */
+			coop_assign_port(i);
+			for (int k = 0; k < coopPlayers[i] && k < COOP_MAX; k++)
+				if (virtualControllers[COOP_VC(i, k)].inUse)
+					assigned = virtualControllers[COOP_VC(i, k)].control;
+		}
 		if (assigned)
 		{
 			gfx.setColor(activeColor);
@@ -173,6 +179,7 @@ void InputStatusBar::drawComponent(Graphics& gfx)
 			break;
 #endif
 		case PADTYPE_MULTITAP:
+		case PADTYPE_COOP:
 		case PADTYPE_NONE:
 			gfx.setColor(inactiveColor);
 			IplFont::getInstance().drawInit(inactiveColor);
@@ -199,7 +206,14 @@ void InputStatusBar::drawComponent(Graphics& gfx)
 		//draw numbers
 		sprintf(buffer,padNames[i]);
 		IplFont::getInstance().drawString((int) base_x+36, (int) base_y+10, buffer, 0.8, true);
-		if (padType[i]==PADTYPE_MULTITAP)
+		if (padType[i]==PADTYPE_COOP)
+		{
+			sprintf(buffer,"Co");
+			IplFont::getInstance().drawString((int) base_x+34, (int) base_y+32, buffer, 0.8, true);
+			sprintf(buffer,"Op%d", coopPlayers[i]);
+			IplFont::getInstance().drawString((int) base_x+29, (int) base_y+49, buffer, 0.8, true);
+		}
+		else if (padType[i]==PADTYPE_MULTITAP)
 		{
 			sprintf(buffer,"M");
 			IplFont::getInstance().drawString((int) base_x+34, (int) base_y+32, buffer, 0.8, true);

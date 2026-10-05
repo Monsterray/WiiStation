@@ -2,8 +2,8 @@
  <app version="2">
    <name>WiiStation</name>
    <coder>xjsxjs197</coder>
-   <version>5.3.0</version>
-   <release_date>20261002</release_date>
+   <version>5.4.0</version>
+   <release_date>20261004</release_date>
    <short_description>PSX Emulator for Wii</short_description>
    <long_description>
 WiiStation - A Sony PlayStation 1 emulator for Wii / Wii U, forked from WiiSXRX by NiuuS.
@@ -16,6 +16,7 @@ Featuring:
 - Save states, memory cards on SD/USB, per-game settings.
 - 240p, 480i, bilinear/trap/deflicker filters, force NTSC.
 - Lightguns (GunCon/Justifier), mouse, multitap for up to 8 players.
+- Co-Op: up to 8 controllers play one PlayStation port together, each with its own buttons.
 - Multiple languages.
 - Crash reports for the Homebrew Channel (hangs, crashes, no audio).
 

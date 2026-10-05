@@ -205,6 +205,25 @@ int main(void)
 		printf("  %d of 65536 positions press a direction; no opposites, none at rest, mirrored\n", n);
 	}
 
+	printf("co-op mixing\n");
+	{
+		int a, b;
+		/* any allowed press wins, a press outside the layout never reaches the pad */
+		if (coop_buttons(0xFFFF, 0xFFFE, 0x0001) != 0xFFFE) fail("co-op", "an allowed press was lost");
+		if (coop_buttons(0xFFFF, 0xFFFE, 0xFFFE) != 0xFFFF) fail("co-op", "a press outside the layout got through");
+		if (coop_buttons(0xFFFE, 0xFFFF, 0xFFFF) != 0xFFFE) fail("co-op", "a second player released the first one's press");
+		/* the stick: the larger push wins, either way round, and rest never beats a push */
+		for (a = 0; a <= 255; a++)
+			for (b = 0; b <= 255; b++) {
+				int r = coop_axis((uint8_t)a, (uint8_t)b), da = a - 128, db = b - 128;
+				int want = (db < 0 ? -db : db) > (da < 0 ? -da : da) ? b : a;
+				if (r != want) { fail("co-op", "the stick is not the larger push"); a = 256; break; }
+			}
+		if (coop_axis(128, 200) != 200 || coop_axis(200, 128) != 200 || coop_axis(10, 240) != 10)
+			fail("co-op", "a stick at rest or a smaller push won");
+		printf("  presses combine within each layout; the larger stick push wins\n");
+	}
+
 	printf(failures ? "\n%d failure(s)\n" : "\nall checks passed\n", failures);
 	return failures ? 1 : 0;
 }

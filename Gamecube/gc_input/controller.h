@@ -166,7 +166,22 @@ typedef struct _virtualControllers_t {
 	controller_config_t* config; // This is no longer needed...
 } virtualControllers_t;
 
-extern virtualControllers_t virtualControllers[10];
+/* 0, 1: PlayStation ports 1 and 2. 2..5, 6..9: multitap 1 and 2 slots A..D.
+ * 10..17, 18..25: Co-Op players 1..8 of port 1 and of port 2 (COOP_VC, coop.c). */
+#define NUM_VIRTUAL_CONTROLLERS 26
+#define COOP_VC(port, k) (10 + (port) * 8 + (k))
+extern virtualControllers_t virtualControllers[NUM_VIRTUAL_CONTROLLERS];
+
+/* coop.c */
+void coop_assign_port(int port);     /* assign the port's players their controllers */
+void coop_unassign_port(int port);
+int  coop_get_keys(int port, BUTTONS *out, int *connected);   /* combined, as GetKeys */
+void coop_rumble(int port, int on);
+extern const char *coop_layout_names[];
+#define COOP_STICK_L 1
+#define COOP_STICK_R 2
+u16 coop_layout_buttons(int layout, int *sticks);
+controller_t *assign_port_as(int wv, int type, int w);   /* PlugPAD.c */
 
 // List of all the defined controller_t's
 #if defined(WII) && !defined(NO_BT)

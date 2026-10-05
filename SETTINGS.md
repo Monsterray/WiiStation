@@ -149,7 +149,7 @@ The menu also has the buttons **Disable XA** and **Disable CDDA**. WiiStation do
 | Key | Values | Default | Menu | Effect |
 |---|---|---|---|---|
 | `PadAutoAssign` | 0 = Manual, 1 = Automatic | 1 | Input, Configure Input | Lets WiiStation connect the controllers automatically. On a multitap, slot A to D takes GameCube pad 1 to 4 whenever that pad is connected, so each player keeps the same slot; the other ports and empty slots then take the remaining controllers (GameCube, then Wii, then HID). A port or slot with no controller stays empty and does not stop the ones after it. |
-| `PadType1` to `PadType10` | 0 = None, 1 = GameCube Pad, 2 = Wii Pad, 3 = HID Pad, 4 = Multitap | 0 for `PadType1` and `PadType2`; 1 (GameCube Pad) for the multitap slots `PadType3` to `PadType10` | Input, Configure Input | Sets the controller type of each PlayStation port. See the port list below. A multitap's slots A to D start as GameCube pads 1 to 4; a port switched to Multitap whose four slots are all None gets the same. When a port's type changes while a game runs, the port shows as empty for half a second before the new controller appears, as when a real controller is unplugged and another plugged in: the game then looks for its controllers again. Without this, Crash Bash took no input from a multitap that had become a GameCube pad. |
+| `PadType1` to `PadType10` | 0 = None, 1 = GameCube Pad, 2 = Wii Pad, 3 = HID Pad, 4 = Multitap, 5 = Co-Op (`PadType1` and `PadType2` only, section 6.1.1) | 0 for `PadType1` and `PadType2`; 1 (GameCube Pad) for the multitap slots `PadType3` to `PadType10` | Input, Configure Input | Sets the controller type of each PlayStation port. See the port list below. A multitap's slots A to D start as GameCube pads 1 to 4; a port switched to Multitap whose four slots are all None gets the same. When a port's type changes while a game runs, the port shows as empty for half a second before the new controller appears, as when a real controller is unplugged and another plugged in: the game then looks for its controllers again. Without this, Crash Bash took no input from a multitap that had become a GameCube pad. |
 | `PadAssign1` to `PadAssign10` | 0 to 3 | 0, except `PadAssign2` = 1 and the multitap slots: A to D are 0 to 3 (`PadAssign3`..`6` and `PadAssign7`..`10`) | Input, Configure Input | Sets which physical controller (1 to 4, written 0 to 3) drives each port. Values 4 to 9, which older versions accepted, are ignored. |
 | `RumbleEnabled` | 0 = Off, 1 = On | 1 | Input, Disable Rumble | Enables the controller rumble. Note: the menu label is inverted. **Disable Rumble = Yes** writes `RumbleEnabled = 0`. |
 | `ControllerType` | 0 = Standard, 1 = Analog, 2 = Stick D-pad | 0 | Input, PSX Controller Type | Sets the emulated PlayStation controller type. **Standard** is a digital pad (SCPH-1080): it answers the read command 42h and nothing else. **Analog** is a PS1 DualShock (SCPH-1200): it starts in digital mode, as the real pad does, and a game that supports analog switches it to analog mode itself with the config commands (Spyro, Ape Escape). Both behave as the real pads do, checked command by command with PadTest DX (Docs/CONTROLLER_TESTING.md). Games made for the older Dual Analog pad, which expect the player to press the ANALOG button, stay digital. **Stick D-pad** is the Standard digital pad, and the left stick also presses its D-pad: past half of full travel, the stick's direction presses Up, Down, Left or Right, or two of them on a diagonal (each of the eight directions takes 45 degrees). Use it for games that read only the D-pad, so they can be played with the stick. It applies to every port and multitap slot. |
@@ -165,6 +165,19 @@ The ten port numbers map to the PlayStation ports in this order:
 | 2 | Port 2 |
 | 3 to 6 | Multitap 1, slots A to D |
 | 7 to 10 | Multitap 2, slots A to D |
+
+#### 6.1.1 Co-Op: several controllers on one port
+
+A port set to Co-Op (`PadType1` or `PadType2` = 5) is one PlayStation controller played by up to eight people at once, for example one steering and one firing in a game made for one player. Each player has a controller and a layout: the PlayStation buttons and sticks that player works. A button counts as pressed when any player who has it presses it. On each stick axis the player who pushes further wins: an average would halve one player's push whenever the others leave their sticks alone. Rumble runs in every player's controller.
+
+In the menu: Configure Input, Manual, then press the port's type button until it shows Co-Op. The port's number button then sets the number of players, and one row per player appears under the port: the controller type (GC, Wii, HID or None), Customize, and which controller of that type (1 to 4). Customize shows the PlayStation controller with the player's buttons lit, and six layouts: Full pad, Left half (L1, L2, L3, Select, the D-pad and the left stick), Right half (R1, R2, R3, Start, the four action buttons and the right stick), D-pad+sticks (the D-pad, both sticks, L3 and R3), Action (the four action buttons) and Shoulders (L1, L2, R1, R2). Switching to Automatic turns a Co-Op port back into a plain one, as it does a Multitap.
+
+| Key | Values | Default | Effect |
+|---|---|---|---|
+| `CoopPlayers1`, `CoopPlayers2` | 1 to 8 | 2 | The number of players on port 1 or 2. |
+| `Coop1Type1` to `Coop1Type8`, `Coop2Type1` to `Coop2Type8` | 0 = None, 1 = GameCube Pad, 2 = Wii Pad, 3 = HID Pad | players 1 to 4: 1, players 5 to 8: 2 | The kind of controller player N of port 1 or 2 uses. |
+| `Coop1Assign1` ... `Coop2Assign8` | 0 to 3 | player N: (N - 1) modulo 4 | Which controller of that kind (1 to 4, written 0 to 3). By default players 1 to 4 are GameCube pads 1 to 4 and players 5 to 8 Wii controllers 1 to 4. |
+| `Coop1Layout1` ... `Coop2Layout8` | 0 = Full pad, 1 = Left half, 2 = Right half, 3 = D-pad+sticks, 4 = Action, 5 = Shoulders | 0 | The buttons and sticks the player works. |
 
 ### 6.2 Button mapping files
 
@@ -400,7 +413,8 @@ presses above only reach a running game.
 | 2 | Settings, Video | 7 | Plugins |
 | 3 | Settings, Input | 8 | CD |
 | 4 | Settings, Audio | 9 | Memory |
-| 5 | Settings, Saves | | |
+| 5 | Settings, Saves | 20 | Configure Input |
+| | | 21 to 36 | Co-Op Customize, port 1 players 1 to 8 (21 to 28), port 2 players 1 to 8 (29 to 36) |
 
 Use it with no `autoboot.txt`, so the run stays in the menu, and collect the frames the
 run dumps. `scripts/menu_text_width.py` checks the same pages' geometry without booting

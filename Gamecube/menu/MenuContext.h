@@ -31,6 +31,7 @@
 #include "SettingsFrame.h"
 #include "ConfigureInputFrame.h"
 #include "ConfigureButtonsFrame.h"
+#include "CustomizeCoopFrame.h"
 #include "OptionsFrame.h"
 
 #include "MenuTypes.h"
@@ -54,7 +55,8 @@ public:
 		FRAME_SETTINGS,
 		FRAME_CONFIGUREINPUT,
 		FRAME_CONFIGUREBUTTONS,
-		FRAME_OPTIONS
+		FRAME_OPTIONS,
+		FRAME_CUSTOMIZECOOP
 	};
 
 private:
@@ -68,6 +70,7 @@ private:
 	ConfigureInputFrame *configureInputFrame;
 	ConfigureButtonsFrame *configureButtonsFrame;
 	OptionsFrame *optionsFrame;
+	CustomizeCoopFrame *customizeCoopFrame;
 
 };
 

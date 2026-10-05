@@ -21,6 +21,7 @@
 #include "MenuContext.h"
 #include "SettingsFrame.h"
 #include "ConfigureInputFrame.h"
+#include "MenuLayout.h"
 #include "../libgui/Button.h"
 #include "../libgui/TextBox.h"
 #include "../libgui/resources.h"
@@ -62,16 +63,20 @@ void Func_TogglePad1DAssign();
 void Func_ReturnFromConfigureInputFrame();
 
 
-#define NUM_FRAME_BUTTONS 22
+/* 0..21: the original table. 22..69: Co-Op rows, 24 per port (8 players x type,
+ * Customize, number), filled in by the constructor (COOP_BTN). Appended, so no index moves. */
+#define NUM_FRAME_BUTTONS 70
+#define COOP_BTN(port, k, col) (22 + (port) * 24 + (k) * 3 + (col))
 #define FRAME_BUTTONS configureInputFrameButtons
 #define FRAME_STRINGS configureInputFrameStrings
-#define NUM_FRAME_TEXTBOXES 5
+#define NUM_FRAME_TEXTBOXES 21   /* 5..20: the Co-Op rows' P1..P8 labels */
+#define COOP_LABEL(port, k) (5 + (port) * 8 + (k))
 #define FRAME_TEXTBOXES configureInputFrameTextBoxes
 
-static char FRAME_STRINGS[18][15] =
+static char FRAME_STRINGS[42][15] =
 	{ "Pad Assignment",
-	  "PSX Pad 1",
-	  "PSX Pad 2",
+	  "PSX Port 1",
+	  "PSX Port 2",
 	  "Multitap 1",
 	  "Multitap 2",
 
@@ -87,7 +92,13 @@ static char FRAME_STRINGS[18][15] =
 	  "2",
 	  "3",
 	  "4",
-	  "HID Pad"};
+	  "HID Pad",
+	  "Co-Op",					// [18] port type
+	  "Customize",				// [19] Co-Op row: the player's layout
+	  "P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8",	// [20..27] Co-Op row labels
+	  "None", "GC", "Wii", "HID",	// [28..31] Co-Op row: controller type, short
+	  "1P", "2P", "3P", "4P", "5P", "6P", "7P", "8P",	// [32..39] a Co-Op port's player count
+	  "Co-Op 1", "Co-Op 2"};	// [40..41] a Co-Op port's column heading
 
 struct ButtonInfo
 {
@@ -147,8 +158,119 @@ struct TextBoxInfo
 	{	NULL,	FRAME_STRINGS[4],	425.0,	228.0,	 1.0,	true }, // Multitap 2
 };
 
+/* ---- Co-Op rows: each port's players, P1..P8 -------------------------------------
+ * A row: the controller type (None, GC, Wii, HID), Customize (the player's layout, in
+ * CustomizeCoopFrame) and which controller of that type (1..4). ButtonFunc takes no
+ * arguments, so each button gets its own small function. */
+extern MenuContext *pMenuContext;
+static void coopRefresh(int port)
+{
+	coop_assign_port(port);
+	pMenuContext->getFrame(MenuContext::FRAME_CONFIGUREINPUT)->activateSubmenu(ConfigureInputFrame::SUBMENU_REINIT);
+}
+static void coopToggleType(int port, int k)
+{
+#ifdef HW_RVL
+	coopType[port][k] = (coopType[port][k] + 1) % 4;   /* None, GC, Wii, HID */
+#else
+	coopType[port][k] = (coopType[port][k] + 1) % 2;
+#endif
+	coopRefresh(port);
+}
+static void coopToggleAssign(int port, int k)
+{
+	coopAssign[port][k] = (coopAssign[port][k] + 1) % 4;
+	coopRefresh(port);
+}
+static void coopCustomize(int port, int k)
+{
+	pMenuContext->setActiveFrame(MenuContext::FRAME_CUSTOMIZECOOP, port * COOP_MAX + k);
+}
+#define COOP_ROW_FUNCS(p, k) 	static void Func_Coop##p##k##Type(void)   { coopToggleType(p, k); } 	static void Func_Coop##p##k##Custom(void) { coopCustomize(p, k); } 	static void Func_Coop##p##k##Assign(void) { coopToggleAssign(p, k); }
+#define COOP_PORT_FUNCS(p) COOP_ROW_FUNCS(p,0) COOP_ROW_FUNCS(p,1) COOP_ROW_FUNCS(p,2) COOP_ROW_FUNCS(p,3) 	COOP_ROW_FUNCS(p,4) COOP_ROW_FUNCS(p,5) COOP_ROW_FUNCS(p,6) COOP_ROW_FUNCS(p,7)
+COOP_PORT_FUNCS(0)
+COOP_PORT_FUNCS(1)
+#define COOP_ROW_TABLE(p, k) { Func_Coop##p##k##Type, Func_Coop##p##k##Custom, Func_Coop##p##k##Assign }
+static ButtonFunc coopFuncs[2][COOP_MAX][3] = {
+	{ COOP_ROW_TABLE(0,0), COOP_ROW_TABLE(0,1), COOP_ROW_TABLE(0,2), COOP_ROW_TABLE(0,3),
+	  COOP_ROW_TABLE(0,4), COOP_ROW_TABLE(0,5), COOP_ROW_TABLE(0,6), COOP_ROW_TABLE(0,7) },
+	{ COOP_ROW_TABLE(1,0), COOP_ROW_TABLE(1,1), COOP_ROW_TABLE(1,2), COOP_ROW_TABLE(1,3),
+	  COOP_ROW_TABLE(1,4), COOP_ROW_TABLE(1,5), COOP_ROW_TABLE(1,6), COOP_ROW_TABLE(1,7) } };
+
+/* The layout: Pad Assignment as a row of the Settings tabs' grid (MenuLayout.h: label
+ * centred on TAB_LABEL_CX, buttons from TAB_BUTTON_X, TAB_GAP apart); below it two port
+ * columns side by side, each headed by its PSX Port label and that port's type and number,
+ * then the multitap slots or the Co-Op players of that port. No logo on this frame: it needs the
+ * room (activateSubmenu hides it). Style-A buttons make themselves 56 high in their
+ * constructor, so every button gets these bounds again afterwards (setBounds). */
+#define CI_ROW_Y(r)		(20.0f + 62.0f * (r))		/* 0: Pad Assignment */
+#define CI_ROW_H		56.0f
+#define CI_PORTLABEL_Y	98.0f		/* PSX Port N, centred on its column */
+#define CI_PORT_Y		114.0f		/* the port's type and number */
+#define CI_TYPE_W		204.0f		/* fits "Gamecube Pad" (176) and padding */
+#define CI_NUM_W		60.0f		/* fits "8P" */
+#define CI_COL_X(p)		(8.0f + 316.0f * (p))
+#define CI_COL_W		308.0f
+#define CI_HEAD_Y		190.0f		/* a column's Multitap / Co-Op heading, centred */
+#define CI_SLOT_Y(s)	(206.0f + 62.0f * (s))	/* multitap slots: 4 rows end at 448 */
+#define CI_SLOT_H		56.0f
+#define CI_COOP_Y(k)	(206.0f + 33.0f * (k))	/* Co-Op players: 8 rows end at 467 */
+#define CI_COOP_H		30.0f
+static void setRect(int i, float x, float y, float w, float h)
+{
+	FRAME_BUTTONS[i].x = x; FRAME_BUTTONS[i].y = y;
+	FRAME_BUTTONS[i].width = w; FRAME_BUTTONS[i].height = h;
+}
+static void layoutTables(void)
+{
+	/* a Co-Op row is as wide as its column: label, type, Customize, number, 6 apart */
+	static const float coopX[3] = { 32.0f, 104.0f, 256.0f }, coopW[3] = { 66.0f, 146.0f, 52.0f };
+	const float slotX = (CI_COL_W - (CI_TYPE_W + TAB_GAP + CI_NUM_W)) / 2;
+
+	setRect(0, TAB_BUTTON_X, CI_ROW_Y(0), 140.0f, CI_ROW_H);   /* width: auto-fitted later */
+	setRect(1, TAB_BUTTON_X + 150.0f, CI_ROW_Y(0), 100.0f, CI_ROW_H);
+	for (int p = 0; p < 2; p++)
+	{
+		setRect(2 + p, CI_COL_X(p) + slotX, CI_PORT_Y, CI_TYPE_W, CI_ROW_H);
+		setRect(12 + p, CI_COL_X(p) + slotX + CI_TYPE_W + TAB_GAP, CI_PORT_Y, CI_NUM_W, CI_ROW_H);
+		for (int sl = 0; sl < 4; sl++)
+		{
+			int i = 2 + p * 4 + sl;
+			setRect(i + 2, CI_COL_X(p) + slotX, CI_SLOT_Y(sl), CI_TYPE_W, CI_SLOT_H);
+			setRect(i + 12, CI_COL_X(p) + slotX + CI_TYPE_W + TAB_GAP, CI_SLOT_Y(sl), CI_NUM_W, CI_SLOT_H);
+		}
+		for (int k = 0; k < COOP_MAX; k++)
+		{
+			for (int c = 0; c < 3; c++)
+			{
+				ButtonInfo &b = FRAME_BUTTONS[COOP_BTN(p, k, c)];
+				b.buttonStyle = BTN_A_NRM;
+				b.buttonString = FRAME_STRINGS[c == 1 ? 19 : 12];
+				b.focusUp = b.focusDown = b.focusLeft = b.focusRight = -1;
+				b.clickedFunc = coopFuncs[p][k][c];
+				b.returnFunc = Func_ReturnFromConfigureInputFrame;
+				setRect(COOP_BTN(p, k, c), CI_COL_X(p) + coopX[c], CI_COOP_Y(k), coopW[c], CI_COOP_H);
+			}
+			TextBoxInfo &t = FRAME_TEXTBOXES[COOP_LABEL(p, k)];
+			t.textBoxString = FRAME_STRINGS[20 + k];
+			t.x = CI_COL_X(p) + 15.0f;
+			t.y = CI_COOP_Y(k) + CI_COOP_H / 2;
+			t.scale = 0.8f;
+			t.centered = true;
+		}
+		/* the port's label at the top of its column, then the column's heading */
+		FRAME_TEXTBOXES[1 + p].x = CI_COL_X(p) + CI_COL_W / 2;
+		FRAME_TEXTBOXES[1 + p].y = CI_PORTLABEL_Y;
+		FRAME_TEXTBOXES[3 + p].x = CI_COL_X(p) + CI_COL_W / 2;
+		FRAME_TEXTBOXES[3 + p].y = CI_HEAD_Y;
+	}
+	FRAME_TEXTBOXES[0].x = TAB_LABEL_CX;
+	FRAME_TEXTBOXES[0].y = CI_ROW_Y(0) + CI_ROW_H / 2;
+}
+
 ConfigureInputFrame::ConfigureInputFrame()
 {
+	layoutTables();
 	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
 		FRAME_BUTTONS[i].button = new menu::Button(FRAME_BUTTONS[i].buttonStyle, &FRAME_BUTTONS[i].buttonString,
 										FRAME_BUTTONS[i].x, FRAME_BUTTONS[i].y,
@@ -167,6 +289,24 @@ ConfigureInputFrame::ConfigureInputFrame()
 		menu::Cursor::getInstance().addComponent(this, FRAME_BUTTONS[i].button, FRAME_BUTTONS[i].x,
 												FRAME_BUTTONS[i].x+FRAME_BUTTONS[i].width, FRAME_BUTTONS[i].y,
 												FRAME_BUTTONS[i].y+FRAME_BUTTONS[i].height);
+	}
+
+	/* A style-A button makes itself 56 high whatever it is given: every one gets its own
+	 * bounds back. Automatic and Manual take their width from their label, as the Settings
+	 * tabs' buttons do, Manual TAB_GAP after Automatic. */
+	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
+		FRAME_BUTTONS[i].button->setBounds(FRAME_BUTTONS[i].x, FRAME_BUTTONS[i].y,
+		                                   FRAME_BUTTONS[i].width, FRAME_BUTTONS[i].height);
+	{
+		float x = TAB_BUTTON_X;
+		for (int i = 0; i < 2; i++)
+		{
+			menu::Button *b = FRAME_BUTTONS[i].button;
+			b->setAutoSize(menu::Button::BTN_FIT_WIDTH);
+			b->setBounds(x, CI_ROW_Y(0), 0, CI_ROW_H);
+			menu::Cursor::getInstance().moveComponent(this, b, x, x + b->getWidth(), CI_ROW_Y(0), CI_ROW_Y(0) + CI_ROW_H);
+			x += b->getWidth() + TAB_GAP;
+		}
 	}
 
 	for (int i = 0; i < NUM_FRAME_TEXTBOXES; i++)
@@ -195,75 +335,116 @@ ConfigureInputFrame::~ConfigureInputFrame()
 
 }
 
+static void showButton(int i, bool on, bool active)
+{
+	FRAME_BUTTONS[i].button->setVisible(on);
+	FRAME_BUTTONS[i].button->setActive(on && active);
+}
+
+static void setLinks(int i, int up, int down, int left, int right)
+{
+	menu::Button *b = FRAME_BUTTONS[i].button;
+	b->setNextFocus(menu::Focus::DIRECTION_UP,    up    < 0 ? NULL : FRAME_BUTTONS[up].button);
+	b->setNextFocus(menu::Focus::DIRECTION_DOWN,  down  < 0 ? NULL : FRAME_BUTTONS[down].button);
+	b->setNextFocus(menu::Focus::DIRECTION_LEFT,  left  < 0 ? NULL : FRAME_BUTTONS[left].button);
+	b->setNextFocus(menu::Focus::DIRECTION_RIGHT, right < 0 ? NULL : FRAME_BUTTONS[right].button);
+}
+
+/* What each port shows: its type and number on its own row; in its column below, four
+ * multitap slots (Multitap) or its Co-Op players (Co-Op), nothing otherwise. Focus runs
+ * down the three rows, then down each column; left and right cross a row and, in the
+ * columns, step to the other column's row at the same height. */
 void ConfigureInputFrame::activateSubmenu(int submenu)
 {
-	if (padAutoAssign == PADAUTOASSIGN_AUTOMATIC)
+	const bool manual = padAutoAssign != PADAUTOASSIGN_AUTOMATIC;
+	int rows[2] = { 0, 0 };            /* rows shown in each column */
+	int cell[2][COOP_MAX][3];          /* each column's buttons by row and column, -1: none */
+	int ncol[2] = { 0, 0 };            /* buttons in each of a column's rows */
+
+	menu::Gui::getInstance().menuLogo->setVisible(false);   /* this frame needs the room */
+	FRAME_BUTTONS[0].button->setSelected(!manual);
+	FRAME_BUTTONS[1].button->setSelected(manual);
+	for (int p = 0; p < 2; p++)
 	{
-		FRAME_BUTTONS[0].button->setSelected(true);
-		FRAME_BUTTONS[1].button->setSelected(false);
-		FRAME_BUTTONS[0].button->setNextFocus(menu::Focus::DIRECTION_DOWN, NULL);
-		FRAME_BUTTONS[0].button->setNextFocus(menu::Focus::DIRECTION_UP, NULL);
-		FRAME_BUTTONS[1].button->setNextFocus(menu::Focus::DIRECTION_DOWN, NULL);
-		FRAME_BUTTONS[1].button->setNextFocus(menu::Focus::DIRECTION_UP, NULL);
-		for (int i = 0; i < 10; i++)
+		const bool mtap = padType[p] == PADTYPE_MULTITAP, coop = padType[p] == PADTYPE_COOP;
+
+		/* the port's own row */
+		FRAME_BUTTONS[2 + p].buttonString = !manual ? FRAME_STRINGS[11] :
+			padType[p] == PADTYPE_HID ? FRAME_STRINGS[17] : mtap ? FRAME_STRINGS[10] :
+			coop ? FRAME_STRINGS[18] : FRAME_STRINGS[padType[p] + 7];
+		FRAME_BUTTONS[12 + p].buttonString = !manual || mtap ? FRAME_STRINGS[12] :
+			coop ? FRAME_STRINGS[31 + coopPlayers[p]] : FRAME_STRINGS[padAssign[p] + 13];
+		showButton(2 + p, true, manual);
+		showButton(12 + p, !mtap, manual);   /* a multitap has no number of its own */
+
+		/* its column: a heading, then the slots or the players */
+		FRAME_TEXTBOXES[3 + p].textBoxString = coop ? FRAME_STRINGS[40 + p] : FRAME_STRINGS[3 + p];
+		FRAME_TEXTBOXES[3 + p].textBox->setVisible(mtap || coop);
+		for (int sl = 0; sl < 4; sl++)
 		{
-			FRAME_BUTTONS[i+2].button->setActive(false);
-			FRAME_BUTTONS[i+2].buttonString = FRAME_STRINGS[11];
-			if (i>1)	FRAME_BUTTONS[i+2].buttonString = FRAME_STRINGS[12];
-			FRAME_BUTTONS[i+12].button->setActive(false);
-			FRAME_BUTTONS[i+12].buttonString = FRAME_STRINGS[12];
+			int i = 2 + p * 4 + sl;
+			FRAME_BUTTONS[i + 2].buttonString = padType[i] == PADTYPE_HID ? FRAME_STRINGS[17] :
+				FRAME_STRINGS[padType[i] + 7];
+			FRAME_BUTTONS[i + 12].buttonString = FRAME_STRINGS[padAssign[i] + 13];
+			showButton(i + 2, mtap, manual);
+			showButton(i + 12, mtap, manual);
+			if (mtap)
+			{
+				cell[p][sl][0] = i + 2;
+				cell[p][sl][1] = i + 12;
+				ncol[p] = 2;
+				rows[p] = sl + 1;
+			}
+		}
+		for (int k = 0; k < COOP_MAX; k++)
+		{
+			const bool on = coop && k < coopPlayers[p];
+			FRAME_BUTTONS[COOP_BTN(p, k, 0)].buttonString = FRAME_STRINGS[28 + coopType[p][k]];
+			FRAME_BUTTONS[COOP_BTN(p, k, 2)].buttonString = FRAME_STRINGS[13 + coopAssign[p][k]];
+			for (int c = 0; c < 3; c++)
+				showButton(COOP_BTN(p, k, c), on, manual);
+			FRAME_TEXTBOXES[COOP_LABEL(p, k)].textBox->setVisible(on);
+			if (on)
+			{
+				for (int c = 0; c < 3; c++)
+					cell[p][k][c] = COOP_BTN(p, k, c);
+				ncol[p] = 3;
+				rows[p] = k + 1;
+			}
 		}
 	}
-	else
+
+	if (!manual)
 	{
-		FRAME_BUTTONS[0].button->setSelected(false);
-		FRAME_BUTTONS[1].button->setSelected(true);
-		for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
-		{
-			if (FRAME_BUTTONS[i].focusUp != -1) FRAME_BUTTONS[i].button->setNextFocus(menu::Focus::DIRECTION_UP, FRAME_BUTTONS[FRAME_BUTTONS[i].focusUp].button);
-			if (FRAME_BUTTONS[i].focusDown != -1) FRAME_BUTTONS[i].button->setNextFocus(menu::Focus::DIRECTION_DOWN, FRAME_BUTTONS[FRAME_BUTTONS[i].focusDown].button);
-			if (FRAME_BUTTONS[i].focusLeft != -1) FRAME_BUTTONS[i].button->setNextFocus(menu::Focus::DIRECTION_LEFT, FRAME_BUTTONS[FRAME_BUTTONS[i].focusLeft].button);
-			if (FRAME_BUTTONS[i].focusRight != -1) FRAME_BUTTONS[i].button->setNextFocus(menu::Focus::DIRECTION_RIGHT, FRAME_BUTTONS[FRAME_BUTTONS[i].focusRight].button);
-		}
-		for (int i = 0; i < 10; i++)
-		{
-			FRAME_BUTTONS[i+2].button->setActive(true);
-			if (padType[i] == PADTYPE_HID)
-			{
-			    FRAME_BUTTONS[i+2].buttonString = FRAME_STRINGS[17];
-			}
-			else if (padType[i] == PADTYPE_MULTITAP)
-			{
-			    FRAME_BUTTONS[i+2].buttonString = FRAME_STRINGS[10];
-			}
-			else
-			{
-			    FRAME_BUTTONS[i+2].buttonString = FRAME_STRINGS[padType[i]+7];
-			}
-			FRAME_BUTTONS[i+12].button->setActive(true);
-			FRAME_BUTTONS[i+12].buttonString = FRAME_STRINGS[padAssign[i]+13];
-		}
-
-
+		setLinks(0, -1, -1, 1, 1);
+		setLinks(1, -1, -1, 0, 0);
+		return;
 	}
+	/* Pad Assignment, then the ports' row: port 1's type and number, port 2's */
+	const bool num0 = padType[0] != PADTYPE_MULTITAP;   /* a port's number can be focused */
+	const bool num1 = padType[1] != PADTYPE_MULTITAP;
+	const int r0 = num0 ? 12 : 2, r1 = num1 ? 13 : 3;   /* each port's rightmost button */
+	const int lastCol0 = rows[0] ? cell[0][rows[0] - 1][0] : 2;
+	const int lastCol1 = rows[1] ? cell[1][rows[1] - 1][ncol[1] - 1] : r1;
+	setLinks(0, lastCol0, 2, 1, 1);
+	setLinks(1, lastCol1, 3, 0, 0);
+	setLinks(2, 0, rows[0] ? cell[0][0][0] : 0, r1, num0 ? 12 : 3);
+	if (num0) setLinks(12, 0, rows[0] ? cell[0][0][ncol[0] - 1] : 0, 2, 3);
+	setLinks(3, 1, rows[1] ? cell[1][0][0] : 1, r0, num1 ? 13 : 2);
+	if (num1) setLinks(13, 1, rows[1] ? cell[1][0][ncol[1] - 1] : 1, 3, 2);
 
-	if (padType[0] != PADTYPE_MULTITAP){
-		for (int i = 2; i < 6; i++){
-			FRAME_BUTTONS[i+2].button->setActive(false);
-			FRAME_BUTTONS[i+2].buttonString = FRAME_STRINGS[12];
-			FRAME_BUTTONS[i+12].button->setActive(false);
-			FRAME_BUTTONS[i+12].buttonString = FRAME_STRINGS[12];
-		}
-	}
-	if (padType[1] != PADTYPE_MULTITAP){
-		for (int i = 6; i < 10; i++){
-			FRAME_BUTTONS[i+2].button->setActive(false);
-			FRAME_BUTTONS[i+2].buttonString = FRAME_STRINGS[12];
-			FRAME_BUTTONS[i+12].button->setActive(false);
-			FRAME_BUTTONS[i+12].buttonString = FRAME_STRINGS[12];
-		}
-
-	}
+	/* the columns */
+	for (int p = 0; p < 2; p++)
+		for (int r = 0; r < rows[p]; r++)
+			for (int c = 0; c < ncol[p]; c++)
+			{
+				int o = 1 - p;
+				int up = r ? cell[p][r - 1][c] : (c && (p ? num1 : num0) ? 12 + p : 2 + p);
+				int down = r + 1 < rows[p] ? cell[p][r + 1][c] : (p == 0 ? 0 : 1);
+				int left = c ? cell[p][r][c - 1] : (r < rows[o] ? cell[o][r][ncol[o] - 1] : cell[p][r][ncol[p] - 1]);
+				int right = c + 1 < ncol[p] ? cell[p][r][c + 1] : (r < rows[o] ? cell[o][r][0] : cell[p][r][0]);
+				setLinks(cell[p][r][c], up, down, left, right);
+			}
 }
 
 extern MenuContext *pMenuContext;
@@ -274,7 +455,7 @@ void Func_AutoSelectInput()
 	 * where nobody could see or change it (only Configure Buttons gave it away). It goes
 	 * back to a plain port, and the controllers are assigned at once. */
 	for (int port = 0; port < 2; port++)
-		if (padType[port] == PADTYPE_MULTITAP)
+		if (padType[port] == PADTYPE_MULTITAP || padType[port] == PADTYPE_COOP)
 			set_port_type(port, PADTYPE_NONE);
 	padAutoAssign = PADAUTOASSIGN_AUTOMATIC;
 	auto_assign_controllers();
@@ -323,7 +504,7 @@ void Func_TogglePad0Type()
 {
 	int i = PADASSIGN_INPUT0;
 #ifdef HW_RVL
-	set_port_type(i, (padType[i]+1) % 5);
+	set_port_type(i, (padType[i]+1) % 6);   /* None GC Wii HID Multitap Co-Op */
 #else
 	set_port_type(i, (padType[i]+1) & 1);
 #endif
@@ -335,7 +516,7 @@ void Func_TogglePad1Type()
 {
 	int i = PADASSIGN_INPUT1;
 #ifdef HW_RVL
-	set_port_type(i, (padType[i]+1) % 5);
+	set_port_type(i, (padType[i]+1) % 6);   /* None GC Wii HID Multitap Co-Op */
 #else
 	set_port_type(i, (padType[i]+1) & 1);
 #endif
@@ -345,6 +526,12 @@ void Func_TogglePad1Type()
 void Func_TogglePad0Assign()
 {
 	int i = PADASSIGN_INPUT0;
+	if (padType[i] == PADTYPE_COOP)   /* a Co-Op port's number is its player count, 1..8 */
+	{
+		coopPlayers[i] = coopPlayers[i] % COOP_MAX + 1;
+		coopRefresh(i);
+		return;
+	}
 	padAssign[i] = (padAssign[i]+1) %4;
 
 	if (padType[i] && padType[i] != PADTYPE_MULTITAP) Func_AssignPad(i);
@@ -355,6 +542,12 @@ void Func_TogglePad0Assign()
 void Func_TogglePad1Assign()
 {
 	int i = PADASSIGN_INPUT1;
+	if (padType[i] == PADTYPE_COOP)   /* a Co-Op port's number is its player count, 1..8 */
+	{
+		coopPlayers[i] = coopPlayers[i] % COOP_MAX + 1;
+		coopRefresh(i);
+		return;
+	}
 	padAssign[i] = (padAssign[i]+1) %4;
 
 	if (padType[i] && padType[i] != PADTYPE_MULTITAP) Func_AssignPad(i);
@@ -364,6 +557,7 @@ void Func_TogglePad1Assign()
 
 void Func_ReturnFromConfigureInputFrame()
 {
+	menu::Gui::getInstance().menuLogo->setVisible(true);
 	pMenuContext->setActiveFrame(MenuContext::FRAME_SETTINGS,SettingsFrame::SUBMENU_INPUT);
 }
 

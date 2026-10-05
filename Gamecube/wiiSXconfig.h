@@ -348,8 +348,27 @@ enum padType
 	PADTYPE_GAMECUBE,
 	PADTYPE_WII,
 	PADTYPE_HID,
-	PADTYPE_MULTITAP
+	PADTYPE_MULTITAP,
+	PADTYPE_COOP      /* ports only: several controllers make one PlayStation pad (coop.c) */
+};
 
+/* Co-Op (Gamecube/coop.c): per PlayStation port, up to COOP_MAX players. Each has a
+ * controller type (PADTYPE_NONE/GAMECUBE/WII/HID), a physical controller (0..3) and a
+ * layout (COOP_LAYOUT_*: which PlayStation buttons and sticks that player works). */
+#define COOP_MAX 8
+extern char coopPlayers[2];
+extern char coopType[2][COOP_MAX];
+extern char coopAssign[2][COOP_MAX];
+extern char coopLayout[2][COOP_MAX];
+enum coopLayout
+{
+	COOP_LAYOUT_FULL=0,
+	COOP_LAYOUT_LEFT,
+	COOP_LAYOUT_RIGHT,
+	COOP_LAYOUT_DPAD_STICKS,
+	COOP_LAYOUT_ACTION,
+	COOP_LAYOUT_SHOULDERS,
+	COOP_LAYOUT_COUNT
 };
 
 extern char padAssign[10];
