@@ -35,7 +35,7 @@ static int coopPort, coopPlayer;   /* whose layout this page shows */
 
 static void Func_ReturnFromCustomizeCoopFrame()
 {
-	menu::Gui::getInstance().menuLogo->setVisible(true);
+	/* back to Configure Input, which has no logo either */
 	pMenuContext->setActiveFrame(MenuContext::FRAME_CONFIGUREINPUT, ConfigureInputFrame::SUBMENU_REINIT);
 }
 
