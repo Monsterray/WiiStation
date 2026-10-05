@@ -197,23 +197,25 @@ static ButtonFunc coopFuncs[2][COOP_MAX][3] = {
 	{ COOP_ROW_TABLE(1,0), COOP_ROW_TABLE(1,1), COOP_ROW_TABLE(1,2), COOP_ROW_TABLE(1,3),
 	  COOP_ROW_TABLE(1,4), COOP_ROW_TABLE(1,5), COOP_ROW_TABLE(1,6), COOP_ROW_TABLE(1,7) } };
 
-/* The layout, on the Settings tabs' grid (MenuLayout.h): a row's label centred on
- * TAB_LABEL_CX, its buttons from TAB_BUTTON_X, TAB_GAP apart. Three such rows -- Pad
- * Assignment, PSX Port 1, PSX Port 2 -- then two port columns side by side with the
- * multitap slots or the Co-Op players of each port. No logo on this frame: it needs the
+/* The layout: Pad Assignment as a row of the Settings tabs' grid (MenuLayout.h: label
+ * centred on TAB_LABEL_CX, buttons from TAB_BUTTON_X, TAB_GAP apart); below it two port
+ * columns side by side, each headed by its PSX Port label and that port's type and number,
+ * then the multitap slots or the Co-Op players of that port. No logo on this frame: it needs the
  * room (activateSubmenu hides it). Style-A buttons make themselves 56 high in their
  * constructor, so every button gets these bounds again afterwards (setBounds). */
-#define CI_ROW_Y(r)		(20.0f + 62.0f * (r))		/* Pad Assignment, Port 1, Port 2 */
+#define CI_ROW_Y(r)		(20.0f + 62.0f * (r))		/* 0: Pad Assignment */
 #define CI_ROW_H		56.0f
+#define CI_PORTLABEL_Y	98.0f		/* PSX Port N, centred on its column */
+#define CI_PORT_Y		114.0f		/* the port's type and number */
 #define CI_TYPE_W		204.0f		/* fits "Gamecube Pad" (176) and padding */
 #define CI_NUM_W		60.0f		/* fits "8P" */
 #define CI_COL_X(p)		(8.0f + 316.0f * (p))
 #define CI_COL_W		308.0f
-#define CI_HEAD_Y		216.0f		/* a column's heading, centred */
-#define CI_SLOT_Y(s)	(232.0f + 56.0f * (s))	/* multitap slots: 4 rows end at 450 */
-#define CI_SLOT_H		50.0f
-#define CI_COOP_Y(k)	(232.0f + 30.0f * (k))	/* Co-Op players: 8 rows end at 470 */
-#define CI_COOP_H		28.0f
+#define CI_HEAD_Y		190.0f		/* a column's Multitap / Co-Op heading, centred */
+#define CI_SLOT_Y(s)	(206.0f + 62.0f * (s))	/* multitap slots: 4 rows end at 448 */
+#define CI_SLOT_H		56.0f
+#define CI_COOP_Y(k)	(206.0f + 33.0f * (k))	/* Co-Op players: 8 rows end at 467 */
+#define CI_COOP_H		30.0f
 static void setRect(int i, float x, float y, float w, float h)
 {
 	FRAME_BUTTONS[i].x = x; FRAME_BUTTONS[i].y = y;
@@ -229,8 +231,8 @@ static void layoutTables(void)
 	setRect(1, TAB_BUTTON_X + 150.0f, CI_ROW_Y(0), 100.0f, CI_ROW_H);
 	for (int p = 0; p < 2; p++)
 	{
-		setRect(2 + p, TAB_BUTTON_X, CI_ROW_Y(1 + p), CI_TYPE_W, CI_ROW_H);
-		setRect(12 + p, TAB_BUTTON_X + CI_TYPE_W + TAB_GAP, CI_ROW_Y(1 + p), CI_NUM_W, CI_ROW_H);
+		setRect(2 + p, CI_COL_X(p) + slotX, CI_PORT_Y, CI_TYPE_W, CI_ROW_H);
+		setRect(12 + p, CI_COL_X(p) + slotX + CI_TYPE_W + TAB_GAP, CI_PORT_Y, CI_NUM_W, CI_ROW_H);
 		for (int sl = 0; sl < 4; sl++)
 		{
 			int i = 2 + p * 4 + sl;
@@ -256,9 +258,9 @@ static void layoutTables(void)
 			t.scale = 0.8f;
 			t.centered = true;
 		}
-		/* the port's label on its row, its column's heading */
-		FRAME_TEXTBOXES[1 + p].x = TAB_LABEL_CX;
-		FRAME_TEXTBOXES[1 + p].y = CI_ROW_Y(1 + p) + CI_ROW_H / 2;
+		/* the port's label at the top of its column, then the column's heading */
+		FRAME_TEXTBOXES[1 + p].x = CI_COL_X(p) + CI_COL_W / 2;
+		FRAME_TEXTBOXES[1 + p].y = CI_PORTLABEL_Y;
 		FRAME_TEXTBOXES[3 + p].x = CI_COL_X(p) + CI_COL_W / 2;
 		FRAME_TEXTBOXES[3 + p].y = CI_HEAD_Y;
 	}
@@ -418,20 +420,18 @@ void ConfigureInputFrame::activateSubmenu(int submenu)
 		setLinks(1, -1, -1, 0, 0);
 		return;
 	}
-	/* the three rows: Pad Assignment, Port 1, Port 2 */
-	const int firstCol = rows[0] ? 0 : rows[1] ? 1 : -1;
-	const int below[2] = { firstCol < 0 ? 0 : cell[firstCol][0][0],
-	                       firstCol < 0 ? 1 : cell[firstCol][0][ncol[firstCol] - 1] };
-	const int lastCol0 = rows[0] ? cell[0][rows[0] - 1][0] : 3;
-	const int lastCol1 = rows[1] ? cell[1][rows[1] - 1][ncol[1] - 1] : rows[0] ? cell[0][rows[0] - 1][ncol[0] - 1] : 13;
-	const bool num1 = padType[1] != PADTYPE_MULTITAP;   /* port 2's number can be focused */
-	const bool num0 = padType[0] != PADTYPE_MULTITAP;
+	/* Pad Assignment, then the ports' row: port 1's type and number, port 2's */
+	const bool num0 = padType[0] != PADTYPE_MULTITAP;   /* a port's number can be focused */
+	const bool num1 = padType[1] != PADTYPE_MULTITAP;
+	const int r0 = num0 ? 12 : 2, r1 = num1 ? 13 : 3;   /* each port's rightmost button */
+	const int lastCol0 = rows[0] ? cell[0][rows[0] - 1][0] : 2;
+	const int lastCol1 = rows[1] ? cell[1][rows[1] - 1][ncol[1] - 1] : r1;
 	setLinks(0, lastCol0, 2, 1, 1);
-	setLinks(1, lastCol1, num0 ? 12 : 2, 0, 0);
-	setLinks(2, 0, 3, num0 ? 12 : -1, num0 ? 12 : -1);
-	if (num0) setLinks(12, 1, num1 ? 13 : 3, 2, 2);
-	setLinks(3, 2, below[0], num1 ? 13 : -1, num1 ? 13 : -1);
-	if (num1) setLinks(13, num0 ? 12 : 2, below[1], 3, 3);
+	setLinks(1, lastCol1, 3, 0, 0);
+	setLinks(2, 0, rows[0] ? cell[0][0][0] : 0, r1, num0 ? 12 : 3);
+	if (num0) setLinks(12, 0, rows[0] ? cell[0][0][ncol[0] - 1] : 0, 2, 3);
+	setLinks(3, 1, rows[1] ? cell[1][0][0] : 1, r0, num1 ? 13 : 2);
+	if (num1) setLinks(13, 1, rows[1] ? cell[1][0][ncol[1] - 1] : 1, 3, 2);
 
 	/* the columns */
 	for (int p = 0; p < 2; p++)
@@ -439,7 +439,7 @@ void ConfigureInputFrame::activateSubmenu(int submenu)
 			for (int c = 0; c < ncol[p]; c++)
 			{
 				int o = 1 - p;
-				int up = r ? cell[p][r - 1][c] : (num1 && c == ncol[p] - 1 ? 13 : 3);
+				int up = r ? cell[p][r - 1][c] : (c && (p ? num1 : num0) ? 12 + p : 2 + p);
 				int down = r + 1 < rows[p] ? cell[p][r + 1][c] : (p == 0 ? 0 : 1);
 				int left = c ? cell[p][r][c - 1] : (r < rows[o] ? cell[o][r][ncol[o] - 1] : cell[p][r][ncol[p] - 1]);
 				int right = c + 1 < ncol[p] ? cell[p][r][c + 1] : (r < rows[o] ? cell[o][r][0] : cell[p][r][0]);
