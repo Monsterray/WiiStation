@@ -232,6 +232,7 @@ static noinline void get_gpu_info(uint32_t data)
 // vram ptr received from mmap/malloc/alloc (will deallocate using this)
 static uint16_t *vram_ptr_orig = NULL;
 uint8_t globalVram[VRAM_SIZE + (VRAM_ALIGN - 1)];
+const unsigned globalVramSize = sizeof globalVram;   /* GlesGpu clears all of it */
 
 #ifndef GPULIB_USE_MMAP
 # if defined(__linux__) || defined(_3DS) || defined(HAVE_LIBNX) || defined(VITA)
@@ -274,6 +275,7 @@ long LIB_GPUinit(void)
   gpu.state.hcnt = &gpu.zero;
   gpu.cmd_len = 0;
   do_reset();
+  memset(globalVram, 0, sizeof globalVram);   /* a chained game starts as the first did, not on the last one's VRAM */
 
   /*if (gpu.mmap != NULL) {
     if (map_vram() != 0)
