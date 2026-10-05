@@ -270,7 +270,14 @@ extern MenuContext *pMenuContext;
 
 void Func_AutoSelectInput()
 {
+	/* Automatic greys out the port types, so a port Manual had made a Multitap stayed one
+	 * where nobody could see or change it (only Configure Buttons gave it away). It goes
+	 * back to a plain port, and the controllers are assigned at once. */
+	for (int port = 0; port < 2; port++)
+		if (padType[port] == PADTYPE_MULTITAP)
+			set_port_type(port, PADTYPE_NONE);
 	padAutoAssign = PADAUTOASSIGN_AUTOMATIC;
+	auto_assign_controllers();
 	pMenuContext->getFrame(MenuContext::FRAME_CONFIGUREINPUT)->activateSubmenu(ConfigureInputFrame::SUBMENU_REINIT);
 }
 
