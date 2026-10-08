@@ -874,6 +874,7 @@ static bool chainNext(void)
 			fclose(f);
 		}
 		perf_state_log(chainI + 1);   /* perf.log "state:": guest RAM and VRAM hashes */
+		perf_stack_log("game end");
 		perf_vtl_flush(chainI + 1);   /* the per-vblank timeline: vtl_NN.bin */
 		perf_report();
 	}
@@ -950,6 +951,7 @@ int main(int argc, char *argv[])
 	 * "lab=HOST:PORT" read afterwards was only "lab" and lab mode never started on a Wii */
 	lab_args(argc, argv);
 	loadSettings(argc, argv);
+	perf_stack_log("settings");
 
 	/* A Wii on the bench (scripts/wii_lab.py): "lab=HOST:PORT" from wiiload fetches this
 	 * run's files -- autoboot.txt among them -- before it is read, and a crash goes back
@@ -962,10 +964,6 @@ int main(int argc, char *argv[])
 			exit(0);
 		}
 	}
-
-	/* The Homebrew Channel's agent (hbc_home.c): after lab mode, which starts the network
-	 * itself, and before the SMB thread, which waits for the agent's start-up. */
-	hbc_home_start();
 
 	/* Test automation: a bare .dol booted by Dolphin gets no loader argv, so
 	 * sd:/wiisxrx/autoboot.txt -- two lines, the ISO's directory and its
@@ -1003,6 +1001,7 @@ int main(int argc, char *argv[])
 
 	#ifdef HW_RVL
 	HIDInit(ios);
+	perf_stack_log("hid");
 
 	VM_Init(1024*1024, 256*1024); // whatever for now, we're not really using this for anything other than mmap on Wii.
 	#endif // HW_RVL
@@ -1011,7 +1010,15 @@ int main(int argc, char *argv[])
 	ChangeLanguage();
 
 	MenuContext *menu = new MenuContext(vmode);
+	perf_stack_log("menu");
 	VIDEO_SetPostRetraceCallback (ScanPADSandReset);
+
+	/* The Homebrew Channel's agent (hbc_home.c): after lab mode, which starts the network
+	 * itself, and before the SMB thread below, which waits for the agent's start-up. And
+	 * after the menu's VIDEO_Init() (GraphicsGX.cpp), which clears the post-retrace callback:
+	 * the agent's frame pacing (`hbc.py status`) wraps the callback set just above. */
+	hbc_home_start();
+	perf_stack_log("agent");
 
 #ifndef WII
 	DVD_Init();

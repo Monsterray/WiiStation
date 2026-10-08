@@ -744,6 +744,7 @@ void perf_vram_event(unsigned kind, int x, int y, int w, int h, int a, int b);
 void perf_tty(const char *s);   /* the run's console text, for sd:/wiisxrx/tty.log */
 void perf_vtl_flush(int game);  /* the per-vblank timeline, to sd:/wiisxrx/vtl_NN.bin */
 void perf_state_log(int game);  /* guest RAM/VRAM hashes at a chained game's end: perf.log "state:" */
+void perf_stack_log(const char *where);   /* the main thread's deepest stack use: perf.log "stack:" */
 void perf_fatal_log(unsigned code, const char *reason);   /* ws_fatal: perf.log "fatal:" */
 /* the PSX PC at each vblank: where the CPU spends its time, "pcs:" in perf.log */
 void perf_pc_sample(unsigned pc);
@@ -789,6 +790,7 @@ static inline void perf_pc_sample(unsigned pc) { (void)pc; }
 static inline void perf_tty(const char *s) { (void)s; }
 static inline void perf_vtl_flush(int game) { (void)game; }
 static inline void perf_state_log(int game) { (void)game; }
+static inline void perf_stack_log(const char *where) { (void)where; }
 static inline void perf_fatal_log(unsigned code, const char *reason) { (void)code; (void)reason; }
 static inline void perf_vram_event(unsigned kind, int x, int y, int w, int h, int a, int b)
 { (void)kind; (void)x; (void)y; (void)w; (void)h; (void)a; (void)b; }

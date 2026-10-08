@@ -20,6 +20,7 @@
 
 #include "MenuContext.h"
 #include "MenuLayout.h"
+#include "../perf_prof.h"
 #include "../libgui/FocusManager.h"
 #include "../libgui/CursorManager.h"
 
@@ -130,6 +131,7 @@ bool MenuContext::isRunning()
 	{
 		static int framesUntilMenuPage = 30;
 		if (framesUntilMenuPage > 0 && --framesUntilMenuPage == 0) {
+			perf_stack_log("menu frame 30");
 			/* read the script anew: a read before the SD card was mounted (the controller
 			 * assignment at power-on asks for scripted ports) found nothing, and kept that */
 			autoinput_reset("sd:/wiisxrx/autoinput.txt");

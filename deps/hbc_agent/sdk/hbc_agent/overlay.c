@@ -171,16 +171,38 @@ static unsigned ir_read(int x[4], int y[4], float angle[4]) {
 
 static struct {
 	u32 frames, avg_us, max_us;
-	u32 bytes;          // framebuffer memory it borrowed
+	u32 dim_us, draw_us;    // averages of the two parts of a drawn frame
+	u32 loops, loop_max_us; // every pass of the loop, VI wait included
+	u32 input_max_us;       // the longest read of remotes and PC keys
+	u32 slow_loops;         // passes over 1/30 s: the user sees a stutter
+	u32 bytes;              // framebuffer memory it borrowed
 	const char *buffers;
 } cost;
 
-void agent_overlay_cost(u32 *frames, u32 *avg_us, u32 *max_us, u32 *bytes, const char **buffers) {
-	*frames = cost.frames;
-	*avg_us = cost.avg_us;
-	*max_us = cost.max_us;
-	*bytes = cost.bytes;
-	*buffers = cost.buffers;
+// The open overlay's state for HBCS "overlay_ui": scripted tests check where
+// the focus is before they press A, instead of guessing.
+static ov_ui *open_ui;
+
+int agent_overlay_state(char *buf, int size) {
+	ov_ui *ui = open_ui;
+
+	if (!ui)
+		return 0;
+	return snprintf(buf, size, ",\"overlay_ui\":{\"menu\":%d,\"focus\":%d,\"tab\":%d,"
+					"\"page\":%d,\"info_page\":%d}", ui->menu, ui->focus, ui->dev_tab,
+					ui->dev_page, ui->info_page);
+}
+
+// HBCS: ,"overlay":{...} after the overlay was open, else nothing.
+int agent_overlay_cost_json(char *buf, int size) {
+	if (!cost.frames)
+		return 0;
+	return snprintf(buf, size, ",\"overlay\":{\"frames\":%u,\"avg_us\":%u,\"max_us\":%u,"
+					"\"dim_us\":%u,\"draw_us\":%u,\"loops\":%u,\"loop_max_us\":%u,"
+					"\"input_max_us\":%u,\"slow_loops\":%u,\"bytes\":%u,\"buffers\":\"%s\"}",
+					cost.frames, cost.avg_us, cost.max_us, cost.dim_us, cost.draw_us, cost.loops,
+					cost.loop_max_us, cost.input_max_us, cost.slow_loops, cost.bytes,
+					cost.buffers);
 }
 
 int agent_wpad_handles(void) {
@@ -951,9 +973,15 @@ typedef struct {
 	int exit_choice;          // an Exit choice the app handles, + 1; 0 for none
 	char sd[24];
 	volatile bool sd_done;
+	const GXRModeObj *rmode;
+	ov_page *info;            // DEV > Info's pages, gathered by info_thread
+	volatile bool info_done;
+	lwp_t info_thread;
 } ov_run;
 
 static ov_run *run;
+static u64 last_step;   // the overlay loop's last pass
+static int ui_ticks = 1;
 
 static void toast(const char *msg) {
 	snprintf(run->ext.toast, sizeof(run->ext.toast), "%s", msg);
@@ -979,6 +1007,15 @@ static void *sd_thread(void *arg) {
 		snprintf(r->sd, sizeof(r->sd), "No card");
 	}
 	r->sd_done = true;
+	return NULL;
+}
+
+static void *info_thread(void *arg) {
+	ov_run *r = arg;
+
+	while (!agent_info_gather(r->info, r->rmode, (1 << OV_INFO_PAGES) - 1))
+		usleep(100 * 1000);   // HBCH is using it
+	r->info_done = true;
 	return NULL;
 }
 
@@ -1032,6 +1069,7 @@ static void poll(ov_run *r) {
 	else
 		snprintf(e->network, sizeof(e->network), "Not connected");
 	snprintf(e->sd, sizeof(e->sd), "%s", r->sd_done ? r->sd : "Checking...");
+	e->info = r->info_done ? r->info : NULL;
 	e->mem_free_kb[0] = SYS_GetArena1Size() / 1024;
 	e->mem_free_kb[1] = SYS_GetArena2Size() / 1024;
 	e->mem_total_kb[0] = 24 * 1024;
@@ -1135,8 +1173,13 @@ static void poll(ov_run *r) {
 					 c->accel[1], c->accel[2]);
 	}
 
-	if (r->toast_frames && !--r->toast_frames)
-		e->toast[0] = 0;
+	if (r->toast_frames) {
+		r->toast_frames -= ui_ticks;
+		if (r->toast_frames <= 0) {
+			r->toast_frames = 0;
+			e->toast[0] = 0;
+		}
+	}
 }
 
 static void set_all(void (*fn)(int chan)) {
@@ -1294,6 +1337,14 @@ static void act(int action, int arg, void *user) {
 	case OVA_SYNC_CLOCK:
 		ntp_start();
 		break;
+	case OVA_INFO:
+		// Every page at once, below the app's threads like the SD check.
+		if (!run->info && (run->info = malloc(OV_INFO_PAGES * sizeof(ov_page))) &&
+				LWP_CreateThread(&run->info_thread, info_thread, run, NULL, 16 * 1024, 30) < 0) {
+			free(run->info);
+			run->info = NULL;
+		}
+		break;
 	case OVA_RESET_REMOTES:
 		reset_remotes();
 		fx_stop_all();
@@ -1393,6 +1444,17 @@ static bool in_mem1(const void *p) {
 	return p && ((u32) p & 0x1fffffff) < 0x01800000;
 }
 
+// A framebuffer an app lends may also be in MEM2: the Wii's video interface scans
+// it there (Wii64 has always shown its game from MEM2 framebuffers).
+static bool in_vi_ram(const void *p) {
+	u32 a = (u32) p & 0x1fffffff;
+	return p && (a < 0x01800000 || (a >= 0x10000000 && a < 0x14000000));
+}
+
+static bool same_ram(const void *a, const void *b) {
+	return ((u32) a & 0x1fffffff) == ((u32) b & 0x1fffffff);
+}
+
 // fb0 and fb1 are the app's (lent) or NULL (allocate our own).
 static s32 home(const GXRModeObj *rmode, void *fb0, void *fb1) {
 	static bool inside;
@@ -1414,6 +1476,8 @@ static s32 home(const GXRModeObj *rmode, void *fb0, void *fb1) {
 	r.w = rmode->fbWidth;
 	r.h = rmode->xfbHeight;
 	r.test_chan = -1;
+	r.rmode = rmode;
+	r.info_thread = LWP_THREAD_NULL;
 	size = r.w * r.h * 2;
 	agent_set_screen_size(r.w, r.h);
 	app_fb = agent_uncached(app_fb);
@@ -1422,7 +1486,17 @@ static s32 home(const GXRModeObj *rmode, void *fb0, void *fb1) {
 	// to draw into without tearing. The video interface reads only MEM1, so
 	// buffers the heap gives from MEM2 are no use; then draw over the app's
 	// own framebuffer, putting its picture back on the way out.
-	r.frozen = memalign(32, size);
+	// Lent buffers that leave the app's frame on screen alone: read that frame in
+	// place instead of copying it, so an app with no 600 KB to spare (Wii64) can
+	// still open the overlay.
+	bool frozen_in_place = !own && !same_ram(fb[0], app_fb) && (!fb[1] || !same_ram(fb[1], app_fb));
+	// Read through the cache: uncached, every byte is a bus transaction,
+	// which made HBC's overlay take 35 ms a frame. Flushed first, so the
+	// cache holds what the VI shows; nothing writes the frame meanwhile.
+	u8 *app_cached = agent_cached(app_fb);
+
+	DCFlushRange(app_cached, size);
+	r.frozen = frozen_in_place ? app_cached : memalign(32, size);
 	if (own) {
 		fb[0] = memalign(32, size);
 		fb[1] = memalign(32, size);
@@ -1447,7 +1521,8 @@ static s32 home(const GXRModeObj *rmode, void *fb0, void *fb1) {
 		fb[0] = (u8 *) ((u32) app_fb & ~0x40000000);   // cached, like ours
 	inside = true;
 	run = &r;
-	memcpy(r.frozen, app_fb, size);
+	if (!frozen_in_place)
+		memcpy(r.frozen, app_cached, size);
 	LWP_CreateThread(&sd, sd_thread, &r, NULL, 16 * 1024, 30);
 
 	// Like the Wii's HOME Menu, pausing stops every remote's rumble; an app
@@ -1457,20 +1532,37 @@ static s32 home(const GXRModeObj *rmode, void *fb0, void *fb1) {
 	// pointer so they look right.
 	ov_set_widescreen(CONF_GetAspectRatio() == CONF_ASPECT_16_9);
 	ov_init(&ui, r.w, r.h);
+	open_ui = &ui;
 	last_chan = -1;
 	memset(&cost, 0, sizeof(cost));
 	cost.buffers = !own ? "lent" : fb[0] == (u8 *) ((u32) app_fb & ~0x40000000) ? "app's" : "own";
 	cost.bytes = !own ? (fb[1] ? 2 : 1) * size : (fb[1] ? size : 0) +
 			(cost.buffers[0] == 'o' ? size : 0);
-	cost.bytes += size;   // the frozen frame
+	if (!frozen_in_place)
+		cost.bytes += size;   // the frozen frame
+	last_step = gettime();
 	while (running) {
 		ov_canvas c;
 		unsigned pressed, pointing;
 		int px[4], py[4];
 		float pa[4] = { 0, 0, 0, 0 };
 		u8 *back = fb[fb[1] ? cur : 0];
-		u64 t0 = gettime();
+		u64 t0 = gettime(), t1;
 		u32 us;
+
+		// Time since the last step, in sixtieths: animations follow it.
+		us = ticks_to_microsecs(diff_ticks(last_step, t0));
+		ui.ticks = (us + 8333) / 16667;
+		if (ui.ticks < 1)
+			ui.ticks = 1;
+		if (ui.ticks > 8)
+			ui.ticks = 8;   // a long stall jumps ahead, not to the end
+		cost.loops++;
+		if (us > cost.loop_max_us)
+			cost.loop_max_us = us;
+		if (us > 33333)
+			cost.slow_loops++;
+		last_step = t0;
 
 		if (agent_cfg()->on_frame)
 			agent_cfg()->on_frame(agent_cfg()->user);
@@ -1479,11 +1571,15 @@ static s32 home(const GXRModeObj *rmode, void *fb0, void *fb1) {
 		pressed = read_input();
 		pointing = ir_read(px, py, pa);
 		ov_point(&ui, px, py, pa, pointing, last_chan);
+		us = ticks_to_microsecs(diff_ticks(t0, gettime()));
+		if (us > cost.input_max_us)
+			cost.input_max_us = us;
 		cal_sample();
 		fx_tick();
 		// An Exit choice the app handles: close everything first.
 		if (r.exit_choice && !ui.closing)
 			pressed = OV_HOME;
+		ui_ticks = ui.ticks;
 		running = ov_step(&ui, &r.ext, pressed, act, NULL);
 
 		// Nothing on screen changed (a menu just sitting there): keep the
@@ -1497,11 +1593,17 @@ static s32 home(const GXRModeObj *rmode, void *fb0, void *fb1) {
 		c.h = r.h;
 		c.stride = r.w * 2;
 		ov_noclip(&c);
+		t1 = gettime();
 		if (ui.paused) {
 			memcpy(back, r.frozen, size);
 		} else {
 			ov_dim_copy(&c, r.frozen, 96 + (ui.menu ? 0 : 60) + (256 - ui.open_t) * 100 / 256);
+			us = ticks_to_microsecs(diff_ticks(t1, gettime()));
+			cost.dim_us = (cost.dim_us * cost.frames + us) / (cost.frames + 1);
+			t1 = gettime();
 			ov_draw(&ui, &r.ext, &c);
+			us = ticks_to_microsecs(diff_ticks(t1, gettime()));
+			cost.draw_us = (cost.draw_us * cost.frames + us) / (cost.frames + 1);
 		}
 		DCFlushRange(back, size);
 		// The overlay's own work this frame, before it waits for the VI.
@@ -1519,7 +1621,7 @@ static s32 home(const GXRModeObj *rmode, void *fb0, void *fb1) {
 	// Give the app its picture back: if we drew over its framebuffer,
 	// restore what was there first.
 	if (((u32) fb[0] & 0x1fffffff) == ((u32) app_fb & 0x1fffffff)) {
-		memcpy(app_fb, r.frozen, size);
+		memcpy(fb[0], r.frozen, size);   // fb[0] is its cached alias
 		DCFlushRange(fb[0], size);
 	}
 	VIDEO_SetNextFramebuffer(app_fb);
@@ -1529,14 +1631,20 @@ static s32 home(const GXRModeObj *rmode, void *fb0, void *fb1) {
 	ir_restore();
 	if (sd != LWP_THREAD_NULL)
 		LWP_JoinThread(sd, NULL);
+	if (r.info) {
+		LWP_JoinThread(r.info_thread, NULL);
+		free(r.info);
+	}
 	if (own) {
 		if (in_mem1(fb[1]))
 			free(fb[1]);
 		if (((u32) fb[0] & 0x1fffffff) != ((u32) app_fb & 0x1fffffff))
 			free(fb[0]);
 	}
-	free(r.frozen);
+	if (!frozen_in_place)
+		free(r.frozen);
 	run = NULL;
+	open_ui = NULL;
 	inside = false;
 
 	if (ui.after == OVA_RESTART_APP && agent_cfg()->on_restart)
@@ -1576,7 +1684,7 @@ s32 hbc_agent_home(const GXRModeObj *rmode) {
 }
 
 s32 hbc_agent_home_fb(const GXRModeObj *rmode, void *fb0, void *fb1) {
-	if (!fb0 || !in_mem1(fb0) || (fb1 && !in_mem1(fb1)))
+	if (!fb0 || !in_vi_ram(fb0) || (fb1 && !in_vi_ram(fb1)))
 		return -EINVAL;
 	return home_watched(rmode, (void *) ((u32) fb0 & ~0x40000000),
 				fb1 ? (void *) ((u32) fb1 & ~0x40000000) : NULL);

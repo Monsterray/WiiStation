@@ -295,3 +295,18 @@ hashes in UploadScreen, OpenGX texel checks). The pattern to grep for is a loop 
   seam down the middle. Configure Buttons fits its mapping buttons every frame
   (fitMappingButtons): min = table width, max = half the free space to a neighbour beside it.
   `menupage 40..65` photographs it per virtual controller.
+
+## HBC 1.10 agent (2026-10-07, 5.5.0)
+
+- `hbc.py status` (a queue job: `.runs/agent_frames_job.py`, `.runs/agent_stack_rel_job.py`
+  are the patterns, Python not bash -- the queue's bash cannot see C:/ paths) shows
+  `safety.frames` (fps, late, worst_ms) and `safety.main_stack.deepest`. Lab mode has no
+  network, so read these from a normal `hbc.py send` start.
+- **libogc2's VIDEO_Init() clears the post-retrace callback.** The menu calls it
+  (GraphicsGX.cpp), so the agent starts after `VIDEO_SetPostRetraceCallback(ScanPADSandReset)`
+  or its frame pacing reads 0 (it wraps WiiStation's callback).
+- `no_safety = HBC_AGENT_NO_BUTTONS`: WiiStation reads Reset itself (= menu); the agent would
+  send Reset to HBC.
+- `perf_stack_log(where)` (debug): main-stack depth to perf.log and stdout (`hbc.py lastlog`).
+  Measured: menu 4.3 KB, after games 30 KB of 128 KB. One 128700 reading (release, 2026-10-07
+  19:57) never reproduced in three later runs.

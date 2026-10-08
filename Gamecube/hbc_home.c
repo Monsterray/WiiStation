@@ -37,6 +37,11 @@ void hbc_home_start(void)
 	 * agent exit a chain in the middle (2026-09-30, twice, no results). The crash handler
 	 * stays; HBC shows its report after the reload. */
 	cfg.no_network = lab_active();
+	/* HBC 1.10's safety tools, but not the buttons: WiiStation reads Reset itself (the
+	 * retrace callback: Reset = back to the menu) and sets its own Power callback, so a
+	 * Reset the agent took went to HBC instead. Its frame pacing wraps WiiStation's
+	 * retrace callback: GamecubeMain.cpp starts the agent after setting it. */
+	cfg.no_safety = HBC_AGENT_NO_BUTTONS;
 	agent_up = hbc_agent_init(&cfg) == 0;
 }
 

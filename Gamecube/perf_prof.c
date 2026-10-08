@@ -625,6 +625,31 @@ void perf_vtl_flush(int game)
 /* A chained game's end: hashes of the guest's RAM and of VRAM, and its PC and cycle count.
  * Two runs with equal "state:" lines and different vram_NN.bin had the same guest and a
  * host-side difference in VRAM; a different ram= is a guest divergence. FNV-1a, 32-bit. */
+/* How deep the main thread's stack has been: libogc2's is a 128 KiB .bss array, zero until
+ * used, so the first non-zero word from its low end is the deepest point reached (the HBC
+ * agent's "main_stack deepest" works the same way). Also that word and the current sp. */
+void perf_stack_log(const char *where)
+{
+	extern lwp_cntrl *_thr_main;
+	/* from above the agent's guard room (1 KiB: its marker words and breakpoint), as it scans */
+	u32 lo = (u32)_thr_main->stack, hi = lo + _thr_main->stack_size, a = lo + 1024 + 8, sp;
+	FILE *f;
+
+	__asm__ volatile ("mr %0,1" : "=r" (sp));
+	while (a < hi && !*(u32 *)a)
+		a += 4;
+	/* to the console too: the HBC agent keeps it for `hbc.py lastlog`, which works where the
+	 * card cannot be read back (a Wii started from HBC, not in lab mode) */
+	printf("stack: %s deepest=%u sp_depth=%u\n", where, (unsigned)(hi - a),
+		sp >= lo && sp < hi ? (unsigned)(hi - sp) : 0);
+	if ((f = fopen("sd:/wiisxrx/perf.log", "a"))) {
+		fprintf(f, "stack: %s deepest=%u at=%08x word=%08x sp_depth=%u size=%u lo=%08x\n", where,
+			(unsigned)(hi - a), (unsigned)a, a < hi ? (unsigned)*(u32 *)a : 0,
+			sp >= lo && sp < hi ? (unsigned)(hi - sp) : 0, (unsigned)(hi - lo), (unsigned)lo);
+		fclose(f);
+	}
+}
+
 void perf_state_log(int game)
 {
 	extern s8 *psxM;
