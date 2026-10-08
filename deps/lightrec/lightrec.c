@@ -1960,6 +1960,30 @@ void lightrec_free_cstate(struct lightrec_cstate *cstate)
 	lightrec_free(cstate->state, MEM_FOR_LIGHTREC, sizeof(*cstate), cstate);
 }
 
+/* WiiStation: the state is allocated once and kept for the next lightrec_init(). It is the
+ * largest block on the heap (2.5 MB: the code LUT is part of it), and the emulator destroys
+ * and makes it again at every game switch, reset and core change. Freed, its hole took the
+ * smaller allocations made before the next init (the SMB device's read windows, when they
+ * were allocated per open file), and the next calloc found no 2.5 MB in one piece although
+ * 2.8 MB were free (2026-10-08): Lightrec then ran the second game on a NULL state. */
+static void *lightrec_kept_state;
+static size_t lightrec_kept_size;
+
+static struct lightrec_state *lightrec_alloc_state(size_t size)
+{
+	if (lightrec_kept_state && lightrec_kept_size != size) {
+		free(lightrec_kept_state);
+		lightrec_kept_state = NULL;
+	}
+	if (!lightrec_kept_state) {
+		lightrec_kept_state = malloc(size);
+		lightrec_kept_size = size;
+	}
+	if (lightrec_kept_state)
+		memset(lightrec_kept_state, 0, size);
+	return lightrec_kept_state;
+}
+
 struct lightrec_state * lightrec_init(char *argv0,
 				      const struct lightrec_mem_map *maps,
 				      size_t nb,
@@ -2006,7 +2030,7 @@ struct lightrec_state * lightrec_init(char *argv0,
 
 	init_jit_with_debug(argv0, stdout);
 
-	state = calloc(1, sizeof(*state) + lut_size);
+	state = lightrec_alloc_state(sizeof(*state) + lut_size);
 	if (!state)
 		goto err_finish_jit;
 
@@ -2095,7 +2119,7 @@ err_free_block_cache:
 err_free_state:
 	lightrec_unregister(MEM_FOR_LIGHTREC, sizeof(*state) +
 			    lut_elm_size(state) * CODE_LUT_SIZE);
-	free(state);
+	/* WiiStation: not freed; lightrec_alloc_state() hands it to the next init */
 err_finish_jit:
 	finish_jit();
 	if (ENABLE_CODE_BUFFER && tlsf)
@@ -2125,7 +2149,7 @@ void lightrec_destroy(struct lightrec_state *state)
 
 	lightrec_unregister(MEM_FOR_LIGHTREC, sizeof(*state) +
 			    lut_elm_size(state) * CODE_LUT_SIZE);
-	free(state);
+	/* WiiStation: not freed; lightrec_alloc_state() hands it to the next init */
 }
 
 void lightrec_invalidate(struct lightrec_state *state, u32 addr, u32 len)

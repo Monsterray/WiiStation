@@ -20,10 +20,10 @@
  * cdriso.c starts no CD read-ahead for a game here: sectors read ahead and never used
  * would cost the game time at this speed.
  *
- * The windows come from one pool, allocated at the first mount and never freed. Allocating
- * them per open and freeing them per close let a later game's start reuse that memory,
- * and the second game from the share in one boot crashed in Lightrec (a map count of 0:
- * something in the game-switch path still used memory it had freed).
+ * The windows come from one pool, allocated at the first mount and never freed. Allocated
+ * per open and freed per close, they landed in the hole Lightrec's freed state had left,
+ * and the next game's 2.5 MB state found no room (fixed in 5.7.1 in deps/lightrec, which
+ * now keeps its state). Large blocks churned at every game still fragment the heap.
  *
  * A request that fails means the connection is gone (the server restarted, Wi-Fi dropped).
  * The device then connects again and opens the file again, once, before it gives up, so a

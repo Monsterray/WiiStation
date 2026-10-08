@@ -219,8 +219,9 @@ Rules and fixes learned on the bench (2026-09-29/30):
   - a hang: `ws_alive()` (= `hbc_agent_alive()`) per PS1 vblank, menu frame and lab chunk;
     the agent's watchdog reports `HBC_CRASH_HANG` after 60 s and pauses during its HOME
     overlay. Test with the input line `hangtest <vblank>` (`scripts/chains/hangtest.txt`);
-  - Lightrec's guest segfault (code 0x82) and no sound driver (0x83): `ws_fatal(code,
-    reason)` sends the lab results, then `hbc_agent_fatal()`;
+  - Lightrec's guest segfault (code 0x82), no sound driver (0x83) and a CPU core that could
+    not start (0x84, Lightrec's state not allocated): `ws_fatal(code, reason)` sends the lab
+    results, then `hbc_agent_fatal()`;
   - an exception with MSR[RI] clear still goes past the agent: libogc's vector code jumps
     straight to `default_exceptionhandler`. WiiStation wraps `c_default_exceptionhandler`
     (`-Wl,--wrap` in Makefile_Wii*) and writes the block itself (reason "past the agent's

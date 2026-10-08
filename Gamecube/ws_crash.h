@@ -11,6 +11,7 @@ extern "C" {
 /* The app codes in an hbc_agent_fatal() report (hbc.py shows them, never interprets them) */
 #define WS_CRASH_GUEST_SEGFAULT 0x82   /* Lightrec stopped on a guest access to no memory */
 #define WS_CRASH_NO_AUDIO       0x83   /* no sound output driver opened */
+#define WS_CRASH_CPU_INIT       0x84   /* the CPU core could not start (Lightrec: no memory) */
 
 /* Progress, for the agent's hang watchdog: a PS1 vblank, a menu frame, a lab transfer chunk.
  * The first call arms it (hang_s, 60 s). */

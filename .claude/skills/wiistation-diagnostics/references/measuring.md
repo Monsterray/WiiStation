@@ -342,7 +342,11 @@ hashes in UploadScreen, OpenGX texel checks). The pattern to grep for is a loop 
 - Correctness check: the same game from SD and from the share must end in the same
   `state:` (Ape Escape 1200 vblanks: ram=c1f11dea).
 - Trap found: per-open malloc/free of the 128 KB windows made the second share game in a
-  boot crash in Lightrec (fault site 6, map count 0) -- a use-after-free in the game-switch
-  path that the churn exposed. The windows are a fixed pool now; the underlying bug is open.
+  boot crash in Lightrec (fault site 6, map count 0). Not a use-after-free: the windows
+  landed in the hole of the freed Lightrec state, the next game's 2.5 MB calloc failed with
+  2.8 MB free, and the adapter ran on a NULL state (address 0 = PS1 RAM on the Wii, so no
+  DSI). Fixed in 5.7.1: the state is kept across games, a NULL init is `fatal: code=0x84`.
+  Reproduce without a share: 2 x 128 KB memalign per image fopen, freed in ISOclose
+  (cdriso.c), and an SD chain of the same game three times. The windows stay a fixed pool.
 - After changing a bundled library (deps/*/lib), the DOL now relinks (Makefile_Wii
   BUNDLED_LIBS); before, a rebuilt libsmb2 was silently not linked in.

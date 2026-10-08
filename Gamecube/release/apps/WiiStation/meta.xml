@@ -2,7 +2,7 @@
  <app version="2">
    <name>WiiStation</name>
    <coder>Monty Perrotti</coder>
-   <version>5.7.0</version>
+   <version>5.7.1</version>
    <release_date>20261008</release_date>
    <short_description>PSX Emulator for Wii</short_description>
    <long_description>

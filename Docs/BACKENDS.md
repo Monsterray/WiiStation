@@ -58,6 +58,10 @@ The core is synced to a7464cc since 5.2.0 (merge 87d77c4). WiiStation's own chan
   `disassembler.h` flags, `stall_cycles` in `lightrec-private.h`, `lightrec.h`).
 - `emitter.c`: each opcode's code is named (`_jit_name`) with its source line, for the
   profiler.
+- `lightrec_init`/`lightrec_destroy`: the state (2.5 MB with its code LUT) is allocated once
+  and kept (`lightrec_alloc_state`). Freed and asked for again at every game switch, it found
+  the heap too fragmented for one 2.5 MB block (5.7.1). The adapter stops with
+  `fatal: code=0x84` if `lightrec_init` still returns NULL.
 Check an update with `scripts/chains/ps1tests.txt` + `scripts/ps1tests_check.py` (same lines
 as before) and with the recordings (`scripts/chains/replay3.txt`, `replay_rest.txt`).
 

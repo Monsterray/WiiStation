@@ -1,5 +1,5 @@
 README : WiiStation
-Version 5.7.0
+Version 5.7.1
 
 LICENSE:
     This software is licensed under the GNU General Public License v2
@@ -123,6 +123,14 @@ LATER UPDATES BY:
  * Monty Perrotti (WiiStation)
 
 WiiStation CHANGE LOG:
+Ver 5.7.1 (2026-10-08):
+* Fixed: a game loaded after another one could stop at its first frame
+  ("Lightrec: fault 6") when memory had been used in between, e.g. by two
+  games from the network share in a row. The recompiler now keeps its 2.5 MB
+  of state from game to game instead of asking for it again each time.
+* If the recompiler ever cannot start, WiiStation now stops with "Lightrec: no
+  memory for its state" instead of running the game on nothing.
+
 Ver 5.7.0 (2026-10-08):
 * Network shares work with current servers: SMB2 and SMB3 through libsmb2,
   in place of a library that spoke only SMB1 (off by default on Samba 4.11+,

@@ -566,6 +566,11 @@ static int lightrec_plugin_init(void)
 	lightrec_state = lightrec_init(name,
 			lightrec_map, ARRAY_SIZE(lightrec_map),
 			&lightrec_ops);
+	/* No caller checks the result, and a NULL state does not fault on the Wii: address 0
+	 * is the PS1's RAM (Gamecube/vm/vm.c), so Lightrec read its fields from guest memory
+	 * and stopped later as "fault 6 ... (block 00000000)", a map count of 0. */
+	if (!lightrec_state)
+		ws_fatal(WS_CRASH_CPU_INIT, "Lightrec: no memory for its state");
 
 	lightrec_set_unsafe_opt_flags(lightrec_state, Config.hacks.lightrec_hacks);
 
