@@ -6,7 +6,7 @@ the timers are inline zero, so probes cost nothing on hardware. Source: `Gamecub
 and `.h`; the GX plugin's hooks are in `GlesGpu/gpuPlugin.c`, `gpuPrim.c`, `gpuVramReadback.inc`
 and `deps/opengx/gc_gl.c`.
 
-## perf.log (sd:/wiisxrx/perf.log, read it with scripts/sdimage_read.py)
+## perf.log (sd:/wiistation/perf.log, read it with scripts/sdimage_read.py)
 
 Truncated once per boot by `perf_reset()` (called from `go()` for games and from
 `Func_ExecuteBios()` for the BIOS). A report block is appended every 1800 presents and at the
@@ -44,11 +44,11 @@ the draw (GX state, Dolphin); `offsoft prims` > 0 means the title renders off-sc
 ## 240p, the XFB, and the pad protocol (perf.log lines, 2026-09-23)
 
 - `tvmode:` / `tvlog:` -- switchToTVMode() calls: the last one's size, the GP1 07 range and height it came from, and the first 8 calls with their vblank.
-- `dump <vblank>` also writes `sd:/wiisxrx/xfb.bin`, the front XFB (header w,h + YUYV); `python scripts/xfb2png.py xfb.bin out.png`. Run with `--env XFB_RAM=1`: Dolphin's default XFB cache never writes copies to memory, and its frame dumps and XFB dumps can both miss a wrong display copy. This is what found the 240p four-copies bug.
+- `dump <vblank>` also writes `sd:/wiistation/xfb.bin`, the front XFB (header w,h + YUYV); `python scripts/xfb2png.py xfb.bin out.png`. Run with `--env XFB_RAM=1`: Dolphin's default XFB cache never writes copies to memory, and its frame dumps and XFB dumps can both miss a wrong display copy. This is what found the 240p four-copies bug.
 - `padproto:` -- port 1's controller commands by type (0x42 poll, 0x43 config, 0x44 mode, 0x4D rumble map, ...) and the first 0x42 reply sent while a button was held (ID and bytes). A digital pad replies `id=41 len=4`, an analog one `id=73 len=8`.
 - A scheduled `dump`/`trace` fires only at a present after that vblank: a game that is loading (Spyro presents once in its first 300 vblanks) needs a later vblank.
 
-## VRAM transfers, whole run (sd:/wiisxrx/vramio.log) -- look here before tracing
+## VRAM transfers, whole run (sd:/wiistation/vramio.log) -- look here before tracing
 
 `perf_vram_event()` (perf_prof.c) logs every transfer of 32x32 or more for the whole run,
 one line per distinct event, repeats merged (`first-last xN`, and two alternating events --
@@ -65,7 +65,7 @@ before tiles set 0x10); no F1 lines at all = the display is interlaced. `FF` a c
 `light` debug build. It found Ape Escape's pause mechanism (a C0 read of the frame, then an
 A0 upload of it every paused frame) in one run, after several trace windows had missed it.
 
-## Primitive trace (sd:/wiisxrx/ptrace.log)
+## Primitive trace (sd:/wiistation/ptrace.log)
 
 **Three traps (2026-09-27).** (1) `wsx.sh build debug` defaults to the `light` preset, which
 compiles the trace out: build with `wsx.sh build debug all`. (2) An episode is written to the
@@ -113,7 +113,7 @@ present would inflate it.
 
 `scripts/ptrace_summary.py` decodes all of this; read its output, not the raw file.
 
-## Audio timeline (sd:/wiisxrx/atrace.log)
+## Audio timeline (sd:/wiistation/atrace.log)
 
 `perf_audio_event(kind, cycle, a, b, c)` appends to a 3072-record ring that starts at
 `atrace <vblank>` in autoinput.txt (without the line: at the first event), fills once and is
@@ -167,7 +167,7 @@ differ from the same game booted first: read `carry:` before theorising.
 ## VRAM dump
 
 `dump <vblank>` (autoinput.txt) or the fallback at vblank 6000 writes the whole 1 MB `psxVuw`
-to `sd:/wiisxrx/vram.bin` and appends a perf report. Render with `scripts/vram2png.py`.
+to `sd:/wiistation/vram.bin` and appends a perf report. Render with `scripts/vram2png.py`.
 Because `psxVuw` is one global shared by all three plugins, dumps from Soft Fast and OpenGX at
 the same vblank are directly comparable: identical texture pages ⇒ the GX plugin's CPU side is
 right; the display buffers legitimately differ (GX draws to the EFB, not to psxVuw).
@@ -185,7 +185,7 @@ right; the display buffers legitimately differ (GX draws to the EFB, not to psxV
 4. Keep the release build clean: run `bash scripts/build.sh release` before committing.
 
 Files in the GX plugin also carry `DISP_DEBUG` logging (`writeLogFile`) — that is a separate,
-noisier facility writing `sd:/wiisxrx/log.txt`; prefer perf counters and traces.
+noisier facility writing `sd:/wiistation/log.txt`; prefer perf counters and traces.
 
 ## Where the PSX CPU is (2026-09-28)
 
@@ -193,7 +193,7 @@ noisier facility writing `sd:/wiisxrx/log.txt`; prefer perf counters and traces.
   Game code is 0x8001xxxx-0x801fxxxx; a run of 0x00000000, 0xffffffff or 0xbfc0xxxx after
   the boot means the CPU is lost. Every build.
 - `pcring.log` (debug builds, interpreter core only): the last 4096 PC / sp / ra, written
-  once to sd:/wiisxrx/pcring.log the first time the PC leaves code (RAM from 0x80, the BIOS
+  once to sd:/wiistation/pcring.log the first time the PC leaves code (RAM from 0x80, the BIOS
   ROM), plus the page-0 memory tables and the stack. It found why `Core=1` returned to
   address 0 (an HLE trap did not end the block; fixed a77f6ea). Disassemble the BIOS with
   `C:/PSn00bSDK/bin/mipsel-none-elf-objdump.exe -D -b binary -m mips:3000 -EL

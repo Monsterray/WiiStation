@@ -11,11 +11,11 @@ moves it.
 |---|---|
 | Dolphin | `C:\tools\Dolphin-2609\Dolphin.exe` (2609, since 2026-10-01). Its `User\` is a junction to `C:\tools\Dolphin-x64\User` (16 GB, one copy), so paths below that name `Dolphin-x64\User` are the same folder. The old build in `Dolphin-x64` is the fallback: `DOLPHIN_DIR=/c/tools/Dolphin-x64`. |
 | This project's user dir (`-u`) | `<repo>\.dolphin\` |
-| SD sync folder (master; synced INTO the image at launch, never back on a kill) | `.dolphin\Load\WiiSDSync\wiisxrx\` |
+| SD sync folder (master; synced INTO the image at launch, never back on a kill) | `.dolphin\Load\WiiSDSync\wiistation\` |
 | SD image (locked while Dolphin runs) | `.dolphin\Load\WiiSD.raw` |
 | Frame dumps | `.dolphin\Dump\Frames\framedump_<n>.png` (824x480) |
 | Dolphin log | `.dolphin\Logs\dolphin.log`, timestamps are `MM:SS:mmm`, not hours |
-| Where the USER drops games, and where the card is copied FROM | `C:\tools\Dolphin-x64\User\Load\WiiSDSync\wiisxrx\` |
+| Where the USER drops games, and where the card is copied FROM | `C:\tools\Dolphin-x64\User\Load\WiiSDSync\wiistation\` |
 | Staged test files kept out of the way | `C:\tools\Dolphin-x64\User\Load\WiiSDSync_paused_by_claude\` (autoinput*.txt, settings*.cfg, autoboot_*.txt) |
 | Builds | `Gamecube\WiiSXRX_debug.dol` (run this), `Gamecube\WiiSXRX_Release.dol` (never boot the release .elf under Dolphin: unzeroed BSS crashes) |
 
@@ -64,7 +64,7 @@ It: backs up and edits `Dolphin.ini` (`[Movie] DumpFrames = True`), `GFX.ini`
 (`[Logs] FRAMEDUMP = True`); stages the three files into the sync folder (autoboot only if
 given, restoring the original after); runs `Dolphin.exe -b -e <debug .dol>`; sleeps; kills
 Dolphin; restores everything; keeps the last `KEEP` frames in `<outdir>/frames/`; extracts
-`wiisxrx/ptrace.log` and `vram.bin` with 7-Zip; reads `perf.log` with
+`wiistation/ptrace.log` and `vram.bin` with 7-Zip; reads `perf.log` with
 `scripts/sdimage_read.py` (7-Zip reports "Data Error" on a file whose directory entry was
 updated after the last cluster flush, which a kill always leaves behind); prints the last
 `sio:`/`offsoft:` counter lines; builds `sheet.png` with `scripts/sheet.py`.
@@ -102,7 +102,7 @@ anchored Dolphin movie (`.dtm` with `from_savestate=1`) cannot replace it: it re
 recorded binary, so code changes are invisible under it.
 
 **`settingsRX2022.cfg`** (bare `key = value`, unlisted keys keep compiled defaults — NOT the
-user's values; per-game files in `wiisxrx/settings/<CdromId>.cfg` override it when the game
+user's values; per-game files in `wiistation/settings/<CdromId>.cfg` override it when the game
 has one). Keys that unattended runs need:
 
 ```
@@ -110,7 +110,7 @@ gpuPlugin = 2        # 0 Soft Fast (ground truth), 1 Soft Timed, 2 OpenGX
 FPS = 1              # the user wants the FPS overlay visible while runs play; it lands in the frames too
 PadType1 = 1         # sio.c polls a port only when padType[0] != 0
 PadAutoAssign = 0    # otherwise auto-assign resets PadType1 to 0 when no host pad exists
-BiosDevice = 1       # for BIOS runs; SCPH1001.BIN in wiisxrx/bios/
+BiosDevice = 1       # for BIOS runs; SCPH1001.BIN in wiistation/bios/
 ```
 
 All keys are documented in `SETTINGS.md`.
@@ -159,7 +159,7 @@ frame PNGs before this existed: file what matters, then delete `frames/` directo
   VRAM; display buffers at x<640 (or 512), texture pages and off-screen scratch to the right.
 - `python scripts/sheet.py out.png frames_dir START STEP END [cols] [w]` — contact sheet with
   frame numbers burned in; then open single frames with the image reader.
-- `python scripts/sdimage_read.py WiiSD.raw wiisxrx/<file> out` — any file from the image.
+- `python scripts/sdimage_read.py WiiSD.raw wiistation/<file> out` — any file from the image.
 - Compare plugins by running the same script under `gpuPlugin = 0` and `2` and diffing
   `vram.bin` (texture pages identical ⇒ CPU side fine; display buffers differ by design).
 
@@ -260,8 +260,8 @@ Rules and fixes learned on the bench (2026-09-29/30):
 ## Installing on the bench Wii (2026-10-01)
 
 `scripts/wii_install.py` (as a queue job) syncs the release DOL to `sd:/apps/WiiStation/boot.dol`
-with meta.xml, icon.png and the `wiisxrx/controllers`, `lang` and `fonts` folders; it deletes
+with meta.xml, icon.png and the `wiistation/controllers`, `lang` and `fonts` folders; it deletes
 nothing but `autoboot.txt` with `--remove-autoboot`. Before 5.2.0 a lab run left its chain in
-`sd:/wiisxrx/autoboot.txt`, so the next start from HBC ran that chain and switched the Wii off;
+`sd:/wiistation/autoboot.txt`, so the next start from HBC ran that chain and switched the Wii off;
 lab mode now deletes the file once it has read it. A lab run still writes the lab's base settings
-over `sd:/wiisxrx/settingsRX2022.cfg`.
+over `sd:/wiistation/settingsRX2022.cfg`.

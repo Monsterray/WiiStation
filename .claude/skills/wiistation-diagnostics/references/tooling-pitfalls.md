@@ -62,7 +62,7 @@ believing the symptom.
   sleeping instance resumes at a byte offset in the new text, dies with a syntax error, and
   leaves Dolphin running with the test files still staged (2026-09-19). Recover by killing that
   PID and deleting `autoinput.txt`/`settingsRX2022.cfg`/`autoboot.txt` from
-  `.dolphin/Load/WiiSDSync/wiisxrx/`. Since the run configures Dolphin with `-C` rather than by
+  `.dolphin/Load/WiiSDSync/wiistation/`. Since the run configures Dolphin with `-C` rather than by
   editing the INI files, there is nothing to restore in any `Config` folder. Copy the script to
   the scratchpad if you must change it mid-run.
 - **Always pass the autoboot file** (fifth argument) for a game run: without it WiiStation sits
@@ -70,7 +70,7 @@ believing the symptom.
   first line of that file also decides WHICH game is copied onto this profile's card, so a run
   that browses to a different one needs `WSX_ISOS=<folder name>` as well.
 - **The card is a copy, not the user's.** Games, the BIOS and the fonts are copied from
-  `C:\tools\Dolphin-x64\User\Load\WiiSDSync\wiisxrx\` with `cp -u` on the first run that
+  `C:\tools\Dolphin-x64\User\Load\WiiSDSync\wiistation\` with `cp -u` on the first run that
   needs them. A new game the user drops there appears on the next run; a file the guest writes
   during a run (a memory card, a save state) stays in `.dolphin` and never touches theirs.
   Delete `.dolphin/` to start clean.
@@ -135,7 +135,7 @@ believing the symptom.
 - **A file the guest wrote may be only in `.dolphin/Load/WiiSD.raw`**: Dolphin's folder
   sync-back sometimes fails (dolphin.log `Failed to sync SD card with folder`, also when the
   guest powers off early). Read it with `python scripts/sdimage_read.py .dolphin/Load/WiiSD.raw
-  wiisxrx/<path> OUT` while no Dolphin runs.
+  wiistation/<path> OUT` while no Dolphin runs.
 - `tty.log` (debug builds): SysPrintf's text, the HLE BIOS printf included, for PS-X EXE test
   programs; see [test-roms.md](test-roms.md). Reading a save state's RAM and VRAM is there too.
 - A host harness for a plain-C core file: `tests/gte_ab/` (shim headers, stubbed memory

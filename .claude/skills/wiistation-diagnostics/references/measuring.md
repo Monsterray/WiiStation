@@ -69,7 +69,7 @@ prints the table. Files in `scripts/chains/`:
 | `carry.txt` | FF7, Medievil, FF7, FF7: any state carried between games (every FF7 row must match; `carry:` line) | ~4 min |
 | `ff7x3.txt` | FF7 three times: the three rows must match | ~3 min |
 
-A chain line can set settings for its game alone -- `3600 sd:/wiisxrx/x.txt LockedCache=3
+A chain line can set settings for its game alone -- `3600 sd:/wiistation/x.txt LockedCache=3
 SoundRateControl=0` -- and they go back before the next game. Listing a game twice with
 different settings is how one boot compares a setting on and off (the only way on a Wii,
 where moving the SD card is the slow part). Games use memory cards normally; the chain deletes
@@ -310,3 +310,17 @@ hashes in UploadScreen, OpenGX texel checks). The pattern to grep for is a loop 
 - `perf_stack_log(where)` (debug): main-stack depth to perf.log and stdout (`hbc.py lastlog`).
   Measured: menu 4.3 KB, after games 30 KB of 128 KB. One 128700 reading (release, 2026-10-07
   19:57) never reproduced in three later runs.
+
+## The card folder (2026-10-07, 5.6.0)
+
+- WiiStation's own files are in `sd:/wiistation/` (was `wiisxrx/`); the test games stay in
+  `sd:/wiisxrx/isos/` on the Dolphin profile and the bench Wii, and chains name them there.
+  RomDir1..4 (settings) are the browser's game folders; `menupage 70` photographs Load from SD.
+- **A lab run that "starts but never runs or returns" = the Wii could not write the staged
+  files** (5.6.0's first bench run: no `sd:/wiistation` on the card, lab_mkdirs made only what
+  is below it). WiiStation then sat in its menu, out of reach: lab mode has no network for
+  hbc.py. Now it makes the folder, a lost file answers FAIL and returns to HBC, and wii_lab.py
+  exits on a non-OK reply. If a run still hangs that way, someone has to exit it on the Wii.
+- Dolphin runs: give the first run after the card layout changes 60 s or more; Dolphin packs
+  the SD folder before booting and a 22 s limit ended before the DOL started (0 frames, a
+  two-line dolphin.log).

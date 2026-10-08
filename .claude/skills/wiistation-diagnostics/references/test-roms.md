@@ -29,7 +29,7 @@ compare two versions of a core file on the PC. Every step below cost a run to fi
   `python scripts/xfb2png.py .runs/NAME/xfb.bin out.png`. Crop and enlarge with PIL to read
   the colours. A chain run turns frame dumps off; `dump` still works.
 - Console text: debug builds copy SysPrintf (the HLE BIOS printf/puts) to
-  `sd:/wiisxrx/tty.log`, and `dolphin_run.sh` extracts it into `.runs/NAME/tty.log`. Most test
+  `sd:/wiistation/tty.log`, and `dolphin_run.sh` extracts it into `.runs/NAME/tty.log`. Most test
   programs print only a banner there and put their results on screen.
 - Reading a program: RAM from a save state (below), then `python scripts/mipsdis.py RAM OFF:PC:N` (hex file offset, guest PC, word count;
   a small MIPS disassembler) and `strings`. perf.log `pcs:` lists the hottest guest PCs:
@@ -55,10 +55,10 @@ compare two versions of a core file on the PC. Every step below cost a run to fi
 
 ## Save states as a data source
 
-- `state save NAME <vblank>` in the input script writes `sd:/wiisxrx/states/NAME.st`
+- `state save NAME <vblank>` in the input script writes `sd:/wiistation/states/NAME.st`
   (perf.log `state: save NAME at vblank V ok`). Dolphin's folder sync-back can fail
   (dolphin.log `Failed to sync SD card with folder`): then the file is only inside the image.
-  Read it with `python scripts/sdimage_read.py .dolphin/Load/WiiSD.raw wiisxrx/states/NAME.st OUT`.
+  Read it with `python scripts/sdimage_read.py .dolphin/Load/WiiSD.raw wiistation/states/NAME.st OUT`.
 - The file is gzip. Decompressed layout (`misc.c` SaveState): 32-byte header, 1-byte HLE
   flag, 36 KB of zeros, then RAM (2 MB) at offset 36897, BIOS (512 KB), scratchpad/HW
   (64 KB), psxRegs (to `gteBusyCycle`), GPUFreeze_t (1032 bytes; for a 2026-09-30 build it
