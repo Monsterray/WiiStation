@@ -569,7 +569,7 @@ int state_quiet;
  * upstream PCSX builds that still use the older header. Memory cards are a separate
  * format and are not affected. */
 const char PcsxHeader[32] = "STv5 PCSX 3.0";
-char* statespath = "/wiisxrx/savestates/";
+char* statespath = "/wiistation/savestates/";
 static unsigned int savestates_slot = 0;
 extern unsigned char  *psxVub;
 
@@ -585,7 +585,7 @@ void savestates_select_slot(unsigned int s)
    savestates_slot = s;
 }
 
-/* sd:/wiisxrx/savestates/ does not exist on a new card, and gzopen("wb") fails outright
+/* sd:/wiistation/savestates/ does not exist on a new card, and gzopen("wb") fails outright
  * when the folder is missing -- the only symptom was "Error Saving State". The memory-card
  * writer already creates its own folders; save states now do the same. */
 void makeParentDirs(const char* path);

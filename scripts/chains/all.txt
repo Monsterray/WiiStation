@@ -2,11 +2,11 @@ CHAIN
 # Every game in the shared sync folder, 3600 vblanks (one emulated minute) each.
 # Run it with:   bash scripts/wsx.sh chain all all.txt --secs 2400
 # Format: GamecubeMain.cpp, above chainLoad(). An input script named here as
-# sd:/wiisxrx/<file> is scripts/autoinput/<file>; wsx.sh puts it on the card.
+# sd:/wiistation/<file> is scripts/autoinput/<file>; wsx.sh puts it on the card.
 # Only Spyro has a script: it reaches gameplay at about vblank 1800. The others
 # run untouched -- a title screen, an attract demo or an intro FMV.
 
-3600 sd:/wiisxrx/spyro_title.txt
+3600 sd:/wiistation/spyro_title.txt
 sd:/wiisxrx/isos/Spyro the Dragon
 Spyro the Dragon [NTSC-U] [SCUS-94228].cue
 

@@ -90,7 +90,7 @@ Four cautions, in order of importance:
    per texel to a loop that is a load, a table lookup and a store, and it models no cache
    misses at all. The locked cache's whole benefit is the removal of misses and of a 128 KB
    `DCFlushRange` per upload, so its gain is invisible here by construction. The same debug
-   build writes the same `perf.log` on a real Wii (`sd:/wiisxrx/perf.log`); one hardware run of
+   build writes the same `perf.log` on a real Wii (`sd:/wiistation/perf.log`); one hardware run of
    each game is the actual baseline. Earlier hardware notes (OpenGX at 98% speed with 62% wall
    idle) contradicted the 66% `hw_gpu` figure, and were right to: the figure was an artefact,
    and the hardware notes were the evidence that should have been believed first.
@@ -108,7 +108,7 @@ Four cautions, in order of importance:
 Take the Dolphin numbers again first, with the logging fix and `PERF_PROF_GPUSPLIT`: what is
 written below was ordered by figures that no longer hold.
 Run `Gamecube/WiiSXRX_debug.dol` (this build, with the `texk:` probes) on the Wii for Spyro,
-Medievil's intro, and one texture-streaming 2D title; copy `sd:/wiisxrx/perf.log` back. Read
+Medievil's intro, and one texture-streaming 2D title; copy `sd:/wiistation/perf.log` back. Read
 `hw_gpu_us`, `texk:` and `spu_us` as fractions of `wall_us`. Everything below is ordered by the
 Dolphin numbers and should be reordered by these.
 

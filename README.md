@@ -56,11 +56,11 @@ WiiStation (formerly WiiSXRX_2022), is a Sony PlayStation 1 (PS1/PSX/PSone) emul
   Font char information: first two byte: BigEndianUnicode char code, followed by a character picture in IA8 format with a size of 24 * 24.
 
 * For some customized Chinese culture games, specific BIOS is automatically loaded.
-  For example:  sd:\wiisxrx\isos\武藏传.ISO => sd:\wiisxrx\bios\武藏传.bin
+  For example:  sd:\wiistation\isos\武藏传.ISO => sd:\wiistation\bios\武藏传.bin
 
 * Other minor corrections, such as disc changing (swap) and automatic fixes (autoFix functions) for some games.
 
-  ※※※ Note: It reads a font file in a fixed location, so make sure that [sd:/wiisxrx/fonts/chs.dat] exists ※※※
+  ※※※ Note: It reads a font file in a fixed location, so make sure that [sd:/wiistation/fonts/chs.dat] exists ※※※
 
 ## Changes on 'new' PPC Dynarec:
 
@@ -91,7 +91,7 @@ Any help is appreciated.
 
 ## Configuration
 
-All settings of the `settingsRX2022.cfg` file, the per-game settings files, `autoboot.txt` and the other files in `wiisxrx/` are described in [SETTINGS.md](SETTINGS.md).
+All settings of the `settingsRX2022.cfg` file, the per-game settings files, `autoboot.txt` and the other files in `wiistation/` are described in [SETTINGS.md](SETTINGS.md).
 
 ## Testing in Dolphin
 

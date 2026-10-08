@@ -21,6 +21,7 @@
 #include <math.h>
 #include <cstdlib>
 #include <strings.h>
+#include <sys/stat.h>   /* the RomDir folders */
 #include "MenuContext.h"
 #include "FileBrowserFrame.h"
 #include "../libgui/Button.h"
@@ -154,6 +155,7 @@ void FileBrowserFrame::activateSubmenu(int submenu)
 }
 
 static fileBrowser_file* dir_entries;
+static bool				romFolderList;   /* dir_entries are the RomDir folders: show whole paths */
 static int				num_entries;
 static int				current_page;
 static int				max_page;
@@ -392,6 +394,7 @@ void fileBrowserFrame_OpenDirectory(fileBrowser_file* dir)
 //	if(menu_items){  free(menu_items);  menu_items  = NULL; }
 	if(dir_entries){ free(dir_entries); dir_entries = NULL; }
 
+	romFolderList = false;
 	// Read the directories and return on error
 	num_entries = isoFile_readDir(dir, &dir_entries);
 	if(num_entries <= 0)
@@ -404,6 +407,43 @@ void fileBrowserFrame_OpenDirectory(fileBrowser_file* dir)
 	// Sort the listing
 	qsort(dir_entries, num_entries, sizeof(fileBrowser_file), dir_comparator);
 
+	current_page = 0;
+	max_page = (int)ceil((float)num_entries/NUM_FILE_SLOTS);
+	fileBrowserFrame_FillPage();
+}
+
+/* Load from SD / Load from USB: the RomDir folders on that device ("sd:", "usb:") that exist.
+ * One opens straight away; several are listed, by whole path, to choose from; none opens
+ * the device's sd:/wiistation/isos as before, which says what is missing. */
+void fileBrowserFrame_OpenRomFolders(fileBrowser_file* deviceDefault, const char *device)
+{
+	fileBrowser_file found[ROM_DIRS];
+	int n = 0;
+	size_t len = strlen(device);
+	struct stat st;
+
+	memset(found, 0, sizeof(found));
+	for (int i = 0; i < ROM_DIRS; i++)
+		if (!strncasecmp(romDir[i], device, len) && !stat(romDir[i], &st) && S_ISDIR(st.st_mode))
+		{
+			snprintf(found[n].name, sizeof(found[n].name), "%s", romDir[i]);
+			found[n++].attr = FILE_BROWSER_ATTR_DIR;
+		}
+	if (n == 0)
+		snprintf(deviceDefault->name, sizeof(deviceDefault->name), "%s/wiistation/isos", device);
+	if (n <= 1)
+	{
+		if (n == 1)
+			*deviceDefault = found[0];
+		fileBrowserFrame_OpenDirectory(deviceDefault);
+		return;
+	}
+	if(dir_entries){ free(dir_entries); dir_entries = NULL; }
+	dir_entries = (fileBrowser_file*)malloc(n * sizeof(fileBrowser_file));
+	if (!dir_entries) { num_entries = 0; return; }
+	memcpy(dir_entries, found, n * sizeof(fileBrowser_file));
+	num_entries = n;
+	romFolderList = true;
 	current_page = 0;
 	max_page = (int)ceil((float)num_entries/NUM_FILE_SLOTS);
 	fileBrowserFrame_FillPage();
@@ -466,7 +506,8 @@ void fileBrowserFrame_FillPage()
 	{
 		if ((current_page*NUM_FILE_SLOTS) + i < num_entries)
 		{
-			FRAME_BUTTONS[i+2].buttonString = filenameFromAbsPath(dir_entries[i+(current_page*NUM_FILE_SLOTS)].name);
+			FRAME_BUTTONS[i+2].buttonString = romFolderList ? dir_entries[i+(current_page*NUM_FILE_SLOTS)].name
+				: filenameFromAbsPath(dir_entries[i+(current_page*NUM_FILE_SLOTS)].name);
 			FRAME_BUTTONS[i+2].button->setClicked(FRAME_BUTTONS[i+2].clickedFunc);
 			FRAME_BUTTONS[i+2].button->setActive(true);
 			if(dir_entries[i+(current_page*NUM_FILE_SLOTS)].attr & FILE_BROWSER_ATTR_DIR)

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """vram2png.py VRAM.bin OUT.png [--crop X,Y,W,H] [--scale N]
-Render a 1024x512 little-endian 15-bit PSX VRAM dump (sd:/wiisxrx/vram.bin
+Render a 1024x512 little-endian 15-bit PSX VRAM dump (sd:/wiistation/vram.bin
 from the debug build's 'dump' directive) as a PNG through ffmpeg. The whole
 VRAM is drawn by default; --crop selects a window such as a display buffer
 (e.g. 0,240,512,240). Needs numpy and ffmpeg."""

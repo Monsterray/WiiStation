@@ -12,8 +12,8 @@ The settings file is `settingsRX2022.cfg`. WiiStation reads it from one of two l
 
 | Launch device | File that WiiStation reads |
 |---|---|
-| SD card (the default) | `sd:/wiisxrx/settingsRX2022.cfg` |
-| USB storage (the loader argument starts with `u`) | `usb:/wiisxrx/settingsRX2022.cfg` |
+| SD card (the default) | `sd:/wiistation/settingsRX2022.cfg` |
+| USB storage (the loader argument starts with `u`) | `usb:/wiistation/settingsRX2022.cfg` |
 
 WiiStation reads only one of the two files. It does not merge them. If the file does not exist, WiiStation uses the default values in this document.
 
@@ -42,18 +42,18 @@ Obey these rules:
 2. Select the General tab.
 3. Select **Save settings SD** or **Save settings USB**.
 
-WiiStation writes all the keys in this document to the file. The folder `wiisxrx` must exist on the device. WiiStation does not create it.
+WiiStation writes all the keys in this document to the file. The folder `wiistation` must exist on the device. WiiStation does not create it.
 
 ### 1.4 Settings for one game
 
 WiiStation can load a different settings file for one game. The file name is the disc serial number, for example `SLUS00067.cfg`. WiiStation looks for the file in this order and uses the first file that it finds:
 
-1. `usb:/wiisxrx/settings/<serial>.cfg`
-2. `sd:/wiisxrx/settings/<serial>.cfg`
-3. `usb:/wiisxrx/settingsRX2022.cfg`
-4. `sd:/wiisxrx/settingsRX2022.cfg`
+1. `usb:/wiistation/settings/<serial>.cfg`
+2. `sd:/wiistation/settings/<serial>.cfg`
+3. `usb:/wiistation/settingsRX2022.cfg`
+4. `sd:/wiistation/settingsRX2022.cfg`
 
-A game settings file can contain any key in this document. To write the file, load the game, open the Settings menu, and select **Separately** on the General tab. WiiStation writes the file to `usb:/wiisxrx/settings/` if that folder exists. If not, it writes the file to `sd:/wiisxrx/settings/`.
+A game settings file can contain any key in this document. To write the file, load the game, open the Settings menu, and select **Separately** on the General tab. WiiStation writes the file to `usb:/wiistation/settings/` if that folder exists. If not, it writes the file to `sd:/wiistation/settings/`.
 
 A PS-X EXE program (a `.exe` file, for example a test program) has no disc serial number. WiiStation uses the common settings file (3 or 4) for it, never the file of the game that ran before it.
 
@@ -66,13 +66,14 @@ On the Wii, a loader can give settings as arguments after the program name. Each
 | Key | Values | Default | Menu | Effect |
 |---|---|---|---|---|
 | `Core` | 0 = Lightrec, 1 = Interpreter, 2 = Dynarec | 0 | General, Plugins page, "CPU Core" | Selects the CPU emulation core. A change resets the current game. |
-| `BiosDevice` | 0 = HLE, 1 = SD, 2 = USB | 0 | General, Select Bios | Selects the BIOS source. HLE is the built-in BIOS emulation. The file `SCPH1001.BIN` must exist in `wiisxrx/bios/` on the device. If the file does not exist, WiiStation uses HLE. The DVD option in the menu is not implemented. |
+| `BiosDevice` | 0 = HLE, 1 = SD, 2 = USB | 0 | General, Select Bios | Selects the BIOS source. HLE is the built-in BIOS emulation. The file `SCPH1001.BIN` must exist in `wiistation/bios/` on the device. If the file does not exist, WiiStation uses HLE. The DVD option in the menu is not implemented. |
 | `BootThruBios` | 0 = No, 1 = Yes | 0 | General, Boot Through Bios | Shows the PlayStation start screen before the game starts. |
 | `gpuPlugin` | 0 = Old Soft, 1 = New Soft, 2 = OpenGX | 0 | General, Plugins page, "GPU Plugin" | Selects the graphics renderer. Old Soft and New Soft draw with the CPU. OpenGX draws with the Wii graphics hardware. A change resets the current game. |
-| `lang` | 0 to 12, see the language table below | 0 | General, Select language | Selects the menu language. The language files are in `wiisxrx/lang/`. The menu does not show a language if its font file is missing. |
+| `lang` | 0 to 12, see the language table below | 0 | General, Select language | Selects the menu language. The language files are in `wiistation/lang/`. The menu does not show a language if its font file is missing. |
 | `SoundHwAccel` | `0`, `1` | `0` | Audio tab, "DSP Sound" | Chooses the sound output path. `0` is the CPU path: the stream plays through SDL. `1` hands the stream to the Wii's DSP through an AESND voice, and the DSP does the mixing, so the CPU does less work per frame. Which side converts 44100 to 48000 Hz depends on `SoundResampler` (section 4): with `Hold` the DSP path lets the DSP do it, with the other two the CPU interpolates first and the DSP plays the result 1:1. If the chosen path fails to open, the other one is used. The output driver is chosen when a game starts, so changing this mid-session takes effect the next time a game is loaded. Note for testing in Dolphin: its high-level DSP emulation recognises libogc's AESND microcode by hash, so a version it does not know falls back and sound may differ from real hardware. |
-| `MenuFont` | `"Name"` | empty | none, settings file only | Selects the menu font. WiiStation loads `wiisxrx/fonts/Name.dat` from the SD card or the USB device. An empty value or a missing file gives the built-in font. The value does not apply to the Chinese, Japanese and Korean languages, which have their own glyph files. See section 9 for the font files. |
-| `fastLoad` | 0 = No, 1 = Yes | 0 | General, Fast Load | Shortens the delays the emulated CD-ROM drive reports, so loading screens pass faster than on a real console. A PlayStation drive takes a fixed time to answer a command, to seek, and to deliver each sector; WiiStation normally reproduces those delays (`cdReadTime` in `cdrom.c`, one sector per 1/75 s at single speed). With this on, the long second response to a read command is cut from about 2.1 million cycles to one sector time, the first-read delay is shortened, and seeks settle sooner. Nothing is read any faster from the SD card: this only stops the emulator waiting. Some games depend on the real timing and break, which is why it is off by default -- audio and video that are streamed from the disc are the usual casualties, since their sectors then arrive earlier than the game expects. Try it per game (`wiisxrx/settings/<CdromId>.cfg`) rather than globally. |
+| `MenuFont` | `"Name"` | empty | none, settings file only | Selects the menu font. WiiStation loads `wiistation/fonts/Name.dat` from the SD card or the USB device. An empty value or a missing file gives the built-in font. The value does not apply to the Chinese, Japanese and Korean languages, which have their own glyph files. See section 9 for the font files. |
+| `RomDir1` .. `RomDir4` | `"device:/path"` | `"sd:/wiistation/isos"`, `"usb:/wiistation/isos"`, empty, empty | none, settings file only | Where Load ROM looks for games. Load from SD uses the ones that start with `sd:`, Load from USB the ones that start with `usb:`. A folder that does not exist is left out. With one folder left, the browser opens it; with several, it lists them by full path to choose from; with none, it opens `device:/wiistation/isos`. SD and USB cards are FAT, which has no links or junctions, so this is how a shared folder such as `sd:/roms/psx` is used. Example: `RomDir1 = "sd:/roms/psx"`. |
+| `fastLoad` | 0 = No, 1 = Yes | 0 | General, Fast Load | Shortens the delays the emulated CD-ROM drive reports, so loading screens pass faster than on a real console. A PlayStation drive takes a fixed time to answer a command, to seek, and to deliver each sector; WiiStation normally reproduces those delays (`cdReadTime` in `cdrom.c`, one sector per 1/75 s at single speed). With this on, the long second response to a read command is cut from about 2.1 million cycles to one sector time, the first-read delay is shortened, and seeks settle sooner. Nothing is read any faster from the SD card: this only stops the emulator waiting. Some games depend on the real timing and break, which is why it is off by default -- audio and video that are streamed from the disc are the usual casualties, since their sectors then arrive earlier than the game expects. Try it per game (`wiistation/settings/<CdromId>.cfg`) rather than globally. |
 | `CdBuffer` | 0 = 16 KB, 1 = 64 KB, 2 = 256 KB | 0 | General, CD page, "CD Read Buffer" | Size of the stdio read buffer each disc-image file handle gets (the main image, the sub-channel file, the CDDA handle, every file of a multi-file cue). **Keep 16 KB.** Beneath it libfat reads the card in 32 KB pages whatever the buffer is, so a larger buffer cannot make the card's commands longer: it only reads ahead data a seek then throws away. Measured 2026-09-22 on eleven games (perf.log `sd:`): 64 KB gave the same card commands to within 6%, 256 KB gave 20% more, and every card read was 32 KB in all three. The counts are the same on a Wii, where only their duration changes. Applies when the next game is loaded. |
 | `GpuTiming` | 0 = Fast, 1 = Accurate | 0 | General, Plugins page, "GPU Timing" | How long the core keeps the GPU busy after the game gives it work, for OpenGX and the Soft Fast renderer (Soft Timed, gpulib, is always accurate). **Fast** is how WiiStation always ran: a draw list ends after as many cycles as it has words, and the GPU reads idle from the end of one list to the start of the next, even while a block upload (a video frame, a texture) is going on. **Accurate** charges gpulib's cost per command (polygons, sprites and fills by size) and leaves the GPU busy for every transfer, so a game sees the GPU as a PS1 shows it. It moves every game's timing a little: games that wait for the GPU run their frames as on a PS1. Takes effect at once. |
 | `CpuTiming` | 0 = Fast, 1 = Accurate | 0 | General, Plugins page, "CPU Timing" | Whether the Lightrec core charges the cycles a PS1 CPU waits for its GTE (3D maths) and its multiply/divide unit. Both run beside the CPU, which waits only when it asks for a result too early: MFC2, CFC2, SWC2 or the next GTE command while a command runs (RTPS 15 cycles, RTPT 23, NCDT 44 ...), MFHI/MFLO while a MULT (9) or DIV (36) runs. **Fast** charges every instruction the same, as WiiStation always did, so heavy 3D code gets more done per frame than on a PS1. **Accurate** works the waits out per block when it is compiled; code that hides them behind other work pays nothing. Lightrec only (the Interpreter and Dynarec cores ignore it). Applies when the game resumes from the menu. |
@@ -181,7 +182,7 @@ In the menu: Configure Input, Manual, then press the port's type button until it
 
 ### 6.2 Button mapping files
 
-The button mappings are not in the settings file. WiiStation keeps them in the files `controlG.cfg`, `controlH.cfg`, `controlC.cfg`, `controlN.cfg`, `controlW.cfg`, `controlP.cfg`, and `controlD.cfg` in `wiisxrx/`. The Configure Buttons menu writes these files. Each one also holds that controller's analog sensitivity, below.
+The button mappings are not in the settings file. WiiStation keeps them in the files `controlG.cfg`, `controlH.cfg`, `controlC.cfg`, `controlN.cfg`, `controlW.cfg`, `controlP.cfg`, and `controlD.cfg` in `wiistation/`. The Configure Buttons menu writes these files. Each one also holds that controller's analog sensitivity, below.
 
 ### 6.3 Analog stick sensitivity
 
@@ -203,7 +204,7 @@ Until 2026-09-21 this setting moved the light-gun and mouse pointer only and did
 
 ### 6.4 HID controller files
 
-A USB HID controller needs a configuration file in the Nintendont format. The file name is the vendor ID and the product ID of the controller in hexadecimal, for example `0810_0003.ini`. Put the file in `sd:/wiisxrx/controllers/` or `usb:/wiisxrx/controllers/`. See `README.md` for the file format.
+A USB HID controller needs a configuration file in the Nintendont format. The file name is the vendor ID and the product ID of the controller in hexadecimal, for example `0810_0003.ini`. Put the file in `sd:/wiistation/controllers/` or `usb:/wiistation/controllers/`. See `README.md` for the file format.
 
 ## 7. Network settings
 
@@ -245,7 +246,7 @@ connection. You do not have to restart WiiStation.
 |---|---|---|---|---|
 | `FileSortMode` | 0 = Folders and files mixed, 1 = Folders first | 1 | File browser, trigger button | Sets the sort order of the file list. |
 
-## 9. Other files in `wiisxrx/`
+## 9. Other files in `wiistation/`
 
 | File or folder | Purpose |
 |---|---|
@@ -273,7 +274,7 @@ A menu font file holds one 24 x 24 pixel image for each character. The script `s
    ```
 
    The script selects the largest size that keeps the tallest and the deepest characters inside the 24 rows. It reports the size and the baseline. Open `preview.png` to check the result.
-2. Copy the file to `sd:/wiisxrx/fonts/CalibriBold.dat`.
+2. Copy the file to `sd:/wiistation/fonts/CalibriBold.dat`.
 3. Add this line to `settingsRX2022.cfg`: `MenuFont = "CalibriBold"`.
 4. Start WiiStation. To go back to the built-in font, remove the line.
 
@@ -281,10 +282,10 @@ Use `--charset ascii` for a smaller file with only the English characters. Use `
 
 ## 10. Start a game without the menu
 
-The file `sd:/wiisxrx/autoboot.txt` makes WiiStation start a game immediately. WiiStation reads this file only from the SD card. The file has exactly two lines:
+The file `sd:/wiistation/autoboot.txt` makes WiiStation start a game immediately. WiiStation reads this file only from the SD card. The file has exactly two lines:
 
 ```
-sd:/wiisxrx/isos/Spyro the Dragon
+sd:/wiistation/isos/Spyro the Dragon
 Spyro the Dragon [NTSC-U] [SCUS-94228].cue
 ```
 
@@ -307,8 +308,8 @@ If line 1 is the word `CHAIN`, WiiStation runs a list of games one after the oth
 
 ```
 CHAIN
-600 sd:/wiisxrx/spyro_play.txt PadAutoAssign=1 ControllerType=0
-sd:/wiisxrx/isos/Spyro the Dragon
+600 sd:/wiistation/spyro_play.txt PadAutoAssign=1 ControllerType=0
+sd:/wiistation/isos/Spyro the Dragon
 Spyro the Dragon [NTSC-U] [SCUS-94228].cue
 ```
 
@@ -316,11 +317,11 @@ Spyro the Dragon [NTSC-U] [SCUS-94228].cue
 - Lines 2 and 3: the folder and the file name, as in `autoboot.txt`. A `.exe` program can take the place of a disc image.
 - Lines that start with `#` are comments.
 
-Each game writes its results to `sd:/wiisxrx/perf.log` (debug builds). When WiiStation stops because of an error, the last line of `perf.log` is `fatal: code=... <reason>`. The chain files used for testing are in `scripts/chains/`.
+Each game writes its results to `sd:/wiistation/perf.log` (debug builds). When WiiStation stops because of an error, the last line of `perf.log` is `fatal: code=... <reason>`. The chain files used for testing are in `scripts/chains/`.
 
 ## 11. Scripted controller input
 
-The file `sd:/wiisxrx/autoinput.txt` presses controller buttons at given times. It is a test aid. It works with `autoboot.txt`: a boot with both files is deterministic up to any screen. WiiStation reads the file when the controller plugin opens. A missing file has no effect. Real controllers keep working. The script only adds presses.
+The file `sd:/wiistation/autoinput.txt` presses controller buttons at given times. It is a test aid. It works with `autoboot.txt`: a boot with both files is deterministic up to any screen. WiiStation reads the file when the controller plugin opens. A missing file has no effect. Real controllers keep working. The script only adds presses.
 
 Port 1 must have a controller type. Set `PadType1 = 1` and `PadAutoAssign = 0` in the settings file when no controller is connected. With `PadType1 = 0` the PlayStation sees no controller and ignores the script. With `PadAutoAssign = 1` WiiStation sets the type back to 0 when it finds no controller. A script with at least one press line makes port 1 report a connected digital controller, so the BIOS shell and games that check for a controller accept the presses.
 
@@ -382,7 +383,7 @@ all run on it exactly as on a real pad. Port 1 still needs a GameCube controller
 
 Unlike the press lines above, this replaces the pad rather than adding to it, so a real
 controller does nothing while it runs. A debug build writes what came out to
-`sd:/wiisxrx/padtrace.csv`; `scripts/padtest.py check` reads it. See
+`sd:/wiistation/padtrace.csv`; `scripts/padtest.py check` reads it. See
 `Docs/CONTROLLER_TESTING.md`.
 
 `padsweep <vblank> fast` is a short sweep (214 vblanks instead of 996): each button held 3
@@ -416,6 +417,7 @@ presses above only reach a running game.
 | 5 | Settings, Saves | 20 | Configure Input |
 | | | 21 to 36 | Co-Op Customize, port 1 players 1 to 8 (21 to 28), port 2 players 1 to 8 (29 to 36) |
 | | | 40 to 65 | Configure Buttons for virtual controller N-40: 40/41 ports 1/2, 42 to 49 multitap slots 1A to 2D, 50 to 65 Co-Op players (as 21 to 36). A port that is a multitap or Co-Op opens on its first slot or player |
+| | | 70 | Load ROM > Load from SD: the `RomDir` folders on the SD card (one opens, several are listed) |
 
 Use it with no `autoboot.txt`, so the run stays in the menu, and collect the frames the
 run dumps. `scripts/menu_text_width.py` checks the same pages' geometry without booting

@@ -1,4 +1,4 @@
 CHAIN
-3450 sd:/wiisxrx/crashbash_dump.txt
+3450 sd:/wiistation/crashbash_dump.txt
 sd:/wiisxrx/isos/Crash Bash
 Crash Bash [U] [SCUS-94570].cue

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Summarise the debug build's audio timeline (sd:/wiisxrx/atrace.log, extracted by
+"""Summarise the debug build's audio timeline (sd:/wiistation/atrace.log, extracted by
 dolphin_run.sh as <outdir>/atrace.log).
 
 Records (written by perf_audio_event, Gamecube/perf_prof.c):

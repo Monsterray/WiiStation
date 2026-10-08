@@ -90,8 +90,8 @@ void HIDUpdateControllerIni()
     /* I hope this covers all possible ini files */
     char file_sd[64];
     char file_usb[64];
-    snprintf(file_sd, sizeof(file_sd), "sd:/wiisxrx/controllers/%04X_%04X.ini", DeviceVID, DevicePID);
-    snprintf(file_usb, sizeof(file_usb), "usb:/wiisxrx/controllers/%04X_%04X.ini", DeviceVID, DevicePID);
+    snprintf(file_sd, sizeof(file_sd), "sd:/wiistation/controllers/%04X_%04X.ini", DeviceVID, DevicePID);
+    snprintf(file_usb, sizeof(file_usb), "usb:/wiistation/controllers/%04X_%04X.ini", DeviceVID, DevicePID);
 
     const char *const filenames[2] =
     {

@@ -1,11 +1,11 @@
 CHAIN
 # FF7, Ape Escape, Crash Bash recordings (from play.txt): main vs phase 2 replay A/B
-7200 sd:/wiisxrx/final_fantasy_vii_1_play.txt PadAutoAssign=1 ControllerType=0
+7200 sd:/wiistation/final_fantasy_vii_1_play.txt PadAutoAssign=1 ControllerType=0
 sd:/wiisxrx/isos/Final Fantasy VII/Final Fantasy VII 1
 Final Fantasy VII [U] [Disc 1] [SLUS-94163].cue
-7200 sd:/wiisxrx/ape_escape_play.txt PadAutoAssign=1 ControllerType=1
+7200 sd:/wiistation/ape_escape_play.txt PadAutoAssign=1 ControllerType=1
 sd:/wiisxrx/isos/Ape Escape
 Ape Escape [U] [SCUS-94423].cue
-7200 sd:/wiisxrx/crash_bash_play.txt PadAutoAssign=1 ControllerType=0
+7200 sd:/wiistation/crash_bash_play.txt PadAutoAssign=1 ControllerType=0
 sd:/wiisxrx/isos/Crash Bash
 Crash Bash [U] [SCUS-94570].cue

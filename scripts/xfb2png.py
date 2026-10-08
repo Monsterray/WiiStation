@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """xfb2png.py XFB.BIN OUT.PNG
 
-Convert the front XFB that a debug build writes at 'dump <vblank>' (sd:/wiisxrx/xfb.bin,
+Convert the front XFB that a debug build writes at 'dump <vblank>' (sd:/wiistation/xfb.bin,
 Gamecube/perf_prof.c) to a picture: what the TV shows, independent of Dolphin's XFB cache.
 Under Dolphin run with XFB_RAM=1, or the XFB in memory never receives the copies.
 Format: width and height (big-endian u32), then YUYV 4:2:2, two bytes a pixel.

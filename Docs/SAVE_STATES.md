@@ -16,7 +16,7 @@ needed, with different settings each time, in one boot.
 bash scripts/wsx.sh state spyro3000 spyro --at 3000 --rec spyro_the_dragon
 ```
 
-It lands on the test card as `sd:/wiisxrx/states/spyro3000.st`, with `spyro3000.txt` beside
+It lands on the test card as `sd:/wiistation/states/spyro3000.st`, with `spyro3000.txt` beside
 it: the game folder and cue, the vblank, the date, the build date and every setting.
 
 **Run settings from it** -- one boot, one chain line per settings group, each loading the state
@@ -34,9 +34,9 @@ load `speed` is too high -- compare the other columns.
 
 **In a chain file** a line's `State=NAME` loads the state once the game has booted (its first
 vblank); the line's vblank count is then counted from the state's vblank. `State=` takes a full
-path too (`State=sd:/wiisxrx/savestates/SCUS_942.28.st0`, a menu slot).
+path too (`State=sd:/wiistation/savestates/SCUS_942.28.st0`, a menu slot).
 
-**In an input script** (`sd:/wiisxrx/<script>`):
+**In an input script** (`sd:/wiistation/<script>`):
 
 | Line | Does |
 |---|---|
@@ -139,7 +139,7 @@ differently from the first (its own save/load pair matches). What is known:
   in the clean ones, so the suspect is state Ape sets there that the next game's reset does
   not clear. 74 cycles is the gap `GPU1` closed, so look in the GPU plugin first.
 `statefp` takes up to 8 requests per script (`ST_MAX`); `statefp V dump` writes RAM to
-`sd:/wiisxrx/fpram_<k>.bin` for a word diff.
+`sd:/wiistation/fpram_<k>.bin` for a word diff.
 
 ## What a state cannot carry
 

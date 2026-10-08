@@ -34,7 +34,7 @@
 #include "perf_prof.h"
 #include "../mem2_manager.h"
 
-/* Scripted input for unattended runs: sd:/wiisxrx/autoinput.txt holds lines
+/* Scripted input for unattended runs: sd:/wiistation/autoinput.txt holds lines
  * "<vblank> <hex button mask>"; from that emulated vblank on, the listed
  * buttons are held on PSX port 1 until the next line. Bits are the PSX pad
  * word (Start 0008, Select 0001, Up 0010, Right 0020, Down 0040, Left 0080,
@@ -46,7 +46,7 @@
  * Applied in PadSSSPSX.c (the bound pad plugin) and here.
  *
  * A line "record" makes the run write every change of the real pad on port 1 to
- * sd:/wiisxrx/autoinput_rec.txt, in this same format: a person plays the game once
+ * sd:/wiistation/autoinput_rec.txt, in this same format: a person plays the game once
  * (scripts/movie_capture.sh), and the file plays it back. It counts emulated vblanks, the
  * clock playback uses; a Dolphin input movie counts host frames, which drift from them
  * whenever the emulation runs below full speed.
@@ -100,13 +100,13 @@ static unsigned autoin_fc[AUTOIN_PORTS];       /* ... at this vblank */
 static unsigned autoin_sweep_vbl[AUTOIN_PORTS];
 static int autoin_sweeps;                      /* bit per script port with a sweep */
 static FILE *autoin_rec;            /* "record": the recording, or NULL */
-static char autoin_path[128] = "sd:/wiisxrx/autoinput.txt";
+static char autoin_path[128] = "sd:/wiistation/autoinput.txt";
 /* "trace <vblank>" lines: the debug build's primitive trace arms at these
  * vblanks (perf_prof.c reads the table), so a capture can be scheduled
  * right after a scripted press instead of guessing the overlay's shape. */
 unsigned autoinput_trace_vbl[8];
 int autoinput_trace_n = 0;
-unsigned autoinput_dump_vbl = 0;   /* "dump <vblank>": debug build writes sd:/wiisxrx/vram.bin then */
+unsigned autoinput_dump_vbl = 0;   /* "dump <vblank>": debug build writes sd:/wiistation/vram.bin then */
 unsigned autoinput_crash_vbl = 0;  /* "crashtest <vblank>": debug build stores through a NULL base then (a DSI) */
 /* "padtype <vblank> <port 1|2> <type>": set_port_type() then (perf_prof.c, through
  * autoinput_padtype_due()). Up to eight lines, in vblank order. */
@@ -114,7 +114,7 @@ unsigned autoinput_crash_vbl = 0;  /* "crashtest <vblank>": debug build stores t
 static struct { unsigned vbl, port, type; } autoin_padtype[AUTOIN_PADTYPES];
 static int autoin_padtype_n, autoin_padtype_i;
 unsigned autoinput_hang_vbl = 0;   /* "hangtest <vblank>": debug build spins for good then (ws_crash.c watchdog) */
-int autoinput_crumbs = 0;          /* "crumbs": debug build writes sd:/wiisxrx/crumb.log once a second (crash hunts) */
+int autoinput_crumbs = 0;          /* "crumbs": debug build writes sd:/wiistation/crumb.log once a second (crash hunts) */
 /* "padsweep <vblank>": from that vblank the GameCube driver reads a generated sweep
  * instead of the pad -- each stick axis end to end, then every button on its own. It is
  * read in controller-GC.c, which is the only place that knows what a raw GameCube pad
@@ -181,7 +181,7 @@ void autoinput_load(void)
 			unsigned v, k;
 			if (!strncmp(line, "record", 6)) {
 				if (!autoin_rec)
-					autoin_rec = fopen("sd:/wiisxrx/autoinput_rec.txt", "w");
+					autoin_rec = fopen("sd:/wiistation/autoinput_rec.txt", "w");
 				continue;
 			}
 			if (sscanf(line, "dump %u", &v) == 1) { autoinput_dump_vbl = v; continue; }

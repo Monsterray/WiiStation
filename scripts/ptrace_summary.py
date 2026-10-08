@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """ptrace_summary.py PTRACE.LOG [--big AREA] [--show N]
 Compact per-frame summary of a primitive-trace episode written by the debug
-build (sd:/wiisxrx/ptrace.log). For every present in the episode: entry
+build (sd:/wiistation/ptrace.log). For every present in the episode: entry
 count, semi-transparent count, the first command bytes in order, every
 primitive larger than --big (default 20000 PSX pixels^2) with its position
 in the frame, and the first --show semi-transparent primitives.

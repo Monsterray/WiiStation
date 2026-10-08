@@ -131,7 +131,7 @@ void hprof_flush(int game)
 	u32 hdr[8] = { 0x48505232, HPROF_BASE, HPROF_SHIFT, HPROF_N, HPROF_PERIOD, hp_total, hp_jit, hp_other };
 	if (!hist)
 		return;
-	snprintf(path, sizeof path, "sd:/wiisxrx/hprof_%02d.bin", game);
+	snprintf(path, sizeof path, "sd:/wiistation/hprof_%02d.bin", game);
 	if ((f = fopen(path, "wb"))) {
 		fwrite(hdr, sizeof hdr, 1, f);
 		fwrite(hist, sizeof(u32), 2 * HPROF_N, f);

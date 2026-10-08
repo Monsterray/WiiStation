@@ -446,7 +446,7 @@ static void UpdateState (const int pad) //Note: pad = 0 or 1
 	global.padStat[pad] = (((PAD_Data.btns.All>>8)&0xFF) | ( (PAD_Data.btns.All<<8) & 0xFF00 )) &0xFFFF;
 	if (script_port(pad) >= 0) {
 		const int sp = script_port(pad);
-		extern unsigned short autoinput_mask(int port);   /* PadWiiSX.c: scripted presses from sd:/wiisxrx/autoinput.txt */
+		extern unsigned short autoinput_mask(int port);   /* PadWiiSX.c: scripted presses from sd:/wiistation/autoinput.txt */
 		/* padStat is byte-swapped so that the big-endian 16-bit store in the
 		 * 0x42 response emits the two PSX bytes in wire order; the script's
 		 * masks are in PSX order (Start 0008), so swap them the same way. */
@@ -516,7 +516,7 @@ long SSS_PADopen (void *p)
 {
 	int i;
 	{
-		extern void autoinput_load(void);   /* PadWiiSX.c: sd:/wiisxrx/autoinput.txt incl. trace/dump schedules */
+		extern void autoinput_load(void);   /* PadWiiSX.c: sd:/wiistation/autoinput.txt incl. trace/dump schedules */
 		autoinput_load();
 	}
 	memset (&global, 0, sizeof (global));

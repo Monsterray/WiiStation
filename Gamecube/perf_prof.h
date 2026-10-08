@@ -11,7 +11,7 @@
  * touches these.
  *
  * Reporting: perf_present_tick() auto-appends a summary to
- * sd:/wiisxrx/perf.log every 1800 presented frames (~30 s at 60 fps) and
+ * sd:/wiistation/perf.log every 1800 presented frames (~30 s at 60 fps) and
  * mirrors key lines to the on-screen DEBUG overlay when SHOW_DEBUG is on.
  * Method: run the same save-state 30-60 s per build and diff the log.
  */
@@ -631,7 +631,7 @@ typedef struct {
 	/* Audio timeline: one record per XA sector (F, R = stream start), gap start (G), first
 	 * repeated sample (H) and a mixer heartbeat every 16th SPU_async (S). Recording starts at
 	 * autoinput's 'atrace <vblank>' (or the first event without one), fills once, and is
-	 * written to sd:/wiisxrx/atrace.log; scripts/atrace_summary.py reads it. */
+	 * written to sd:/wiistation/atrace.log; scripts/atrace_summary.py reads it. */
 	struct { uint32_t wall_us, cycle; int32_t a, b; uint16_t c; uint8_t kind; } aev[PERF_AEV_N];
 	uint32_t aev_n;
 	uint8_t  aev_on, aev_printed;
@@ -639,7 +639,7 @@ typedef struct {
 	/* Pad timeline: one record each time what a virtual port hands the PlayStation
 	 * changes -- buttons or either stick. Both ends of the conversion are kept, so the
 	 * driver's output and the bytes the game finally reads can be compared against the
-	 * input Dolphin was told to send. Written to sd:/wiisxrx/padtrace.csv on every perf
+	 * input Dolphin was told to send. Written to sd:/wiistation/padtrace.csv on every perf
 	 * report; scripts/padtest.py generates the input and checks the result. */
 	struct {
 		uint32_t vbl;
@@ -722,7 +722,7 @@ unsigned long long perf_now_ticks(void);
 /* Zero all counters (called when a game session starts). */
 void perf_reset(void);
 
-/* Write one summary block to sd:/wiisxrx/perf.log (+ DEBUG overlay /
+/* Write one summary block to sd:/wiistation/perf.log (+ DEBUG overlay /
  * SysPrintf when available). */
 void perf_report(void);
 
@@ -738,11 +738,11 @@ static inline void perf_prim_trace(unsigned cmd, unsigned flags, unsigned abr, u
 { (void)cmd; (void)flags; (void)abr; (void)color; (void)x0; (void)y0; (void)x1; (void)y1; }
 #endif
 void perf_autoinput_event(unsigned vblank, unsigned mask);
-/* A VRAM transfer for sd:/wiisxrx/vramio.log (perf_prof.c). kind: 0xC0 read, 0xA0 load,
+/* A VRAM transfer for sd:/wiistation/vramio.log (perf_prof.c). kind: 0xC0 read, 0xA0 load,
  * 0x80 move, 0xC1 readback outcome. */
 void perf_vram_event(unsigned kind, int x, int y, int w, int h, int a, int b);
-void perf_tty(const char *s);   /* the run's console text, for sd:/wiisxrx/tty.log */
-void perf_vtl_flush(int game);  /* the per-vblank timeline, to sd:/wiisxrx/vtl_NN.bin */
+void perf_tty(const char *s);   /* the run's console text, for sd:/wiistation/tty.log */
+void perf_vtl_flush(int game);  /* the per-vblank timeline, to sd:/wiistation/vtl_NN.bin */
 void perf_state_log(int game);  /* guest RAM/VRAM hashes at a chained game's end: perf.log "state:" */
 void perf_stack_log(const char *where);   /* the main thread's deepest stack use: perf.log "stack:" */
 void perf_fatal_log(unsigned code, const char *reason);   /* ws_fatal: perf.log "fatal:" */

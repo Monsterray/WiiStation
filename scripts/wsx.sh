@@ -15,7 +15,7 @@
 #        --nodump                   no audio dump
 #        --autoboot spyro|bios|none which autoboot file (default spyro)
 #        --env VAR=VALUE            extra environment for dolphin_run.sh (CACHE=1, XFB_RAM=1 ...)
-#        --card FILE                put FILE in the card's wiisxrx/ folder for the run (repeatable):
+#        --card FILE                put FILE in the card's wiistation/ folder for the run (repeatable):
 #                                   the per-game input scripts a chained autoboot names
 #   scripts/wsx.sh chain NAME CHAINFILE [options]         a chained autoboot (several games, one
 #                                   boot) from scripts/chains/; stages the input scripts it names,
@@ -146,13 +146,13 @@ run)
 	;;
 
 chain)
-	# A chain file names its input scripts as sd:/wiisxrx/<file>; each is scripts/autoinput/<file>.
+	# A chain file names its input scripts as sd:/wiistation/<file>; each is scripts/autoinput/<file>.
 	name="${1:-}"; cf="${2:-}"; shift 2 || { echo "chain NAME CHAINFILE [options]"; exit 2; }
 	[ -f "$cf" ] || cf="$REPO/scripts/chains/$cf"
 	[ -f "$cf" ] || { echo "no such chain file: $cf"; exit 2; }
 	cardargs=()
-	for f in $(tr -d '\r' < "$cf" | sed -n -E 's|^[0-9]+[[:space:]]+sd:/wiisxrx/([^[:space:]]+).*|\1|p' | sort -u); do
-		[ -f "$REPO/scripts/autoinput/$f" ] || { echo "chain names sd:/wiisxrx/$f: no scripts/autoinput/$f"; exit 2; }
+	for f in $(tr -d '\r' < "$cf" | sed -n -E 's|^[0-9]+[[:space:]]+sd:/wiistation/([^[:space:]]+).*|\1|p' | sort -u); do
+		[ -f "$REPO/scripts/autoinput/$f" ] || { echo "chain names sd:/wiistation/$f: no scripts/autoinput/$f"; exit 2; }
 		cardargs+=(--card "$REPO/scripts/autoinput/$f")
 	done
 	bash "$0" run "$name" --autoboot "$cf" --input "$P/autoinput_none.txt" --nodump --env FRAMES_DUMP=False ${cardargs[@]+"${cardargs[@]}"} "$@" | grep -v "^  "
@@ -186,12 +186,12 @@ state)
 	mkdir -p "$RUNS/state_$name"
 	sf="$REPO/scripts/autoinput/_state_$name.txt"
 	{ echo "state save $name $at"; [ -n "$rec" ] && grep -v '^#' "$rf"; } > "$sf"
-	printf 'CHAIN\n%s sd:/wiisxrx/_state_%s.txt PadAutoAssign=1 ControllerType=%s\n%s\n%s\n' \
+	printf 'CHAIN\n%s sd:/wiistation/_state_%s.txt PadAutoAssign=1 ControllerType=%s\n%s\n%s\n' \
 		"$((at + 30))" "$name" "$ct" "$folder" "$cue" > "$RUNS/state_$name/chain.txt"
 	bash "$0" chain "state_$name" "$RUNS/state_$name/chain.txt" --secs $((at / 30 + 200)) ${rest[@]+"${rest[@]}"} > /dev/null
 	rm -f "$sf"
 	grep -a "^state:" "$RUNS/state_$name/perf.log"
-	card="${WSX_PROFILE:-$REPO/.dolphin}/Load/WiiSDSync/wiisxrx/states"
+	card="${WSX_PROFILE:-$REPO/.dolphin}/Load/WiiSDSync/wiistation/states"
 	[ -f "$card/$name.txt" ] && sed -n '1,8p' "$card/$name.txt"
 	;;
 
@@ -199,7 +199,7 @@ abstate)
 	# Several settings from one saved moment, in one boot: a chain line per SETS, each loading
 	# the state (State=NAME) and running VBL vblanks from it.
 	run="${1:-}"; st="${2:-}"; vbl="${3:-}"; shift 3 || { echo "abstate RUN STATE VBL SETS... [--rec REC]"; exit 2; }
-	card="${WSX_PROFILE:-$REPO/.dolphin}/Load/WiiSDSync/wiisxrx/states"
+	card="${WSX_PROFILE:-$REPO/.dolphin}/Load/WiiSDSync/wiistation/states"
 	[ -f "$card/$st.txt" ] || { echo "no save state $st on the test card ($card); make it with wsx.sh state"; exit 2; }
 	folder=$(sed -n 's/^# folder: //p' "$card/$st.txt" | tr -d '\r'); cue=$(sed -n 's/^# cue: //p' "$card/$st.txt" | tr -d '\r')
 	rec=""; sets=(); rest=()
@@ -225,7 +225,7 @@ abstate)
 	cf="$RUNS/$run.chain.txt"; echo CHAIN > "$cf"
 	for s in "${sets[@]}"; do
 		kv=""; [ "$s" != "-" ] && kv=" $(echo "$s" | tr ',' ' ')"
-		printf '\n%s sd:/wiisxrx/_abstate_%s.txt PadAutoAssign=1%s State=%s%s\n%s\n%s\n' "$vbl" "$run" "$pad" "$st" "$kv" "$folder" "$cue" >> "$cf"
+		printf '\n%s sd:/wiistation/_abstate_%s.txt PadAutoAssign=1%s State=%s%s\n%s\n%s\n' "$vbl" "$run" "$pad" "$st" "$kv" "$folder" "$cue" >> "$cf"
 	done
 	rm -rf "$RUNS/$run"
 	bash "$0" chain "$run" "$cf" --secs $(( ${#sets[@]} * (vbl / 30 + 90) )) ${rest[@]+"${rest[@]}"}

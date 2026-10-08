@@ -62,7 +62,7 @@ char *dump_filename = "/PSXISOS/debug.txt";
 FILE* fdebug = NULL;
 
 static FILE* fdebugLog = NULL;
-static char *debugLogFile = "sd:/wiisxrx/debugLog.txt";
+static char *debugLogFile = "sd:/wiistation/debugLog.txt";
 bool canWriteLog = false;
 
 void openLogFile() {

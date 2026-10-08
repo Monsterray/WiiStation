@@ -50,7 +50,7 @@ for g in "${games[@]}"; do
 	} > "$A/$s"
 	made+=("$A/$s")
 	for p in $plugins; do
-		printf '%s sd:/wiisxrx/%s PadAutoAssign=1 ControllerType=%s gpuPlugin=%s\n%s\n%s\n' \
+		printf '%s sd:/wiistation/%s PadAutoAssign=1 ControllerType=%s gpuPlugin=%s\n%s\n%s\n' \
 			"$vbl" "$s" "$ct" "$p" "$folder" "$cue" >> "$chain"
 	done
 done

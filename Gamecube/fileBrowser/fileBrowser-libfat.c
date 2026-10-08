@@ -112,7 +112,7 @@ static char usbMounted = 0;
 static char usbNeedsUnmount = 0;
 
 fileBrowser_file topLevel_libfat_Default =
-	{ "sd:/wiisxrx/isos", // file name
+	{ "sd:/wiistation/isos", // file name
 	  0, // sector
 	  0, // offset
 	  0, // size
@@ -120,7 +120,7 @@ fileBrowser_file topLevel_libfat_Default =
 	 };
 
 fileBrowser_file topLevel_libfat_USB =
-	{ "usb:/wiisxrx/isos", // file name
+	{ "usb:/wiistation/isos", // file name
 	  0, // sector
 	  0, // offset
 	  0, // size
@@ -128,7 +128,7 @@ fileBrowser_file topLevel_libfat_USB =
 	 };
 
 fileBrowser_file saveDir_libfat_Default =
-	{ "sd:/wiisxrx/saves",
+	{ "sd:/wiistation/saves",
 	  0,
 	  0,
 	  0,
@@ -136,7 +136,7 @@ fileBrowser_file saveDir_libfat_Default =
 	 };
 
 fileBrowser_file saveDir_libfat_USB =
-	{ "usb:/wiisxrx/saves",
+	{ "usb:/wiistation/saves",
 	  0,
 	  0,
 	  0,
@@ -144,7 +144,7 @@ fileBrowser_file saveDir_libfat_USB =
 	 };
 
 fileBrowser_file biosDir_libfat_Default =
-	{ "sd:/wiisxrx/bios",
+	{ "sd:/wiistation/bios",
 	  0,
 	  0,
 	  0,
@@ -152,7 +152,7 @@ fileBrowser_file biosDir_libfat_Default =
 	 };
 
 fileBrowser_file biosDir_libfat_USB =
-	{ "usb:/wiisxrx/bios",
+	{ "usb:/wiistation/bios",
 	  0,
 	  0,
 	  0,
@@ -440,8 +440,8 @@ int fileBrowser_libfat_readFile(fileBrowser_file* file, void* buffer, unsigned i
 }
 
 /* fopen(..., "wb") fails outright if the parent directory does not exist, and
- * nothing else in the tree ever creates sd:/wiisxrx/saves. On a card that only
- * has wiisxrx/isos (the usual hand-made layout), every memory-card write
+ * nothing else in the tree ever creates sd:/wiistation/saves. On a card that only
+ * has wiistation/isos (the usual hand-made layout), every memory-card write
  * therefore failed and the only symptom was "Failed to save game" when leaving
  * a game -- a whole session's progress lost to a missing folder. Create the
  * chain on demand so saving works on a fresh card with no setup step.

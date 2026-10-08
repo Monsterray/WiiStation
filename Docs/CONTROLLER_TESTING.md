@@ -38,7 +38,7 @@ will not be caught, so the test prints the ranges it used.
 
 The maths being right does not prove a press arrives. There are two moving parts:
 
-**A scripted pad.** `padsweep <vblank>` in `sd:/wiisxrx/autoinput.txt` makes the GameCube
+**A scripted pad.** `padsweep <vblank>` in `sd:/wiistation/autoinput.txt` makes the GameCube
 driver read a generated sweep instead of the pad from that vblank on: each stick axis
 walked end to end a step per vblank, then each button held on its own. The substitution
 happens at the very top of `controller-GC.c`, where the raw libogc reading is taken, so
@@ -49,16 +49,16 @@ emulator, it works on real hardware as well as under Dolphin.
 
 **A pad timeline.** In a debug build `perf_pad_event` (`Gamecube/perf_prof.c`) records one
 line each time what a virtual port hands the PlayStation changes, with the driver's own
-output beside the final bytes, and writes `sd:/wiisxrx/padtrace.csv` on every perf report.
+output beside the final bytes, and writes `sd:/wiistation/padtrace.csv` on every perf report.
 Repeats are dropped, so a stick held still costs one line. Release builds compile it out.
 
 Running it, with any game that polls the pad:
 
 ```
-printf 'padsweep 1200\n' > <sync>/wiisxrx/autoinput.txt
+printf 'padsweep 1200\n' > <sync>/wiistation/autoinput.txt
 DOLPHIN_ARGS="-C Dolphin.Core.SIDevice0=6" scripts/dolphin_run.sh out 160 \
     <that autoinput file> <settings with PadType1=1> <an autoboot file>
-python scripts/sdimage_read.py <User>/Load/WiiSD.raw wiisxrx/padtrace.csv out/padtrace.csv
+python scripts/sdimage_read.py <User>/Load/WiiSD.raw wiistation/padtrace.csv out/padtrace.csv
 python scripts/padtest.py check out/padtrace.csv
 ```
 

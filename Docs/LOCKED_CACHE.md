@@ -74,10 +74,10 @@ for each region on its own and both together.
 ## Measuring a region (a Wii)
 
 1. Build with `bash scripts/wsx.sh build debug pmc`.
-2. Copy `scripts/chains/lc_ab.txt` to the card as `sd:/wiisxrx/autoboot.txt`, with
+2. Copy `scripts/chains/lc_ab.txt` to the card as `sd:/wiistation/autoboot.txt`, with
    `scripts/autoinput/spyro_title.txt` beside it, and the DOL.
 3. Boot. The console powers off when the chain is done.
-4. Copy `sd:/wiisxrx/perf.log` back into a run directory and read it with
+4. Copy `sd:/wiistation/perf.log` back into a run directory and read it with
    `python scripts/chain_compare.py RUN` (each on/off pair) and
    `python scripts/chain_table.py RUN --detail lc` / `--detail pmc`. IPC is `pmc2 / pmc1`; the
    default counters are cycles and instructions completed.

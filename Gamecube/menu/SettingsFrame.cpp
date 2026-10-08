@@ -1237,12 +1237,13 @@ void Func_SaveSettingsSD()
 	int (*configFile_init)(fileBrowser_file*) = fileBrowser_libfat_init;
 	configFile_file = &saveDir_libfat_Default;
 	struct stat s;
-	if (stat("sd:/wiisxrx/", &s)) {
-		menu::MessageBox::getInstance().setMessage("Error opening directory sd:/wiisxrx");
+	mkdir("sd:/wiistation", 0777);   /* a new card has no folder yet: make it */
+	if (stat("sd:/wiistation/", &s)) {
+		menu::MessageBox::getInstance().setMessage("Error opening directory sd:/wiistation");
 		return;
 	}
 	if(configFile_init(configFile_file)) {                //only if device initialized ok
-		FILE* f = fopen( "sd:/wiisxrx/settingsRX2022.cfg", "wb" );  //attempt to open file
+		FILE* f = fopen( "sd:/wiistation/settingsRX2022.cfg", "wb" );  //attempt to open file
 		if(f) {
 			writeConfig(f);                                   //write out the config
 			fclose(f);
@@ -1259,12 +1260,13 @@ void Func_SaveSettingsUSB()
 	int (*configFile_init)(fileBrowser_file*) = fileBrowser_libfat_init;
 	configFile_file = &saveDir_libfat_USB;
 	struct stat s;
-	if (stat("usb:/wiisxrx/", &s)) {
-		menu::MessageBox::getInstance().setMessage("Error opening directory usb:/wiisxrx");
+	mkdir("usb:/wiistation", 0777);   /* a new card has no folder yet: make it */
+	if (stat("usb:/wiistation/", &s)) {
+		menu::MessageBox::getInstance().setMessage("Error opening directory usb:/wiistation");
 		return;
 	}
 	if(configFile_init(configFile_file)) {                //only if device initialized ok
-		FILE* f = fopen( "usb:/wiisxrx/settingsRX2022.cfg", "wb" ); //attempt to open file
+		FILE* f = fopen( "usb:/wiistation/settingsRX2022.cfg", "wb" ); //attempt to open file
 		if(f) {
 			writeConfig(f);                                   //write out the config
 			fclose(f);
@@ -1276,7 +1278,7 @@ void Func_SaveSettingsUSB()
 }
 
 /* Save the settings as they are now for the game that is loaded, to
- * <device>:/wiisxrx/settings/<CdromId>.cfg, which WiiStation reads over the global file
+ * <device>:/wiistation/settings/<CdromId>.cfg, which WiiStation reads over the global file
  * the next time that game starts. USB is used when it has the folder, otherwise SD.
  * The folder used to have to exist already, and saying so was all this did when it did
  * not; makeParentDirs creates it, the same as every other save. */
@@ -1286,9 +1288,9 @@ void Func_SaveSettingsSeparately()
     char settingPathBuf[256];
     fileBrowser_file* configFile_file;
     extern char CdromId[10];
-	if (stat("usb:/wiisxrx/settings/", &s)) {
+	if (stat("usb:/wiistation/settings/", &s)) {
 		{
-			sprintf(settingPathBuf, "%s%s%s", "sd:/wiisxrx/settings/", CdromId, ".cfg");
+			sprintf(settingPathBuf, "%s%s%s", "sd:/wiistation/settings/", CdromId, ".cfg");
 			configFile_file = &saveDir_libfat_Default;
 	        int (*configFile_init)(fileBrowser_file*) = fileBrowser_libfat_init;
 	        if(configFile_init(configFile_file)) {                //only if device initialized ok
@@ -1306,7 +1308,7 @@ void Func_SaveSettingsSeparately()
 	}
 	else
 	{
-		sprintf(settingPathBuf, "%s%s%s", "usb:/wiisxrx/settings/", CdromId, ".cfg");
+		sprintf(settingPathBuf, "%s%s%s", "usb:/wiistation/settings/", CdromId, ".cfg");
 		configFile_file = &saveDir_libfat_USB;
 	    int (*configFile_init)(fileBrowser_file*) = fileBrowser_libfat_init;
 	    if (configFile_init(configFile_file)) {                //only if device initialized ok
@@ -1704,44 +1706,44 @@ void Func_SaveButtonsSD()
 	int num_written = 0;
 	configFile_file = &saveDir_libfat_Default;
 	if(configFile_init(configFile_file)) {                //only if device initialized ok
-		FILE* f = fopen( "sd:/wiisxrx/controlG.cfg", "wb" );  //attempt to open file
+		FILE* f = fopen( "sd:/wiistation/controlG.cfg", "wb" );  //attempt to open file
 		if(f) {
 			save_configurations(f, &controller_GC);					//write out GC controller mappings
 			fclose(f);
 			num_written++;
 		}
 #ifdef HW_RVL
-        f = fopen( "sd:/wiisxrx/controlH.cfg", "wb" );  //attempt to open file
+        f = fopen( "sd:/wiistation/controlH.cfg", "wb" );  //attempt to open file
 		if(f) {
 			save_configurations(f, &controller_HidGC);			//write out HID controller mappings
 			fclose(f);
 			num_written++;
 		}
-		f = fopen( "sd:/wiisxrx/controlC.cfg", "wb" );  //attempt to open file
+		f = fopen( "sd:/wiistation/controlC.cfg", "wb" );  //attempt to open file
 		if(f) {
 			save_configurations(f, &controller_Classic);			//write out Classic controller mappings
 			fclose(f);
 			num_written++;
 		}
-		f = fopen( "sd:/wiisxrx/controlN.cfg", "wb" );  //attempt to open file
+		f = fopen( "sd:/wiistation/controlN.cfg", "wb" );  //attempt to open file
 		if(f) {
 			save_configurations(f, &controller_WiimoteNunchuk);	//write out WM+NC controller mappings
 			fclose(f);
 			num_written++;
 		}
-		f = fopen( "sd:/wiisxrx/controlW.cfg", "wb" );  //attempt to open file
+		f = fopen( "sd:/wiistation/controlW.cfg", "wb" );  //attempt to open file
 		if(f) {
 			save_configurations(f, &controller_Wiimote);			//write out Wiimote controller mappings
 			fclose(f);
 			num_written++;
 		}
-		f = fopen("sd:/wiisxrx/controlP.cfg", "wb");  //attempt to open file
+		f = fopen("sd:/wiistation/controlP.cfg", "wb");  //attempt to open file
 		if (f) {
 			save_configurations(f, &controller_WiiUPro);			//write out Wii U Pro controller mappings
 			fclose(f);
 			num_written++;
 		}
-		f = fopen("sd:/wiisxrx/controlD.cfg", "wb");  //attempt to open file
+		f = fopen("sd:/wiistation/controlD.cfg", "wb");  //attempt to open file
 		if (f) {
 			save_configurations(f, &controller_WiiUGamepad);		//write out Wii U Gamepad controller mappings
 			fclose(f);
@@ -1762,44 +1764,44 @@ void Func_SaveButtonsUSB()
 	int num_written = 0;
 	configFile_file = &saveDir_libfat_USB;
 	if(configFile_init(configFile_file)) {                //only if device initialized ok
-		FILE* f = fopen( "usb:/wiisxrx/controlG.cfg", "wb" );  //attempt to open file
+		FILE* f = fopen( "usb:/wiistation/controlG.cfg", "wb" );  //attempt to open file
 		if(f) {
 			save_configurations(f, &controller_GC);					//write out GC controller mappings
 			fclose(f);
 			num_written++;
 		}
 #ifdef HW_RVL
-        f = fopen( "usb:/wiisxrx/controlH.cfg", "wb" );  //attempt to open file
+        f = fopen( "usb:/wiistation/controlH.cfg", "wb" );  //attempt to open file
 		if(f) {
 			save_configurations(f, &controller_HidGC);			//write out HID controller mappings
 			fclose(f);
 			num_written++;
 		}
-		f = fopen( "usb:/wiisxrx/controlC.cfg", "wb" );  //attempt to open file
+		f = fopen( "usb:/wiistation/controlC.cfg", "wb" );  //attempt to open file
 		if(f) {
 			save_configurations(f, &controller_Classic);			//write out Classic controller mappings
 			fclose(f);
 			num_written++;
 		}
-		f = fopen( "usb:/wiisxrx/controlN.cfg", "wb" );  //attempt to open file
+		f = fopen( "usb:/wiistation/controlN.cfg", "wb" );  //attempt to open file
 		if(f) {
 			save_configurations(f, &controller_WiimoteNunchuk);	//write out WM+NC controller mappings
 			fclose(f);
 			num_written++;
 		}
-		f = fopen( "usb:/wiisxrx/controlW.cfg", "wb" );  //attempt to open file
+		f = fopen( "usb:/wiistation/controlW.cfg", "wb" );  //attempt to open file
 		if(f) {
 			save_configurations(f, &controller_Wiimote);			//write out Wiimote controller mappings
 			fclose(f);
 			num_written++;
 		}
-		f = fopen("usb:/wiisxrx/controlP.cfg", "wb");  //attempt to open file
+		f = fopen("usb:/wiistation/controlP.cfg", "wb");  //attempt to open file
 		if (f) {
 			save_configurations(f, &controller_WiiUPro);			//write out Wii U Pro controller mappings
 			fclose(f);
 			num_written++;
 		}
-		f = fopen("usb:/wiisxrx/controlD.cfg", "wb");  //attempt to open file
+		f = fopen("usb:/wiistation/controlD.cfg", "wb");  //attempt to open file
 		if (f) {
 			save_configurations(f, &controller_WiiUGamepad);		//write out Wii U Gamepad controller mappings
 			fclose(f);

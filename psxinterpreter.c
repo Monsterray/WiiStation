@@ -1014,7 +1014,7 @@ static void intReset() {
 }
 
 #ifdef PERF_PROF
-/* The last 4096 PCs and their sp, written once to sd:/wiisxrx/pcring.log the first time the PC leaves
+/* The last 4096 PCs and their sp, written once to sd:/wiistation/pcring.log the first time the PC leaves
  * the places code can be (RAM, the BIOS ROM): how the interpreter got to address 0. */
 static u32 pcring[4096], pcsp[4096], pcra[4096], pcring_n;
 static int pcring_done;
@@ -1029,7 +1029,7 @@ static void pcring_add(u32 pc)
 	    ((off >= 0x80 && off < 0x200000) || (off >= 0x1fc00000 && off < 0x1fc80000))))
 		return;
 	{
-		FILE *f = fopen("sd:/wiisxrx/pcring.log", "w");
+		FILE *f = fopen("sd:/wiistation/pcring.log", "w");
 		u32 i;
 		pcring_done = 1;
 		if (!f)

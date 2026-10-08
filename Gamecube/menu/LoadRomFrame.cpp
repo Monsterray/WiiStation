@@ -121,6 +121,7 @@ void LoadRomFrame::activateSubmenu(int submenu)
 
 extern MenuContext *pMenuContext;
 extern void fileBrowserFrame_OpenDirectory(fileBrowser_file* dir);
+extern void fileBrowserFrame_OpenRomFolders(fileBrowser_file* deviceDefault, const char *device);
 
 void Func_LoadFromSD()
 {
@@ -145,7 +146,7 @@ void Func_LoadFromSD()
 	else
 	{
 		pMenuContext->setActiveFrame(MenuContext::FRAME_FILEBROWSER,loadRomMode);
-		fileBrowserFrame_OpenDirectory(isoFile_topLevel);
+		fileBrowserFrame_OpenRomFolders(isoFile_topLevel, "sd:");   /* RomDir1..4 */
 	}
 }
 
@@ -192,7 +193,7 @@ void Func_LoadFromUSB()
 	else
 	{
 		pMenuContext->setActiveFrame(MenuContext::FRAME_FILEBROWSER,loadRomMode);
-		fileBrowserFrame_OpenDirectory(isoFile_topLevel);
+		fileBrowserFrame_OpenRomFolders(isoFile_topLevel, "usb:");   /* RomDir1..4 */
 	}
 #else
 	menu::MessageBox::getInstance().setMessage("Available only for Wii");

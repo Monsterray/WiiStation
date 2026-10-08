@@ -8,7 +8,7 @@
 
 PadTest DX is github.com/Monsterray/padtest (built in C:\\projects\\padtest). Each frame it
 copies a status block (its include/dx.h) to VRAM; a chained run leaves each game's VRAM in
-sd:/wiisxrx/vram_NN.bin. scripts/padtest_dx.sh does the whole run. CELLS is a comma list of
+sd:/wiistation/vram_NN.bin. scripts/padtest_dx.sh does the whole run. CELLS is a comma list of
 cell names (default: all). The protocol and what each check rests on: the fork's
 docs/PROTOCOL.md (psx-spx, Mednafen's multitap notes, DuckStation).
 """
@@ -171,7 +171,7 @@ def write_chain(path, cells):
     with open(path, 'w', newline='\n') as f:
         f.write('CHAIN\n# PadTest DX controller matrix (scripts/padtest_dx.py chain)\n')
         for c in cells:
-            f.write('# %s\n%d sd:/wiisxrx/%s %s\nsd:/wiisxrx/isos/PadTestDX\npadtest.cue\n'
+            f.write('# %s\n%d sd:/wiistation/%s %s\nsd:/wiisxrx/isos/PadTestDX\npadtest.cue\n'
                     % (c['name'], cell_vblanks(c), cell_script(c), ' '.join(settings(c))))
 
 

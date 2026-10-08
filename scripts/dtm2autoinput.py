@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """dtm2autoinput.py - turn a Dolphin input movie (.dtm) recorded on WiiStation
-into an sd:/wiisxrx/autoinput.txt script.
+into an sd:/wiistation/autoinput.txt script.
 
 For new recordings use scripts/movie_capture.sh instead: WiiStation records the pad
 itself, in emulated vblanks. A .dtm counts host frames, which drift from the game's

@@ -2,7 +2,7 @@
 """padtest.py - check what WiiStation's controller path did with a known sweep.
 
   padtest.py check padtrace.csv
-      Reads the pad timeline a debug build wrote (sd:/wiisxrx/padtrace.csv) and says
+      Reads the pad timeline a debug build wrote (sd:/wiistation/padtrace.csv) and says
       whether the path is intact: both sticks reach 0 and 255, pass through 128 and are
       finely graded the whole way, and each button press moves exactly one bit of the pad
       word, a different one each time.
@@ -11,7 +11,7 @@
       Writes a Dolphin input movie that sweeps the sticks and presses each button.
       KEPT BUT NOT WORKING: the installed Dolphin accepts -m and never plays the movie
       (see Docs/CONTROLLER_TESTING.md section 3). The sweep that actually runs is inside
-      the emulator -- put "padsweep <vblank>" in sd:/wiisxrx/autoinput.txt -- which also
+      the emulator -- put "padsweep <vblank>" in sd:/wiistation/autoinput.txt -- which also
       works on real hardware. This generator is kept for the day a Dolphin build plays
       movies, because it is the only way to test the path above the driver.
 

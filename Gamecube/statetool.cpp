@@ -3,7 +3,7 @@
  * A run can save the game at a vblank, load a saved game back, and check that a loaded state
  * goes on exactly as the game did. Input script lines (PadWiiSX.c):
  *
- *   state save NAME <vblank>     save to sd:/wiisxrx/states/NAME.st, with NAME.txt beside it
+ *   state save NAME <vblank>     save to sd:/wiistation/states/NAME.st, with NAME.txt beside it
  *   state load NAME <vblank>     load it
  *   statefp <vblank>             log a fingerprint of the machine (two boots can be compared)
  *   statecheck <vblank> <n>      save at <vblank>, run n vblanks and take a fingerprint of the
@@ -48,7 +48,7 @@ void writeConfig(FILE *f);
 
 enum { ST_SAVE = 1, ST_LOAD, ST_CHECK, ST_FP };
 #define ST_MAX 8
-#define ST_DIR "sd:/wiisxrx/states/"
+#define ST_DIR "sd:/wiistation/states/"
 #define ST_CHECK_FILE ST_DIR "_statecheck.st"
 
 static struct {
@@ -120,7 +120,7 @@ static void snap_take2(void)
 static void log_line(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 static void log_line(const char *fmt, ...)
 {
-	FILE *f = fopen("sd:/wiisxrx/perf.log", "a");
+	FILE *f = fopen("sd:/wiistation/perf.log", "a");
 	va_list ap;
 	if (!f) return;
 	va_start(ap, fmt);
@@ -258,10 +258,10 @@ int statetool_service(void)
 		break;
 	case ST_FP:
 		state_fingerprint(fp);
-		if (req[i].n) {   /* "statefp V dump": RAM to sd:/wiisxrx/fpram_<k>.bin, for two boots to diff */
+		if (req[i].n) {   /* "statefp V dump": RAM to sd:/wiistation/fpram_<k>.bin, for two boots to diff */
 			static int k;
 			FILE *f;
-			snprintf(path, sizeof path, "sd:/wiisxrx/fpram_%d.bin", ++k);
+			snprintf(path, sizeof path, "sd:/wiistation/fpram_%d.bin", ++k);
 			if ((f = fopen(path, "wb"))) { fwrite(psxM, 1, 0x200000, f); fclose(f); }
 		}
 		log_line("statefp: vblank %u: ram %08x vram %08x hw %08x cpu %08x spu %08x cycle %u\n",

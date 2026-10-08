@@ -1,5 +1,5 @@
 README : WiiStation
-Version 5.5.0
+Version 5.6.0
 
 LICENSE:
     This software is licensed under the GNU General Public License v2
@@ -10,11 +10,13 @@ LICENSE:
 QUICK USAGE:
  * ISOs can be .bin/.cue (Make sure .cue contains _relative_ directory!), .img, or .iso format
  * To install: Extract the contents of WiiStation.zip to the root of your SD card
- * For SD/USB: Put ISOs (.bin/.cue or other formats) in the directory named /wiisxrx/isos,
-    All Memory Cards will automatically be placed in /wiisxrx/saves
-    All Savestates will automatically be placed in /wiisxrx/savestates
+ * For SD/USB: Put ISOs (.bin/.cue or other formats) in the directory named /wiistation/isos,
+    or anywhere else: RomDir1..RomDir4 in wiistation/settingsRX2022.cfg name up to four
+    game folders, e.g. RomDir1 = "sd:/roms/psx" (see SETTINGS.md),
+    All Memory Cards will automatically be placed in /wiistation/saves
+    All Savestates will automatically be placed in /wiistation/savestates
  * For DVD: ISOs may be anywhere on the disc (requires DVDxV2 on Wii)
- * For actual BIOS: Put SCPH1001.BIN in the directory on SD/USB named /wiisxrx/bios
+ * For actual BIOS: Put SCPH1001.BIN in the directory on SD/USB named /wiistation/bios
  * Load the executable from the HBC or in the loader of your choice
     Once loaded, select 'Load ISO' and choose the source and select the ISO to load
         (Note: to go up a directory select '..', B will exit the file browser)
@@ -119,6 +121,19 @@ LATER UPDATES BY:
  * Jokippo
 
 WiiStation CHANGE LOG:
+Ver 5.6.0 (2026-10-07):
+* WiiStation's folder on the SD card and USB device is now /wiistation (was
+  /wiisxrx): settings, saves, save states, BIOS, fonts, languages, controller
+  files and logs. Nothing is moved for you: to keep your settings, saves and
+  BIOS, move or copy them from /wiisxrx to /wiistation.
+* Games can be anywhere: RomDir1..RomDir4 in settingsRX2022.cfg name up to four
+  folders (default sd:/wiistation/isos and usb:/wiistation/isos). Load from
+  SD/USB opens the one that exists, or lists them when there are several.
+  The card is FAT, which has no links or junctions; this replaces them.
+* Saving settings creates /wiistation when the card does not have it yet.
+* `hbc.py lastlog` shows WiiStation's output after it exits: it now leaves
+  with exit(), which also lets the HBC agent write the SD card back.
+
 Ver 5.5.0 (2026-10-07):
 * The Homebrew Channel agent from HBC 1.10.0 (was 1.9.3). With HBC 1.10 on the
   Wii, `hbc.py status` now shows WiiStation's frame pacing and main stack use,
@@ -262,7 +277,7 @@ Ver 1.0:
 * Combined the DFSound module of PCSX-ReARMed and used the SDL library.
 * Modification of some dynamic compilation instructions.
 * Support for multiple languages.
-  ※※※ Note: It reads a font file in a fixed location, so make sure that [sd:/wiisxrx/fonts/chs.dat] exists ※※※
+  ※※※ Note: It reads a font file in a fixed location, so make sure that [sd:/wiistation/fonts/chs.dat] exists ※※※
 * For some customed Chinese culture games, specific BIOS is automatically loaded.
 * Other minor corrections, such as disc changing (swap) and automatic fixes (autoFix functions) for some games.
 

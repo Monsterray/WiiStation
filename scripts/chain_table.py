@@ -9,7 +9,7 @@ game started -- and then the line "=== chain <n>/<total> end vblanks=<v> [set=K=
 A game run with settings of its own is named with them, e.g. "Crash Bash LockedCache=2".
 The last block before each end line is that game's whole run.
 
-Also takes each game's VRAM snapshot (sd:/wiisxrx/vram_NN.bin) off the card image and draws
+Also takes each game's VRAM snapshot (sd:/wiistation/vram_NN.bin) off the card image and draws
 it as RUN_DIR/vram_NN.png, so each row can be checked against what the game was doing. Do
 that straight after the run: the next run's card replaces them.
 
@@ -179,7 +179,7 @@ def vram_pictures(run, n):
         if os.path.exists(p) or not os.path.exists(card):
             continue
         subprocess.run([sys.executable, os.path.join(HERE, 'sdimage_read.py'), card,
-                        'wiisxrx/vram_%02d.bin' % i, b], capture_output=True)
+                        'wiistation/vram_%02d.bin' % i, b], capture_output=True)
         if os.path.exists(b) and os.path.getsize(b) == 1024 * 512 * 2:
             subprocess.run([sys.executable, os.path.join(HERE, 'vram2png.py'), b, p],
                            capture_output=True)

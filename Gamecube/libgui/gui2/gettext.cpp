@@ -223,47 +223,47 @@ static FILE* getLangFile(char* sdUsb)
     {
         case SIMP_CHINESE:
         case TRAD_CHINESE:
-            sprintf(langPathBuf, "%s%s", sdUsb, ":/wiisxrx/lang/zh.lang");
+            sprintf(langPathBuf, "%s%s", sdUsb, ":/wiistation/lang/zh.lang");
             break;
 
         case KOREAN:
-            sprintf(langPathBuf, "%s%s", sdUsb, ":/wiisxrx/lang/Kr.lang");
+            sprintf(langPathBuf, "%s%s", sdUsb, ":/wiistation/lang/Kr.lang");
             break;
 
         case SPANISH:
-            sprintf(langPathBuf, "%s%s", sdUsb, ":/wiisxrx/lang/es.lang");
+            sprintf(langPathBuf, "%s%s", sdUsb, ":/wiistation/lang/es.lang");
             break;
 
         case PORTUGUESE:
-            sprintf(langPathBuf, "%s%s", sdUsb, ":/wiisxrx/lang/pt.lang");
+            sprintf(langPathBuf, "%s%s", sdUsb, ":/wiistation/lang/pt.lang");
             break;
 
         case ITALIAN:
-            sprintf(langPathBuf, "%s%s", sdUsb, ":/wiisxrx/lang/it.lang");
+            sprintf(langPathBuf, "%s%s", sdUsb, ":/wiistation/lang/it.lang");
             break;
 
         case GERMAN:
-            sprintf(langPathBuf, "%s%s", sdUsb, ":/wiisxrx/lang/de.lang");
+            sprintf(langPathBuf, "%s%s", sdUsb, ":/wiistation/lang/de.lang");
             break;
 
         case JAPANESE:
-            sprintf(langPathBuf, "%s%s", sdUsb, ":/wiisxrx/lang/jp.lang");
+            sprintf(langPathBuf, "%s%s", sdUsb, ":/wiistation/lang/jp.lang");
             break;
 
         case FRENCH:
-            sprintf(langPathBuf, "%s%s", sdUsb, ":/wiisxrx/lang/fr.lang");
+            sprintf(langPathBuf, "%s%s", sdUsb, ":/wiistation/lang/fr.lang");
             break;
 
         case BRAZILIAN_PORTUGUESE:
-            sprintf(langPathBuf, "%s%s", sdUsb, ":/wiisxrx/lang/br.lang");
+            sprintf(langPathBuf, "%s%s", sdUsb, ":/wiistation/lang/br.lang");
             break;
 
         case CATALAN:
-            sprintf(langPathBuf, "%s%s", sdUsb, ":/wiisxrx/lang/ca.lang");
+            sprintf(langPathBuf, "%s%s", sdUsb, ":/wiistation/lang/ca.lang");
             break;
 
         case TURKISH:
-            sprintf(langPathBuf, "%s%s", sdUsb, ":/wiisxrx/lang/tu.lang");
+            sprintf(langPathBuf, "%s%s", sdUsb, ":/wiistation/lang/tu.lang");
             break;
 
         default:

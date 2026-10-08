@@ -26,6 +26,7 @@
 
 extern bool AutobootBios;      /* GamecubeMain.cpp: autoboot.txt said "BIOS" */
 void Func_ExecuteBios();       /* SettingsFrame.cpp */
+void Func_LoadFromSD();        /* LoadRomFrame.cpp */
 extern "C" void glResetCacheRegion(void);
 extern int backFromMenu;
 extern char originalMode;
@@ -104,7 +105,7 @@ static const int LOGO_BOTTOM_FRAMES[] = {
 	MenuContext::FRAME_CURRENTROM,        /* Swap CD reaches x=540 */
 };
 
-/* sd:/wiisxrx/autoinput.txt's "menupage <n>": see PadWiiSX.c, where it is parsed. */
+/* sd:/wiistation/autoinput.txt's "menupage <n>": see PadWiiSX.c, where it is parsed. */
 extern "C" {
 	void autoinput_load(void);
 	void autoinput_reset(const char *path);
@@ -134,7 +135,7 @@ bool MenuContext::isRunning()
 			perf_stack_log("menu frame 30");
 			/* read the script anew: a read before the SD card was mounted (the controller
 			 * assignment at power-on asks for scripted ports) found nothing, and kept that */
-			autoinput_reset("sd:/wiisxrx/autoinput.txt");
+			autoinput_reset("sd:/wiistation/autoinput.txt");
 			autoinput_load();
 			if (autoinput_menupage >= 1 && autoinput_menupage <= 5)
 				setActiveFrame(FRAME_SETTINGS,
@@ -148,6 +149,8 @@ bool MenuContext::isRunning()
 				setActiveFrame(FRAME_CUSTOMIZECOOP, (int)autoinput_menupage - 21);
 			else if (autoinput_menupage >= 40 && autoinput_menupage <= 65)
 				setActiveFrame(FRAME_CONFIGUREBUTTONS, (int)autoinput_menupage - 40);   /* Configure Buttons, by virtual controller */
+			else if (autoinput_menupage == 70)
+				Func_LoadFromSD();   /* Load ROM > Load from SD: the RomDir folders */
 		}
 	}
 

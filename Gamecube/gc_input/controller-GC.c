@@ -91,7 +91,7 @@ typedef struct { unsigned int buttons; s8 sx, sy, cx, cy; } gc_raw_t;
 
 /*  The scripted sweep  */
 
-/* "padsweep <vblank>" in sd:/wiisxrx/autoinput.txt (PadWiiSX.c) replaces the pad with a
+/* "padsweep <vblank>" in sd:/wiistation/autoinput.txt (PadWiiSX.c) replaces the pad with a
  * generated sweep from that vblank on: each stick axis walked end to end a step per
  * vblank, then each button held on its own. Everything downstream -- this driver's
  * conversion, the pad plugin, the PSX packing -- runs on it exactly as on a real pad, so

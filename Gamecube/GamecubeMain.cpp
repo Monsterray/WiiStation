@@ -182,7 +182,11 @@ char smbUserName[CONFIG_STRING_SIZE];
 char smbPassWord[CONFIG_STRING_SIZE];
 char smbShareName[CONFIG_STRING_SIZE];
 char smbIpAddr[CONFIG_STRING_SIZE];
-char menuFont[CONFIG_STRING_SIZE];   /* MenuFont = "Name": sd:/wiisxrx/fonts/Name.dat replaces the built-in menu font */
+/* RomDir1..RomDir4: where Load from SD / Load from USB look for games, each a full path on
+ * its device ("sd:/roms/psx"). FAT has no links, so this is how games kept outside
+ * sd:/wiistation (a shared ROMs folder) are reached. FileBrowserFrame.cpp opens them. */
+char romDir[ROM_DIRS][CONFIG_STRING_SIZE];
+char menuFont[CONFIG_STRING_SIZE];   /* MenuFont = "Name": sd:/wiistation/fonts/Name.dat replaces the built-in menu font */
 
 int stop = 0;
 bool needInitCpu = true;
@@ -313,6 +317,10 @@ static struct {
   { "smbsharename", smbShareName, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "smbipaddr", smbIpAddr, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "MenuFont", menuFont, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
+  { "RomDir1", romDir[0], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
+  { "RomDir2", romDir[1], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
+  { "RomDir3", romDir[2], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
+  { "RomDir4", romDir[3], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "lang", &lang, ENGLISH, TURKISH },
   { "fastLoad", &fastLoad, 0, 1 },
   { "TVMode", &originalMode, ORIGINALMODE_DISABLE, ORIGINALMODE_ENABLE },
@@ -372,7 +380,7 @@ static bool loadControllerMapping(char* usbSd)
     FILE* f;
     bool loadRet = true;
 
-    sprintf(settingPathBuf, "%s:/wiisxrx/controlG.cfg", usbSd);
+    sprintf(settingPathBuf, "%s:/wiistation/controlG.cfg", usbSd);
     f = fopen(settingPathBuf, "rb" );  //attempt to open file
     if (f) {
         load_configurations(f, &controller_GC);					//read in GC controller mappings
@@ -385,7 +393,7 @@ static bool loadControllerMapping(char* usbSd)
 
     #ifdef HW_RVL
 
-    sprintf(settingPathBuf, "%s:/wiisxrx/controlH.cfg", usbSd);
+    sprintf(settingPathBuf, "%s:/wiistation/controlH.cfg", usbSd);
     f = fopen(settingPathBuf, "rb" );  //attempt to open file
     if(f) {
         load_configurations(f, &controller_HidGC);			//read in HID controller mappings
@@ -396,7 +404,7 @@ static bool loadControllerMapping(char* usbSd)
         loadRet = false;
     }
 
-    sprintf(settingPathBuf, "%s:/wiisxrx/controlC.cfg", usbSd);
+    sprintf(settingPathBuf, "%s:/wiistation/controlC.cfg", usbSd);
     f = fopen(settingPathBuf, "rb" );  //attempt to open file
     if(f) {
         load_configurations(f, &controller_Classic);			//read in Classic controller mappings
@@ -407,7 +415,7 @@ static bool loadControllerMapping(char* usbSd)
         loadRet = false;
     }
 
-    sprintf(settingPathBuf, "%s:/wiisxrx/controlN.cfg", usbSd);
+    sprintf(settingPathBuf, "%s:/wiistation/controlN.cfg", usbSd);
     f = fopen(settingPathBuf, "rb" );  //attempt to open file
     if(f) {
         load_configurations(f, &controller_WiimoteNunchuk);		//read in WM+NC controller mappings
@@ -418,7 +426,7 @@ static bool loadControllerMapping(char* usbSd)
         loadRet = false;
     }
 
-    sprintf(settingPathBuf, "%s:/wiisxrx/controlW.cfg", usbSd);
+    sprintf(settingPathBuf, "%s:/wiistation/controlW.cfg", usbSd);
     f = fopen(settingPathBuf, "rb" );  //attempt to open file
     if(f) {
         load_configurations(f, &controller_Wiimote);			//read in Wiimote controller mappings
@@ -429,7 +437,7 @@ static bool loadControllerMapping(char* usbSd)
         loadRet = false;
     }
 
-    sprintf(settingPathBuf, "%s:/wiisxrx/controlP.cfg", usbSd);
+    sprintf(settingPathBuf, "%s:/wiistation/controlP.cfg", usbSd);
     f = fopen(settingPathBuf, "rb" );  //attempt to open file
     if (f) {
         load_configurations(f, &controller_WiiUPro);			//read in Wii U Pro controller mappings
@@ -440,7 +448,7 @@ static bool loadControllerMapping(char* usbSd)
         loadRet = false;
     }
 
-    sprintf(settingPathBuf, "%s:/wiisxrx/controlD.cfg", usbSd);
+    sprintf(settingPathBuf, "%s:/wiistation/controlD.cfg", usbSd);
     f = fopen(settingPathBuf, "rb" );  //attempt to open file
     if (f) {
         load_configurations(f, &controller_WiiUGamepad);		//read in Wii U Gamepad controller mappings
@@ -512,6 +520,9 @@ void loadSettings(int argc, char *argv[])
 	fileSortMode	 = FILESORT_DIRS_FIRST;
 	padAutoAssign	 = PADAUTOASSIGN_AUTOMATIC;
 	menuFont[0]		 = 0;              // built-in font
+	strcpy(romDir[0], "sd:/wiistation/isos");
+	strcpy(romDir[1], "usb:/wiistation/isos");
+	romDir[2][0] = romDir[3][0] = 0;
 	for (int i = 0; i < 10; i++){
 		padType[i]		 = PADTYPE_NONE;
 		padAssign[i]	 = PADASSIGN_INPUT0;
@@ -573,8 +584,8 @@ void loadSettings(int argc, char *argv[])
 	if(argc && argv[0][0] == 'u') {  //assume USB
 		if(configFile_init(configFile_file)) {                //only if device initialized ok
             memset(Config.PatchesDir, '\0', sizeof(Config.PatchesDir));
-            strcpy(Config.PatchesDir, "usb:/wiisxrx/ppf/");
-			FILE* f = fopen( "usb:/wiisxrx/settingsRX2022.cfg", "r" );  //attempt to open file
+            strcpy(Config.PatchesDir, "usb:/wiistation/ppf/");
+			FILE* f = fopen( "usb:/wiistation/settingsRX2022.cfg", "r" );  //attempt to open file
 			if(f) {        //open ok, read it
 				readConfig(f);
 				fclose(f);
@@ -589,9 +600,9 @@ void loadSettings(int argc, char *argv[])
 		if(configFile_init(configFile_file)) {                //only if device initialized ok
             // add xjsxjs197 start
             memset(Config.PatchesDir, '\0', sizeof(Config.PatchesDir));
-            strcpy(Config.PatchesDir, "sd:/wiisxrx/ppf/");
+            strcpy(Config.PatchesDir, "sd:/wiistation/ppf/");
             // add xjsxjs197 end
-			FILE* f = fopen( "sd:/wiisxrx/settingsRX2022.cfg", "r" );  //attempt to open file
+			FILE* f = fopen( "sd:/wiistation/settingsRX2022.cfg", "r" );  //attempt to open file
 			if(f) {        //open ok, read it
 				readConfig(f);
 				fclose(f);
@@ -696,18 +707,18 @@ char AutobootPath[1024];
  * one boot. The first line is CHAIN, then three lines per game:
  *
  *   CHAIN
- *   3600 sd:/wiisxrx/spyro_title.txt
- *   sd:/wiisxrx/isos/Spyro the Dragon
+ *   3600 sd:/wiistation/spyro_title.txt
+ *   sd:/wiistation/isos/Spyro the Dragon
  *   Spyro the Dragon [NTSC-U] [SCUS-94228].cue
  *   3600
- *   sd:/wiisxrx/isos/Medievil
+ *   sd:/wiistation/isos/Medievil
  *   Medievil [U] [SCUS-94227].cue
  *
  * The first line of each game is how many vblanks to run it for, then optionally an
  * autoinput script of its own (without one, the game gets no scripted input) and up to
  * CHAIN_SETS settings for that game alone, as KEY=VALUE with the settings file's names:
  *
- *   3600 sd:/wiisxrx/spyro_title.txt LockedCache=3
+ *   3600 sd:/wiistation/spyro_title.txt LockedCache=3
  *
  * A setting a game changes goes back to the settings file's value before the next game, so
  * each line says everything that differs for its game. That is what lets one boot compare a
@@ -792,7 +803,7 @@ static int chainLoad(FILE *f)
 	}
 	/* The log belongs to this chain from here. perf_reset() empties it again at the first
 	 * go() in a debug build, before anything is written; a release build never does. */
-	if (chainN) { FILE *p = fopen("sd:/wiisxrx/perf.log", "w"); if (p) fclose(p); }
+	if (chainN) { FILE *p = fopen("sd:/wiistation/perf.log", "w"); if (p) fclose(p); }
 	return chainN;
 }
 
@@ -868,7 +879,7 @@ static bool chainNext(void)
 		/* What the game had in VRAM at the end: scripts/chain_table.py turns it into a
 		 * picture, which is how a table row says what the numbers were measured on. */
 		char vp[40];
-		snprintf(vp, sizeof vp, "sd:/wiisxrx/vram_%02d.bin", chainI + 1);
+		snprintf(vp, sizeof vp, "sd:/wiistation/vram_%02d.bin", chainI + 1);
 		if (psxVuw && (f = fopen(vp, "wb"))) {
 			fwrite(psxVuw, 2, 1024 * 512, f);
 			fclose(f);
@@ -878,7 +889,7 @@ static bool chainNext(void)
 		perf_vtl_flush(chainI + 1);   /* the per-vblank timeline: vtl_NN.bin */
 		perf_report();
 	}
-	f = fopen("sd:/wiisxrx/perf.log", "a");
+	f = fopen("sd:/wiistation/perf.log", "a");
 	if (f) {
 		char sets[CHAIN_SETS * 32 + 8] = "";
 		int k;
@@ -966,7 +977,7 @@ int main(int argc, char *argv[])
 	}
 
 	/* Test automation: a bare .dol booted by Dolphin gets no loader argv, so
-	 * sd:/wiisxrx/autoboot.txt -- two lines, the ISO's directory and its
+	 * sd:/wiistation/autoboot.txt -- two lines, the ISO's directory and its
 	 * filename -- stands in for argv[1]/argv[2] and boots straight into the
 	 * game with no menu input. Delete the file to boot to the menu as usual.
 	 * A first line of just "BIOS" runs the BIOS shell instead (the menu's
@@ -974,7 +985,7 @@ int main(int argc, char *argv[])
 	 * Read here rather than in main()'s argv block because the SD card is
 	 * only mounted once loadSettings() has run. */
 	if (!Autoboot) {
-		FILE *ab = fopen("sd:/wiisxrx/autoboot.txt", "r");
+		FILE *ab = fopen("sd:/wiistation/autoboot.txt", "r");
 		if (ab) {
 			if (fgets(AutobootPath, sizeof(AutobootPath), ab)) {
 				AutobootPath[strcspn(AutobootPath, "\r\n")] = 0;
@@ -995,7 +1006,7 @@ int main(int argc, char *argv[])
 			/* wii_lab.py sends autoboot.txt with every run; left on the card, the next
 			 * start from the Homebrew Channel ran the lab's chain instead of the menu */
 			if (lab_active())
-				remove("sd:/wiisxrx/autoboot.txt");
+				remove("sd:/wiistation/autoboot.txt");
 		}
 	}
 
@@ -1144,20 +1155,20 @@ static void loadSeparatelySetting()
 
     // First, we load separately game settings.
     // Load separately game settings from USB device
-    if (!loadSeparatelySettingItem("usb:/wiisxrx/settings/", CdromId, true))
+    if (!loadSeparatelySettingItem("usb:/wiistation/settings/", CdromId, true))
     {
         // If there is no separate setting for USB
         // Load separately game settings from SD card
-        if (!loadSeparatelySettingItem("sd:/wiisxrx/settings/", CdromId, false))
+        if (!loadSeparatelySettingItem("sd:/wiistation/settings/", CdromId, false))
         {
             // If there is no separate setting
             // we load the common (global) settings.
             // Load common (global) settings from USB device
-            if (!loadSeparatelySettingItem("usb:/wiisxrx/", "settingsRX2022", true))
+            if (!loadSeparatelySettingItem("usb:/wiistation/", "settingsRX2022", true))
             {
                 // If there is no common (global) settings for USB
                 // Load common (global) settings from SD card
-                loadSeparatelySettingItem("sd:/wiisxrx/", "settingsRX2022", false);
+                loadSeparatelySettingItem("sd:/wiistation/", "settingsRX2022", false);
             }
         }
     }
@@ -1423,7 +1434,7 @@ void go(void) {
 int SysInit() {
 #if defined (CPU_LOG) || defined(DMA_LOG) || defined(CDR_LOG) || defined(HW_LOG) || \
 	defined(PSXBIOS_LOG) || defined(GTE_LOG) || defined(PAD_LOG)
-	emuLog = fopen("sd:/wiisxrx/emu.log", "w");
+	emuLog = fopen("sd:/wiistation/emu.log", "w");
 #endif
 	Config.Cpu = dynacore;  //cpu may have changed
 	psxInit();
@@ -1471,7 +1482,7 @@ void SysPrintf(const char *fmt, ...)
 		va_start(tl, fmt);
 		vsnprintf(tm, sizeof tm, fmt, tl);
 		va_end(tl);
-		perf_tty(tm);   /* perf_prof.c: sd:/wiisxrx/tty.log */
+		perf_tty(tm);   /* perf_prof.c: sd:/wiistation/tty.log */
 	}
 #endif
 #ifdef PRINTGECKO

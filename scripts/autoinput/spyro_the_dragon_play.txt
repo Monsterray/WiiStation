@@ -6,7 +6,7 @@
 #   (if it drifts on a later build: build that commit and pass the DOL with --dol)
 # settings: gpuPlugin=2 FPS=1 PadType1=1 PadAutoAssign=0 
 # pad: ControllerType=0 (digital pad); Dolphin: port 1 keyboard GameCube pad, port 2 GameCube pad (SIDevice1=6)
-# chain line: 14400 sd:/wiisxrx/spyro_the_dragon_play.txt PadAutoAssign=1 ControllerType=0
+# chain line: 14400 sd:/wiistation/spyro_the_dragon_play.txt PadAutoAssign=1 ControllerType=0
 # recorded by WiiStation ("record"); port 1 has a controller (automatic assignment on, GameCube pad 1 seen)
 1 0000
 553 0008

@@ -6,7 +6,7 @@
 #   (if it drifts on a later build: build that commit and pass the DOL with --dol)
 # settings: gpuPlugin=2 FPS=1 PadType1=1 PadAutoAssign=0 
 # pad: ControllerType=1 (DualShock); Dolphin: port 1 keyboard GameCube pad, port 2 GameCube pad (SIDevice1=6)
-# chain line: 7200 sd:/wiisxrx/ape_escape_play.txt PadAutoAssign=1 ControllerType=1
+# chain line: 7200 sd:/wiistation/ape_escape_play.txt PadAutoAssign=1 ControllerType=1
 # recorded by WiiStation ("record"); port 1 has a controller (automatic assignment on, GameCube pad 1 seen)
 10 0000
 # recorded by WiiStation ("record"); port 2 has a controller (automatic assignment on, GameCube pad 2 seen)

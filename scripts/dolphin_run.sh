@@ -34,7 +34,7 @@
 #
 # <seconds> is a limit, not a length: the run ends early if Dolphin exits on its own. A chained
 # autoboot (see GamecubeMain.cpp) powers the console off after its last game, and Dolphin in
-# batch mode exits then. Files in <out_dir>/card/ are put in the card's wiisxrx/ folder for the
+# batch mode exits then. Files in <out_dir>/card/ are put in the card's wiistation/ folder for the
 # run and taken off after -- a chain's per-game input scripts go there.
 #
 # ---------------------------------------------------------------------------------------
@@ -74,9 +74,13 @@ DOL="${DOL:-$REPO/Gamecube/WiiSXRX_debug.dol}"
 
 # This run's own user directory, and the shared folder the user drops games into.
 PROFILE="${WSX_PROFILE:-$REPO/.dolphin}"
-SHARED="$D/User/Load/WiiSDSync/wiisxrx"
+SHARED="$D/User/Load/WiiSDSync/wiisxrx"        # the user's games (isos/), and BIOS/fonts/saves
+SHARED_NEW="$D/User/Load/WiiSDSync/wiistation"  # WiiStation's own folder since 5.6.0, preferred
 P="$D/User/Load/WiiSDSync_paused_by_claude"
-S="$PROFILE/Load/WiiSDSync/wiisxrx"
+S="$PROFILE/Load/WiiSDSync/wiistation"
+# The games stay in the old folder, on this card as on the bench Wii's (it cannot be renamed
+# over the network): chain files name sd:/wiisxrx/isos/<game>, a ROM folder like any other.
+ISOS="$PROFILE/Load/WiiSDSync/wiisxrx/isos"
 mkdir -p "$S" "$PROFILE/Logs" "$PROFILE/Load"
 PROFILE_WIN=$(cd "$PROFILE" && pwd -W | tr '/' '\\')
 
@@ -152,9 +156,10 @@ CFGARGS=(
 # --- put the card together --------------------------------------------------------------
 # Small and always needed: the BIOS, the menu fonts and the memory cards.
 for dir in bios fonts saves; do
-  [ -d "$SHARED/$dir" ] || continue
+  src="$SHARED_NEW/$dir"; [ -d "$src" ] || src="$SHARED/$dir"
+  [ -d "$src" ] || continue
   mkdir -p "$S/$dir"
-  cp -ru "$SHARED/$dir/." "$S/$dir/" 2>/dev/null || true
+  cp -ru "$src/." "$S/$dir/" 2>/dev/null || true
 done
 # the memory cards: fresh ones unless CARDS=1 (a chain deletes the cards a game used after
 # it, but the first boot of each game read whatever card was here)
@@ -172,11 +177,11 @@ want_isos() {
 }
 want_isos | sed 's/[[:space:]]*$//' | sort -u | while read -r game; do
   [ -n "$game" ] && [ -d "$SHARED/isos/$game" ] || continue
-  if [ ! -d "$S/isos/$game" ]; then
+  if [ ! -d "$ISOS/$game" ]; then
     echo "copying game to this profile's card (once): $game ($(du -sh "$SHARED/isos/$game" | cut -f1))"
   fi
-  mkdir -p "$S/isos/$game"
-  cp -ru "$SHARED/isos/$game/." "$S/isos/$game/" 2>/dev/null || true
+  mkdir -p "$ISOS/$game"
+  cp -ru "$SHARED/isos/$game/." "$ISOS/$game/" 2>/dev/null || true
 done
 
 # --- stage the guest's files ------------------------------------------------------------
@@ -235,34 +240,34 @@ fi
 # with our own cluster-chain reader instead.
 CARD="$PROFILE/Load/WiiSD.raw"
 [ -f "$CARD" ] || echo "no card image at $CARD -- did the folder sync run?"
-"/c/Program Files/7-Zip/7z.exe" e -y -o"$OUT" "$CARD" 'wiisxrx/vram.bin' >/dev/null 2>&1 || echo "7z extract failed"
-python "$SP/sdimage_read.py" "$CARD" wiisxrx/perf.log "$OUT/perf.log" 2>&1 | tail -1
+"/c/Program Files/7-Zip/7z.exe" e -y -o"$OUT" "$CARD" 'wiistation/vram.bin' >/dev/null 2>&1 || echo "7z extract failed"
+python "$SP/sdimage_read.py" "$CARD" wiistation/perf.log "$OUT/perf.log" 2>&1 | tail -1
 # 7-Zip handed back a stale ptrace.log after a rewrite; our own FAT reader does not
-python "$SP/sdimage_read.py" "$CARD" wiisxrx/ptrace.log "$OUT/ptrace.log" >/dev/null 2>&1
+python "$SP/sdimage_read.py" "$CARD" wiistation/ptrace.log "$OUT/ptrace.log" >/dev/null 2>&1
 # VRAM transfers of the whole run (C0 reads, A0 loads, 80 moves, readback outcomes), repeats merged
-python "$SP/sdimage_read.py" "$CARD" wiisxrx/vramio.log "$OUT/vramio.log" >/dev/null 2>&1 && [ -s "$OUT/vramio.log" ] && echo "vramio: $(sed -n 2p "$OUT/vramio.log" | sed 's/^# //'), $(grep -vc '^#' "$OUT/vramio.log") lines"
+python "$SP/sdimage_read.py" "$CARD" wiistation/vramio.log "$OUT/vramio.log" >/dev/null 2>&1 && [ -s "$OUT/vramio.log" ] && echo "vramio: $(sed -n 2p "$OUT/vramio.log" | sed 's/^# //'), $(grep -vc '^#' "$OUT/vramio.log") lines"
 # the run's console text (SysPrintf: a PS1 program's printf under the HLE BIOS), debug builds
-python "$SP/sdimage_read.py" "$CARD" wiisxrx/tty.log "$OUT/tty.log" >/dev/null 2>&1 && [ -s "$OUT/tty.log" ] && echo "tty: $(wc -l < "$OUT/tty.log") lines"
+python "$SP/sdimage_read.py" "$CARD" wiistation/tty.log "$OUT/tty.log" >/dev/null 2>&1 && [ -s "$OUT/tty.log" ] && echo "tty: $(wc -l < "$OUT/tty.log") lines"
 # the per-vblank timelines of a chain (debug builds; scripts/vtl_view.py)
 for i in $(seq -w 1 16); do
-	python "$SP/sdimage_read.py" "$CARD" "wiisxrx/vtl_$i.bin" "$OUT/vtl_$i.bin" >/dev/null 2>&1 || break
+	python "$SP/sdimage_read.py" "$CARD" "wiistation/vtl_$i.bin" "$OUT/vtl_$i.bin" >/dev/null 2>&1 || break
 done
 ls "$OUT"/vtl_*.bin >/dev/null 2>&1 && echo "vtl: $(ls "$OUT"/vtl_*.bin | wc -l) timeline(s)"
 # the per-vblank guest signatures (debug builds; scripts/vsig_cmp.py)
 for i in $(seq -w 1 16); do
-	python "$SP/sdimage_read.py" "$CARD" "wiisxrx/vsig_$i.bin" "$OUT/vsig_$i.bin" >/dev/null 2>&1 || break
+	python "$SP/sdimage_read.py" "$CARD" "wiistation/vsig_$i.bin" "$OUT/vsig_$i.bin" >/dev/null 2>&1 || break
 done
 # the sampling profiles (PROBES=hprof builds; scripts/hprof_view.py)
 for i in $(seq -w 1 16); do
-	python "$SP/sdimage_read.py" "$CARD" "wiisxrx/hprof_$i.bin" "$OUT/hprof_$i.bin" >/dev/null 2>&1 || break
+	python "$SP/sdimage_read.py" "$CARD" "wiistation/hprof_$i.bin" "$OUT/hprof_$i.bin" >/dev/null 2>&1 || break
 done
 ls "$OUT"/hprof_*.bin >/dev/null 2>&1 && echo "hprof: $(ls "$OUT"/hprof_*.bin | wc -l) profile(s)"
 # audio timeline (debug build, 'atrace <vblank>' in autoinput.txt); absent in most runs
-python "$SP/sdimage_read.py" "$CARD" wiisxrx/atrace.log "$OUT/atrace.log" >/dev/null 2>&1 && [ -s "$OUT/atrace.log" ] && echo "atrace: $(wc -l < "$OUT/atrace.log") lines"
+python "$SP/sdimage_read.py" "$CARD" wiistation/atrace.log "$OUT/atrace.log" >/dev/null 2>&1 && [ -s "$OUT/atrace.log" ] && echo "atrace: $(wc -l < "$OUT/atrace.log") lines"
 # the front XFB a scheduled `dump` wrote (scripts/xfb2png.py; XFB_RAM=1 for the real TV image)
-python "$SP/sdimage_read.py" "$CARD" wiisxrx/xfb.bin "$OUT/xfb.bin" >/dev/null 2>&1 && [ -s "$OUT/xfb.bin" ] && echo "xfb: $(wc -c < "$OUT/xfb.bin") bytes"
+python "$SP/sdimage_read.py" "$CARD" wiistation/xfb.bin "$OUT/xfb.bin" >/dev/null 2>&1 && [ -s "$OUT/xfb.bin" ] && echo "xfb: $(wc -c < "$OUT/xfb.bin") bytes"
 # the interpreter's PC ring (psxinterpreter.c), written once if the PC leaves code
-python "$SP/sdimage_read.py" "$CARD" wiisxrx/pcring.log "$OUT/pcring.log" >/dev/null 2>&1 && [ -s "$OUT/pcring.log" ] && echo "pcring: $(head -1 "$OUT/pcring.log")"
+python "$SP/sdimage_read.py" "$CARD" wiistation/pcring.log "$OUT/pcring.log" >/dev/null 2>&1 && [ -s "$OUT/pcring.log" ] && echo "pcring: $(head -1 "$OUT/pcring.log")"
 # 0 bytes is normal for a short run: the guest writes a perf report every N presents, and a run
 # that ends before the first one has nothing to read.
 echo "run done $(date +%T)"

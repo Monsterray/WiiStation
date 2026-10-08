@@ -5,7 +5,7 @@ costs 27-35 s at every boot for a 6 GB folder (and 7 s more unpacking at exit). 
 not be running. LOAD_DIR is the profile's Load folder, holding WiiSDSync/ and WiiSD.raw.
 
 Compares the folder with the image, path and size, file by file:
-  - WiiStation's own files (everything under wiisxrx/ except isos/, bios/ and fonts/: memory
+  - WiiStation's own files (everything under wiistation/ except isos/, bios/ and fonts/: memory
     cards, save states, settings, logs): the IMAGE is the master -- WiiStation writes them there
     while it runs. Any that differ are copied from the image into the folder first.
   - every other file (games, BIOS, fonts, apps): the FOLDER is the master. If any was added,
@@ -15,17 +15,17 @@ Prints "on" or "off" as its last line (scripts/wiistation_play.sh reads it).
 
 With folder sync off, WiiStation's writes stay in the image only; they reach the folder at the
 next start that runs this (the copy above), before any repack could overwrite them. A file the
-user deletes from wiisxrx/saves while the image still has it comes back the same way.
+user deletes from wiistation/saves while the image still has it comes back the same way.
 """
 import os, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from sdimage_read import read_bpb, read_chain, entries
 
-OURS_SKIP = ("wiisxrx/isos/", "wiisxrx/bios/", "wiisxrx/fonts/")
+OURS_SKIP = ("wiistation/isos/", "wiistation/bios/", "wiistation/fonts/")
 
 def ours(rel):
     r = rel.lower()
-    return r.startswith("wiisxrx/") and not r.startswith(OURS_SKIP)
+    return r.startswith("wiistation/") and not r.startswith(OURS_SKIP)
 
 def image_tree(f, g):
     """{lower relpath: (relpath, first cluster, size)} for every file in the image"""

@@ -1,9 +1,9 @@
 CHAIN
 # The user's 2026-09-30 sessions, first 3 minutes each: a replay-exactness check
 # (scripts/replay_check.py against .runs/capture_spyro_long_* and capture_crash_long_*).
-10800 sd:/wiisxrx/spyro_long_play.txt PadAutoAssign=1 ControllerType=0 PadType2=1
+10800 sd:/wiistation/spyro_long_play.txt PadAutoAssign=1 ControllerType=0 PadType2=1
 sd:/wiisxrx/isos/Spyro the Dragon
 Spyro the Dragon [NTSC-U] [SCUS-94228].cue
-10800 sd:/wiisxrx/crash3_long_play.txt PadAutoAssign=1 ControllerType=0 PadType2=1
+10800 sd:/wiistation/crash3_long_play.txt PadAutoAssign=1 ControllerType=0 PadType2=1
 sd:/wiisxrx/isos/Crash Bandicoot 3 - Warped
 Crash Bandicoot 3 - Warped [U] [SLUS-94244].cue

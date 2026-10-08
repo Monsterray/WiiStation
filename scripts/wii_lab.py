@@ -31,7 +31,7 @@ import time
 import zlib
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
-SHARED = pathlib.Path("C:/tools/Dolphin-x64/User/Load/WiiSDSync/wiisxrx")
+SHARED = pathlib.Path("C:/tools/Dolphin-x64/User/Load/WiiSDSync/wiisxrx")   # the user's games, for --send-isos
 BASE_SETTINGS = "gpuPlugin = 2\nFPS = 1\nPadType1 = 1\nPadAutoAssign = 0\n"
 RESULTS = ["perf.log", "vramio.log", "ptrace.log", "atrace.log", "lab.log",
            "xfb.bin", "vram.bin"]   # a "dump <vblank>": the TV picture and VRAM then
@@ -106,8 +106,8 @@ def chain_files(chain):
             folders.append(l[len("sd:/wiisxrx/isos/"):])
             games += 1
         for w in l.split():
-            if w.startswith("sd:/wiisxrx/") and w.endswith(".txt") and "/isos/" not in w:
-                scripts.append(w[len("sd:/wiisxrx/"):])
+            if w.startswith("sd:/wiistation/") and w.endswith(".txt") and "/isos/" not in w:
+                scripts.append(w[len("sd:/wiistation/"):])
     return scripts, folders, games
 
 
@@ -138,7 +138,7 @@ def main():
     for f in scripts:
         p = REPO / "scripts/autoinput" / f
         if not p.is_file():
-            sys.exit(f"chain names sd:/wiisxrx/{f}: no scripts/autoinput/{f}")
+            sys.exit(f"chain names sd:/wiistation/{f}: no scripts/autoinput/{f}")
         puts.append((f, p.read_bytes()))
     wants = RESULTS + [f"vram_{i:02d}.bin" for i in range(1, games + 1)] \
         + [f"vtl_{i:02d}.bin" for i in range(1, games + 1)]   # per-vblank timelines (scripts/vtl_view.py)
@@ -164,7 +164,7 @@ def main():
     except socket.timeout:
         back = hbc_ready(a.wii, 30)
         sys.exit("the DOL never connected back; " + (
-            "the Wii is back in HBC, so WiiStation started and gave up: its steps are in sd:/wiisxrx/lab.log"
+            "the Wii is back in HBC, so WiiStation started and gave up: its steps are in sd:/wiistation/lab.log"
             if back else "the Wii is not in HBC: it did not start, or it hangs"))
     with c:
         c.settimeout(60)
@@ -179,8 +179,10 @@ def main():
         for w in wants:
             c.sendall(f"WANT {w}\n".encode())
         c.sendall(b"GO\n")
+        reply = recv_line(c)
+        if reply != "OK":   # WiiStation could not write a file (sd:/wiistation/lab.log says which)
+            sys.exit(f"{hello}: the Wii answered {reply!r} to the files; it goes back to HBC in 5 s")
         print(f"{hello}: {len(puts)} files staged, {games} games; running (up to {a.timeout} s)")
-        recv_line(c)
 
     srv.settimeout(a.timeout)
     t0 = time.monotonic()

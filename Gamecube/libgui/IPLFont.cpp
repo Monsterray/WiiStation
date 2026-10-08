@@ -267,7 +267,7 @@ FILE* IplFont::getFontFile(char* sdUsb)
         lang != KOREAN && lang != JAPANESE)
     {
         FILE* f;
-        snprintf(fontPathBuf, sizeof(fontPathBuf), "%s:/wiisxrx/fonts/%s.dat", sdUsb, menuFont);
+        snprintf(fontPathBuf, sizeof(fontPathBuf), "%s:/wiistation/fonts/%s.dat", sdUsb, menuFont);
         f = fopen(fontPathBuf, "rb");
         if (f) return f;
     }
@@ -275,47 +275,47 @@ FILE* IplFont::getFontFile(char* sdUsb)
     {
         case SIMP_CHINESE:
         case TRAD_CHINESE:
-            sprintf(fontPathBuf, "%s%s", sdUsb, ":/wiisxrx/fonts/Chs.dat");
+            sprintf(fontPathBuf, "%s%s", sdUsb, ":/wiistation/fonts/Chs.dat");
             break;
 
         case KOREAN:
-            sprintf(fontPathBuf, "%s%s", sdUsb, ":/wiisxrx/fonts/Kr.dat");
+            sprintf(fontPathBuf, "%s%s", sdUsb, ":/wiistation/fonts/Kr.dat");
             break;
 
         case SPANISH:
-            sprintf(fontPathBuf, "%s%s", sdUsb, ":/wiisxrx/fonts/Es.dat");
+            sprintf(fontPathBuf, "%s%s", sdUsb, ":/wiistation/fonts/Es.dat");
             break;
 
         case PORTUGUESE:
-            sprintf(fontPathBuf, "%s%s", sdUsb, ":/wiisxrx/fonts/Pt.dat");
+            sprintf(fontPathBuf, "%s%s", sdUsb, ":/wiistation/fonts/Pt.dat");
             break;
 
         case ITALIAN:
-            sprintf(fontPathBuf, "%s%s", sdUsb, ":/wiisxrx/fonts/It.dat");
+            sprintf(fontPathBuf, "%s%s", sdUsb, ":/wiistation/fonts/It.dat");
             break;
 
         case GERMAN:
-            sprintf(fontPathBuf, "%s%s", sdUsb, ":/wiisxrx/fonts/De.dat");
+            sprintf(fontPathBuf, "%s%s", sdUsb, ":/wiistation/fonts/De.dat");
             break;
 
         case JAPANESE:
-            sprintf(fontPathBuf, "%s%s", sdUsb, ":/wiisxrx/fonts/Ja.dat");
+            sprintf(fontPathBuf, "%s%s", sdUsb, ":/wiistation/fonts/Ja.dat");
             break;
 
         case FRENCH:
-            sprintf(fontPathBuf, "%s%s", sdUsb, ":/wiisxrx/fonts/Fr.dat");
+            sprintf(fontPathBuf, "%s%s", sdUsb, ":/wiistation/fonts/Fr.dat");
             break;
 
         case BRAZILIAN_PORTUGUESE:
-            sprintf(fontPathBuf, "%s%s", sdUsb, ":/wiisxrx/fonts/Br.dat");
+            sprintf(fontPathBuf, "%s%s", sdUsb, ":/wiistation/fonts/Br.dat");
             break;
 
         case CATALAN:
-            sprintf(fontPathBuf, "%s%s", sdUsb, ":/wiisxrx/fonts/Ca.dat");
+            sprintf(fontPathBuf, "%s%s", sdUsb, ":/wiistation/fonts/Ca.dat");
             break;
 
         case TURKISH:
-            sprintf(fontPathBuf, "%s%s", sdUsb, ":/wiisxrx/fonts/Tu.dat");
+            sprintf(fontPathBuf, "%s%s", sdUsb, ":/wiistation/fonts/Tu.dat");
             break;
 
         default:

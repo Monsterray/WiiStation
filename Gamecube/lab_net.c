@@ -5,16 +5,16 @@
  *
  *   1. lab_fetch(), before autoboot.txt is read: connect, say "HELLO WiiStation", and take
  *      lines from the PC until "GO":
- *        PUT <bytes> <path>   the next <bytes> bytes are sd:/wiisxrx/<path> (autoboot.txt,
+ *        PUT <bytes> <path>   the next <bytes> bytes are sd:/wiistation/<path> (autoboot.txt,
  *                             input scripts, settings; games too, into isos/...)
- *        WANT <path>          send sd:/wiisxrx/<path> back at the end, if it exists
+ *        WANT <path>          send sd:/wiistation/<path> back at the end, if it exists
  *   2. The chain runs as it does in Dolphin.
  *   3. lab_report(), when the chain is done: connect again, say "RESULTS", then
  *      "FILE <bytes> <path>" + the bytes for each wanted file, then "END". The chain then
  *      exits to the Homebrew Channel (its reload stub) instead of powering off, so the next
  *      test can be sent at once. A crash returns there too (__exception_setreload).
  *
- * Paths are relative to sd:/wiisxrx/ and may not contain "..", ':' or start with '/'. */
+ * Paths are relative to sd:/wiistation/ and may not contain "..", ':' or start with '/'. */
 #include <gccore.h>
 #include <network.h>
 #include <ogc/lwp_watchdog.h>
@@ -28,7 +28,7 @@
 #include "lab_net.h"
 #include "ws_crash.h"
 
-#define LAB_ROOT "sd:/wiisxrx/"
+#define LAB_ROOT "sd:/wiistation/"
 
 static char lab_host[64];
 static int lab_port;
@@ -56,7 +56,7 @@ int lab_active(void)
 	return lab_host[0] != 0;
 }
 
-/* Each step and its result, on the TV and in sd:/wiisxrx/lab.log (wii_lab.py asks for it
+/* Each step and its result, on the TV and in sd:/wiistation/lab.log (wii_lab.py asks for it
  * back): the only witnesses when the PC never hears from the Wii. The console is libogc's,
  * on a framebuffer of its own, up before WiiStation's graphics exist; the Graphics
  * constructor (libgui/GraphicsGX.cpp) replaces it with its own video setup later. The log
@@ -275,10 +275,14 @@ int lab_fetch(void)
 {
 	char line[256], full[256];
 	s32 s;
-	int ok = -1;
+	int ok = -1, lost = 0;
 
 	if (!lab_active())
 		return -1;
+	/* lab_mkdirs makes what is below LAB_ROOT, not LAB_ROOT itself: a card that never had
+	 * WiiStation's folder (5.6.0 moved it to sd:/wiistation) took no file, said OK, and sat
+	 * in the menu with no chain, out of reach (lab mode has no network for hbc.py) */
+	mkdir("sd:/wiistation", 0777);
 	remove(LAB_ROOT "lab.log");
 	remove(LAB_ROOT "crumb.log");   /* perf_prof.c's breadcrumb: one run's lines only */
 	lab_console_up();
@@ -293,7 +297,9 @@ int lab_fetch(void)
 	lab_send(s, "HELLO WiiStation\n", 17);
 	while (lab_line(s, line, sizeof line) >= 0) {
 		if (!strcmp(line, "GO")) {
-			ok = 0;
+			ok = lost ? -1 : 0;
+			if (lost)
+				lab_log("files that could not be written", lost);
 			break;
 		}
 		if (!strncmp(line, "WANT ", 5) && lab_path_ok(line + 5) && lab_nwant < 64) {
@@ -309,6 +315,8 @@ int lab_fetch(void)
 				lab_mkdirs(full);
 				f = fopen(full, "wb");
 			}
+			if (!f)
+				lost++;   /* a file that cannot be written fails the run: GO answers FAIL */
 			while (left > 0) {   /* read it even if it cannot be written, to stay in step */
 				s32 k = lab_wait(s, POLLIN, LAB_IDLE_MS) ? -1 :
 					net_recv(s, lab_buf, left > (long)sizeof lab_buf ? (s32)sizeof lab_buf : (s32)left, 0);

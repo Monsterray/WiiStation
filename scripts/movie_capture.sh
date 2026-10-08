@@ -43,7 +43,7 @@ ALL="$REPO/scripts/chains/all.txt"
 PAD_USER="/c/tools/Dolphin-x64/User/Config/GCPadNew.ini"   # the user's own controller setup
 PAD_TEST="$REPO/.dolphin/Config/GCPadNew.ini"              # the test profile's (dolphin_run.sh)
 CARD="$REPO/.dolphin/Load/WiiSD.raw"
-SYNC="$REPO/.dolphin/Load/WiiSDSync/wiisxrx"
+SYNC="$REPO/.dolphin/Load/WiiSDSync/wiistation"
 
 game=""; name=""; mins=4; dol=debug; play=""; frames=False; ct=0
 while [ $# -gt 0 ]; do
@@ -102,12 +102,12 @@ fi
 run="capture_${name}_$(date +%Y%m%d_%H%M%S)"
 dir="$REPO/.runs/$run/src"; mkdir -p "$dir"
 if [ -z "$play" ]; then
-	printf '# scripts/movie_capture.sh: write the real pads on ports 1 and 2 to sd:/wiisxrx/autoinput_rec.txt\nrecord\n' > "$dir/$input"
+	printf '# scripts/movie_capture.sh: write the real pads on ports 1 and 2 to sd:/wiistation/autoinput_rec.txt\nrecord\n' > "$dir/$input"
 	src="$dir/$input"
 fi
 # PadAutoAssign=1: the run's base settings assign no controller (unattended runs have none),
 # and a recording needs the keyboard pad on port 1. Playback sets the same, so it boots alike.
-printf 'CHAIN\n# scripts/movie_capture.sh %s\n%s sd:/wiisxrx/%s PadAutoAssign=1 ControllerType=%s%s\n%s\n%s\n' \
+printf 'CHAIN\n# scripts/movie_capture.sh %s\n%s sd:/wiistation/%s PadAutoAssign=1 ControllerType=%s%s\n%s\n%s\n' \
 	"$name" "$vbl" "$input" "$ct" "${p2set:-}" "$folder" "$cue" > "$dir/chain.txt"
 : > "$dir/none.txt"
 
@@ -137,7 +137,7 @@ bash "$REPO/scripts/wsx.sh" run "$run" --dol "$dol" --autoboot "$dir/chain.txt" 
 [ -n "$play" ] && { echo "done: .runs/$run"; exit 0; }
 
 rec="$REPO/.runs/$run/autoinput_rec.txt"
-python "$REPO/scripts/sdimage_read.py" "$CARD" wiisxrx/autoinput_rec.txt "$rec" >/dev/null 2>&1
+python "$REPO/scripts/sdimage_read.py" "$CARD" wiistation/autoinput_rec.txt "$rec" >/dev/null 2>&1
 rm -f "$SYNC/autoinput_rec.txt"
 [ -s "$rec" ] || { echo "nothing was recorded (no autoinput_rec.txt on the card): see .runs/$run/run.log"; exit 1; }
 grep -q "port 1 has NO controller" "$rec" && echo "WARNING: port 1 had no controller, so the recording holds no presses"
@@ -174,9 +174,9 @@ grep -q '^p2 ' "$rec" && p2set=" PadType2=1"
 	echo "#   (if it drifts on a later build: build that commit and pass the DOL with --dol)"
 	echo "# settings: $settings"
 	echo "# pad: ControllerType=$ct ($padname); Dolphin: port 1 keyboard GameCube pad, port 2 GameCube pad (SIDevice1=6)"
-	echo "# chain line: $vbl sd:/wiisxrx/${name}_play.txt PadAutoAssign=1 ControllerType=$ct${p2set:-}"
+	echo "# chain line: $vbl sd:/wiistation/${name}_play.txt PadAutoAssign=1 ControllerType=$ct${p2set:-}"
 	tr -d '\r' < "$rec"
 } > "$out"
 echo "saved scripts/autoinput/${name}_play.txt: $presses changes, the last at vblank ${last:-none}"
 echo "check it plays back:  bash scripts/movie_capture.sh --play $name"
-echo "use it in a chain:    $vbl sd:/wiisxrx/${name}_play.txt PadAutoAssign=1 ControllerType=$ct${p2set:-}"
+echo "use it in a chain:    $vbl sd:/wiistation/${name}_play.txt PadAutoAssign=1 ControllerType=$ct${p2set:-}"

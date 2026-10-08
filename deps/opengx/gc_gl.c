@@ -267,7 +267,7 @@ void (*ogx_draw_submitted_cb)(void);
 #ifdef DISP_DEBUG
 
 static FILE* fdebugLog = NULL;
-static char *debugLogFile = "sd:/wiisxrx/debugLog.txt";
+static char *debugLogFile = "sd:/wiistation/debugLog.txt";
 static char txtbuffer[1024];
 
 static void openLogFile() {
@@ -3578,14 +3578,14 @@ static inline void glDrawCommon(int texen, int color_enabled)
                 }
                 char txtbuffer[1024];
                 gltexture_ *curTex = &texture_list[i];
-                sprintf(txtbuffer, "sd:/wiisxrx/txtDebug_%d_%d_%02d.bin", curTex->w, curTex->h, i);
+                sprintf(txtbuffer, "sd:/wiistation/txtDebug_%d_%d_%02d.bin", curTex->w, curTex->h, i);
                 FILE* texDebugLog = fopen(txtbuffer, "wb");
                 fwrite(curTex->data, 1, curTex->w * curTex->h * 2, texDebugLog);
                 fclose(texDebugLog);
 
                 if (curTex->semiTransData)
                 {
-                    sprintf(txtbuffer, "sd:/wiisxrx/txtDebugS_%d_%d_%02d.bin", curTex->w, curTex->h, i);
+                    sprintf(txtbuffer, "sd:/wiistation/txtDebugS_%d_%d_%02d.bin", curTex->w, curTex->h, i);
                     texDebugLog = fopen(txtbuffer, "wb");
                     fwrite(curTex->semiTransData, 1, curTex->w * curTex->h * 2, texDebugLog);
                     fclose(texDebugLog);

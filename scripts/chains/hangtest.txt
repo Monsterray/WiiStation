@@ -2,6 +2,6 @@ CHAIN
 # The hang watchdog (Gamecube/ws_crash.c): the input script spins the emulation thread at
 # vblank 600. About 60 s later the watchdog writes HBC's crash block (code 0x81) and
 # reloads; wii_crash_job.py then reads the report from HBC.
-1800 sd:/wiisxrx/hangtest.txt
+1800 sd:/wiistation/hangtest.txt
 sd:/wiisxrx/isos/Spyro the Dragon
 Spyro the Dragon [NTSC-U] [SCUS-94228].cue

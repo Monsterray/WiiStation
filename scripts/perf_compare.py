@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """perf_compare.py A.log B.log [--block N]
-Side-by-side comparison of two perf.log files from the debug build (sd:/wiisxrx/perf.log,
+Side-by-side comparison of two perf.log files from the debug build (sd:/wiistation/perf.log,
 read out of the SD image with sdimage_read.py). Picks the N-th report block of each file
 (default: the last block both files have, so runs of different length compare the same
 present count), and prints the counters that decide CPU-core and renderer questions:

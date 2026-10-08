@@ -2,7 +2,7 @@
 /* perf_prof.c - Phase 1 profiling counters + report.
  *
  * Report sinks (best effort, never fatal):
- *  - sd:/wiisxrx/perf.log (append) -- the durable record for A/B runs;
+ *  - sd:/wiistation/perf.log (append) -- the durable record for A/B runs;
  *  - on-screen DEBUG overlay rows 22..35 when SHOW_DEBUG is on;
  *  - SysPrintf (USB gecko) when PRINTGECKO is on.
  */
@@ -141,7 +141,7 @@ void perf_reset(void)
 		 * across boots made the log grow and mixed runs */
 		static int fresh = 0;
 		if (!fresh) {
-			FILE *f = fopen("sd:/wiisxrx/perf.log", "w");
+			FILE *f = fopen("sd:/wiistation/perf.log", "w");
 			if (f) {
 				char when[32];
 				perf_datetime(when, sizeof when);
@@ -183,7 +183,7 @@ static int autoinput_dump_vbl_set(void) { return autoinput_dump_vbl != 0; }
 static void perf_vram_dump(void)
 {
 	size_t n = 0;
-	FILE *f = fopen("sd:/wiisxrx/vram.bin", "wb");
+	FILE *f = fopen("sd:/wiistation/vram.bin", "wb");
 	if (f) {
 		if (psxVuw) n = fwrite(psxVuw, 1, 1024u * 512u * 2u, f);
 		fclose(f);
@@ -194,7 +194,7 @@ static void perf_vram_dump(void)
 		extern u32 *xfb[3];
 		extern unsigned g_xfb_w, g_xfb_h;
 		unsigned hdr[2] = { g_xfb_w, g_xfb_h };
-		f = fopen("sd:/wiisxrx/xfb.bin", "wb");
+		f = fopen("sd:/wiistation/xfb.bin", "wb");
 		if (f) {
 			fwrite(hdr, 4, 2, f);
 			if (xfb[2])   /* FB_FRONT in SoftGPU/drawGX.c */
@@ -202,7 +202,7 @@ static void perf_vram_dump(void)
 			fclose(f);
 		}
 	}
-	f = fopen("sd:/wiisxrx/perf.log", "a");
+	f = fopen("sd:/wiistation/perf.log", "a");
 	if (f) {
 		fprintf(f, "vramdump: frames=%lu vblanks=%lu bytes=%lu\n",
 			(unsigned long)g_perf.present_frames, (unsigned long)g_perf.vblanks, (unsigned long)n);
@@ -237,7 +237,7 @@ extern unsigned autoinput_atrace_vbl;         /* PadWiiSX.c: 'atrace <vblank>' l
 static void perf_audio_flush(void)
 {
 	unsigned k;
-	FILE *f = fopen("sd:/wiisxrx/atrace.log", "w");
+	FILE *f = fopen("sd:/wiistation/atrace.log", "w");
 	if (!f) return;
 	fprintf(f, "--- audio trace events=%lu flushed_at_present=%lu vblank=%lu ---\n",
 		(unsigned long)g_perf.aev_n, (unsigned long)g_perf.present_frames, (unsigned long)g_perf.vblanks);
@@ -353,7 +353,7 @@ static void perf_trace_flush(void)
 {
 	/* own file, rewritten per episode: a 2600-line flush appended to perf.log
 	 * left a broken FAT chain when Dolphin was killed mid-write */
-	FILE *f = fopen("sd:/wiisxrx/ptrace.log", "w");
+	FILE *f = fopen("sd:/wiistation/ptrace.log", "w");
 	if (!f) return;
 	fprintf(f, "--- trace episode (flushed at present %lu) ---\n", (unsigned long)g_perf.present_frames);
 	perf_trace_lines(f);
@@ -362,7 +362,7 @@ static void perf_trace_flush(void)
 }
 #endif /* PERF_PROF_TRACE */
 
-/* VRAM transfers, whole run (sd:/wiisxrx/vramio.log). One line per distinct event: a CPU
+/* VRAM transfers, whole run (sd:/wiistation/vramio.log). One line per distinct event: a CPU
  * read of VRAM (C0), an image load (A0), a VRAM-to-VRAM move (80) or a readback outcome
  * (C1), with the rect, two values the caller chooses and, when the same event repeats,
  * a count and the last vblank. Only transfers of 32x32 or more are kept: that is where a
@@ -417,7 +417,7 @@ void perf_vram_event(unsigned kind, int x, int y, int w, int h, int a, int b)
 }
 
 /* The console text of the run (SysPrintf: the PS1 program's BIOS printf/puts/putchar under
- * the HLE BIOS, and WiiStation's own messages), for sd:/wiisxrx/tty.log. SysPrintf printed
+ * the HLE BIOS, and WiiStation's own messages), for sd:/wiistation/tty.log. SysPrintf printed
  * only in USB Gecko builds, so a test program's results (AmiDog's psxtest_gte prints every
  * error it finds) were lost. */
 static char tty_buf[64 * 1024];
@@ -433,7 +433,7 @@ static void perf_tty_flush(void)
 {
 	FILE *f;
 	if (!tty_n) return;
-	f = fopen("sd:/wiisxrx/tty.log", "w");
+	f = fopen("sd:/wiistation/tty.log", "w");
 	if (!f) return;
 	fwrite(tty_buf, 1, tty_n, f);
 	fclose(f);
@@ -444,7 +444,7 @@ static void perf_vram_flush(void)
 	unsigned k;
 	FILE *f;
 	if (!vio_n) return;
-	f = fopen("sd:/wiisxrx/vramio.log", "w");
+	f = fopen("sd:/wiistation/vramio.log", "w");
 	if (!f) return;
 	fprintf(f, "# vblank[-last] xN kind x,y wxh a b   (C0 CPU read; A0 image load; 80 move: a,b = source;"
 		" C1 EFB sync of a read (GlesGpu/efbSync.inc): a = tiles GX drew, b = tiles no snapshot could fill;"
@@ -481,7 +481,7 @@ static void perf_pad_flush(void)
 	unsigned k;
 	FILE *f;
 	if (!g_perf.pev_n) return;
-	f = fopen("sd:/wiisxrx/padtrace.csv", "w");
+	f = fopen("sd:/wiistation/padtrace.csv", "w");
 	if (!f) return;
 	fprintf(f, "vbl,pad,type,drv_btns,drv_lx,drv_ly,drv_rx,drv_ry,out_btns,out_lx,out_ly,out_rx,out_ry\n");
 	for (k = 0; k < g_perf.pev_n; k++)
@@ -530,7 +530,7 @@ void perf_pad_event(unsigned pad, unsigned type, unsigned drv_btns, unsigned drv
  * as a run of vblanks with a long wall and no limiter wait; the totals once a minute hide it.
  * Units of 512 time-base ticks (8.4 us on the Wii), saturating at 0xffff: a shift, no divide.
  * The ring comes from the MEM2 heap (12 bytes a vblank, 65536 vblanks = 18 emulated minutes)
- * and each chained game writes it to sd:/wiisxrx/vtl_NN.bin at its end (perf_vtl_flush);
+ * and each chained game writes it to sd:/wiistation/vtl_NN.bin at its end (perf_vtl_flush);
  * scripts/vtl_view.py reads it. */
 #define VTL_MAX 65536
 #define VTL_SHIFT 9
@@ -602,13 +602,13 @@ void perf_vtl_flush(int game)
 	unsigned hdr[3] = { 0x56544c32, VTL_SHIFT, vtl_n };   /* "VTL2": 7 fields */
 	if (!vtl)
 		return;
-	snprintf(path, sizeof path, "sd:/wiisxrx/vtl_%02d.bin", game);
+	snprintf(path, sizeof path, "sd:/wiistation/vtl_%02d.bin", game);
 	if ((f = fopen(path, "wb"))) {
 		fwrite(hdr, sizeof hdr, 1, f);
 		fwrite(vtl, sizeof(vtl_t), vtl_n, f);
 		fclose(f);
 	}
-	snprintf(path, sizeof path, "sd:/wiisxrx/vsig_%02d.bin", game);
+	snprintf(path, sizeof path, "sd:/wiistation/vsig_%02d.bin", game);
 	if (vsig && (f = fopen(path, "wb"))) {
 		unsigned vh[2] = { 0x56534731, vtl_n };   /* "VSG1", then {ram, cycle, pc} per vblank */
 		fwrite(vh, sizeof vh, 1, f);
@@ -642,7 +642,7 @@ void perf_stack_log(const char *where)
 	 * card cannot be read back (a Wii started from HBC, not in lab mode) */
 	printf("stack: %s deepest=%u sp_depth=%u\n", where, (unsigned)(hi - a),
 		sp >= lo && sp < hi ? (unsigned)(hi - sp) : 0);
-	if ((f = fopen("sd:/wiisxrx/perf.log", "a"))) {
+	if ((f = fopen("sd:/wiistation/perf.log", "a"))) {
 		fprintf(f, "stack: %s deepest=%u at=%08x word=%08x sp_depth=%u size=%u lo=%08x\n", where,
 			(unsigned)(hi - a), (unsigned)a, a < hi ? (unsigned)*(u32 *)a : 0,
 			sp >= lo && sp < hi ? (unsigned)(hi - sp) : 0, (unsigned)(hi - lo), (unsigned)lo);
@@ -663,7 +663,7 @@ void perf_state_log(int game)
 	if (psxVuw)
 		for (k = 0, w = (const u32 *)psxVuw; k < 1024 * 512 / 2; k++)
 			hv = (hv ^ w[k]) * 16777619u;
-	if ((f = fopen("sd:/wiisxrx/perf.log", "a"))) {
+	if ((f = fopen("sd:/wiistation/perf.log", "a"))) {
 		fprintf(f, "state: game=%d ram=%08x vram=%08x pc=%08x cycle=%u vblank=%u\n",
 			game, (unsigned)hr, (unsigned)hv, (unsigned)psxRegs.pc, (unsigned)psxRegs.cycle,
 			(unsigned)frame_counter);
@@ -676,7 +676,7 @@ void perf_fatal_log(unsigned code, const char *reason)
 	FILE *f;
 
 	perf_report();   /* the counters so far, then the reason: the run stops here */
-	if ((f = fopen("sd:/wiisxrx/perf.log", "a"))) {
+	if ((f = fopen("sd:/wiistation/perf.log", "a"))) {
 		fprintf(f, "fatal: code=0x%02x pc=%08x cycle=%u vblank=%u %s\n", code,
 			(unsigned)psxRegs.pc, (unsigned)psxRegs.cycle, (unsigned)frame_counter, reason);
 		fclose(f);
@@ -696,7 +696,7 @@ void perf_vblank_tick(void)
 	extern int autoinput_crumbs;
 	if (autoinput_crumbs && (frame_counter % 60) == 0) {
 		extern int perf_chain_index(void);
-		FILE *cf = fopen("sd:/wiisxrx/crumb.log", "a");
+		FILE *cf = fopen("sd:/wiistation/crumb.log", "a");
 		if (cf) {
 			fprintf(cf, "g%d v%u pc%08x p%lu cd%lu\n", perf_chain_index(), frame_counter, crumb_pc,
 				(unsigned long)g_perf.present_frames, (unsigned long)g_perf.cd_reads);
@@ -728,7 +728,7 @@ void perf_vblank_tick(void)
 			FILE *pf;
 			perf_report();
 			set_port_type((int)pt_port, (int)pt_type);
-			if ((pf = fopen("sd:/wiisxrx/perf.log", "a"))) {
+			if ((pf = fopen("sd:/wiistation/perf.log", "a"))) {
 				fprintf(pf, "padtype: vblank=%u port=%u type=%u\n", frame_counter, pt_port + 1, pt_type);
 				fclose(pf);
 			}
@@ -786,7 +786,7 @@ void perf_report(void)
 
 	perf_sample_mem();
 
-	f = fopen("sd:/wiisxrx/perf.log", "a");
+	f = fopen("sd:/wiistation/perf.log", "a");
 	if (f) {
 		uint32_t mem1_kb = SYS_GetArena1Size() >> 10;
 		uint32_t m2used = gx_mem2_used() >> 10;
