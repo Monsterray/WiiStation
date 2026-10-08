@@ -182,10 +182,11 @@ char smbUserName[CONFIG_STRING_SIZE];
 char smbPassWord[CONFIG_STRING_SIZE];
 char smbShareName[CONFIG_STRING_SIZE];
 char smbIpAddr[CONFIG_STRING_SIZE];
-/* RomDir1..RomDir4: where Load from SD / Load from USB look for games, each a full path on
- * its device ("sd:/roms/psx"). FAT has no links, so this is how games kept outside
- * sd:/wiistation (a shared ROMs folder) are reached. FileBrowserFrame.cpp opens them. */
-char romDir[ROM_DIRS][CONFIG_STRING_SIZE];
+/* RomDirSD, RomDirUSB: where Load from SD / Load from USB look for games, a comma-separated
+ * list of folders on that device ("/wiistation/isos, /roms/psx"). FAT has no links, so this
+ * is how games kept outside /wiistation (a shared ROMs folder) are reached.
+ * FileBrowserFrame.cpp opens them. */
+char romDirSD[CONFIG_STRING_SIZE], romDirUSB[CONFIG_STRING_SIZE];
 char menuFont[CONFIG_STRING_SIZE];   /* MenuFont = "Name": sd:/wiistation/fonts/Name.dat replaces the built-in menu font */
 
 int stop = 0;
@@ -198,64 +199,110 @@ static struct {
 	// thus, assigning a string value to an integral type will cause overflow
 	char* value;
 	char  min, max;
+	/* A row with no value starts a section of settings.ini: the key is its [name] and this
+	 * is the comment written under it. The reader ignores sections; keys are unique. */
+	const char* note;
 } OPTIONS[] =
-{ { "Audio", &audioEnabled, AUDIO_DISABLE, AUDIO_ENABLE },
+{
+  { "General", NULL, 0, 0, "The menu and the emulator." },
+  { "lang", &lang, ENGLISH, TURKISH },
+  { "MenuFont", menuFont, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
+  { "FileSortMode", &fileSortMode, FILESORT_DIRS_MIXED, FILESORT_DIRS_FIRST },
+  { "Core", &dynacore, DYNACORE_DYNAREC, DYNACORE_DYNAREC_OLD },
+  { "fastLoad", &fastLoad, 0, 1 },
+  { "Files", NULL, 0, 0, "Where WiiStation finds the games and the BIOS." },
+  { "RomDirSD", romDirSD, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
+  { "RomDirUSB", romDirUSB, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
+  { "BiosDevice", &biosDevice, BIOSDEVICE_HLE, BIOSDEVICE_USB },
+  { "BootThruBios", &LoadCdBios, BOOTTHRUBIOS_NO, BOOTTHRUBIOS_YES },
+  { "Video", NULL, 0, 0, "The picture: the renderer, the TV signal and the filters." },
+  { "gpuPlugin", &gpuPlugin, OLD_SOFT, OPEN_GX },
+  { "VideoMode", &videoMode, VIDEOMODE_AUTO, VIDEOMODE_PROGRESSIVE },
+  { "TVMode", &originalMode, ORIGINALMODE_DISABLE, ORIGINALMODE_ENABLE },
+  { "ForceNTSC", &forceNTSC, FORCENTSC_DISABLE, FORCENTSC_ENABLE },
+  { "ScreenMode", &screenMode, SCREENMODE_4x3, SCREENMODE_16x9_PILLARBOX },
+  { "Interlaced", &interlacedMode, INTERLACED_DISABLE, INTERLACED_ENABLE },
+  { "DeflickerFilter", &deflickerFilter, DEFLICKER_DISABLE, DEFLICKER_ENABLE },
+  { "TrapFilter", &trapFilter, TRAPFILTER_DISABLE, TRAPFILTER_ENABLE },
+  { "BilinearFilter", &bilinearFilter, BILINEARFILTER_DISABLE, BILINEARFILTER_ENABLE },
+  { "Dithering", &useDithering, USEDITHER_NONE, USEDITHER_ALWAYS },
+  { "MdecChroma", &mdecChroma, MDECCHROMA_SHARP, MDECCHROMA_SMOOTH },
+  { "FmvColour", &fmvColour, FMVCOLOUR_15BIT, FMVCOLOUR_24BIT },
+  { "LimitFrames", &frameLimit[1], FRAMELIMIT_NONE, FRAMELIMIT_AUTO },
+  { "SkipFrames", &frameSkip, FRAMESKIP_DISABLE, FRAMESKIP_ENABLE },
+  { "FPS", &showFPSonScreen, FPS_HIDE, FPS_SHOW },
+  { "EfbSync", &efbSyncSetting, 0, 2 },
+  { "Audio", NULL, 0, 0, "The sound." },
+  { "Audio", &audioEnabled, AUDIO_DISABLE, AUDIO_ENABLE },
   { "SoundHwAccel", &soundHwAccel, SOUND_HW_ACCEL_OFF, SOUND_HW_ACCEL_ON },
+  { "SoundResampler", &soundResampler, SOUND_RESAMPLE_HOLD, SOUND_RESAMPLE_CUBIC },
+  { "SoundRateControl", &soundRateControl, SOUND_RATE_CONTROL_OFF, SOUND_RATE_CONTROL_ON },
   { "SoundTempo", &soundTempo, SOUND_TEMPO_OFF, SOUND_TEMPO_ON },
   { "SoundReverb", &soundReverb, SOUND_REVERB_OFF, SOUND_REVERB_ON },
   { "SoundMixerPrecision", &soundMixerPrecision, SOUND_MIXER_PRECISION_LEGACY, SOUND_MIXER_PRECISION_HIFI },
   { "SoundXaResampler", &soundXaResampler, SOUND_XA_RESAMPLER_LEGACY, SOUND_XA_RESAMPLER_HIFI },
-  { "SoundRateControl", &soundRateControl, SOUND_RATE_CONTROL_OFF, SOUND_RATE_CONTROL_ON },
-  { "SoundResampler", &soundResampler, SOUND_RESAMPLE_HOLD, SOUND_RESAMPLE_CUBIC },
-  { "CdBuffer", &cdBuffer, CD_BUFFER_16K, CD_BUFFER_256K },
-  { "CdPrefetch", &cdPrefetch, CD_PREFETCH_OFF, CD_PREFETCH_ON },
-  { "GpuTiming", &gpuTiming, GPU_TIMING_FAST, GPU_TIMING_ACCURATE },
-  { "CpuTiming", &cpuTiming, CPU_TIMING_FAST, CPU_TIMING_ACCURATE },
-  { "SioTiming", &sioTiming, SIO_TIMING_FAST, SIO_TIMING_ACCURATE },
-  { "LimiterWait", &limiterWait, LIMITER_WAIT_SPIN, LIMITER_WAIT_SLEEP },
-  { "LimiterDebt", &limiterDebt, LIMITER_DEBT_SHORT, LIMITER_DEBT_LONG },
-  { "CdChdHunks", &cdChdHunks, CD_CHD_HUNKS_2, CD_CHD_HUNKS_8 },
   { "Interpolation", &spuInterpolation, SIMPLE_INTERPOLATION, GAUSSI_INTERPOLATION },
   { "DisableXa", &xaDisabled, XA_ENABLE, XA_DISABLE },
   { "DisableCdda", &cddaDisabled, CDDA_ENABLE, CDDA_DISABLE },
-  { "FPS", &showFPSonScreen, FPS_HIDE, FPS_SHOW },
-//  { "Debug", &printToScreen, DEBUG_HIDE, DEBUG_SHOW },
-  { "ScreenMode", &screenMode, SCREENMODE_4x3, SCREENMODE_16x9_PILLARBOX },
-  { "VideoMode", &videoMode, VIDEOMODE_AUTO, VIDEOMODE_PROGRESSIVE },
-  { "FileSortMode", &fileSortMode, FILESORT_DIRS_MIXED, FILESORT_DIRS_FIRST },
-  { "Core", &dynacore, DYNACORE_DYNAREC, DYNACORE_DYNAREC_OLD },
+  { "Timing", NULL, 0, 0, "Fast timing or PlayStation timing. Fast is the default." },
+  { "CpuTiming", &cpuTiming, CPU_TIMING_FAST, CPU_TIMING_ACCURATE },
+  { "GpuTiming", &gpuTiming, GPU_TIMING_FAST, GPU_TIMING_ACCURATE },
+  { "SioTiming", &sioTiming, SIO_TIMING_FAST, SIO_TIMING_ACCURATE },
+  { "Performance", NULL, 0, 0, "Disc reads and the frame limiter. Keep the defaults." },
+  { "CdBuffer", &cdBuffer, CD_BUFFER_16K, CD_BUFFER_256K },
+  { "CdPrefetch", &cdPrefetch, CD_PREFETCH_OFF, CD_PREFETCH_ON },
+  { "CdChdHunks", &cdChdHunks, CD_CHD_HUNKS_2, CD_CHD_HUNKS_8 },
+  { "LimiterWait", &limiterWait, LIMITER_WAIT_SPIN, LIMITER_WAIT_SLEEP },
+  { "LimiterDebt", &limiterDebt, LIMITER_DEBT_SHORT, LIMITER_DEBT_LONG },
+  /* The locked cache: one bit per region in Gamecube/lc.c's table, 0 = all off. Not in the
+   * menu -- it is for measuring, and a chained autoboot can set it per game. */
+  { "LockedCache", &lockedCache, 0, 127 },
+  { "Saves", NULL, 0, 0, "Memory cards and save states." },
   { "NativeDevice", &nativeSaveDevice, NATIVESAVEDEVICE_SD, NATIVESAVEDEVICE_CARDB },
   { "StatesDevice", &saveStateDevice, SAVESTATEDEVICE_SD, SAVESTATEDEVICE_USB },
   { "AutoSave", &autoSave, AUTOSAVE_DISABLE, AUTOSAVE_ENABLE },
-  { "BiosDevice", &biosDevice, BIOSDEVICE_HLE, BIOSDEVICE_USB },
-  { "BootThruBios", &LoadCdBios, BOOTTHRUBIOS_NO, BOOTTHRUBIOS_YES },
-  { "LimitFrames", &frameLimit[1], FRAMELIMIT_NONE, FRAMELIMIT_AUTO },
-  { "SkipFrames", &frameSkip, FRAMESKIP_DISABLE, FRAMESKIP_ENABLE },
-  { "Dithering", &useDithering, USEDITHER_NONE, USEDITHER_ALWAYS },
-  { "MdecChroma", &mdecChroma, MDECCHROMA_SHARP, MDECCHROMA_SMOOTH },
-  { "FmvColour", &fmvColour, FMVCOLOUR_15BIT, FMVCOLOUR_24BIT },
+  { "Memcard0", &memCard[0], MEMCARD_DISABLE, MEMCARD_ENABLE },
+  { "Memcard0File", &memCardFile[0], MEMCARDFILE_SHARED, MEMCARDFILE_PER_GAME },
+  { "Memcard1", &memCard[1], MEMCARD_DISABLE, MEMCARD_ENABLE },
+  { "Memcard1File", &memCardFile[1], MEMCARDFILE_SHARED, MEMCARDFILE_PER_GAME },
+  { "Controllers", NULL, 0, 0, "The PlayStation ports and the controllers on them." },
   { "PadAutoAssign", &padAutoAssign, PADAUTOASSIGN_MANUAL, PADAUTOASSIGN_AUTOMATIC },
+  { "ControllerType", &controllerType, CONTROLLERTYPE_STANDARD, CONTROLLERTYPE_STICKDPAD },
+  { "RumbleEnabled", &rumbleEnabled, RUMBLE_DISABLE, RUMBLE_ENABLE },
+  { "LoadButtonSlot", &loadButtonSlot, LOADBUTTON_SLOT0, LOADBUTTON_DEFAULT },
+  { "LightGun", &lightGun, LIGHTGUN_DISABLE, LIGHTGUN_MOUSE },
+  /* PadAssign: a physical controller, 0..3: 4..9 indexed the drivers' 4-entry available[] past its end */
   { "PadType1", &padType[0], PADTYPE_NONE, PADTYPE_COOP },
-  { "PadType2", &padType[1], PADTYPE_NONE, PADTYPE_COOP },
-  { "PadType3", &padType[2], PADTYPE_NONE, PADTYPE_MULTITAP },
-  { "PadType4", &padType[3], PADTYPE_NONE, PADTYPE_MULTITAP },
-  { "PadType5", &padType[4], PADTYPE_NONE, PADTYPE_MULTITAP },
-  { "PadType6", &padType[5], PADTYPE_NONE, PADTYPE_MULTITAP },
-  { "PadType7", &padType[6], PADTYPE_NONE, PADTYPE_MULTITAP },
-  { "PadType8", &padType[7], PADTYPE_NONE, PADTYPE_MULTITAP },
-  { "PadType9", &padType[8], PADTYPE_NONE, PADTYPE_MULTITAP },
-  { "PadType10", &padType[9], PADTYPE_NONE, PADTYPE_MULTITAP },
-  /* a physical controller, 0..3: 4..9 indexed the drivers' 4-entry available[] past its end */
   { "PadAssign1", &padAssign[0], 0, 3 },
+  { "PadLightgun1", &padLightgun[0], PADLIGHTGUN_DISABLE, PADLIGHTGUN_ENABLE },
+  { "PadType2", &padType[1], PADTYPE_NONE, PADTYPE_COOP },
   { "PadAssign2", &padAssign[1], 0, 3 },
+  { "PadLightgun2", &padLightgun[1], PADLIGHTGUN_DISABLE, PADLIGHTGUN_ENABLE },
+  { "PadType3", &padType[2], PADTYPE_NONE, PADTYPE_MULTITAP },
   { "PadAssign3", &padAssign[2], 0, 3 },
+  { "PadLightgun3", &padLightgun[2], PADLIGHTGUN_DISABLE, PADLIGHTGUN_ENABLE },
+  { "PadType4", &padType[3], PADTYPE_NONE, PADTYPE_MULTITAP },
   { "PadAssign4", &padAssign[3], 0, 3 },
+  { "PadLightgun4", &padLightgun[3], PADLIGHTGUN_DISABLE, PADLIGHTGUN_ENABLE },
+  { "PadType5", &padType[4], PADTYPE_NONE, PADTYPE_MULTITAP },
   { "PadAssign5", &padAssign[4], 0, 3 },
+  { "PadLightgun5", &padLightgun[4], PADLIGHTGUN_DISABLE, PADLIGHTGUN_ENABLE },
+  { "PadType6", &padType[5], PADTYPE_NONE, PADTYPE_MULTITAP },
   { "PadAssign6", &padAssign[5], 0, 3 },
+  { "PadLightgun6", &padLightgun[5], PADLIGHTGUN_DISABLE, PADLIGHTGUN_ENABLE },
+  { "PadType7", &padType[6], PADTYPE_NONE, PADTYPE_MULTITAP },
   { "PadAssign7", &padAssign[6], 0, 3 },
+  { "PadLightgun7", &padLightgun[6], PADLIGHTGUN_DISABLE, PADLIGHTGUN_ENABLE },
+  { "PadType8", &padType[7], PADTYPE_NONE, PADTYPE_MULTITAP },
   { "PadAssign8", &padAssign[7], 0, 3 },
+  { "PadLightgun8", &padLightgun[7], PADLIGHTGUN_DISABLE, PADLIGHTGUN_ENABLE },
+  { "PadType9", &padType[8], PADTYPE_NONE, PADTYPE_MULTITAP },
   { "PadAssign9", &padAssign[8], 0, 3 },
+  { "PadLightgun9", &padLightgun[8], PADLIGHTGUN_DISABLE, PADLIGHTGUN_ENABLE },
+  { "PadType10", &padType[9], PADTYPE_NONE, PADTYPE_MULTITAP },
   { "PadAssign10", &padAssign[9], 0, 3 },
+  { "PadLightgun10", &padLightgun[9], PADLIGHTGUN_DISABLE, PADLIGHTGUN_ENABLE },
+  { "Co-Op", NULL, 0, 0, "More than one controller on one PlayStation port." },
   /* Co-Op (coop.c): players per port, then each player's controller type, controller and layout */
   { "CoopPlayers1", &coopPlayers[0], 1, COOP_MAX },
   { "CoopPlayers2", &coopPlayers[1], 1, COOP_MAX },
@@ -307,47 +354,11 @@ static struct {
   { "Coop2Type8", &coopType[1][7], PADTYPE_NONE, PADTYPE_HID },
   { "Coop2Assign8", &coopAssign[1][7], 0, 3 },
   { "Coop2Layout8", &coopLayout[1][7], COOP_LAYOUT_FULL, COOP_LAYOUT_COUNT - 1 },
-  { "RumbleEnabled", &rumbleEnabled, RUMBLE_DISABLE, RUMBLE_ENABLE },
-  { "EfbSync", &efbSyncSetting, 0, 2 },
-  { "LoadButtonSlot", &loadButtonSlot, LOADBUTTON_SLOT0, LOADBUTTON_DEFAULT },
-  { "ControllerType", &controllerType, CONTROLLERTYPE_STANDARD, CONTROLLERTYPE_STICKDPAD },
-//  { "NumberMultitaps", &numMultitaps, MULTITAPS_NONE, MULTITAPS_TWO },
-  { "smbusername", smbUserName, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
-  { "smbpassword", smbPassWord, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
-  { "smbsharename", smbShareName, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
+  { "Network", NULL, 0, 0, "Games from a network share (SMB)." },
   { "smbipaddr", smbIpAddr, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
-  { "MenuFont", menuFont, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
-  { "RomDir1", romDir[0], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
-  { "RomDir2", romDir[1], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
-  { "RomDir3", romDir[2], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
-  { "RomDir4", romDir[3], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
-  { "lang", &lang, ENGLISH, TURKISH },
-  { "fastLoad", &fastLoad, 0, 1 },
-  { "TVMode", &originalMode, ORIGINALMODE_DISABLE, ORIGINALMODE_ENABLE },
-  { "BilinearFilter", &bilinearFilter, BILINEARFILTER_DISABLE, BILINEARFILTER_ENABLE },
-  { "TrapFilter", &trapFilter, TRAPFILTER_DISABLE, TRAPFILTER_ENABLE },
-  { "Interlaced", &interlacedMode, INTERLACED_DISABLE, INTERLACED_ENABLE },
-  { "DeflickerFilter", &deflickerFilter, DEFLICKER_DISABLE, DEFLICKER_ENABLE },
-  { "LightGun", &lightGun, LIGHTGUN_DISABLE, LIGHTGUN_MOUSE },
-  { "Memcard0", &memCard[0], MEMCARD_DISABLE, MEMCARD_ENABLE },
-  { "Memcard1", &memCard[1], MEMCARD_DISABLE, MEMCARD_ENABLE },
-  { "Memcard0File", &memCardFile[0], MEMCARDFILE_SHARED, MEMCARDFILE_PER_GAME },
-  { "Memcard1File", &memCardFile[1], MEMCARDFILE_SHARED, MEMCARDFILE_PER_GAME },
-  { "PadLightgun1", &padLightgun[0], PADLIGHTGUN_DISABLE, PADLIGHTGUN_ENABLE },
-  { "PadLightgun2", &padLightgun[1], PADLIGHTGUN_DISABLE, PADLIGHTGUN_ENABLE },
-  { "PadLightgun3", &padLightgun[2], PADLIGHTGUN_DISABLE, PADLIGHTGUN_ENABLE },
-  { "PadLightgun4", &padLightgun[3], PADLIGHTGUN_DISABLE, PADLIGHTGUN_ENABLE },
-  { "PadLightgun5", &padLightgun[4], PADLIGHTGUN_DISABLE, PADLIGHTGUN_ENABLE },
-  { "PadLightgun6", &padLightgun[5], PADLIGHTGUN_DISABLE, PADLIGHTGUN_ENABLE },
-  { "PadLightgun7", &padLightgun[6], PADLIGHTGUN_DISABLE, PADLIGHTGUN_ENABLE },
-  { "PadLightgun8", &padLightgun[7], PADLIGHTGUN_DISABLE, PADLIGHTGUN_ENABLE },
-  { "PadLightgun9", &padLightgun[8], PADLIGHTGUN_DISABLE, PADLIGHTGUN_ENABLE },
-  { "PadLightgun10", &padLightgun[9], PADLIGHTGUN_DISABLE, PADLIGHTGUN_ENABLE },
-  { "ForceNTSC", &forceNTSC, FORCENTSC_DISABLE, FORCENTSC_ENABLE },
-  { "gpuPlugin", &gpuPlugin, OLD_SOFT, OPEN_GX },
-  /* The locked cache: one bit per region in Gamecube/lc.c's table, 0 = all off. Not in the
-   * menu -- it is for measuring, and a chained autoboot can set it per game. */
-  { "LockedCache", &lockedCache, 0, 127 }
+  { "smbsharename", smbShareName, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
+  { "smbusername", smbUserName, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
+  { "smbpassword", smbPassWord, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE }
 };
 void handleConfigPair(char* kv);
 void readConfig(FILE* f);
@@ -520,9 +531,8 @@ void loadSettings(int argc, char *argv[])
 	fileSortMode	 = FILESORT_DIRS_FIRST;
 	padAutoAssign	 = PADAUTOASSIGN_AUTOMATIC;
 	menuFont[0]		 = 0;              // built-in font
-	strcpy(romDir[0], "sd:/wiistation/isos");
-	strcpy(romDir[1], "usb:/wiistation/isos");
-	romDir[2][0] = romDir[3][0] = 0;
+	strcpy(romDirSD, "/wiistation/isos");
+	strcpy(romDirUSB, "/wiistation/isos");
 	for (int i = 0; i < 10; i++){
 		padType[i]		 = PADTYPE_NONE;
 		padAssign[i]	 = PADASSIGN_INPUT0;
@@ -585,7 +595,7 @@ void loadSettings(int argc, char *argv[])
 		if(configFile_init(configFile_file)) {                //only if device initialized ok
             memset(Config.PatchesDir, '\0', sizeof(Config.PatchesDir));
             strcpy(Config.PatchesDir, "usb:/wiistation/ppf/");
-			FILE* f = fopen( "usb:/wiistation/settingsRX2022.cfg", "r" );  //attempt to open file
+			FILE* f = fopen( "usb:/wiistation/settings.ini", "r" );  //attempt to open file
 			if(f) {        //open ok, read it
 				readConfig(f);
 				fclose(f);
@@ -602,7 +612,7 @@ void loadSettings(int argc, char *argv[])
             memset(Config.PatchesDir, '\0', sizeof(Config.PatchesDir));
             strcpy(Config.PatchesDir, "sd:/wiistation/ppf/");
             // add xjsxjs197 end
-			FILE* f = fopen( "sd:/wiistation/settingsRX2022.cfg", "r" );  //attempt to open file
+			FILE* f = fopen( "sd:/wiistation/settings.ini", "r" );  //attempt to open file
 			if(f) {        //open ok, read it
 				readConfig(f);
 				fclose(f);
@@ -819,7 +829,7 @@ static void chainOverride(char *kv, bool remember)
 		return;
 	*val++ = 0;
 	for (i = 0; i < sizeof(OPTIONS) / sizeof(OPTIONS[0]); i++) {
-		if (strcmp(OPTIONS[i].key, key) || OPTIONS[i].max == CONFIG_STRING_TYPE)
+		if (!OPTIONS[i].value || strcmp(OPTIONS[i].key, key) || OPTIONS[i].max == CONFIG_STRING_TYPE)
 			continue;
 		if (remember && chainSavedN < (int)(sizeof chainSaved / sizeof chainSaved[0])) {
 			chainSaved[chainSavedN].value = OPTIONS[i].value;
@@ -1130,7 +1140,7 @@ static bool loadSeparatelySettingItem(char* s1, char* s2, bool isUsb)
     struct stat s;
     char settingPathBuf[256];
     fileBrowser_file* configFile_file;
-    sprintf(settingPathBuf, "%s%s%s", s1, s2, ".cfg");
+    sprintf(settingPathBuf, "%s%s%s", s1, s2, ".ini");   /* settings.ini, settings/<CD-ROM ID>.ini */
     if (stat(settingPathBuf, &s))
     {
         return false;
@@ -1164,11 +1174,11 @@ static void loadSeparatelySetting()
             // If there is no separate setting
             // we load the common (global) settings.
             // Load common (global) settings from USB device
-            if (!loadSeparatelySettingItem("usb:/wiistation/", "settingsRX2022", true))
+            if (!loadSeparatelySettingItem("usb:/wiistation/", "settings", true))
             {
                 // If there is no common (global) settings for USB
                 // Load common (global) settings from SD card
-                loadSeparatelySettingItem("sd:/wiistation/", "settingsRX2022", false);
+                loadSeparatelySettingItem("sd:/wiistation/", "settings", false);
             }
         }
     }
@@ -1341,7 +1351,7 @@ void setOption(char* key, char* valuePointer){
 		value = atoi(valuePointer);
 
 	for(unsigned int i=0; i<sizeof(OPTIONS)/sizeof(OPTIONS[0]); i++){
-		if(!strcmp(OPTIONS[i].key, key)){
+		if(OPTIONS[i].value && !strcmp(OPTIONS[i].key, key)){   /* a section row has no value */
 			if(isString) {
 				if(OPTIONS[i].max == CONFIG_STRING_TYPE)
 					strncpy(OPTIONS[i].value, valuePointer,
@@ -1365,14 +1375,19 @@ void handleConfigPair(char* kv){
 void readConfig(FILE* f){
 	char line[256];
 	while(fgets(line, 256, f)){
-		if(line[0] == '#') continue;
-		handleConfigPair(line);
+		char* l = config_line(line);   /* config_parse.h: blank, comment and [section] lines hold none */
+		if(l)
+			handleConfigPair(l);
 	}
 }
 
 void writeConfig(FILE* f){
+	fprintf(f, "; WiiStation settings. Write one \"key = value\" on each line.\n"
+	           "; example_settings.ini and SETTINGS.md tell what each setting does.\n");
 	for(unsigned int i=0; i<sizeof(OPTIONS)/sizeof(OPTIONS[0]); ++i){
-		if(OPTIONS[i].max == CONFIG_STRING_TYPE)
+		if(!OPTIONS[i].value)   /* a section: its name and its comment */
+			fprintf(f, "\n[%s]\n; %s\n", OPTIONS[i].key, OPTIONS[i].note);
+		else if(OPTIONS[i].max == CONFIG_STRING_TYPE)
 			fprintf(f, "%s = \"%s\"\n", OPTIONS[i].key, OPTIONS[i].value);
 		else
 			fprintf(f, "%s = %d\n", OPTIONS[i].key, *OPTIONS[i].value);

@@ -133,7 +133,7 @@ def main():
     scripts, folders, games = chain_files(a.chain)
     settings = BASE_SETTINGS + "".join(
         f"{k.strip()} = {v.strip()}\n" for k, v in (kv.split("=", 1) for kv in a.set.split(",") if "=" in kv))
-    puts = [("autoboot.txt", a.chain.read_bytes()), ("settingsRX2022.cfg", settings.encode()),
+    puts = [("autoboot.txt", a.chain.read_bytes()), ("settings.ini", settings.encode()),
             ("autoinput.txt", b"")]
     for f in scripts:
         p = REPO / "scripts/autoinput" / f

@@ -8,12 +8,12 @@ The line numbers in this document refer to `Gamecube/GamecubeMain.cpp` unless th
 
 ### 1.1 Name and location
 
-The settings file is `settingsRX2022.cfg`. WiiStation reads it from one of two locations:
+The settings file is `settings.ini`, an INI file: one `key = value` on each line, text values in double quotes, and a line that starts with `;` or `#` is a comment. WiiStation writes it in sections (`[General]`, `[Files]`, `[Video]`, `[Audio]`, `[Timing]`, `[Performance]`, `[Saves]`, `[Controllers]`, `[Co-Op]`, `[Network]`), each with a one-line comment. The sections are only for people: WiiStation reads a key in any section, or outside one. `example_settings.ini` (in the release, and in `sd:/wiistation/` after an install) lists every setting in its section, with its default and a comment that tells what it does; WiiStation does not read it. `scripts/settings_check.py` keeps it the same as the code. WiiStation reads the settings from one of two locations:
 
 | Launch device | File that WiiStation reads |
 |---|---|
-| SD card (the default) | `sd:/wiistation/settingsRX2022.cfg` |
-| USB storage (the loader argument starts with `u`) | `usb:/wiistation/settingsRX2022.cfg` |
+| SD card (the default) | `sd:/wiistation/settings.ini` |
+| USB storage (the loader argument starts with `u`) | `usb:/wiistation/settings.ini` |
 
 WiiStation reads only one of the two files. It does not merge them. If the file does not exist, WiiStation uses the default values in this document.
 
@@ -46,12 +46,12 @@ WiiStation writes all the keys in this document to the file. The folder `wiistat
 
 ### 1.4 Settings for one game
 
-WiiStation can load a different settings file for one game. The file name is the disc serial number, for example `SLUS00067.cfg`. WiiStation looks for the file in this order and uses the first file that it finds:
+WiiStation can load a different settings file for one game. The file name is the disc serial number, for example `SLUS00067.ini`. WiiStation looks for the file in this order and uses the first file that it finds:
 
-1. `usb:/wiistation/settings/<serial>.cfg`
-2. `sd:/wiistation/settings/<serial>.cfg`
-3. `usb:/wiistation/settingsRX2022.cfg`
-4. `sd:/wiistation/settingsRX2022.cfg`
+1. `usb:/wiistation/settings/<serial>.ini`
+2. `sd:/wiistation/settings/<serial>.ini`
+3. `usb:/wiistation/settings.ini`
+4. `sd:/wiistation/settings.ini`
 
 A game settings file can contain any key in this document. To write the file, load the game, open the Settings menu, and select **Separately** on the General tab. WiiStation writes the file to `usb:/wiistation/settings/` if that folder exists. If not, it writes the file to `sd:/wiistation/settings/`.
 
@@ -72,7 +72,7 @@ On the Wii, a loader can give settings as arguments after the program name. Each
 | `lang` | 0 to 12, see the language table below | 0 | General, Select language | Selects the menu language. The language files are in `wiistation/lang/`. The menu does not show a language if its font file is missing. |
 | `SoundHwAccel` | `0`, `1` | `0` | Audio tab, "DSP Sound" | Chooses the sound output path. `0` is the CPU path: the stream plays through SDL. `1` hands the stream to the Wii's DSP through an AESND voice, and the DSP does the mixing, so the CPU does less work per frame. Which side converts 44100 to 48000 Hz depends on `SoundResampler` (section 4): with `Hold` the DSP path lets the DSP do it, with the other two the CPU interpolates first and the DSP plays the result 1:1. If the chosen path fails to open, the other one is used. The output driver is chosen when a game starts, so changing this mid-session takes effect the next time a game is loaded. Note for testing in Dolphin: its high-level DSP emulation recognises libogc's AESND microcode by hash, so a version it does not know falls back and sound may differ from real hardware. |
 | `MenuFont` | `"Name"` | empty | none, settings file only | Selects the menu font. WiiStation loads `wiistation/fonts/Name.dat` from the SD card or the USB device. An empty value or a missing file gives the built-in font. The value does not apply to the Chinese, Japanese and Korean languages, which have their own glyph files. See section 9 for the font files. |
-| `RomDir1` .. `RomDir4` | `"device:/path"` | `"sd:/wiistation/isos"`, `"usb:/wiistation/isos"`, empty, empty | none, settings file only | Where Load ROM looks for games. Load from SD uses the ones that start with `sd:`, Load from USB the ones that start with `usb:`. A folder that does not exist is left out. With one folder left, the browser opens it; with several, it lists them by full path to choose from; with none, it opens `device:/wiistation/isos`. SD and USB cards are FAT, which has no links or junctions, so this is how a shared folder such as `sd:/roms/psx` is used. Example: `RomDir1 = "sd:/roms/psx"`. |
+| `RomDirSD`, `RomDirUSB` | `"folder, folder, ..."` | `"/wiistation/isos"` | none, settings file only | The game folders on the SD card and on the USB device, with a comma between two folders: `RomDirSD = "/wiistation/isos, /roms/psx"`. Load from SD and Load from USB use them. A folder that does not exist is left out. With one folder left, the browser opens it; with several, it lists them by full path to choose from (up to 16); with none, it opens `/wiistation/isos` and says that it is missing. A folder can also name its device (`usb:/roms`). SD and USB cards are FAT, which has no links or junctions, so this is how a shared folder such as `/roms/psx` is used. |
 | `fastLoad` | 0 = No, 1 = Yes | 0 | General, Fast Load | Shortens the delays the emulated CD-ROM drive reports, so loading screens pass faster than on a real console. A PlayStation drive takes a fixed time to answer a command, to seek, and to deliver each sector; WiiStation normally reproduces those delays (`cdReadTime` in `cdrom.c`, one sector per 1/75 s at single speed). With this on, the long second response to a read command is cut from about 2.1 million cycles to one sector time, the first-read delay is shortened, and seeks settle sooner. Nothing is read any faster from the SD card: this only stops the emulator waiting. Some games depend on the real timing and break, which is why it is off by default -- audio and video that are streamed from the disc are the usual casualties, since their sectors then arrive earlier than the game expects. Try it per game (`wiistation/settings/<CdromId>.cfg`) rather than globally. |
 | `CdBuffer` | 0 = 16 KB, 1 = 64 KB, 2 = 256 KB | 0 | General, CD page, "CD Read Buffer" | Size of the stdio read buffer each disc-image file handle gets (the main image, the sub-channel file, the CDDA handle, every file of a multi-file cue). **Keep 16 KB.** Beneath it libfat reads the card in 32 KB pages whatever the buffer is, so a larger buffer cannot make the card's commands longer: it only reads ahead data a seek then throws away. Measured 2026-09-22 on eleven games (perf.log `sd:`): 64 KB gave the same card commands to within 6%, 256 KB gave 20% more, and every card read was 32 KB in all three. The counts are the same on a Wii, where only their duration changes. Applies when the next game is loaded. |
 | `GpuTiming` | 0 = Fast, 1 = Accurate | 0 | General, Plugins page, "GPU Timing" | How long the core keeps the GPU busy after the game gives it work, for OpenGX and the Soft Fast renderer (Soft Timed, gpulib, is always accurate). **Fast** is how WiiStation always ran: a draw list ends after as many cycles as it has words, and the GPU reads idle from the end of one list to the start of the next, even while a block upload (a video frame, a texture) is going on. **Accurate** charges gpulib's cost per command (polygons, sprites and fills by size) and leaves the GPU busy for every transfer, so a game sees the GPU as a PS1 shows it. It moves every game's timing a little: games that wait for the GPU run their frames as on a PS1. Takes effect at once. |
@@ -275,7 +275,7 @@ A menu font file holds one 24 x 24 pixel image for each character. The script `s
 
    The script selects the largest size that keeps the tallest and the deepest characters inside the 24 rows. It reports the size and the baseline. Open `preview.png` to check the result.
 2. Copy the file to `sd:/wiistation/fonts/CalibriBold.dat`.
-3. Add this line to `settingsRX2022.cfg`: `MenuFont = "CalibriBold"`.
+3. Add this line to `settings.ini`: `MenuFont = "CalibriBold"`.
 4. Start WiiStation. To go back to the built-in font, remove the line.
 
 Use `--charset ascii` for a smaller file with only the English characters. Use `--ref fonts/En.dat` instead of `--charset` to keep the character widths of an existing font file, so that the menu layout does not change.
@@ -417,7 +417,7 @@ presses above only reach a running game.
 | 5 | Settings, Saves | 20 | Configure Input |
 | | | 21 to 36 | Co-Op Customize, port 1 players 1 to 8 (21 to 28), port 2 players 1 to 8 (29 to 36) |
 | | | 40 to 65 | Configure Buttons for virtual controller N-40: 40/41 ports 1/2, 42 to 49 multitap slots 1A to 2D, 50 to 65 Co-Op players (as 21 to 36). A port that is a multitap or Co-Op opens on its first slot or player |
-| | | 70 | Load ROM > Load from SD: the `RomDir` folders on the SD card (one opens, several are listed) |
+| | | 70 | Load ROM > Load from SD: the `RomDirSD` folders (one opens, several are listed) |
 
 Use it with no `autoboot.txt`, so the run stays in the menu, and collect the frames the
 run dumps. `scripts/menu_text_width.py` checks the same pages' geometry without booting

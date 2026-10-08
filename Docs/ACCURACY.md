@@ -127,7 +127,7 @@ The measurements above are with both at Fast (the defaults). With both at Accura
 or the multiply/divide unit, and `dma/chopping` still never sees the "GPU busy" state that a
 PS1 reports. The Accurate items below are new work, not the two settings switched on.
 
-1. **Setting.** `Accuracy = 0` (Fast, default) / `1` (Accurate) in `settingsRX2022.cfg`, the
+1. **Setting.** `Accuracy = 0` (Fast, default) / `1` (Accurate) in `settings.ini` (was settingsRX2022.cfg), the
    per-game files and the chain lines, with a menu item. Accurate sets `CpuTiming = 1` and
    `GpuTiming = 1` and turns on the items below as they are done. A change resets the game,
    as a CPU core change does.

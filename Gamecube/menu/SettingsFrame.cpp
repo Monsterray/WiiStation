@@ -1243,7 +1243,7 @@ void Func_SaveSettingsSD()
 		return;
 	}
 	if(configFile_init(configFile_file)) {                //only if device initialized ok
-		FILE* f = fopen( "sd:/wiistation/settingsRX2022.cfg", "wb" );  //attempt to open file
+		FILE* f = fopen( "sd:/wiistation/settings.ini", "wb" );  //attempt to open file
 		if(f) {
 			writeConfig(f);                                   //write out the config
 			fclose(f);
@@ -1266,7 +1266,7 @@ void Func_SaveSettingsUSB()
 		return;
 	}
 	if(configFile_init(configFile_file)) {                //only if device initialized ok
-		FILE* f = fopen( "usb:/wiistation/settingsRX2022.cfg", "wb" ); //attempt to open file
+		FILE* f = fopen( "usb:/wiistation/settings.ini", "wb" ); //attempt to open file
 		if(f) {
 			writeConfig(f);                                   //write out the config
 			fclose(f);

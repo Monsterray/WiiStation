@@ -341,8 +341,7 @@ enum padAutoAssign
 };
 
 extern char padType[10];
-#define ROM_DIRS 4
-extern char romDir[ROM_DIRS][256];   // RomDir1..4: folders the Load ROM browser opens ("" = unused)
+extern char romDirSD[256], romDirUSB[256];   // RomDirSD/RomDirUSB: game folders, comma-separated
 extern char menuFont[];          // menu font file name without .dat (empty = built-in)
 enum padType
 {

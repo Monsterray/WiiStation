@@ -61,7 +61,7 @@ believing the symptom.
 - **Never edit the script while a run is in progress.** bash reads a script lazily, so the
   sleeping instance resumes at a byte offset in the new text, dies with a syntax error, and
   leaves Dolphin running with the test files still staged (2026-09-19). Recover by killing that
-  PID and deleting `autoinput.txt`/`settingsRX2022.cfg`/`autoboot.txt` from
+  PID and deleting `autoinput.txt`/`settings.ini` (was settingsRX2022.cfg)/`autoboot.txt` from
   `.dolphin/Load/WiiSDSync/wiistation/`. Since the run configures Dolphin with `-C` rather than by
   editing the INI files, there is nothing to restore in any `Config` folder. Copy the script to
   the scratchpad if you must change it mid-run.

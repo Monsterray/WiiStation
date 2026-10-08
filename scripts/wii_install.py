@@ -12,6 +12,7 @@ deleted, so the user's settings, saves and games stay):
   sd:/wiistation/controllers/  the HID controller files (Gamecube/release/controllers)
   sd:/wiistation/fonts/        En.dat, the menu fonts (fonts/menu) and the language fonts (fonts/*.zip)
   sd:/wiistation/lang/         the menu languages (lang/)
+  sd:/wiistation/example_settings.ini  every setting, with its default and what it does
 --remove-autoboot deletes sd:/wiistation/autoboot.txt, which a lab run (wii_lab.py) left before
 2026-10-01 and which makes an HBC start run that chain instead of the menu.
 The fonts go last (Chs.dat is 8 MB). The Wii's address is $WII_BENCH_IP (the queue sets it), else 192.168.8.213.
@@ -64,6 +65,12 @@ def main():
         r = subprocess.run([sys.executable, str(HBC), "--wii", wii, "sync", str(local), remote])
         if r.returncode:
             sys.exit(f"sync of {remote} failed (exit {r.returncode})")
+    example = REPO / "Gamecube/release/example_settings.ini"   # beside settings.ini; WiiStation does not read it
+    print(f"{example.name} -> sd:/wiistation/{example.name}", flush=True)
+    if "--dry-run" not in a:
+        r = subprocess.run([sys.executable, str(HBC), "--wii", wii, "put", str(example), "sd:/wiistation/" + example.name])
+        if r.returncode:
+            sys.exit(f"upload of {example.name} failed (exit {r.returncode})")
     print(f"installed {dol.name} ({dol.stat().st_size} bytes) as sd:/apps/WiiStation/boot.dol")
 
 

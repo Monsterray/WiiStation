@@ -1,5 +1,5 @@
 README : WiiStation
-Version 5.6.0
+Version 5.6.1
 
 LICENSE:
     This software is licensed under the GNU General Public License v2
@@ -11,8 +11,9 @@ QUICK USAGE:
  * ISOs can be .bin/.cue (Make sure .cue contains _relative_ directory!), .img, or .iso format
  * To install: Extract the contents of WiiStation.zip to the root of your SD card
  * For SD/USB: Put ISOs (.bin/.cue or other formats) in the directory named /wiistation/isos,
-    or anywhere else: RomDir1..RomDir4 in wiistation/settingsRX2022.cfg name up to four
-    game folders, e.g. RomDir1 = "sd:/roms/psx" (see SETTINGS.md),
+    or anywhere else: RomDirSD (and RomDirUSB) in wiistation/settings.ini name
+    game folders, e.g. RomDirSD = "/wiistation/isos, /roms/psx". Every setting is
+    in wiistation/example_settings.ini, with its default and what it does,
     All Memory Cards will automatically be placed in /wiistation/saves
     All Savestates will automatically be placed in /wiistation/savestates
  * For DVD: ISOs may be anywhere on the disc (requires DVDxV2 on Wii)
@@ -121,6 +122,17 @@ LATER UPDATES BY:
  * Jokippo
 
 WiiStation CHANGE LOG:
+Ver 5.6.1 (2026-10-08):
+* The settings file is wiistation/settings.ini (was settingsRX2022.cfg), and
+  a game's own settings are wiistation/settings/<serial>.ini (was .cfg). The
+  lines are the same; rename your file to keep it. Any INI editor can open it:
+  ; comments, indented lines and [section] lines are now accepted.
+* settings.ini is written in sections ([General], [Video], [Audio], ...), each
+  with a short comment. example_settings.ini shows every setting, its default
+  and what it does.
+* RomDirSD and RomDirUSB replace RomDir1..RomDir4: a list of game folders with
+  a comma between two folders, e.g. RomDirSD = "/wiistation/isos, /roms/psx".
+
 Ver 5.6.0 (2026-10-07):
 * WiiStation's folder on the SD card and USB device is now /wiistation (was
   /wiisxrx): settings, saves, save states, BIOS, fonts, languages, controller

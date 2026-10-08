@@ -91,7 +91,7 @@ Any help is appreciated.
 
 ## Configuration
 
-All settings of the `settingsRX2022.cfg` file, the per-game settings files, `autoboot.txt` and the other files in `wiistation/` are described in [SETTINGS.md](SETTINGS.md).
+All settings of the `settings.ini` file, the per-game settings files, `autoboot.txt` and the other files in `wiistation/` are described in [SETTINGS.md](SETTINGS.md).
 
 ## Testing in Dolphin
 

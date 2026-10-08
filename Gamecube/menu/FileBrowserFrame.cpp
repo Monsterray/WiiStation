@@ -22,6 +22,8 @@
 #include <cstdlib>
 #include <strings.h>
 #include <sys/stat.h>   /* the RomDir folders */
+#include "../config_parse.h"   /* config_list_next */
+#define CONFIG_ITEM_SIZE 256
 #include "MenuContext.h"
 #include "FileBrowserFrame.h"
 #include "../libgui/Button.h"
@@ -412,23 +414,30 @@ void fileBrowserFrame_OpenDirectory(fileBrowser_file* dir)
 	fileBrowserFrame_FillPage();
 }
 
-/* Load from SD / Load from USB: the RomDir folders on that device ("sd:", "usb:") that exist.
- * One opens straight away; several are listed, by whole path, to choose from; none opens
- * the device's sd:/wiistation/isos as before, which says what is missing. */
+#define ROM_DIRS_MAX 16
+/* Load from SD / Load from USB: the folders of RomDirSD or RomDirUSB ("/wiistation/isos,
+ * /roms/psx") that exist on that device ("sd:", "usb:"). One opens straight away; several
+ * are listed, by whole path, to choose from; none opens the device's /wiistation/isos as
+ * before, which says what is missing. An item may also name its device ("sd:/roms"). */
 void fileBrowserFrame_OpenRomFolders(fileBrowser_file* deviceDefault, const char *device)
 {
-	fileBrowser_file found[ROM_DIRS];
+	fileBrowser_file found[ROM_DIRS_MAX];
 	int n = 0;
-	size_t len = strlen(device);
 	struct stat st;
+	char item[CONFIG_ITEM_SIZE];
+	const char *list = !strcasecmp(device, "usb:") ? romDirUSB : romDirSD;
 
 	memset(found, 0, sizeof(found));
-	for (int i = 0; i < ROM_DIRS; i++)
-		if (!strncasecmp(romDir[i], device, len) && !stat(romDir[i], &st) && S_ISDIR(st.st_mode))
-		{
-			snprintf(found[n].name, sizeof(found[n].name), "%s", romDir[i]);
+	while (n < ROM_DIRS_MAX && config_list_next(&list, item, sizeof(item)))
+	{
+		char *path = found[n].name;
+		if (strchr(item, ':'))
+			snprintf(path, sizeof(found[n].name), "%s", item);
+		else
+			snprintf(path, sizeof(found[n].name), "%s%s%s", device, item[0] == '/' ? "" : "/", item);
+		if (!stat(path, &st) && S_ISDIR(st.st_mode))
 			found[n++].attr = FILE_BROWSER_ATTR_DIR;
-		}
+	}
 	if (n == 0)
 		snprintf(deviceDefault->name, sizeof(deviceDefault->name), "%s/wiistation/isos", device);
 	if (n <= 1)
@@ -463,7 +472,7 @@ void fileBrowserFrame_Error(fileBrowser_file* dir, int error_code)
   	strcpy(feedback_string,"Still connecting to the network.\nTry again in a moment.");
 	}
 	else if(error_code == SMB_SMBCFGERR) {
-  	strcpy(feedback_string,"SMB is not configured.\nSet smbsharename and smbipaddr\nin settingsRX2022.cfg");
+  	strcpy(feedback_string,"SMB is not configured.\nSet smbsharename and smbipaddr\nin settings.ini");
 	}
 	else if(error_code == SMB_SMBRETRY) {
   	strcpy(feedback_string,"Still connecting to the share.\nTry again in a moment.");

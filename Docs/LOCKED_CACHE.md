@@ -28,7 +28,7 @@ cache costs nothing. A region that is off is simply absent: `lc_get()` returns N
 user runs its ordinary code. **Every user keeps that ordinary path.** It is what makes a region
 safe to turn off, and what makes on-against-off comparisons possible.
 
-`LockedCache` is a settings-file key (`settingsRX2022.cfg`), not a menu item: `0` all off
+`LockedCache` is a settings-file key (`settings.ini` (was settingsRX2022.cfg)), not a menu item: `0` all off
 (the default), `1` spu-gauss, `2` tex-tile, `3` both. Every region stays off by default until
 a hardware run has shown it helps.
 

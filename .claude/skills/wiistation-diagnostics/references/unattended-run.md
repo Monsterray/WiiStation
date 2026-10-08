@@ -101,7 +101,7 @@ the first screen is reachable unattended. A savestate-
 anchored Dolphin movie (`.dtm` with `from_savestate=1`) cannot replace it: it restores the
 recorded binary, so code changes are invisible under it.
 
-**`settingsRX2022.cfg`** (bare `key = value`, unlisted keys keep compiled defaults — NOT the
+**`settings.ini` (was settingsRX2022.cfg)** (bare `key = value`, unlisted keys keep compiled defaults — NOT the
 user's values; per-game files in `wiistation/settings/<CdromId>.cfg` override it when the game
 has one). Keys that unattended runs need:
 
@@ -264,4 +264,4 @@ with meta.xml, icon.png and the `wiistation/controllers`, `lang` and `fonts` fol
 nothing but `autoboot.txt` with `--remove-autoboot`. Before 5.2.0 a lab run left its chain in
 `sd:/wiistation/autoboot.txt`, so the next start from HBC ran that chain and switched the Wii off;
 lab mode now deletes the file once it has read it. A lab run still writes the lab's base settings
-over `sd:/wiistation/settingsRX2022.cfg`.
+over `sd:/wiistation/settings.ini`.

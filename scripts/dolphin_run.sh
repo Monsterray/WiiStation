@@ -192,7 +192,7 @@ rm -rf "$PROFILE/Dump/Frames" "$PROFILE/Dump/Audio"
 # the logs a run leaves: an earlier run's must not pass for this one's (a run cut off before
 # its trace fired read the previous run's ptrace.log)
 rm -f "$S/perf.log" "$S/tty.log" "$S/ptrace.log" "$S/vramio.log" "$S/atrace.log" "$S/lab.log" "$S/pcring.log" "$S/xfb.bin" "$S/"vram_*.bin "$S/"vtl_*.bin "$S/"hprof_*.bin "$S/"vsig_*.bin
-cp "${AIN:-$P/autoinput.txt}" "$S/autoinput.txt"; cp "${SET:-$P/settingsRX2022.cfg}" "$S/settingsRX2022.cfg"
+cp "${AIN:-$P/autoinput.txt}" "$S/autoinput.txt"; cp "${SET:-$P/settingsRX2022.cfg}" "$S/settings.ini"
 # autoboot: without it WiiStation sits in its menu
 [ -n "$ABOOT" ] || echo "note: no autoboot file given -- the run will stay in the menu"
 if [ -n "$ABOOT" ]; then cp "$ABOOT" "$S/autoboot.txt"; fi
@@ -225,7 +225,7 @@ sleep 3
 
 # --- unstage ----------------------------------------------------------------------------
 # The card belongs to this profile alone, so only the per-run files are taken back off it.
-rm -f "$S/autoinput.txt" "$S/settingsRX2022.cfg" "$S/autoboot.txt"
+rm -f "$S/autoinput.txt" "$S/settings.ini" "$S/autoboot.txt"
 for c in $CARDFILES; do rm -f "$S/$c"; done
 
 # --- collect ----------------------------------------------------------------------------

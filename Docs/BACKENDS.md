@@ -15,7 +15,7 @@ before touching any of them; the traps at the end cost real sessions.
 | Pad | PCSX plugin API (`PAD1_*`, `PAD2_*`) | fixed: `SSS_PAD1_PLUGIN`/`SSS_PAD2_PLUGIN` slots | SSSPSX (`Gamecube/PadSSSPSX.c`); `PadWiiSX.c` keeps the scripted-input parser both use |
 | Host input | `controller_t` (`Gamecube/gc_input/controller.h`) | auto-assign or the `PadType*`/`PadAssign*` settings | GameCube pad, Wiimote variants, Classic, Wii U Pro/GamePad, HID |
 | Menu font | `.dat` glyph files (`Gamecube/libgui/IPLFont.cpp`) | `MenuFont` setting, else per-language file, else built-in `fonts/En.dat` | `fonts/menu/*.dat`, made by `scripts/genfont.py` |
-| Settings | `OPTIONS[]` table in `GamecubeMain.cpp` | `settingsRX2022.cfg` (see `SETTINGS.md`) | one table, integers and quoted strings |
+| Settings | `OPTIONS[]` table in `GamecubeMain.cpp` | `settings.ini` (was settingsRX2022.cfg) (see `SETTINGS.md`) | one table, integers and quoted strings |
 
 ## How each choice is made
 

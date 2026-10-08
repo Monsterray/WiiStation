@@ -110,6 +110,48 @@ int main(void)
 	check("smbpassword = \"\"", "smbpassword", "");
 	check("smbsharename = \"two words\"", "smbsharename", "two words");
 
+	printf("\nLines that hold no setting (config_line), and an indented one that does:\n");
+	{
+		static const char* none[] = { "", "\n", "\r\n", "   \n", "# comment", "; comment",
+			"  ; indented comment", "[WiiStation]", "\t[section]\r\n" };
+		char buf[64];
+		unsigned i;
+		for(i = 0; i < sizeof(none) / sizeof(none[0]); i++) {
+			strcpy(buf, none[i]);
+			if(config_line(buf)) fail(none[i], "read as a setting");
+		}
+		strcpy(buf, "  FPS = 1\n");
+		if(!config_line(buf) || strncmp(config_line(buf), "FPS", 3)) fail("  FPS = 1", "indent not skipped");
+	}
+
+	printf("\nComma-separated lists (config_list_next):\n");
+	{
+		static const struct { const char* in; const char* items[4]; } lists[] = {
+			{ "/wiistation/isos, /roms/psx", { "/wiistation/isos", "/roms/psx" } },
+			{ "  a ,, b ,", { "a", "b" } },
+			{ "", { 0 } },
+			{ " , ", { 0 } },
+			{ "/Games/PS One", { "/Games/PS One" } },
+			{ "sd:/x,usb:/y", { "sd:/x", "usb:/y" } },
+		};
+		unsigned i, k;
+		char out[32];
+		for(i = 0; i < sizeof(lists) / sizeof(lists[0]); i++) {
+			const char* p = lists[i].in;
+			for(k = 0; config_list_next(&p, out, sizeof(out)); k++)
+				if(k >= 4 || !lists[i].items[k] || strcmp(out, lists[i].items[k]))
+					fail(lists[i].in, "wrong item");
+			if(k < 4 && lists[i].items[k])
+				fail(lists[i].in, "item missing");
+		}
+		{   /* an item longer than the buffer is cut, not overrun */
+			const char* p = "abcdefghijklmnopqrstuvwxyz0123456789";
+			char small[8];
+			if(!config_list_next(&p, small, sizeof(small)) || strcmp(small, "abcdefg"))
+				fail("long item", "not cut to the buffer");
+		}
+	}
+
 	printf(failures ? "\n%d failure(s)\n" : "\nall checks passed\n", failures);
 	return failures ? 1 : 0;
 }
