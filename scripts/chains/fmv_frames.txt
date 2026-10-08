@@ -1,5 +1,5 @@
 CHAIN
 # Gex's FMV intro, 15 s, for frame-dump comparisons of the 24-bit present path.
 900
-sd:/wiisxrx/isos/Gex (USA)
+sd:/wiistation/isos/Gex (USA)
 Gex (USA).cue

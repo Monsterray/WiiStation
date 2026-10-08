@@ -27,7 +27,7 @@
 #include <malloc.h>
 #include <network.h>
 #include <ogcsys.h>
-#include <smb.h>
+#include "smb2dev.h"   /* "smb:" over libsmb2: SMB2/3 (libtinysmb spoke only SMB1) */
 #include "../wiiSXconfig.h"
 #include "fileBrowser.h"
 #include "fileBrowser-libfat.h"
@@ -167,14 +167,14 @@ static void* init_network(void *args)
 		 * ask for a new one without a lock. */
 		if(net_initialized && smb_configured()) {
 			if(smb_dropped) {
-				smbClose("smb");
+				smb2dev_unmount();
 				smb_initialized = 0;
 				smb_dropped = 0;
 			}
 			if(!smb_initialized) {
 				netInitPending = 1;
-				smb_initialized = smbInit(&smbUserName[0], &smbPassWord[0],
-				                          &smbShareName[0], &smbIpAddr[0]) ? 1 : 0;
+				smb_initialized = smb2dev_mount(&smbIpAddr[0], &smbShareName[0],
+				                                &smbUserName[0], &smbPassWord[0]) == 0;
 				netInitPending = 0;
 			}
 		}

@@ -1,5 +1,5 @@
 CHAIN
 # the user's Crash Bash session with two pauses and a minigame (2026-10-01)
 7200 sd:/wiistation/crash_short_play.txt PadAutoAssign=1 ControllerType=0 PadType2=1
-sd:/wiisxrx/isos/Crash Bash
+sd:/wiistation/isos/Crash Bash
 Crash Bash [U] [SCUS-94570].cue

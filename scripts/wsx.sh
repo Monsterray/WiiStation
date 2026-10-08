@@ -179,7 +179,7 @@ state)
 		folder=$(sed -n 's/^# folder: //p' "$rf" | tr -d '\r'); cue=$(sed -n 's/^# cue: //p' "$rf" | tr -d '\r')
 		c=$(sed -n 's/^# chain line: .*ControllerType=\([0-9]\).*/\1/p' "$rf" | tr -d '\r'); ct=${c:-$ct}
 	else
-		hit=$(tr -d '\r' < "$REPO/scripts/chains/all.txt" | grep -n '^sd:/wiisxrx/isos/' | grep -i -F -- "$game")
+		hit=$(tr -d '\r' < "$REPO/scripts/chains/all.txt" | grep -n '^sd:/wiistation/isos/' | grep -i -F -- "$game")
 		[ "$(printf '%s' "$hit" | grep -c .)" = 1 ] || { echo "\"$game\" must match one game in scripts/chains/all.txt"; exit 2; }
 		folder=${hit#*:}; cue=$(tr -d '\r' < "$REPO/scripts/chains/all.txt" | sed -n "$(( ${hit%%:*} + 1 ))p")
 	fi

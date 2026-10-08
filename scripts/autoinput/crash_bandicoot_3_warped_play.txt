@@ -1,5 +1,5 @@
 # Crash Bandicoot 3 - Warped: played by hand, recorded 2026-09-22 with scripts/movie_capture.sh
-# folder: sd:/wiisxrx/isos/Crash Bandicoot 3 - Warped
+# folder: sd:/wiistation/isos/Crash Bandicoot 3 - Warped
 # cue: Crash Bandicoot 3 - Warped [U] [SLUS-94244].cue
 # vblanks: 10800
 # build: commit 75b60ac, debug, WiiSXRX_debug.dol, 2026-09-22 20:26:04, sha1 c6edeae85229e5f5b13426fd828649b4fee054d0

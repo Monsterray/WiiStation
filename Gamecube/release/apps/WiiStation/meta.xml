@@ -1,18 +1,20 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
  <app version="2">
    <name>WiiStation</name>
-   <coder>xjsxjs197</coder>
-   <version>5.6.1</version>
-   <release_date>20261007</release_date>
+   <coder>Monty Perrotti</coder>
+   <version>5.7.0</version>
+   <release_date>20261008</release_date>
    <short_description>PSX Emulator for Wii</short_description>
    <long_description>
-WiiStation - A Sony PlayStation 1 emulator for Wii / Wii U, forked from WiiSXRX by NiuuS.
+WiiStation - A Sony PlayStation 1 emulator for Wii / Wii U, by Monty Perrotti.
+Based on WiiSXRX by NiuuS and xjsxjs197, and on WiiSX by the team below.
 Featuring:
 - Lightrec dynamic recompiler, synced to upstream (5.2.0). The interpreter and the old PPC dynarec stay as options.
 - OpenGX hardware renderer (Wii GPU) and two software GPU plugins.
 - CPU or DSP sound output, with rate control (no crackle, no drift).
 - HID (USB) controllers; GameCube, Wiimote, Classic and Classic Pro, NES/SNES Classic Mini, Wii U Pro and Wii U GamePad (WiiVC) controllers.
 - CDDA tracks, CHD v1-v5, BIN/CUE, ISO, IMG and PBP images, CD read-ahead.
+- Games from SD, USB or a network share (SMB2/SMB3), with any folder layout.
 - Save states, memory cards on SD/USB, per-game settings.
 - 240p, 480i, bilinear/trap/deflicker filters, force NTSC.
 - Lightguns (GunCon/Justifier), mouse, multitap for up to 8 players.
@@ -33,6 +35,7 @@ NiuuS
 xjsxjs197
 saulfabregwiivc
 Jokippo
+Monty Perrotti (WiiStation)
    </long_description>
    <ahb_access/>
  </app>

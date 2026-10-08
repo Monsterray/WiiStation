@@ -1,5 +1,5 @@
 README : WiiStation
-Version 5.6.1
+Version 5.7.0
 
 LICENSE:
     This software is licensed under the GNU General Public License v2
@@ -120,8 +120,22 @@ LATER UPDATES BY:
  * xjsxjs197
  * saulfabregwiivc
  * Jokippo
+ * Monty Perrotti (WiiStation)
 
 WiiStation CHANGE LOG:
+Ver 5.7.0 (2026-10-08):
+* Network shares work with current servers: SMB2 and SMB3 through libsmb2,
+  in place of a library that spoke only SMB1 (off by default on Samba 4.11+,
+  Windows 10 and 11). No password length limit; NTLMv2 logins.
+* RomDirSMB: the game folders on the share, as RomDirSD (folders inside the
+  share open like folders on the SD card).
+* Games on the share read in small pieces after a jump and larger ones while
+  they read on, and get no CD read-ahead: the Wii's Wi-Fi gives about
+  350 KB/s. Expect waits in loading screens and videos; CHD images help.
+* A read that fails reconnects to the share once, so a short network drop
+  does not stop the game.
+* "Cannot connect to the share" says the server's reason.
+
 Ver 5.6.1 (2026-10-08):
 * The settings file is wiistation/settings.ini (was settingsRX2022.cfg), and
   a game's own settings are wiistation/settings/<serial>.ini (was .cfg). The

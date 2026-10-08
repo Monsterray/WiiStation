@@ -1,17 +1,17 @@
 CHAIN
 # The user's five recordings (scripts/movie_capture.sh), each with its own chain line: real play.
 7200 sd:/wiistation/final_fantasy_vii_1_play.txt PadAutoAssign=1 ControllerType=0
-sd:/wiisxrx/isos/Final Fantasy VII/Final Fantasy VII 1
+sd:/wiistation/isos/Final Fantasy VII/Final Fantasy VII 1
 Final Fantasy VII [U] [Disc 1] [SLUS-94163].cue
 7200 sd:/wiistation/ape_escape_play.txt PadAutoAssign=1 ControllerType=1
-sd:/wiisxrx/isos/Ape Escape
+sd:/wiistation/isos/Ape Escape
 Ape Escape [U] [SCUS-94423].cue
 10800 sd:/wiistation/crash_bandicoot_3_warped_play.txt PadAutoAssign=1 ControllerType=0
-sd:/wiisxrx/isos/Crash Bandicoot 3 - Warped
+sd:/wiistation/isos/Crash Bandicoot 3 - Warped
 Crash Bandicoot 3 - Warped [U] [SLUS-94244].cue
 7200 sd:/wiistation/crash_bash_play.txt PadAutoAssign=1 ControllerType=0
-sd:/wiisxrx/isos/Crash Bash
+sd:/wiistation/isos/Crash Bash
 Crash Bash [U] [SCUS-94570].cue
 14400 sd:/wiistation/spyro_the_dragon_play.txt PadAutoAssign=1 ControllerType=0
-sd:/wiisxrx/isos/Spyro the Dragon
+sd:/wiistation/isos/Spyro the Dragon
 Spyro the Dragon [NTSC-U] [SCUS-94228].cue

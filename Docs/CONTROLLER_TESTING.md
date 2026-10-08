@@ -178,7 +178,7 @@ it says much less. `psxdev.net` no longer serves it; the Wayback Machine does, a
 `web.archive.org/web/2018/http://psxdev.net/homebrew/files/psxtest.zip`.
 
 PadTest 1.1 and PSXTEST are third-party binaries and not in this repository. Put the bin/cue in
-`wiisxrx/isos/<name>/` on the SD card and point an autoboot file at it.
+`wiistation/isos/<name>/` on the SD card and point an autoboot file at it.
 
 ## 4. Things that did not work, so nobody tries them again
 

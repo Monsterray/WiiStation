@@ -1,4 +1,4 @@
 CHAIN
 500 sd:/wiistation/ff7_dump450.txt
-sd:/wiisxrx/isos/Final Fantasy VII/Final Fantasy VII 1
+sd:/wiistation/isos/Final Fantasy VII/Final Fantasy VII 1
 Final Fantasy VII [U] [Disc 1] [SLUS-94163].cue

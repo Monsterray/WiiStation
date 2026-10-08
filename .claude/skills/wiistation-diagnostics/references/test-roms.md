@@ -6,8 +6,8 @@ compare two versions of a core file on the PC. Every step below cost a run to fi
 ## Running a PS-X EXE
 
 - Put the `.exe` in its own folder on the automated card:
-  `.dolphin/Load/WiiSDSync/wiisxrx/isos/<name>/<file>.exe`. A chain entry is the same as for
-  a game: `VBLANKS [input] KEY=V...` / `sd:/wiisxrx/isos/<name>` / `<file>.exe`.
+  `.dolphin/Load/WiiSDSync/wiistation/isos/<name>/<file>.exe`. A chain entry is the same as for
+  a game: `VBLANKS [input] KEY=V...` / `sd:/wiistation/isos/<name>` / `<file>.exe`.
 - **Lightrec runs EXEs since 2303729.** The EXE path skipped `loadSeparatelySetting()`, which
   makes the CPU core (`psxCpuInit`): Lightrec ran on a NULL state and stopped at the EXE's
   first block (the "Dolphin shuts down 2 s after an EXE" of 2026-09-30). Now an EXE gets the
@@ -119,7 +119,7 @@ of cases whose values and FLAG differ, which registers, and ns per command.
 
 `C:/tools/ps1-tests/` (release build-158, scanned 2026-10-01): `bin/` the EXEs, `ref/` each
 test's `psx.log` -- its console output on a real PlayStation. The EXEs are staged as
-`.dolphin/Load/WiiSDSync/wiisxrx/isos/ps1t_<name>/<name>.exe`.
+`.dolphin/Load/WiiSDSync/wiistation/isos/ps1t_<name>/<name>.exe`.
 - `scripts/wsx.sh chain NAME scripts/chains/ps1tests.txt --dol X` (10 tests x 2400 vblanks,
   about 8 min on Lightrec), then `python scripts/ps1tests_check.py .runs/A [.runs/B]`: per
   test SAME or the lines that differ, matched by label (numbers and hex taken out, spacing

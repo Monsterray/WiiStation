@@ -1,5 +1,5 @@
 CHAIN
 # FF7 New Game from the user's recording: the opening video (green frame, Docs/PARKED_BUGS.md)
 7200 sd:/wiistation/final_fantasy_vii_1_play.txt PadAutoAssign=1 ControllerType=0
-sd:/wiisxrx/isos/Final Fantasy VII/Final Fantasy VII 1
+sd:/wiistation/isos/Final Fantasy VII/Final Fantasy VII 1
 Final Fantasy VII [U] [Disc 1] [SLUS-94163].cue

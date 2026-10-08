@@ -3,14 +3,14 @@ CHAIN
 # FF7 first, after Medievil, and after itself: every FF7 row must match.
 # bash scripts/wsx.sh chain NAME carry.txt --secs 900
 2400
-sd:/wiisxrx/isos/Final Fantasy VII/Final Fantasy VII 1
+sd:/wiistation/isos/Final Fantasy VII/Final Fantasy VII 1
 Final Fantasy VII [U] [Disc 1] [SLUS-94163].cue
 2400
-sd:/wiisxrx/isos/Medievil
+sd:/wiistation/isos/Medievil
 Medievil [U] [SCUS-94227].cue
 2400
-sd:/wiisxrx/isos/Final Fantasy VII/Final Fantasy VII 1
+sd:/wiistation/isos/Final Fantasy VII/Final Fantasy VII 1
 Final Fantasy VII [U] [Disc 1] [SLUS-94163].cue
 2400
-sd:/wiisxrx/isos/Final Fantasy VII/Final Fantasy VII 1
+sd:/wiistation/isos/Final Fantasy VII/Final Fantasy VII 1
 Final Fantasy VII [U] [Disc 1] [SLUS-94163].cue

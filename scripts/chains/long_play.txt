@@ -1,8 +1,8 @@
 CHAIN
 # The user's 10-minute sessions (2026-09-30), one boot: a soak of real play.
 36000 sd:/wiistation/spyro_long_play.txt PadAutoAssign=1 ControllerType=0 PadType2=1
-sd:/wiisxrx/isos/Spyro the Dragon
+sd:/wiistation/isos/Spyro the Dragon
 Spyro the Dragon [NTSC-U] [SCUS-94228].cue
 35835 sd:/wiistation/crash3_long_play.txt PadAutoAssign=1 ControllerType=0 PadType2=1
-sd:/wiisxrx/isos/Crash Bandicoot 3 - Warped
+sd:/wiistation/isos/Crash Bandicoot 3 - Warped
 Crash Bandicoot 3 - Warped [U] [SLUS-94244].cue

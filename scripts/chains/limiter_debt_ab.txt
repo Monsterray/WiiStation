@@ -3,8 +3,8 @@ CHAIN
 # demo enters a world at vblank ~4141 with a compile stall (~180 ms on the Wii). Compare the
 # rate: line (occ_min, sat, debt_max, debt_drops) and the vtl around 4141.
 4400 LimiterDebt=0
-sd:/wiisxrx/isos/Spyro the Dragon
+sd:/wiistation/isos/Spyro the Dragon
 Spyro the Dragon [NTSC-U] [SCUS-94228].cue
 4400 LimiterDebt=1
-sd:/wiisxrx/isos/Spyro the Dragon
+sd:/wiistation/isos/Spyro the Dragon
 Spyro the Dragon [NTSC-U] [SCUS-94228].cue

@@ -31,12 +31,12 @@ run=softgpu_check
 chain="$REPO/.runs/$run.chain.txt"
 # game: vblanks, script (a recording or none), pad type, folder, cue
 games=(
-	"2400|spyro_the_dragon_play|0|sd:/wiisxrx/isos/Spyro the Dragon|Spyro the Dragon [NTSC-U] [SCUS-94228].cue"
-	"3000|crash_bandicoot_3_warped_play|0|sd:/wiisxrx/isos/Crash Bandicoot 3 - Warped|Crash Bandicoot 3 - Warped [U] [SLUS-94244].cue"
-	"2400|crash_bash_play|0|sd:/wiisxrx/isos/Crash Bash|Crash Bash [U] [SCUS-94570].cue"
-	"3600|ape_escape_play|1|sd:/wiisxrx/isos/Ape Escape|Ape Escape [U] [SCUS-94423].cue"
-	"1500||0|sd:/wiisxrx/isos/Final Fantasy VII/Final Fantasy VII 1|Final Fantasy VII [U] [Disc 1] [SLUS-94163].cue"
-	"1500||0|sd:/wiisxrx/isos/Gex (USA)|Gex (USA).cue"
+	"2400|spyro_the_dragon_play|0|sd:/wiistation/isos/Spyro the Dragon|Spyro the Dragon [NTSC-U] [SCUS-94228].cue"
+	"3000|crash_bandicoot_3_warped_play|0|sd:/wiistation/isos/Crash Bandicoot 3 - Warped|Crash Bandicoot 3 - Warped [U] [SLUS-94244].cue"
+	"2400|crash_bash_play|0|sd:/wiistation/isos/Crash Bash|Crash Bash [U] [SCUS-94570].cue"
+	"3600|ape_escape_play|1|sd:/wiistation/isos/Ape Escape|Ape Escape [U] [SCUS-94423].cue"
+	"1500||0|sd:/wiistation/isos/Final Fantasy VII/Final Fantasy VII 1|Final Fantasy VII [U] [Disc 1] [SLUS-94163].cue"
+	"1500||0|sd:/wiistation/isos/Gex (USA)|Gex (USA).cue"
 )
 echo CHAIN > "$chain"
 made=()

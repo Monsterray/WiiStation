@@ -15,13 +15,14 @@ The Wii must be sitting in the Homebrew Channel. This script:
   5. prints the chain table and waits until HBC answers again, ready for the next test.
 
 A chain file is the same as for `wsx.sh chain` (scripts/chains/). The games must be on the
-Wii's card under sd:/wiisxrx/isos/ (or sent once with --send-isos: slow over Wi-Fi).
+Wii's card under sd:/wiistation/isos/ (or sent once with --send-isos: slow over Wi-Fi).
 A crash returns to HBC after 10 s with no results: the script says so and exits 3.
 Windows asks once to let python accept connections on the port.
 """
 import argparse
 import os
 import pathlib
+import re
 import shutil
 import socket
 import struct
@@ -31,7 +32,7 @@ import time
 import zlib
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
-SHARED = pathlib.Path("C:/tools/Dolphin-x64/User/Load/WiiSDSync/wiisxrx")   # the user's games, for --send-isos
+SHARED = pathlib.Path("C:/tools/Dolphin-x64/User/Load/WiiSDSync/wiistation")   # the user's games, for --send-isos
 BASE_SETTINGS = "gpuPlugin = 2\nFPS = 1\nPadType1 = 1\nPadAutoAssign = 0\n"
 RESULTS = ["perf.log", "vramio.log", "ptrace.log", "atrace.log", "lab.log",
            "xfb.bin", "vram.bin"]   # a "dump <vblank>": the TV picture and VRAM then
@@ -102,8 +103,8 @@ def chain_files(chain):
     scripts, folders, games = [], [], 0
     lines = [l.strip() for l in chain.read_text().splitlines()]
     for l in lines:
-        if l.startswith("sd:/wiisxrx/isos/"):
-            folders.append(l[len("sd:/wiisxrx/isos/"):])
+        if l.startswith("sd:/wiistation/isos/"):
+            folders.append(l[len("sd:/wiistation/isos/"):])
             games += 1
         for w in l.split():
             if w.startswith("sd:/wiistation/") and w.endswith(".txt") and "/isos/" not in w:
@@ -119,6 +120,9 @@ def main():
     ap.add_argument("--port", type=int, default=4300)
     ap.add_argument("--dol", default="debug")
     ap.add_argument("--set", default="")
+    ap.add_argument("--smb-from", type=pathlib.Path, default=None,
+                    help="a settings.ini with the SMB share login: its smb* and RomDir* lines go to the "
+                         "Wii's settings, unread and unprinted (not into run.info)")
     ap.add_argument("--send-isos", action="store_true")
     ap.add_argument("--timeout", type=int, default=1800, help="seconds for the whole chain")
     a = ap.parse_args()
@@ -133,7 +137,13 @@ def main():
     scripts, folders, games = chain_files(a.chain)
     settings = BASE_SETTINGS + "".join(
         f"{k.strip()} = {v.strip()}\n" for k, v in (kv.split("=", 1) for kv in a.set.split(",") if "=" in kv))
-    puts = [("autoboot.txt", a.chain.read_bytes()), ("settings.ini", settings.encode()),
+    # the share login: only into what the Wii gets, never into `settings` (run.info prints it)
+    share = ""
+    if a.smb_from:
+        share = "".join(l if l.endswith("\n") else l + "\n"
+                        for l in a.smb_from.read_text(encoding="utf-8").splitlines(True)
+                        if re.match(r"\s*(smb[A-Za-z]+|RomDir[A-Za-z]+)\s*=", l))
+    puts = [("autoboot.txt", a.chain.read_bytes()), ("settings.ini", (settings + share).encode()),
             ("autoinput.txt", b"")]
     for f in scripts:
         p = REPO / "scripts/autoinput" / f

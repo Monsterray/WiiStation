@@ -171,7 +171,7 @@ def write_chain(path, cells):
     with open(path, 'w', newline='\n') as f:
         f.write('CHAIN\n# PadTest DX controller matrix (scripts/padtest_dx.py chain)\n')
         for c in cells:
-            f.write('# %s\n%d sd:/wiistation/%s %s\nsd:/wiisxrx/isos/PadTestDX\npadtest.cue\n'
+            f.write('# %s\n%d sd:/wiistation/%s %s\nsd:/wiistation/isos/PadTestDX\npadtest.cue\n'
                     % (c['name'], cell_vblanks(c), cell_script(c), ' '.join(settings(c))))
 
 

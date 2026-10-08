@@ -59,7 +59,7 @@ while [ $# -gt 0 ]; do
 	esac
 done
 
-games() { tr -d '\r' < "$ALL" | grep -n '^sd:/wiisxrx/isos/'; }
+games() { tr -d '\r' < "$ALL" | grep -n '^sd:/wiistation/isos/'; }
 
 if [ -n "$play" ]; then
 	script="$REPO/scripts/autoinput/${play}_play.txt"
@@ -85,10 +85,10 @@ if [ -n "$play" ]; then
 		echo "      To replay it exactly, build that commit and pass the DOL with --dol."
 	fi
 else
-	[ -n "$game" ] || { echo "usage: movie_capture.sh GAME [NAME] [--mins M]   games:"; games | sed 's|^[0-9]*:sd:/wiisxrx/isos/|  |'; exit 2; }
+	[ -n "$game" ] || { echo "usage: movie_capture.sh GAME [NAME] [--mins M]   games:"; games | sed 's|^[0-9]*:sd:/wiistation/isos/|  |'; exit 2; }
 	hit=$(games | grep -i -F -- "$game")
 	if [ "$(printf '%s' "$hit" | grep -c .)" != 1 ]; then
-		echo "\"$game\" matches $(printf '%s' "$hit" | grep -c .) games in all.txt; one of:"; games | sed 's|^[0-9]*:sd:/wiisxrx/isos/|  |'; exit 2
+		echo "\"$game\" matches $(printf '%s' "$hit" | grep -c .) games in all.txt; one of:"; games | sed 's|^[0-9]*:sd:/wiistation/isos/|  |'; exit 2
 	fi
 	ln=${hit%%:*}; folder=${hit#*:}
 	cue=$(tr -d '\r' < "$ALL" | sed -n "$((ln + 1))p")

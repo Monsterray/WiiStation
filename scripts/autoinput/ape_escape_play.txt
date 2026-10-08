@@ -1,5 +1,5 @@
 # Ape Escape: played by hand, recorded 2026-09-27 11:04:23 with scripts/movie_capture.sh
-# folder: sd:/wiisxrx/isos/Ape Escape
+# folder: sd:/wiistation/isos/Ape Escape
 # cue: Ape Escape [U] [SCUS-94423].cue
 # vblanks: 7200
 # build: commit 1da326f+dirty, debug, WiiSXRX_debug.dol, 2026-09-27 09:04:50, sha1 66f2f3eda87e9281c05f9970b13ae30666f5a2b6

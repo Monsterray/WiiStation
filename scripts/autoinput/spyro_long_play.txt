@@ -1,5 +1,5 @@
 # Spyro the Dragon: played by hand, recorded 2026-09-30 19:08:23 with scripts/movie_capture.sh
-# folder: sd:/wiisxrx/isos/Spyro the Dragon
+# folder: sd:/wiistation/isos/Spyro the Dragon
 # cue: Spyro the Dragon [NTSC-U] [SCUS-94228].cue
 # vblanks: 36000
 # build: commit b845648, debug, WiiSXRX_debug.dol, 2026-09-30 18:39:22, sha1 e47a105404d79828ef875ffe35632c4f8be09f4d

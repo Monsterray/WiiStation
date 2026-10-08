@@ -27,6 +27,8 @@
 #                         "all" for every one. The game the autoboot file names is always
 #                         copied; this is for a run that browses to another one.
 #          DOLPHIN_ARGS   extra arguments appended verbatim, e.g. "-C Graphics.Settings.OverlayStats=True"
+#          SMB_FROM=FILE  add the smb* / RomDirSMB lines of FILE (a settings.ini with the
+#                         share login) to the run's settings, unread and unprinted
 #          CARDS=1        put your own memory cards (the shared card's saves/*.mcd) on the
 #                         test card. Default: none, so every game starts from a fresh card
 #                         and a run does not change when you save a game in your own window
@@ -74,13 +76,11 @@ DOL="${DOL:-$REPO/Gamecube/WiiSXRX_debug.dol}"
 
 # This run's own user directory, and the shared folder the user drops games into.
 PROFILE="${WSX_PROFILE:-$REPO/.dolphin}"
-SHARED="$D/User/Load/WiiSDSync/wiisxrx"        # the user's games (isos/), and BIOS/fonts/saves
-SHARED_NEW="$D/User/Load/WiiSDSync/wiistation"  # WiiStation's own folder since 5.6.0, preferred
+SHARED="$D/User/Load/WiiSDSync/wiistation"     # the user's games (isos/), BIOS, fonts and saves
 P="$D/User/Load/WiiSDSync_paused_by_claude"
 S="$PROFILE/Load/WiiSDSync/wiistation"
-# The games stay in the old folder, on this card as on the bench Wii's (it cannot be renamed
-# over the network): chain files name sd:/wiisxrx/isos/<game>, a ROM folder like any other.
-ISOS="$PROFILE/Load/WiiSDSync/wiisxrx/isos"
+# The games, as on the bench Wii's card: chain files name sd:/wiistation/isos/<game>.
+ISOS="$S/isos"
 mkdir -p "$S" "$PROFILE/Logs" "$PROFILE/Load"
 PROFILE_WIN=$(cd "$PROFILE" && pwd -W | tr '/' '\\')
 
@@ -156,7 +156,7 @@ CFGARGS=(
 # --- put the card together --------------------------------------------------------------
 # Small and always needed: the BIOS, the menu fonts and the memory cards.
 for dir in bios fonts saves; do
-  src="$SHARED_NEW/$dir"; [ -d "$src" ] || src="$SHARED/$dir"
+  src="$SHARED/$dir"
   [ -d "$src" ] || continue
   mkdir -p "$S/$dir"
   cp -ru "$src/." "$S/$dir/" 2>/dev/null || true
@@ -168,7 +168,7 @@ done
 # line of the autoboot file that is a folder on the card -- one for a single game, one per game
 # for a chain.
 want_isos() {
-  [ -n "$ABOOT" ] && tr -d '\r' < "$ABOOT" 2>/dev/null | sed -n 's|^sd:/wiisxrx/isos/||p'
+  [ -n "$ABOOT" ] && tr -d '\r' < "$ABOOT" 2>/dev/null | sed -n 's|^sd:/wiistation/isos/||p'
   case "${WSX_ISOS:-}" in
     "")    ;;
     all)   ls "$SHARED/isos" 2>/dev/null ;;
@@ -193,6 +193,10 @@ rm -rf "$PROFILE/Dump/Frames" "$PROFILE/Dump/Audio"
 # its trace fired read the previous run's ptrace.log)
 rm -f "$S/perf.log" "$S/tty.log" "$S/ptrace.log" "$S/vramio.log" "$S/atrace.log" "$S/lab.log" "$S/pcring.log" "$S/xfb.bin" "$S/"vram_*.bin "$S/"vtl_*.bin "$S/"hprof_*.bin "$S/"vsig_*.bin
 cp "${AIN:-$P/autoinput.txt}" "$S/autoinput.txt"; cp "${SET:-$P/settingsRX2022.cfg}" "$S/settings.ini"
+# SMB_FROM=<settings.ini>: the share settings (smb* and RomDirSMB lines) of the user's own
+# file, appended unread and unprinted -- the password stays out of logs and run folders; the
+# staged settings.ini is removed after the run like the rest.
+[ -n "${SMB_FROM:-}" ] && { echo >> "$S/settings.ini"; grep -E '^[[:space:]]*(smb[A-Za-z]+|RomDirSMB)[[:space:]]*=' "$SMB_FROM" >> "$S/settings.ini"; echo "share settings: from $SMB_FROM"; }
 # autoboot: without it WiiStation sits in its menu
 [ -n "$ABOOT" ] || echo "note: no autoboot file given -- the run will stay in the menu"
 if [ -n "$ABOOT" ]; then cp "$ABOOT" "$S/autoboot.txt"; fi

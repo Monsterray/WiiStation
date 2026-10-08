@@ -186,7 +186,7 @@ char smbIpAddr[CONFIG_STRING_SIZE];
  * list of folders on that device ("/wiistation/isos, /roms/psx"). FAT has no links, so this
  * is how games kept outside /wiistation (a shared ROMs folder) are reached.
  * FileBrowserFrame.cpp opens them. */
-char romDirSD[CONFIG_STRING_SIZE], romDirUSB[CONFIG_STRING_SIZE];
+char romDirSD[CONFIG_STRING_SIZE], romDirUSB[CONFIG_STRING_SIZE], romDirSMB[CONFIG_STRING_SIZE];
 char menuFont[CONFIG_STRING_SIZE];   /* MenuFont = "Name": sd:/wiistation/fonts/Name.dat replaces the built-in menu font */
 
 int stop = 0;
@@ -358,7 +358,8 @@ static struct {
   { "smbipaddr", smbIpAddr, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "smbsharename", smbShareName, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "smbusername", smbUserName, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
-  { "smbpassword", smbPassWord, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE }
+  { "smbpassword", smbPassWord, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
+  { "RomDirSMB", romDirSMB, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE }
 };
 void handleConfigPair(char* kv);
 void readConfig(FILE* f);
@@ -533,6 +534,7 @@ void loadSettings(int argc, char *argv[])
 	menuFont[0]		 = 0;              // built-in font
 	strcpy(romDirSD, "/wiistation/isos");
 	strcpy(romDirUSB, "/wiistation/isos");
+	romDirSMB[0] = 0;   /* the top of the share */
 	for (int i = 0; i < 10; i++){
 		padType[i]		 = PADTYPE_NONE;
 		padAssign[i]	 = PADASSIGN_INPUT0;
@@ -983,6 +985,14 @@ int main(int argc, char *argv[])
 			net_deinit();
 			fatUnmount("sd");
 			exit(0);
+		}
+		/* loadSettings() above read the last run's settings.ini; this run's came with the
+		 * files. Games read it again when they load, but what is decided before that -- the
+		 * share (init_network_thread below) -- needs it now. */
+		FILE *lf = fopen("sd:/wiistation/settings.ini", "r");
+		if (lf) {
+			readConfig(lf);
+			fclose(lf);
 		}
 	}
 

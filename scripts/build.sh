@@ -125,26 +125,26 @@ case "${1:-debug}" in
 		# PROBE_DEFINES reaches the profiling OpenGX library too: its per-draw probes are
 		# gated like the plugin's, and a library built with other gates than the plugin
 		# reads state the plugin never writes.
-		make opengx.a lightrecWithLog.a lightning.a zstd.a lzma.a zlibstatic.a chdrstatic.a hbcagent.a PROBE_DEFINES="$PROBE_DEFINES"
+		make opengx.a lightrecWithLog.a lightning.a zstd.a lzma.a zlibstatic.a chdrstatic.a hbcagent.a smb2.a PROBE_DEFINES="$PROBE_DEFINES"
 		relink_if_deps_newer Gamecube/WiiSXRX_debug.elf
 		make -C Gamecube -f Makefile_Wii EXTRA_CFLAGS="$PROBE_DEFINES"
 		mkdir -p Gamecube/build_debug && printf '%s' "$PROBE_DEFINES" > "$PROBE_STAMP"
 		echo "Output: Gamecube/WiiSXRX_debug.dol"
 		;;
 	debug-warn)
-		make opengx.a lightrecWithLog.a lightning.a zstd.a lzma.a zlibstatic.a chdrstatic.a hbcagent.a
+		make opengx.a lightrecWithLog.a lightning.a zstd.a lzma.a zlibstatic.a chdrstatic.a hbcagent.a smb2.a
 		relink_if_deps_newer Gamecube/WiiSXRX_debug.elf
 		make -C Gamecube -f Makefile_Wii WARN=1
 		echo "Output: Gamecube/WiiSXRX_debug.dol"
 		;;
 	release)
-		make opengx.a lightrecNoLog.a lightning.a zstd.a lzma.a zlibstatic.a chdrstatic.a hbcagent.a
+		make opengx.a lightrecNoLog.a lightning.a zstd.a lzma.a zlibstatic.a chdrstatic.a hbcagent.a smb2.a
 		relink_if_deps_newer Gamecube/WiiSXRX_Release.elf
 		make -C Gamecube -f Makefile_Wii_Release
 		echo "Output: Gamecube/WiiSXRX_Release.dol"
 		;;
 	release-warn)
-		make opengx.a lightrecNoLog.a lightning.a zstd.a lzma.a zlibstatic.a chdrstatic.a hbcagent.a
+		make opengx.a lightrecNoLog.a lightning.a zstd.a lzma.a zlibstatic.a chdrstatic.a hbcagent.a smb2.a
 		relink_if_deps_newer Gamecube/WiiSXRX_Release.elf
 		make -C Gamecube -f Makefile_Wii_Release WARN=1
 		echo "Output: Gamecube/WiiSXRX_Release.dol"

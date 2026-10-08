@@ -1,5 +1,5 @@
 CHAIN
 # Spyro to vblank 600 (the title), read-ahead on: game 1 of thread_check.txt alone.
 600 CdPrefetch=1
-sd:/wiisxrx/isos/Spyro the Dragon
+sd:/wiistation/isos/Spyro the Dragon
 Spyro the Dragon [NTSC-U] [SCUS-94228].cue

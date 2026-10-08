@@ -28,7 +28,7 @@ while [ $# -gt 0 ]; do
 	shift
 done
 name=padtest_dx
-card="${WSX_PROFILE:-$REPO/.dolphin}/Load/WiiSDSync/wiisxrx/isos/PadTestDX"
+card="${WSX_PROFILE:-$REPO/.dolphin}/Load/WiiSDSync/wiistation/isos/PadTestDX"
 mkdir -p "$card" "$RUNS"
 cp "$rom/padtest.bin" "$rom/padtest.cue" "$card/"
 chain="$RUNS/$name.chain.txt"

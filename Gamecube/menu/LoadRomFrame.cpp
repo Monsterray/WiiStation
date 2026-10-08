@@ -31,6 +31,7 @@ extern "C" {
 #include "../fileBrowser/fileBrowser.h"
 #include "../fileBrowser/fileBrowser-libfat.h"
 #include "../fileBrowser/fileBrowser-SMB.h"
+#include "../fileBrowser/smb2dev.h"
 #include "../fileBrowser/fileBrowser-DVD.h"
 #include "../fileBrowser/fileBrowser-CARD.h"
 }
@@ -216,8 +217,17 @@ void Func_LoadFromSamba()
 	// Make sure the romFile system is ready before we browse the filesystem
 	isoFile_init( isoFile_topLevel );
 	
+	if(Autoboot)
+	{   /* autoboot.txt / a chain naming smb:/...: MenuContext::Autoboot waited for the share */
+		snprintf(isoFile_topLevel->name, sizeof(isoFile_topLevel->name), "%s", AutobootPath);
+		fileBrowserFrame_OpenDirectory(isoFile_topLevel);
+		return;
+	}
 	pMenuContext->setActiveFrame(MenuContext::FRAME_FILEBROWSER,loadRomMode);
-	fileBrowserFrame_OpenDirectory(isoFile_topLevel);
+	if (smb2dev_mounted())
+		fileBrowserFrame_OpenRomFolders(isoFile_topLevel, "smb:");   /* RomDirSMB */
+	else
+		fileBrowserFrame_OpenDirectory(isoFile_topLevel);   /* says why: settings, network, share */
 #else
 	menu::MessageBox::getInstance().setMessage("Available only for Wii");
 #endif

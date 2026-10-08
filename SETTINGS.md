@@ -208,16 +208,27 @@ A USB HID controller needs a configuration file in the Nintendont format. The fi
 
 ## 7. Network settings
 
-WiiStation can read games from a Windows network share (SMB). These keys are text values. They are not in the menu.
+WiiStation can read games from a network share (SMB2 or SMB3: a Samba server, a NAS or a
+Windows shared folder, as they are set up by default). Since 5.7.0 it uses libsmb2
+(`deps/libsmb2`); the library before it spoke only SMB1 and NTLMv1, which current servers
+turn off. These keys are text values. They are not in the menu.
 
 | Key | Value | Default | Effect |
 |---|---|---|---|
+| `smbipaddr` | `"192.168.1.10"` | empty | The IP address of the server. |
+| `smbsharename` | `"share"` | empty | The name of the share. |
 | `smbusername` | `"name"` | empty | The user name of the share. |
 | `smbpassword` | `"password"` | empty | The password of the share. |
-| `smbsharename` | `"share"` | empty | The name of the share. |
-| `smbipaddr` | `"192.168.1.10"` | empty | The IP address of the server. |
+| `RomDirSMB` | `"folder, folder, ..."` | empty (the top of the share) | The game folders on the share, as `RomDirSD`: `RomDirSMB = "/Games/PSX/ROMs"`. Load from Samba opens it, or lists several to choose from. Folders inside the share open like folders on the SD card. |
 
 WiiStation starts the network only when `smbsharename` and `smbipaddr` are both set.
+
+**Speed.** The Wii's Wi-Fi delivers about 350 KB/s (the bench Wii, 2026-10-08): IOS hands
+over about one network packet per call. A game reads its disc at up to 300 KB/s, so a game
+that streams a lot (loading screens, video) waits for the network now and then; a game
+from the SD card does not. WiiStation fetches as little as it can (small reads after a
+jump, larger ones while a game reads on), and starts no CD read-ahead for a game on the
+share. Compressed images (CHD) send less data, so they load faster over the network.
 
 **The password is not encrypted.** WiiStation writes it back to the settings file as
 plain text when you save the settings from the menu. Use an account that can read the
@@ -231,14 +242,15 @@ seconds after the menu opens, so the first time you open **Load from Samba** you
 The thread stops while a game runs, and starts again when you go back to the menu.
 
 If the share goes away, the next directory you open fails and the thread makes a new
-connection. You do not have to restart WiiStation.
+connection. You do not have to restart WiiStation. A game that is running reconnects by
+itself, once, when a read fails.
 
 | Message | What it means |
 |---|---|
 | `SMB is not configured` | `smbsharename` or `smbipaddr` is empty. |
 | `Still connecting to the network` | The interface does not have an address yet. |
 | `Still connecting to the share` | The interface is up and the share is being opened. |
-| `Cannot connect to the share` | The address, the share name or the account is wrong. |
+| `Cannot connect to the share` | The address, the share name or the account is wrong. The next line gives the server's reason. |
 
 ## 8. File browser settings
 

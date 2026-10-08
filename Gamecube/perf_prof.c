@@ -17,6 +17,7 @@
 #include "lc.h"
 #include "gc_input/controller.h"   /* the ports report below */
 #include "../mem2_manager.h"
+#include "fileBrowser/smb2dev.h"   /* the smb: line */
 #include "../psxcommon.h"
 #include "../r3000a.h"      /* psxRegs, for perf_state_log */
 #include "MEM2.h"   /* NEW_MEM2_LO, LIGHTREC_CODE_SIZE: the mem2map: line */
@@ -1160,6 +1161,19 @@ void perf_report(void)
 			(unsigned long)g_perf.sd_rd_hist[2], (unsigned long)g_perf.sd_rd_hist[3],
 			(unsigned long)g_perf.sd_rd_hist[4], (unsigned long)g_perf.sd_wr, g_perf.sd_wr_sec,
 			g_perf.sd_wr_us, (unsigned long)g_perf.sd_wr_worst_us);
+		{   /* the share (fileBrowser/smb2dev.c): this game's part of the running totals */
+			static smb2dev_stats_t last;
+			smb2dev_stats_t now;
+			smb2dev_stats(&now);
+			fprintf(f, "smb: req=%u bytes=%llu us=%llu hits=%u reconnects=%u polls=%u poll_us=%llu"
+				" recvs=%u recv_us=%llu recv_bytes=%llu sends=%u send_us=%llu last_error=\"%s\"\n",
+				now.requests - last.requests, now.bytes - last.bytes, now.us - last.us,
+				now.cache_hits - last.cache_hits, now.reconnects - last.reconnects,
+				now.polls - last.polls, now.poll_us - last.poll_us, now.recvs - last.recvs,
+				now.recv_us - last.recv_us, now.recv_bytes - last.recv_bytes,
+				now.sends - last.sends, now.send_us - last.send_us, smb2dev_error());
+			last = now;
+		}
 		fprintf(f, "tvmode: calls=%lu w=%lu h=%lu range=%lu-%lu height=%lu double=%lu\n",
 			(unsigned long)g_perf.tv_calls, (unsigned long)g_perf.tv_w, (unsigned long)g_perf.tv_h,
 			(unsigned long)g_perf.tv_y0, (unsigned long)g_perf.tv_y1,

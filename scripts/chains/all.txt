@@ -7,45 +7,45 @@ CHAIN
 # run untouched -- a title screen, an attract demo or an intro FMV.
 
 3600 sd:/wiistation/spyro_title.txt
-sd:/wiisxrx/isos/Spyro the Dragon
+sd:/wiistation/isos/Spyro the Dragon
 Spyro the Dragon [NTSC-U] [SCUS-94228].cue
 
 3600
-sd:/wiisxrx/isos/Crash Bandicoot 3 - Warped
+sd:/wiistation/isos/Crash Bandicoot 3 - Warped
 Crash Bandicoot 3 - Warped [U] [SLUS-94244].cue
 
 3600
-sd:/wiisxrx/isos/Crash Team Racing
+sd:/wiistation/isos/Crash Team Racing
 Crash Team Racing [U] [SCUS-94426].cue
 
 3600
-sd:/wiisxrx/isos/Crash Bash
+sd:/wiistation/isos/Crash Bash
 Crash Bash [U] [SCUS-94570].cue
 
 3600
-sd:/wiisxrx/isos/Ape Escape
+sd:/wiistation/isos/Ape Escape
 Ape Escape [U] [SCUS-94423].cue
 
 3600
-sd:/wiisxrx/isos/Medievil
+sd:/wiistation/isos/Medievil
 Medievil [U] [SCUS-94227].cue
 
 3600
-sd:/wiisxrx/isos/Final Fantasy VII/Final Fantasy VII 1
+sd:/wiistation/isos/Final Fantasy VII/Final Fantasy VII 1
 Final Fantasy VII [U] [Disc 1] [SLUS-94163].cue
 
 3600
-sd:/wiisxrx/isos/Gex (USA)
+sd:/wiistation/isos/Gex (USA)
 Gex (USA).cue
 
 3600
-sd:/wiisxrx/isos/Frogger (USA)
+sd:/wiistation/isos/Frogger (USA)
 Frogger (USA).cue
 
 3600
-sd:/wiisxrx/isos/Micro Machines V3 (USA)
+sd:/wiistation/isos/Micro Machines V3 (USA)
 Micro Machines V3 (USA).cue
 
 3600
-sd:/wiisxrx/isos/Point Blank (USA)
+sd:/wiistation/isos/Point Blank (USA)
 Point Blank (USA).cue

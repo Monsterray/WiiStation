@@ -18,6 +18,7 @@
  *
 **/
 
+#include <unistd.h>   /* usleep: the wait for the share */
 #include "MenuContext.h"
 #include "MenuLayout.h"
 #include "../perf_prof.h"
@@ -27,6 +28,8 @@
 extern bool AutobootBios;      /* GamecubeMain.cpp: autoboot.txt said "BIOS" */
 void Func_ExecuteBios();       /* SettingsFrame.cpp */
 void Func_LoadFromSD();        /* LoadRomFrame.cpp */
+void Func_LoadFromSamba();     /* LoadRomFrame.cpp */
+#include "../fileBrowser/smb2dev.h"
 extern "C" void glResetCacheRegion(void);
 extern int backFromMenu;
 extern char originalMode;
@@ -114,6 +117,8 @@ extern "C" {
 	void SettingsFrame_ScriptClick(int button);
 }
 
+static int smbPageWait;   /* menupage 71: frames left to wait for the share */
+
 bool MenuContext::isRunning()
 {
 	bool isRunning = true;
@@ -151,7 +156,16 @@ bool MenuContext::isRunning()
 				setActiveFrame(FRAME_CONFIGUREBUTTONS, (int)autoinput_menupage - 40);   /* Configure Buttons, by virtual controller */
 			else if (autoinput_menupage == 70)
 				Func_LoadFromSD();   /* Load ROM > Load from SD: the RomDir folders */
+			else if (autoinput_menupage == 71)
+				smbPageWait = 60 * 30;   /* Load from SMB, once the share is mounted (below) */
 		}
+	}
+
+	/* menupage 71: the share mounts a few seconds after the menu comes up (network, then
+	 * the SMB session), so wait for it -- at most 30 s -- then open Load from SMB. */
+	if (smbPageWait > 0 && (smb2dev_mounted() || --smbPageWait == 0)) {
+		smbPageWait = 0;
+		Func_LoadFromSamba();
 	}
 
 	/* Ten frames after that, press what the script asked for: late enough that the page
@@ -292,6 +306,13 @@ void MenuContext::Autoboot()
 	}
 	if(strcasestr(AutobootPath,"sd:/") != NULL)
 		Func_LoadFromSD();
+	else if(strcasestr(AutobootPath,"smb:/") != NULL)
+	{
+		/* a game on the share: wait for the network thread to mount it, at most 30 s */
+		for (int i = 0; i < 300 && !smb2dev_mounted(); i++)
+			usleep(100 * 1000);
+		Func_LoadFromSamba();
+	}
 	else
 		Func_LoadFromUSB();
 

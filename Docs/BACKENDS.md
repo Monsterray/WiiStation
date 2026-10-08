@@ -15,7 +15,24 @@ before touching any of them; the traps at the end cost real sessions.
 | Pad | PCSX plugin API (`PAD1_*`, `PAD2_*`) | fixed: `SSS_PAD1_PLUGIN`/`SSS_PAD2_PLUGIN` slots | SSSPSX (`Gamecube/PadSSSPSX.c`); `PadWiiSX.c` keeps the scripted-input parser both use |
 | Host input | `controller_t` (`Gamecube/gc_input/controller.h`) | auto-assign or the `PadType*`/`PadAssign*` settings | GameCube pad, Wiimote variants, Classic, Wii U Pro/GamePad, HID |
 | Menu font | `.dat` glyph files (`Gamecube/libgui/IPLFont.cpp`) | `MenuFont` setting, else per-language file, else built-in `fonts/En.dat` | `fonts/menu/*.dat`, made by `scripts/genfont.py` |
+| Network share | newlib device `smb:` (`Gamecube/fileBrowser/smb2dev.c`) | `smbipaddr`/`smbsharename` settings; mounted by the network thread (`fileBrowser-SMB.c`) | libsmb2 v6.0.0 (`deps/libsmb2`, SMB2/3), built by `deps/libsmb2/Makefile.wiistation`; patches below |
 | Settings | `OPTIONS[]` table in `GamecubeMain.cpp` | `settings.ini` (was settingsRX2022.cfg) (see `SETTINGS.md`) | one table, integers and quoted strings |
+
+## libsmb2 patches (deps/libsmb2)
+
+The tarball of tag v6.0.0, unpacked, with these changes (each marked `WiiStation patch`). An
+update must keep them: libsmb2's own Wii port had never run.
+
+- `include/portable-endian.h`: the Wii, GameCube and Wii U use the big-endian branch (they
+  were in the little-endian list, so every SMB field went out byte-swapped).
+- `lib/compat.h`, `lib/compat.c`: every socket call goes through a wrapper with POSIX
+  results (libogc's `net_*` return -errno; its sockets are IOS handles, not newlib file
+  descriptors, so `close`/`fcntl`/`read`/`write` on them did nothing). `connect` blocks
+  (IOS has no `getsockopt(SO_ERROR)`); `poll` calls `net_poll` directly; `readv` reads
+  straight into the caller's buffers, at most 4 KB per call (libogc copies each through
+  its 64 KB network heap, and a 128 KB read failed there with -22), and drains while IOS
+  has data. Counters for the perf report (`smb2_wii_count`).
+- `lib/sync.c`: the poll error says its errno.
 
 ## How each choice is made
 

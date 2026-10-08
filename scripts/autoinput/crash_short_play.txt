@@ -1,5 +1,5 @@
 # Crash Bash: played by hand, recorded 2026-10-01 23:46:55 with scripts/movie_capture.sh
-# folder: sd:/wiisxrx/isos/Crash Bash
+# folder: sd:/wiistation/isos/Crash Bash
 # cue: Crash Bash [U] [SCUS-94570].cue
 # vblanks: 7200
 # build: commit fcb9917, debug, WiiSXRX_debug.dol, 2026-10-01 20:29:09, sha1 ecee165aef00211fc3c7063a068c13cf6762b860

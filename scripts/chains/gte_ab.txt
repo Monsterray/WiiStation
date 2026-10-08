@@ -2,14 +2,14 @@ CHAIN
 # GTE-heavy games, for an A/B of two builds that differ only in gte.c (one job per DOL).
 # python scripts/wii_lab.py NAME scripts/chains/gte_ab.txt --dol A.dol
 3600 sd:/wiistation/spyro_title.txt
-sd:/wiisxrx/isos/Spyro the Dragon
+sd:/wiistation/isos/Spyro the Dragon
 Spyro the Dragon [NTSC-U] [SCUS-94228].cue
 3600
-sd:/wiisxrx/isos/Crash Bandicoot 3 - Warped
+sd:/wiistation/isos/Crash Bandicoot 3 - Warped
 Crash Bandicoot 3 - Warped [U] [SLUS-94244].cue
 3600
-sd:/wiisxrx/isos/Crash Team Racing
+sd:/wiistation/isos/Crash Team Racing
 Crash Team Racing [U] [SCUS-94426].cue
 3600
-sd:/wiisxrx/isos/Crash Bash
+sd:/wiistation/isos/Crash Bash
 Crash Bash [U] [SCUS-94570].cue

@@ -2,14 +2,14 @@ CHAIN
 # Spyro to vblank 600 four times in one boot: twice with the CD read-ahead thread, twice
 # without. Same lines must give the same perf.log "state:" (guest RAM and VRAM hashes).
 600 CdPrefetch=1
-sd:/wiisxrx/isos/Spyro the Dragon
+sd:/wiistation/isos/Spyro the Dragon
 Spyro the Dragon [NTSC-U] [SCUS-94228].cue
 600 CdPrefetch=1
-sd:/wiisxrx/isos/Spyro the Dragon
+sd:/wiistation/isos/Spyro the Dragon
 Spyro the Dragon [NTSC-U] [SCUS-94228].cue
 600 CdPrefetch=0
-sd:/wiisxrx/isos/Spyro the Dragon
+sd:/wiistation/isos/Spyro the Dragon
 Spyro the Dragon [NTSC-U] [SCUS-94228].cue
 600 CdPrefetch=0
-sd:/wiisxrx/isos/Spyro the Dragon
+sd:/wiistation/isos/Spyro the Dragon
 Spyro the Dragon [NTSC-U] [SCUS-94228].cue

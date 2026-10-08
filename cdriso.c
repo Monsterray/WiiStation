@@ -42,6 +42,7 @@
 #include "Gamecube/perf_prof.h"
 #include <ogc/semaphore.h>
 #include "mem2_manager.h"
+#include <strings.h>   /* strncasecmp: no read-ahead for smb: */
 #include "Gamecube/wiiSXconfig.h"     /* cdBuffer, cdPrefetch, cdChdHunks */
 
 #define OFF_T_MSB ((off_t)1 << (sizeof(off_t) * 8 - 1))
@@ -429,6 +430,11 @@ static void pf_start(const char *path, int secbytes)
 {
 	int i;
 	if (pf_active || !cdPrefetch)
+		return;
+	/* Not for a game on the network share (Gamecube/fileBrowser/smb2dev.c): the Wii's Wi-Fi
+	 * delivers ~350 KB/s, so sectors read ahead and never used cost the game time. The
+	 * bench Wii, Ape Escape over SMB: 0.77x without, 0.64x with (2026-10-08). */
+	if (!strncasecmp(path, "smb:", 4))
 		return;
 	pf_ring = (pf_slot_t *)_mem2_memalign(32, sizeof(pf_slot_t) * PF_SLOTS);
 	pf_handle = fopen(path, "rb");

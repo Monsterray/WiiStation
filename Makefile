@@ -67,6 +67,12 @@ hbcagent.a:
 	@echo " "
 	$(MAKE) -C deps/hbc_agent DEVKITPRO=$(DEVKITPRO) DEVKITPPC=$(DEVKITPPC)
 
+smb2.a:
+	@echo " "
+	@echo "Building libsmb2.a (SMB2/3 client for the smb: device) for PPC"
+	@echo " "
+	$(MAKE) -C deps/libsmb2 -f Makefile.wiistation DEVKITPRO=$(DEVKITPRO) DEVKITPPC=$(DEVKITPPC)
+
 chdrstatic.a:
 	@echo " "
 	@echo "Building chdrstatic.a library for PPC"

@@ -1,5 +1,5 @@
 CHAIN
 # Spyro left alone for 30 s (title and the first demo), for quick hardware checks.
 1800
-sd:/wiisxrx/isos/Spyro the Dragon
+sd:/wiistation/isos/Spyro the Dragon
 Spyro the Dragon [NTSC-U] [SCUS-94228].cue

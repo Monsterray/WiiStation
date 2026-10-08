@@ -6,50 +6,50 @@ CHAIN
 # made for it). Under Dolphin only the counts mean anything: its card answers at once.
 # bash scripts/wsx.sh chain NAME cd_ab.txt --secs 1500
 3600 sd:/wiistation/spyro_title.txt CdBuffer=0 CdPrefetch=0
-sd:/wiisxrx/isos/Spyro the Dragon
+sd:/wiistation/isos/Spyro the Dragon
 Spyro the Dragon [NTSC-U] [SCUS-94228].cue
 3600 sd:/wiistation/spyro_title.txt CdBuffer=1 CdPrefetch=0
-sd:/wiisxrx/isos/Spyro the Dragon
+sd:/wiistation/isos/Spyro the Dragon
 Spyro the Dragon [NTSC-U] [SCUS-94228].cue
 3600 sd:/wiistation/spyro_title.txt CdBuffer=2 CdPrefetch=0
-sd:/wiisxrx/isos/Spyro the Dragon
+sd:/wiistation/isos/Spyro the Dragon
 Spyro the Dragon [NTSC-U] [SCUS-94228].cue
 3600 sd:/wiistation/spyro_title.txt CdBuffer=1 CdPrefetch=1
-sd:/wiisxrx/isos/Spyro the Dragon
+sd:/wiistation/isos/Spyro the Dragon
 Spyro the Dragon [NTSC-U] [SCUS-94228].cue
 3600 CdBuffer=0 CdPrefetch=0
-sd:/wiisxrx/isos/Medievil
+sd:/wiistation/isos/Medievil
 Medievil [U] [SCUS-94227].cue
 3600 CdBuffer=1 CdPrefetch=0
-sd:/wiisxrx/isos/Medievil
+sd:/wiistation/isos/Medievil
 Medievil [U] [SCUS-94227].cue
 3600 CdBuffer=2 CdPrefetch=0
-sd:/wiisxrx/isos/Medievil
+sd:/wiistation/isos/Medievil
 Medievil [U] [SCUS-94227].cue
 3600 CdBuffer=1 CdPrefetch=1
-sd:/wiisxrx/isos/Medievil
+sd:/wiistation/isos/Medievil
 Medievil [U] [SCUS-94227].cue
 3600 CdBuffer=0 CdPrefetch=0
-sd:/wiisxrx/isos/Crash Team Racing
+sd:/wiistation/isos/Crash Team Racing
 Crash Team Racing [U] [SCUS-94426].cue
 3600 CdBuffer=1 CdPrefetch=0
-sd:/wiisxrx/isos/Crash Team Racing
+sd:/wiistation/isos/Crash Team Racing
 Crash Team Racing [U] [SCUS-94426].cue
 3600 CdBuffer=2 CdPrefetch=0
-sd:/wiisxrx/isos/Crash Team Racing
+sd:/wiistation/isos/Crash Team Racing
 Crash Team Racing [U] [SCUS-94426].cue
 3600 CdBuffer=1 CdPrefetch=1
-sd:/wiisxrx/isos/Crash Team Racing
+sd:/wiistation/isos/Crash Team Racing
 Crash Team Racing [U] [SCUS-94426].cue
 3600 CdBuffer=0 CdPrefetch=0
-sd:/wiisxrx/isos/Point Blank (USA)
+sd:/wiistation/isos/Point Blank (USA)
 Point Blank (USA).cue
 3600 CdBuffer=1 CdPrefetch=0
-sd:/wiisxrx/isos/Point Blank (USA)
+sd:/wiistation/isos/Point Blank (USA)
 Point Blank (USA).cue
 3600 CdBuffer=2 CdPrefetch=0
-sd:/wiisxrx/isos/Point Blank (USA)
+sd:/wiistation/isos/Point Blank (USA)
 Point Blank (USA).cue
 3600 CdBuffer=1 CdPrefetch=1
-sd:/wiisxrx/isos/Point Blank (USA)
+sd:/wiistation/isos/Point Blank (USA)
 Point Blank (USA).cue

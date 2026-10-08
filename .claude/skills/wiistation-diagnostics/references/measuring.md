@@ -313,8 +313,9 @@ hashes in UploadScreen, OpenGX texel checks). The pattern to grep for is a loop 
 
 ## The card folder (2026-10-07, 5.6.0)
 
-- WiiStation's own files are in `sd:/wiistation/` (was `wiisxrx/`); the test games stay in
-  `sd:/wiisxrx/isos/` on the Dolphin profile and the bench Wii, and chains name them there.
+- WiiStation's own files and the test games are in `sd:/wiistation/` (was `wiisxrx/`) on the
+  bench Wii, the user's Dolphin folder and the test profile (moved 2026-10-08); before that
+  `sd:/wiistation/isos/` on the Dolphin profile and the bench Wii, and chains name them there.
   RomDir1..4 (settings) are the browser's game folders; `menupage 70` photographs Load from SD.
 - **A lab run that "starts but never runs or returns" = the Wii could not write the staged
   files** (5.6.0's first bench run: no `sd:/wiistation` on the card, lab_mkdirs made only what
@@ -324,3 +325,24 @@ hashes in UploadScreen, OpenGX texel checks). The pattern to grep for is a loop 
 - Dolphin runs: give the first run after the card layout changes 60 s or more; Dolphin packs
   the SD folder before booting and a 22 s limit ended before the DOL started (0 frames, a
   two-line dolphin.log).
+
+## SMB shares (2026-10-08, 5.7.0)
+
+- `smb:` is `Gamecube/fileBrowser/smb2dev.c` over libsmb2 (deps/libsmb2, patches in
+  Docs/BACKENDS.md). The user's share login is in their Dolphin `settings.ini`; never read
+  or print the password. Runs take it unread: `SMB_FROM=<their settings.ini>` for
+  dolphin_run.sh / wsx.sh, `--smb-from <file>` for wii_lab.py (kept out of run.info).
+- Chain lines can boot from the share: `smb:/<folder>` then `.cue` (autoboot matches a
+  substring). Autoboot waits up to 30 s for the mount. `menupage 71` = Load from Samba.
+- perf.log `smb:` line per game: requests, bytes, time, cache hits, reconnects, and the
+  socket calls under them (polls/recvs/sends, us each, bytes per recv). On the bench Wii:
+  ~350 KB/s, ~1.1-1.4 KB per recv at ~2 ms per call -- IOS is the ceiling. Tried without
+  gain: SO_RCVBUF 128 KB, waiting before recv, a connection per file (IOS does not overlap
+  calls), recv sizes 2-32 KB (4 KB kept: cost grows with size).
+- Correctness check: the same game from SD and from the share must end in the same
+  `state:` (Ape Escape 1200 vblanks: ram=c1f11dea).
+- Trap found: per-open malloc/free of the 128 KB windows made the second share game in a
+  boot crash in Lightrec (fault site 6, map count 0) -- a use-after-free in the game-switch
+  path that the churn exposed. The windows are a fixed pool now; the underlying bug is open.
+- After changing a bundled library (deps/*/lib), the DOL now relinks (Makefile_Wii
+  BUNDLED_LIBS); before, a rebuilt libsmb2 was silently not linked in.

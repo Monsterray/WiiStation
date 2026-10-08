@@ -1,5 +1,5 @@
 CHAIN
 # Spyro left alone: title, then the attract demos (the first enters a world). 4 minutes.
 14400
-sd:/wiisxrx/isos/Spyro the Dragon
+sd:/wiistation/isos/Spyro the Dragon
 Spyro the Dragon [NTSC-U] [SCUS-94228].cue

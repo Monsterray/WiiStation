@@ -42,6 +42,7 @@ extern "C" {
 #include "../fileBrowser/fileBrowser-DVD.h"
 #include "../fileBrowser/fileBrowser-CARD.h"
 #include "../fileBrowser/fileBrowser-SMB.h"
+#include "../fileBrowser/smb2dev.h"
 #include "../../database.h"
 extern long ISOgetTN(unsigned char *buffer);
 extern char debugInfo[256];
@@ -425,7 +426,8 @@ void fileBrowserFrame_OpenRomFolders(fileBrowser_file* deviceDefault, const char
 	int n = 0;
 	struct stat st;
 	char item[CONFIG_ITEM_SIZE];
-	const char *list = !strcasecmp(device, "usb:") ? romDirUSB : romDirSD;
+	const char *list = !strcasecmp(device, "usb:") ? romDirUSB :
+	                   !strcasecmp(device, "smb:") ? romDirSMB : romDirSD;
 
 	memset(found, 0, sizeof(found));
 	while (n < ROM_DIRS_MAX && config_list_next(&list, item, sizeof(item)))
@@ -438,8 +440,9 @@ void fileBrowserFrame_OpenRomFolders(fileBrowser_file* deviceDefault, const char
 		if (!stat(path, &st) && S_ISDIR(st.st_mode))
 			found[n++].attr = FILE_BROWSER_ATTR_DIR;
 	}
-	if (n == 0)
-		snprintf(deviceDefault->name, sizeof(deviceDefault->name), "%s/wiistation/isos", device);
+	if (n == 0)   /* the share's own top, or the card's /wiistation/isos */
+		snprintf(deviceDefault->name, sizeof(deviceDefault->name), "%s%s", device,
+		         !strcasecmp(device, "smb:") ? "/" : "/wiistation/isos");
 	if (n <= 1)
 	{
 		if (n == 1)
@@ -478,7 +481,9 @@ void fileBrowserFrame_Error(fileBrowser_file* dir, int error_code)
   	strcpy(feedback_string,"Still connecting to the share.\nTry again in a moment.");
 	}
 	else if(error_code == SMB_SMBERR) {
-  	strcpy(feedback_string,"Cannot connect to the share.\nCheck the SMB settings.");
+	/* the reason libsmb2 gave, cut to the box: "connect: ..." */
+	snprintf(feedback_string, sizeof(feedback_string), "Cannot connect to the share.\n%.44s\n%.44s",
+	         smb2dev_error(), strlen(smb2dev_error()) > 44 ? smb2dev_error() + 44 : "");
 	}
 	//set first entry to read 'error' and return to main menu
 	else if(dir->name[0])   // name is an array; testing it as a pointer was always true

@@ -6,14 +6,14 @@ CHAIN
 # the GPU's cost of the larger texture shows only on a Wii (a pmc build).
 # bash scripts/wsx.sh chain NAME fmv_ab.txt --secs 900
 2400 FmvColour=0
-sd:/wiisxrx/isos/Micro Machines V3 (USA)
+sd:/wiistation/isos/Micro Machines V3 (USA)
 Micro Machines V3 (USA).cue
 2400 FmvColour=1
-sd:/wiisxrx/isos/Micro Machines V3 (USA)
+sd:/wiistation/isos/Micro Machines V3 (USA)
 Micro Machines V3 (USA).cue
 2400 FmvColour=0
-sd:/wiisxrx/isos/Medievil
+sd:/wiistation/isos/Medievil
 Medievil [U] [SCUS-94227].cue
 2400 FmvColour=1
-sd:/wiisxrx/isos/Medievil
+sd:/wiistation/isos/Medievil
 Medievil [U] [SCUS-94227].cue

@@ -341,7 +341,7 @@ enum padAutoAssign
 };
 
 extern char padType[10];
-extern char romDirSD[256], romDirUSB[256];   // RomDirSD/RomDirUSB: game folders, comma-separated
+extern char romDirSD[256], romDirUSB[256], romDirSMB[256];   // RomDirSD/USB/SMB: game folders, comma-separated
 extern char menuFont[];          // menu font file name without .dat (empty = built-in)
 enum padType
 {
