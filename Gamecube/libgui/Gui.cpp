@@ -18,6 +18,7 @@
  *
 **/
 
+#include <stdlib.h>   /* exit() */
 #include "Gui.h"
 #include "../ws_crash.h"
 #include "IPLFont.h"
@@ -178,14 +179,13 @@ void Gui::draw()
 					*(volatile unsigned int*)0xCC003024 = 0;  //reboot
 			  }
 #else
-				#define HBC_STUB 0x53545542
-				#define HBC_HAXX 0x48415858
-				//Load HBC Stub if STUBAXX signature is present
-				if(*(volatile unsigned int*)0x80001804 == HBC_STUB &&
-					*(volatile unsigned int*)0x80001808 == HBC_HAXX)
-					rld();
-				else // Wii channel support
-					SYS_ResetSystem(SYS_RETURNTOMENU, 0, 0); // Return to the Wii System Menu
+				/* exit(), not a jump to the loader's stub: libogc2's exit runs the atexit
+				 * handlers and the reset functions first -- the HBC agent's kept log
+				 * (`hbc.py lastlog` said "no kept log" after every exit) and its write-back
+				 * of the SD card -- then goes to the same stub ("STUBHAXX" at 0x80001804),
+				 * or to the Wii System Menu when there is none, as this did by hand. */
+				(void)rld;
+				exit(0);
 #endif
 			}
 		}
