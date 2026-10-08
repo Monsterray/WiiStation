@@ -361,7 +361,6 @@ void ConfigureInputFrame::activateSubmenu(int submenu)
 	int cell[2][COOP_MAX][3];          /* each column's buttons by row and column, -1: none */
 	int ncol[2] = { 0, 0 };            /* buttons in each of a column's rows */
 
-	menu::Gui::getInstance().menuLogo->setVisible(false);   /* this frame needs the room */
 	FRAME_BUTTONS[0].button->setSelected(!manual);
 	FRAME_BUTTONS[1].button->setSelected(manual);
 	for (int p = 0; p < 2; p++)
@@ -557,7 +556,6 @@ void Func_TogglePad1Assign()
 
 void Func_ReturnFromConfigureInputFrame()
 {
-	menu::Gui::getInstance().menuLogo->setVisible(true);
 	pMenuContext->setActiveFrame(MenuContext::FRAME_SETTINGS,SettingsFrame::SUBMENU_INPUT);
 }
 

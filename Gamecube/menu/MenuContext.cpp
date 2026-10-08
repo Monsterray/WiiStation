@@ -108,6 +108,15 @@ static const int LOGO_BOTTOM_FRAMES[] = {
 	MenuContext::FRAME_CURRENTROM,        /* Swap CD reaches x=540 */
 };
 
+/* The frames that need the logo's room in both corners: no logo on these. Only the frame
+ * switch below shows or hides it. A frame's own activateSubmenu() must not: Configure
+ * Input's constructor lays itself out with one, and hid the logo from start-up on. */
+static const int LOGO_HIDDEN_FRAMES[] = {
+	MenuContext::FRAME_CONFIGUREINPUT,
+	MenuContext::FRAME_CUSTOMIZECOOP,
+	MenuContext::FRAME_CONFIGUREBUTTONS,
+};
+
 /* sd:/wiistation/autoinput.txt's "menupage <n>": see PadWiiSX.c, where it is parsed. */
 extern "C" {
 	void autoinput_load(void);
@@ -225,9 +234,12 @@ void MenuContext::setActiveFrame(int frameIndex)
 	/* The logo goes in the top right, where it has always been, unless this frame puts
 	 * something there. Then it goes to the bottom right. */
 	{
-		bool bottom = false;
+		bool bottom = false, hidden = false;
 		for(unsigned i = 0; i < sizeof(LOGO_BOTTOM_FRAMES)/sizeof(LOGO_BOTTOM_FRAMES[0]); i++)
 			if(LOGO_BOTTOM_FRAMES[i] == frameIndex) bottom = true;
+		for(unsigned i = 0; i < sizeof(LOGO_HIDDEN_FRAMES)/sizeof(LOGO_HIDDEN_FRAMES[0]); i++)
+			if(LOGO_HIDDEN_FRAMES[i] == frameIndex) hidden = true;
+		menu::Gui::getInstance().menuLogo->setVisible(!hidden);
 		menu::Gui::getInstance().menuLogo->setLocation(
 			bottom ? LOGO_PAGE_X : LOGO_MAIN_X,
 			bottom ? LOGO_PAGE_Y : LOGO_MAIN_Y, LOGO_Z);

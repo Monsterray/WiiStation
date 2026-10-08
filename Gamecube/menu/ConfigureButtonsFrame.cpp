@@ -394,10 +394,7 @@ void ConfigureButtonsFrame::activateSubmenu(int submenu)
 {
 
 	if (submenu != SUBMENU_PSX_PADNONE)
-	{
 		activePad = submenu;
-		menu::Gui::getInstance().menuLogo->setVisible(false);
-	}
 	activePad = padResolve(activePad);
 	char name[8];
 	padName(activePad, name, sizeof(name));
@@ -990,6 +987,5 @@ void Func_ToggleGunMouse()
 
 void Func_ReturnFromConfigureButtonsFrame()
 {
-	menu::Gui::getInstance().menuLogo->setVisible(true);
 	pMenuContext->setActiveFrame(MenuContext::FRAME_SETTINGS,SettingsFrame::SUBMENU_INPUT);
 }

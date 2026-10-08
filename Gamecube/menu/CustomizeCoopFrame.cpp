@@ -161,7 +161,6 @@ void CustomizeCoopFrame::activateSubmenu(int submenu)
 	snprintf(titleString, sizeof(titleString), "PSX Port %d, player %d: %s %d", coopPort + 1,
 		coopPlayer + 1, typeNames[(int)coopType[coopPort][coopPlayer] & 3],
 		coopAssign[coopPort][coopPlayer] + 1);
-	menu::Gui::getInstance().menuLogo->setVisible(false);
 
 	for (int i = 0; i < NUM_PRESETS; i++)
 		buttons[i]->setSelected(i == layout);

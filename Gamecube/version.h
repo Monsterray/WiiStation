@@ -6,5 +6,5 @@
  * (scripts/build.sh warns when they differ). 4.0.0 = the "Beta 4.0" of 2024-04-18. */
 #ifndef WIISTATION_VERSION_H
 #define WIISTATION_VERSION_H
-#define WIISTATION_VERSION "5.7.1"
+#define WIISTATION_VERSION "5.7.2"
 #endif

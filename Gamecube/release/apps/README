@@ -1,5 +1,5 @@
 README : WiiStation
-Version 5.7.1
+Version 5.7.2
 
 LICENSE:
     This software is licensed under the GNU General Public License v2
@@ -123,6 +123,10 @@ LATER UPDATES BY:
  * Monty Perrotti (WiiStation)
 
 WiiStation CHANGE LOG:
+Ver 5.7.2 (2026-10-08):
+* Fixed: the spinning logo was gone from every menu page since 5.4.0. Configure
+  Input hid it while the menu was being built, before it was ever shown.
+
 Ver 5.7.1 (2026-10-08):
 * Fixed: a game loaded after another one could stop at its first frame
   ("Lightrec: fault 6") when memory had been used in between, e.g. by two
