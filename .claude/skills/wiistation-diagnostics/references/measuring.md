@@ -342,7 +342,8 @@ hashes in UploadScreen, OpenGX texel checks). The pattern to grep for is a loop 
   Dolphin's DVD reads do not show in its log (direct register reads); write a file to
   sd:/ from the code and read it with `scripts/sdimage_read.py .dolphin/Load/WiiSD.raw`.
   A Dolphin run whose SD folder changed spends ~40 s repacking before boot: give it 120 s.
-- DVD on the bench Wii (2026-10-09): its drive (rev 0000 code 0002, 2006-05-26) never finishes
+- DVD on the bench Wii (2026-10-09): **its drive is broken** (it will not load retail Wii discs
+  either, the user found), so it cannot test DVD reading. The drive (rev 0000 code 0002, 2006-05-26) never finishes
   spinning up a burned DVD+R or DVD-R (IMAPI2); debug builds write `sd:/wiistation/dvd.log`
   line by line (spin-up, drive ID, read commands, timeouts). A failed spin-up used to stall
   IOS -- every request, SD included -- for minutes to forever; fileBrowser-DVD.c now breaks
