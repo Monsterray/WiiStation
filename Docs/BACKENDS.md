@@ -64,6 +64,16 @@ The core is synced to a7464cc since 5.2.0 (merge 87d77c4). WiiStation's own chan
   and kept (`lightrec_alloc_state`). Freed and asked for again at every game switch, it found
   the heap too fragmented for one 2.5 MB block (5.7.1). The adapter stops with
   `fatal: code=0x84` if `lightrec_init` still returns NULL.
+- A full code buffer (5.9.3; CTR crashed at a race's end). `get_next_block_func`: a compile
+  that fails no longer exits with `LIGHTREC_EXIT_NOMEM` (that return left `curr_pc` before a
+  block the first pass had already interpreted, so the PS1 ran it twice); the block is
+  interpreted and compiled on a later visit. `lightrec_emit_code`: the clean frees blocks
+  older than 4 s, 1 s, 0.25 s, then all but the one compiling (`lightrec_free_all_blocks_except`),
+  until the code fits; a failed `jit_emit` frees its chunk (it leaked). Block ages use
+  `lightrec_age_now()` (`age_base` in the state, kept by `lightrec_reset_cycle_count`): the
+  adapter resets `current_cycle` (1/1024 cycles) every slice, so the old 1<<27 test freed
+  blocks at random. A recompile clears the block's LUT range before freeing the old code.
+  Counters: perf.log `jitcode: cleans= fails= reruns=` and the per-vblank signature (VSG2).
 Check an update with `scripts/chains/ps1tests.txt` + `scripts/ps1tests_check.py` (same lines
 as before) and with the recordings (`scripts/chains/replay3.txt`, `replay_rest.txt`).
 

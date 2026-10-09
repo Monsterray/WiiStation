@@ -55,12 +55,12 @@ unsigned long long perf_now_ticks(void)
 }
 
 #if PERF_PROF_BIOS
-/* The busiest HLE BIOS calls, by name. A game that uses none prints nothing. */
+/* The busiest HLE BIOS calls, by name (40: a game calls the rare ones that matter once or twice). A game that uses none prints nothing. */
 extern char *biosA0n[256], *biosB0n[256], *biosC0n[256];
 
 static void perf_report_bios(FILE *f)
 {
-	struct { const char *tab; unsigned n; unsigned long c; } top[10], t;
+	struct { const char *tab; unsigned n; unsigned long c; } top[40], t;
 	const uint32_t *counts[3] = { g_perf.bios_a, g_perf.bios_b, g_perf.bios_c };
 	char *const *names[3] = { biosA0n, biosB0n, biosC0n };
 	static const char tabs[3] = { 'A', 'B', 'C' };
@@ -73,13 +73,13 @@ static void perf_report_bios(FILE *f)
 			if (!counts[i][j])
 				continue;
 			total += counts[i][j];
-			/* keep the ten biggest, insertion sorted: the list is tiny */
+			/* keep the forty biggest, insertion sorted: the list is tiny */
 			t.tab = &tabs[i]; t.n = j; t.c = counts[i][j];
 			for (k = 0; k < ntop && top[k].c >= t.c; k++)
 				;
-			if (k >= 10)
+			if (k >= 40)
 				continue;
-			if (ntop < 10)
+			if (ntop < 40)
 				ntop++;
 			for (int m = ntop - 1; m > k; m--)
 				top[m] = top[m - 1];
@@ -555,9 +555,14 @@ static inline unsigned short vtl_u16(uint64_t ticks)
 
 /* The guest's signature per vblank, beside the timeline: a hash of every 8th word of RAM
  * (0.45 ms a vblank on a Wii), the cycle count and the PC. Two runs that should be the same
- * show where the guest first differs: scripts/vsig_cmp.py, vsig_NN.bin per chained game. */
-typedef struct { u32 ram, cycle, pc; } vsig_t;
+ * show where the guest first differs: scripts/vsig_cmp.py, vsig_NN.bin per chained game.
+ * VSG2 adds what goes into the guest from the host, to tell which parted first: a hash of
+ * every CD sector the game read (cdriso.c ISOreadTrack) and their count, and Lightrec's
+ * blocks compiled and code-buffer cleans (a full buffer frees the old blocks). */
+typedef struct { u32 ram, cycle, pc, cd, cdn, jitb, cleans; } vsig_t;
 static vsig_t *vsig;
+u32 vsig_cd, vsig_cdn;
+extern unsigned int lightrec_jit_blocks, lightrec_code_cleans;   /* deps/lightrec */
 
 static void vsig_take(vsig_t *g)
 {
@@ -569,6 +574,10 @@ static void vsig_take(vsig_t *g)
 	g->ram = h;
 	g->cycle = psxRegs.cycle;
 	g->pc = psxRegs.pc;
+	g->cd = vsig_cd;
+	g->cdn = vsig_cdn;
+	g->jitb = lightrec_jit_blocks;
+	g->cleans = lightrec_code_cleans;
 }
 
 static void vtl_tick(void)
@@ -616,7 +625,7 @@ void perf_vtl_flush(int game)
 	}
 	snprintf(path, sizeof path, "sd:/wiistation/vsig_%02d.bin", game);
 	if (vsig && (f = fopen(path, "wb"))) {
-		unsigned vh[2] = { 0x56534731, vtl_n };   /* "VSG1", then {ram, cycle, pc} per vblank */
+		unsigned vh[2] = { 0x56534732, vtl_n };   /* "VSG2", then a vsig_t per vblank */
 		fwrite(vh, sizeof vh, 1, f);
 		fwrite(vsig, sizeof(vsig_t), vtl_n, f);
 		fclose(f);
@@ -858,8 +867,10 @@ void perf_report(void)
 		}
 		{   /* the emitted code's checksum: equal in two runs = the same code was generated */
 			extern unsigned int lightrec_code_sum, lightrec_code_bytes, lightrec_code_shape;
-			fprintf(f, "jitcode: bytes=%u sum=%08x shape=%08x\n", lightrec_code_bytes,
-				lightrec_code_sum, lightrec_code_shape);
+			extern unsigned int lightrec_code_fails, lightrec_code_reruns;
+			fprintf(f, "jitcode: bytes=%u sum=%08x shape=%08x cleans=%u fails=%u reruns=%u\n",
+				lightrec_code_bytes, lightrec_code_sum, lightrec_code_shape,
+				lightrec_code_cleans, lightrec_code_fails, lightrec_code_reruns);
 		}
 #if PERF_PROF_HPROF
 		hprof_report(f);

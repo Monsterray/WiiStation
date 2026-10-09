@@ -27,6 +27,8 @@ u32 lightrec_calculate_block_hash(const struct block *block);
 _Bool lightrec_block_is_outdated(struct lightrec_state *state, struct block *block);
 
 void lightrec_remove_outdated_blocks(struct blockcache *cache,
+				     const struct block *except, u32 min_age);
+void lightrec_free_all_blocks_except(struct blockcache *cache,
 				     const struct block *except);
 
 #endif /* __BLOCKCACHE_H__ */

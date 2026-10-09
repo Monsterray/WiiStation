@@ -1,5 +1,5 @@
 README : WiiStation
-Version 5.9.2
+Version 5.9.3
 
 LICENSE:
     This software is licensed under the GNU General Public License v2
@@ -125,6 +125,19 @@ LATER UPDATES BY:
  * Monty Perrotti (WiiStation)
 
 WiiStation CHANGE LOG:
+Ver 5.9.3 (2026-10-09):
+* Fixed: Crash Team Racing crashed at the end of a race (seen at the end of a
+  2-player Grand Prix). When the recompiler's code memory was full, a piece of
+  game code could run twice, which broke the game's data. A full code memory
+  now never runs code twice.
+* Fixed: lag spikes of 0.2-0.4 seconds during play (Crash Team Racing). When
+  the code memory was full, the recompiler threw away code at random, also
+  code the game was using, and had to compile it again at once. It now throws
+  away the oldest code first, and the code memory is larger (2 MB, was
+  1.5 MB): in a 10-minute Crash Team Racing run on a Wii it did not fill.
+* Fixed: a game in CloneCD format (.ccd/.img/.sub) had a wrong disc length
+  (4 seconds) in its table of contents.
+
 Ver 5.9.2 (2026-10-09):
 * Fixed: an automated run (a chain of games from autoboot.txt) stopped at the
   first error message, waiting for an OK nobody pressed -- 8 hours on the test
@@ -175,19 +188,19 @@ Ver 5.7.1 (2026-10-08):
 * If the recompiler ever cannot start, WiiStation now stops with "Lightrec: no
   memory for its state" instead of running the game on nothing.
 
-Ver 5.7.0 (2026-10-08):
-* Network shares work with current servers: SMB2 and SMB3 through libsmb2,
-  in place of a library that spoke only SMB1 (off by default on Samba 4.11+,
-  Windows 10 and 11). No password length limit; NTLMv2 logins.
-* RomDirSMB: the game folders on the share, as RomDirSD (folders inside the
-  share open like folders on the SD card).
-* Games on the share read in small pieces after a jump and larger ones while
-  they read on, and get no CD read-ahead: the Wii's Wi-Fi gives about
-  350 KB/s. Expect waits in loading screens and videos; CHD images help.
-* A read that fails reconnects to the share once, so a short network drop
-  does not stop the game.
-* "Cannot connect to the share" says the server's reason.
-
+Ver 5.7.0 (2026-10-08):
+* Network shares work with current servers: SMB2 and SMB3 through libsmb2,
+  in place of a library that spoke only SMB1 (off by default on Samba 4.11+,
+  Windows 10 and 11). No password length limit; NTLMv2 logins.
+* RomDirSMB: the game folders on the share, as RomDirSD (folders inside the
+  share open like folders on the SD card).
+* Games on the share read in small pieces after a jump and larger ones while
+  they read on, and get no CD read-ahead: the Wii's Wi-Fi gives about
+  350 KB/s. Expect waits in loading screens and videos; CHD images help.
+* A read that fails reconnects to the share once, so a short network drop
+  does not stop the game.
+* "Cannot connect to the share" says the server's reason.
+
 Ver 5.6.1 (2026-10-08):
 * The settings file is wiistation/settings.ini (was settingsRX2022.cfg), and
   a game's own settings are wiistation/settings/<serial>.ini (was .cfg). The

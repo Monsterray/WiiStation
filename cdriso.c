@@ -841,8 +841,28 @@ static int parseccd(const char *isofile) {
 
 	// Fill out the last track's end based on size
 	if (numtracks >= 1) {
-		fseek(cdHandle, 0, SEEK_END);
-		t = ftell(cdHandle) / 2352 - msf2sec(ti[numtracks].start) + 2 * 75;
+		/* WiiStation: the size of the IMAGE. cdHandle is the file the browser
+		 * picked, and it shows the .ccd and hides its .img, so cdHandle was the
+		 * 789-byte sheet here (ISOopen swaps to the .img only later): every CCD
+		 * game had a last track 150 sectors long and a lead-out at 00:04:00. */
+		static const char *exts[] = { ".img", ".IMG", ".bin", ".BIN" };
+		long size = -1;
+		size_t i;
+
+		for (i = 0; size < 0 && i < sizeof(exts) / sizeof(exts[0]); i++) {
+			FILE *img;
+			strcpy(ccdname + strlen(ccdname) - 4, exts[i]);
+			if ((img = fopen(ccdname, "rb")) != NULL) {
+				fseek(img, 0, SEEK_END);
+				size = ftell(img);
+				fclose(img);
+			}
+		}
+		if (size < 0) {
+			fseek(cdHandle, 0, SEEK_END);
+			size = ftell(cdHandle);
+		}
+		t = size / 2352 - msf2sec(ti[numtracks].start) + 2 * 75;
 		sec2msf(t, ti[numtracks].length);
 	}
 
@@ -2023,6 +2043,17 @@ static long CALLBACK ISOreadTrack(unsigned char *time) {
 	ret = cdimg_read_func(cdHandle, 0, cdbuffer, sector);
 	if (ret <= 0)
 		return 0;
+#ifdef PERF_PROF
+	{	/* the per-vblank signature's CD part (perf_prof.c vsig): every sector the game got */
+		extern u32 vsig_cd, vsig_cdn;
+		u32 h = vsig_cd ^ (u32)sector;
+		int k;
+		for (k = 0; k < CD_FRAMESIZE_RAW; k++)
+			h = (h ^ cdbuffer[k]) * 16777619u;
+		vsig_cd = h;
+		vsig_cdn++;
+	}
+#endif
 
 	return 1;
 }
