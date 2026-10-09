@@ -747,6 +747,9 @@ void perf_vtl_flush(int game);  /* the per-vblank timeline, to sd:/wiistation/vt
 void perf_state_log(int game);  /* guest RAM/VRAM hashes at a chained game's end: perf.log "state:" */
 void perf_stack_log(const char *where);   /* the main thread's deepest stack use: perf.log "stack:" */
 void perf_fatal_log(unsigned code, const char *reason);   /* ws_fatal: perf.log "fatal:" */
+void perf_ram_write(char who, unsigned madr, unsigned bytes);   /* "ramwatch": a DMA or HLE copy into guest RAM */
+void perf_cd_cmd(unsigned cmd, const unsigned char *param, unsigned n);   /* "cdlog": the CD commands */
+void perf_cd_rearm(int line, unsigned now, unsigned s_cycle, unsigned cycle, unsigned armed);
 /* the PSX PC at each vblank: where the CPU spends its time, "pcs:" in perf.log */
 void perf_pc_sample(unsigned pc);
 
@@ -794,6 +797,9 @@ static inline void perf_vtl_flush(int game) { (void)game; }
 static inline void perf_state_log(int game) { (void)game; }
 static inline void perf_stack_log(const char *where) { (void)where; }
 static inline void perf_fatal_log(unsigned code, const char *reason) { (void)code; (void)reason; }
+static inline void perf_ram_write(char who, unsigned madr, unsigned bytes) { (void)who; (void)madr; (void)bytes; }
+static inline void perf_cd_cmd(unsigned cmd, const unsigned char *param, unsigned n) { (void)cmd; (void)param; (void)n; }
+static inline void perf_cd_rearm(int line, unsigned now, unsigned s_cycle, unsigned cycle, unsigned armed) { (void)line; (void)now; (void)s_cycle; (void)cycle; (void)armed; }
 static inline void perf_vram_event(unsigned kind, int x, int y, int w, int h, int a, int b)
 { (void)kind; (void)x; (void)y; (void)w; (void)h; (void)a; (void)b; }
 static inline void perf_pad_event(unsigned pad, unsigned type, unsigned drv_btns, unsigned drv_l,

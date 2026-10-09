@@ -201,3 +201,33 @@ noisier facility writing `sd:/wiistation/log.txt`; prefer perf counters and trac
 - A result is only this run's if the file is: `wsx.sh` and `dolphin_run.sh` now clear the
   run directory's and the test card's logs first. A cut-off run used to come back with the
   previous run's ptrace.log.
+
+## Who writes this RAM? ramwatch / ramcell / cdlog (2026-10-09, Gex 3)
+
+Input-script lines (autoinput.txt or a chain line's script; debug build), output as perf.log
+`rw:` lines at the next report (a chain's end, a `fatal:`, or every 1800 presents):
+
+- `ramcell ADDR` (hex, up to 8): the word at ADDR read every vblank; each change logged with
+  the vblank and the PSX pc. Values print host-order (byte-swapped): 0x8009FDE4 shows e4fd0980.
+- `ramwatch LO HI` (hex): every write into [LO,HI) logged with its source: `C` CD DMA, `G` GPU
+  DMA, `M` MDEC, `S` SPU, `O` OT clear, `B`/`b` HLE memcpy/memset, and `S dst= val= pc=` for
+  CPU stores. For CPU stores the JIT sends EVERY guest store through lightrec_rw while the watch
+  is armed (optimizer.c and lightrec_rw tag stores as I/O) -- slow but same timing. `pc=0` means
+  the store came from compiled code (no block pointer); `ra=` is psxRegs' copy, often stale.
+- `ramwatch LO HI 1`: only each new LOWEST store address -- how deep a stack goes, and whether
+  it grows or jumps.
+- `cdlog`: the first 40 CD commands (`cd XX params`), which host function reads the image
+  (`reader`, addr2line it), the PS1 code behind a burst of >50 reads in one vblank, and any CD
+  read event re-armed with a due time more than a second ahead / a vblank behind (`rearm line`).
+- A guest segfault (`fatal: code=0x82`) also prints all 32 PS1 registers to tty.log
+  (`segv r00..r24`): read them against a disassembly before theorising.
+
+Found with these (Gex 3, HLE BIOS): the game's interrupt dispatcher stack overflowed into its
+globals; `ramwatch ... 1` showed the stack JUMPED, `cdlog` showed 341 sector reads per vblank,
+and `rearm` showed the CD read's due time 2^31 cycles ahead -- r3000a.c psxBranchTest (which
+the HLE BIOS calls) compared due times unsigned. Static analysis by four agents could not find
+it; the probes did in three runs.
+
+Single-game runs (`wsx.sh run --autoboot FILE --input FILE`): before 5.9.4 the input script was
+read at boot, before the SD mount, and never again -- every such run silently ignored its
+presses, dumps, traces. Fixed in GamecubeMain.cpp (autoinput_reset after reading autoboot.txt).

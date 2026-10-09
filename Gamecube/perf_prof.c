@@ -686,6 +686,140 @@ void perf_state_log(int game)
 	}
 }
 
+/* "ramwatch LO HI" and "ramcell ADDR" (input script, PadWiiSX.c): who writes a piece of guest
+ * RAM the CPU cannot be watched writing (Lightrec stores go straight to RAM). Every DMA and
+ * HLE BIOS copy that lands in [LO,HI) is logged (perf_ram_write), and each "ramcell" word is
+ * read at every vblank and logged when it changes; perf.log "rw:" lines, the first RW_MAX.
+ * Found for: Gex 3's object field overwritten under the HLE BIOS (2026-10-09). */
+#define RW_MAX 400
+static char rw_lines[RW_MAX][72];
+static unsigned rw_n, rw_dropped, rw_cell_val[8];
+extern unsigned autoinput_ramwatch_lo, autoinput_ramwatch_hi, autoinput_ramcell[8], autoinput_ramcells;
+
+static void rw_add(const char *s)
+{
+	if (rw_n < RW_MAX) {
+		strncpy(rw_lines[rw_n], s, sizeof rw_lines[0] - 1);
+		rw_lines[rw_n++][sizeof rw_lines[0] - 1] = 0;
+	} else
+		rw_dropped++;
+}
+
+void perf_ram_write(char who, unsigned madr, unsigned bytes)
+{
+	unsigned lo = autoinput_ramwatch_lo, hi = autoinput_ramwatch_hi, a = madr & 0x1fffff;
+	char s[72];
+	if (hi <= lo || a >= hi || a + bytes <= lo)
+		return;
+	snprintf(s, sizeof s, "rw: vbl=%u %c dst=%06x bytes=%u pc=%08x", (unsigned)frame_counter,
+		who, a, bytes, (unsigned)psxRegs.pc);
+	rw_add(s);
+}
+
+/* "ramwatch" with Lightrec's interpreter (lightrec.c): a guest store into the window */
+void perf_store_watch(u32 addr, u32 data, u32 pc)
+{
+	extern unsigned autoinput_ramwatch_from;
+	char s[72];
+	if (autoinput_ramwatch_from == 1) {   /* "ramwatch LO HI 1": only each new lowest store */
+		static u32 low = ~0u;
+		if ((addr & 0x1fffff) >= low)
+			return;
+		low = addr & 0x1fffff;
+	}
+	snprintf(s, sizeof s, "rw: vbl=%u S dst=%06x val=%08x pc=%08x ra=%08x", (unsigned)frame_counter,
+		addr & 0x1fffff, data, pc, (unsigned)psxRegs.GPR.n.ra);
+	rw_add(s);
+}
+
+/* "cdlog": which host functions read sectors from the image, and how often */
+void perf_cd_reader(void *ra, int sector)
+{
+	extern int autoinput_cdlog;
+	static struct { void *ra; unsigned n; int first; } who[16];
+	static unsigned last_vbl, in_vbl;
+	unsigned i;
+	if (!autoinput_cdlog)
+		return;
+	for (i = 0; i < 16 && who[i].ra && who[i].ra != ra; i++)
+		;
+	if (i < 16) {
+		if (!who[i].ra) { who[i].ra = ra; who[i].first = sector; }
+		if (++who[i].n == 1 || (who[i].n & 0xfff) == 0) {
+			char s[72];
+			snprintf(s, sizeof s, "rw: vbl=%u reader %p n=%u sector=%d", (unsigned)frame_counter,
+				ra, who[i].n, sector);
+			rw_add(s);
+		}
+	}
+	if (frame_counter != last_vbl) { last_vbl = frame_counter; in_vbl = 0; }
+	if (++in_vbl == 50) {   /* a burst: name the PS1 code behind it once */
+		char s[72];
+		snprintf(s, sizeof s, "rw: vbl=%u burst reader %p psx pc=%08x ra=%08x", (unsigned)frame_counter,
+			ra, (unsigned)psxRegs.pc, (unsigned)psxRegs.GPR.n.ra);
+		rw_add(s);
+	}
+}
+
+/* "cdlog": a continuing CD read re-armed from a due time more than a vblank old */
+void perf_cd_rearm(int line, unsigned now, unsigned s_cycle, unsigned cycle, unsigned armed)
+{
+	extern int autoinput_cdlog;
+	static unsigned n;
+	char s[72];
+	int ahead = (int)(s_cycle + cycle - now);   /* when the event is due, from now */
+	if (!autoinput_cdlog || (ahead < 33868800 && ahead > -564480) || n >= 12)
+		return;
+	n++;
+	snprintf(s, sizeof s, "rw: vbl=%u rearm line %d due in %d now=%u s=%u c=%u first=%u",
+		(unsigned)frame_counter, line, ahead, now, s_cycle, cycle, armed);
+	rw_add(s);
+}
+
+/* "cdlog" (input script): each CD-ROM command the game issues, with its parameters */
+void perf_cd_cmd(unsigned cmd, const unsigned char *param, unsigned n)
+{
+	extern int autoinput_cdlog;
+	char s[72];
+	unsigned i, k;
+	static unsigned ncmd;
+	if (!autoinput_cdlog || ncmd++ >= 40)
+		return;
+	k = snprintf(s, sizeof s, "rw: vbl=%u cd %02x", (unsigned)frame_counter, cmd);
+	for (i = 0; i < n && i < 8 && k < sizeof s - 4; i++)
+		k += snprintf(s + k, sizeof s - k, " %02x", param[i]);
+	rw_add(s);
+}
+
+static void rw_cells_tick(void)
+{
+	extern s8 *psxM;
+	unsigned i;
+	for (i = 0; i < autoinput_ramcells && i < 8; i++) {
+		unsigned v = *(u32 *)(psxM + (autoinput_ramcell[i] & 0x1ffffc));
+		char s[72];
+		if (v == rw_cell_val[i])
+			continue;
+		snprintf(s, sizeof s, "rw: vbl=%u cell %06x %08x -> %08x pc=%08x", (unsigned)frame_counter,
+			autoinput_ramcell[i] & 0x1fffff, rw_cell_val[i], v, (unsigned)psxRegs.pc);
+		rw_cell_val[i] = v;
+		rw_add(s);
+	}
+}
+
+static void perf_ramwatch_report(FILE *f)
+{
+	unsigned i;
+	if (autoinput_ramwatch_hi || autoinput_ramcells)
+		fprintf(f, "rw: watch %06x-%06x cells=%u lines=%u\n", autoinput_ramwatch_lo,
+			autoinput_ramwatch_hi, autoinput_ramcells, rw_n);
+	for (i = 0; i < rw_n; i++)
+		fprintf(f, "%s\n", rw_lines[i]);
+	if (rw_dropped)
+		fprintf(f, "rw: %u more not kept\n", rw_dropped);
+	rw_n = rw_dropped = 0;
+}
+
 void perf_fatal_log(unsigned code, const char *reason)
 {
 	FILE *f;
@@ -702,6 +836,7 @@ void perf_vblank_tick(void)
 {
 	extern unsigned autoinput_crash_vbl;
 	vtl_tick();
+	rw_cells_tick();
 	/* "crashtest <vblank>": a DSI on purpose, the way the 2026-09-29 Lightrec crash stored
 	 * through r31 = 0, to prove the crash path (vm dsihandler -> HBC agent -> report) on the Wii. */
 	/* Crash breadcrumb: one line a second, written and closed at once, so the last line
@@ -1453,6 +1588,7 @@ void perf_report(void)
 			(unsigned long)g_perf.menu_frames, g_perf.menu_us,
 			(unsigned long)g_perf.menu_strings, (unsigned long)g_perf.menu_glyphs,
 			(unsigned long)g_perf.menu_texloads);
+		perf_ramwatch_report(f);
 		fclose(f);
 	}
 	if (g_perf.aev_n)

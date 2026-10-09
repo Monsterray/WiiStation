@@ -721,6 +721,7 @@ static void psxDma1_body(u32 adr, u32 bcr, u32 chcr) {
 		HW_DMA1_CHCR &= SWAP32(~0x01000000);
 		return;
 	}
+	perf_ram_write('M', adr, words * 4);
 
 	if (mdec.reg0 & MDEC0_RGB24) {
 		/* 16 bits decoding

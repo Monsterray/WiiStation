@@ -140,6 +140,11 @@ u32 lightrec_segv_addr, lightrec_segv_block, lightrec_segv_site;
  * cleans), and how many of those came after the first pass had already run the block --
  * before 5.9.3 each of those ran the block a second time */
 unsigned int lightrec_code_fails, lightrec_code_reruns;
+
+/* WiiStation, debug: called for each guest store into [lo,hi) that goes through lightrec_rw
+ * (all of them when the plugin runs Lightrec's interpreter; "ramwatch" in autoinput.txt) */
+u32 lightrec_store_watch_lo, lightrec_store_watch_hi;
+void (*lightrec_store_watch_cb)(u32 addr, u32 data, u32 pc);
 #define SEGV_AT(a, site) (lightrec_segv_addr = (a), lightrec_segv_site = (site))
 
 static void __segfault_cb(struct lightrec_state *state, u32 addr,
@@ -317,6 +322,11 @@ u32 lightrec_rw(struct lightrec_state *state, union code op, u32 base,
 
 	addr = kunseg(base + (s16) op.i.imm);
 
+	/* WiiStation, debug "ramwatch": with the interpreter every guest store passes here */
+	if (unlikely(lightrec_store_watch_cb) && op.i.op >= OP_SB && op.i.op <= OP_SWR &&
+	    addr - lightrec_store_watch_lo < lightrec_store_watch_hi - lightrec_store_watch_lo)
+		lightrec_store_watch_cb(addr, data, block ? block->pc + ((u32)offset << 2) : 0);
+
 	map = lightrec_get_map(state, &host, addr);
 	if (!map) {
 		__segfault_cb(state, addr, block);
@@ -331,6 +341,10 @@ u32 lightrec_rw(struct lightrec_state *state, union code op, u32 base,
 			/* Force parallel port accesses as HW accesses, because
 			 * the direct-I/O emitters can't differenciate it. */
 			if (unlikely(map == &state->maps[PSX_MAP_PARALLEL_PORT]))
+				*flags |= LIGHTREC_IO_MODE(LIGHTREC_IO_HW);
+			/* WiiStation, debug "ramwatch": keep every store coming back here */
+			else if (unlikely(lightrec_store_watch_cb) &&
+				 op.i.op >= OP_SB && op.i.op <= OP_SWR)
 				*flags |= LIGHTREC_IO_MODE(LIGHTREC_IO_HW);
 			/* If the base register is 0x0, be extra suspicious.
 			 * Some games (e.g. Sled Storm) actually do segmentation

@@ -1025,6 +1025,12 @@ int main(int argc, char *argv[])
 				} else if (fgets(AutobootROM, sizeof(AutobootROM), ab)) {
 					AutobootROM[strcspn(AutobootROM, "\r\n")] = 0;
 					Autoboot = AutobootPath[0] && AutobootROM[0];
+					/* Read autoinput.txt again now that the card is mounted: the pad
+					 * plugin looked for it at boot, before the mount, found nothing and
+					 * never looked again, so a single game's script (presses, dump,
+					 * trace, ramwatch) was silently ignored (a chain resets per game). */
+					if (Autoboot)
+						autoinput_reset("sd:/wiistation/autoinput.txt");
 				}
 			}
 			fclose(ab);

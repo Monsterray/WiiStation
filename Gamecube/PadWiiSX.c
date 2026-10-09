@@ -115,6 +115,13 @@ static struct { unsigned vbl, port, type; } autoin_padtype[AUTOIN_PADTYPES];
 static int autoin_padtype_n, autoin_padtype_i;
 unsigned autoinput_hang_vbl = 0;   /* "hangtest <vblank>": debug build spins for good then (ws_crash.c watchdog) */
 int autoinput_crumbs = 0;          /* "crumbs": debug build writes sd:/wiistation/crumb.log once a second (crash hunts) */
+/* "ramwatch LO HI" and "ramcell ADDR" (hex, up to 8 cells): who writes that guest RAM
+ * (perf_prof.c perf_ram_write, perf.log "rw:" lines; debug builds) */
+unsigned autoinput_ramwatch_lo, autoinput_ramwatch_hi, autoinput_ramcell[8], autoinput_ramcells;
+/* "ramwatch LO HI 1": log only each new lowest store into the window (how deep a stack
+ * grows); without the 1, every DMA, HLE copy and CPU store into it (perf_prof.c) */
+unsigned autoinput_ramwatch_from;
+int autoinput_cdlog;   /* "cdlog": each CD-ROM command in perf.log "rw:" lines (cdrom.c cdrWrite1) */
 /* "padsweep <vblank>": from that vblank the GameCube driver reads a generated sweep
  * instead of the pad -- each stick axis end to end, then every button on its own. It is
  * read in controller-GC.c, which is the only place that knows what a raw GameCube pad
@@ -212,6 +219,17 @@ void autoinput_load(void)
 				}
 			}
 			if (!strncmp(line, "crumbs", 6)) { autoinput_crumbs = 1; continue; }
+			if (!strncmp(line, "cdlog", 5)) { autoinput_cdlog = 1; continue; }
+			if (sscanf(line, "ramwatch %x %x %u", &autoinput_ramwatch_lo, &autoinput_ramwatch_hi,
+				   &autoinput_ramwatch_from) >= 2) {
+				autoinput_ramwatch_lo &= 0x1fffff; autoinput_ramwatch_hi &= 0x1fffff;
+				continue;
+			}
+			if (sscanf(line, "ramcell %x", &v) == 1) {
+				if (autoinput_ramcells < 8)
+					autoinput_ramcell[autoinput_ramcells++] = v;
+				continue;
+			}
 			if (sscanf(line, "padsweep %u", &v) == 1) {
 				autoinput_padsweep_vbl = v;
 				autoinput_padsweep_fast = strstr(line, "fast") != NULL;
@@ -275,6 +293,8 @@ void autoinput_reset(const char *path)
 	autoin_sweeps = 0;
 	autoinput_hang_vbl = 0;
 	autoinput_crumbs = 0;
+	autoinput_ramwatch_lo = autoinput_ramwatch_hi = autoinput_ramcells = autoinput_ramwatch_from = 0;
+	autoinput_cdlog = 0;
 	autoinput_padsweep_vbl = 0;
 	autoinput_padsweep_fast = 0;
 	autoinput_menupage = 0;
