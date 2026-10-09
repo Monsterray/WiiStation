@@ -104,6 +104,10 @@ Four cautions, in order of importance:
 
 ## 3. The order of work
 
+Hardware numbers for these choices (same bench Wii, measured by WiiXplorer NG, 2026-10):
+`Docs/HARDWARE_RESEARCH.md`. In short: LC DMA MEM1->LC 1349, LC->MEM1/MEM2 ~1465, MEM2->LC
+only 440 MiB/s; a pass past the 256 KiB L2 runs 2-3x slower, which is what step 2 removes.
+
 ### Step 0. Hardware baseline (no code)
 Take the Dolphin numbers again first, with the logging fix and `PERF_PROF_GPUSPLIT`: what is
 written below was ordered by figures that no longer hold.

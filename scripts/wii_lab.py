@@ -103,9 +103,10 @@ def chain_files(chain):
     scripts, folders, games = [], [], 0
     lines = [l.strip() for l in chain.read_text().splitlines()]
     for l in lines:
+        if re.match(r"(sd|usb|smb|dvd):/", l):   # a game's folder line, on any device
+            games += 1
         if l.startswith("sd:/wiistation/isos/"):
             folders.append(l[len("sd:/wiistation/isos/"):])
-            games += 1
         for w in l.split():
             if w.startswith("sd:/wiistation/") and w.endswith(".txt") and "/isos/" not in w:
                 scripts.append(w[len("sd:/wiistation/"):])
