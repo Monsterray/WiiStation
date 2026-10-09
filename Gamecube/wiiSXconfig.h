@@ -137,6 +137,13 @@ enum cdBuffer
 	CD_BUFFER_64K,
 	CD_BUFFER_256K
 };
+extern char frameRateMode;       /* the emulated refresh rate and its pacing (psxcounters.c) */
+enum frameRateMode
+{
+	FRAMERATE_AUTO=0,       /* 60.00 / 50.00 Hz, timer-paced (and the per-game fractional fixes) */
+	FRAMERATE_TV,           /* the TV's 59.94 / 50 Hz, one emulated vblank per Wii video retrace */
+	FRAMERATE_PS1           /* a PlayStation's own 59.82 / 49.75 Hz, timer-paced */
+};
 extern char cpuSpeed;            /* CPU overclock/underclock (r3000a.c psxCycleMult) */
 enum cpuSpeed
 {

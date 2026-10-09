@@ -174,7 +174,31 @@ void FrameCap (void)
 {
  static unsigned long due256 = 0;       /* the tick this frame may end at, in 1/256 tick */
  static int have_due = 0;
- unsigned long now = timeGetTime();
+ unsigned long now;
+
+ /* FrameRate = TV: one emulated vblank per Wii video retrace, so every emulated frame meets
+  * exactly one TV refresh (no doubled or dropped picture, the core runs the TV's own rate,
+  * psxcounters.c). VIDEO_WaitVSync sleeps on the retrace interrupt, so other threads run while
+  * it waits. A frame that ran late is let off for up to 3 retraces of catch-up, then forgiven. */
+ if (frameRateMode == FRAMERATE_TV)
+  {
+   static unsigned int next;
+   unsigned int rc = VIDEO_GetRetraceCount();
+   if ((int)(rc - next) > 3 || (int)(next - rc) > 3)
+     next = rc;                          /* first frame, a stall, or back from the menu */
+   if ((int)(next - rc) > 0)
+    {
+     unsigned long long limit_t0 = perf_now_ticks();
+     while ((int)(next - VIDEO_GetRetraceCount()) > 0)
+       VIDEO_WaitVSync();
+     PERF_ADD(limit_ticks, perf_now_ticks() - limit_t0);
+     PERF_INC(limit_calls);
+    }
+   next++;
+   have_due = 0;                         /* the timer schedule starts afresh if the mode changes */
+   return;
+  }
+ now = timeGetTime();
  unsigned long period256 = framecap_period256();
  unsigned long due;
  long late;

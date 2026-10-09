@@ -1,5 +1,5 @@
 README : WiiStation
-Version 5.9.5
+Version 5.9.6
 
 LICENSE:
     This software is licensed under the GNU General Public License v2
@@ -125,6 +125,18 @@ LATER UPDATES BY:
  * Monty Perrotti (WiiStation)
 
 WiiStation CHANGE LOG:
+Ver 5.9.6 (2026-10-09):
+* New: Frame Rate (Advanced, GPU tab). Auto: 60 Hz (PAL 50) as before. TV: the
+  game runs at the TV's own 59.94 Hz and every frame is shown on exactly one
+  TV refresh, so motion is smoothest (Auto drops one frame about every 17
+  seconds). PS1: a PlayStation's own 59.82 Hz (PAL 49.75), the exact speed.
+* Changed: the Advanced tabs are in the same places and sizes as the
+  Settings tabs, and both rows of tabs moved up a little. The rows below
+  them start where the Settings rows start.
+* Changed: the SPU tab is about the sound plugin: which plugin it is and
+  whether the CPU or the Wii's DSP mixes its output. The sound quality
+  options are on Audio, Advanced again.
+
 Ver 5.9.5 (2026-10-09):
 * New: Settings > General > Advanced (was Plugins) has tabs across the top:
   CPU, GPU, SPU, CD and Input. The CD settings moved into its CD tab, and the

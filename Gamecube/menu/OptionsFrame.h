@@ -35,13 +35,14 @@ public:
 	 * returns to on B is part of the page definition (see PAGES[] in the .cpp). */
 	enum OptionsPages
 	{
-		PAGE_SOUND=0,		// Advanced: SPU tab (also the Audio tab's Advanced button)
+		PAGE_SOUND=0,		// Advanced Sound (the Audio tab's Advanced button)
 		PAGE_ADVGFX,
 		PAGE_PLUGINS,		// Advanced: CPU tab (the General tab's Advanced button)
 		PAGE_STORAGE,		// Advanced: CD tab
 		PAGE_MEMORY,
 		PAGE_ADV_GPU,		// Advanced: GPU tab
-		PAGE_ADV_INPUT		// Advanced: Input tab
+		PAGE_ADV_INPUT,		// Advanced: Input tab
+		PAGE_ADV_SPU		// Advanced: SPU tab
 	};
 	void showTab(int tab);	// a tab of the Advanced pages was pressed
 

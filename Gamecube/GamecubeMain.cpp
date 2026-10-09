@@ -133,6 +133,7 @@ char soundRateControl;      // dfsound/ratectl.c: nudge the output rate from the
 char soundResampler;        // read by dfsound/resample.c on every block it converts
 char gpuTiming, cpuTiming, limiterWait, limiterDebt, sioTiming;
 char cpuSpeed;   /* CpuSpeed: r3000a.c psxCycleMult */
+char frameRateMode;   /* FrameRate: psxcounters.c frameCycles, SoftGPU/oldGpuFps.c FrameCap */
 char cdBuffer, cdPrefetch, cdChdHunks;   // read by cdriso.c when an image is opened
 char xaDisabled;            // mirrors Config.Xa   (see wiiSXconfig.h)
 char cddaDisabled;          // mirrors Config.Cdda
@@ -251,6 +252,7 @@ static struct {
   { "GpuTiming", &gpuTiming, GPU_TIMING_FAST, GPU_TIMING_ACCURATE },
   { "SioTiming", &sioTiming, SIO_TIMING_FAST, SIO_TIMING_ACCURATE },
   { "CpuSpeed", &cpuSpeed, CPU_SPEED_AUTO, CPU_SPEED_300 },
+  { "FrameRate", &frameRateMode, FRAMERATE_AUTO, FRAMERATE_PS1 },
   { "Performance", NULL, 0, 0, "Disc reads and the frame limiter. Keep the defaults." },
   { "CdBuffer", &cdBuffer, CD_BUFFER_16K, CD_BUFFER_256K },
   { "CdPrefetch", &cdPrefetch, CD_PREFETCH_OFF, CD_PREFETCH_ON },
@@ -507,6 +509,7 @@ void loadSettings(int argc, char *argv[])
 	gpuTiming        = GPU_TIMING_FAST;   /* until the eleven games and the recordings pass on Accurate */
 	cpuTiming        = CPU_TIMING_FAST;   /* the same */
 	cpuSpeed         = CPU_SPEED_AUTO;
+	frameRateMode    = FRAMERATE_AUTO;
 	sioTiming        = SIO_TIMING_FAST;   /* the same: Accurate is three times as long per pad byte */
 	limiterWait      = LIMITER_WAIT_SLEEP; /* bench Wii 2026-09-30: same speed, 54% of the time to other threads */
 	limiterDebt      = LIMITER_DEBT_LONG;  /* chains/limiter_debt_ab.txt: speed 1.000 vs 0.995, sound queue fuller, no rate saturation */

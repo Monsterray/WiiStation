@@ -217,18 +217,39 @@ static const OptRow PLUGIN_ROWS[] =
 	ROW_CYCLE("CPU Speed",  cpuSpeed,  CPU_SPEED_AUTO,   CPU_SPEED_300,        CPU_SPEED_NAMES,     NULL),
 };
 
+/* The SPU plugin: there is one (P.E.Op.S. DFSound, from PCSX-ReARMed), so it is a readout;
+ * what can be swapped is where its output is resampled and mixed for the Wii. */
+static void infoSpuPlugin(char *buf, int len) { snprintf(buf, len, "P.E.Op.S. DFSound"); }
+static const char* const SPU_OUTPUT_NAMES[] = { "CPU", "DSP" };
+
+static const OptRow SPU_ROWS[] =
+{
+	ROW_INFO("SPU Plugin", infoSpuPlugin),
+	ROW_RADIO("Output", soundHwAccel, SOUND_HW_ACCEL_OFF, SOUND_HW_ACCEL_ON, SPU_OUTPUT_NAMES, NULL),
+};
+
+static const OptHelp SPU_HELP[] =
+{
+	{ "Output:", "CPU resamples and mixes on the Wii's CPU." },
+	{ NULL,      "DSP hands the stream to the Wii's sound chip." },
+	{ NULL,      "Sound quality is in Audio, Advanced." },
+};
+
+static const char* const FRAME_RATE_NAMES[] = { "Auto", "TV", "PS1" };
+
 static const OptRow GPU_ROWS[] =
 {
 	ROW_RADIO("GPU Plugin", gpuPlugin, OLD_SOFT,         OPEN_GX,              GPU_PLUGIN_NAMES, NULL),
 	ROW_CYCLE("GPU Timing", gpuTiming, GPU_TIMING_FAST,  GPU_TIMING_ACCURATE,  FAST_ACCURATE_NAMES, NULL),
+	ROW_RADIO("Frame Rate", frameRateMode, FRAMERATE_AUTO, FRAMERATE_PS1,     FRAME_RATE_NAMES, NULL),
 };
 
 static const OptHelp GPU_HELP[] =
 {
-	{ "GPU Plugin:", "OpenGX uses the Wii's GPU. The soft ones avoid" },
-	{ NULL,          "its quirks, but are slower." },
+	{ "GPU Plugin:", "OpenGX uses the Wii's GPU; Soft avoids its quirks." },
 	{ "GPU Timing:", "Accurate: the GPU is busy as long as on a PS1." },
-	{ NULL,          "A new plugin restarts a loaded game." },
+	{ "Frame Rate:", "TV: 59.94 Hz, one frame per TV refresh: smoothest." },
+	{ NULL,          "PS1: 59.82 Hz, a PlayStation's own speed." },
 };
 
 static const OptRow INPUT_ROWS[] =
@@ -339,28 +360,29 @@ struct OptPage
 
 static const OptPage PAGES[] =
 {
-	{ "Advanced", "SPU",  SOUND_ROWS,   COUNT(SOUND_ROWS),   NULL,        0,                  SettingsFrame::SUBMENU_AUDIO,   pluginsEnter, pluginsLeave },
+	{ "Advanced Sound", NULL, SOUND_ROWS, COUNT(SOUND_ROWS), NULL,        0,                  SettingsFrame::SUBMENU_AUDIO,   NULL,         NULL         },
 	{ "Advanced Graphics", NULL, ADVGFX_ROWS, COUNT(ADVGFX_ROWS), ADVGFX_HELP, COUNT(ADVGFX_HELP), SettingsFrame::SUBMENU_VIDEO, NULL,  NULL         },
 	{ "Advanced", "CPU",  PLUGIN_ROWS,  COUNT(PLUGIN_ROWS),  PLUGIN_HELP, COUNT(PLUGIN_HELP), SettingsFrame::SUBMENU_GENERAL, pluginsEnter, pluginsLeave },
 	{ "Advanced", "CD",   CD_ROWS,      COUNT(CD_ROWS),      CD_HELP,     COUNT(CD_HELP),     SettingsFrame::SUBMENU_GENERAL, pluginsEnter, pluginsLeave },
 	{ "Memory",   NULL,   MEMORY_ROWS,  COUNT(MEMORY_ROWS),  NULL,        0,                  SettingsFrame::SUBMENU_GENERAL, NULL,         NULL         },
 	{ "Advanced", "GPU",  GPU_ROWS,     COUNT(GPU_ROWS),     GPU_HELP,    COUNT(GPU_HELP),    SettingsFrame::SUBMENU_GENERAL, pluginsEnter, pluginsLeave },
 	{ "Advanced", "Input", INPUT_ROWS,  COUNT(INPUT_ROWS),   INPUT_HELP,  COUNT(INPUT_HELP),  SettingsFrame::SUBMENU_GENERAL, pluginsEnter, pluginsLeave },
+	{ "Advanced", "SPU",  SPU_ROWS,     COUNT(SPU_ROWS),     SPU_HELP,    COUNT(SPU_HELP),    SettingsFrame::SUBMENU_GENERAL, pluginsEnter, pluginsLeave },
 };
 
 /* The Advanced pages, in the order their tabs run across the top. A tab switch stays inside
  * the group: the page entered first decides where B returns to, and the core/plugin choice
  * (pluginsEnter/pluginsLeave) is taken on entering the group and applied on leaving it. */
 static const int ADV_TABS[] = {
-	OptionsFrame::PAGE_PLUGINS, OptionsFrame::PAGE_ADV_GPU, OptionsFrame::PAGE_SOUND,
+	OptionsFrame::PAGE_PLUGINS, OptionsFrame::PAGE_ADV_GPU, OptionsFrame::PAGE_ADV_SPU,
 	OptionsFrame::PAGE_STORAGE, OptionsFrame::PAGE_ADV_INPUT
 };
 #define NUM_TABS	((int)(sizeof(ADV_TABS) / sizeof(ADV_TABS[0])))
-/* The tab row sits where the title is, like the Settings tabs: five 104-wide buttons. */
+/* The tab row: the same places and sizes as the Settings tabs (SettingsFrame FRAME_BUTTONS
+ * 0-4, TAB_Y there too), so moving between the two menus does not shift anything. */
 #define TAB_Y		20.0
-#define TAB_W		104.0
-#define TAB_DX		114.0
-#define TAB_X0		((640.0 - (NUM_TABS - 1) * TAB_DX - TAB_W) / 2)
+static const float TAB_X[] = { 25.0, 155.0, 275.0, 395.0, 515.0 };
+static const float TAB_WS[] = { 110.0, 100.0, 100.0, 100.0, 100.0 };
 
 #define NUM_PAGES		COUNT(PAGES)
 #define OPT_MAX_ROWS	6
@@ -376,11 +398,11 @@ static const int ADV_TABS[] = {
  *  further left and its buttons occupy OPT_MAX_CHOICES evenly spaced slots. */
 #define TITLE_X		320.0
 #define TITLE_Y		44.0
-#define ROW_Y0		86.0
+#define ROW_Y0		100.0		// the Settings tabs' first row
 #define ROW_DY		60.0		// the tabs' row pitch
-#define LABEL_X		175.0		// ROW_CYCLE / ROW_INFO label, centred
-#define BUTTON_X	340.0
-#define BUTTON_W	250.0
+#define LABEL_X		160.0		// ROW_CYCLE / ROW_INFO label, centred (the Settings tabs' column)
+#define BUTTON_X	295.0		// where the Settings tabs' buttons start
+#define BUTTON_W	200.0
 #define BUTTON_H	56.0		// the height every button on the tabs has
 #define RLABEL_X	110.0		// ROW_RADIO label, centred
 #define RADIO_X0	205.0		// first choice button
@@ -488,6 +510,8 @@ typedef char opt_plugin_fits [OPT_PAGE_FITS(PLUGIN_ROWS)  ? 1 : -1];
 typedef char opt_advgfx_fits[OPT_PAGE_FITS(ADVGFX_ROWS) ? 1 : -1];
 typedef char opt_cd_fits[OPT_PAGE_FITS(CD_ROWS) ? 1 : -1];
 typedef char opt_gpu_fits[OPT_PAGE_FITS(GPU_ROWS) ? 1 : -1];
+typedef char opt_spu_fits[OPT_PAGE_FITS(SPU_ROWS) ? 1 : -1];
+typedef char opt_spu_help_fits[OPT_HELP_FITS(SPU_ROWS, SPU_HELP) ? 1 : -1];
 typedef char opt_input_fits[OPT_PAGE_FITS(INPUT_ROWS) ? 1 : -1];
 typedef char opt_gpu_help_fits[OPT_HELP_FITS(GPU_ROWS, GPU_HELP) ? 1 : -1];
 typedef char opt_input_help_fits[OPT_HELP_FITS(INPUT_ROWS, INPUT_HELP) ? 1 : -1];
@@ -592,7 +616,7 @@ OptionsFrame::OptionsFrame()
 
 	for (int t = 0; t < NUM_TABS; t++)
 	{
-		float x = TAB_X0 + t * TAB_DX;
+		float x = TAB_X[t], TAB_W = TAB_WS[t];
 		tabString[t] = (char*)PAGES[ADV_TABS[t]].tab;
 		/* BTN_A_SEL, as the Settings tabs: the current one stays lit */
 		TABS[t] = new menu::Button(BTN_A_SEL, &tabString[t], x, TAB_Y, TAB_W, BUTTON_H);
