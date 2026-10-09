@@ -66,6 +66,22 @@ int psxInit() {
 	}
 }
 
+/* PSX cycles charged per 100 instructions (both CPU cores' ApplyConfig). The CpuSpeed
+ * setting (menu: Plugins, CPU Speed; per game with Save Settings, This Game): Auto is the
+ * normal 175 plus the built-in per-game fixes (database.c cycle_multiplier_overrides, CTR
+ * 200); a percentage replaces both: 150% charges 175*100/150 = 116 cycles, so the PS1 runs
+ * 1.5x the instructions in each emulated second -- smoother where a game drops frames
+ * because its CPU work does not fit, at that much more Wii CPU time; some games break. */
+int psxCycleMult(void)
+{
+	extern char cpuSpeed;
+	static const short pct[] = { 0, 50, 75, 100, 125, 150, 200, 300 };
+	if (cpuSpeed > 0 && cpuSpeed < (int)(sizeof pct / sizeof pct[0]))
+		return CYCLE_MULT_DEFAULT * 100 / pct[(int)cpuSpeed];
+	return Config.cycle_multiplier_override && Config.cycle_multiplier == CYCLE_MULT_DEFAULT
+		? Config.cycle_multiplier_override : Config.cycle_multiplier;
+}
+
 void psxReset() {
 	bool introBypassed = FALSE;
 	psxMemReset();

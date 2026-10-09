@@ -137,6 +137,18 @@ enum cdBuffer
 	CD_BUFFER_64K,
 	CD_BUFFER_256K
 };
+extern char cpuSpeed;            /* CPU overclock/underclock (r3000a.c psxCycleMult) */
+enum cpuSpeed
+{
+	CPU_SPEED_AUTO=0,       /* normal speed, plus the built-in per-game fixes (database.c) */
+	CPU_SPEED_50,
+	CPU_SPEED_75,
+	CPU_SPEED_100,          /* normal speed, without the per-game fixes */
+	CPU_SPEED_125,
+	CPU_SPEED_150,
+	CPU_SPEED_200,
+	CPU_SPEED_300
+};
 extern char cpuTiming;           /* whether Lightrec charges GTE and mult/div waits */
 enum cpuTiming
 {

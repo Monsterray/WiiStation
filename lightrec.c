@@ -906,8 +906,7 @@ static void lightrec_plugin_notify(enum R3000Anote note, void *data)
 static void lightrec_plugin_apply_config()
 {
 	static u32 cycles_per_op_old;
-	u32 cycle_mult = Config.cycle_multiplier_override && Config.cycle_multiplier == CYCLE_MULT_DEFAULT
-		? Config.cycle_multiplier_override : Config.cycle_multiplier;
+	u32 cycle_mult = psxCycleMult();
 	u32 cycles_per_op = cycle_mult * 1024 / 100;
 	assert(cycles_per_op);
 

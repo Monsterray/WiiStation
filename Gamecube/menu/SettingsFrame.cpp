@@ -176,9 +176,9 @@ void setSpuTempo(int soundTempo);
 
 /*
 General Tab:
-Plugins; CD; Memory            (one row of sub-pages, OptionsFrame.cpp; the CPU core and
-	GPU plugin moved to Plugins and the CD settings to CD, so buttons 5/6/58 and
-	64/65/66 are still in the table below but are never shown)
+Advanced; Memory               (one row of sub-pages, OptionsFrame.cpp. Advanced has tabs
+	CPU, GPU, SPU, CD, Input: the CPU core, GPU plugin and CD settings live there, so
+	buttons 5/6/58, 64/65/66 and 74 (CD) are still in the table below but never shown)
 Select Bios: HLE; SD; USB; DVD
 Boot Games Through Bios: Yes; No + Execute Bios
 Select language
@@ -312,8 +312,8 @@ static char FRAME_STRINGS[99][24] =
 	  "Tempo",				// [81] Sync: the legacy mixer-clock pull-back (SoundTempo)
 	  "Rate",				// [82] Sync: playback-rate nudge at the output (SoundRateControl)
 	  "Advanced",			// [83] audio tab: the Advanced Sound page
-	  "Plugins",			// [84] general tab: the Plugins page
-	  "CD",					// [85] general tab: the CD page
+	  "Advanced",			// [84] general tab: the Advanced pages (tabs CPU, GPU, SPU, CD, Input)
+	  "CD",					// [85] general tab: the CD page (not shown: CD is a tab of Advanced)
 	  "Memory",				// [86] general tab: the Memory page
 	  "Enable",				// [87] audio tab: label of the three source toggles
 	  "Audio",				// [88] Enable: the sound output as a whole
@@ -387,7 +387,7 @@ struct ButtonInfo
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[69],	365.0,	100.0,	130.0,	56.0,	 0,	 9,	 5,	 58,Func_CpuLightrec,		Func_ReturnFromSettingsFrame }, // CPU: Lightrec
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[12],	295.0,	160.0,	 70.0,	56.0,	73,	11,	10,	 8,	Func_BiosSelectHLE,		Func_ReturnFromSettingsFrame }, // Bios: HLE
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[13],	375.0,	160.0,	 55.0,	56.0,	73,	11,	 7,	 9,	Func_BiosSelectSD,		Func_ReturnFromSettingsFrame }, // Bios: SD
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[14],	440.0,	160.0,	 70.0,	56.0,	74,	12,	 8,	10,	Func_BiosSelectUSB,		Func_ReturnFromSettingsFrame }, // Bios: USB
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[14],	440.0,	160.0,	 70.0,	56.0,	75,	12,	 8,	10,	Func_BiosSelectUSB,		Func_ReturnFromSettingsFrame }, // Bios: USB
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[15],	520.0,	160.0,	 70.0,	56.0,	75,	12,	 9,	 7,	Func_BiosSelectDVD,		Func_ReturnFromSettingsFrame }, // Bios: DVD
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[16],	295.0,	220.0,	 75.0,	56.0,	 7,	54,	13,	12,	Func_BootBiosYes,		Func_ReturnFromSettingsFrame }, // Boot Thru Bios: Yes
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[17],	380.0,	220.0,	 75.0,	56.0,	 8,	54,	11,	13,	Func_BootBiosNo,		Func_ReturnFromSettingsFrame }, // Boot Thru Bios: No
@@ -470,9 +470,9 @@ struct ButtonInfo
 	//General tab: one row of sub-pages. The CPU core and GPU plugin moved to Plugins and the
 	//CD settings to the CD page; buttons 5/6/58 and 64/65/66 stay in this table but are not shown.
 	//Up goes to the General tab, as the first row of every other tab goes to its tab.
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[84],	100.0,	100.0,	130.0,	56.0,	 0,	 7,	75,	74,	Func_PluginsPage,		Func_ReturnFromSettingsFrame }, // Plugins page
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[84],	175.0,	100.0,	130.0,	56.0,	 0,	 7,	75,	75,	Func_PluginsPage,		Func_ReturnFromSettingsFrame }, // Advanced pages
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[85],	255.0,	100.0,	130.0,	56.0,	 0,	 8,	73,	75,	Func_CDPage,			Func_ReturnFromSettingsFrame }, // CD page
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[86],	410.0,	100.0,	130.0,	56.0,	 0,	 9,	74,	73,	Func_MemoryPage,		Func_ReturnFromSettingsFrame }, // Memory page
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[86],	335.0,	100.0,	130.0,	56.0,	 0,	 9,	73,	73,	Func_MemoryPage,		Func_ReturnFromSettingsFrame }, // Memory page
 	//Saves tab: which file each memory card lives in (buttons 76 and 77)
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[94],	295.0,	170.0,	105.0,	56.0,	46,	50,	77,	77,	Func_CardType1,			Func_ReturnFromSettingsFrame }, // Memcard 1 type: Off/Shared/Game
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[93],	430.0,	170.0,	105.0,	56.0,	47,	51,	76,	76,	Func_CardType2,			Func_ReturnFromSettingsFrame }, // Memcard 2 type: Off/Shared/Game
@@ -621,8 +621,9 @@ void SettingsFrame::activateSubmenu(int submenu)
 			FRAME_BUTTONS[7+biosDevice].button->setSelected(true);
 			if (LoadCdBios == BOOTTHRUBIOS_YES)	FRAME_BUTTONS[11].button->setSelected(true);
 			else								FRAME_BUTTONS[12].button->setSelected(true);
-			/* Plugins / CD / Memory, the one row at the top of this tab */
-			for (int i = 73; i <= 75; i++)
+			/* Advanced / Memory, the one row at the top of this tab (74, CD, is a tab of
+			 * Advanced now and stays hidden) */
+			for (int i = 73; i <= 75; i += 2)
 			{
 				FRAME_BUTTONS[i].button->setVisible(true);
 				FRAME_BUTTONS[i].button->setActive(true);

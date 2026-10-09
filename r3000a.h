@@ -73,7 +73,7 @@ typedef struct {
 	void (*ExecuteBlock)(enum blockExecCaller caller); /* executes up to a jump */
 	void (*Clear)(u32 Addr, u32 Size);
 	void (*Notify)(enum R3000Anote note, void *data);
-	void (*ApplyConfig)();
+	void (*ApplyConfig)();   /* also when a game resumes from the menu: CpuSpeed, CpuTiming */
 	void (*Shutdown)();
 } R3000Acpu;
 
@@ -427,6 +427,7 @@ void new_dyna_freeze(void *f, int mode);
 
 int  psxInit();
 void psxReset();
+int psxCycleMult(void);   /* PSX cycles per 100 instructions, for the CPU cores */
 void psxShutdown();
 void psxException(u32 code, enum R3000Abdt bdt, psxCP0Regs *cp0);
 void psxBranchTest();

@@ -651,6 +651,7 @@ void DoBufferSwap(void)                                // SWAP BUFFERS
 
 	GX_Flip(imgPtr, iResX_Max*2, PSXDisplay.RGB24 ? GX_TF_RGBA8 : GX_TF_RGB5A3, 0, 0, iDX, iDY);
 	perf_present_tick(perf_now_us() - swap_t0);
+	{ extern unsigned int ws_presents; ws_presents++; }   /* the FPS counter */
 }
 
 // For old softGpu
@@ -799,11 +800,12 @@ static void CalcFps(void)
         fps_cnt = 0;
         fps_tck = 1;
 
-        if ((frameLimit[0] == FRAMELIMIT_AUTO) && fps_cur > gc_rearmed_cbs.gpu_peops.fFrameRateHz)    // optical adjust ;) avoids flickering fps display
-            fps_cur = gc_rearmed_cbs.gpu_peops.fFrameRateHz;
     }
 
-    sprintf(fpsInfo, "FPS %.2f", fps_cur);
+    {   /* the shared, unclamped counter (SoftGPU/oldGpuFps.c) */
+        extern void ws_fps_vblank(void);
+        ws_fps_vblank();
+    }
 }
 
 void CheckFrameRate(void)

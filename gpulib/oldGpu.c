@@ -301,10 +301,6 @@ void updateDisplay(void)                               // UPDATE DISPLAY
    return;                                             // -> and bye
   }
 
-  if (showFPSonScreen == FPS_SHOW)                    // make fps display buf
-  {
-   sprintf(fpsInfo, "FPS %.2f", fps_cur);
-  }
 
  if(UseFrameSkip)                                      // skip ?
   {

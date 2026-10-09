@@ -156,7 +156,7 @@ bool MenuContext::isRunning()
 			if (autoinput_menupage >= 1 && autoinput_menupage <= 5)
 				setActiveFrame(FRAME_SETTINGS,
 					SettingsFrame::SUBMENU_GENERAL + (int)autoinput_menupage - 1);
-			else if (autoinput_menupage >= 6 && autoinput_menupage <= 10)
+			else if (autoinput_menupage >= 6 && autoinput_menupage <= 12)   /* 11 GPU, 12 Input (the Advanced tabs) */
 				setActiveFrame(FRAME_OPTIONS,
 					OptionsFrame::PAGE_SOUND + (int)autoinput_menupage - 6);
 			else if (autoinput_menupage == 20)   /* Configure Input */

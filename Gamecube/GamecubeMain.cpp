@@ -132,6 +132,7 @@ char soundXaResampler;      // dfsound/xa.c: real hardware zigzag FIR vs the leg
 char soundRateControl;      // dfsound/ratectl.c: nudge the output rate from the queue's occupancy
 char soundResampler;        // read by dfsound/resample.c on every block it converts
 char gpuTiming, cpuTiming, limiterWait, limiterDebt, sioTiming;
+char cpuSpeed;   /* CpuSpeed: r3000a.c psxCycleMult */
 char cdBuffer, cdPrefetch, cdChdHunks;   // read by cdriso.c when an image is opened
 char xaDisabled;            // mirrors Config.Xa   (see wiiSXconfig.h)
 char cddaDisabled;          // mirrors Config.Cdda
@@ -249,6 +250,7 @@ static struct {
   { "CpuTiming", &cpuTiming, CPU_TIMING_FAST, CPU_TIMING_ACCURATE },
   { "GpuTiming", &gpuTiming, GPU_TIMING_FAST, GPU_TIMING_ACCURATE },
   { "SioTiming", &sioTiming, SIO_TIMING_FAST, SIO_TIMING_ACCURATE },
+  { "CpuSpeed", &cpuSpeed, CPU_SPEED_AUTO, CPU_SPEED_300 },
   { "Performance", NULL, 0, 0, "Disc reads and the frame limiter. Keep the defaults." },
   { "CdBuffer", &cdBuffer, CD_BUFFER_16K, CD_BUFFER_256K },
   { "CdPrefetch", &cdPrefetch, CD_PREFETCH_OFF, CD_PREFETCH_ON },
@@ -504,6 +506,7 @@ void loadSettings(int argc, char *argv[])
 	cdPrefetch       = CD_PREFETCH_ON;   /* bench Wii hw_cd_ab: Spyro waits on the card 7.4 -> 1.3% of wall, Medievil 7.9 -> 1.4% */
 	gpuTiming        = GPU_TIMING_FAST;   /* until the eleven games and the recordings pass on Accurate */
 	cpuTiming        = CPU_TIMING_FAST;   /* the same */
+	cpuSpeed         = CPU_SPEED_AUTO;
 	sioTiming        = SIO_TIMING_FAST;   /* the same: Accurate is three times as long per pad byte */
 	limiterWait      = LIMITER_WAIT_SLEEP; /* bench Wii 2026-09-30: same speed, 54% of the time to other threads */
 	limiterDebt      = LIMITER_DEBT_LONG;  /* chains/limiter_debt_ab.txt: speed 1.000 vs 0.995, sound queue fuller, no rate saturation */

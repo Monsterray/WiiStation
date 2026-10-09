@@ -122,6 +122,7 @@ static const char* const CPU_CORE_NAMES[]    = { "Lightrec", "Interpreter", "Dyn
 /* gpuPlugin: 0 Soft Fast (WiiSX P.E.Op.S. path, no GPU timing), 1 Soft Timed (gpulib: GPU time per primitive), 2 OpenGX */
 static const char* const GPU_PLUGIN_NAMES[]  = { "Soft Fast", "Soft Timed", "OpenGX" };
 static const char* const FAST_ACCURATE_NAMES[] = { "Fast", "Accurate" };
+static const char* const CPU_SPEED_NAMES[] = { "Auto", "50%", "75%", "100%", "125%", "150%", "200%", "300%" };
 
 /* setSpuReverb(int) takes the raw setting value; the table's apply slot is void(void), so
  * this wrapper reads the setting itself, the same way GamecubeMain.cpp does at startup. */
@@ -212,18 +213,42 @@ struct OptHelp { const char* term; const char* text; };
 static const OptRow PLUGIN_ROWS[] =
 {
 	ROW_RADIO("CPU Core",   dynacore,  DYNACORE_DYNAREC, DYNACORE_DYNAREC_OLD, CPU_CORE_NAMES,   NULL),
+	ROW_CYCLE("CPU Timing", cpuTiming, CPU_TIMING_FAST,  CPU_TIMING_ACCURATE,  FAST_ACCURATE_NAMES, NULL),
+	ROW_CYCLE("CPU Speed",  cpuSpeed,  CPU_SPEED_AUTO,   CPU_SPEED_300,        CPU_SPEED_NAMES,     NULL),
+};
+
+static const OptRow GPU_ROWS[] =
+{
 	ROW_RADIO("GPU Plugin", gpuPlugin, OLD_SOFT,         OPEN_GX,              GPU_PLUGIN_NAMES, NULL),
 	ROW_CYCLE("GPU Timing", gpuTiming, GPU_TIMING_FAST,  GPU_TIMING_ACCURATE,  FAST_ACCURATE_NAMES, NULL),
-	ROW_CYCLE("CPU Timing", cpuTiming, CPU_TIMING_FAST,  CPU_TIMING_ACCURATE,  FAST_ACCURATE_NAMES, NULL),
+};
+
+static const OptHelp GPU_HELP[] =
+{
+	{ "GPU Plugin:", "OpenGX uses the Wii's GPU. The soft ones avoid" },
+	{ NULL,          "its quirks, but are slower." },
+	{ "GPU Timing:", "Accurate: the GPU is busy as long as on a PS1." },
+	{ NULL,          "A new plugin restarts a loaded game." },
+};
+
+static const OptRow INPUT_ROWS[] =
+{
+	ROW_CYCLE("Port Timing", sioTiming, SIO_TIMING_FAST, SIO_TIMING_ACCURATE, FAST_ACCURATE_NAMES, NULL),
+};
+
+static const OptHelp INPUT_HELP[] =
+{
+	{ "Port Timing:", "Accurate: each byte on the controller ports takes" },
+	{ NULL,           "as long as on a PS1. Fast is the default." },
 };
 
 static const OptHelp PLUGIN_HELP[] =
 {
-	{ "CPU Core:",   "Lightrec is the recompiler most games run best on." },
-	{ NULL,          "Interpreter is exact but slow; Dynarec is the older one." },
-	{ "GPU Plugin:", "OpenGX uses the Wii's GPU; the soft ones avoid its quirks." },
-	{ "Timing:",     "Accurate: GPU and 3D-maths waits as on a PS1." },
-	{ NULL,          "A new core or plugin restarts a loaded game." },
+	{ "CPU Core:",   "Lightrec runs most games best; Interpreter is" },
+	{ NULL,          "exact but slow. A new core restarts the game." },
+	{ "CPU Timing:", "Accurate: 3D-maths and multiply waits as on a PS1." },
+	{ "CPU Speed:",  "Over 100% eases slowdown in some games, at more" },
+	{ NULL,          "Wii CPU time. Save it for one game: This Game." },
 };
 
 static char pluginsCoreOnEntry, pluginsGpuOnEntry;
@@ -299,7 +324,8 @@ static const OptRow MEMORY_ROWS[] =
 
 struct OptPage
 {
-	const char*			title;
+	const char*			title;			// shown at the top; a tabbed page shows its tabs instead
+	const char*			tab;			// the page's tab among the Advanced pages, or NULL
 	const OptRow*		rows;
 	int					nrows;
 	const OptHelp*		help;			// explanation under the rows; NULL for none
@@ -313,12 +339,28 @@ struct OptPage
 
 static const OptPage PAGES[] =
 {
-	{ "Advanced Sound", SOUND_ROWS,   COUNT(SOUND_ROWS),   NULL,         0,                    SettingsFrame::SUBMENU_AUDIO,   NULL,         NULL         },
-	{ "Advanced Graphics", ADVGFX_ROWS, COUNT(ADVGFX_ROWS), ADVGFX_HELP, COUNT(ADVGFX_HELP), SettingsFrame::SUBMENU_VIDEO,   NULL,         NULL         },
-	{ "Plugins",        PLUGIN_ROWS,  COUNT(PLUGIN_ROWS),  PLUGIN_HELP,  COUNT(PLUGIN_HELP),   SettingsFrame::SUBMENU_GENERAL, pluginsEnter, pluginsLeave },
-	{ "CD",             CD_ROWS,      COUNT(CD_ROWS),      CD_HELP,      COUNT(CD_HELP),       SettingsFrame::SUBMENU_GENERAL, NULL,         NULL         },
-	{ "Memory",         MEMORY_ROWS,  COUNT(MEMORY_ROWS),  NULL,         0,                    SettingsFrame::SUBMENU_GENERAL, NULL,         NULL         },
+	{ "Advanced", "SPU",  SOUND_ROWS,   COUNT(SOUND_ROWS),   NULL,        0,                  SettingsFrame::SUBMENU_AUDIO,   pluginsEnter, pluginsLeave },
+	{ "Advanced Graphics", NULL, ADVGFX_ROWS, COUNT(ADVGFX_ROWS), ADVGFX_HELP, COUNT(ADVGFX_HELP), SettingsFrame::SUBMENU_VIDEO, NULL,  NULL         },
+	{ "Advanced", "CPU",  PLUGIN_ROWS,  COUNT(PLUGIN_ROWS),  PLUGIN_HELP, COUNT(PLUGIN_HELP), SettingsFrame::SUBMENU_GENERAL, pluginsEnter, pluginsLeave },
+	{ "Advanced", "CD",   CD_ROWS,      COUNT(CD_ROWS),      CD_HELP,     COUNT(CD_HELP),     SettingsFrame::SUBMENU_GENERAL, pluginsEnter, pluginsLeave },
+	{ "Memory",   NULL,   MEMORY_ROWS,  COUNT(MEMORY_ROWS),  NULL,        0,                  SettingsFrame::SUBMENU_GENERAL, NULL,         NULL         },
+	{ "Advanced", "GPU",  GPU_ROWS,     COUNT(GPU_ROWS),     GPU_HELP,    COUNT(GPU_HELP),    SettingsFrame::SUBMENU_GENERAL, pluginsEnter, pluginsLeave },
+	{ "Advanced", "Input", INPUT_ROWS,  COUNT(INPUT_ROWS),   INPUT_HELP,  COUNT(INPUT_HELP),  SettingsFrame::SUBMENU_GENERAL, pluginsEnter, pluginsLeave },
 };
+
+/* The Advanced pages, in the order their tabs run across the top. A tab switch stays inside
+ * the group: the page entered first decides where B returns to, and the core/plugin choice
+ * (pluginsEnter/pluginsLeave) is taken on entering the group and applied on leaving it. */
+static const int ADV_TABS[] = {
+	OptionsFrame::PAGE_PLUGINS, OptionsFrame::PAGE_ADV_GPU, OptionsFrame::PAGE_SOUND,
+	OptionsFrame::PAGE_STORAGE, OptionsFrame::PAGE_ADV_INPUT
+};
+#define NUM_TABS	((int)(sizeof(ADV_TABS) / sizeof(ADV_TABS[0])))
+/* The tab row sits where the title is, like the Settings tabs: five 104-wide buttons. */
+#define TAB_Y		20.0
+#define TAB_W		104.0
+#define TAB_DX		114.0
+#define TAB_X0		((640.0 - (NUM_TABS - 1) * TAB_DX - TAB_W) / 2)
 
 #define NUM_PAGES		COUNT(PAGES)
 #define OPT_MAX_ROWS	6
@@ -398,6 +440,18 @@ static menu::TextBox*	titleBox;
 static char*			titleString;
 static char				titleText[32];
 static int				currentPage;
+static menu::Button*	TABS[5];
+static char*			tabString[5];
+static int				returnSubmenu;		// the Settings tab B goes back to
+static bool				tabSwitch;			// activateSubmenu called for a tab, inside the group
+static OptionsFrame*	optionsFrame;
+
+static void Func_OptTab0() { optionsFrame->showTab(0); }
+static void Func_OptTab1() { optionsFrame->showTab(1); }
+static void Func_OptTab2() { optionsFrame->showTab(2); }
+static void Func_OptTab3() { optionsFrame->showTab(3); }
+static void Func_OptTab4() { optionsFrame->showTab(4); }
+static void (*const TAB_FUNCS[5])() = { Func_OptTab0, Func_OptTab1, Func_OptTab2, Func_OptTab3, Func_OptTab4 };
 
 /*  One click handler per possible row, and per choice within a radio row: the Button API
  *  takes a plain function pointer with no argument, so the position has to be baked in.
@@ -433,6 +487,10 @@ typedef char opt_sound_fits  [OPT_PAGE_FITS(SOUND_ROWS)   ? 1 : -1];
 typedef char opt_plugin_fits [OPT_PAGE_FITS(PLUGIN_ROWS)  ? 1 : -1];
 typedef char opt_advgfx_fits[OPT_PAGE_FITS(ADVGFX_ROWS) ? 1 : -1];
 typedef char opt_cd_fits[OPT_PAGE_FITS(CD_ROWS) ? 1 : -1];
+typedef char opt_gpu_fits[OPT_PAGE_FITS(GPU_ROWS) ? 1 : -1];
+typedef char opt_input_fits[OPT_PAGE_FITS(INPUT_ROWS) ? 1 : -1];
+typedef char opt_gpu_help_fits[OPT_HELP_FITS(GPU_ROWS, GPU_HELP) ? 1 : -1];
+typedef char opt_input_help_fits[OPT_HELP_FITS(INPUT_ROWS, INPUT_HELP) ? 1 : -1];
 typedef char opt_memory_fits [OPT_PAGE_FITS(MEMORY_ROWS)  ? 1 : -1];
 typedef char opt_plugin_help_fits [OPT_HELP_FITS(PLUGIN_ROWS,  PLUGIN_HELP)  ? 1 : -1];
 typedef char opt_advgfx_help_fits[OPT_HELP_FITS(ADVGFX_ROWS, ADVGFX_HELP) ? 1 : -1];
@@ -530,6 +588,20 @@ OptionsFrame::OptionsFrame()
 	snprintf(titleText, sizeof(titleText), "%s", PAGES[PAGE_SOUND].title);
 	titleBox = new menu::TextBox(&titleString, TITLE_X, TITLE_Y, 1.0, true);
 	add(titleBox);
+	optionsFrame = this;
+
+	for (int t = 0; t < NUM_TABS; t++)
+	{
+		float x = TAB_X0 + t * TAB_DX;
+		tabString[t] = (char*)PAGES[ADV_TABS[t]].tab;
+		/* BTN_A_SEL, as the Settings tabs: the current one stays lit */
+		TABS[t] = new menu::Button(BTN_A_SEL, &tabString[t], x, TAB_Y, TAB_W, BUTTON_H);
+		TABS[t]->setActive(true);
+		TABS[t]->setClicked(TAB_FUNCS[t]);
+		TABS[t]->setReturn(Func_ReturnFromOptionsFrame);
+		add(TABS[t]);
+		menu::Cursor::getInstance().addComponent(this, TABS[t], x, x + TAB_W, TAB_Y, TAB_Y + BUTTON_H);
+	}
 
 	for (int i = 0; i < OPT_MAX_ROWS; i++)
 	{
@@ -589,6 +661,11 @@ OptionsFrame::OptionsFrame()
 OptionsFrame::~OptionsFrame()
 {
 	delete titleBox;
+	for (int t = 0; t < NUM_TABS; t++)
+	{
+		menu::Cursor::getInstance().removeComponent(this, TABS[t]);
+		delete TABS[t];
+	}
 	for (int i = 0; i < OPT_MAX_ROWS; i++)
 	{
 		delete ROWS[i].textBox;
@@ -618,8 +695,24 @@ void OptionsFrame::activateSubmenu(int submenu)
 	currentPage = submenu;
 	n = PAGES[currentPage].nrows;
 
-	snprintf(titleText, sizeof(titleText), "%s", PAGES[currentPage].title);
-	if (PAGES[currentPage].onEnter) PAGES[currentPage].onEnter();
+	bool tabbed = PAGES[currentPage].tab != NULL;
+	int curTab = -1;
+	/* A tabbed page shows the tab row where the title would be. */
+	snprintf(titleText, sizeof(titleText), "%s", tabbed ? "" : PAGES[currentPage].title);
+	for (int t = 0; t < NUM_TABS; t++)
+	{
+		if (ADV_TABS[t] == currentPage) curTab = t;
+		TABS[t]->setVisible(tabbed);
+		TABS[t]->setActive(tabbed);
+		TABS[t]->setSelected(ADV_TABS[t] == currentPage);
+		TABS[t]->setNextFocus(menu::Focus::DIRECTION_LEFT,  TABS[(t + NUM_TABS - 1) % NUM_TABS]);
+		TABS[t]->setNextFocus(menu::Focus::DIRECTION_RIGHT, TABS[(t + 1) % NUM_TABS]);
+	}
+	if (!tabSwitch)
+	{
+		returnSubmenu = PAGES[currentPage].returnSubmenu;
+		if (PAGES[currentPage].onEnter) PAGES[currentPage].onEnter();
+	}
 
 	for (int i = 0; i < OPT_MAX_ROWS; i++)
 	{
@@ -708,10 +801,20 @@ void OptionsFrame::activateSubmenu(int submenu)
 	{
 		int ncLast  = pageRow(prevRow)->kind  == OPT_RADIO ? rowChoices(pageRow(prevRow))  : 1;
 		int ncFirst = pageRow(firstRow)->kind == OPT_RADIO ? rowChoices(pageRow(firstRow)) : 1;
+		/* On a tabbed page the current tab is part of the loop: Up from the first row goes
+		 * to it, Down from it to the first row. */
+		menu::Button *tabBtn = curTab >= 0 ? TABS[curTab] : NULL;
 		for (int c = 0; c < ncLast; c++)
-			focusTarget(prevRow, c)->setNextFocus(menu::Focus::DIRECTION_DOWN, focusTarget(firstRow, c));
+			focusTarget(prevRow, c)->setNextFocus(menu::Focus::DIRECTION_DOWN,
+				tabBtn ? (menu::Component*)tabBtn : (menu::Component*)focusTarget(firstRow, c));
 		for (int c = 0; c < ncFirst; c++)
-			focusTarget(firstRow, c)->setNextFocus(menu::Focus::DIRECTION_UP, focusTarget(prevRow, c));
+			focusTarget(firstRow, c)->setNextFocus(menu::Focus::DIRECTION_UP,
+				tabBtn ? (menu::Component*)tabBtn : (menu::Component*)focusTarget(prevRow, c));
+		for (int t = 0; tabBtn && t < NUM_TABS; t++)
+		{
+			TABS[t]->setNextFocus(menu::Focus::DIRECTION_DOWN, focusTarget(firstRow, 0));
+			TABS[t]->setNextFocus(menu::Focus::DIRECTION_UP,   focusTarget(prevRow, 0));
+		}
 	}
 
 	/* Help text under the rows, if the page has any.
@@ -768,7 +871,19 @@ void OptionsFrame::activateSubmenu(int submenu)
 
 	/* B leaves every page, so none of them carries a Back button. A page of readouts has
 	 * nothing to focus at all, and the frame itself takes the focus then. */
-	setDefaultFocus(firstRow >= 0 ? focusTarget(firstRow, 0) : NULL);
+	/* After a tab press the focus stays on the tab row, so Left/Right keep turning pages. */
+	if (tabSwitch && curTab >= 0)
+		setDefaultFocus(TABS[curTab]);
+	else
+		setDefaultFocus(firstRow >= 0 ? focusTarget(firstRow, 0) : NULL);
+}
+
+void OptionsFrame::showTab(int tab)
+{
+	if (tab < 0 || tab >= NUM_TABS || ADV_TABS[tab] == currentPage) return;
+	tabSwitch = true;
+	activateSubmenu(ADV_TABS[tab]);
+	tabSwitch = false;
 }
 
 /* Readouts are live: the emulator is not running while this page is open, so re-reading a
@@ -793,6 +908,6 @@ void Func_ReturnFromOptionsFrame()
 	/* Go back to the tab first: a plugin change with a game loaded restarts the emulator
 	 * and ends in Func_SetPlayGame(), which puts the game on screen. Switching frames
 	 * afterwards would undo that, so the hook runs last. */
-	pMenuContext->setActiveFrame(MenuContext::FRAME_SETTINGS, PAGES[currentPage].returnSubmenu);
+	pMenuContext->setActiveFrame(MenuContext::FRAME_SETTINGS, returnSubmenu);
 	if (onLeave) onLeave();
 }

@@ -351,6 +351,41 @@ void FrameSkip(void)
 
 ////////////////////////////////////////////////////////////////////////
 
+/* The on-screen counter (FPS setting): what happened in the last second of wall time,
+ * nothing rounded to a table value. Called once per emulated vblank by every plugin.
+ *   FPS   frames the game presented (ws_presents, counted at each plugin's flip): 30 for a
+ *         game that draws every other vblank, whatever the vblank rate;
+ *   VPS   emulated vblanks: the PlayStation's refresh as the core runs it (60.00 NTSC,
+ *         50.00 PAL; 59.81/49.75 for the games in database.c fractional_Framerate_hack_db);
+ *   n%    VPS against the rate the core aims for (psxGetFps): 100% is full speed.
+ * Before 5.9.5 the number was VPS measured over 10 vblanks and then clamped to the PEOPS
+ * table's 59.83 ("optical adjust ;)") whenever it was higher, so it never showed what the
+ * core really did. */
+unsigned int ws_presents;
+
+void ws_fps_vblank(void)
+{
+ extern double psxGetFps(void);
+ static unsigned long t0;
+ static unsigned int vbl, pres0;
+ unsigned long now = timeGetTime();
+
+ vbl++;
+ if (!t0 || now - t0 > 10 * TIMEBASE)   /* first call, or back from the menu */
+  {
+   t0 = now; vbl = 0; pres0 = ws_presents;
+   return;
+  }
+ if (now - t0 >= TIMEBASE)
+  {
+   double secs = (double)(now - t0) / TIMEBASE;
+   double vps = vbl / secs, fps = (ws_presents - pres0) / secs, hz = psxGetFps();
+   snprintf(fpsInfo, sizeof(fpsInfo), "FPS %.1f  VPS %.2f  %d%%", fps, vps,
+            (int)(vps * 100.0 / (hz > 1.0 ? hz : 60.0) + 0.5));
+   t0 = now; vbl = 0; pres0 = ws_presents;
+  }
+}
+
 void calcfps(void)
 {
  static unsigned long _ticks_since_last_update;
@@ -394,11 +429,9 @@ void calcfps(void)
    fps_cnt = 0;
    fps_tck = 1;
 
-   if(UseFrameLimit && fps_cur>fFrameRateHz)           // optical adjust ;) avoids flickering fps display
-    fps_cur=fFrameRateHz;
   }
 
-  sprintf(fpsInfo, "FPS %.2f", fps_cur);
+ ws_fps_vblank();
 
 }
 

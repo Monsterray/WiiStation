@@ -2957,6 +2957,7 @@ static void flipEGL(void)
      * OpenGX's state cache: it has to forget what it last set (deps/opengx/gc_gl.c). */
     ogx_state_invalidate();
     perf_present_tick(perf_now_us() - flip_t0);
+    { extern unsigned int ws_presents; ws_presents++; }   /* the FPS counter (SoftGPU/oldGpuFps.c) */
 }
 
 #include "../Gamecube/wiiSXconfig.h"

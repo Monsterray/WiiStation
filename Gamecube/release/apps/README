@@ -1,5 +1,5 @@
 README : WiiStation
-Version 5.9.4
+Version 5.9.5
 
 LICENSE:
     This software is licensed under the GNU General Public License v2
@@ -125,6 +125,20 @@ LATER UPDATES BY:
  * Monty Perrotti (WiiStation)
 
 WiiStation CHANGE LOG:
+Ver 5.9.5 (2026-10-09):
+* New: Settings > General > Advanced (was Plugins) has tabs across the top:
+  CPU, GPU, SPU, CD and Input. The CD settings moved into its CD tab, and the
+  sound settings of Audio > Advanced are its SPU tab.
+* New: CPU Speed (Advanced, CPU tab): 50% to 300%, or Auto (normal, with the
+  fixes some games need). Over 100% can make a game that slows down smoother,
+  but uses more of the Wii's CPU, and some games break. Use Save Settings,
+  This Game to keep it for one game only.
+* New: Port Timing (Advanced, Input tab), which was only in the settings file.
+* Changed: the frame counter (Show FPS) shows what really happens, once a
+  second: FPS = frames the game drew, VPS = emulated screen refreshes, and the
+  speed in %. It used to show the refresh rate, held at 59.83 whenever it was
+  higher.
+
 Ver 5.9.4 (2026-10-09):
 * Fixed: Gex 3 - Deep Cover Gecko crashed two seconds after it started (with
   the built-in BIOS). With the built-in BIOS, the emulated CD drive could
