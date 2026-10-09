@@ -16,6 +16,11 @@ deleted, so the user's settings, saves and games stay):
 --remove-autoboot deletes sd:/wiistation/autoboot.txt, which a lab run (wii_lab.py) left before
 2026-10-01 and which makes an HBC start run that chain instead of the menu.
 The fonts go last (Chs.dat is 8 MB). The Wii's address is $WII_BENCH_IP (the queue sets it), else 192.168.8.213.
+
+--production installs on Monty's everyday Wii (192.168.8.200, real data: scripts/wii_targets.py),
+only when he asks for it, run directly (not through the bench queue): it first checks that HBC is
+idle on his TV (no app running), then writes sd:/apps/WiiStation (boot.dol, meta.xml, icon.png)
+and nothing else -- not sd:/wiistation, where his settings, saves and cards live; no deletes.
 """
 import os
 import pathlib
@@ -54,7 +59,18 @@ def main():
     a = sys.argv[1:]
     dol = pathlib.Path(a[a.index("--dol") + 1]) if "--dol" in a else REPO / "Gamecube/WiiSXRX_Release.dol"
     trees = stage(dol)
-    wii = os.environ.get("WII_BENCH_IP", "192.168.8.213")
+    sys.path.insert(0, str(REPO / "scripts"))
+    from wii_targets import PRODUCTION_WII, refuse_production, production_ready
+    if "--production" in a:
+        wii = PRODUCTION_WII
+        if "--remove-autoboot" in a:
+            sys.exit("--remove-autoboot is not allowed on the production Wii")
+        production_ready(wii)
+        trees = trees[:1]   # sd:/apps/WiiStation only
+        print(f"PRODUCTION Wii {wii}: HBC is idle; installing the app folder only", flush=True)
+    else:
+        wii = os.environ.get("WII_BENCH_IP", "192.168.8.213")
+        refuse_production(wii, "wii_install.py (without --production)")
     if "--remove-autoboot" in a and "--dry-run" not in a:
         subprocess.run([sys.executable, str(HBC), "--wii", wii, "rm", "sd:/wiistation/autoboot.txt"])
     for local, remote in trees:
@@ -66,8 +82,9 @@ def main():
         if r.returncode:
             sys.exit(f"sync of {remote} failed (exit {r.returncode})")
     example = REPO / "Gamecube/release/example_settings.ini"   # beside settings.ini; WiiStation does not read it
-    print(f"{example.name} -> sd:/wiistation/{example.name}", flush=True)
-    if "--dry-run" not in a:
+    if "--production" not in a:
+        print(f"{example.name} -> sd:/wiistation/{example.name}", flush=True)
+    if "--dry-run" not in a and "--production" not in a:
         r = subprocess.run([sys.executable, str(HBC), "--wii", wii, "put", str(example), "sd:/wiistation/" + example.name])
         if r.returncode:
             sys.exit(f"upload of {example.name} failed (exit {r.returncode})")

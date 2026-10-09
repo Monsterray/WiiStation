@@ -6,7 +6,7 @@ Queue it (full python path), only with the user's go-ahead:
 import subprocess, sys, time, os
 out, limit, names = sys.argv[1], int(sys.argv[2]), sys.argv[3:]
 py = sys.executable
-hbc = [py, "C:/projects/hbc-reborn/tools/hbc.py", "--wii", "192.168.8.213"]
+hbc = [py, "C:/projects/hbc-reborn/tools/hbc.py", "--wii", "192.168.8.213"]   # the bench Wii only (scripts/wii_targets.py)
 for _ in range(45):
     ls = subprocess.run(hbc + ["ls", "sd:/wiistation"], capture_output=True, text=True).stdout
     if "lab.log" in ls:

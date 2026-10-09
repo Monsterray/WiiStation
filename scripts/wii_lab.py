@@ -90,6 +90,57 @@ def collect_after_failure(wii, run, wait_s=300):
     return True
 
 
+# The card is also the one the user plays from: a run replaces its settings.ini with the
+# runner's and leaves logs and dumps behind (2026-10-09: the user played with the FPS overlay
+# and manual pads, and 14 MB of test files, on their Wii). So the user's settings.ini is
+# fetched before a run -- never printed: it can hold the share's password -- and put back
+# afterwards, and scripts/wii_clean.py takes the run's files off the card.
+CARD = {}
+
+
+def backup_settings(wii, run):
+    hbc = [sys.executable, str(HBC_TOOL), "--wii", wii]
+    ls = subprocess.run(hbc + ["ls", "sd:/wiistation"], capture_output=True, text=True, timeout=60).stdout
+    sizes = {l.split()[-1]: int(l.split()[1]) for l in ls.splitlines() if l.startswith("f ")}
+    run.mkdir(parents=True, exist_ok=True)
+    CARD["wii"] = wii
+    CARD["backup"] = None
+    if "settings.ini" in sizes and sizes["settings.ini"] != len(BASE_SETTINGS.encode()):
+        dst = run / "settings.user.ini"
+        r = subprocess.run(hbc + ["get", "sd:/wiistation/settings.ini", str(dst)],
+                           capture_output=True, text=True, timeout=120)
+        if r.returncode == 0:
+            CARD["backup"] = dst
+            print(f"the card's settings.ini ({sizes['settings.ini']} bytes) is kept for after the run")
+        else:
+            sys.exit("could not save the card's settings.ini before the run; not starting")
+
+
+def finish_card():
+    """After any run: the user's settings.ini back (or the runner's removed), the run's files off."""
+    if not CARD:
+        return
+    wii, backup = CARD["wii"], CARD["backup"]
+    if not hbc_ready(wii, 120):
+        print("the Wii is not in HBC: the card was not tidied" +
+              (f"; the user's settings are in {backup}" if backup else ""))
+        return
+    hbc = [sys.executable, str(HBC_TOOL), "--wii", wii]
+    if backup:
+        r = subprocess.run(hbc + ["put", str(backup), "sd:/wiistation/settings.ini"],
+                           capture_output=True, text=True, timeout=120)
+        if r.returncode == 0:
+            backup.unlink()   # it may hold a password: no copy left behind
+            print("the card's own settings.ini is back")
+        else:
+            print(f"could not put settings.ini back: it is in {backup}")
+    else:   # the runner's own, perhaps with the share's login (--smb-from): none of it stays
+        subprocess.run(hbc + ["rm", "sd:/wiistation/settings.ini"], capture_output=True, text=True, timeout=60)
+    sys.path.insert(0, str(REPO / "scripts"))
+    import wii_clean
+    wii_clean.clean(wii)
+
+
 def wiiload(wii, dol, args):
     """The wiiload protocol, version 0.5: HAXX, version, args length, compressed and
     uncompressed sizes (big-endian), the zlib data, then the NUL-separated arguments."""
@@ -164,6 +215,9 @@ def main():
     ap.add_argument("--send-isos", action="store_true")
     ap.add_argument("--timeout", type=int, default=1800, help="seconds for the whole chain")
     a = ap.parse_args()
+    sys.path.insert(0, str(REPO / "scripts"))
+    from wii_targets import refuse_production
+    refuse_production(a.wii, "wii_lab.py")   # unattended runs and cleanups: the bench Wii only
 
     dol = {"debug": REPO / "Gamecube/WiiSXRX_debug.dol",
            "release": REPO / "Gamecube/WiiSXRX_Release.dol"}.get(a.dol, pathlib.Path(a.dol))
@@ -201,6 +255,7 @@ def main():
 
     if not hbc_ready(a.wii, 60):
         sys.exit(f"no Homebrew Channel at {a.wii}:4299 (is the Wii on, in HBC, on the network?)")
+    backup_settings(a.wii, run)
     host = local_ip_towards(a.wii)
     srv = socket.create_server(("0.0.0.0", a.port))
     srv.settimeout(120)
@@ -275,4 +330,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    finally:
+        finish_card()

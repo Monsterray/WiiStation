@@ -12,6 +12,9 @@ import os, subprocess, sys, time
 
 name, chain, dol, secs = sys.argv[1:5]
 py = sys.executable
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from wii_targets import refuse_production
+refuse_production(os.environ.get("WII_BENCH_IP", "192.168.8.213"), "wii_crash_job.py")
 hbc = [py, "C:/projects/hbc-reborn/tools/hbc.py", "--wii", os.environ.get("WII_BENCH_IP", "192.168.8.213")]
 
 r = subprocess.run(hbc + ["crash", "--clear"])

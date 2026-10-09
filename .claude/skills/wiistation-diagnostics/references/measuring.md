@@ -342,6 +342,10 @@ hashes in UploadScreen, OpenGX texel checks). The pattern to grep for is a loop 
   Dolphin's DVD reads do not show in its log (direct register reads); write a file to
   sd:/ from the code and read it with `scripts/sdimage_read.py .dolphin/Load/WiiSD.raw`.
   A Dolphin run whose SD folder changed spends ~40 s repacking before boot: give it 120 s.
+- TWO WIIS: the bench Wii 192.168.8.213 (tests, always via the queue) and the PRODUCTION Wii
+  192.168.8.200 (Monty's everyday console, real saves and data): read-only there unless he asks;
+  status + screen before anything that changes what runs; never runs, cleanups or deletes;
+  scripts/wii_targets.py refuses it in every test tool. AGENTS.md "The two Wiis".
 - DVD on the bench Wii (2026-10-09): **its drive is broken** (it will not load retail Wii discs
   either, the user found), so it cannot test DVD reading. The drive (rev 0000 code 0002, 2006-05-26) never finishes
   spinning up a burned DVD+R or DVD-R (IMAPI2); debug builds write `sd:/wiistation/dvd.log`
