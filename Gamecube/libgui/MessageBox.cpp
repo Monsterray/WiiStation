@@ -27,6 +27,32 @@
 #include "FocusManager.h"
 #include "InputManager.h"
 #include "IPLFont.h"
+#include <stdio.h>
+#include "../hb_probe.h"
+
+extern "C" int perf_chain_index(void);              /* GamecubeMain.cpp: >0 during a chain */
+extern "C" void SysPrintf(const char *fmt, ...);
+
+/* A chained run has nobody to press OK: a message box there waited for ever (2026-10-09, the
+ * bench Wii: "This disc cannot be read" held the chain 7.9 hours, and every drawn frame
+ * counted as progress for the hang watchdog). So during a chain a message goes to the
+ * console log (tty.log), to stdout (the HBC agent's kept log) and to the heartbeat trail,
+ * and the chain goes on. Returns true when the box is to be skipped. */
+static bool unattended_message(const char *string)
+{
+	static char last[256];
+
+	if (!perf_chain_index() || strstr(string, "Autobooting"))
+		return false;
+	snprintf(last, sizeof last, "%s", string);
+	for (char *c = last; *c; c++)
+		if (*c == '\n')
+			*c = ' ';
+	SysPrintf("message (chain %d, not shown): %s\n", perf_chain_index(), last);
+	printf("message (chain %d, not shown): %s\n", perf_chain_index(), last);
+	hb_phase("message", last);
+	return true;
+}
 
 namespace menu {
 
@@ -118,6 +144,8 @@ MessageBox::~MessageBox()
 
 void MessageBox::setMessage(const char* string)
 {
+	if (unattended_message(string))
+		return;
 	if (messageFade > 0.0f) messageFade = 0.0f;
 	messageBoxActive = true;
 
@@ -159,6 +187,8 @@ void MessageBox::setMessage(const char* string)
 
 int MessageBox::askMessage(const char* string)
 {
+	if (unattended_message(string))
+		return 0;   /* "No", the box's own default */
 	if (messageFade > 0.0f) messageFade = 0.0f;
 	messageBoxActive = true;
 	FRAME_BUTTONS[0].button->setVisible(false);

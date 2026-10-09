@@ -721,6 +721,7 @@ unsigned long long perf_now_ticks(void);
 
 /* Zero all counters (called when a game session starts). */
 void perf_reset(void);
+void perf_log_begin(void);   /* start this boot's perf.log, once */
 
 /* Write one summary block to sd:/wiistation/perf.log (+ DEBUG overlay /
  * SysPrintf when available). */
@@ -780,6 +781,7 @@ void perf_pad_event(unsigned pad, unsigned type, unsigned drv_btns, unsigned drv
 static inline unsigned long long perf_now_us(void) { return 0; }
 static inline unsigned long long perf_now_ticks(void) { return 0; }
 static inline void perf_reset(void) {}
+static inline void perf_log_begin(void) {}
 static inline void perf_report(void) {}
 static inline void perf_present_tick(unsigned long long present_us) { (void)present_us; }
 static inline void perf_vblank_tick(void) {}

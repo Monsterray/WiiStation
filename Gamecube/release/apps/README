@@ -1,5 +1,5 @@
 README : WiiStation
-Version 5.9.1
+Version 5.9.2
 
 LICENSE:
     This software is licensed under the GNU General Public License v2
@@ -125,6 +125,15 @@ LATER UPDATES BY:
  * Monty Perrotti (WiiStation)
 
 WiiStation CHANGE LOG:
+Ver 5.9.2 (2026-10-09):
+* Fixed: an automated run (a chain of games from autoboot.txt) stopped at the
+  first error message, waiting for an OK nobody pressed -- 8 hours on the test
+  Wii, behind "This disc cannot be read". During a chain, messages now go to
+  the logs and the chain goes on.
+* Debug builds keep a heartbeat (sd:/wiistation/hb.log): every 2 seconds what
+  WiiStation is doing, and any call to the Wii's system that has not
+  returned, so a freeze says where it is.
+
 Ver 5.9.1 (2026-10-09):
 * Load from DVD no longer freezes the Wii on a disc its drive cannot read.
   The drive's spin-up could run on for minutes (or until the disc was taken

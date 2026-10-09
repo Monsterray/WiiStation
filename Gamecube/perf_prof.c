@@ -133,25 +133,30 @@ static void perf_pmc_read(void)
 unsigned long long g_netwait_old_us, g_netwait_new_us;
 unsigned long g_netwait_old_wakes, g_netwait_new_wakes;
 
+/* One log per boot: the SD image keeps files across runs, so appending across boots made
+ * the log grow and mixed runs. Called at start-up and again by perf_reset(); the first call
+ * starts the file. (It used to be the first game's perf_reset() only, which wiped the chain
+ * markers of games before it that never started -- a disc that could not be read.) */
+void perf_log_begin(void)
+{
+	static int fresh = 0;
+	if (!fresh) {
+		FILE *f = fopen("sd:/wiistation/perf.log", "w");
+		if (f) {
+			char when[32];
+			perf_datetime(when, sizeof when);
+			fprintf(f, "# run started %s, build %s %s\n", when, __DATE__, __TIME__);
+			fclose(f);
+		}
+		fresh = 1;
+	}
+}
+
 void perf_reset(void)
 {
 	/* vramio.log: a line where each game of a chain starts (kind FF) */
 	perf_vram_event(0xFF, 0, 0, 1024, 512, 0, 0);
-	{
-		/* one log per boot: the SD image keeps files across runs, so appending
-		 * across boots made the log grow and mixed runs */
-		static int fresh = 0;
-		if (!fresh) {
-			FILE *f = fopen("sd:/wiistation/perf.log", "w");
-			if (f) {
-				char when[32];
-				perf_datetime(when, sizeof when);
-				fprintf(f, "# run started %s, build %s %s\n", when, __DATE__, __TIME__);
-				fclose(f);
-			}
-			fresh = 1;
-		}
-	}
+	perf_log_begin();
 	memset(&g_perf, 0, sizeof(g_perf));
 	g_perf.wall_start_ticks = gettime();
 #if PERF_PROF_PMC

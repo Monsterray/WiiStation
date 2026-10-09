@@ -40,6 +40,7 @@
 #include "fileBrowser.h"
 #include "fileBrowser-libfat.h"
 #include "fileBrowser-DVD.h"
+#include "../hb_probe.h"
 
 extern void SysPrintf(const char *fmt, ...);
 
@@ -182,6 +183,7 @@ static bool dvd_startup(void)
 	}
 	spinup_pending = 0;
 	dvd_note("dvd: spinning up\n");
+	hb_phase("dvd: spin-up (DI_Mount)", "");
 	DI_Mount();
 	t0 = gettime();
 	while ((DI_GetStatus() & DVD_INIT) && ms_since(t0) < DI_MOUNT_MS)
@@ -197,6 +199,7 @@ static bool dvd_startup(void)
 		 * its few retries. */
 		u64 t1 = gettime();
 		int breaks = 0;
+		hb_phase("dvd: breaking the spin-up", "");
 		while ((DI_GetStatus() & DVD_INIT) && ms_since(t1) < DI_ABORT_MS) {
 			if (di[DICR] & 1) {
 				di[DISR] |= 1;
@@ -211,6 +214,7 @@ static bool dvd_startup(void)
 			 * holds the drive in reset, setting it lets it go (Dolphin's WII_IPC.cpp); the
 			 * command IOS waits on then cannot complete normally, and IOS's request fails. */
 			vu32 *const resets = (vu32 *)0xCD800194;
+			hb_phase("dvd: resetting the drive", "");
 			*resets &= ~0x400;
 			usleep(10 * 1000);
 			*resets |= 0x400;
@@ -298,6 +302,7 @@ int fileBrowser_DVD_init(fileBrowser_file* file)
 	mounted = 0;
 	drive_error = 0;
 	dvd_note("dvd: mounting\n");
+	hb_phase("dvd: mount", "");
 
 #ifdef HW_RVL
 	if (*(vu32 *)0xCD800064 != 0xFFFFFFFF) {   /* HW_AHBPROT: no direct access to the drive */
@@ -340,6 +345,7 @@ int fileBrowser_DVD_init(fileBrowser_file* file)
 #endif
 	else
 		mount_error = DVD_DISC->isInserted() ? DVD_ERR_UNREADABLE : DVD_ERR_NO_DISC;
+	hb_phase("dvd: mount returned", mounted ? "ok" : "failed");
 	dvd_note("dvd: mount %s (error %d, drive %06x, command %08x)\n", mounted ? "ok" : "failed",
 	          mount_error, (unsigned)(drive_error & 0xFFFFFF),
 #ifdef HW_RVL

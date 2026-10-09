@@ -56,6 +56,7 @@ extern bool executedBios;
 extern "C" {
 #include "DEBUG.h"
 #include "perf_prof.h"
+#include "hb_probe.h"   /* sd:/wiistation/hb.log, debug builds */
 #include "lc.h"
 #include "fileBrowser/fileBrowser.h"
 #include "fileBrowser/fileBrowser-libfat.h"
@@ -870,6 +871,7 @@ static void chainStart(int i)
 	snprintf(AutobootROM, sizeof AutobootROM, "%s", chainList[i].rom);
 	chain_stop_vbl = chainList[i].vbl;
 	frame_counter = 0;
+	hb_phase("chain start", chainList[i].path);
 	/* stdout: the HBC agent keeps the end of it for `hbc.py lastlog` after a crash or hang */
 	printf("chain %d/%d: %s, %u vblanks\n", i + 1, chainN, chainList[i].rom, (unsigned)chainList[i].vbl);
 	autoinput_reset(chainList[i].input);
@@ -917,6 +919,7 @@ static bool chainNext(void)
 		fclose(f);
 	}
 	mcd_track_delete();   /* the memory cards this game used */
+	hb_phase("chain end", chainList[chainI].path);
 	if (++chainI < chainN) {
 		chainStart(chainI);
 		return true;
@@ -925,7 +928,9 @@ static bool chainNext(void)
 	autoinput_reset(NULL);   /* closes a recording ("record"), before the card is unmounted */
 	/* Unmount first: a Wii that powers off with the FAT cache dirty loses the log. */
 	if (lab_active()) {   /* send the results, then back to the Homebrew Channel for the next test */
+		hb_phase("lab report", "");
 		lab_report();
+		hb_phase("exit", "lab");
 		net_deinit();
 		fatUnmount("sd");
 		exit(0);
@@ -1050,6 +1055,9 @@ int main(int argc, char *argv[])
 	 * the agent's frame pacing (`hbc.py status`) wraps the callback set just above. */
 	hbc_home_start();
 	perf_stack_log("agent");
+	hb_start();
+	hb_phase("menu", "start-up");
+	perf_log_begin();
 
 #ifndef WII
 	DVD_Init();
@@ -1281,15 +1289,18 @@ int loadISO(fileBrowser_file* file)
 	memset(&subFile, 0, sizeof(fileBrowser_file));
 
 	memcpy(&isoFile, file, sizeof(fileBrowser_file) );
+	hb_phase("load: close the last game", "");
 
 	if(hasLoadedISO || executedBios) {
 		SysClose();
 		hasLoadedISO = FALSE;
 	}
 	needInitCpu = false;
+	hb_phase("load: SysInit (opens the image)", isoFile.name);
 	if(SysInit() < 0)
 		return -1;
 	hasLoadedISO = TRUE;
+	hb_phase("load: CheckCdrom", isoFile.name);
 
 	char *tempStr = &file->name[0];
 	bool isExe = strstr(tempStr,".EXE")!=NULL || strstr(tempStr,".exe")!=NULL;
@@ -1316,11 +1327,13 @@ int loadISO(fileBrowser_file* file)
 		newGpuPtr->open();
 	}
 
+	hb_phase("load: SysReset + LoadCdrom", isoFile.name);
 	SysReset();
 	if (isExe)
 		Load(file);
 	else
 		LoadCdrom();
+	hb_phase("load: memory cards and state", isoFile.name);
 
 	if(autoSave==AUTOSAVE_ENABLE) {
 		setSaveDevice();   /* fileBrowser.c: point saveFile_* at nativeSaveDevice */
@@ -1447,9 +1460,11 @@ void go(void) {
 
 	/* A scripted save or load (statetool.cpp) stops the CPU at its vblank; it is carried out
 	 * here, with the CPU stopped as the menu has it, and the game goes on. */
+	hb_phase("game", isoFile.name);
 	do
 		psxCpu->Execute();
 	while (statetool_service());
+	hb_phase("menu", "game stopped");
 	GL_flip05Drop();   /* GlesGpu/gpuPlugin.c: a GP1 05 flip not yet presented */
 
 	// remove this callback to avoid any issues when returning to the menu.

@@ -351,6 +351,17 @@ hashes in UploadScreen, OpenGX texel checks). The pattern to grep for is a loop 
   and fetches dvd.log/lab.log/tty.log/perf.log (<512 KB each) into the run folder, so a
   hung run explains itself without the user; if HBC never answers it says the Wii needs a
   power cycle. Results now include tty.log and dvd.log.
+- Heartbeat (debug builds, Gamecube/hb_probe.c): sd:/wiistation/hb.log, "ph" lines for every
+  phase change (chain start/end, autoboot, load steps, game, dvd steps, message, lab report)
+  and an "hb" line every 2 s (VI count, PS1 vblanks, guest PC, IOS call count, slowest call,
+  current phase and its age, and every IOS call in flight > 500 ms with device and thread).
+  All IOS_Open/Close/Read/Write/Seek/Ioctl/Ioctlv are wrapped at link time (Makefile_Wii), so
+  library calls are covered. Read it first when a Wii run "freezes": a phase that never
+  ends with no IOS call in flight is a wait in WiiStation itself, not IOS. ~190 KB/hour;
+  wii_lab fetches it (after a failure up to 4 MB).
+- A chain must never block on input: MessageBox setMessage/askMessage return at once during a
+  chain and log the text ("message (chain N, not shown)" in tty.log/stdout, "ph message" in
+  hb.log). The 2026-10-09 "8-hour freeze" was a "disc cannot be read" box waiting for OK.
 - perf.log `smb:` line per game: requests, bytes, us (time the game waited), waits,
   req_us (requests' summed time in flight), inflight_max (running max), the pump thread's
   polls, cache hits, reconnects, and the socket calls under them (polls/recvs/sends, us

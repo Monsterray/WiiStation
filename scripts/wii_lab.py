@@ -34,7 +34,7 @@ import zlib
 REPO = pathlib.Path(__file__).resolve().parents[1]
 SHARED = pathlib.Path("C:/tools/Dolphin-x64/User/Load/WiiSDSync/wiistation")   # the user's games, for --send-isos
 BASE_SETTINGS = "gpuPlugin = 2\nFPS = 1\nPadType1 = 1\nPadAutoAssign = 0\n"
-RESULTS = ["perf.log", "vramio.log", "ptrace.log", "atrace.log", "lab.log", "tty.log", "dvd.log",
+RESULTS = ["perf.log", "vramio.log", "ptrace.log", "atrace.log", "lab.log", "tty.log", "dvd.log", "hb.log",
            "xfb.bin", "vram.bin"]   # a "dump <vblank>": the TV picture and VRAM then
 
 
@@ -54,8 +54,8 @@ def hbc_ready(wii, secs):
 
 
 HBC_TOOL = pathlib.Path("C:/projects/hbc-reborn/tools/hbc.py")
-AFTER_FAILURE = ["dvd.log", "lab.log", "tty.log", "perf.log"]   # small files worth having
-AFTER_FAILURE_LIMIT = 512 * 1024   # never a large `hbc.py get` (it crashed older HBCs)
+AFTER_FAILURE = ["hb.log", "dvd.log", "lab.log", "tty.log", "perf.log"]   # small files worth having
+AFTER_FAILURE_LIMIT = 4 * 1024 * 1024   # HBC 1.10 sent a 1.5 MB hb.log fine; old HBCs crashed on large gets
 
 
 def collect_after_failure(wii, run, wait_s=300):
@@ -83,7 +83,7 @@ def collect_after_failure(wii, run, wait_s=300):
         r = subprocess.run(hbc + ["get", f"sd:/wiistation/{name}", str(run / name)],
                            capture_output=True, text=True, timeout=120)
         print(f"fetched {name} ({sizes[name]} bytes)" if r.returncode == 0 else f"failed: {name}")
-    for name in ("dvd.log", "lab.log"):
+    for name in ("hb.log", "dvd.log", "lab.log"):
         f = run / name
         if f.is_file() and f.stat().st_size:
             print(f"--- {name} (end)\n" + "\n".join(f.read_text(errors="replace").splitlines()[-25:]))

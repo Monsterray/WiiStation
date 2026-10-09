@@ -59,7 +59,8 @@ CXXFLAGS	=	$(CFLAGS) -Wno-register
 
 ASFLAGS := -DHW_RVL
 
-LDFLAGS	=	-g $(MACHDEP) -Wl,-Map,$(notdir $@).map,-wrap,wiiuse_register,-wrap,c_default_exceptionhandler
+LDFLAGS	=	-g $(MACHDEP) -Wl,-Map,$(notdir $@).map,-wrap,wiiuse_register,-wrap,c_default_exceptionhandler \
+		-Wl,-wrap,IOS_Open,-wrap,IOS_Close,-wrap,IOS_Read,-wrap,IOS_Write,-wrap,IOS_Seek,-wrap,IOS_Ioctl,-wrap,IOS_Ioctlv   # hb_probe.c
 
 #---------------------------------------------------------------------------------
 # any extra libraries we wish to link with the project

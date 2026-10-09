@@ -22,6 +22,7 @@
 #include "MenuContext.h"
 #include "MenuLayout.h"
 #include "../perf_prof.h"
+#include "../hb_probe.h"
 #include "../libgui/FocusManager.h"
 #include "../libgui/CursorManager.h"
 
@@ -319,6 +320,7 @@ void MenuContext::Autoboot()
 		Func_ExecuteBios();
 		return;
 	}
+	hb_phase("autoboot: open the folder", AutobootPath);
 	if(strcasestr(AutobootPath,"sd:/") != NULL)
 		Func_LoadFromSD();
 	else if(strcasestr(AutobootPath,"smb:/") != NULL)
@@ -333,5 +335,7 @@ void MenuContext::Autoboot()
 	else
 		Func_LoadFromUSB();
 
+	hb_phase("autoboot: load the game", AutobootROM);
 	fileBrowserFrame_AutoBootFile();
+	hb_phase("autoboot: done", AutobootROM);
 }
