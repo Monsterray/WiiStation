@@ -35,6 +35,7 @@ extern "C" {
 #include "../gc_input/controller.h"
 #ifdef WII
 #include <di/di.h>
+extern "C" void fileBrowser_DVD_shutdown(void);   /* fileBrowser-DVD.c */
 #include <ogc/machine/processor.h>
 #endif
 }
@@ -166,7 +167,7 @@ void Gui::draw()
 			else			//Return to Loader
 			{
 #ifdef WII
-				DI_Close();
+				fileBrowser_DVD_shutdown();   /* DI_Close, unless a disc spin-up may still hold IOS */
 #endif
 				void (*rld)() = (void (*)()) 0x80001800;
 #ifdef HW_DOL

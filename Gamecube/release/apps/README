@@ -1,5 +1,5 @@
 README : WiiStation
-Version 5.9.0
+Version 5.9.1
 
 LICENSE:
     This software is licensed under the GNU General Public License v2
@@ -125,6 +125,17 @@ LATER UPDATES BY:
  * Monty Perrotti (WiiStation)
 
 WiiStation CHANGE LOG:
+Ver 5.9.1 (2026-10-09):
+* Load from DVD no longer freezes the Wii on a disc its drive cannot read.
+  The drive's spin-up could run on for minutes (or until the disc was taken
+  out), and every other request to the Wii's system, the SD card's included,
+  waited behind it. Now a spin-up gets 20 seconds, then WiiStation stops the
+  drive's command and resets the drive, and says the disc cannot be read.
+* Disc reads have a time limit and let the rest of WiiStation run while they
+  wait; a read that fails says the drive's error code.
+* A Wii whose drive is too new to read DVDs (made after mid-2008) is told so,
+  and no disc is spun up.
+
 Ver 5.9.0 (2026-10-08):
 * Load from DVD works. It listed a disc but no game ever started from it: the
   browser kept only the file's name, which the CD reader could not open. The

@@ -34,7 +34,7 @@ import zlib
 REPO = pathlib.Path(__file__).resolve().parents[1]
 SHARED = pathlib.Path("C:/tools/Dolphin-x64/User/Load/WiiSDSync/wiistation")   # the user's games, for --send-isos
 BASE_SETTINGS = "gpuPlugin = 2\nFPS = 1\nPadType1 = 1\nPadAutoAssign = 0\n"
-RESULTS = ["perf.log", "vramio.log", "ptrace.log", "atrace.log", "lab.log",
+RESULTS = ["perf.log", "vramio.log", "ptrace.log", "atrace.log", "lab.log", "tty.log", "dvd.log",
            "xfb.bin", "vram.bin"]   # a "dump <vblank>": the TV picture and VRAM then
 
 
@@ -51,6 +51,43 @@ def hbc_ready(wii, secs):
         except OSError:
             time.sleep(1)
     return False
+
+
+HBC_TOOL = pathlib.Path("C:/projects/hbc-reborn/tools/hbc.py")
+AFTER_FAILURE = ["dvd.log", "lab.log", "tty.log", "perf.log"]   # small files worth having
+AFTER_FAILURE_LIMIT = 512 * 1024   # never a large `hbc.py get` (it crashed older HBCs)
+
+
+def collect_after_failure(wii, run, wait_s=300):
+    """A run that hung or crashed sent no results. Wait for the Wii to come back to HBC (the
+    HBC agent's hang watchdog returns it within ~60 s of the last progress), then fetch its
+    crash report, the agent's kept log and WiiStation's own small logs from the card, so a
+    failed run explains itself without anyone at the Wii. If HBC never answers, the Wii is
+    wedged (IOS itself stuck): say so -- only a power cycle helps then."""
+    print(f"waiting up to {wait_s} s for the Wii to come back to HBC ...", flush=True)
+    if not hbc_ready(wii, wait_s):
+        print("the Wii did not come back to HBC: it needs a power cycle (IOS is stuck)")
+        return False
+    hbc = [sys.executable, str(HBC_TOOL), "--wii", wii]
+    run.mkdir(parents=True, exist_ok=True)
+    for cmd in ("crash", "lastlog"):
+        r = subprocess.run(hbc + [cmd], capture_output=True, text=True, timeout=60)
+        (run / f"hbc_{cmd}.txt").write_text(r.stdout + r.stderr, encoding="utf-8")
+        print(f"--- hbc.py {cmd}\n{(r.stdout + r.stderr).strip()[-3000:]}")
+    ls = subprocess.run(hbc + ["ls", "sd:/wiistation"], capture_output=True, text=True, timeout=60).stdout
+    sizes = {l.split()[-1]: int(l.split()[1]) for l in ls.splitlines() if l.startswith("f ")}
+    for name in AFTER_FAILURE:
+        if name not in sizes or sizes[name] > AFTER_FAILURE_LIMIT:
+            print(f"not fetched: {name} ({sizes.get(name, 'absent')})")
+            continue
+        r = subprocess.run(hbc + ["get", f"sd:/wiistation/{name}", str(run / name)],
+                           capture_output=True, text=True, timeout=120)
+        print(f"fetched {name} ({sizes[name]} bytes)" if r.returncode == 0 else f"failed: {name}")
+    for name in ("dvd.log", "lab.log"):
+        f = run / name
+        if f.is_file() and f.stat().st_size:
+            print(f"--- {name} (end)\n" + "\n".join(f.read_text(errors="replace").splitlines()[-25:]))
+    return True
 
 
 def wiiload(wii, dol, args):
@@ -201,7 +238,9 @@ def main():
     try:
         c, _ = srv.accept()
     except socket.timeout:
-        sys.exit(f"no results after {a.timeout} s: the chain hung or crashed")
+        print(f"no results after {a.timeout} s: the chain hung or crashed", flush=True)
+        collect_after_failure(a.wii, run)
+        sys.exit(2)
     got, incomplete = [], ""
     with c:
         c.settimeout(120)

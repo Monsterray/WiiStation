@@ -342,6 +342,15 @@ hashes in UploadScreen, OpenGX texel checks). The pattern to grep for is a loop 
   Dolphin's DVD reads do not show in its log (direct register reads); write a file to
   sd:/ from the code and read it with `scripts/sdimage_read.py .dolphin/Load/WiiSD.raw`.
   A Dolphin run whose SD folder changed spends ~40 s repacking before boot: give it 120 s.
+- DVD on the bench Wii (2026-10-09): its drive (rev 0000 code 0002, 2006-05-26) never finishes
+  spinning up a burned DVD+R or DVD-R (IMAPI2); debug builds write `sd:/wiistation/dvd.log`
+  line by line (spin-up, drive ID, read commands, timeouts). A failed spin-up used to stall
+  IOS -- every request, SD included -- for minutes to forever; fileBrowser-DVD.c now breaks
+  the command and resets the drive (HW_RESETS bit 10): stall 34 min -> 33 s.
+- wii_lab.py on "no results": waits up to 300 s for HBC, then saves `hbc.py crash`/`lastlog`
+  and fetches dvd.log/lab.log/tty.log/perf.log (<512 KB each) into the run folder, so a
+  hung run explains itself without the user; if HBC never answers it says the Wii needs a
+  power cycle. Results now include tty.log and dvd.log.
 - perf.log `smb:` line per game: requests, bytes, us (time the game waited), waits,
   req_us (requests' summed time in flight), inflight_max (running max), the pump thread's
   polls, cache hits, reconnects, and the socket calls under them (polls/recvs/sends, us

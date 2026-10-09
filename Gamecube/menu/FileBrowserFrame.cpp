@@ -489,8 +489,19 @@ void fileBrowserFrame_Error(fileBrowser_file* dir, int error_code)
 	else if(error_code == DVD_ERR_NO_DISC) {
 	strcpy(feedback_string,"There is no disc in the drive.");
 	}
+	else if(error_code == DVD_ERR_DRIVE_NO_DVD) {
+	strcpy(feedback_string,"This Wii's disc drive cannot read\nDVDs: only drives made up to\nmid-2008 can. Load your games\nfrom SD, USB or a network share.");
+	}
 	else if(error_code == DVD_ERR_UNREADABLE) {
 	strcpy(feedback_string,"This disc cannot be read. Use a data\nDVD-R. A Wii cannot read CDs, and\nmany Wiis made after 2008 cannot\nread DVD-R discs.");
+	/* the drive's own code, so a report says why (fileBrowser-DVD.c) */
+	if (fileBrowser_DVD_drive_error() == 0xFFFFFE)   /* IOS is still busy with the disc */
+		strcat(feedback_string, "\nThe drive is stuck on it: take it out.");
+	else if (fileBrowser_DVD_drive_error() == 0xFFFFFF)
+		strcat(feedback_string, "\nThe drive did not answer in time.");
+	else if (fileBrowser_DVD_drive_error())
+		snprintf(feedback_string + strlen(feedback_string), sizeof(feedback_string) - strlen(feedback_string),
+		         "\nDrive error %06X.", fileBrowser_DVD_drive_error());
 	}
 	else if(error_code == SMB_SMBERR) {
 	/* the reason libsmb2 gave, cut to the box: "connect: ..." */

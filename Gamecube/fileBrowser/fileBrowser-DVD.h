@@ -19,6 +19,7 @@
 #define DVD_ERR_NO_DRIVE   -121   /* IOS would not open /dev/di */
 #define DVD_ERR_NO_DISC    -122   /* the drive is empty */
 #define DVD_ERR_UNREADABLE -123   /* not ISO9660, a CD, or a DVD-R this drive cannot read */
+#define DVD_ERR_DRIVE_NO_DVD -124 /* the drive is too new (after mid-2008) to read DVDs */
 
 extern fileBrowser_file topLevel_DVD;
 
@@ -28,5 +29,7 @@ int fileBrowser_DVD_readFile(fileBrowser_file*, void*, unsigned int);
 int fileBrowser_DVD_seekFile(fileBrowser_file*, unsigned int, unsigned int);
 int fileBrowser_DVD_init(fileBrowser_file* file);
 int fileBrowser_DVD_deinit(fileBrowser_file* file);
+unsigned fileBrowser_DVD_drive_error(void);   /* the last failed read's drive error */
+void fileBrowser_DVD_shutdown(void);          /* at exit: DI_Close, unless IOS may be busy */
 
 #endif
