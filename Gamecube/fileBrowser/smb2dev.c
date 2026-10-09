@@ -9,21 +9,24 @@
  * A connection per open file was measured on the bench Wii (2026-10-08) and dropped: IOS
  * does not overlap socket calls, so two connections were no faster than one.
  *
- * Speed. The Wii's Wi-Fi delivers about 350 KB/s of TCP data: IOS hands over about one
- * segment per call, and a call takes about 2 ms (deps/libsmb2/lib/compat.c). So the device
- * fetches as little as it can. stdio asks for its buffer (CdBuffer, 16 KB) at a time; each
- * open file keeps two read windows. A read that jumps (a seek, a CHD hunk) fetches 16 KB;
- * each read that carries on where the last fill ended fetches twice as much as that fill,
- * up to 128 KB, so a game streaming its disc costs few requests and a game hopping about
- * does not pay for data it skips. A handle also looks in the windows of other handles on
- * the same file. A read larger than a window goes straight to the caller's buffer.
- * cdriso.c starts no CD read-ahead for a game here: sectors read ahead and never used
- * would cost the game time at this speed.
+ * Speed. The bench Wii's Wi-Fi carries about 1 MB/s of plain TCP to the Wii (hbc-reborn's
+ * tests/netblock, 2026-10-08), but a reply to an SMB read comes in at about 650 KB/s, about
+ * 1.3 KB per IOS call of about 2 ms. So the device sends as few bytes as it can, in small
+ * requests, and takes the replies on a thread of its own:
+ *  - Reads go into 16 KB blocks (one stdio buffer, CdBuffer), 16 of them, shared by every
+ *    handle on the same file. A read larger than a block sends a request per block at once.
+ *  - The block after the one a read ended in is requested at once, so it comes in while the
+ *    game uses this one (cdriso.c starts no CD read-ahead of its own for a game here).
+ *  - The pump thread keeps the socket serviced while requests are in flight
+ *    (smb2_pread_async()), so replies come in while the game runs.
+ * Measured on the bench Wii, Ape Escape's first 1200 vblanks: 5.7.0 (one request at a time,
+ * on the game's thread, growing to 128 KB) made the game wait 7.8-8.8 s; this, 0.6-5 s with
+ * Wi-Fi conditions, and as fast as the SD card (0.96x) on a good run. Fetching further ahead
+ * was slower: 64-256 KB ahead waited 5.7-6.7 s, the data sent ahead of a jump being wasted
+ * and in the way of what the game wanted next (2026-10-08, .runs/hw_pipe_ab*).
  *
- * The windows come from one pool, allocated at the first mount and never freed. Allocated
- * per open and freed per close, they landed in the hole Lightrec's freed state had left,
- * and the next game's 2.5 MB state found no room (fixed in 5.7.1 in deps/lightrec, which
- * now keeps its state). Large blocks churned at every game still fragment the heap.
+ * The blocks are allocated at the first mount and never freed: blocks allocated per open
+ * and freed per close fragmented the heap the next game's recompiler needs (5.7.1).
  *
  * A request that fails means the connection is gone (the server restarted, Wi-Fi dropped).
  * The device then connects again and opens the file again, once, before it gives up, so a
@@ -37,6 +40,7 @@
 
 #include <gccore.h>
 #include <ogc/mutex.h>
+#include <ogc/cond.h>
 #include <ogc/lwp_watchdog.h>
 #include <sys/iosupport.h>
 #include <sys/stat.h>
@@ -49,29 +53,39 @@
 #include <string.h>
 #include "../../deps/libsmb2/include/smb2/smb2.h"
 #include "../../deps/libsmb2/include/smb2/libsmb2.h"
+#include <network.h>
+#include <time.h>
 #include "smb2dev.h"
 
-#define SMB_WINDOW   (128 * 1024)   /* the largest fill: a long sequential read */
-#define SMB_JUMP     (16 * 1024)    /* the fill after a jump: one stdio buffer */
-#define SMB_WINDOWS  2              /* per open file */
-#define SMB_POOL     8              /* windows in all: four files open at once */
-#define SMB_OPEN_MAX 8
-#define SMB_TIMEOUT  10             /* seconds before a request counts as lost */
+#define BLOCK_BITS     4
+#define SMB_BLOCKS     (1 << BLOCK_BITS)   /* 16 blocks, 256 KB in all, never freed */
+#define SMB_BLOCK      (16 * 1024)    /* one request: one stdio buffer */
+#define SMB_OPEN_MAX   8
+#define SMB_TIMEOUT    10             /* seconds before a request counts as lost */
+#define PUMP_PRIO      67             /* above the emulator (64), whose frame limiter busy-waits */
+#define PUMP_POLL_MS   20             /* the pump's longest wait: libsmb2's timeouts run then */
+#define SEQ_MASK       (0xFFFFFFFFu >> BLOCK_BITS)
+
+enum { B_FREE, B_PENDING, B_READY, B_FAILED };
 
 typedef struct {
 	u8 *buf;
-	u64 off;       /* file offset of buf[0] */
-	u32 len;       /* bytes valid; 0 = empty */
-	u32 used;      /* last use, for the replacement choice */
-} smb_window;
+	u32 key;            /* the file: key_of() */
+	u64 off;            /* file offset of buf[0] */
+	u32 len;            /* bytes asked for while pending, bytes got once ready */
+	u32 used;           /* last use, for the replacement choice */
+	u32 seq;            /* the request in flight: a callback for an older one is ignored */
+	u8 state;
+	struct smb2fh *fh;  /* the handle a pending request reads through */
+	u64 t0;             /* when the request went out */
+} smb_block;
 
 typedef struct smb_file_s {
 	struct smb2fh *fh;
 	char path[256];
+	u32 key;
 	u64 size, pos;
-	u64 next_seq;   /* where the last fill ended: a miss there is sequential */
-	u32 seq_fill;   /* the size of the last fill: sequential fills double, up to SMB_WINDOW */
-	smb_window win[SMB_WINDOWS];
+	u64 stream;   /* where the next request starts */
 } smb_file;
 
 typedef struct {
@@ -80,13 +94,20 @@ typedef struct {
 
 static struct smb2_context *ctx;
 static mutex_t lock = LWP_MUTEX_NULL;
+static cond_t work_cond = LWP_COND_NULL;   /* a request went out: the pump has work */
+static cond_t done_cond = LWP_COND_NULL;   /* a request ended */
+static lwp_t pump_thread = LWP_THREAD_NULL;
 static int mounted;
-static u32 use_clock;
+static int pending;            /* requests in flight */
+static u32 generation;         /* a new context: the pump's poll of the old socket is stale */
+static u32 failures;           /* requests that failed, for a reader waiting on one */
+static int broken;             /* smb2_service() failed: no request goes out until a reconnect,
+                                * as a late reply to one given up on could land in its block */
+static u32 use_clock, req_seq;
 static char cfg_ip[64], cfg_share[128], cfg_user[64], cfg_pass[64];
 static char last_error[128];
 static smb2dev_stats_t stats;
-static u8 *pool_buf[SMB_POOL];
-static u8 pool_used[SMB_POOL];
+static smb_block blocks[SMB_BLOCKS];
 static smb_file *open_files[SMB_OPEN_MAX];
 
 /* deps/libsmb2/lib/compat.c: what the sockets cost */
@@ -94,26 +115,6 @@ extern struct smb2_wii_counters {
 	unsigned polls, recvs, sends;
 	unsigned long long poll_us, recv_us, send_us, recv_bytes;
 } smb2_wii_count;
-
-/* Pool and open-file table: called with the lock held */
-static u8 *pool_get(void)
-{
-	int i;
-	for (i = 0; i < SMB_POOL; i++)
-		if (pool_buf[i] && !pool_used[i]) {
-			pool_used[i] = 1;
-			return pool_buf[i];
-		}
-	return NULL;   /* the file reads without windows */
-}
-
-static void pool_put(u8 *b)
-{
-	int i;
-	for (i = 0; i < SMB_POOL; i++)
-		if (b && pool_buf[i] == b)
-			pool_used[i] = 0;
-}
 
 /* "smb:/a/b" -> "a/b"; libsmb2 wants the path inside the share, and turns '/' into '\'. */
 static const char *share_path(const char *path)
@@ -125,14 +126,48 @@ static const char *share_path(const char *path)
 	return p;
 }
 
+/* Which file a block holds: the path, size and time, so a file changed on the server
+ * does not match the blocks of the old one */
+static u32 key_of(const char *path, u64 size, u64 mtime)
+{
+	u32 h = 2166136261u;
+	const unsigned char *p;
+
+	for (p = (const unsigned char *)path; *p; p++)
+		h = (h ^ *p) * 16777619u;
+	h = (h ^ (u32)size) * 16777619u;
+	h = (h ^ (u32)(size >> 32)) * 16777619u;
+	h = (h ^ (u32)mtime) * 16777619u;
+	return h ? h : 1;
+}
+
 static void note_error(const char *what)
 {
 	snprintf(last_error, sizeof last_error, "%s: %s", what, ctx ? smb2_get_error(ctx) : "no context");
 }
 
+/* The connection is gone or replaced: every request in flight is lost. Their callbacks may
+ * still come (libsmb2 cancels them when the context goes); block_cb() ignores them. */
+static void fail_pending(void)
+{
+	int i;
+
+	for (i = 0; i < SMB_BLOCKS; i++)
+		if (blocks[i].state == B_PENDING) {
+			blocks[i].state = B_FAILED;
+			blocks[i].fh = NULL;
+			failures++;
+		}
+	pending = 0;
+	LWP_CondBroadcast(done_cond);
+}
+
 /* Make the context and connect it. Called with the lock held. */
 static int connect_ctx(void)
 {
+	fail_pending();
+	generation++;
+	broken = 0;
 	if (ctx)
 		smb2_destroy_context(ctx);
 	ctx = smb2_init_context();
@@ -156,32 +191,42 @@ static int connect_ctx(void)
 	return 0;
 }
 
-/* The connection is gone: connect again and open the file again. Lock held. */
-static int reconnect_file(smb_file *f)
+/* The connection is gone: connect again and open every open file again. Lock held. */
+static int reconnect_all(void)
 {
+	int i;
+
 	stats.reconnects++;
 	if (connect_ctx() < 0)
 		return -1;
-	f->fh = smb2_open(ctx, f->path, O_RDONLY);
-	if (!f->fh) {
-		note_error("open after reconnect");
-		return -1;
+	for (i = 0; i < SMB_OPEN_MAX; i++) {
+		smb_file *o = open_files[i];
+		if (!o)
+			continue;
+		o->fh = smb2_open(ctx, o->path, O_RDONLY);
+		if (!o->fh)
+			note_error("open after reconnect");
 	}
 	return 0;
 }
 
-/* One read at an offset, whole, into buf; reconnects once if the request fails. Lock held. */
+/* One read at an offset, whole, into buf, waiting for it: when no block can take it. Lock held. */
 static int pread_full(smb_file *f, u8 *buf, u32 len, u64 off)
 {
 	u32 got = 0;
 	int retried = 0;
 	u64 t0 = gettime();
 
+	if (broken) {   /* the connection failed under the pump: start on a new one */
+		retried = 1;
+		if (reconnect_all() < 0 || !f->fh)
+			return -1;
+	}
 	while (got < len) {
 		int n = f->fh && ctx ? smb2_pread(ctx, f->fh, buf + got, len - got, off + got) : -ENOTCONN;
 		if (n < 0) {
 			note_error("read");
-			if (retried++ || reconnect_file(f) < 0)
+			if (retried++ || reconnect_all() < 0 || !f->fh)
 				return -1;
 			continue;
 		}
@@ -195,20 +240,123 @@ static int pread_full(smb_file *f, u8 *buf, u32 len, u64 off)
 	return (int)got;
 }
 
-/* A window of this file, or of another handle on the same file, that holds offset at */
-static smb_window *find_window(smb_file *f, u64 at)
+/* A request ended (in smb2_service(), on whichever thread called it, with the lock held) */
+static void block_cb(struct smb2_context *c, int status, void *command_data, void *priv)
 {
-	int k, i;
+	u32 v = (u32)priv;
+	smb_block *b = &blocks[v & (SMB_BLOCKS - 1)];
 
-	for (k = -1; k < SMB_OPEN_MAX; k++) {
-		smb_file *o = k < 0 ? f : open_files[k];
-		if (!o || (k >= 0 && (o == f || strcmp(o->path, f->path))))
-			continue;
-		for (i = 0; i < SMB_WINDOWS; i++)
-			if (o->win[i].len && at >= o->win[i].off && at < o->win[i].off + o->win[i].len)
-				return &o->win[i];
+	(void)c;
+	(void)command_data;
+	if (b->state != B_PENDING || b->seq != v >> BLOCK_BITS)
+		return;   /* given up on by fail_pending(): the block has moved on */
+	if (status >= 0) {
+		b->state = B_READY;
+		b->len = (u32)status;
+		stats.bytes += (u32)status;
+	} else {
+		b->state = B_FAILED;
+		failures++;
+		note_error("read");
+	}
+	b->fh = NULL;
+	stats.req_us += ticks_to_microsecs(diff_ticks(b->t0, gettime()));
+	pending--;
+	LWP_CondBroadcast(done_cond);
+}
+
+/* The block of this file that holds offset at, ready or on its way */
+static smb_block *find_block(u32 key, u64 at)
+{
+	int i;
+
+	for (i = 0; i < SMB_BLOCKS; i++) {
+		smb_block *b = &blocks[i];
+		if ((b->state == B_PENDING || b->state == B_READY) && b->key == key
+		    && at >= b->off && at < b->off + b->len)
+			return b;
 	}
 	return NULL;
+}
+
+/* A block to reuse: a free or failed one, else the one least recently used */
+static smb_block *victim(void)
+{
+	smb_block *v = NULL;
+	int i;
+
+	for (i = 0; i < SMB_BLOCKS; i++) {
+		smb_block *b = &blocks[i];
+		if (!b->buf || b->state == B_PENDING)
+			continue;
+		if (b->state != B_READY)
+			return b;
+		if (!v || b->used < v->used)
+			v = b;
+	}
+	return v;
+}
+
+/* Send a read of len bytes at off into a block, without waiting for it. Lock held. */
+static smb_block *issue(smb_file *f, u64 off, u32 len)
+{
+	smb_block *b;
+
+	if (off >= f->size || !f->fh || !ctx || broken || pump_thread == LWP_THREAD_NULL)
+		return NULL;   /* the caller reads synchronously; on a broken connection that fails
+		                * and connects again */
+	if (len > f->size - off)
+		len = (u32)(f->size - off);
+	b = victim();
+	if (!b)
+		return NULL;   /* every block is in flight */
+	b->state = B_PENDING;
+	b->key = f->key;
+	b->off = off;
+	b->len = len;
+	b->fh = f->fh;
+	b->used = ++use_clock;
+	b->seq = ++req_seq & SEQ_MASK;
+	b->t0 = gettime();
+	if (smb2_pread_async(ctx, f->fh, b->buf, len, off, block_cb,
+	                     (void *)((b->seq << BLOCK_BITS) | (u32)(b - blocks))) < 0) {
+		b->state = B_FREE;
+		note_error("read");
+		return NULL;
+	}
+	pending++;
+	if ((unsigned)pending > stats.inflight_max)
+		stats.inflight_max = pending;
+	stats.requests++;
+	LWP_CondSignal(work_cond);
+	return b;
+}
+
+/* Have pos to pos + span requested, a block per request. f->stream is where the requests
+ * so far end; a read elsewhere (a jump) moves it. Lock held. */
+static void top_up(smb_file *f, u64 pos, u32 span)
+{
+	u64 end = pos + span;
+
+	if (f->stream < pos || f->stream > end)
+		f->stream = pos;
+	if (end > f->size)
+		end = f->size;
+	while (f->stream < end) {
+		smb_block *b = find_block(f->key, f->stream);
+		u32 len;
+
+		if (b) {   /* fetched before: carry on past it */
+			if (!b->len)
+				break;
+			f->stream = b->off + b->len;
+			continue;
+		}
+		len = end - f->stream > SMB_BLOCK ? SMB_BLOCK : (u32)(end - f->stream);
+		if (!issue(f, f->stream, len))
+			break;
+		f->stream += len;
+	}
 }
 
 static int smb_open(struct _reent *r, void *fs, const char *path, int flags, int mode)
@@ -232,8 +380,16 @@ static int smb_open(struct _reent *r, void *fs, const char *path, int flags, int
 		return -1;
 	}
 	f->size = st.smb2_size;
-	for (i = 0; i < SMB_WINDOWS; i++)
-		f->win[i].buf = pool_get();
+	f->key = key_of(f->path, st.smb2_size, st.smb2_mtime);
+	/* A file nobody has open starts with no blocks: a game opened again reads afresh, and a
+	 * chained A/B run of the same game starts each run alike. */
+	for (i = 0; i < SMB_OPEN_MAX; i++)
+		if (open_files[i] && open_files[i]->key == f->key)
+			break;
+	if (i == SMB_OPEN_MAX)
+		for (i = 0; i < SMB_BLOCKS; i++)
+			if (blocks[i].key == f->key && blocks[i].state == B_READY)
+				blocks[i].state = B_FREE;
 	for (i = 0; i < SMB_OPEN_MAX; i++)
 		if (!open_files[i]) {
 			open_files[i] = f;
@@ -246,17 +402,26 @@ static int smb_open(struct _reent *r, void *fs, const char *path, int flags, int
 static int smb_close(struct _reent *r, void *fd)
 {
 	smb_file *f = (smb_file *)fd;
-	int i;
+	int i, busy = 1, tries;
 
 	(void)r;
 	LWP_MutexLock(lock);
-	if (f->fh && ctx)
+	/* A reply still on its way names this handle (libsmb2's read callback writes to it), so
+	 * those come in first. */
+	for (tries = 0; busy && tries < SMB_TIMEOUT * 5; tries++) {
+		struct timespec ts = { 0, 200 * 1000 * 1000 };
+		busy = 0;
+		for (i = 0; i < SMB_BLOCKS; i++)
+			if (blocks[i].state == B_PENDING && blocks[i].fh == f->fh)
+				busy = 1;
+		if (busy)
+			LWP_CondTimedWait(done_cond, lock, &ts);
+	}
+	if (f->fh && ctx && !busy)
 		smb2_close(ctx, f->fh);
 	for (i = 0; i < SMB_OPEN_MAX; i++)
 		if (open_files[i] == f)
 			open_files[i] = NULL;
-	for (i = 0; i < SMB_WINDOWS; i++)
-		pool_put(f->win[i].buf);
 	LWP_MutexUnlock(lock);
 	memset(f, 0, sizeof(*f));
 	return 0;
@@ -266,6 +431,7 @@ static ssize_t smb_read(struct _reent *r, void *fd, char *ptr, size_t len)
 {
 	smb_file *f = (smb_file *)fd;
 	size_t done = 0;
+	int retried = 0;
 
 	if (f->pos >= f->size || !len)
 		return 0;
@@ -275,49 +441,53 @@ static ssize_t smb_read(struct _reent *r, void *fd, char *ptr, size_t len)
 	LWP_MutexLock(lock);
 	while (done < len) {
 		u64 at = f->pos + done;
-		smb_window *w = find_window(f, at);
-		u32 want;
-		int i, n;
+		u32 want = len - done < SMB_BLOCK ? (u32)(len - done) : SMB_BLOCK;
+		smb_block *b;
+		u32 k;
 
-		if (w) {
-			u32 k = (u32)(w->off + w->len - at);
-			if (k > len - done)
-				k = len - done;
-			memcpy(ptr + done, w->buf + (at - w->off), k);
-			w->used = ++use_clock;
-			stats.cache_hits++;
-			done += k;
-			continue;
+		top_up(f, at, (u32)(len - done) > 4 * SMB_BLOCK ? 4 * SMB_BLOCK : (u32)(len - done));
+		b = find_block(f->key, at);
+		if (!b) {
+			/* nothing on its way here: the requests so far are somewhere else */
+			f->stream = at;
+			top_up(f, at, want);
+			b = find_block(f->key, at);
 		}
-		if (len - done >= SMB_WINDOW || !f->win[0].buf) {
-			/* a large read, or no window: straight into the caller's buffer */
-			n = pread_full(f, (u8 *)ptr + done, (u32)(len - done), at);
+		if (!b) {
+			/* every block in flight, or no pump: read it here and wait */
+			int n = pread_full(f, (u8 *)ptr + done, want, at);
 			if (n <= 0)
 				break;
 			done += n;
 			continue;
 		}
-		/* a miss: fill this file's least recently used window */
-		w = &f->win[0];
-		for (i = 1; i < SMB_WINDOWS; i++)
-			if (f->win[i].buf && f->win[i].used < w->used)
-				w = &f->win[i];
-		if (at == f->next_seq && f->seq_fill)
-			want = f->seq_fill * 2 > SMB_WINDOW ? SMB_WINDOW : f->seq_fill * 2;
-		else
-			want = SMB_JUMP;
-		f->seq_fill = want;
-		if (want > f->size - at)
-			want = (u32)(f->size - at);
-		w->len = 0;
-		n = pread_full(f, w->buf, want, at);
-		if (n <= 0)
-			break;
-		w->off = at;
-		w->len = n;
-		w->used = ++use_clock;
-		f->next_seq = at + n;
+		if (b->state == B_PENDING) {
+			struct timespec ts = { 1, 0 };
+			u32 failed = failures;
+			u64 t0 = gettime();
+
+			stats.waits++;
+			LWP_CondTimedWait(done_cond, lock, &ts);
+			stats.us += ticks_to_microsecs(diff_ticks(t0, gettime()));
+			if (failures != failed && !find_block(f->key, at)) {
+				/* this request failed: the connection is gone. Connect again, once. */
+				if (retried++ || reconnect_all() < 0 || !f->fh)
+					break;
+				f->stream = at;
+			}
+			continue;   /* look again: answered, failed, or still on its way */
+		}
+		k = (u32)(b->off + b->len - at);
+		if (!k)
+			break;   /* end of file */
+		if (k > len - done)
+			k = len - done;
+		memcpy(ptr + done, b->buf + (at - b->off), k);
+		b->used = ++use_clock;
+		stats.cache_hits++;
+		done += k;
 	}
+	top_up(f, f->pos + done, SMB_BLOCK);   /* the next block, while the game uses this one */
 	LWP_MutexUnlock(lock);
 	if (!done && len) {
 		r->_errno = EIO;
@@ -346,6 +516,48 @@ static off_t smb_seek(struct _reent *r, void *fd, off_t pos, int dir)
 	return (off_t)to;
 }
 
+/* The pump: services the socket while requests are in flight, so their replies come in
+ * while the game runs. It waits in IOS's poll without the lock; the replies are taken in
+ * smb2_service() with it. Callers of the synchronous calls (stat, open, a folder listing)
+ * service the same socket while they wait, under the lock, and take replies for the pump's
+ * requests as they come. */
+static void *pump_main(void *arg)
+{
+	struct pollsd p;
+	s32 n;
+	u32 gen;
+	u64 t0;
+
+	(void)arg;
+	LWP_MutexLock(lock);
+	for (;;) {
+		while (!pending || !ctx)
+			LWP_CondWait(work_cond, lock);
+		p.socket = smb2_get_fd(ctx);
+		p.events = smb2_which_events(ctx);
+		p.revents = 0;
+		gen = generation;
+		LWP_MutexUnlock(lock);
+		t0 = gettime();
+		if (p.socket >= 0)
+			n = net_poll(&p, 1, PUMP_POLL_MS);
+		else {
+			usleep(PUMP_POLL_MS * 1000);
+			n = 0;
+		}
+		LWP_MutexLock(lock);
+		stats.pump_polls++;
+		stats.pump_poll_us += ticks_to_microsecs(diff_ticks(t0, gettime()));
+		/* with no event too: libsmb2 times out lost requests in smb2_service() */
+		if (ctx && gen == generation && !broken && smb2_service(ctx, n > 0 ? p.revents : 0) < 0) {
+			note_error("read");
+			broken = 1;
+			fail_pending();
+		}
+	}
+	return NULL;
+}
+
 static void fill_stat(struct stat *st, const struct smb2_stat_64 *s)
 {
 	memset(st, 0, sizeof(*st));
@@ -353,7 +565,7 @@ static void fill_stat(struct stat *st, const struct smb2_stat_64 *s)
 	st->st_size = (off_t)s->smb2_size;
 	st->st_nlink = 1;
 	st->st_mtime = (time_t)s->smb2_mtime;
-	st->st_blksize = SMB_WINDOW;
+	st->st_blksize = SMB_BLOCK;
 }
 
 static int smb_fstat(struct _reent *r, void *fd, struct stat *st)
@@ -365,7 +577,7 @@ static int smb_fstat(struct _reent *r, void *fd, struct stat *st)
 	st->st_mode = S_IFREG | 0444;
 	st->st_size = (off_t)f->size;
 	st->st_nlink = 1;
-	st->st_blksize = SMB_WINDOW;
+	st->st_blksize = SMB_BLOCK;
 	return 0;
 }
 
@@ -474,9 +686,14 @@ int smb2dev_mount(const char *ip, const char *share, const char *user, const cha
 	if (lock == LWP_MUTEX_NULL)
 		LWP_MutexInit(&lock, true);
 	LWP_MutexLock(lock);
-	if (!pool_buf[0])
-		for (i = 0; i < SMB_POOL; i++)
-			pool_buf[i] = (u8 *)memalign(32, SMB_WINDOW);
+	if (work_cond == LWP_COND_NULL) {
+		LWP_CondInit(&work_cond);
+		LWP_CondInit(&done_cond);
+		for (i = 0; i < SMB_BLOCKS; i++)
+			blocks[i].buf = (u8 *)memalign(32, SMB_BLOCK);
+		if (LWP_CreateThread(&pump_thread, pump_main, NULL, NULL, 16 * 1024, PUMP_PRIO) != 0)
+			pump_thread = LWP_THREAD_NULL;   /* reads then wait for each request */
+	}
 	snprintf(cfg_ip, sizeof cfg_ip, "%s", ip);
 	snprintf(cfg_share, sizeof cfg_share, "%s", share);
 	snprintf(cfg_user, sizeof cfg_user, "%s", user ? user : "");
@@ -499,6 +716,8 @@ void smb2dev_unmount(void)
 		RemoveDevice("smb:");
 		mounted = 0;
 	}
+	fail_pending();
+	generation++;
 	if (ctx) {
 		smb2_disconnect_share(ctx);
 		smb2_destroy_context(ctx);

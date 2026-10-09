@@ -223,12 +223,14 @@ turn off. These keys are text values. They are not in the menu.
 
 WiiStation starts the network only when `smbsharename` and `smbipaddr` are both set.
 
-**Speed.** The Wii's Wi-Fi delivers about 350 KB/s (the bench Wii, 2026-10-08): IOS hands
-over about one network packet per call. A game reads its disc at up to 300 KB/s, so a game
-that streams a lot (loading screens, video) waits for the network now and then; a game
-from the SD card does not. WiiStation fetches as little as it can (small reads after a
-jump, larger ones while a game reads on), and starts no CD read-ahead for a game on the
-share. Compressed images (CHD) send less data, so they load faster over the network.
+**Speed.** The Wii's Wi-Fi carries about 1 MB/s of plain TCP, and an SMB read reply comes
+in at about 650 KB/s (the bench Wii, 2026-10-08). A game reads its disc at up to 300 KB/s.
+Since 5.8.0 WiiStation reads the share in 16 KB requests on a thread of its own, and asks
+for the next 16 KB while the game uses the last: Ape Escape's first 20 s waited 0.6-5 s for
+the network (with the Wi-Fi conditions), against 7.8-8.8 s in 5.7.0, and on a good run ran
+as fast as from the SD card. A game that streams a lot (loading screens, video) can still
+wait now and then. WiiStation starts no CD read-ahead for a game on the share. Compressed
+images (CHD) send less data, so they load faster over the network.
 
 **The password is not encrypted.** WiiStation writes it back to the settings file as
 plain text when you save the settings from the menu. Use an account that can read the

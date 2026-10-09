@@ -1,5 +1,5 @@
 README : WiiStation
-Version 5.7.2
+Version 5.8.0
 
 LICENSE:
     This software is licensed under the GNU General Public License v2
@@ -123,6 +123,13 @@ LATER UPDATES BY:
  * Monty Perrotti (WiiStation)
 
 WiiStation CHANGE LOG:
+Ver 5.8.0 (2026-10-08):
+* Games on a network share run much faster. WiiStation reads the share in 16 KB
+  requests on a thread of its own, and asks for the next 16 KB while the game
+  uses the last. Ape Escape's first 20 seconds on the test Wii: 0.97x (as fast
+  as from the SD card), where 5.7.0 ran at 0.80x and waited 8 s for the network.
+* The share uses 256 KB of memory for its read buffers instead of 1 MB.
+
 Ver 5.7.2 (2026-10-08):
 * Fixed: the spinning logo was gone from every menu page since 5.4.0. Configure
   Input hid it while the menu was being built, before it was ever shown.

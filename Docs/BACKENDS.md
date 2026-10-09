@@ -29,9 +29,10 @@ update must keep them: libsmb2's own Wii port had never run.
   results (libogc's `net_*` return -errno; its sockets are IOS handles, not newlib file
   descriptors, so `close`/`fcntl`/`read`/`write` on them did nothing). `connect` blocks
   (IOS has no `getsockopt(SO_ERROR)`); `poll` calls `net_poll` directly; `readv` reads
-  straight into the caller's buffers, at most 4 KB per call (libogc copies each through
-  its 64 KB network heap, and a 128 KB read failed there with -22), and drains while IOS
-  has data. Counters for the perf report (`smb2_wii_count`).
+  straight into the caller's buffers, at most 16 KB per call (libogc copies each through
+  its 64 KB network heap, and a 128 KB read failed there with -22; plain TCP is 30% faster
+  at 16 KB than at 4 KB and no faster above, hbc-reborn's tests/netblock), and drains
+  while IOS has data. Counters for the perf report (`smb2_wii_count`).
 - `lib/sync.c`: the poll error says its errno.
 
 ## How each choice is made

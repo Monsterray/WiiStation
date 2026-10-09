@@ -1165,9 +1165,12 @@ void perf_report(void)
 			static smb2dev_stats_t last;
 			smb2dev_stats_t now;
 			smb2dev_stats(&now);
-			fprintf(f, "smb: req=%u bytes=%llu us=%llu hits=%u reconnects=%u polls=%u poll_us=%llu"
+			fprintf(f, "smb: req=%u bytes=%llu us=%llu waits=%u req_us=%llu inflight_max=%u"
+				" pump_polls=%u pump_poll_us=%llu hits=%u reconnects=%u polls=%u poll_us=%llu"
 				" recvs=%u recv_us=%llu recv_bytes=%llu sends=%u send_us=%llu last_error=\"%s\"\n",
 				now.requests - last.requests, now.bytes - last.bytes, now.us - last.us,
+				now.waits - last.waits, now.req_us - last.req_us, now.inflight_max,
+				now.pump_polls - last.pump_polls, now.pump_poll_us - last.pump_poll_us,
 				now.cache_hits - last.cache_hits, now.reconnects - last.reconnects,
 				now.polls - last.polls, now.poll_us - last.poll_us, now.recvs - last.recvs,
 				now.recv_us - last.recv_us, now.recv_bytes - last.recv_bytes,

@@ -334,11 +334,18 @@ hashes in UploadScreen, OpenGX texel checks). The pattern to grep for is a loop 
   dolphin_run.sh / wsx.sh, `--smb-from <file>` for wii_lab.py (kept out of run.info).
 - Chain lines can boot from the share: `smb:/<folder>` then `.cue` (autoboot matches a
   substring). Autoboot waits up to 30 s for the mount. `menupage 71` = Load from Samba.
-- perf.log `smb:` line per game: requests, bytes, time, cache hits, reconnects, and the
-  socket calls under them (polls/recvs/sends, us each, bytes per recv). On the bench Wii:
-  ~350 KB/s, ~1.1-1.4 KB per recv at ~2 ms per call -- IOS is the ceiling. Tried without
-  gain: SO_RCVBUF 128 KB, waiting before recv, a connection per file (IOS does not overlap
-  calls), recv sizes 2-32 KB (4 KB kept: cost grows with size).
+- perf.log `smb:` line per game: requests, bytes, us (time the game waited), waits,
+  req_us (requests' summed time in flight), inflight_max (running max), the pump thread's
+  polls, cache hits, reconnects, and the socket calls under them (polls/recvs/sends, us
+  each, bytes per recv). Read `cd: total_us` for the game's real wait.
+- Speed (5.8.0, 2026-10-08): plain TCP to the bench Wii is ~1 MB/s (hbc-reborn
+  `tests/netblock_run.py`, queue it: 0.80 MB/s at 4 KB calls, 1.05 at 16 KB, no more above);
+  an SMB reply comes in at ~650 KB/s, ~1.3 KB per recv at ~2 ms per call. What helped: 16 KB
+  requests, replies taken on a pump thread, the next 16 KB requested at once (5.7.0 waited
+  7.8-8.8 s per 20 s of Ape Escape, 5.8.0 0.6-5 s). What did not: read-ahead of 64-256 KB
+  (5.7-6.7 s: data sent ahead of a jump is wasted and in the way), recv sizes (data never
+  piles up), SO_RCVBUF, a wait before recv, a connection per file. Wi-Fi noise between runs
+  in one boot is up to 5x: interleave A/B lines and repeat them (.runs/hw_pipe_ab*).
 - Correctness check: the same game from SD and from the share must end in the same
   `state:` (Ape Escape 1200 vblanks: ram=c1f11dea).
 - Trap found: per-open malloc/free of the 128 KB windows made the second share game in a

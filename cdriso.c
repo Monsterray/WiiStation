@@ -431,9 +431,9 @@ static void pf_start(const char *path, int secbytes)
 	int i;
 	if (pf_active || !cdPrefetch)
 		return;
-	/* Not for a game on the network share (Gamecube/fileBrowser/smb2dev.c): the Wii's Wi-Fi
-	 * delivers ~350 KB/s, so sectors read ahead and never used cost the game time. The
-	 * bench Wii, Ape Escape over SMB: 0.77x without, 0.64x with (2026-10-08). */
+	/* Not for a game on the network share: Gamecube/fileBrowser/smb2dev.c fetches the next
+	 * 16 KB itself, and sectors read ahead and never used cost the game time over Wi-Fi. The
+	 * bench Wii, Ape Escape over SMB: 0.77x without, 0.64x with (5.7.0, 2026-10-08). */
 	if (!strncasecmp(path, "smb:", 4))
 		return;
 	pf_ring = (pf_slot_t *)_mem2_memalign(32, sizeof(pf_slot_t) * PF_SLOTS);

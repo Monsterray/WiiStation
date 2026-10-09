@@ -25,11 +25,13 @@ void smb2dev_unmount(void);
 int  smb2dev_mounted(void);
 const char *smb2dev_error(void);
 
-/* What the share has cost so far: requests, bytes and the time spent in them (us),
- * and how many reads were served from the read windows without a request. */
+/* What the share has cost so far: requests and the bytes they brought; us = the time the
+ * game waited for data, over `waits` reads that had to; cache_hits = the copies from the
+ * blocks; req_us = the requests' summed time in flight, inflight_max = most in flight at once;
+ * the pump thread's polls and their time. */
 typedef struct {
-	unsigned requests, cache_hits, reconnects;
-	unsigned long long bytes, us;
+	unsigned requests, cache_hits, reconnects, waits, inflight_max, pump_polls;
+	unsigned long long bytes, us, req_us, pump_poll_us;
 	/* the socket calls under them (deps/libsmb2/lib/compat.c) */
 	unsigned polls, recvs, sends;
 	unsigned long long poll_us, recv_us, send_us, recv_bytes;

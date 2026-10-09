@@ -258,11 +258,11 @@ struct smb2_wii_counters {
         unsigned long long poll_us, recv_us, send_us, recv_bytes;
 } smb2_wii_count;
 
-/* The most one recv asks for. IOS hands over about one TCP segment per call whatever the
- * size, and its cost grows with the size (it clears and copies the whole buffer): the bench
- * Wii (2026-10-08) took 2.0 ms per call at 8 KB and 2.5 ms at 32 KB. A larger receive
- * window (SO_RCVBUF 128 KB) and waiting for more data before a recv gained nothing. */
-#define NET_CHUNK (4 * 1024)
+/* The most one recv or send asks for. hbc-reborn's tests/netblock on the bench Wii
+ * (2026-10-08): plain TCP received 0.80 MB/s in 4 KB calls, 1.03-1.06 MB/s in 16 KB ones,
+ * and no more in direct IOS calls of 32-128 KB. An SMB reply comes in slower than that,
+ * about 1.3 KB per call, so for SMB the size made no measured difference. */
+#define NET_CHUNK (16 * 1024)
 
 static int net_result(s32 ret)
 {
