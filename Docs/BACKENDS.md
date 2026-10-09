@@ -16,6 +16,7 @@ before touching any of them; the traps at the end cost real sessions.
 | Host input | `controller_t` (`Gamecube/gc_input/controller.h`) | auto-assign or the `PadType*`/`PadAssign*` settings | GameCube pad, Wiimote variants, Classic, Wii U Pro/GamePad, HID |
 | Menu font | `.dat` glyph files (`Gamecube/libgui/IPLFont.cpp`) | `MenuFont` setting, else per-language file, else built-in `fonts/En.dat` | `fonts/menu/*.dat`, made by `scripts/genfont.py` |
 | Network share | newlib device `smb:` (`Gamecube/fileBrowser/smb2dev.c`) | `smbipaddr`/`smbsharename` settings; mounted by the network thread (`fileBrowser-SMB.c`) | libsmb2 v6.0.0 (`deps/libsmb2`, SMB2/3), built by `deps/libsmb2/Makefile.wiistation`; patches below |
+| DVD | newlib device `dvd:` (`Gamecube/fileBrowser/fileBrowser-DVD.c`) | Load from DVD mounts the disc in the drive, again each time unless a game from it is loaded | libiso9660 (vendored: `Gamecube/fileBrowser/iso9660.c`, libogc2 2026, patches marked `WiiStation`) over libdi's `__io_wiidvd` (direct drive reads with AHBPROT, DVD-R and pressed discs); no CD read-ahead thread (libiso9660 has no lock) |
 | Settings | `OPTIONS[]` table in `GamecubeMain.cpp` | `settings.ini` (was settingsRX2022.cfg) (see `SETTINGS.md`) | one table, integers and quoted strings |
 
 ## libsmb2 patches (deps/libsmb2)

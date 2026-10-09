@@ -64,7 +64,7 @@ LDFLAGS	=	-g $(MACHDEP) -Wl,-Map,$(notdir $@).map,-wrap,wiiuse_register,-wrap,c_
 #---------------------------------------------------------------------------------
 # any extra libraries we wish to link with the project
 #---------------------------------------------------------------------------------
-LIBS	:=	-lhbcagent -lsmb2 -ldi -liso9660 -lm -laesnd -lSDL -lfat -ldb -lwiiuse -lwupc -lwiidrc -lbte -logc -lz -lwiikeyboard -llightrecWithLog -llightning -llzma -lzstd -lzlibstatic -lchdr -lopengx_prof
+LIBS	:=	-lhbcagent -lsmb2 -ldi -lm -laesnd -lSDL -lfat -ldb -lwiiuse -lwupc -lwiidrc -lbte -logc -lz -lwiikeyboard -llightrecWithLog -llightning -llzma -lzstd -lzlibstatic -lchdr -lopengx_prof
 
 #---------------------------------------------------------------------------------
 # list of directories containing libraries, this must be the top level containing

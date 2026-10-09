@@ -480,6 +480,18 @@ void fileBrowserFrame_Error(fileBrowser_file* dir, int error_code)
 	else if(error_code == SMB_SMBRETRY) {
   	strcpy(feedback_string,"Still connecting to the share.\nTry again in a moment.");
 	}
+	else if(error_code == DVD_ERR_NO_ACCESS) {
+	strcpy(feedback_string,"WiiStation cannot use the disc drive.\nStart it from the Homebrew Channel.");
+	}
+	else if(error_code == DVD_ERR_NO_DRIVE) {
+	strcpy(feedback_string,"The disc drive did not answer.");
+	}
+	else if(error_code == DVD_ERR_NO_DISC) {
+	strcpy(feedback_string,"There is no disc in the drive.");
+	}
+	else if(error_code == DVD_ERR_UNREADABLE) {
+	strcpy(feedback_string,"This disc cannot be read. Use a data\nDVD-R. A Wii cannot read CDs, and\nmany Wiis made after 2008 cannot\nread DVD-R discs.");
+	}
 	else if(error_code == SMB_SMBERR) {
 	/* the reason libsmb2 gave, cut to the box: "connect: ..." */
 	snprintf(feedback_string, sizeof(feedback_string), "Cannot connect to the share.\n%.44s\n%.44s",

@@ -50,7 +50,6 @@ extern "C" {
 #include "../fileBrowser/fileBrowser-CARD.h"
 #include "../fileBrowser/fileBrowser-SMB.h"
 #include "../../deps/opengx/GL/gl.h"
-//#include "../main/gc_dvd.h"
 }
 #include <ogc/dvd.h>
 #include "../../HidController/KernelHID.h"

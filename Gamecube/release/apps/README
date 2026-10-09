@@ -1,5 +1,5 @@
 README : WiiStation
-Version 5.8.0
+Version 5.9.0
 
 LICENSE:
     This software is licensed under the GNU General Public License v2
@@ -16,7 +16,9 @@ QUICK USAGE:
     in wiistation/example_settings.ini, with its default and what it does,
     All Memory Cards will automatically be placed in /wiistation/saves
     All Savestates will automatically be placed in /wiistation/savestates
- * For DVD: ISOs may be anywhere on the disc (requires DVDxV2 on Wii)
+ * For DVD: burn the games (.cue/.bin, CHD, PBP, any folders) to a data DVD-R and
+    choose Load from DVD. No cIOS is needed. A Wii cannot read CDs, and many Wiis
+    made after 2008 (and the Wii mini and Wii U) cannot read DVD-R discs.
  * For actual BIOS: Put SCPH1001.BIN in the directory on SD/USB named /wiistation/bios
  * Load the executable from the HBC or in the loader of your choice
     Once loaded, select 'Load ISO' and choose the source and select the ISO to load
@@ -123,6 +125,17 @@ LATER UPDATES BY:
  * Monty Perrotti (WiiStation)
 
 WiiStation CHANGE LOG:
+Ver 5.9.0 (2026-10-08):
+* Load from DVD works. It listed a disc but no game ever started from it: the
+  browser kept only the file's name, which the CD reader could not open. The
+  disc is now mounted as "dvd:" and read like the SD card, so .cue/.bin with
+  CD audio tracks, CHD and PBP images all work from a DVD.
+* Discs burned with Windows (Explorer's "Burn to disc") are read: the disc
+  library looped on their folder sizes and found no file at all.
+* Load from DVD says what is wrong: no disc, a disc it cannot read (a CD, or
+  a DVD-R in a drive that cannot read one), or no access to the drive.
+* A disc changed in the drive is read the next time Load from DVD opens.
+
 Ver 5.8.0 (2026-10-08):
 * Games on a network share run much faster. WiiStation reads the share in 16 KB
   requests on a thread of its own, and asks for the next 16 KB while the game

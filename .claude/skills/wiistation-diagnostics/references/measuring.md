@@ -334,6 +334,14 @@ hashes in UploadScreen, OpenGX texel checks). The pattern to grep for is a loop 
   dolphin_run.sh / wsx.sh, `--smb-from <file>` for wii_lab.py (kept out of run.info).
 - Chain lines can boot from the share: `smb:/<folder>` then `.cue` (autoboot matches a
   substring). Autoboot waits up to 30 s for the mount. `menupage 71` = Load from Samba.
+- DVD (5.9.0): `scripts/dvd_image.ps1 -Out X.iso -GameRoot <isos folder>` makes a test disc
+  with Windows' IMAPI2 (as Explorer burns) plus a GameCube header so Dolphin inserts it; boot
+  with `DOLPHIN_ARGS="-C Dolphin.Core.DefaultISO=C:/.../X.iso"`. Chain lines
+  `dvd:/PSX Games/<game>` + `.cue`; `menupage 72` = Load from DVD. Same end state as SD
+  (Ape Escape ram=c1f11dea, Frogger 900 vbl ram=0d083f06). No DefaultISO = empty drive.
+  Dolphin's DVD reads do not show in its log (direct register reads); write a file to
+  sd:/ from the code and read it with `scripts/sdimage_read.py .dolphin/Load/WiiSD.raw`.
+  A Dolphin run whose SD folder changed spends ~40 s repacking before boot: give it 120 s.
 - perf.log `smb:` line per game: requests, bytes, us (time the game waited), waits,
   req_us (requests' summed time in flight), inflight_max (running max), the pump thread's
   polls, cache hits, reconnects, and the socket calls under them (polls/recvs/sends, us

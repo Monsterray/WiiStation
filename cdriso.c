@@ -436,6 +436,10 @@ static void pf_start(const char *path, int secbytes)
 	 * bench Wii, Ape Escape over SMB: 0.77x without, 0.64x with (5.7.0, 2026-10-08). */
 	if (!strncasecmp(path, "smb:", 4))
 		return;
+	/* Nor for a game on a DVD: libiso9660 has no lock, and this thread would read the disc
+	 * beside the emulator's own handle (Gamecube/fileBrowser/fileBrowser-DVD.c). */
+	if (!strncasecmp(path, "dvd:", 4))
+		return;
 	pf_ring = (pf_slot_t *)_mem2_memalign(32, sizeof(pf_slot_t) * PF_SLOTS);
 	pf_handle = fopen(path, "rb");
 	if (pf_ring == NULL || pf_handle == NULL) {

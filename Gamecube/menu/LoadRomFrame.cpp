@@ -163,9 +163,16 @@ void Func_LoadFromDVD()
 	isoFile_seekFile = fileBrowser_DVD_seekFile;
 	isoFile_init     = fileBrowser_DVD_init;
 	isoFile_deinit   = fileBrowser_DVD_deinit;
-	// Make sure the romFile system is ready before we browse the filesystem
+	// Mount the disc as "dvd:"; a failure is said by the browser, from readDir's code
 	isoFile_init( isoFile_topLevel );
 
+	if(Autoboot)
+	{   /* autoboot.txt / a chain naming dvd:/... */
+		snprintf(isoFile_topLevel->name, sizeof(isoFile_topLevel->name), "%s", AutobootPath);
+		fileBrowserFrame_OpenDirectory(isoFile_topLevel);
+		return;
+	}
+	snprintf(isoFile_topLevel->name, sizeof(isoFile_topLevel->name), "dvd:/");
 	pMenuContext->setActiveFrame(MenuContext::FRAME_FILEBROWSER,loadRomMode);
 	fileBrowserFrame_OpenDirectory(isoFile_topLevel);
 }
