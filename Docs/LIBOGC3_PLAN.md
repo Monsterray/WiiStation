@@ -94,3 +94,7 @@ libogc3's AESND. Audio dropout counters not yet compared (run_summary on both ru
 **ps1-tests in Dolphin, debug builds (dbgab_ps1_A/B):** tty.log byte-identical and all 10 per-test
 VRAM dumps identical between libogc2 and libogc3 (the magenta/noise screens some tests draw are
 the tests' own output on both). Same known gaps against a real PS1 on both.
+**Dolphin, debug pair:** replay3 guest counters identical at every report vblank (both games);
+statecheck3 all 3 games match with identical fingerprints on both. No floating-point difference
+seen anywhere so far, so no re-baselining is needed yet (decision 3). Note: replay_check.py found
+no reports in these debug logs (no gpupres: line in that build); compared by wall: vblanks instead.
