@@ -15,8 +15,9 @@ The selected future live-test username is Monsterray; no credentials are staged.
 | Big-endian client mocks | Wii job `20261011-014231-081451` | 180/180 client tests pass; clean HBC return |
 | PS1 hash parity | Wii job `20261011-014646-ea19fc` | Three real raw BIN images match host hashes exactly |
 | Public HTTPS/certificates | Wii job `20261011-013921-a0f079` | Valid certificates accepted; wrong-host, untrusted-root and expired certificates rejected |
+| NV seed contract, host only | `scripts/test-achievements-entropy.sh` | ASan/UBSan pass with public dummy seed and mock storage; no Wii security readiness |
 | Production release | `.runs/achievement-build/production-release-build.log` | Pinned r41-2 build succeeds |
-| Collectors | `tests/bench_gameplay_test.py`, existing bench tests | Frame/count/completion, invalid paths, truncation/saturation and replay failure gates pass |
+| Collectors | `tests/bench_gameplay_test.py`, `tests/gameplay_results_test.py`, existing bench tests | Completion, invalid paths, memory telemetry, saturation, retries, frozen identity/checkpoints and replay failure gates pass |
 
 Wii evidence is under `.runs/bench/`; DOL, matching ELF, collector, SDK client and
 payload SHA-256 hashes are frozen in each bundle's manifest. Every hardware action
@@ -110,19 +111,29 @@ Two rejected measurement runs retained raw evidence and restored the bench:
   freezes both original and derived playback hashes. Timing passes also omit
   screenshot requests; final VRAM/state evidence is collected after stopping.
 
-The corrected pilot, job `20261011-015023-59f96c`, passed all three arms and
-verified cleanup. All final RAM/VRAM/PC/cycle checkpoints matched exactly; no
-allocation failures occurred. Disabled/enabled/disabled window wall times were
-39.290 / 40.355 / 39.218 s, respectively: an exploratory 2.81% increase against
-the mean disabled time. Median interval times were 4.905 / 5.074 / 4.905 ms;
-p99 was 11.201 / 11.361 / 11.201 ms. Each arm had 13 intervals beyond 59.94 Hz
-frame budget. Enabled evaluation averaged 142.20 us across all 13,199 profiled
-frames, with a 524 us maximum. This is above the provisional 1% capacity target,
-not a shipping performance pass. A single A/B/A block is insufficient for a
-release overhead claim. Five alternating paired repetitions are now queued in separately frozen bundles
-`20261011-spyro-pair-1` through `-5`. `scripts/gameplay_results.py` compares five
-pairs, requires matching build/profile/recording/final checkpoints and cleanup,
-and reports a Student-t approximate confidence interval across pairs.
+The initial corrected collector pilot, job `20261011-015023-59f96c`, completed
+three arms with matching final checkpoints and verified cleanup. However, all
+subsequent timing evidence from the cached debug DOL was **invalidated**: its
+OpenGX archive predated the changed profiler structure and was not rebuilt by
+the direct Gamecube-only make invocation. Implausible peak/field values exposed
+the mixed layout. Completion/scene evidence is retained, but its timing numbers
+must not be used. The replacement uses the repository build script's clean
+source snapshot so all profiling dependencies use matching flags and headers.
+
+The first repeated batch retained four completed pairs, one failed collection
+and a cancelled replacement. The failed collector case returned safely and
+verified restoration; the collector now waits for HBC and retries only reads,
+with a bounded three-attempt policy. No launch or delete operation is retried.
+The replacement five-pair campaign uses the clean DOL and frozen bundles
+`20261011-spyro-clean-pair-1` through `-5`; all dependencies were rebuilt through
+`PROBES=... bash scripts/build.sh debug` in a clean source snapshot.
+The independent production release smoke also passed, job
+`20261011-015705-283c84` (menu/SDK/HOME/HBC, 38 seconds).
+`scripts/gameplay_results.py` requires matching frozen build/media/profile/input,
+final checkpoints and cleanup, then computes an approximate Student-t confidence
+interval across paired repetitions. No inference treats individual correlated
+frames as independent repetitions.
+
 Full scene trajectory equivalence, realistic official conditions, capped
 presentation/audio testing, other scenes/cores/renderers and vWii remain required.
 

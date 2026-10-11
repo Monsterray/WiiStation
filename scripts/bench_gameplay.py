@@ -15,6 +15,18 @@ import chain_table
 import vtl_view
 
 
+def read_result(client, wii, operation, *args):
+    # HBC may reset a connection while returning from the emulator. Retry only
+    # reads, with a bounded wait; never repeat a launch or a destructive request.
+    for attempt in range(3):
+        try:
+            return operation(wii, *args)
+        except (OSError, client.HBCError):
+            if attempt == 2: raise
+            time.sleep(1)
+            client.hbc_wait(wii, 30)  # Returns only for HBC, never an app agent.
+
+
 def validate_profile(profile):
     if (not re.fullmatch(r'[A-Z]{4}\d{5}', profile['serial']) or
         not profile['directory'].startswith('sd:/wiistation/isos/') or
@@ -39,6 +51,11 @@ def summarize(folder, start, stop, enabled, definitions, serial):
     if len(games) != 1 or games[0][3].get('wall', {}).get('vblanks') != executed:
         raise RuntimeError('Missing independent executed frame total')
     b = games[0][3]
+    ram=b.get('ram',{})
+    used,total=ram.get('mem2',(0,0))
+    if (ram.get('fails') != 0 or ram.get('heap_ok') != 1 or
+        not used <= ram.get('peak',0) <= total or total == 0):
+        raise RuntimeError('Invalid memory/profiler evidence; check matching dependency builds')
     calls = b.get('achperf', {}).get('calls')
     if calls != (executed if enabled else 0) or b.get('achperf', {}).get('vsig') != 0:
         raise RuntimeError('Wrong evaluation count or expensive signatures enabled')
@@ -141,11 +158,12 @@ def execute(client, wii, bundle, inventory=False):
                 except (OSError, client.HBCError): pass
                 time.sleep(2)
             else: raise RuntimeError('Gameplay did not complete')
+            client.hbc_wait(wii,90)
+            listing,cut=read_result(client,wii,client.list_dir,'sd:/wiistation')
+            if cut: raise RuntimeError('Incomplete results listing')
             for name in names:
-                listing,cut=client.list_dir(wii,'sd:/wiistation')
-                if cut: raise RuntimeError('Incomplete results listing')
                 if name not in ('autoboot.txt','emu.log') and name in {n for _,_,n in listing}:
-                    (result/name).write_bytes(client.get_file(wii,'sd:/wiistation/'+name))
+                    (result/name).write_bytes(read_result(client,wii,client.get_file,'sd:/wiistation/'+name))
             all_results.append(summarize(result,profile['start'],profile['stop'],enabled,profile['definitions'],profile['serial']))
             (result/'metrics.json').write_text(json.dumps(all_results[-1],indent=2))
             print(f'Completed arm {run_index+1}/{len(profile["arms"])} enabled={enabled}',flush=True)

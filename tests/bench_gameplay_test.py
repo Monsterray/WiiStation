@@ -6,10 +6,21 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import Mock, patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 import bench_gameplay
 
 class MeasurementTests(unittest.TestCase):
+    def test_read_retry_is_bounded(self):
+        client=Mock(HBCError=RuntimeError)
+        operation=Mock(side_effect=[ConnectionResetError(), b'collected'])
+        with patch.object(bench_gameplay.time,'sleep'):
+            self.assertEqual(bench_gameplay.read_result(client,'wii',operation,'path'),b'collected')
+            client.hbc_wait.assert_called_once_with('wii',30)
+            operation=Mock(side_effect=ConnectionResetError())
+            with self.assertRaises(ConnectionResetError):bench_gameplay.read_result(client,'wii',operation,'path')
+            self.assertEqual(operation.call_count,3)
+
     def test_freeze_defers_debug_dump_without_changing_inputs(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp)
@@ -43,6 +54,7 @@ class MeasurementTests(unittest.TestCase):
             folder = Path(tmp)
             log = ('--- perf frames=3 ---\nachperf: calls=9 total_us=90 max_us=12 vsig=0\n'
                    'wall: wall_us=100000 vblanks=9\n'
+                   'ram: mem2=100/1000KB peak=200KB fails=0 heap_ok=1\n'
                    'achievement-bench: game=TEST00001 frames=10 count=128 earned=0 enabled=1\n'
                    '=== chain 1/1 end vblanks=10 rom=test.cue ===\n')
             (folder/'perf.log').write_text(log)
@@ -53,6 +65,7 @@ class MeasurementTests(unittest.TestCase):
             for wrong in (log.replace('vblanks=9', 'vblanks=8'),
                           log.replace('calls=9', 'calls=8'),
                           log.replace('vsig=0', 'vsig=1'),
+                          log.replace('peak=200', 'peak=2000'),
                           log.replace('earned=0', 'earned=1'),
                           log.replace('=== chain', 'incomplete')):
                 (folder/'perf.log').write_text(wrong)

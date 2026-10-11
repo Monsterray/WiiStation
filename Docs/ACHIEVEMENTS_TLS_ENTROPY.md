@@ -121,3 +121,19 @@ an HTTP Date header, or plain HBC host time should not silently become the
 security authority against a hostile network. Review a trustworthy UTC bootstrap
 and use monotonic elapsed time within a session. No clock was changed here.
 [3.6.4 time callback interface](https://raw.githubusercontent.com/Mbed-TLS/mbedtls/mbedtls-3.6.4/include/mbedtls/platform_time.h).
+
+## Host contract test implemented
+
+`scripts/test-achievements-entropy.sh` downloads/checks the official Mbed TLS
+3.6.4 release archive (SHA-256
+`ec35b18a6c593cf98c3e30db8b98ff93e8940a8c4e690e66b41dfc011d678110`) and rebuilds
+its crypto library with NV seed callbacks and platform entropy disabled. The
+ASan/UBSan harness `tests/entropy_seed_test.c` confirms exactly one entropy source,
+rotation before DRBG output, different output across successive fresh contexts,
+missing/truncated/read failure rejection, negative commit-error rejection, and
+fresh-context rejection on repeated failures. It always destroys a context after
+a failed update. The storage is a public in-memory fixture, not a FAT/NAND backend;
+this proves the library/callback contract, not confidential provisioning,
+atomicity, power-loss durability or concurrent-owner exclusion on Wii. The source
+only checks callback results for negativity: a real callback must turn short I/O
+and flush/close/commit failures into negative errors itself.
