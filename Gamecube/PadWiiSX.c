@@ -144,6 +144,12 @@ int autoinput_padsweep_fast = 0;   /* "padsweep <vblank> fast": controller-GC.c'
  * SettingsFrame.cpp's FRAME_BUTTONS. */
 unsigned autoinput_menuclick = 0;
 unsigned autoinput_menuclicks = 0;
+/* "menukeys <frame> <keys>": GameCube-pad presses fed to the menu (libgui InputManager.cpp),
+ * from that menu frame on: U D L R A B S(tart) Z, each held 6 frames then released 6, '.' a
+ * 12-frame pause. Any screen, any dialog: e.g. "menukeys 60 U U A . . R A" is Main > Quit,
+ * then Yes on its question (the HBC agent's `key` presses never reach the menu). */
+unsigned autoinput_menukeys_frame = 0;
+char autoinput_menukeys[64];
 /*
  * Read in MenuContext.cpp. */
 unsigned autoinput_menupage = 0;
@@ -236,6 +242,8 @@ void autoinput_load(void)
 				continue;
 			}
 			if (sscanf(line, "menupage %u", &v) == 1) { autoinput_menupage = v; continue; }
+			if (sscanf(line, "menukeys %u %63[^\r\n]", &v, autoinput_menukeys) == 2)
+				{ autoinput_menukeys_frame = v; continue; }
 			{
 				unsigned b, t;
 				if (sscanf(line, "menuclick %u %u", &b, &t) == 2)
@@ -299,6 +307,8 @@ void autoinput_reset(const char *path)
 	autoinput_padsweep_fast = 0;
 	autoinput_menupage = 0;
 	autoinput_menuclick = autoinput_menuclicks = 0;
+	autoinput_menukeys_frame = 0;
+	autoinput_menukeys[0] = 0;
 	autoinput_atrace_vbl = 0;
 	statetool_reset();
 	/* Parse it now, not at the first pad poll: a game that polls late (FF7: vblank 876)

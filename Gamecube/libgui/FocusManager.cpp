@@ -27,6 +27,7 @@
 #include "../../HidController/KernelHID.h"
 
 namespace menu {
+extern u16 menu_script_keys;   /* InputManager.cpp: an input script's "menukeys" */
 
 /* The menu with the stick as well as the D-pad (2026-09-23). A stick pushed past STICK_ON of
  * its full travel reads as that D-pad direction until it falls back under STICK_OFF: the gap
@@ -163,7 +164,7 @@ void Focus::updateFocus()
 	{
 		for (int i=0; i<4; i++)
 		{
-			previousButtonsGC[i] = PAD_ButtonsHeld(i) | stickGC(i);
+			previousButtonsGC[i] = PAD_ButtonsHeld(i) | stickGC(i) | (i == 0 ? menu_script_keys : 0);
 #ifdef HW_RVL
 			previousButtonsGCHid[i] = hidGcPad[i].button | stickGCHid(&hidGcPad[i], i);
 			previousButtonsWii[i] = wiiPad[i].btns_h | stickWii(&wiiPad[i], i);
@@ -189,7 +190,7 @@ void Focus::updateFocus()
 		else
 			currentButtonsWiiUGamepad = 0;
 #endif
-		u16 currentButtonsGC = PAD_ButtonsHeld(i) | stickGC(i);
+		u16 currentButtonsGC = PAD_ButtonsHeld(i) | stickGC(i) | (i == 0 ? menu_script_keys : 0);
 		if (currentButtonsGC ^ previousButtonsGC[i])
 		{
 			u16 currentButtonsDownGC = (currentButtonsGC ^ previousButtonsGC[i]) & currentButtonsGC;

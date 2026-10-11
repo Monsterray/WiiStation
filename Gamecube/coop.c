@@ -17,13 +17,85 @@
 **/
 
 #include <gccore.h>
+#include <stdio.h>
 #include <string.h>
 #include "gc_input/controller.h"
 #include "wiiSXconfig.h"
 
 const char *coop_layout_names[COOP_LAYOUT_COUNT] = {
-	"Full pad", "Left half", "Right half", "D-pad+sticks", "Action", "Shoulders"
+	"Full pad", "Left half", "Right half", "D-pad+sticks", "Action", "Shoulders", "Custom"
 };
+
+/* The names in a CoopPButtonsK list, in the Customize screen's order (CustomizeCoopFrame.cpp) */
+const char *coop_button_names[COOP_NUM_BUTTONS] = {
+	"L1", "L2", "Select", "Start", "R1", "R2", "Up", "Left", "Right", "Down",
+	"Triangle", "Square", "Circle", "Cross", "LStick", "RStick", "L3", "R3"
+};
+
+/* Button i's mask: the _BUTTONS bit in the low 16, a stick (COOP_STICK_*) << 16 */
+u32 coop_button_mask(int i)
+{
+	_BUTTONS b;
+	b.All = 0;
+	switch (i) {
+	case 0:  b.L1_BUTTON = 1; break;
+	case 1:  b.L2_BUTTON = 1; break;
+	case 2:  b.SELECT_BUTTON = 1; break;
+	case 3:  b.START_BUTTON = 1; break;
+	case 4:  b.R1_BUTTON = 1; break;
+	case 5:  b.R2_BUTTON = 1; break;
+	case 6:  b.U_DPAD = 1; break;
+	case 7:  b.L_DPAD = 1; break;
+	case 8:  b.R_DPAD = 1; break;
+	case 9:  b.D_DPAD = 1; break;
+	case 10: b.TRIANGLE_BUTTON = 1; break;
+	case 11: b.SQUARE_BUTTON = 1; break;
+	case 12: b.CIRCLE_BUTTON = 1; break;
+	case 13: b.CROSS_BUTTON = 1; break;
+	case 14: return COOP_STICK_L << 16;
+	case 15: return COOP_STICK_R << 16;
+	case 16: b.L3_BUTTON = 1; break;
+	case 17: b.R3_BUTTON = 1; break;
+	}
+	return b.All;
+}
+
+/* "L1, Up,Cross" -> its mask. Names are matched without case; unknown ones are skipped. */
+u32 coop_buttons_parse(const char *list)
+{
+	u32 mask = 0;
+	while (*list) {
+		size_t n;
+		int i;
+		while (*list == ',' || *list == ' ')
+			list++;
+		n = strcspn(list, ", ");
+		for (i = 0; n && i < COOP_NUM_BUTTONS; i++)
+			if (strlen(coop_button_names[i]) == n && !strncasecmp(list, coop_button_names[i], n))
+				mask |= coop_button_mask(i);
+		list += n;
+	}
+	return mask;
+}
+
+void coop_buttons_format(u32 mask, char *out, int size)
+{
+	int i, len = 0;
+	out[0] = 0;
+	for (i = 0; i < COOP_NUM_BUTTONS; i++)
+		if ((mask & coop_button_mask(i)) && len < size)
+			len += snprintf(out + len, size - len, "%s%s", len ? "," : "", coop_button_names[i]);
+}
+
+u16 coop_player_buttons(int port, int k, int *sticks)
+{
+	if (coopLayout[port][k] == COOP_LAYOUT_CUSTOM) {
+		u32 m = coop_buttons_parse(coopButtons[port][k]);
+		*sticks = m >> 16;
+		return (u16)m;
+	}
+	return coop_layout_buttons(coopLayout[port][k], sticks);
+}
 
 
 /* The buttons (a 1 for each, in _BUTTONS' own bit order) and sticks (COOP_STICK_L/R) a
@@ -116,7 +188,7 @@ int coop_get_keys(int port, BUTTONS *out, int *connected)
 			in.rightStickX = apply_sensitivity(in.rightStickX, sens);
 			in.rightStickY = apply_sensitivity(in.rightStickY, sens);
 		}
-		allowed = coop_layout_buttons(coopLayout[port][k], &sticks);
+		allowed = coop_player_buttons(port, k, &sticks);
 		out->btns.All = coop_buttons(out->btns.All, in.btns.All, allowed);
 		if (sticks & COOP_STICK_L) {
 			out->leftStickX = coop_axis(out->leftStickX, in.leftStickX);

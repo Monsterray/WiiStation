@@ -157,6 +157,7 @@ char fileSortMode = 1;
 char padAutoAssign;
 char padType[10];
 char coopPlayers[2], coopType[2][COOP_MAX], coopAssign[2][COOP_MAX], coopLayout[2][COOP_MAX];   /* coop.c */
+char coopButtons[2][COOP_MAX][COOP_BUTTONS_SIZE];   /* CoopPButtonsK, for the Custom layout */
 char padAssign[10];
 char padLightgun[10];
 char rumbleEnabled;
@@ -314,51 +315,67 @@ static struct {
   { "Coop1Type1", &coopType[0][0], PADTYPE_NONE, PADTYPE_HID },
   { "Coop1Assign1", &coopAssign[0][0], 0, 3 },
   { "Coop1Layout1", &coopLayout[0][0], COOP_LAYOUT_FULL, COOP_LAYOUT_COUNT - 1 },
+  { "Coop1Buttons1", coopButtons[0][0], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "Coop1Type2", &coopType[0][1], PADTYPE_NONE, PADTYPE_HID },
   { "Coop1Assign2", &coopAssign[0][1], 0, 3 },
   { "Coop1Layout2", &coopLayout[0][1], COOP_LAYOUT_FULL, COOP_LAYOUT_COUNT - 1 },
+  { "Coop1Buttons2", coopButtons[0][1], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "Coop1Type3", &coopType[0][2], PADTYPE_NONE, PADTYPE_HID },
   { "Coop1Assign3", &coopAssign[0][2], 0, 3 },
   { "Coop1Layout3", &coopLayout[0][2], COOP_LAYOUT_FULL, COOP_LAYOUT_COUNT - 1 },
+  { "Coop1Buttons3", coopButtons[0][2], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "Coop1Type4", &coopType[0][3], PADTYPE_NONE, PADTYPE_HID },
   { "Coop1Assign4", &coopAssign[0][3], 0, 3 },
   { "Coop1Layout4", &coopLayout[0][3], COOP_LAYOUT_FULL, COOP_LAYOUT_COUNT - 1 },
+  { "Coop1Buttons4", coopButtons[0][3], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "Coop1Type5", &coopType[0][4], PADTYPE_NONE, PADTYPE_HID },
   { "Coop1Assign5", &coopAssign[0][4], 0, 3 },
   { "Coop1Layout5", &coopLayout[0][4], COOP_LAYOUT_FULL, COOP_LAYOUT_COUNT - 1 },
+  { "Coop1Buttons5", coopButtons[0][4], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "Coop1Type6", &coopType[0][5], PADTYPE_NONE, PADTYPE_HID },
   { "Coop1Assign6", &coopAssign[0][5], 0, 3 },
   { "Coop1Layout6", &coopLayout[0][5], COOP_LAYOUT_FULL, COOP_LAYOUT_COUNT - 1 },
+  { "Coop1Buttons6", coopButtons[0][5], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "Coop1Type7", &coopType[0][6], PADTYPE_NONE, PADTYPE_HID },
   { "Coop1Assign7", &coopAssign[0][6], 0, 3 },
   { "Coop1Layout7", &coopLayout[0][6], COOP_LAYOUT_FULL, COOP_LAYOUT_COUNT - 1 },
+  { "Coop1Buttons7", coopButtons[0][6], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "Coop1Type8", &coopType[0][7], PADTYPE_NONE, PADTYPE_HID },
   { "Coop1Assign8", &coopAssign[0][7], 0, 3 },
   { "Coop1Layout8", &coopLayout[0][7], COOP_LAYOUT_FULL, COOP_LAYOUT_COUNT - 1 },
+  { "Coop1Buttons8", coopButtons[0][7], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "Coop2Type1", &coopType[1][0], PADTYPE_NONE, PADTYPE_HID },
   { "Coop2Assign1", &coopAssign[1][0], 0, 3 },
   { "Coop2Layout1", &coopLayout[1][0], COOP_LAYOUT_FULL, COOP_LAYOUT_COUNT - 1 },
+  { "Coop2Buttons1", coopButtons[1][0], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "Coop2Type2", &coopType[1][1], PADTYPE_NONE, PADTYPE_HID },
   { "Coop2Assign2", &coopAssign[1][1], 0, 3 },
   { "Coop2Layout2", &coopLayout[1][1], COOP_LAYOUT_FULL, COOP_LAYOUT_COUNT - 1 },
+  { "Coop2Buttons2", coopButtons[1][1], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "Coop2Type3", &coopType[1][2], PADTYPE_NONE, PADTYPE_HID },
   { "Coop2Assign3", &coopAssign[1][2], 0, 3 },
   { "Coop2Layout3", &coopLayout[1][2], COOP_LAYOUT_FULL, COOP_LAYOUT_COUNT - 1 },
+  { "Coop2Buttons3", coopButtons[1][2], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "Coop2Type4", &coopType[1][3], PADTYPE_NONE, PADTYPE_HID },
   { "Coop2Assign4", &coopAssign[1][3], 0, 3 },
   { "Coop2Layout4", &coopLayout[1][3], COOP_LAYOUT_FULL, COOP_LAYOUT_COUNT - 1 },
+  { "Coop2Buttons4", coopButtons[1][3], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "Coop2Type5", &coopType[1][4], PADTYPE_NONE, PADTYPE_HID },
   { "Coop2Assign5", &coopAssign[1][4], 0, 3 },
   { "Coop2Layout5", &coopLayout[1][4], COOP_LAYOUT_FULL, COOP_LAYOUT_COUNT - 1 },
+  { "Coop2Buttons5", coopButtons[1][4], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "Coop2Type6", &coopType[1][5], PADTYPE_NONE, PADTYPE_HID },
   { "Coop2Assign6", &coopAssign[1][5], 0, 3 },
   { "Coop2Layout6", &coopLayout[1][5], COOP_LAYOUT_FULL, COOP_LAYOUT_COUNT - 1 },
+  { "Coop2Buttons6", coopButtons[1][5], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "Coop2Type7", &coopType[1][6], PADTYPE_NONE, PADTYPE_HID },
   { "Coop2Assign7", &coopAssign[1][6], 0, 3 },
   { "Coop2Layout7", &coopLayout[1][6], COOP_LAYOUT_FULL, COOP_LAYOUT_COUNT - 1 },
+  { "Coop2Buttons7", coopButtons[1][6], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "Coop2Type8", &coopType[1][7], PADTYPE_NONE, PADTYPE_HID },
   { "Coop2Assign8", &coopAssign[1][7], 0, 3 },
   { "Coop2Layout8", &coopLayout[1][7], COOP_LAYOUT_FULL, COOP_LAYOUT_COUNT - 1 },
+  { "Coop2Buttons8", coopButtons[1][7], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "Network", NULL, 0, 0, "Games from a network share (SMB)." },
   { "smbipaddr", smbIpAddr, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "smbsharename", smbShareName, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
@@ -561,6 +578,7 @@ void loadSettings(int argc, char *argv[])
 			coopType[p][k] = k < 4 ? PADTYPE_GAMECUBE : PADTYPE_WII;
 			coopAssign[p][k] = (char)(k % 4);
 			coopLayout[p][k] = COOP_LAYOUT_FULL;
+			coopButtons[p][k][0] = 0;
 		}
 	}
 	memCard[0]		 = MEMCARD_ENABLE;
@@ -950,7 +968,8 @@ int main(int argc, char *argv[])
 {
 	/* INITIALIZE */
 #ifdef HW_RVL
-	if(argc > 2 && argv[1] != NULL && argv[2] != NULL)
+	/* a game is "FOLDER ROM"; KEY=VALUE arguments alone are settings (loadSettings) */
+	if(argc > 2 && argv[1] != NULL && argv[2] != NULL && !strchr(argv[1], '=') && !strchr(argv[2], '='))
 	{
 		Autoboot = true;
 		snprintf(AutobootPath, sizeof(AutobootPath), "%s", argv[1]);
@@ -1514,10 +1533,15 @@ void SysStartCPU() {
 	go();
 }
 
+extern "C" void quit_crumb(const char *fmt, ...);   /* libgui/Gui.cpp: the Quit log (a no-op unless quitting) */
+
 void SysClose()
 {
+	quit_crumb("SysClose: psxShutdown");
 	psxShutdown();
+	quit_crumb("SysClose: ClosePlugins");
 	ClosePlugins();
+	quit_crumb("SysClose: ReleasePlugins");
 	ReleasePlugins();
 #if defined (CPU_LOG) || defined(DMA_LOG) || defined(CDR_LOG) || defined(HW_LOG) || \
 	defined(PSXBIOS_LOG) || defined(GTE_LOG) || defined(PAD_LOG)

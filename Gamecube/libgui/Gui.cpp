@@ -19,6 +19,10 @@
 **/
 
 #include <stdlib.h>   /* exit() */
+#include <stdio.h>
+#include <stdarg.h>
+#include <ogc/lwp_watchdog.h>
+#include "../version.h"
 #include "Gui.h"
 #include "../ws_crash.h"
 #include "IPLFont.h"
@@ -42,6 +46,43 @@ extern "C" void fileBrowser_DVD_shutdown(void);   /* fileBrowser-DVD.c */
 #include "../../HidController/KernelHID.h"
 
 extern char shutdown;
+
+/* The Quit log, sd:/wiistation/quit.log: one line per step of the way out, each written and
+ * closed at once, so the last line survives a freeze that needs the power button (a Wii froze
+ * on Quit on 2026-10-09 and kept no crash report). Started by quit_log_begin(); every other
+ * call is a no-op until then. Ends at the agent's unmount of the card in exit(). */
+static int quit_log_on;
+static u64 quit_log_t0;
+
+extern "C" void quit_crumb(const char *fmt, ...)
+{
+	if (!quit_log_on)
+		return;
+	FILE *f = fopen("sd:/wiistation/quit.log", "a");
+	if (!f)
+		return;
+	va_list ap;
+	va_start(ap, fmt);
+	fprintf(f, "%6u ms  ", (unsigned)ticks_to_millisecs(diff_ticks(quit_log_t0, gettime())));
+	vfprintf(f, fmt, ap);
+	fputc('\n', f);
+	va_end(ap);
+	fclose(f);
+}
+
+static void quit_crumb_atexit(void) { quit_crumb("atexit: the first handler (then VM_Deinit, the agent's)"); }
+
+extern "C" void quit_log_begin(const char *how)
+{
+	FILE *f = fopen("sd:/wiistation/quit.log", "w");
+	if (f) {
+		fprintf(f, "WiiStation %s: %s\n", WIISTATION_VERSION, how);
+		fclose(f);
+	}
+	quit_log_t0 = gettime();
+	quit_log_on = 1;
+	atexit(quit_crumb_atexit);
+}
 #ifdef WII
 bool isWiiU = (*(vu16*)0xCD8005A0 == 0xCAFE) && CONF_GetAspectRatio();
 #endif
@@ -146,14 +187,21 @@ void Gui::draw()
 		if(screenMode)	gfx->fillRect(-104, 0, 848, 480);
 		else			gfx->fillRect(0, 0, 640, 480);
 
+		{
+			static int faded;
+			if (!faded++) quit_crumb("fade: first frame");
+		}
 		if(fade == 255)
 		{
+			quit_crumb("fade: done");
 			VIDEO_SetBlack(true);
 			VIDEO_Flush();
 		 	VIDEO_WaitVSync();
 
+			quit_crumb("screen black");
 		 	#ifdef HW_RVL
 			HIDClose(1);
+			quit_crumb("HIDClose(1) done");
 			#endif // HW_RVL
 #ifdef WII
 			// If this is a Wii U, restore the original aspect ratio
@@ -168,6 +216,7 @@ void Gui::draw()
 			{
 #ifdef WII
 				fileBrowser_DVD_shutdown();   /* DI_Close, unless a disc spin-up may still hold IOS */
+				quit_crumb("DVD shutdown done");
 #endif
 				void (*rld)() = (void (*)()) 0x80001800;
 #ifdef HW_DOL
@@ -186,6 +235,7 @@ void Gui::draw()
 				 * of the SD card -- then goes to the same stub ("STUBHAXX" at 0x80001804),
 				 * or to the Wii System Menu when there is none, as this did by hand. */
 				(void)rld;
+				quit_crumb("exit(0)");
 				exit(0);
 #endif
 			}

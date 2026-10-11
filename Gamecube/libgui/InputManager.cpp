@@ -82,11 +82,38 @@ void Input::initHid()
 	//	BTPad[i].used = C_NOT_SET;
 }
 
+extern "C" unsigned autoinput_menukeys_frame;   /* PadWiiSX.c: "menukeys <frame> <keys>" */
+extern "C" char autoinput_menukeys[64];
+
+/* The scripted menu presses: what pad 0 holds on this menu frame (0 = nothing). The focus
+ * manager ORs it into pad 0's buttons (it reads PAD_ButtonsHeld, not gcPad[]). */
+u16 menu_script_keys;
+
+static u16 scripted_menu_keys(void)
+{
+	static unsigned frame;
+	unsigned f = ++frame, k;
+	if (!autoinput_menukeys[0] || f < autoinput_menukeys_frame)
+		return 0;
+	f -= autoinput_menukeys_frame;
+	k = f / 12;
+	if (k >= strlen(autoinput_menukeys) || f % 12 >= 6)
+		return 0;
+	switch (autoinput_menukeys[k]) {
+	case 'U': return PAD_BUTTON_UP;    case 'D': return PAD_BUTTON_DOWN;
+	case 'L': return PAD_BUTTON_LEFT;  case 'R': return PAD_BUTTON_RIGHT;
+	case 'A': return PAD_BUTTON_A;     case 'B': return PAD_BUTTON_B;
+	case 'S': return PAD_BUTTON_START; case 'Z': return PAD_TRIGGER_Z;
+	}
+	return 0;   /* '.', a space: a pause */
+}
+
 void Input::refreshInput()
 {
 	if(padNeedScan){ gc_connected = PAD_ScanPads(); padNeedScan = 0; }
 	PAD_Read(gcPad);
 	PAD_Clamp(gcPad);
+	menu_script_keys = scripted_menu_keys();
 #ifdef HW_RVL
 	wpad_scan_if_needed();
 //	WPAD_ScanPads();
