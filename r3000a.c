@@ -31,6 +31,7 @@
 #include "psxinterpreter.h"
 #include "Gamecube/wiiSXconfig.h"
 #include "Gamecube/DEBUG.h"
+#include "achievements.h"
 
 R3000Acpu *psxCpu;
 psxRegisters psxRegs;
@@ -68,6 +69,7 @@ int psxInit() {
 
 void psxReset() {
 	bool introBypassed = FALSE;
+	achievements_pause(); /* BIOS execution below must not evaluate game conditions */
 	psxMemReset();
 
 	memset(&psxRegs, 0, sizeof(psxRegs));
@@ -108,9 +110,11 @@ void psxReset() {
 	EMU_LOG("*BIOS END*\n");
 #endif
 	Log = 0;
+	achievements_reset();
 }
 
 void psxShutdown() {
+	achievements_close();
 	psxBiosShutdown();
 
 	psxCpu->Shutdown();
@@ -282,5 +286,4 @@ void psxExecuteBios() {
 	if (psxRegs.pc != 0x80030000)
 		SysPrintf("non-standard BIOS detected (%d, %08x)\n", i, psxRegs.pc);
 }
-
 

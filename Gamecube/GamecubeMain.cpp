@@ -43,6 +43,7 @@ extern "C" void __exception_setreload(int t);
 #include "../psxcommon.h"
 #include "wiiSXconfig.h"
 #include "config_parse.h"   /* the two scans in the settings parser */
+#include "../achievements.h"
 #include "menu/MenuContext.h"
 #include "libgui/IPLFont.h"
 #include "libgui/MessageBox.h"
@@ -355,6 +356,10 @@ static struct {
   { "Coop2Type8", &coopType[1][7], PADTYPE_NONE, PADTYPE_HID },
   { "Coop2Assign8", &coopAssign[1][7], 0, 3 },
   { "Coop2Layout8", &coopLayout[1][7], COOP_LAYOUT_FULL, COOP_LAYOUT_COUNT - 1 },
+  { "Achievements", NULL, 0, 0, "Local rcheevos engine. File controls; no online awards or menu UI yet." },
+  { "Achievements", &achievementsEnabled, 0, 1 },
+  { "AchievementFile", achievementFile, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
+  { "AchievementLog", achievementLog, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "Network", NULL, 0, 0, "Games from a network share (SMB)." },
   { "smbipaddr", smbIpAddr, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "smbsharename", smbShareName, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
@@ -1253,6 +1258,7 @@ static void loadSeparatelySetting()
 
 // loadISO loads an ISO file as current media to read from.
 int loadISOSwap(fileBrowser_file* file) {
+	achievements_close(); /* local sets cannot establish same-game media association yet */
 
   // Refresh file pointers
 	memset(&isoFile, 0, sizeof(fileBrowser_file));
@@ -1334,6 +1340,7 @@ int loadISO(fileBrowser_file* file)
 	else
 		LoadCdrom();
 	hb_phase("load: memory cards and state", isoFile.name);
+	achievements_load(CdromId); /* after settings and boot; a wrong/absent game ID rejects the set */
 
 	if(autoSave==AUTOSAVE_ENABLE) {
 		setSaveDevice();   /* fileBrowser.c: point saveFile_* at nativeSaveDevice */
@@ -1461,9 +1468,10 @@ void go(void) {
 	/* A scripted save or load (statetool.cpp) stops the CPU at its vblank; it is carried out
 	 * here, with the CPU stopped as the menu has it, and the game goes on. */
 	hb_phase("game", isoFile.name);
-	do
+	do {
 		psxCpu->Execute();
-	while (statetool_service());
+		achievements_flush();
+	} while (statetool_service());
 	hb_phase("menu", "game stopped");
 	GL_flip05Drop();   /* GlesGpu/gpuPlugin.c: a GP1 05 flip not yet presented */
 

@@ -8,7 +8,7 @@ The line numbers in this document refer to `Gamecube/GamecubeMain.cpp` unless th
 
 ### 1.1 Name and location
 
-The settings file is `settings.ini`, an INI file: one `key = value` on each line, text values in double quotes, and a line that starts with `;` or `#` is a comment. WiiStation writes it in sections (`[General]`, `[Files]`, `[Video]`, `[Audio]`, `[Timing]`, `[Performance]`, `[Saves]`, `[Controllers]`, `[Co-Op]`, `[Network]`), each with a one-line comment. The sections are only for people: WiiStation reads a key in any section, or outside one. `example_settings.ini` (in the release, and in `sd:/wiistation/` after an install) lists every setting in its section, with its default and a comment that tells what it does; WiiStation does not read it. `scripts/settings_check.py` keeps it the same as the code. WiiStation reads the settings from one of two locations:
+The settings file is `settings.ini`, an INI file: one `key = value` on each line, text values in double quotes, and a line that starts with `;` or `#` is a comment. WiiStation writes it in sections (`[General]`, `[Files]`, `[Video]`, `[Audio]`, `[Timing]`, `[Performance]`, `[Saves]`, `[Controllers]`, `[Co-Op]`, `[Achievements]`, `[Network]`), each with a one-line comment. The sections are only for people: WiiStation reads a key in any section, or outside one. `example_settings.ini` (in the release, and in `sd:/wiistation/` after an install) lists every setting in its section, with its default and a comment that tells what it does; WiiStation does not read it. `scripts/settings_check.py` keeps it the same as the code. WiiStation reads the settings from one of two locations:
 
 | Launch device | File that WiiStation reads |
 |---|---|
@@ -205,6 +205,16 @@ Until 2026-09-21 this setting moved the light-gun and mouse pointer only and did
 ### 6.4 HID controller files
 
 A USB HID controller needs a configuration file in the Nintendont format. The file name is the vendor ID and the product ID of the controller in hexadecimal, for example `0810_0003.ini`. Put the file in `sd:/wiistation/controllers/` or `usb:/wiistation/controllers/`. See `README.md` for the file format.
+
+## Achievement engine (settings file only)
+
+`Achievements = 0` disables the engine by default. Set it to `1` and set
+`AchievementFile = "sd:/wiistation/achievements/<game>.txt"` to evaluate a local
+rcheevos definition file. `AchievementLog = ""` stores earned local unlocks beside
+that file with `.unlocks` appended; a quoted full path overrides it. Load the game
+again after changing the set. There is no menu control, account login, online award,
+or hardcore mode yet. See [the engine guide](Docs/ACHIEVEMENTS_ENGINE.md) for the
+definition format, state handling, persistence boundaries, and tests.
 
 ## 7. Network settings
 
