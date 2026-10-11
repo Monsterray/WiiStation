@@ -101,7 +101,14 @@ WRAP_VIDEO := ,-wrap,VIDEO_Init,-wrap,VIDEO_SetPostRetraceCallback
 else
 WRAP_VIDEO :=
 endif
-LDFLAGS	=	-g $(MACHDEP) -Wl,-Map,$(notdir $@).map,-wrap,$(WRAP_WIIUSE),-wrap,c_default_exceptionhandler$(WRAP_VIDEO)
+# v3 only: WPAD_ControlLed needs the wiimote_t of a channel, which wpad_leds.c records from
+# wiiuse_set_leds calls (libwiiuse keeps its table static).
+ifeq ($(LIBOGC),3)
+WRAP_WPAD := ,-wrap,wiiuse_set_leds
+else
+WRAP_WPAD :=
+endif
+LDFLAGS	=	-g $(MACHDEP) -Wl,-Map,$(notdir $@).map,-wrap,$(WRAP_WIIUSE),-wrap,c_default_exceptionhandler$(WRAP_VIDEO)$(WRAP_WPAD)
 
 #---------------------------------------------------------------------------------
 # any extra libraries we wish to link with the project
@@ -143,7 +150,7 @@ LANGFILES	:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.lang)))
 FONTFILES	:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.dat)))
 CFILES		:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.c)))
 ifneq ($(LIBOGC),3)
-CFILES		:=	$(filter-out ogc_compat.c,$(CFILES))   # the libogc v3 shims: v3 only
+CFILES		:=	$(filter-out ogc_compat.c wpad_leds.c,$(CFILES))   # the libogc v3 shims: v3 only
 endif
 CPPFILES	:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.cpp)))
 sFILES		:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.s)))

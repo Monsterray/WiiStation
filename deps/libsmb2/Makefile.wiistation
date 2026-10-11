@@ -26,7 +26,11 @@ endif
 # libogc v3 (LIBOGC=3): its lwip sockets provide bind/listen/accept themselves, so the net_*
 # renames (libogc2's network.h has no bind prototype) clash with sys/socket.h. Unset or 2: unchanged.
 ifeq ($(LIBOGC),3)
-SOCK_DEFS =
+# HAVE_POLL_H: take POLLIN/POLLOUT/... from v3's poll.h (IOS values: POLLOUT 8). Without it
+# lib/compat.h falls back to POSIX numbers (POLLOUT 4 = IOS POLLPRI): a connect waits for an
+# event IOS never reports and the share never mounts (bench Wii, 2026-10-11). libogc2 got the
+# IOS values from network.h.
+SOCK_DEFS = -DHAVE_POLL_H
 else
 SOCK_DEFS = -Dbind=net_bind -Dlisten=net_listen -Daccept=net_accept
 endif

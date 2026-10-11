@@ -44,15 +44,10 @@ u32 VIDEO_GetRetraceCount(void);
 /* WPAD_LED_1 kept its libogc2 value; v3 has no WPAD LED names (see WPAD_ControlLed). */
 #define WPAD_LED_1 0x01
 
-/* v3 has no WPAD_ControlLed(chan, leds). Its replacement, wiiuse_set_leds(), takes a
- * struct wiimote_t*, and v3's WPAD layer does not expose the wiimote for a channel.
- * On v3 the player LEDs are therefore left as they are. */
-static inline s32 WPAD_ControlLed(s32 chan, s32 leds)
-{
-	(void)chan;
-	(void)leds;
-	return 0;
-}
+/* v3 has no WPAD_ControlLed(chan, leds). Defined in wpad_leds.c: it lights the Wiimote
+ * LEDs of a channel with libogc2's bit layout (bit 0 = LED 1), through wiiuse_set_leds()
+ * on the wiimote_t that __wrap_wiiuse_set_leds recorded for that channel. */
+s32 WPAD_ControlLed(s32 chan, s32 leds);
 
 #endif /* WS_LIBOGC3 */
 
