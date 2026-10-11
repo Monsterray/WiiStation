@@ -70,6 +70,11 @@ conditions. BIOS, VRAM, and card contents are not part of this map.
 ## Validation
 
 Run `bash scripts/test-achievements.sh` and `python3 scripts/settings_check.py`.
+
+The release also passed the shared bench Wii menu/HOME/HBC smoke test. See
+[bench testing](BENCH_TESTING.md) for the frozen queue workflow, retained
+evidence, and the additional game fixtures required to verify achievement
+evaluation on hardware.
 The host check uses the actual vendored runtime and exercises memory boundaries,
 little-endian and scratchpad conditions, hit-count restoration, pause/reset behavior,
 monotonic unlocks, journal reload, changed-set rejection, corrupt progress, disabled
