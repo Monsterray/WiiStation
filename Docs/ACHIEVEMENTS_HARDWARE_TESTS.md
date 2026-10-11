@@ -170,3 +170,9 @@ vWii measurements, or worst-case complex achievement sets.
 Online RetroAchievements authentication, disc hashing, HTTPS transport and
 hardcore features remain unimplemented; this suite validates the current local
 engine.
+
+## Next validation campaigns
+
+The 2026-10-11 research describes [representative gameplay testing](ACHIEVEMENTS_GAMEPLAY_TESTING.md)
+and [online service testing](ACHIEVEMENTS_ONLINE_TESTING.md). These are proposed
+protocols and implementation prerequisites, not additional passed hardware runs.
