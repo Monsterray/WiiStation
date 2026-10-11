@@ -41,9 +41,14 @@ def main():
     ba, bb = blocks(a), blocks(b)
     if not ba or not bb:
         sys.exit("no report blocks found")
-    if n is not None and not 0 <= n < min(len(ba), len(bb)):
-        sys.exit(f"--block: {n} out of range (0..{min(len(ba), len(bb)) - 1})")
-    idx = n if n is not None else min(len(ba), len(bb)) - 1
+    count = min(len(ba), len(bb))
+    if n is not None:
+        orig = n
+        if n < 0:
+            n += count   # python-style: -1 is the last block
+        if not 0 <= n < count:
+            sys.exit(f"--block: {orig} out of range (-{count}..{count - 1})")
+    idx = n if n is not None else count - 1
     A, B = ba[idx], bb[idx]
     print(f"block {idx}: A frames={A['frames']}  B frames={B['frames']}")
     print(f"{'counter':<20}{'A':>14}{'B':>14}{'B/A':>8}")

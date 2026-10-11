@@ -19,6 +19,7 @@
 Every script here that takes a Wii's address calls refuse_production() or, for the one allowed
 production action, production_ready().
 """
+import socket
 import json
 import subprocess
 import sys
@@ -36,11 +37,22 @@ def _canon(ip):
     for scheme in ("http://", "https://"):
         if s.startswith(scheme):
             s = s[len(scheme):]
+    if s.startswith("::ffff:"):          # an IPv4-mapped IPv6 form
+        s = s[len("::ffff:"):]
+    s = s.split("@")[-1]                 # user@host
     return s.split("/")[0].split(":")[0].rstrip(".")
 
 
 def is_production(ip):
-    return _canon(ip) == PRODUCTION_WII
+    c = _canon(ip)
+    if c == PRODUCTION_WII:
+        return True
+    if c.isdigit():                      # one decimal number: 3232236744
+        return int(c) == int.from_bytes(socket.inet_aton(PRODUCTION_WII), "big")
+    try:                                 # other numeric forms: 0xC0A808C8, 192.168.2248
+        return socket.inet_aton(c) == socket.inet_aton(PRODUCTION_WII)
+    except OSError:
+        return False
 
 
 def refuse_production(ip, what):

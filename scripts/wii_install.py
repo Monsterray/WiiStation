@@ -64,7 +64,7 @@ def main():
         print(__doc__.strip())
         return
     for arg in a:
-        if arg.startswith("--") and arg.split("=")[0] not in KNOWN_FLAGS:
+        if arg.startswith("--") and arg not in KNOWN_FLAGS:   # exact: "--dry-run=1" must not pass and then be ignored
             sys.exit(f"wii_install.py: unknown flag {arg} (nothing was done) -- "
                      f"see the module docstring; --dry-run previews")
     dol = pathlib.Path(a[a.index("--dol") + 1]) if "--dol" in a else REPO / "Gamecube/WiiSXRX_Release.dol"
@@ -83,24 +83,29 @@ def main():
         refuse_production(wii, "wii_install.py (without --production)")
     # Every Wii round trip gets a timeout: without one a wedged agent hangs the queue
     # lease forever (seen 2026-10-10: bare sync attempt against a busy Wii).
+    def hbc_run(*args, timeout):
+        # A wedged agent must fail the job with a readable line, never hang the lease
+        # and never a bare traceback.
+        try:
+            return subprocess.run([sys.executable, str(HBC), "--wii", wii, *args], timeout=timeout)
+        except subprocess.TimeoutExpired:
+            sys.exit(f"hbc.py {' '.join(args[:2])} timed out after {timeout} s: "
+                     f"Wii or agent wedged, aborting (nothing after this point ran)")
     if "--remove-autoboot" in a and "--dry-run" not in a:
-        subprocess.run([sys.executable, str(HBC), "--wii", wii, "rm", "sd:/wiistation/autoboot.txt"],
-                       timeout=120)
+        hbc_run("rm", "sd:/wiistation/autoboot.txt", timeout=120)
     for local, remote in trees:
         n = sum(f.stat().st_size for f in local.rglob("*") if f.is_file())
         print(f"{local.relative_to(STAGE)} -> {remote} ({n} bytes staged)", flush=True)
         if "--dry-run" in a:
             continue
-        r = subprocess.run([sys.executable, str(HBC), "--wii", wii, "sync", str(local), remote],
-                           timeout=900)
+        r = hbc_run("sync", str(local), remote, timeout=900)
         if r.returncode:
             sys.exit(f"sync of {remote} failed (exit {r.returncode})")
     example = REPO / "Gamecube/release/example_settings.ini"   # beside settings.ini; WiiStation does not read it
     if "--production" not in a:
         print(f"{example.name} -> sd:/wiistation/{example.name}", flush=True)
     if "--dry-run" not in a and "--production" not in a:
-        r = subprocess.run([sys.executable, str(HBC), "--wii", wii, "put", str(example), "sd:/wiistation/" + example.name],
-                           timeout=300)
+        r = hbc_run("put", str(example), "sd:/wiistation/" + example.name, timeout=300)
         if r.returncode:
             sys.exit(f"upload of {example.name} failed (exit {r.returncode})")
     verb = "would install (dry-run: nothing was written)" if "--dry-run" in a else "installed"

@@ -21,16 +21,17 @@ elif command -v python >/dev/null 2>&1; then PYTHON=python;
 elif [ -x /c/Python312/python.exe ]; then PYTHON=/c/Python312/python.exe;
 else PYTHON=python3; fi
 
+case "${1:-}" in -h|--help) sed -n '2,14p' "$0" | sed -e 's/^# \{0,1\}//'; exit 0 ;; esac
 prompt="${1:-}"; shift || true
 [ -n "$prompt" ] || { sed -n '2,14p' "$0" | sed -e 's/^# \{0,1\}//'; exit 2; }
 model="qwen3.5:9b"; lines=120; slug=""; timeout=300; files=()
 while [ $# -gt 0 ]; do
 	case "$1" in
-		--model) model="$2"; shift 2 ;;
-		--file) files+=("$2"); shift 2 ;;
-		--lines) lines="$2"; shift 2 ;;
-		--out) slug="$2"; shift 2 ;;
-		--timeout) timeout="$2"; shift 2 ;;
+		--model) model="${2:?missing value}"; shift 2 ;;
+		--file) files+=("${2:?missing value}"); shift 2 ;;
+		--lines) lines="${2:?missing value}"; shift 2 ;;
+		--out) slug="${2:?missing value}"; shift 2 ;;
+		--timeout) timeout="${2:?missing value}"; shift 2 ;;
 		-h|--help) sed -n '2,14p' "$0" | sed -e 's/^# \{0,1\}//'; exit 0 ;;
 		-*) echo "unknown option $1"; exit 2 ;;
 		*) echo "unexpected: $1 (the prompt comes first, quoted)"; exit 2 ;;

@@ -37,7 +37,7 @@ for _ in range(120):
             os.makedirs(os.path.join(".runs", name), exist_ok=True)
             open(os.path.join(".runs", name, "lastlog.txt"), "w").write(k.stdout + k.stderr)
             print("lastlog (end):", *k.stdout.splitlines()[-15:], sep="\n", flush=True)
-        sys.exit(0)
+        sys.exit(lab)   # the wii_lab run's own result: a failed run must not look like success
     time.sleep(5)
 print("HBC did not answer in 10 min:", r.stdout, r.stderr)
 sys.exit("no crash report and HBC unreachable: total loss, not success")

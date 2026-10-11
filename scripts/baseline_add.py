@@ -95,6 +95,10 @@ def main(argv):
     perf = os.path.join(run_dir, "perf.log")
     if not os.path.exists(perf):
         sys.exit("no perf.log in %s" % run_dir)
+    with open(perf, encoding="utf-8", errors="replace") as f:
+        if any(ln.startswith("=== chain") for ln in f):
+            sys.exit(f"{perf}: chained run -- baselines are single-game (last block would "
+                     "be whichever game ran last, silently mislabelled)")
 
     dest = os.path.join(BASE, bid)
     media = os.path.join(BASE, "media", bid)
@@ -144,10 +148,6 @@ def main(argv):
         shutil.copy2(sheet, os.path.join(media, "sheet.png"))
 
     # metrics
-    with open(perf, encoding="utf-8", errors="replace") as f:
-        if any(ln.startswith("=== chain") for ln in f):
-            sys.exit(f"{perf}: chained run -- baselines are single-game (last block would "
-                     "be whichever game ran last, silently mislabelled)")
     b = last_block(perf)
     wall = num(b, "wall", "wall_us")
     guest_s = wall / 1e6

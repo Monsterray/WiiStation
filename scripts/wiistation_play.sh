@@ -24,6 +24,10 @@ set -u
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 D="${DOLPHIN_DIR:-/c/tools/Dolphin-2609}/Dolphin.exe"   # see dolphin_run.sh
 CLOSE_WAIT="${CLOSE_WAIT:-15}"
+if [ -n "${PYTHON:-}" ]; then :;
+elif command -v python >/dev/null 2>&1; then PYTHON=python;
+elif [ -x /c/Python312/python.exe ]; then PYTHON=/c/Python312/python.exe;
+else PYTHON=python3; fi
 case "${1:-release}" in
 	release) DOL="$REPO/Gamecube/WiiSXRX_Release.dol" ;;
 	debug)   DOL="$REPO/Gamecube/WiiSXRX_debug.dol" ;;
@@ -42,8 +46,8 @@ for pid in $(session_pids); do
 	t=0
 	while [ $t -lt "$CLOSE_WAIT" ] && session_pids | grep -qx "$pid"; do sleep 1; t=$((t + 1)); done
 	if session_pids | grep -qx "$pid"; then
-		echo "pid $pid did not close in ${CLOSE_WAIT} s -- killing it; its window position is NOT saved"
-		taskkill //PID "$pid" //F >/dev/null 2>&1
+		echo "pid $pid did not close in ${CLOSE_WAIT} s: NOT killing it (AGENTS.md: the WiiStation window is never killed; its position would not be saved). Close it by hand, then rerun."
+		exit 1
 	else
 		echo "closed after ${t} s"
 	fi
@@ -58,7 +62,8 @@ LOAD="/c/tools/Dolphin-x64/User/Load"
 SYNC=on
 others=$(powershell.exe -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object { \$_.Name -eq 'Dolphin.exe' -and \$_.CommandLine -notlike '* -u *' } | ForEach-Object { \$_.ProcessId }" 2>/dev/null | tr -d '\r')
 if [ -z "$others" ]; then
-	SYNC=$("${PYTHON:-python}" "$REPO/scripts/sd_sync.py" "$(cygpath -m "$LOAD")" | tee /dev/stderr | tail -1)
+	SYNC=$(set -o pipefail; "$PYTHON" "$REPO/scripts/sd_sync.py" "$(cygpath -m "$LOAD")" | tee /dev/stderr | tail -1) \
+		|| { echo "sd_sync.py failed: not starting WiiStation"; exit 1; }
 else
 	echo "another Dolphin has this profile open (pid $others): SD folder sync stays on"
 fi

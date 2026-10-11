@@ -11,9 +11,11 @@
 #   bash scripts/llm_triage.sh .runs/padtest_dx "why 0/12 with no vram files?"
 set -u
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
+case "${1:-}" in -h|--help) sed -n '2,10p' "$0" | sed -e 's/^# \{0,1\}//'; exit 0 ;; esac
 dir="${1:-}"; shift || true
 [ -n "$dir" ] && [ -d "$dir" ] || { sed -n '2,10p' "$0" | sed -e 's/^# \{0,1\}//'; exit 2; }
-q="${1:-}"; [ "${1:-}" ] && shift || true
+q=""
+case "${1:-}" in ""|-*) ;; *) q="$1"; shift ;; esac
 court=""; model="qwen3.5:9b"; slug=""
 while [ $# -gt 0 ]; do
 	case "$1" in

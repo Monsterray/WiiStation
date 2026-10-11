@@ -20,16 +20,17 @@ elif command -v python >/dev/null 2>&1; then PYTHON=python;
 elif [ -x /c/Python312/python.exe ]; then PYTHON=/c/Python312/python.exe;
 else PYTHON=python3; fi
 
+case "${1:-}" in -h|--help) sed -n '2,16p' "$0" | sed -e 's/^# \{0,1\}//'; exit 0 ;; esac
 prompt="${1:-}"; shift || true
 [ -n "$prompt" ] || { sed -n '2,16p' "$0" | sed -e 's/^# \{0,1\}//'; exit 2; }
 models="qwen3-coder:30b,gemma4:31b,muse-glimmer:30b"; lines=120; slug=""; timeout=600; files=()
 while [ $# -gt 0 ]; do
 	case "$1" in
-		--models) models="$2"; shift 2 ;;
-		--file) files+=("$2"); shift 2 ;;
-		--lines) lines="$2"; shift 2 ;;
-		--out) slug="$2"; shift 2 ;;
-		--timeout) timeout="$2"; shift 2 ;;
+		--models) models="${2:?missing value}"; shift 2 ;;
+		--file) files+=("${2:?missing value}"); shift 2 ;;
+		--lines) lines="${2:?missing value}"; shift 2 ;;
+		--out) slug="${2:?missing value}"; shift 2 ;;
+		--timeout) timeout="${2:?missing value}"; shift 2 ;;
 		-h|--help) sed -n '2,16p' "$0" | sed -e 's/^# \{0,1\}//'; exit 0 ;;
 		-*) echo "unknown option $1"; exit 2 ;;
 		*) echo "unexpected: $1 (the prompt comes first, quoted)"; exit 2 ;;
@@ -71,7 +72,8 @@ done
 	echo '```'
 } > "$out"
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/llmcourt.XXXXXX")"
-trap 'rm -rf "$tmp"' EXIT INT TERM
+trap 'rm -rf "$tmp"' EXIT
+trap 'exit 130' INT TERM
 printf '%s' "$full" > "$tmp/prompt.txt"
 i=0
 for m in $(echo "$models" | tr ',' ' '); do
@@ -84,17 +86,21 @@ for m in $(echo "$models" | tr ',' ' '); do
 done
 wait
 i=0
+ok=0
 for m in $(echo "$models" | tr ',' ' '); do
 	i=$((i + 1))
 	mname="$(cat "$tmp/model_$i.txt" 2>/dev/null || echo "$m")"
-	if [ -s "$tmp/err_$i.txt" ]; then
+	# FAILED only when the output is missing or not JSON; ssh writing to stderr alone is not a failure
+	if ! "$PYTHON" -c "import json,sys; json.load(open(sys.argv[1]))" "$tmp/resp_$i.json" 2>/dev/null; then
+		why="$(head -c 120 "$tmp/err_$i.txt" 2>/dev/null)"
+		why="${why:-no output or invalid JSON}"
 		{
 			echo
 			echo "## response ($mname): FAILED"
 			echo
-			cat "$tmp/err_$i.txt"
+			echo "$why"
 		} >> "$out"
-		echo "$mname: FAILED ($(head -c 120 "$tmp/err_$i.txt"))"
+		echo "$mname: FAILED ($why)"
 		continue
 	fi
 	err="$("$PYTHON" -c "import json,sys; print(json.load(open(sys.argv[1])).get('error',''))" "$tmp/resp_$i.json" 2>/dev/null)"
@@ -116,5 +122,7 @@ for m in $(echo "$models" | tr ',' ' '); do
 		echo "$answer"
 	} >> "$out"
 	echo "$mname: ${#answer} chars"
+	ok=$((ok + 1))
 done
 echo "transcript: $out"
+[ "$ok" -gt 0 ] || { echo "llm_court.sh: no model answered"; exit 1; }
