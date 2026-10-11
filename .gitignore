@@ -57,3 +57,5 @@ scripts/wii_probe/*.dol
 deps/ext/
 build_ogc3/
 Gamecube/build*_ogc3/
+deps/libsmb2/lib/wii/
+deps/wiidrc/lib/
