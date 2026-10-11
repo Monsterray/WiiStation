@@ -91,3 +91,6 @@ DVD, ps1-tests, replay3/replay_rest, statecheck, Quit, Wiimote LEDs (no WPAD_Con
 **dsp_ab (CPU and DSP audio paths), bench, debug builds:** 8/8 games on both, no crash.
 Load B-A: Ape Escape CPU -0.57, DSP -1.20; FF7 CPU -0.23, DSP -0.55. The AESND (DSP) path works on
 libogc3's AESND. Audio dropout counters not yet compared (run_summary on both runs).
+**ps1-tests in Dolphin, debug builds (dbgab_ps1_A/B):** tty.log byte-identical and all 10 per-test
+VRAM dumps identical between libogc2 and libogc3 (the magenta/noise screens some tests draw are
+the tests' own output on both). Same known gaps against a real PS1 on both.
