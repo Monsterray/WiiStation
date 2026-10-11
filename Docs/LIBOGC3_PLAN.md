@@ -88,3 +88,6 @@ No slowdown beyond noise; the CD (file reading) column is a little lower on libo
 +139 KB (3,564,800 vs 3,426,240 release).
 Still to check (step 4): DSP audio path, SMB/USB reading, save states, Co-Op/HID/Wii U pads,
 DVD, ps1-tests, replay3/replay_rest, statecheck, Quit, Wiimote LEDs (no WPAD_ControlLed in v3).
+**dsp_ab (CPU and DSP audio paths), bench, debug builds:** 8/8 games on both, no crash.
+Load B-A: Ape Escape CPU -0.57, DSP -1.20; FF7 CPU -0.23, DSP -0.55. The AESND (DSP) path works on
+libogc3's AESND. Audio dropout counters not yet compared (run_summary on both runs).
