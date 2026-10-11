@@ -30,7 +30,12 @@
 #                                   from save state STATE; prints the table. --rec plays REC on.
 #   scripts/wsx.sh summary NAME...                        re-read finished runs (run_summary.py)
 #   scripts/wsx.sh table NAME [--detail gpu|tex|cpu|lc|pmc|upl]  a chain's per-game table (chain_table.py)
-#   scripts/wsx.sh compare A [B] [--detail GROUP]         two chains, or one A/B chain's pairs (chain_compare.py)
+#   scripts/wsx.sh compare A [B] [--detail GROUP] [--explain]  two chains, or one A/B chain's pairs
+#                                   (chain_compare.py); --explain adds <= 8 lines on what changed (llm)
+#   scripts/wsx.sh triage NAME [question]                 condense a run's logs with the local LLM into
+#                                   <= 15 lines, saved to .runs/NAME/triage.txt (run_triage.py)
+#                                   run/chain/wii_lab/wii_crash_job do this by themselves when a run
+#                                   looks wrong (a "triage:" block); WSX_NO_LLM=1 turns that off
 #   scripts/wsx.sh frames A B [--crop OUT.png]            two runs' frame dumps, pixel by pixel (frame_compare.py)
 #   scripts/wsx.sh audio A B                              two runs' audio dumps, sample by sample (wav_compare.py --exact)
 #   scripts/wsx.sh last                                   summary of the newest run
@@ -61,6 +66,13 @@ if [ -n "${PYTHON:-}" ]; then :;
 elif command -v python >/dev/null 2>&1; then PYTHON=python;
 elif [ -x /c/Python312/python.exe ]; then PYTHON=/c/Python312/python.exe;
 else PYTHON=python3; fi
+
+# The automatic triage after a run (run_triage.py --auto: only when the run looks wrong, a
+# "triage:" block of <= 10 lines). It never changes this script's exit code; WSX_NO_LLM=1 is off.
+auto_triage() {
+	[ -n "${WSX_NO_LLM:-}" ] && return 0
+	"$PYTHON" "$REPO/scripts/run_triage.py" --auto "$1" || true
+}
 
 case "$cmd" in
 build)
@@ -130,6 +142,7 @@ run)
 	rm -rf "$dir/card" "$dir/frames"
 	# what the last run under this name collected: a result this run does not produce must not stay behind
 	rm -f "$dir"/*.log "$dir"/vram*.bin "$dir"/vram*.png "$dir"/xfb*.bin "$dir"/*.wav
+	rm -f "$dir/dolphin.rc" "$dir/triage.txt"
 	for c in "${cards[@]:-}"; do [ -n "$c" ] && mkdir -p "$dir/card" && cp "$c" "$dir/card/"; done
 	{
 		printf 'gpuPlugin = 2\nFPS = 1\nPadType1 = 1\nPadAutoAssign = 0\n'
@@ -148,9 +161,13 @@ run)
 	for e in "${extra[@]:-}"; do [ -n "$e" ] && export "$e"; done
 	DOL="$dir/boot.dol" bash "$REPO/scripts/dolphin_run.sh" "$dir" "$secs" "$dir/autoinput.txt" "$dir/settings.cfg" $ab > "$dir/run.log" 2>&1
 	rc=$?
+	echo "$rc" > "$dir/dolphin.rc"
 	grep -E "refusing|no such|faults in dolphin.log: [1-9]|PANIC|Unknown instruction" "$dir/run.log" | head -5
 	[ $rc -ne 0 ] && echo "dolphin_run.sh exit $rc (see $dir/run.log)"
 	"$PYTHON" "$REPO/scripts/run_summary.py" "$dir"
+	st=$?
+	[ -n "${WSX_TRIAGE_DEFER:-}" ] || auto_triage "$dir"   # a chain does it once, at its end
+	exit $st
 	;;
 
 chain)
@@ -163,8 +180,11 @@ chain)
 		[ -f "$REPO/scripts/autoinput/$f" ] || { echo "chain names sd:/wiistation/$f: no scripts/autoinput/$f"; exit 2; }
 		cardargs+=(--card "$REPO/scripts/autoinput/$f")
 	done
-	bash "$0" run "$name" --autoboot "$cf" --input "$P/autoinput_none.txt" --nodump --env FRAMES_DUMP=False ${cardargs[@]+"${cardargs[@]}"} "$@" | grep -v "^  "
+	WSX_TRIAGE_DEFER=1 bash "$0" run "$name" --autoboot "$cf" --input "$P/autoinput_none.txt" --nodump --env FRAMES_DUMP=False ${cardargs[@]+"${cardargs[@]}"} "$@" | grep -v "^  "
 	"$PYTHON" "$REPO/scripts/chain_table.py" "$RUNS/$name"
+	st=$?
+	auto_triage "$RUNS/$name"
+	exit $st
 	;;
 
 state)
@@ -245,8 +265,32 @@ table)
 	n="$1"; shift; "$PYTHON" "$REPO/scripts/chain_table.py" "$RUNS/$n" "$@"
 	;;
 compare)
-	a=(); for x in "$@"; do case "$x" in --*|gpu|tex|cpu|lc|pmc) a+=("$x") ;; *) a+=("$RUNS/$x") ;; esac; done
-	"$PYTHON" "$REPO/scripts/chain_compare.py" "${a[@]}"
+	explain=""; a=(); names=()
+	for x in "$@"; do
+		case "$x" in
+			--explain) explain=1 ;;
+			--*|gpu|tex|cpu|lc|pmc) a+=("$x") ;;
+			*) a+=("$RUNS/$x"); names+=("$RUNS/$x") ;;
+		esac
+	done
+	if [ -z "$explain" ]; then
+		"$PYTHON" "$REPO/scripts/chain_compare.py" "${a[@]}"
+	else
+		# the table, then the reading under it (run_triage.py --explain: both tables and run.info)
+		out=$("$PYTHON" "$REPO/scripts/chain_compare.py" "${a[@]}"); st=$?
+		printf '%s\n' "$out"
+		tf="$(mktemp)"; printf '%s\n' "$out" > "$tf"
+		"$PYTHON" "$REPO/scripts/run_triage.py" --explain "$tf" "${names[@]}" || true
+		rm -f "$tf"
+		exit $st
+	fi
+	;;
+triage)
+	n="${1:-}"; shift || true
+	[ -n "$n" ] || { echo "triage NAME [question]"; exit 2; }
+	d="$RUNS/$n"; [ -d "$d" ] || d="$n"
+	[ -d "$d" ] || { echo "no run $n"; exit 2; }
+	"$PYTHON" "$REPO/scripts/run_triage.py" "$d" "$@"
 	;;
 frames)
 	a="$1"; b="$2"; shift 2; "$PYTHON" "$REPO/scripts/frame_compare.py" "$RUNS/$a" "$RUNS/$b" "$@"

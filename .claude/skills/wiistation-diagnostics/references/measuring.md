@@ -155,6 +155,25 @@ The groups and their fields are the `DETAIL` table in `scripts/chain_table.py`; 
 there when a probe gains one. Keep a run you will compare against later with
 `scripts/baseline_add.py` (see the baselines memory).
 
+## Triage and the reading under a compare (2026-10-11)
+
+Three things call the local LLM (`scripts/run_triage.py`, through `scripts/llm.py`; only log tails
+or a compare table go out, each call about 2 s to a minute). A second opinion, not proof: check
+any number against the table or the log before acting on it.
+
+- `wsx.sh triage NAME [question]` condenses the run's `run.log`, `tty.log`, `perf.log`,
+  `dolphin.log`, `lab.log`, `lastlog.txt` and `crash.txt` into 15 lines, saved to
+  `.runs/NAME/triage.txt`.
+- After `wsx.sh run`, `wsx.sh chain` and the bench queue's `wii_lab.py` / `wii_crash_job.py`, the
+  same triage runs by itself only when the run looks wrong (non-zero exit, a crash/fatal/fault/hang
+  line, a game with no perf block, "could not open", or a dump that is 95% exact silence) and
+  prints a `triage:` block of up to 10 lines. It never changes the exit code, times out at 120 s
+  and prints `triage unavailable` on error. `WSX_NO_LLM=1` turns the automatic part off. A chain
+  triages once, at its end (the games inside it do not).
+- `wsx.sh compare A B --explain` prints the normal table, then an `explain:` block of up to 8
+  lines: what moved, the largest columns, and whether it is beyond noise (run.info and both tables
+  are the input). The exit code is the table's.
+
 ## What counts as proof
 
 - **Speed under Dolphin:** two runs of the same build and chain agree to 0.1% of wall in
