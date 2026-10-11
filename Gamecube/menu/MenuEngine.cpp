@@ -225,14 +225,30 @@ static void layoutHelp(const Page &p, const Metrics &m, Layout &out)
 	}
 }
 
+/* A choice button's width: its own, the fitted one, or the fixed grid's. */
+static float choiceWidth(const Metrics &m, const Row &r, int c)
+{
+	if (r.widths)
+		return r.widths[c];
+	return r.fit ? (float)buttonFitWidth(m, r.names[c]) : CHOICE_W;
+}
+
+/* The space between two choice buttons (or two action buttons, for Buttons rows). */
+static float choiceGap(const Row &r)
+{
+	if (r.widths)
+		return r.gap > 0 ? r.gap : TAB_GAP;
+	return CHOICE_GAP;
+}
+
 /* A choice row's width, from its first button's left edge to its last one's right edge. */
 static float choiceRowWidth(const Metrics &m, const Row &r)
 {
 	float total = 0;
 	for (int c = 0; c < r.count; c++) {
-		total += r.fit ? (float)buttonFitWidth(m, r.names[c]) : CHOICE_W;
+		total += choiceWidth(m, r, c);
 		if (c + 1 < r.count)
-			total += r.fit ? CHOICE_GAP : CHOICE_DX - CHOICE_W;
+			total += choiceGap(r);
 	}
 	return total;
 }
@@ -245,6 +261,12 @@ static float choiceStart(const Metrics &m, const Row &r, float y, LogoSpot spot)
 	const float total = choiceRowWidth(m, r);
 
 	return CHOICE_X0 + total > right ? right - total : CHOICE_X0;
+}
+
+/* Where a choice or buttons row starts: its own x0 when the page gives one, else the default. */
+static float rowStart(const Metrics &m, const Row &r, float y, LogoSpot spot)
+{
+	return r.x0 > 0 ? r.x0 : choiceStart(m, r, y, spot);
 }
 
 int layoutPage(const Page &p, const Metrics &m, Layout &out)
@@ -267,13 +289,15 @@ int layoutPage(const Page &p, const Metrics &m, Layout &out)
 
 	/* The choice labels' shared centre: RLABEL_CX, moved left only when a row of buttons had
 	 * to move left, so that its label still clears them by RLABEL_GAP. */
-	float rlabelCx = RLABEL_CX;
-	for (int i = 0; i < p.nRows; i++) {
+	const float lcx = p.labelCx > 0 ? p.labelCx : LABEL_CX;	/* a row's label, left of its controls */
+	const float ldy = p.labelDy > 0 ? p.labelDy : LABEL_DY;
+	float rlabelCx = p.labelCx > 0 ? p.labelCx : RLABEL_CX;
+	for (int i = 0; i < p.nRows && p.labelCx <= 0; i++) {
 		const Row &r = p.rows[i];
 		if (r.kind != ROW_CHOICE || !r.label)
 			continue;
 		{
-			const float x0 = choiceStart(m, r, ROW_Y0 + i * ROW_DY, p.logo);
+			const float x0 = rowStart(m, r, ROW_Y0 + i * ROW_DY, p.logo);
 			const int lw = measure(m, r.label, TEXT_SCALE);
 			const float cx = x0 - RLABEL_GAP - (float)(lw - lw / 2);
 			if (cx < rlabelCx)
@@ -306,7 +330,7 @@ int layoutPage(const Page &p, const Metrics &m, Layout &out)
 		case ROW_TOGGLE:
 		case ROW_CYCLE: {
 			if (r.label)
-				addText(out, m, ROLE_LABEL, i, 0, LABEL_CX, y + LABEL_DY, ALIGN_CENTRE, TEXT_SCALE, r.label);
+				addText(out, m, ROLE_LABEL, i, 0, lcx, y + ldy, ALIGN_CENTRE, TEXT_SCALE, r.label);
 			out.slot[i][0] = addButton(out, ROLE_BUTTON, i, 0, CYCLE_X, y, CYCLE_W, BUTTON_H,
 			                           r.names[shownValue(r) - r.lo], false);
 			break;
@@ -318,37 +342,43 @@ int layoutPage(const Page &p, const Metrics &m, Layout &out)
 			if (r.label) {
 				const int lw = measure(m, r.label, TEXT_SCALE);
 				const int vw = measure(m, r.text, TEXT_SCALE);
-				const int need = (int)LABEL_CX - lw / 2 + lw + (int)VALUE_GAP;
+				const int need = (int)lcx - lw / 2 + lw + (int)VALUE_GAP;
 				if ((int)vx - vw / 2 < need)
 					vx = (float)(need + vw / 2);
 			}
 			if (r.label)
-				addText(out, m, ROLE_LABEL, i, 0, LABEL_CX, y + LABEL_DY, ALIGN_CENTRE, TEXT_SCALE, r.label);
-			addText(out, m, ROLE_VALUE, i, 0, vx, y + LABEL_DY, ALIGN_CENTRE, TEXT_SCALE, r.text);
+				addText(out, m, ROLE_LABEL, i, 0, lcx, y + ldy, ALIGN_CENTRE, TEXT_SCALE, r.label);
+			addText(out, m, ROLE_VALUE, i, 0, vx, y + ldy, ALIGN_CENTRE, TEXT_SCALE, r.text);
 			break;
 		}
 		case ROW_CHOICE: {
+			/* The last `plain` buttons are actions: drawn like the rest, never lit. */
 			const int lit = shownValue(r) - r.lo;
-			float cx = choiceStart(m, r, y, p.logo);
+			float cx = rowStart(m, r, y, p.logo);
 			if (r.label)
-				addText(out, m, ROLE_RLABEL, i, 0, rlabelCx, y + LABEL_DY, ALIGN_CENTRE, TEXT_SCALE, r.label);
+				addText(out, m, ROLE_RLABEL, i, 0, rlabelCx, y + ldy, ALIGN_CENTRE, TEXT_SCALE, r.label);
 			for (int c = 0; c < r.count; c++) {
-				float w = r.fit ? (float)buttonFitWidth(m, r.names[c]) : CHOICE_W;
-				out.slot[i][c] = addButton(out, ROLE_CHOICE, i, c, cx, y, w, BUTTON_H, r.names[c], c == lit);
-				cx += r.fit ? w + CHOICE_GAP : CHOICE_DX;
+				float w = choiceWidth(m, r, c);
+				out.slot[i][c] = addButton(out, ROLE_CHOICE, i, c, cx, y, w, BUTTON_H, r.names[c],
+				                           c < r.count - r.plain && c == lit);
+				cx += w + choiceGap(r);
 			}
 			break;
 		}
 		case ROW_BUTTONS: {
-			float total = TAB_GAP * (r.count - 1);
+			/* Centred on the screen, or from x0. With a label, the label is drawn left of them. */
+			const float gap = r.gap > 0 ? r.gap : TAB_GAP;
+			float total = gap * (r.count - 1);
 			float x;
 			for (int k = 0; k < r.count; k++)
 				total += r.actions[k].width;
-			x = (MENU_W - total) / 2;
+			x = r.x0 > 0 ? r.x0 : (MENU_W - total) / 2;
+			if (r.label)
+				addText(out, m, ROLE_LABEL, i, 0, lcx, y + ldy, ALIGN_CENTRE, TEXT_SCALE, r.label);
 			for (int k = 0; k < r.count; k++) {
 				out.slot[i][k] = addButton(out, ROLE_BUTTON, i, k, x, y, r.actions[k].width, BUTTON_H,
 				                           r.actions[k].text, false);
-				x += r.actions[k].width + TAB_GAP;
+				x += r.actions[k].width + gap;
 			}
 			break;
 		}

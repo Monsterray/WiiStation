@@ -24,8 +24,11 @@
 #include "../perf_prof.h"
 #include "SettingsFrame.h"
 #include "OptionsFrame.h"
+#include "MenuEngine.h"	/* before Button.h: its include guard is BUTTON_H, a name the engine uses */
 #include "../libgui/Button.h"
 #include "../libgui/TextBox.h"
+#include "../libgui/IPLFont.h"
+#include <string.h>
 #include "../libgui/resources.h"
 #include "../libgui/FocusManager.h"
 #include "../libgui/CursorManager.h"
@@ -533,6 +536,175 @@ struct TextBoxInfo
 	{	NULL,	FRAME_STRINGS[97],	150.0,	248.0,	 1.0,	true }, // Light Gun: Off/GunCon/Justifier/Mouse
 };
 
+/*  The General tab, on the menu engine (Docs/MENU_FRAMEWORK_PLAN.md, step 2)  */
+
+/* The tab's rows, top to bottom, as the engine lays them out. Each slot is the FRAME_BUTTONS
+ * entry it is drawn with (the table keeps the boxes, the labels and the focus of the other tabs'
+ * buttons too), and each label is a FRAME_TEXTBOXES entry. The numbers are the table's: a row's
+ * y is 100 + 60 n, its labels are centred at x 150 on the row's middle (page labelCx/labelDy). */
+namespace eng = menu::engine;
+
+#define GEN_ROWS_N 6
+
+static const int GEN_BUTTON[GEN_ROWS_N][4] = {
+	{ 73, 75, -1, -1 },		/* Advanced, Memory */
+	{  7,  8,  9, 10 },		/* Select BIOS: HLE, SD, USB, DVD */
+	{ 11, 12, 13, -1 },		/* Boot Through BIOS: Yes, No, and Execute BIOS (an action) */
+	{ 54, -1, -1, -1 },		/* Select Language */
+	{ 55, 56, -1, -1 },		/* Fast Load: Yes, No */
+	{ 14, 15, 62, -1 },		/* Save Settings: SD, USB, This Game */
+};
+static const int GEN_COUNT[GEN_ROWS_N]    = { 2, 4, 3, 1, 2, 3 };
+static const int GEN_LABEL[GEN_ROWS_N]    = { -1, 1, 2, 21, 22, 3 };	/* FRAME_TEXTBOXES, -1: none */
+static const eng::RowKind GEN_KIND[GEN_ROWS_N] = {
+	eng::ROW_BUTTONS, eng::ROW_CHOICE, eng::ROW_CHOICE, eng::ROW_BUTTONS, eng::ROW_CHOICE, eng::ROW_BUTTONS
+};
+static const float GEN_WIDTH[GEN_ROWS_N][4] = {
+	{ 130, 130,   0,   0 }, {  70,  55,  70,  70 }, { 75, 75, 171, 0 },
+	{  90,   0,   0,   0 }, {  75,  75,   0,   0 }, { 55, 70, 140, 0 },
+};
+static const float GEN_X0[GEN_ROWS_N]    = { 0.0f, 295.0f, 295.0f, 295.0f, 295.0f, 253.0f };	/* 0: centred */
+static const float GEN_GAP[GEN_ROWS_N]   = { 30.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };		/* 0: TAB_GAP */
+static const int   GEN_PLAIN[GEN_ROWS_N] = { 0, 0, 1, 0, 0, 0 };
+
+/* A row's text: set from the buttons when the tab is shown (Select Language changes with the
+ * setting). The rows, actions and tabs are the engine's view of them. */
+static const char *GEN_TEXT[GEN_ROWS_N][4];
+static eng::ActionButton GEN_ACTIONS[GEN_ROWS_N][4];
+static eng::Row GEN_ROWS[GEN_ROWS_N];
+static eng::Tab GEN_TABS[NUM_TAB_BUTTONS];
+static eng::Page GEN_PAGE;
+static eng::Layout GEN_LAYOUT;
+
+extern "C" void SysPrintf(const char *fmt, ...);
+extern char fastLoad;
+
+/* The engine's text widths: IplFont, the font every label is drawn with (OptionsFrame.cpp). */
+static int genWidth(const char *s, float scale, void *)
+{
+	return menu::IplFont::getInstance().getStringWidth((char*)s, scale);
+}
+static int genHeight(const char *s, float scale, void *)
+{
+	return menu::IplFont::getInstance().getStringHeight((char*)s, scale);
+}
+static const eng::Metrics GEN_METRICS = { genWidth, genHeight, NULL };
+
+/* The FRAME_BUTTONS entry a control of the General tab is drawn with. */
+static menu::Button *genButton(const eng::Control &c)
+{
+	return FRAME_BUTTONS[c.role == eng::ROLE_TAB ? c.slot : GEN_BUTTON[c.row][c.slot]].button;
+}
+
+/* A button at the engine's rectangle, shown. Its lit state and whether it is active are set by
+ * the caller. The pointer's box follows it, as OptionsFrame's placeButton does. */
+static void genPlace(SettingsFrame *frame, menu::Button *b, const eng::Control &c)
+{
+	b->setBounds(c.rect.x, c.rect.y, c.rect.w, c.rect.h);
+	b->setVisible(true);
+	menu::Cursor::getInstance().moveComponent(frame, b,
+		c.rect.x, c.rect.x + c.rect.w, c.rect.y, c.rect.y + c.rect.h);
+}
+
+/* Lays the General tab out on the engine and places its buttons and labels; links the focus.
+ * Everything here is done when the tab is shown, never per frame. The other tabs are unchanged. */
+static void layoutGeneral(SettingsFrame *frame)
+{
+	FRAME_BUTTONS[54].buttonString = LANG_STRINGS[(int)lang];
+
+	for (int r = 0; r < GEN_ROWS_N; r++)
+		for (int c = 0; c < GEN_COUNT[r]; c++) {
+			GEN_TEXT[r][c] = FRAME_BUTTONS[GEN_BUTTON[r][c]].buttonString;
+			GEN_ACTIONS[r][c].text = GEN_TEXT[r][c];
+			GEN_ACTIONS[r][c].width = GEN_WIDTH[r][c];
+		}
+	for (int r = 0; r < GEN_ROWS_N; r++) {
+		eng::Row &row = GEN_ROWS[r];
+		memset(&row, 0, sizeof row);
+		row.kind    = GEN_KIND[r];
+		row.label   = GEN_LABEL[r] >= 0 ? FRAME_TEXTBOXES[GEN_LABEL[r]].textBoxString : NULL;
+		row.names   = GEN_TEXT[r];
+		row.count   = GEN_COUNT[r];
+		row.actions = GEN_ACTIONS[r];
+		row.x0      = GEN_X0[r];
+		row.gap     = GEN_GAP[r];
+		row.plain   = GEN_PLAIN[r];
+		row.widths  = row.kind == eng::ROW_CHOICE ? GEN_WIDTH[r] : NULL;
+	}
+	/* The values the rows show: the BIOS device, Boot Through BIOS, Fast Load. */
+	GEN_ROWS[1].value = biosDevice;
+	GEN_ROWS[2].value = LoadCdBios == BOOTTHRUBIOS_YES ? 0 : 1;
+	GEN_ROWS[4].value = fastLoad == 1 ? 0 : 1;
+
+	for (int t = 0; t < NUM_TAB_BUTTONS; t++) {
+		GEN_TABS[t].text  = FRAME_BUTTONS[t].buttonString;
+		GEN_TABS[t].width = FRAME_BUTTONS[t].width;
+	}
+	GEN_PAGE.title   = NULL;
+	GEN_PAGE.tabs    = GEN_TABS;
+	GEN_PAGE.nTabs   = NUM_TAB_BUTTONS;
+	GEN_PAGE.curTab  = SettingsFrame::SUBMENU_GENERAL;
+	GEN_PAGE.rows    = GEN_ROWS;
+	GEN_PAGE.nRows   = GEN_ROWS_N;
+	GEN_PAGE.help    = NULL;
+	GEN_PAGE.nHelp   = 0;
+	GEN_PAGE.logo    = eng::LOGO_SPOT_BOTTOM;	/* MenuContext: FRAME_SETTINGS is in LOGO_BOTTOM_FRAMES */
+	GEN_PAGE.focus   = eng::FOCUS_ROWS;
+	GEN_PAGE.labelCx = 150.0f;	/* the Settings labels: TextBox centred at x 150 */
+	GEN_PAGE.labelDy = 28.0f;	/* on the middle of a 56-high row */
+
+	if (eng::layoutPage(GEN_PAGE, GEN_METRICS, GEN_LAYOUT) < 0) {
+		/* The tables are fixed, so this is a programming error: the tab is left as it was. */
+		SysPrintf("SettingsFrame: the General tab does not fit the menu engine\n");
+		return;
+	}
+	eng::linkFocus(GEN_PAGE, GEN_LAYOUT);
+
+	for (int i = 0; i < GEN_LAYOUT.n; i++) {
+		const eng::Control &c = GEN_LAYOUT.c[i];
+		switch (c.role) {
+		case eng::ROLE_TAB:
+			genPlace(frame, genButton(c), c);
+			genButton(c)->setActive(true);
+			genButton(c)->setSelected(c.selected);
+			break;
+		case eng::ROLE_LABEL:
+		case eng::ROLE_RLABEL: {
+			menu::TextBox *box = FRAME_TEXTBOXES[GEN_LABEL[c.row]].textBox;
+			box->setPosition(c.ax, c.ay);
+			box->setVisible(true);
+			break;
+		}
+		case eng::ROLE_BUTTON:
+		case eng::ROLE_CHOICE:
+			genPlace(frame, genButton(c), c);
+			/* This Game is shown always, and active only with a game loaded (as before). */
+			genButton(c)->setActive(GEN_BUTTON[c.row][c.slot] == 62 ? (hasLoadedISO ? true : false) : true);
+			genButton(c)->setSelected(c.selected);
+			break;
+		default:
+			break;
+		}
+	}
+
+	/* The focus links, on the buttons. A link of -1 is no link. */
+	{
+		static const int DIRS[eng::DIR_COUNT] = {
+			menu::Focus::DIRECTION_UP, menu::Focus::DIRECTION_DOWN,
+			menu::Focus::DIRECTION_LEFT, menu::Focus::DIRECTION_RIGHT
+		};
+		for (int i = 0; i < GEN_LAYOUT.n; i++) {
+			const eng::Control &c = GEN_LAYOUT.c[i];
+			if (!c.focusable)
+				continue;
+			for (int d = 0; d < eng::DIR_COUNT; d++) {
+				const int to = c.link[d];
+				genButton(c)->setNextFocus(DIRS[d], to >= 0 ? genButton(GEN_LAYOUT.c[to]) : NULL);
+			}
+		}
+	}
+}
+
 SettingsFrame::SettingsFrame()
 		: activeSubmenu(SUBMENU_GENERAL)
 {
@@ -602,52 +774,10 @@ void SettingsFrame::activateSubmenu(int submenu)
 	switch (activeSubmenu)	//Tab buttons: set visible; set focus up/down; set selected
 	{						//Config buttons: set visible; set selected
 		case SUBMENU_GENERAL:
+			/* The General tab is laid out on the menu engine (layoutGeneral, above): its rows,
+			 * labels and focus. The tab row is the same five buttons on every tab. */
 			setDefaultFocus(FRAME_BUTTONS[0].button);
-			for (int i = 0; i < NUM_TAB_BUTTONS; i++)
-			{
-				FRAME_BUTTONS[i].button->setVisible(true);
-				FRAME_BUTTONS[i].button->setNextFocus(menu::Focus::DIRECTION_DOWN, FRAME_BUTTONS[73].button);
-				FRAME_BUTTONS[i].button->setNextFocus(menu::Focus::DIRECTION_UP, FRAME_BUTTONS[14].button);
-				FRAME_BUTTONS[i].button->setActive(true);
-			}
-			/* textBox[0] was the CPU Core label and textBox[24] the GPU Plugin label; both
-			 * controls live on the Plugins page now, so neither label is shown here. */
-			for (int i = 1; i < 4; i++)
-				FRAME_TEXTBOXES[i].textBox->setVisible(true);
-
-            FRAME_TEXTBOXES[21].textBox->setVisible(true);
-            FRAME_TEXTBOXES[22].textBox->setVisible(true);
-			FRAME_BUTTONS[0].button->setSelected(true);
-			FRAME_BUTTONS[7+biosDevice].button->setSelected(true);
-			if (LoadCdBios == BOOTTHRUBIOS_YES)	FRAME_BUTTONS[11].button->setSelected(true);
-			else								FRAME_BUTTONS[12].button->setSelected(true);
-			/* Advanced / Memory, the one row at the top of this tab (74, CD, is a tab of
-			 * Advanced now and stays hidden) */
-			for (int i = 73; i <= 75; i += 2)
-			{
-				FRAME_BUTTONS[i].button->setVisible(true);
-				FRAME_BUTTONS[i].button->setActive(true);
-			}
-			for (int i = 7; i < 16; i++)
-			{
-				FRAME_BUTTONS[i].button->setVisible(true);
-				FRAME_BUTTONS[i].button->setActive(true);
-			}
-			FRAME_BUTTONS[54].button->setVisible(true);
-			FRAME_BUTTONS[54].button->setActive(true);
-            FRAME_BUTTONS[54].buttonString = LANG_STRINGS[(int)lang];
-
-            // Fast load
-            FRAME_BUTTONS[55].button->setVisible(true);
-            FRAME_BUTTONS[56].button->setVisible(true);
-            FRAME_BUTTONS[55].button->setActive(true);
-            FRAME_BUTTONS[56].button->setActive(true);
-            FRAME_BUTTONS[55].button->setSelected(fastLoad == 1);
-            FRAME_BUTTONS[56].button->setSelected(fastLoad == 0);
-
-            // Save Settings: Separately
-            FRAME_BUTTONS[62].button->setVisible(true);
-            FRAME_BUTTONS[62].button->setActive(hasLoadedISO ? true : false);
+			layoutGeneral(this);
 			break;
 		case SUBMENU_VIDEO:
 			setDefaultFocus(FRAME_BUTTONS[1].button);

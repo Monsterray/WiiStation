@@ -223,7 +223,9 @@ static const Tab OPT_TABS[] = {
 /* The tab row's left edges as OptionsFrame writes them (TAB_X). */
 static const float TAB_X_LITERAL[5] = { 25.0f, 155.0f, 275.0f, 395.0f, 515.0f };
 
-/* One OptionsFrame page: PAGES[] in OptionsFrame.cpp. curTab indexes OPT_TABS. */
+/* One OptionsFrame page: PAGES[] in OptionsFrame.cpp. curTab indexes OPT_TABS, unless the page
+ * has its own tabs (tabs != NULL), as the Settings General tab does. labelCx and labelDy are
+ * the Settings look (0: the engine's own, the OptionsFrame look). */
 struct TestPage {
 	const char      *name;
 	const char      *title;
@@ -233,6 +235,10 @@ struct TestPage {
 	int              nRows;
 	const HelpLine  *help;
 	int              nHelp;
+	const Tab       *tabs;
+	int              nTabs;
+	float            labelCx;
+	float            labelDy;
 };
 
 #define COUNT(a) ((int)(sizeof(a) / sizeof((a)[0])))
@@ -245,23 +251,68 @@ static TestPage PAGES[] = {
 	{ "Memory",      "Memory",            false, 0, MEMORY_ROWS, COUNT(MEMORY_ROWS), NULL,        0 },
 	{ "GPU",         NULL,                true,  1, GPU_ROWS,    COUNT(GPU_ROWS),    GPU_HELP,    COUNT(GPU_HELP) },
 	{ "Input",       NULL,                true,  4, INPUT_ROWS,  COUNT(INPUT_ROWS),  INPUT_HELP,  COUNT(INPUT_HELP) },
-	{ "SPU",         NULL,                true,  2, SPU_ROWS,    COUNT(SPU_ROWS),    SPU_HELP,    COUNT(SPU_HELP) },
+	{ "SPU",         NULL,                true,  2, SPU_ROWS,    COUNT(SPU_ROWS),    SPU_HELP,    COUNT(SPU_HELP),
+	  NULL, 0, 0.0f, 0.0f },
 };
 #define NPAGES COUNT(PAGES)
+
+/*  The Settings General tab (menupage 1), from SettingsFrame.cpp's FRAME_BUTTONS and
+ *  FRAME_TEXTBOXES, and its activateSubmenu() case for SUBMENU_GENERAL.
+ *
+ *  The rows are the six lines of the tab, top to bottom. Each button's box is the number the
+ *  table gives it: 73/75 at y 100, the BIOS four at 160, Yes/No and Execute BIOS at 220, Select
+ *  Language at 280, Fast Load at 340, the three Save buttons at 400. Labels sit at the centre
+ *  of their row (y + 28) and their centre is x 150 (Settings' TextBox, centred). */
+static const char *const GEN_BIOS_NAMES[]  = { "HLE", "SD", "USB", "DVD" };
+static const char *const GEN_BOOT_NAMES[]  = { "Yes", "No", "Execute BIOS" };
+static const char *const GEN_FAST_NAMES[]  = { "Yes", "No" };
+static const float        GEN_BIOS_W[]     = { 70.0f, 55.0f, 70.0f, 70.0f };
+static const float        GEN_BOOT_W[]     = { 75.0f, 75.0f, 171.0f };
+static const float        GEN_FAST_W[]     = { 75.0f, 75.0f };
+static const ActionButton GEN_ADV_ACTIONS[]  = { { "Advanced", 130.0f }, { "Memory", 130.0f } };
+static const ActionButton GEN_LANG_ACTIONS[] = { { "En", 90.0f } };
+static const ActionButton GEN_SAVE_ACTIONS[] = { { "SD", 55.0f }, { "USB", 70.0f }, { "This Game", 140.0f } };
+
+/* Row fields: kind, label, names, lo, count, value, text, fit, actions, x0, gap, widths, plain. */
+static Row GENERAL_ROWS[] = {
+	{ ROW_BUTTONS, NULL,                 NULL,           0, 2, 0, NULL, false, GEN_ADV_ACTIONS,  0.0f,   30.0f, NULL,       0 },
+	{ ROW_CHOICE,  "Select BIOS",        GEN_BIOS_NAMES, 0, 4, 0, NULL, false, NULL,             295.0f,  0.0f, GEN_BIOS_W, 0 },
+	{ ROW_CHOICE,  "Boot Through BIOS",  GEN_BOOT_NAMES, 0, 3, 0, NULL, false, NULL,             295.0f,  0.0f, GEN_BOOT_W, 1 },
+	{ ROW_BUTTONS, "Select Language",    NULL,           0, 1, 0, NULL, false, GEN_LANG_ACTIONS, 295.0f,  0.0f, NULL,       0 },
+	{ ROW_CHOICE,  "Fast Load",          GEN_FAST_NAMES, 0, 2, 0, NULL, false, NULL,             295.0f,  0.0f, GEN_FAST_W, 0 },
+	{ ROW_BUTTONS, "Save Settings",      NULL,           0, 3, 0, NULL, false, GEN_SAVE_ACTIONS, 253.0f,  0.0f, NULL,       0 },
+};
+
+static const Tab GEN_TABS[] = {
+	{ "General", 110.0f }, { "Video", 100.0f }, { "Input", 100.0f }, { "Audio", 100.0f }, { "Saves", 100.0f },
+};
+
+/* The General tab is the first Settings tab, so its tab row is lit at 0. */
+static TestPage SETTINGS_PAGES[] = {
+	{ "General",     NULL,                true,  0, GENERAL_ROWS, COUNT(GENERAL_ROWS), NULL,        0,
+	  GEN_TABS, COUNT(GEN_TABS), 150.0f, 28.0f },
+};
+#define NSETTINGS COUNT(SETTINGS_PAGES)
+
+/* The tab row of a page: its own, or the Advanced row. */
+static const Tab *tabsOf(const TestPage &t)  { return t.tabs ? t.tabs : OPT_TABS; }
+static int        nTabsOf(const TestPage &t) { return t.tabs ? t.nTabs : (int)COUNT(OPT_TABS); }
 
 static Page toPage(const TestPage &t, FocusMode mode)
 {
 	Page p;
 	p.title = t.title;
-	p.tabs = t.tabbed ? OPT_TABS : NULL;
-	p.nTabs = t.tabbed ? COUNT(OPT_TABS) : 0;
+	p.tabs = t.tabbed ? tabsOf(t) : NULL;
+	p.nTabs = t.tabbed ? nTabsOf(t) : 0;
 	p.curTab = t.curTab;
 	p.rows = t.rows;
 	p.nRows = t.nRows;
 	p.help = t.help;
 	p.nHelp = t.nHelp;
-	p.logo = LOGO_SPOT_BOTTOM;	/* LOGO_BOTTOM_FRAMES has FRAME_OPTIONS */
+	p.logo = LOGO_SPOT_BOTTOM;	/* LOGO_BOTTOM_FRAMES has FRAME_OPTIONS and FRAME_SETTINGS */
 	p.focus = mode;
+	p.labelCx = t.labelCx;
+	p.labelDy = t.labelDy;
 	return p;
 }
 
@@ -373,13 +424,14 @@ static Key tabKey(int t)
 	return k;
 }
 
-/* OptionsFrame's focusTarget(row, col): a choice row clamps the column to its last button. */
+/* OptionsFrame's focusTarget(row, col): a choice row clamps the column to its last button. A
+ * row of action buttons (Settings' General tab) is the same, with the buttons' role. */
 static Key focusTarget(const TestPage &t, int row, int col)
 {
 	const Row &r = t.rows[row];
 	Key k;
-	if (r.kind == ROW_CHOICE) {
-		k.role = ROLE_CHOICE;
+	if (r.kind == ROW_CHOICE || r.kind == ROW_BUTTONS) {
+		k.role = r.kind == ROW_CHOICE ? ROLE_CHOICE : ROLE_BUTTON;
 		k.row = row;
 		k.slot = col >= rowChoices(r) ? rowChoices(r) - 1 : col;
 	} else {
@@ -392,12 +444,13 @@ static Key focusTarget(const TestPage &t, int row, int col)
 
 static bool rowIsFocusable(const Row &r)
 {
-	return r.kind == ROW_CYCLE || r.kind == ROW_CHOICE;
+	return r.kind == ROW_CYCLE || r.kind == ROW_CHOICE || r.kind == ROW_BUTTONS;
 }
 
 static int choicesOf(const TestPage &t, int row)
 {
-	return t.rows[row].kind == ROW_CHOICE ? rowChoices(t.rows[row]) : 1;
+	const Row &r = t.rows[row];
+	return (r.kind == ROW_CHOICE || r.kind == ROW_BUTTONS) ? rowChoices(r) : 1;
 }
 
 static void setLink(Exp *e, int n, Key from, int dir, Key to)
@@ -416,17 +469,17 @@ static void expectLinks(const TestPage &t, Exp *e, int n)
 	int firstRow = -1, prevRow = -1;
 
 	for (int i = 0; i < t.nRows; i++) {
-		if (t.rows[i].kind != ROW_CHOICE)
-			continue;
-		for (int c = 0; c < rowChoices(t.rows[i]); c++) {
-			int nc = rowChoices(t.rows[i]);
+		const int nc = rowChoices(t.rows[i]);
+		if ((t.rows[i].kind != ROW_CHOICE && t.rows[i].kind != ROW_BUTTONS) || nc < 2)
+			continue;		/* a row of one button has no Left or Right */
+		for (int c = 0; c < nc; c++) {
 			setLink(e, n, focusTarget(t, i, c), DIR_LEFT,  focusTarget(t, i, (c + nc - 1) % nc));
 			setLink(e, n, focusTarget(t, i, c), DIR_RIGHT, focusTarget(t, i, (c + 1) % nc));
 		}
 	}
 	if (t.tabbed)
-		for (int tb = 0; tb < (int)COUNT(OPT_TABS); tb++) {
-			int nt = (int)COUNT(OPT_TABS);
+		for (int tb = 0; tb < nTabsOf(t); tb++) {
+			int nt = nTabsOf(t);
 			setLink(e, n, tabKey(tb), DIR_LEFT,  tabKey((tb + nt - 1) % nt));
 			setLink(e, n, tabKey(tb), DIR_RIGHT, tabKey((tb + 1) % nt));
 		}
@@ -453,7 +506,7 @@ static void expectLinks(const TestPage &t, Exp *e, int n)
 		for (int c = 0; c < ncFirst; c++)
 			setLink(e, n, focusTarget(t, firstRow, c), DIR_UP, t.tabbed ? tb : focusTarget(t, prevRow, c));
 		if (t.tabbed)
-			for (int k = 0; k < (int)COUNT(OPT_TABS); k++) {
+			for (int k = 0; k < nTabsOf(t); k++) {
 				setLink(e, n, tabKey(k), DIR_DOWN, focusTarget(t, firstRow, 0));
 				setLink(e, n, tabKey(k), DIR_UP,   focusTarget(t, prevRow, 0));
 			}
@@ -463,6 +516,22 @@ static void expectLinks(const TestPage &t, Exp *e, int n)
 /* MenuEngine's choice rows, from OptionsFrame's numbers: a row starts at 205, or further left
  * when its buttons would end past the right edge its bottom allows (MENU_ROW_RIGHT), and no
  * further. Buttons are 12 apart. */
+static float choiceWidthOf(const Row &r, int c)
+{
+	if (r.widths)
+		return r.widths[c];
+	return r.fit ? fitWidth(r.names[c]) : 135.0f;
+}
+
+/* The space between two buttons of a choice row: 12, or the row's own gap when it has widths. */
+static float choiceGapOf(const Row &r)
+{
+	if (r.widths)
+		return r.gap > 0 ? r.gap : 10.0f;
+	return 12.0f;
+}
+
+/* Where a choice row starts: the row's own x0, or 205 moved left as the engine does. */
 static float choiceStartOf(const Row &r, float y)
 {
 	const float bottom = y + 56.0f;
@@ -470,20 +539,24 @@ static float choiceStartOf(const Row &r, float y)
 	const int n = rowChoices(r);
 	float total = 0;
 
+	if (r.x0 > 0)
+		return r.x0;
 	for (int c = 0; c < n; c++) {
-		total += r.fit ? fitWidth(r.names[c]) : 135.0f;
+		total += choiceWidthOf(r, c);
 		if (c + 1 < n)
-			total += 12.0f;
+			total += choiceGapOf(r);
 	}
 	return 205.0f + total > right ? right - total : 205.0f;
 }
 
 /* A page's choice labels share one centre: 110, moved left only when a row's buttons were moved
- * left, so the label still clears them by 10. */
+ * left, so the label still clears them by 10. A page with its own labelCx has that centre. */
 static float rlabelCxOf(const TestPage &t)
 {
 	float cx = 110.0f;
 
+	if (t.labelCx > 0)
+		return t.labelCx;
 	for (int i = 0; i < t.nRows; i++) {
 		const Row &r = t.rows[i];
 		if (r.kind != ROW_CHOICE || !r.label)
@@ -519,9 +592,9 @@ static int buildExpected(const TestPage &t, Exp *e, Key *defaultFocus)
 	int firstRow = -1;
 
 	if (t.tabbed) {
-		for (int k = 0; k < (int)COUNT(OPT_TABS); k++) {
-			n = addExpButton(e, n, ROLE_TAB, -1, k, TAB_X_LITERAL[k], 20.0f, OPT_TABS[k].width, 56.0f,
-			                 OPT_TABS[k].text, k == t.curTab);
+		for (int k = 0; k < nTabsOf(t); k++) {
+			n = addExpButton(e, n, ROLE_TAB, -1, k, TAB_X_LITERAL[k], 20.0f, tabsOf(t)[k].width, 56.0f,
+			                 tabsOf(t)[k].text, k == t.curTab);
 		}
 	} else if (t.title) {
 		n = addExpText(e, n, ROLE_TITLE, -1, 0, 320.0f, 44.0f, ALIGN_CENTRE, 1.0f, t.title);
@@ -530,23 +603,42 @@ static int buildExpected(const TestPage &t, Exp *e, Key *defaultFocus)
 	for (int i = 0; i < t.nRows; i++) {
 		const Row &r = t.rows[i];
 		const float y = 100.0f + i * 60.0f;
+		const float lcx = t.labelCx > 0 ? t.labelCx : 160.0f;	/* a row's label */
+		const float ldy = t.labelDy > 0 ? t.labelDy : 20.0f;
 		if (firstRow < 0 && rowIsFocusable(r))
 			firstRow = i;
 
 		if (r.kind == ROW_CYCLE) {
-			n = addExpText(e, n, ROLE_LABEL, i, 0, 160.0f, y + 20.0f, ALIGN_CENTRE, 1.0f, r.label);
+			n = addExpText(e, n, ROLE_LABEL, i, 0, lcx, y + ldy, ALIGN_CENTRE, 1.0f, r.label);
 			n = addExpButton(e, n, ROLE_BUTTON, i, 0, 295.0f, y, 200.0f, 56.0f,
 			                 r.names[r.value - r.lo], false);
 		} else if (r.kind == ROW_READOUT) {
-			n = addExpText(e, n, ROLE_LABEL, i, 0, 160.0f, y + 20.0f, ALIGN_CENTRE, 1.0f, r.label);
-			n = addExpText(e, n, ROLE_VALUE, i, 0, readoutCxOf(r), y + 20.0f, ALIGN_CENTRE, 1.0f, r.text);
+			n = addExpText(e, n, ROLE_LABEL, i, 0, lcx, y + ldy, ALIGN_CENTRE, 1.0f, r.label);
+			n = addExpText(e, n, ROLE_VALUE, i, 0, readoutCxOf(r), y + ldy, ALIGN_CENTRE, 1.0f, r.text);
 		} else if (r.kind == ROW_CHOICE) {
 			float cx = choiceStartOf(r, y);
-			n = addExpText(e, n, ROLE_RLABEL, i, 0, rlabelCxOf(t), y + 20.0f, ALIGN_CENTRE, 1.0f, r.label);
+			n = addExpText(e, n, ROLE_RLABEL, i, 0, rlabelCxOf(t), y + ldy, ALIGN_CENTRE, 1.0f, r.label);
 			for (int c = 0; c < rowChoices(r); c++) {
-				float w = r.fit ? fitWidth(r.names[c]) : 135.0f;
-				n = addExpButton(e, n, ROLE_CHOICE, i, c, cx, y, w, 56.0f, r.names[c], c == r.value - r.lo);
-				cx += r.fit ? w + 12.0f : 147.0f;
+				float w = choiceWidthOf(r, c);
+				/* the last `plain` buttons are actions, never lit */
+				n = addExpButton(e, n, ROLE_CHOICE, i, c, cx, y, w, 56.0f, r.names[c],
+				                 c < rowChoices(r) - r.plain && c == r.value - r.lo);
+				cx += w + choiceGapOf(r);
+			}
+		} else if (r.kind == ROW_BUTTONS) {
+			/* Centred on the screen, or from x0; the gap is the row's own or 10; the label, if any,
+			 * left of the buttons. */
+			const float gap = r.gap > 0 ? r.gap : 10.0f;
+			float total = gap * (r.count - 1);
+			float x;
+			for (int k = 0; k < r.count; k++)
+				total += r.actions[k].width;
+			x = r.x0 > 0 ? r.x0 : (640.0f - total) / 2;
+			if (r.label)
+				n = addExpText(e, n, ROLE_LABEL, i, 0, lcx, y + ldy, ALIGN_CENTRE, 1.0f, r.label);
+			for (int k = 0; k < r.count; k++) {
+				n = addExpButton(e, n, ROLE_BUTTON, i, k, x, y, r.actions[k].width, 56.0f, r.actions[k].text, false);
+				x += r.actions[k].width + gap;
 			}
 		}
 	}
@@ -740,9 +832,12 @@ static bool compareLinks(const char *name, const Layout &lay, const Exp *e, int 
  * the test: fixing one changes a page's picture, and the plan keeps pictures until someone has
  * looked at the change on a Wii (Docs/MENU_FRAMEWORK_PLAN.md, "Decided").
  * Matched by page, problem, and the text of the control (and of the second one, if any).
- * Any finding not listed here is a failure. None are listed now: every Advanced page lays out
- * with zero problems. The sentinel (page NULL) matches nothing; keep it while the list is empty,
- * since a zero-length array is not C. */
+ * Any finding not listed here is a failure. Every Advanced page lays out with zero problems.
+ * The General tab's findings are the labels the engine's fit rule (16 px a side, plus the font's
+ * own +5) calls wider than their Settings buttons: the Settings buttons are narrower than that
+ * rule, and the labels still sit inside them with a few pixels to spare (Execute BIOS, 171 px, has
+ * a 161 px label). Listed, not changed (Docs/MENU_FRAMEWORK_PLAN.md, "Decided"). The sentinel
+ * (page NULL) matches nothing; it stays, since a zero-length array is not C. */
 struct Known {
 	const char *page;
 	int         kind;
@@ -751,6 +846,19 @@ struct Known {
 };
 
 static const Known KNOWN[] = {
+	{ "General", PROB_TEXT_WIDE, "General", NULL },
+	{ "General", PROB_TEXT_WIDE, "Video", NULL },
+	{ "General", PROB_TEXT_WIDE, "Audio", NULL },
+	{ "General", PROB_TEXT_WIDE, "Saves", NULL },
+	{ "General", PROB_TEXT_WIDE, "Advanced", NULL },
+	{ "General", PROB_TEXT_WIDE, "Memory", NULL },
+	{ "General", PROB_TEXT_WIDE, "HLE", NULL },
+	{ "General", PROB_TEXT_WIDE, "SD", NULL },
+	{ "General", PROB_TEXT_WIDE, "USB", NULL },
+	{ "General", PROB_TEXT_WIDE, "DVD", NULL },
+	{ "General", PROB_TEXT_WIDE, "Yes", NULL },
+	{ "General", PROB_TEXT_WIDE, "Execute BIOS", NULL },
+	{ "General", PROB_TEXT_WIDE, "This Game", NULL },
 	{ NULL, 0, NULL, NULL },
 };
 
@@ -809,13 +917,13 @@ static Exp EXP[MAX_CONTROLS];
 
 static int checkSymmetry(const char *name, const Layout &lay);
 
-static int testOptionsPages(void)
+static int testPageList(const TestPage *pages, unsigned count, const char *heading)
 {
 	int bad = 0;
 
-	printf("OptionsFrame pages (rectangles, focus links, help, logo, every value of every setting)\n");
-	for (unsigned pg = 0; pg < NPAGES; pg++) {
-		const TestPage &t = PAGES[pg];
+	printf("%s\n", heading);
+	for (unsigned pg = 0; pg < count; pg++) {
+		const TestPage &t = pages[pg];
 		Row *rows = t.rows;
 		Page page = toPage(t, FOCUS_ROWS);
 		Layout lay;
@@ -1106,6 +1214,167 @@ static void testCheckCatches(void)
 	if (layoutPage(page, kFont, lay) != -1) fail(tag, "a seventh row was accepted");
 }
 
+/*  The General tab's focus, against Settings' own table  */
+
+/* The links SettingsFrame's FRAME_BUTTONS table gives the General tab's buttons (by FRAME_BUTTONS
+ * index: up, down, left, right, -1 for none), with the Up and Down that activateSubmenu(SUBMENU_
+ * GENERAL) sets on the five tabs: Down to 73 (Advanced), Up to 14 (Save Settings: SD). */
+struct OldLink {
+	int idx, up, down, left, right;
+};
+static const OldLink OLD_GENERAL[] = {
+	{ 0, 14, 73, 4, 1 }, { 1, 14, 73, 0, 2 }, { 2, 14, 73, 1, 3 }, { 3, 14, 73, 2, 4 }, { 4, 14, 73, 3, 0 },
+	{ 7, 73, 11, 10, 8 }, { 8, 73, 11, 7, 9 }, { 9, 75, 12, 8, 10 }, { 10, 75, 12, 9, 7 },
+	{ 11, 7, 54, 13, 12 }, { 12, 8, 54, 11, 13 }, { 13, 9, 54, 12, 11 },
+	{ 14, 55, 0, 62, 15 }, { 15, 55, 0, 14, 62 }, { 62, 56, 0, 15, 14 },
+	{ 54, 11, 55, -1, -1 },
+	{ 55, 54, 14, 56, 56 }, { 56, 54, 14, 55, 55 },
+	{ 73, 0, 7, 75, 75 }, { 75, 0, 9, 73, 73 },
+};
+
+/* The control a FRAME_BUTTONS index is on the General tab. Returns false for an index the tab
+ * does not show. */
+static bool frameKey(int idx, Key &k)
+{
+	if (idx >= 0 && idx < 5)   { k = tabKey(idx); return true; }
+	if (idx >= 7 && idx <= 10) { k.role = ROLE_CHOICE; k.row = 1; k.slot = idx - 7;  return true; }
+	if (idx >= 11 && idx <= 13) { k.role = ROLE_CHOICE; k.row = 2; k.slot = idx - 11; return true; }
+	if (idx == 54)             { k.role = ROLE_BUTTON; k.row = 3; k.slot = 0; return true; }
+	if (idx == 55 || idx == 56) { k.role = ROLE_CHOICE; k.row = 4; k.slot = idx - 55; return true; }
+	if (idx == 14 || idx == 15 || idx == 62) {
+		k.role = ROLE_BUTTON; k.row = 5; k.slot = idx == 14 ? 0 : idx == 15 ? 1 : 2;
+		return true;
+	}
+	if (idx == 73 || idx == 75) { k.role = ROLE_BUTTON; k.row = 0; k.slot = idx == 73 ? 0 : 1; return true; }
+	return false;
+}
+
+static int frameIndexOf(Key want)
+{
+	for (int i = 0; i < 80; i++) {
+		Key k;
+		if (frameKey(i, k) && sameKey(k, want))
+			return i;
+	}
+	return -1;
+}
+
+/* The General tab's boxes and label anchors as SettingsFrame.cpp's tables write them, read from
+ * the numbers themselves (not from the rules above), so that a rule that is wrong fails here. */
+static const struct { int idx; float x, y, w, h; } OLD_RECTS[] = {
+	{ 0, 25, 20, 110, 56 }, { 1, 155, 20, 100, 56 }, { 2, 275, 20, 100, 56 },
+	{ 3, 395, 20, 100, 56 }, { 4, 515, 20, 100, 56 },
+	{ 7, 295, 160, 70, 56 }, { 8, 375, 160, 55, 56 }, { 9, 440, 160, 70, 56 }, { 10, 520, 160, 70, 56 },
+	{ 11, 295, 220, 75, 56 }, { 12, 380, 220, 75, 56 }, { 13, 465, 220, 171, 56 },
+	{ 14, 253, 400, 55, 56 }, { 15, 318, 400, 70, 56 }, { 62, 398, 400, 140, 56 },
+	{ 54, 295, 280, 90, 56 },
+	{ 55, 295, 340, 75, 56 }, { 56, 380, 340, 75, 56 },
+	{ 73, 175, 100, 130, 56 }, { 75, 335, 100, 130, 56 },
+};
+/* FRAME_TEXTBOXES' label centres, by the row each label belongs to: (150, row top + 28). */
+static const float OLD_LABEL_Y[6] = { 0.0f, 188.0f, 248.0f, 308.0f, 368.0f, 428.0f };
+
+static int checkGeneralRects(void)
+{
+	const TestPage &t = SETTINGS_PAGES[0];
+	Page page = toPage(t, FOCUS_ROWS);
+	Layout lay;
+	int bad = 0;
+
+	if (layoutPage(page, kFont, lay) < 0)
+		return 1;
+	for (unsigned k = 0; k < COUNT(OLD_RECTS); k++) {
+		Key key;
+		int at;
+		char msg[160];
+		if (!frameKey(OLD_RECTS[k].idx, key)) {
+			fail("General", "a table button is not on the tab");
+			bad++;
+			continue;
+		}
+		at = findCtrl(lay, key);
+		if (at < 0) {
+			fail("General", "a table button is not in the layout");
+			bad++;
+			continue;
+		}
+		{
+			const Rect &r = lay.c[at].rect;
+			if (!nearly(r.x, OLD_RECTS[k].x) || !nearly(r.y, OLD_RECTS[k].y) ||
+			    !nearly(r.w, OLD_RECTS[k].w) || !nearly(r.h, OLD_RECTS[k].h)) {
+				snprintf(msg, sizeof msg, "button %d at (%g,%g %gx%g), the table has (%g,%g %gx%g)",
+				         OLD_RECTS[k].idx, r.x, r.y, r.w, r.h, OLD_RECTS[k].x, OLD_RECTS[k].y,
+				         OLD_RECTS[k].w, OLD_RECTS[k].h);
+				fail("General", msg);
+				bad++;
+			}
+		}
+	}
+	/* The labels: each row's label is centred at x 150, on the row's middle. */
+	int labels = 0;
+	for (int i = 0; i < lay.n; i++) {
+		const Control &c = lay.c[i];
+		char msg[160];
+		if (c.kind != CTRL_TEXT || (c.role != ROLE_LABEL && c.role != ROLE_RLABEL))
+			continue;
+		labels++;
+		if (!nearly(c.ax, 150.0f) || !nearly(c.ay, OLD_LABEL_Y[c.row]) || c.align != ALIGN_CENTRE) {
+			snprintf(msg, sizeof msg, "label '%s' centred at (%g,%g), the table has (150,%g)",
+			         c.text, c.ax, c.ay, OLD_LABEL_Y[c.row]);
+			fail("General", msg);
+			bad++;
+		}
+	}
+	printf("  General: %d table boxes and %d labels checked against the numbers in SettingsFrame.cpp\n",
+	       (int)COUNT(OLD_RECTS), labels);
+	return bad;
+}
+
+/* Prints the General tab's focus links that differ from the table's. This is not a failure: each
+ * one is a finding for the port's report (Docs/MENU_FRAMEWORK_PLAN.md), and the look and the
+ * focus of the tab stay as they are until someone has decided each. Returns how many differ. */
+static int checkGeneralAgainstTable(void)
+{
+	static const char *const DIR[DIR_COUNT] = { "Up", "Down", "Left", "Right" };
+	const TestPage &t = SETTINGS_PAGES[0];
+	Page page = toPage(t, FOCUS_ROWS);
+	Layout lay;
+	int diffs = 0;
+
+	if (layoutPage(page, kFont, lay) < 0) {
+		fail("General", "layoutPage refused the General tab");
+		return 0;
+	}
+	linkFocus(page, lay);
+	printf("  General: focus links against Settings' table (a finding, not a failure)\n");
+	for (unsigned k = 0; k < COUNT(OLD_GENERAL); k++) {
+		const OldLink &o = OLD_GENERAL[k];
+		const int want[DIR_COUNT] = { o.up, o.down, o.left, o.right };
+		Key from;
+		int at;
+
+		if (!frameKey(o.idx, from)) {
+			fail("General", "the table names a button the tab does not show");
+			continue;
+		}
+		at = findCtrl(lay, from);
+		if (at < 0) {
+			fail("General", "a button the table shows is not in the layout");
+			continue;
+		}
+		for (int d = 0; d < DIR_COUNT; d++) {
+			const int got = lay.c[at].link[d];
+			const int gotIdx = got < 0 ? -1 : frameIndexOf(keyOf(lay.c[got]));
+			if (gotIdx != want[d]) {
+				diffs++;
+				printf("        button %3d %-5s table %3d, engine %3d\n", o.idx, DIR[d], want[d], gotIdx);
+			}
+		}
+	}
+	printf("  General: %d link%s differ from the table\n", diffs, diffs == 1 ? "" : "s");
+	return diffs;
+}
+
 int main(int argc, char **argv)
 {
 	const char *font = argc > 1 ? argv[1] : "fonts/En.dat";
@@ -1115,7 +1384,12 @@ int main(int argc, char **argv)
 		return 2;
 	}
 
-	testOptionsPages();
+	testPageList(PAGES, NPAGES,
+	             "OptionsFrame pages (rectangles, focus links, help, logo, every value of every setting)");
+	testPageList(SETTINGS_PAGES, NSETTINGS,
+	             "Settings tabs on the engine (rectangles, focus links, labels, logo, every value)");
+	checkGeneralRects();
+	checkGeneralAgainstTable();
 	reportGeometry();
 	testCheckCatches();
 

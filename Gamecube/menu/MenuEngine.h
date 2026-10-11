@@ -128,6 +128,11 @@ struct Row {
 	const char         *text;		/* Readout: the right-hand text; the host refreshes it */
 	bool                fit;		/* Choice: each button as wide as its own word */
 	const ActionButton *actions;	/* Buttons */
+	/* Added for the Settings tabs (step 2). Zero means the default for each. */
+	float               x0;			/* Choice, Buttons: the first button's left edge; 0 = where the row goes */
+	float               gap;		/* Choice with widths, Buttons: between two buttons; 0 = TAB_GAP */
+	const float        *widths;		/* Choice: each button's width (the fixed grid is CHOICE_W); NULL = the default */
+	int                 plain;		/* Choice: the last `plain` buttons are actions, never lit */
 };
 
 /*  Pages  */
@@ -164,6 +169,9 @@ struct Page {
 	int              nHelp;
 	LogoSpot         logo;
 	FocusMode        focus;
+	/* Added for the Settings tabs (step 2). Zero means the default for each. */
+	float            labelCx;	/* every label centred here, not LABEL_CX (and RLABEL_CX for a choice's) */
+	float            labelDy;	/* a label's centre this far below its row's top, not LABEL_DY */
 };
 
 /*  Layout output  */
