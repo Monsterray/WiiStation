@@ -773,6 +773,9 @@ void setOption(char* key, char* valuePointer);
 extern "C" void mcd_track_begin(void);   /* sio.c: note the card files games use */
 extern "C" void mcd_track_delete(void);  /* sio.c: delete them */
 static int chainN, chainI;
+#ifdef ACHIEVEMENTS_BENCH
+int loadISOSwap(fileBrowser_file* file);
+#endif
 extern "C" int perf_chain_index(void) { return chainN ? chainI + 1 : 0; }   /* perf_prof.c breadcrumb */
 extern "C" {
 	unsigned chain_stop_vbl;                   /* psxcounters.c stops the game here; 0 = never */
@@ -910,6 +913,24 @@ static bool chainNext(void)
 	}
 	f = fopen("sd:/wiistation/perf.log", "a");
 	if (f) {
+#ifdef ACHIEVEMENTS_BENCH
+		/* Test builds only: independently collected evidence at a stopped CPU boundary. */
+		fprintf(f, "achievement-bench: game=%s frames=%u count=%u earned=%u enabled=%u\n",
+			CdromId, (unsigned)frame_counter, achievements_count(), achievements_earned(),
+			(unsigned)achievementsEnabled);
+		if (chainList[chainI].input[0]) {
+			unsigned completed_frames = frame_counter;
+			unsigned earned = achievements_earned();
+			SysReset();
+			fprintf(f, "achievement-bench-reset: core=%u earned=%u expected=%u count=%u\n",
+				(unsigned)Config.Cpu, achievements_earned(), earned, achievements_count());
+			fileBrowser_file swap = isoFile;
+			int result = loadISOSwap(&swap);
+			fprintf(f, "achievement-bench-swap: core=%u result=%d count=%u earned=%u\n",
+				(unsigned)Config.Cpu, result, achievements_count(), achievements_earned());
+			frame_counter = completed_frames; /* keep the completed chain's evidence */
+		}
+#endif
 		char sets[CHAIN_SETS * 32 + 8] = "";
 		int k;
 		for (k = 0; k < chainList[chainI].nset; k++) {
@@ -940,6 +961,12 @@ static bool chainNext(void)
 		fatUnmount("sd");
 		exit(0);
 	}
+#ifdef ACHIEVEMENTS_BENCH
+	/* A frozen hardware test returns to HBC for outbound collection, rather than
+	 * powering off. Normal release builds retain their existing chain behavior. */
+	fatUnmount("sd");
+	exit(0);
+#endif
 	fatUnmount("sd");
 	SYS_ResetSystem(SYS_POWEROFF, 0, 0);
 	return false;

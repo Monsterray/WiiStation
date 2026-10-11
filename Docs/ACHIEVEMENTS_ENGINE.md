@@ -73,17 +73,19 @@ Run `bash scripts/test-achievements.sh` and `python3 scripts/settings_check.py`.
 
 The release also passed the shared bench Wii menu/HOME/HBC smoke test. See
 [bench testing](BENCH_TESTING.md) for the frozen queue workflow, retained
-evidence, and the additional game fixtures required to verify achievement
-evaluation on hardware.
+evidence. The actual engine also passed its regression suite, the 13-case emulator matrix,
+and restart persistence checks on Wii; see
+[hardware validation](ACHIEVEMENTS_HARDWARE_TESTS.md) for coverage, fixes,
+and the synthetic emulator matrix.
 The host check uses the actual vendored runtime and exercises memory boundaries,
 little-endian and scratchpad conditions, hit-count restoration, pause/reset behavior,
 monotonic unlocks, journal reload, changed-set rejection, corrupt progress, disabled
 mode, duplicates, malformed definitions, and size limits. ASan covers all sources;
 UBSan also covers WiiStation's glue. Upstream parser offset expressions trigger Clang
-UBSan diagnostics, so upstream is compiled with ASan only and kept unmodified.
+UBSan diagnostics, so upstream is compiled with ASan only. The vendored runtime carries a documented big-endian memory-read fix.
 
-Build checks do not establish hardware performance. Test on real Wii/vWii before
-enabling it in regular play.
+Build checks alone do not establish hardware performance. The hardware report
+separates focused fixture timing from representative gameplay and vWii coverage.
 
 Implementation checks on 2026-10-10: host checks passed; the engine and 18 vendored
 runtime/util sources cross-compiled with `-Wall -Wextra -Werror`; `psxcounters.c`,
@@ -94,7 +96,6 @@ release DOL build passed, including an end-to-end build from the checkout contai
 spaces. The local setup script, library preflight regression test, achievement host
 checks, and settings check passed. Build logs are in ignored
 `.runs/achievement-build/`; outputs are `Gamecube/WiiSXRX_Release.dol` and `.elf`.
-See README's isolated setup instructions. The hardware run
-remains unverified. Runtime objects disable
+See README's isolated setup instructions. Runtime objects disable
 fast-math/LTO to preserve floating-point condition semantics under the core's
 `-Ofast` build flags.

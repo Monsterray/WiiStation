@@ -60,8 +60,10 @@ python3 scripts/settings_check.py
 
 The menu smoke verifies the integrated release boots safely. It does **not**
 load a game, evaluate achievements, validate journals on SD, or measure runtime
-overhead. Those need a controlled game fixture. Extend the existing game/chain
-testing rather than treating menu success as engine coverage:
+overhead. The controlled fixture workflow is now implemented by
+`scripts/bench_achievements.py` and `scripts/bench_achievement_games.py`. See
+[hardware validation](ACHIEVEMENTS_HARDWARE_TESTS.md) for results and commands.
+The collectors follow these requirements:
 
 1. Freeze a test DOL/ELF, configuration, definitions, replay inputs and expected
    results. Use a legal deterministic PS1 fixture with a known disc ID and RAM

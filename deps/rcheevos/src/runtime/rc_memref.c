@@ -704,10 +704,10 @@ uint32_t rc_read_memory(uint32_t address, uint8_t size, rc_read_memory_func_t re
   read_memory(address, value.u8, num_bytes, ud);
 
   if (rc_is_host_bigendian()) {
-    value.u32 = value.u8[0] << 24 |
-                value.u8[1] << 16 |
-                value.u8[2] << 8 |
-                value.u8[3];
+    value.u32 = (uint32_t)value.u8[0] |
+                (uint32_t)value.u8[1] << 8 |
+                (uint32_t)value.u8[2] << 16 |
+                (uint32_t)value.u8[3] << 24;
   }
 
   value.u32 &= rc_memref_masks[size]; /* rc_memref_bytes ensures this index exists */

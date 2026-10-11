@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
+#include <sys/stat.h>
 
 static unsigned char ram[0x200000], scratch[0x400];
 unsigned char *psxM = ram, *psxH = scratch;
@@ -39,6 +40,24 @@ int main(int argc, char **argv)
     assert(achievements_read_memory(UINT32_MAX, bytes, 4, NULL) == 0);
     assert(achievements_read_memory(0x200400, bytes, 4, NULL) == 0);
     assert(achievements_read_memory(0, NULL, 4, NULL) == 0);
+
+    /* Exercise the runtime's byte decoder too, not just our byte-copy callback.
+     * On a big-endian host a byte must not land in the high end of a u32. */
+    set_file("Game=TEST12345\n4|Single byte|0xH000010=1\n"
+             "6|High-bit 32-bit word|0xX000024=2309737967\n"
+             "7|IEEE float|fF000028=f1.0\n");
+    ram[0x10] = 0;
+    assert(achievements_load("TEST12345") == 3);
+    achievements_frame();
+    ram[0x10] = 1;
+    achievements_frame();
+    assert(achievements_earned() == 1);
+    memcpy(ram + 0x24, "\xef\xcd\xab\x89\0\0\x80\x3f", 8);
+    achievements_frame();
+    assert(achievements_earned() == 3);
+    achievements_close();
+    assert(remove(achievementLog) == 0);
+    ram[0x10] = 0;
 
     set_file("# local fixture\nGame=TEST12345\n1|Three frames|0xH000010=1.3.\n2|Little endian word|0x 000020=4660\n3|Scratch byte|0xH200001=9\n");
     assert(achievements_load("WRONG") == -1);
@@ -125,6 +144,33 @@ int main(int argc, char **argv)
     for (size = 0; size < 65537; ++size) fputc('a', f);
     fclose(f);
     assert(achievements_load("TEST12345") == -1);
+
+    /* A failed SD/host journal open must leave an unlock pending for retry. */
+    {
+        char parent[256];
+        assert(snprintf(parent, sizeof parent, "%s/retry", argv[1]) < 256);
+        assert(snprintf(achievementLog, sizeof achievementLog, "%s/unlocks", parent) < 256);
+        set_file("Game=TEST12345\n5|Retry write|0xH000030=1\n");
+        ram[0x30] = 0;
+        assert(achievements_load("TEST12345") == 1);
+        achievements_frame();
+        ram[0x30] = 1;
+        achievements_frame();
+        assert(achievements_earned() == 1);
+        achievements_flush();
+        assert(fopen(achievementLog, "r") == NULL);
+        assert(mkdir(parent, 0700) == 0);
+        achievements_flush();
+        f = fopen(achievementLog, "r"); assert(f);
+        {
+            char record[256];
+            assert(fgets(record, sizeof record, f));
+            assert(strstr(record, " 5 Retry write"));
+            assert(!fgets(record, sizeof record, f));
+        }
+        fclose(f);
+        achievements_close();
+    }
     free(state); free(old_state);
     puts("achievements: memory, evaluation, state identity, journal, and malformed sets ok");
     return 0;
