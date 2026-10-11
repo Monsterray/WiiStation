@@ -129,13 +129,78 @@ The replacement five-pair campaign uses the clean DOL and frozen bundles
 `PROBES=... bash scripts/build.sh debug` in a clean source snapshot.
 The independent production release smoke also passed, job
 `20261011-015705-283c84` (menu/SDK/HOME/HBC, 38 seconds).
+Each accepted run has 7,200 analyzed NTSC intervals; all 128 conditions remain
+unearned and evaluation runs once for each of 13,199 profiled guest frames.
+`PERF_PROF_VSIG=0` is required for these timing passes; end RAM/VRAM hashes remain
+available. A final checkpoint match is not full per-frame trajectory equality.
 `scripts/gameplay_results.py` requires matching frozen build/media/profile/input,
 final checkpoints and cleanup, then computes an approximate Student-t confidence
 interval across paired repetitions. No inference treats individual correlated
 frames as independent repetitions.
 
+MEM1 arena free space is not a complete malloc-heap measurement. The existing
+MEM2 peak counter tracks the custom MEM2 heap, not every allocator used by
+standalone clients/TLS. Retain raw counters without claiming complete client/TLS
+memory peaks.
+
 Full scene trajectory equivalence, realistic official conditions, capped
 presentation/audio testing, other scenes/cores/renderers and vWii remain required.
+
+Clean campaign build identity (all five manifests must match):
+
+- DOL SHA-256: `0a80182177f0e5a964bb62d11e6ce134d1be799eec950762921e9f0a3bca7554`
+- ELF SHA-256: `1b3f7b0b199c498bcdf37b5f9c2254e6ae7a9604ef3d619d42494d0f5e963c24`
+- Original recording SHA-256: `1a88a80997eb05e615ae246c2e414d30434cfe6b6f80aa7e375a2c1ada357ee2`
+
+
+## Accepted clean gameplay campaign
+
+All five alternating pairs passed with the clean build, identical final
+RAM/VRAM/PC/cycle fingerprints and verified restoration. There were no new
+crashes, allocation failures, unexpected unlocks or heap failures. The ten arms
+cover 72,000 analyzed intervals; each enabled arm ran 13,199 evaluation calls.
+
+| Pair / order | Queue job | Disabled window (s) | Enabled window (s) | Added time |
+| --- | --- | ---: | ---: | ---: |
+| 1 / AB | `20261011-021358-2c3750` | 39.299 | 40.342 | 2.653% |
+| 2 / BA | `20261011-021358-99e1bc` | 39.170 | 40.439 | 3.240% |
+| 3 / AB | `20261011-021358-4395d2` | 39.305 | 40.312 | 2.561% |
+| 4 / BA | `20261011-021359-bc85df` | 39.225 | 40.475 | 3.187% |
+| 5 / AB | `20261011-021359-bb796d` | 39.306 | 40.313 | 2.563% |
+
+Mean paired overhead: **2.84%**; median
+2.65%; range
+2.56–3.24%.
+The approximate 95% Student-t interval for the paired mean is
+2.42–3.27%
+(df=4, approximate normality of paired differences). This is above the
+provisional 1% capacity target. BA pairs ran about 0.6 percentage points higher
+than AB pairs: order matters, and five pairs do not justify a precise universal
+slowdown claim. More balanced repetitions and additional scenes are needed for
+shipping acceptance.
+
+Mean evaluation time across the enabled runs was
+142.40 us per
+profiled frame; the maximum observed single call was 544 us. Disabled p99
+intervals were 11.192–11.209 ms; enabled p99 was 11.352–11.386 ms. Enabled arms
+had 13 intervals each beyond the NTSC budget; disabled arms had 13, except one
+with 14. This uncapped capacity pass does not establish capped audio/input
+behavior, official-set overhead, or online transport overhead.
+
+Reproduce the offline summary with:
+
+```sh
+python3 scripts/gameplay_results.py \
+  .runs/bench/20261011-spyro-clean-pair-1 \
+  .runs/bench/20261011-spyro-clean-pair-2 \
+  .runs/bench/20261011-spyro-clean-pair-3 \
+  .runs/bench/20261011-spyro-clean-pair-4 \
+  .runs/bench/20261011-spyro-clean-pair-5
+```
+
+The JSON summary is `.runs/bench/gameplay-profiles/spyro-clean-summary.json`.
+Only the clean campaign above is accepted timing evidence; all earlier cached
+DOL measurements remain excluded.
 
 ## Remaining online work
 
