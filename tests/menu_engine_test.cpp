@@ -308,11 +308,35 @@ static Row VIDEO_ROWS[] = {
 	{ ROW_BUTTONS, NULL,          NULL,             0, 1, 0, NULL, false, VID_ADV_ACTIONS,    245.0f, 0.0f, NULL,         0 },
 };
 
+/*  The Settings Input tab (menupage 3), from SettingsFrame.cpp's FRAME_BUTTONS, FRAME_TEXTBOXES and
+ *  layoutInput(). The state is the default one: Standard pad, rumble on, Light Gun off, Auto Load
+ *  Default. The rows and widths are the table's; the labels are textboxes 10, 29, 11, 12 and 13. */
+static const char *const INP_PSX_NAMES[]    = { "Standard", "Analog", "Stick D-pad" };
+static const float        INP_PSX_W[]       = { 105.0f, 100.0f, 140.0f };
+static const char *const INP_RUMBLE_NAMES[] = { "Yes", "No" };
+static const float        INP_RUMBLE_W[]    = { 75.0f, 75.0f };
+static const ActionButton INP_CONFIG_ACTIONS[]   = { { "Configure Input", 220.0f, false }, { "Configure Buttons", 235.0f, false } };
+static const ActionButton INP_LIGHTGUN_ACTIONS[] = { { "Off", 135.0f, false } };
+static const ActionButton INP_SAVEBTN_ACTIONS[]  = { { "SD", 55.0f, false }, { "USB", 70.0f, false } };
+static const ActionButton INP_AUTOLOAD_ACTIONS[] = { { "Default", 135.0f, false } };
+
+/* Row fields: kind, label, names, lo, count, value, text, fit, actions, x0, gap, widths, plain. */
+static Row SET_INPUT_ROWS[] = {
+	{ ROW_BUTTONS, NULL,                  NULL,            0, 2, 0, NULL, false, INP_CONFIG_ACTIONS,  85.0f,  15.0f, NULL,       0 },
+	{ ROW_CHOICE,  "PSX Controller Type", INP_PSX_NAMES,   0, 3, 0, NULL, false, NULL,                271.0f,  0.0f, INP_PSX_W,  0 },
+	{ ROW_BUTTONS, "Light Gun",           NULL,            0, 1, 0, NULL, false, INP_LIGHTGUN_ACTIONS, 295.0f,  0.0f, NULL,       0 },
+	{ ROW_CHOICE,  "Enable Rumble",       INP_RUMBLE_NAMES, 0, 2, 0, NULL, false, NULL,                295.0f,  0.0f, INP_RUMBLE_W, 0 },
+	{ ROW_BUTTONS, "Save Button Configs", NULL,            0, 2, 0, NULL, false, INP_SAVEBTN_ACTIONS,  295.0f,  0.0f, NULL,       0 },
+	{ ROW_BUTTONS, "Auto Load Slot",      NULL,            0, 1, 0, NULL, false, INP_AUTOLOAD_ACTIONS, 295.0f,  0.0f, NULL,       0 },
+};
+
 /* The General tab is the first Settings tab, so its tab row is lit at 0; Video's is lit at 1. */
 static TestPage SETTINGS_PAGES[] = {
 	{ "General",     NULL,                true,  0, GENERAL_ROWS, COUNT(GENERAL_ROWS), NULL,        0,
 	  GEN_TABS, COUNT(GEN_TABS), 150.0f, 28.0f },
 	{ "Video",       NULL,                true,  1, VIDEO_ROWS,   COUNT(VIDEO_ROWS),   NULL,        0,
+	  GEN_TABS, COUNT(GEN_TABS), 150.0f, 28.0f },
+	{ "Input",       NULL,                true,  2, SET_INPUT_ROWS,   COUNT(SET_INPUT_ROWS),   NULL,        0,
 	  GEN_TABS, COUNT(GEN_TABS), 150.0f, 28.0f },
 };
 #define NSETTINGS COUNT(SETTINGS_PAGES)
@@ -894,6 +918,20 @@ static const Known KNOWN[] = {
 	{ "Video", PROB_TEXT_WIDE, "Default", NULL },
 	{ "Video", PROB_TEXT_WIDE, "Trap", NULL },
 	{ "Video", PROB_TEXT_WIDE, "Deflicker", NULL },
+	/* The Input tab: the same fit-rule findings on the Settings buttons (the tab row's labels too), and
+	 * the label "PSX Controller Type" reaching 1 px into "Standard". */
+	{ "Input", PROB_TEXT_WIDE, "General", NULL },
+	{ "Input", PROB_TEXT_WIDE, "Video", NULL },
+	{ "Input", PROB_TEXT_WIDE, "Audio", NULL },
+	{ "Input", PROB_TEXT_WIDE, "Saves", NULL },
+	{ "Input", PROB_TEXT_WIDE, "Configure Buttons", NULL },
+	{ "Input", PROB_TEXT_WIDE, "Standard", NULL },
+	{ "Input", PROB_TEXT_WIDE, "Analog", NULL },
+	{ "Input", PROB_TEXT_WIDE, "Stick D-pad", NULL },
+	{ "Input", PROB_TEXT_WIDE, "Yes", NULL },
+	{ "Input", PROB_TEXT_WIDE, "SD", NULL },
+	{ "Input", PROB_TEXT_WIDE, "USB", NULL },
+	{ "Input", PROB_OVERLAP, "PSX Controller Type", "Standard" },
 	{ NULL, 0, NULL, NULL },
 };
 
@@ -1569,6 +1607,145 @@ static int checkVideoAgainstTable(void)
 	return diffs;
 }
 
+/*  The Input, Audio and Saves tabs' boxes, labels and focus, against Settings' own tables  */
+
+/* One button of a tab as SettingsFrame.cpp's tables give it: its FRAME_BUTTONS index, the control
+ * the tab draws it as (role, row, slot), its box, and the links the table gives it (-1: none). A
+ * tab row's Up and Down are the ones activateSubmenu() sets for that tab; its Left and Right are the table's. */
+struct OldBox {
+	int idx;
+	int role, row, slot;
+	float x, y, w, h;
+	int up, down, left, right;
+};
+
+/* The index in the table of the control with key want, or -2 when it is not one of the table's (a
+ * control the table does not show). */
+static int boxIndexOf(const OldBox *b, unsigned n, Key want)
+{
+	for (unsigned k = 0; k < n; k++) {
+		Key key = { b[k].role, b[k].row, b[k].slot };
+		if (sameKey(key, want))
+			return b[k].idx;
+	}
+	return -2;
+}
+
+/* The boxes and label anchors of a tab, against the layout. labelY is the label centre of each row
+ * (the table's label y); every label is centred at x 150. */
+static int checkTabBoxes(const char *name, int page, const OldBox *b, unsigned n,
+                         const float *labelY, int nLabelY)
+{
+	Page p = toPage(SETTINGS_PAGES[page], FOCUS_ROWS);
+	Layout lay;
+	int bad = 0, labels = 0;
+
+	if (layoutPage(p, kFont, lay) < 0) {
+		fail(name, "layoutPage refused the tab");
+		return 1;
+	}
+	for (unsigned k = 0; k < n; k++) {
+		Key key = { b[k].role, b[k].row, b[k].slot };
+		const int at = findCtrl(lay, key);
+		char msg[160];
+		if (at < 0) {
+			snprintf(msg, sizeof msg, "button %d is not in the layout", b[k].idx);
+			fail(name, msg);
+			bad++;
+			continue;
+		}
+		{
+			const Rect &r = lay.c[at].rect;
+			if (!nearly(r.x, b[k].x) || !nearly(r.y, b[k].y) ||
+			    !nearly(r.w, b[k].w) || !nearly(r.h, b[k].h)) {
+				snprintf(msg, sizeof msg, "button %d at (%g,%g %gx%g), the table has (%g,%g %gx%g)",
+				         b[k].idx, r.x, r.y, r.w, r.h, b[k].x, b[k].y, b[k].w, b[k].h);
+				fail(name, msg);
+				bad++;
+			}
+		}
+	}
+	for (int i = 0; i < lay.n; i++) {
+		const Control &c = lay.c[i];
+		char msg[160];
+		if (c.kind != CTRL_TEXT || (c.role != ROLE_LABEL && c.role != ROLE_RLABEL))
+			continue;
+		labels++;
+		if (c.row < 0 || c.row >= nLabelY || !nearly(c.ax, 150.0f) || !nearly(c.ay, labelY[c.row]) ||
+		    c.align != ALIGN_CENTRE) {
+			snprintf(msg, sizeof msg, "label '%s' centred at (%g,%g), the table has (150,%g)",
+			         c.text, c.ax, c.ay, c.row >= 0 && c.row < nLabelY ? labelY[c.row] : -1.0f);
+			fail(name, msg);
+			bad++;
+		}
+	}
+	printf("  %s: %d table boxes and %d labels checked against the numbers in SettingsFrame.cpp\n",
+	       name, (int)n, labels);
+	return bad;
+}
+
+/* Prints the tab's focus links that differ from the table's, as a finding and not a failure, like
+ * General's and Video's. "other" is a control the table does not show. Returns how many differ. */
+static int checkTabLinks(const char *name, int page, const OldBox *b, unsigned n)
+{
+	static const char *const DIR[DIR_COUNT] = { "Up", "Down", "Left", "Right" };
+	Page p = toPage(SETTINGS_PAGES[page], FOCUS_ROWS);
+	Layout lay;
+	int diffs = 0;
+
+	if (layoutPage(p, kFont, lay) < 0) {
+		fail(name, "layoutPage refused the tab");
+		return 0;
+	}
+	linkFocus(p, lay);
+	printf("  %s: focus links against Settings' table (a finding, not a failure)\n", name);
+	for (unsigned k = 0; k < n; k++) {
+		Key from = { b[k].role, b[k].row, b[k].slot };
+		const int at = findCtrl(lay, from);
+		const int want[DIR_COUNT] = { b[k].up, b[k].down, b[k].left, b[k].right };
+		if (at < 0) {
+			fail(name, "a button the table shows is not in the layout");
+			continue;
+		}
+		for (int d = 0; d < DIR_COUNT; d++) {
+			const int got = lay.c[at].link[d];
+			const int gotIdx = got < 0 ? -1 : boxIndexOf(b, n, keyOf(lay.c[got]));
+			if (gotIdx != want[d]) {
+				diffs++;
+				if (gotIdx == -2)
+					printf("        button %3d %-5s table %3d, engine: a control the table does not show\n",
+					       b[k].idx, DIR[d], want[d]);
+				else
+					printf("        button %3d %-5s table %3d, engine %3d\n", b[k].idx, DIR[d], want[d], gotIdx);
+			}
+		}
+	}
+	printf("  %s: %d link%s differ from the table\n", name, diffs, diffs == 1 ? "" : "s");
+	return diffs;
+}
+
+/* The Input tab. Tabs: each tab's own box; Up 38 and Down 30 as activateSubmenu(SUBMENU_INPUT) sets. */
+static const OldBox INPUT_BOXES[] = {
+	{ 0, ROLE_TAB, -1, 0, 25.0f, 20.0f, 110.0f, 56.0f, 38, 30, 4, 1 },
+	{ 1, ROLE_TAB, -1, 1, 155.0f, 20.0f, 100.0f, 56.0f, 38, 30, 0, 2 },
+	{ 2, ROLE_TAB, -1, 2, 275.0f, 20.0f, 100.0f, 56.0f, 38, 30, 1, 3 },
+	{ 3, ROLE_TAB, -1, 3, 395.0f, 20.0f, 100.0f, 56.0f, 38, 30, 2, 4 },
+	{ 4, ROLE_TAB, -1, 4, 515.0f, 20.0f, 100.0f, 56.0f, 38, 30, 3, 0 },
+	{ 30, ROLE_BUTTON, 0, 0,  85.0f, 100.0f, 220.0f, 56.0f,  2, 32, 31, 31 },
+	{ 31, ROLE_BUTTON, 0, 1, 320.0f, 100.0f, 235.0f, 56.0f,  2, 32, 30, 30 },
+	{ 32, ROLE_CHOICE, 1, 0, 271.0f, 160.0f, 105.0f, 56.0f, 30, 59, 79, 33 },
+	{ 33, ROLE_CHOICE, 1, 1, 386.0f, 160.0f, 100.0f, 56.0f, 31, 59, 32, 79 },
+	{ 79, ROLE_CHOICE, 1, 2, 496.0f, 160.0f, 140.0f, 56.0f, 31, 59, 33, 32 },
+	{ 59, ROLE_BUTTON, 2, 0, 295.0f, 220.0f, 135.0f, 56.0f, 32, 34, -1, -1 },
+	{ 34, ROLE_CHOICE, 3, 0, 295.0f, 280.0f,  75.0f, 56.0f, 59, 36, 35, 35 },
+	{ 35, ROLE_CHOICE, 3, 1, 380.0f, 280.0f,  75.0f, 56.0f, 59, 37, 34, 34 },
+	{ 36, ROLE_BUTTON, 4, 0, 295.0f, 340.0f,  55.0f, 56.0f, 34, 38, 37, 37 },
+	{ 37, ROLE_BUTTON, 4, 1, 360.0f, 340.0f,  70.0f, 56.0f, 35, 38, 36, 36 },
+	{ 38, ROLE_BUTTON, 5, 0, 295.0f, 400.0f, 135.0f, 56.0f, 36,  2, -1, -1 },
+};
+/* The label centres: each row's top + 28 (textboxes 10, 29, 11, 12 and 13). */
+static const float INPUT_LABEL_Y[6] = { 0.0f, 188.0f, 248.0f, 308.0f, 368.0f, 428.0f };
+
 int main(int argc, char **argv)
 {
 	const char *font = argc > 1 ? argv[1] : "fonts/En.dat";
@@ -1586,6 +1763,8 @@ int main(int argc, char **argv)
 	checkGeneralAgainstTable();
 	checkVideoRects();
 	checkVideoAgainstTable();
+	checkTabBoxes("Input", 2, INPUT_BOXES, COUNT(INPUT_BOXES), INPUT_LABEL_Y, COUNT(INPUT_LABEL_Y));
+	checkTabLinks("Input", 2, INPUT_BOXES, COUNT(INPUT_BOXES));
 	reportGeometry();
 	testCheckCatches();
 

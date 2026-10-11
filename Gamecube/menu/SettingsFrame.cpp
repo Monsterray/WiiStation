@@ -852,6 +852,143 @@ static void layoutVideo(SettingsFrame *frame)
 	}
 }
 
+/*  The Input tab, on the menu engine (Docs/MENU_FRAMEWORK_PLAN.md, step 2, as the General and Video tabs)  */
+
+/* The tab's rows, top to bottom, as the engine lays them out on the Settings grid (a row's y is
+ * 100 + 60 n). Each slot is the FRAME_BUTTONS entry it is drawn with and each label a FRAME_TEXTBOXES
+ * entry (labelCx 150, labelDy 28). Three rows hold a choice or a single toggle, drawn as the engine
+ * draws a row of buttons with a lit flag: the Light Gun cycle is an action with a lit flag. */
+#define INP_ROWS_N 6
+
+static const int INP_BUTTON[INP_ROWS_N][4] = {
+	{ 30, 31, -1, -1 },		/* Configure Input Assignment, Configure Button Mappings */
+	{ 32, 33, 79, -1 },		/* PSX Controller Type: Standard, Analog, Stick D-pad */
+	{ 59, -1, -1, -1 },		/* Light Gun (a cycle, lit when a gun is on) */
+	{ 34, 35, -1, -1 },		/* Enable Rumble: Yes, No */
+	{ 36, 37, -1, -1 },		/* Save Button Configs: SD, USB */
+	{ 38, -1, -1, -1 },		/* Auto Load Slot (an action) */
+};
+static const int INP_COUNT[INP_ROWS_N] = { 2, 3, 1, 2, 2, 1 };
+static const int INP_LABEL[INP_ROWS_N] = { -1, 10, 29, 11, 12, 13 };	/* FRAME_TEXTBOXES, -1: none */
+static const eng::RowKind INP_KIND[INP_ROWS_N] = {
+	eng::ROW_BUTTONS, eng::ROW_CHOICE, eng::ROW_BUTTONS, eng::ROW_CHOICE, eng::ROW_BUTTONS, eng::ROW_BUTTONS
+};
+static const float INP_WIDTH[INP_ROWS_N][4] = {
+	{ 220, 235,   0,   0 }, { 105, 100, 140,   0 }, { 135,   0,   0,   0 },
+	{  75,  75,   0,   0 }, {  55,  70,   0,   0 }, { 135,   0,   0,   0 },
+};
+static const float INP_X0[INP_ROWS_N]  = { 85.0f, 271.0f, 295.0f, 295.0f, 295.0f, 295.0f };	/* 0: centred */
+static const float INP_GAP[INP_ROWS_N] = { 15.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };		/* 0: TAB_GAP */
+
+/* A row's text and actions are set from the buttons when the tab is shown, as the other tabs' are. */
+static const char *INP_TEXT[INP_ROWS_N][4];
+static eng::ActionButton INP_ACTIONS[INP_ROWS_N][4];
+static eng::Row INP_ROWS[INP_ROWS_N];
+static eng::Tab INP_TABS[NUM_TAB_BUTTONS];
+static eng::Page INP_PAGE;
+static eng::Layout INP_LAYOUT;
+
+/* The FRAME_BUTTONS entry a control of the Input tab is drawn with. */
+static menu::Button *inpButton(const eng::Control &c)
+{
+	return FRAME_BUTTONS[c.role == eng::ROLE_TAB ? c.slot : INP_BUTTON[c.row][c.slot]].button;
+}
+
+/* Lays the Input tab out on the engine and places its buttons and labels; links the focus.
+ * Everything here is done when the tab is shown, never per frame. */
+static void layoutInput(SettingsFrame *frame)
+{
+	/* The Light Gun button's text follows its setting. The Auto Load Slot's text is FRAME_STRINGS[42],
+	 * which the caller sets (Func_SetButtonLoad) before this runs. */
+	FRAME_BUTTONS[59].buttonString = FRAME_STRINGS[70 + lightGun];
+
+	for (int r = 0; r < INP_ROWS_N; r++)
+		for (int c = 0; c < INP_COUNT[r]; c++) {
+			INP_TEXT[r][c] = FRAME_BUTTONS[INP_BUTTON[r][c]].buttonString;
+			INP_ACTIONS[r][c].text = INP_TEXT[r][c];
+			INP_ACTIONS[r][c].width = INP_WIDTH[r][c];
+		}
+	for (int r = 0; r < INP_ROWS_N; r++) {
+		eng::Row &row = INP_ROWS[r];
+		memset(&row, 0, sizeof row);
+		row.kind    = INP_KIND[r];
+		row.label   = INP_LABEL[r] >= 0 ? FRAME_TEXTBOXES[INP_LABEL[r]].textBoxString : NULL;
+		row.names   = INP_TEXT[r];
+		row.count   = INP_COUNT[r];
+		row.actions = INP_ACTIONS[r];
+		row.x0      = INP_X0[r];
+		row.gap     = INP_GAP[r];
+		row.widths  = row.kind == eng::ROW_CHOICE ? INP_WIDTH[r] : NULL;
+	}
+	/* The lit buttons: the controller type, the rumble setting, and the Light Gun when a gun is on. */
+	INP_ROWS[1].value = controllerType;
+	INP_ROWS[3].value = rumbleEnabled == RUMBLE_ENABLE ? 0 : 1;
+	INP_ACTIONS[2][0].lit = lightGun != LIGHTGUN_DISABLE;
+
+	for (int t = 0; t < NUM_TAB_BUTTONS; t++) {
+		INP_TABS[t].text  = FRAME_BUTTONS[t].buttonString;
+		INP_TABS[t].width = FRAME_BUTTONS[t].width;
+	}
+	INP_PAGE.title   = NULL;
+	INP_PAGE.tabs    = INP_TABS;
+	INP_PAGE.nTabs   = NUM_TAB_BUTTONS;
+	INP_PAGE.curTab  = SettingsFrame::SUBMENU_INPUT;
+	INP_PAGE.rows    = INP_ROWS;
+	INP_PAGE.nRows   = INP_ROWS_N;
+	INP_PAGE.help    = NULL;
+	INP_PAGE.nHelp   = 0;
+	INP_PAGE.logo    = eng::LOGO_SPOT_BOTTOM;	/* MenuContext: FRAME_SETTINGS is in LOGO_BOTTOM_FRAMES */
+	INP_PAGE.focus   = eng::FOCUS_ROWS;
+	INP_PAGE.labelCx = 150.0f;	/* the Settings labels: TextBox centred at x 150 */
+	INP_PAGE.labelDy = 28.0f;	/* on the middle of a 56-high row */
+
+	if (eng::layoutPage(INP_PAGE, GEN_METRICS, INP_LAYOUT) < 0) {
+		/* The tables are fixed, so this is a programming error: the tab is left as it was. */
+		SysPrintf("SettingsFrame: the Input tab does not fit the menu engine\n");
+		return;
+	}
+	eng::linkFocus(INP_PAGE, INP_LAYOUT);
+
+	for (int i = 0; i < INP_LAYOUT.n; i++) {
+		const eng::Control &c = INP_LAYOUT.c[i];
+		switch (c.role) {
+		case eng::ROLE_TAB:
+		case eng::ROLE_BUTTON:
+		case eng::ROLE_CHOICE:
+			genPlace(frame, inpButton(c), c);
+			inpButton(c)->setActive(true);
+			inpButton(c)->setSelected(c.selected);
+			break;
+		case eng::ROLE_LABEL:
+		case eng::ROLE_RLABEL: {
+			menu::TextBox *box = FRAME_TEXTBOXES[INP_LABEL[c.row]].textBox;
+			box->setPosition(c.ax, c.ay);
+			box->setVisible(true);
+			break;
+		}
+		default:
+			break;
+		}
+	}
+
+	/* The focus links, on the buttons. A link of -1 is no link. */
+	{
+		static const int DIRS[eng::DIR_COUNT] = {
+			menu::Focus::DIRECTION_UP, menu::Focus::DIRECTION_DOWN,
+			menu::Focus::DIRECTION_LEFT, menu::Focus::DIRECTION_RIGHT
+		};
+		for (int i = 0; i < INP_LAYOUT.n; i++) {
+			const eng::Control &c = INP_LAYOUT.c[i];
+			if (!c.focusable)
+				continue;
+			for (int d = 0; d < eng::DIR_COUNT; d++) {
+				const int to = c.link[d];
+				inpButton(c)->setNextFocus(DIRS[d], to >= 0 ? inpButton(INP_LAYOUT.c[to]) : NULL);
+			}
+		}
+	}
+}
+
 SettingsFrame::SettingsFrame()
 		: activeSubmenu(SUBMENU_GENERAL)
 {
@@ -933,38 +1070,11 @@ void SettingsFrame::activateSubmenu(int submenu)
 			layoutVideo(this);
 			break;
 		case SUBMENU_INPUT:
+			/* The Input tab is laid out on the menu engine (layoutInput, above): its rows, labels and
+			 * focus. The tab row is the same five buttons on every tab. */
 			Func_SetButtonLoad();
 			setDefaultFocus(FRAME_BUTTONS[2].button);
-			for (int i = 0; i < NUM_TAB_BUTTONS; i++)
-			{
-				FRAME_BUTTONS[i].button->setVisible(true);
-				FRAME_BUTTONS[i].button->setNextFocus(menu::Focus::DIRECTION_DOWN, FRAME_BUTTONS[30].button);
-				FRAME_BUTTONS[i].button->setNextFocus(menu::Focus::DIRECTION_UP, FRAME_BUTTONS[38].button);
-				FRAME_BUTTONS[i].button->setActive(true);
-			}
-			for (int i = 10; i < 14; i++)
-				FRAME_TEXTBOXES[i].textBox->setVisible(true);
-			FRAME_TEXTBOXES[29].textBox->setVisible(true);   /* "Light Gun" */
-			FRAME_BUTTONS[2].button->setSelected(true);
-			if (controllerType == CONTROLLERTYPE_STANDARD)FRAME_BUTTONS[32].button->setSelected(true);
-			if (controllerType == CONTROLLERTYPE_ANALOG)FRAME_BUTTONS[33].button->setSelected(true);
-			if (controllerType == CONTROLLERTYPE_STICKDPAD)FRAME_BUTTONS[79].button->setSelected(true);
-			FRAME_BUTTONS[79].button->setVisible(true);
-			FRAME_BUTTONS[79].button->setActive(true);
-			if (lightGun != LIGHTGUN_DISABLE)FRAME_BUTTONS[59].button->setSelected(true);
-			else FRAME_BUTTONS[59].button->setSelected(false);
-			FRAME_BUTTONS[59].buttonString = FRAME_STRINGS[70 + lightGun];
-
-			FRAME_BUTTONS[rumbleEnabled == RUMBLE_ENABLE ? 34 : 35].button->setSelected(true);
-
-			FRAME_BUTTONS[59].button->setVisible(true);
-			FRAME_BUTTONS[59].button->setActive(true);
-
-			for (int i = 30; i < 39; i++)
-			{
-				FRAME_BUTTONS[i].button->setVisible(true);
-				FRAME_BUTTONS[i].button->setActive(true);
-			}
+			layoutInput(this);
 			break;
 		case SUBMENU_AUDIO:
 			setDefaultFocus(FRAME_BUTTONS[3].button);
