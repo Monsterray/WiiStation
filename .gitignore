@@ -48,6 +48,9 @@ baselines/media/
 # Holds a copy of the card content and the SD image, so it is large.
 /.dolphin/
 
+# Safe local copies of personal memory cards and save states
+/quarantine/
+
 # movie_capture.sh keeps the previous recording as NAME.prev when it records again (local)
 scripts/autoinput/*.prev
 # built probe DOLs (scripts/wii_probe/*.c is the source)
