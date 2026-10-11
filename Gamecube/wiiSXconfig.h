@@ -380,6 +380,10 @@ extern char coopPlayers[2];
 extern char coopType[2][COOP_MAX];
 extern char coopAssign[2][COOP_MAX];
 extern char coopLayout[2][COOP_MAX];
+/* CoopPButtonsK: player K's own buttons when its layout is COOP_LAYOUT_CUSTOM, a list of
+ * names ("L1,Up,Cross,LStick", coop.c coop_buttons_parse); the size of a settings string */
+#define COOP_BUTTONS_SIZE 256
+extern char coopButtons[2][COOP_MAX][COOP_BUTTONS_SIZE];
 enum coopLayout
 {
 	COOP_LAYOUT_FULL=0,
@@ -388,6 +392,7 @@ enum coopLayout
 	COOP_LAYOUT_DPAD_STICKS,
 	COOP_LAYOUT_ACTION,
 	COOP_LAYOUT_SHOULDERS,
+	COOP_LAYOUT_CUSTOM,     /* the buttons in coopButtons, each turned on or off in the menu */
 	COOP_LAYOUT_COUNT
 };
 

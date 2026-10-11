@@ -180,7 +180,8 @@ In the menu: Configure Input, Manual, then press the port's type button until it
 | `CoopPlayers1`, `CoopPlayers2` | 1 to 8 | 2 | The number of players on port 1 or 2. |
 | `Coop1Type1` to `Coop1Type8`, `Coop2Type1` to `Coop2Type8` | 0 = None, 1 = GameCube Pad, 2 = Wii Pad, 3 = HID Pad | players 1 to 4: 1, players 5 to 8: 2 | The kind of controller player N of port 1 or 2 uses. |
 | `Coop1Assign1` ... `Coop2Assign8` | 0 to 3 | player N: (N - 1) modulo 4 | Which controller of that kind (1 to 4, written 0 to 3). By default players 1 to 4 are GameCube pads 1 to 4 and players 5 to 8 Wii controllers 1 to 4. |
-| `Coop1Layout1` ... `Coop2Layout8` | 0 = Full pad, 1 = Left half, 2 = Right half, 3 = D-pad+sticks, 4 = Action, 5 = Shoulders | 0 | The buttons and sticks the player works. |
+| `Coop1Layout1` ... `Coop2Layout8` | 0 = Full pad, 1 = Left half, 2 = Right half, 3 = D-pad+sticks, 4 = Action, 5 = Shoulders, 6 = Custom | 0 | The buttons and sticks the player works. Custom is the player's own list (`CoopPButtonsK`): on the Customize Co-Op page every button turns on or off by itself (A, or the pointer); a set that matches a preset becomes that preset. |
+| `Coop1Buttons1` ... `Coop2Buttons8` | a list: L1, L2, Select, Start, R1, R2, Up, Left, Right, Down, Triangle, Square, Circle, Cross, LStick, RStick, L3, R3 | "" | The Custom layout's buttons and sticks, comma-separated (Gamecube/coop.c `coop_buttons_parse`; unknown names are skipped). Read only when the layout is 6. |
 
 ### 6.2 Button mapping files
 

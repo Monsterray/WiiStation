@@ -1,8 +1,16 @@
 """sheet.py <out.png> <frames_dir> <start> <step> <end> [cols=6] [w=206]
 Contact sheet of framedump_<n>.png thumbnails, frame number burned in."""
+import shutil
 import sys, os, subprocess
-FF = r"C:\Program Files (x86)\ffmpeg\bin\ffmpeg.exe"
-out, d, start, step, end = sys.argv[1], sys.argv[2], int(sys.argv[3]), int(sys.argv[4]), int(sys.argv[5])
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from cliutil import need, req_int  # noqa: E402
+
+FF = shutil.which("ffmpeg") or r"C:\Program Files (x86)\ffmpeg\bin\ffmpeg.exe"
+need(sys.argv, 6, "sheet.py <out.png> <frames_dir> <start> <step> <end> [cols=6] [w=206]")
+out, d = sys.argv[1], sys.argv[2]
+start, step, end = (req_int(sys.argv[3], '<start>'), req_int(sys.argv[4], '<step>'),
+                    req_int(sys.argv[5], '<end>'))
 cols = int(sys.argv[6]) if len(sys.argv) > 6 else 6
 w = int(sys.argv[7]) if len(sys.argv) > 7 else 206
 h = w * 480 // 824

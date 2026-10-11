@@ -45,6 +45,10 @@ PAD_TEST="$REPO/.dolphin/Config/GCPadNew.ini"              # the test profile's 
 CARD="$REPO/.dolphin/Load/WiiSD.raw"
 SYNC="$REPO/.dolphin/Load/WiiSDSync/wiistation"
 
+if [ -n "${PYTHON:-}" ]; then :;
+elif command -v python >/dev/null 2>&1; then PYTHON=python;
+elif [ -x /c/Python312/python.exe ]; then PYTHON=/c/Python312/python.exe;
+else PYTHON=python3; fi
 game=""; name=""; mins=4; dol=debug; play=""; frames=False; ct=0
 while [ $# -gt 0 ]; do
 	case "$1" in
@@ -115,8 +119,14 @@ printf 'CHAIN\n# scripts/movie_capture.sh %s\n%s sd:/wiistation/%s PadAutoAssign
 # A port 2 with no buttons bound (Dolphin's default) gets a keyboard layout in that copy, so
 # two players can share the keyboard (scripts/pad_layout.py); the user's own file is not
 # written. Dolphin connects no pad to port 2 unless told: SIDevice1=6 is a GameCube pad.
+# SIGKILL skips the trap, so a backup left by such a run is put back first: copying over it
+# would keep the modified pads as the "backup".
+[ -f "$PAD_TEST.capture-bak" ] && mv -f "$PAD_TEST.capture-bak" "$PAD_TEST"
 cp "$PAD_TEST" "$PAD_TEST.capture-bak" 2>/dev/null
-python "$REPO/scripts/pad_layout.py" "$PAD_USER" --fill-pad2 "$PAD_TEST" > "$dir/pads.txt"
+# An abort (Ctrl-C, wsx failure) used to leave the user's pads in the test profile;
+# the trap restores them on ANY exit (the explicit mv below then no-ops).
+trap '[ -f "$PAD_TEST.capture-bak" ] && mv "$PAD_TEST.capture-bak" "$PAD_TEST"' EXIT INT TERM
+"$PYTHON" "$REPO/scripts/pad_layout.py" "$PAD_USER" --fill-pad2 "$PAD_TEST" > "$dir/pads.txt"
 if [ -z "$play" ]; then
 	echo "Recording $(basename "$folder"): $mins emulated minutes ($vbl vblanks), then the window closes."
 	echo "Click the game window first. Both pads are recorded; port 2 can stay unused."
@@ -137,7 +147,7 @@ bash "$REPO/scripts/wsx.sh" run "$run" --dol "$dol" --autoboot "$dir/chain.txt" 
 [ -n "$play" ] && { echo "done: .runs/$run"; exit 0; }
 
 rec="$REPO/.runs/$run/autoinput_rec.txt"
-python "$REPO/scripts/sdimage_read.py" "$CARD" wiistation/autoinput_rec.txt "$rec" >/dev/null 2>&1
+"$PYTHON" "$REPO/scripts/sdimage_read.py" "$CARD" wiistation/autoinput_rec.txt "$rec" >/dev/null 2>&1
 rm -f "$SYNC/autoinput_rec.txt"
 [ -s "$rec" ] || { echo "nothing was recorded (no autoinput_rec.txt on the card): see .runs/$run/run.log"; exit 1; }
 grep -q "port 1 has NO controller" "$rec" && echo "WARNING: port 1 had no controller, so the recording holds no presses"

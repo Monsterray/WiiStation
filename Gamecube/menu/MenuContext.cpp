@@ -30,6 +30,7 @@ extern bool AutobootBios;      /* GamecubeMain.cpp: autoboot.txt said "BIOS" */
 void Func_ExecuteBios();       /* SettingsFrame.cpp */
 void Func_LoadFromSD();        /* LoadRomFrame.cpp */
 void Func_LoadFromDVD();       /* LoadRomFrame.cpp */
+void ExitToLoaderNow();       /* MainFrame.cpp: Quit, answered Yes */
 void Func_LoadFromSamba();     /* LoadRomFrame.cpp */
 #include "../fileBrowser/smb2dev.h"
 extern "C" void glResetCacheRegion(void);
@@ -170,7 +171,9 @@ bool MenuContext::isRunning()
 			else if (autoinput_menupage == 72)
 				Func_LoadFromDVD();   /* Load ROM > Load from DVD: the disc mounted as dvd: */
 			else if (autoinput_menupage == 71)
-				smbPageWait = 60 * 30;   /* Load from SMB, once the share is mounted (below) */
+				smbPageWait = 60 * 30;
+			else if (autoinput_menupage == 90)
+				ExitToLoaderNow();   /* Main > Quit, answered Yes */   /* Load from SMB, once the share is mounted (below) */
 		}
 	}
 

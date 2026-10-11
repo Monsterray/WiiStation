@@ -10,6 +10,8 @@ Queue it with the full python path: the dispatcher's `bash` is WSL's, which has 
 One game per job tells which game crashed; results go to .runs/NAME as with wii_lab.py."""
 import os, subprocess, sys, time
 
+if len(sys.argv) != 5 or sys.argv[1] in ("--help", "-h"):
+    sys.exit("usage: wii_crash_job.py NAME CHAINFILE DOL SECS  (bench queue only)")
 name, chain, dol, secs = sys.argv[1:5]
 py = sys.executable
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -19,7 +21,22 @@ hbc = [py, "C:/projects/hbc-reborn/tools/hbc.py", "--wii", os.environ.get("WII_B
 
 r = subprocess.run(hbc + ["crash", "--clear"])
 print("crash --clear exit", r.returncode, flush=True)
-r = subprocess.run([py, "scripts/wii_lab.py", name, chain, "--dol", dol, "--timeout", secs])
+if r.returncode:
+    sys.exit("crash --clear failed: a stale report would be misattributed to this run")
+def triage(rc):
+    # the automatic triage of this run, once, after the crash report: wii_lab.py leaves it to us
+    # (WSX_TRIAGE_DEFER). Never changes this script's exit code.
+    if os.environ.get("WSX_NO_LLM"):
+        return
+    try:
+        subprocess.run([py, "scripts/run_triage.py", "--auto", os.path.join(".runs", name), "--rc", str(rc)],
+                       timeout=150)
+    except Exception as e:
+        print("triage unavailable", e, flush=True)
+
+
+r = subprocess.run([py, "scripts/wii_lab.py", name, chain, "--dol", dol, "--timeout", secs],
+                   env=dict(os.environ, WSX_TRIAGE_DEFER="1"))
 lab = r.returncode
 print("wii_lab exit", lab, flush=True)
 elf = os.path.splitext(dol)[0] + ".elf"   # beside the DOL copy: source lines for the report
@@ -28,11 +45,16 @@ for _ in range(120):
                        capture_output=True, text=True)
     if r.returncode == 0:
         print(r.stdout, flush=True)
+        os.makedirs(os.path.join(".runs", name), exist_ok=True)
+        if r.stdout.strip():   # the crash report, kept beside the run (scripts/run_triage.py reads it)
+            open(os.path.join(".runs", name, "crash.txt"), "w").write(r.stdout)
         if lab:   # the app's last output, kept by the agent (HBC 1.9+): why it stopped
             k = subprocess.run(hbc + ["lastlog"], capture_output=True, text=True)
-            os.makedirs(os.path.join(".runs", name), exist_ok=True)
             open(os.path.join(".runs", name, "lastlog.txt"), "w").write(k.stdout + k.stderr)
             print("lastlog (end):", *k.stdout.splitlines()[-15:], sep="\n", flush=True)
-        sys.exit(0)
+        triage(lab)
+        sys.exit(lab)   # the wii_lab run's own result: a failed run must not look like success
     time.sleep(5)
 print("HBC did not answer in 10 min:", r.stdout, r.stderr)
+triage(1)
+sys.exit("no crash report and HBC unreachable: total loss, not success")

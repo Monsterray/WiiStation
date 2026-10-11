@@ -10,7 +10,11 @@ file before), it also checks that each example value is the default. Keys that W
 changes at run time are not compared (FPS: 1 in the debug build; the ports: auto-assign).
 Exit 1 on any difference.
 """
+import os
 import pathlib, re, sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from cliutil import req_file  # noqa: E402
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
 RUNTIME = re.compile(r"^(FPS|PadType\d+|PadAssign\d+)$")
@@ -67,7 +71,7 @@ def main():
         if ws == gs:
             print("example has the keys, in another order")
     if len(sys.argv) > 1:
-        written = {k: v for _, k, v in ini(sys.argv[1])}
+        written = {k: v for _, k, v in ini(req_file(sys.argv[1], 'settings ini'))}
         for _, k, v in ex:
             if k in written and not RUNTIME.match(k) and written[k] != v:
                 print(f"{k}: example {v}, WiiStation's default {written[k]}")

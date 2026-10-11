@@ -221,7 +221,9 @@ def main():
 
     dol = {"debug": REPO / "Gamecube/WiiSXRX_debug.dol",
            "release": REPO / "Gamecube/WiiSXRX_Release.dol"}.get(a.dol, pathlib.Path(a.dol))
+    global RUN_DIR
     run = REPO / ".runs" / a.name
+    RUN_DIR = run
     run.mkdir(parents=True, exist_ok=True)
     shutil.copy(dol, run / "boot.dol")          # a rebuild meanwhile cannot change what boots
     shutil.copy(a.chain, run / "chain.txt")
@@ -329,8 +331,35 @@ def main():
     print("HBC ready for the next test" if hbc_ready(a.wii, 90) else "HBC did not come back within 90 s")
 
 
+RUN_DIR = None   # set by main(): the run's directory, for the automatic triage
+
+
+def auto_triage(run, rc):
+    """The automatic triage of a run that looks wrong (scripts/run_triage.py --auto). Never changes
+    the exit code; skipped by WSX_NO_LLM=1, and by wii_crash_job.py, which triages after the crash."""
+    if os.environ.get("WSX_NO_LLM") or os.environ.get("WSX_TRIAGE_DEFER") or run is None:
+        return
+    try:
+        subprocess.run([sys.executable, str(REPO / "scripts/run_triage.py"), "--auto", str(run),
+                        "--rc", str(rc)], timeout=150)
+    except Exception as e:
+        print(f"triage unavailable ({e})", flush=True)
+
+
 if __name__ == "__main__":
+    code = 1
     try:
         main()
+        code = 0
+    except SystemExit as e:
+        if e.code is None:
+            code = 0
+        elif isinstance(e.code, int):
+            code = e.code
+        else:
+            print(e.code, file=sys.stderr)   # sys.exit("message"): what Python does with a message
+            code = 1
     finally:
         finish_card()
+        auto_triage(RUN_DIR, code)
+    sys.exit(code)

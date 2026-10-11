@@ -19,6 +19,9 @@ largest difference: a step of 1-2 is rounding, a step of 100+ is a different tex
 import os
 import sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from cliutil import FPS_OVERLAY, need, parse_opts, req_int  # noqa: E402
+
 import numpy as np
 from PIL import Image
 
@@ -34,16 +37,25 @@ def load(d, i):
 
 
 def main():
-    args = sys.argv[1:]
-    opt = lambda k: args[args.index(k) + 1] if k in args else None
-    a_run, b_run = [x for x in args if not x.startswith('--') and x not in
-                    (opt('--from'), opt('--mask'), opt('--crop'))][:2]
-    start = int(opt('--from') or 0)
-    masks = [] if '--no-mask' in args else [(0, 0, 430, 80)]
-    if opt('--mask'):
-        masks.append(tuple(int(v) for v in opt('--mask').split(',')))
-    ad, a = frames(a_run)
-    bd, b = frames(b_run)
+    need(sys.argv, 3, "frame_compare.py RUN_A RUN_B [--from N] [--no-mask] "
+                      "[--mask X0,Y0,X1,Y1] [--crop OUT.png]")
+    args, opts = parse_opts(sys.argv, valued=('--from', '--mask', '--crop'),
+                            bools=('--no-mask',))
+    if len(args) != 2:
+        sys.exit("need exactly two runs to compare")
+    a_run, b_run = args
+    start = req_int(opts.get('--from', 0), '--from')
+    masks = [] if opts.get('--no-mask') else [FPS_OVERLAY]
+    if opts.get('--mask'):
+        try:
+            masks.append(tuple(int(v) for v in opts['--mask'].split(',')))
+        except ValueError:
+            sys.exit(f"--mask: need X0,Y0,X1,Y1, got {opts['--mask']!r}")
+    try:
+        ad, a = frames(a_run)
+        bd, b = frames(b_run)
+    except OSError as e:
+        sys.exit(f"no frame dumps: {e}")
     n = min(len(a), len(b))
     compared, diffs, worst = 0, [], None
     for k in range(start, n):
@@ -74,7 +86,7 @@ def main():
         if px:
             print('   median %d pixels a differing frame (max %d of %d), median largest step %d'
                   % (int(np.median(px)), max(px), 480 * 824, int(np.median(st))))
-    if worst is not None and opt('--crop'):
+    if worst is not None and opts.get('--crop'):
         k, m, x, y = worst
         ys, xs = np.nonzero(m == m.max())
         cy, cx = int(ys[0]), int(xs[0])
@@ -83,8 +95,8 @@ def main():
         strip = np.concatenate([cut(x), cut(y), cut(((m > 0)[..., None] * 255).repeat(3, 2))],
                                axis=1).astype(np.uint8)
         Image.fromarray(strip).resize((strip.shape[1] * 4, strip.shape[0] * 4),
-                                      Image.NEAREST).save(opt('--crop'))
-        print('   crop of frame %d at (%d,%d): %s' % (k, cx, cy, opt('--crop')))
+                                      Image.NEAREST).save(opts.get('--crop'))
+        print('   crop of frame %d at (%d,%d): %s' % (k, cx, cy, opts.get('--crop')))
     return 1 if diffs else 0
 
 

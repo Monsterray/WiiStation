@@ -212,19 +212,29 @@ void Func_Credits()
 extern volatile char shutdown;
 extern "C" void SysClose();
 
-void Func_ExitToLoader()
+/* Quit, after the question (also an input script's "menupage 90", MenuContext.cpp) */
+extern "C" void quit_crumb(const char *fmt, ...);   /* Gui.cpp: the Quit log */
+extern "C" void quit_log_begin(const char *how);
+
+void ExitToLoaderNow()
 {
-    if (menu::MessageBox::getInstance().askMessage("Are you sure you want to exit to loader?"))
-    {
+        quit_log_begin(hasLoadedISO ? "Quit, a game loaded" : "Quit, no game");
         #ifdef HW_RVL
         HIDClose(0);
+        quit_crumb("HIDClose(0) done");
         #endif
         shutdown = 2;
         if (hasLoadedISO)
         {
             SysClose();
+            quit_crumb("SysClose done");
         }
-    }
+}
+
+void Func_ExitToLoader()
+{
+    if (menu::MessageBox::getInstance().askMessage("Are you sure you want to exit to loader?"))
+        ExitToLoaderNow();
 }
 
 extern "C" {

@@ -283,10 +283,13 @@ void* VM_Init(u32 VMSize, u32 MEMSize)
 	return VM_Base;
 }
 
+extern void quit_crumb(const char *fmt, ...);   /* libgui/Gui.cpp: the Quit log */
+
 void VM_Deinit(void)
 {
 	if (!vm_initialized)
 		return;
+	quit_crumb("VM_Deinit");
 
 	// disable SR
 	asm volatile("mtsrin %0,%1" :: "r"(0x80000000), "r"(VM_Base));
@@ -303,6 +306,7 @@ void VM_Deinit(void)
 	}
 
 	vm_initialized = 0;
+	quit_crumb("VM_Deinit done");
 }
 
 int vm_dsi_handler(u32 DSISR, u32 DAR)

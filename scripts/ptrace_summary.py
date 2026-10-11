@@ -10,7 +10,11 @@ F6/F7 display range, F8 display mode; flags S semi-transparent, T textured,
 Q quad, G gouraud. EA/EB a screen re-upload from PSX VRAM (asked for /
 reached the EFB) and EC a present: the two ways already-drawn EFB content
 goes away again."""
+import os
 import sys, re
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from cliutil import need, parse_opts, req_file, req_int  # noqa: E402
 
 MAPPING = {"S": "previous", "T": "unknown", "-": "current"}
 CAPTURE = {3: "captured-back-buffer", 2: "captured-pending", 1: "captured-live", 4: "queued", 5: "queued",
@@ -44,12 +48,13 @@ def decode_reads(lines):
     return [" ".join(r) for r in out]
 
 def main():
-    path = sys.argv[1]; big = 20000; show = 12
-    a = sys.argv[2:]
-    while a:
-        k = a.pop(0)
-        if k == "--big": big = int(a.pop(0))
-        elif k == "--show": show = int(a.pop(0))
+    need(sys.argv, 2, "ptrace_summary.py PTRACELog [--big N] [--show N]")
+    args, opts = parse_opts(sys.argv, valued=('--big', '--show'))
+    if len(args) != 1:
+        sys.exit("need exactly one ptrace.log")
+    path = req_file(args[0], 'ptrace.log')
+    big = req_int(opts.get('--big', 20000), '--big')
+    show = req_int(opts.get('--show', 12), '--show')
     lines = open(path, encoding="utf-8", errors="replace").read().splitlines()
     hdr = [l for l in lines if l.startswith("ptrace:")]
     print(hdr[-1][:160] if hdr else "no ptrace header")

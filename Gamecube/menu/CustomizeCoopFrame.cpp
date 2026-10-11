@@ -4,7 +4,8 @@
  * Which PlayStation buttons one Co-Op player works (Gamecube/coop.c). It looks like
  * Configure Buttons -- the same controller picture and the same places for each button --
  * without that page's mapping controls (menu combination, fast forward, sensitivity, stick
- * inversion). Each button lights when this player has it; the presets above choose them.
+ * inversion). Each button lights when this player has it; the presets above choose a set,
+ * and each button turns on or off by itself (the Custom layout, kept in CoopPButtonsK).
  *
  * This program is free software; you can redistribute it and/
  * or modify it under the terms of the GNU General Public Li-
@@ -55,7 +56,7 @@ static void Func_LayoutShoulders() { setLayout(COOP_LAYOUT_SHOULDERS); }
 enum { IND_L1, IND_L2, IND_SELECT, IND_START, IND_R1, IND_R2, IND_DUP, IND_DLEFT, IND_DRIGHT,
        IND_DDOWN, IND_TRI, IND_SQU, IND_CIR, IND_CRO, IND_LSTICK, IND_RSTICK, IND_L3, IND_R3,
        NUM_INDICATORS };
-#define NUM_PRESETS COOP_LAYOUT_COUNT
+#define NUM_PRESETS COOP_LAYOUT_CUSTOM   /* Custom is no button: a toggled set that is no preset */
 #define NUM_FRAME_BUTTONS (NUM_PRESETS + NUM_INDICATORS)
 
 static char indicatorNames[NUM_INDICATORS][10] = {
@@ -71,6 +72,39 @@ static char presetNames[NUM_PRESETS][16];
 static ButtonFunc presetFuncs[NUM_PRESETS] = {
 	Func_LayoutFull, Func_LayoutLeft, Func_LayoutRight,
 	Func_LayoutDpadStick, Func_LayoutAction, Func_LayoutShoulders };
+
+/* Button i (coop.c coop_button_names' order, which is this page's) on or off for this
+ * player. A set that matches a preset becomes that preset; any other is the Custom layout. */
+static void toggleButton(int i)
+{
+	int sticks, s2;
+	u32 mask = coop_player_buttons(coopPort, coopPlayer, &sticks);
+	mask = (mask | ((u32)sticks << 16)) ^ coop_button_mask(i);
+	for (int l = 0; l < NUM_PRESETS; l++) {
+		u32 preset = coop_layout_buttons(l, &s2);
+		if ((preset | ((u32)s2 << 16)) == mask) {
+			setLayout(l);
+			return;
+		}
+	}
+	coop_buttons_format(mask, coopButtons[coopPort][coopPlayer], COOP_BUTTONS_SIZE);
+	setLayout(COOP_LAYOUT_CUSTOM);
+}
+#define TOGGLE(n) static void Func_Toggle##n() { toggleButton(n); }
+TOGGLE(0) TOGGLE(1) TOGGLE(2) TOGGLE(3) TOGGLE(4) TOGGLE(5) TOGGLE(6) TOGGLE(7) TOGGLE(8)
+TOGGLE(9) TOGGLE(10) TOGGLE(11) TOGGLE(12) TOGGLE(13) TOGGLE(14) TOGGLE(15) TOGGLE(16) TOGGLE(17)
+static ButtonFunc toggleFuncs[NUM_INDICATORS] = {
+	Func_Toggle0, Func_Toggle1, Func_Toggle2, Func_Toggle3, Func_Toggle4, Func_Toggle5,
+	Func_Toggle6, Func_Toggle7, Func_Toggle8, Func_Toggle9, Func_Toggle10, Func_Toggle11,
+	Func_Toggle12, Func_Toggle13, Func_Toggle14, Func_Toggle15, Func_Toggle16, Func_Toggle17 };
+typedef char coop_names_match[NUM_INDICATORS == COOP_NUM_BUTTONS ? 1 : -1];
+
+/* The look of a button the player has (lit) and of one it has not (grey, still pressable):
+ * focus, inactive, active, selected, label */
+static GXColor litColors[5]   = {{255, 100, 100, 255}, {90, 90, 90, 255}, {255, 255, 255, 255},
+                                 {255, 255, 255, 255}, {255, 255, 255, 255}};
+static GXColor unlitColors[5] = {{255, 100, 100, 255}, {90, 90, 90, 255}, {90, 90, 90, 255},
+                                 {255, 255, 255, 255}, {120, 120, 120, 255}};
 
 static menu::Button *buttons[NUM_FRAME_BUTTONS];
 static char *buttonStrings[NUM_FRAME_BUTTONS];
@@ -105,27 +139,43 @@ CustomizeCoopFrame::CustomizeCoopFrame()
 		}
 		buttons[i] = new menu::Button(BTN_A_SEL, &buttonStrings[i], x, y, w, h);
 		buttons[i]->setBounds(x, y, w, h);   /* style A makes itself 56 high otherwise */
-		if (i >= NUM_PRESETS)
-		{	/* focus, inactive (grey: a button this player does not have), active, selected, label */
-			GXColor c[5] = {{255, 100, 100, 255}, {90, 90, 90, 255}, {255, 255, 255, 130},
-			                {255, 255, 255, 255}, {255, 255, 255, 255}};
-			buttons[i]->setButtonColors(c);
-		}
 		buttons[i]->setActive(true);
-		if (i < NUM_PRESETS)
-			buttons[i]->setClicked(presetFuncs[i]);
+		buttons[i]->setClicked(i < NUM_PRESETS ? presetFuncs[i] : toggleFuncs[i - NUM_PRESETS]);
 		buttons[i]->setReturn(Func_ReturnFromCustomizeCoopFrame);
 		add(buttons[i]);
 		menu::Cursor::getInstance().addComponent(this, buttons[i], x, x + w, y, y + h);
 	}
-	/* Focus moves among the presets only: the buttons below show, they do not change */
-	for (int i = 0; i < NUM_PRESETS; i++)
+	/* The D-pad goes to the nearest button that way, from the buttons' centres: a step
+	 * along the direction plus twice the sideways offset, so a straight line wins. */
+	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
 	{
-		int row = i / 3, col = i % 3;
-		buttons[i]->setNextFocus(menu::Focus::DIRECTION_LEFT,  buttons[row * 3 + (col + 2) % 3]);
-		buttons[i]->setNextFocus(menu::Focus::DIRECTION_RIGHT, buttons[row * 3 + (col + 1) % 3]);
-		buttons[i]->setNextFocus(menu::Focus::DIRECTION_UP,    buttons[(1 - row) * 3 + col]);
-		buttons[i]->setNextFocus(menu::Focus::DIRECTION_DOWN,  buttons[(1 - row) * 3 + col]);
+		static const int dirs[4] = { menu::Focus::DIRECTION_LEFT, menu::Focus::DIRECTION_RIGHT,
+		                             menu::Focus::DIRECTION_UP, menu::Focus::DIRECTION_DOWN };
+		float cx[NUM_FRAME_BUTTONS], cy[NUM_FRAME_BUTTONS];
+		for (int j = 0; j < NUM_FRAME_BUTTONS; j++)
+		{
+			float x, y, w, h;
+			if (j < NUM_PRESETS) { presetRect(j, &x, &y); w = 190.0f; h = 34.0f; }
+			else { const float *r = indicatorRect[j - NUM_PRESETS]; x = r[0]; y = r[1]; w = r[2]; h = r[3]; }
+			cx[j] = x + w / 2; cy[j] = y + h / 2;
+		}
+		for (int d = 0; d < 4; d++)
+		{
+			int best = -1;
+			float bestCost = 1e9f;
+			for (int j = 0; j < NUM_FRAME_BUTTONS; j++)
+			{
+				float dx = cx[j] - cx[i], dy = cy[j] - cy[i], along, side;
+				if (d == 0) { along = -dx; side = dy; } else if (d == 1) { along = dx; side = dy; }
+				else if (d == 2) { along = -dy; side = dx; } else { along = dy; side = dx; }
+				if (j == i || along <= 1.0f)
+					continue;
+				float cost = along + 2.0f * (side < 0 ? -side : side);
+				if (cost < bestCost) { bestCost = cost; best = j; }
+			}
+			if (best >= 0)
+				buttons[i]->setNextFocus(dirs[d], buttons[best]);
+		}
 	}
 	title = new menu::TextBox(&titlePtr, 320.0f, 112.0f, 1.0f, true);
 	add(title);
@@ -158,25 +208,25 @@ void CustomizeCoopFrame::activateSubmenu(int submenu)
 	layout = coopLayout[coopPort][coopPlayer];
 	if (layout < 0 || layout >= COOP_LAYOUT_COUNT)
 		layout = COOP_LAYOUT_FULL;
-	snprintf(titleString, sizeof(titleString), "PSX Port %d, player %d: %s %d", coopPort + 1,
+	snprintf(titleString, sizeof(titleString), "PSX Port %d, player %d: %s %d%s", coopPort + 1,
 		coopPlayer + 1, typeNames[(int)coopType[coopPort][coopPlayer] & 3],
-		coopAssign[coopPort][coopPlayer] + 1);
+		coopAssign[coopPort][coopPlayer] + 1, layout == COOP_LAYOUT_CUSTOM ? ", custom" : "");
 
 	for (int i = 0; i < NUM_PRESETS; i++)
 		buttons[i]->setSelected(i == layout);
-	b.All = coop_layout_buttons(layout, &sticks);
+	b.All = coop_player_buttons(coopPort, coopPlayer, &sticks);
 	const bool lit[NUM_INDICATORS] = {
 		(bool)b.L1_BUTTON, (bool)b.L2_BUTTON, (bool)b.SELECT_BUTTON, (bool)b.START_BUTTON,
 		(bool)b.R1_BUTTON, (bool)b.R2_BUTTON, (bool)b.U_DPAD, (bool)b.L_DPAD, (bool)b.R_DPAD,
 		(bool)b.D_DPAD, (bool)b.TRIANGLE_BUTTON, (bool)b.SQUARE_BUTTON, (bool)b.CIRCLE_BUTTON,
 		(bool)b.CROSS_BUTTON, (sticks & COOP_STICK_L) != 0, (sticks & COOP_STICK_R) != 0,
 		(bool)b.L3_BUTTON, (bool)b.R3_BUTTON };
-	/* a button this player has is lit; the others are greyed, image and label (an inactive
-	 * button draws both in its inactive colour; the font ignores alpha, so it is grey) */
+	/* a button this player has is lit; the others are grey, image and label (the font
+	 * ignores alpha, so grey it is), and still pressable: A turns one on or off */
 	for (int i = 0; i < NUM_INDICATORS; i++)
 	{
 		buttons[NUM_PRESETS + i]->setSelected(lit[i]);
-		buttons[NUM_PRESETS + i]->setActive(lit[i]);
+		buttons[NUM_PRESETS + i]->setButtonColors(lit[i] ? litColors : unlitColors);
 	}
 }
 

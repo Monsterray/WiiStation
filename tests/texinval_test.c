@@ -6,7 +6,6 @@
  * grid of cached-entry texel ranges: an entry is dropped exactly when one of its texels
  * lives in a written halfword. Also counts how often the old formula (the last texel
  * taken as the first texel of the last halfword) keeps an entry it must drop. */
-#include <assert.h>
 #include <stdio.h>
 #include "../GlesGpu/texInval.h"
 
@@ -36,7 +35,7 @@ static int old_rule(int px, int k, int x0, int x1, int e0, int e1)
 int main(void)
 {
     static const int pages[] = { 0, 64, 320, 640, 768, 960 };
-    unsigned long cases = 0, old_missed = 0;
+    unsigned long cases = 0, old_missed = 0, bad = 0;
     int k, p, x0, x1, e0, e1;
 
     for (k = 0; k < 3; k++)
@@ -48,15 +47,29 @@ int main(void)
                         for (e1 = e0; e1 < 256; e1 += 7) {
                             int t0, t1, got, want = brute(px, k, x0, x1, e0, e1);
                             got = texinval_texels(px, k, x0, x1, &t0, &t1) && e1 >= t0 && e0 <= t1;
-                            assert(got == want);
-                            assert(texinval_page_hit(px, 0, k, x0, 0, x1, 0) ==
-                                   (x1 >= px && x0 <= px + (64 << k) - 1));
+                            /* counted, not assert(): an NDEBUG build must still fail loudly */
+                            if (got != want) {
+                                if (bad < 8)
+                                    printf("texinval_test: MISMATCH k=%d px=%d x=[%d,%d] e=[%d,%d] got=%d want=%d\n",
+                                           k, px, x0, x1, e0, e1, got, want);
+                                bad++;
+                            }
+                            if (texinval_page_hit(px, 0, k, x0, 0, x1, 0) !=
+                                (x1 >= px && x0 <= px + (64 << k) - 1)) {
+                                if (bad < 8)
+                                    printf("texinval_test: PAGE-HIT MISMATCH k=%d px=%d x=[%d,%d]\n",
+                                           k, px, x0, x1);
+                                bad++;
+                            }
                             if (want && !old_rule(px, k, x0, x1, e0, e1))
                                 old_missed++;
                             cases++;
                         }
         }
+    if (bad)
+        printf("texinval_test: %lu mismatches (showing first 8 above)\n", bad);
     printf("texinval_test: %lu cases match; the old rule kept %lu entries it had to drop\n",
            cases, old_missed);
+    if (bad) return 1;
     return old_missed ? 0 : 1;   /* the old rule's bug must show, or this test tests nothing */
 }

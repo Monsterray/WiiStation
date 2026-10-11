@@ -1,9 +1,14 @@
 """Read the E/F/V/T colours of AmiDog psxtest_gte's result grid from an xfb.png (xfb2png.py output, soft GPU).
 Prints per text row the class of each letter: G ok, R error, Y warning, C info, n n/a. The row
 order is the order on screen (skill: references/test-roms.md). usage: python scripts/amidog_grid.py xfb.png"""
+import os
 import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from cliutil import need, req_file  # noqa: E402
 from PIL import Image
-im = Image.open(sys.argv[1]).convert('RGB'); W, H = im.size
+need(sys.argv, 2, "amidog_grid.py xfb.png  (xfb2png.py output of AmiDog psxtest_gte)")
+im = Image.open(req_file(sys.argv[1], 'image')).convert('RGB'); W, H = im.size
 def cls(c):
     r, g, b = c
     if r > 150 and g < 80 and b < 80: return 'R'   # error

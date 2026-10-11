@@ -8,15 +8,17 @@ import socket
 import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
-from wii_lab import hbc_ready, wiiload  # noqa: E402
+from wii_lab import hbc_ready, local_ip_towards, wiiload  # noqa: E402
+from wii_targets import refuse_production  # noqa: E402
 
 wii = os.environ.get("WII_BENCH_IP", "192.168.8.213")
+refuse_production(wii, "probe.py")   # it wiiloads and executes a DOL: never on the production Wii
 dol = pathlib.Path(__file__).resolve().parent / "argvprobe.dol"
 if not hbc_ready(wii, 60):
     sys.exit("no Homebrew Channel")
 srv = socket.create_server(("0.0.0.0", 4300))
 srv.settimeout(90)
-wiiload(wii, dol, ["lab=192.168.8.147:4300", "second-arg"])
+wiiload(wii, dol, [f"lab={local_ip_towards(wii)}:4300", "second-arg"])
 try:
     c, peer = srv.accept()
 except socket.timeout:

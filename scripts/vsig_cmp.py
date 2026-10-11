@@ -11,8 +11,12 @@ and their count (cd, cdn), Lightrec's blocks compiled (jitb) and code-buffer cle
 so a run can say whether the CD data, the JIT or the guest itself parted first. A VSG1
 file compares on ram/cycle/pc only.
 """
+import os
 import struct
 import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from cliutil import need, req_file  # noqa: E402
 
 FIELDS = ["ram", "cycle", "pc", "cd", "cdn", "jitb", "cleans"]
 
@@ -27,7 +31,8 @@ def load(path):
 
 
 def main():
-    a, b = load(sys.argv[1]), load(sys.argv[2])
+    need(sys.argv, 3, "vsig_cmp.py A/vsig_NN.bin B/vsig_NN.bin")
+    a, b = load(req_file(sys.argv[1], 'vsig file')), load(req_file(sys.argv[2], 'vsig file'))
     k = min(len(a[0]), len(b[0])) if a and b else 3
     a = [r[:k] for r in a]
     b = [r[:k] for r in b]

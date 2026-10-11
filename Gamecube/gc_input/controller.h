@@ -181,6 +181,15 @@ extern const char *coop_layout_names[];
 #define COOP_STICK_L 1
 #define COOP_STICK_R 2
 u16 coop_layout_buttons(int layout, int *sticks);
+/* Player k's buttons and sticks (COOP_STICK_*), its own list when its layout is Custom */
+u16 coop_player_buttons(int port, int k, int *sticks);
+/* The 18 things a player can have, in the Customize screen's order: their names in a
+ * CoopPButtonsK list, and each one's mask (buttons in the low 16 bits, sticks << 16) */
+#define COOP_NUM_BUTTONS 18
+extern const char *coop_button_names[COOP_NUM_BUTTONS];
+u32 coop_button_mask(int i);
+u32 coop_buttons_parse(const char *list);
+void coop_buttons_format(u32 mask, char *out, int size);
 controller_t *assign_port_as(int wv, int type, int w);   /* PlugPAD.c */
 
 // List of all the defined controller_t's

@@ -97,7 +97,7 @@ static mutex_t lock = LWP_MUTEX_NULL;
 static cond_t work_cond = LWP_COND_NULL;   /* a request went out: the pump has work */
 static cond_t done_cond = LWP_COND_NULL;   /* a request ended */
 static lwp_t pump_thread = LWP_THREAD_NULL;
-static int mounted;
+static volatile int mounted;   /* set by the pump thread, polled by the menu (GCC 16 + LTO hoisted the load) */
 static volatile int pending;            /* requests in flight; set by the menu and pump threads, polled by the pump thread */
 static volatile u32 generation;         /* a new context: the pump's poll of the old socket is stale; set by the menu thread, polled by the pump thread */
 static volatile u32 failures;           /* requests that failed, for a reader waiting on one; set by the pump thread, polled by the menu thread */
