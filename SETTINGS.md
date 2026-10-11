@@ -216,6 +216,16 @@ again after changing the set. There is no menu control, account login, online aw
 or hardcore mode yet. See [the engine guide](Docs/ACHIEVEMENTS_ENGINE.md) for the
 definition format, state handling, persistence boundaries, and tests.
 
+`AchievementUTCOffsetMinutes = ""` records the correction for future online TLS.
+It is a quoted, signed number of minutes **added** to the Wii clock to obtain UTC,
+from -840 to 840. An empty or invalid value blocks TLS. For a correctly set Pacific
+local clock use `"420"` during daylight time and `"480"` during standard time;
+use `"0"` only for a clock already set to UTC. Verify the console date and time,
+and update the correction after changing the console timezone or daylight time.
+The TLS probe snapshots corrected UTC and advances it with the system counter;
+it does not change the console clock. This setting alone does not enable online
+achievements or repair an incorrectly set RTC.
+
 ## 7. Network settings
 
 WiiStation can read games from a network share (SMB2 or SMB3: a Samba server, a NAS or a

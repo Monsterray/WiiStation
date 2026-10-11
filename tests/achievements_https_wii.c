@@ -12,10 +12,16 @@
 #include "../deps/hbc_agent/sdk/hbc_agent.h"
 #ifdef ACHIEVEMENTS_NV_PROBE
 #include "../achievement_seed.h"
+#include "../achievement_clock.h"
+#include "achievement_clock_test.h"
 #include <mbedtls/platform.h>
 #include <mbedtls/platform_time.h>
+static uint64_t system_milliseconds(void) {
+    s64 ticks = __SYS_GetSystemTime();
+    return ticks < 0 ? UINT64_MAX : ticks_to_millisecs(ticks);
+}
 mbedtls_ms_time_t mbedtls_ms_time(void) {
-    return (mbedtls_ms_time_t)ticks_to_millisecs(gettime());
+    return (mbedtls_ms_time_t)system_milliseconds();
 }
 #endif
 static void checkpoint(FILE *f) { fflush(f); fsync(fileno(f)); }
@@ -93,18 +99,39 @@ int main(int argc, char **argv) {
         if (fputc((unsigned char)i, fixture) == EOF) return 1;
     if (fclose(fixture) || achievement_seed_begin(seed) ||
         mbedtls_platform_set_nv_seed(achievement_seed_read, achievement_seed_write)) return 1;
-    fprintf(f, "clock=%lld entropy=NV-only-public-dummy-source-build\n", (long long)time(NULL));
+    pass &= achievement_clock_test(f) == 0;
+    char correction[16] = {0};
+    snprintf(path, sizeof path, "%s/clock-offset.txt", argv[1]);
+    fixture = fopen(path, "r");
+    if (fixture) {
+        size_t n = fread(correction, 1, sizeof correction - 1, fixture);
+        if (ferror(fixture) || !feof(fixture) || memchr(correction, 0, n)) correction[0] = 0;
+        else if (n && correction[n - 1] == '\n') correction[n - 1] = 0;
+        fclose(fixture);
+    }
+    int64_t rtc = (int64_t)time(NULL);
+    pass &= achievement_clock_tls_install(system_milliseconds) == 0;
+    int clock_ready = achievement_clock_start(correction, rtc, system_milliseconds()) == 0;
+    pass &= clock_ready;
+    fprintf(f, "rtc=%lld utc=%lld correction_minutes=%s ready=%d entropy=NV-only-public-dummy-source-build\n",
+            (long long)rtc, (long long)achievement_clock_now(system_milliseconds()), correction, clock_ready);
 #else
     fprintf(f, "clock=%lld entropy=fake-public-probe-only\n", (long long)time(NULL));
 #endif
     checkpoint(f);
     if (wiisocket_init() < 0) return 1;
     if (curl_global_init(CURL_GLOBAL_DEFAULT) != CURLE_OK) return 1;
+#ifdef ACHIEVEMENTS_NV_PROBE
+    if (clock_ready) {
+#endif
     pass &= probe(f, "ra", "https://retroachievements.org/robots.txt", ca, 0);
     pass &= probe(f, "valid-control", "https://sha256.badssl.com/", ca, 0);
     pass &= probe(f, "wrong-host", "https://wrong.host.badssl.com/", ca, 1);
     pass &= probe(f, "untrusted", "https://untrusted-root.badssl.com/", ca, 1);
     pass &= probe(f, "expired", "https://expired.badssl.com/", ca, 1);
+#ifdef ACHIEVEMENTS_NV_PROBE
+    } else fprintf(f, "UTC unavailable: no HTTPS requests attempted\n");
+#endif
     curl_global_cleanup();
 #ifdef ACHIEVEMENTS_NV_PROBE
     pass &= achievement_seed_end() == 0;

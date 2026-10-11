@@ -30,7 +30,8 @@ python3 - "$task_build/include/mbedtls/mbedtls_config.h" "$target" <<'PY'
 from pathlib import Path
 import sys
 p=Path(sys.argv[1]);s=p.read_text()
-for option in ('MBEDTLS_ENTROPY_NV_SEED','MBEDTLS_PLATFORM_NV_SEED_ALT','MBEDTLS_NO_PLATFORM_ENTROPY'):
+for option in ('MBEDTLS_ENTROPY_NV_SEED','MBEDTLS_PLATFORM_NV_SEED_ALT','MBEDTLS_NO_PLATFORM_ENTROPY',
+               'MBEDTLS_PLATFORM_TIME_ALT','MBEDTLS_PLATFORM_GMTIME_R_ALT'):
     assert '//#define '+option in s
     s=s.replace('//#define '+option,'#define '+option)
 if sys.argv[2] == '--wii':
@@ -54,8 +55,8 @@ else
          -I"$DEVKITPRO/libogc2/include")
   make_args=(CC="$cc" AR="$DEVKITPPC/bin/powerpc-eabi-ar" APPLE_BUILD=0)
 fi
-libraries=(libmbedcrypto.a)
-if [ "$target" = --wii ]; then libraries+=(libmbedx509.a libmbedtls.a); fi
+libraries=(libmbedcrypto.a libmbedx509.a)
+if [ "$target" = --wii ]; then libraries+=(libmbedtls.a); fi
 make -s -j4 -C "$task_build/library" -o psa_crypto_driver_wrappers.h \
   -o psa_crypto_driver_wrappers_no_static.c "${make_args[@]}" \
   CFLAGS="${flags[*]}" "${libraries[@]}"
@@ -67,11 +68,16 @@ if [ "$target" = host ]; then
     achievement_seed.c tests/entropy_storage_test.c "$task_build/library/libmbedcrypto.a" -o "$task_build/storage"
   UBSAN_OPTIONS=halt_on_error=1 "$task_build/storage" "$task_build"
   cat "$task_build/storage.log"
+  "$cc" -std=c99 "${flags[@]}" -Wall -Wextra -Werror -DACHIEVEMENT_CLOCK_HOST_TEST \
+    -I"$task_build/include" achievement_clock.c tests/achievement_clock_test.c \
+    "$task_build/library/libmbedx509.a" "$task_build/library/libmbedcrypto.a" -o "$task_build/clock"
+  UBSAN_OPTIONS=halt_on_error=1 "$task_build/clock"
 else
   cp -R deps/hbc_agent "$task_build/agent"
   make -s -C "$task_build/agent" DEVKITPRO="$DEVKITPRO" DEVKITPPC="$DEVKITPPC"
   "$cc" -std=c99 "${flags[@]}" -Wall -Wextra -Werror -I"$task_build/include" \
-    achievement_seed.c tests/entropy_storage_test.c "$task_build/library/libmbedcrypto.a" \
+    achievement_seed.c achievement_clock.c tests/achievement_clock_test.c tests/entropy_storage_test.c \
+    "$task_build/library/libmbedx509.a" "$task_build/library/libmbedcrypto.a" \
     -L"$task_build/agent/lib" -L"$DEVKITPRO/libogc2/lib/wii" -L"$DEVKITPRO/portlibs/ppc/lib" \
     -lhbcagent -lfat -lwiiuse -lbte -logc -lz -lm -o "$output/boot.elf"
   "$DEVKITPRO/tools/bin/elf2dol" "$output/boot.elf" "$output/boot.dol"

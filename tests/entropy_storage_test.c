@@ -13,10 +13,11 @@
 #include <fat.h>
 #include <ogc/lwp_watchdog.h>
 #include <mbedtls/platform_time.h>
+#include "achievement_clock_test.h"
 #include "../deps/hbc_agent/sdk/hbc_agent.h"
 mbedtls_ms_time_t mbedtls_ms_time(void)
 {
-    return (mbedtls_ms_time_t)ticks_to_millisecs(gettime());
+    return (mbedtls_ms_time_t)ticks_to_millisecs(__SYS_GetSystemTime());
 }
 #endif
 
@@ -139,6 +140,9 @@ int main(int argc, char **argv)
     report = fopen(path, "w");
     if (!report) return 1;
     run(argv[1]);
+#ifdef GEKKO
+    failures += achievement_clock_test(report);
+#endif
     fprintf(report, "failures=%d fixture=public authenticated_transport_ready=false\n", failures);
     if (fclose(report)) ++failures;
     snprintf(path, sizeof path, "%s/result.json", argv[1]);

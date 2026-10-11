@@ -18,6 +18,7 @@ The selected future live-test username is Monsterray; no credentials are staged.
 | NV seed contract, host only | `scripts/test-achievements-entropy.sh` | ASan/UBSan pass with public dummy seed and mock storage; no Wii security readiness |
 | File-backed NV seed | Wii job `20261011-025257-be84db` and host sanitizer harness | Rotation/reopen, exact size, exclusive ownership, failed commit and simulated interrupted restart pass; zero failures |
 | Source-built NV HTTPS | Wii job `20261011-032017-49eea1` | Final reproducible build: all five certificate cases and seed cleanup pass in 31 seconds; public dummy seeds only |
+| UTC callback and certificate dates | Wii job `20261011-040024-514221`, host ASan/UBSan | Zero clock failures; all five HTTPS cases pass; explicit +420 correction falls within host time window; clean HBC return in 37 seconds |
 | Production release | `.runs/achievement-build/production-release-build.log` | Pinned r41-2 build succeeds |
 | Collectors | `tests/bench_gameplay_test.py`, `tests/gameplay_results_test.py`, existing bench tests | Completion, invalid paths, memory telemetry, saturation, retries, frozen identity/checkpoints and replay failure gates pass |
 
@@ -64,7 +65,8 @@ per-device entropy and confidential bootstrap/reseed provisioning. Do not send
 passwords/tokens through this port or upload seed secrets over plaintext HBC.
 The follow-up [entropy investigation](ACHIEVEMENTS_TLS_ENTROPY.md) identifies
 Mbed TLS NV seeds as a conditional candidate and also records the observed
-Wii clock offset; production needs an explicit UTC policy.
+Wii clock offset. The source-built probe now has an explicit UTC correction policy;
+production requires a verified RTC and confidential bootstrap.
 See the pinned [port source](https://github.com/AndrewPiroli/wii-curl/tree/d9b21a24142c6bfbfff15cd4151ef154b9659c4e).
 
 ## Gameplay pilot and reproducibility
@@ -252,7 +254,21 @@ Initial unsynced diagnostic files were empty after forced exit; checkpoints
 now fsync the log before potentially failing transfers.
 
 Neither native probe accepts credentials: its seed is intentionally public.
-Private device bootstrap and an explicit verified RTC-to-UTC policy remain
+Private device bootstrap and verified RTC-to-UTC configuration remain
 necessary, along with production nonblocking rc_client ownership/frame/idle
 integration, before a Monsterray spectator login. The production local engine
 and the previously measured 2.84% capacity overhead are unchanged.
+
+
+## UTC implementation follow-up
+
+The settings schema now includes quoted `AchievementUTCOffsetMinutes`, empty
+by default. The portable clock rejects unknown/malformed corrections and bad
+RTC/counter ranges, snapshots corrected RTC, and advances from the monotonic
+system counter. The source-built TLS probe installs both TIME and GMTIME_R
+callbacks, so unknown UTC rejects both certificate-date predicates. No console
+clock is modified. [Policy and evidence](ACHIEVEMENTS_TLS_ENTROPY.md#explicit-utc-correction)
+include Pacific daylight/standard-time examples and the requirement to verify
+RTC settings and maintain the correction manually. The local production engine
+still has no authenticated transport; this fixes the probe's UTC boundary and
+prepares its configuration. Clean release build: `.runs/achievement-build/utc-release.log`.

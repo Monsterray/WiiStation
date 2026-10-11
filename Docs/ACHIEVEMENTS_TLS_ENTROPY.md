@@ -87,7 +87,7 @@ encryption key beside the seed on the same card adds no such protection.
 | Option | Can proceed now? |
 | --- | --- |
 | Current fake source | Public feasibility probes only; never credentials |
-| NV seed with custom storage | Host/Wii dummy storage and source-built public HTTPS pass; secure device bootstrap, UTC policy and durability still required |
+| NV seed with custom storage | Host/Wii dummy storage and source-built public HTTPS pass; secure device bootstrap, verified RTC configuration and durability still required |
 | Fresh one-use OS randomness file | Controlled experiment after confidential provisioning; fail closed on exhaustion and never reuse a frozen file |
 | Native IOS/hardware source | No verified callable source or quality assessment; investigate separately |
 
@@ -159,9 +159,9 @@ collector's owned UUID directory. No seed was provisioned for authenticated use.
 
 `scripts/test-achievements-entropy.sh --wii OUTPUT` now builds all three Mbed TLS
 libraries from the checksum-verified official release with matched headers. Wii
-uses `MBEDTLS_PLATFORM_MS_TIME_ALT` backed by `gettime()` for milliseconds; the
+uses `MBEDTLS_PLATFORM_MS_TIME_ALT` backed by `__SYS_GetSystemTime()` for milliseconds; the
 upstream Unix socket convenience and timing modules are disabled. This does not
-correct the separate RTC-to-UTC policy. `scripts/build-achievements-native-https-test.sh`
+change the console RTC. The UTC callback policy is described below. `scripts/build-achievements-native-https-test.sh`
 rebuilds official curl 8.16.0 against these headers and the pinned r41-2 SDK,
 without applying the Wii port's fake-entropy patch. Curl's configure correctly
 disables unavailable `realpath` and `fnmatch` functions, so the old probe stubs
@@ -178,5 +178,45 @@ before owned-directory cleanup.
 
 This validates reported filesystem operations and simulated restart artifacts,
 not physical power-cut durability or resistance to a rolled-back/cloned SD card.
-Private bootstrap, the UTC policy and production client/transport integration
+Private bootstrap and production client/transport integration
 remain required before authenticated service traffic.
+
+
+## Explicit UTC correction
+
+`achievement_clock.c` accepts a quoted signed minute correction, added to the
+Wii RTC epoch. `AchievementUTCOffsetMinutes = ""` is the production settings
+default and means unknown UTC. The current local achievement engine does not
+perform TLS; the source-built HTTPS probe exercises this policy using a public
+`clock-offset.txt` fixture. Pacific daylight time needs `420`, standard time
+`480`, and a verified UTC clock `0`. These are examples, not automatic timezone
+detection. Verify the console calendar/time and update the correction when
+its timezone or daylight-time setting changes. A correction cannot fix RTC drift.
+
+The SDK distinguishes wall-clock `gettime()` from monotonic
+`__SYS_GetSystemTime()`. We snapshot corrected RTC at the start of a TLS session
+and advance it from the latter, so a wall-clock/DST adjustment does not move a
+running session's UTC. No `settime`, RTC write, unauthenticated NTP response or
+HTTP Date header is used. [SDK time source](https://raw.githubusercontent.com/extremscorner/libogc2/master/libogc/timesupp.c).
+
+Mbed TLS is rebuilt with `MBEDTLS_PLATFORM_TIME_ALT` and
+`MBEDTLS_PLATFORM_GMTIME_R_ALT`. Unknown, malformed, implausible, overflowing or
+regressing time fails closed: the GMTIME callback returns NULL so both upstream
+certificate-date predicates reject. Returning time `-1` alone would incorrectly
+produce a 1969 date. The portable range is 2020–2099; the TLS adapter additionally
+checks whether the target time type can represent the result. Host ASan/UBSan
+checks exercise actual Mbed TLS date predicates one second before, exactly at,
+and one second after a certificate boundary, different UTC corrections, DST
+offsets, invalid configuration, integer bounds and counter rollback.
+
+The physical Wii passed the same clock assertions and all five public HTTPS
+cases in queue job `20261011-040024-514221` (37 seconds, clean HBC return).
+Evidence is in `.runs/bench/20261011-utc-https/`: the frozen DOL/ELF and matched
+configuration/library/source hashes, `results/probe.log`, and
+`host-clock-window.json`. With the explicit `420` fixture, raw RTC `1791691271`
+became UTC `1791716471`, inside the host's recorded before/after window. That
+bounds the observed offset correction; it is not a clock synchronization or
+long-term drift measurement. Valid RA/control TLS passed; wrong-host,
+untrusted-root and expired certificates returned curl 60 without HTTP. The RA
+HTTP response remained 403, so this is transport/date validation, not API login.
+The pinned r41-2 production release and settings consistency check also passed.

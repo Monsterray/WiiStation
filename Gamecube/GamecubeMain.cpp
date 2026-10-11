@@ -44,6 +44,7 @@ extern "C" void __exception_setreload(int t);
 #include "wiiSXconfig.h"
 #include "config_parse.h"   /* the two scans in the settings parser */
 #include "../achievements.h"
+#include "../achievement_clock.h"
 #include "menu/MenuContext.h"
 #include "libgui/IPLFont.h"
 #include "libgui/MessageBox.h"
@@ -363,6 +364,7 @@ static struct {
   { "Achievements", &achievementsEnabled, 0, 1 },
   { "AchievementFile", achievementFile, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "AchievementLog", achievementLog, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
+  { "AchievementUTCOffsetMinutes", achievementUTCOffsetMinutes, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
 #ifdef ACHIEVEMENTS_BENCH
   { "AchievementBenchRoot", achievementBenchRoot, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
 #endif
