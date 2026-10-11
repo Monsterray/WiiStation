@@ -116,6 +116,7 @@ enum RowKind {
 struct ActionButton {
 	const char *text;
 	float       width;
+	bool        lit;		/* Buttons: a toggle that is on (drawn lit); an action is never lit */
 };
 
 struct Row {

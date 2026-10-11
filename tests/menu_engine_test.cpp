@@ -269,9 +269,9 @@ static const char *const GEN_FAST_NAMES[]  = { "Yes", "No" };
 static const float        GEN_BIOS_W[]     = { 70.0f, 55.0f, 70.0f, 70.0f };
 static const float        GEN_BOOT_W[]     = { 75.0f, 75.0f, 171.0f };
 static const float        GEN_FAST_W[]     = { 75.0f, 75.0f };
-static const ActionButton GEN_ADV_ACTIONS[]  = { { "Advanced", 130.0f }, { "Memory", 130.0f } };
-static const ActionButton GEN_LANG_ACTIONS[] = { { "En", 90.0f } };
-static const ActionButton GEN_SAVE_ACTIONS[] = { { "SD", 55.0f }, { "USB", 70.0f }, { "This Game", 140.0f } };
+static const ActionButton GEN_ADV_ACTIONS[]  = { { "Advanced", 130.0f, false }, { "Memory", 130.0f, false } };
+static const ActionButton GEN_LANG_ACTIONS[] = { { "En", 90.0f, false } };
+static const ActionButton GEN_SAVE_ACTIONS[] = { { "SD", 55.0f, false }, { "USB", 70.0f, false }, { "This Game", 140.0f, false } };
 
 /* Row fields: kind, label, names, lo, count, value, text, fit, actions, x0, gap, widths, plain. */
 static Row GENERAL_ROWS[] = {
@@ -287,9 +287,32 @@ static const Tab GEN_TABS[] = {
 	{ "General", 110.0f }, { "Video", 100.0f }, { "Input", 100.0f }, { "Audio", 100.0f }, { "Saves", 100.0f },
 };
 
-/* The General tab is the first Settings tab, so its tab row is lit at 0. */
+/*  The Settings Video tab (menupage 2), from SettingsFrame.cpp's FRAME_BUTTONS, FRAME_TEXTBOXES and
+ *  layoutVideo(). The lit buttons are one set state: Show FPS On, FPS Limit Auto with Force NTSC on,
+ *  Frame Skip Off, Interlaced off with 240p on, Trap off with Deflicker on. The button texts are the
+ *  state's (Screen Mode 4:3, Bilinear Default). The rows, labels and widths are the table's. */
+static const char *const VID_ON_OFF_NAMES[] = { "On", "Off" };
+static const float        VID_ON_OFF_W[]    = { 75.0f, 75.0f };
+static const ActionButton VID_LIMIT_ACTIONS[]  = { { "Auto", 75.0f, true }, { "Off", 75.0f, false }, { "Force NTSC", 160.0f, true } };
+static const ActionButton VID_SCREEN_ACTIONS[] = { { "4:3", 130.0f, false }, { "Interlaced", 125.0f, false }, { "240p", 66.0f, true } };
+static const ActionButton VID_FILTER_ACTIONS[] = { { "Default", 95.0f, false }, { "Trap", 75.0f, false }, { "Deflicker", 110.0f, true } };
+static const ActionButton VID_ADV_ACTIONS[]    = { { "Advanced", 150.0f, false } };
+
+/* Row fields: kind, label, names, lo, count, value, text, fit, actions, x0, gap, widths, plain. */
+static Row VIDEO_ROWS[] = {
+	{ ROW_CHOICE,  "Show FPS",    VID_ON_OFF_NAMES, 0, 2, 0, NULL, false, NULL,               295.0f, 0.0f, VID_ON_OFF_W, 0 },
+	{ ROW_BUTTONS, "Limit FPS",   NULL,             0, 3, 0, NULL, false, VID_LIMIT_ACTIONS,  295.0f, 0.0f, NULL,         0 },
+	{ ROW_CHOICE,  "Frame Skip",  VID_ON_OFF_NAMES, 0, 2, 1, NULL, false, NULL,               295.0f, 0.0f, VID_ON_OFF_W, 0 },
+	{ ROW_BUTTONS, "Screen Mode", NULL,             0, 3, 0, NULL, false, VID_SCREEN_ACTIONS, 295.0f, 0.0f, NULL,         0 },
+	{ ROW_BUTTONS, "Filters",     NULL,             0, 3, 0, NULL, false, VID_FILTER_ACTIONS, 238.0f, 0.0f, NULL,         0 },
+	{ ROW_BUTTONS, NULL,          NULL,             0, 1, 0, NULL, false, VID_ADV_ACTIONS,    245.0f, 0.0f, NULL,         0 },
+};
+
+/* The General tab is the first Settings tab, so its tab row is lit at 0; Video's is lit at 1. */
 static TestPage SETTINGS_PAGES[] = {
 	{ "General",     NULL,                true,  0, GENERAL_ROWS, COUNT(GENERAL_ROWS), NULL,        0,
+	  GEN_TABS, COUNT(GEN_TABS), 150.0f, 28.0f },
+	{ "Video",       NULL,                true,  1, VIDEO_ROWS,   COUNT(VIDEO_ROWS),   NULL,        0,
 	  GEN_TABS, COUNT(GEN_TABS), 150.0f, 28.0f },
 };
 #define NSETTINGS COUNT(SETTINGS_PAGES)
@@ -637,7 +660,7 @@ static int buildExpected(const TestPage &t, Exp *e, Key *defaultFocus)
 			if (r.label)
 				n = addExpText(e, n, ROLE_LABEL, i, 0, lcx, y + ldy, ALIGN_CENTRE, 1.0f, r.label);
 			for (int k = 0; k < r.count; k++) {
-				n = addExpButton(e, n, ROLE_BUTTON, i, k, x, y, r.actions[k].width, 56.0f, r.actions[k].text, false);
+				n = addExpButton(e, n, ROLE_BUTTON, i, k, x, y, r.actions[k].width, 56.0f, r.actions[k].text, r.actions[k].lit);
 				x += r.actions[k].width + gap;
 			}
 		}
@@ -833,7 +856,7 @@ static bool compareLinks(const char *name, const Layout &lay, const Exp *e, int 
  * looked at the change on a Wii (Docs/MENU_FRAMEWORK_PLAN.md, "Decided").
  * Matched by page, problem, and the text of the control (and of the second one, if any).
  * Any finding not listed here is a failure. Every Advanced page lays out with zero problems.
- * The General tab's findings are the labels the engine's fit rule (16 px a side, plus the font's
+ * The General and Video tabs' findings are the labels the engine's fit rule (16 px a side, plus the font's
  * own +5) calls wider than their Settings buttons: the Settings buttons are narrower than that
  * rule, and the labels still sit inside them with a few pixels to spare (Execute BIOS, 171 px, has
  * a 161 px label). Listed, not changed (Docs/MENU_FRAMEWORK_PLAN.md, "Decided"). The sentinel
@@ -859,6 +882,18 @@ static const Known KNOWN[] = {
 	{ "General", PROB_TEXT_WIDE, "Yes", NULL },
 	{ "General", PROB_TEXT_WIDE, "Execute BIOS", NULL },
 	{ "General", PROB_TEXT_WIDE, "This Game", NULL },
+	{ "Video", PROB_TEXT_WIDE, "General", NULL },
+	{ "Video", PROB_TEXT_WIDE, "Video", NULL },
+	{ "Video", PROB_TEXT_WIDE, "Audio", NULL },
+	{ "Video", PROB_TEXT_WIDE, "Saves", NULL },
+	{ "Video", PROB_TEXT_WIDE, "Off", NULL },
+	{ "Video", PROB_TEXT_WIDE, "Auto", NULL },
+	{ "Video", PROB_TEXT_WIDE, "Force NTSC", NULL },
+	{ "Video", PROB_TEXT_WIDE, "Interlaced", NULL },
+	{ "Video", PROB_TEXT_WIDE, "240p", NULL },
+	{ "Video", PROB_TEXT_WIDE, "Default", NULL },
+	{ "Video", PROB_TEXT_WIDE, "Trap", NULL },
+	{ "Video", PROB_TEXT_WIDE, "Deflicker", NULL },
 	{ NULL, 0, NULL, NULL },
 };
 
@@ -1097,7 +1132,7 @@ static void testCheckCatches(void)
 	static const char *const WIDE[] = { "Interpreter with a much longer name than fits" };
 	static const char *const NARROW[] = { "On", "Off" };
 	static const char *const THREE[]  = { "On", "Off", "Auto" };
-	static const ActionButton FOUR[] = { {"A", 180}, {"B", 180}, {"C", 180}, {"D", 180} };
+	static const ActionButton FOUR[] = { {"A", 180, false}, {"B", 180, false}, {"C", 180, false}, {"D", 180, false} };
 	Row rows[5];
 	Layout lay;
 	Problem probs[MAX_PROBLEMS];
@@ -1136,7 +1171,7 @@ static void testCheckCatches(void)
 
 	/* A row of buttons in the logo's corner. A row of buttons is centred on the screen, so
 	 * nothing moves it clear. */
-	static const ActionButton WIDE3[] = { {"A", 200}, {"B", 200}, {"C", 200} };
+	static const ActionButton WIDE3[] = { {"A", 200, false}, {"B", 200, false}, {"C", 200, false} };
 	memset(rows, 0, sizeof rows);
 	for (int i = 0; i < 4; i++) { rows[i].kind = ROW_CYCLE; rows[i].label = "Row"; rows[i].names = NARROW; rows[i].count = 2; }
 	/* Three buttons reach x = 610, into the logo's box at the bottom right. */
@@ -1375,6 +1410,165 @@ static int checkGeneralAgainstTable(void)
 	return diffs;
 }
 
+/*  The Video tab's boxes, labels and focus, against Settings' own table  */
+
+/* The Video tab's boxes as SettingsFrame.cpp's tables write them: the five tabs (the same as General's,
+ * read from the numbers there) and the buttons the tab shows. Dithering (25..27) is hidden on this tab. */
+static const struct { int idx; float x, y, w, h; } VIDEO_OLD_RECTS[] = {
+	{ 0, 25, 20, 110, 56 }, { 1, 155, 20, 100, 56 }, { 2, 275, 20, 100, 56 },
+	{ 3, 395, 20, 100, 56 }, { 4, 515, 20, 100, 56 },
+	{ 16, 295, 100, 75, 56 }, { 17, 380, 100, 75, 56 },
+	{ 18, 295, 160, 75, 56 }, { 19, 380, 160, 75, 56 }, { 63, 465, 160, 160, 56 },
+	{ 20, 295, 220, 75, 56 }, { 21, 380, 220, 75, 56 },
+	{ 22, 295, 280, 130, 56 }, { 23, 435, 280, 125, 56 }, { 57, 570, 280, 66, 56 },
+	{ 24, 428, 340, 110, 56 }, { 28, 238, 340, 95, 56 }, { 29, 343, 340, 75, 56 },
+	{ 78, 245, 400, 150, 56 },
+};
+/* The labels: textboxes 4, 5, 6, 7 and 9 on the rows 0..4, centred at x 150 on the row's middle. */
+static const float VIDEO_OLD_LABEL_Y[5] = { 128.0f, 188.0f, 248.0f, 308.0f, 368.0f };
+
+/* The focus links SettingsFrame's FRAME_BUTTONS table gives the Video tab's buttons (by FRAME_BUTTONS
+ * index: up, down, left, right), with the tabs' Down (16) and Up (26, a hidden Dithering button) that
+ * activateSubmenu(SUBMENU_VIDEO) sets. */
+static const OldLink OLD_VIDEO[] = {
+	{ 0, 26, 16, 4, 1 }, { 1, 26, 16, 0, 2 }, { 2, 26, 16, 1, 3 }, { 3, 26, 16, 2, 4 }, { 4, 26, 16, 3, 0 },
+	{ 16, 1, 18, 17, 17 }, { 17, 1, 19, 16, 16 },
+	{ 18, 16, 20, 63, 19 }, { 19, 17, 21, 18, 63 }, { 63, 17, 21, 19, 18 },
+	{ 20, 18, 23, 21, 21 }, { 21, 19, 23, 20, 20 },
+	{ 22, 20, 25, 57, 23 }, { 23, 20, 26, 22, 57 }, { 57, 21, 27, 23, 22 },
+	{ 24, 23, 78, 29, 28 }, { 28, 22, 78, 24, 29 }, { 29, 22, 78, 28, 24 },
+	{ 78, 28, 1, 78, 78 },
+};
+
+/* The control a FRAME_BUTTONS index is on the Video tab. Returns false for an index the tab does not show. */
+static bool vidKey(int idx, Key &k)
+{
+	if (idx >= 0 && idx < 5)    { k = tabKey(idx); return true; }
+	if (idx == 16 || idx == 17) { k.role = ROLE_CHOICE; k.row = 0; k.slot = idx - 16; return true; }
+	if (idx == 18 || idx == 19) { k.role = ROLE_BUTTON; k.row = 1; k.slot = idx - 18; return true; }
+	if (idx == 63)              { k.role = ROLE_BUTTON; k.row = 1; k.slot = 2; return true; }
+	if (idx == 20 || idx == 21) { k.role = ROLE_CHOICE; k.row = 2; k.slot = idx - 20; return true; }
+	if (idx == 22 || idx == 23 || idx == 57) {
+		k.role = ROLE_BUTTON; k.row = 3; k.slot = idx == 22 ? 0 : idx == 23 ? 1 : 2; return true;
+	}
+	if (idx == 28 || idx == 29 || idx == 24) {
+		k.role = ROLE_BUTTON; k.row = 4; k.slot = idx == 28 ? 0 : idx == 29 ? 1 : 2; return true;
+	}
+	if (idx == 78)              { k.role = ROLE_BUTTON; k.row = 5; k.slot = 0; return true; }
+	return false;
+}
+
+static int vidIndexOf(Key want)
+{
+	for (int i = 0; i < 80; i++) {
+		Key k;
+		if (vidKey(i, k) && sameKey(k, want))
+			return i;
+	}
+	return -1;
+}
+
+static int checkVideoRects(void)
+{
+	const TestPage &t = SETTINGS_PAGES[1];
+	Page page = toPage(t, FOCUS_ROWS);
+	Layout lay;
+	int bad = 0, labels = 0;
+
+	if (layoutPage(page, kFont, lay) < 0) {
+		fail("Video", "layoutPage refused the Video tab");
+		return 1;
+	}
+	for (unsigned k = 0; k < COUNT(VIDEO_OLD_RECTS); k++) {
+		Key key;
+		int at;
+		char msg[160];
+		if (!vidKey(VIDEO_OLD_RECTS[k].idx, key)) {
+			fail("Video", "a table button is not on the tab");
+			bad++;
+			continue;
+		}
+		at = findCtrl(lay, key);
+		if (at < 0) {
+			fail("Video", "a table button is not in the layout");
+			bad++;
+			continue;
+		}
+		{
+			const Rect &r = lay.c[at].rect;
+			if (!nearly(r.x, VIDEO_OLD_RECTS[k].x) || !nearly(r.y, VIDEO_OLD_RECTS[k].y) ||
+			    !nearly(r.w, VIDEO_OLD_RECTS[k].w) || !nearly(r.h, VIDEO_OLD_RECTS[k].h)) {
+				snprintf(msg, sizeof msg, "button %d at (%g,%g %gx%g), the table has (%g,%g %gx%g)",
+				         VIDEO_OLD_RECTS[k].idx, r.x, r.y, r.w, r.h, VIDEO_OLD_RECTS[k].x, VIDEO_OLD_RECTS[k].y,
+				         VIDEO_OLD_RECTS[k].w, VIDEO_OLD_RECTS[k].h);
+				fail("Video", msg);
+				bad++;
+			}
+		}
+	}
+	/* The labels: each row's label is centred at x 150, on the row's middle. */
+	for (int i = 0; i < lay.n; i++) {
+		const Control &c = lay.c[i];
+		char msg[160];
+		if (c.kind != CTRL_TEXT || (c.role != ROLE_LABEL && c.role != ROLE_RLABEL))
+			continue;
+		labels++;
+		if (!nearly(c.ax, 150.0f) || !nearly(c.ay, VIDEO_OLD_LABEL_Y[c.row]) || c.align != ALIGN_CENTRE) {
+			snprintf(msg, sizeof msg, "label '%s' centred at (%g,%g), the table has (150,%g)",
+			         c.text, c.ax, c.ay, VIDEO_OLD_LABEL_Y[c.row]);
+			fail("Video", msg);
+			bad++;
+		}
+	}
+	printf("  Video: %d table boxes and %d labels checked against the numbers in SettingsFrame.cpp\n",
+	       (int)COUNT(VIDEO_OLD_RECTS), labels);
+	return bad;
+}
+
+/* Prints the Video tab's focus links that differ from the table's (a finding, not a failure, like
+ * General's). Returns how many differ. */
+static int checkVideoAgainstTable(void)
+{
+	static const char *const DIR[DIR_COUNT] = { "Up", "Down", "Left", "Right" };
+	const TestPage &t = SETTINGS_PAGES[1];
+	Page page = toPage(t, FOCUS_ROWS);
+	Layout lay;
+	int diffs = 0;
+
+	if (layoutPage(page, kFont, lay) < 0) {
+		fail("Video", "layoutPage refused the Video tab");
+		return 0;
+	}
+	linkFocus(page, lay);
+	printf("  Video: focus links against Settings' table (a finding, not a failure)\n");
+	for (unsigned k = 0; k < COUNT(OLD_VIDEO); k++) {
+		const OldLink &o = OLD_VIDEO[k];
+		const int want[DIR_COUNT] = { o.up, o.down, o.left, o.right };
+		Key from;
+		int at;
+
+		if (!vidKey(o.idx, from)) {
+			fail("Video", "the table names a button the tab does not show");
+			continue;
+		}
+		at = findCtrl(lay, from);
+		if (at < 0) {
+			fail("Video", "a button the table shows is not in the layout");
+			continue;
+		}
+		for (int d = 0; d < DIR_COUNT; d++) {
+			const int got = lay.c[at].link[d];
+			const int gotIdx = got < 0 ? -1 : vidIndexOf(keyOf(lay.c[got]));
+			if (gotIdx != want[d]) {
+				diffs++;
+				printf("        button %3d %-5s table %3d, engine %3d\n", o.idx, DIR[d], want[d], gotIdx);
+			}
+		}
+	}
+	printf("  Video: %d link%s differ from the table\n", diffs, diffs == 1 ? "" : "s");
+	return diffs;
+}
+
 int main(int argc, char **argv)
 {
 	const char *font = argc > 1 ? argv[1] : "fonts/En.dat";
@@ -1390,6 +1584,8 @@ int main(int argc, char **argv)
 	             "Settings tabs on the engine (rectangles, focus links, labels, logo, every value)");
 	checkGeneralRects();
 	checkGeneralAgainstTable();
+	checkVideoRects();
+	checkVideoAgainstTable();
 	reportGeometry();
 	testCheckCatches();
 

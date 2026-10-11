@@ -705,6 +705,153 @@ static void layoutGeneral(SettingsFrame *frame)
 	}
 }
 
+/*  The Video tab, on the menu engine (Docs/MENU_FRAMEWORK_PLAN.md, step 2, as the General tab)  */
+
+/* The tab's rows, top to bottom, as the engine lays them out. Each slot is the FRAME_BUTTONS
+ * entry it is drawn with, and each label a FRAME_TEXTBOXES entry. A row's y is 100 + 60 n and its
+ * labels are centred at x 150 on the row's middle (page labelCx/labelDy). Three rows hold a
+ * toggle beside a choice or a cycle, which a choice row cannot show (it lights one button), so
+ * their buttons are action buttons with a lit flag: FPS Limit with Force NTSC, Screen Mode with
+ * Interlaced and 240p, Filters with Trap and Deflicker. The table's Dithering buttons (25..27) and
+ * label (8) are not on this tab any more and are not shown. */
+#define VID_ROWS_N 6
+
+static const int VID_BUTTON[VID_ROWS_N][4] = {
+	{ 16, 17, -1, -1 },		/* Show FPS: On, Off */
+	{ 18, 19, 63, -1 },		/* FPS Limit: Auto, Off; Force NTSC (a toggle) */
+	{ 20, 21, -1, -1 },		/* Frame Skip: On, Off */
+	{ 22, 23, 57, -1 },		/* Screen Mode (a cycle); Interlaced, 240p (toggles) */
+	{ 28, 29, 24, -1 },		/* Bilinear (a cycle); Trap, Deflicker (toggles) */
+	{ 78, -1, -1, -1 },		/* Advanced Graphics (an action) */
+};
+static const int VID_COUNT[VID_ROWS_N]    = { 2, 3, 2, 3, 3, 1 };
+static const int VID_LABEL[VID_ROWS_N]    = { 4, 5, 6, 7, 9, -1 };	/* FRAME_TEXTBOXES, -1: none */
+static const eng::RowKind VID_KIND[VID_ROWS_N] = {
+	eng::ROW_CHOICE, eng::ROW_BUTTONS, eng::ROW_CHOICE, eng::ROW_BUTTONS, eng::ROW_BUTTONS, eng::ROW_BUTTONS
+};
+static const float VID_WIDTH[VID_ROWS_N][4] = {
+	{  75,  75,   0,   0 }, {  75,  75, 160,   0 }, {  75,  75,   0,   0 },
+	{ 130, 125,  66,   0 }, {  95,  75, 110,   0 }, { 150,   0,   0,   0 },
+};
+static const float VID_X0[VID_ROWS_N] = { 295.0f, 295.0f, 295.0f, 295.0f, 238.0f, 245.0f };	/* 0: centred */
+
+/* A row's text and actions are set from the buttons when the tab is shown, as the General tab's are. */
+static const char *VID_TEXT[VID_ROWS_N][4];
+static eng::ActionButton VID_ACTIONS[VID_ROWS_N][4];
+static eng::Row VID_ROWS[VID_ROWS_N];
+static eng::Tab VID_TABS[NUM_TAB_BUTTONS];
+static eng::Page VID_PAGE;
+static eng::Layout VID_LAYOUT;
+
+/* The FRAME_BUTTONS entry a control of the Video tab is drawn with. */
+static menu::Button *vidButton(const eng::Control &c)
+{
+	return FRAME_BUTTONS[c.role == eng::ROLE_TAB ? c.slot : VID_BUTTON[c.row][c.slot]].button;
+}
+
+/* Lays the Video tab out on the engine and places its buttons and labels; links the focus.
+ * Everything here is done when the tab is shown, never per frame. The other tabs are unchanged. */
+static void layoutVideo(SettingsFrame *frame)
+{
+	/* The two buttons whose text depends on a setting. */
+	FRAME_BUTTONS[22].buttonString = FRAME_STRINGS[27 + screenMode];
+	FRAME_BUTTONS[28].buttonString = TEXTURE_FILTER_STRINGS[(int)bilinearFilter];
+
+	for (int r = 0; r < VID_ROWS_N; r++)
+		for (int c = 0; c < VID_COUNT[r]; c++) {
+			VID_TEXT[r][c] = FRAME_BUTTONS[VID_BUTTON[r][c]].buttonString;
+			VID_ACTIONS[r][c].text = VID_TEXT[r][c];
+			VID_ACTIONS[r][c].width = VID_WIDTH[r][c];
+		}
+	for (int r = 0; r < VID_ROWS_N; r++) {
+		eng::Row &row = VID_ROWS[r];
+		memset(&row, 0, sizeof row);
+		row.kind    = VID_KIND[r];
+		row.label   = VID_LABEL[r] >= 0 ? FRAME_TEXTBOXES[VID_LABEL[r]].textBoxString : NULL;
+		row.names   = VID_TEXT[r];
+		row.count   = VID_COUNT[r];
+		row.actions = VID_ACTIONS[r];
+		row.x0      = VID_X0[r];
+		row.widths  = row.kind == eng::ROW_CHOICE ? VID_WIDTH[r] : NULL;
+	}
+	/* The lit buttons: a choice's value, or each toggle's own setting. */
+	VID_ROWS[0].value = showFPSonScreen == FPS_SHOW ? 0 : 1;
+	VID_ROWS[2].value = frameSkip == FRAMESKIP_ENABLE ? 0 : 1;
+	VID_ACTIONS[1][0].lit = frameLimit[1] == FRAMELIMIT_AUTO;
+	VID_ACTIONS[1][1].lit = frameLimit[1] != FRAMELIMIT_AUTO;
+	VID_ACTIONS[1][2].lit = forceNTSC == FORCENTSC_ENABLE;
+	VID_ACTIONS[3][0].lit = false;
+	VID_ACTIONS[3][1].lit = interlacedMode == INTERLACED_ENABLE;
+	VID_ACTIONS[3][2].lit = originalMode == ORIGINALMODE_ENABLE;
+	VID_ACTIONS[4][0].lit = false;
+	VID_ACTIONS[4][1].lit = trapFilter == TRAPFILTER_ENABLE;
+	VID_ACTIONS[4][2].lit = deflickerFilter == DEFLICKER_ENABLE;
+	VID_ACTIONS[5][0].lit = false;
+
+	for (int t = 0; t < NUM_TAB_BUTTONS; t++) {
+		VID_TABS[t].text  = FRAME_BUTTONS[t].buttonString;
+		VID_TABS[t].width = FRAME_BUTTONS[t].width;
+	}
+	VID_PAGE.title   = NULL;
+	VID_PAGE.tabs    = VID_TABS;
+	VID_PAGE.nTabs   = NUM_TAB_BUTTONS;
+	VID_PAGE.curTab  = SettingsFrame::SUBMENU_VIDEO;
+	VID_PAGE.rows    = VID_ROWS;
+	VID_PAGE.nRows   = VID_ROWS_N;
+	VID_PAGE.help    = NULL;
+	VID_PAGE.nHelp   = 0;
+	VID_PAGE.logo    = eng::LOGO_SPOT_BOTTOM;	/* MenuContext: FRAME_SETTINGS is in LOGO_BOTTOM_FRAMES */
+	VID_PAGE.focus   = eng::FOCUS_ROWS;
+	VID_PAGE.labelCx = 150.0f;	/* the Settings labels: TextBox centred at x 150 */
+	VID_PAGE.labelDy = 28.0f;	/* on the middle of a 56-high row */
+
+	if (eng::layoutPage(VID_PAGE, GEN_METRICS, VID_LAYOUT) < 0) {
+		/* The tables are fixed, so this is a programming error: the tab is left as it was. */
+		SysPrintf("SettingsFrame: the Video tab does not fit the menu engine\n");
+		return;
+	}
+	eng::linkFocus(VID_PAGE, VID_LAYOUT);
+
+	for (int i = 0; i < VID_LAYOUT.n; i++) {
+		const eng::Control &c = VID_LAYOUT.c[i];
+		switch (c.role) {
+		case eng::ROLE_TAB:
+		case eng::ROLE_BUTTON:
+		case eng::ROLE_CHOICE:
+			genPlace(frame, vidButton(c), c);
+			vidButton(c)->setActive(true);
+			vidButton(c)->setSelected(c.selected);
+			break;
+		case eng::ROLE_LABEL:
+		case eng::ROLE_RLABEL: {
+			menu::TextBox *box = FRAME_TEXTBOXES[VID_LABEL[c.row]].textBox;
+			box->setPosition(c.ax, c.ay);
+			box->setVisible(true);
+			break;
+		}
+		default:
+			break;
+		}
+	}
+
+	/* The focus links, on the buttons. A link of -1 is no link. */
+	{
+		static const int DIRS[eng::DIR_COUNT] = {
+			menu::Focus::DIRECTION_UP, menu::Focus::DIRECTION_DOWN,
+			menu::Focus::DIRECTION_LEFT, menu::Focus::DIRECTION_RIGHT
+		};
+		for (int i = 0; i < VID_LAYOUT.n; i++) {
+			const eng::Control &c = VID_LAYOUT.c[i];
+			if (!c.focusable)
+				continue;
+			for (int d = 0; d < eng::DIR_COUNT; d++) {
+				const int to = c.link[d];
+				vidButton(c)->setNextFocus(DIRS[d], to >= 0 ? vidButton(VID_LAYOUT.c[to]) : NULL);
+			}
+		}
+	}
+}
+
 SettingsFrame::SettingsFrame()
 		: activeSubmenu(SUBMENU_GENERAL)
 {
@@ -780,56 +927,10 @@ void SettingsFrame::activateSubmenu(int submenu)
 			layoutGeneral(this);
 			break;
 		case SUBMENU_VIDEO:
+			/* The Video tab is laid out on the menu engine (layoutVideo, above): its rows,
+			 * labels and focus. The tab row is the same five buttons on every tab. */
 			setDefaultFocus(FRAME_BUTTONS[1].button);
-			for (int i = 0; i < NUM_TAB_BUTTONS; i++)
-			{
-				FRAME_BUTTONS[i].button->setVisible(true);
-				FRAME_BUTTONS[i].button->setNextFocus(menu::Focus::DIRECTION_DOWN, FRAME_BUTTONS[16].button);
-				FRAME_BUTTONS[i].button->setNextFocus(menu::Focus::DIRECTION_UP, FRAME_BUTTONS[26].button);
-				FRAME_BUTTONS[i].button->setActive(true);
-			}
-			for (int i = 4; i < 10; i++)
-			{
-				if (i == 8)      /* the Dithering label, now on Advanced Graphics */
-					continue;
-				FRAME_TEXTBOXES[i].textBox->setVisible(true);
-			}
-			FRAME_BUTTONS[1].button->setSelected(true);
-			if (showFPSonScreen == FPS_SHOW)	FRAME_BUTTONS[16].button->setSelected(true);
-			else								FRAME_BUTTONS[17].button->setSelected(true);
-			if (frameLimit[1] == FRAMELIMIT_AUTO)	FRAME_BUTTONS[18].button->setSelected(true);
-			else								FRAME_BUTTONS[19].button->setSelected(true);
-			if (frameSkip == FRAMESKIP_ENABLE)	FRAME_BUTTONS[20].button->setSelected(true);
-			else								FRAME_BUTTONS[21].button->setSelected(true);
-			if (originalMode == ORIGINALMODE_ENABLE)FRAME_BUTTONS[57].button->setSelected(true);
-			//if (bilinearFilter == BILINEARFILTER_ENABLE)FRAME_BUTTONS[28].button->setSelected(true);
-			FRAME_BUTTONS[28].buttonString = TEXTURE_FILTER_STRINGS[(int)bilinearFilter];
-			if (trapFilter == TRAPFILTER_ENABLE)FRAME_BUTTONS[29].button->setSelected(true);
-			if (interlacedMode == INTERLACED_ENABLE)FRAME_BUTTONS[23].button->setSelected(true);
-			if (deflickerFilter == DEFLICKER_ENABLE)FRAME_BUTTONS[24].button->setSelected(true);
-			FRAME_BUTTONS[22].buttonString = FRAME_STRINGS[27 + screenMode];
-
-			FRAME_BUTTONS[57].button->setVisible(true);
-			FRAME_BUTTONS[57].button->setActive(true);
-
-			/* Buttons 25/26/27 were the Dithering trio and textbox 8 its label. Both
-			 * moved to the Advanced Graphics page, which button 78 opens. They stay in
-			 * the tables because the focus fields reference by index. */
-			for (int i = 16; i < 30; i++)
-			{
-				if (i >= 25 && i <= 27)
-					continue;
-				FRAME_BUTTONS[i].button->setVisible(true);
-				FRAME_BUTTONS[i].button->setActive(true);
-			}
-			FRAME_BUTTONS[78].button->setVisible(true);
-			FRAME_BUTTONS[78].button->setActive(true);
-
-			// force NTSC
-            if (forceNTSC == FORCENTSC_ENABLE)FRAME_BUTTONS[63].button->setSelected(true);
-            FRAME_BUTTONS[63].button->setVisible(true);
-			FRAME_BUTTONS[63].button->setActive(true);
-
+			layoutVideo(this);
 			break;
 		case SUBMENU_INPUT:
 			Func_SetButtonLoad();

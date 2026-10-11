@@ -377,7 +377,7 @@ int layoutPage(const Page &p, const Metrics &m, Layout &out)
 				addText(out, m, ROLE_LABEL, i, 0, lcx, y + ldy, ALIGN_CENTRE, TEXT_SCALE, r.label);
 			for (int k = 0; k < r.count; k++) {
 				out.slot[i][k] = addButton(out, ROLE_BUTTON, i, k, x, y, r.actions[k].width, BUTTON_H,
-				                           r.actions[k].text, false);
+				                           r.actions[k].text, r.actions[k].lit);
 				x += r.actions[k].width + gap;
 			}
 			break;
