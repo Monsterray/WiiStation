@@ -35,6 +35,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OPTS = os.path.join(ROOT, 'Gamecube', 'menu', 'OptionsFrame.cpp')
 TABS = os.path.join(ROOT, 'Gamecube', 'menu', 'SettingsFrame.cpp')
 LAYOUT = os.path.join(ROOT, 'Gamecube', 'menu', 'MenuLayout.h')
+ENGINE = os.path.join(ROOT, 'Gamecube', 'menu', 'MenuEngine.h')   # OptionsFrame's grid: menu::engine::grid
 FONT = os.path.join(ROOT, 'fonts', 'En.dat')
 RECORD = 1152 + 4          # [u16 code][u8 ?][u8 width][1152-byte tile]
 
@@ -114,6 +115,13 @@ def defines(*paths):
         text = open(p, encoding='utf-8').read()
         for name, value in re.findall(r'^#define\s+(\w+)\s+([0-9.]+)\s*(?:/\*|//|$)', text, re.M):
             d[name] = float(value)
+        # The menu engine's grid constants (MenuEngine.h): "const float NAME = 20.0f;"
+        for name, value in re.findall(r'^\s*const float\s+(\w+)\s*=\s*(-?[0-9.]+)f?\s*;', text, re.M):
+            d[name] = float(value)
+    # OptionsFrame's names for the engine's grid: the same numbers, under the old names.
+    for old, new in (('RADIO_X0', 'CHOICE_X0'), ('RADIO_DX', 'CHOICE_DX'), ('RADIO_W', 'CHOICE_W')):
+        if new in d:
+            d[old] = d[new]
     return d
 
 
@@ -389,7 +397,7 @@ def check_logo(d, verbose, bad):
 
 def main():
     verbose = '-v' in sys.argv
-    d = defines(OPTS, LAYOUT)
+    d = defines(OPTS, LAYOUT, ENGINE)
     w = glyph_widths(FONT)
     bad = []
     print('Options pages')
