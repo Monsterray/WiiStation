@@ -55,8 +55,15 @@ def stage(dol):
         (STAGE / "wiistation" / d, "sd:/wiistation/" + d) for d in ("controllers", "lang", "fonts")]
 
 
+KNOWN_FLAGS = ("--dol", "--remove-autoboot", "--dry-run", "--production")
+
+
 def main():
     a = sys.argv[1:]
+    for arg in a:
+        if arg.startswith("--") and arg.split("=")[0] not in KNOWN_FLAGS:
+            sys.exit(f"wii_install.py: unknown flag {arg} (nothing was done) -- "
+                     f"see the module docstring; --dry-run previews")
     dol = pathlib.Path(a[a.index("--dol") + 1]) if "--dol" in a else REPO / "Gamecube/WiiSXRX_Release.dol"
     trees = stage(dol)
     sys.path.insert(0, str(REPO / "scripts"))

@@ -54,6 +54,14 @@ dolphin_running() {
 	powershell.exe -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object { \$_.Name -eq 'Dolphin.exe' -and \$_.CommandLine -like '*$(basename "$PROFILE")*' }" 2>/dev/null | grep -q .
 }
 
+# The summarise/compare steps below are Python. Plain `python` does not exist in the
+# devkitPro MSYS2 bash on a stock machine (`python3` there is a dead WindowsApps stub),
+# so without this every post-processing step silently no-ops. An exported PYTHON wins.
+if [ -n "${PYTHON:-}" ]; then :;
+elif command -v python >/dev/null 2>&1; then PYTHON=python;
+elif [ -x /c/Python312/python.exe ]; then PYTHON=/c/Python312/python.exe;
+else PYTHON=python3; fi
+
 case "$cmd" in
 build)
 	mode="${1:-debug}"; probes="${2:-light}"
@@ -142,7 +150,7 @@ run)
 	rc=$?
 	grep -E "refusing|no such|faults in dolphin.log: [1-9]|PANIC|Unknown instruction" "$dir/run.log" | head -5
 	[ $rc -ne 0 ] && echo "dolphin_run.sh exit $rc (see $dir/run.log)"
-	python "$REPO/scripts/run_summary.py" "$dir"
+	"$PYTHON" "$REPO/scripts/run_summary.py" "$dir"
 	;;
 
 chain)
@@ -156,7 +164,7 @@ chain)
 		cardargs+=(--card "$REPO/scripts/autoinput/$f")
 	done
 	bash "$0" run "$name" --autoboot "$cf" --input "$P/autoinput_none.txt" --nodump --env FRAMES_DUMP=False ${cardargs[@]+"${cardargs[@]}"} "$@" | grep -v "^  "
-	python "$REPO/scripts/chain_table.py" "$RUNS/$name"
+	"$PYTHON" "$REPO/scripts/chain_table.py" "$RUNS/$name"
 	;;
 
 state)
@@ -234,29 +242,29 @@ abstate)
 	;;
 
 table)
-	n="$1"; shift; python "$REPO/scripts/chain_table.py" "$RUNS/$n" "$@"
+	n="$1"; shift; "$PYTHON" "$REPO/scripts/chain_table.py" "$RUNS/$n" "$@"
 	;;
 compare)
 	a=(); for x in "$@"; do case "$x" in --*|gpu|tex|cpu|lc|pmc) a+=("$x") ;; *) a+=("$RUNS/$x") ;; esac; done
-	python "$REPO/scripts/chain_compare.py" "${a[@]}"
+	"$PYTHON" "$REPO/scripts/chain_compare.py" "${a[@]}"
 	;;
 frames)
-	a="$1"; b="$2"; shift 2; python "$REPO/scripts/frame_compare.py" "$RUNS/$a" "$RUNS/$b" "$@"
+	a="$1"; b="$2"; shift 2; "$PYTHON" "$REPO/scripts/frame_compare.py" "$RUNS/$a" "$RUNS/$b" "$@"
 	;;
 audio)
 	wa=$(ls "$RUNS/$1"/*dspdump1.wav 2>/dev/null | head -1); wb=$(ls "$RUNS/$2"/*dspdump1.wav 2>/dev/null | head -1)
 	[ -n "$wa" ] && [ -n "$wb" ] || { echo "no *dspdump1.wav in both runs (run them without --nodump)"; exit 2; }
-	python "$REPO/scripts/wav_compare.py" "$wa" "$wb" --exact | tail -3
+	"$PYTHON" "$REPO/scripts/wav_compare.py" "$wa" "$wb" --exact | tail -3
 	;;
 
 summary)
 	dirs=(); for n in "$@"; do [ -d "$n" ] && dirs+=("$n") || dirs+=("$RUNS/$n"); done
-	python "$REPO/scripts/run_summary.py" "${dirs[@]}"
+	"$PYTHON" "$REPO/scripts/run_summary.py" "${dirs[@]}"
 	;;
 
 last)
 	d=$(ls -td "$RUNS"/*/ 2>/dev/null | head -1)
-	[ -n "$d" ] && python "$REPO/scripts/run_summary.py" "$d" || echo "no runs in $RUNS"
+	[ -n "$d" ] && "$PYTHON" "$REPO/scripts/run_summary.py" "$d" || echo "no runs in $RUNS"
 	;;
 
 runs)

@@ -188,6 +188,9 @@ def vram_pictures(run, n):
 def main():
     run = sys.argv[1]
     log = os.path.join(run, 'perf.log')
+    if not os.path.isfile(log):
+        sys.exit('%s: no perf.log -- the run collected nothing (guest died '
+                 'before its first report, or collection failed)' % log)
     gs = games(log)
     if not gs:
         sys.exit('%s: no "=== chain" lines -- not a chained run, or it ended before the '
