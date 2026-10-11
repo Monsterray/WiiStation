@@ -119,6 +119,9 @@ printf 'CHAIN\n# scripts/movie_capture.sh %s\n%s sd:/wiistation/%s PadAutoAssign
 # A port 2 with no buttons bound (Dolphin's default) gets a keyboard layout in that copy, so
 # two players can share the keyboard (scripts/pad_layout.py); the user's own file is not
 # written. Dolphin connects no pad to port 2 unless told: SIDevice1=6 is a GameCube pad.
+# SIGKILL skips the trap, so a backup left by such a run is put back first: copying over it
+# would keep the modified pads as the "backup".
+[ -f "$PAD_TEST.capture-bak" ] && mv -f "$PAD_TEST.capture-bak" "$PAD_TEST"
 cp "$PAD_TEST" "$PAD_TEST.capture-bak" 2>/dev/null
 # An abort (Ctrl-C, wsx failure) used to leave the user's pads in the test profile;
 # the trap restores them on ANY exit (the explicit mv below then no-ops).

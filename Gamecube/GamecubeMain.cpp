@@ -1428,7 +1428,7 @@ void handleConfigPair(char* kv){
 
 void readConfig(FILE* f){
 	char line[CONFIG_LINE_MAX];
-	while(fgets(line, CONFIG_LINE_MAX, f)){
+	while(config_getline(line, CONFIG_LINE_MAX, f)){   /* whole lines only: config_parse.h */
 		char* l = config_line(line);   /* config_parse.h: blank, comment and [section] lines hold none */
 		if(l)
 			handleConfigPair(l);

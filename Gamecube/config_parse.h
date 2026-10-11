@@ -15,7 +15,8 @@
 #ifndef CONFIG_PARSE_H
 #define CONFIG_PARSE_H
 
-#include <string.h>   /* memcpy */
+#include <stdio.h>    /* FILE, fgets, fgetc */
+#include <string.h>   /* memcpy, strchr */
 
 /* Every caller reads settings/chain lines into a buffer this big and hands the
  * buffer to the scans below. One constant so the size cannot drift apart again
@@ -105,6 +106,25 @@ static inline char* config_unquote(char* v)
 	*p = 0;
 
 	return v;
+}
+
+/* The next whole line of a settings file into line (size bytes, newline kept), or 0 at the
+ * end of the file. A line longer than the buffer is not split: fgets would hand its tail
+ * over as a line of its own, and a tail that happens to read "FPS = 1" would set FPS. So the
+ * rest of such a line is read up to its newline and dropped, and the truncated start is
+ * dropped with it. */
+static inline int config_getline(char* line, int size, FILE* f)
+{
+	int c;
+
+	for(;;) {
+		if(!fgets(line, size, f))
+			return 0;
+		if(strchr(line, '\n') || feof(f))
+			return 1;
+		while((c = fgetc(f)) != '\n' && c != EOF)
+			;
+	}
 }
 
 #ifdef __cplusplus

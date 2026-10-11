@@ -65,8 +65,8 @@ def refuse_production(ip, what):
 
 def production_ready(ip):
     """For the one allowed write (an install on request): HBC must be idle on the TV -- no app
-    running, so nothing of his is closed or replaced. Takes a TV screenshot as evidence and
-    prints its path -- LOOK AT IT before proceeding. Returns True, or exits saying why not."""
+    running, so nothing of his is closed or replaced. Saves a TV screenshot as a record and
+    prints its path. Returns True, or exits saying why not."""
     try:
         r = subprocess.run([sys.executable, HBC_TOOL, "--wii", ip, "status", "--json"],
                            capture_output=True, text=True, timeout=30)
@@ -84,6 +84,5 @@ def production_ready(ip):
                        capture_output=True, text=True, timeout=60)
     if s.returncode:
         sys.exit(f"production Wii {ip}: could not take TV screen; not touching it")
-    print(f"production Wii {ip}: HBC idle by status; TV screen at {shot} -- LOOK AT IT: "
-          f"proceed only if it shows HBC sitting idle")
+    print(f"production Wii {ip}: HBC idle by status; screen saved to {shot}")
     return True

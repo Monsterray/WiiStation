@@ -1,9 +1,12 @@
 /* config_parse_test.c - the settings parser against lines nobody meant to write.
  *
- *     cc -O2 -o config_parse_test tests/config_parse_test.c && ./config_parse_test
+ *     cc -std=c11 -O2 -o config_parse_test tests/config_parse_test.c && ./config_parse_test
+ *
+ * Needs C11, not C89/C99: the file uses _Static_assert, so build with -std=c11 (or later).
  *
  * Runs on the host: config_parse.h is plain C with no libogc in it, so the exact code the
- * Wii runs is the code under test here.
+ * Wii runs is the code under test here. That includes config_getline(), which readConfig()
+ * uses to read the settings file; its checks write small files with tmpfile().
  *
  * Each line goes into the middle of a buffer with a guard pattern around it, the way
  * readConfig() puts it on the stack. A scan that runs off the end of the line shows up as
@@ -106,6 +109,35 @@ static void check(const char* line, const char* want_key, const char* want_value
 	printf("  ok    %-34s -> %s = \"%s\"\n", what, key, value);
 }
 
+/* readConfig's reader over a whole file: the lines config_getline returns, joined, must be
+ * `expect`. A line longer than LINE_MAX must not come back in pieces. */
+static void check_reader(const char* what, const char* content, const char* expect)
+{
+	FILE* f = tmpfile();
+	char line[LINE_MAX];
+	char got[1024] = "";
+
+	if(!f) {
+		fail(what, "tmpfile failed");
+		return;
+	}
+	fputs(content, f);
+	rewind(f);
+	while(config_getline(line, LINE_MAX, f)) {
+		if(strlen(got) + strlen(line) >= sizeof(got)) {
+			fail(what, "more text read than expected");
+			fclose(f);
+			return;
+		}
+		strcat(got, line);
+	}
+	fclose(f);
+	if(strcmp(got, expect))
+		fail(what, "lines read differ from the expected ones");
+	else
+		printf("  ok    %-34s as expected\n", what);
+}
+
 int main(void)
 {
 	printf("Lines that are wrong -- the ones that used to walk off the buffer:\n");
@@ -165,6 +197,32 @@ int main(void)
 			if(!config_list_next(&p, small, sizeof(small)) || strcmp(small, "abcdefg"))
 				fail("long item", "not cut to the buffer");
 		}
+	}
+
+	printf("\nSettings files read line by line (config_getline, as readConfig reads them):\n");
+	{
+		char cut[300];      /* a comment of 255 bytes: fgets stops there, the tail is next */
+		char fit[300];      /* 254 characters and a newline: 255 bytes, one fgets */
+		char content[600];
+		char expect[600];
+
+		cut[0] = '#';
+		memset(cut + 1, 'c', 254);
+		cut[255] = 0;
+		snprintf(content, sizeof(content), "%sFPS = 0\nMenuFont = \"Segoe\"\n", cut);
+		check_reader("over-long line, tail dropped", content, "MenuFont = \"Segoe\"\n");
+
+		check_reader("over-long line at end of file", cut, "");
+
+		fit[0] = '#';
+		memset(fit + 1, 'd', 253);
+		fit[254] = '\n';
+		fit[255] = 0;
+		snprintf(content, sizeof(content), "%sFPS = 1\n", fit);
+		snprintf(expect, sizeof(expect), "%sFPS = 1\n", fit);
+		check_reader("line that fits, with newline", content, expect);
+
+		check_reader("last line without newline", "FPS = 1", "FPS = 1");
 	}
 
 	printf(failures ? "\n%d failure(s)\n" : "\nall checks passed\n", failures);

@@ -1,14 +1,20 @@
 #!/bin/bash
-# wiistation_play.sh [release|debug|PATH] -- start, or restart, the interactive WiiStation window
-# the user plays and tests in, so that it opens where it was last closed.
+# wiistation_play.sh [--kill-if-stuck] [release|debug|PATH] -- start, or restart, the interactive
+# WiiStation window the user plays and tests in, so that it opens where it was last closed.
 #
 # Dolphin saves the position and size of its windows (User/Config/Qt.ini, "mainwindow/geometry"
 # and "renderwidget/geometry") in the MainWindow destructor -- that is, only when it is closed
 # normally (Source/Core/DolphinQt/MainWindow.cpp). A kill skips that, and the next start opens
 # wherever the last normal close left it. So this script closes the running window the way a
 # user does (a window close message), waits for Dolphin to save and exit, and only then starts
-# the new build. It kills only if the window has not gone after CLOSE_WAIT seconds, and says so,
-# because then the position is not saved.
+# the new build. If the window has not gone after CLOSE_WAIT seconds, the script exits 1 and says so,
+# because a kill would not save the position.
+#
+# The user's rule (2026-10-11): the window is killed only when a test needs the slot and the graceful
+# close above timed out. --kill-if-stuck allows exactly that: after CLOSE_WAIT, the one process this
+# script found (by its PID, never by image name) is killed with Stop-Process -Force, and the start
+# goes on. Its window position is then not saved. Without the option the script exits 1, as before.
+# No script in scripts/ calls it for a test run yet; one that needs the slot passes --kill-if-stuck.
 #
 # The window is found by its command line: the install's shared profile (no -u) and a WiiStation
 # DOL. The isolated test profile (.dolphin, scripts/dolphin_run.sh) and other projects' Dolphin
@@ -24,6 +30,12 @@ set -u
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 D="${DOLPHIN_DIR:-/c/tools/Dolphin-2609}/Dolphin.exe"   # see dolphin_run.sh
 CLOSE_WAIT="${CLOSE_WAIT:-15}"
+KILL_IF_STUCK=0
+keep=()
+for a in "$@"; do
+	if [ "$a" = --kill-if-stuck ]; then KILL_IF_STUCK=1; else keep+=("$a"); fi
+done
+set -- ${keep[@]+"${keep[@]}"}
 if [ -n "${PYTHON:-}" ]; then :;
 elif command -v python >/dev/null 2>&1; then PYTHON=python;
 elif [ -x /c/Python312/python.exe ]; then PYTHON=/c/Python312/python.exe;
@@ -46,8 +58,19 @@ for pid in $(session_pids); do
 	t=0
 	while [ $t -lt "$CLOSE_WAIT" ] && session_pids | grep -qx "$pid"; do sleep 1; t=$((t + 1)); done
 	if session_pids | grep -qx "$pid"; then
-		echo "pid $pid did not close in ${CLOSE_WAIT} s: NOT killing it (AGENTS.md: the WiiStation window is never killed; its position would not be saved). Close it by hand, then rerun."
-		exit 1
+		if [ "$KILL_IF_STUCK" != 1 ]; then
+			echo "pid $pid did not close in ${CLOSE_WAIT} s: NOT killing it (its position would not be saved). Close it by hand, then rerun, or pass --kill-if-stuck if a test needs the slot."
+			exit 1
+		fi
+		echo "pid $pid did not close in ${CLOSE_WAIT} s: killing it (--kill-if-stuck); its window position is not saved"
+		powershell.exe -NoProfile -Command "Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue" 2>/dev/null
+		k=0
+		while [ $k -lt 10 ] && session_pids | grep -qx "$pid"; do sleep 1; k=$((k + 1)); done
+		if session_pids | grep -qx "$pid"; then
+			echo "pid $pid is still running after the kill: not starting WiiStation"
+			exit 1
+		fi
+		echo "killed"
 	else
 		echo "closed after ${t} s"
 	fi

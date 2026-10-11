@@ -89,8 +89,13 @@ def main():
         try:
             return subprocess.run([sys.executable, str(HBC), "--wii", wii, *args], timeout=timeout)
         except subprocess.TimeoutExpired:
+            # a timed-out sync may have left some files on the card: rerunning the install
+            # finishes it, since it compares size and CRC-32 and sends only what is missing
+            what = ("the sync may be partial: rerun the install to repair it "
+                    "(size and CRC-32 compare; only what is missing or changed is sent)"
+                    if args[0] == "sync" else "nothing after this point ran")
             sys.exit(f"hbc.py {' '.join(args[:2])} timed out after {timeout} s: "
-                     f"Wii or agent wedged, aborting (nothing after this point ran)")
+                     f"Wii or agent wedged, aborting ({what})")
     if "--remove-autoboot" in a and "--dry-run" not in a:
         hbc_run("rm", "sd:/wiistation/autoboot.txt", timeout=120)
     for local, remote in trees:
