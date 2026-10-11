@@ -28,8 +28,19 @@ PRODUCTION_WII = "192.168.8.200"
 HBC_TOOL = "C:/projects/hbc-reborn/tools/hbc.py"
 
 
+def _canon(ip):
+    """Normalize a Wii address for comparison: exact-string matching is bypassed by
+    a scheme, port, trailing dot or case (http://192.168.8.200:4299). Hostnames are
+    deliberately NOT resolved here -- a safety gate must stay fast and infallible."""
+    s = (ip or "").strip().lower()
+    for scheme in ("http://", "https://"):
+        if s.startswith(scheme):
+            s = s[len(scheme):]
+    return s.split("/")[0].split(":")[0].rstrip(".")
+
+
 def is_production(ip):
-    return (ip or "").strip() == PRODUCTION_WII
+    return _canon(ip) == PRODUCTION_WII
 
 
 def refuse_production(ip, what):
@@ -42,9 +53,13 @@ def refuse_production(ip, what):
 
 def production_ready(ip):
     """For the one allowed write (an install on request): HBC must be idle on the TV -- no app
-    running, so nothing of his is closed or replaced. Returns True, or exits saying why not."""
-    r = subprocess.run([sys.executable, HBC_TOOL, "--wii", ip, "status", "--json"],
-                       capture_output=True, text=True, timeout=30)
+    running, so nothing of his is closed or replaced. Takes a TV screenshot as evidence and
+    prints its path -- LOOK AT IT before proceeding. Returns True, or exits saying why not."""
+    try:
+        r = subprocess.run([sys.executable, HBC_TOOL, "--wii", ip, "status", "--json"],
+                           capture_output=True, text=True, timeout=30)
+    except subprocess.TimeoutExpired:
+        sys.exit(f"production Wii {ip}: status timed out; not touching it")
     try:
         st = json.loads(r.stdout)
     except ValueError:
@@ -52,4 +67,11 @@ def production_ready(ip):
     if st.get("agent") or st.get("app"):
         sys.exit(f"production Wii {ip}: an app is running ({st.get('app') or 'agent app'}) -- "
                  "Monty may be playing; ask him first")
+    shot = "C:/projects/WiiStation/.runs/prod_last_screen.png"
+    s = subprocess.run([sys.executable, HBC_TOOL, "--wii", ip, "screen", shot],
+                       capture_output=True, text=True, timeout=60)
+    if s.returncode:
+        sys.exit(f"production Wii {ip}: could not take TV screen; not touching it")
+    print(f"production Wii {ip}: HBC idle by status; TV screen at {shot} -- LOOK AT IT: "
+          f"proceed only if it shows HBC sitting idle")
     return True

@@ -10,6 +10,8 @@ Queue it with the full python path: the dispatcher's `bash` is WSL's, which has 
 One game per job tells which game crashed; results go to .runs/NAME as with wii_lab.py."""
 import os, subprocess, sys, time
 
+if len(sys.argv) != 5 or sys.argv[1] in ("--help", "-h"):
+    sys.exit("usage: wii_crash_job.py NAME CHAINFILE DOL SECS  (bench queue only)")
 name, chain, dol, secs = sys.argv[1:5]
 py = sys.executable
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -19,6 +21,8 @@ hbc = [py, "C:/projects/hbc-reborn/tools/hbc.py", "--wii", os.environ.get("WII_B
 
 r = subprocess.run(hbc + ["crash", "--clear"])
 print("crash --clear exit", r.returncode, flush=True)
+if r.returncode:
+    sys.exit("crash --clear failed: a stale report would be misattributed to this run")
 r = subprocess.run([py, "scripts/wii_lab.py", name, chain, "--dol", dol, "--timeout", secs])
 lab = r.returncode
 print("wii_lab exit", lab, flush=True)
@@ -36,3 +40,4 @@ for _ in range(120):
         sys.exit(0)
     time.sleep(5)
 print("HBC did not answer in 10 min:", r.stdout, r.stderr)
+sys.exit("no crash report and HBC unreachable: total loss, not success")
