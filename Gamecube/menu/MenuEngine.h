@@ -69,12 +69,17 @@ namespace grid {
 	const float LABEL_DY      =  20.0f;	/* a label's centre is this far below its row top */
 	const float CYCLE_X       = 295.0f;	/* == TAB_BUTTON_X */
 	const float CYCLE_W       = 200.0f;
-	const float VALUE_CX      = 395.0f;	/* a readout's text: CYCLE_X + CYCLE_W / 2 */
-	const float RLABEL_CX     = 110.0f;	/* label of a row of choices, centred */
-	const float CHOICE_X0     = 205.0f;
+	const float VALUE_CX      = 395.0f;	/* a readout's text: CYCLE_X + CYCLE_W / 2, unless that
+	                                         * would run into its label (VALUE_GAP after it) */
+	const float VALUE_GAP     =  10.0f;	/* between a readout's label and its text */
+	const float RLABEL_CX     = 110.0f;	/* label of a row of choices, centred; a page's choice
+	                                         * labels share one centre, moved left only if a row
+	                                         * of buttons had to move left (layoutPage) */
+	const float CHOICE_X0     = 205.0f;	/* a choice row starts here, or further left (layoutPage) */
 	const float CHOICE_W      = 135.0f;	/* a choice's width unless its row fits the words */
 	const float CHOICE_DX     = 147.0f;	/* CHOICE_W + 12 */
 	const float CHOICE_GAP    =  12.0f;	/* between two fitted choices */
+	const float RLABEL_GAP    =  10.0f;	/* between a choice row's label and its first button */
 	const float BUTTON_PAD_X  =  16.0f;	/* Button's default padding, left and right */
 	const float TEXT_SCALE    =   1.0f;
 	/* Help: two columns under the rows. The term is drawn right-aligned in its column. */

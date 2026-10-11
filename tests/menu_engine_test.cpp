@@ -128,7 +128,7 @@ static Row SOUND_ROWS[] = {
 };
 
 static Row PLUGIN_ROWS[] = {
-	RADIO("CPU Core",   CPU_CORE_NAMES,     0),
+	RADIO_FIT("CPU Core", CPU_CORE_NAMES,   0),
 	CYC("CPU Timing",   FAST_ACCURATE_NAMES, 0),
 	CYC("CPU Speed",    CPU_SPEED_NAMES,    3),
 };
@@ -150,7 +150,7 @@ static Row MEMORY_ROWS[] = {
 };
 
 static Row GPU_ROWS[] = {
-	RADIO("GPU Plugin",   GPU_PLUGIN_NAMES,  2),
+	RADIO_FIT("GPU Plugin", GPU_PLUGIN_NAMES, 2),
 	CYC("GPU Timing",     FAST_ACCURATE_NAMES, 0),
 	RADIO("Frame Rate",   FRAME_RATE_NAMES,  0),
 };
@@ -460,6 +460,58 @@ static void expectLinks(const TestPage &t, Exp *e, int n)
 	}
 }
 
+/* MenuEngine's choice rows, from OptionsFrame's numbers: a row starts at 205, or further left
+ * when its buttons would end past the right edge its bottom allows (MENU_ROW_RIGHT), and no
+ * further. Buttons are 12 apart. */
+static float choiceStartOf(const Row &r, float y)
+{
+	const float bottom = y + 56.0f;
+	const float right = bottom > 392.0f ? 538.0f : 636.0f;
+	const int n = rowChoices(r);
+	float total = 0;
+
+	for (int c = 0; c < n; c++) {
+		total += r.fit ? fitWidth(r.names[c]) : 135.0f;
+		if (c + 1 < n)
+			total += 12.0f;
+	}
+	return 205.0f + total > right ? right - total : 205.0f;
+}
+
+/* A page's choice labels share one centre: 110, moved left only when a row's buttons were moved
+ * left, so the label still clears them by 10. */
+static float rlabelCxOf(const TestPage &t)
+{
+	float cx = 110.0f;
+
+	for (int i = 0; i < t.nRows; i++) {
+		const Row &r = t.rows[i];
+		if (r.kind != ROW_CHOICE || !r.label)
+			continue;
+		{
+			const int lw = fontWidth(r.label, 1.0f, NULL);
+			const float c = choiceStartOf(r, 100.0f + i * 60.0f) - 10.0f - (float)(lw - lw / 2);
+			if (c < cx)
+				cx = c;
+		}
+	}
+	return cx;
+}
+
+/* A readout's text is centred on 395, or starts 10 past its label's right edge when centred
+ * there would run into the label. */
+static float readoutCxOf(const Row &r)
+{
+	const int lw = fontWidth(r.label, 1.0f, NULL);
+	const int vw = fontWidth(r.text, 1.0f, NULL);
+	const int labelRight = 160 - lw / 2 + lw;
+	float cx = 395.0f;
+
+	if ((int)cx - vw / 2 < labelRight + 10)
+		cx = (float)(labelRight + 10 + vw / 2);
+	return cx;
+}
+
 /* Returns the number of expected controls. Also sets *defaultFocus. */
 static int buildExpected(const TestPage &t, Exp *e, Key *defaultFocus)
 {
@@ -487,10 +539,10 @@ static int buildExpected(const TestPage &t, Exp *e, Key *defaultFocus)
 			                 r.names[r.value - r.lo], false);
 		} else if (r.kind == ROW_READOUT) {
 			n = addExpText(e, n, ROLE_LABEL, i, 0, 160.0f, y + 20.0f, ALIGN_CENTRE, 1.0f, r.label);
-			n = addExpText(e, n, ROLE_VALUE, i, 0, 395.0f, y + 20.0f, ALIGN_CENTRE, 1.0f, r.text);
+			n = addExpText(e, n, ROLE_VALUE, i, 0, readoutCxOf(r), y + 20.0f, ALIGN_CENTRE, 1.0f, r.text);
 		} else if (r.kind == ROW_CHOICE) {
-			float cx = 205.0f;
-			n = addExpText(e, n, ROLE_RLABEL, i, 0, 110.0f, y + 20.0f, ALIGN_CENTRE, 1.0f, r.label);
+			float cx = choiceStartOf(r, y);
+			n = addExpText(e, n, ROLE_RLABEL, i, 0, rlabelCxOf(t), y + 20.0f, ALIGN_CENTRE, 1.0f, r.label);
 			for (int c = 0; c < rowChoices(r); c++) {
 				float w = r.fit ? fitWidth(r.names[c]) : 135.0f;
 				n = addExpButton(e, n, ROLE_CHOICE, i, c, cx, y, w, 56.0f, r.names[c], c == r.value - r.lo);
@@ -684,11 +736,13 @@ static bool compareLinks(const char *name, const Layout &lay, const Exp *e, int 
 	return ok;
 }
 
-/* Findings the old OptionsFrame layout already has, on the real font. They are printed and
- * do not fail the test: fixing one changes a page's picture, and the plan keeps pictures
- * until someone has looked at the change on a Wii (Docs/MENU_FRAMEWORK_PLAN.md, "Decided").
+/* Findings the OptionsFrame pages have, on the real font. They are printed and do not fail
+ * the test: fixing one changes a page's picture, and the plan keeps pictures until someone has
+ * looked at the change on a Wii (Docs/MENU_FRAMEWORK_PLAN.md, "Decided").
  * Matched by page, problem, and the text of the control (and of the second one, if any).
- * Any finding not listed here is a failure. */
+ * Any finding not listed here is a failure. None are listed now: every Advanced page lays out
+ * with zero problems. The sentinel (page NULL) matches nothing; keep it while the list is empty,
+ * since a zero-length array is not C. */
 struct Known {
 	const char *page;
 	int         kind;
@@ -697,21 +751,14 @@ struct Known {
 };
 
 static const Known KNOWN[] = {
-	{ "CPU",    PROB_TEXT_WIDE, "Interpreter", NULL },
-	{ "GPU",    PROB_TEXT_WIDE, "Soft Fast",   NULL },
-	{ "GPU",    PROB_TEXT_WIDE, "Soft Timed",  NULL },
-	/* The readouts' values are the longest the emulator can print (MEM1, the recompiler buffer,
-	 * the locked cache with both regions on). A value that reaches its label's column is drawn
-	 * over it. Found by this test; not a regression of the engine. */
-	{ "Memory", PROB_OVERLAP,   "Recompiler buffer", "16384 KB (Lightrec, MEM1)" },
-	{ "Memory", PROB_OVERLAP,   "Locked cache",      "16 / 16 KB (spu-gauss, tex-tile)" },
+	{ NULL, 0, NULL, NULL },
 };
 
 static bool isKnown(const char *page, int kind, const Layout &lay, int a, int b)
 {
 	for (unsigned k = 0; k < COUNT(KNOWN); k++) {
 		const Known &x = KNOWN[k];
-		if (strcmp(x.page, page) != 0 || x.kind != kind || strcmp(x.a, lay.c[a].text) != 0)
+		if (!x.page || strcmp(x.page, page) != 0 || x.kind != kind || strcmp(x.a, lay.c[a].text) != 0)
 			continue;
 		if (b < 0 ? x.b != NULL : (x.b == NULL || strcmp(x.b, lay.c[b].text) != 0))
 			continue;
@@ -979,11 +1026,13 @@ static void testCheckCatches(void)
 	for (int i = 0; i < np && i < MAX_PROBLEMS; i++) seen[probs[i].kind] = true;
 	if (!seen[PROB_TEXT_WIDE]) fail(tag, "a label wider than its button not reported");
 
-	/* A choice row in the logo's corner. */
+	/* A row of buttons in the logo's corner. A row of buttons is centred on the screen, so
+	 * nothing moves it clear. */
+	static const ActionButton WIDE3[] = { {"A", 200}, {"B", 200}, {"C", 200} };
 	memset(rows, 0, sizeof rows);
 	for (int i = 0; i < 4; i++) { rows[i].kind = ROW_CYCLE; rows[i].label = "Row"; rows[i].names = NARROW; rows[i].count = 2; }
-	/* Three choices reach x = 634, into the logo's box at the bottom right. */
-	rows[4].kind = ROW_CHOICE; rows[4].label = "Low"; rows[4].names = THREE; rows[4].count = 3;
+	/* Three buttons reach x = 610, into the logo's box at the bottom right. */
+	rows[4].kind = ROW_BUTTONS; rows[4].count = 3; rows[4].actions = WIDE3;
 	page.rows = rows; page.nRows = 5;
 	layoutPage(page, kFont, lay);
 	linkFocus(page, lay);
@@ -991,6 +1040,19 @@ static void testCheckCatches(void)
 	memset(seen, 0, sizeof seen);
 	for (int i = 0; i < np && i < MAX_PROBLEMS; i++) seen[probs[i].kind] = true;
 	if (!seen[PROB_IN_LOGO]) fail(tag, "a row in the logo's box not reported");
+
+	/* The same corner with a choice row of three 135 px buttons, which would reach x = 634 if
+	 * left where they start. The engine moves the row left so that it ends at the logo's limit
+	 * (538 on that line), and reports nothing. */
+	rows[4].kind = ROW_CHOICE; rows[4].label = "Low"; rows[4].names = THREE; rows[4].count = 3;
+	page.rows = rows; page.nRows = 5;
+	layoutPage(page, kFont, lay);
+	linkFocus(page, lay);
+	np = checkLayout(page, kFont, lay, probs, MAX_PROBLEMS);
+	if (np != 0) fail(tag, "a choice row that can move clear of the logo was reported");
+	for (int i = 0; i < lay.n; i++)
+		if (lay.c[i].role == ROLE_CHOICE && lay.c[i].rect.x + lay.c[i].rect.w > 538.0f)
+			fail(tag, "a choice row was not moved left of the logo's limit");
 
 	/* An action row wider than the screen. */
 	memset(rows, 0, sizeof rows);

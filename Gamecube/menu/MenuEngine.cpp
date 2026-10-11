@@ -225,6 +225,28 @@ static void layoutHelp(const Page &p, const Metrics &m, Layout &out)
 	}
 }
 
+/* A choice row's width, from its first button's left edge to its last one's right edge. */
+static float choiceRowWidth(const Metrics &m, const Row &r)
+{
+	float total = 0;
+	for (int c = 0; c < r.count; c++) {
+		total += r.fit ? (float)buttonFitWidth(m, r.names[c]) : CHOICE_W;
+		if (c + 1 < r.count)
+			total += r.fit ? CHOICE_GAP : CHOICE_DX - CHOICE_W;
+	}
+	return total;
+}
+
+/* Where a choice row's first button goes: CHOICE_X0, or further left when the row would run
+ * past the right edge its lowest pixel allows, and no further. */
+static float choiceStart(const Metrics &m, const Row &r, float y, LogoSpot spot)
+{
+	const float right = rowRight(y + BUTTON_H, spot);
+	const float total = choiceRowWidth(m, r);
+
+	return CHOICE_X0 + total > right ? right - total : CHOICE_X0;
+}
+
 int layoutPage(const Page &p, const Metrics &m, Layout &out)
 {
 	if (p.nRows < 0 || p.nRows > MAX_ROWS || p.nHelp < 0 || p.nHelp > MAX_HELP ||
@@ -242,6 +264,22 @@ int layoutPage(const Page &p, const Metrics &m, Layout &out)
 	for (int r = 0; r < MAX_ROWS; r++)
 		for (int s = 0; s < MAX_SLOTS; s++)
 			out.slot[r][s] = -1;
+
+	/* The choice labels' shared centre: RLABEL_CX, moved left only when a row of buttons had
+	 * to move left, so that its label still clears them by RLABEL_GAP. */
+	float rlabelCx = RLABEL_CX;
+	for (int i = 0; i < p.nRows; i++) {
+		const Row &r = p.rows[i];
+		if (r.kind != ROW_CHOICE || !r.label)
+			continue;
+		{
+			const float x0 = choiceStart(m, r, ROW_Y0 + i * ROW_DY, p.logo);
+			const int lw = measure(m, r.label, TEXT_SCALE);
+			const float cx = x0 - RLABEL_GAP - (float)(lw - lw / 2);
+			if (cx < rlabelCx)
+				rlabelCx = cx;
+		}
+	}
 
 	/* The tab row: centred, TAB_ROW_GAP apart. */
 	const bool tabbed = p.nTabs > 0;
@@ -273,16 +311,27 @@ int layoutPage(const Page &p, const Metrics &m, Layout &out)
 			                           r.names[shownValue(r) - r.lo], false);
 			break;
 		}
-		case ROW_READOUT:
+		case ROW_READOUT: {
+			/* The text is centred on VALUE_CX, unless its label would run into it: then it
+			 * starts VALUE_GAP after the label's right edge, as TextBox would draw it. */
+			float vx = VALUE_CX;
+			if (r.label) {
+				const int lw = measure(m, r.label, TEXT_SCALE);
+				const int vw = measure(m, r.text, TEXT_SCALE);
+				const int need = (int)LABEL_CX - lw / 2 + lw + (int)VALUE_GAP;
+				if ((int)vx - vw / 2 < need)
+					vx = (float)(need + vw / 2);
+			}
 			if (r.label)
 				addText(out, m, ROLE_LABEL, i, 0, LABEL_CX, y + LABEL_DY, ALIGN_CENTRE, TEXT_SCALE, r.label);
-			addText(out, m, ROLE_VALUE, i, 0, VALUE_CX, y + LABEL_DY, ALIGN_CENTRE, TEXT_SCALE, r.text);
+			addText(out, m, ROLE_VALUE, i, 0, vx, y + LABEL_DY, ALIGN_CENTRE, TEXT_SCALE, r.text);
 			break;
+		}
 		case ROW_CHOICE: {
 			const int lit = shownValue(r) - r.lo;
-			float cx = CHOICE_X0;
+			float cx = choiceStart(m, r, y, p.logo);
 			if (r.label)
-				addText(out, m, ROLE_RLABEL, i, 0, RLABEL_CX, y + LABEL_DY, ALIGN_CENTRE, TEXT_SCALE, r.label);
+				addText(out, m, ROLE_RLABEL, i, 0, rlabelCx, y + LABEL_DY, ALIGN_CENTRE, TEXT_SCALE, r.label);
 			for (int c = 0; c < r.count; c++) {
 				float w = r.fit ? (float)buttonFitWidth(m, r.names[c]) : CHOICE_W;
 				out.slot[i][c] = addButton(out, ROLE_CHOICE, i, c, cx, y, w, BUTTON_H, r.names[c], c == lit);

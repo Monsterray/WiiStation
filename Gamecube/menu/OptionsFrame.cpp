@@ -218,7 +218,8 @@ typedef eng::HelpLine OptHelp;
  * pluginsLeave) rather than on every press. */
 static const OptRow PLUGIN_ROWS[] =
 {
-	ROW_RADIO("CPU Core",   dynacore,  DYNACORE_DYNAREC, DYNACORE_DYNAREC_OLD, CPU_CORE_NAMES,   NULL),
+	/* Fitted: "Interpreter" is wider than a fixed 135 px button. */
+	ROW_RADIO_FIT("CPU Core", dynacore,  DYNACORE_DYNAREC, DYNACORE_DYNAREC_OLD, CPU_CORE_NAMES,   NULL),
 	ROW_CYCLE("CPU Timing", cpuTiming, CPU_TIMING_FAST,  CPU_TIMING_ACCURATE,  FAST_ACCURATE_NAMES, NULL),
 	ROW_CYCLE("CPU Speed",  cpuSpeed,  CPU_SPEED_AUTO,   CPU_SPEED_300,        CPU_SPEED_NAMES,     NULL),
 };
@@ -245,7 +246,9 @@ static const char* const FRAME_RATE_NAMES[] = { "Auto", "TV", "PS1" };
 
 static const OptRow GPU_ROWS[] =
 {
-	ROW_RADIO("GPU Plugin", gpuPlugin, OLD_SOFT,         OPEN_GX,              GPU_PLUGIN_NAMES, NULL),
+	/* Fitted: "Soft Timed" is wider than a fixed 135 px button. The row starts further left
+	 * than the others to fit (MenuEngine's choiceStart). */
+	ROW_RADIO_FIT("GPU Plugin", gpuPlugin, OLD_SOFT,     OPEN_GX,              GPU_PLUGIN_NAMES, NULL),
 	ROW_CYCLE("GPU Timing", gpuTiming, GPU_TIMING_FAST,  GPU_TIMING_ACCURATE,  FAST_ACCURATE_NAMES, NULL),
 	ROW_RADIO("Frame Rate", frameRateMode, FRAMERATE_AUTO, FRAMERATE_PS1,     FRAME_RATE_NAMES, NULL),
 };
