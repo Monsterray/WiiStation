@@ -146,7 +146,7 @@ char creditsScrolling;
 char padNeedScan=1;
 char wpadNeedScan=1;
 char hidPadNeedScan = 1;
-char shutdown = 0;
+char ws_shutdown = 0;
 char nativeSaveDevice;
 char saveStateDevice;
 char autoSave;
@@ -694,7 +694,7 @@ void ScanPADSandReset(u32 dummy)
 void ShutdownWii()
 {
     HIDClose(0);
-    shutdown = 1;
+    ws_shutdown = 1;
     stop = 1;
 }
 #endif

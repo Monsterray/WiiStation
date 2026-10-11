@@ -634,6 +634,9 @@ struct iovec {
 #ifndef __NDS__
 #include <network.h>
 #endif
+/* libogc v3 declares its own struct sockaddr_storage (sys/_sockaddr_storage.h, which
+ * netinet/in.h needs): keep that one and skip this. libogc2 has no such guard. */
+#ifndef _SYS__SOCKADDR_STORAGE_H_
 struct sockaddr_storage {
 #ifdef HAVE_SOCKADDR_SA_LEN
 	unsigned char ss_len;
@@ -641,6 +644,7 @@ struct sockaddr_storage {
 	unsigned char ss_family;
 	unsigned char fill[127];
 };
+#endif
 
 struct addrinfo {
 	int	ai_flags;	/* AI_PASSIVE, AI_CANONNAME */

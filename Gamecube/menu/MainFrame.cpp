@@ -209,7 +209,7 @@ void Func_Credits()
 	menu::MessageBox::getInstance().setMessage(CreditsInfo);
 }
 
-extern char shutdown;
+extern char ws_shutdown;
 extern "C" void SysClose();
 
 /* Quit, after the question (also an input script's "menupage 90", MenuContext.cpp) */
@@ -223,7 +223,7 @@ void ExitToLoaderNow()
         HIDClose(0);
         quit_crumb("HIDClose(0) done");
         #endif
-        shutdown = 2;
+        ws_shutdown = 2;
         if (hasLoadedISO)
         {
             SysClose();

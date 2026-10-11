@@ -5,6 +5,7 @@
 #include <ogc/cache.h>
 #include <ogc/lwp_watchdog.h>   /* ticks_to_microsecs */
 #include "lc.h"
+#include "ogc_compat.h"   /* WS_LIBOGC3 */
 #include "perf_prof.h"
 
 char lockedCache = 0;   /* the setting; all regions off until a Wii has measured them */
@@ -50,6 +51,19 @@ _Static_assert(LC_REGION_COUNT == 2, "a region was added: add its size to LC_SUM
 static void *lc_base[LC_REGION_COUNT];
 static unsigned lc_active;   /* the mask in effect */
 
+#if WS_LIBOGC3
+/* libogc v3 has no LCIsEnable(). This file is the only caller of LCEnable/LCDisable,
+ * so it keeps the state itself. */
+static int lc_hw_on;
+static int lc_hw_is_enabled(void) { return lc_hw_on; }
+static void lc_hw_enable(void)    { LCEnable();  lc_hw_on = 1; }
+static void lc_hw_disable(void)   { LCDisable(); lc_hw_on = 0; }
+#else
+#define lc_hw_is_enabled() LCIsEnable()
+#define lc_hw_enable()     LCEnable()
+#define lc_hw_disable()    LCDisable()
+#endif
+
 void lc_configure(unsigned mask)
 {
 	unsigned off = 0;
@@ -60,12 +74,12 @@ void lc_configure(unsigned mask)
 	memset(lc_base, 0, sizeof lc_base);
 	lc_active = mask;
 	if (!mask) {
-		if (LCIsEnable())
-			LCDisable();   /* give the data cache back its 16 KB */
+		if (lc_hw_is_enabled())
+			lc_hw_disable();   /* give the data cache back its 16 KB */
 		return;
 	}
-	if (!LCIsEnable())
-		LCEnable();
+	if (!lc_hw_is_enabled())
+		lc_hw_enable();
 	for (r = 0; r < LC_REGION_COUNT; r++) {
 		if (!(mask & (1u << r)))
 			continue;

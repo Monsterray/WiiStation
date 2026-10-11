@@ -15,10 +15,14 @@
 #include <ogc/machine/processor.h>   /* mfspr */
 #include <string.h>
 #include <stdio.h>
+#include "ogc_compat.h"              /* WS_LIBOGC3 */
 #define HBC_AGENT_LAYOUT_ONLY
 #include "../deps/hbc_agent/sdk/hbc_agent.h"
 #include "ws_crash.h"
 #include "perf_prof.h"
+#if WS_LIBOGC3
+#include <tuxedo/ppc/exception.h>    /* PPCExcptCurPanicFn, PPCContext */
+#endif
 
 extern int lab_active(void);       /* lab_net.c */
 extern void lab_report(void);
@@ -29,6 +33,64 @@ static int ram_word(u32 a)
 	return !(a & 3) && ((a >= 0x80000000 && a < 0x81800000) || (a >= 0x90000000 && a < 0x94000000));
 }
 
+#if WS_LIBOGC3
+/* libogc v3 (tuxedo). Every exception reaches PPCExcptCurPanicFn(exid, ctx), including one
+ * taken with MSR[RI] clear (PPCExcptDefaultHandler's nested path calls it too), so the
+ * libogc2 wrap of c_default_exceptionhandler has no counterpart to wrap. This hook records
+ * the crash block the same way and chains to the previous hook. The HBC agent's hook, when
+ * hbc_agent_init() has installed it, runs first and chains here, so this record is already
+ * there and is left alone. The libogc2 "MSR[RI] clear" reason has no v3 counterpart: the
+ * reason here says only that no agent hook was in front. exid is tuxedo's PPC_EXCPT_* number
+ * (the vector / 0x100), which is what the crash block holds. */
+static PPCExcptPanicFn ws_prev_panic;
+
+static void ws_crash_panic(unsigned exid, PPCContext *ctx)
+{
+	hbc_crash_block *b = (hbc_crash_block *)HBC_CRASH_ADDR;
+	u32 sp = ctx->gpr[1], i;
+
+	if (!(b->magic == HBC_CRASH_MAGIC && b->check == hbc_crash_check(b) && b->pc == ctx->pc)) {
+		memset(b, 0, sizeof *b);
+		b->magic = HBC_CRASH_MAGIC;
+		b->version = HBC_CRASH_VERSION;
+		b->kind = HBC_CRASH_EXCEPTION;
+		b->exception = exid;
+		b->pc = ctx->pc;
+		b->msr = ctx->msr;
+		b->lr = ctx->lr;
+		b->cr = ctx->cr;
+		b->ctr = ctx->ctr;
+		b->dar = mfspr(19);
+		b->dsisr = mfspr(18);
+		b->sp = sp;
+		for (i = 0; i < HBC_CRASH_FRAMES && ram_word(sp); i++) {
+			u32 next = *(u32 *)sp;
+			if (!next)
+				break;
+			next |= 0x80000000;   /* an exception frame's back chain is a physical address */
+			if (!ram_word(next) || next <= sp)
+				break;
+			b->frames[i] = *(u32 *)(next + 4);
+			sp = next;
+		}
+		strcpy(b->app, "WiiStation");
+		strcpy(b->reason, "no HBC agent hook in front (ws_crash)");
+		b->check = hbc_crash_check(b);
+		DCFlushRange(b, sizeof *b);
+	}
+	if (ws_prev_panic)
+		ws_prev_panic(exid, ctx);
+}
+
+/* Installed before main() by a constructor, like the libogc2 link-time wrap, so an exception
+ * before hbc_agent_init() is recorded too. Chaining works whichever hook is installed first. */
+__attribute__((constructor))
+static void ws_crash_hook_install(void)
+{
+	ws_prev_panic = PPCExcptCurPanicFn;
+	PPCExcptCurPanicFn = ws_crash_panic;
+}
+#else
 void __real_c_default_exceptionhandler(frame_context *ctx);
 
 /* Record the exception the way the agent would, unless the agent already recorded this one. */
@@ -69,6 +131,7 @@ void __wrap_c_default_exceptionhandler(frame_context *ctx)
 	}
 	__real_c_default_exceptionhandler(ctx);
 }
+#endif
 
 void ws_fatal(u32 code, const char *reason)
 {

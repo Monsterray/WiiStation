@@ -15,15 +15,31 @@ CC = $(PREFIX)gcc
 AR = $(PREFIX)ar
 BUILD = build-wii
 
+# libogc: LIBOGC=3 (exported by scripts/build.sh) builds against devkitPro's libogc v3 headers.
+# Unset or 2 is libogc2 and the commands stay exactly as they were.
+ifeq ($(LIBOGC),3)
+OGC_INC = $(DEVKITPRO)/libogc/include
+else
+OGC_INC = $(DEVKITPRO)/libogc2/include
+endif
+
+# libogc v3 (LIBOGC=3): its lwip sockets provide bind/listen/accept themselves, so the net_*
+# renames (libogc2's network.h has no bind prototype) clash with sys/socket.h. Unset or 2: unchanged.
+ifeq ($(LIBOGC),3)
+SOCK_DEFS =
+else
+SOCK_DEFS = -Dbind=net_bind -Dlisten=net_listen -Daccept=net_accept
+endif
+
 CFLAGS = -DGEKKO -D__WII__ -mrvl -mcpu=750 -meabi -mhard-float -O2 -Wall -Wno-unused-variable \
 	-Wno-unused-but-set-variable -Wno-unused-function -D_U_= \
 	-DNEED_GETLOGIN_R -DNEED_GETADDRINFO -DNEED_FREEADDRINFO \
 	-DHAVE_STDINT_H -DHAVE_STDLIB_H -DHAVE_STRING_H -DHAVE_TIME_H -DHAVE_SYS_TIME_H \
 	-DHAVE_UNISTD_H -DHAVE_SYS_TYPES_H -DHAVE_SYS_STAT_H -DHAVE_ERRNO_H -DHAVE_STDIO_H \
 	-DHAVE_FCNTL_H -DHAVE_STRINGS_H -DHAVE_LINGER \
-	-Dbind=net_bind -Dlisten=net_listen -Daccept=net_accept \
+	$(SOCK_DEFS) \
 	-Iinclude -Iinclude/smb2 -Ilib \
-	-I$(DEVKITPRO)/libogc2/include -I$(DEVKITPRO)/portlibs/ppc/include
+	-I$(OGC_INC) -I$(DEVKITPRO)/portlibs/ppc/include
 
 SRC = aes.c aes128ccm.c alloc.c asn1-ber.c compat.c errors.c init.c hmac.c hmac-md5.c \
 	libsmb2.c md4c.c md5.c ntlmssp.c pdu.c sha1.c sha224-256.c sha384-512.c \

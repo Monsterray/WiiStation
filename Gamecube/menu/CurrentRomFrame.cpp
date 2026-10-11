@@ -216,7 +216,7 @@ extern BOOL hasLoadedISO;
 
 extern "C" {
 void SysReset();
-void SysInit();
+int SysInit();   /* returns int (system.h, GamecubeMain.cpp); was declared void */
 void SysClose();
 void CheckCdrom();
 void LoadCdrom();

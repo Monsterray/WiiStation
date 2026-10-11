@@ -52,3 +52,8 @@ baselines/media/
 scripts/autoinput/*.prev
 # built probe DOLs (scripts/wii_probe/*.c is the source)
 scripts/wii_probe/*.dol
+
+# Third-party sources fetched at build time by scripts/fetch_deps.sh (pinned, never committed)
+deps/ext/
+build_ogc3/
+Gamecube/build*_ogc3/

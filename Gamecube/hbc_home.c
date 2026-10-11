@@ -9,7 +9,7 @@
  *
  * Exits go WiiStation's own way: a game is stopped (psxcounters.c sees stop), comes back
  * to the menu, which saves its memory cards as after any game, closes it, and leaves
- * through the same fade as Exit to Loader (Gui.cpp, shutdown = 2). */
+ * through the same fade as Exit to Loader (Gui.cpp, ws_shutdown = 2). */
 #include <gccore.h>
 #include <wiiuse/wpad.h>
 #include "../deps/hbc_agent/sdk/hbc_agent.h"
@@ -17,7 +17,7 @@
 #include "lab_net.h"
 #include "ws_crash.h"
 
-extern char shutdown;             /* GamecubeMain.cpp: 1 power off, 2 back to the loader */
+extern char ws_shutdown;             /* GamecubeMain.cpp: 1 power off, 2 back to the loader */
 extern int stop;                  /* GamecubeMain.cpp: leave the CPU loop */
 extern GXRModeObj *vmode;
 
@@ -61,7 +61,7 @@ int hbc_home_menu_frame(void)
 	if (!agent_up)
 		return 0;
 	if (hbc_agent_exit_requested())
-		return !shutdown;
+		return !ws_shutdown;
 	for (chan = 0; chan < WPAD_MAX_WIIMOTES; chan++)
 		if (WPAD_ButtonsDown(chan) & (WPAD_BUTTON_HOME | WPAD_CLASSIC_BUTTON_HOME))
 			break;

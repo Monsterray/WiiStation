@@ -13,6 +13,8 @@
 #   scripts/build.sh debug-warn   # debug build with -Wall -Wextra (WARN=1)
 #   scripts/build.sh release-warn # release build with -Wall -Wextra (WARN=1)
 #   scripts/build.sh clean        # clean all build artifacts
+#   LIBOGC=3 scripts/build.sh release  # libogc v3 + devkitPPC r50; outputs get _ogc3
+#                                      # (WiiSXRX_Release_ogc3.dol, build_release_ogc3/)
 #
 # The *-warn variants build with real compiler warnings enabled instead of
 # the default fully-quiet (-w) build -- use them when auditing the codebase
@@ -32,13 +34,29 @@ if [[ "$REPO_ROOT" == *" "* ]]; then
 fi
 
 export DEVKITPRO=/c/devkitPro
-# Pinned, not the pacman-managed $DEVKITPRO/devkitPPC -- see
-# scripts/setup-devkitpro-windows.sh's header comment for why.
-export DEVKITPPC="$DEVKITPRO/devkitPPC-r41-2"
+# LIBOGC picks the libogc / devkitPPC pair the Makefiles build against:
+#   2 (default)  libogc2 + devkitPPC-r41-2. Pinned, not the pacman-managed $DEVKITPRO/devkitPPC,
+#                which is incompatible with libogc2 -- see scripts/setup-devkitpro-windows.sh.
+#   3            devkitPro's libogc v3 + devkitPPC r50 ($DEVKITPRO/devkitPPC). Its outputs get the
+#                _ogc3 suffix (build dirs, .elf/.dol, deps/ copy), so nothing mixes with the default.
+LIBOGC="${LIBOGC:-2}"
+case "$LIBOGC" in
+	2) DEVKITPPC_DIR="$DEVKITPRO/devkitPPC-r41-2" ;;
+	3) DEVKITPPC_DIR="$DEVKITPRO/devkitPPC" ;;
+	*) echo "ERROR: LIBOGC must be 2 or 3 (got '$LIBOGC')."; exit 1 ;;
+esac
+export LIBOGC
+export DEVKITPPC="$DEVKITPPC_DIR"
 export PATH="$DEVKITPRO/tools/bin:$DEVKITPPC/bin:$PATH"
+OGC_SUFFIX=""
+DEPS_ROOT="deps"
+if [ "$LIBOGC" = 3 ]; then
+	OGC_SUFFIX="_ogc3"
+	DEPS_ROOT="build_ogc3/deps"
+fi
 
 if [ ! -x "$DEVKITPPC/bin/powerpc-eabi-gcc.exe" ]; then
-	echo "devkitPPC r41-2 not found at $DEVKITPPC -- run scripts/setup-devkitpro-windows.sh first."
+	echo "devkitPPC not found at $DEVKITPPC -- run scripts/setup-devkitpro-windows.sh first."
 	exit 1
 fi
 if ! command -v make >/dev/null 2>&1; then
@@ -89,13 +107,13 @@ esac
 # make compares timestamps, not compiler flags, so changing PROBES on its own rebuilds
 # nothing and you silently get the previous build back. Remember what the objects were
 # compiled with and clean when it changes.
-PROBE_STAMP="Gamecube/build_debug/.probe_defines"
+PROBE_STAMP="Gamecube/build_debug${OGC_SUFFIX}/.probe_defines"
 # Debug builds only: a release build does not use the gates, and cleaning the debug tree
 # from it threw away WiiSXRX_debug.dol whenever the last debug build had PROBES set.
-if [ "${1:-debug}" != "${1#debug}" ] && [ -d "Gamecube/build_debug" ] && [ "$(cat "$PROBE_STAMP" 2>/dev/null)" != "$PROBE_DEFINES" ]; then
+if [ "${1:-debug}" != "${1#debug}" ] && [ -d "Gamecube/build_debug${OGC_SUFFIX}" ] && [ "$(cat "$PROBE_STAMP" 2>/dev/null)" != "$PROBE_DEFINES" ]; then
 	echo "probe gates changed since the last build -- cleaning so the change takes effect"
 	make -C Gamecube -f Makefile_Wii clean >/dev/null 2>&1 || true
-	rm -rf deps/opengx/obj_prof   # the profiling OpenGX takes the same gates
+	rm -rf "$DEPS_ROOT"/opengx/obj_prof   # the profiling OpenGX takes the same gates
 fi
 
 # The five dependency archives (opengx, zstd, lzma, zlibstatic, chdr) build
@@ -111,7 +129,7 @@ fi
 relink_if_deps_newer() {
 	local elf="$1" a
 	[ -f "$elf" ] || return 0
-	for a in deps/*/lib/*.a; do
+	for a in "$DEPS_ROOT"/*/lib/*.a; do
 		if [ "$a" -nt "$elf" ]; then
 			echo "$a is newer than $elf -- forcing relink"
 			rm -f "$elf"
@@ -126,28 +144,28 @@ case "${1:-debug}" in
 		# gated like the plugin's, and a library built with other gates than the plugin
 		# reads state the plugin never writes.
 		make opengx.a lightrecWithLog.a lightning.a zstd.a lzma.a zlibstatic.a chdrstatic.a hbcagent.a smb2.a PROBE_DEFINES="$PROBE_DEFINES"
-		relink_if_deps_newer Gamecube/WiiSXRX_debug.elf
+		relink_if_deps_newer Gamecube/WiiSXRX_debug${OGC_SUFFIX}.elf
 		make -C Gamecube -f Makefile_Wii EXTRA_CFLAGS="$PROBE_DEFINES"
-		mkdir -p Gamecube/build_debug && printf '%s' "$PROBE_DEFINES" > "$PROBE_STAMP"
-		echo "Output: Gamecube/WiiSXRX_debug.dol"
+		mkdir -p Gamecube/build_debug${OGC_SUFFIX} && printf '%s' "$PROBE_DEFINES" > "$PROBE_STAMP"
+		echo "Output: Gamecube/WiiSXRX_debug${OGC_SUFFIX}.dol"
 		;;
 	debug-warn)
 		make opengx.a lightrecWithLog.a lightning.a zstd.a lzma.a zlibstatic.a chdrstatic.a hbcagent.a smb2.a
-		relink_if_deps_newer Gamecube/WiiSXRX_debug.elf
+		relink_if_deps_newer Gamecube/WiiSXRX_debug${OGC_SUFFIX}.elf
 		make -C Gamecube -f Makefile_Wii WARN=1
-		echo "Output: Gamecube/WiiSXRX_debug.dol"
+		echo "Output: Gamecube/WiiSXRX_debug${OGC_SUFFIX}.dol"
 		;;
 	release)
 		make opengx.a lightrecNoLog.a lightning.a zstd.a lzma.a zlibstatic.a chdrstatic.a hbcagent.a smb2.a
-		relink_if_deps_newer Gamecube/WiiSXRX_Release.elf
+		relink_if_deps_newer Gamecube/WiiSXRX_Release${OGC_SUFFIX}.elf
 		make -C Gamecube -f Makefile_Wii_Release
-		echo "Output: Gamecube/WiiSXRX_Release.dol"
+		echo "Output: Gamecube/WiiSXRX_Release${OGC_SUFFIX}.dol"
 		;;
 	release-warn)
 		make opengx.a lightrecNoLog.a lightning.a zstd.a lzma.a zlibstatic.a chdrstatic.a hbcagent.a smb2.a
-		relink_if_deps_newer Gamecube/WiiSXRX_Release.elf
+		relink_if_deps_newer Gamecube/WiiSXRX_Release${OGC_SUFFIX}.elf
 		make -C Gamecube -f Makefile_Wii_Release WARN=1
-		echo "Output: Gamecube/WiiSXRX_Release.dol"
+		echo "Output: Gamecube/WiiSXRX_Release${OGC_SUFFIX}.dol"
 		;;
 	clean)
 		make clean

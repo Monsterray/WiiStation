@@ -17,8 +17,11 @@
  *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.           *
  ***************************************************************************/
 
-#ifndef __SYSTEM_H__
-#define __SYSTEM_H__
+/* Guard is not __SYSTEM_H__: libogc's ogc/system.h uses that guard, and whichever of the
+ * two is included first would silently skip the other (SysMessage/SysClose/SysUpdate
+ * went undeclared under libogc v3). */
+#ifndef __PSX_SYSTEM_H__
+#define __PSX_SYSTEM_H__
 
 #ifdef __cplusplus
 extern "C" {

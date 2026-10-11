@@ -22,10 +22,21 @@ AGENT = sdk/hbc_agent
 HBC_SRC = channel/channelapp/source
 BUILD = build
 
+# libogc: LIBOGC=3 (exported by scripts/build.sh) builds against devkitPro's libogc v3 headers
+# and AGENT_TUXEDO=1. Unset or 2 is libogc2 and the commands stay exactly as they were.
+ifeq ($(LIBOGC),3)
+OGC_INC = $(DEVKITPRO)/libogc/include
+ifeq ($(wildcard $(OGC_INC)/tuxedo/ppc/exception.h),)
+$(error libogc v3 headers not found under $(OGC_INC) (LIBOGC=3))
+endif
+else
+OGC_INC = $(DEVKITPRO)/libogc2/include
+endif
+
 CFLAGS = -DGEKKO -mrvl -mcpu=750 -meabi -mhard-float -O2 -Wall \
 	-DDEVSTREAM_SLOTS=2 -DDEVSTREAM_WORKER_STACK=16384 \
 	-I$(HBC_SRC) -Isdk -I$(AGENT) \
-	-I$(DEVKITPRO)/libogc2/include -I$(DEVKITPRO)/portlibs/ppc/include
+	-I$(OGC_INC)$(if $(filter 3,$(LIBOGC)), -DAGENT_TUXEDO=1) -I$(DEVKITPRO)/portlibs/ppc/include
 
 SRC = $(AGENT)/agent.c $(AGENT)/safety.c $(AGENT)/alloc_wrap.c $(AGENT)/info.c $(AGENT)/ogc_exc.S $(AGENT)/overlay.c $(AGENT)/ov_ui.c $(AGENT)/ov_draw.c \
 	sdk/wiispk/wiispk.c \
