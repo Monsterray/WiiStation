@@ -350,6 +350,23 @@ static Row AUDIO_ROWS[] = {
 	{ ROW_BUTTONS, NULL,               NULL,           0, 1, 0, NULL, false, AUD_ADV_ACTIONS,    258.0f,  0.0f, NULL,      0 },
 };
 
+/*  The Settings Saves tab (menupage 5). Rows are 70 apart (rowDy). The state: SD device, card 1 Off,
+ *  card 2 Shared, Auto Save Yes, State to SD. Labels are textboxes 18, 23, 19 and 20. */
+static const char *const SAV_YESNO_NAMES[] = { "Yes", "No" };
+static const float        SAV_YESNO_W[]    = { 75.0f, 75.0f };
+static const char *const SAV_STATE_NAMES[] = { "SD", "USB" };
+static const float        SAV_STATE_W[]    = { 55.0f, 70.0f };
+static const ActionButton SAV_DEVICE_ACTIONS[] = { { "SD", 55.0f, true }, { "USB", 70.0f, false }, { "CardA", 90.0f, false }, { "CardB", 90.0f, false } };
+static const ActionButton SAV_CARD_ACTIONS[]   = { { "Off", 105.0f, false }, { "Shared", 105.0f, false } };
+
+/* Row fields: kind, label, names, lo, count, value, text, fit, actions, x0, gap, widths, plain. */
+static Row SAVES_ROWS[] = {
+	{ ROW_BUTTONS, "Memcard Save Device", NULL,             0, 4, 0, NULL, false, SAV_DEVICE_ACTIONS, 295.0f,  0.0f, NULL,      0 },
+	{ ROW_BUTTONS, "Memcard Type",        NULL,             0, 2, 0, NULL, false, SAV_CARD_ACTIONS,   295.0f, 30.0f, NULL,      0 },
+	{ ROW_CHOICE,  "Auto Save Memcards",  SAV_YESNO_NAMES,  0, 2, 0, NULL, false, NULL,               295.0f,  0.0f, SAV_YESNO_W, 0 },
+	{ ROW_CHOICE,  "Save States Device",  SAV_STATE_NAMES,  0, 2, 0, NULL, false, NULL,               295.0f,  0.0f, SAV_STATE_W, 0 },
+};
+
 /* The General tab is the first Settings tab, so its tab row is lit at 0; Video's is lit at 1. */
 static TestPage SETTINGS_PAGES[] = {
 	{ "General",     NULL,                true,  0, GENERAL_ROWS, COUNT(GENERAL_ROWS), NULL,        0,
@@ -359,6 +376,8 @@ static TestPage SETTINGS_PAGES[] = {
 	{ "Input",       NULL,                true,  2, SET_INPUT_ROWS,   COUNT(SET_INPUT_ROWS),   NULL,        0,
 	  GEN_TABS, COUNT(GEN_TABS), 150.0f, 28.0f },
 	{ "Audio",       NULL,                true,  3, AUDIO_ROWS,   COUNT(AUDIO_ROWS),   NULL,        0,
+	  GEN_TABS, COUNT(GEN_TABS), 150.0f, 28.0f, 70.0f },
+	{ "Saves",       NULL,                true,  4, SAVES_ROWS,   COUNT(SAVES_ROWS),   NULL,        0,
 	  GEN_TABS, COUNT(GEN_TABS), 150.0f, 28.0f, 70.0f },
 };
 #define NSETTINGS COUNT(SETTINGS_PAGES)
@@ -970,6 +989,16 @@ static const Known KNOWN[] = {
 	{ "Audio", PROB_TEXT_WIDE, "Tempo", NULL },
 	{ "Audio", PROB_TEXT_WIDE, "Rate", NULL },
 	{ "Audio", PROB_TEXT_WIDE, "Advanced", NULL },
+	{ "Saves", PROB_TEXT_WIDE, "General", NULL },
+	{ "Saves", PROB_TEXT_WIDE, "Video", NULL },
+	{ "Saves", PROB_TEXT_WIDE, "Audio", NULL },
+	{ "Saves", PROB_TEXT_WIDE, "Saves", NULL },
+	{ "Saves", PROB_TEXT_WIDE, "SD", NULL },
+	{ "Saves", PROB_TEXT_WIDE, "USB", NULL },
+	{ "Saves", PROB_TEXT_WIDE, "CardA", NULL },
+	{ "Saves", PROB_TEXT_WIDE, "CardB", NULL },
+	{ "Saves", PROB_TEXT_WIDE, "Shared", NULL },
+	{ "Saves", PROB_TEXT_WIDE, "Yes", NULL },
 	{ NULL, 0, NULL, NULL },
 };
 
@@ -1805,6 +1834,27 @@ static const OldBox AUDIO_BOXES[] = {
 /* The label centres: row top + 28 (textboxes 14, 17, 25 and 26). */
 static const float AUDIO_LABEL_Y[5] = { 128.0f, 198.0f, 268.0f, 338.0f, 0.0f };
 
+/* The Saves tab: its tab row's Up is 52 and Down 46. */
+static const OldBox SAVES_BOXES[] = {
+	{ 0, ROLE_TAB, -1, 0, 25.0f, 20.0f, 110.0f, 56.0f, 52, 46, 4, 1 },
+	{ 1, ROLE_TAB, -1, 1, 155.0f, 20.0f, 100.0f, 56.0f, 52, 46, 0, 2 },
+	{ 2, ROLE_TAB, -1, 2, 275.0f, 20.0f, 100.0f, 56.0f, 52, 46, 1, 3 },
+	{ 3, ROLE_TAB, -1, 3, 395.0f, 20.0f, 100.0f, 56.0f, 52, 46, 2, 4 },
+	{ 4, ROLE_TAB, -1, 4, 515.0f, 20.0f, 100.0f, 56.0f, 52, 46, 3, 0 },
+	{ 46, ROLE_BUTTON, 0, 0, 295.0f, 100.0f,  55.0f, 56.0f,  4, 76, 49, 47 },
+	{ 47, ROLE_BUTTON, 0, 1, 360.0f, 100.0f,  70.0f, 56.0f,  4, 77, 46, 48 },
+	{ 48, ROLE_BUTTON, 0, 2, 440.0f, 100.0f,  90.0f, 56.0f,  4, 77, 47, 49 },
+	{ 49, ROLE_BUTTON, 0, 3, 540.0f, 100.0f,  90.0f, 56.0f,  4, 77, 48, 46 },
+	{ 76, ROLE_BUTTON, 1, 0, 295.0f, 170.0f, 105.0f, 56.0f, 46, 50, 77, 77 },
+	{ 77, ROLE_BUTTON, 1, 1, 430.0f, 170.0f, 105.0f, 56.0f, 47, 51, 76, 76 },
+	{ 50, ROLE_CHOICE, 2, 0, 295.0f, 240.0f,  75.0f, 56.0f, 76, 52, 51, 51 },
+	{ 51, ROLE_CHOICE, 2, 1, 380.0f, 240.0f,  75.0f, 56.0f, 77, 53, 50, 50 },
+	{ 52, ROLE_CHOICE, 3, 0, 295.0f, 310.0f,  55.0f, 56.0f, 50,  4, 53, 53 },
+	{ 53, ROLE_CHOICE, 3, 1, 360.0f, 310.0f,  70.0f, 56.0f, 51,  4, 52, 52 },
+};
+/* The label centres: row top + 28 (textboxes 18, 23, 19 and 20). */
+static const float SAVES_LABEL_Y[4] = { 128.0f, 198.0f, 268.0f, 338.0f };
+
 int main(int argc, char **argv)
 {
 	const char *font = argc > 1 ? argv[1] : "fonts/En.dat";
@@ -1826,6 +1876,8 @@ int main(int argc, char **argv)
 	checkTabLinks("Input", 2, INPUT_BOXES, COUNT(INPUT_BOXES));
 	checkTabBoxes("Audio", 3, AUDIO_BOXES, COUNT(AUDIO_BOXES), AUDIO_LABEL_Y, COUNT(AUDIO_LABEL_Y));
 	checkTabLinks("Audio", 3, AUDIO_BOXES, COUNT(AUDIO_BOXES));
+	checkTabBoxes("Saves", 4, SAVES_BOXES, COUNT(SAVES_BOXES), SAVES_LABEL_Y, COUNT(SAVES_LABEL_Y));
+	checkTabLinks("Saves", 4, SAVES_BOXES, COUNT(SAVES_BOXES));
 	reportGeometry();
 	testCheckCatches();
 

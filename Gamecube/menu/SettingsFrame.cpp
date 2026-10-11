@@ -1131,6 +1131,143 @@ static void layoutAudio(SettingsFrame *frame)
 	}
 }
 
+/*  The Saves tab, on the menu engine (Docs/MENU_FRAMEWORK_PLAN.md, step 2, as the other Settings tabs)  */
+
+/* The tab's rows, top to bottom, 70 apart (the page's rowDy): 100, 170, 240 and 310. Labels are
+ * FRAME_TEXTBOXES entries 18, 23, 19 and 20. The Memcard Save Device row lights the device in use
+ * (none lit when the setting is unset). The two card numbers "1" and "2" beside the Memcard Type
+ * buttons are plain text boxes, not row labels, and are still shown from their own table entries. */
+#define SAV_ROWS_N 4
+#define SAV_ROW_DY 70.0f
+
+static const int SAV_BUTTON[SAV_ROWS_N][4] = {
+	{ 46, 47, 48, 49 },		/* Memcard Save Device: SD, USB, Card A, Card B (lit: the device) */
+	{ 76, 77, -1, -1 },		/* Memcard Type: card 1, card 2 (actions; their text is the card's file) */
+	{ 50, 51, -1, -1 },		/* Auto Save Memcards: Yes, No */
+	{ 52, 53, -1, -1 },		/* Save State Device: SD, USB */
+};
+static const int SAV_COUNT[SAV_ROWS_N] = { 4, 2, 2, 2 };
+static const int SAV_LABEL[SAV_ROWS_N] = { 18, 23, 19, 20 };	/* FRAME_TEXTBOXES, -1: none */
+static const eng::RowKind SAV_KIND[SAV_ROWS_N] = {
+	eng::ROW_BUTTONS, eng::ROW_BUTTONS, eng::ROW_CHOICE, eng::ROW_CHOICE
+};
+static const float SAV_WIDTH[SAV_ROWS_N][4] = {
+	{  55,  70,  90,  90 }, { 105, 105,   0,   0 }, {  75,  75,   0,   0 }, {  55,  70,   0,   0 },
+};
+static const float SAV_X0[SAV_ROWS_N]  = { 295.0f, 295.0f, 295.0f, 295.0f };	/* 0: centred */
+static const float SAV_GAP[SAV_ROWS_N] = { 0.0f, 30.0f, 0.0f, 0.0f };			/* 0: TAB_GAP */
+
+/* A row's text and actions are set from the buttons when the tab is shown, as the other tabs' are. */
+static const char *SAV_TEXT[SAV_ROWS_N][4];
+static eng::ActionButton SAV_ACTIONS[SAV_ROWS_N][4];
+static eng::Row SAV_ROWS[SAV_ROWS_N];
+static eng::Tab SAV_TABS[NUM_TAB_BUTTONS];
+static eng::Page SAV_PAGE;
+static eng::Layout SAV_LAYOUT;
+
+/* The FRAME_BUTTONS entry a control of the Saves tab is drawn with. */
+static menu::Button *savButton(const eng::Control &c)
+{
+	return FRAME_BUTTONS[c.role == eng::ROLE_TAB ? c.slot : SAV_BUTTON[c.row][c.slot]].button;
+}
+
+/* Lays the Saves tab out on the engine and places its buttons and labels; links the focus.
+ * Everything here is done when the tab is shown, never per frame. */
+static void layoutSaves(SettingsFrame *frame)
+{
+	/* The two card buttons' text: Off, Shared or Game, from the card's settings. */
+	for (int i = 76; i <= 77; i++)
+		FRAME_BUTTONS[i].buttonString = FRAME_STRINGS[92 + cardType(i - 76)];
+
+	for (int r = 0; r < SAV_ROWS_N; r++)
+		for (int c = 0; c < SAV_COUNT[r]; c++) {
+			SAV_TEXT[r][c] = FRAME_BUTTONS[SAV_BUTTON[r][c]].buttonString;
+			SAV_ACTIONS[r][c].text = SAV_TEXT[r][c];
+			SAV_ACTIONS[r][c].width = SAV_WIDTH[r][c];
+		}
+	for (int r = 0; r < SAV_ROWS_N; r++) {
+		eng::Row &row = SAV_ROWS[r];
+		memset(&row, 0, sizeof row);
+		row.kind    = SAV_KIND[r];
+		row.label   = SAV_LABEL[r] >= 0 ? FRAME_TEXTBOXES[SAV_LABEL[r]].textBoxString : NULL;
+		row.names   = SAV_TEXT[r];
+		row.count   = SAV_COUNT[r];
+		row.actions = SAV_ACTIONS[r];
+		row.x0      = SAV_X0[r];
+		row.gap     = SAV_GAP[r];
+		row.widths  = row.kind == eng::ROW_CHOICE ? SAV_WIDTH[r] : NULL;
+	}
+	/* The lit buttons: the memcard save device (none when it is unset), Auto Save, and the state device. */
+	for (int k = 0; k < 4; k++)
+		SAV_ACTIONS[0][k].lit = nativeSaveDevice == k;
+	SAV_ROWS[2].value = autoSave == AUTOSAVE_ENABLE ? 0 : 1;
+	SAV_ROWS[3].value = saveStateDevice == SAVESTATEDEVICE_SD ? 0 : 1;
+
+	for (int t = 0; t < NUM_TAB_BUTTONS; t++) {
+		SAV_TABS[t].text  = FRAME_BUTTONS[t].buttonString;
+		SAV_TABS[t].width = FRAME_BUTTONS[t].width;
+	}
+	SAV_PAGE.title   = NULL;
+	SAV_PAGE.tabs    = SAV_TABS;
+	SAV_PAGE.nTabs   = NUM_TAB_BUTTONS;
+	SAV_PAGE.curTab  = SettingsFrame::SUBMENU_SAVES;
+	SAV_PAGE.rows    = SAV_ROWS;
+	SAV_PAGE.nRows   = SAV_ROWS_N;
+	SAV_PAGE.help    = NULL;
+	SAV_PAGE.nHelp   = 0;
+	SAV_PAGE.logo    = eng::LOGO_SPOT_BOTTOM;	/* MenuContext: FRAME_SETTINGS is in LOGO_BOTTOM_FRAMES */
+	SAV_PAGE.focus   = eng::FOCUS_ROWS;
+	SAV_PAGE.labelCx = 150.0f;	/* the Settings labels: TextBox centred at x 150 */
+	SAV_PAGE.labelDy = 28.0f;	/* on the middle of a 56-high row */
+	SAV_PAGE.rowDy   = SAV_ROW_DY;
+
+	if (eng::layoutPage(SAV_PAGE, GEN_METRICS, SAV_LAYOUT) < 0) {
+		/* The tables are fixed, so this is a programming error: the tab is left as it was. */
+		SysPrintf("SettingsFrame: the Saves tab does not fit the menu engine\n");
+		return;
+	}
+	eng::linkFocus(SAV_PAGE, SAV_LAYOUT);
+
+	for (int i = 0; i < SAV_LAYOUT.n; i++) {
+		const eng::Control &c = SAV_LAYOUT.c[i];
+		switch (c.role) {
+		case eng::ROLE_TAB:
+		case eng::ROLE_BUTTON:
+		case eng::ROLE_CHOICE:
+			genPlace(frame, savButton(c), c);
+			savButton(c)->setActive(true);
+			savButton(c)->setSelected(c.selected);
+			break;
+		case eng::ROLE_LABEL:
+		case eng::ROLE_RLABEL: {
+			menu::TextBox *box = FRAME_TEXTBOXES[SAV_LABEL[c.row]].textBox;
+			box->setPosition(c.ax, c.ay);
+			box->setVisible(true);
+			break;
+		}
+		default:
+			break;
+		}
+	}
+
+	/* The focus links, on the buttons. A link of -1 is no link. */
+	{
+		static const int DIRS[eng::DIR_COUNT] = {
+			menu::Focus::DIRECTION_UP, menu::Focus::DIRECTION_DOWN,
+			menu::Focus::DIRECTION_LEFT, menu::Focus::DIRECTION_RIGHT
+		};
+		for (int i = 0; i < SAV_LAYOUT.n; i++) {
+			const eng::Control &c = SAV_LAYOUT.c[i];
+			if (!c.focusable)
+				continue;
+			for (int d = 0; d < eng::DIR_COUNT; d++) {
+				const int to = c.link[d];
+				savButton(c)->setNextFocus(DIRS[d], to >= 0 ? savButton(SAV_LAYOUT.c[to]) : NULL);
+			}
+		}
+	}
+}
+
 SettingsFrame::SettingsFrame()
 		: activeSubmenu(SUBMENU_GENERAL)
 {
@@ -1224,42 +1361,12 @@ void SettingsFrame::activateSubmenu(int submenu)
 			layoutAudio(this);
 			break;
 		case SUBMENU_SAVES:
+			/* The Saves tab is laid out on the menu engine (layoutSaves, above). The two card numbers
+			 * "1" and "2" beside the Memcard Type buttons are plain text boxes, shown here. */
 			setDefaultFocus(FRAME_BUTTONS[4].button);
-			for (int i = 0; i < NUM_TAB_BUTTONS; i++)
-			{
-				FRAME_BUTTONS[i].button->setVisible(true);
-				FRAME_BUTTONS[i].button->setNextFocus(menu::Focus::DIRECTION_DOWN, FRAME_BUTTONS[46].button);
-				FRAME_BUTTONS[i].button->setNextFocus(menu::Focus::DIRECTION_UP, FRAME_BUTTONS[52].button);
-				FRAME_BUTTONS[i].button->setActive(true);
-			}
-			for (int i = 18; i < 21; i++)
-				FRAME_TEXTBOXES[i].textBox->setVisible(true);
-			FRAME_TEXTBOXES[23].textBox->setVisible(true);   /* "Memcard Type" */
-			FRAME_BUTTONS[4].button->setSelected(true);
-			FRAME_BUTTONS[46+nativeSaveDevice].button->setSelected(true);
-			if (autoSave == AUTOSAVE_ENABLE)	FRAME_BUTTONS[50].button->setSelected(true);
-			else								FRAME_BUTTONS[51].button->setSelected(true);
-			if (saveStateDevice == SAVESTATEDEVICE_SD)	FRAME_BUTTONS[52].button->setSelected(true);
-			else										FRAME_BUTTONS[53].button->setSelected(true);
-			/* One button per card: Off, or the file it lives in. Buttons 60 and 61 were
-			 * the old Enable Memcard pair and are no longer shown. */
 			FRAME_TEXTBOXES[27].textBox->setVisible(true);
 			FRAME_TEXTBOXES[28].textBox->setVisible(true);
-			for (int i = 76; i <= 77; i++)
-			{
-				FRAME_BUTTONS[i].buttonString = FRAME_STRINGS[92 + cardType(i - 76)];
-				FRAME_BUTTONS[i].button->setVisible(true);
-				FRAME_BUTTONS[i].button->setActive(true);
-			}
-			for (int i = 46; i < NUM_FRAME_BUTTONS; i++)
-			{
-			    if (i >= 54) {
-                    // language info
-                    continue;
-			    }
-				FRAME_BUTTONS[i].button->setVisible(true);
-				FRAME_BUTTONS[i].button->setActive(true);
-			}
+			layoutSaves(this);
 			break;
 	}
 }
