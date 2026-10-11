@@ -58,7 +58,7 @@ LOAD="/c/tools/Dolphin-x64/User/Load"
 SYNC=on
 others=$(powershell.exe -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object { \$_.Name -eq 'Dolphin.exe' -and \$_.CommandLine -notlike '* -u *' } | ForEach-Object { \$_.ProcessId }" 2>/dev/null | tr -d '\r')
 if [ -z "$others" ]; then
-	SYNC=$(python "$REPO/scripts/sd_sync.py" "$(cygpath -m "$LOAD")" | tee /dev/stderr | tail -1)
+	SYNC=$("${PYTHON:-python}" "$REPO/scripts/sd_sync.py" "$(cygpath -m "$LOAD")" | tee /dev/stderr | tail -1)
 else
 	echo "another Dolphin has this profile open (pid $others): SD folder sync stays on"
 fi

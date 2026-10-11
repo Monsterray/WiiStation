@@ -15,8 +15,12 @@
 
 #include "../Gamecube/config_parse.h"
 
-#define LINE_MAX 256
+/* The test frame matches the production line buffer by construction, and the
+ * assert below breaks the build if the two ever drift apart again. */
+#define LINE_MAX CONFIG_LINE_MAX
 #define GUARD    0x5a
+
+_Static_assert(LINE_MAX == 256, "production line buffer changed size; update the frames");
 
 static int failures;
 
@@ -37,7 +41,18 @@ static void frame_set(struct frame* f, const char* line)
 {
 	memset(f, GUARD, sizeof(*f));
 	memset(f->line, GUARD, sizeof(f->line));
-	strcpy(f->line, line);          /* strcpy writes the terminator, as fgets does */
+	/* Bounded like the production fgets: a bad test line must fail the test,
+	 * not smash the frame (which would look exactly like a parser overrun). */
+	{
+		size_t n = strlen(line);
+		if (n >= sizeof(f->line)) {
+			printf("  FAIL  frame_set %-22s line too long (%u)\n", line, (unsigned)n);
+			failures++;
+			n = sizeof(f->line) - 1;
+		}
+		memcpy(f->line, line, n);
+		f->line[n] = 0;
+	}
 }
 
 static int frame_intact(const struct frame* f)

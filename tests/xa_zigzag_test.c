@@ -7,6 +7,7 @@
  * random stream that switches between stereo and mono, with quiet and full-scale stretches
  * (saturation) and enough samples to wrap the ring many times.
  */
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -28,11 +29,22 @@ static short ref_tap(const short *ring, unsigned int table, unsigned int p)
 	return (short)sum;
 }
 
+/* Embedded xorshift32: rand() streams differ between MSVC and glibc, so the
+ * same seed tested different samples on different hosts. This is fixed. */
+static uint32_t xrs = 12345;
+static unsigned int xrand(void)
+{
+	xrs ^= xrs << 13;
+	xrs ^= xrs >> 17;
+	xrs ^= xrs << 5;
+	return xrs;
+}
+
 static short sample(unsigned int n)
 {
 	/* stretches of quiet noise and of full-scale noise */
 	int loud = (n / 997) % 3 == 0;
-	int v = rand() % 65536 - 32768;
+	int v = (int)(xrand() % 65536) - 32768;
 	return (short)(loud ? v : v / 64);
 }
 
@@ -41,11 +53,10 @@ int main(void)
 	unsigned int n, j, six = 6, outs = 0, bad = 0;
 	int stereo = 1;
 
-	srand(12345);
 	for (n = 0; n < 2000000; n++) {
 		short l, r;
 		if (n % 4099 == 0)
-			stereo = rand() & 1;
+			stereo = xrand() & 1;
 		l = sample(n);
 		r = stereo ? sample(n) : l;
 

@@ -815,7 +815,7 @@ static bool chainLine(FILE *f, char *buf, int n)
 
 static int chainLoad(FILE *f)
 {
-	char line[256];
+	char line[CONFIG_LINE_MAX];
 	while (chainN < CHAIN_MAX && chainLine(f, line, sizeof line)) {
 		auto *e = &chainList[chainN];
 		char *tok = strtok(line, " \t");
@@ -1427,8 +1427,8 @@ void handleConfigPair(char* kv){
 }
 
 void readConfig(FILE* f){
-	char line[256];
-	while(fgets(line, 256, f)){
+	char line[CONFIG_LINE_MAX];
+	while(fgets(line, CONFIG_LINE_MAX, f)){
 		char* l = config_line(line);   /* config_parse.h: blank, comment and [section] lines hold none */
 		if(l)
 			handleConfigPair(l);

@@ -17,6 +17,11 @@
 
 #include <string.h>   /* memcpy */
 
+/* Every caller reads settings/chain lines into a buffer this big and hands the
+ * buffer to the scans below. One constant so the size cannot drift apart again
+ * (the scans once walked off a 256-byte buffer; see tests/config_parse_test.c). */
+#define CONFIG_LINE_MAX 256
+
 #ifdef __cplusplus
 extern "C" {
 #endif
