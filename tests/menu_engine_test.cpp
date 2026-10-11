@@ -1,0 +1,1062 @@
+/* menu_engine_test.cpp - the menu framework's layout and focus, on the host.
+ *
+ *     tests/menu_engine/run.sh            (builds with clang++ or g++, runs against fonts/En.dat)
+ *
+ * Every OptionsFrame page is described here (its row and help tables are copied from
+ * Gamecube/menu/OptionsFrame.cpp) and laid out by MenuEngine. The expected rectangles,
+ * text positions, focus links and help block are re-derived from OptionsFrame's own code --
+ * its constructor, activateSubmenu() and the help loops -- and compared with the engine's.
+ * The text widths are the real font's: fonts/En.dat, read the way IplFont reads it
+ * (1156-byte records, big-endian code, width in byte 3), so a label that is too wide for its
+ * button is found here, not on a television.
+ *
+ * Also checks that checkLayout() catches what it should (synthetic bad pages), and reports
+ * how FOCUS_GEOMETRY would link the same pages.
+ *
+ * Exit status: the number of failed checks, capped at 255.
+ */
+
+#ifdef _WIN32
+#define _CRT_SECURE_NO_WARNINGS
+#endif
+
+#include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "../Gamecube/menu/MenuEngine.h"
+
+using namespace menu::engine;
+
+static int failures = 0;
+
+static void fail(const char *where, const char *what)
+{
+	printf("  FAIL  %-12s %s\n", where, what);
+	failures++;
+}
+
+/*  The font: fonts/En.dat, the way IplFont loads it  */
+
+static unsigned char glyphWidth[256];
+
+static bool loadFont(const char *path)
+{
+	const size_t REC = 1152 + 4;	/* [u16 code, big-endian][u8][u8 advance][1152-byte tile] */
+	FILE *f = fopen(path, "rb");
+	unsigned char *buf;
+	long len;
+	bool have[256];
+	size_t i;
+
+	if (!f)
+		return false;
+	fseek(f, 0, SEEK_END);
+	len = ftell(f);
+	fseek(f, 0, SEEK_SET);
+	buf = (unsigned char *)malloc(len > 0 ? (size_t)len : 1);
+	if (!buf || fread(buf, 1, (size_t)len, f) != (size_t)len) {
+		fclose(f);
+		free(buf);
+		return false;
+	}
+	fclose(f);
+
+	memset(have, 0, sizeof have);
+	for (i = 0; i + REC <= (size_t)len; i += REC) {
+		unsigned code = ((unsigned)buf[i] << 8) | buf[i + 1];
+		if (code < 256) {
+			glyphWidth[code] = buf[i + 3];
+			have[code] = true;
+		}
+	}
+	free(buf);
+	/* IplFont falls back to the blank character for anything it does not have. */
+	for (i = 0; i < 256; i++)
+		if (!have[i])
+			glyphWidth[i] = have[' '] ? glyphWidth[' '] : 0;
+	return have[' '];
+}
+
+/* IplFont::getStringWidth: sum of (advance + 1), plus 5, times the scale, in whole pixels. */
+static int fontWidth(const char *s, float scale, void *)
+{
+	int sum = 0;
+	for (const unsigned char *p = (const unsigned char *)s; *p; p++)
+		sum += glyphWidth[*p] + 1;
+	return (int)((sum + 5) * scale);
+}
+
+/* IplFont::getStringHeight: CH_FONT_HEIGHT (24) times the scale. */
+static int fontHeight(const char *, float scale, void *)
+{
+	return (int)(24 * scale);
+}
+
+static const Metrics kFont = { fontWidth, fontHeight, NULL };
+
+/*  OptionsFrame's tables, copied from Gamecube/menu/OptionsFrame.cpp  */
+
+static const char *const RESAMPLER_NAMES[]    = { "Hold", "Linear", "Cubic" };
+static const char *const ON_OFF_NAMES[]       = { "Off", "On" };
+static const char *const LEGACY_HIFI_NAMES[]  = { "Legacy", "Hi-Fi" };
+static const char *const CD_BUFFER_NAMES[]    = { "16 KB", "64 KB", "256 KB" };
+static const char *const CD_HUNKS_NAMES[]     = { "2", "4", "8" };
+static const char *const CPU_CORE_NAMES[]     = { "Lightrec", "Interpreter", "Dynarec" };
+static const char *const GPU_PLUGIN_NAMES[]   = { "Soft Fast", "Soft Timed", "OpenGX" };
+static const char *const FAST_ACCURATE_NAMES[] = { "Fast", "Accurate" };
+static const char *const CPU_SPEED_NAMES[]    = { "Auto", "50%", "75%", "100%", "125%", "150%", "200%", "300%" };
+static const char *const SPU_OUTPUT_NAMES[]   = { "CPU", "DSP" };
+static const char *const FRAME_RATE_NAMES[]   = { "Auto", "TV", "PS1" };
+static const char *const DITHER_NAMES[]       = { "None", "Default", "Always" };
+static const char *const CHROMA_NAMES[]       = { "Sharp", "Smooth" };
+static const char *const FMV_COLOUR_NAMES[]   = { "15-bit", "24-bit" };
+
+/* Row fields: kind, label, names, lo, count, value, text, fit, actions. Every setting's
+ * lowest value is 0 in wiiSXconfig.h, so count is the number of names. */
+#define CYC(label, names, value)   { ROW_CYCLE,   label, names, 0, (int)(sizeof(names) / sizeof((names)[0])), value, NULL, false, NULL }
+#define RADIO(label, names, value) { ROW_CHOICE,  label, names, 0, (int)(sizeof(names) / sizeof((names)[0])), value, NULL, false, NULL }
+#define RADIO_FIT(label, names, value) { ROW_CHOICE, label, names, 0, (int)(sizeof(names) / sizeof((names)[0])), value, NULL, true, NULL }
+#define INFO(label, text)          { ROW_READOUT, label, NULL, 0, 0, 0, text, false, NULL }
+
+static Row SOUND_ROWS[] = {
+	CYC("Output Resampler", RESAMPLER_NAMES,   1),
+	CYC("Reverb",           ON_OFF_NAMES,      1),
+	CYC("Mixer Precision",  LEGACY_HIFI_NAMES, 0),
+	CYC("XA Resampler",     LEGACY_HIFI_NAMES, 1),
+};
+
+static Row PLUGIN_ROWS[] = {
+	RADIO("CPU Core",   CPU_CORE_NAMES,     0),
+	CYC("CPU Timing",   FAST_ACCURATE_NAMES, 0),
+	CYC("CPU Speed",    CPU_SPEED_NAMES,    3),
+};
+
+static Row CD_ROWS[] = {
+	CYC("CD Read Buffer", CD_BUFFER_NAMES, 0),
+	CYC("CD Read-Ahead",  ON_OFF_NAMES,    1),
+	CYC("CHD Hunk Cache", CD_HUNKS_NAMES,  2),
+};
+
+/* Readouts: the text is whatever the emulator reports, so the longest it can be is used. */
+static Row MEMORY_ROWS[] = {
+	INFO("MEM1 (fast)",        "24576 / 24576 KB"),
+	INFO("MEM2 heap",          "65536 / 65536 KB"),
+	INFO("Locked cache",       "16 / 16 KB (spu-gauss, tex-tile)"),	/* lc_usage(): the region names */
+	INFO("Font glyph cache",   "1024 / 1024 KB"),
+	INFO("Recompiler buffer",  "16384 KB (Lightrec, MEM1)"),
+	INFO("SPU + BIOS buffers", "64 + 512 KB"),
+};
+
+static Row GPU_ROWS[] = {
+	RADIO("GPU Plugin",   GPU_PLUGIN_NAMES,  2),
+	CYC("GPU Timing",     FAST_ACCURATE_NAMES, 0),
+	RADIO("Frame Rate",   FRAME_RATE_NAMES,  0),
+};
+
+static Row INPUT_ROWS[] = {
+	CYC("Port Timing", FAST_ACCURATE_NAMES, 1),
+};
+
+static Row SPU_ROWS[] = {
+	INFO("SPU Plugin", "P.E.Op.S. DFSound"),
+	RADIO("Output",    SPU_OUTPUT_NAMES, 1),
+};
+
+static Row ADVGFX_ROWS[] = {
+	RADIO_FIT("Dithering",     DITHER_NAMES, 1),
+	CYC("MDEC Chroma",         CHROMA_NAMES, 0),
+	CYC("Video Colour",        FMV_COLOUR_NAMES, 1),
+};
+
+static const HelpLine SPU_HELP[] = {
+	{ "Output:", "CPU resamples and mixes on the Wii's CPU." },
+	{ NULL,      "DSP hands the stream to the Wii's sound chip." },
+	{ NULL,      "Sound quality is in Audio, Advanced." },
+};
+
+static const HelpLine GPU_HELP[] = {
+	{ "GPU Plugin:", "OpenGX uses the Wii's GPU; Soft avoids its quirks." },
+	{ "GPU Timing:", "Accurate: the GPU is busy as long as on a PS1." },
+	{ "Frame Rate:", "TV: 59.94 Hz, one frame per TV refresh: smoothest." },
+	{ NULL,          "PS1: 59.82 Hz, a PlayStation's own speed." },
+};
+
+static const HelpLine INPUT_HELP[] = {
+	{ "Port Timing:", "Accurate: each byte on the controller ports takes" },
+	{ NULL,           "as long as on a PS1. Fast is the default." },
+};
+
+static const HelpLine PLUGIN_HELP[] = {
+	{ "CPU Core:",   "Lightrec runs most games best; Interpreter is" },
+	{ NULL,          "exact but slow. A new core restarts the game." },
+	{ "CPU Timing:", "Accurate: 3D-maths and multiply waits as on a PS1." },
+	{ "CPU Speed:",  "Over 100% eases slowdown in some games, at more" },
+	{ NULL,          "Wii CPU time. Save it for one game: This Game." },
+};
+
+static const HelpLine ADVGFX_HELP[] = {
+	{ "Dithering:",    "Hides the steps between colours in a 15-bit picture." },
+	{ NULL,            "Default uses it only where the game asks for it." },
+	{ "MDEC Chroma:",  "Sharp is the console: one colour sample per 2x2 pixels." },
+	{ NULL,            "Smooth mixes the samples: it looks better, costs more." },
+	{ NULL,            "It applies to the next video that starts." },
+	{ "Video Colour:", "24-bit is full colour, as on the console. 15-bit is" },
+	{ NULL,            "the old way: it shows bands in dark scenes." },
+};
+
+static const HelpLine CD_HELP[] = {
+	{ "CD Read Buffer:", "16 KB is best: the card is read in 32 KB pages anyway," },
+	{ NULL,              "and a larger buffer only reads more than the game uses." },
+	{ "CD Read-Ahead:",  "A thread reads the next sectors early, so the game" },
+	{ NULL,              "waits less for the card. Raw bin/cue and .iso only." },
+	{ "CHD Hunk Cache:", "Decoded CHD hunks kept in memory, about 20 KB each." },
+	{ NULL,              "More never decodes more often: 8 is best." },
+	{ NULL,              "All three apply at the next game load." },
+};
+
+/* The Advanced tab row: ADV_TABS order, and the same widths as TAB_WS. */
+static const Tab OPT_TABS[] = {
+	{ "CPU", 110.0f }, { "GPU", 100.0f }, { "SPU", 100.0f }, { "CD", 100.0f }, { "Input", 100.0f },
+};
+/* The tab row's left edges as OptionsFrame writes them (TAB_X). */
+static const float TAB_X_LITERAL[5] = { 25.0f, 155.0f, 275.0f, 395.0f, 515.0f };
+
+/* One OptionsFrame page: PAGES[] in OptionsFrame.cpp. curTab indexes OPT_TABS. */
+struct TestPage {
+	const char      *name;
+	const char      *title;
+	bool             tabbed;
+	int              curTab;
+	Row             *rows;
+	int              nRows;
+	const HelpLine  *help;
+	int              nHelp;
+};
+
+#define COUNT(a) ((int)(sizeof(a) / sizeof((a)[0])))
+
+static TestPage PAGES[] = {
+	{ "Adv Sound",   "Advanced Sound",    false, 0, SOUND_ROWS,   COUNT(SOUND_ROWS),   NULL,        0 },
+	{ "Adv Graphics","Advanced Graphics", false, 0, ADVGFX_ROWS, COUNT(ADVGFX_ROWS), ADVGFX_HELP, COUNT(ADVGFX_HELP) },
+	{ "CPU",         NULL,                true,  0, PLUGIN_ROWS, COUNT(PLUGIN_ROWS), PLUGIN_HELP, COUNT(PLUGIN_HELP) },
+	{ "CD",          NULL,                true,  3, CD_ROWS,     COUNT(CD_ROWS),     CD_HELP,     COUNT(CD_HELP) },
+	{ "Memory",      "Memory",            false, 0, MEMORY_ROWS, COUNT(MEMORY_ROWS), NULL,        0 },
+	{ "GPU",         NULL,                true,  1, GPU_ROWS,    COUNT(GPU_ROWS),    GPU_HELP,    COUNT(GPU_HELP) },
+	{ "Input",       NULL,                true,  4, INPUT_ROWS,  COUNT(INPUT_ROWS),  INPUT_HELP,  COUNT(INPUT_HELP) },
+	{ "SPU",         NULL,                true,  2, SPU_ROWS,    COUNT(SPU_ROWS),    SPU_HELP,    COUNT(SPU_HELP) },
+};
+#define NPAGES COUNT(PAGES)
+
+static Page toPage(const TestPage &t, FocusMode mode)
+{
+	Page p;
+	p.title = t.title;
+	p.tabs = t.tabbed ? OPT_TABS : NULL;
+	p.nTabs = t.tabbed ? COUNT(OPT_TABS) : 0;
+	p.curTab = t.curTab;
+	p.rows = t.rows;
+	p.nRows = t.nRows;
+	p.help = t.help;
+	p.nHelp = t.nHelp;
+	p.logo = LOGO_SPOT_BOTTOM;	/* LOGO_BOTTOM_FRAMES has FRAME_OPTIONS */
+	p.focus = mode;
+	return p;
+}
+
+/*  The expected layout, re-derived from OptionsFrame  */
+
+struct Key {
+	int role, row, slot;
+};
+static const Key NOKEY = { -1, 0, 0 };
+
+static bool sameKey(Key a, Key b)
+{
+	return a.role == b.role && a.row == b.row && a.slot == b.slot;
+}
+
+static Key keyOf(const Control &c)
+{
+	Key k = { c.role, c.row, c.slot };
+	return k;
+}
+
+struct Exp {
+	Key       key;
+	bool      text;
+	float     x, y, w, h;		/* a button's box; a text's drawn box, in whole pixels */
+	float     ax, ay;			/* a text's anchor */
+	TextAlign align;
+	const char *str;
+	bool      focusable, selected;
+	Key       link[DIR_COUNT];
+};
+
+/* OptionsFrame draws text through TextBox, which cuts the anchor to whole pixels first. */
+static void drawnBox(const char *s, float scale, TextAlign align, float ax, float ay,
+                     float *x, float *y, float *w, bool bold)
+{
+	int tw = fontWidth(s, scale, NULL), th = fontHeight(s, scale, NULL);
+	int ix = (int)ax, iy = (int)ay;
+	int left = ix;
+	if (align == ALIGN_RIGHT_TOP) {
+		left = ix - tw;
+		*x = (float)left;
+		*y = (float)iy;
+	} else if (align == ALIGN_CENTRE) {
+		*x = (float)(left - tw / 2);
+		*y = (float)(iy - th / 2);
+	} else {
+		*x = (float)left;
+		*y = (float)iy;
+	}
+	*w = (float)(tw + (bold ? 1 : 0));
+}
+
+static int addExpText(Exp *e, int n, CtrlRole role, int row, int slot, float ax, float ay,
+                      TextAlign align, float scale, const char *s)
+{
+	Exp &x = e[n];
+	memset(&x, 0, sizeof x);
+	x.key.role = role;
+	x.key.row = row;
+	x.key.slot = slot;
+	x.text = true;
+	x.ax = ax;
+	x.ay = ay;
+	x.align = align;
+	x.str = s;
+	drawnBox(s, scale, align, ax, ay, &x.x, &x.y, &x.w, role == ROLE_HELP_TERM);
+	x.h = (float)fontHeight(s, scale, NULL);
+	for (int d = 0; d < DIR_COUNT; d++)
+		x.link[d] = NOKEY;
+	return n + 1;
+}
+
+static int addExpButton(Exp *e, int n, CtrlRole role, int row, int slot,
+                        float x, float y, float w, float h, const char *s, bool selected)
+{
+	Exp &b = e[n];
+	memset(&b, 0, sizeof b);
+	b.key.role = role;
+	b.key.row = row;
+	b.key.slot = slot;
+	b.x = x;
+	b.y = y;
+	b.w = w;
+	b.h = h;
+	b.str = s;
+	b.focusable = true;
+	b.selected = selected;
+	for (int d = 0; d < DIR_COUNT; d++)
+		b.link[d] = NOKEY;
+	return n + 1;
+}
+
+/* A choice's button width when its row fits its words: Button::fitToLabel, 2 * ceil(...). */
+static float fitWidth(const char *s)
+{
+	float t = (float)fontWidth(s, 1.0f, NULL);
+	return 2.0f * ceilf((t + 16.0f + 16.0f) / 2.0f);
+}
+
+static int rowChoices(const Row &r)
+{
+	return r.count;
+}
+
+static Key tabKey(int t)
+{
+	Key k = { ROLE_TAB, -1, t };
+	return k;
+}
+
+/* OptionsFrame's focusTarget(row, col): a choice row clamps the column to its last button. */
+static Key focusTarget(const TestPage &t, int row, int col)
+{
+	const Row &r = t.rows[row];
+	Key k;
+	if (r.kind == ROW_CHOICE) {
+		k.role = ROLE_CHOICE;
+		k.row = row;
+		k.slot = col >= rowChoices(r) ? rowChoices(r) - 1 : col;
+	} else {
+		k.role = ROLE_BUTTON;
+		k.row = row;
+		k.slot = 0;
+	}
+	return k;
+}
+
+static bool rowIsFocusable(const Row &r)
+{
+	return r.kind == ROW_CYCLE || r.kind == ROW_CHOICE;
+}
+
+static int choicesOf(const TestPage &t, int row)
+{
+	return t.rows[row].kind == ROW_CHOICE ? rowChoices(t.rows[row]) : 1;
+}
+
+static void setLink(Exp *e, int n, Key from, int dir, Key to)
+{
+	for (int i = 0; i < n; i++)
+		if (sameKey(e[i].key, from)) {
+			e[i].link[dir] = to;
+			return;
+		}
+	fail("expect", "a link from a control the test did not describe");
+}
+
+/* Fills in the focus links OptionsFrame::activateSubmenu sets, loop for loop. */
+static void expectLinks(const TestPage &t, Exp *e, int n)
+{
+	int firstRow = -1, prevRow = -1;
+
+	for (int i = 0; i < t.nRows; i++) {
+		if (t.rows[i].kind != ROW_CHOICE)
+			continue;
+		for (int c = 0; c < rowChoices(t.rows[i]); c++) {
+			int nc = rowChoices(t.rows[i]);
+			setLink(e, n, focusTarget(t, i, c), DIR_LEFT,  focusTarget(t, i, (c + nc - 1) % nc));
+			setLink(e, n, focusTarget(t, i, c), DIR_RIGHT, focusTarget(t, i, (c + 1) % nc));
+		}
+	}
+	if (t.tabbed)
+		for (int tb = 0; tb < (int)COUNT(OPT_TABS); tb++) {
+			int nt = (int)COUNT(OPT_TABS);
+			setLink(e, n, tabKey(tb), DIR_LEFT,  tabKey((tb + nt - 1) % nt));
+			setLink(e, n, tabKey(tb), DIR_RIGHT, tabKey((tb + 1) % nt));
+		}
+
+	for (int i = 0; i < t.nRows; i++) {
+		if (!rowIsFocusable(t.rows[i]))
+			continue;
+		if (firstRow < 0)
+			firstRow = i;
+		if (prevRow >= 0) {
+			int ncPrev = choicesOf(t, prevRow), ncThis = choicesOf(t, i);
+			for (int c = 0; c < ncPrev; c++)
+				setLink(e, n, focusTarget(t, prevRow, c), DIR_DOWN, focusTarget(t, i, c));
+			for (int c = 0; c < ncThis; c++)
+				setLink(e, n, focusTarget(t, i, c), DIR_UP, focusTarget(t, prevRow, c));
+		}
+		prevRow = i;
+	}
+	if (firstRow >= 0) {
+		int ncLast = choicesOf(t, prevRow), ncFirst = choicesOf(t, firstRow);
+		Key tb = tabKey(t.curTab);
+		for (int c = 0; c < ncLast; c++)
+			setLink(e, n, focusTarget(t, prevRow, c), DIR_DOWN, t.tabbed ? tb : focusTarget(t, firstRow, c));
+		for (int c = 0; c < ncFirst; c++)
+			setLink(e, n, focusTarget(t, firstRow, c), DIR_UP, t.tabbed ? tb : focusTarget(t, prevRow, c));
+		if (t.tabbed)
+			for (int k = 0; k < (int)COUNT(OPT_TABS); k++) {
+				setLink(e, n, tabKey(k), DIR_DOWN, focusTarget(t, firstRow, 0));
+				setLink(e, n, tabKey(k), DIR_UP,   focusTarget(t, prevRow, 0));
+			}
+	}
+}
+
+/* Returns the number of expected controls. Also sets *defaultFocus. */
+static int buildExpected(const TestPage &t, Exp *e, Key *defaultFocus)
+{
+	int n = 0;
+	int firstRow = -1;
+
+	if (t.tabbed) {
+		for (int k = 0; k < (int)COUNT(OPT_TABS); k++) {
+			n = addExpButton(e, n, ROLE_TAB, -1, k, TAB_X_LITERAL[k], 20.0f, OPT_TABS[k].width, 56.0f,
+			                 OPT_TABS[k].text, k == t.curTab);
+		}
+	} else if (t.title) {
+		n = addExpText(e, n, ROLE_TITLE, -1, 0, 320.0f, 44.0f, ALIGN_CENTRE, 1.0f, t.title);
+	}
+
+	for (int i = 0; i < t.nRows; i++) {
+		const Row &r = t.rows[i];
+		const float y = 100.0f + i * 60.0f;
+		if (firstRow < 0 && rowIsFocusable(r))
+			firstRow = i;
+
+		if (r.kind == ROW_CYCLE) {
+			n = addExpText(e, n, ROLE_LABEL, i, 0, 160.0f, y + 20.0f, ALIGN_CENTRE, 1.0f, r.label);
+			n = addExpButton(e, n, ROLE_BUTTON, i, 0, 295.0f, y, 200.0f, 56.0f,
+			                 r.names[r.value - r.lo], false);
+		} else if (r.kind == ROW_READOUT) {
+			n = addExpText(e, n, ROLE_LABEL, i, 0, 160.0f, y + 20.0f, ALIGN_CENTRE, 1.0f, r.label);
+			n = addExpText(e, n, ROLE_VALUE, i, 0, 395.0f, y + 20.0f, ALIGN_CENTRE, 1.0f, r.text);
+		} else if (r.kind == ROW_CHOICE) {
+			float cx = 205.0f;
+			n = addExpText(e, n, ROLE_RLABEL, i, 0, 110.0f, y + 20.0f, ALIGN_CENTRE, 1.0f, r.label);
+			for (int c = 0; c < rowChoices(r); c++) {
+				float w = r.fit ? fitWidth(r.names[c]) : 135.0f;
+				n = addExpButton(e, n, ROLE_CHOICE, i, c, cx, y, w, 56.0f, r.names[c], c == r.value - r.lo);
+				cx += r.fit ? w + 12.0f : 147.0f;
+			}
+		}
+	}
+
+	/* Help: the block is centred as a whole, then moved left for the logo's corner. */
+	if (t.nHelp > 0) {
+		int wTerm = 0, wText = 0, shift = 0;
+		double termR;
+		float textX, y;
+		const float HELP_SCALE = 0.62f;
+
+		for (int h = 0; h < t.nHelp; h++) {
+			if (t.help[h].term) {
+				int w = fontWidth(t.help[h].term, HELP_SCALE, NULL);
+				if (w > wTerm) wTerm = w;
+			}
+			{
+				int w = fontWidth(t.help[h].text, HELP_SCALE, NULL);
+				if (w > wText) wText = w;
+			}
+		}
+		termR = (640.0 - (wTerm + 10.0 + wText)) / 2 + wTerm;
+		textX = (float)(termR + 10.0);
+		y = 100.0f + t.nRows * 60.0f;
+		for (int h = 0; h < t.nHelp; h++) {
+			int over;
+			float bottom;
+			if (h > 0 && t.help[h].term) y += 9.0f;
+			bottom = y + 24.0f * HELP_SCALE;
+			/* MENU_ROW_RIGHT: a line whose lowest pixel is below the logo's top stops at 538. */
+			{
+				double right = bottom > 392.0f ? 538.0 : 636.0;
+				over = (int)(textX + fontWidth(t.help[h].text, HELP_SCALE, NULL) - right);
+			}
+			if (over > shift) shift = over;
+			y += 19.0f;
+		}
+		if (termR - wTerm - shift < 4.0)
+			shift = (int)(termR - wTerm - 4.0);
+		termR -= shift;
+		textX -= shift;
+
+		y = 100.0f + t.nRows * 60.0f;
+		for (int h = 0; h < t.nHelp; h++) {
+			if (h > 0 && t.help[h].term) y += 9.0f;
+			if (t.help[h].term)
+				n = addExpText(e, n, ROLE_HELP_TERM, -1, h, (float)termR, y, ALIGN_RIGHT_TOP, HELP_SCALE, t.help[h].term);
+			n = addExpText(e, n, ROLE_HELP_TEXT, -1, h, textX, y, ALIGN_LEFT_TOP, HELP_SCALE, t.help[h].text);
+			y += 19.0f;
+		}
+	}
+
+	if (firstRow >= 0)
+		*defaultFocus = focusTarget(t, firstRow, 0);
+	else if (t.tabbed)
+		*defaultFocus = tabKey(t.curTab);
+	else
+		*defaultFocus = NOKEY;
+
+	return n;	/* the focus links are added by expectLinks() */
+}
+
+static int findCtrl(const Layout &lay, Key k)
+{
+	for (int i = 0; i < lay.n; i++)
+		if (sameKey(keyOf(lay.c[i]), k))
+			return i;
+	return -1;
+}
+
+static const char *keyName(Key k, char *buf, size_t len)
+{
+	if (k.role < 0) { snprintf(buf, len, "none"); return buf; }
+	snprintf(buf, len, "role%d row%d slot%d", k.role, k.row, k.slot);
+	return buf;
+}
+
+/*  Checks  */
+
+static bool nearly(float a, float b)
+{
+	return fabs(a - b) < 1e-3f;
+}
+
+/* Every control the test expects is in the layout, where it should be, and nothing else is. */
+static bool compareLayout(const char *name, const Layout &lay, const Exp *e, int n)
+{
+	bool ok = true;
+	char b1[64];
+
+	if (lay.n != n) {
+		char msg[96];
+		snprintf(msg, sizeof msg, "%d controls, expected %d", lay.n, n);
+		fail(name, msg);
+		ok = false;
+	}
+	for (int i = 0; i < n; i++) {
+		int at = findCtrl(lay, e[i].key);
+		if (at < 0) {
+			char msg[128];
+			snprintf(msg, sizeof msg, "missing %s", keyName(e[i].key, b1, sizeof b1));
+			fail(name, msg);
+			ok = false;
+			continue;
+		}
+		{
+			const Control &c = lay.c[at];
+			const Rect &r = c.rect;
+			char msg[256];
+			if (!nearly(r.x, e[i].x) || !nearly(r.y, e[i].y) || !nearly(r.w, e[i].w) || !nearly(r.h, e[i].h)) {
+				snprintf(msg, sizeof msg, "%s at (%g,%g %gx%g), expected (%g,%g %gx%g) '%s'",
+				         keyName(e[i].key, b1, sizeof b1), r.x, r.y, r.w, r.h, e[i].x, e[i].y, e[i].w, e[i].h,
+				         e[i].str ? e[i].str : "");
+				fail(name, msg);
+				ok = false;
+			}
+			if (e[i].text) {
+				if (c.kind != CTRL_TEXT || !nearly(c.ax, e[i].ax) || !nearly(c.ay, e[i].ay) || c.align != e[i].align) {
+					snprintf(msg, sizeof msg, "%s anchor (%g,%g) not (%g,%g) or wrong alignment",
+					         keyName(e[i].key, b1, sizeof b1), c.ax, c.ay, e[i].ax, e[i].ay);
+					fail(name, msg);
+					ok = false;
+				}
+			}
+			if (e[i].str && strcmp(c.text ? c.text : "", e[i].str) != 0) {
+				snprintf(msg, sizeof msg, "%s shows '%s', expected '%s'",
+				         keyName(e[i].key, b1, sizeof b1), c.text ? c.text : "", e[i].str);
+				fail(name, msg);
+				ok = false;
+			}
+			if (e[i].focusable && (c.selected != e[i].selected)) {
+				snprintf(msg, sizeof msg, "%s lit=%d, expected %d", keyName(e[i].key, b1, sizeof b1),
+				         (int)c.selected, (int)e[i].selected);
+				fail(name, msg);
+				ok = false;
+			}
+		}
+	}
+	return ok;
+}
+
+static bool compareLinks(const char *name, const Layout &lay, const Exp *e, int n, Key defaultFocus)
+{
+	bool ok = true;
+	char b1[64], b2[64];
+	static const char *dirName[DIR_COUNT] = { "Up", "Down", "Left", "Right" };
+
+	for (int i = 0; i < n; i++) {
+		if (!e[i].focusable)
+			continue;
+		int at = findCtrl(lay, e[i].key);
+		if (at < 0)
+			continue;
+		for (int d = 0; d < DIR_COUNT; d++) {
+			Key want = e[i].link[d];
+			int got = lay.c[at].link[d];
+			if (want.role < 0) {
+				if (got >= 0) {
+					char msg[160];
+					snprintf(msg, sizeof msg, "%s %s links to %s, expected nothing",
+					         keyName(e[i].key, b1, sizeof b1), dirName[d],
+					         keyName(keyOf(lay.c[got]), b2, sizeof b2));
+					fail(name, msg);
+					ok = false;
+				}
+				continue;
+			}
+			if (got < 0 || !sameKey(keyOf(lay.c[got]), want)) {
+				char msg[200];
+				snprintf(msg, sizeof msg, "%s %s links to %s, expected %s",
+				         keyName(e[i].key, b1, sizeof b1), dirName[d],
+				         got < 0 ? "nothing" : keyName(keyOf(lay.c[got]), b2, sizeof b2),
+				         keyName(want, b2, sizeof b2));
+				fail(name, msg);
+				ok = false;
+			}
+		}
+	}
+	if (!sameKey(lay.defaultFocus >= 0 ? keyOf(lay.c[lay.defaultFocus]) : NOKEY, defaultFocus)) {
+		char msg[128];
+		snprintf(msg, sizeof msg, "default focus is %s, expected %s",
+		         lay.defaultFocus >= 0 ? keyName(keyOf(lay.c[lay.defaultFocus]), b1, sizeof b1) : "none",
+		         keyName(defaultFocus, b2, sizeof b2));
+		fail(name, msg);
+		ok = false;
+	}
+	return ok;
+}
+
+/* Findings the old OptionsFrame layout already has, on the real font. They are printed and
+ * do not fail the test: fixing one changes a page's picture, and the plan keeps pictures
+ * until someone has looked at the change on a Wii (Docs/MENU_FRAMEWORK_PLAN.md, "Decided").
+ * Matched by page, problem, and the text of the control (and of the second one, if any).
+ * Any finding not listed here is a failure. */
+struct Known {
+	const char *page;
+	int         kind;
+	const char *a;
+	const char *b;		/* NULL: a finding on one control */
+};
+
+static const Known KNOWN[] = {
+	{ "CPU",    PROB_TEXT_WIDE, "Interpreter", NULL },
+	{ "GPU",    PROB_TEXT_WIDE, "Soft Fast",   NULL },
+	{ "GPU",    PROB_TEXT_WIDE, "Soft Timed",  NULL },
+	/* The readouts' values are the longest the emulator can print (MEM1, the recompiler buffer,
+	 * the locked cache with both regions on). A value that reaches its label's column is drawn
+	 * over it. Found by this test; not a regression of the engine. */
+	{ "Memory", PROB_OVERLAP,   "Recompiler buffer", "16384 KB (Lightrec, MEM1)" },
+	{ "Memory", PROB_OVERLAP,   "Locked cache",      "16 / 16 KB (spu-gauss, tex-tile)" },
+};
+
+static bool isKnown(const char *page, int kind, const Layout &lay, int a, int b)
+{
+	for (unsigned k = 0; k < COUNT(KNOWN); k++) {
+		const Known &x = KNOWN[k];
+		if (strcmp(x.page, page) != 0 || x.kind != kind || strcmp(x.a, lay.c[a].text) != 0)
+			continue;
+		if (b < 0 ? x.b != NULL : (x.b == NULL || strcmp(x.b, lay.c[b].text) != 0))
+			continue;
+		return true;
+	}
+	return false;
+}
+
+static void describe(const Layout &lay, int i, char *buf, size_t len)
+{
+	const Rect &r = lay.c[i].rect;
+	snprintf(buf, len, "'%s' at %g,%g %gx%g", lay.c[i].text, r.x, r.y, r.w, r.h);
+}
+
+/* Runs checkLayout and returns how many problems are not known findings. onlyRow >= 0 counts
+ * only the problems on that row. With report, each problem is printed. */
+static int auditLayout(const Page &p, const Layout &lay, const char *page, int onlyRow, bool report)
+{
+	Problem probs[MAX_PROBLEMS];
+	int n = checkLayout(p, kFont, lay, probs, MAX_PROBLEMS);
+	int unknown = 0;
+
+	if (n > MAX_PROBLEMS)
+		n = MAX_PROBLEMS;
+	for (int i = 0; i < n; i++) {
+		const Problem &q = probs[i];
+		bool known;
+		char d1[160], d2[160];
+		if (onlyRow >= 0 && lay.c[q.a].row != onlyRow && (q.b < 0 || lay.c[q.b].row != onlyRow))
+			continue;
+		known = isKnown(page, q.kind, lay, q.a, q.b);
+		if (!known)
+			unknown++;
+		if (report) {
+			describe(lay, q.a, d1, sizeof d1);
+			if (q.b >= 0)
+				describe(lay, q.b, d2, sizeof d2);
+			printf("        %-12s %-30s %s%s%s  [%s]\n", page, problemName(q.kind), d1,
+			       q.b >= 0 ? " / " : "", q.b >= 0 ? d2 : "", known ? "known" : "NEW");
+		}
+	}
+	return unknown;
+}
+
+/*  Main  */
+
+static Exp EXP[MAX_CONTROLS];
+
+static int checkSymmetry(const char *name, const Layout &lay);
+
+static int testOptionsPages(void)
+{
+	int bad = 0;
+
+	printf("OptionsFrame pages (rectangles, focus links, help, logo, every value of every setting)\n");
+	for (unsigned pg = 0; pg < NPAGES; pg++) {
+		const TestPage &t = PAGES[pg];
+		Row *rows = t.rows;
+		Page page = toPage(t, FOCUS_ROWS);
+		Layout lay;
+		Key defFocus;
+		int nExp = buildExpected(t, EXP, &defFocus);
+		int before = failures;
+		int n;
+
+		n = layoutPage(page, kFont, lay);
+		if (n < 0) {
+			fail(t.name, "layoutPage refused a page OptionsFrame shows");
+			bad++;
+			continue;
+		}
+		expectLinks(t, EXP, nExp);
+		compareLayout(t.name, lay, EXP, nExp);
+		linkFocus(page, lay);
+		compareLinks(t.name, lay, EXP, nExp, defFocus);
+		if (checkSymmetry(t.name, lay) != 0)
+			fail(t.name, "a one-way focus link that no tab or row-width case explains");
+
+		/* The page must draw clear of everything, under the logo's rules. */
+		if (auditLayout(page, lay, t.name, -1, true) != 0)
+			fail(t.name, "checkLayout reports a problem that is not a known finding");
+
+		/* Every value of every setting must fit its button and stay clear of its neighbours. */
+		for (int i = 0; i < t.nRows; i++) {
+			Row &r = rows[i];
+			int saved = r.value;
+			if (r.kind != ROW_CYCLE && r.kind != ROW_CHOICE)
+				continue;
+			for (int v = r.lo; v < r.lo + r.count; v++) {
+				Layout l2;
+				r.value = v;
+				if (layoutPage(page, kFont, l2) < 0) {
+					fail(t.name, "layoutPage refused a value");
+					continue;
+				}
+				linkFocus(page, l2);
+				if (auditLayout(page, l2, t.name, i, false) != 0) {
+					char msg[200];
+					snprintf(msg, sizeof msg, "row %d, value %d (%s): a problem that is not a known finding",
+					         i, v, r.names[v - r.lo]);
+					fail(t.name, msg);
+				}
+			}
+			r.value = saved;
+		}
+
+		printf("  %-12s %2d rows, %2d controls, %s\n", t.name, t.nRows, lay.n,
+		       failures == before ? "ok" : "FAILED");
+		bad += failures - before;
+	}
+	return bad;
+}
+
+static int focusableIn(const Layout &lay, int row)
+{
+	int n = 0;
+	for (int i = 0; i < lay.n; i++)
+		if (lay.c[i].focusable && lay.c[i].row == row)
+			n++;
+	return n;
+}
+
+/* Where a link goes one way only, it must be one of the cases OptionsFrame has by design: into
+ * or out of the tab row (only the lit tab links to the first and last rows), or between rows
+ * of different widths (a shorter row takes the column of a wider one). Anything else fails. */
+static int checkSymmetry(const char *name, const Layout &lay)
+{
+	static const int pairs[2][2] = { { DIR_DOWN, DIR_UP }, { DIR_RIGHT, DIR_LEFT } };
+	int oneWay = 0, unexplained = 0;
+
+	for (int i = 0; i < lay.n; i++) {
+		const Control &a = lay.c[i];
+		if (!a.focusable)
+			continue;
+		for (int k = 0; k < 2; k++) {
+			int b = a.link[pairs[k][0]];
+			if (b < 0 || lay.c[b].link[pairs[k][1]] == i)
+				continue;
+			oneWay++;
+			{
+				bool explained = a.role == ROLE_TAB || lay.c[b].role == ROLE_TAB ||
+				                 (a.row != lay.c[b].row && focusableIn(lay, a.row) != focusableIn(lay, lay.c[b].row));
+				if (!explained) {
+					char b1[64], b2[64];
+					unexplained++;
+					printf("        %-12s one-way link %s -> %s\n", name,
+					       keyName(keyOf(a), b1, sizeof b1), keyName(keyOf(lay.c[b]), b2, sizeof b2));
+				}
+			}
+		}
+	}
+	printf("  %-12s %d one-way link%s, %d not explained by tabs or row widths\n", name, oneWay,
+	       oneWay == 1 ? "" : "s", unexplained);
+	return unexplained;
+}
+
+static void reportGeometry(void)
+{
+	int totalDiff = 0, totalCross = 0;
+	printf("FOCUS_GEOMETRY (CustomizeCoopFrame's rule) on the same pages, against FOCUS_ROWS\n");
+	for (unsigned pg = 0; pg < NPAGES; pg++) {
+		const TestPage &t = PAGES[pg];
+		Layout rowsLay, geoLay;
+		Page rowsPage = toPage(t, FOCUS_ROWS), geoPage = toPage(t, FOCUS_GEOMETRY);
+		int diff = 0, unreachable = 0, shown = 0, cross = 0;
+		char b1[64], b2[64];
+		Problem probs[MAX_PROBLEMS];
+		int np;
+
+		layoutPage(rowsPage, kFont, rowsLay);
+		linkFocus(rowsPage, rowsLay);
+		layoutPage(geoPage, kFont, geoLay);
+		linkFocus(geoPage, geoLay);
+
+		for (int i = 0; i < geoLay.n; i++) {
+			int at;
+			if (!geoLay.c[i].focusable)
+				continue;
+			shown++;
+			at = findCtrl(rowsLay, keyOf(geoLay.c[i]));
+			for (int d = 0; d < DIR_COUNT; d++) {
+				int a = rowsLay.c[at].link[d], g = geoLay.c[i].link[d];
+				bool same = (a < 0 && g < 0) ||
+				            (a >= 0 && g >= 0 && sameKey(keyOf(rowsLay.c[a]), keyOf(geoLay.c[g])));
+				if (!same) {
+					diff++;
+					/* A left or right move inside one row that geometry sends to another row. */
+					if ((d == DIR_LEFT || d == DIR_RIGHT) && a >= 0 && g >= 0 &&
+					    rowsLay.c[a].row == geoLay.c[i].row && geoLay.c[g].row != geoLay.c[i].row) {
+						cross++;
+						if (cross == 1) {
+							char b3[64];
+							printf("        %-12s %s %s: rows -> %s, geometry -> %s (another row)\n", t.name,
+							       keyName(keyOf(geoLay.c[i]), b1, sizeof b1),
+							       d == DIR_LEFT ? "Left" : "Right",
+							       keyName(keyOf(rowsLay.c[a]), b2, sizeof b2),
+							       keyName(keyOf(geoLay.c[g]), b3, sizeof b3));
+						}
+					}
+					if (diff <= 2) {
+						char b3[64];
+						printf("        %-12s %s %s: rows -> %s, geometry -> %s\n", t.name,
+						       keyName(keyOf(geoLay.c[i]), b1, sizeof b1),
+						       d == DIR_UP ? "Up" : d == DIR_DOWN ? "Down" : d == DIR_LEFT ? "Left" : "Right",
+						       a >= 0 ? keyName(keyOf(rowsLay.c[a]), b2, sizeof b2) : "none",
+						       g >= 0 ? keyName(keyOf(geoLay.c[g]), b3, sizeof b3) : "none");
+					}
+				}
+			}
+		}
+		np = checkLayout(geoPage, kFont, geoLay, probs, MAX_PROBLEMS);
+		for (int i = 0; i < np && i < MAX_PROBLEMS; i++)
+			if (probs[i].kind == PROB_UNREACHABLE || probs[i].kind == PROB_BAD_LINK)
+				unreachable++;
+		printf("  %-12s %d focusable, %d links differ from rows (%d left/right moves leave their row), %d not reachable\n",
+		       t.name, shown, diff, cross, unreachable);
+		totalDiff += diff;
+		totalCross += cross;
+		if (unreachable)
+			fail(t.name, "FOCUS_GEOMETRY leaves a control unreachable");
+	}
+	printf("  total: %d links differ, %d left/right moves leave their row\n", totalDiff, totalCross);
+}
+
+/* checkLayout must catch each thing it claims to. Each case builds one bad page. */
+static void testCheckCatches(void)
+{
+	static const char *const WIDE[] = { "Interpreter with a much longer name than fits" };
+	static const char *const NARROW[] = { "On", "Off" };
+	static const char *const THREE[]  = { "On", "Off", "Auto" };
+	static const ActionButton FOUR[] = { {"A", 180}, {"B", 180}, {"C", 180}, {"D", 180} };
+	Row rows[5];
+	Layout lay;
+	Problem probs[MAX_PROBLEMS];
+	int np;
+	bool seen[8];
+	Page page;
+	const char *tag = "checks";
+
+	printf("checkLayout on deliberately bad pages\n");
+
+	/* A label too long for its column: past the edge and over the button. */
+	memset(rows, 0, sizeof rows);
+	rows[0].kind = ROW_CYCLE;
+	rows[0].label = "This label is far too long for its column at all";
+	rows[0].names = NARROW; rows[0].count = 2; rows[0].value = 0;
+	page = Page();
+	page.rows = rows; page.nRows = 1; page.logo = LOGO_SPOT_BOTTOM;
+	layoutPage(page, kFont, lay);
+	linkFocus(page, lay);
+	np = checkLayout(page, kFont, lay, probs, MAX_PROBLEMS);
+	memset(seen, 0, sizeof seen);
+	for (int i = 0; i < np && i < MAX_PROBLEMS; i++) seen[probs[i].kind] = true;
+	if (!seen[PROB_PAST_EDGE] || !seen[PROB_OVERLAP]) fail(tag, "long label not reported as past the edge and overlapping");
+
+	/* A value wider than its button. */
+	memset(rows, 0, sizeof rows);
+	rows[0].kind = ROW_CYCLE; rows[0].label = "Short";
+	rows[0].names = WIDE; rows[0].count = 1; rows[0].value = 0;
+	page.rows = rows; page.nRows = 1;
+	layoutPage(page, kFont, lay);
+	linkFocus(page, lay);
+	np = checkLayout(page, kFont, lay, probs, MAX_PROBLEMS);
+	memset(seen, 0, sizeof seen);
+	for (int i = 0; i < np && i < MAX_PROBLEMS; i++) seen[probs[i].kind] = true;
+	if (!seen[PROB_TEXT_WIDE]) fail(tag, "a label wider than its button not reported");
+
+	/* A choice row in the logo's corner. */
+	memset(rows, 0, sizeof rows);
+	for (int i = 0; i < 4; i++) { rows[i].kind = ROW_CYCLE; rows[i].label = "Row"; rows[i].names = NARROW; rows[i].count = 2; }
+	/* Three choices reach x = 634, into the logo's box at the bottom right. */
+	rows[4].kind = ROW_CHOICE; rows[4].label = "Low"; rows[4].names = THREE; rows[4].count = 3;
+	page.rows = rows; page.nRows = 5;
+	layoutPage(page, kFont, lay);
+	linkFocus(page, lay);
+	np = checkLayout(page, kFont, lay, probs, MAX_PROBLEMS);
+	memset(seen, 0, sizeof seen);
+	for (int i = 0; i < np && i < MAX_PROBLEMS; i++) seen[probs[i].kind] = true;
+	if (!seen[PROB_IN_LOGO]) fail(tag, "a row in the logo's box not reported");
+
+	/* An action row wider than the screen. */
+	memset(rows, 0, sizeof rows);
+	rows[0].kind = ROW_BUTTONS; rows[0].count = 4; rows[0].actions = FOUR;
+	page.rows = rows; page.nRows = 1;
+	layoutPage(page, kFont, lay);
+	linkFocus(page, lay);
+	np = checkLayout(page, kFont, lay, probs, MAX_PROBLEMS);
+	memset(seen, 0, sizeof seen);
+	for (int i = 0; i < np && i < MAX_PROBLEMS; i++) seen[probs[i].kind] = true;
+	if (!seen[PROB_PAST_EDGE]) fail(tag, "a button row off the screen not reported");
+
+	/* Two cycle rows. Each one's Up and Down link to the other (the wrap makes both), so cutting
+	 * both of the first row's vertical links leaves the second unreachable. */
+	memset(rows, 0, sizeof rows);
+	rows[0].kind = ROW_CYCLE; rows[0].label = "A"; rows[0].names = NARROW; rows[0].count = 2;
+	rows[1].kind = ROW_CYCLE; rows[1].label = "B"; rows[1].names = NARROW; rows[1].count = 2;
+	page.rows = rows; page.nRows = 2;
+	layoutPage(page, kFont, lay);
+	linkFocus(page, lay);
+	{
+		int first = lay.slot[0][0];
+		lay.c[first].link[DIR_DOWN] = -1;
+		lay.c[first].link[DIR_UP] = -1;
+		np = checkLayout(page, kFont, lay, probs, MAX_PROBLEMS);
+		memset(seen, 0, sizeof seen);
+		for (int i = 0; i < np && i < MAX_PROBLEMS; i++) seen[probs[i].kind] = true;
+		if (!seen[PROB_UNREACHABLE]) fail(tag, "a control cut off from focus not reported");
+	}
+
+	/* A link to a label, which is not focusable. */
+	layoutPage(page, kFont, lay);
+	linkFocus(page, lay);
+	{
+		int first = lay.slot[0][0];
+		int label = -1;
+		for (int i = 0; i < lay.n; i++) if (lay.c[i].role == ROLE_LABEL) { label = i; break; }
+		lay.c[first].link[DIR_RIGHT] = label;
+		np = checkLayout(page, kFont, lay, probs, MAX_PROBLEMS);
+		memset(seen, 0, sizeof seen);
+		for (int i = 0; i < np && i < MAX_PROBLEMS; i++) seen[probs[i].kind] = true;
+		if (!seen[PROB_BAD_LINK]) fail(tag, "a focus link to a label not reported");
+	}
+
+	/* Things layoutPage refuses rather than laying out past its arrays. */
+	memset(rows, 0, sizeof rows);
+	rows[0].kind = ROW_CHOICE; rows[0].names = WIDE; rows[0].count = 5;
+	page.rows = rows; page.nRows = 1;
+	if (layoutPage(page, kFont, lay) != -1) fail(tag, "a five-button choice row was accepted");
+	page.rows = rows; page.nRows = MAX_ROWS + 1;
+	if (layoutPage(page, kFont, lay) != -1) fail(tag, "a seventh row was accepted");
+}
+
+int main(int argc, char **argv)
+{
+	const char *font = argc > 1 ? argv[1] : "fonts/En.dat";
+
+	if (!loadFont(font)) {
+		printf("cannot read the font file '%s' (pass its path as the first argument)\n", font);
+		return 2;
+	}
+
+	testOptionsPages();
+	reportGeometry();
+	testCheckCatches();
+
+	printf("\n%s: %d check%s failed\n", failures ? "FAILED" : "PASSED", failures, failures == 1 ? "" : "s");
+	return failures > 255 ? 255 : failures;
+}
