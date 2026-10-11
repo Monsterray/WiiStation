@@ -86,7 +86,7 @@ def main():
         if px:
             print('   median %d pixels a differing frame (max %d of %d), median largest step %d'
                   % (int(np.median(px)), max(px), 480 * 824, int(np.median(st))))
-    if worst is not None and opt('--crop'):
+    if worst is not None and opts.get('--crop'):
         k, m, x, y = worst
         ys, xs = np.nonzero(m == m.max())
         cy, cx = int(ys[0]), int(xs[0])
@@ -95,8 +95,8 @@ def main():
         strip = np.concatenate([cut(x), cut(y), cut(((m > 0)[..., None] * 255).repeat(3, 2))],
                                axis=1).astype(np.uint8)
         Image.fromarray(strip).resize((strip.shape[1] * 4, strip.shape[0] * 4),
-                                      Image.NEAREST).save(opt('--crop'))
-        print('   crop of frame %d at (%d,%d): %s' % (k, cx, cy, opt('--crop')))
+                                      Image.NEAREST).save(opts.get('--crop'))
+        print('   crop of frame %d at (%d,%d): %s' % (k, cx, cy, opts.get('--crop')))
     return 1 if diffs else 0
 
 

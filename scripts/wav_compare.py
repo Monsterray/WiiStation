@@ -217,7 +217,9 @@ def exact(a, b):
 
 
 def main():
-    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    # a flag's value (--window-ms 100) is not a file
+    args = [a for i, a in enumerate(sys.argv[1:], 1)
+            if not a.startswith("--") and sys.argv[i - 1] != "--window-ms"]
     window = flag(sys.argv, "--window-ms", "100")
     window = req_int(window, "--window-ms")
     if not args:

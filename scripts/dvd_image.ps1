@@ -26,6 +26,15 @@ $fs = New-Object -ComObject IMAPI2FS.MsftFileSystemImage
 $fs.FileSystemsToCreate = 3          # ISO9660 | Joliet
 $fs.FreeMediaBlocks = 2295104        # a single-layer DVD
 $fs.VolumeName = 'WIISTATION_TEST'
+foreach ($g in $Games) {
+    if (-not (Test-Path -LiteralPath (Join-Path $GameRoot $g) -PathType Container)) {
+        throw "dvd_image.ps1: no such game folder $(Join-Path $GameRoot $g)"
+    }
+}
+$outDir = Split-Path -Parent $Out
+if ($outDir -ne '' -and -not (Test-Path -LiteralPath $outDir -PathType Container)) {
+    throw "dvd_image.ps1: output directory $outDir does not exist"
+}
 $fs.Root.AddDirectory($Folder)
 $top = $fs.Root.Item($Folder)
 foreach ($g in $Games) {

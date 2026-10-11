@@ -40,8 +40,13 @@ games=(
 )
 echo CHAIN > "$chain"
 made=()
+cleanup() { rm -f "${made[@]:-}"; }
+trap cleanup EXIT INT TERM
 for g in "${games[@]}"; do
 	IFS='|' read -r vbl rec ct folder cue <<< "$g"
+	if [ -n "$rec" ] && [ ! -f "$A/${rec}.txt" ]; then
+		echo "softgpu_check.sh: no such recording $A/${rec}.txt" >&2; exit 2
+	fi
 	s="_softcheck_${rec:-$(basename "$folder" | tr -cd 'A-Za-z0-9')}.txt"
 	{
 		# three fingerprints per game, the last just before its end

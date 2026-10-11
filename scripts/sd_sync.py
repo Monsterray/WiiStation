@@ -19,7 +19,6 @@ user deletes from wiistation/saves while the image still has it comes back the s
 """
 import os, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from cliutil import need  # noqa: E402
 from sdimage_read import read_bpb, read_chain, entries
 
 OURS_SKIP = ("wiistation/isos/", "wiistation/bios/", "wiistation/fonts/")
@@ -57,7 +56,9 @@ def folder_tree(root):
     return out
 
 def main():
-    need(sys.argv, 2, "sd_sync.py LOADDIR [--dry-run]")
+    if len(sys.argv) < 2 or sys.argv[1].startswith("--"):
+        print("usage: sd_sync.py LOADDIR [--dry-run]", file=sys.stderr)
+        sys.exit(2)
     load, dry = sys.argv[1], "--dry-run" in sys.argv
     folder, image = os.path.join(load, "WiiSDSync"), os.path.join(load, "WiiSD.raw")
     if not os.path.isdir(folder) or not os.path.isfile(image):
@@ -95,4 +96,8 @@ def main():
     print("on" if theirs else "off")
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:   # any failure is a non-zero exit the caller can see
+        print(f"sd_sync.py: {e}", file=sys.stderr)
+        sys.exit(1)

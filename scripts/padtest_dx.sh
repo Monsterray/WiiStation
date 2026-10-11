@@ -27,12 +27,18 @@ while [ $# -gt 0 ]; do
 	esac
 	shift
 done
+if [ -n "${PYTHON:-}" ]; then :;
+elif command -v python >/dev/null 2>&1; then PYTHON=python;
+elif [ -x /c/Python312/python.exe ]; then PYTHON=/c/Python312/python.exe;
+else PYTHON=python3; fi
 name=padtest_dx
 card="${WSX_PROFILE:-$REPO/.dolphin}/Load/WiiSDSync/wiistation/isos/PadTestDX"
+[ -f "$rom/padtest.bin" ] || { echo "padtest_dx.sh: no such ROM $rom/padtest.bin (--rom DIR)" >&2; exit 2; }
+[ -f "$rom/padtest.cue" ] || { echo "padtest_dx.sh: no such ROM $rom/padtest.cue (--rom DIR)" >&2; exit 2; }
 mkdir -p "$card" "$RUNS"
 cp "$rom/padtest.bin" "$rom/padtest.cue" "$card/"
 chain="$RUNS/$name.chain.txt"
-python "$REPO/scripts/padtest_dx.py" chain "$chain" "$cells"
+"$PYTHON" "$REPO/scripts/padtest_dx.py" chain "$chain" "$cells"
 # Wall time: Dolphin runs the ROM at about full speed; the chain's own loads add ~3 s a cell
 vbl=$(awk '/^[0-9]+ sd:/ {s += $1; n++} END {print s, n}' "$chain")
 secs=$(( ${vbl% *} / 50 + ${vbl#* } * 5 + 60 ))
@@ -40,4 +46,4 @@ rm -rf "$RUNS/$name"
 t0=$(date +%s)
 bash "$REPO/scripts/wsx.sh" chain "$name" "$chain" --secs "$secs" ${extra[@]+"${extra[@]}"} > "$RUNS/$name.out" 2>&1 || true
 echo "dolphin: $(( $(date +%s) - t0 )) s for ${vbl#* } cells, ${vbl% *} vblanks (log $RUNS/$name.out)"
-python "$REPO/scripts/padtest_dx.py" judge "$RUNS/$name" "$cells" $verbose
+"$PYTHON" "$REPO/scripts/padtest_dx.py" judge "$RUNS/$name" "$cells" $verbose

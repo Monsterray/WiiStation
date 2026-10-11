@@ -19,6 +19,7 @@
 Every script here that takes a Wii's address calls refuse_production() or, for the one allowed
 production action, production_ready().
 """
+import socket
 import json
 import subprocess
 import sys
@@ -36,11 +37,22 @@ def _canon(ip):
     for scheme in ("http://", "https://"):
         if s.startswith(scheme):
             s = s[len(scheme):]
+    if s.startswith("::ffff:"):          # an IPv4-mapped IPv6 form
+        s = s[len("::ffff:"):]
+    s = s.split("@")[-1]                 # user@host
     return s.split("/")[0].split(":")[0].rstrip(".")
 
 
 def is_production(ip):
-    return _canon(ip) == PRODUCTION_WII
+    c = _canon(ip)
+    if c == PRODUCTION_WII:
+        return True
+    if c.isdigit():                      # one decimal number: 3232236744
+        return int(c) == int.from_bytes(socket.inet_aton(PRODUCTION_WII), "big")
+    try:                                 # other numeric forms: 0xC0A808C8, 192.168.2248
+        return socket.inet_aton(c) == socket.inet_aton(PRODUCTION_WII)
+    except OSError:
+        return False
 
 
 def refuse_production(ip, what):
@@ -53,8 +65,8 @@ def refuse_production(ip, what):
 
 def production_ready(ip):
     """For the one allowed write (an install on request): HBC must be idle on the TV -- no app
-    running, so nothing of his is closed or replaced. Takes a TV screenshot as evidence and
-    prints its path -- LOOK AT IT before proceeding. Returns True, or exits saying why not."""
+    running, so nothing of his is closed or replaced. Saves a TV screenshot as a record and
+    prints its path. Returns True, or exits saying why not."""
     try:
         r = subprocess.run([sys.executable, HBC_TOOL, "--wii", ip, "status", "--json"],
                            capture_output=True, text=True, timeout=30)
@@ -72,6 +84,5 @@ def production_ready(ip):
                        capture_output=True, text=True, timeout=60)
     if s.returncode:
         sys.exit(f"production Wii {ip}: could not take TV screen; not touching it")
-    print(f"production Wii {ip}: HBC idle by status; TV screen at {shot} -- LOOK AT IT: "
-          f"proceed only if it shows HBC sitting idle")
+    print(f"production Wii {ip}: HBC idle by status; screen saved to {shot}")
     return True
