@@ -143,10 +143,10 @@ char printToScreen;
 char menuActive;
 char saveEnabled;
 char creditsScrolling;
-char padNeedScan=1;
-char wpadNeedScan=1;
-char hidPadNeedScan = 1;
-char ws_shutdown = 0;
+volatile char padNeedScan=1;   /* the three scan flags: set by ScanPADSandReset (reset callback), polled by the input code */
+volatile char wpadNeedScan=1;
+volatile char hidPadNeedScan = 1;
+volatile char ws_shutdown = 0;   /* set by the menu thread and ShutdownWii, polled by the GUI loop */
 char nativeSaveDevice;
 char saveStateDevice;
 char autoSave;
@@ -193,7 +193,7 @@ char smbIpAddr[CONFIG_STRING_SIZE];
 char romDirSD[CONFIG_STRING_SIZE], romDirUSB[CONFIG_STRING_SIZE], romDirSMB[CONFIG_STRING_SIZE];
 char menuFont[CONFIG_STRING_SIZE];   /* MenuFont = "Name": sd:/wiistation/fonts/Name.dat replaces the built-in menu font */
 
-int stop = 0;
+volatile int stop = 0;   /* set by ScanPADSandReset and ShutdownWii, polled by the CPU loop and the removal code */
 bool needInitCpu = true;
 
 static struct {

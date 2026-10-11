@@ -466,7 +466,7 @@ void autoinput_record(int port, unsigned short real)
 		fprintf(autoin_rec, "%s%u %04x\n", port ? "p2 " : "", (unsigned)frame_counter, real);
 }
 
-extern int stop;
+extern volatile int stop;
 
 // Use to invoke func on the mapped controller with args
 #define DO_CONTROL(Control,func,args...) \

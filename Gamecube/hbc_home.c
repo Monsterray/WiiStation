@@ -17,8 +17,8 @@
 #include "lab_net.h"
 #include "ws_crash.h"
 
-extern char ws_shutdown;             /* GamecubeMain.cpp: 1 power off, 2 back to the loader */
-extern int stop;                  /* GamecubeMain.cpp: leave the CPU loop */
+extern volatile char ws_shutdown;             /* GamecubeMain.cpp: 1 power off, 2 back to the loader */
+extern volatile int stop;                  /* GamecubeMain.cpp: leave the CPU loop */
 extern GXRModeObj *vmode;
 
 static int agent_up;

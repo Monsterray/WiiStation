@@ -209,7 +209,7 @@ void Func_Credits()
 	menu::MessageBox::getInstance().setMessage(CreditsInfo);
 }
 
-extern char ws_shutdown;
+extern volatile char ws_shutdown;
 extern "C" void SysClose();
 
 /* Quit, after the question (also an input script's "menupage 90", MenuContext.cpp) */

@@ -92,16 +92,16 @@ typedef struct {
 	struct smb2dir *dir;
 } smb_dir;
 
-static struct smb2_context *ctx;
+static struct smb2_context *volatile ctx;   /* set by the menu thread (connect), polled by the pump thread */
 static mutex_t lock = LWP_MUTEX_NULL;
 static cond_t work_cond = LWP_COND_NULL;   /* a request went out: the pump has work */
 static cond_t done_cond = LWP_COND_NULL;   /* a request ended */
 static lwp_t pump_thread = LWP_THREAD_NULL;
 static volatile int mounted;   /* set by the pump thread, polled by the menu (GCC 16 + LTO hoisted the load) */
-static int pending;            /* requests in flight */
-static u32 generation;         /* a new context: the pump's poll of the old socket is stale */
-static u32 failures;           /* requests that failed, for a reader waiting on one */
-static int broken;             /* smb2_service() failed: no request goes out until a reconnect,
+static volatile int pending;            /* requests in flight; set by the menu and pump threads, polled by the pump thread */
+static volatile u32 generation;         /* a new context: the pump's poll of the old socket is stale; set by the menu thread, polled by the pump thread */
+static volatile u32 failures;           /* requests that failed, for a reader waiting on one; set by the pump thread, polled by the menu thread */
+static volatile int broken;             /* set by the pump thread, polled by the menu thread: smb2_service() failed, no request goes out until a reconnect,
                                 * as a late reply to one given up on could land in its block */
 static u32 use_clock, req_seq;
 static char cfg_ip[64], cfg_share[128], cfg_user[64], cfg_pass[64];

@@ -45,7 +45,7 @@ extern "C" void fileBrowser_DVD_shutdown(void);   /* fileBrowser-DVD.c */
 }
 #include "../../HidController/KernelHID.h"
 
-extern char ws_shutdown;
+extern volatile char ws_shutdown;
 
 /* The Quit log, sd:/wiistation/quit.log: one line per step of the way out, each written and
  * closed at once, so the last line survives a freeze that needs the power button (a Wii froze

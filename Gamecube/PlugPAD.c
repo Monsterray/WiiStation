@@ -46,7 +46,7 @@ PadDataS lastport1;
 PadDataS lastport2;
 
 extern void SysPrintf(char *fmt, ...);
-extern int stop;
+extern volatile int stop;
 
 /* Controller type, later do this by a Variable in the GUI */
 //extern char controllerType = 0; // 0 = standard, 1 = analog (analog fails on old games)
@@ -117,7 +117,7 @@ controller_t *assign_port_as(int i, int ptype, int w)
 		break;
 #if defined(HW_RVL) && defined(WII) && !defined(NO_BT)
 	case PADTYPE_HID: {
-		extern s32 hidControllerConnected;   /* HidController/KernelHID.c */
+		extern volatile s32 hidControllerConnected;   /* HidController/KernelHID.c */
 		if (hidControllerConnected)
 			type = &controller_HidGC;
 		break;
