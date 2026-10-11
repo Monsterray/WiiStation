@@ -22,7 +22,11 @@ steers by Wii time: a change that moves Wii-side timing moves the resampled outp
 the SPU's samples are the same, so a difference here is not by itself a mixer fault.
 
 Standard library only (the wave and audioop modules), so it runs anywhere Python does."""
+import os
 import sys, wave, math, struct, array
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from cliutil import flag, need, req_file, req_int  # noqa: E402
 
 
 def decode_if_needed(path):
@@ -214,16 +218,17 @@ def exact(a, b):
 
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
-    window = int(sys.argv[sys.argv.index("--window-ms") + 1]) if "--window-ms" in sys.argv else 100
+    window = flag(sys.argv, "--window-ms", "100")
+    window = req_int(window, "--window-ms")
     if not args:
         sys.exit(__doc__)
 
-    a = read_wav(args[0]); sa = stats(a, window)
+    a = read_wav(req_file(args[0], 'wav')); sa = stats(a, window)
     show("A " + args[0], a, sa)
     if len(args) < 2:
         return
 
-    b = read_wav(args[1])
+    b = read_wav(req_file(args[1], 'wav'))
     if "--exact" in sys.argv:
         sys.exit(exact(a, b))
     sb = stats(b, window)

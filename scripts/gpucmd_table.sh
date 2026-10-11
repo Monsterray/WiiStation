@@ -2,6 +2,7 @@
 # gpucmd_table.sh [perf.log] -- the six most expensive GP0 commands per chained game
 # (sums the "gpucmd:" lines of a PROBES=deep debug build): cmd=ms/calls.
 log="${1:-.runs/softgpu_check/perf.log}"
+[ -f "$log" ] || { echo "gpucmd_table.sh: no such perf.log $log (needs a PROBES=deep run)" >&2; exit 1; }
 awk '/^gpucmd:/ { for (i = 2; i <= NF; i++) { split($i, a, "[=/]"); t[a[1]] += a[2]; n[a[1]] += a[3] } }
 /^=== chain / { match($0, /gpuPlugin=[0-9]/); p = substr($0, RSTART + 10, 1)
 	match($0, /rom=[^[(]*/); r = substr($0, RSTART + 4, 16)

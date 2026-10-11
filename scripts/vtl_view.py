@@ -13,7 +13,11 @@ Dolphin these are emulated times (host stalls such as shader compiles never show
 Columns: core = the core's slices minus what runs inside them (GPU registers, SPU, and in
 VTL2 files Lightrec compiling); other = everything outside a slice (presenting, input, menu).
 """
+import os
 import struct, sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from cliutil import need, parse_opts, req_file, req_float, req_int  # noqa: E402
 
 TB_HZ = 60_750_000
 
@@ -36,17 +40,20 @@ def load(path):
     return rows
 
 def main():
-    args = sys.argv[1:]
-    path = args[0]
-    top = int(args[args.index('--top') + 1]) if '--top' in args else 12
-    slow = float(args[args.index('--slow-ms') + 1]) if '--slow-ms' in args else 17.5
+    need(sys.argv, 2, "vtl_view.py VTL.BIN [--top N] [--slow-ms MS] [--around V]")
+    args, opts = parse_opts(sys.argv, valued=('--top', '--slow-ms', '--around'))
+    if len(args) != 1:
+        sys.exit("need exactly one timeline file")
+    path = req_file(args[0], 'timeline file')
+    top = req_int(opts.get('--top', 12), '--top')
+    slow = req_float(opts.get('--slow-ms', 17.5), '--slow-ms')
     rows = load(path)
     n = len(rows)
     wall = sum(r[0] for r in rows)
     print(f"{path}: {n} vblanks, {wall / 1000:.1f} s wall, {n / 60 / (wall / 1000):.3f}x"
           f" ({sum(r[5] for r in rows)} frames presented, {sum(r[6] for r in rows) / 1000:.2f} s compiling)")
-    if '--around' in args:
-        v0 = int(args[args.index('--around') + 1])
+    if '--around' in opts:
+        v0 = req_int(opts['--around'], '--around')
         print(" vblank   wall   core    gpu    spu    jit  limit  pres")
         for i in range(max(0, v0 - 30), min(n, v0 + 90)):
             w, c, g, l, s, p, j = rows[i]

@@ -19,7 +19,11 @@ heartbeat. Emulated ms = PSX cycles / 33868.8.
 
 usage: atrace_summary.py <atrace.log> [--events N]  (N = print the first N raw events)
 """
+import os
 import sys, re, statistics
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from cliutil import flag, req_file, req_int  # noqa: E402
 
 PSX_MS = 33868.8
 
@@ -44,10 +48,9 @@ def hist(vals, edges, unit="ms"):
 def main():
     if len(sys.argv) < 2:
         print(__doc__); sys.exit(1)
-    ev = load(sys.argv[1])
+    ev = load(req_file(sys.argv[1], 'atrace log'))
     nraw = 0
-    if "--events" in sys.argv:
-        nraw = int(sys.argv[sys.argv.index("--events") + 1])
+    nraw = req_int(flag(sys.argv, "--events", nraw), "--events")
     if not ev:
         print("no events"); return
     w0 = ev[0][1]

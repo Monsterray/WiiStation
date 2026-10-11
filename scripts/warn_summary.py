@@ -9,7 +9,11 @@ some of them from several translation units), and groups them.
 Default view is by warning kind, which is the one that says what kind of work is left: a
 thousand -Wunused-parameter are one afternoon of nothing, while ten -Wreturn-type are ten
 latent bugs. --by dir shows which subsystem owns them, --kind lists every site of one flag."""
+import os
 import re, sys, collections
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from cliutil import flag, need, req_file, req_int  # noqa: E402
 
 # GCC on this toolchain prints lowercased absolute Windows paths, with or without a column:
 #   c:\projects\wiistation\gamecube\libgui\Frame.h:49:42: warning: ... [-Wunused-parameter]
@@ -39,10 +43,13 @@ def dedup(ws):
     return out
 
 def main():
-    path = sys.argv[1]
-    by = sys.argv[sys.argv.index("--by") + 1] if "--by" in sys.argv else "kind"
-    top = int(sys.argv[sys.argv.index("--top") + 1]) if "--top" in sys.argv else 25
-    only = sys.argv[sys.argv.index("--kind") + 1] if "--kind" in sys.argv else None
+    need(sys.argv, 2, "warn_summary.py BUILD.LOG [--by kind|file|dir] [--top N] [--kind FLAG]")
+    path = req_file(sys.argv[1], 'build log')
+    by = flag(sys.argv, "--by", "kind")
+    if by not in ("kind", "file", "dir"):
+        sys.exit(f"--by: unknown view {by} (have: kind, file, dir)")
+    top = req_int(flag(sys.argv, "--top", "25"), "--top")
+    only = flag(sys.argv, "--kind")
 
     ws = parse(path)
     errors = [w for w in ws if w["sev"] == "error"]

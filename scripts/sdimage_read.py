@@ -7,20 +7,28 @@ state a killed emulator leaves behind): it returns as many bytes as the
 chain holds and reports the shortfall on stderr instead of failing.
 Path components are matched case-insensitively against long or short
 names. Output goes to OUT or stdout."""
+import os
 import struct, sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from cliutil import need, req_file  # noqa: E402
+
 def read_bpb(f):
+    def sane(bps, spc, rsv, nfats, spf):
+        return bps in (512, 1024, 2048, 4096) and spc and nfats and spf
     f.seek(0); b = f.read(512)
     bps, spc, rsv, nfats = struct.unpack_from("<HBHB", b, 11)
     spf = struct.unpack_from("<I", b, 36)[0]
     root = struct.unpack_from("<I", b, 44)[0]
-    if bps == 0 or spf == 0:            # maybe an MBR: use the first partition
+    if not sane(bps, spc, rsv, nfats, spf):   # maybe an MBR: use the first partition
         lba = struct.unpack_from("<I", b, 0x1C6)[0]
         f.seek(lba * 512); b = f.read(512)
         bps, spc, rsv, nfats = struct.unpack_from("<HBHB", b, 11)
         spf = struct.unpack_from("<I", b, 36)[0]
         root = struct.unpack_from("<I", b, 44)[0]
         base = lba * 512
+        if not sane(bps, spc, rsv, nfats, spf):
+            sys.exit("not a FAT32 image (bad BPB, bailing instead of walking garbage)")
     else:
         base = 0
     fat_off = base + rsv * bps
@@ -61,7 +69,8 @@ def entries(raw):
         yield short, long, attr, first, size
 
 def main():
-    img, path = sys.argv[1], sys.argv[2].replace("\\", "/").strip("/")
+    need(sys.argv, 3, "sdimage_read.py IMAGE PATH/IN/IMAGE [OUT]")
+    img, path = req_file(sys.argv[1], 'image'), sys.argv[2].replace("\\", "/").strip("/")
     out = sys.argv[3] if len(sys.argv) > 3 else None
     with open(img, "rb") as f:
         g = read_bpb(f)

@@ -16,7 +16,11 @@ one FFT over the same time window, so files from identical input scripts line up
 several files the differences against the first are printed as well.
 
 Needs numpy (present on this machine); the wave module does the reading."""
+import os
 import sys, wave, math
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from cliutil import need, parse_opts, req_file, req_float  # noqa: E402
 import numpy as np
 
 BANDS = [(20, 200), (200, 2000), (2000, 8000), (8000, 16000), (16000, 20000), (20000, 24000)]
@@ -62,26 +66,40 @@ def band_db(x, rate, bands):
 
 
 def main(argv):
-    files, start, dur, bands = [], 10.0, 20.0, BANDS
+    need(['prog'] + argv, 2, "wav_spectrum.py FILE [FILE...] [--start S] [--dur S] [--band LO HI]")
+    # --band takes TWO values, unlike every other flag: lift it out first.
+    band, rest = None, []
     i = 0
     while i < len(argv):
-        a = argv[i]
-        if a == "--start":
-            start = float(argv[i + 1]); i += 2
-        elif a == "--dur":
-            dur = float(argv[i + 1]); i += 2
-        elif a == "--band":
-            bands = [(float(argv[i + 1]), float(argv[i + 2]))]; i += 3
+        if argv[i] == '--band':
+            if i + 2 >= len(argv):
+                sys.exit("--band: needs LO HI")
+            band = (argv[i + 1], argv[i + 2])
+            i += 3
         else:
-            files.append(a); i += 1
+            rest.append(argv[i])
+            i += 1
+    files, opts = parse_opts(['prog'] + rest, valued=('--start', '--dur'))
+    start = req_float(opts.get('--start', 10.0), '--start')
+    dur = req_float(opts.get('--dur', 20.0), '--dur')
+    bands = BANDS
+    if band is not None:
+        try:
+            lo, hi = float(band[0]), float(band[1])
+        except ValueError:
+            sys.exit(f"--band: need LO HI numbers, got {' '.join(band)!r}")
+        bands = [(lo, hi)]
     if not files:
         sys.exit(__doc__)
+    files = [req_file(f, 'wav') for f in files]
     rows = []
     for f in files:
         x, rate = read(f)
         a, b = int(start * rate), int((start + dur) * rate)
         if b > len(x):
             b = len(x)
+        if a >= len(x) or not len(x):
+            sys.exit(f"{f}: --start {start}s is past its {len(x) / rate:.1f}s duration")
         seg = x[a:b]
         rms = 20 * math.log10(math.sqrt((seg ** 2).mean()) + 1e-12)
         rows.append((f, rate, len(x) / rate, rms, band_db(seg, rate, bands)))

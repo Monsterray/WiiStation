@@ -7,7 +7,12 @@ present count), and prints the counters that decide CPU-core and renderer questi
 emulated CPU time per present, JIT resets and fallbacks, exceptions, limiter idle, SPU and
 hardware time, present time, plus any 'jitmem'/'gte' lines. Values are shown as A, B and
 B/A so a 5 % change is visible at a glance."""
-import re, sys
+import os
+import re
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from cliutil import flag, need, req_file, req_int  # noqa: E402
 
 KEYS = [("cpu", "cpu_us"), ("cpu", "jit_full"), ("cpu", "jit_part"), ("cpu", "interp_fb"), ("cpu", "exc"),
         ("wall", "wall_us"), ("wall", "vblanks"), ("inside", "limit_us"), ("inside", "spu_us"), ("inside", "out_us"),
@@ -29,11 +34,15 @@ def blocks(path):
     return out
 
 def main():
-    a, b = sys.argv[1], sys.argv[2]
-    n = int(sys.argv[sys.argv.index("--block") + 1]) if "--block" in sys.argv else None
+    need(sys.argv, 3, "perf_compare.py A.log B.log [--block N]")
+    a, b = req_file(sys.argv[1], 'perf.log'), req_file(sys.argv[2], 'perf.log')
+    n = flag(sys.argv, "--block")
+    n = req_int(n, "--block") if n is not None else None
     ba, bb = blocks(a), blocks(b)
     if not ba or not bb:
         sys.exit("no report blocks found")
+    if n is not None and not 0 <= n < min(len(ba), len(bb)):
+        sys.exit(f"--block: {n} out of range (0..{min(len(ba), len(bb)) - 1})")
     idx = n if n is not None else min(len(ba), len(bb)) - 1
     A, B = ba[idx], bb[idx]
     print(f"block {idx}: A frames={A['frames']}  B frames={B['frames']}")

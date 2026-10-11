@@ -40,6 +40,9 @@ import re
 import subprocess
 import sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from cliutil import flag, need  # noqa: E402
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
 END = re.compile(r'^=== chain (\d+)/(\d+) end vblanks=(\d+)(?: set=(\S+))?(?: at=\S+)? rom=(.*) ===')
@@ -152,12 +155,17 @@ DETAIL = {
 
 
 def detail(b, group):
-    """{column: value} for one game's block."""
+    """{column: value} for one game's block. A probe the log lacks (wrong build
+    preset, old log) is None, never 0: a missing counter must read n/a, not
+    measured-zero. Callers doing arithmetic must handle None (see chain_compare)."""
     wall = b.get('wall', {}).get('wall_us', 0) or 1
     out = {}
     for col, line, key, kind in DETAIL[group]:
         key, _, i = key.partition('[')   # 'h[2]': element 2 of h=a/b/c/...
-        v = b.get(line, {}).get(key, 0)
+        if line not in b or key not in b[line]:
+            out[col] = None
+            continue
+        v = b[line][key]
         if isinstance(v, tuple):
             v = v[int(i[:-1]) if i else 0]
         elif i and i != '0]':
@@ -167,6 +175,8 @@ def detail(b, group):
 
 
 def fmt(col, v):
+    if v is None:
+        return '     n/a'
     return '%8d' % v if col.endswith('#') else '%8.2f' % v
 
 
@@ -186,6 +196,7 @@ def vram_pictures(run, n):
 
 
 def main():
+    need(sys.argv, 2, "chain_table.py RUN_DIR [--csv OUT.csv] [--detail GROUP]")
     run = sys.argv[1]
     log = os.path.join(run, 'perf.log')
     if not os.path.isfile(log):
@@ -196,8 +207,10 @@ def main():
         sys.exit('%s: no "=== chain" lines -- not a chained run, or it ended before the '
                  'first game did' % log)
     vram_pictures(run, len(gs))
-    if '--detail' in sys.argv:
-        group = sys.argv[sys.argv.index('--detail') + 1]
+    group = flag(sys.argv, "--detail")
+    if group is not None:
+        if group not in DETAIL:
+            sys.exit(f"--detail: unknown group {group} (have: {', '.join(sorted(DETAIL))})")
         cols = [c for c, _, _, _ in DETAIL[group]]
         print('%-46s ' % 'game' + ' '.join('%8s' % c for c in cols))
         for n, rom, vbl, b in gs:
@@ -221,11 +234,16 @@ def main():
         print('%-46s %6d %6.1f ' % (name, vbl, r['wall_s'])
               + ' '.join('%6.1f' % r[c] if c != 'speed' else '%6.2f' % r[c] for c in COLS))
     if len(rows) > 1:
-        m = {c: sum(r[c] for _, _, r in rows) / len(rows) for c in COLS}
+        # Wall-weighted: the aggregate share across games is sum(us)/sum(wall), and for
+        # speed sum(vbl/59.94)/sum(wall) is the true overall speed. An unweighted mean
+        # of percents overweights short games.
+        wsum = sum(r['wall_s'] for _, _, r in rows)
+        m = {c: sum(r[c] * r['wall_s'] for _, _, r in rows) / wsum for c in COLS}
         print('%-46s %6s %6s ' % ('mean of %d' % len(rows), '', '')
               + ' '.join('%6.1f' % m[c] if c != 'speed' else '%6.2f' % m[c] for c in COLS))
-    if '--csv' in sys.argv:
-        with open(sys.argv[sys.argv.index('--csv') + 1], 'w') as f:
+    csv = flag(sys.argv, "--csv")
+    if csv is not None:
+        with open(csv, 'w') as f:
             f.write('game,vblanks,wall_s,' + ','.join(COLS) + '\n')
             for name, vbl, r in rows:
                 f.write('"%s",%d,%.2f,' % (name, vbl, r['wall_s'])

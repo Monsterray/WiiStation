@@ -10,7 +10,11 @@ With RUN2, both runs are shown against the PS1, line by line, for an A/B of two 
 Per test: SAME (every line as on the PS1), or the count of lines that differ or are missing.
 --all prints the same lines too; --test NAME only that test.
 """
+import os
 import pathlib, re, sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from cliutil import flag, need  # noqa: E402
 
 REF = pathlib.Path("C:/tools/ps1-tests/ref")
 
@@ -52,13 +56,28 @@ def by_label(lines):
 
 
 def main():
+    need(sys.argv, 2, "ps1tests_check.py RUN [RUN...] [--ref DIR] [--test NAME] [--all]")
     a = sys.argv[1:]
-    ref_dir = pathlib.Path(a[a.index("--ref") + 1]) if "--ref" in a else REF
-    only = a[a.index("--test") + 1] if "--test" in a else None
+    ref_dir = pathlib.Path(flag(sys.argv, "--ref", REF))
+    only = flag(sys.argv, "--test")
     show_all = "--all" in a
+    for x in a:
+        if x.startswith("--") and x not in ("--ref", "--test", "--all"):
+            sys.exit(f"unknown option {x}")
+    if not os.path.isdir(ref_dir):
+        sys.exit(f"{ref_dir}: no such ref dir (C:/tools/ps1-tests/ref holds the console logs)")
     runs = [x for i, x in enumerate(a) if not x.startswith("--") and (i == 0 or a[i - 1] not in ("--ref", "--test"))]
     ref = refs(ref_dir)
-    secs = [sections(pathlib.Path(r) / "tty.log", ref) for r in runs]
+    if not ref:
+        sys.exit(f"{ref_dir}: no *.psx.log ref logs (nothing to compare against)")
+    secs = []
+    for r in runs:
+        tty = pathlib.Path(r) / "tty.log"
+        if not tty.is_file():
+            print(f"{pathlib.Path(r).name}: no tty.log (not a ps1-tests run?)")
+            secs.append({})
+            continue
+        secs.append(sections(tty, ref))
     for name, rl in ref.items():
         if only and only not in name:
             continue

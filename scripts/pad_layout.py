@@ -13,7 +13,11 @@ keyboard: D-pad on the numpad (8 4 5 6), the face buttons on the Home/End/Delete
 block, Start on numpad Enter. scripts/movie_capture.sh uses it on the test profile's copy;
 the user's own file is never written.
 """
+import os
 import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from cliutil import flag, need, req_file  # noqa: E402
 
 PAD2 = {  # the fill-in for an empty [GCPad2]: numpad + the six-key block above the arrows
     'Buttons/A': 'END', 'Buttons/B': 'DELETE', 'Buttons/X': 'NEXT', 'Buttons/Y': 'HOME',
@@ -80,11 +84,12 @@ def draw(title, s):
 
 
 def main():
+    need(sys.argv, 2, "pad_layout.py GCPADNEW.INI [--fill-pad2 OUT.INI]")
     a = sys.argv[1:]
-    text = open(a[0], encoding='utf-8', errors='replace').read()
+    text = open(req_file(a[0], 'ini'), encoding='utf-8', errors='replace').read()
     sec = sections(text)
-    if '--fill-pad2' in a:
-        out = a[a.index('--fill-pad2') + 1]
+    out = flag(sys.argv, '--fill-pad2')
+    if out is not None:
         p2 = sec.get('GCPad2', {})
         if not any(k.startswith(('Buttons/', 'D-Pad/', 'Triggers/')) for k in p2):
             lines, skip = [], False

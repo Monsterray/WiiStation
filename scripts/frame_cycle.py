@@ -29,16 +29,17 @@ import argparse
 import os
 import sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from cliutil import FPS_OVERLAY  # (x0, y0, x1, y1); single source, see cliutil
+
 import numpy as np
 from PIL import Image
-
-FPS_OVERLAY = (0, 60, 0, 200)      # the on-screen FPS text, never part of the picture
 
 
 def load(d, n):
     a = np.asarray(Image.open(os.path.join(d, 'framedump_%d.png' % n)).convert('L'),
                    dtype=np.float32)
-    y0, y1, x0, x1 = FPS_OVERLAY
+    x0, y0, x1, y1 = FPS_OVERLAY
     a[y0:y1, x0:x1] = 0
     return a
 
