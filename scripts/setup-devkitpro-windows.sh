@@ -74,14 +74,15 @@ fi
 
 # --- 3. libogc2 + SDL + Lightning + Lightrec (bundled in this repo, this --
 #        project's own choice of fork/build, not something pacman ships)
-if [ -d "$DEVKITPRO/libogc2" ]; then
+if bash "$REPO_ROOT/scripts/check-wii-libraries.sh" "$DEVKITPRO/libogc2"; then
 	log "libogc2 already installed, skipping"
 else
-	log "Extracting bundled lightrec+Libogc2.zip"
+	log "Installing/repairing bundled lightrec+Libogc2.zip"
 	tmp=$(mktemp -d)
 	unzip -oq "$REPO_ROOT/lightrec+Libogc2.zip" -d "$tmp"
 	cp -rn "$tmp/lightrec+Libogc2/devkitPPC/"* "$DEVKITPPC_PIN/"
-	cp -r "$tmp/lightrec+Libogc2/libogc2" "$DEVKITPRO/libogc2"
+	mkdir -p "$DEVKITPRO/libogc2"
+	cp -r "$tmp/lightrec+Libogc2/libogc2/." "$DEVKITPRO/libogc2/"
 	rm -rf "$tmp"
 fi
 

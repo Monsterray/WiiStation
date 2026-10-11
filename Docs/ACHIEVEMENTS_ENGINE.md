@@ -77,13 +77,19 @@ mode, duplicates, malformed definitions, and size limits. ASan covers all source
 UBSan also covers WiiStation's glue. Upstream parser offset expressions trigger Clang
 UBSan diagnostics, so upstream is compiled with ASan only and kept unmodified.
 
-Host fixtures and PPC compilation do not establish full Wii build compatibility or
-hardware performance. Test on real Wii/vWii before enabling it in regular play.
+Build checks do not establish hardware performance. Test on real Wii/vWii before
+enabling it in regular play.
 
 Implementation checks on 2026-10-10: host checks passed; the engine and 18 vendored
 runtime/util sources cross-compiled with `-Wall -Wextra -Werror`; `psxcounters.c`,
-`r3000a.c`, and `misc.c` cross-compiled against installed libogc2 headers. Compiling
-`GamecubeMain.cpp` stopped at the environment's missing `wupc/wupc.h` dependency.
-The complete DOL build and hardware run remain unverified. Runtime objects disable
+`r3000a.c`, and `misc.c` cross-compiled against installed libogc2 headers. The missing
+`wupc/wupc.h` was traced to an incomplete/incompatible system library installation.
+Using the repository's bundled libraries and pinned r41-2 macOS compiler, the full
+release DOL build passed, including an end-to-end build from the checkout containing
+spaces. The local setup script, library preflight regression test, achievement host
+checks, and settings check passed. Build logs are in ignored
+`.runs/achievement-build/`; outputs are `Gamecube/WiiSXRX_Release.dol` and `.elf`.
+See README's isolated setup instructions. The hardware run
+remains unverified. Runtime objects disable
 fast-math/LTO to preserve floating-point condition semantics under the core's
 `-Ofast` build flags.

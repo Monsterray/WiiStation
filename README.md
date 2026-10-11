@@ -139,10 +139,11 @@ scripts/build.sh release             # release build -> Gamecube/WiiSXRX_Release
 scripts/build.sh clean               # remove build artifacts
 ```
 
-**Important: check out this repo to a path with no spaces** (e.g. `C:/projects/WiiStation`,
-not `C:/Users/Jane Doe/...`). devkitPro's Makefiles pass `$(CURDIR)` to the compiler
-unquoted, so a space anywhere in the path breaks compilation with confusing
-"file not found" errors that look unrelated to the actual cause.
+devkitPro's Makefiles cannot handle spaces in the source path. `scripts/build.sh`
+handles this by building a temporary source snapshot and copying successful DOL/ELF
+outputs back. Working source edits are included; ignored quarantine files and build
+caches are excluded. These builds start fresh each time. Run `clean` only from a
+checkout without spaces.
 
 `scripts/setup-devkitpro-windows.sh` is idempotent — re-run it any time. It uses
 devkitPro's own pacman for everything pacman can provide: `general-tools`,
@@ -162,6 +163,26 @@ aren't retained there for anyone's project. The setup script installs r41-2 to i
 own `devkitPPC-r41-2` directory, side by side with pacman's own current devkitPPC,
 rather than overwriting or fighting with it — `scripts/build.sh` points at it
 explicitly.
+
+### Isolated setup (macOS/Linux)
+
+With devkitPro's tools and `ppc-zlib` already installed under `/opt/devkitpro`, create
+a separate pinned toolchain using the compiler from the
+[historical r41-2 archive](https://wii.leseratte10.de/devkitPro/devkitPPC/r41%20(2022-05-31)/)
+and the libraries bundled with this repository:
+
+```bash
+bash scripts/setup-devkitpro-local.sh /tmp/wiistation-devkitpro
+DEVKITPRO=/tmp/wiistation-devkitpro \
+DEVKITPPC=/tmp/wiistation-devkitpro/devkitPPC-r41-2 \
+bash scripts/build.sh release
+```
+
+Choose a new absolute toolchain directory without spaces. `/tmp` is disposable;
+choose a persistent directory for regular development. This setup leaves the system
+compiler and libraries untouched. The build checks required headers and libraries,
+including SDL, WUPC and WiiDRC, rather than accepting an existing `libogc2` directory
+as proof of a complete installation. Windows setup repairs incomplete bundled installs.
 
 ## WiiStation Credits
 
