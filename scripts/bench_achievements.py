@@ -12,6 +12,21 @@ import uuid
 import bench_smoke
 
 
+def collect_diagnostics(client, wii, remote, output):
+    """Retain bounded public diagnostics even when a suite exits without JSON."""
+    try:
+        entries, truncated = client.list_dir(wii, remote)
+        if truncated:
+            return
+        for kind, size, name in entries:
+            if (kind == "f" and size < 1024 * 1024 and
+                    name in ("probe.log", "storage.log", "result.json") and
+                    not (output / name).exists()):
+                (output / name).write_bytes(client.get_file(wii, remote + "/" + name))
+    except (OSError, client.HBCError):
+        pass  # Preserve the original failure and still attempt UUID cleanup.
+
+
 def unit(client, wii, bundle):
     output = bundle / "results"
     output.mkdir(exist_ok=False)
@@ -37,6 +52,8 @@ def unit(client, wii, bundle):
                     entries, truncated = client.list_dir(wii, remote)
                     if not truncated and any(name == "result.json" for _, _, name in entries):
                         break
+                    if not truncated and any(name in ("probe.log", "storage.log") for _, _, name in entries):
+                        raise RuntimeError("Hardware suite returned to HBC without a result")
                     if state.get("crash") and state["crash"] != before.get("crash"):
                         raise RuntimeError("Hardware suite crashed")
             except (OSError, client.HBCError):
@@ -73,6 +90,7 @@ def unit(client, wii, bundle):
         # Delete only this UUID directory, after result collection and HBC return.
         current = client.status(wii)
         if not current.get("agent"):
+            collect_diagnostics(client, wii, remote, output)
             client.remove_tree(wii, remote, out=lambda _: None)
 
 
@@ -97,7 +115,8 @@ def main():
         manifest["inputs"]["bench_achievements.py"] = {"sha256": bench_smoke.digest(args.bundle / "bench_achievements.py")}
         manifest.update(suite=args.suite, timeout=args.timeout, payloads=[])
         for payload in args.payload:
-            if payload.name in manifest["inputs"] or payload.name in ("manifest.json", "results"):
+            if payload.name in manifest["inputs"] or payload.name in (
+                    "manifest.json", "results", "result.json", "probe.log", "storage.log"):
                 parser.error("Reserved payload name")
             shutil.copy2(payload, args.bundle / payload.name)
             manifest["inputs"][payload.name] = {"sha256": bench_smoke.digest(args.bundle / payload.name)}

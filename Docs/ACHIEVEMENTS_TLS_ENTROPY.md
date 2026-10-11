@@ -87,7 +87,7 @@ encryption key beside the seed on the same card adds no such protection.
 | Option | Can proceed now? |
 | --- | --- |
 | Current fake source | Public feasibility probes only; never credentials |
-| NV seed with custom storage | Host dummy-seed tests and reproducible source builds; secure device bootstrap and durability still required |
+| NV seed with custom storage | Host/Wii dummy storage and source-built public HTTPS pass; secure device bootstrap, UTC policy and durability still required |
 | Fresh one-use OS randomness file | Controlled experiment after confidential provisioning; fail closed on exhaustion and never reuse a frozen file |
 | Native IOS/hardware source | No verified callable source or quality assessment; investigate separately |
 
@@ -137,3 +137,46 @@ this proves the library/callback contract, not confidential provisioning,
 atomicity, power-loss durability or concurrent-owner exclusion on Wii. The source
 only checks callback results for negativity: a real callback must turn short I/O
 and flush/close/commit failures into negative errors itself.
+
+## File-backed implementation and Wii test
+
+`achievement_seed.c` implements the NV callbacks with exact 64-byte reads,
+exclusive `.busy` directory ownership, exclusive candidate creation, checked
+write/flush/fsync/close, remove/rename and checked readback. The owner holds the
+marker for the whole TLS session. Any callback error keeps the marker; a new
+session refuses an existing marker and never promotes a leftover candidate or
+restores an old seed. Calls must be serialized by one TLS owner. Missing seeds
+are not synthesized from device identifiers. Failed contexts must still be
+destroyed. Recovery requires a new privately provisioned seed.
+
+The same `tests/entropy_storage_test.c` harness passes under host ASan/UBSan and
+on the physical Wii (queue job `20261011-025257-be84db`, 20 seconds, zero failures).
+It verifies successful fsync/rotation/reopen, distinct fresh-context outputs,
+owner exclusion, missing/empty/truncated/oversized rejection, an exclusive-write
+failure with unchanged application output, and refusal of simulated interrupted
+rotation artifacts. Only deterministic public dummy data was used, inside the
+collector's owned UUID directory. No seed was provisioned for authenticated use.
+
+`scripts/test-achievements-entropy.sh --wii OUTPUT` now builds all three Mbed TLS
+libraries from the checksum-verified official release with matched headers. Wii
+uses `MBEDTLS_PLATFORM_MS_TIME_ALT` backed by `gettime()` for milliseconds; the
+upstream Unix socket convenience and timing modules are disabled. This does not
+correct the separate RTC-to-UTC policy. `scripts/build-achievements-native-https-test.sh`
+rebuilds official curl 8.16.0 against these headers and the pinned r41-2 SDK,
+without applying the Wii port's fake-entropy patch. Curl's configure correctly
+disables unavailable `realpath` and `fnmatch` functions, so the old probe stubs
+are unnecessary. The remaining prebuilt component is the checked wiisocket
+adapter, with the three duplicate libogc inet helpers removed in a private copy.
+
+The final clean probe passed on Wii in job `20261011-032017-49eea1` (31 seconds):
+RA and control certificates accepted, wrong-host/untrusted/expired certificates
+rejected, seed owner released, fixture removed and clean HBC return. Initial
+native failures occurred after successful HTTPS checks: the probe removed the
+socket adapter before final seed/result I/O. Moving that teardown after result
+writing fixed the regression. Failure diagnostics are now fsynced and collected
+before owned-directory cleanup.
+
+This validates reported filesystem operations and simulated restart artifacts,
+not physical power-cut durability or resistance to a rolled-back/cloned SD card.
+Private bootstrap, the UTC policy and production client/transport integration
+remain required before authenticated service traffic.

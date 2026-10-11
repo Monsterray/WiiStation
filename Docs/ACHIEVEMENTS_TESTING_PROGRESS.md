@@ -16,6 +16,8 @@ The selected future live-test username is Monsterray; no credentials are staged.
 | PS1 hash parity | Wii job `20261011-014646-ea19fc` | Three real raw BIN images match host hashes exactly |
 | Public HTTPS/certificates | Wii job `20261011-013921-a0f079` | Valid certificates accepted; wrong-host, untrusted-root and expired certificates rejected |
 | NV seed contract, host only | `scripts/test-achievements-entropy.sh` | ASan/UBSan pass with public dummy seed and mock storage; no Wii security readiness |
+| File-backed NV seed | Wii job `20261011-025257-be84db` and host sanitizer harness | Rotation/reopen, exact size, exclusive ownership, failed commit and simulated interrupted restart pass; zero failures |
+| Source-built NV HTTPS | Wii job `20261011-032017-49eea1` | Final reproducible build: all five certificate cases and seed cleanup pass in 31 seconds; public dummy seeds only |
 | Production release | `.runs/achievement-build/production-release-build.log` | Pinned r41-2 build succeeds |
 | Collectors | `tests/bench_gameplay_test.py`, `tests/gameplay_results_test.py`, existing bench tests | Completion, invalid paths, memory telemetry, saturation, retries, frozen identity/checkpoints and replay failure gates pass |
 
@@ -211,3 +213,46 @@ Then privately provision credentials and run a spectator session for Monsterray.
 A legitimate user-approved Casual award needs matching supported media and its
 own server-confirmation/restart check. Hardcore, leaderboards and durable official
 offline award synchronization remain unavailable.
+
+## Native entropy and transport implementation follow-up
+
+The file-backed NV callbacks now live in `achievement_seed.c`; missing or
+malformed seeds and failed rotations fail closed with a persistent `.busy`
+marker. Only one serialized TLS owner may call them. The physical SD harness
+passed in 20 seconds, and the same storage code passed with host ASan/UBSan.
+This covers filesystem return values and simulated interrupted artifacts,
+not a physical power-cut durability campaign or rollback/cloned-card protection.
+
+`scripts/build-achievements-native-https-test.sh` rebuilds official Mbed TLS 3.6.4
+and curl 8.16.0 with the pinned r41-2 SDK and identical NV configuration headers.
+It does not use the Wii port's fake-entropy patch or the old `realpath`/`fnmatch`
+stubs. The checked wiisocket binary adapter remains the socket bridge. The
+builder retains matching headers/libraries and a public build-info manifest.
+
+The first two native runs (`20261011-025637-91172e`,
+`20261011-030737-35f8c3`) lacked result JSON. Synced diagnostics in
+`20261011-031354-6eae33` showed all five HTTPS checks had already passed; failure
+occurred after socket teardown and before writing the final result. Moving
+socket teardown after seed/result I/O fixed the original failure in
+`20261011-031629-8f3966` (36 seconds, clean HBC return). That run accepted RA
+HTTP 403 and the HTTP 200 control after verified TLS, and rejected wrong host,
+untrusted root and expired certificates with curl 60. Temporary trace markers
+have been removed. The final reproducible build passed the same five cases in
+`20261011-032017-49eea1` (31 seconds, clean HBC return); its matching ELF,
+build-info, CA bundle and collector/client hashes are frozen under
+`.runs/bench/20261011-native-nv-https-final/`.
+
+The collector now preserves only bounded public diagnostic names on failure,
+before removing its owned UUID directory. A suite returning to HBC with a
+fresh diagnostic but no result fails immediately. Three host regression tests
+cover that behavior and exclusion of seed-like files from failure collection.
+Result/diagnostic output names are reserved and cannot be pre-staged as payloads,
+preventing supplied JSON from masquerading as a fresh hardware result.
+Initial unsynced diagnostic files were empty after forced exit; checkpoints
+now fsync the log before potentially failing transfers.
+
+Neither native probe accepts credentials: its seed is intentionally public.
+Private device bootstrap and an explicit verified RTC-to-UTC policy remain
+necessary, along with production nonblocking rc_client ownership/frame/idle
+integration, before a Monsterray spectator login. The production local engine
+and the previously measured 2.84% capacity overhead are unchanged.
