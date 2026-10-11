@@ -941,6 +941,7 @@ static void layoutInput(SettingsFrame *frame)
 	INP_PAGE.focus   = eng::FOCUS_ROWS;
 	INP_PAGE.labelCx = 150.0f;	/* the Settings labels: TextBox centred at x 150 */
 	INP_PAGE.labelDy = 28.0f;	/* on the middle of a 56-high row */
+	INP_PAGE.rowDy   = 0.0f;	/* the Settings grid: ROW_DY */
 
 	if (eng::layoutPage(INP_PAGE, GEN_METRICS, INP_LAYOUT) < 0) {
 		/* The tables are fixed, so this is a programming error: the tab is left as it was. */
@@ -984,6 +985,147 @@ static void layoutInput(SettingsFrame *frame)
 			for (int d = 0; d < eng::DIR_COUNT; d++) {
 				const int to = c.link[d];
 				inpButton(c)->setNextFocus(DIRS[d], to >= 0 ? inpButton(INP_LAYOUT.c[to]) : NULL);
+			}
+		}
+	}
+}
+
+/*  The Audio tab, on the menu engine (Docs/MENU_FRAMEWORK_PLAN.md, step 2, as the other Settings tabs)  */
+
+/* The tab's rows, top to bottom. This tab's rows are 70 apart, not 60: 100, 170, 240, 310 and 380,
+ * so the page's rowDy is 70. Labels are FRAME_TEXTBOXES entries 14, 17, 25 and 26. The Enable row
+ * is three toggles, each lit when its source is on; DSP Sound and Sync are choices; Interpolation
+ * and Advanced are actions. */
+#define AUD_ROWS_N 5
+#define AUD_ROW_DY 70.0f
+
+static const int AUD_BUTTON[AUD_ROWS_N][4] = {
+	{ 39, 40, 41, -1 },		/* Enable: Audio, XA, CDDA (toggles, lit when on) */
+	{ 45, -1, -1, -1 },		/* Interpolation: Simple/Gaussian (an action) */
+	{ 67, 68, -1, -1 },		/* DSP Sound: Yes, No */
+	{ 69, 70, 71, -1 },		/* Sync: Off, Tempo, Rate */
+	{ 72, -1, -1, -1 },		/* Advanced: opens the Advanced Sound page (an action) */
+};
+static const int AUD_COUNT[AUD_ROWS_N] = { 3, 1, 2, 3, 1 };
+static const int AUD_LABEL[AUD_ROWS_N] = { 14, 17, 25, 26, -1 };	/* FRAME_TEXTBOXES, -1: none */
+static const eng::RowKind AUD_KIND[AUD_ROWS_N] = {
+	eng::ROW_BUTTONS, eng::ROW_BUTTONS, eng::ROW_CHOICE, eng::ROW_CHOICE, eng::ROW_BUTTONS
+};
+static const float AUD_WIDTH[AUD_ROWS_N][4] = {
+	{ 100,  75, 110,   0 }, { 170,   0,   0,   0 }, {  75,  75,   0,   0 },
+	{  60,  90,  70,   0 }, { 125,   0,   0,   0 },
+};
+static const float AUD_X0[AUD_ROWS_N]  = { 295.0f, 295.0f, 295.0f, 295.0f, 258.0f };	/* 0: centred */
+static const float AUD_GAP[AUD_ROWS_N] = { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };			/* 0: TAB_GAP */
+
+/* A row's text and actions are set from the buttons when the tab is shown, as the other tabs' are. */
+static const char *AUD_TEXT[AUD_ROWS_N][4];
+static eng::ActionButton AUD_ACTIONS[AUD_ROWS_N][4];
+static eng::Row AUD_ROWS[AUD_ROWS_N];
+static eng::Tab AUD_TABS[NUM_TAB_BUTTONS];
+static eng::Page AUD_PAGE;
+static eng::Layout AUD_LAYOUT;
+
+/* The FRAME_BUTTONS entry a control of the Audio tab is drawn with. */
+static menu::Button *audButton(const eng::Control &c)
+{
+	return FRAME_BUTTONS[c.role == eng::ROLE_TAB ? c.slot : AUD_BUTTON[c.row][c.slot]].button;
+}
+
+/* Lays the Audio tab out on the engine and places its buttons and labels; links the focus.
+ * Everything here is done when the tab is shown, never per frame. */
+static void layoutAudio(SettingsFrame *frame)
+{
+	/* The Interpolation button's text follows the setting. */
+	FRAME_BUTTONS[45].buttonString = FRAME_STRINGS[46 + spuInterpolation];
+
+	for (int r = 0; r < AUD_ROWS_N; r++)
+		for (int c = 0; c < AUD_COUNT[r]; c++) {
+			AUD_TEXT[r][c] = FRAME_BUTTONS[AUD_BUTTON[r][c]].buttonString;
+			AUD_ACTIONS[r][c].text = AUD_TEXT[r][c];
+			AUD_ACTIONS[r][c].width = AUD_WIDTH[r][c];
+		}
+	for (int r = 0; r < AUD_ROWS_N; r++) {
+		eng::Row &row = AUD_ROWS[r];
+		memset(&row, 0, sizeof row);
+		row.kind    = AUD_KIND[r];
+		row.label   = AUD_LABEL[r] >= 0 ? FRAME_TEXTBOXES[AUD_LABEL[r]].textBoxString : NULL;
+		row.names   = AUD_TEXT[r];
+		row.count   = AUD_COUNT[r];
+		row.actions = AUD_ACTIONS[r];
+		row.x0      = AUD_X0[r];
+		row.gap     = AUD_GAP[r];
+		row.widths  = row.kind == eng::ROW_CHOICE ? AUD_WIDTH[r] : NULL;
+	}
+	/* The lit buttons: each toggle is lit when that source is on, so the row reads as what you get.
+	 * The settings file still keeps the historical "Disable" keys; see SETTINGS.md. */
+	AUD_ACTIONS[0][0].lit = audioEnabled == AUDIO_ENABLE;
+	AUD_ACTIONS[0][1].lit = Config.Xa != XA_DISABLE;
+	AUD_ACTIONS[0][2].lit = Config.Cdda != CDDA_DISABLE;
+	/* DSP Sound: Yes is the first choice, No the second. Sync: Off, Tempo or Rate, from the two keys. */
+	AUD_ROWS[2].value = soundHwAccel == SOUND_HW_ACCEL_ON ? 0 : 1;
+	AUD_ROWS[3].value = soundRateControl ? 2 : (soundTempo ? 1 : 0);
+
+	for (int t = 0; t < NUM_TAB_BUTTONS; t++) {
+		AUD_TABS[t].text  = FRAME_BUTTONS[t].buttonString;
+		AUD_TABS[t].width = FRAME_BUTTONS[t].width;
+	}
+	AUD_PAGE.title   = NULL;
+	AUD_PAGE.tabs    = AUD_TABS;
+	AUD_PAGE.nTabs   = NUM_TAB_BUTTONS;
+	AUD_PAGE.curTab  = SettingsFrame::SUBMENU_AUDIO;
+	AUD_PAGE.rows    = AUD_ROWS;
+	AUD_PAGE.nRows   = AUD_ROWS_N;
+	AUD_PAGE.help    = NULL;
+	AUD_PAGE.nHelp   = 0;
+	AUD_PAGE.logo    = eng::LOGO_SPOT_BOTTOM;	/* MenuContext: FRAME_SETTINGS is in LOGO_BOTTOM_FRAMES */
+	AUD_PAGE.focus   = eng::FOCUS_ROWS;
+	AUD_PAGE.labelCx = 150.0f;	/* the Settings labels: TextBox centred at x 150 */
+	AUD_PAGE.labelDy = 28.0f;	/* on the middle of a 56-high row */
+	AUD_PAGE.rowDy   = AUD_ROW_DY;
+
+	if (eng::layoutPage(AUD_PAGE, GEN_METRICS, AUD_LAYOUT) < 0) {
+		/* The tables are fixed, so this is a programming error: the tab is left as it was. */
+		SysPrintf("SettingsFrame: the Audio tab does not fit the menu engine\n");
+		return;
+	}
+	eng::linkFocus(AUD_PAGE, AUD_LAYOUT);
+
+	for (int i = 0; i < AUD_LAYOUT.n; i++) {
+		const eng::Control &c = AUD_LAYOUT.c[i];
+		switch (c.role) {
+		case eng::ROLE_TAB:
+		case eng::ROLE_BUTTON:
+		case eng::ROLE_CHOICE:
+			genPlace(frame, audButton(c), c);
+			audButton(c)->setActive(true);
+			audButton(c)->setSelected(c.selected);
+			break;
+		case eng::ROLE_LABEL:
+		case eng::ROLE_RLABEL: {
+			menu::TextBox *box = FRAME_TEXTBOXES[AUD_LABEL[c.row]].textBox;
+			box->setPosition(c.ax, c.ay);
+			box->setVisible(true);
+			break;
+		}
+		default:
+			break;
+		}
+	}
+
+	/* The focus links, on the buttons. A link of -1 is no link. */
+	{
+		static const int DIRS[eng::DIR_COUNT] = {
+			menu::Focus::DIRECTION_UP, menu::Focus::DIRECTION_DOWN,
+			menu::Focus::DIRECTION_LEFT, menu::Focus::DIRECTION_RIGHT
+		};
+		for (int i = 0; i < AUD_LAYOUT.n; i++) {
+			const eng::Control &c = AUD_LAYOUT.c[i];
+			if (!c.focusable)
+				continue;
+			for (int d = 0; d < eng::DIR_COUNT; d++) {
+				const int to = c.link[d];
+				audButton(c)->setNextFocus(DIRS[d], to >= 0 ? audButton(AUD_LAYOUT.c[to]) : NULL);
 			}
 		}
 	}
@@ -1077,51 +1219,9 @@ void SettingsFrame::activateSubmenu(int submenu)
 			layoutInput(this);
 			break;
 		case SUBMENU_AUDIO:
+			/* The Audio tab is laid out on the menu engine (layoutAudio, above). */
 			setDefaultFocus(FRAME_BUTTONS[3].button);
-			for (int i = 0; i < NUM_TAB_BUTTONS; i++)
-			{
-				FRAME_BUTTONS[i].button->setVisible(true);
-				FRAME_BUTTONS[i].button->setNextFocus(menu::Focus::DIRECTION_DOWN, FRAME_BUTTONS[39].button);
-				FRAME_BUTTONS[i].button->setNextFocus(menu::Focus::DIRECTION_UP, FRAME_BUTTONS[72].button);
-				FRAME_BUTTONS[i].button->setActive(true);
-			}
-			/* textBox[15] and [16] were the XA and CDDA labels; the Enable row carries its
-			 * own button labels now, so only [14] "Enable" and [17] "Interpolation" show. */
-			FRAME_TEXTBOXES[14].textBox->setVisible(true);
-			FRAME_TEXTBOXES[17].textBox->setVisible(true);
-			FRAME_BUTTONS[3].button->setSelected(true);
-			/* Each toggle is lit when that source is ON, so the row reads as what you get.
-			 * The settings file still keeps the historical "Disable" keys; see SETTINGS.md. */
-			FRAME_BUTTONS[39].button->setSelected(audioEnabled == AUDIO_ENABLE);
-			FRAME_BUTTONS[40].button->setSelected(Config.Xa != XA_DISABLE);
-			FRAME_BUTTONS[41].button->setSelected(Config.Cdda != CDDA_DISABLE);
-			FRAME_BUTTONS[45].buttonString = FRAME_STRINGS[46 + spuInterpolation];
-			if (soundHwAccel == SOUND_HW_ACCEL_ON)	FRAME_BUTTONS[67].button->setSelected(true);
-			else									FRAME_BUTTONS[68].button->setSelected(true);
-			/* 39..41 are the Enable toggles, 45 is Interpolation; 42..44 are spare slots. */
-			for (int i = 39; i <= 41; i++)
-			{
-				FRAME_BUTTONS[i].button->setVisible(true);
-				FRAME_BUTTONS[i].button->setActive(true);
-			}
-			FRAME_BUTTONS[45].button->setVisible(true);
-			FRAME_BUTTONS[45].button->setActive(true);
-			/* DSP Sound and Advanced live at the end of the array (see the button table) */
-			for (int i = 67; i <= 68; i++)
-			{
-				FRAME_BUTTONS[i].button->setVisible(true);
-				FRAME_BUTTONS[i].button->setActive(true);
-			}
-			FRAME_TEXTBOXES[25].textBox->setVisible(true);
-			/* Sync group (buttons 69..71, textBox 26): exactly one selected, from the two file keys;
-			 * button 72 is Advanced, next to it */
-			for (int i = 69; i <= 72; i++)
-			{
-				FRAME_BUTTONS[i].button->setVisible(true);
-				FRAME_BUTTONS[i].button->setActive(true);
-			}
-			FRAME_BUTTONS[69 + (soundRateControl ? 2 : (soundTempo ? 1 : 0))].button->setSelected(true);
-			FRAME_TEXTBOXES[26].textBox->setVisible(true);
+			layoutAudio(this);
 			break;
 		case SUBMENU_SAVES:
 			setDefaultFocus(FRAME_BUTTONS[4].button);

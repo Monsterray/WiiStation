@@ -173,6 +173,7 @@ struct Page {
 	/* Added for the Settings tabs (step 2). Zero means the default for each. */
 	float            labelCx;	/* every label centred here, not LABEL_CX (and RLABEL_CX for a choice's) */
 	float            labelDy;	/* a label's centre this far below its row's top, not LABEL_DY */
+	float            rowDy;		/* the row pitch, not ROW_DY (the Settings Audio and Saves tabs: 70) */
 };
 
 /*  Layout output  */

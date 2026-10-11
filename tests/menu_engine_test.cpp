@@ -239,6 +239,7 @@ struct TestPage {
 	int              nTabs;
 	float            labelCx;
 	float            labelDy;
+	float            rowDy;		/* 0: 60 (the Settings grid); the Audio and Saves tabs: 70 */
 };
 
 #define COUNT(a) ((int)(sizeof(a) / sizeof((a)[0])))
@@ -330,6 +331,25 @@ static Row SET_INPUT_ROWS[] = {
 	{ ROW_BUTTONS, "Auto Load Slot",      NULL,            0, 1, 0, NULL, false, INP_AUTOLOAD_ACTIONS, 295.0f,  0.0f, NULL,       0 },
 };
 
+/*  The Settings Audio tab (menupage 4). Rows are 70 apart (rowDy). The state: Audio on, XA on, CDDA off,
+ *  DSP Sound No, Sync Off, Interpolation Simple. Labels are textboxes 14, 17, 25 and 26. */
+static const char *const AUD_DSP_NAMES[]  = { "Yes", "No" };
+static const float        AUD_DSP_W[]     = { 75.0f, 75.0f };
+static const char *const AUD_SYNC_NAMES[] = { "Off", "Tempo", "Rate" };
+static const float        AUD_SYNC_W[]    = { 60.0f, 90.0f, 70.0f };
+static const ActionButton AUD_ENABLE_ACTIONS[] = { { "Audio", 100.0f, true }, { "XA", 75.0f, true }, { "CDDA", 110.0f, false } };
+static const ActionButton AUD_INTERP_ACTIONS[] = { { "Simple", 170.0f, false } };
+static const ActionButton AUD_ADV_ACTIONS[]    = { { "Advanced", 125.0f, false } };
+
+/* Row fields: kind, label, names, lo, count, value, text, fit, actions, x0, gap, widths, plain. */
+static Row AUDIO_ROWS[] = {
+	{ ROW_BUTTONS, "Enable",           NULL,           0, 3, 0, NULL, false, AUD_ENABLE_ACTIONS, 295.0f,  0.0f, NULL,      0 },
+	{ ROW_BUTTONS, "Interpolation",    NULL,           0, 1, 0, NULL, false, AUD_INTERP_ACTIONS, 295.0f,  0.0f, NULL,      0 },
+	{ ROW_CHOICE,  "DSP Sound",        AUD_DSP_NAMES,  0, 2, 1, NULL, false, NULL,               295.0f,  0.0f, AUD_DSP_W, 0 },
+	{ ROW_CHOICE,  "Sync",             AUD_SYNC_NAMES, 0, 3, 0, NULL, false, NULL,               295.0f,  0.0f, AUD_SYNC_W, 0 },
+	{ ROW_BUTTONS, NULL,               NULL,           0, 1, 0, NULL, false, AUD_ADV_ACTIONS,    258.0f,  0.0f, NULL,      0 },
+};
+
 /* The General tab is the first Settings tab, so its tab row is lit at 0; Video's is lit at 1. */
 static TestPage SETTINGS_PAGES[] = {
 	{ "General",     NULL,                true,  0, GENERAL_ROWS, COUNT(GENERAL_ROWS), NULL,        0,
@@ -338,6 +358,8 @@ static TestPage SETTINGS_PAGES[] = {
 	  GEN_TABS, COUNT(GEN_TABS), 150.0f, 28.0f },
 	{ "Input",       NULL,                true,  2, SET_INPUT_ROWS,   COUNT(SET_INPUT_ROWS),   NULL,        0,
 	  GEN_TABS, COUNT(GEN_TABS), 150.0f, 28.0f },
+	{ "Audio",       NULL,                true,  3, AUDIO_ROWS,   COUNT(AUDIO_ROWS),   NULL,        0,
+	  GEN_TABS, COUNT(GEN_TABS), 150.0f, 28.0f, 70.0f },
 };
 #define NSETTINGS COUNT(SETTINGS_PAGES)
 
@@ -360,6 +382,7 @@ static Page toPage(const TestPage &t, FocusMode mode)
 	p.focus = mode;
 	p.labelCx = t.labelCx;
 	p.labelDy = t.labelDy;
+	p.rowDy = t.rowDy;
 	return p;
 }
 
@@ -632,6 +655,12 @@ static float readoutCxOf(const Row &r)
 	return cx;
 }
 
+/* The row pitch of a page: its own, or the Settings grid's 60. */
+static float rowPitch(const TestPage &t)
+{
+	return t.rowDy > 0 ? t.rowDy : 60.0f;
+}
+
 /* Returns the number of expected controls. Also sets *defaultFocus. */
 static int buildExpected(const TestPage &t, Exp *e, Key *defaultFocus)
 {
@@ -649,7 +678,7 @@ static int buildExpected(const TestPage &t, Exp *e, Key *defaultFocus)
 
 	for (int i = 0; i < t.nRows; i++) {
 		const Row &r = t.rows[i];
-		const float y = 100.0f + i * 60.0f;
+		const float y = 100.0f + i * rowPitch(t);
 		const float lcx = t.labelCx > 0 ? t.labelCx : 160.0f;	/* a row's label */
 		const float ldy = t.labelDy > 0 ? t.labelDy : 20.0f;
 		if (firstRow < 0 && rowIsFocusable(r))
@@ -709,7 +738,7 @@ static int buildExpected(const TestPage &t, Exp *e, Key *defaultFocus)
 		}
 		termR = (640.0 - (wTerm + 10.0 + wText)) / 2 + wTerm;
 		textX = (float)(termR + 10.0);
-		y = 100.0f + t.nRows * 60.0f;
+		y = 100.0f + t.nRows * rowPitch(t);
 		for (int h = 0; h < t.nHelp; h++) {
 			int over;
 			float bottom;
@@ -728,7 +757,7 @@ static int buildExpected(const TestPage &t, Exp *e, Key *defaultFocus)
 		termR -= shift;
 		textX -= shift;
 
-		y = 100.0f + t.nRows * 60.0f;
+		y = 100.0f + t.nRows * rowPitch(t);
 		for (int h = 0; h < t.nHelp; h++) {
 			if (h > 0 && t.help[h].term) y += 9.0f;
 			if (t.help[h].term)
@@ -932,6 +961,15 @@ static const Known KNOWN[] = {
 	{ "Input", PROB_TEXT_WIDE, "SD", NULL },
 	{ "Input", PROB_TEXT_WIDE, "USB", NULL },
 	{ "Input", PROB_OVERLAP, "PSX Controller Type", "Standard" },
+	{ "Audio", PROB_TEXT_WIDE, "General", NULL },
+	{ "Audio", PROB_TEXT_WIDE, "Video", NULL },
+	{ "Audio", PROB_TEXT_WIDE, "Audio", NULL },
+	{ "Audio", PROB_TEXT_WIDE, "Saves", NULL },
+	{ "Audio", PROB_TEXT_WIDE, "Yes", NULL },
+	{ "Audio", PROB_TEXT_WIDE, "Off", NULL },
+	{ "Audio", PROB_TEXT_WIDE, "Tempo", NULL },
+	{ "Audio", PROB_TEXT_WIDE, "Rate", NULL },
+	{ "Audio", PROB_TEXT_WIDE, "Advanced", NULL },
 	{ NULL, 0, NULL, NULL },
 };
 
@@ -1746,6 +1784,27 @@ static const OldBox INPUT_BOXES[] = {
 /* The label centres: each row's top + 28 (textboxes 10, 29, 11, 12 and 13). */
 static const float INPUT_LABEL_Y[6] = { 0.0f, 188.0f, 248.0f, 308.0f, 368.0f, 428.0f };
 
+/* The Audio tab: its tab row's Up is 72 and Down 39. */
+static const OldBox AUDIO_BOXES[] = {
+	{ 0, ROLE_TAB, -1, 0, 25.0f, 20.0f, 110.0f, 56.0f, 72, 39, 4, 1 },
+	{ 1, ROLE_TAB, -1, 1, 155.0f, 20.0f, 100.0f, 56.0f, 72, 39, 0, 2 },
+	{ 2, ROLE_TAB, -1, 2, 275.0f, 20.0f, 100.0f, 56.0f, 72, 39, 1, 3 },
+	{ 3, ROLE_TAB, -1, 3, 395.0f, 20.0f, 100.0f, 56.0f, 72, 39, 2, 4 },
+	{ 4, ROLE_TAB, -1, 4, 515.0f, 20.0f, 100.0f, 56.0f, 72, 39, 3, 0 },
+	{ 39, ROLE_BUTTON, 0, 0, 295.0f, 100.0f, 100.0f, 56.0f,  3, 45, 41, 40 },
+	{ 40, ROLE_BUTTON, 0, 1, 405.0f, 100.0f,  75.0f, 56.0f,  3, 45, 39, 41 },
+	{ 41, ROLE_BUTTON, 0, 2, 490.0f, 100.0f, 110.0f, 56.0f,  3, 45, 40, 39 },
+	{ 45, ROLE_BUTTON, 1, 0, 295.0f, 170.0f, 170.0f, 56.0f, 39, 67, -1, -1 },
+	{ 67, ROLE_CHOICE, 2, 0, 295.0f, 240.0f,  75.0f, 56.0f, 45, 69, 68, 68 },
+	{ 68, ROLE_CHOICE, 2, 1, 380.0f, 240.0f,  75.0f, 56.0f, 45, 69, 67, 67 },
+	{ 69, ROLE_CHOICE, 3, 0, 295.0f, 310.0f,  60.0f, 56.0f, 67, 72, 71, 70 },
+	{ 70, ROLE_CHOICE, 3, 1, 365.0f, 310.0f,  90.0f, 56.0f, 67, 72, 69, 71 },
+	{ 71, ROLE_CHOICE, 3, 2, 465.0f, 310.0f,  70.0f, 56.0f, 68, 72, 70, 69 },
+	{ 72, ROLE_BUTTON, 4, 0, 258.0f, 380.0f, 125.0f, 56.0f, 69,  3, -1, -1 },
+};
+/* The label centres: row top + 28 (textboxes 14, 17, 25 and 26). */
+static const float AUDIO_LABEL_Y[5] = { 128.0f, 198.0f, 268.0f, 338.0f, 0.0f };
+
 int main(int argc, char **argv)
 {
 	const char *font = argc > 1 ? argv[1] : "fonts/En.dat";
@@ -1765,6 +1824,8 @@ int main(int argc, char **argv)
 	checkVideoAgainstTable();
 	checkTabBoxes("Input", 2, INPUT_BOXES, COUNT(INPUT_BOXES), INPUT_LABEL_Y, COUNT(INPUT_LABEL_Y));
 	checkTabLinks("Input", 2, INPUT_BOXES, COUNT(INPUT_BOXES));
+	checkTabBoxes("Audio", 3, AUDIO_BOXES, COUNT(AUDIO_BOXES), AUDIO_LABEL_Y, COUNT(AUDIO_LABEL_Y));
+	checkTabLinks("Audio", 3, AUDIO_BOXES, COUNT(AUDIO_BOXES));
 	reportGeometry();
 	testCheckCatches();
 

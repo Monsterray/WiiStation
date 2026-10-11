@@ -87,6 +87,12 @@ static int shownValue(const Row &r)
 	return v;
 }
 
+/* The top of row i: ROW_Y0 plus i row pitches, the page's own pitch or ROW_DY. */
+static float rowTop(const Page &p, int i)
+{
+	return ROW_Y0 + i * (p.rowDy > 0 ? p.rowDy : ROW_DY);
+}
+
 /*  Placing  */
 
 static int newControl(Layout &out)
@@ -200,7 +206,7 @@ static void layoutHelp(const Page &p, const Metrics &m, Layout &out)
 	termR = (MENU_W - (wTerm + HELP_COL_GAP + wText)) / 2 + wTerm;
 	textX = termR + HELP_COL_GAP;
 
-	y = ROW_Y0 + p.nRows * ROW_DY;
+	y = rowTop(p, p.nRows);
 	for (int i = 0; i < p.nHelp; i++) {
 		const HelpLine &h = p.help[i];
 		int over;
@@ -214,7 +220,7 @@ static void layoutHelp(const Page &p, const Metrics &m, Layout &out)
 	termR -= shift;
 	textX -= shift;
 
-	y = ROW_Y0 + p.nRows * ROW_DY;
+	y = rowTop(p, p.nRows);
 	for (int i = 0; i < p.nHelp; i++) {
 		const HelpLine &h = p.help[i];
 		if (i > 0 && h.term) y += HELP_CELL_GAP;
@@ -297,7 +303,7 @@ int layoutPage(const Page &p, const Metrics &m, Layout &out)
 		if (r.kind != ROW_CHOICE || !r.label)
 			continue;
 		{
-			const float x0 = rowStart(m, r, ROW_Y0 + i * ROW_DY, p.logo);
+			const float x0 = rowStart(m, r, rowTop(p, i), p.logo);
 			const int lw = measure(m, r.label, TEXT_SCALE);
 			const float cx = x0 - RLABEL_GAP - (float)(lw - lw / 2);
 			if (cx < rlabelCx)
@@ -324,7 +330,7 @@ int layoutPage(const Page &p, const Metrics &m, Layout &out)
 
 	for (int i = 0; i < p.nRows; i++) {
 		const Row &r = p.rows[i];
-		const float y = ROW_Y0 + i * ROW_DY;
+		const float y = rowTop(p, i);
 
 		switch (r.kind) {
 		case ROW_TOGGLE:
