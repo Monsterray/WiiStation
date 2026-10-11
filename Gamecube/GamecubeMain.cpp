@@ -108,6 +108,9 @@ BOOL hasLoadedISO = FALSE;
 fileBrowser_file isoFile;  //the ISO file
 fileBrowser_file cddaFile; //the CDDA file
 fileBrowser_file subFile;  //the SUB file
+#ifdef ACHIEVEMENTS_BENCH
+static char achievementBenchRoot[256];
+#endif
 fileBrowser_file *biosFile = NULL;  //BIOS file
 
 #if defined (CPU_LOG) || defined(DMA_LOG) || defined(CDR_LOG) || defined(HW_LOG) || \
@@ -360,6 +363,9 @@ static struct {
   { "Achievements", &achievementsEnabled, 0, 1 },
   { "AchievementFile", achievementFile, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "AchievementLog", achievementLog, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
+#ifdef ACHIEVEMENTS_BENCH
+  { "AchievementBenchRoot", achievementBenchRoot, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
+#endif
   { "Network", NULL, 0, 0, "Games from a network share (SMB)." },
   { "smbipaddr", smbIpAddr, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "smbsharename", smbShareName, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
@@ -918,7 +924,7 @@ static bool chainNext(void)
 		fprintf(f, "achievement-bench: game=%s frames=%u count=%u earned=%u enabled=%u\n",
 			CdromId, (unsigned)frame_counter, achievements_count(), achievements_earned(),
 			(unsigned)achievementsEnabled);
-		if (chainList[chainI].input[0]) {
+		if (chainList[chainI].input[0] && !achievementBenchRoot[0]) {
 			unsigned completed_frames = frame_counter;
 			unsigned earned = achievements_earned();
 			SysReset();
@@ -1369,6 +1375,18 @@ int loadISO(fileBrowser_file* file)
 	hb_phase("load: memory cards and state", isoFile.name);
 	achievements_load(CdromId); /* after settings and boot; a wrong/absent game ID rejects the set */
 
+#ifdef ACHIEVEMENTS_BENCH
+	if (achievementBenchRoot[0]) {
+		/* Real-game benchmarks must never load or let chain cleanup delete a
+		 * personal card. Fail closed before selecting the private SD directory. */
+		if (strncmp(achievementBenchRoot, "sd:/wiistation/bench-", 21) ||
+		    strlen(achievementBenchRoot) > 100 || strstr(achievementBenchRoot, ".."))
+			exit(1);
+		nativeSaveDevice = NATIVESAVEDEVICE_SD;
+		snprintf(saveDir_libfat_Default.name, sizeof saveDir_libfat_Default.name,
+			"%s/cards", achievementBenchRoot);
+	}
+#endif
 	if(autoSave==AUTOSAVE_ENABLE) {
 		setSaveDevice();   /* fileBrowser.c: point saveFile_* at nativeSaveDevice */
 		// Try loading everything

@@ -17,6 +17,7 @@ def unit(client, wii, bundle):
     output.mkdir(exist_ok=False)
     remote = "sd:/wiistation/bench-" + uuid.uuid4().hex
     (output / "remote.txt").write_text(remote + "\n")
+    manifest = json.loads((bundle / "manifest.json").read_text())
     before = client.status(wii)
     (output / "before.json").write_text(json.dumps(before, indent=2))
     if before.get("agent"):
@@ -24,9 +25,11 @@ def unit(client, wii, bundle):
     client.file_request(wii, "M", remote)
     launched = False
     try:
+        for name in manifest.get("payloads", []):
+            client.put_file(wii, remote + "/" + name, (bundle / name).read_bytes())
         client.send(wii, str(bundle / "boot.dol"), [remote], name="WiiStation achievement hardware tests")
         launched = True
-        deadline = time.monotonic() + 120
+        deadline = time.monotonic() + manifest.get("timeout", 120)
         while time.monotonic() < deadline:
             try:
                 state = client.status(wii)
@@ -52,16 +55,16 @@ def unit(client, wii, bundle):
             if kind == "f" and size < 1024 * 1024 and "/" not in name and name not in (".", ".."):
                 (output / name).write_bytes(client.get_file(wii, remote + "/" + name))
         result = json.loads((output / "result.json").read_text())
-        if result.get("pass") is not True or result.get("suite") != "achievements":
+        if result.get("pass") is not True or result.get("suite") != manifest.get("suite", "achievements"):
             raise RuntimeError("Invalid hardware result")
-        print("PASS: full achievement engine suite on big-endian Wii + SD journal/state tests")
+        print("PASS: Wii suite " + result["suite"])
         print(json.dumps(result), flush=True)
     finally:
         if launched:
             try:
                 current = client.status(wii)
                 if current.get("agent"):
-                    if current.get("app") != "WiiStation tests":
+                    if current.get("app") not in ("WiiStation tests", "WiiStation HTTPS probe", "WiiStation client tests"):
                         raise RuntimeError("Another app is running; refusing to exit it")
                     client.exit_app(wii, 90)  # Includes the queue's uptime ownership check.
                 client.hbc_wait(wii, 90)
@@ -80,6 +83,9 @@ def main():
     prep.add_argument("--dol", type=Path, required=True)
     prep.add_argument("--client", type=Path, required=True)
     prep.add_argument("--bundle", type=Path, required=True)
+    prep.add_argument("--suite", default="achievements")
+    prep.add_argument("--payload", type=Path, action="append", default=[])
+    prep.add_argument("--timeout", type=int, default=120)
     run = sub.add_parser("run")
     run.add_argument("--bundle", type=Path, required=True)
     args = parser.parse_args()
@@ -89,14 +95,22 @@ def main():
         manifest_path = args.bundle / "manifest.json"
         manifest = json.loads(manifest_path.read_text())
         manifest["inputs"]["bench_achievements.py"] = {"sha256": bench_smoke.digest(args.bundle / "bench_achievements.py")}
+        manifest.update(suite=args.suite, timeout=args.timeout, payloads=[])
+        for payload in args.payload:
+            if payload.name in manifest["inputs"] or payload.name in ("manifest.json", "results"):
+                parser.error("Reserved payload name")
+            shutil.copy2(payload, args.bundle / payload.name)
+            manifest["inputs"][payload.name] = {"sha256": bench_smoke.digest(args.bundle / payload.name)}
+            manifest["payloads"].append(payload.name)
         manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
         return
     if not os.environ.get("WII_BENCH_JOB_START") or not os.environ.get("WII_BENCH_IP"):
         parser.error("Run through wiibench.py; no Wii request sent")
     bench_smoke.verify(args.bundle)
     manifest = json.loads((args.bundle / "manifest.json").read_text())
-    if bench_smoke.digest(args.bundle / "bench_achievements.py") != manifest["inputs"]["bench_achievements.py"]["sha256"]:
-        parser.error("Frozen collector changed")
+    for name, entry in manifest["inputs"].items():
+        if bench_smoke.digest(args.bundle / name) != entry["sha256"]:
+            parser.error("Frozen input changed: " + name)
     spec = importlib.util.spec_from_file_location("bench_hbc", args.bundle / "hbc.py")
     client = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(client)

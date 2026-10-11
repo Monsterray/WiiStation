@@ -1,6 +1,8 @@
 # Testing online RetroAchievements on WiiStation
 
-Researched 2026-10-11. This is a proposed test strategy, not an implemented online
+Researched 2026-10-11. Subsequent mock/hash/HTTPS implementation and evidence are
+recorded in [testing progress](ACHIEVEMENTS_TESTING_PROGRESS.md).
+This is a proposed test strategy, not an implemented online
 client or a claim of service approval. No login, account creation, service award,
 leaderboard submission, or account-progress reset was performed. The current
 [engine](ACHIEVEMENTS_ENGINE.md) evaluates local definitions; its
@@ -14,8 +16,8 @@ legitimate Casual award. Spectator and unpromoted achievements are useful tests,
 but deliberately suppress awarding and cannot establish end-to-end submission.
 Keep the existing local journal separate from official service unlocks.
 
-The checkout vendors runtime/util sources and headers, **not** the client, API,
-or hashing implementation. Online testing needs those sources from the same
+The checkout now vendors matching runtime/util/client/API/hash sources and
+headers; standalone host/Wii tests exercise client/API/hash code. Online testing needs those sources from the same
 pinned rcheevos revision, a PS1 sector/hash adapter, asynchronous HTTPS transport,
 frame/idle pumping, lifecycle ownership, and observable status events. Preserve
 the documented Wii endian fix when extending or updating the dependency.

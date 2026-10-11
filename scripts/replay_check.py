@@ -58,9 +58,11 @@ def main():
     if not common:
         print("no report at a common vblank: cannot compare (the replay drew differently from the start?)")
         return 2
+    different = False
     for v in common:
         diff = [k for k in FIELDS if cap[v].get(k) != rep[v].get(k)]
         if diff:
+            different = True
             print(f"vblank {v}: DIFFERENT in {', '.join(diff)}")
             for k in diff:
                 print(f"   capture {k}: {cap[v].get(k)}\n   replay  {k}: {rep[v].get(k)}")
@@ -68,6 +70,8 @@ def main():
                 return 1
             continue
         print(f"vblank {v}: identical")
+    if different:
+        return 1
     print(f"the replay follows the session through vblank {common[-1]} ({len(common)} common reports)")
     return 0
 

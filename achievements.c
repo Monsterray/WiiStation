@@ -1,6 +1,7 @@
 /* Local-only achievement evaluation using upstream rcheevos. No official submissions.
  * GPL-2.0-or-later, like the surrounding WiiStation integration code. */
 #include "achievements.h"
+#include "Gamecube/perf_prof.h"
 #include "deps/rcheevos/include/rc_runtime.h"
 #include "deps/rcheevos/src/util/md5.h"
 #include <stdio.h>
@@ -120,8 +121,17 @@ void achievements_reset(void)
 void achievements_frame(void)
 {
     if (!active || !running || !achievementsEnabled) return;
+#if defined(PERF_PROF) && PERF_PROF_ACHIEVEMENTS
+    unsigned long long started = perf_now_ticks();
+#endif
     rc_runtime_validate_addresses(&runtime, event, valid_address);
     rc_runtime_do_frame(&runtime, event, achievements_read_memory, NULL, NULL);
+#if defined(PERF_PROF) && PERF_PROF_ACHIEVEMENTS
+    unsigned long long elapsed = perf_now_ticks() - started;
+    PERF_ADD(achievement_ticks, elapsed);
+    PERF_MAX(achievement_max_ticks, elapsed);
+    PERF_INC(achievement_frames);
+#endif
 }
 
 static char *trim(char *s)

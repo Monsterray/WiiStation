@@ -1,7 +1,8 @@
 # Representative gameplay performance testing
 
-Research and proposed protocol — 2026-10-11. No new Wii runs were performed for
-this investigation. The previous [hardware suite](ACHIEVEMENTS_HARDWARE_TESTS.md)
+Research and proposed protocol — 2026-10-11. Subsequent implementation and
+Wii evidence are recorded in [testing progress](ACHIEVEMENTS_TESTING_PROGRESS.md).
+The original investigation performed no new Wii runs. The previous [hardware suite](ACHIEVEMENTS_HARDWARE_TESTS.md)
 proved correctness and measured a synthetic workload; it does not establish
 representative gameplay overhead.
 
@@ -78,8 +79,9 @@ Two complementary passes are necessary:
   A limiter can hide added work in its idle time, so capped FPS alone is insufficient.
 
 Use disposable memory cards and a fresh private achievement journal for every
-measured arm. Autosave must be disabled, and benchmark card state must be
-identical. Existing earned entries affect the evaluation workload: the engine
+measured arm. Personal-card autosave must be disabled, and benchmark card state must be
+identical. The implemented test build redirects all card reads/writes/deletes
+to a fresh private directory; its AutoSave setting loads only those cards. Existing earned entries affect the evaluation workload: the engine
 [restores earned entries as inactive](../achievements.c), and triggered
 conditions no longer represent a fully active set. Freeze the initial earned
 mask and report active definitions over the measurement window. Separate steady
@@ -135,9 +137,8 @@ Before accepting any timing pair, check game/media hash, configuration, controll
 mapping, starting card/checkpoint hash, replay input hash, expected completion
 marker and crash record. Check that both runs actually reach the same scene.
 [replay_check.py](../scripts/replay_check.py) compares guest counters at common
-VBlanks; no common point is not a pass. Its `--all` mode currently prints a final
-success message/returns zero after differences, so automation must fix that
-behavior or use first-difference mode. Full RAM/PC signature equality is a strong
+VBlanks; no common point is not a pass. Its `--all` mode now returns failure after differences; the regression is
+covered by `tests/bench_gameplay_test.py`. Full RAM/PC signature equality is a strong
 same-core check, but intentional achievement changes and valid core differences
 must be distinguished from a replay entering a different level or menu.
 

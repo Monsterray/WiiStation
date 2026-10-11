@@ -576,14 +576,18 @@ static void vtl_tick(void)
 	uint64_t now = gettime();
 	if (!vtl) {
 		vtl = (vtl_t *)_mem2_malloc(VTL_MAX * sizeof(vtl_t));
+#if PERF_PROF_VSIG
 		vsig = (vsig_t *)_mem2_malloc(VTL_MAX * sizeof(vsig_t));
+#endif
 		if (!vtl)
 			return;
 		vtl_n = 0;
 	} else if (vtl_n < VTL_MAX && vtl_t0) {
 		vtl_t *v = &vtl[vtl_n++];
+#if PERF_PROF_VSIG
 		if (vsig)
 			vsig_take(&vsig[vtl_n - 1]);
+#endif
 		v->wall = vtl_u16(now - vtl_t0);
 		v->cpu = vtl_u16(g_perf.cpu_ticks - vtl_cpu0);
 		v->gpu = vtl_u16(g_perf.hw_gpu_ticks - vtl_gpu0);
@@ -799,6 +803,12 @@ void perf_report(void)
 		uint32_t m2tot = gx_mem2_total() >> 10;
 
 		fprintf(f, "--- perf frames=%lu ---\n", (unsigned long)g_perf.present_frames);
+#if PERF_PROF_ACHIEVEMENTS
+		fprintf(f, "achperf: calls=%u total_us=%llu max_us=%llu vsig=%u\n",
+			(unsigned)g_perf.achievement_frames,
+			(unsigned long long)ticks_to_microsecs(g_perf.achievement_ticks),
+			(unsigned long long)ticks_to_microsecs(g_perf.achievement_max_ticks), PERF_PROF_VSIG);
+#endif
 		{
 			char when[32];
 			perf_datetime(when, sizeof when);

@@ -76,6 +76,12 @@ void perf_datetime(char *buf, int size);
 #ifndef PERF_PROF_CPU
 #define PERF_PROF_CPU 1
 #endif
+#ifndef PERF_PROF_VSIG
+#define PERF_PROF_VSIG 1
+#endif
+#ifndef PERF_PROF_ACHIEVEMENTS
+#define PERF_PROF_ACHIEVEMENTS 0
+#endif
 #ifndef PERF_PROF_IO
 #define PERF_PROF_IO 1
 #endif
@@ -203,6 +209,8 @@ void hprof_flush(int game);
 #endif
 
 typedef struct {
+	unsigned long long achievement_ticks, achievement_max_ticks;
+	uint32_t achievement_frames;
 	/* CPU / JIT (Wii adapter level, lightrec.c) */
 	uint32_t jit_slices;          /* lightrec execute slices run */
 	uint32_t jit_resets_full;     /* invalidate_all (cache flush) */
