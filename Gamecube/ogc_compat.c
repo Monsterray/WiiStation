@@ -80,6 +80,15 @@ u32 diff_usec(u64 start, u64 end)
 	return (u32)PPCTicksToUs(diff);
 }
 
+/* diff_sec(): the same (debug probes call it out of line) */
+u32 diff_sec(u64 start, u64 end)
+{
+	u64 diff = ((u64)(end) < (u64)(start))
+		? ((u64)-1 - (u64)(start) + (u64)(end))
+		: ((u64)(end) - (u64)(start));
+	return (u32)(diff / PPC_TIMER_CLOCK);
+}
+
 /* lightrec.c declares these as externs; v3's cache.h has them as static inline
  * (DCFlushRange) or as asm aliases the header does not export (ICInvalidateRange). */
 void DCFlushRange(void *startaddress, u32 len)
