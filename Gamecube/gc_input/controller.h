@@ -38,7 +38,7 @@
 extern "C" {
 #endif
 
-extern char padNeedScan, wpadNeedScan, hidPadNeedScan;
+extern volatile char padNeedScan, wpadNeedScan, hidPadNeedScan;
 extern u32 gc_connected;
 
 /* Poll every Wii input path once per frame, if the retrace callback has asked for it.

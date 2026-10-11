@@ -145,7 +145,7 @@ void Func_UseOpenGxGpu();
 extern "C" void VIDEO_SetTrapFilter(bool enable);
 
 extern BOOL hasLoadedISO;
-extern int stop;
+extern volatile int stop;
 extern char menuActive;
 
 extern "C" {

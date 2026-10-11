@@ -37,7 +37,7 @@
 #include "../perf_prof.h"
 
 extern BOOL hasLoadedROM;
-extern int stop;
+extern volatile int stop;
 
 #ifdef HW_RVL
 #define DEVICE_REMOVAL_THREAD
@@ -104,11 +104,11 @@ const DISC_INTERFACE* cardb = &__io_gcsdb;
 #define CARD_A  2
 #define CARD_B  3
 static lwp_t removalThread = LWP_THREAD_NULL;
-static int rThreadRun = 0;
+static volatile int rThreadRun = 0;   /* set by the menu thread (start/stop), polled by the removal thread */
 static int rThreadCreated = 0;
-static char sdMounted  = 0;
+static volatile char sdMounted  = 0;   /* set and polled by the menu and removal threads */
 static char sdNeedsUnmount  = 0;
-static char usbMounted = 0;
+static volatile char usbMounted = 0;   /* set and polled by the menu and removal threads */
 static char usbNeedsUnmount = 0;
 
 fileBrowser_file topLevel_libfat_Default =

@@ -114,7 +114,7 @@ static struct
 static PadDataS padOut[10];
 
 extern void SysPrintf(char *fmt, ...);
-extern int stop;
+extern volatile int stop;
 
 /* Controller type, later do this by a Variable in the GUI */
 //extern char controllerType = 0; // 0 = standard, 1 = analog (analog fails on old games)

@@ -209,7 +209,7 @@ void Func_Credits()
 	menu::MessageBox::getInstance().setMessage(CreditsInfo);
 }
 
-extern char shutdown;
+extern volatile char shutdown;
 extern "C" void SysClose();
 
 void Func_ExitToLoader()

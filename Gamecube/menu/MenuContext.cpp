@@ -37,7 +37,7 @@ extern int backFromMenu;
 extern char originalMode;
 #include "../hbc_home.h"
 extern BOOL hasLoadedISO;      /* GamecubeMain.cpp */
-extern char shutdown;          /* GamecubeMain.cpp: 2 = back to the loader, through Gui.cpp's fade */
+extern volatile char shutdown;          /* GamecubeMain.cpp: 2 = back to the loader, through Gui.cpp's fade */
 extern "C" void SysClose();
 
 MenuContext *pMenuContext;

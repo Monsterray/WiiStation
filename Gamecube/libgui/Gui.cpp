@@ -41,7 +41,7 @@ extern "C" void fileBrowser_DVD_shutdown(void);   /* fileBrowser-DVD.c */
 }
 #include "../../HidController/KernelHID.h"
 
-extern char shutdown;
+extern volatile char shutdown;
 #ifdef WII
 bool isWiiU = (*(vu16*)0xCD8005A0 == 0xCAFE) && CONF_GetAspectRatio();
 #endif

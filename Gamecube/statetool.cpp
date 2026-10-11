@@ -31,7 +31,7 @@ extern "C" {
 #include "../psxmem.h"
 #include "../r3000a.h"
 #include "../mem2_manager.h"
-	extern int stop;
+	extern volatile int stop;
 	extern u32 frame_counter;
 	extern unsigned chain_stop_vbl;
 	extern int state_quiet;

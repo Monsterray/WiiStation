@@ -156,8 +156,8 @@ static struct _usb_msg *write_kb_ctrl_req = NULL;
 static struct _usb_msg *read_kb_irq_req = NULL;
 static struct _usb_msg *write_kb_irq_req = NULL;
 
-s32 hidControllerConnected = 0;
-s32 loadingControllerIni = 0;
+volatile s32 hidControllerConnected = 0;   /* set by the HID thread (HIDRun), polled by the input code */
+volatile s32 loadingControllerIni = 0;   /* set by the HID thread (HIDRun), polled by the input code */
 
 static s32 ipcCallBack(s32 result, void *usrdata)
 {
@@ -476,7 +476,7 @@ static s32 HIDOpen( u32 LoaderRequest )
                         loadingControllerIni = 1;
                         while (hidRun)
                         {
-                            if(*((u32*)(HID_CHANGE)) == 0) break;
+                            if(*((volatile u32*)(HID_CHANGE)) == 0) break;
                             usleep(100);
                         }
                         loadingControllerIni = 0;
@@ -853,7 +853,7 @@ static u32 *HIDRun(void *param)
 {
     while (hidRun)
     {
-        extern char shutdown;
+        extern volatile char shutdown;
         if (shutdown)
         {
             break;
