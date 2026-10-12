@@ -1,6 +1,6 @@
 #define _POSIX_C_SOURCE 200809L
 #include "achievement_clock_test.h"
-#include "../achievement_clock.h"
+#include "achievement_clock.h"
 #include <mbedtls/platform.h>
 #include <mbedtls/platform_util.h>
 #include <mbedtls/x509.h>

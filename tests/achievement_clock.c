@@ -1,7 +1,6 @@
 #include "achievement_clock.h"
 #define UTC_MIN INT64_C(1577836800) /* 2020-01-01 */
 #define UTC_MAX INT64_C(4102444799) /* 2099-12-31, also check time_t in TLS adapter */
-char achievementUTCOffsetMinutes[256];
 static int ready;
 static int64_t anchor;
 static uint64_t started, last;

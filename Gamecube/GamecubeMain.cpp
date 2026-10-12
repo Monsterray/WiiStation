@@ -44,7 +44,6 @@ extern "C" void __exception_setreload(int t);
 #include "wiiSXconfig.h"
 #include "config_parse.h"   /* the two scans in the settings parser */
 #include "../achievements.h"
-#include "../achievement_clock.h"
 #include "menu/MenuContext.h"
 #include "libgui/IPLFont.h"
 #include "libgui/MessageBox.h"
@@ -109,9 +108,6 @@ BOOL hasLoadedISO = FALSE;
 fileBrowser_file isoFile;  //the ISO file
 fileBrowser_file cddaFile; //the CDDA file
 fileBrowser_file subFile;  //the SUB file
-#ifdef ACHIEVEMENTS_BENCH
-static char achievementBenchRoot[256];
-#endif
 fileBrowser_file *biosFile = NULL;  //BIOS file
 
 #if defined (CPU_LOG) || defined(DMA_LOG) || defined(CDR_LOG) || defined(HW_LOG) || \
@@ -364,10 +360,6 @@ static struct {
   { "Achievements", &achievementsEnabled, 0, 1 },
   { "AchievementFile", achievementFile, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "AchievementLog", achievementLog, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
-  { "AchievementUTCOffsetMinutes", achievementUTCOffsetMinutes, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
-#ifdef ACHIEVEMENTS_BENCH
-  { "AchievementBenchRoot", achievementBenchRoot, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
-#endif
   { "Network", NULL, 0, 0, "Games from a network share (SMB)." },
   { "smbipaddr", smbIpAddr, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "smbsharename", smbShareName, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
@@ -781,9 +773,6 @@ void setOption(char* key, char* valuePointer);
 extern "C" void mcd_track_begin(void);   /* sio.c: note the card files games use */
 extern "C" void mcd_track_delete(void);  /* sio.c: delete them */
 static int chainN, chainI;
-#ifdef ACHIEVEMENTS_BENCH
-int loadISOSwap(fileBrowser_file* file);
-#endif
 extern "C" int perf_chain_index(void) { return chainN ? chainI + 1 : 0; }   /* perf_prof.c breadcrumb */
 extern "C" {
 	unsigned chain_stop_vbl;                   /* psxcounters.c stops the game here; 0 = never */
@@ -921,24 +910,6 @@ static bool chainNext(void)
 	}
 	f = fopen("sd:/wiistation/perf.log", "a");
 	if (f) {
-#ifdef ACHIEVEMENTS_BENCH
-		/* Test builds only: independently collected evidence at a stopped CPU boundary. */
-		fprintf(f, "achievement-bench: game=%s frames=%u count=%u earned=%u enabled=%u\n",
-			CdromId, (unsigned)frame_counter, achievements_count(), achievements_earned(),
-			(unsigned)achievementsEnabled);
-		if (chainList[chainI].input[0] && !achievementBenchRoot[0]) {
-			unsigned completed_frames = frame_counter;
-			unsigned earned = achievements_earned();
-			SysReset();
-			fprintf(f, "achievement-bench-reset: core=%u earned=%u expected=%u count=%u\n",
-				(unsigned)Config.Cpu, achievements_earned(), earned, achievements_count());
-			fileBrowser_file swap = isoFile;
-			int result = loadISOSwap(&swap);
-			fprintf(f, "achievement-bench-swap: core=%u result=%d count=%u earned=%u\n",
-				(unsigned)Config.Cpu, result, achievements_count(), achievements_earned());
-			frame_counter = completed_frames; /* keep the completed chain's evidence */
-		}
-#endif
 		char sets[CHAIN_SETS * 32 + 8] = "";
 		int k;
 		for (k = 0; k < chainList[chainI].nset; k++) {
@@ -969,12 +940,6 @@ static bool chainNext(void)
 		fatUnmount("sd");
 		exit(0);
 	}
-#ifdef ACHIEVEMENTS_BENCH
-	/* A frozen hardware test returns to HBC for outbound collection, rather than
-	 * powering off. Normal release builds retain their existing chain behavior. */
-	fatUnmount("sd");
-	exit(0);
-#endif
 	fatUnmount("sd");
 	SYS_ResetSystem(SYS_POWEROFF, 0, 0);
 	return false;
@@ -1377,18 +1342,6 @@ int loadISO(fileBrowser_file* file)
 	hb_phase("load: memory cards and state", isoFile.name);
 	achievements_load(CdromId); /* after settings and boot; a wrong/absent game ID rejects the set */
 
-#ifdef ACHIEVEMENTS_BENCH
-	if (achievementBenchRoot[0]) {
-		/* Real-game benchmarks must never load or let chain cleanup delete a
-		 * personal card. Fail closed before selecting the private SD directory. */
-		if (strncmp(achievementBenchRoot, "sd:/wiistation/bench-", 21) ||
-		    strlen(achievementBenchRoot) > 100 || strstr(achievementBenchRoot, ".."))
-			exit(1);
-		nativeSaveDevice = NATIVESAVEDEVICE_SD;
-		snprintf(saveDir_libfat_Default.name, sizeof saveDir_libfat_Default.name,
-			"%s/cards", achievementBenchRoot);
-	}
-#endif
 	if(autoSave==AUTOSAVE_ENABLE) {
 		setSaveDevice();   /* fileBrowser.c: point saveFile_* at nativeSaveDevice */
 		// Try loading everything

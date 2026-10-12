@@ -185,8 +185,7 @@ remain required before authenticated service traffic.
 ## Explicit UTC correction
 
 `achievement_clock.c` accepts a quoted signed minute correction, added to the
-Wii RTC epoch. `AchievementUTCOffsetMinutes = ""` is the production settings
-default and means unknown UTC. The current local achievement engine does not
+Wii RTC epoch. The key was removed from settings: nothing in the product build reads or links the clock. The current local achievement engine does not
 perform TLS; the source-built HTTPS probe exercises this policy using a public
 `clock-offset.txt` fixture. Pacific daylight time needs `420`, standard time
 `480`, and a verified UTC clock `0`. These are examples, not automatic timezone

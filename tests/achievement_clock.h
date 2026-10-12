@@ -4,7 +4,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-extern char achievementUTCOffsetMinutes[256]; /* empty = UTC unknown */
 /* Signed minutes ADDED to the console's wall-clock epoch, not a TZ identifier.
  * One serialized TLS owner. This never writes the RTC or system timebase. */
 int achievement_clock_start(const char *correction, int64_t rtc, uint64_t system_ms);

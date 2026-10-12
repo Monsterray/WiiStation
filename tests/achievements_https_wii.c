@@ -11,8 +11,8 @@
 #include <unistd.h>
 #include "../deps/hbc_agent/sdk/hbc_agent.h"
 #ifdef ACHIEVEMENTS_NV_PROBE
-#include "../achievement_seed.h"
-#include "../achievement_clock.h"
+#include "achievement_seed.h"
+#include "achievement_clock.h"
 #include "achievement_clock_test.h"
 #include <mbedtls/platform.h>
 #include <mbedtls/platform_time.h>

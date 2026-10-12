@@ -21,8 +21,6 @@ def table():
     s = (REPO / "Gamecube/GamecubeMain.cpp").read_text(encoding="utf-8")
     t = s[s.index("} OPTIONS[] ="):]
     t = t[:t.index("};")]
-    # The published example describes production builds, not private bench paths.
-    t = re.sub(r"#ifdef ACHIEVEMENTS_BENCH\n.*?#endif", "", t, flags=re.S)
     out, sec = [], None
     for line in t.splitlines():
         if line.strip().startswith("//"):

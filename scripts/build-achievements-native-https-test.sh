@@ -63,7 +63,7 @@ cp -R deps/hbc_agent "$task_build/agent"
 make -s -C "$task_build/agent" DEVKITPRO="$DEVKITPRO" DEVKITPPC="$DEVKITPPC"
 "$cc" -DGEKKO -DACHIEVEMENTS_NV_PROBE -mrvl -mcpu=750 -meabi -mhard-float -O2 -g \
  -Wall -Wextra -Werror -I"$socket_root/include" -I"$DEVKITPRO/libogc2/include" \
- -I"$task_build/install/include" -I"$tls/include" tests/achievements_https_wii.c achievement_seed.c achievement_clock.c tests/achievement_clock_test.c \
+ -I"$task_build/install/include" -I"$tls/include" tests/achievements_https_wii.c tests/achievement_seed.c tests/achievement_clock.c tests/achievement_clock_test.c \
  -L"$task_build/agent/lib" -L"$task_build/install/lib" -L"$tls/lib" \
  -L"$socket_root/lib/wii" -L"$DEVKITPRO/libogc2/lib/wii" -L"$DEVKITPRO/portlibs/ppc/lib" \
  -lhbcagent -lcurl -lmbedtls -lmbedx509 -lmbedcrypto -lz -lwiisocket -lfat -lwiiuse -lbte -logc -lm \
@@ -79,7 +79,7 @@ from pathlib import Path
 out=Path(sys.argv[1])
 paths=[out/'tls/include/mbedtls/mbedtls_config.h',
        *sorted((out/'tls/lib').glob('*.a')), *sorted((out/'lib').glob('*.a'))]
-inputs=['achievement_clock.c','achievement_clock.h','tests/achievement_clock_test.c','tests/achievement_clock_test.h','achievement_seed.c','achievement_seed.h','tests/achievements_https_wii.c',
+inputs=['tests/achievement_clock.c','tests/achievement_clock.h','tests/achievement_clock_test.c','tests/achievement_clock_test.h','tests/achievement_seed.c','tests/achievement_seed.h','tests/achievements_https_wii.c',
         'scripts/test-achievements-entropy.sh','scripts/build-achievements-native-https-test.sh']
 info={'compiler':subprocess.check_output([sys.argv[2],'--version'],text=True).splitlines()[0],
       'fixture':'public dummy seed; no authenticated traffic',

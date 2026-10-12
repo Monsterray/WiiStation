@@ -1,6 +1,6 @@
 /* Public deterministic fixture only; never provision a real seed over HBC. */
 #define _POSIX_C_SOURCE 200809L
-#include "../achievement_seed.h"
+#include "achievement_seed.h"
 #include <mbedtls/entropy.h>
 #include <mbedtls/platform.h>
 #include <mbedtls/ctr_drbg.h>

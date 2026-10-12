@@ -72,10 +72,9 @@ See the pinned [port source](https://github.com/AndrewPiroli/wii-curl/tree/d9b21
 ## Gameplay pilot and reproducibility
 
 `scripts/bench_gameplay.py` freezes a real-game profile, recording, CUE, DOL/ELF
-and collector. The test-only `AchievementBenchRoot` redirects card reads, writes
-and chained cleanup into a fresh UUID directory. Capacity definitions remain
-unearned; each arm uses a fresh local journal. All cards begin empty. Boundary
-reset/swap correctness hooks are disabled for this real-game mode.
+and collector. The `AchievementBenchRoot` card redirect was removed from the product file, so this
+mode no longer isolates cards. Capacity definitions remain unearned; each arm uses a
+fresh local journal. The boundary reset and disc-swap hooks are removed too.
 
 `PERF_PROF_VSIG=0` removes per-frame RAM signature work/allocation;
 `PERF_PROF_ACHIEVEMENTS=1` measures evaluation time and calls. Those counters and
@@ -84,7 +83,7 @@ test-only paths have no production timer overhead. Build the pilot with:
 ```sh
 DEVKITPRO=/tmp/wiistation-devkitpro-local \
 DEVKITPPC=/tmp/wiistation-devkitpro-local/devkitPPC-r41-2 \
-PROBES='-DPERF_PROF_TRACE=0 -DPERF_PROF_GPU=0 -DPERF_PROF_CPU=0 -DPERF_PROF_VSIG=0 -DPERF_PROF_ACHIEVEMENTS=1 -DACHIEVEMENTS_BENCH' \
+PROBES='-DPERF_PROF_TRACE=0 -DPERF_PROF_GPU=0 -DPERF_PROF_CPU=0 -DPERF_PROF_VSIG=0 -DPERF_PROF_ACHIEVEMENTS=1' \
 bash scripts/build.sh debug
 ```
 
@@ -262,8 +261,7 @@ and the previously measured 2.84% capacity overhead are unchanged.
 
 ## UTC implementation follow-up
 
-The settings schema now includes quoted `AchievementUTCOffsetMinutes`, empty
-by default. The portable clock rejects unknown/malformed corrections and bad
+The settings key `AchievementUTCOffsetMinutes` was later removed; the clock is test-only. The portable clock rejects unknown/malformed corrections and bad
 RTC/counter ranges, snapshots corrected RTC, and advances from the monotonic
 system counter. The source-built TLS probe installs both TIME and GMTIME_R
 callbacks, so unknown UTC rejects both certificate-date predicates. No console

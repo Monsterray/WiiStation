@@ -65,18 +65,18 @@ if [ "$target" = host ]; then
     -I"$task_build/include" tests/entropy_seed_test.c "$task_build/library/libmbedcrypto.a" -o "$task_build/check"
   UBSAN_OPTIONS=halt_on_error=1 "$task_build/check"
   "$cc" -std=c99 "${flags[@]}" -Wall -Wextra -Werror -I"$task_build/include" \
-    achievement_seed.c tests/entropy_storage_test.c "$task_build/library/libmbedcrypto.a" -o "$task_build/storage"
+    tests/achievement_seed.c tests/entropy_storage_test.c "$task_build/library/libmbedcrypto.a" -o "$task_build/storage"
   UBSAN_OPTIONS=halt_on_error=1 "$task_build/storage" "$task_build"
   cat "$task_build/storage.log"
   "$cc" -std=c99 "${flags[@]}" -Wall -Wextra -Werror -DACHIEVEMENT_CLOCK_HOST_TEST \
-    -I"$task_build/include" achievement_clock.c tests/achievement_clock_test.c \
+    -I"$task_build/include" tests/achievement_clock.c tests/achievement_clock_test.c \
     "$task_build/library/libmbedx509.a" "$task_build/library/libmbedcrypto.a" -o "$task_build/clock"
   UBSAN_OPTIONS=halt_on_error=1 "$task_build/clock"
 else
   cp -R deps/hbc_agent "$task_build/agent"
   make -s -C "$task_build/agent" DEVKITPRO="$DEVKITPRO" DEVKITPPC="$DEVKITPPC"
   "$cc" -std=c99 "${flags[@]}" -Wall -Wextra -Werror -I"$task_build/include" \
-    achievement_seed.c achievement_clock.c tests/achievement_clock_test.c tests/entropy_storage_test.c \
+    tests/achievement_seed.c tests/achievement_clock.c tests/achievement_clock_test.c tests/entropy_storage_test.c \
     "$task_build/library/libmbedx509.a" "$task_build/library/libmbedcrypto.a" \
     -L"$task_build/agent/lib" -L"$DEVKITPRO/libogc2/lib/wii" -L"$DEVKITPRO/portlibs/ppc/lib" \
     -lhbcagent -lfat -lwiiuse -lbte -logc -lz -lm -o "$output/boot.elf"

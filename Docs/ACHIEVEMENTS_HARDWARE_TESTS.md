@@ -132,14 +132,14 @@ profiler proves 240 frames executed. The first corrected-core run
 expected rollback. Its retained state sections and journals passed the corrected
 judge. The final matrix and recovery verified the restart checks as described above.
 
-The test-only `ACHIEVEMENTS_BENCH` build records stopped-boundary counts, tests
-the actual emulator reset and disc-swap entry points in the state cases, and
-returns chains to HBC for collection. Normal builds omit these hooks. A second
+The `ACHIEVEMENTS_BENCH` hooks were removed from the product file. The build no longer
+records stopped-boundary counts, runs the emulator reset and disc-swap checks, or
+returns chains to HBC for collection. The collector gets no achievement-bench log lines. A second
 DOL boot runs just five frames per core, before guest conditions become true;
 all three achievements must be restored from SD journals with no new records.
 
 ```sh
-PROBES='-DPERF_PROF_TRACE=0 -DPERF_PROF_GPU=0 -DPERF_PROF_CPU=0 -DACHIEVEMENTS_BENCH' \
+PROBES='-DPERF_PROF_TRACE=0 -DPERF_PROF_GPU=0 -DPERF_PROF_CPU=0' \
   bash scripts/build.sh debug
 python3 scripts/achievement_fixture.py .runs/bench/fixture
 python3 scripts/bench_achievement_games.py prepare \
