@@ -48,7 +48,7 @@ Input::Input()
 	//WiiDRC_Init();
 	//isWiiVC = WiiDRC_Inited();
 	WPAD_Init();
-	WPAD_SetIdleTimeout(120);
+	WPAD_SetIdleTimeout(300);   /* HBC uses 300; at 120 a still remote dropped and searched (LEDs blink) */
 	WPAD_SetVRes(WPAD_CHAN_ALL, 640, 480);
 	WPAD_SetDataFormat(WPAD_CHAN_ALL, WPAD_FMT_BTNS_ACC_IR);
 	WPAD_SetPowerButtonCallback((WPADShutdownCallback)ShutdownWii);

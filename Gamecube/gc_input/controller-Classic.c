@@ -246,12 +246,14 @@ static void configure(int Control, controller_config_t* config){
 	// Don't know how this should be integrated
 }
 
+void wpad_player_led(int chan, int leds);   /* controller-WiimoteNunchuk.c */
+
 static void assign(int p, int v){
 	/* Player 1 lights LED 1, player 2 LED 2: the System Menu's convention, and what
 	 * every other Wii game does. v < 0 means the port was given up, so libogc's own
 	 * default comes back -- the LED for the Bluetooth channel the pad synced on
 	 * (wiiuse/wpad.c does this on connect). */
-	WPAD_ControlLed(p, WPAD_LED_1 << (v < 0 ? p : v));
+	wpad_player_led(p, WPAD_LED_1 << (v < 0 ? p : v));
 }
 
 static void refreshAvailable(void);

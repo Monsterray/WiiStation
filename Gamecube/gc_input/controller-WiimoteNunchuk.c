@@ -293,12 +293,33 @@ static void configure(int Control, controller_config_t* config){
 	WPAD_SetDataFormat(Control, analog_fmts[config->analogL->mask] | analog_fmts[config->analogR->mask]);
 }
 
+/* Set a Wiimote's player LEDs only when they change. The menu assigns the pads many times a
+ * second; each WPAD_ControlLed is a Bluetooth report, and a stream of them made the LEDs
+ * flicker. The cache entry clears when the remote is not connected, so a remote that
+ * reconnects (libogc then shows its channel LED) gets its player LED again. Shared with
+ * controller-Classic.c: a Classic Controller is on its Wiimote's channel. */
+void wpad_player_led(int chan, int leds)
+{
+	static int last[4] = { -1, -1, -1, -1 };
+	u32 type;
+	if (chan < 0 || chan > 3)
+		return;
+	if (WPAD_Probe(chan, &type) != WPAD_ERR_NONE) {
+		last[chan] = -1;
+		return;
+	}
+	if (last[chan] == leds)
+		return;
+	last[chan] = leds;
+	WPAD_ControlLed(chan, leds);
+}
+
 static void assign(int p, int v){
 	/* Player 1 lights LED 1, player 2 LED 2: the System Menu's convention, and what
 	 * every other Wii game does. v < 0 means the port was given up, so libogc's own
 	 * default comes back -- the LED for the Bluetooth channel the pad synced on
 	 * (wiiuse/wpad.c does this on connect). */
-	WPAD_ControlLed(p, WPAD_LED_1 << (v < 0 ? p : v));
+	wpad_player_led(p, WPAD_LED_1 << (v < 0 ? p : v));
 }
 
 static void refreshAvailableWM(void);
