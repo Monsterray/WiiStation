@@ -9,6 +9,8 @@ It stages, in .runs/wii_install/, what a release zip holds, and uploads it with 
 `hbc.py sync` (only new or changed files go over: size, then CRC-32; nothing on the card is
 deleted, so the user's settings, saves and games stay):
   sd:/apps/WiiStation/      boot.dol (Gamecube/WiiSXRX_Release.dol), meta.xml, icon.png
+                            (meta.xml stamped: version "5.11.0-dev <commit>[+]", date = the DOL's;
+                            HBC then shows which build is installed. --production keeps it as is)
   sd:/wiistation/controllers/  the HID controller files (Gamecube/release/controllers)
   sd:/wiistation/fonts/        En.dat, the menu fonts (fonts/menu) and the language fonts (fonts/*.zip)
   sd:/wiistation/lang/         the menu languages (lang/)
@@ -22,7 +24,9 @@ only when he asks for it, run directly (not through the bench queue): it first c
 idle on his TV (no app running), then writes sd:/apps/WiiStation (boot.dol, meta.xml, icon.png)
 and nothing else -- not sd:/wiistation, where his settings, saves and cards live; no deletes.
 """
+import datetime
 import os
+import re
 import pathlib
 import shutil
 import subprocess
@@ -34,7 +38,33 @@ HBC = pathlib.Path("C:/projects/hbc-reborn/tools/hbc.py")
 STAGE = REPO / ".runs" / "wii_install"
 
 
-def stage(dol):
+def dev_version(dol):
+    """'5.11.0-dev a696e46' (+ when the tree had uncommitted source changes) for the build that
+    made dol: the version.h and commit of the checkout the DOL lies in, else this repo's."""
+    root = REPO
+    try:
+        root = pathlib.Path(subprocess.check_output(["git", "-C", str(dol.parent), "rev-parse", "--show-toplevel"],
+                                                    text=True, stderr=subprocess.DEVNULL).strip())
+    except (subprocess.CalledProcessError, OSError):
+        pass
+    ver = re.search(r'WIISTATION_VERSION "([^"]+)"', (root / "Gamecube/version.h").read_text()).group(1)
+    git = ["git", "-C", str(root)]
+    rev = subprocess.check_output(git + ["rev-parse", "--short", "HEAD"], text=True).strip()
+    dirty = subprocess.check_output(git + ["status", "--porcelain", "--untracked-files=no", "--", ".", ":!deps"], text=True).strip()
+    return f"{ver}-dev {rev}{'+' if dirty else ''}"
+
+
+def stamp_meta(meta, dol):
+    """The bench Wii's HBC shows which build is installed: version = dev_version, date = the DOL's."""
+    s = meta.read_text(encoding="utf-8")
+    s = re.sub(r"<version>[^<]*</version>", f"<version>{dev_version(dol)}</version>", s)
+    day = datetime.datetime.fromtimestamp(dol.stat().st_mtime).strftime("%Y%m%d%H%M%S")
+    s = re.sub(r"<release_date>[^<]*</release_date>", f"<release_date>{day}</release_date>", s)
+    meta.write_text(s, encoding="utf-8")
+    return s
+
+
+def stage(dol, dev=True):
     if STAGE.exists():
         shutil.rmtree(STAGE)
     app = STAGE / "apps" / "WiiStation"
@@ -42,6 +72,9 @@ def stage(dol):
     shutil.copy2(dol, app / "boot.dol")
     for f in ("meta.xml", "icon.png"):
         shutil.copy2(REPO / "Gamecube/release/apps/WiiStation" / f, app / f)
+    if dev:   # the production Wii keeps the release meta.xml
+        v = re.search(r"<version>([^<]*)", stamp_meta(app / "meta.xml", dol)).group(1)
+        print(f"meta.xml version: {v}", flush=True)
     shutil.copytree(REPO / "Gamecube/release/controllers", STAGE / "wiistation" / "controllers")
     fonts = STAGE / "wiistation" / "fonts"
     fonts.mkdir(parents=True)
@@ -68,7 +101,7 @@ def main():
             sys.exit(f"wii_install.py: unknown flag {arg} (nothing was done) -- "
                      f"see the module docstring; --dry-run previews")
     dol = pathlib.Path(a[a.index("--dol") + 1]) if "--dol" in a else REPO / "Gamecube/WiiSXRX_Release.dol"
-    trees = stage(dol)
+    trees = stage(dol, dev="--production" not in a)
     sys.path.insert(0, str(REPO / "scripts"))
     from wii_targets import PRODUCTION_WII, refuse_production, production_ready
     if "--production" in a:

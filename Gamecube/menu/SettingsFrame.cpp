@@ -584,7 +584,7 @@ static const SetRow VID_ROWS[] =
 static const SetRow INP_ROWS[] =
 {
 	{ eng::ROW_BUTTONS, NULL,            NULL,               { 30, 31, -1, -1 }, { 220, 235,   0, 0 }, 85.0f,  15.0f, 0 },	/* Configure Input, Configure Button Mappings */
-	{ eng::ROW_CHOICE,  "ControllerType", NULL,              { 32, 33, 79, -1 }, { 105, 100, 140, 0 }, 271.0f,  0.0f, 0 },	/* PSX Pad Type: Standard, Analog, Stick D-pad */
+	{ eng::ROW_CHOICE,  "ControllerType", NULL,              { 32, 33, 79, -1 }, { 117,  95, 152, 0 }, 252.0f,  0.0f, 0 },	/* PSX Pad Type: Standard, Analog, Stick D-pad; each its word + 12 (auto width), right-aligned clear of the label */
 	{ eng::ROW_BUTTONS, "LightGun",      NULL,               { 59, -1, -1, -1 }, { 135,   0,   0, 0 }, 295.0f,  0.0f, 0 },	/* Light Gun (a cycle, lit when a gun is on) */
 	{ eng::ROW_CHOICE,  "RumbleEnabled", NULL,               { 34, 35, -1, -1 }, {  75,  75,   0, 0 }, 295.0f,  0.0f, 0 },	/* Enable Rumble: Yes, No */
 	{ eng::ROW_BUTTONS, NULL,            FRAME_STRINGS[21],  { 36, 37, -1, -1 }, {  55,  70,   0, 0 }, 295.0f,  0.0f, 0 },	/* Save Button Configs: SD, USB */

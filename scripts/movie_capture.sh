@@ -45,6 +45,7 @@ PAD_USER="/c/tools/Dolphin-x64/User/Config/GCPadNew.ini"   # the user's own cont
 # recording is read back from still exists when the run is over.
 MOVIE_PROFILE="$(bash "$REPO/scripts/profile.sh" path movie_capture 2>/dev/null || bash "$REPO/scripts/profile.sh" new movie_capture)" || exit 2
 export WSX_PROFILE=movie_capture
+export WSX_SHOW=1   # the one run that opens on screen: the user plays it (dolphin_run.sh)
 PAD_TEST="$MOVIE_PROFILE/Config/GCPadNew.ini"      # the profile's pads: backed up and restored around the run
 CARD="$MOVIE_PROFILE/Load/WiiSD.raw"
 SYNC="$MOVIE_PROFILE/Load/WiiSDSync/wiistation"

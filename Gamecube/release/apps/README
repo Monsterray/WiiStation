@@ -1,5 +1,5 @@
 README : WiiStation
-Version 5.10.0
+Version 5.11.0
 
 LICENSE:
     This software is licensed under the GNU General Public License v2
@@ -125,6 +125,28 @@ LATER UPDATES BY:
  * Monty Perrotti (WiiStation)
 
 WiiStation CHANGE LOG:
+Ver 5.11.0 (2026-10-12):
+* New: one menu framework draws and moves the focus on every page, so every
+  page acts the same way. Back returns to the button you came from.
+* New: screenshots. Choose a button combination per controller; Current ROM
+  has a Screenshot button too.
+* New: Settings > General > Advanced has a Memory page: free memory, texture
+  pool, code buffer and PS1 buffers.
+* New: button mappings have a Game slot (one file per game) and Auto Load
+  Slot (now the default) loads it. A game without its own mapping gets the
+  default mapping, not the previous game's.
+* Changed: one Save on Configure Buttons writes every button file. The files
+  have readable names in wiistation/buttons/ (gamecube.cfg, classic.cfg, ...;
+  games/<game ID>.cfg). Old files are still read and never deleted.
+* Changed: Video has one Frame Rate button: Auto, PS1, TV, Unlimited (was
+  Limit FPS on Video and Frame Rate on Advanced). Old settings still load.
+* New: a local achievement engine (rcheevos), off by default. No account or
+  online awards yet. See SETTINGS.md.
+* Fixed: unsaved menu settings are kept through a game load.
+* Fixed: Configure Buttons' Slot button stopped at Game; it cycles again.
+* Fixed: the Wiimote lights are set only when they change; idle timeout
+  300 s, as in the Homebrew Channel.
+
 Ver 5.10.0 (2026-10-11):
 * New: Co-Op players' buttons turn on and off one by one. On Customize
   Co-Op, press A (or point) on any button or stick: the player gets or
