@@ -1967,6 +1967,18 @@ static Row MAIN_ROWS[] = {
 	{ ROW_BUTTONS, NULL, NULL, 0, 1, 0, NULL, false, &MAIN_ACTIONS[5], 315.0f, 0.0f, NULL, 0 },
 };
 
+/* Load ROM: four rows of one button, 340 wide, centred (x 150), the rows 80 apart from y 100. */
+static const ActionButton LOADROM_ACTIONS[] = {
+	{ "Load from SD", 340.0f, false }, { "Load from DVD", 340.0f, false },
+	{ "Load from USB", 340.0f, false }, { "Load from Samba", 340.0f, false },
+};
+static Row LOADROM_ROWS[] = {
+	{ ROW_BUTTONS, NULL, NULL, 0, 1, 0, NULL, false, &LOADROM_ACTIONS[0], 0.0f, 0.0f, NULL, 0 },
+	{ ROW_BUTTONS, NULL, NULL, 0, 1, 0, NULL, false, &LOADROM_ACTIONS[1], 0.0f, 0.0f, NULL, 0 },
+	{ ROW_BUTTONS, NULL, NULL, 0, 1, 0, NULL, false, &LOADROM_ACTIONS[2], 0.0f, 0.0f, NULL, 0 },
+	{ ROW_BUTTONS, NULL, NULL, 0, 1, 0, NULL, false, &LOADROM_ACTIONS[3], 0.0f, 0.0f, NULL, 0 },
+};
+
 /* The page a screen's rows make. */
 static Page screenPage(Row *rows, int nRows, LogoSpot logo, float rowY0, float rowDy)
 {
@@ -2002,6 +2014,13 @@ static const ScreenBox MAIN_BOXES[] = {
 static const ScreenLink MAIN_LINKS[] = {
 	{ 0, 5, 1, -1, -1 }, { 1, 0, 2, -1, -1 }, { 2, 1, 3, -1, -1 },
 	{ 3, 2, 4, -1, -1 }, { 4, 3, 5, -1, -1 }, { 5, 4, 0, -1, -1 },
+};
+static const ScreenBox LOADROM_BOXES[] = {
+	{ 0, 0, 0, 150.0f, 100.0f, 340.0f, 56.0f }, { 1, 1, 0, 150.0f, 180.0f, 340.0f, 56.0f },
+	{ 2, 2, 0, 150.0f, 260.0f, 340.0f, 56.0f }, { 3, 3, 0, 150.0f, 340.0f, 340.0f, 56.0f },
+};
+static const ScreenLink LOADROM_LINKS[] = {
+	{ 0, 3, 1, -1, -1 }, { 1, 0, 2, -1, -1 }, { 2, 1, 3, -1, -1 }, { 3, 2, 0, -1, -1 },
 };
 /* Checks one screen: its boxes against the table (a failure), its links against the table (printed,
  * a finding), and checkLayout's problems (a failure). Returns the failures. */
@@ -2088,9 +2107,11 @@ static int checkButtonRowScreens(void)
 {
 	int bad = 0;
 	const Page main    = screenPage(MAIN_ROWS, (int)COUNT(MAIN_ROWS), LOGO_SPOT_TOP, 60.0f, 0.0f);
+	const Page loadrom = screenPage(LOADROM_ROWS, (int)COUNT(LOADROM_ROWS), LOGO_SPOT_TOP, 0.0f, 80.0f);
 
 	printf("Button-row screens (boxes against the frames' tables, focus against their links)\n");
 	bad += checkScreen("Main", main, MAIN_BOXES, COUNT(MAIN_BOXES), MAIN_LINKS, COUNT(MAIN_LINKS));
+	bad += checkScreen("LoadRom", loadrom, LOADROM_BOXES, COUNT(LOADROM_BOXES), LOADROM_LINKS, COUNT(LOADROM_LINKS));
 	return bad;
 }
 

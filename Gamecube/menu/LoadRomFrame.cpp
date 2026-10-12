@@ -19,9 +19,11 @@
 **/
 
 #include "MenuContext.h"
+#include "MenuEngine.h"	/* before Button.h: its include guard is BUTTON_H, a name the engine uses */
 #include "LoadRomFrame.h"
 #include "FileBrowserFrame.h"
 #include "../libgui/Button.h"
+#include "../libgui/IPLFont.h"
 #include "../libgui/resources.h"
 #include "../libgui/FocusManager.h"
 #include "../libgui/CursorManager.h"
@@ -57,49 +59,115 @@ struct ButtonInfo
 	menu::Button	*button;
 	int				buttonStyle;
 	char*			buttonString;
-	float			x;
-	float			y;
-	float			width;
-	float			height;
-	int				focusUp;
-	int				focusDown;
-	int				focusLeft;
-	int				focusRight;
 	ButtonFunc		clickedFunc;
 	ButtonFunc		returnFunc;
 } FRAME_BUTTONS[NUM_FRAME_BUTTONS] =
-{ //	button	buttonStyle	buttonString		x		y		width	height	Up	Dwn	Lft	Rt	clickFunc			returnFunc
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[0],	150.0,	100.0,	340.0,	56.0,	 3,	 1,	-1,	-1,	Func_LoadFromSD,	Func_ReturnFromLoadRomFrame }, // Load From SD
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[1],	150.0,	180.0,	340.0,	56.0,	 0,	 2,	-1,	-1,	Func_LoadFromDVD,	Func_ReturnFromLoadRomFrame }, // Load From DVD
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[2],	150.0,	260.0,	340.0,	56.0,	 1,	 3,	-1,	-1,	Func_LoadFromUSB,	Func_ReturnFromLoadRomFrame }, // Load From USB
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[3],	150.0,	340.0,	340.0,	56.0,	 2,	 0,	-1,	-1,	Func_LoadFromSamba,	Func_ReturnFromLoadRomFrame }, // Load From Samba
+{ //	button	buttonStyle	buttonString		clickFunc			returnFunc
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[0],	Func_LoadFromSD,	Func_ReturnFromLoadRomFrame }, // Load From SD
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[1],	Func_LoadFromDVD,	Func_ReturnFromLoadRomFrame }, // Load From DVD
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[2],	Func_LoadFromUSB,	Func_ReturnFromLoadRomFrame }, // Load From USB
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[3],	Func_LoadFromSamba,	Func_ReturnFromLoadRomFrame }, // Load From Samba
 };
+
+/*  The Load ROM page, on the menu engine (Docs/MENU_FRAMEWORK_PLAN.md, step 3)  */
+
+/* Four rows, each one action button 340 wide, centred on the screen (x 150): the first row's top
+ * at y 100 and the rows 80 apart. The logo is top right, where MenuContext draws it. Focus is the
+ * engine's row rule: Up and Down go row to row and wrap. The layout is fixed, so it is done once,
+ * here, and tests/menu_engine_test.cpp checks its numbers. */
+namespace eng = menu::engine;
+
+static eng::ActionButton LOADROM_ACTIONS[NUM_FRAME_BUTTONS];
+static eng::Row LOADROM_ROWS[NUM_FRAME_BUTTONS];
+static eng::Page LOADROM_PAGE;
+static eng::Layout LOADROM_LAYOUT;
+
+/* The engine's text widths: IplFont, as the other frames use it (SettingsFrame.cpp). */
+static int loadRomWidth(const char *s, float scale, void *)
+{
+	return menu::IplFont::getInstance().getStringWidth((char*)s, scale);
+}
+
+static int loadRomHeight(const char *s, float scale, void *)
+{
+	return menu::IplFont::getInstance().getStringHeight((char*)s, scale);
+}
+
+static const eng::Metrics LOADROM_METRICS = { loadRomWidth, loadRomHeight, NULL };
+
+static void layoutLoadRom(void)
+{
+	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
+	{
+		LOADROM_ACTIONS[i].text  = FRAME_BUTTONS[i].buttonString;
+		LOADROM_ACTIONS[i].width = 340.0f;
+		LOADROM_ACTIONS[i].lit   = false;
+		LOADROM_ACTIONS[i].dy    = 0.0f;
+
+		eng::Row &row = LOADROM_ROWS[i];
+		memset(&row, 0, sizeof row);
+		row.kind    = eng::ROW_BUTTONS;
+		row.count   = 1;
+		row.actions = &LOADROM_ACTIONS[i];
+		row.x0      = 0.0f;		/* centred: (640 - 340) / 2 = 150 */
+	}
+	LOADROM_PAGE.title   = NULL;
+	LOADROM_PAGE.tabs    = NULL;
+	LOADROM_PAGE.nTabs   = 0;
+	LOADROM_PAGE.curTab  = 0;
+	LOADROM_PAGE.rows    = LOADROM_ROWS;
+	LOADROM_PAGE.nRows   = NUM_FRAME_BUTTONS;
+	LOADROM_PAGE.help    = NULL;
+	LOADROM_PAGE.nHelp   = 0;
+	LOADROM_PAGE.logo    = eng::LOGO_SPOT_TOP;
+	LOADROM_PAGE.focus   = eng::FOCUS_ROWS;
+	LOADROM_PAGE.labelCx = 0.0f;
+	LOADROM_PAGE.labelDy = 0.0f;
+	LOADROM_PAGE.rowDy   = 80.0f;
+	LOADROM_PAGE.rowY0   = 100.0f;
+
+	/* The tables are fixed: a page that does not fit is a programming error, which the host
+	 * test catches before it reaches the menu. */
+	eng::layoutPage(LOADROM_PAGE, LOADROM_METRICS, LOADROM_LAYOUT);
+	eng::linkFocus(LOADROM_PAGE, LOADROM_LAYOUT);
+}
 
 LoadRomFrame::LoadRomFrame()
 {
-	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
-		FRAME_BUTTONS[i].button = new menu::Button(FRAME_BUTTONS[i].buttonStyle, &FRAME_BUTTONS[i].buttonString, 
-										FRAME_BUTTONS[i].x, FRAME_BUTTONS[i].y, 
-										FRAME_BUTTONS[i].width, FRAME_BUTTONS[i].height);
+	layoutLoadRom();
 
+	/* Each button's box, and so its Cursor range, is the engine's rectangle for its row. */
 	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
 	{
-		if (FRAME_BUTTONS[i].focusUp != -1) FRAME_BUTTONS[i].button->setNextFocus(menu::Focus::DIRECTION_UP, FRAME_BUTTONS[FRAME_BUTTONS[i].focusUp].button);
-		if (FRAME_BUTTONS[i].focusDown != -1) FRAME_BUTTONS[i].button->setNextFocus(menu::Focus::DIRECTION_DOWN, FRAME_BUTTONS[FRAME_BUTTONS[i].focusDown].button);
-		if (FRAME_BUTTONS[i].focusLeft != -1) FRAME_BUTTONS[i].button->setNextFocus(menu::Focus::DIRECTION_LEFT, FRAME_BUTTONS[FRAME_BUTTONS[i].focusLeft].button);
-		if (FRAME_BUTTONS[i].focusRight != -1) FRAME_BUTTONS[i].button->setNextFocus(menu::Focus::DIRECTION_RIGHT, FRAME_BUTTONS[FRAME_BUTTONS[i].focusRight].button);
+		const eng::Control &c = LOADROM_LAYOUT.c[LOADROM_LAYOUT.slot[i][0]];
+		FRAME_BUTTONS[i].button = new menu::Button(FRAME_BUTTONS[i].buttonStyle, &FRAME_BUTTONS[i].buttonString,
+										c.rect.x, c.rect.y, c.rect.w, c.rect.h);
+	}
+
+	static const int DIRS[eng::DIR_COUNT] = {
+		menu::Focus::DIRECTION_UP, menu::Focus::DIRECTION_DOWN,
+		menu::Focus::DIRECTION_LEFT, menu::Focus::DIRECTION_RIGHT
+	};
+	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
+	{
+		const eng::Control &c = LOADROM_LAYOUT.c[LOADROM_LAYOUT.slot[i][0]];
+		for (int d = 0; d < eng::DIR_COUNT; d++)
+		{
+			const int to = c.link[d];	/* a link of -1 is no link */
+			FRAME_BUTTONS[i].button->setNextFocus(DIRS[d],
+				to >= 0 ? FRAME_BUTTONS[LOADROM_LAYOUT.c[to].row].button : NULL);
+		}
 		FRAME_BUTTONS[i].button->setActive(true);
 		if (FRAME_BUTTONS[i].clickedFunc) FRAME_BUTTONS[i].button->setClicked(FRAME_BUTTONS[i].clickedFunc);
 		if (FRAME_BUTTONS[i].returnFunc) FRAME_BUTTONS[i].button->setReturn(FRAME_BUTTONS[i].returnFunc);
 		add(FRAME_BUTTONS[i].button);
-		menu::Cursor::getInstance().addComponent(this, FRAME_BUTTONS[i].button, FRAME_BUTTONS[i].x, 
-												FRAME_BUTTONS[i].x+FRAME_BUTTONS[i].width, FRAME_BUTTONS[i].y, 
-												FRAME_BUTTONS[i].y+FRAME_BUTTONS[i].height);
+		menu::Cursor::getInstance().addComponent(this, FRAME_BUTTONS[i].button, c.rect.x,
+												c.rect.x+c.rect.w, c.rect.y,
+												c.rect.y+c.rect.h);
 	}
 	setDefaultFocus(FRAME_BUTTONS[0].button);
 	setBackFunc(Func_ReturnFromLoadRomFrame);
 	setEnabled(true);
-
 }
 
 LoadRomFrame::~LoadRomFrame()
