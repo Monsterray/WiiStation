@@ -305,7 +305,7 @@ static Row VIDEO_ROWS[] = {
 	{ ROW_BUTTONS, "Limit FPS",   NULL,             0, 3, 0, NULL, false, VID_LIMIT_ACTIONS,  295.0f, 0.0f, NULL,         0 },
 	{ ROW_CHOICE,  "Frame Skip",  VID_ON_OFF_NAMES, 0, 2, 1, NULL, false, NULL,               295.0f, 0.0f, VID_ON_OFF_W, 0 },
 	{ ROW_BUTTONS, "Screen Mode", NULL,             0, 3, 0, NULL, false, VID_SCREEN_ACTIONS, 295.0f, 0.0f, NULL,         0 },
-	{ ROW_BUTTONS, "Filters",     NULL,             0, 3, 0, NULL, false, VID_FILTER_ACTIONS, 238.0f, 0.0f, NULL,         0 },
+	{ ROW_BUTTONS, "Filters",     NULL,             0, 3, 0, NULL, false, VID_FILTER_ACTIONS, 295.0f, 0.0f, NULL,         0 },
 	{ ROW_BUTTONS, NULL,          NULL,             0, 1, 0, NULL, false, VID_ADV_ACTIONS,    245.0f, 0.0f, NULL,         0 },
 };
 
@@ -967,6 +967,8 @@ static const Known KNOWN[] = {
 	{ "Video", PROB_TEXT_WIDE, "Default", NULL },
 	{ "Video", PROB_TEXT_WIDE, "Trap", NULL },
 	{ "Video", PROB_TEXT_WIDE, "Deflicker", NULL },
+	/* The Filters row sits on the button column, so its last button reaches the logo's box by a few pixels. */
+	{ "Video", PROB_IN_LOGO, "Deflicker", NULL },
 	/* The Input tab: the same fit-rule findings on the Settings buttons (the tab row's labels too), and
 	 * the label "PSX Pad Type" reaching 1 px into "Standard". */
 	{ "Input", PROB_TEXT_WIDE, "General", NULL },
@@ -1531,7 +1533,7 @@ static const struct { int idx; float x, y, w, h; } VIDEO_OLD_RECTS[] = {
 	{ 18, 295, 160, 75, 56 }, { 19, 380, 160, 75, 56 }, { 63, 465, 160, 160, 56 },
 	{ 20, 295, 220, 75, 56 }, { 21, 380, 220, 75, 56 },
 	{ 22, 295, 280, 130, 56 }, { 23, 435, 280, 125, 56 }, { 57, 570, 280, 66, 56 },
-	{ 24, 428, 340, 110, 56 }, { 28, 238, 340, 95, 56 }, { 29, 343, 340, 75, 56 },
+	{ 24, 485, 340, 110, 56 }, { 28, 295, 340, 95, 56 }, { 29, 400, 340, 75, 56 },
 	{ 78, 245, 400, 150, 56 },
 };
 /* The labels: textboxes 4, 5, 6, 7 and 9 on the rows 0..4, centred at x 150 on the row's middle. */
