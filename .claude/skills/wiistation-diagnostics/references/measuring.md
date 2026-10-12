@@ -442,3 +442,17 @@ hashes in UploadScreen, OpenGX texel checks). The pattern to grep for is a loop 
   lock, and the refusal names the holder (`scripts/profile.sh list`). Do not copy a profile by hand
   (2026-10-12: that is how `.dolphin_ui` and `.dolphin-shot` came to exist). One stray Dolphin made
   a menu highlight vanish in a capture, so a menu capture still wants the machine to itself.
+
+## Max speed: `--fast` (2026-10-12)
+
+`wsx.sh run|chain ... --fast` runs Dolphin with `Dolphin.Core.EmulationSpeed=0` (FAST=1 in
+dolphin_run.sh): about 2.1x on this PC, even single-core. Guest time is emulated, so frames are
+pixel-identical to a normal run, and with `SoundRateControl=0 SoundTempo=0` (which --fast sets) the
+audio dump is bit-identical too. `--secs` stays wall time: a fast run covers about twice the game;
+chains end on their own vblank counts, so they are unaffected.
+
+Why rate control is off: its ppm nudge follows the ring fill when the Wii audio callback fires, and
+that interleaving is not reproducible under Dolphin. Two NORMAL-speed runs with it on part about
+10.4 s into Spyro speech (largest step 6062), more than normal vs fast did (3091). Ruled out as the
+cause: Dolphin dual core and the DSP thread (CPUThread=False + DSPThread=False still differ), the
+HBC agent listener (off: still differ). The leak is still unknown.

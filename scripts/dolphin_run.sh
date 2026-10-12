@@ -190,6 +190,8 @@ CFGARGS=(
 [ "${MMU:-0}" != 0 ]     && CFGARGS+=(-C Dolphin.Core.MMU=True)
 [ "${XFB_RAM:-0}" != 0 ] && CFGARGS+=(-C Graphics.Hacks.XFBToTextureEnable=False)
 [ "${DSP_LLE:-0}" != 0 ] && CFGARGS+=(-C Dolphin.Core.DSPHLE=False -C Logger.Logs.DSPLLE=True)
+# FAST=1: no speed limit (Dolphin runs the Wii as fast as the PC can; guest time is unchanged)
+[ "${FAST:-0}" != 0 ]    && CFGARGS+=(-C Dolphin.Core.EmulationSpeed=0)
 [ "${AUDIO_DUMP:-0}" != 0 ] && CFGARGS+=(-C Dolphin.DSP.DumpAudio=True)
 # shellcheck disable=SC2206
 [ -n "${DOLPHIN_ARGS:-}" ] && CFGARGS+=(${DOLPHIN_ARGS})

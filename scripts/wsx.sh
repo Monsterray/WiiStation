@@ -13,6 +13,11 @@
 #        --set K=V[,K=V...]         settings on top of the base (gpuPlugin=2 FPS=1 PadType1=1 PadAutoAssign=0)
 #        --dsp                      DSP sound path: SoundHwAccel=1 and Dolphin DSP LLE
 #        --nodump                   no audio dump
+#        --fast                     Dolphin as fast as the PC allows (about 2x): frames and guest
+#                                   time are unchanged, and SoundRateControl=0 SoundTempo=0 make
+#                                   the audio dump bit-identical to a normal-speed run (with the
+#                                   rate control on, no two Dolphin runs agree, at any speed).
+#                                   --secs is wall time, so a fast run covers about twice the game.
 #        --autoboot spyro|bios|none which autoboot file (default spyro)
 #        --env VAR=VALUE            extra environment for dolphin_run.sh (CACHE=1, XFB_RAM=1 ...)
 #        --card FILE                put FILE in the card's wiistation/ folder for the run (repeatable):
@@ -119,7 +124,7 @@ build)
 run)
 	name="${1:-}"; shift || true
 	[ -n "$name" ] || { echo "run NAME [options]"; exit 2; }
-	dol="debug"; secs=170; input="speech"; sets=""; dsp=""; dump=1; aboot="spyro"; extra=(); cards=()
+	dol="debug"; secs=170; input="speech"; sets=""; dsp=""; dump=1; aboot="spyro"; extra=(); cards=(); fast=""
 	while [ $# -gt 0 ]; do
 		case "$1" in
 			--dol) dol="$2"; shift 2 ;;
@@ -128,6 +133,7 @@ run)
 			--set) sets="${sets:+$sets,}$2"; shift 2 ;;
 			--dsp) dsp=1; shift ;;
 			--nodump) dump=0; shift ;;
+			--fast) fast=1; shift ;;
 			--autoboot) aboot="$2"; shift 2 ;;
 			--env) extra+=("$2"); shift 2 ;;
 			--card) cards+=("$2"); shift 2 ;;
@@ -162,9 +168,10 @@ run)
 	{
 		printf 'gpuPlugin = 2\nFPS = 1\nPadType1 = 1\nPadAutoAssign = 0\n'
 		[ -n "$dsp" ] && printf 'SoundHwAccel = 1\n'
+		[ -n "$fast" ] && printf 'SoundRateControl = 0\nSoundTempo = 0\n'   # before --set, which may override
 		[ -n "$sets" ] && echo "$sets" | tr ',' '\n' | sed -E 's/^ *([^= ]+) *= *(.*)$/\1 = \2/'
 	} > "$dir/settings.cfg"
-	envline="AUDIO_DUMP=$dump${dsp:+ DSP_LLE=1}${extra[@]:+ ${extra[*]}}"
+	envline="AUDIO_DUMP=$dump${dsp:+ DSP_LLE=1}${fast:+ FAST=1}${extra[@]:+ ${extra[*]}}"
 	{
 		echo "dol=$dol ($(basename "$dolsrc"), $(stat -c %y "$dolsrc" | cut -c1-19)) secs=$secs input=$(basename "$insrc") autoboot=$aboot"
 		echo "settings: $(grep -v -E '^(gpuPlugin|FPS|PadType1|PadAutoAssign) ' "$dir/settings.cfg" | tr '\n' ' ')"
@@ -173,6 +180,7 @@ run)
 	echo "run $name: $(head -1 "$dir/run.info")"
 	if [ "$dump" = 1 ]; then export AUDIO_DUMP=1; else unset AUDIO_DUMP; fi
 	[ -n "$dsp" ] && export DSP_LLE=1
+	[ -n "$fast" ] && export FAST=1
 	for e in "${extra[@]:-}"; do [ -n "$e" ] && export "$e"; done
 	DOL="$dir/boot.dol" bash "$REPO/scripts/dolphin_run.sh" "$dir" "$secs" "$dir/autoinput.txt" "$dir/settings.cfg" $ab > "$dir/run.log" 2>&1
 	rc=$?
