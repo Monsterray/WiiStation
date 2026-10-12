@@ -115,46 +115,33 @@ static void rowCell(const Page &p, int i, int &line, int &col)
 	}
 }
 
-/* A two-column cell: its button is as wide as its widest name (so it does not change width when
- * cycled), its label sits right-aligned RLABEL_GAP before it. */
-static float cellButtonW(const Metrics &m, const Row &r)
+/* The two-column grid. Column c has one label width (the widest label in it) and one button width
+ * (the widest fitted button, over every name of every row in it), so every line shares the same
+ * edges. A cell is a right-aligned label, RLABEL_GAP, then the button; the two columns are
+ * COL2_GAP apart and the whole grid is centred once. */
+static void gridPlace(const Page &p, const Metrics &m, int col, float &btnX, float &btnW, float &labelRight)
 {
-	int w = 0;
-	for (int k = 0; k < r.count; k++) {
-		const int b = buttonFitWidth(m, r.names[k]);
-		if (b > w)
-			w = b;
+	float lw[2] = { 0, 0 }, bw[2] = { 0, 0 }, x;
+	int cols = 1;
+
+	for (int k = 0; k < p.nRows; k++) {
+		const Row &r = p.rows[k];
+		int line, c;
+		if (r.kind != ROW_TOGGLE && r.kind != ROW_CYCLE)
+			continue;
+		rowCell(p, k, line, c);
+		cols = c ? 2 : cols;
+		if ((float)measure(m, r.label, TEXT_SCALE) > lw[c])
+			lw[c] = (float)measure(m, r.label, TEXT_SCALE);
+		for (int n = 0; n < r.count; n++)
+			if ((float)buttonFitWidth(m, r.names[n]) > bw[c])
+				bw[c] = (float)buttonFitWidth(m, r.names[n]);
 	}
-	return (float)w;
-}
-
-static float cellW(const Metrics &m, const Row &r)
-{
-	return (float)measure(m, r.label, TEXT_SCALE) + RLABEL_GAP + cellButtonW(m, r);
-}
-
-/* Where row i's button goes, and the right edge of its label. The line's one or two cells are
- * centred as a pair. */
-static void cellPlace(const Page &p, const Metrics &m, int i, int col, float &btnX, float &btnW, float &labelRight)
-{
-	const int left = col ? i - 1 : i;
-	int right = -1, line, c2;
-	float w0 = cellW(m, p.rows[left]), w1 = 0, x;
-
-	if (!col && i + 1 < p.nRows) {
-		rowCell(p, i + 1, line, c2);
-		if (c2 == 1)
-			right = i + 1;
-	}
+	x = (MENU_W - (lw[0] + RLABEL_GAP + bw[0] + (cols > 1 ? COL2_GAP + lw[1] + RLABEL_GAP + bw[1] : 0))) / 2;
 	if (col)
-		right = i;
-	if (right >= 0)
-		w1 = cellW(m, p.rows[right]);
-	x = (MENU_W - (w0 + (right >= 0 ? COL2_GAP + w1 : 0))) / 2;
-	if (col)
-		x += w0 + COL2_GAP;
-	btnW = cellButtonW(m, p.rows[i]);
-	btnX = x + cellW(m, p.rows[i]) - btnW;
+		x += lw[0] + RLABEL_GAP + bw[0] + COL2_GAP;
+	btnX = x + lw[col] + RLABEL_GAP;
+	btnW = bw[col];
 	labelRight = btnX - RLABEL_GAP;
 }
 
@@ -482,7 +469,7 @@ int layoutPage(const Page &p, const Metrics &m, Layout &out)
 			const bool two = p.columns >= 2;
 			float bx = CYCLE_X, bw = CYCLE_W, lr = 0;
 			if (two)
-				cellPlace(p, m, i, col, bx, bw, lr);
+				gridPlace(p, m, col, bx, bw, lr);
 			if (r.label) {
 				/* centred on an anchor that puts its right edge at lr (the choice rows' rounding) */
 				const int lw = measure(m, r.label, TEXT_SCALE);

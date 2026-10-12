@@ -305,8 +305,8 @@ static void pluginsLeave(void)
 static const OptRow ADVGFX_ROWS[] =
 {
 	ROW_RADIO_FIT("Dithering", NULL),
-	ROW_CYCLE("MdecChroma", NULL),
 	ROW_CYCLE("FmvColour", NULL),
+	ROW_CYCLE("MdecChroma", NULL),
 	ROW_CYCLE("Gamma", applyVideoGamma),
 	ROW_CYCLE("DeflickerLevel", NULL),
 };
@@ -315,10 +315,10 @@ static const OptHelp ADVGFX_HELP[] =
 {
 	{ "Dithering:",    "Hides the steps between colours in a 15-bit picture." },
 	{ NULL,            "Default uses it only where the game asks for it." },
+	{ "Video Colour:", "24-bit is full colour. 15-bit bands in dark scenes." },
 	{ "MDEC Chroma:",  "Sharp is the console: one colour sample per 2x2 pixels." },
 	{ NULL,            "Smooth mixes the samples: it looks better, costs more." },
 	{ NULL,            "It applies to the next video that starts." },
-	{ "Video Colour:", "24-bit is full colour. 15-bit bands in dark scenes." },
 	{ "Gamma:",        "Brightens the TV picture. 1.0 changes nothing." },
 	{ "Deflicker Level:", "Light blurs less than Normal. Needs Deflicker on." },
 };

@@ -106,9 +106,10 @@ namespace grid {
 	const float HELP_LINE_DY  =  19.0f;	/* lines of one explanation */
 	const float HELP_CELL_GAP =   9.0f;	/* extra before a line that starts a new term */
 	const float FONT_H        =  24.0f;	/* the glyph tile: CH_FONT_HEIGHT in IPLFont.cpp */
-	/* Page::columns == 2: a cell is a right-aligned label, RLABEL_GAP, then a button as wide as its
-	 * widest name. A line's cells are COL2_GAP apart and the pair is centred on the screen. */
-	const float COL2_GAP      =  30.0f;
+	/* Page::columns == 2: one grid for the page. A cell is a right-aligned label, RLABEL_GAP, then a
+	 * button; a column's label width is its widest label, its button width its widest fitted button
+	 * (so every line shares the edges). The columns are COL2_GAP apart, the grid centred once. */
+	const float COL2_GAP      =  24.0f;
 }
 
 /* Text measurement. The Wii passes IplFont's getStringWidth and getStringHeight; the host

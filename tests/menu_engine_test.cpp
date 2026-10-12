@@ -197,10 +197,10 @@ static const HelpLine PLUGIN_HELP[] = {
 static const HelpLine ADVGFX_HELP[] = {
 	{ "Dithering:",    "Hides the steps between colours in a 15-bit picture." },
 	{ NULL,            "Default uses it only where the game asks for it." },
+	{ "Video Colour:", "24-bit is full colour. 15-bit bands in dark scenes." },
 	{ "MDEC Chroma:",  "Sharp is the console: one colour sample per 2x2 pixels." },
 	{ NULL,            "Smooth mixes the samples: it looks better, costs more." },
 	{ NULL,            "It applies to the next video that starts." },
-	{ "Video Colour:", "24-bit is full colour. 15-bit bands in dark scenes." },
 	{ "Gamma:",        "Brightens the TV picture. 1.0 changes nothing." },
 	{ "Deflicker Level:", "Light blurs less than Normal. Needs Deflicker on." },
 };
@@ -3521,38 +3521,43 @@ static void testCycle(void)
 	printf("cycle: wraps through all names ... %s\n", failures == before ? "ok" : "FAILED");
 }
 
-/* A two-column cell: the button as wide as its widest name, the label right-aligned 10 px before it;
- * a line's cells are 30 apart and the pair is centred. Nothing in the 15 px margins or past 636. */
-static float cellBtnW(const Row &r)
+/* The two-column grid: a column's label width is its widest label and its button width its widest
+ * fitted button, so every line shares the edges. A cell is a label right-aligned 10 px before its
+ * button; the columns are 24 apart and the grid is centred once. Nothing in the 15 px margins or
+ * past 636. cells[line] = { left row, right row } (-1 for none), ys[line] the line's top. */
+static void checkGrid(const Layout &lay, const Row *rows, const int (*cells)[2], const float *ys, int nLines)
 {
-	float w = 0;
-	for (int k = 0; k < r.count; k++)
-		if (fitWidth(r.names[k]) > w)
-			w = fitWidth(r.names[k]);
-	return w;
-}
+	float lw[2] = { 0, 0 }, bw[2] = { 0, 0 }, x0, colX[2];
+	bool two = false;
 
-static float cellWd(const Row &r) { return (float)fontWidth(r.label, 1.0f, NULL) + 10.0f + cellBtnW(r); }
+	for (int l = 0; l < nLines; l++)
+		for (int c = 0; c < 2; c++) {
+			if (cells[l][c] < 0) continue;
+			const Row &r = rows[cells[l][c]];
+			two = two || c == 1;
+			if ((float)fontWidth(r.label, 1.0f, NULL) > lw[c]) lw[c] = (float)fontWidth(r.label, 1.0f, NULL);
+			for (int k = 0; k < r.count; k++)
+				if (fitWidth(r.names[k]) > bw[c]) bw[c] = fitWidth(r.names[k]);
+		}
+	x0 = (640.0f - (lw[0] + 10.0f + bw[0] + (two ? 24.0f + lw[1] + 10.0f + bw[1] : 0.0f))) / 2;
+	colX[0] = x0 + lw[0] + 10.0f;
+	colX[1] = x0 + lw[0] + 10.0f + bw[0] + 24.0f + lw[1] + 10.0f;
 
-static void checkCells(const Layout &lay, const Row *rows, int i0, int i1, float y)
-{
-	const float w0 = cellWd(rows[i0]), w1 = i1 >= 0 ? cellWd(rows[i1]) : 0.0f;
-	float x = (640.0f - (w0 + (i1 >= 0 ? 30.0f + w1 : 0.0f))) / 2;
-
-	for (int n = 0; n < (i1 >= 0 ? 2 : 1); n++) {
-		const int i = n ? i1 : i0;
-		const float cw = n ? w1 : w0, bw = cellBtnW(rows[i]), bx = x + cw - bw;
-		const Key kb = { ROLE_BUTTON, i, 0 }, kl = { ROLE_LABEL, i, 0 };
-		const int b = findCtrl(lay, kb), l = findCtrl(lay, kl);
-		if (b < 0 || l < 0) { fail("2 columns", "a row lost its label or button"); continue; }
-		if (lay.c[b].rect.x != bx || lay.c[b].rect.y != y || lay.c[b].rect.w != bw || lay.c[b].rect.h != 56.0f)
-			fail("2 columns", "a button is not in its cell");
-		if (fabsf(lay.c[l].rect.x + lay.c[l].rect.w - (bx - 10.0f)) > 1.0f || lay.c[l].ay != y + 20.0f)
-			fail("2 columns", "a label does not end 10 px before its button");
-		if (lay.c[l].rect.x < 15.0f || bx + bw > 636.0f)
-			fail("2 columns", "a cell reaches the margin");
-		x += cw + 30.0f;
-	}
+	for (int l = 0; l < nLines; l++)
+		for (int c = 0; c < 2; c++) {
+			const int i = cells[l][c];
+			if (i < 0) continue;
+			const Key kb = { ROLE_BUTTON, i, 0 }, kl = { ROLE_LABEL, i, 0 };
+			const int b = findCtrl(lay, kb), t = findCtrl(lay, kl);
+			if (b < 0 || t < 0) { fail("2 columns", "a row lost its label or button"); continue; }
+			if (lay.c[b].rect.x != colX[c] || lay.c[b].rect.y != ys[l] || lay.c[b].rect.w != bw[c] ||
+			    lay.c[b].rect.h != 56.0f)
+				fail("2 columns", "a button is not on the grid");
+			if (fabsf(lay.c[t].rect.x + lay.c[t].rect.w - (colX[c] - 10.0f)) > 1.0f || lay.c[t].ay != ys[l] + 20.0f)
+				fail("2 columns", "a label does not end 10 px before its button");
+			if (lay.c[t].rect.x < 15.0f || colX[c] + bw[c] > 636.0f)
+				fail("2 columns", "a cell reaches the margin");
+		}
 }
 
 /* Page::columns == 2 (Advanced Graphics): Cycle rows fill two columns of label + button, a choice
@@ -3563,8 +3568,8 @@ static void testTwoColumns(void)
 	static const char *const DEFLICKER_NAMES[] = { "Normal", "Light" };
 	static Row rows[] = {
 		RADIO_FIT("Dithering",       DITHER_NAMES,      1),
-		CYC("MDEC Chroma",           CHROMA_NAMES,      0),
 		CYC("Video Colour",          FMV_COLOUR_NAMES,  1),
+		CYC("MDEC Chroma",           CHROMA_NAMES,      0),
 		CYC("Gamma",                 GAMMA_NAMES,       0),
 		CYC("Deflicker Level",       DEFLICKER_NAMES,   0),
 	};
@@ -3590,8 +3595,11 @@ static void testTwoColumns(void)
 		fail("2 columns", "checkLayout finds a problem on the page");
 
 	/* Lines: Dithering at 100, the two Cycle pairs at 160 and 220. */
-	checkCells(lay, rows, 1, 2, 160.0f);
-	checkCells(lay, rows, 3, 4, 220.0f);
+	{
+		static const int cells[2][2] = { { 1, 2 }, { 3, 4 } };
+		static const float ys[2] = { 160.0f, 220.0f };
+		checkGrid(lay, rows, cells, ys, 2);
+	}
 	/* The choice row is where it always was; the help starts under line 3 (y 280), not row 5 (400). */
 	{
 		const Key kc = { ROLE_CHOICE, 0, 0 }, kh = { ROLE_HELP_TERM, -1, 0 };
@@ -3632,9 +3640,9 @@ static void testTwoColumns(void)
 		if (layoutPage(q, kFont, lay) < 0)
 			fail("2 columns", "layoutPage refused the mixed page");
 		linkFocus(q, lay);
-		checkCells(lay, odd, 0, 1, 100.0f);
-		checkCells(lay, odd, 3, 4, 220.0f);
-		checkCells(lay, odd, 5, -1, 280.0f);	/* the lone cell is centred */
+		static const int cells[3][2] = { { 0, 1 }, { 3, 4 }, { 5, -1 } };
+		static const float ys[3] = { 100.0f, 220.0f, 280.0f };
+		checkGrid(lay, odd, cells, ys, 3);	/* the lone cell sits in column 1 of the same grid */
 		if (checkLayout(q, kFont, lay, probs, MAX_PROBLEMS) != 0)
 			fail("2 columns", "checkLayout finds a problem on the mixed page");
 	}
