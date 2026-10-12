@@ -1327,7 +1327,8 @@ static void loadGameButtons(void)
 		controller_t* c = controller_ts[i];
 		if (!loaded)
 			memcpy(&c->config_slot[CONTROLLER_GAME_SLOT], &c->config_default, sizeof(controller_config_t));
-		else if (loadButtonSlot == LOADBUTTON_AUTO)
+		/* Auto: this game's mapping, or the default when it has none -- never the previous game's */
+		if (loadButtonSlot == LOADBUTTON_AUTO)
 			for (int j = 0; j < 4; j++)
 				memcpy(&c->config[j], &c->config_slot[CONTROLLER_GAME_SLOT], sizeof(controller_config_t));
 	}
