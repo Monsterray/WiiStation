@@ -128,3 +128,24 @@ test's `psx.log` -- its console output on a real PlayStation. The EXEs are stage
 - Results on main 2026-10-01 (both cores the same where both ran): code-in-io 3 fails (code
   in scratchpad/MDEC/IRQ registers must raise a bus error); io-access-bitwidth 42/64 lines
   (BIOS ROM writable, expansion 2/3 read back what was written, register masks).
+
+## DuckStation as the reference (2026-10-12)
+
+`C:/tools/DuckStation` (portable, 2026-10-11 build, scanned clean): BIOS and games from
+`C:/wiistation-lib`, software renderer at 1x (closest to a PS1 GPU), GDB server on
+127.0.0.1:2345 (`[Debug] EnableGDBServer`). Use it to ask "does a PS1 do this too?".
+
+- Start it like the test Dolphins, minimized and never activated:
+  `cmd //c start "" //min C:	ools\DuckStation\duckstation-qt-x64-ReleaseLTCG.exe -batch -fastboot GAME.cue`.
+- Screenshots: `powershell -File scripts/ds_key.ps1 F10 [-Repeat N -IntervalMs M]` posts the
+  hotkey to its windows only (no focus, no real keyboard). Files land in
+  `C:/tools/DuckStation/screenshots`. Pad keys posted this way are ignored (Qt sends keys to
+  the focused window), so:
+- Buttons: `python scripts/ds_gdb.py press ADDR BYTE N` -- a GDB write watchpoint on the game's
+  pad buffer; each time the pad library copies the pad data there, the byte is replaced and
+  the PS1 runs on (N copies = a hold). Find the buffer with `ds_gdb.py find 0041ffff` (status,
+  digital id, buttons). Spyro: 0x800786a0, Start = `press 800786a2 f7 40`, Cross =
+  `press 800786a3 bf 4`. Writing the buffer without the watchpoint (`hold`) never wins: the
+  copy and the game's read happen in the same interrupt.
+- First use: Spyro's grey-dragon mouth sorting (new-game movie, head turn) is the same in
+  DuckStation: the game's own polygon order, not a WiiStation bug.
