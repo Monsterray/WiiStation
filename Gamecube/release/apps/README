@@ -142,6 +142,9 @@ Ver 5.11.0 (2026-10-12):
   Limit FPS on Video and Frame Rate on Advanced). Old settings still load.
 * New: a local achievement engine (rcheevos), off by default. No account or
   online awards yet. See SETTINGS.md.
+* New: Advanced Graphics has Gamma (1.0 to 1.5, the TV picture) and Deflicker
+  Level (Light: less blur than Normal). The page uses the new compact layout:
+  two settings per line. Neither costs anything while a game runs.
 * Fixed: unsaved menu settings are kept through a game load.
 * Fixed: Configure Buttons' Slot button stopped at Game; it cycles again.
 * Fixed: the Wiimote lights are set only when they change; idle timeout
