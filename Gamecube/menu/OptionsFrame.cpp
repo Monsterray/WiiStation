@@ -213,9 +213,8 @@ static const OptRow SOUND_ROWS[] =
 typedef eng::HelpLine OptHelp;
 
 /* Radio rows, not cycling ones: which core and which renderer is running is worth seeing
- * whole, the way the General tab used to show it. Both tear down and restart the emulator
- * when a game is loaded, so they are applied once on leaving the page (pluginsEnter /
- * pluginsLeave) rather than on every press. */
+ * whole. Both tear down and restart the emulator when a game is loaded, so they are applied
+ * once on leaving the page (pluginsEnter / pluginsLeave) rather than on every press. */
 static const OptRow PLUGIN_ROWS[] =
 {
 	/* Fitted: "Interpreter" is wider than a fixed 135 px button. */
@@ -296,9 +295,8 @@ static void pluginsLeave(void)
 }
 
 /* All three are read when a disc image is opened, so they take effect at the next game
- * load rather than immediately (SETTINGS.md section 2). */
-/* The same three words the Video tab used: "Game Dependent" is 204px and a radio slot
- * is RADIO_W, 135. The help text below says what Default means. */
+ * load rather than immediately (SETTINGS.md section 2). "Default" is the Dithering setting's
+ * middle choice. The help text below says what it means. */
 static const char* const DITHER_NAMES[]   = { "None", "Default", "Always" };
 static const char* const CHROMA_NAMES[]   = { "Sharp", "Smooth" };
 static const char* const FMV_COLOUR_NAMES[] = { "15-bit", "24-bit" };
@@ -387,17 +385,13 @@ static const int ADV_TABS[] = {
 	OptionsFrame::PAGE_STORAGE, OptionsFrame::PAGE_ADV_INPUT
 };
 #define NUM_TABS	((int)(sizeof(ADV_TABS) / sizeof(ADV_TABS[0])))
-/* The tab row's widths. Where the tabs go is the engine's: the row is centred, with the same
- * places and sizes as the Settings tabs (SettingsFrame FRAME_BUTTONS 0-4), so moving between
- * the two menus does not shift anything. */
-static const float TAB_WS[] = { 110.0f, 100.0f, 100.0f, 100.0f, 100.0f };
+/* The engine centres the tab row. Its widths are the Settings tab row's (SettingsFrame.h), so
+ * moving between the two menus does not shift anything. */
 
 #define NUM_PAGES		COUNT(PAGES)
 #define OPT_MAX_ROWS	6
 #define OPT_MAX_CHOICES	3
 #define OPT_MAX_HELP	8
-
-/* What one help string will measure on screen is the engine's business (see layoutPage). */
 
 #define VALUE_LEN	32
 
@@ -575,7 +569,7 @@ static void buildEnginePage(int page, int curTab)
 	for (int t = 0; t < NUM_TABS; t++)
 	{
 		ENG_TABS[t].text  = PAGES[ADV_TABS[t]].tab;
-		ENG_TABS[t].width = TAB_WS[t];
+		ENG_TABS[t].width = settingsTabWidths[t];
 	}
 	for (int i = 0; i < p.nrows; i++)
 	{
@@ -779,7 +773,6 @@ static void logLayoutProblems(int page)
 #endif
 
 OptionsFrame::OptionsFrame()
-		: activePage(PAGE_SOUND)
 {
 	titleString = (char*)PAGES[PAGE_SOUND].title;
 	titleBox = new menu::TextBox(&titleString, 0.0f, 0.0f, eng::grid::TEXT_SCALE, true);
@@ -882,7 +875,6 @@ OptionsFrame::~OptionsFrame()
 void OptionsFrame::activateSubmenu(int submenu)
 {
 	if (submenu < 0 || submenu >= NUM_PAGES) submenu = PAGE_SOUND;
-	activePage = submenu;
 	currentPage = submenu;
 
 	int curTab = -1;
