@@ -102,6 +102,9 @@ static button_t menu_combos[] = {
 	{ 2, CLASSIC_CTRL_BUTTON_HOME, "Home" },
 };
 
+/* Screenshot combination: no Start (plus) or Select (minus) by default, and no menu combination. */
+static button_t screenshot_combo = { 0, CLASSIC_CTRL_BUTTON_FULL_L | CLASSIC_CTRL_BUTTON_FULL_R, "L+R" };
+
 
 static unsigned int getButtons(classic_ctrl_t* controller)
 {
@@ -219,8 +222,8 @@ static int _GetKeys(int Control, BUTTONS * Keys, controller_config_t* config)
 	// Return 1 if exit, 2 if fastforward
 	if (!isHeld(config->exit)) return 1;
 	if (!isHeld(config->fastf)) return 2;
-	else 
-		return 0;
+	screenshot_poll(Control, !isHeld(&screenshot_combo));
+	return 0;
 }
 
 static void pause(int Control){

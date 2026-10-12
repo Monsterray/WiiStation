@@ -100,6 +100,9 @@ static button_t menu_combos[] = {
 	{ 2, WPAD_BUTTON_HOME, "Home" },
 };
 
+/* Screenshot combination: no menu combination. */
+static button_t screenshot_combo = { 0, WPAD_BUTTON_A | WPAD_BUTTON_B, "A+B" };
+
 static int _GetKeys(int Control, BUTTONS * Keys, controller_config_t* config,
                     int (*available)(int),
                     unsigned int (*getButtons)(WPADData*))
@@ -193,8 +196,8 @@ static int _GetKeys(int Control, BUTTONS * Keys, controller_config_t* config,
 	// Return 1 if exit, 2 if fastforward
 	if (!isHeld(config->exit)) return 1;
 	if (!isHeld(config->fastf)) return 2;
-	else 
-		return 0;
+	screenshot_poll(Control, !isHeld(&screenshot_combo));
+	return 0;
 }
 
 static int checkType(int Control, int type){

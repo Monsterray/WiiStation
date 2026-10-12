@@ -83,6 +83,9 @@ static button_t menu_combos[] = {
 	{ 2, PAD_BUTTON_START|PAD_BUTTON_Y, "Start+Y" },
 };
 
+/* Screenshot combination: no Start (the game would pause), and no menu combination. */
+static button_t screenshot_combo = { 0, PAD_TRIGGER_L|PAD_TRIGGER_R, "L+R" };
+
 u32 gc_connected;
 
 /* One reading of a GameCube pad: the buttons held and the two sticks, as libogc reports
@@ -266,8 +269,8 @@ static int _GetKeys(int Control, BUTTONS * Keys, controller_config_t* config)
 	// Return 1 if exit, 2 if fastforward
 	if (!isHeld(config->exit)) return 1;
 	if (!isHeld(config->fastf)) return 2;
-	else 
-		return 0;
+	screenshot_poll(Control, !isHeld(&screenshot_combo));
+	return 0;
 }
 
 static void pause(int Control){

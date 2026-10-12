@@ -77,6 +77,9 @@ static button_t menu_combos[] = {
     { 2, PAD_BUTTON_START|PAD_BUTTON_Y, "Start+Y" },
 };
 
+/* Screenshot combination: no Start (the game would pause), and no menu combination. */
+static button_t screenshot_combo = { 0, PAD_TRIGGER_L|PAD_TRIGGER_R, "L2+R2" };
+
 /* As controller-GC.c; full is the stick's travel, GC_MAIN_FULL or GC_CSTICK_FULL (psx_analog.h). */
 static void GCtoPSX(int x, int y, int invertY, float full, u8 *px, u8 *py)
 {
@@ -170,6 +173,7 @@ static int _GetKeys(int Control, BUTTONS * Keys, controller_config_t* config)
     {
         return 2;
     }
+    screenshot_poll(Control, !isHeld(&screenshot_combo));
 
     return 0;
 }

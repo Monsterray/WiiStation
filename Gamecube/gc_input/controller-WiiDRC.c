@@ -79,6 +79,9 @@ static button_t menu_combos[] = {
 		{ 2, WIIDRC_BUTTON_HOME, "Home" },
 };
 
+/* Screenshot combination: no Start (plus) or Select (minus) by default, and no menu combination. */
+static button_t screenshot_combo = { 0, WIIDRC_BUTTON_L | WIIDRC_BUTTON_R, "L+R" };
+
 static void pause(int Control){ }
 
 static void resume(int Control){ }
@@ -179,8 +182,8 @@ static int _GetKeys(int Control, BUTTONS * Keys, controller_config_t* config)
 	// Return 1 if exit, 2 if fastforward
 	if (!isHeld(config->exit)) return 1;
 	if (!isHeld(config->fastf)) return 2;
-	else 
-		return 0;
+	screenshot_poll(Control, !isHeld(&screenshot_combo));
+	return 0;
 }
 
 static void refreshAvailable(void);

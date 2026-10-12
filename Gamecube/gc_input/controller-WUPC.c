@@ -69,6 +69,9 @@ static button_t menu_combos[] = {
 		{ 2, WPAD_CLASSIC_BUTTON_HOME, "Home" },
 };
 
+/* Screenshot combination: no Start (plus) or Select (minus) by default, and no menu combination. */
+static button_t screenshot_combo = { 0, WPAD_CLASSIC_BUTTON_FULL_L | WPAD_CLASSIC_BUTTON_FULL_R, "L+R" };
+
 static void pause(int Control){
 	WUPC_Rumble(Control, 0);
 }
@@ -170,8 +173,8 @@ static int _GetKeys(int Control, BUTTONS * Keys, controller_config_t* config)
 	// Return 1 if exit, 2 if fastforward
 	if (!isHeld(config->exit)) return 1;
 	if (!isHeld(config->fastf)) return 2;
-	else 
-		return 0;
+	screenshot_poll(Control, !isHeld(&screenshot_combo));
+	return 0;
 }
 
 static void refreshAvailable(void);

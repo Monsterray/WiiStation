@@ -29,6 +29,7 @@
 #include "../libgui/MessageBox.h"
 #include "../wiiSXconfig.h"
 #include "../../psxcommon.h"
+#include "../screenshot.h"
 #include "MenuGlue.h"
 
 extern "C" {
@@ -38,6 +39,7 @@ extern "C" {
 extern int LoadMcd(int mcd, fileBrowser_file *savepath);
 extern int SaveMcd(int mcd, fileBrowser_file *savepath);
 extern long ISOgetTN(unsigned char *buffer);
+void SysPrintf(const char *fmt, ...);	/* the debug layout log (PERF_PROF) */
 }
 
 void Func_ShowRomInfo();
@@ -48,12 +50,13 @@ void Func_SaveGame();
 void Func_LoadState();
 void Func_SaveState();
 void Func_StateCycle();
+void Func_Screenshot();
 void Func_ReturnFromCurrentRomFrame();
 
-static const int NUM_FRAME_BUTTONS = 8;
-static const int CUR_ROWS_N = 5;
+static const int NUM_FRAME_BUTTONS = 9;
+static const int CUR_ROWS_N = 6;
 
-static char currentRomStrings[8][15] =
+static char currentRomStrings[9][15] =
 	{ "Restart Game",
 	  "Swap CD",
 	  "Load MemCards",
@@ -61,7 +64,8 @@ static char currentRomStrings[8][15] =
 	  "Show ISO Info",
 	  "Load State",
 	  "Save State",
-	  "Slot 0"};
+	  "Slot 0",
+	  "Screenshot"};
 
 struct CurrentRomButtonInfo
 {
@@ -77,14 +81,15 @@ struct CurrentRomButtonInfo
 
 static CurrentRomButtonInfo currentRomButtons[NUM_FRAME_BUTTONS] =
 {	//	button	style		string					clickFunc			returnFunc						row slot width   dy
-	{	NULL,	BTN_A_NRM,	currentRomStrings[0],	Func_ResetROM,		Func_ReturnFromCurrentRomFrame,	0, 0, 210.0f,  0.0f },
-	{	NULL,	BTN_A_NRM,	currentRomStrings[1],	Func_SwapCD,		Func_ReturnFromCurrentRomFrame,	0, 1, 210.0f,  0.0f },
-	{	NULL,	BTN_A_NRM,	currentRomStrings[2],	Func_LoadSave,		Func_ReturnFromCurrentRomFrame,	1, 0, 210.0f,  0.0f },
-	{	NULL,	BTN_A_NRM,	currentRomStrings[3],	Func_SaveGame,		Func_ReturnFromCurrentRomFrame,	1, 1, 210.0f,  0.0f },
+	{	NULL,	BTN_A_NRM,	currentRomStrings[0],	Func_ResetROM,		Func_ReturnFromCurrentRomFrame,	0, 0, 230.0f,  0.0f },
+	{	NULL,	BTN_A_NRM,	currentRomStrings[1],	Func_SwapCD,		Func_ReturnFromCurrentRomFrame,	0, 1, 230.0f,  0.0f },
+	{	NULL,	BTN_A_NRM,	currentRomStrings[2],	Func_LoadSave,		Func_ReturnFromCurrentRomFrame,	1, 0, 230.0f,  0.0f },
+	{	NULL,	BTN_A_NRM,	currentRomStrings[3],	Func_SaveGame,		Func_ReturnFromCurrentRomFrame,	1, 1, 230.0f,  0.0f },
 	{	NULL,	BTN_A_NRM,	currentRomStrings[4],	Func_ShowRomInfo,	Func_ReturnFromCurrentRomFrame,	2, 0, 340.0f,  0.0f },
 	{	NULL,	BTN_A_NRM,	currentRomStrings[5],	Func_LoadState,		Func_ReturnFromCurrentRomFrame,	3, 0, 220.0f,  0.0f },
 	{	NULL,	BTN_A_NRM,	currentRomStrings[6],	Func_SaveState,		Func_ReturnFromCurrentRomFrame,	4, 0, 220.0f,  0.0f },
 	{	NULL,	BTN_A_NRM,	currentRomStrings[7],	Func_StateCycle,	Func_ReturnFromCurrentRomFrame,	3, 1, 120.0f, 30.0f },
+	{	NULL,	BTN_A_NRM,	currentRomStrings[8],	Func_Screenshot,	Func_ReturnFromCurrentRomFrame,	5, 0, 220.0f,  0.0f },
 };
 
 /* The Current ROM page is set by the engine. The logo is at the bottom right.
@@ -102,9 +107,9 @@ static const eng::LinkOverride CUR_LINKS[] = {
 };
 
 /* Each row has a button count, the x of its first button, and the gap between its buttons. */
-static const int   CUR_ROW_COUNT[CUR_ROWS_N] = { 2, 2, 1, 2, 1 };
-static const float CUR_ROW_X0[CUR_ROWS_N]    = { 100.0f, 100.0f, 150.0f, 150.0f, 150.0f };
-static const float CUR_ROW_GAP[CUR_ROWS_N]   = { 20.0f, 20.0f, 0.0f, 20.0f, 0.0f };
+static const int   CUR_ROW_COUNT[CUR_ROWS_N] = { 2, 2, 1, 2, 1, 1 };
+static const float CUR_ROW_X0[CUR_ROWS_N]    = { 100.0f, 100.0f, 150.0f, 150.0f, 150.0f, 150.0f };
+static const float CUR_ROW_GAP[CUR_ROWS_N]   = { 20.0f, 20.0f, 0.0f, 20.0f, 0.0f, 0.0f };
 
 /* The buttons of each row, by slot: a row's actions must be consecutive, so they are kept by place. */
 static eng::ActionButton CUR_ACTIONS[CUR_ROWS_N][2];
@@ -153,6 +158,28 @@ static void layoutCurrentRom(void)
 
 	eng::layoutPage(CUR_PAGE, menu::glue::METRICS, CUR_LAYOUT);
 	eng::linkFocus(CUR_PAGE, CUR_LAYOUT);
+#ifdef PERF_PROF
+	/* The engine's layout checks, logged once in debug builds (as OptionsFrame does) */
+	static bool checked;
+	static eng::Problem probs[eng::MAX_PROBLEMS];
+	if (!checked)
+	{
+		checked = true;
+		int np = eng::checkLayout(CUR_PAGE, menu::glue::METRICS, CUR_LAYOUT, probs, eng::MAX_PROBLEMS);
+		if (np > 0)
+			SysPrintf("CurrentRomFrame: %d layout problem(s)\n", np);
+		for (int k = 0; k < np && k < eng::MAX_PROBLEMS; k++)
+		{
+			const eng::Problem &p = probs[k];
+			if (p.b >= 0)
+				SysPrintf("CurrentRomFrame:   %s: '%s' and '%s'\n", eng::problemName(p.kind),
+					CUR_LAYOUT.c[p.a].text, CUR_LAYOUT.c[p.b].text);
+			else
+				SysPrintf("CurrentRomFrame:   %s: '%s'\n", eng::problemName(p.kind),
+					CUR_LAYOUT.c[p.a].text);
+		}
+	}
+#endif
 }
 
 /* The button drawn for a layout control. */
@@ -435,6 +462,19 @@ void Func_StateCycle()
 	which_slot = (which_slot+1) %10;
 	savestates_select_slot(which_slot);
 	slotLabelStale = true;
+}
+
+/* Saves the picture on screen to screenshots/ on the SD card (screenshot.c) */
+void Func_Screenshot()
+{
+	char file[40];
+	char message[80];
+
+	if (screenshot_save(file, sizeof file) == 0)
+		sprintf(message, "Screenshot saved as screenshots/%s", file);
+	else
+		strcpy(message, "The screenshot could not be saved");
+	menu::MessageBox::getInstance().setMessage(message);
 }
 
 void Func_ReturnFromCurrentRomFrame()

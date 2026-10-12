@@ -177,6 +177,9 @@ void coop_assign_port(int port);     /* assign the port's players their controll
 void coop_unassign_port(int port);
 int  coop_get_keys(int port, BUTTONS *out, int *connected);   /* combined, as GetKeys */
 void coop_rumble(int port, int on);
+/* screenshot.c: a driver reports the screenshot combination's state each time it reads a pad.
+ * It takes the shot when the combination goes down. */
+void screenshot_poll(int control, int held);
 extern const char *coop_layout_names[];
 #define COOP_STICK_L 1
 #define COOP_STICK_R 2
