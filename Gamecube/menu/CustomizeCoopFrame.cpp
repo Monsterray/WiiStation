@@ -65,8 +65,8 @@ static void Func_LayoutShoulders() { setLayout(COOP_LAYOUT_SHOULDERS); }
 enum { IND_L1, IND_L2, IND_SELECT, IND_START, IND_R1, IND_R2, IND_DUP, IND_DLEFT, IND_DRIGHT,
        IND_DDOWN, IND_TRI, IND_SQU, IND_CIR, IND_CRO, IND_LSTICK, IND_RSTICK, IND_L3, IND_R3,
        NUM_INDICATORS };
-#define NUM_PRESETS COOP_LAYOUT_CUSTOM   /* Custom is no button: a toggled set that is no preset */
-#define NUM_FRAME_BUTTONS (NUM_PRESETS + NUM_INDICATORS)
+static const int NUM_PRESETS = COOP_LAYOUT_CUSTOM;   /* Custom is no button: a toggled set that is no preset */
+static const int NUM_FRAME_BUTTONS = NUM_PRESETS + NUM_INDICATORS;
 
 static char indicatorNames[NUM_INDICATORS][10] = {
 	"L1", "L2", "Select", "Start", "R1", "R2", "Up", "Left", "Right", "Down",
