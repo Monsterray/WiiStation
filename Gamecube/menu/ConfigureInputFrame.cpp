@@ -29,9 +29,6 @@
 #include "../libgui/resources.h"
 #include "../libgui/FocusManager.h"
 #include "../libgui/CursorManager.h"
-//#include "../libgui/MessageBox.h"
-//#include "../main/timers.h"
-//#include "../main/wii64config.h"
 
 extern "C" {
 #include "../gc_input/controller.h"
@@ -67,15 +64,12 @@ void Func_ReturnFromConfigureInputFrame();
 
 /* 0..21: the original table. 22..69: Co-Op rows, 24 per port (8 players x type,
  * Customize, number), filled in by the constructor (COOP_BTN). Appended, so no index moves. */
-#define NUM_FRAME_BUTTONS 70
+static const int NUM_FRAME_BUTTONS = 70;
 #define COOP_BTN(port, k, col) (22 + (port) * 24 + (k) * 3 + (col))
-#define FRAME_BUTTONS configureInputFrameButtons
-#define FRAME_STRINGS configureInputFrameStrings
-#define NUM_FRAME_TEXTBOXES 21   /* 5..20: the Co-Op rows' P1..P8 labels */
+static const int NUM_FRAME_TEXTBOXES = 21;	/* 5..20: the Co-Op rows' P1..P8 labels */
 #define COOP_LABEL(port, k) (5 + (port) * 8 + (k))
-#define FRAME_TEXTBOXES configureInputFrameTextBoxes
 
-static char FRAME_STRINGS[42][15] =
+static char ciStrings[42][15] =
 	{ "Pad Assignment",
 	  "PSX Port 1",
 	  "PSX Port 2",
@@ -102,58 +96,64 @@ static char FRAME_STRINGS[42][15] =
 	  "1P", "2P", "3P", "4P", "5P", "6P", "7P", "8P",	// [32..39] a Co-Op port's player count
 	  "Co-Op 1", "Co-Op 2"};	// [40..41] a Co-Op port's column heading
 
-struct ButtonInfo
+/* One button of the page. layoutTables sets its box (x, y, width, height).
+ * The box fields come last. The table fills only the fields before them. */
+struct CiButton
 {
 	menu::Button	*button;
 	int				buttonStyle;
 	char*			buttonString;
-	float			x;
-	float			y;
-	float			width;
-	float			height;
 	ButtonFunc		clickedFunc;
 	ButtonFunc		returnFunc;
-} FRAME_BUTTONS[NUM_FRAME_BUTTONS] =
-{ //	button	buttonStyle buttonString		x		y		width	height	clickFunc				returnFunc
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[5],	240.0,	 30.0,	135.0,	56.0,	Func_AutoSelectInput,	Func_ReturnFromConfigureInputFrame }, // Automatic Pad Assignment
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[6],	395.0,	 30.0,	120.0,	56.0,	Func_ManualSelectInput,	Func_ReturnFromConfigureInputFrame }, // Manual Pad Assignment
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[11],	30.0,	135.0,	200.0,	56.0,	Func_TogglePad0Type,	Func_ReturnFromConfigureInputFrame }, // Toggle Pad 0 Type
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[11],	330.0,	135.0,	200.0,	56.0,	Func_TogglePad1Type,	Func_ReturnFromConfigureInputFrame }, // Toggle Pad 1 Type
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[11],	30.0,	250.0,	200.0,	56.0,	Func_TogglePad0AType,	Func_ReturnFromConfigureInputFrame }, // Toggle Pad 0A Type
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[11],	30.0,	306.0,	200.0,	56.0,	Func_TogglePad0BType,	Func_ReturnFromConfigureInputFrame }, // Toggle Pad 0B Type
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[11],	30.0,	362.0,	200.0,	56.0,	Func_TogglePad0CType,	Func_ReturnFromConfigureInputFrame }, // Toggle Pad 0C Type
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[11],	30.0,	418.0,	200.0,	56.0,	Func_TogglePad0DType,	Func_ReturnFromConfigureInputFrame }, // Toggle Pad 0D Type
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[11],	330.0,	250.0,	200.0,	56.0,	Func_TogglePad1AType,	Func_ReturnFromConfigureInputFrame }, // Toggle Pad 1A Type
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[11],	330.0,	306.0,	200.0,	56.0,	Func_TogglePad1BType,	Func_ReturnFromConfigureInputFrame }, // Toggle Pad 1B Type
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[11],	330.0,	362.0,	200.0,	56.0,	Func_TogglePad1CType,	Func_ReturnFromConfigureInputFrame }, // Toggle Pad 1C Type
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[11],	330.0,	418.0,	200.0,	56.0,	Func_TogglePad1DType,	Func_ReturnFromConfigureInputFrame }, // Toggle Pad 1D Type
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[12],	250.0,	135.0,	 55.0,	56.0,	Func_TogglePad0Assign,	Func_ReturnFromConfigureInputFrame }, // Toggle Pad 0 Assignment
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[12],	550.0,	135.0,	 55.0,	56.0,	Func_TogglePad1Assign,	Func_ReturnFromConfigureInputFrame }, // Toggle Pad 1 Assignment
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[12],	250.0,	250.0,	 55.0,	56.0,	Func_TogglePad0AAssign,	Func_ReturnFromConfigureInputFrame }, // Toggle Pad 0A Assignment
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[12],	250.0,	306.0,	 55.0,	56.0,	Func_TogglePad0BAssign,	Func_ReturnFromConfigureInputFrame }, // Toggle Pad 0B Assignment
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[12],	250.0,	362.0,	 55.0,	56.0,	Func_TogglePad0CAssign,	Func_ReturnFromConfigureInputFrame }, // Toggle Pad 0C Assignment
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[12],	250.0,	418.0,	 55.0,	56.0,	Func_TogglePad0DAssign,	Func_ReturnFromConfigureInputFrame }, // Toggle Pad 0D Assignment
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[12],	550.0,	250.0,	 55.0,	56.0,	Func_TogglePad1AAssign,	Func_ReturnFromConfigureInputFrame }, // Toggle Pad 1A Assignment
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[12],	550.0,	306.0,	 55.0,	56.0,	Func_TogglePad1BAssign,	Func_ReturnFromConfigureInputFrame }, // Toggle Pad 1B Assignment
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[12],	550.0,	362.0,	 55.0,	56.0,	Func_TogglePad1CAssign,	Func_ReturnFromConfigureInputFrame }, // Toggle Pad 1C Assignment
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[12],	550.0,	418.0,	 55.0,	56.0,	Func_TogglePad1DAssign,	Func_ReturnFromConfigureInputFrame }, // Toggle Pad 1D Assignment
+	float			x, y, width, height;
 };
 
-struct TextBoxInfo
+/* Buttons 0..21 are listed here. The Co-Op buttons 22..69 are filled in by layoutTables. */
+static CiButton ciButtons[NUM_FRAME_BUTTONS] =
+{	//	button	style		string			clickFunc				returnFunc
+	{	NULL,	BTN_A_SEL,	ciStrings[5],	Func_AutoSelectInput,	Func_ReturnFromConfigureInputFrame },
+	{	NULL,	BTN_A_SEL,	ciStrings[6],	Func_ManualSelectInput,	Func_ReturnFromConfigureInputFrame },
+	{	NULL,	BTN_A_NRM,	ciStrings[11],	Func_TogglePad0Type,	Func_ReturnFromConfigureInputFrame },
+	{	NULL,	BTN_A_NRM,	ciStrings[11],	Func_TogglePad1Type,	Func_ReturnFromConfigureInputFrame },
+	{	NULL,	BTN_A_NRM,	ciStrings[11],	Func_TogglePad0AType,	Func_ReturnFromConfigureInputFrame },
+	{	NULL,	BTN_A_NRM,	ciStrings[11],	Func_TogglePad0BType,	Func_ReturnFromConfigureInputFrame },
+	{	NULL,	BTN_A_NRM,	ciStrings[11],	Func_TogglePad0CType,	Func_ReturnFromConfigureInputFrame },
+	{	NULL,	BTN_A_NRM,	ciStrings[11],	Func_TogglePad0DType,	Func_ReturnFromConfigureInputFrame },
+	{	NULL,	BTN_A_NRM,	ciStrings[11],	Func_TogglePad1AType,	Func_ReturnFromConfigureInputFrame },
+	{	NULL,	BTN_A_NRM,	ciStrings[11],	Func_TogglePad1BType,	Func_ReturnFromConfigureInputFrame },
+	{	NULL,	BTN_A_NRM,	ciStrings[11],	Func_TogglePad1CType,	Func_ReturnFromConfigureInputFrame },
+	{	NULL,	BTN_A_NRM,	ciStrings[11],	Func_TogglePad1DType,	Func_ReturnFromConfigureInputFrame },
+	{	NULL,	BTN_A_NRM,	ciStrings[12],	Func_TogglePad0Assign,	Func_ReturnFromConfigureInputFrame },
+	{	NULL,	BTN_A_NRM,	ciStrings[12],	Func_TogglePad1Assign,	Func_ReturnFromConfigureInputFrame },
+	{	NULL,	BTN_A_NRM,	ciStrings[12],	Func_TogglePad0AAssign,	Func_ReturnFromConfigureInputFrame },
+	{	NULL,	BTN_A_NRM,	ciStrings[12],	Func_TogglePad0BAssign,	Func_ReturnFromConfigureInputFrame },
+	{	NULL,	BTN_A_NRM,	ciStrings[12],	Func_TogglePad0CAssign,	Func_ReturnFromConfigureInputFrame },
+	{	NULL,	BTN_A_NRM,	ciStrings[12],	Func_TogglePad0DAssign,	Func_ReturnFromConfigureInputFrame },
+	{	NULL,	BTN_A_NRM,	ciStrings[12],	Func_TogglePad1AAssign,	Func_ReturnFromConfigureInputFrame },
+	{	NULL,	BTN_A_NRM,	ciStrings[12],	Func_TogglePad1BAssign,	Func_ReturnFromConfigureInputFrame },
+	{	NULL,	BTN_A_NRM,	ciStrings[12],	Func_TogglePad1CAssign,	Func_ReturnFromConfigureInputFrame },
+	{	NULL,	BTN_A_NRM,	ciStrings[12],	Func_TogglePad1DAssign,	Func_ReturnFromConfigureInputFrame },
+};
+
+/* One label of the page. layoutTables sets its position (x, y).
+ * The position fields come last. The table fills only the fields before them. */
+struct CiTextBox
 {
 	menu::TextBox	*textBox;
 	char*			textBoxString;
-	float			x;
-	float			y;
 	float			scale;
 	bool			centered;
-} FRAME_TEXTBOXES[NUM_FRAME_TEXTBOXES] =
-{ //	textBox	textBoxString		x		y		scale	centered
-	{	NULL,	FRAME_STRINGS[0],	125.0,	68.0,	 1.0,	true }, // Pad Assignment
-	{	NULL,	FRAME_STRINGS[1],	125.0,	115.0,	 1.0,	true }, // Pad 1
-	{	NULL,	FRAME_STRINGS[2],	425.0,	115.0,	 1.0,	true }, // Pad 2
-	{	NULL,	FRAME_STRINGS[3],	125.0,	228.0,	 1.0,	true }, // Multitap 1
-	{	NULL,	FRAME_STRINGS[4],	425.0,	228.0,	 1.0,	true }, // Multitap 2
+	float			x, y;
+};
+
+/* Labels 0..4 are listed here. The Co-Op labels 5..20 are filled in by layoutTables. */
+static CiTextBox ciTextBoxes[NUM_FRAME_TEXTBOXES] =
+{	//	textBox	textBoxString	scale	centered
+	{	NULL,	ciStrings[0],	1.0f,	true },	/* Pad Assignment */
+	{	NULL,	ciStrings[1],	1.0f,	true },	/* Pad 1 */
+	{	NULL,	ciStrings[2],	1.0f,	true },	/* Pad 2 */
+	{	NULL,	ciStrings[3],	1.0f,	true },	/* Multitap 1 */
+	{	NULL,	ciStrings[4],	1.0f,	true },	/* Multitap 2 */
 };
 
 /* ---- Co-Op rows: each port's players, P1..P8 -------------------------------------
@@ -216,8 +216,8 @@ static ButtonFunc coopFuncs[2][COOP_MAX][3] = {
 #define CI_COOP_H		30.0f
 static void setRect(int i, float x, float y, float w, float h)
 {
-	FRAME_BUTTONS[i].x = x; FRAME_BUTTONS[i].y = y;
-	FRAME_BUTTONS[i].width = w; FRAME_BUTTONS[i].height = h;
+	ciButtons[i].x = x; ciButtons[i].y = y;
+	ciButtons[i].width = w; ciButtons[i].height = h;
 }
 static void layoutTables(void)
 {
@@ -241,78 +241,78 @@ static void layoutTables(void)
 		{
 			for (int c = 0; c < 3; c++)
 			{
-				ButtonInfo &b = FRAME_BUTTONS[COOP_BTN(p, k, c)];
+				CiButton &b = ciButtons[COOP_BTN(p, k, c)];
 				b.buttonStyle = BTN_A_NRM;
-				b.buttonString = FRAME_STRINGS[c == 1 ? 19 : 12];
+				b.buttonString = ciStrings[c == 1 ? 19 : 12];
 						b.clickedFunc = coopFuncs[p][k][c];
 				b.returnFunc = Func_ReturnFromConfigureInputFrame;
 				setRect(COOP_BTN(p, k, c), CI_COL_X(p) + coopX[c], CI_COOP_Y(k), coopW[c], CI_COOP_H);
 			}
-			TextBoxInfo &t = FRAME_TEXTBOXES[COOP_LABEL(p, k)];
-			t.textBoxString = FRAME_STRINGS[20 + k];
+			CiTextBox &t = ciTextBoxes[COOP_LABEL(p, k)];
+			t.textBoxString = ciStrings[20 + k];
 			t.x = CI_COL_X(p) + 15.0f;
 			t.y = CI_COOP_Y(k) + CI_COOP_H / 2;
 			t.scale = 0.8f;
 			t.centered = true;
 		}
 		/* the port's label at the top of its column, then the column's heading */
-		FRAME_TEXTBOXES[1 + p].x = CI_COL_X(p) + CI_COL_W / 2;
-		FRAME_TEXTBOXES[1 + p].y = CI_PORTLABEL_Y;
-		FRAME_TEXTBOXES[3 + p].x = CI_COL_X(p) + CI_COL_W / 2;
-		FRAME_TEXTBOXES[3 + p].y = CI_HEAD_Y;
+		ciTextBoxes[1 + p].x = CI_COL_X(p) + CI_COL_W / 2;
+		ciTextBoxes[1 + p].y = CI_PORTLABEL_Y;
+		ciTextBoxes[3 + p].x = CI_COL_X(p) + CI_COL_W / 2;
+		ciTextBoxes[3 + p].y = CI_HEAD_Y;
 	}
-	FRAME_TEXTBOXES[0].x = TAB_LABEL_CX;
-	FRAME_TEXTBOXES[0].y = CI_ROW_Y(0) + CI_ROW_H / 2;
+	ciTextBoxes[0].x = TAB_LABEL_CX;
+	ciTextBoxes[0].y = CI_ROW_Y(0) + CI_ROW_H / 2;
 }
 
 ConfigureInputFrame::ConfigureInputFrame()
 {
 	layoutTables();
 	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
-		FRAME_BUTTONS[i].button = new menu::Button(FRAME_BUTTONS[i].buttonStyle, &FRAME_BUTTONS[i].buttonString,
-										FRAME_BUTTONS[i].x, FRAME_BUTTONS[i].y,
-										FRAME_BUTTONS[i].width, FRAME_BUTTONS[i].height);
+		ciButtons[i].button = new menu::Button(ciButtons[i].buttonStyle, &ciButtons[i].buttonString,
+										ciButtons[i].x, ciButtons[i].y,
+										ciButtons[i].width, ciButtons[i].height);
 
 	/* A style-A button makes itself 56 high whatever it is given: every one gets its own
 	 * bounds back. Automatic and Manual take their width from their label, as the Settings
 	 * tabs' buttons do, Manual TAB_GAP after Automatic. Their rectangles are then the page's. */
 	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
-		FRAME_BUTTONS[i].button->setBounds(FRAME_BUTTONS[i].x, FRAME_BUTTONS[i].y,
-		                                   FRAME_BUTTONS[i].width, FRAME_BUTTONS[i].height);
+		ciButtons[i].button->setBounds(ciButtons[i].x, ciButtons[i].y,
+		                                   ciButtons[i].width, ciButtons[i].height);
 	{
 		float x = TAB_BUTTON_X;
 		for (int i = 0; i < 2; i++)
 		{
-			menu::Button *b = FRAME_BUTTONS[i].button;
+			menu::Button *b = ciButtons[i].button;
 			b->setAutoSize(menu::Button::BTN_FIT_WIDTH);
 			b->setBounds(x, CI_ROW_Y(0), 0, CI_ROW_H);
-			FRAME_BUTTONS[i].x = x;
-			FRAME_BUTTONS[i].width = b->getWidth();
-			FRAME_BUTTONS[i].height = CI_ROW_H;
+			ciButtons[i].x = x;
+			ciButtons[i].width = b->getWidth();
+			ciButtons[i].height = CI_ROW_H;
 			x += b->getWidth() + TAB_GAP;
 		}
 	}
 
 	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
 	{
-		FRAME_BUTTONS[i].button->setActive(true);
-		if (FRAME_BUTTONS[i].clickedFunc) FRAME_BUTTONS[i].button->setClicked(FRAME_BUTTONS[i].clickedFunc);
-		if (FRAME_BUTTONS[i].returnFunc) FRAME_BUTTONS[i].button->setReturn(FRAME_BUTTONS[i].returnFunc);
-		add(FRAME_BUTTONS[i].button);
-		menu::Cursor::getInstance().addComponent(this, FRAME_BUTTONS[i].button, FRAME_BUTTONS[i].x,
-												FRAME_BUTTONS[i].x+FRAME_BUTTONS[i].width, FRAME_BUTTONS[i].y,
-												FRAME_BUTTONS[i].y+FRAME_BUTTONS[i].height);
+		ciButtons[i].button->setActive(true);
+		if (ciButtons[i].clickedFunc) ciButtons[i].button->setClicked(ciButtons[i].clickedFunc);
+		if (ciButtons[i].returnFunc) ciButtons[i].button->setReturn(ciButtons[i].returnFunc);
+		add(ciButtons[i].button);
+		menu::Cursor::getInstance().addComponent(this, ciButtons[i].button, ciButtons[i].x,
+												ciButtons[i].x+ciButtons[i].width, ciButtons[i].y,
+												ciButtons[i].y+ciButtons[i].height);
 	}
 
 	for (int i = 0; i < NUM_FRAME_TEXTBOXES; i++)
 	{
-		FRAME_TEXTBOXES[i].textBox = new menu::TextBox(&FRAME_TEXTBOXES[i].textBoxString,
-										FRAME_TEXTBOXES[i].x, FRAME_TEXTBOXES[i].y,
-										FRAME_TEXTBOXES[i].scale, FRAME_TEXTBOXES[i].centered);
-		add(FRAME_TEXTBOXES[i].textBox);
+		ciTextBoxes[i].textBox = new menu::TextBox(&ciTextBoxes[i].textBoxString,
+										ciTextBoxes[i].x, ciTextBoxes[i].y,
+										ciTextBoxes[i].scale, ciTextBoxes[i].centered);
+		add(ciTextBoxes[i].textBox);
 	}
 
-	setDefaultFocus(FRAME_BUTTONS[0].button);
+	setDefaultFocus(ciButtons[0].button);
 	setBackFunc(Func_ReturnFromConfigureInputFrame);
 	setEnabled(true);
 	activateSubmenu(SUBMENU_REINIT);
@@ -321,11 +321,11 @@ ConfigureInputFrame::ConfigureInputFrame()
 ConfigureInputFrame::~ConfigureInputFrame()
 {
 	for (int i = 0; i < NUM_FRAME_TEXTBOXES; i++)
-		delete FRAME_TEXTBOXES[i].textBox;
+		delete ciTextBoxes[i].textBox;
 	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
 	{
-		menu::Cursor::getInstance().removeComponent(this, FRAME_BUTTONS[i].button);
-		delete FRAME_BUTTONS[i].button;
+		menu::Cursor::getInstance().removeComponent(this, ciButtons[i].button);
+		delete ciButtons[i].button;
 	}
 
 }
@@ -350,7 +350,7 @@ static int ciHeight(const char *s, float scale, void *)
 
 static const eng::Metrics CI_METRICS = { ciWidth, ciHeight, NULL };
 
-/* The state: shown, active and lit, by button and by label (FRAME_BUTTONS and FRAME_TEXTBOXES index) */
+/* The state: shown, active and lit, by button and by label (ciButtons and ciTextBoxes index) */
 static bool ciShown[NUM_FRAME_BUTTONS], ciActive[NUM_FRAME_BUTTONS], ciLit[NUM_FRAME_BUTTONS];
 static bool ciTextShown[NUM_FRAME_TEXTBOXES];
 
@@ -376,9 +376,9 @@ static void linkButton(int from, int up, int down, int left, int right)
 
 /* The page's own arrays: the engine keeps none of them. */
 static eng::FreeButton CI_FREE[NUM_FRAME_BUTTONS];
-static int             CI_FREE_ID[NUM_FRAME_BUTTONS];	/* free index -> FRAME_BUTTONS index */
+static int             CI_FREE_ID[NUM_FRAME_BUTTONS];	/* free index -> ciButtons index */
 static eng::FreeText   CI_TEXTS[NUM_FRAME_TEXTBOXES];
-static int             CI_TEXT_ID[NUM_FRAME_TEXTBOXES];	/* free text index -> FRAME_TEXTBOXES index */
+static int             CI_TEXT_ID[NUM_FRAME_TEXTBOXES];	/* free text index -> ciTextBoxes index */
 static eng::FreeLink   CI_FLINKS[CI_MAX_LINKS];
 static eng::Page       CI_PAGE;
 static eng::Layout     CI_LAYOUT;
@@ -396,11 +396,11 @@ static void layoutState(void)
 		if (!ciShown[i])
 			continue;
 		eng::FreeButton &b = CI_FREE[nf];
-		b.text = FRAME_BUTTONS[i].buttonString;
-		b.x = FRAME_BUTTONS[i].x;
-		b.y = FRAME_BUTTONS[i].y;
-		b.w = FRAME_BUTTONS[i].width;
-		b.h = FRAME_BUTTONS[i].height;
+		b.text = ciButtons[i].buttonString;
+		b.x = ciButtons[i].x;
+		b.y = ciButtons[i].y;
+		b.w = ciButtons[i].width;
+		b.h = ciButtons[i].height;
 		b.lit = ciLit[i];
 		b.inactive = !ciActive[i];
 		CI_FREE_ID[nf] = i;
@@ -411,11 +411,11 @@ static void layoutState(void)
 		if (!ciTextShown[t])
 			continue;
 		eng::FreeText &x = CI_TEXTS[nt];
-		x.text = FRAME_TEXTBOXES[t].textBoxString;
-		x.ax = FRAME_TEXTBOXES[t].x;
-		x.ay = FRAME_TEXTBOXES[t].y;
-		x.scale = FRAME_TEXTBOXES[t].scale;
-		x.centred = FRAME_TEXTBOXES[t].centered;
+		x.text = ciTextBoxes[t].textBoxString;
+		x.ax = ciTextBoxes[t].x;
+		x.ay = ciTextBoxes[t].y;
+		x.scale = ciTextBoxes[t].scale;
+		x.centred = ciTextBoxes[t].centered;
 		CI_TEXT_ID[nt++] = t;
 	}
 	for (int k = 0; k < nCiLinks; k++)
@@ -446,7 +446,7 @@ static void layoutState(void)
 	for (int k = 0; k < nf; k++)
 	{
 		const int i = CI_FREE_ID[k];
-		menu::Button *b = FRAME_BUTTONS[i].button;
+		menu::Button *b = ciButtons[i].button;
 		b->setVisible(true);
 		b->setActive(ciActive[i]);
 		b->setSelected(ciLit[i]);
@@ -454,8 +454,8 @@ static void layoutState(void)
 	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
 		if (!ciShown[i])
 		{
-			FRAME_BUTTONS[i].button->setVisible(false);
-			FRAME_BUTTONS[i].button->setActive(false);
+			ciButtons[i].button->setVisible(false);
+			ciButtons[i].button->setActive(false);
 		}
 
 	static const int DIRS[eng::DIR_COUNT] = {
@@ -467,21 +467,21 @@ static void layoutState(void)
 		const eng::Control &ctl = CI_LAYOUT.c[c];
 		if (ctl.role == eng::ROLE_FREE)
 		{
-			menu::Button *b = FRAME_BUTTONS[CI_FREE_ID[ctl.slot]].button;
+			menu::Button *b = ciButtons[CI_FREE_ID[ctl.slot]].button;
 			b->setBounds(ctl.rect.x, ctl.rect.y, ctl.rect.w, ctl.rect.h);
 			for (int d = 0; d < eng::DIR_COUNT; d++)
 			{
 				const int to = ctl.link[d];
-				b->setNextFocus(DIRS[d], to >= 0 ? FRAME_BUTTONS[CI_FREE_ID[CI_LAYOUT.c[to].slot]].button : NULL);
+				b->setNextFocus(DIRS[d], to >= 0 ? ciButtons[CI_FREE_ID[CI_LAYOUT.c[to].slot]].button : NULL);
 			}
 		}
 		else if (ctl.role == eng::ROLE_FREE_TEXT)
 		{
-			FRAME_TEXTBOXES[CI_TEXT_ID[ctl.slot]].textBox->setPosition(ctl.ax, ctl.ay);
+			ciTextBoxes[CI_TEXT_ID[ctl.slot]].textBox->setPosition(ctl.ax, ctl.ay);
 		}
 	}
 	for (int t = 0; t < NUM_FRAME_TEXTBOXES; t++)
-		FRAME_TEXTBOXES[t].textBox->setVisible(ciTextShown[t]);
+		ciTextBoxes[t].textBox->setVisible(ciTextShown[t]);
 }
 
 /* What each port shows: its type and number on its own row; in its column below, four
@@ -509,25 +509,25 @@ void ConfigureInputFrame::activateSubmenu(int submenu)
 		const bool mtap = padType[p] == PADTYPE_MULTITAP, coop = padType[p] == PADTYPE_COOP;
 
 		/* the port's own row */
-		FRAME_BUTTONS[2 + p].buttonString = !manual ? FRAME_STRINGS[11] :
-			padType[p] == PADTYPE_HID ? FRAME_STRINGS[17] : mtap ? FRAME_STRINGS[10] :
-			coop ? FRAME_STRINGS[18] : FRAME_STRINGS[padType[p] + 7];
-		FRAME_BUTTONS[12 + p].buttonString = !manual || mtap ? FRAME_STRINGS[12] :
-			coop ? FRAME_STRINGS[31 + coopPlayers[p]] : FRAME_STRINGS[padAssign[p] + 13];
+		ciButtons[2 + p].buttonString = !manual ? ciStrings[11] :
+			padType[p] == PADTYPE_HID ? ciStrings[17] : mtap ? ciStrings[10] :
+			coop ? ciStrings[18] : ciStrings[padType[p] + 7];
+		ciButtons[12 + p].buttonString = !manual || mtap ? ciStrings[12] :
+			coop ? ciStrings[31 + coopPlayers[p]] : ciStrings[padAssign[p] + 13];
 		ciShown[2 + p] = true;
 		ciActive[2 + p] = manual;
 		ciShown[12 + p] = !mtap;		/* a multitap has no number of its own */
 		ciActive[12 + p] = manual;
 
 		/* its column: a heading, then the slots or the players */
-		FRAME_TEXTBOXES[3 + p].textBoxString = coop ? FRAME_STRINGS[40 + p] : FRAME_STRINGS[3 + p];
+		ciTextBoxes[3 + p].textBoxString = coop ? ciStrings[40 + p] : ciStrings[3 + p];
 		ciTextShown[3 + p] = mtap || coop;
 		for (int sl = 0; sl < 4; sl++)
 		{
 			int i = 2 + p * 4 + sl;
-			FRAME_BUTTONS[i + 2].buttonString = padType[i] == PADTYPE_HID ? FRAME_STRINGS[17] :
-				FRAME_STRINGS[padType[i] + 7];
-			FRAME_BUTTONS[i + 12].buttonString = FRAME_STRINGS[padAssign[i] + 13];
+			ciButtons[i + 2].buttonString = padType[i] == PADTYPE_HID ? ciStrings[17] :
+				ciStrings[padType[i] + 7];
+			ciButtons[i + 12].buttonString = ciStrings[padAssign[i] + 13];
 			ciShown[i + 2] = ciShown[i + 12] = mtap;
 			ciActive[i + 2] = ciActive[i + 12] = manual;
 			if (mtap)
@@ -541,8 +541,8 @@ void ConfigureInputFrame::activateSubmenu(int submenu)
 		for (int k = 0; k < COOP_MAX; k++)
 		{
 			const bool on = coop && k < coopPlayers[p];
-			FRAME_BUTTONS[COOP_BTN(p, k, 0)].buttonString = FRAME_STRINGS[28 + coopType[p][k]];
-			FRAME_BUTTONS[COOP_BTN(p, k, 2)].buttonString = FRAME_STRINGS[13 + coopAssign[p][k]];
+			ciButtons[COOP_BTN(p, k, 0)].buttonString = ciStrings[28 + coopType[p][k]];
+			ciButtons[COOP_BTN(p, k, 2)].buttonString = ciStrings[13 + coopAssign[p][k]];
 			for (int c = 0; c < 3; c++)
 			{
 				ciShown[COOP_BTN(p, k, c)] = on;
@@ -594,7 +594,6 @@ void ConfigureInputFrame::activateSubmenu(int submenu)
 	layoutState();
 }
 
-extern MenuContext *pMenuContext;
 
 void Func_AutoSelectInput()
 {
@@ -615,7 +614,7 @@ void Func_ManualSelectInput()
 	pMenuContext->getFrame(MenuContext::FRAME_CONFIGUREINPUT)->activateSubmenu(ConfigureInputFrame::SUBMENU_REINIT);
 }
 
-void Func_AssignPad(int i)
+static void Func_AssignPad(int i)
 {
 	controller_t* type = NULL;
 	switch (padType[i])
@@ -647,267 +646,86 @@ void Func_AssignPad(int i)
 		assign_controller(i, type, (int) padAssign[i]);
 }
 
-void Func_TogglePad0Type()
+/* Each toggle changes a port setting. Then it draws the page again. */
+static void refreshInput(void)
 {
-	int i = PADASSIGN_INPUT0;
-#ifdef HW_RVL
-	set_port_type(i, (padType[i]+1) % 6);   /* None GC Wii HID Multitap Co-Op */
-#else
-	set_port_type(i, (padType[i]+1) & 1);
-#endif
 	pMenuContext->getFrame(MenuContext::FRAME_CONFIGUREINPUT)->activateSubmenu(ConfigureInputFrame::SUBMENU_REINIT);
 }
 
-
-void Func_TogglePad1Type()
+/* Set a port type. On the Wii the order is None, GC, Wii, HID, Multitap, Co-Op. */
+static void togglePortType(int i)
 {
-	int i = PADASSIGN_INPUT1;
 #ifdef HW_RVL
-	set_port_type(i, (padType[i]+1) % 6);   /* None GC Wii HID Multitap Co-Op */
+	set_port_type(i, (padType[i]+1) % 6);
 #else
 	set_port_type(i, (padType[i]+1) & 1);
 #endif
-	pMenuContext->getFrame(MenuContext::FRAME_CONFIGUREINPUT)->activateSubmenu(ConfigureInputFrame::SUBMENU_REINIT);
+	refreshInput();
 }
 
-void Func_TogglePad0Assign()
+/* Set a multitap slot type. On the Wii the order is None, GC, Wii, HID.
+ * The slot controller is assigned at once, or removed. */
+static void toggleSlotType(int i)
 {
-	int i = PADASSIGN_INPUT0;
-	if (padType[i] == PADTYPE_COOP)   /* a Co-Op port's number is its player count, 1..8 */
+#ifdef HW_RVL
+	padType[i] = (padType[i]+1) % 4;
+#else
+	padType[i] = (padType[i]+1) % 2;
+#endif
+	if (padType[i]) Func_AssignPad(i);
+	else			unassign_controller(i);
+	refreshInput();
+}
+
+/* A port's controller number, or a Co-Op port's player count, 1..8. */
+static void togglePortAssign(int i)
+{
+	if (padType[i] == PADTYPE_COOP)
 	{
 		coopPlayers[i] = coopPlayers[i] % COOP_MAX + 1;
 		coopRefresh(i);
 		return;
 	}
-	padAssign[i] = (padAssign[i]+1) %4;
+	padAssign[i] = (padAssign[i]+1) % 4;
 
 	if (padType[i] && padType[i] != PADTYPE_MULTITAP) Func_AssignPad(i);
 
-	pMenuContext->getFrame(MenuContext::FRAME_CONFIGUREINPUT)->activateSubmenu(ConfigureInputFrame::SUBMENU_REINIT);
+	refreshInput();
 }
 
-void Func_TogglePad1Assign()
+/* A multitap slot's controller number, assigned at once when the slot has a type. */
+static void toggleSlotAssign(int i)
 {
-	int i = PADASSIGN_INPUT1;
-	if (padType[i] == PADTYPE_COOP)   /* a Co-Op port's number is its player count, 1..8 */
-	{
-		coopPlayers[i] = coopPlayers[i] % COOP_MAX + 1;
-		coopRefresh(i);
-		return;
-	}
-	padAssign[i] = (padAssign[i]+1) %4;
+	padAssign[i] = (padAssign[i]+1) % 4;
 
-	if (padType[i] && padType[i] != PADTYPE_MULTITAP) Func_AssignPad(i);
+	if (padType[i]) Func_AssignPad(i);
 
-	pMenuContext->getFrame(MenuContext::FRAME_CONFIGUREINPUT)->activateSubmenu(ConfigureInputFrame::SUBMENU_REINIT);
+	refreshInput();
 }
+
+void Func_TogglePad0Type()    { togglePortType(PADASSIGN_INPUT0); }
+void Func_TogglePad1Type()    { togglePortType(PADASSIGN_INPUT1); }
+void Func_TogglePad0AType()   { toggleSlotType(PADASSIGN_INPUT0A); }
+void Func_TogglePad0BType()   { toggleSlotType(PADASSIGN_INPUT0B); }
+void Func_TogglePad0CType()   { toggleSlotType(PADASSIGN_INPUT0C); }
+void Func_TogglePad0DType()   { toggleSlotType(PADASSIGN_INPUT0D); }
+void Func_TogglePad1AType()   { toggleSlotType(PADASSIGN_INPUT1A); }
+void Func_TogglePad1BType()   { toggleSlotType(PADASSIGN_INPUT1B); }
+void Func_TogglePad1CType()   { toggleSlotType(PADASSIGN_INPUT1C); }
+void Func_TogglePad1DType()   { toggleSlotType(PADASSIGN_INPUT1D); }
+
+void Func_TogglePad0Assign()  { togglePortAssign(PADASSIGN_INPUT0); }
+void Func_TogglePad1Assign()  { togglePortAssign(PADASSIGN_INPUT1); }
+void Func_TogglePad0AAssign() { toggleSlotAssign(PADASSIGN_INPUT0A); }
+void Func_TogglePad0BAssign() { toggleSlotAssign(PADASSIGN_INPUT0B); }
+void Func_TogglePad0CAssign() { toggleSlotAssign(PADASSIGN_INPUT0C); }
+void Func_TogglePad0DAssign() { toggleSlotAssign(PADASSIGN_INPUT0D); }
+void Func_TogglePad1AAssign() { toggleSlotAssign(PADASSIGN_INPUT1A); }
+void Func_TogglePad1BAssign() { toggleSlotAssign(PADASSIGN_INPUT1B); }
+void Func_TogglePad1CAssign() { toggleSlotAssign(PADASSIGN_INPUT1C); }
+void Func_TogglePad1DAssign() { toggleSlotAssign(PADASSIGN_INPUT1D); }
 
 void Func_ReturnFromConfigureInputFrame()
 {
 	pMenuContext->setActiveFrame(MenuContext::FRAME_SETTINGS,SettingsFrame::SUBMENU_INPUT);
 }
-
-
-//////////////////////////////////
-//		Multitap functions		//
-//////////////////////////////////
-
-void Func_TogglePad0AType()
-{
-	int i = PADASSIGN_INPUT0A;
-#ifdef HW_RVL
-	padType[i] = (padType[i]+1) %4;
-#else
-	padType[i] = (padType[i]+1) %2;
-#endif
-
-	if (padType[i]) Func_AssignPad(i);
-	else			unassign_controller(i);
-	pMenuContext->getFrame(MenuContext::FRAME_CONFIGUREINPUT)->activateSubmenu(ConfigureInputFrame::SUBMENU_REINIT);
-}
-
-void Func_TogglePad0BType()
-{
-	int i = PADASSIGN_INPUT0B;
-#ifdef HW_RVL
-	padType[i] = (padType[i]+1) %4;
-#else
-	padType[i] = (padType[i]+1) %2;
-#endif
-
-	if (padType[i]) Func_AssignPad(i);
-	else			unassign_controller(i);
-	pMenuContext->getFrame(MenuContext::FRAME_CONFIGUREINPUT)->activateSubmenu(ConfigureInputFrame::SUBMENU_REINIT);
-}
-
-void Func_TogglePad0CType()
-{
-	int i = PADASSIGN_INPUT0C;
-#ifdef HW_RVL
-	padType[i] = (padType[i]+1) %4;
-#else
-	padType[i] = (padType[i]+1) %2;
-#endif
-
-	if (padType[i]) Func_AssignPad(i);
-	else			unassign_controller(i);
-	pMenuContext->getFrame(MenuContext::FRAME_CONFIGUREINPUT)->activateSubmenu(ConfigureInputFrame::SUBMENU_REINIT);
-}
-
-void Func_TogglePad0DType()
-{
-	int i = PADASSIGN_INPUT0D;
-#ifdef HW_RVL
-	padType[i] = (padType[i]+1) %4;
-#else
-	padType[i] = (padType[i]+1) %2;
-#endif
-
-	if (padType[i]) Func_AssignPad(i);
-	else			unassign_controller(i);
-	pMenuContext->getFrame(MenuContext::FRAME_CONFIGUREINPUT)->activateSubmenu(ConfigureInputFrame::SUBMENU_REINIT);
-}
-
-///////////////////////////////////////////// Second Pad Type
-
-void Func_TogglePad1AType()
-{
-	int i = PADASSIGN_INPUT1A;
-#ifdef HW_RVL
-	padType[i] = (padType[i]+1) %4;
-#else
-	padType[i] = (padType[i]+1) %2;
-#endif
-
-	if (padType[i]) Func_AssignPad(i);
-	else			unassign_controller(i);
-	pMenuContext->getFrame(MenuContext::FRAME_CONFIGUREINPUT)->activateSubmenu(ConfigureInputFrame::SUBMENU_REINIT);
-}
-
-void Func_TogglePad1BType()
-{
-	int i = PADASSIGN_INPUT1B;
-#ifdef HW_RVL
-	padType[i] = (padType[i]+1) %4;
-#else
-	padType[i] = (padType[i]+1) %2;
-#endif
-
-	if (padType[i]) Func_AssignPad(i);
-	else			unassign_controller(i);
-	pMenuContext->getFrame(MenuContext::FRAME_CONFIGUREINPUT)->activateSubmenu(ConfigureInputFrame::SUBMENU_REINIT);
-}
-
-void Func_TogglePad1CType()
-{
-	int i = PADASSIGN_INPUT1C;
-#ifdef HW_RVL
-	padType[i] = (padType[i]+1) %4;
-#else
-	padType[i] = (padType[i]+1) %2;
-#endif
-
-	if (padType[i]) Func_AssignPad(i);
-	else			unassign_controller(i);
-	pMenuContext->getFrame(MenuContext::FRAME_CONFIGUREINPUT)->activateSubmenu(ConfigureInputFrame::SUBMENU_REINIT);
-}
-
-void Func_TogglePad1DType()
-{
-	int i = PADASSIGN_INPUT1D;
-#ifdef HW_RVL
-	padType[i] = (padType[i]+1) %4;
-#else
-	padType[i] = (padType[i]+1) %2;
-#endif
-
-	if (padType[i]) Func_AssignPad(i);
-	else			unassign_controller(i);
-	pMenuContext->getFrame(MenuContext::FRAME_CONFIGUREINPUT)->activateSubmenu(ConfigureInputFrame::SUBMENU_REINIT);
-}
-
-
-///////////////////////////////////////////// Assign
-
-void Func_TogglePad0AAssign()
-{
-	int i = PADASSIGN_INPUT0A;
-	padAssign[i] = (padAssign[i]+1) %4;
-
-	if (padType[i]) Func_AssignPad(i);
-
-	pMenuContext->getFrame(MenuContext::FRAME_CONFIGUREINPUT)->activateSubmenu(ConfigureInputFrame::SUBMENU_REINIT);
-}
-
-void Func_TogglePad0BAssign()
-{
-	int i = PADASSIGN_INPUT0B;
-	padAssign[i] = (padAssign[i]+1) %4;
-
-	if (padType[i]) Func_AssignPad(i);
-
-	pMenuContext->getFrame(MenuContext::FRAME_CONFIGUREINPUT)->activateSubmenu(ConfigureInputFrame::SUBMENU_REINIT);
-}
-
-void Func_TogglePad0CAssign()
-{
-	int i = PADASSIGN_INPUT0C;
-	padAssign[i] = (padAssign[i]+1) %4;
-
-	if (padType[i]) Func_AssignPad(i);
-
-	pMenuContext->getFrame(MenuContext::FRAME_CONFIGUREINPUT)->activateSubmenu(ConfigureInputFrame::SUBMENU_REINIT);
-}
-
-void Func_TogglePad0DAssign()
-{
-	int i = PADASSIGN_INPUT0D;
-	padAssign[i] = (padAssign[i]+1) %4;
-
-	if (padType[i]) Func_AssignPad(i);
-
-	pMenuContext->getFrame(MenuContext::FRAME_CONFIGUREINPUT)->activateSubmenu(ConfigureInputFrame::SUBMENU_REINIT);
-}
-
-///////////////////////////////////////////// Second Pad Assign
-
-void Func_TogglePad1AAssign()
-{
-	int i = PADASSIGN_INPUT1A;
-	padAssign[i] = (padAssign[i]+1) %4;
-
-	if (padType[i]) Func_AssignPad(i);
-
-	pMenuContext->getFrame(MenuContext::FRAME_CONFIGUREINPUT)->activateSubmenu(ConfigureInputFrame::SUBMENU_REINIT);
-}
-
-void Func_TogglePad1BAssign()
-{
-	int i = PADASSIGN_INPUT1B;
-	padAssign[i] = (padAssign[i]+1) %4;
-
-	if (padType[i]) Func_AssignPad(i);
-
-	pMenuContext->getFrame(MenuContext::FRAME_CONFIGUREINPUT)->activateSubmenu(ConfigureInputFrame::SUBMENU_REINIT);
-}
-
-void Func_TogglePad1CAssign()
-{
-	int i = PADASSIGN_INPUT1C;
-	padAssign[i] = (padAssign[i]+1) %4;
-
-	if (padType[i]) Func_AssignPad(i);
-
-	pMenuContext->getFrame(MenuContext::FRAME_CONFIGUREINPUT)->activateSubmenu(ConfigureInputFrame::SUBMENU_REINIT);
-}
-
-void Func_TogglePad1DAssign()
-{
-	int i = PADASSIGN_INPUT1D;
-	padAssign[i] = (padAssign[i]+1) %4;
-
-	if (padType[i]) Func_AssignPad(i);
-
-	pMenuContext->getFrame(MenuContext::FRAME_CONFIGUREINPUT)->activateSubmenu(ConfigureInputFrame::SUBMENU_REINIT);
-}
-
