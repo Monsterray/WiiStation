@@ -605,16 +605,18 @@ static const SetRow AUD_ROWS[] =
 static const SetRow SAV_ROWS[] =
 {
 	{ eng::ROW_BUTTONS, "NativeDevice",  NULL,               { 46, 47, 48, 49 }, { 55, 70, 90, 90 }, 295.0f, 0.0f,  0 },	/* Memcard Save Device: SD, USB, Card A, Card B */
-	{ eng::ROW_BUTTONS, "Memcard0File",  NULL,               { 76, 77, -1, -1 }, { 105, 105, 0, 0 }, 295.0f, 30.0f, 0 },	/* Memcard Type: card 1, card 2 (their text is the card's type) */
+	{ eng::ROW_BUTTONS, "Memcard0File",  NULL,               { 76, 77, -1, -1 }, { 105, 105, 0, 0 }, 323.0f, 38.0f, 0 },	/* Memcard Type: card 1, card 2 (their text is the card's type) */
 	{ eng::ROW_CHOICE,  "AutoSave",      NULL,               { 50, 51, -1, -1 }, {  75,  75, 0, 0 }, 295.0f, 0.0f,  0 },	/* Auto Save Memcards: Yes, No */
 	{ eng::ROW_CHOICE,  "StatesDevice",  NULL,               { 52, 53, -1, -1 }, {  55,  70, 0, 0 }, 295.0f, 0.0f,  0 },	/* Save State Device: SD, USB */
 };
 
-/* The card numbers "1" and "2", beside the Memcard Type buttons. */
+/* The card numbers "1" and "2": "1" starts at the button column (x 295), then card 1's button after a
+ * 10 px gap; "2" follows card 1's button after the same gap, then card 2's button. Widths from the
+ * font (menu_text_width.py px): "1" is 18 wide, so its centre is 304; "2" is at 438..456, centre 447. */
 static const eng::FreeText SAV_FREE[NUM_FREE_TEXTS] =
 {
-	{ FRAME_STRINGS[32], 285.0f, 198.0f, 1.0f, true },
-	{ FRAME_STRINGS[33], 420.0f, 198.0f, 1.0f, true },
+	{ FRAME_STRINGS[32], 304.0f, 198.0f, 1.0f, true },
+	{ FRAME_STRINGS[33], 447.0f, 198.0f, 1.0f, true },
 };
 
 /* The five tabs. The Audio and Saves tabs have rows 70 apart. */

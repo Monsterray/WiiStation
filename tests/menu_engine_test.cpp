@@ -364,7 +364,7 @@ static const ActionButton SAV_CARD_ACTIONS[]   = { { "Off", 105.0f, false }, { "
 /* Row fields: kind, label, names, lo, count, value, text, fit, actions, x0, gap, widths, plain. */
 static Row SAVES_ROWS[] = {
 	{ ROW_BUTTONS, "Memcard Save Device", NULL,             0, 4, 0, NULL, false, SAV_DEVICE_ACTIONS, 295.0f,  0.0f, NULL,      0 },
-	{ ROW_BUTTONS, "Memcard Type",        NULL,             0, 2, 0, NULL, false, SAV_CARD_ACTIONS,   295.0f, 30.0f, NULL,      0 },
+	{ ROW_BUTTONS, "Memcard Type",        NULL,             0, 2, 0, NULL, false, SAV_CARD_ACTIONS,   323.0f, 38.0f, NULL,      0 },
 	{ ROW_CHOICE,  "Auto Save Memcards",  SAV_YESNO_NAMES,  0, 2, 0, NULL, false, NULL,               295.0f,  0.0f, SAV_YESNO_W, 0 },
 	{ ROW_CHOICE,  "Save States Device",  SAV_STATE_NAMES,  0, 2, 0, NULL, false, NULL,               295.0f,  0.0f, SAV_STATE_W, 0 },
 };
@@ -1854,8 +1854,8 @@ static const OldBox SAVES_BOXES[] = {
 	{ 47, ROLE_BUTTON, 0, 1, 360.0f, 100.0f,  70.0f, 56.0f,  4, 77, 46, 48 },
 	{ 48, ROLE_BUTTON, 0, 2, 440.0f, 100.0f,  90.0f, 56.0f,  4, 77, 47, 49 },
 	{ 49, ROLE_BUTTON, 0, 3, 540.0f, 100.0f,  90.0f, 56.0f,  4, 77, 48, 46 },
-	{ 76, ROLE_BUTTON, 1, 0, 295.0f, 170.0f, 105.0f, 56.0f, 46, 50, 77, 77 },
-	{ 77, ROLE_BUTTON, 1, 1, 430.0f, 170.0f, 105.0f, 56.0f, 47, 51, 76, 76 },
+	{ 76, ROLE_BUTTON, 1, 0, 323.0f, 170.0f, 105.0f, 56.0f, 46, 50, 77, 77 },
+	{ 77, ROLE_BUTTON, 1, 1, 466.0f, 170.0f, 105.0f, 56.0f, 47, 51, 76, 76 },
 	{ 50, ROLE_CHOICE, 2, 0, 295.0f, 240.0f,  75.0f, 56.0f, 76, 52, 51, 51 },
 	{ 51, ROLE_CHOICE, 2, 1, 380.0f, 240.0f,  75.0f, 56.0f, 77, 53, 50, 50 },
 	{ 52, ROLE_CHOICE, 3, 0, 295.0f, 310.0f,  55.0f, 56.0f, 50,  4, 53, 53 },
