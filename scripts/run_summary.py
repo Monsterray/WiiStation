@@ -15,6 +15,9 @@ listings unless --detail, numbers rounded. Standard library only.
 """
 import sys, os, re, glob, wave, array, statistics
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from cliutil import req_float  # noqa: E402
+
 PSX_MS = 33868.8
 
 
@@ -179,9 +182,10 @@ def main():
     i = 0
     while i < len(args):
         a = args[i]
-        if a == '--zero-min': zmin = float(args[i + 1]); i += 2
-        elif a == '--zero-max': zmax = float(args[i + 1]); i += 2
+        if a == '--zero-min': zmin = req_float(args[i + 1] if i + 1 < len(args) else None, '--zero-min'); i += 2
+        elif a == '--zero-max': zmax = req_float(args[i + 1] if i + 1 < len(args) else None, '--zero-max'); i += 2
         elif a == '--detail': detail = True; i += 1
+        elif a.startswith('--'): sys.exit(f"unknown option {a}")
         else: runs.append(a.rstrip('/\\')); i += 1
     if not runs:
         print(__doc__); sys.exit(1)

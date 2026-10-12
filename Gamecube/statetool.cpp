@@ -31,7 +31,7 @@ extern "C" {
 #include "../psxmem.h"
 #include "../r3000a.h"
 #include "../mem2_manager.h"
-	extern int stop;
+	extern volatile int stop;
 	extern u32 frame_counter;
 	extern unsigned chain_stop_vbl;
 	extern int state_quiet;
@@ -45,6 +45,7 @@ extern "C" {
 extern char AutobootROM[1024];
 extern char AutobootPath[1024];
 void writeConfig(FILE *f);
+void writeConfigCopy(FILE *f);   /* GamecubeMain.cpp: a copy for a state, not a save */
 
 enum { ST_SAVE = 1, ST_LOAD, ST_CHECK, ST_FP };
 #define ST_MAX 8
@@ -195,7 +196,7 @@ static void write_info(const char *name)
 	fprintf(f, "# saved: %s", ctime(&t));
 	fprintf(f, "# build: %s %s\n", __DATE__, __TIME__);
 	fprintf(f, "# settings when saved:\n");
-	writeConfig(f);
+	writeConfigCopy(f);
 	fclose(f);
 }
 

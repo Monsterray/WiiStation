@@ -23,10 +23,12 @@
 #include "InputManager.h"
 #include "Frame.h"
 #include "IPLFont.h"
+#include "Button.h"
 
 #include "../../HidController/KernelHID.h"
 
 namespace menu {
+extern u16 menu_script_keys;   /* InputManager.cpp: an input script's "menukeys" */
 
 /* The menu with the stick as well as the D-pad (2026-09-23). A stick pushed past STICK_ON of
  * its full travel reads as that D-pad direction until it falls back under STICK_OFF: the gap
@@ -122,7 +124,10 @@ Focus::Focus()
 		  buttonsPressed(0),
 		  focusList(0),
 		  primaryFocusOwner(0),
-		  secondaryFocusOwner(0)
+		  secondaryFocusOwner(0),
+		  returnFocus(0),
+		  actionOwner(0),
+		  actionBack(false)
 {
 	for (int i=0; i<4; i++) {
 		previousButtonsWii[i] = 0;
@@ -154,8 +159,22 @@ void Focus::updateFocus()
 	if (frameSwitch)
 	{
 		if(primaryFocusOwner) primaryFocusOwner->setFocus(false);
-		if (currentFrame) primaryFocusOwner = currentFrame->getDefaultFocus();
+		if (currentFrame)
+		{
+			/* A Back returns to the button the screen was left by, if it is still shown and can
+			 * take focus. Otherwise the frame's default, as on any other switch. */
+			bool returning = returnFocus && currentFrame->has(returnFocus) &&
+				(returnFocus->getType() != Component::TYPE_BUTTON ||
+				 static_cast<Button*>(returnFocus)->canTakeFocus());
+			if (returning)
+			{
+				primaryFocusOwner = returnFocus;
+				primaryFocusOwner->setFocus(true);
+			}
+			else primaryFocusOwner = currentFrame->getDefaultFocus();
+		}
 		else primaryFocusOwner = NULL;
+		returnFocus = NULL;
 		frameSwitch = false;
 	}
 
@@ -163,7 +182,7 @@ void Focus::updateFocus()
 	{
 		for (int i=0; i<4; i++)
 		{
-			previousButtonsGC[i] = PAD_ButtonsHeld(i) | stickGC(i);
+			previousButtonsGC[i] = PAD_ButtonsHeld(i) | stickGC(i) | (i == 0 ? menu_script_keys : 0);
 #ifdef HW_RVL
 			previousButtonsGCHid[i] = hidGcPad[i].button | stickGCHid(&hidGcPad[i], i);
 			previousButtonsWii[i] = wiiPad[i].btns_h | stickWii(&wiiPad[i], i);
@@ -189,7 +208,7 @@ void Focus::updateFocus()
 		else
 			currentButtonsWiiUGamepad = 0;
 #endif
-		u16 currentButtonsGC = PAD_ButtonsHeld(i) | stickGC(i);
+		u16 currentButtonsGC = PAD_ButtonsHeld(i) | stickGC(i) | (i == 0 ? menu_script_keys : 0);
 		if (currentButtonsGC ^ previousButtonsGC[i])
 		{
 			u16 currentButtonsDownGC = (currentButtonsGC ^ previousButtonsGC[i]) & currentButtonsGC;
@@ -216,8 +235,7 @@ void Focus::updateFocus()
 				focusDirection = DIRECTION_NONE;
 				buttonsDown = 0;
 			}
-			if (primaryFocusOwner) primaryFocusOwner = primaryFocusOwner->updateFocus(focusDirection,buttonsDown);
-			else primaryFocusOwner = currentFrame->updateFocus(focusDirection,buttonsDown);
+			primaryFocusOwner = pressOn(primaryFocusOwner, focusDirection, buttonsDown);
 			previousButtonsGC[i] = currentButtonsGC;
 			break;
 		}
@@ -270,8 +288,7 @@ void Focus::updateFocus()
 				focusDirection = DIRECTION_NONE;
 				buttonsDown = 0;
 			}
-			if (primaryFocusOwner) primaryFocusOwner = primaryFocusOwner->updateFocus(focusDirection,buttonsDown);
-			else primaryFocusOwner = currentFrame->updateFocus(focusDirection,buttonsDown);
+			primaryFocusOwner = pressOn(primaryFocusOwner, focusDirection, buttonsDown);
 			previousButtonsWii[i] = currentButtonsWii;
 			break;
 		}
@@ -300,8 +317,7 @@ void Focus::updateFocus()
 				focusDirection = DIRECTION_NONE;
 				buttonsDown = 0;
 			}
-			if (primaryFocusOwner) primaryFocusOwner = primaryFocusOwner->updateFocus(focusDirection, buttonsDown);
-			else primaryFocusOwner = currentFrame->updateFocus(focusDirection, buttonsDown);
+			primaryFocusOwner = pressOn(primaryFocusOwner, focusDirection, buttonsDown);
 			previousButtonsWiiUPro[i] = currentButtonsWiiUPro;
 			break;
 		}
@@ -330,8 +346,7 @@ void Focus::updateFocus()
 				focusDirection = DIRECTION_NONE;
 				buttonsDown = 0;
 			}
-			if (primaryFocusOwner) primaryFocusOwner = primaryFocusOwner->updateFocus(focusDirection, buttonsDown);
-			else primaryFocusOwner = currentFrame->updateFocus(focusDirection, buttonsDown);
+			primaryFocusOwner = pressOn(primaryFocusOwner, focusDirection, buttonsDown);
 			previousButtonsWiiUGamepad[i] = currentButtonsWiiUGamepad;
 			break;
 		}
@@ -360,13 +375,41 @@ void Focus::updateFocus()
 				focusDirection = DIRECTION_NONE;
 				buttonsDown = 0;
 			}
-			if (primaryFocusOwner) primaryFocusOwner = primaryFocusOwner->updateFocus(focusDirection, buttonsDown);
-			else primaryFocusOwner = currentFrame->updateFocus(focusDirection, buttonsDown);
+			primaryFocusOwner = pressOn(primaryFocusOwner, focusDirection, buttonsDown);
 			previousButtonsGCHid[i] = currentButtonsGCHid;
 			break;
 		}
 #endif
 	}
+}
+
+/* Runs a press on target. NULL means the frame itself (its Back func). */
+Component* Focus::pressOn(Component* target, int direction, int buttons)
+{
+	bool prevBack = actionBack;
+	Component* prevOwner = actionOwner;
+	actionBack = (buttons & ACTION_BACK) != 0;
+	actionOwner = target;
+	Component* result = target ? target->updateFocus(direction, buttons)
+		: currentFrame->updateFocus(direction, buttons);
+	actionBack = prevBack;
+	actionOwner = prevOwner;
+	return result;
+}
+
+bool Focus::actionIsBack() const
+{
+	return actionBack;
+}
+
+Component* Focus::actionTarget() const
+{
+	return actionOwner;
+}
+
+void Focus::setReturnFocus(Component* component)
+{
+	returnFocus = component;
 }
 
 void Focus::addComponent(Component* component)

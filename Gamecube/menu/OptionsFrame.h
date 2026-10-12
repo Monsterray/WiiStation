@@ -1,8 +1,8 @@
 /**
  * WiiStation - OptionsFrame.h
  *
- * The sub-pages reached from the Settings tabs: Advanced Sound, Advanced Graphics,
- * Plugins, CD, Memory.
+ * The sub-pages reached from the Settings tabs: the Advanced pages (tabs CPU, GPU, SPU,
+ * CD, Input), Advanced Graphics and Memory.
  * One frame class serves all of them; see the .cpp for how to add a page or a row.
  *
  * This program is free software; you can redistribute it and/
@@ -35,15 +35,17 @@ public:
 	 * returns to on B is part of the page definition (see PAGES[] in the .cpp). */
 	enum OptionsPages
 	{
-		PAGE_SOUND=0,
+		PAGE_SOUND=0,		// Advanced Sound (the Audio tab's Advanced button)
 		PAGE_ADVGFX,
-		PAGE_PLUGINS,
-		PAGE_STORAGE,
-		PAGE_MEMORY
+		PAGE_PLUGINS,		// Advanced: CPU tab (the General tab's Advanced button)
+		PAGE_STORAGE,		// Advanced: CD tab
+		PAGE_MEMORY,
+		PAGE_ADV_GPU,		// Advanced: GPU tab
+		PAGE_ADV_INPUT,		// Advanced: Input tab
+		PAGE_ADV_SPU		// Advanced: SPU tab
 	};
+	void showTab(int tab);	// a tab of the Advanced pages was pressed
 
-private:
-	int activePage;
 };
 
 #endif

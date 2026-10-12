@@ -115,6 +115,13 @@ static struct { unsigned vbl, port, type; } autoin_padtype[AUTOIN_PADTYPES];
 static int autoin_padtype_n, autoin_padtype_i;
 unsigned autoinput_hang_vbl = 0;   /* "hangtest <vblank>": debug build spins for good then (ws_crash.c watchdog) */
 int autoinput_crumbs = 0;          /* "crumbs": debug build writes sd:/wiistation/crumb.log once a second (crash hunts) */
+/* "ramwatch LO HI" and "ramcell ADDR" (hex, up to 8 cells): who writes that guest RAM
+ * (perf_prof.c perf_ram_write, perf.log "rw:" lines; debug builds) */
+unsigned autoinput_ramwatch_lo, autoinput_ramwatch_hi, autoinput_ramcell[8], autoinput_ramcells;
+/* "ramwatch LO HI 1": log only each new lowest store into the window (how deep a stack
+ * grows); without the 1, every DMA, HLE copy and CPU store into it (perf_prof.c) */
+unsigned autoinput_ramwatch_from;
+int autoinput_cdlog;   /* "cdlog": each CD-ROM command in perf.log "rw:" lines (cdrom.c cdrWrite1) */
 /* "padsweep <vblank>": from that vblank the GameCube driver reads a generated sweep
  * instead of the pad -- each stick axis end to end, then every button on its own. It is
  * read in controller-GC.c, which is the only place that knows what a raw GameCube pad
@@ -137,6 +144,12 @@ int autoinput_padsweep_fast = 0;   /* "padsweep <vblank> fast": controller-GC.c'
  * SettingsFrame.cpp's FRAME_BUTTONS. */
 unsigned autoinput_menuclick = 0;
 unsigned autoinput_menuclicks = 0;
+/* "menukeys <frame> <keys>": GameCube-pad presses fed to the menu (libgui InputManager.cpp),
+ * from that menu frame on: U D L R A B S(tart) Z, each held 6 frames then released 6, '.' a
+ * 12-frame pause. Any screen, any dialog: e.g. "menukeys 60 U U A . . R A" is Main > Quit,
+ * then Yes on its question (the HBC agent's `key` presses never reach the menu). */
+unsigned autoinput_menukeys_frame = 0;
+char autoinput_menukeys[64];
 /*
  * Read in MenuContext.cpp. */
 unsigned autoinput_menupage = 0;
@@ -212,12 +225,25 @@ void autoinput_load(void)
 				}
 			}
 			if (!strncmp(line, "crumbs", 6)) { autoinput_crumbs = 1; continue; }
+			if (!strncmp(line, "cdlog", 5)) { autoinput_cdlog = 1; continue; }
+			if (sscanf(line, "ramwatch %x %x %u", &autoinput_ramwatch_lo, &autoinput_ramwatch_hi,
+				   &autoinput_ramwatch_from) >= 2) {
+				autoinput_ramwatch_lo &= 0x1fffff; autoinput_ramwatch_hi &= 0x1fffff;
+				continue;
+			}
+			if (sscanf(line, "ramcell %x", &v) == 1) {
+				if (autoinput_ramcells < 8)
+					autoinput_ramcell[autoinput_ramcells++] = v;
+				continue;
+			}
 			if (sscanf(line, "padsweep %u", &v) == 1) {
 				autoinput_padsweep_vbl = v;
 				autoinput_padsweep_fast = strstr(line, "fast") != NULL;
 				continue;
 			}
 			if (sscanf(line, "menupage %u", &v) == 1) { autoinput_menupage = v; continue; }
+			if (sscanf(line, "menukeys %u %63[^\r\n]", &v, autoinput_menukeys) == 2)
+				{ autoinput_menukeys_frame = v; continue; }
 			{
 				unsigned b, t;
 				if (sscanf(line, "menuclick %u %u", &b, &t) == 2)
@@ -275,10 +301,14 @@ void autoinput_reset(const char *path)
 	autoin_sweeps = 0;
 	autoinput_hang_vbl = 0;
 	autoinput_crumbs = 0;
+	autoinput_ramwatch_lo = autoinput_ramwatch_hi = autoinput_ramcells = autoinput_ramwatch_from = 0;
+	autoinput_cdlog = 0;
 	autoinput_padsweep_vbl = 0;
 	autoinput_padsweep_fast = 0;
 	autoinput_menupage = 0;
 	autoinput_menuclick = autoinput_menuclicks = 0;
+	autoinput_menukeys_frame = 0;
+	autoinput_menukeys[0] = 0;
 	autoinput_atrace_vbl = 0;
 	statetool_reset();
 	/* Parse it now, not at the first pad poll: a game that polls late (FF7: vblank 876)
@@ -436,7 +466,7 @@ void autoinput_record(int port, unsigned short real)
 		fprintf(autoin_rec, "%s%u %04x\n", port ? "p2 " : "", (unsigned)frame_counter, real);
 }
 
-extern int stop;
+extern volatile int stop;
 
 // Use to invoke func on the mapped controller with args
 #define DO_CONTROL(Control,func,args...) \

@@ -1171,6 +1171,7 @@ static void do_memset(u32 dst, u32 v, s32 len)
 			*db = v;
 		d++;
 	}
+	perf_ram_write('b', dst, len);   /* "ramwatch" */
 	psxCpu->Clear(dst, (len + 3) / 4);
 }
 
@@ -1186,6 +1187,7 @@ static void do_memcpy(u32 dst, u32 src, s32 len)
 		d++;
 		s++;
 	}
+	perf_ram_write('B', dst, len);   /* "ramwatch" */
 	psxCpu->Clear(dst, (len + 3) / 4);
 }
 

@@ -13,7 +13,12 @@ report at different vblanks: only reports at the SAME vblank are compared. The f
 differs bounds where the replay left the session. --all goes on past it, so a small
 difference that stays small (a timing shift) shows apart from one that grows (a different game).
 """
-import re, sys
+import os
+import re
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from cliutil import flag, need, req_file, req_int  # noqa: E402
 
 # guest-side fields: name -> regex on the report's lines
 FIELDS = {
@@ -48,10 +53,15 @@ def reports(path, game):
     return out
 
 def main():
-    a = sys.argv[1:]
-    game = int(a[a.index('--game') + 1]) if '--game' in a else 1
-    cap = {r['vbl']: r for r in reports(a[0], 1)}
-    rep = {r['vbl']: r for r in reports(a[1], game)}
+    need(sys.argv, 3, "replay_check.py CAPTURE_PERF REPLAY_PERF [--game N] [--all]")
+    a = [x for x in sys.argv[1:] if not x.startswith('--') and x != flag(sys.argv, '--game')]
+    if len(a) != 2:
+        sys.exit("need exactly a capture and a replay perf.log")
+    game = flag(sys.argv, '--game', '1')
+    game = req_int(game, '--game')
+    show_all = '--all' in sys.argv
+    cap = {r['vbl']: r for r in reports(req_file(a[0], 'perf.log'), 1)}
+    rep = {r['vbl']: r for r in reports(req_file(a[1], 'perf.log'), game)}
     common = sorted(set(cap) & set(rep))
     print(f"capture reports at vblanks {sorted(cap)[:12]}{'...' if len(cap) > 12 else ''}")
     print(f"replay  reports at vblanks {sorted(rep)[:12]}{'...' if len(rep) > 12 else ''}")
@@ -66,7 +76,7 @@ def main():
             print(f"vblank {v}: DIFFERENT in {', '.join(diff)}")
             for k in diff:
                 print(f"   capture {k}: {cap[v].get(k)}\n   replay  {k}: {rep[v].get(k)}")
-            if '--all' not in a:
+            if not show_all:
                 return 1
             continue
         print(f"vblank {v}: identical")

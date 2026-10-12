@@ -380,26 +380,67 @@ void Button::updateTime(float deltaTime)
 	//Add interpolator class & update here?
 }
 
+/* Limits on focus moves. A link chain is followed past at most FOCUS_MAX_SKIP hidden or
+ * inactive buttons, and focus moves nest at most FOCUS_MAX_DEPTH deep, so a loop of links
+ * (A -> B -> A, or a button linked to itself) ends instead of recursing forever. */
+enum {
+	FOCUS_MAX_SKIP  = 32,
+	FOCUS_MAX_DEPTH = 16
+};
+static int focusDepth = 0;
+
+/* Anything but a button can take focus, as before; a button needs to be shown and active. */
+static bool takesFocus(Component *c)
+{
+	if (c->getType() != Component::TYPE_BUTTON)
+		return true;
+	return static_cast<Button*>(c)->canTakeFocus();
+}
+
+bool Button::canTakeFocus()
+{
+	return isVisible() && active;
+}
+
+/* The move in a direction: the first link that can take focus, following links through the
+ * buttons that cannot. NULL when there is none within the limits. */
+Component* Button::followFocus(int direction, int buttonsPressed)
+{
+	Component* target = getNextFocus(direction);
+	int skipped = 0;
+
+	while (target && !takesFocus(target))
+	{
+		if (++skipped > FOCUS_MAX_SKIP)
+			return NULL;
+		target = target->getNextFocus(direction);
+	}
+	if (!target || target == this || focusDepth >= FOCUS_MAX_DEPTH)
+		return NULL;
+
+	Component* newFocus;
+	focusDepth++;
+	newFocus = target->updateFocus(direction, buttonsPressed);
+	focusDepth--;
+	return newFocus;
+}
+
 Component* Button::updateFocus(int direction, int buttonsPressed)
 {
 	Component* newFocus = NULL;
-	if(!getFocus() && active)
+	if(!getFocus() && canTakeFocus())
 	{
 		setFocus(true);
 		newFocus = this;
 	}
-	else if (!getFocus() && !active)
+	else if (!getFocus())
 	{
-		//try to move direction, and if new component found send to focus manager and remove focus for current component
-		if (getNextFocus(direction))
-			newFocus = (getNextFocus(direction))->updateFocus(direction, buttonsPressed);
-		else
-			newFocus = getNextFocus(direction);
+		//not a focus target: try to move in the direction, and take the first one that is
+		newFocus = followFocus(direction, buttonsPressed);
 	}
 	else
 	{
-		if (getNextFocus(direction))
-			newFocus = (getNextFocus(direction))->updateFocus(direction, buttonsPressed);
+		newFocus = followFocus(direction, buttonsPressed);
 		if (newFocus)
 			setFocus(false);
 		else

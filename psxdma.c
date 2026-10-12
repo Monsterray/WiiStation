@@ -25,6 +25,7 @@
 #include "psxdma.h"
 #include "Gamecube/wiiSXconfig.h"
 #include "gpu.h"
+#include "Gamecube/perf_prof.h"   /* perf_ram_write: "ramwatch" */
 
 #ifndef min
 #define min(a, b) ((b) < (a) ? (b) : (a))
@@ -78,6 +79,7 @@ void psxDma4(u32 madr, u32 bcr, u32 chcr) { // SPU
 			if (ptr == INVALID_PTR)
 				break;
 			SPU_readDMAMem(ptr, words_copy * 2, psxRegs.cycle);
+			perf_ram_write('S', madr, words_copy * 4);
 			psxCpu->Clear(madr, words_copy);
 
 			//HW_DMA4_MADR = SWAPu32(madr + words_copy * 4);
@@ -158,6 +160,7 @@ void psxDma2(u32 madr, u32 bcr, u32 chcr) { // GPU
 				words_copy = words_max;
 			}
 			gpuPtr->readDataMem(ptr, words_copy);
+			perf_ram_write('G', madr, words_copy * 4);
 			psxCpu->Clear(madr, words_copy);
 
 			//HW_DMA2_MADR = SWAPu32(madr + words_copy * 4);
@@ -285,6 +288,7 @@ void psxDma6(u32 madr, u32 bcr, u32 chcr) {
 
 		// already 32-bit size
 		words = bcr;
+		perf_ram_write('O', madr - words * 4 + 4, words * 4);
 
 		while (bcr-- && mem > (u32 *)psxM) {
 			//*mem-- = SWAP32((madr - 4) & 0xffffff);

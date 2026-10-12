@@ -46,7 +46,7 @@ PadDataS lastport1;
 PadDataS lastport2;
 
 extern void SysPrintf(char *fmt, ...);
-extern int stop;
+extern volatile int stop;
 
 /* Controller type, later do this by a Variable in the GUI */
 //extern char controllerType = 0; // 0 = standard, 1 = analog (analog fails on old games)
@@ -117,7 +117,7 @@ controller_t *assign_port_as(int i, int ptype, int w)
 		break;
 #if defined(HW_RVL) && defined(WII) && !defined(NO_BT)
 	case PADTYPE_HID: {
-		extern s32 hidControllerConnected;   /* HidController/KernelHID.c */
+		extern volatile s32 hidControllerConnected;   /* HidController/KernelHID.c */
 		if (hidControllerConnected)
 			type = &controller_HidGC;
 		break;
@@ -241,6 +241,9 @@ void init_controller_ts(void){
 			       &controller_ts[i]->config_default,
 			       sizeof(controller_config_t));
 		}
+		memcpy(&controller_ts[i]->config_slot[CONTROLLER_GAME_SLOT],
+		       &controller_ts[i]->config_default,
+		       sizeof(controller_config_t));
 	}
 }
 
@@ -403,15 +406,8 @@ void auto_assign_controllers(void)
 	}
 }
 
-int load_configurations(FILE* f, controller_t* controller){
-	int i;
-	char magic[4] = { 
-		'W', 'X', controller->identifier, CONTROLLER_CONFIG_VERSION
-	};
-	char actual[4];
-	if(fread(actual, 1, 4, f) != 4 || memcmp(magic, actual, 4))
-		return 0;
-
+/* One controller_config_t, read in the order write_slot writes it (the file format). */
+static void read_slot(FILE* f, controller_t* controller, controller_config_t* slot){
 	inline button_t* getPointer(button_t* list, int size){
 		// A truncated/corrupt config previously left `index` as uninitialized
 		// stack garbage (fread's return value was ignored) and then used
@@ -422,48 +418,66 @@ int load_configurations(FILE* f, controller_t* controller){
 		// Clamp to a known-valid index instead.
 		int index;
 		if (fread(&index, 4, 1, f) != 1 || index < 0 || index >= size)
-			index = 0;
+				index = 0;
 		return list + index;
 	}
 	inline button_t* getButton(void){
 		return getPointer(controller->buttons, controller->num_buttons);
 	}
-	
+
+	slot->SQU = getButton();
+	slot->CRO = getButton();
+	slot->CIR = getButton();
+	slot->TRI = getButton();
+
+	slot->R1 = getButton();
+	slot->L1 = getButton();
+	slot->R2 = getButton();
+	slot->L2 = getButton();
+	slot->R3 = getButton();
+	slot->L3 = getButton();
+
+	slot->DL = getButton();
+	slot->DR = getButton();
+	slot->DU = getButton();
+	slot->DD = getButton();
+
+	slot->START  = getButton();
+	slot->SELECT = getButton();
+
+	slot->analogL = getPointer(controller->analog_sources, controller->num_analog_sources);
+	slot->analogR = getPointer(controller->analog_sources, controller->num_analog_sources);
+	slot->exit = getPointer(controller->menu_combos, controller->num_menu_combos);
+	fread(&slot->invertedYL, 4, 1, f);
+	fread(&slot->invertedYR, 4, 1, f);
+	fread(&slot->sensitivity, 4, 1, f);
+	slot->fastf = getPointer(controller->menu_combos, controller->num_menu_combos);
+}
+
+int load_configurations(FILE* f, controller_t* controller){
+	int i;
+	char magic[4] = { 
+		'W', 'X', controller->identifier, CONTROLLER_CONFIG_VERSION
+	};
+	char actual[4];
+	if(fread(actual, 1, 4, f) != 4 || memcmp(magic, actual, 4))
+		return 0;
+
+	for(i=0; i<4; ++i)
+		read_slot(f, controller, &controller->config_slot[i]);
+
+	/* The screenshot combinations come after the four slots. A file from before them
+	 * has none, so every slot takes the controller's default. */
 	for(i=0; i<4; ++i){
-		controller->config_slot[i].SQU = getButton();
-		controller->config_slot[i].CRO = getButton();
-		controller->config_slot[i].CIR = getButton();
-		controller->config_slot[i].TRI = getButton();
-		
-		controller->config_slot[i].R1 = getButton();
-		controller->config_slot[i].L1 = getButton();
-		controller->config_slot[i].R2 = getButton();
-		controller->config_slot[i].L2 = getButton();
-		controller->config_slot[i].R3 = getButton();
-		controller->config_slot[i].L3 = getButton();
-
-		controller->config_slot[i].DL = getButton();
-		controller->config_slot[i].DR = getButton();
-		controller->config_slot[i].DU = getButton();
-		controller->config_slot[i].DD = getButton();
-
-		controller->config_slot[i].START  = getButton();
-		controller->config_slot[i].SELECT = getButton();
-				
-		controller->config_slot[i].analogL = 
-			getPointer(controller->analog_sources, controller->num_analog_sources);
-		controller->config_slot[i].analogR = 
-			getPointer(controller->analog_sources, controller->num_analog_sources);
-		controller->config_slot[i].exit =
-			getPointer(controller->menu_combos, controller->num_menu_combos);
-		fread(&controller->config_slot[i].invertedYL, 4, 1, f);
-		fread(&controller->config_slot[i].invertedYR, 4, 1, f);
-		fread(&controller->config_slot[i].sensitivity, 4, 1, f);
-		controller->config_slot[i].fastf =
-			getPointer(controller->menu_combos, controller->num_menu_combos);
+		int index;
+		if (fread(&index, 4, 1, f) != 1 || index < 0 || index >= controller->num_screenshot_combos)
+			index = controller->config_default.screenshot->index;
+		controller->config_slot[i].screenshot = controller->screenshot_combos + index;
 	}
 
-	if (loadButtonSlot != LOADBUTTON_DEFAULT) {
+	/* Auto Load Slot 1..4 copies that slot to the mapping now; the Game slot and Default do not
+	 * (loadGameButtons, GamecubeMain.cpp, and the mapping keeps what it had). */
+	if (loadButtonSlot >= LOADBUTTON_SLOT0 && loadButtonSlot <= LOADBUTTON_SLOT3) {
 		int j;
 		for(j=0; j<4; ++j)
 			memcpy(&controller->config[j],
@@ -474,42 +488,76 @@ int load_configurations(FILE* f, controller_t* controller){
 	return 1;
 }
 
+/* One controller_config_t, written in the order read_slot reads it. */
+static void write_slot(FILE* f, controller_t* controller, controller_config_t* slot){
+	fwrite(&slot->SQU->index, 4, 1, f);
+	fwrite(&slot->CRO->index, 4, 1, f);
+	fwrite(&slot->CIR->index, 4, 1, f);
+	fwrite(&slot->TRI->index, 4, 1, f);
+
+	fwrite(&slot->R1->index, 4, 1, f);
+	fwrite(&slot->L1->index, 4, 1, f);
+	fwrite(&slot->R2->index, 4, 1, f);
+	fwrite(&slot->L2->index, 4, 1, f);
+	fwrite(&slot->R3->index, 4, 1, f);
+	fwrite(&slot->L3->index, 4, 1, f);
+
+	fwrite(&slot->DL->index, 4, 1, f);
+	fwrite(&slot->DR->index, 4, 1, f);
+	fwrite(&slot->DU->index, 4, 1, f);
+	fwrite(&slot->DD->index, 4, 1, f);
+
+	fwrite(&slot->START->index, 4, 1, f);
+	fwrite(&slot->SELECT->index, 4, 1, f);
+
+	fwrite(&slot->analogL->index, 4, 1, f);
+	fwrite(&slot->analogR->index, 4, 1, f);
+	fwrite(&slot->exit->index, 4, 1, f);
+	fwrite(&slot->invertedYL, 4, 1, f);
+	fwrite(&slot->invertedYR, 4, 1, f);
+	fwrite(&slot->sensitivity, 4, 1, f);
+	fwrite(&slot->fastf->index, 4, 1, f);
+}
+
 void save_configurations(FILE* f, controller_t* controller){
 	int i;
 	char magic[4] = { 
 		'W', 'X', controller->identifier, CONTROLLER_CONFIG_VERSION
 	};
 	fwrite(magic, 1, 4, f);
-	
-	for(i=0; i<4; ++i){
-		fwrite(&controller->config_slot[i].SQU->index, 4, 1, f);
-		fwrite(&controller->config_slot[i].CRO->index, 4, 1, f);
-		fwrite(&controller->config_slot[i].CIR->index, 4, 1, f);
-		fwrite(&controller->config_slot[i].TRI->index, 4, 1, f);
-		
-		fwrite(&controller->config_slot[i].R1->index, 4, 1, f);
-		fwrite(&controller->config_slot[i].L1->index, 4, 1, f);
-		fwrite(&controller->config_slot[i].R2->index, 4, 1, f);
-		fwrite(&controller->config_slot[i].L2->index, 4, 1, f);
-		fwrite(&controller->config_slot[i].R3->index, 4, 1, f);
-		fwrite(&controller->config_slot[i].L3->index, 4, 1, f);
-		
-		fwrite(&controller->config_slot[i].DL->index, 4, 1, f);
-		fwrite(&controller->config_slot[i].DR->index, 4, 1, f);
-		fwrite(&controller->config_slot[i].DU->index, 4, 1, f);
-		fwrite(&controller->config_slot[i].DD->index, 4, 1, f);
-		
-		fwrite(&controller->config_slot[i].START->index, 4, 1, f);
-		fwrite(&controller->config_slot[i].SELECT->index, 4, 1, f);
-				
-		fwrite(&controller->config_slot[i].analogL->index, 4, 1, f);
-		fwrite(&controller->config_slot[i].analogR->index, 4, 1, f);
-		fwrite(&controller->config_slot[i].exit->index, 4, 1, f);
-		fwrite(&controller->config_slot[i].invertedYL, 4, 1, f);
-		fwrite(&controller->config_slot[i].invertedYR, 4, 1, f);
-		fwrite(&controller->config_slot[i].sensitivity, 4, 1, f);
-		fwrite(&controller->config_slot[i].fastf->index, 4, 1, f);
+
+	for(i=0; i<4; ++i)
+		write_slot(f, controller, &controller->config_slot[i]);
+	for(i=0; i<4; ++i)
+		fwrite(&controller->config_slot[i].screenshot->index, 4, 1, f);
+}
+
+/* The Game slot of one controller (config_slot[CONTROLLER_GAME_SLOT]): the magic and that slot.
+ * GamecubeMain.cpp writes one for every controller, in controller_ts order, to <CdromId>.btn. */
+void save_game_slot(FILE* f, controller_t* controller){
+	char magic[4] = { 
+		'W', 'X', controller->identifier, CONTROLLER_CONFIG_VERSION
+	};
+	fwrite(magic, 1, 4, f);
+	write_slot(f, controller, &controller->config_slot[CONTROLLER_GAME_SLOT]);
+	fwrite(&controller->config_slot[CONTROLLER_GAME_SLOT].screenshot->index, 4, 1, f);
+}
+
+int load_game_slot(FILE* f, controller_t* controller){
+	char magic[4] = { 
+		'W', 'X', controller->identifier, CONTROLLER_CONFIG_VERSION
+	};
+	char actual[4];
+	if(fread(actual, 1, 4, f) != 4 || memcmp(magic, actual, 4))
+		return 0;
+	read_slot(f, controller, &controller->config_slot[CONTROLLER_GAME_SLOT]);
+	{
+		int index;
+		if (fread(&index, 4, 1, f) != 1 || index < 0 || index >= controller->num_screenshot_combos)
+			index = controller->config_default.screenshot->index;
+		controller->config_slot[CONTROLLER_GAME_SLOT].screenshot = controller->screenshot_combos + index;
 	}
+	return 1;
 }
 
 long PAD__init(long flags) {

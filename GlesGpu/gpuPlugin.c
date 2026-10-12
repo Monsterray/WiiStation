@@ -2957,6 +2957,7 @@ static void flipEGL(void)
      * OpenGX's state cache: it has to forget what it last set (deps/opengx/gc_gl.c). */
     ogx_state_invalidate();
     perf_present_tick(perf_now_us() - flip_t0);
+    { extern unsigned int ws_presents; ws_presents++; }   /* the FPS counter (SoftGPU/oldGpuFps.c) */
 }
 
 #include "../Gamecube/wiiSXconfig.h"
@@ -3023,3 +3024,10 @@ gpu_t glesGpu = {
     GL_GPUwriteDataMem,
     GPUsetframelimit
 };
+
+/* Screenshots (Gamecube/screenshot.c): the GX-drawn pixels of a VRAM rect go into psxVuw
+ * before the picture is read. This is the copy every VRAM read makes (efb_sync). */
+int gpu_screenshot_sync(int x, int y, int w, int h)
+{
+    return efb_sync(x, y, w, h);
+}

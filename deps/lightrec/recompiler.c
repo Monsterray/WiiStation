@@ -120,7 +120,7 @@ static void lightrec_flush_code_buffer(struct lightrec_state *state, void *d)
 {
 	struct recompiler *rec = d;
 
-	lightrec_remove_outdated_blocks(state->block_cache, NULL);
+	lightrec_remove_outdated_blocks(state->block_cache, NULL, LIGHTREC_AGE_4S);
 	rec->must_flush = false;
 }
 

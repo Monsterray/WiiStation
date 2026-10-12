@@ -74,6 +74,14 @@ SP="$(cd "$(dirname "$0")" && pwd)"   # sheet.py and sdimage_read.py live next t
 REPO="$(cd "$SP/.." && pwd)"
 DOL="${DOL:-$REPO/Gamecube/WiiSXRX_debug.dol}"
 
+# Post-processing below is Python (summaries, sheets, FAT-image reads). Plain `python`
+# does not exist in the devkitPro MSYS2 bash on a stock machine, so without this the
+# whole collect phase silently no-ops and every run collects nothing. See wsx.sh.
+if [ -n "${PYTHON:-}" ]; then :;
+elif command -v python >/dev/null 2>&1; then PYTHON=python;
+elif [ -x /c/Python312/python.exe ]; then PYTHON=/c/Python312/python.exe;
+else PYTHON=python3; fi
+
 # This run's own user directory, and the shared folder the user drops games into.
 PROFILE="${WSX_PROFILE:-$REPO/.dolphin}"
 SHARED="$D/User/Load/WiiSDSync/wiistation"     # the user's games (isos/), BIOS, fonts and saves
@@ -93,7 +101,8 @@ dolphin_instances() {   # prints "pid|commandline" per Dolphin.exe
 same_userdir_pids() {   # instances that use our profile
   dolphin_instances | while IFS='|' read -r pid cmd; do
     [ -n "$pid" ] || continue
-    case "$cmd" in *"$PROFILE_WIN"*) echo "$pid";; esac
+    # the path must END there (quote, space or end): ".dolphin" must not match ".dolphin2"
+    case "$cmd" in *"$PROFILE_WIN"\"*|*"$PROFILE_WIN"" "*|*"$PROFILE_WIN") echo "$pid";; esac
   done
 }
 BLOCKERS=$(same_userdir_pids | tr '\n' ' ')
@@ -214,17 +223,48 @@ DPID=$!; sleep 2; WPID=$(ps -p $DPID 2>/dev/null | awk 'NR==2{print $4}')
 # Fallback for the Windows PID: the only instance on our profile is the one just started.
 [ -n "$WPID" ] || WPID=$(same_userdir_pids | head -1)
 echo "dolphin windows pid: ${WPID:-unknown}"
+# Alive check: the tasklist line must name Dolphin.exe, not just any recycled pid.
+# Process enumeration flaked repeatedly (2026-10-10: live pids missed by tasklist AND
+# Get-Process alike), so ONE miss never ends the run -- two consecutive misses do.
+dolphin_alive() {
+  [ -n "$1" ] && tasklist //FI "PID eq $1" 2>/dev/null | grep -q "Dolphin\.exe  *$1 "
+}
 # Wait for Dolphin to exit on its own (a chain powers off at its end), up to SECS.
+# Blind windows run ~15 s (live pids missed repeatedly while Dolphin cold-starts),
+# so this is three strikes: a miss waits 10 s and misses again twice before the
+# exit is declared. A hit resets the count, and a genuine quick exit just collects
+# ~20 s later, which is noise next to run lengths.
 T0=$(date +%s)
+misses=0
 while [ $(( $(date +%s) - T0 )) -lt "$SECS" ]; do
   sleep 5
-  if [ -n "$WPID" ] && ! tasklist //FI "PID eq $WPID" 2>/dev/null | grep -q " $WPID "; then
-    echo "dolphin exited by itself after $(( $(date +%s) - T0 )) s"; WPID=""; break
+  if [ -n "$WPID" ] && ! dolphin_alive "$WPID"; then
+    misses=$((misses + 1))
+    if [ "$misses" -ge 3 ]; then
+      echo "dolphin exited by itself after $(( $(date +%s) - T0 )) s"; WPID=""; break
+    fi
+    sleep 10
+  else
+    misses=0
   fi
 done
 # Kill only the instance this script started, and only with taskkill /F: a POSIX kill on a native
 # process posts a window close, which raises the stop dialog instead of ending the run.
-if [ -n "$WPID" ]; then taskkill //PID "$WPID" //F >/dev/null 2>&1 || true; else echo "no pid: leaving Dolphin running rather than posting a close"; fi
+if [ -n "$WPID" ]; then
+  if taskkill //PID "$WPID" //F >/dev/null 2>&1 && sleep 2 && ! dolphin_alive "$WPID"; then :;
+  else echo "WARNING: $WPID may still run -- an orphan Dolphin on this profile contaminates later runs' logs/frames"; fi
+else echo "no pid: leaving Dolphin running rather than posting a close"; fi
+# Teardown takes a while (shader cache + SD image flush); the collect phase reads the
+# card image, and the next run reuses the profile, so wait until no same-profile
+# Dolphin is left -- a fresh boot during teardown fights over WiiSD.raw and wedges
+# pre-DOL (seen repeatedly 2026-10-10: frozen at Wii-boot setup, no guest output).
+for i in $(seq 1 30); do
+  same_userdir_pids | grep -q . || break
+  sleep 2
+done
+if same_userdir_pids | grep -q .; then
+  echo "WARNING: a Dolphin still uses this profile after 60 s -- next run may collide on the SD image"
+fi
 sleep 3
 
 # --- unstage ----------------------------------------------------------------------------
@@ -245,33 +285,40 @@ fi
 CARD="$PROFILE/Load/WiiSD.raw"
 [ -f "$CARD" ] || echo "no card image at $CARD -- did the folder sync run?"
 "/c/Program Files/7-Zip/7z.exe" e -y -o"$OUT" "$CARD" 'wiistation/vram.bin' >/dev/null 2>&1 || echo "7z extract failed"
-python "$SP/sdimage_read.py" "$CARD" wiistation/perf.log "$OUT/perf.log" 2>&1 | tail -1
+"$PYTHON" "$SP/sdimage_read.py" "$CARD" wiistation/perf.log "$OUT/perf.log" 2>&1 | tail -1
 # 7-Zip handed back a stale ptrace.log after a rewrite; our own FAT reader does not
-python "$SP/sdimage_read.py" "$CARD" wiistation/ptrace.log "$OUT/ptrace.log" >/dev/null 2>&1
+"$PYTHON" "$SP/sdimage_read.py" "$CARD" wiistation/ptrace.log "$OUT/ptrace.log" >/dev/null 2>&1
 # VRAM transfers of the whole run (C0 reads, A0 loads, 80 moves, readback outcomes), repeats merged
-python "$SP/sdimage_read.py" "$CARD" wiistation/vramio.log "$OUT/vramio.log" >/dev/null 2>&1 && [ -s "$OUT/vramio.log" ] && echo "vramio: $(sed -n 2p "$OUT/vramio.log" | sed 's/^# //'), $(grep -vc '^#' "$OUT/vramio.log") lines"
+"$PYTHON" "$SP/sdimage_read.py" "$CARD" wiistation/vramio.log "$OUT/vramio.log" >/dev/null 2>&1 && [ -s "$OUT/vramio.log" ] && echo "vramio: $(sed -n 2p "$OUT/vramio.log" | sed 's/^# //'), $(grep -vc '^#' "$OUT/vramio.log") lines"
 # the run's console text (SysPrintf: a PS1 program's printf under the HLE BIOS), debug builds
-python "$SP/sdimage_read.py" "$CARD" wiistation/tty.log "$OUT/tty.log" >/dev/null 2>&1 && [ -s "$OUT/tty.log" ] && echo "tty: $(wc -l < "$OUT/tty.log") lines"
+"$PYTHON" "$SP/sdimage_read.py" "$CARD" wiistation/tty.log "$OUT/tty.log" >/dev/null 2>&1 && [ -s "$OUT/tty.log" ] && echo "tty: $(wc -l < "$OUT/tty.log") lines"
 # the per-vblank timelines of a chain (debug builds; scripts/vtl_view.py)
 for i in $(seq -w 1 16); do
-	python "$SP/sdimage_read.py" "$CARD" "wiistation/vtl_$i.bin" "$OUT/vtl_$i.bin" >/dev/null 2>&1 || break
+	"$PYTHON" "$SP/sdimage_read.py" "$CARD" "wiistation/vtl_$i.bin" "$OUT/vtl_$i.bin" >/dev/null 2>&1 || break
 done
 ls "$OUT"/vtl_*.bin >/dev/null 2>&1 && echo "vtl: $(ls "$OUT"/vtl_*.bin | wc -l) timeline(s)"
 # the per-vblank guest signatures (debug builds; scripts/vsig_cmp.py)
 for i in $(seq -w 1 16); do
-	python "$SP/sdimage_read.py" "$CARD" "wiistation/vsig_$i.bin" "$OUT/vsig_$i.bin" >/dev/null 2>&1 || break
+	"$PYTHON" "$SP/sdimage_read.py" "$CARD" "wiistation/vsig_$i.bin" "$OUT/vsig_$i.bin" >/dev/null 2>&1 || break
 done
 # the sampling profiles (PROBES=hprof builds; scripts/hprof_view.py)
 for i in $(seq -w 1 16); do
-	python "$SP/sdimage_read.py" "$CARD" "wiistation/hprof_$i.bin" "$OUT/hprof_$i.bin" >/dev/null 2>&1 || break
+	"$PYTHON" "$SP/sdimage_read.py" "$CARD" "wiistation/hprof_$i.bin" "$OUT/hprof_$i.bin" >/dev/null 2>&1 || break
 done
 ls "$OUT"/hprof_*.bin >/dev/null 2>&1 && echo "hprof: $(ls "$OUT"/hprof_*.bin | wc -l) profile(s)"
+# per-cell VRAM snapshots (PadTest DX matrix writes wiistation/vram_NN.bin;
+# scripts/padtest_dx.py judge reads them from the run dir). Without this loop
+# the matrix always scores 0/12: nothing else collects them.
+for i in $(seq -w 1 24); do
+	"$PYTHON" "$SP/sdimage_read.py" "$CARD" "wiistation/vram_$i.bin" "$OUT/vram_$i.bin" >/dev/null 2>&1 || break
+done
+ls "$OUT"/vram_[0-9]*.bin >/dev/null 2>&1 && echo "vram-snaps: $(ls "$OUT"/vram_[0-9]*.bin | wc -l) snapshot(s)"
 # audio timeline (debug build, 'atrace <vblank>' in autoinput.txt); absent in most runs
-python "$SP/sdimage_read.py" "$CARD" wiistation/atrace.log "$OUT/atrace.log" >/dev/null 2>&1 && [ -s "$OUT/atrace.log" ] && echo "atrace: $(wc -l < "$OUT/atrace.log") lines"
+"$PYTHON" "$SP/sdimage_read.py" "$CARD" wiistation/atrace.log "$OUT/atrace.log" >/dev/null 2>&1 && [ -s "$OUT/atrace.log" ] && echo "atrace: $(wc -l < "$OUT/atrace.log") lines"
 # the front XFB a scheduled `dump` wrote (scripts/xfb2png.py; XFB_RAM=1 for the real TV image)
-python "$SP/sdimage_read.py" "$CARD" wiistation/xfb.bin "$OUT/xfb.bin" >/dev/null 2>&1 && [ -s "$OUT/xfb.bin" ] && echo "xfb: $(wc -c < "$OUT/xfb.bin") bytes"
+"$PYTHON" "$SP/sdimage_read.py" "$CARD" wiistation/xfb.bin "$OUT/xfb.bin" >/dev/null 2>&1 && [ -s "$OUT/xfb.bin" ] && echo "xfb: $(wc -c < "$OUT/xfb.bin") bytes"
 # the interpreter's PC ring (psxinterpreter.c), written once if the PC leaves code
-python "$SP/sdimage_read.py" "$CARD" wiistation/pcring.log "$OUT/pcring.log" >/dev/null 2>&1 && [ -s "$OUT/pcring.log" ] && echo "pcring: $(head -1 "$OUT/pcring.log")"
+"$PYTHON" "$SP/sdimage_read.py" "$CARD" wiistation/pcring.log "$OUT/pcring.log" >/dev/null 2>&1 && [ -s "$OUT/pcring.log" ] && echo "pcring: $(head -1 "$OUT/pcring.log")"
 # 0 bytes is normal for a short run: the guest writes a perf report every N presents, and a run
 # that ends before the first one has nothing to read.
 echo "run done $(date +%T)"
@@ -280,7 +327,7 @@ echo "run done $(date +%T)"
 FIRST=$(ls "$OUT/frames" 2>/dev/null | sed -E 's/framedump_([0-9]+)\.png/\1/' | sort -n | head -1)
 LAST=$(ls "$OUT/frames" 2>/dev/null | sed -E 's/framedump_([0-9]+)\.png/\1/' | sort -n | tail -1)
 echo "kept frames ${FIRST:-none}..${LAST:-none}"
-if [ -n "$FIRST" ]; then python "$SP/sheet.py" "$OUT/sheet.png" "$OUT/frames" "$FIRST" "${SHEET_STEP:-20}" "$LAST" 6 206 && echo "sheet: $OUT/sheet.png"; else echo "no frames kept"; fi
+if [ -n "$FIRST" ]; then "$PYTHON" "$SP/sheet.py" "$OUT/sheet.png" "$OUT/frames" "$FIRST" "${SHEET_STEP:-20}" "$LAST" 6 206 && echo "sheet: $OUT/sheet.png"; else echo "no frames kept"; fi
 grep -a -E "^--- perf|^sio|offsoft|ogxoff" "$OUT/perf.log" 2>/dev/null | tail -4
 # Guest-side faults and emulator complaints worth seeing without opening the log. The log was
 # rotated before the run, so anything here happened during it.

@@ -178,8 +178,29 @@ static inline void tok2msf(char *time, char *msf) {
 // widens to 16KB, forcing a real underlying read (FAT/DVD I/O on real Wii
 // hardware) on every sector regardless. Skipping the redundant seek lets
 // that buffering actually do its job for sequential access.
-static FILE *cdimg_seek_file;
-static long cdimg_seek_pos = -1;
+//
+// One position per open handle (CDIMG_SEEK_FILES of them): a CloneCD game reads the
+// .img and the .sub in turn, and with a single tracked file every sub-channel read
+// and every data read after it was a real fseek, i.e. a 16 KB buffer refill from the
+// card for 96 or 2352 bytes. Gex 2 on the bench Wii (5.9.3): 3656 seeks, 27% of the
+// run in CD reads, 0.77x.
+#define CDIMG_SEEK_FILES 4
+static struct { FILE *f; long pos; } cdimg_seek_t[CDIMG_SEEK_FILES];
+static unsigned cdimg_seek_next;
+
+static void cdimg_seek_forget(void)
+{
+	memset(cdimg_seek_t, 0, sizeof cdimg_seek_t);
+}
+
+static int cdimg_seek_slot(FILE *f)
+{
+	int i;
+	for (i = 0; i < CDIMG_SEEK_FILES; i++)
+		if (cdimg_seek_t[i].f == f)
+			return i;
+	return -1;
+}
 
 // Some c libs like newlib default buffering to just 1k which is less than
 // cd sector size which is bad for performance.
@@ -229,8 +250,7 @@ static void cd_attach_stdio_buffer(FILE *f)
 	// A freshly (re)opened stream invalidates whatever position the seek
 	// tracking above remembered -- a stale match against a reused FILE*
 	// address would otherwise skip a seek that's actually needed.
-	cdimg_seek_file = NULL;
-	cdimg_seek_pos = -1;
+	cdimg_seek_forget();
 }
 
 /* Only after every handle that used one has been fclose()d. */
@@ -244,20 +264,23 @@ static void cd_release_stdio_buffers(void)
 
 static int cdimg_seek(FILE *f, long pos)
 {
-	if (f == cdimg_seek_file && pos == cdimg_seek_pos) {
+	int k = cdimg_seek_slot(f);
+	if (k >= 0 && pos == cdimg_seek_t[k].pos) {
 		PERF_INC(cd_seq);
 		return 0;
 	}
 	// fseek() is also relied on to clear the stream's EOF/error indicator;
 	// only skip it once we know this exact seek is redundant.
 	if (fseek(f, pos, SEEK_SET)) {
-		cdimg_seek_file = NULL;
-		cdimg_seek_pos = -1;
+		if (k >= 0)
+			cdimg_seek_t[k].f = NULL;
 		return -1;
 	}
 	PERF_INC(cd_rand);
-	cdimg_seek_file = f;
-	cdimg_seek_pos = pos;
+	if (k < 0)
+		k = cdimg_seek_next++ % CDIMG_SEEK_FILES;
+	cdimg_seek_t[k].f = f;
+	cdimg_seek_t[k].pos = pos;
 	return 0;
 }
 
@@ -283,12 +306,13 @@ static void perf_cd_done(unsigned long long t0, int ret)
 // forces a real seek next time instead of a wrong skip.
 static void cdimg_seek_advance(FILE *f, long pos, int nread)
 {
-	if (nread > 0 && f == cdimg_seek_file)
-		cdimg_seek_pos = pos + nread;
-	else {
-		cdimg_seek_file = NULL;
-		cdimg_seek_pos = -1;
-	}
+	int k = cdimg_seek_slot(f);
+	if (k < 0)
+		return;
+	if (nread > 0)
+		cdimg_seek_t[k].pos = pos + nread;
+	else
+		cdimg_seek_t[k].f = NULL;   /* a short read or an error: seek next time */
 }
 
 /* Read-ahead for raw images (bin/cue and mode-1 .iso).
@@ -841,8 +865,28 @@ static int parseccd(const char *isofile) {
 
 	// Fill out the last track's end based on size
 	if (numtracks >= 1) {
-		fseek(cdHandle, 0, SEEK_END);
-		t = ftell(cdHandle) / 2352 - msf2sec(ti[numtracks].start) + 2 * 75;
+		/* WiiStation: the size of the IMAGE. cdHandle is the file the browser
+		 * picked, and it shows the .ccd and hides its .img, so cdHandle was the
+		 * 789-byte sheet here (ISOopen swaps to the .img only later): every CCD
+		 * game had a last track 150 sectors long and a lead-out at 00:04:00. */
+		static const char *exts[] = { ".img", ".IMG", ".bin", ".BIN" };
+		long size = -1;
+		size_t i;
+
+		for (i = 0; size < 0 && i < sizeof(exts) / sizeof(exts[0]); i++) {
+			FILE *img;
+			strcpy(ccdname + strlen(ccdname) - 4, exts[i]);
+			if ((img = fopen(ccdname, "rb")) != NULL) {
+				fseek(img, 0, SEEK_END);
+				size = ftell(img);
+				fclose(img);
+			}
+		}
+		if (size < 0) {
+			fseek(cdHandle, 0, SEEK_END);
+			size = ftell(cdHandle);
+		}
+		t = size / 2352 - msf2sec(ti[numtracks].start) + 2 * 75;
 		sec2msf(t, ti[numtracks].length);
 	}
 
@@ -1365,12 +1409,18 @@ static int opensubfile(const char *isoname) {
 	subHandle = fopen(subname, "rb");
 	if (subHandle == NULL)
 		return -1;
-	cd_attach_stdio_buffer(subHandle);
+	/* A small buffer, not the image's 16-256 KB one: the game reads sub-channel data
+	 * only when it asks where the drive is (GetlocP), at scattered positions, so every
+	 * read is a seek, and a seek empties the buffer. With 16 KB each 96-byte read cost
+	 * a 16 KB card read (Gex 2 on the Wii: ~1750 of them, 28 MB, the game at 0.77x). */
+	{
+		static char sub_stdio_buf[2048] __attribute__((aligned(32)));
+		setvbuf(subHandle, sub_stdio_buf, _IOFBF, sizeof sub_stdio_buf);
+	}
 
 	// A freshly opened handle could reuse a stale-tracked FILE* address --
 	// see the identical comment on cd_attach_stdio_buffer().
-	cdimg_seek_file = NULL;
-	cdimg_seek_pos = -1;
+	cdimg_seek_forget();
 
 	return 0;
 }
@@ -1895,8 +1945,7 @@ static long CALLBACK ISOclose(void) {
 	}
 	// Either closed FILE* could be reused by a later fopen() -- don't let a
 	// stale tracked position falsely match against it.
-	cdimg_seek_file = NULL;
-	cdimg_seek_pos = -1;
+	cdimg_seek_forget();
 
 	if (compr_img != NULL) {
 		free(compr_img->index_table);
@@ -2023,6 +2072,21 @@ static long CALLBACK ISOreadTrack(unsigned char *time) {
 	ret = cdimg_read_func(cdHandle, 0, cdbuffer, sector);
 	if (ret <= 0)
 		return 0;
+#ifdef PERF_PROF
+	{	/* "cdlog": who reads the image (perf.log "rw: reader" lines at the report) */
+		extern void perf_cd_reader(void *ra, int sector);
+		perf_cd_reader(__builtin_return_address(0), sector);
+	}
+	{	/* the per-vblank signature's CD part (perf_prof.c vsig): every sector the game got */
+		extern u32 vsig_cd, vsig_cdn;
+		u32 h = vsig_cd ^ (u32)sector;
+		int k;
+		for (k = 0; k < CD_FRAMESIZE_RAW; k++)
+			h = (h ^ cdbuffer[k]) * 16777619u;
+		vsig_cd = h;
+		vsig_cdn++;
+	}
+#endif
 
 	return 1;
 }

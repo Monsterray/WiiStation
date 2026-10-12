@@ -55,12 +55,12 @@ unsigned long long perf_now_ticks(void)
 }
 
 #if PERF_PROF_BIOS
-/* The busiest HLE BIOS calls, by name. A game that uses none prints nothing. */
+/* The busiest HLE BIOS calls, by name (40: a game calls the rare ones that matter once or twice). A game that uses none prints nothing. */
 extern char *biosA0n[256], *biosB0n[256], *biosC0n[256];
 
 static void perf_report_bios(FILE *f)
 {
-	struct { const char *tab; unsigned n; unsigned long c; } top[10], t;
+	struct { const char *tab; unsigned n; unsigned long c; } top[40], t;
 	const uint32_t *counts[3] = { g_perf.bios_a, g_perf.bios_b, g_perf.bios_c };
 	char *const *names[3] = { biosA0n, biosB0n, biosC0n };
 	static const char tabs[3] = { 'A', 'B', 'C' };
@@ -73,13 +73,13 @@ static void perf_report_bios(FILE *f)
 			if (!counts[i][j])
 				continue;
 			total += counts[i][j];
-			/* keep the ten biggest, insertion sorted: the list is tiny */
+			/* keep the forty biggest, insertion sorted: the list is tiny */
 			t.tab = &tabs[i]; t.n = j; t.c = counts[i][j];
 			for (k = 0; k < ntop && top[k].c >= t.c; k++)
 				;
-			if (k >= 10)
+			if (k >= 40)
 				continue;
-			if (ntop < 10)
+			if (ntop < 40)
 				ntop++;
 			for (int m = ntop - 1; m > k; m--)
 				top[m] = top[m - 1];
@@ -555,9 +555,14 @@ static inline unsigned short vtl_u16(uint64_t ticks)
 
 /* The guest's signature per vblank, beside the timeline: a hash of every 8th word of RAM
  * (0.45 ms a vblank on a Wii), the cycle count and the PC. Two runs that should be the same
- * show where the guest first differs: scripts/vsig_cmp.py, vsig_NN.bin per chained game. */
-typedef struct { u32 ram, cycle, pc; } vsig_t;
+ * show where the guest first differs: scripts/vsig_cmp.py, vsig_NN.bin per chained game.
+ * VSG2 adds what goes into the guest from the host, to tell which parted first: a hash of
+ * every CD sector the game read (cdriso.c ISOreadTrack) and their count, and Lightrec's
+ * blocks compiled and code-buffer cleans (a full buffer frees the old blocks). */
+typedef struct { u32 ram, cycle, pc, cd, cdn, jitb, cleans; } vsig_t;
 static vsig_t *vsig;
+u32 vsig_cd, vsig_cdn;
+extern unsigned int lightrec_jit_blocks, lightrec_code_cleans;   /* deps/lightrec */
 
 static void vsig_take(vsig_t *g)
 {
@@ -569,6 +574,10 @@ static void vsig_take(vsig_t *g)
 	g->ram = h;
 	g->cycle = psxRegs.cycle;
 	g->pc = psxRegs.pc;
+	g->cd = vsig_cd;
+	g->cdn = vsig_cdn;
+	g->jitb = lightrec_jit_blocks;
+	g->cleans = lightrec_code_cleans;
 }
 
 static void vtl_tick(void)
@@ -620,7 +629,7 @@ void perf_vtl_flush(int game)
 	}
 	snprintf(path, sizeof path, "sd:/wiistation/vsig_%02d.bin", game);
 	if (vsig && (f = fopen(path, "wb"))) {
-		unsigned vh[2] = { 0x56534731, vtl_n };   /* "VSG1", then {ram, cycle, pc} per vblank */
+		unsigned vh[2] = { 0x56534732, vtl_n };   /* "VSG2", then a vsig_t per vblank */
 		fwrite(vh, sizeof vh, 1, f);
 		fwrite(vsig, sizeof(vsig_t), vtl_n, f);
 		fclose(f);
@@ -681,6 +690,140 @@ void perf_state_log(int game)
 	}
 }
 
+/* "ramwatch LO HI" and "ramcell ADDR" (input script, PadWiiSX.c): who writes a piece of guest
+ * RAM the CPU cannot be watched writing (Lightrec stores go straight to RAM). Every DMA and
+ * HLE BIOS copy that lands in [LO,HI) is logged (perf_ram_write), and each "ramcell" word is
+ * read at every vblank and logged when it changes; perf.log "rw:" lines, the first RW_MAX.
+ * Found for: Gex 3's object field overwritten under the HLE BIOS (2026-10-09). */
+#define RW_MAX 400
+static char rw_lines[RW_MAX][72];
+static unsigned rw_n, rw_dropped, rw_cell_val[8];
+extern unsigned autoinput_ramwatch_lo, autoinput_ramwatch_hi, autoinput_ramcell[8], autoinput_ramcells;
+
+static void rw_add(const char *s)
+{
+	if (rw_n < RW_MAX) {
+		strncpy(rw_lines[rw_n], s, sizeof rw_lines[0] - 1);
+		rw_lines[rw_n++][sizeof rw_lines[0] - 1] = 0;
+	} else
+		rw_dropped++;
+}
+
+void perf_ram_write(char who, unsigned madr, unsigned bytes)
+{
+	unsigned lo = autoinput_ramwatch_lo, hi = autoinput_ramwatch_hi, a = madr & 0x1fffff;
+	char s[72];
+	if (hi <= lo || a >= hi || a + bytes <= lo)
+		return;
+	snprintf(s, sizeof s, "rw: vbl=%u %c dst=%06x bytes=%u pc=%08x", (unsigned)frame_counter,
+		who, a, bytes, (unsigned)psxRegs.pc);
+	rw_add(s);
+}
+
+/* "ramwatch" with Lightrec's interpreter (lightrec.c): a guest store into the window */
+void perf_store_watch(u32 addr, u32 data, u32 pc)
+{
+	extern unsigned autoinput_ramwatch_from;
+	char s[72];
+	if (autoinput_ramwatch_from == 1) {   /* "ramwatch LO HI 1": only each new lowest store */
+		static u32 low = ~0u;
+		if ((addr & 0x1fffff) >= low)
+			return;
+		low = addr & 0x1fffff;
+	}
+	snprintf(s, sizeof s, "rw: vbl=%u S dst=%06x val=%08x pc=%08x ra=%08x", (unsigned)frame_counter,
+		addr & 0x1fffff, data, pc, (unsigned)psxRegs.GPR.n.ra);
+	rw_add(s);
+}
+
+/* "cdlog": which host functions read sectors from the image, and how often */
+void perf_cd_reader(void *ra, int sector)
+{
+	extern int autoinput_cdlog;
+	static struct { void *ra; unsigned n; int first; } who[16];
+	static unsigned last_vbl, in_vbl;
+	unsigned i;
+	if (!autoinput_cdlog)
+		return;
+	for (i = 0; i < 16 && who[i].ra && who[i].ra != ra; i++)
+		;
+	if (i < 16) {
+		if (!who[i].ra) { who[i].ra = ra; who[i].first = sector; }
+		if (++who[i].n == 1 || (who[i].n & 0xfff) == 0) {
+			char s[72];
+			snprintf(s, sizeof s, "rw: vbl=%u reader %p n=%u sector=%d", (unsigned)frame_counter,
+				ra, who[i].n, sector);
+			rw_add(s);
+		}
+	}
+	if (frame_counter != last_vbl) { last_vbl = frame_counter; in_vbl = 0; }
+	if (++in_vbl == 50) {   /* a burst: name the PS1 code behind it once */
+		char s[72];
+		snprintf(s, sizeof s, "rw: vbl=%u burst reader %p psx pc=%08x ra=%08x", (unsigned)frame_counter,
+			ra, (unsigned)psxRegs.pc, (unsigned)psxRegs.GPR.n.ra);
+		rw_add(s);
+	}
+}
+
+/* "cdlog": a continuing CD read re-armed from a due time more than a vblank old */
+void perf_cd_rearm(int line, unsigned now, unsigned s_cycle, unsigned cycle, unsigned armed)
+{
+	extern int autoinput_cdlog;
+	static unsigned n;
+	char s[72];
+	int ahead = (int)(s_cycle + cycle - now);   /* when the event is due, from now */
+	if (!autoinput_cdlog || (ahead < 33868800 && ahead > -564480) || n >= 12)
+		return;
+	n++;
+	snprintf(s, sizeof s, "rw: vbl=%u rearm line %d due in %d now=%u s=%u c=%u first=%u",
+		(unsigned)frame_counter, line, ahead, now, s_cycle, cycle, armed);
+	rw_add(s);
+}
+
+/* "cdlog" (input script): each CD-ROM command the game issues, with its parameters */
+void perf_cd_cmd(unsigned cmd, const unsigned char *param, unsigned n)
+{
+	extern int autoinput_cdlog;
+	char s[72];
+	unsigned i, k;
+	static unsigned ncmd;
+	if (!autoinput_cdlog || ncmd++ >= 40)
+		return;
+	k = snprintf(s, sizeof s, "rw: vbl=%u cd %02x", (unsigned)frame_counter, cmd);
+	for (i = 0; i < n && i < 8 && k < sizeof s - 4; i++)
+		k += snprintf(s + k, sizeof s - k, " %02x", param[i]);
+	rw_add(s);
+}
+
+static void rw_cells_tick(void)
+{
+	extern s8 *psxM;
+	unsigned i;
+	for (i = 0; i < autoinput_ramcells && i < 8; i++) {
+		unsigned v = *(u32 *)(psxM + (autoinput_ramcell[i] & 0x1ffffc));
+		char s[72];
+		if (v == rw_cell_val[i])
+			continue;
+		snprintf(s, sizeof s, "rw: vbl=%u cell %06x %08x -> %08x pc=%08x", (unsigned)frame_counter,
+			autoinput_ramcell[i] & 0x1fffff, rw_cell_val[i], v, (unsigned)psxRegs.pc);
+		rw_cell_val[i] = v;
+		rw_add(s);
+	}
+}
+
+static void perf_ramwatch_report(FILE *f)
+{
+	unsigned i;
+	if (autoinput_ramwatch_hi || autoinput_ramcells)
+		fprintf(f, "rw: watch %06x-%06x cells=%u lines=%u\n", autoinput_ramwatch_lo,
+			autoinput_ramwatch_hi, autoinput_ramcells, rw_n);
+	for (i = 0; i < rw_n; i++)
+		fprintf(f, "%s\n", rw_lines[i]);
+	if (rw_dropped)
+		fprintf(f, "rw: %u more not kept\n", rw_dropped);
+	rw_n = rw_dropped = 0;
+}
+
 void perf_fatal_log(unsigned code, const char *reason)
 {
 	FILE *f;
@@ -697,6 +840,7 @@ void perf_vblank_tick(void)
 {
 	extern unsigned autoinput_crash_vbl;
 	vtl_tick();
+	rw_cells_tick();
 	/* "crashtest <vblank>": a DSI on purpose, the way the 2026-09-29 Lightrec crash stored
 	 * through r31 = 0, to prove the crash path (vm dsihandler -> HBC agent -> report) on the Wii. */
 	/* Crash breadcrumb: one line a second, written and closed at once, so the last line
@@ -868,8 +1012,10 @@ void perf_report(void)
 		}
 		{   /* the emitted code's checksum: equal in two runs = the same code was generated */
 			extern unsigned int lightrec_code_sum, lightrec_code_bytes, lightrec_code_shape;
-			fprintf(f, "jitcode: bytes=%u sum=%08x shape=%08x\n", lightrec_code_bytes,
-				lightrec_code_sum, lightrec_code_shape);
+			extern unsigned int lightrec_code_fails, lightrec_code_reruns;
+			fprintf(f, "jitcode: bytes=%u sum=%08x shape=%08x cleans=%u fails=%u reruns=%u\n",
+				lightrec_code_bytes, lightrec_code_sum, lightrec_code_shape,
+				lightrec_code_cleans, lightrec_code_fails, lightrec_code_reruns);
 		}
 #if PERF_PROF_HPROF
 		hprof_report(f);
@@ -1452,6 +1598,7 @@ void perf_report(void)
 			(unsigned long)g_perf.menu_frames, g_perf.menu_us,
 			(unsigned long)g_perf.menu_strings, (unsigned long)g_perf.menu_glyphs,
 			(unsigned long)g_perf.menu_texloads);
+		perf_ramwatch_report(f);
 		fclose(f);
 	}
 	if (g_perf.aev_n)

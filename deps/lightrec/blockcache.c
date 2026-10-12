@@ -104,16 +104,16 @@ void lightrec_unregister_block(struct blockcache *cache, struct block *block)
 	pr_err("Block at "PC_FMT" is not in cache\n", block->pc);
 }
 
+/* WiiStation: precompile_date and lightrec_age_now() are PS1 cycles that keep counting
+ * across slices (lightrec-private.h says why the old current_cycle test was random) */
 static bool lightrec_block_is_old(const struct lightrec_state *state,
-				  const struct block *block)
+				  const struct block *block, u32 min_age)
 {
-	u32 diff = state->current_cycle - block->precompile_date;
-
-	return diff > (1 << 27); /* About 4 seconds */
+	return lightrec_age_now(state) - block->precompile_date > min_age;
 }
 
 static void lightrec_free_blocks(struct blockcache *cache,
-				 const struct block *except, bool all)
+				 const struct block *except, bool all, u32 min_age)
 {
 	struct lightrec_state *state = cache->state;
 	struct block *block, *next;
@@ -129,7 +129,7 @@ static void lightrec_free_blocks(struct blockcache *cache,
 				continue;
 
 			if (!all) {
-				outdated = lightrec_block_is_old(state, block) ||
+				outdated = lightrec_block_is_old(state, block, min_age) ||
 					lightrec_block_is_outdated(state, block);
 			}
 
@@ -151,17 +151,32 @@ static void lightrec_free_blocks(struct blockcache *cache,
 	}
 }
 
+/* WiiStation: how often the code buffer filled (the per-vblank signature, perf_prof.c) */
+unsigned int lightrec_code_cleans;
+
 void lightrec_remove_outdated_blocks(struct blockcache *cache,
-				     const struct block *except)
+				     const struct block *except, u32 min_age)
 {
 	pr_info("Running out of code space. Cleaning block cache...\n");
+	lightrec_code_cleans++;
 
-	lightrec_free_blocks(cache, except, false);
+	lightrec_free_blocks(cache, except, false, min_age);
+}
+
+/* WiiStation: the last step of the clean (lightrec_emit_code): every block but the one
+ * being compiled. Safe: a block's code is reached only through its own LUT range, which
+ * remove_from_code_lut() clears, and no compiled block is on the host stack while a block
+ * compiles (blocks are entered and left by jumps; HLE soft calls run after the slice). */
+void lightrec_free_all_blocks_except(struct blockcache *cache,
+				     const struct block *except)
+{
+	lightrec_code_cleans++;
+	lightrec_free_blocks(cache, except, true, 0);
 }
 
 void lightrec_free_all_blocks(struct blockcache *cache)
 {
-	lightrec_free_blocks(cache, NULL, true);
+	lightrec_free_blocks(cache, NULL, true, 0);
 }
 
 void lightrec_free_block_cache(struct blockcache *cache)

@@ -92,6 +92,8 @@ public:
 	void updateTime(float deltaTime);
 	void drawComponent(Graphics& gfx);
 	Component* updateFocus(int direction, int buttonsPressed);
+	/* A button takes focus only when it is shown and active (Component::isVisible, getActive). */
+	bool canTakeFocus();
 	void setButtonColors(GXColor *colors);
 	void setLabelColor(GXColor color);
 	enum LabelMode
@@ -110,6 +112,7 @@ public:
 	};
 
 private:
+	Component* followFocus(int direction, int buttonsPressed);
 	bool active, selected;
 	Image	*normalImage;
 	Image	*focusImage;

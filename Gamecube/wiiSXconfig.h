@@ -137,6 +137,25 @@ enum cdBuffer
 	CD_BUFFER_64K,
 	CD_BUFFER_256K
 };
+extern char frameRateMode;       /* the emulated refresh rate and its pacing (psxcounters.c) */
+enum frameRateMode
+{
+	FRAMERATE_AUTO=0,       /* 60.00 / 50.00 Hz, timer-paced (and the per-game fractional fixes) */
+	FRAMERATE_TV,           /* the TV's 59.94 / 50 Hz, one emulated vblank per Wii video retrace */
+	FRAMERATE_PS1           /* a PlayStation's own 59.82 / 49.75 Hz, timer-paced */
+};
+extern char cpuSpeed;            /* CPU overclock/underclock (r3000a.c psxCycleMult) */
+enum cpuSpeed
+{
+	CPU_SPEED_AUTO=0,       /* normal speed, plus the built-in per-game fixes (database.c) */
+	CPU_SPEED_50,
+	CPU_SPEED_75,
+	CPU_SPEED_100,          /* normal speed, without the per-game fixes */
+	CPU_SPEED_125,
+	CPU_SPEED_150,
+	CPU_SPEED_200,
+	CPU_SPEED_300
+};
 extern char cpuTiming;           /* whether Lightrec charges GTE and mult/div waits */
 enum cpuTiming
 {
@@ -361,6 +380,10 @@ extern char coopPlayers[2];
 extern char coopType[2][COOP_MAX];
 extern char coopAssign[2][COOP_MAX];
 extern char coopLayout[2][COOP_MAX];
+/* CoopPButtonsK: player K's own buttons when its layout is COOP_LAYOUT_CUSTOM, a list of
+ * names ("L1,Up,Cross,LStick", coop.c coop_buttons_parse); the size of a settings string */
+#define COOP_BUTTONS_SIZE 256
+extern char coopButtons[2][COOP_MAX][COOP_BUTTONS_SIZE];
 enum coopLayout
 {
 	COOP_LAYOUT_FULL=0,
@@ -369,6 +392,7 @@ enum coopLayout
 	COOP_LAYOUT_DPAD_STICKS,
 	COOP_LAYOUT_ACTION,
 	COOP_LAYOUT_SHOULDERS,
+	COOP_LAYOUT_CUSTOM,     /* the buttons in coopButtons, each turned on or off in the menu */
 	COOP_LAYOUT_COUNT
 };
 
@@ -409,7 +433,8 @@ enum loadButtonSlot
 	LOADBUTTON_SLOT1,
 	LOADBUTTON_SLOT2,
 	LOADBUTTON_SLOT3,
-	LOADBUTTON_DEFAULT
+	LOADBUTTON_DEFAULT,
+	LOADBUTTON_AUTO      /* the game's own Game slot when it has one, else the default */
 };
 
 extern char controllerType;

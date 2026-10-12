@@ -8,6 +8,9 @@
 #include "disassembler.h"
 #include "lightrec.h"
 #include "memmanager.h"
+
+/* WiiStation, debug "ramwatch" (lightrec.c) */
+extern void (*lightrec_store_watch_cb)(u32 addr, u32 data, u32 pc);
 #include "optimizer.h"
 #include "regcache.h"
 
@@ -1911,6 +1914,11 @@ static int lightrec_flag_io(struct lightrec_state *state, struct block *block)
 				no_mask = (v[list->i.rs].known & ~v[list->i.rs].value
 					   & 0xe0000000) == 0xe0000000;
 
+				/* WiiStation, debug "ramwatch": stores stay untagged, so that
+				 * lightrec_rw() tags them as I/O and sees every one */
+				if (lightrec_store_watch_cb && opcode_is_store(list->c))
+					psx_map = PSX_MAP_UNKNOWN;
+
 				switch (psx_map) {
 				case PSX_MAP_KERNEL_USER_RAM:
 					if (no_mask)
@@ -1964,6 +1972,7 @@ static int lightrec_flag_io(struct lightrec_state *state, struct block *block)
 
 			if (!LIGHTREC_FLAGS_GET_IO_MODE(list->flags)
 			    && list->i.rs == 29
+			    && !(lightrec_store_watch_cb && opcode_is_store(list->c))
 			    && !state->maps[PSX_MAP_KERNEL_USER_RAM].ops) {
 				/* Assume that all I/O operations that target
 				 * $sp will always only target a mapped memory

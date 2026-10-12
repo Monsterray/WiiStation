@@ -133,6 +133,8 @@ char soundXaResampler;      // dfsound/xa.c: real hardware zigzag FIR vs the leg
 char soundRateControl;      // dfsound/ratectl.c: nudge the output rate from the queue's occupancy
 char soundResampler;        // read by dfsound/resample.c on every block it converts
 char gpuTiming, cpuTiming, limiterWait, limiterDebt, sioTiming;
+char cpuSpeed;   /* CpuSpeed: r3000a.c psxCycleMult */
+char frameRateMode;   /* FrameRate: psxcounters.c frameCycles, SoftGPU/oldGpuFps.c FrameCap */
 char cdBuffer, cdPrefetch, cdChdHunks;   // read by cdriso.c when an image is opened
 char xaDisabled;            // mirrors Config.Xa   (see wiiSXconfig.h)
 char cddaDisabled;          // mirrors Config.Cdda
@@ -142,10 +144,10 @@ char printToScreen;
 char menuActive;
 char saveEnabled;
 char creditsScrolling;
-char padNeedScan=1;
-char wpadNeedScan=1;
-char hidPadNeedScan = 1;
-char shutdown = 0;
+volatile char padNeedScan=1;   /* the three scan flags: set by ScanPADSandReset (reset callback), polled by the input code */
+volatile char wpadNeedScan=1;
+volatile char hidPadNeedScan = 1;
+volatile char shutdown = 0;   /* set by the menu thread and ShutdownWii, polled by the GUI loop */
 char nativeSaveDevice;
 char saveStateDevice;
 char autoSave;
@@ -156,6 +158,7 @@ char fileSortMode = 1;
 char padAutoAssign;
 char padType[10];
 char coopPlayers[2], coopType[2][COOP_MAX], coopAssign[2][COOP_MAX], coopLayout[2][COOP_MAX];   /* coop.c */
+char coopButtons[2][COOP_MAX][COOP_BUTTONS_SIZE];   /* CoopPButtonsK, for the Custom layout */
 char padAssign[10];
 char padLightgun[10];
 char rumbleEnabled;
@@ -191,88 +194,111 @@ char smbIpAddr[CONFIG_STRING_SIZE];
 char romDirSD[CONFIG_STRING_SIZE], romDirUSB[CONFIG_STRING_SIZE], romDirSMB[CONFIG_STRING_SIZE];
 char menuFont[CONFIG_STRING_SIZE];   /* MenuFont = "Name": sd:/wiistation/fonts/Name.dat replaces the built-in menu font */
 
-int stop = 0;
+volatile int stop = 0;   /* set by ScanPADSandReset and ShutdownWii, polled by the CPU loop and the removal code */
 bool needInitCpu = true;
 
-static struct {
-	const char* key;
-	// For integral options this is a pointer to a char
-	// for string values, this is a pointer to a 256-byte string
-	// thus, assigning a string value to an integral type will cause overflow
-	char* value;
-	char  min, max;
-	/* A row with no value starts a section of settings.ini: the key is its [name] and this
-	 * is the comment written under it. The reader ignores sections; keys are unique. */
-	const char* note;
-} OPTIONS[] =
+/* The button texts of the settings in OPTIONS, as the menus show them: choices[value - min]. */
+static const char* const OPT_NO_YES[]        = { "No", "Yes" };
+static const char* const OPT_OFF_ON[]        = { "Off", "On" };
+static const char* const OPT_ON_OFF[]        = { "On", "Off" };
+static const char* const OPT_FAST_ACCURATE[] = { "Fast", "Accurate" };
+static const char* const OPT_MIX[]           = { "Legacy", "Hi-Fi" };
+static const char* const OPT_LANG[]          = { "En", "Chs", "Kr", "Es", "Pte", "It", "De", "Cht", "Jp", "Fr", "Br", "Ca", "Tu" };
+static const char* const OPT_BIOS[]          = { "HLE", "SD", "USB" };
+static const char* const OPT_CORE[]          = { "Lightrec", "Interpreter", "Dynarec" };
+static const char* const OPT_GPU[]           = { "Soft Fast", "Soft Timed", "OpenGX" };
+static const char* const OPT_SCREEN[]        = { "4:3", "16:9", "Force 16:9" };
+static const char* const OPT_LIMIT[]         = { "Off", "Auto" };
+static const char* const OPT_DITHER[]        = { "None", "Default", "Always" };
+static const char* const OPT_BILINEAR[]      = { "Default", "Near", "Bilinear" };
+static const char* const OPT_CHROMA[]        = { "Sharp", "Smooth" };
+static const char* const OPT_COLOUR[]        = { "15-bit", "24-bit" };
+static const char* const OPT_RESAMPLE[]      = { "Hold", "Linear", "Cubic" };
+static const char* const OPT_OUTPUT[]        = { "CPU", "DSP" };
+static const char* const OPT_INTERP[]        = { "Simple", "Gaussian" };
+static const char* const OPT_SPEED[]         = { "Auto", "50%", "75%", "100%", "125%", "150%", "200%", "300%" };
+static const char* const OPT_FRAMERATE[]     = { "Auto", "TV", "PS1" };
+static const char* const OPT_CD_BUFFER[]     = { "16 KB", "64 KB", "256 KB" };
+static const char* const OPT_CD_HUNKS[]      = { "2", "4", "8" };
+static const char* const OPT_SAVE_DEVICE[]   = { "SD", "USB", "CardA", "CardB" };
+static const char* const OPT_STATES_DEVICE[] = { "SD", "USB" };
+static const char* const OPT_MEMCARD_TYPE[]  = { "Shared", "Game" };
+static const char* const OPT_PAD_ASSIGN[]    = { "Manual", "Automatic" };
+static const char* const OPT_CONTROLLER[]    = { "Standard", "Analog", "Stick D-pad" };
+static const char* const OPT_SLOT[]          = { "Slot 1", "Slot 2", "Slot 3", "Slot 4", "Default", "Auto" };
+static const char* const OPT_LIGHTGUN[]      = { "Off", "GunCon", "Justifier", "Mouse" };
+
+static SettingOption OPTIONS[] =
 {
   { "General", NULL, 0, 0, "The menu and the emulator." },
-  { "lang", &lang, ENGLISH, TURKISH },
+  { "lang", &lang, ENGLISH, TURKISH, NULL, "Select Language", OPT_LANG, "The language of the menu text." },
   { "MenuFont", menuFont, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "FileSortMode", &fileSortMode, FILESORT_DIRS_MIXED, FILESORT_DIRS_FIRST },
-  { "Core", &dynacore, DYNACORE_DYNAREC, DYNACORE_DYNAREC_OLD },
-  { "fastLoad", &fastLoad, 0, 1 },
+  { "Core", &dynacore, DYNACORE_DYNAREC, DYNACORE_DYNAREC_OLD, NULL, "CPU Core", OPT_CORE, "The CPU emulation core. A change restarts the game." },
+  { "fastLoad", &fastLoad, 0, 1, NULL, "Fast Load", OPT_NO_YES, "Shortens the CD drive delays. Some games break with it on." },
   { "Files", NULL, 0, 0, "Where WiiStation finds the games and the BIOS." },
   { "RomDirSD", romDirSD, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "RomDirUSB", romDirUSB, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
-  { "BiosDevice", &biosDevice, BIOSDEVICE_HLE, BIOSDEVICE_USB },
-  { "BootThruBios", &LoadCdBios, BOOTTHRUBIOS_NO, BOOTTHRUBIOS_YES },
+  { "BiosDevice", &biosDevice, BIOSDEVICE_HLE, BIOSDEVICE_USB, NULL, "Select BIOS", OPT_BIOS, "Where the BIOS file is read from. HLE needs no file." },
+  { "BootThruBios", &LoadCdBios, BOOTTHRUBIOS_NO, BOOTTHRUBIOS_YES, NULL, "Boot Through BIOS", OPT_NO_YES, "Shows the PlayStation start screen before a game." },
   { "Video", NULL, 0, 0, "The picture: the renderer, the TV signal and the filters." },
-  { "gpuPlugin", &gpuPlugin, OLD_SOFT, OPEN_GX },
+  { "gpuPlugin", &gpuPlugin, OLD_SOFT, OPEN_GX, NULL, "GPU Plugin", OPT_GPU, "The graphics renderer. OpenGX uses the Wii GPU." },
   { "VideoMode", &videoMode, VIDEOMODE_AUTO, VIDEOMODE_PROGRESSIVE },
-  { "TVMode", &originalMode, ORIGINALMODE_DISABLE, ORIGINALMODE_ENABLE },
-  { "ForceNTSC", &forceNTSC, FORCENTSC_DISABLE, FORCENTSC_ENABLE },
-  { "ScreenMode", &screenMode, SCREENMODE_4x3, SCREENMODE_16x9_PILLARBOX },
-  { "Interlaced", &interlacedMode, INTERLACED_DISABLE, INTERLACED_ENABLE },
-  { "DeflickerFilter", &deflickerFilter, DEFLICKER_DISABLE, DEFLICKER_ENABLE },
-  { "TrapFilter", &trapFilter, TRAPFILTER_DISABLE, TRAPFILTER_ENABLE },
-  { "BilinearFilter", &bilinearFilter, BILINEARFILTER_DISABLE, BILINEARFILTER_ENABLE },
-  { "Dithering", &useDithering, USEDITHER_NONE, USEDITHER_ALWAYS },
-  { "MdecChroma", &mdecChroma, MDECCHROMA_SHARP, MDECCHROMA_SMOOTH },
-  { "FmvColour", &fmvColour, FMVCOLOUR_15BIT, FMVCOLOUR_24BIT },
-  { "LimitFrames", &frameLimit[1], FRAMELIMIT_NONE, FRAMELIMIT_AUTO },
-  { "SkipFrames", &frameSkip, FRAMESKIP_DISABLE, FRAMESKIP_ENABLE },
-  { "FPS", &showFPSonScreen, FPS_HIDE, FPS_SHOW },
+  { "TVMode", &originalMode, ORIGINALMODE_DISABLE, ORIGINALMODE_ENABLE, NULL, "240p", OPT_OFF_ON, "Turns the 240p display mode on or off." },
+  { "ForceNTSC", &forceNTSC, FORCENTSC_DISABLE, FORCENTSC_ENABLE, NULL, "Force NTSC", OPT_OFF_ON, "Treats every game as an NTSC game." },
+  { "ScreenMode", &screenMode, SCREENMODE_4x3, SCREENMODE_16x9_PILLARBOX, NULL, "Screen Mode", OPT_SCREEN, "Sets the shape of the picture." },
+  { "Interlaced", &interlacedMode, INTERLACED_DISABLE, INTERLACED_ENABLE, NULL, "Interlaced", OPT_OFF_ON, "Turns the interlaced video mode on or off." },
+  { "DeflickerFilter", &deflickerFilter, DEFLICKER_DISABLE, DEFLICKER_ENABLE, NULL, "Deflicker", OPT_OFF_ON, "Turns the deflicker filter on or off." },
+  { "TrapFilter", &trapFilter, TRAPFILTER_DISABLE, TRAPFILTER_ENABLE, NULL, "Trap", OPT_OFF_ON, "Turns the trap filter on or off." },
+  { "BilinearFilter", &bilinearFilter, BILINEARFILTER_DISABLE, BILINEARFILTER_ENABLE, NULL, "Bilinear", OPT_BILINEAR, "Sets the texture filter." },
+  { "Dithering", &useDithering, USEDITHER_NONE, USEDITHER_ALWAYS, NULL, "Dithering", OPT_DITHER, "Hides the steps between colours in a 15-bit picture." },
+  { "MdecChroma", &mdecChroma, MDECCHROMA_SHARP, MDECCHROMA_SMOOTH, NULL, "MDEC Chroma", OPT_CHROMA, "Sharp is the console. Smooth looks better and costs more." },
+  { "FmvColour", &fmvColour, FMVCOLOUR_15BIT, FMVCOLOUR_24BIT, NULL, "Video Colour", OPT_COLOUR, "24-bit is full colour. 15-bit shows bands in dark scenes." },
+  { "LimitFrames", &frameLimit[1], FRAMELIMIT_NONE, FRAMELIMIT_AUTO, NULL, "Limit FPS", OPT_LIMIT, "Turns the frame limiter on (Auto) or off." },
+  { "SkipFrames", &frameSkip, FRAMESKIP_DISABLE, FRAMESKIP_ENABLE, NULL, "Frame Skip", OPT_OFF_ON, "Skips frames when the Wii is too slow." },
+  { "FPS", &showFPSonScreen, FPS_HIDE, FPS_SHOW, NULL, "Show FPS", OPT_OFF_ON, "Shows the frame rate on the screen." },
   { "EfbSync", &efbSyncSetting, 0, 2 },
   { "Audio", NULL, 0, 0, "The sound." },
-  { "Audio", &audioEnabled, AUDIO_DISABLE, AUDIO_ENABLE },
-  { "SoundHwAccel", &soundHwAccel, SOUND_HW_ACCEL_OFF, SOUND_HW_ACCEL_ON },
-  { "SoundResampler", &soundResampler, SOUND_RESAMPLE_HOLD, SOUND_RESAMPLE_CUBIC },
-  { "SoundRateControl", &soundRateControl, SOUND_RATE_CONTROL_OFF, SOUND_RATE_CONTROL_ON },
-  { "SoundTempo", &soundTempo, SOUND_TEMPO_OFF, SOUND_TEMPO_ON },
-  { "SoundReverb", &soundReverb, SOUND_REVERB_OFF, SOUND_REVERB_ON },
-  { "SoundMixerPrecision", &soundMixerPrecision, SOUND_MIXER_PRECISION_LEGACY, SOUND_MIXER_PRECISION_HIFI },
-  { "SoundXaResampler", &soundXaResampler, SOUND_XA_RESAMPLER_LEGACY, SOUND_XA_RESAMPLER_HIFI },
-  { "Interpolation", &spuInterpolation, SIMPLE_INTERPOLATION, GAUSSI_INTERPOLATION },
-  { "DisableXa", &xaDisabled, XA_ENABLE, XA_DISABLE },
-  { "DisableCdda", &cddaDisabled, CDDA_ENABLE, CDDA_DISABLE },
+  { "Audio", &audioEnabled, AUDIO_DISABLE, AUDIO_ENABLE, NULL, "Audio", OPT_OFF_ON, "Turns the sound output on or off." },
+  { "SoundHwAccel", &soundHwAccel, SOUND_HW_ACCEL_OFF, SOUND_HW_ACCEL_ON, NULL, "Output", OPT_OUTPUT, "CPU mixes the sound. DSP uses the Wii sound chip." },
+  { "SoundResampler", &soundResampler, SOUND_RESAMPLE_HOLD, SOUND_RESAMPLE_CUBIC, NULL, "Output Resampler", OPT_RESAMPLE, "Sets how 44100 Hz sound is converted to 48000 Hz." },
+  { "SoundRateControl", &soundRateControl, SOUND_RATE_CONTROL_OFF, SOUND_RATE_CONTROL_ON, NULL, "Rate", OPT_OFF_ON, "Nudges the playback rate to keep pace with the mixer." },
+  { "SoundTempo", &soundTempo, SOUND_TEMPO_OFF, SOUND_TEMPO_ON, NULL, "Tempo", OPT_OFF_ON, "Legacy: pulls the mixer clock back when sound runs late." },
+  { "SoundReverb", &soundReverb, SOUND_REVERB_OFF, SOUND_REVERB_ON, NULL, "Reverb", OPT_OFF_ON, "Turns the SPU reverb on or off." },
+  { "SoundMixerPrecision", &soundMixerPrecision, SOUND_MIXER_PRECISION_LEGACY, SOUND_MIXER_PRECISION_HIFI, NULL, "Mixer Precision", OPT_MIX, "Sets the precision of the sound mixer." },
+  { "SoundXaResampler", &soundXaResampler, SOUND_XA_RESAMPLER_LEGACY, SOUND_XA_RESAMPLER_HIFI, NULL, "XA Resampler", OPT_MIX, "Sets the resampler for the XA streams." },
+  { "Interpolation", &spuInterpolation, SIMPLE_INTERPOLATION, GAUSSI_INTERPOLATION, NULL, "Interpolation", OPT_INTERP, "Sets how the sound samples are interpolated." },
+  { "DisableXa", &xaDisabled, XA_ENABLE, XA_DISABLE, NULL, "XA", OPT_ON_OFF, "Plays or mutes the XA streams of the disc." },
+  { "DisableCdda", &cddaDisabled, CDDA_ENABLE, CDDA_DISABLE, NULL, "CDDA", OPT_ON_OFF, "Plays or mutes the CD audio tracks." },
   { "Timing", NULL, 0, 0, "Fast timing or PlayStation timing. Fast is the default." },
-  { "CpuTiming", &cpuTiming, CPU_TIMING_FAST, CPU_TIMING_ACCURATE },
-  { "GpuTiming", &gpuTiming, GPU_TIMING_FAST, GPU_TIMING_ACCURATE },
-  { "SioTiming", &sioTiming, SIO_TIMING_FAST, SIO_TIMING_ACCURATE },
+  { "CpuTiming", &cpuTiming, CPU_TIMING_FAST, CPU_TIMING_ACCURATE, NULL, "CPU Timing", OPT_FAST_ACCURATE, "Accurate: GTE and multiply waits as on a PS1." },
+  { "GpuTiming", &gpuTiming, GPU_TIMING_FAST, GPU_TIMING_ACCURATE, NULL, "GPU Timing", OPT_FAST_ACCURATE, "Accurate: the GPU is busy as long as on a PS1." },
+  { "SioTiming", &sioTiming, SIO_TIMING_FAST, SIO_TIMING_ACCURATE, NULL, "Port Timing", OPT_FAST_ACCURATE, "Accurate: each controller port byte takes as long as on a PS1." },
+  { "CpuSpeed", &cpuSpeed, CPU_SPEED_AUTO, CPU_SPEED_300, NULL, "CPU Speed", OPT_SPEED, "Over 100% eases slowdown in some games, at more CPU cost." },
+  { "FrameRate", &frameRateMode, FRAMERATE_AUTO, FRAMERATE_PS1, NULL, "Frame Rate", OPT_FRAMERATE, "Sets the refresh rate the game runs at." },
   { "Performance", NULL, 0, 0, "Disc reads and the frame limiter. Keep the defaults." },
-  { "CdBuffer", &cdBuffer, CD_BUFFER_16K, CD_BUFFER_256K },
-  { "CdPrefetch", &cdPrefetch, CD_PREFETCH_OFF, CD_PREFETCH_ON },
-  { "CdChdHunks", &cdChdHunks, CD_CHD_HUNKS_2, CD_CHD_HUNKS_8 },
+  { "CdBuffer", &cdBuffer, CD_BUFFER_16K, CD_BUFFER_256K, NULL, "CD Read Buffer", OPT_CD_BUFFER, "16 KB is best: a larger buffer reads more than the game uses." },
+  { "CdPrefetch", &cdPrefetch, CD_PREFETCH_OFF, CD_PREFETCH_ON, NULL, "CD Read-Ahead", OPT_OFF_ON, "A thread reads the next sectors early. Raw bin/cue and .iso only." },
+  { "CdChdHunks", &cdChdHunks, CD_CHD_HUNKS_2, CD_CHD_HUNKS_8, NULL, "CHD Hunk Cache", OPT_CD_HUNKS, "Decoded CHD hunks kept in memory. 8 is best." },
   { "LimiterWait", &limiterWait, LIMITER_WAIT_SPIN, LIMITER_WAIT_SLEEP },
   { "LimiterDebt", &limiterDebt, LIMITER_DEBT_SHORT, LIMITER_DEBT_LONG },
   /* The locked cache: one bit per region in Gamecube/lc.c's table, 0 = all off. Not in the
    * menu -- it is for measuring, and a chained autoboot can set it per game. */
   { "LockedCache", &lockedCache, 0, 127 },
   { "Saves", NULL, 0, 0, "Memory cards and save states." },
-  { "NativeDevice", &nativeSaveDevice, NATIVESAVEDEVICE_SD, NATIVESAVEDEVICE_CARDB },
-  { "StatesDevice", &saveStateDevice, SAVESTATEDEVICE_SD, SAVESTATEDEVICE_USB },
-  { "AutoSave", &autoSave, AUTOSAVE_DISABLE, AUTOSAVE_ENABLE },
-  { "Memcard0", &memCard[0], MEMCARD_DISABLE, MEMCARD_ENABLE },
-  { "Memcard0File", &memCardFile[0], MEMCARDFILE_SHARED, MEMCARDFILE_PER_GAME },
-  { "Memcard1", &memCard[1], MEMCARD_DISABLE, MEMCARD_ENABLE },
-  { "Memcard1File", &memCardFile[1], MEMCARDFILE_SHARED, MEMCARDFILE_PER_GAME },
+  { "NativeDevice", &nativeSaveDevice, NATIVESAVEDEVICE_SD, NATIVESAVEDEVICE_CARDB, NULL, "Memcard Save Device", OPT_SAVE_DEVICE, "Where the memory card files are saved." },
+  { "StatesDevice", &saveStateDevice, SAVESTATEDEVICE_SD, SAVESTATEDEVICE_USB, NULL, "Save States Device", OPT_STATES_DEVICE, "Where the save state files are saved." },
+  { "AutoSave", &autoSave, AUTOSAVE_DISABLE, AUTOSAVE_ENABLE, NULL, "Auto Save Memcards", OPT_NO_YES, "Saves the memory cards automatically." },
+  { "Memcard0", &memCard[0], MEMCARD_DISABLE, MEMCARD_ENABLE, NULL, "Memcard 1", OPT_OFF_ON, "Turns memory card 1 on or off." },
+  { "Memcard0File", &memCardFile[0], MEMCARDFILE_SHARED, MEMCARDFILE_PER_GAME, NULL, "Memcard Type", OPT_MEMCARD_TYPE, "Shared: one card file for all games. Game: one per game." },
+  { "Memcard1", &memCard[1], MEMCARD_DISABLE, MEMCARD_ENABLE, NULL, "Memcard 2", OPT_OFF_ON, "Turns memory card 2 on or off." },
+  { "Memcard1File", &memCardFile[1], MEMCARDFILE_SHARED, MEMCARDFILE_PER_GAME, NULL, "Memcard Type", OPT_MEMCARD_TYPE, "Shared: one card file for all games. Game: one per game." },
   { "Controllers", NULL, 0, 0, "The PlayStation ports and the controllers on them." },
-  { "PadAutoAssign", &padAutoAssign, PADAUTOASSIGN_MANUAL, PADAUTOASSIGN_AUTOMATIC },
-  { "ControllerType", &controllerType, CONTROLLERTYPE_STANDARD, CONTROLLERTYPE_STICKDPAD },
-  { "RumbleEnabled", &rumbleEnabled, RUMBLE_DISABLE, RUMBLE_ENABLE },
-  { "LoadButtonSlot", &loadButtonSlot, LOADBUTTON_SLOT0, LOADBUTTON_DEFAULT },
-  { "LightGun", &lightGun, LIGHTGUN_DISABLE, LIGHTGUN_MOUSE },
+  { "PadAutoAssign", &padAutoAssign, PADAUTOASSIGN_MANUAL, PADAUTOASSIGN_AUTOMATIC, NULL, "Pad Assignment", OPT_PAD_ASSIGN, "Automatic assigns the controllers to the ports." },
+  { "ControllerType", &controllerType, CONTROLLERTYPE_STANDARD, CONTROLLERTYPE_STICKDPAD, NULL, "PSX Pad Type", OPT_CONTROLLER, "Stick D-pad: a digital pad whose D-pad follows the left stick." },
+  { "RumbleEnabled", &rumbleEnabled, RUMBLE_DISABLE, RUMBLE_ENABLE, NULL, "Enable Rumble", OPT_NO_YES, "Turns the controller rumble on or off." },
+  { "LoadButtonSlot", &loadButtonSlot, LOADBUTTON_SLOT0, LOADBUTTON_AUTO, NULL, "Auto Load Slot", OPT_SLOT, "The button mapping that loads at start: a slot, the default, or Auto (this game's own)." },
+  { "LightGun", &lightGun, LIGHTGUN_DISABLE, LIGHTGUN_MOUSE, NULL, "Light Gun", OPT_LIGHTGUN, "Sets the light gun type. Off uses the pad." },
   /* PadAssign: a physical controller, 0..3: 4..9 indexed the drivers' 4-entry available[] past its end */
   { "PadType1", &padType[0], PADTYPE_NONE, PADTYPE_COOP },
   { "PadAssign1", &padAssign[0], 0, 3 },
@@ -311,53 +337,69 @@ static struct {
   { "Coop1Type1", &coopType[0][0], PADTYPE_NONE, PADTYPE_HID },
   { "Coop1Assign1", &coopAssign[0][0], 0, 3 },
   { "Coop1Layout1", &coopLayout[0][0], COOP_LAYOUT_FULL, COOP_LAYOUT_COUNT - 1 },
+  { "Coop1Buttons1", coopButtons[0][0], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "Coop1Type2", &coopType[0][1], PADTYPE_NONE, PADTYPE_HID },
   { "Coop1Assign2", &coopAssign[0][1], 0, 3 },
   { "Coop1Layout2", &coopLayout[0][1], COOP_LAYOUT_FULL, COOP_LAYOUT_COUNT - 1 },
+  { "Coop1Buttons2", coopButtons[0][1], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "Coop1Type3", &coopType[0][2], PADTYPE_NONE, PADTYPE_HID },
   { "Coop1Assign3", &coopAssign[0][2], 0, 3 },
   { "Coop1Layout3", &coopLayout[0][2], COOP_LAYOUT_FULL, COOP_LAYOUT_COUNT - 1 },
+  { "Coop1Buttons3", coopButtons[0][2], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "Coop1Type4", &coopType[0][3], PADTYPE_NONE, PADTYPE_HID },
   { "Coop1Assign4", &coopAssign[0][3], 0, 3 },
   { "Coop1Layout4", &coopLayout[0][3], COOP_LAYOUT_FULL, COOP_LAYOUT_COUNT - 1 },
+  { "Coop1Buttons4", coopButtons[0][3], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "Coop1Type5", &coopType[0][4], PADTYPE_NONE, PADTYPE_HID },
   { "Coop1Assign5", &coopAssign[0][4], 0, 3 },
   { "Coop1Layout5", &coopLayout[0][4], COOP_LAYOUT_FULL, COOP_LAYOUT_COUNT - 1 },
+  { "Coop1Buttons5", coopButtons[0][4], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "Coop1Type6", &coopType[0][5], PADTYPE_NONE, PADTYPE_HID },
   { "Coop1Assign6", &coopAssign[0][5], 0, 3 },
   { "Coop1Layout6", &coopLayout[0][5], COOP_LAYOUT_FULL, COOP_LAYOUT_COUNT - 1 },
+  { "Coop1Buttons6", coopButtons[0][5], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "Coop1Type7", &coopType[0][6], PADTYPE_NONE, PADTYPE_HID },
   { "Coop1Assign7", &coopAssign[0][6], 0, 3 },
   { "Coop1Layout7", &coopLayout[0][6], COOP_LAYOUT_FULL, COOP_LAYOUT_COUNT - 1 },
+  { "Coop1Buttons7", coopButtons[0][6], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "Coop1Type8", &coopType[0][7], PADTYPE_NONE, PADTYPE_HID },
   { "Coop1Assign8", &coopAssign[0][7], 0, 3 },
   { "Coop1Layout8", &coopLayout[0][7], COOP_LAYOUT_FULL, COOP_LAYOUT_COUNT - 1 },
+  { "Coop1Buttons8", coopButtons[0][7], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "Coop2Type1", &coopType[1][0], PADTYPE_NONE, PADTYPE_HID },
   { "Coop2Assign1", &coopAssign[1][0], 0, 3 },
   { "Coop2Layout1", &coopLayout[1][0], COOP_LAYOUT_FULL, COOP_LAYOUT_COUNT - 1 },
+  { "Coop2Buttons1", coopButtons[1][0], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "Coop2Type2", &coopType[1][1], PADTYPE_NONE, PADTYPE_HID },
   { "Coop2Assign2", &coopAssign[1][1], 0, 3 },
   { "Coop2Layout2", &coopLayout[1][1], COOP_LAYOUT_FULL, COOP_LAYOUT_COUNT - 1 },
+  { "Coop2Buttons2", coopButtons[1][1], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "Coop2Type3", &coopType[1][2], PADTYPE_NONE, PADTYPE_HID },
   { "Coop2Assign3", &coopAssign[1][2], 0, 3 },
   { "Coop2Layout3", &coopLayout[1][2], COOP_LAYOUT_FULL, COOP_LAYOUT_COUNT - 1 },
+  { "Coop2Buttons3", coopButtons[1][2], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "Coop2Type4", &coopType[1][3], PADTYPE_NONE, PADTYPE_HID },
   { "Coop2Assign4", &coopAssign[1][3], 0, 3 },
   { "Coop2Layout4", &coopLayout[1][3], COOP_LAYOUT_FULL, COOP_LAYOUT_COUNT - 1 },
+  { "Coop2Buttons4", coopButtons[1][3], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "Coop2Type5", &coopType[1][4], PADTYPE_NONE, PADTYPE_HID },
   { "Coop2Assign5", &coopAssign[1][4], 0, 3 },
   { "Coop2Layout5", &coopLayout[1][4], COOP_LAYOUT_FULL, COOP_LAYOUT_COUNT - 1 },
+  { "Coop2Buttons5", coopButtons[1][4], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "Coop2Type6", &coopType[1][5], PADTYPE_NONE, PADTYPE_HID },
   { "Coop2Assign6", &coopAssign[1][5], 0, 3 },
   { "Coop2Layout6", &coopLayout[1][5], COOP_LAYOUT_FULL, COOP_LAYOUT_COUNT - 1 },
+  { "Coop2Buttons6", coopButtons[1][5], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "Coop2Type7", &coopType[1][6], PADTYPE_NONE, PADTYPE_HID },
   { "Coop2Assign7", &coopAssign[1][6], 0, 3 },
   { "Coop2Layout7", &coopLayout[1][6], COOP_LAYOUT_FULL, COOP_LAYOUT_COUNT - 1 },
+  { "Coop2Buttons7", coopButtons[1][6], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "Coop2Type8", &coopType[1][7], PADTYPE_NONE, PADTYPE_HID },
   { "Coop2Assign8", &coopAssign[1][7], 0, 3 },
   { "Coop2Layout8", &coopLayout[1][7], COOP_LAYOUT_FULL, COOP_LAYOUT_COUNT - 1 },
-  { "Achievements", NULL, 0, 0, "Local rcheevos engine. File controls; no online awards or menu UI yet." },
-  { "Achievements", &achievementsEnabled, 0, 1 },
+  { "Coop2Buttons8", coopButtons[1][7], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
+  { "Achievements", NULL, 0, 0, "Local achievement engine. It reads a local definition file; no online awards." },
+  { "Achievements", &achievementsEnabled, 0, 1, NULL, "Achievements", OPT_OFF_ON, "Turns the local achievement engine on or off. Load the game again after a change." },
   { "AchievementFile", achievementFile, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "AchievementLog", achievementLog, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "Network", NULL, 0, 0, "Games from a network share (SMB)." },
@@ -367,6 +409,61 @@ static struct {
   { "smbpassword", smbPassWord, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "RomDirSMB", romDirSMB, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE }
 };
+
+const SettingOption* settingByKey(const char* key)
+{
+	for (unsigned int i = 0; i < sizeof(OPTIONS) / sizeof(OPTIONS[0]); i++)
+		if (OPTIONS[i].value && !strcmp(OPTIONS[i].key, key))	/* a section row has no value */
+			return &OPTIONS[i];
+	return NULL;
+}
+
+/* Unsaved menu changes. A game load reads a settings file over every setting, so a setting the
+ * menu changed and did not save would lose its value. settingBase holds what the settings file
+ * last gave, or what the last save wrote. Before the read, every setting that differs from it is
+ * kept (setOption skips it); after the read, the values the file gave become the base again,
+ * except for the kept settings, whose base stays as it was: their menu value is still unsaved. */
+#define OPTION_COUNT ((int)(sizeof(OPTIONS) / sizeof(OPTIONS[0])))
+static char settingBaseNum[OPTION_COUNT];
+static char *settingBaseStr[OPTION_COUNT];   /* a string setting's base: a copy each */
+static char settingKeep[OPTION_COUNT];       /* 1 = setOption skips this setting in the read */
+static bool settingBaseSet;
+
+static bool settingUnsaved(int i)
+{
+	if (!settingBaseSet || !OPTIONS[i].value)
+		return false;
+	if (OPTIONS[i].max == CONFIG_STRING_TYPE)
+		return settingBaseStr[i] && strcmp(OPTIONS[i].value, settingBaseStr[i]) != 0;
+	return *OPTIONS[i].value != settingBaseNum[i];
+}
+
+static void settingRemember(int i)
+{
+	if (!OPTIONS[i].value)
+		return;
+	if (OPTIONS[i].max == CONFIG_STRING_TYPE) {
+		free(settingBaseStr[i]);
+		settingBaseStr[i] = strdup(OPTIONS[i].value);
+	} else
+		settingBaseNum[i] = *OPTIONS[i].value;
+}
+
+static void keepUnsavedSettings(void)
+{
+	for (int i = 0; i < OPTION_COUNT; i++)
+		settingKeep[i] = settingUnsaved(i);
+}
+
+static void rememberFileSettings(void)
+{
+	for (int i = 0; i < OPTION_COUNT; i++)
+		if (!settingKeep[i])
+			settingRemember(i);
+	memset(settingKeep, 0, sizeof settingKeep);
+	settingBaseSet = true;
+}
+
 void handleConfigPair(char* kv);
 void readConfig(FILE* f);
 void writeConfig(FILE* f);
@@ -391,6 +488,9 @@ static void setGpuPlugin()
         gpuPtr = &glesGpu;
     }
 }
+
+/* The Auto Load Slot whose key mapping is loaded now (loadSettings, loadSeparatelySetting) */
+static char mappingSlot = -1;
 
 static bool loadControllerMapping(char* usbSd)
 {
@@ -509,6 +609,8 @@ void loadSettings(int argc, char *argv[])
 	cdPrefetch       = CD_PREFETCH_ON;   /* bench Wii hw_cd_ab: Spyro waits on the card 7.4 -> 1.3% of wall, Medievil 7.9 -> 1.4% */
 	gpuTiming        = GPU_TIMING_FAST;   /* until the eleven games and the recordings pass on Accurate */
 	cpuTiming        = CPU_TIMING_FAST;   /* the same */
+	cpuSpeed         = CPU_SPEED_AUTO;
+	frameRateMode    = FRAMERATE_AUTO;
 	sioTiming        = SIO_TIMING_FAST;   /* the same: Accurate is three times as long per pad byte */
 	limiterWait      = LIMITER_WAIT_SLEEP; /* bench Wii 2026-09-30: same speed, 54% of the time to other threads */
 	limiterDebt      = LIMITER_DEBT_LONG;  /* chains/limiter_debt_ab.txt: speed 1.000 vs 0.995, sound queue fuller, no rate saturation */
@@ -560,6 +662,7 @@ void loadSettings(int argc, char *argv[])
 			coopType[p][k] = k < 4 ? PADTYPE_GAMECUBE : PADTYPE_WII;
 			coopAssign[p][k] = (char)(k % 4);
 			coopLayout[p][k] = COOP_LAYOUT_FULL;
+			coopButtons[p][k][0] = 0;
 		}
 	}
 	memCard[0]		 = MEMCARD_ENABLE;
@@ -567,7 +670,7 @@ void loadSettings(int argc, char *argv[])
 	memCardFile[0]	 = MEMCARDFILE_PER_GAME;   /* what WiiStation always did */
 	memCardFile[1]	 = MEMCARDFILE_SHARED;
 	rumbleEnabled	 = RUMBLE_ENABLE;
-	loadButtonSlot	 = LOADBUTTON_DEFAULT;
+	loadButtonSlot	 = LOADBUTTON_AUTO;
 	controllerType	 = CONTROLLERTYPE_STANDARD;
 	numMultitaps	 = MULTITAPS_NONE;
 	menuActive = 1;
@@ -609,6 +712,7 @@ void loadSettings(int argc, char *argv[])
 				fclose(f);
 			}
 			loadControllerMapping("usb");
+			mappingSlot = loadButtonSlot;
 		}
 	}
 	else /*if((argv[0][0]=='s') || (argv[0][0]=='/'))*/
@@ -627,6 +731,7 @@ void loadSettings(int argc, char *argv[])
 			}
 
 			loadControllerMapping("sd");
+			mappingSlot = loadButtonSlot;
 		}
 	}
 #ifdef HW_RVL
@@ -796,7 +901,7 @@ static bool chainLine(FILE *f, char *buf, int n)
 
 static int chainLoad(FILE *f)
 {
-	char line[256];
+	char line[CONFIG_LINE_MAX];
 	while (chainN < CHAIN_MAX && chainLine(f, line, sizeof line)) {
 		auto *e = &chainList[chainN];
 		char *tok = strtok(line, " \t");
@@ -949,7 +1054,8 @@ int main(int argc, char *argv[])
 {
 	/* INITIALIZE */
 #ifdef HW_RVL
-	if(argc > 2 && argv[1] != NULL && argv[2] != NULL)
+	/* a game is "FOLDER ROM"; KEY=VALUE arguments alone are settings (loadSettings) */
+	if(argc > 2 && argv[1] != NULL && argv[2] != NULL && !strchr(argv[1], '=') && !strchr(argv[2], '='))
 	{
 		Autoboot = true;
 		snprintf(AutobootPath, sizeof(AutobootPath), "%s", argv[1]);
@@ -1006,6 +1112,8 @@ int main(int argc, char *argv[])
 		}
 	}
 
+	rememberFileSettings();   /* what the boot read is the file's: the base for unsaved changes */
+
 	/* Test automation: a bare .dol booted by Dolphin gets no loader argv, so
 	 * sd:/wiistation/autoboot.txt -- two lines, the ISO's directory and its
 	 * filename -- stands in for argv[1]/argv[2] and boots straight into the
@@ -1030,6 +1138,12 @@ int main(int argc, char *argv[])
 				} else if (fgets(AutobootROM, sizeof(AutobootROM), ab)) {
 					AutobootROM[strcspn(AutobootROM, "\r\n")] = 0;
 					Autoboot = AutobootPath[0] && AutobootROM[0];
+					/* Read autoinput.txt again now that the card is mounted: the pad
+					 * plugin looked for it at boot, before the mount, found nothing and
+					 * never looked again, so a single game's script (presses, dump,
+					 * trace, ramwatch) was silently ignored (a chain resets per game). */
+					if (Autoboot)
+						autoinput_reset("sd:/wiistation/autoinput.txt");
 				}
 			}
 			fclose(ab);
@@ -1158,6 +1272,73 @@ void biosFileInit()
 	biosFile_init(biosFile);  //initialize the bios device (it might not be the same as ISO device)
 }
 
+/* The Game slot of the button mappings (ConfigureButtons' fifth slot): one file per game, named by
+ * its CD-ROM ID and kept beside the slot files. USB when the USB has a wiistation folder,
+ * otherwise SD. */
+static void gameButtonsPath(char* buf, size_t size, const char* dev)
+{
+	snprintf(buf, size, "%s:/wiistation/%s.btn", dev, CdromId);
+}
+
+int saveGameButtons(void)
+{
+	char path[256];
+	struct stat s;
+	bool usb = stat("usb:/wiistation/", &s) == 0;
+	FILE* f;
+	if (!CdromId[0] || !fileBrowser_libfat_init(usb ? &saveDir_libfat_USB : &saveDir_libfat_Default))
+		return 0;
+	gameButtonsPath(path, sizeof path, usb ? "usb" : "sd");
+	makeParentDirs(path);
+	f = fopen(path, "wb");
+	if (!f)
+		return 0;
+	for (int i = 0; i < num_controller_t; i++)
+		save_game_slot(f, controller_ts[i]);
+	fclose(f);
+	return 1;
+}
+
+/* The Game slot of the game that starts: USB first, then SD, as the settings are. */
+static FILE* openGameButtons(void)
+{
+	char path[256];
+	FILE* f = NULL;
+	if (!CdromId[0])
+		return NULL;
+	if (fileBrowser_libfat_init(&saveDir_libfat_USB)) {
+		gameButtonsPath(path, sizeof path, "usb");
+		f = fopen(path, "rb");
+	}
+	if (!f && fileBrowser_libfat_init(&saveDir_libfat_Default)) {
+		gameButtonsPath(path, sizeof path, "sd");
+		f = fopen(path, "rb");
+	}
+	return f;
+}
+
+/* At each game start, every controller's Game slot is the game's own, or the default when the
+ * game has no file (so the menu's Game slot shows this game's). Auto Load Slot = Auto copies it
+ * to the mapping. Once per game start, not per frame. */
+static void loadGameButtons(void)
+{
+	FILE* f = openGameButtons();
+	bool loaded = f != NULL;
+	for (int i = 0; loaded && i < num_controller_t; i++)
+		loaded = load_game_slot(f, controller_ts[i]);
+	if (f)
+		fclose(f);
+	for (int i = 0; i < num_controller_t; i++) {
+		controller_t* c = controller_ts[i];
+		if (!loaded)
+			memcpy(&c->config_slot[CONTROLLER_GAME_SLOT], &c->config_default, sizeof(controller_config_t));
+		/* Auto: this game's mapping, or the default when it has none -- never the previous game's */
+		if (loadButtonSlot == LOADBUTTON_AUTO)
+			for (int j = 0; j < 4; j++)
+				memcpy(&c->config[j], &c->config_slot[CONTROLLER_GAME_SLOT], sizeof(controller_config_t));
+	}
+}
+
 static bool loadSeparatelySettingItem(char* s1, char* s2, bool isUsb)
 {
     struct stat s;
@@ -1184,7 +1365,8 @@ static bool loadSeparatelySettingItem(char* s1, char* s2, bool isUsb)
 
 static void loadSeparatelySetting()
 {
-    char oldLoadButtonSlot = loadButtonSlot;
+    // The menu's unsaved changes survive the reads below (setOption skips them).
+    keepUnsavedSettings();
 
     // First, we load separately game settings.
     // Load separately game settings from USB device
@@ -1205,11 +1387,14 @@ static void loadSeparatelySetting()
             }
         }
     }
+    rememberFileSettings();
     chainReapply();   /* a chained game's own settings win over the file */
 
-    // If the loadButton Slot changes, reload the key mapping
-    if (oldLoadButtonSlot != loadButtonSlot)
+    // If the Auto Load Slot differs from the one whose mapping is loaded, reload the key mapping.
+    // Compared with mappingSlot: the menu's value may have survived the read above.
+    if (mappingSlot != loadButtonSlot)
     {
+        mappingSlot = loadButtonSlot;
         // Load button mapping from USB
         if (!loadControllerMapping("usb"))
         {
@@ -1218,6 +1403,8 @@ static void loadSeparatelySetting()
             loadControllerMapping("sd");
         }
     }
+
+    loadGameButtons();   /* the Game slot of the button mappings: this game's, and Auto applies it */
 
     Config.pR3000Fix = 0;
     Config.Cpu = dynacore;
@@ -1382,6 +1569,8 @@ void setOption(char* key, char* valuePointer){
 
 	for(unsigned int i=0; i<sizeof(OPTIONS)/sizeof(OPTIONS[0]); i++){
 		if(OPTIONS[i].value && !strcmp(OPTIONS[i].key, key)){   /* a section row has no value */
+			if (settingKeep[i])   /* an unsaved menu change: the read leaves it */
+				break;
 			if(isString) {
 				if(OPTIONS[i].max == CONFIG_STRING_TYPE)
 					strncpy(OPTIONS[i].value, valuePointer,
@@ -1403,15 +1592,15 @@ void handleConfigPair(char* kv){
 }
 
 void readConfig(FILE* f){
-	char line[256];
-	while(fgets(line, 256, f)){
+	char line[CONFIG_LINE_MAX];
+	while(config_getline(line, CONFIG_LINE_MAX, f)){   /* whole lines only: config_parse.h */
 		char* l = config_line(line);   /* config_parse.h: blank, comment and [section] lines hold none */
 		if(l)
 			handleConfigPair(l);
 	}
 }
 
-void writeConfig(FILE* f){
+static void writeSettingLines(FILE* f){
 	fprintf(f, "; WiiStation settings. Write one \"key = value\" on each line.\n"
 	           "; example_settings.ini and SETTINGS.md tell what each setting does.\n");
 	for(unsigned int i=0; i<sizeof(OPTIONS)/sizeof(OPTIONS[0]); ++i){
@@ -1422,6 +1611,19 @@ void writeConfig(FILE* f){
 		else
 			fprintf(f, "%s = %d\n", OPTIONS[i].key, *OPTIONS[i].value);
 	}
+}
+
+/* A save to a settings file: from here the menu's values are the file's, so none is unsaved. */
+void writeConfig(FILE* f){
+	writeSettingLines(f);
+	for (int i = 0; i < OPTION_COUNT; i++)
+		settingRemember(i);
+	settingBaseSet = true;
+}
+
+/* The settings written into a save state: a copy, not a save, so the menu's changes stay unsaved. */
+void writeConfigCopy(FILE* f){
+	writeSettingLines(f);
 }
 
 extern "C" {
@@ -1510,10 +1712,15 @@ void SysStartCPU() {
 	go();
 }
 
+extern "C" void quit_crumb(const char *fmt, ...);   /* libgui/Gui.cpp: the Quit log (a no-op unless quitting) */
+
 void SysClose()
 {
+	quit_crumb("SysClose: psxShutdown");
 	psxShutdown();
+	quit_crumb("SysClose: ClosePlugins");
 	ClosePlugins();
+	quit_crumb("SysClose: ReleasePlugins");
 	ReleasePlugins();
 #if defined (CPU_LOG) || defined(DMA_LOG) || defined(CDR_LOG) || defined(HW_LOG) || \
 	defined(PSXBIOS_LOG) || defined(GTE_LOG) || defined(PAD_LOG)

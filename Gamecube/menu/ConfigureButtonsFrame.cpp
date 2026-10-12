@@ -24,12 +24,15 @@
 #include "ConfigureButtonsFrame.h"
 #include "../libgui/GuiTypes.h"
 #include "../libgui/GuiResources.h"
+#include "MenuEngine.h"	/* before Button.h: its include guard is BUTTON_H, a name the engine uses */
+#include "../libgui/IPLFont.h"
 #include "../libgui/Button.h"
 #include "../libgui/TextBox.h"
 #include "../libgui/resources.h"
 #include "../libgui/FocusManager.h"
 #include "../libgui/CursorManager.h"
 #include "../libgui/MessageBox.h"
+#include "MenuGlue.h"
 //#include "../main/timers.h"
 //#include "../main/wii64config.h"
 
@@ -40,11 +43,13 @@ extern "C" {
 void Func_NextPad();
 void Func_DefaultConfig();
 void Func_ToggleConfigSlot();
+int saveGameButtons(void);   /* GamecubeMain.cpp: the Game slot's file for this game */
 void Func_LoadConfig();
 void Func_SaveConfig();
 
 void Func_ToggleButtonExit();
 void Func_ToggleButtonFastF();
+void Func_ToggleButtonScreenshot();
 void Func_ToggleButtonL1();
 void Func_ToggleButtonL2();
 void Func_ToggleButtonSelect();
@@ -72,14 +77,14 @@ void Func_ToggleGunMouse();
 void Func_ReturnFromConfigureButtonsFrame();
 
 
-#define NUM_FRAME_BUTTONS 30
+#define NUM_FRAME_BUTTONS 31
 #define FRAME_BUTTONS configureButtonsFrameButtons
 #define FRAME_STRINGS configureButtonsFrameStrings
-#define NUM_FRAME_TEXTBOXES 5
+#define NUM_FRAME_TEXTBOXES 6
 #define FRAME_TEXTBOXES configureButtonsFrameTextBoxes
 #define TITLE_STRING configureButtonsTitleString
 
-static char FRAME_STRINGS[36][20] =
+static char FRAME_STRINGS[38][20] =
 	{ "Next",
 	  "Default",
 	  "Slot 1",
@@ -115,11 +120,13 @@ static char FRAME_STRINGS[36][20] =
 	  "X+Y",
 	  "Limit FPS:",
 	  "Lift Mouse:",
-	  "Gun/Mouse"};
+	  "Gun/Mouse",
+	  "Off",
+	  "Shot:"};
 
 static char TITLE_STRING[64] = "Gamecube Pad 1 to PSX Port 1 Mapping";
 
-struct ButtonInfo
+struct ConfigButtonInfo
 {
 	menu::Button	*button;
 	int				buttonStyle;
@@ -128,49 +135,46 @@ struct ButtonInfo
 	float			y;
 	float			width;
 	float			height;
-	int				focusUp;
-	int				focusDown;
-	int				focusLeft;
-	int				focusRight;
 	ButtonFunc		clickedFunc;
 	ButtonFunc		returnFunc;
 } FRAME_BUTTONS[NUM_FRAME_BUTTONS] =
-{ //	button	buttonStyle buttonString		x		y		width	height	Up	Dwn	Lft	Rt	clickFunc				returnFunc
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[0],	 20.0,	 20.0,	 80.0,	40.0,	22,	 5,	29,	 1,	Func_NextPad,			Func_ReturnFromConfigureButtonsFrame }, // Next Pad
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[1],	110.0,	 20.0,	100.0,	40.0,	24,	 8,	 0,	 2,	Func_DefaultConfig,		Func_ReturnFromConfigureButtonsFrame }, // Restore Default Config
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[2],	220.0,	 20.0,	 80.0,	40.0,	25,	 9,	 1,	 3,	Func_ToggleConfigSlot,	Func_ReturnFromConfigureButtonsFrame }, // Cycle Through Config Slots
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[3],	310.0,	 20.0,	 70.0,	40.0,	23,	10,	 2,	 4,	Func_LoadConfig,		Func_ReturnFromConfigureButtonsFrame }, // Load Config
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[4],	390.0,	 20.0,	 70.0,	40.0,	23,	28,	 3,	29,	Func_SaveConfig,		Func_ReturnFromConfigureButtonsFrame }, // Save Config
+{ //	button	buttonStyle buttonString		x		y		width	height	clickFunc				returnFunc
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[0],	 20.0,	 20.0,	 80.0,	40.0,	Func_NextPad,			Func_ReturnFromConfigureButtonsFrame }, // Next Pad
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[1],	110.0,	 20.0,	100.0,	40.0,	Func_DefaultConfig,		Func_ReturnFromConfigureButtonsFrame }, // Restore Default Config
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[2],	220.0,	 20.0,	 80.0,	40.0,	Func_ToggleConfigSlot,	Func_ReturnFromConfigureButtonsFrame }, // Cycle Through Config Slots
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[3],	310.0,	 20.0,	 70.0,	40.0,	Func_LoadConfig,		Func_ReturnFromConfigureButtonsFrame }, // Load Config
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[4],	390.0,	 20.0,	 70.0,	40.0,	Func_SaveConfig,		Func_ReturnFromConfigureButtonsFrame }, // Save Config
 
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[5],	 15.0,	160.0,	110.0,	40.0,	 0,	12,	28,	 6,	Func_ToggleButtonExit,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Button Exit
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[5],	 15.0,	135.0,	110.0,	40.0,	Func_ToggleButtonExit,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Button Exit
 
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[6],	140.0,	130.0,	 80.0,	40.0,	 0,	 7,	 5,	 8,	Func_ToggleButtonL1,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Button L1
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[7],	140.0,	180.0,	 80.0,	40.0,	 6,	12,	 5,	 8,	Func_ToggleButtonL2,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Button L2
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[8],	235.0,	140.0,	 80.0,	40.0,	 1,	20,	 6,	 9,	Func_ToggleButtonSelect,Func_ReturnFromConfigureButtonsFrame }, // Toggle Button Select
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[9],	325.0,	140.0,	 80.0,	40.0,	 2,	21,	 8,	10,	Func_ToggleButtonStart,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Button Start
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[10],	420.0,	130.0,	 80.0,	40.0,	 3,	11,	 9,	 28,Func_ToggleButtonR1,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Button R1
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[11],	420.0,	180.0,	 80.0,	40.0,	10,	16,	 9,	 28,Func_ToggleButtonR2,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Button R2
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[6],	140.0,	130.0,	 80.0,	40.0,	Func_ToggleButtonL1,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Button L1
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[7],	140.0,	180.0,	 80.0,	40.0,	Func_ToggleButtonL2,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Button L2
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[8],	235.0,	140.0,	 80.0,	40.0,	Func_ToggleButtonSelect,Func_ReturnFromConfigureButtonsFrame }, // Toggle Button Select
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[9],	325.0,	140.0,	 80.0,	40.0,	Func_ToggleButtonStart,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Button Start
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[10],	420.0,	130.0,	 80.0,	40.0,	Func_ToggleButtonR1,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Button R1
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[11],	420.0,	180.0,	 80.0,	40.0,	Func_ToggleButtonR2,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Button R2
 
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[12],	 75.0,	230.0,	 80.0,	40.0,	 5,	13,	16,	16,	Func_ToggleButtonDup,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Button D-up
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[13],	 30.0,	280.0,	 80.0,	40.0,	12,	15,	18,	14,	Func_ToggleButtonDleft,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Button D-left
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[14],	120.0,	280.0,	 80.0,	40.0,	12,	15,	13,	17,	Func_ToggleButtonDright,Func_ReturnFromConfigureButtonsFrame }, // Toggle Button D-right
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[15],	 75.0,	330.0,	 80.0,	40.0,	13,	22,	19,	20,	Func_ToggleButtonDdown,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Button D-down
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[12],	 75.0,	250.0,	 80.0,	40.0,	Func_ToggleButtonDup,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Button D-up
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[13],	 30.0,	300.0,	 80.0,	40.0,	Func_ToggleButtonDleft,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Button D-left
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[14],	120.0,	300.0,	 80.0,	40.0,	Func_ToggleButtonDright,Func_ReturnFromConfigureButtonsFrame }, // Toggle Button D-right
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[15],	 75.0,	350.0,	 80.0,	40.0,	Func_ToggleButtonDdown,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Button D-down
 
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[16],	485.0,	230.0,	 80.0,	40.0,	11,	17,	12,	12,	Func_ToggleButtonTri,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Button Triangle
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[17],	440.0,	280.0,	 80.0,	40.0,	16,	19,	14,	18,	Func_ToggleButtonSqu,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Button Square
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[18],	530.0,	280.0,	 80.0,	40.0,	16,	19,	17,	13,	Func_ToggleButtonCir,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Button Circle
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[19],	485.0,	330.0,	 80.0,	40.0,	17,	23,	21,	15,	Func_ToggleButtonCro,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Button Cross
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[16],	485.0,	250.0,	 80.0,	40.0,	Func_ToggleButtonTri,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Button Triangle
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[17],	440.0,	300.0,	 80.0,	40.0,	Func_ToggleButtonSqu,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Button Square
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[18],	530.0,	300.0,	 80.0,	40.0,	Func_ToggleButtonCir,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Button Circle
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[19],	485.0,	350.0,	 80.0,	40.0,	Func_ToggleButtonCro,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Button Cross
 
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[20],	160.0,	345.0,	100.0,	40.0,	 8,	24,	15,	27,	Func_ToggleAnalogL,		Func_ReturnFromConfigureButtonsFrame }, // Toggle Analog Stick L
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[21],	380.0,	345.0,	100.0,	40.0,	 9,	25,	26,	19,	Func_ToggleAnalogR,		Func_ReturnFromConfigureButtonsFrame }, // Toggle Analog Stick R
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[22],	 95.0,	395.0,	130.0,	40.0,	15,	 0,	23,	24,	Func_ToggleInvertYL,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Analog Invert Y L
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[23],	415.0,	395.0,	130.0,	40.0,	19,	 3,	25,	22,	Func_ToggleInvertYR,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Analog Invert Y R
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[24],	235.0,	395.0,	 80.0,	40.0,	27,	 1,	22,	25,	Func_ToggleButtonL3,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Button L3
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[25],	325.0,	395.0,	 80.0,	40.0,	26,	 2,	24,	23,	Func_ToggleButtonR3,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Button R3
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[31],	325.0,	340.0,	 50.0,	40.0,	 9,	25,	27,	21,	Func_SensPlus,			Func_ReturnFromConfigureButtonsFrame }, // Stick Sensitivity +
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[28],	265.0,	340.0,	 50.0,	40.0,	 8,	24,	20,	26,	Func_SensMinus,			Func_ReturnFromConfigureButtonsFrame }, // Stick Sensitivity -
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[32],	515.0,	160.0,	110.0,	40.0,   29,	16,	10,	 5,	Func_ToggleButtonFastF,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Button FastForward
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[35],	480.0,	 20.0,	140.0,	40.0,	19,	28,	 4,	 0,	Func_ToggleGunMouse,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Gun/Mouse Enable
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[20],	160.0,	345.0,	100.0,	40.0,	Func_ToggleAnalogL,		Func_ReturnFromConfigureButtonsFrame }, // Toggle Analog Stick L
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[21],	380.0,	345.0,	100.0,	40.0,	Func_ToggleAnalogR,		Func_ReturnFromConfigureButtonsFrame }, // Toggle Analog Stick R
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[22],	 95.0,	395.0,	130.0,	40.0,	Func_ToggleInvertYL,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Analog Invert Y L
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[23],	415.0,	395.0,	130.0,	40.0,	Func_ToggleInvertYR,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Analog Invert Y R
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[24],	235.0,	395.0,	 80.0,	40.0,	Func_ToggleButtonL3,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Button L3
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[25],	325.0,	395.0,	 80.0,	40.0,	Func_ToggleButtonR3,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Button R3
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[31],	325.0,	340.0,	 50.0,	40.0,	Func_SensPlus,			Func_ReturnFromConfigureButtonsFrame }, // Stick Sensitivity +
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[28],	265.0,	340.0,	 50.0,	40.0,	Func_SensMinus,			Func_ReturnFromConfigureButtonsFrame }, // Stick Sensitivity -
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[32],	515.0,	135.0,	110.0,	40.0,	Func_ToggleButtonFastF,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Button FastForward
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[35],	480.0,	 20.0,	140.0,	40.0,	Func_ToggleGunMouse,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Gun/Mouse Enable
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[36],	 15.0,	205.0,	110.0,	40.0,	Func_ToggleButtonScreenshot,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Button Screenshot
 };
 
 struct TextBoxInfo
@@ -184,11 +188,73 @@ struct TextBoxInfo
 } FRAME_TEXTBOXES[NUM_FRAME_TEXTBOXES] =
 { //	textBox	textBoxString		x		y		scale	centered
 	{	NULL,	TITLE_STRING,		320.0,	100.0,	 1.0,	true }, // ______ Pad X to N64 Pad Y Mapping
-	{	NULL,	FRAME_STRINGS[30],	 70.0,	145.0,	 0.9,	true }, // Menu Combo
+	{	NULL,	FRAME_STRINGS[30],	 70.0,	120.0,	 0.9,	true }, // Menu Combo
 	{	NULL,	FRAME_STRINGS[29],	 318.0,	323.0,	 0.9,	true }, // Stick Sensitivity
-	{	NULL,	FRAME_STRINGS[33],	 565.0,	145.0,	 0.9,	true }, // Fast Forward
+	{	NULL,	FRAME_STRINGS[33],	 570.0,	120.0,	 0.9,	true }, // Fast Forward
 	{	NULL,	FRAME_STRINGS[34],	 520.0,	310.0,	 0.9,	true }, // Lift Mouse
+	{	NULL,	FRAME_STRINGS[37],	 70.0,	190.0,	 0.9,	true }, // Screenshot
 };
+
+/*  The page's places, on the engine (Docs/MENU_FRAMEWORK_PLAN.md, step 5)  */
+
+/* The buttons and labels at the rectangles and places the table gives. The engine lays them out here,
+ * once, and the frame takes its rectangles from the layout. Focus is not the engine's: the links change
+ * with the state (activateSubmenu), and some point at buttons the state hides, which the engine never
+ * links to, so the table's links stay as the frame has them (see activateSubmenu). */
+namespace eng = menu::engine;
+
+static eng::FreeButton CB_FREE[NUM_FRAME_BUTTONS];
+static eng::FreeText   CB_TEXTS[NUM_FRAME_TEXTBOXES];
+static eng::Page       CB_PAGE;
+static eng::Layout     CB_LAYOUT;
+
+static void layoutConfigureButtons(void)
+{
+	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
+	{
+		eng::FreeButton &b = CB_FREE[i];
+		b.text = FRAME_BUTTONS[i].buttonString;
+		b.x = FRAME_BUTTONS[i].x;
+		b.y = FRAME_BUTTONS[i].y;
+		b.w = FRAME_BUTTONS[i].width;
+		b.h = FRAME_BUTTONS[i].height;
+		b.lit = false;
+		b.inactive = false;
+	}
+	for (int t = 0; t < NUM_FRAME_TEXTBOXES; t++)
+	{
+		eng::FreeText &x = CB_TEXTS[t];
+		x.text = FRAME_TEXTBOXES[t].textBoxString;
+		x.ax = FRAME_TEXTBOXES[t].x;
+		x.ay = FRAME_TEXTBOXES[t].y;
+		x.scale = FRAME_TEXTBOXES[t].scale;
+		x.centred = FRAME_TEXTBOXES[t].centered;
+	}
+	memset(&CB_PAGE, 0, sizeof CB_PAGE);
+	CB_PAGE.logo = eng::LOGO_SPOT_NONE;
+	CB_PAGE.focus = eng::FOCUS_GEOMETRY;
+	CB_PAGE.wrap = true;		/* the old table wrapped at the screen edges */
+	CB_PAGE.freeButtons = CB_FREE;
+	CB_PAGE.nFreeButtons = NUM_FRAME_BUTTONS;
+	CB_PAGE.freeTexts = CB_TEXTS;
+	CB_PAGE.nFreeTexts = NUM_FRAME_TEXTBOXES;
+	if (eng::layoutPage(CB_PAGE, menu::glue::METRICS, CB_LAYOUT) < 0)
+		return;		/* the table is fixed: a page that does not fit is a programming error */
+}
+
+/* The layout's rectangle of button i, and the anchor of label t. */
+static const eng::Control &cbButtonCtl(int i)
+{
+	return CB_LAYOUT.c[CB_LAYOUT.freeCtl[i]];
+}
+
+static const eng::Control &cbTextCtl(int t)
+{
+	for (int k = 0; k < CB_LAYOUT.n; k++)
+		if (CB_LAYOUT.c[k].role == eng::ROLE_FREE_TEXT && CB_LAYOUT.c[k].slot == t)
+			return CB_LAYOUT.c[k];
+	return CB_LAYOUT.c[0];
+}
 
 /* The buttons that show a mapping (5..25: the menu combination, the PlayStation buttons,
  * the sticks and their inversion; 28: fast forward). Their labels are whatever the
@@ -202,12 +268,12 @@ static float mapMaxWidth[NUM_FRAME_BUTTONS], mapWidth[NUM_FRAME_BUTTONS];
 
 static float maxWidthFor(int i)
 {
-	const ButtonInfo &b = FRAME_BUTTONS[i];
+	const ConfigButtonInfo &b = FRAME_BUTTONS[i];
 	float cx = b.x + b.width / 2, half = b.width / 2;
 	float room = cx - 4.0f < 636.0f - cx ? cx - 4.0f : 636.0f - cx;   /* the screen edges */
 	for (int j = 0; j < NUM_FRAME_BUTTONS; j++)
 	{
-		const ButtonInfo &o = FRAME_BUTTONS[j];
+		const ConfigButtonInfo &o = FRAME_BUTTONS[j];
 		float ocx = o.x + o.width / 2, d = cx > ocx ? cx - ocx : ocx - cx;
 		if (j == i || o.y >= b.y + b.height || b.y >= o.y + o.height || d < 1.0f)
 			continue;   /* not beside it */
@@ -228,7 +294,7 @@ static void fitMappingButtons(menu::Frame *frame)
 		btn->fitToLabel();
 		float w = btn->getWidth();
 		if (w == mapWidth[i]) continue;
-		const ButtonInfo &b = FRAME_BUTTONS[i];
+		const ConfigButtonInfo &b = FRAME_BUTTONS[i];
 		float x = floorf(b.x + b.width / 2 - w / 2);   /* whole pixels: see Button::fitToLabel */
 		btn->setBounds(x, b.y, w, b.height);
 		menu::Cursor::getInstance().moveComponent(frame, btn, x, x + w, b.y, b.y + b.height);
@@ -238,14 +304,14 @@ static void fitMappingButtons(menu::Frame *frame)
 
 ConfigureButtonsFrame::ConfigureButtonsFrame()
 {
+	layoutConfigureButtons();
 	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
 	{
+		const eng::Control &c = cbButtonCtl(i);
 		FRAME_BUTTONS[i].button = new menu::Button(FRAME_BUTTONS[i].buttonStyle, &FRAME_BUTTONS[i].buttonString,
-										FRAME_BUTTONS[i].x, FRAME_BUTTONS[i].y,
-										FRAME_BUTTONS[i].width, FRAME_BUTTONS[i].height);
+										c.rect.x, c.rect.y, c.rect.w, c.rect.h);
 		/* style A makes itself 56 high; the table's rows are 40 apart in places */
-		FRAME_BUTTONS[i].button->setBounds(FRAME_BUTTONS[i].x, FRAME_BUTTONS[i].y,
-										FRAME_BUTTONS[i].width, FRAME_BUTTONS[i].height);
+		FRAME_BUTTONS[i].button->setBounds(c.rect.x, c.rect.y, c.rect.w, c.rect.h);
 		if (isMapping(i))
 		{
 			mapMaxWidth[i] = maxWidthFor(i);
@@ -259,10 +325,6 @@ ConfigureButtonsFrame::ConfigureButtonsFrame()
 
 	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
 	{
-		if (FRAME_BUTTONS[i].focusUp != -1) FRAME_BUTTONS[i].button->setNextFocus(menu::Focus::DIRECTION_UP, FRAME_BUTTONS[FRAME_BUTTONS[i].focusUp].button);
-		if (FRAME_BUTTONS[i].focusDown != -1) FRAME_BUTTONS[i].button->setNextFocus(menu::Focus::DIRECTION_DOWN, FRAME_BUTTONS[FRAME_BUTTONS[i].focusDown].button);
-		if (FRAME_BUTTONS[i].focusLeft != -1) FRAME_BUTTONS[i].button->setNextFocus(menu::Focus::DIRECTION_LEFT, FRAME_BUTTONS[FRAME_BUTTONS[i].focusLeft].button);
-		if (FRAME_BUTTONS[i].focusRight != -1) FRAME_BUTTONS[i].button->setNextFocus(menu::Focus::DIRECTION_RIGHT, FRAME_BUTTONS[FRAME_BUTTONS[i].focusRight].button);
 		FRAME_BUTTONS[i].button->setActive(true);
 		if (FRAME_BUTTONS[i].clickedFunc) FRAME_BUTTONS[i].button->setClicked(FRAME_BUTTONS[i].clickedFunc);
 		if (FRAME_BUTTONS[i].returnFunc) FRAME_BUTTONS[i].button->setReturn(FRAME_BUTTONS[i].returnFunc);
@@ -275,9 +337,9 @@ ConfigureButtonsFrame::ConfigureButtonsFrame()
 
 	for (int i = 0; i < NUM_FRAME_TEXTBOXES; i++)
 	{
+		const eng::Control &c = cbTextCtl(i);
 		FRAME_TEXTBOXES[i].textBox = new menu::TextBox(&FRAME_TEXTBOXES[i].textBoxString,
-										FRAME_TEXTBOXES[i].x, FRAME_TEXTBOXES[i].y,
-										FRAME_TEXTBOXES[i].scale, FRAME_TEXTBOXES[i].centered);
+										c.ax, c.ay, FRAME_TEXTBOXES[i].scale, FRAME_TEXTBOXES[i].centered);
 		add(FRAME_TEXTBOXES[i].textBox);
 	}
 
@@ -390,6 +452,37 @@ static void padName(int vc, char *out, size_t size)
 		snprintf(out, size, "%d P%d", padPort(vc) + 1, (vc - 10) % COOP_MAX + 1);
 }
 
+/* D-pad links come from the engine (linkFocus, FOCUS_GEOMETRY). A button that is hidden or inactive
+ * is not a focus target, so the page's inactive flags are read from the buttons. The page is laid out
+ * again only when those flags change: activateSubmenu runs every frame. */
+static unsigned cbInactive = ~0u;
+
+/* The button drawn for a layout control. */
+static menu::Button *cbButtonOf(const eng::Control &c)
+{
+	return FRAME_BUTTONS[c.slot].button;
+}
+
+static void cbRelink(void)
+{
+	unsigned inactive = 0;
+	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
+	{
+		menu::Button *b = FRAME_BUTTONS[i].button;
+		CB_FREE[i].inactive = !(b->isVisible() && b->getActive());
+		if (CB_FREE[i].inactive)
+			inactive |= 1u << i;
+	}
+	if (inactive == cbInactive)
+		return;
+	cbInactive = inactive;
+	if (eng::layoutPage(CB_PAGE, menu::glue::METRICS, CB_LAYOUT) < 0)
+		return;
+	eng::linkFocus(CB_PAGE, CB_LAYOUT);
+	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
+		menu::glue::linkFocus(FRAME_BUTTONS[i].button, CB_LAYOUT, CB_LAYOUT.c[CB_LAYOUT.freeCtl[i]], cbButtonOf);
+}
+
 void ConfigureButtonsFrame::activateSubmenu(int submenu)
 {
 
@@ -438,10 +531,7 @@ void ConfigureButtonsFrame::activateSubmenu(int submenu)
 		for (int i = 5; i < 26; i++)
 			strcpy(FRAME_STRINGS[i], "");
 		strcpy(FRAME_STRINGS[32], "");
-		FRAME_BUTTONS[0].button->setNextFocus(menu::Focus::DIRECTION_UP, NULL);
-		FRAME_BUTTONS[0].button->setNextFocus(menu::Focus::DIRECTION_DOWN, NULL);
-		FRAME_BUTTONS[0].button->setNextFocus(menu::Focus::DIRECTION_LEFT, NULL);
-		FRAME_BUTTONS[0].button->setNextFocus(menu::Focus::DIRECTION_RIGHT, NULL);
+		strcpy(FRAME_STRINGS[36], "");
 		for (int i = 1; i < NUM_FRAME_BUTTONS; i++)
 			FRAME_BUTTONS[i].button->setActive(false);
 	}
@@ -464,20 +554,6 @@ void ConfigureButtonsFrame::activateSubmenu(int submenu)
 			FRAME_BUTTONS[29].button->setSelected(false);
 
 		if ((lightGun == LIGHTGUN_DISABLE) || !isLightgun || padGun() == PADLIGHTGUN_DISABLE){
-			FRAME_BUTTONS[0].button->setNextFocus(menu::Focus::DIRECTION_UP, FRAME_BUTTONS[FRAME_BUTTONS[0].focusUp].button);
-			FRAME_BUTTONS[0].button->setNextFocus(menu::Focus::DIRECTION_DOWN, FRAME_BUTTONS[FRAME_BUTTONS[0].focusDown].button);
-			FRAME_BUTTONS[0].button->setNextFocus(menu::Focus::DIRECTION_LEFT, FRAME_BUTTONS[FRAME_BUTTONS[0].focusLeft].button);
-			FRAME_BUTTONS[0].button->setNextFocus(menu::Focus::DIRECTION_RIGHT, FRAME_BUTTONS[FRAME_BUTTONS[0].focusRight].button);
-			FRAME_BUTTONS[1].button->setNextFocus(menu::Focus::DIRECTION_DOWN, FRAME_BUTTONS[FRAME_BUTTONS[1].focusDown].button);
-			FRAME_BUTTONS[2].button->setNextFocus(menu::Focus::DIRECTION_DOWN, FRAME_BUTTONS[FRAME_BUTTONS[2].focusDown].button);
-			FRAME_BUTTONS[1].button->setNextFocus(menu::Focus::DIRECTION_UP, FRAME_BUTTONS[FRAME_BUTTONS[1].focusUp].button);
-			FRAME_BUTTONS[2].button->setNextFocus(menu::Focus::DIRECTION_UP, FRAME_BUTTONS[FRAME_BUTTONS[2].focusUp].button);
-			FRAME_BUTTONS[17].button->setNextFocus(menu::Focus::DIRECTION_LEFT, FRAME_BUTTONS[FRAME_BUTTONS[17].focusLeft].button);
-			FRAME_BUTTONS[17].button->setNextFocus(menu::Focus::DIRECTION_RIGHT, FRAME_BUTTONS[FRAME_BUTTONS[17].focusRight].button);
-			FRAME_BUTTONS[18].button->setNextFocus(menu::Focus::DIRECTION_LEFT, FRAME_BUTTONS[FRAME_BUTTONS[18].focusLeft].button);
-			FRAME_BUTTONS[18].button->setNextFocus(menu::Focus::DIRECTION_RIGHT, FRAME_BUTTONS[FRAME_BUTTONS[18].focusRight].button);
-			FRAME_BUTTONS[19].button->setNextFocus(menu::Focus::DIRECTION_LEFT, FRAME_BUTTONS[FRAME_BUTTONS[19].focusLeft].button);
-			FRAME_BUTTONS[19].button->setNextFocus(menu::Focus::DIRECTION_RIGHT, FRAME_BUTTONS[FRAME_BUTTONS[19].focusRight].button);
 			for (int i = 1; i < NUM_FRAME_BUTTONS; i++){
 				FRAME_BUTTONS[i].button->setActive(true);
 				FRAME_BUTTONS[i].button->setVisible(true);
@@ -490,16 +566,6 @@ void ConfigureButtonsFrame::activateSubmenu(int submenu)
 			}
 		}
 		else{
-			FRAME_BUTTONS[1].button->setNextFocus(menu::Focus::DIRECTION_DOWN, NULL);
-			FRAME_BUTTONS[2].button->setNextFocus(menu::Focus::DIRECTION_DOWN, NULL);
-			FRAME_BUTTONS[1].button->setNextFocus(menu::Focus::DIRECTION_UP, NULL);
-			FRAME_BUTTONS[2].button->setNextFocus(menu::Focus::DIRECTION_UP, NULL);
-			FRAME_BUTTONS[17].button->setNextFocus(menu::Focus::DIRECTION_LEFT, NULL);
-			FRAME_BUTTONS[17].button->setNextFocus(menu::Focus::DIRECTION_RIGHT, NULL);
-			FRAME_BUTTONS[18].button->setNextFocus(menu::Focus::DIRECTION_LEFT, NULL);
-			FRAME_BUTTONS[18].button->setNextFocus(menu::Focus::DIRECTION_RIGHT, NULL);
-			FRAME_BUTTONS[19].button->setNextFocus(menu::Focus::DIRECTION_LEFT, NULL);
-			FRAME_BUTTONS[19].button->setNextFocus(menu::Focus::DIRECTION_RIGHT, NULL);
 
 			for (int i = 6; i < NUM_FRAME_BUTTONS; i++){
 				FRAME_BUTTONS[i].button->setActive(false);
@@ -575,7 +641,9 @@ void ConfigureButtonsFrame::activateSubmenu(int submenu)
 		if (currentConfig->sensitivity < 0.1) currentConfig->sensitivity = 1.0;
 		sprintf(FRAME_STRINGS[29], "x%.1f", currentConfig->sensitivity);
 		strcpy(FRAME_STRINGS[32], currentConfig->fastf->name);
+		strcpy(FRAME_STRINGS[36], currentConfig->screenshot->name);
 	}
+	cbRelink();
 }
 
 void ConfigureButtonsFrame::updateFrame(float deltaTime)
@@ -592,8 +660,8 @@ void ConfigureButtonsFrame::drawChildren(menu::Graphics &gfx)
 		fitMappingButtons(this);
 		int base_x = 204;
 		int base_y = 188;
-		int lines[NUM_LINES][4] = {{164, 265, 221, 244}, //D-pad (17,56)
-								   {476, 265, 419, 244}, //Tri,Squ,Cir,Cro btns (215,56)
+		int lines[NUM_LINES][4] = {{164, 285, 221, 244}, //D-pad (17,56)
+								   {476, 285, 419, 244}, //Tri,Squ,Cir,Cro btns (215,56)
 								   {275, 160, 302, 240}, //SELECT (98,52)
 								   {365, 160, 338, 242}, //START (134,54)
 								   {220, 170, 242, 192}, //L1 (38,4)
@@ -668,8 +736,8 @@ void ConfigureButtonsFrame::drawChildren(menu::Graphics &gfx)
 		gfx.setColor(controllerColors[5]);
 		gfx.setLineWidth(1);
 		if ((lightGun == LIGHTGUN_DISABLE) || !isLightgun || padGun() == PADLIGHTGUN_DISABLE){
-			gfx.drawCircle(115, 300, 60, 33);
-			gfx.drawCircle(525, 300, 60, 33);
+			gfx.drawCircle(115, 320, 60, 33);
+			gfx.drawCircle(525, 320, 60, 33);
 
 			for (int i=0; i<NUM_LINES; i++)
 				gfx.drawLine(lines[i][0], lines[i][1], lines[i][2], lines[i][3]);
@@ -719,12 +787,15 @@ void Func_DefaultConfig()
 	pMenuContext->getFrame(MenuContext::FRAME_CONFIGUREBUTTONS)->activateSubmenu(activePad);
 }
 
+/* The slot to load or save. 4 is the Game slot: the file of this game. */
+static const char *const SLOT_NAMES[] = { "Slot 1", "Slot 2", "Slot 3", "Slot 4", "Game" };
+static eng::Cycle slotCycle = { SLOT_NAMES, 5, 0 };
 static unsigned int which_slot = 0;
 
 void Func_ToggleConfigSlot()
 {
-	which_slot = (which_slot+1) %4;
-	FRAME_STRINGS[2][5] = which_slot + '1';
+	FRAME_BUTTONS[2].buttonString = (char *)eng::cycleNext(slotCycle);
+	which_slot = slotCycle.index;
 }
 
 void Func_LoadConfig()
@@ -743,27 +814,66 @@ void Func_SaveConfig()
 
 	//todo: save button configuration to file here
 
-	sprintf(buffer,"Saved current button mapping to slot %u.",which_slot+1);
+	if (which_slot < 4)
+		sprintf(buffer,"Saved current button mapping to slot %u.",which_slot+1);
+	else if (saveGameButtons())
+		strcpy(buffer,"Saved current button mapping for this game.");
+	else
+		strcpy(buffer,"Could not save the button mapping for this game.");
 	menu::MessageBox::getInstance().fadeMessage(buffer);
 //	menu::MessageBox::getInstance().setMessage(buffer);
+}
+
+/* A combination inside another one is pressed with it. The menu and fast-forward combinations
+ * are checked first, so a menu combination inside the screenshot combination would open the
+ * menu, and a screenshot combination inside a menu combination would be taken as one. Neither
+ * is offered. b is the outer combination; Off (mask 0) contains nothing. */
+static bool comboInside(const button_t *a, const button_t *b)
+{
+	return a->mask && b && (a->mask & b->mask) == a->mask;
 }
 
 void Func_ToggleButtonExit()
 {
 	controller_config_t* currentConfig = virtualControllers[activePad].config;
+	controller_t* control = virtualControllers[activePad].control;
 	int currentButton = currentConfig->exit->index;
-	currentButton = (currentButton+1) %virtualControllers[activePad].control->num_menu_combos;
-	currentConfig->exit = &virtualControllers[activePad].control->menu_combos[currentButton];
+	for (int n = 0; n < control->num_menu_combos; n++) {
+		currentButton = (currentButton+1) % control->num_menu_combos;
+		if (!comboInside(&control->menu_combos[currentButton], currentConfig->screenshot))
+			break;
+	}
+	currentConfig->exit = &control->menu_combos[currentButton];
 	strcpy(FRAME_STRINGS[5], currentConfig->exit->name);
 }
 
 void Func_ToggleButtonFastF()
 {
 	controller_config_t* currentConfig = virtualControllers[activePad].config;
+	controller_t* control = virtualControllers[activePad].control;
 	int currentButton = currentConfig->fastf->index;
-	currentButton = (currentButton+1) %virtualControllers[activePad].control->num_menu_combos;
-	currentConfig->fastf = &virtualControllers[activePad].control->menu_combos[currentButton];
+	for (int n = 0; n < control->num_menu_combos; n++) {
+		currentButton = (currentButton+1) % control->num_menu_combos;
+		if (!comboInside(&control->menu_combos[currentButton], currentConfig->screenshot))
+			break;
+	}
+	currentConfig->fastf = &control->menu_combos[currentButton];
 	strcpy(FRAME_STRINGS[32], currentConfig->fastf->name);
+}
+
+void Func_ToggleButtonScreenshot()
+{
+	controller_config_t* currentConfig = virtualControllers[activePad].config;
+	controller_t* control = virtualControllers[activePad].control;
+	int currentButton = currentConfig->screenshot->index;
+	for (int n = 0; n < control->num_screenshot_combos; n++) {
+		currentButton = (currentButton+1) % control->num_screenshot_combos;
+		const button_t *s = &control->screenshot_combos[currentButton];
+		if (!comboInside(currentConfig->exit, s) && !comboInside(currentConfig->fastf, s))
+			break;
+	}
+	currentConfig->screenshot = &control->screenshot_combos[currentButton];
+	strcpy(FRAME_STRINGS[36], currentConfig->screenshot->name);
 }
 
 void Func_ToggleButtonL1()

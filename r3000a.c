@@ -67,6 +67,22 @@ int psxInit() {
 	}
 }
 
+/* PSX cycles charged per 100 instructions (both CPU cores' ApplyConfig). The CpuSpeed
+ * setting (menu: Plugins, CPU Speed; per game with Save Settings, This Game): Auto is the
+ * normal 175 plus the built-in per-game fixes (database.c cycle_multiplier_overrides, CTR
+ * 200); a percentage replaces both: 150% charges 175*100/150 = 116 cycles, so the PS1 runs
+ * 1.5x the instructions in each emulated second -- smoother where a game drops frames
+ * because its CPU work does not fit, at that much more Wii CPU time; some games break. */
+int psxCycleMult(void)
+{
+	extern char cpuSpeed;
+	static const short pct[] = { 0, 50, 75, 100, 125, 150, 200, 300 };
+	if (cpuSpeed > 0 && cpuSpeed < (int)(sizeof pct / sizeof pct[0]))
+		return CYCLE_MULT_DEFAULT * 100 / pct[(int)cpuSpeed];
+	return Config.cycle_multiplier_override && Config.cycle_multiplier == CYCLE_MULT_DEFAULT
+		? Config.cycle_multiplier_override : Config.cycle_multiplier;
+}
+
 void psxReset() {
 	bool introBypassed = FALSE;
 	achievements_pause(); /* BIOS execution below must not evaluate game conditions */
@@ -153,6 +169,14 @@ void psxException(u32 cause, enum R3000Abdt bdt, psxCP0Regs *cp0) {
 }
 
 extern u32 psxNextCounter, psxNextsCounter;
+/* The event checks below are signed differences against the due time (start + delay), as
+ * Lightrec's irq_test() does with event_cycles. They were unsigned "cycle - start >= delay",
+ * which fires an event whose start is AHEAD of the clock (the CD read's start is pushed ahead
+ * by cdrReadInterruptSetResult's irq-miss hack) at once, and every early fire moves the start
+ * further ahead: the HLE BIOS calls this from ReturnFromException and friends, so under the
+ * HLE BIOS the CD read event fired on nearly every BIOS call. Gex 2 read 20000 sectors a second
+ * in bursts (0.68x on the Wii); Gex 3's CD driver got sectors far too fast, recursed through
+ * its 4 KB interrupt stack into its globals and crashed at vblank 136 (2026-10-09). */
 void psxBranchTest() {
 
 	if ((psxRegs.cycle - psxNextsCounter) >= psxNextCounter)
@@ -160,73 +184,73 @@ void psxBranchTest() {
 
 	if (psxRegs.interrupt) {
 		if ((psxRegs.interrupt & (1 << PSXINT_SIO))) { // sio
-			if ((psxRegs.cycle - psxRegs.intCycle[PSXINT_SIO].sCycle) >= psxRegs.intCycle[PSXINT_SIO].cycle) {
+			if ((s32)(psxRegs.cycle - psxRegs.intCycle[PSXINT_SIO].sCycle - psxRegs.intCycle[PSXINT_SIO].cycle) >= 0) {
 				psxRegs.interrupt &= ~(1 << PSXINT_SIO);
 				sioInterrupt();
 			}
 		}
 		if (psxRegs.interrupt & (1 << PSXINT_CDR)) { // cdr
-			if ((psxRegs.cycle - psxRegs.intCycle[PSXINT_CDR].sCycle) >= psxRegs.intCycle[PSXINT_CDR].cycle) {
+			if ((s32)(psxRegs.cycle - psxRegs.intCycle[PSXINT_CDR].sCycle - psxRegs.intCycle[PSXINT_CDR].cycle) >= 0) {
 				psxRegs.interrupt &= ~(1 << PSXINT_CDR);
 				cdrInterrupt();
 			}
 		}
 		if (psxRegs.interrupt & (1 << PSXINT_CDREAD)) { // cdr read
-			if ((psxRegs.cycle - psxRegs.intCycle[PSXINT_CDREAD].sCycle) >= psxRegs.intCycle[PSXINT_CDREAD].cycle) {
+			if ((s32)(psxRegs.cycle - psxRegs.intCycle[PSXINT_CDREAD].sCycle - psxRegs.intCycle[PSXINT_CDREAD].cycle) >= 0) {
 				psxRegs.interrupt &= ~(1 << PSXINT_CDREAD);
 				cdrPlayReadInterrupt();
 			}
 		}
 		if (psxRegs.interrupt & (1 << PSXINT_GPUDMA)) { // gpu dma
-			if ((psxRegs.cycle - psxRegs.intCycle[PSXINT_GPUDMA].sCycle) >= psxRegs.intCycle[PSXINT_GPUDMA].cycle) {
+			if ((s32)(psxRegs.cycle - psxRegs.intCycle[PSXINT_GPUDMA].sCycle - psxRegs.intCycle[PSXINT_GPUDMA].cycle) >= 0) {
 				psxRegs.interrupt &= ~(1 << PSXINT_GPUDMA);
 				gpuInterrupt();
 			}
 		}
 		if (psxRegs.interrupt & (1 << PSXINT_MDECOUTDMA)) { // mdec out dma
-			if ((psxRegs.cycle - psxRegs.intCycle[PSXINT_MDECOUTDMA].sCycle) >= psxRegs.intCycle[PSXINT_MDECOUTDMA].cycle) {
+			if ((s32)(psxRegs.cycle - psxRegs.intCycle[PSXINT_MDECOUTDMA].sCycle - psxRegs.intCycle[PSXINT_MDECOUTDMA].cycle) >= 0) {
 				psxRegs.interrupt &= ~(1 << PSXINT_MDECOUTDMA);
 				mdec1Interrupt();
 			}
 		}
 		if (psxRegs.interrupt & (1 << PSXINT_SPUDMA)) { // spu dma
-			if ((psxRegs.cycle - psxRegs.intCycle[PSXINT_SPUDMA].sCycle) >= psxRegs.intCycle[PSXINT_SPUDMA].cycle) {
+			if ((s32)(psxRegs.cycle - psxRegs.intCycle[PSXINT_SPUDMA].sCycle - psxRegs.intCycle[PSXINT_SPUDMA].cycle) >= 0) {
 				psxRegs.interrupt &= ~(1 << PSXINT_SPUDMA);
 				spuInterrupt();
 			}
 		}
 		if (psxRegs.interrupt & (1 << PSXINT_MDECINDMA)) { // mdec in
-			if ((psxRegs.cycle - psxRegs.intCycle[PSXINT_MDECINDMA].sCycle) >= psxRegs.intCycle[PSXINT_MDECINDMA].cycle) {
+			if ((s32)(psxRegs.cycle - psxRegs.intCycle[PSXINT_MDECINDMA].sCycle - psxRegs.intCycle[PSXINT_MDECINDMA].cycle) >= 0) {
 				psxRegs.interrupt &= ~(1 << PSXINT_MDECINDMA);
 				mdec0Interrupt();
 			}
 		}
 		if (psxRegs.interrupt & (1 << PSXINT_GPUOTCDMA)) { // gpu otc
-			if ((psxRegs.cycle - psxRegs.intCycle[PSXINT_GPUOTCDMA].sCycle) >= psxRegs.intCycle[PSXINT_GPUOTCDMA].cycle) {
+			if ((s32)(psxRegs.cycle - psxRegs.intCycle[PSXINT_GPUOTCDMA].sCycle - psxRegs.intCycle[PSXINT_GPUOTCDMA].cycle) >= 0) {
 				psxRegs.interrupt &= ~(1 << PSXINT_GPUOTCDMA);
 				gpuotcInterrupt();
 			}
 		}
 		if (psxRegs.interrupt & (1 << PSXINT_CDRDMA)) { // cdrom
-			if ((psxRegs.cycle - psxRegs.intCycle[PSXINT_CDRDMA].sCycle) >= psxRegs.intCycle[PSXINT_CDRDMA].cycle) {
+			if ((s32)(psxRegs.cycle - psxRegs.intCycle[PSXINT_CDRDMA].sCycle - psxRegs.intCycle[PSXINT_CDRDMA].cycle) >= 0) {
 				psxRegs.interrupt &= ~(1 << PSXINT_CDRDMA);
 				cdrDmaInterrupt();
 			}
 		}
 //		if (psxRegs.interrupt & (1 << PSXINT_CDRPLAY)) { // cdr play timing
-//			if ((psxRegs.cycle - psxRegs.intCycle[PSXINT_CDRPLAY].sCycle) >= psxRegs.intCycle[PSXINT_CDRPLAY].cycle) {
+//			if ((s32)(psxRegs.cycle - psxRegs.intCycle[PSXINT_CDRPLAY].sCycle - psxRegs.intCycle[PSXINT_CDRPLAY].cycle) >= 0) {
 //				psxRegs.interrupt &= ~(1 << PSXINT_CDRPLAY);
 //				cdrPlayInterrupt();
 //			}
 //		}
 		if (psxRegs.interrupt & (1 << PSXINT_CDRLID)) { // cdr lid states
-			if ((psxRegs.cycle - psxRegs.intCycle[PSXINT_CDRLID].sCycle) >= psxRegs.intCycle[PSXINT_CDRLID].cycle) {
+			if ((s32)(psxRegs.cycle - psxRegs.intCycle[PSXINT_CDRLID].sCycle - psxRegs.intCycle[PSXINT_CDRLID].cycle) >= 0) {
 				psxRegs.interrupt &= ~(1 << PSXINT_CDRLID);
 				cdrLidSeekInterrupt();
 			}
 		}
 		if (psxRegs.interrupt & (1 << PSXINT_SPU_UPDATE)) { // scheduled spu update
-			if ((psxRegs.cycle - psxRegs.intCycle[PSXINT_SPU_UPDATE].sCycle) >= psxRegs.intCycle[PSXINT_SPU_UPDATE].cycle) {
+			if ((s32)(psxRegs.cycle - psxRegs.intCycle[PSXINT_SPU_UPDATE].sCycle - psxRegs.intCycle[PSXINT_SPU_UPDATE].cycle) >= 0) {
 				psxRegs.interrupt &= ~(1 << PSXINT_SPU_UPDATE);
 				spuUpdate();
 			}

@@ -27,4 +27,19 @@ class LoadRomFrame;
 
 //extern MenuContext *pMenuContext;
 
+/* One row of the settings table, OPTIONS in GamecubeMain.cpp. A section row has no value.
+ * The menu text (label, choices[value - min], help) lives only here. */
+struct SettingOption {
+	const char* key;			/* a section row (value NULL) has the key of its [name] */
+	char* value;
+	char min, max;
+	const char* note;			/* a section row: the comment under its [name] in settings.ini */
+	const char* label;			/* NULL: no menu row (file-only, grid or trigger) */
+	const char* const* choices;
+	const char* help;
+};
+
+/* The table row for a setting key, or NULL. Menus call it once when a page is built. */
+const SettingOption* settingByKey(const char* key);
+
 #endif

@@ -21,6 +21,7 @@
 #include "CursorManager.h"
 #include "InputManager.h"
 #include "FocusManager.h"
+#include "Button.h"
 #include "GraphicsGX.h"
 #include "Image.h"
 #include "resources.h"
@@ -106,9 +107,11 @@ void Cursor::updateCursor()
 			std::vector<CursorEntry>::iterator iteration;
 			for (iteration = cursorList.begin(); iteration != cursorList.end(); ++iteration)
 			{
-				if(	currentFrame == (*iteration).frame &&
-					(cursorX > (*iteration).xRange[0]) && (cursorX < (*iteration).xRange[1]) &&
-					(cursorY > (*iteration).yRange[0]) && (cursorY < (*iteration).yRange[1]))
+				float box[4];
+				if (currentFrame != (*iteration).frame || !pointerBox(*iteration, box))
+					continue;
+				if(	(cursorX > box[0]) && (cursorX < box[1]) &&
+					(cursorY > box[2]) && (cursorY < box[3]))
 				{
 					setCursorFocus((*iteration).comp);
 					if (frameSwitch) break;
@@ -137,13 +140,39 @@ void Cursor::setCursorFocus(Component* component)
 	if (buttonsPressed & WPAD_BUTTON_B) buttonsDown |= Focus::ACTION_BACK;
 #endif
 	if (freezeAction) buttonsDown = 0;
-	if (component) newHoverOverComponent = component->updateFocus(0/*focusDirection*/,buttonsDown);
+	if (component) newHoverOverComponent = Focus::getInstance().pressOn(component, 0/*focusDirection*/, buttonsDown);
 	if (newHoverOverComponent) 
 	{
 		if (hoverOverComponent) hoverOverComponent->setFocus(false);
 		hoverOverComponent = newHoverOverComponent;
 	}
 
+}
+
+/* Shown components only, and for a button only an active one: a hidden button, or one that
+ * is not active, is never a pointer target. */
+bool Cursor::pointerBox(const CursorEntry &entry, float box[4])
+{
+	Component *comp = entry.comp;
+
+	if (!comp->isVisible())
+		return false;
+	if (comp->getType() == Component::TYPE_BUTTON)
+	{
+		Button *button = static_cast<Button*>(comp);
+		if (!button->getActive())
+			return false;
+		box[0] = button->getX();
+		box[1] = button->getX() + button->getWidth();
+		box[2] = button->getY();
+		box[3] = button->getY() + button->getHeight();
+		return true;
+	}
+	box[0] = entry.xRange[0];
+	box[1] = entry.xRange[1];
+	box[2] = entry.yRange[0];
+	box[3] = entry.yRange[1];
+	return true;
 }
 
 void Cursor::drawCursor(Graphics& gfx)

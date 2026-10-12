@@ -173,6 +173,7 @@ struct lightrec_state {
 	u8 in_delay_slot_n;
 	u32 current_cycle;
 	u32 target_cycle;
+	u32 age_base;   /* WiiStation: PS1 cycles before this slice (lightrec_age_now) */
 	u32 exit_flags;
 	u32 old_cycle_counter;
 	u32 cycles_per_op;
@@ -215,6 +216,20 @@ void remove_from_code_lut(struct blockcache *cache, struct block *block);
 
 const struct lightrec_mem_map *
 lightrec_get_map(struct lightrec_state *state, void **host, u32 kaddr);
+
+/* WiiStation: a clock for block ages, in PS1 cycles. current_cycle cannot be one: it
+ * counts 1/1024 cycles and the plugin resets it to 0 after every slice (lightrec.c
+ * lightrec_tansition_to_pcsx), so the code-buffer clean's "older than 4 s" compared
+ * offsets within unrelated slices and freed blocks at random, hot ones included. */
+static inline u32 lightrec_age_now(const struct lightrec_state *state)
+{
+	return state->age_base + (state->current_cycle >> 10);
+}
+
+/* Block ages for the code-buffer clean (blockcache.c), in PS1 cycles (33.8688 MHz) */
+#define LIGHTREC_AGE_4S   (4u * 33868800u)
+#define LIGHTREC_AGE_1S   33868800u
+#define LIGHTREC_AGE_250MS (33868800u / 4)
 
 static inline u32 kunseg(u32 addr)
 {

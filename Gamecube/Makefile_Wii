@@ -75,7 +75,9 @@ LIBS	:=	-lhbcagent -lsmb2 -ldi -lm -laesnd -lSDL -lfat -ldb -lwiiuse -lwupc -lwi
 # list of directories containing libraries, this must be the top level containing
 # include and lib
 #---------------------------------------------------------------------------------
-LIBDIRS	:= $(PORTLIBS)
+# portlibs/ppc only: portlibs/wii holds libogc v3 builds (wii-sdl, wii-opengx, installed
+# 2026-10-11) that must never reach this libogc2 link (-lSDL would find v3's SDL first).
+LIBDIRS	:= $(PORTLIBS_PATH)/ppc
 
 #---------------------------------------------------------------------------------
 # no real need to edit anything past this point unless you need to add additional

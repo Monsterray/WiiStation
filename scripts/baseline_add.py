@@ -21,7 +21,8 @@ Options:
   --force           overwrite an existing baseline of that ID
 
 The metrics come from the LAST report block of perf.log: guest seconds, emulated vblanks,
-speed (vblanks/60 per guest second), limiter idle share, hw_gpu share, SPU share, resampler
+speed (vblanks/59.94 per guest second, same basis as chain_table.py), limiter idle share,
+hw_gpu share, SPU share, resampler
 us, texk conv/tile/mdec us, CD reads and worst stall, read-ahead hits, and, when audio is
 kept, its duration, RMS and the short-gap count from wav_compare.py.
 
@@ -94,6 +95,10 @@ def main(argv):
     perf = os.path.join(run_dir, "perf.log")
     if not os.path.exists(perf):
         sys.exit("no perf.log in %s" % run_dir)
+    with open(perf, encoding="utf-8", errors="replace") as f:
+        if any(ln.startswith("=== chain") for ln in f):
+            sys.exit(f"{perf}: chained run -- baselines are single-game (last block would "
+                     "be whichever game ran last, silently mislabelled)")
 
     dest = os.path.join(BASE, bid)
     media = os.path.join(BASE, "media", bid)
@@ -147,7 +152,7 @@ def main(argv):
     wall = num(b, "wall", "wall_us")
     guest_s = wall / 1e6
     vbl = num(b, "wall", "vblanks")
-    speed = (vbl / 60.0) / guest_s if guest_s else 0
+    speed = (vbl / 59.94) / guest_s if guest_s else 0
     row = {
         "id": bid, "date": datetime.date.today().isoformat(), "game": opts["--game"], "purpose": opts["--purpose"],
         "build": build, "settings": os.path.basename(opts["--settings"]) if opts["--settings"] else "",

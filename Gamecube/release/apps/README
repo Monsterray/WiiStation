@@ -1,5 +1,5 @@
 README : WiiStation
-Version 5.9.2
+Version 5.10.0
 
 LICENSE:
     This software is licensed under the GNU General Public License v2
@@ -125,6 +125,68 @@ LATER UPDATES BY:
  * Monty Perrotti (WiiStation)
 
 WiiStation CHANGE LOG:
+Ver 5.10.0 (2026-10-11):
+* New: Co-Op players' buttons turn on and off one by one. On Customize
+  Co-Op, press A (or point) on any button or stick: the player gets or
+  loses it. A set that is no preset is "Custom" and is kept in the
+  settings (Coop1Buttons1 = "L1,Up,Cross,..."), per game too. The D-pad
+  now reaches every button on that page.
+* New: Quit writes sd:/wiistation/quit.log, one line per step on the way
+  out, to find where a Wii froze on Quit.
+* Test tools: "menukeys" presses menu buttons from an input script,
+  "menupage 90" quits; settings given as arguments no longer autoboot.
+
+Ver 5.9.6 (2026-10-09):
+* New: Frame Rate (Advanced, GPU tab). Auto: 60 Hz (PAL 50) as before. TV: the
+  game runs at the TV's own 59.94 Hz and every frame is shown on exactly one
+  TV refresh, so motion is smoothest (Auto drops one frame about every 17
+  seconds). PS1: a PlayStation's own 59.82 Hz (PAL 49.75), the exact speed.
+* Changed: the Advanced tabs are in the same places and sizes as the
+  Settings tabs, and both rows of tabs moved up a little. The rows below
+  them start where the Settings rows start.
+* Changed: the SPU tab is about the sound plugin: which plugin it is and
+  whether the CPU or the Wii's DSP mixes its output. The sound quality
+  options are on Audio, Advanced again.
+
+Ver 5.9.5 (2026-10-09):
+* New: Settings > General > Advanced (was Plugins) has tabs across the top:
+  CPU, GPU, SPU, CD and Input. The CD settings moved into its CD tab, and the
+  sound settings of Audio > Advanced are its SPU tab.
+* New: CPU Speed (Advanced, CPU tab): 50% to 300%, or Auto (normal, with the
+  fixes some games need). Over 100% can make a game that slows down smoother,
+  but uses more of the Wii's CPU, and some games break. Use Save Settings,
+  This Game to keep it for one game only.
+* New: Port Timing (Advanced, Input tab), which was only in the settings file.
+* Changed: the frame counter (Show FPS) shows what really happens, once a
+  second: FPS = frames the game drew, VPS = emulated screen refreshes, and the
+  speed in %. It used to show the refresh rate, held at 59.83 whenever it was
+  higher.
+
+Ver 5.9.4 (2026-10-09):
+* Fixed: Gex 3 - Deep Cover Gecko crashed two seconds after it started (with
+  the built-in BIOS). With the built-in BIOS, the emulated CD drive could
+  deliver sectors far too fast: after a game was late to take one sector, the
+  drive's timer ran ahead and fired again at almost every BIOS call. Gex 3's
+  CD code was flooded and broke its own memory.
+* Fixed: Gex 2 - Enter the Gecko ran slowly on a Wii (0.7x): the same CD
+  timer bug read 20,000 sectors a second in bursts. Other games that stream
+  from the disc with the built-in BIOS can run faster too.
+* Faster: games in CloneCD format (.ccd/.img/.sub) read the .sub file with a
+  small buffer: each position query read 16 KB from the card before.
+
+Ver 5.9.3 (2026-10-09):
+* Fixed: Crash Team Racing crashed at the end of a race (seen at the end of a
+  2-player Grand Prix). When the recompiler's code memory was full, a piece of
+  game code could run twice, which broke the game's data. A full code memory
+  now never runs code twice.
+* Fixed: lag spikes of 0.2-0.4 seconds during play (Crash Team Racing). When
+  the code memory was full, the recompiler threw away code at random, also
+  code the game was using, and had to compile it again at once. It now throws
+  away the oldest code first, and the code memory is larger (2 MB, was
+  1.5 MB): in a 10-minute Crash Team Racing run on a Wii it did not fill.
+* Fixed: a game in CloneCD format (.ccd/.img/.sub) had a wrong disc length
+  (4 seconds) in its table of contents.
+
 Ver 5.9.2 (2026-10-09):
 * Fixed: an automated run (a chain of games from autoboot.txt) stopped at the
   first error message, waiting for an OK nobody pressed -- 8 hours on the test
@@ -175,19 +237,19 @@ Ver 5.7.1 (2026-10-08):
 * If the recompiler ever cannot start, WiiStation now stops with "Lightrec: no
   memory for its state" instead of running the game on nothing.
 
-Ver 5.7.0 (2026-10-08):
-* Network shares work with current servers: SMB2 and SMB3 through libsmb2,
-  in place of a library that spoke only SMB1 (off by default on Samba 4.11+,
-  Windows 10 and 11). No password length limit; NTLMv2 logins.
-* RomDirSMB: the game folders on the share, as RomDirSD (folders inside the
-  share open like folders on the SD card).
-* Games on the share read in small pieces after a jump and larger ones while
-  they read on, and get no CD read-ahead: the Wii's Wi-Fi gives about
-  350 KB/s. Expect waits in loading screens and videos; CHD images help.
-* A read that fails reconnects to the share once, so a short network drop
-  does not stop the game.
-* "Cannot connect to the share" says the server's reason.
-
+Ver 5.7.0 (2026-10-08):
+* Network shares work with current servers: SMB2 and SMB3 through libsmb2,
+  in place of a library that spoke only SMB1 (off by default on Samba 4.11+,
+  Windows 10 and 11). No password length limit; NTLMv2 logins.
+* RomDirSMB: the game folders on the share, as RomDirSD (folders inside the
+  share open like folders on the SD card).
+* Games on the share read in small pieces after a jump and larger ones while
+  they read on, and get no CD read-ahead: the Wii's Wi-Fi gives about
+  350 KB/s. Expect waits in loading screens and videos; CHD images help.
+* A read that fails reconnects to the share once, so a short network drop
+  does not stop the game.
+* "Cannot connect to the share" says the server's reason.
+
 Ver 5.6.1 (2026-10-08):
 * The settings file is wiistation/settings.ini (was settingsRX2022.cfg), and
   a game's own settings are wiistation/settings/<serial>.ini (was .cfg). The

@@ -718,6 +718,23 @@ static void lightrec_plugin_execute_internal(bool block_only)
 		cycles_pcsx = 0;
 
 	u32 cycles_lightrec = cycles_pcsx * 1024;
+#ifdef PERF_PROF
+	{	/* "ramwatch LO HI": every guest store into the window, with its PC (perf.log "rw:");
+		 * only Lightrec's interpreter sends every store through lightrec_rw */
+		extern unsigned autoinput_ramwatch_lo, autoinput_ramwatch_hi;
+		extern u32 lightrec_store_watch_lo, lightrec_store_watch_hi;
+		extern void (*lightrec_store_watch_cb)(u32 addr, u32 data, u32 pc);
+		void perf_store_watch(u32 addr, u32 data, u32 pc);
+		if (autoinput_ramwatch_hi > autoinput_ramwatch_lo && !lightrec_store_watch_cb) {
+			/* the recompiler then sends every store through lightrec_rw (optimizer.c
+			 * and lightrec_rw tag them as I/O): slow, but it keeps the JIT's timing */
+			lightrec_store_watch_lo = autoinput_ramwatch_lo;
+			lightrec_store_watch_hi = autoinput_ramwatch_hi;
+			lightrec_store_watch_cb = perf_store_watch;
+			lightrec_invalidate_all(lightrec_state);   /* recompile what was tagged before */
+		}
+	}
+#endif
 	if (unlikely(use_lightrec_interpreter)) {
 			PERF_INC(jit_interp_fallbacks);
 			psxRegs.pc = lightrec_run_interpreter(lightrec_state,
@@ -750,6 +767,13 @@ static void lightrec_plugin_execute_internal(bool block_only)
 		snprintf(why, sizeof(why), "Lightrec: fault %u at %08x (block %08x)",
 			 (unsigned)lightrec_segv_site, (unsigned)lightrec_segv_addr,
 			 (unsigned)lightrec_segv_block);
+		{	/* the guest's registers at the fault, for reading it against a disassembly */
+			const u32 *g = lightrec_get_registers(lightrec_state)->gpr;
+			int r;
+			for (r = 0; r < 32; r += 8)
+				SysPrintf("segv r%02d: %08x %08x %08x %08x %08x %08x %08x %08x\n", r,
+					g[r], g[r + 1], g[r + 2], g[r + 3], g[r + 4], g[r + 5], g[r + 6], g[r + 7]);
+		}
 		ws_fatal(WS_CRASH_GUEST_SEGFAULT, why);   /* was exit(1) */
 	}
 
@@ -882,8 +906,7 @@ static void lightrec_plugin_notify(enum R3000Anote note, void *data)
 static void lightrec_plugin_apply_config()
 {
 	static u32 cycles_per_op_old;
-	u32 cycle_mult = Config.cycle_multiplier_override && Config.cycle_multiplier == CYCLE_MULT_DEFAULT
-		? Config.cycle_multiplier_override : Config.cycle_multiplier;
+	u32 cycle_mult = psxCycleMult();
 	u32 cycles_per_op = cycle_mult * 1024 / 100;
 	assert(cycles_per_op);
 

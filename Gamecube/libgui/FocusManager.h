@@ -37,6 +37,13 @@ public:
 	void clearInputData();
 	void clearPrimaryFocus();
 	void setFreezeAction(bool freezeAction);
+	/* Runs a press on target: the focused button, or the one under the Wii pointer; NULL means
+	 * the frame itself. While it runs, actionIsBack() and actionTarget() say what was pressed. */
+	Component* pressOn(Component* target, int direction, int buttons);
+	bool actionIsBack() const;
+	Component* actionTarget() const;
+	/* The button the next frame switch gives focus to. MenuContext sets it on a Back. */
+	void setReturnFocus(Component* component);
 	enum FocusDirection
 	{
 		DIRECTION_NONE=0,
@@ -70,6 +77,8 @@ private:
 	ComponentList focusList;
 	Component *primaryFocusOwner, *secondaryFocusOwner;
 	Frame *currentFrame;
+	Component *returnFocus, *actionOwner;
+	bool actionBack;
 
 };
 

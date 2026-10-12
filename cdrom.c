@@ -342,6 +342,8 @@ static void sec2msf(unsigned int s, u8 *msf) {
 	else \
 		psxRegs.intCycle[PSXINT_CDREAD].sCycle += psxRegs.intCycle[PSXINT_CDREAD].cycle; \
 	psxRegs.intCycle[PSXINT_CDREAD].cycle = e_; \
+	/* "cdlog": a due time far from now (r3000a.c psxBranchTest says why it mattered) */ \
+	perf_cd_rearm(__LINE__, psxRegs.cycle, psxRegs.intCycle[PSXINT_CDREAD].sCycle, e_, isFirst); \
 	set_event_raw_abs(PSXINT_CDREAD, psxRegs.intCycle[PSXINT_CDREAD].sCycle + e_); \
 }
 
@@ -1721,6 +1723,7 @@ void cdrWrite1(unsigned char rt) {
 	}
 
 	cdr.Cmd = rt;
+	perf_cd_cmd(rt, cdr.Param, cdr.ParamC);
 }
 
 unsigned char cdrRead2(void) {
@@ -1887,6 +1890,7 @@ void psxDma3(u32 madr, u32 bcr, u32 chcr) {
 				CDR_LOG_I("cdrom: dma3 %d/%d\n", size, cdsize);
 				memset(ptr + size, cdr.Transfer[0x920], cdsize - size);
 			}
+			perf_ram_write('C', madr, cdsize);
 			psxCpu->Clear(madr, cdsize / 4);
 
 			cycles = (cdsize / 4) * 24;

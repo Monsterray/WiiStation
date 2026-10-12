@@ -100,6 +100,15 @@ static button_t menu_combos[] = {
 	{ 2, WPAD_BUTTON_HOME, "Home" },
 };
 
+/* Screenshot combinations, entry 0 is Off. Start is in none of them, so the game does not pause.
+ * Entry 1 is the default. No menu combination may lie inside one of these (Configure Buttons
+ * refuses it). */
+static button_t screenshot_combos[] = {
+	{ 0, 0,                                                  "Off" },
+	{ 1, WPAD_BUTTON_A|WPAD_BUTTON_B|WPAD_BUTTON_1, "A+B+1" },
+	{ 2, WPAD_BUTTON_A|WPAD_BUTTON_B,                "A+B" },
+};
+
 static int _GetKeys(int Control, BUTTONS * Keys, controller_config_t* config,
                     int (*available)(int),
                     unsigned int (*getButtons)(WPADData*))
@@ -193,8 +202,8 @@ static int _GetKeys(int Control, BUTTONS * Keys, controller_config_t* config,
 	// Return 1 if exit, 2 if fastforward
 	if (!isHeld(config->exit)) return 1;
 	if (!isHeld(config->fastf)) return 2;
-	else 
-		return 0;
+	screenshot_poll(Control, config->screenshot && config->screenshot->mask && !isHeld(config->screenshot));
+	return 0;
 }
 
 static int checkType(int Control, int type){
@@ -284,12 +293,33 @@ static void configure(int Control, controller_config_t* config){
 	WPAD_SetDataFormat(Control, analog_fmts[config->analogL->mask] | analog_fmts[config->analogR->mask]);
 }
 
+/* Set a Wiimote's player LEDs only when they change. The menu assigns the pads many times a
+ * second; each WPAD_ControlLed is a Bluetooth report, and a stream of them made the LEDs
+ * flicker. The cache entry clears when the remote is not connected, so a remote that
+ * reconnects (libogc then shows its channel LED) gets its player LED again. Shared with
+ * controller-Classic.c: a Classic Controller is on its Wiimote's channel. */
+void wpad_player_led(int chan, int leds)
+{
+	static int last[4] = { -1, -1, -1, -1 };
+	u32 type;
+	if (chan < 0 || chan > 3)
+		return;
+	if (WPAD_Probe(chan, &type) != WPAD_ERR_NONE) {
+		last[chan] = -1;
+		return;
+	}
+	if (last[chan] == leds)
+		return;
+	last[chan] = leds;
+	WPAD_ControlLed(chan, leds);
+}
+
 static void assign(int p, int v){
 	/* Player 1 lights LED 1, player 2 LED 2: the System Menu's convention, and what
 	 * every other Wii game does. v < 0 means the port was given up, so libogc's own
 	 * default comes back -- the LED for the Bluetooth channel the pad synced on
 	 * (wiiuse/wpad.c does this on connect). */
-	WPAD_ControlLed(p, WPAD_LED_1 << (v < 0 ? p : v));
+	wpad_player_led(p, WPAD_LED_1 << (v < 0 ? p : v));
 }
 
 static void refreshAvailableWM(void);
@@ -311,6 +341,8 @@ controller_t controller_Wiimote =
 	  analog_sources_wm,
 	  sizeof(menu_combos)/sizeof(menu_combos[0]),
 	  menu_combos,
+	  sizeof(screenshot_combos)/sizeof(screenshot_combos[0]),
+	  screenshot_combos,
 	  { .SQU        = &buttons[0],  // None
 	    .CRO        = &buttons[10], // 1
 	    .CIR        = &buttons[11], // 2
@@ -334,6 +366,7 @@ controller_t controller_Wiimote =
 	    .invertedYR = 0,
 		.sensitivity = 1.0,
 		.fastf       = &menu_combos[0], // 1+2
+		.screenshot = &screenshot_combos[1],
 	  }
 	};
 
@@ -353,6 +386,8 @@ controller_t controller_WiimoteNunchuk =
 	  analog_sources_wmn,
 	  sizeof(menu_combos)/sizeof(menu_combos[0]),
 	  menu_combos,
+	  sizeof(screenshot_combos)/sizeof(screenshot_combos[0]),
+	  screenshot_combos,
 	  { .SQU        = &buttons[2], // D Left
 	    .CRO        = &buttons[4], // D Down
 	    .CIR        = &buttons[3], // D Right
@@ -376,6 +411,7 @@ controller_t controller_WiimoteNunchuk =
 	    .invertedYR = 0,
 		.sensitivity = 1.0,
 		.fastf       = &menu_combos[1], // +&-
+		.screenshot = &screenshot_combos[1],
 	  }
 	 };
 

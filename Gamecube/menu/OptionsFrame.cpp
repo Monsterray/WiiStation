@@ -10,19 +10,19 @@
  *               -> "Memory"    : what the machine's memory is doing right now
  *
  * HOW TO ADD A ROW
- *   A setting row (ROW_CYCLE or ROW_RADIO) needs: a `char` variable and an enum of its
- *   values in Gamecube/wiiSXconfig.h; its definition, default and one OPTIONS[] line in
- *   Gamecube/GamecubeMain.cpp (that line is what saves and loads it); a row in SETTINGS.md;
- *   and one entry below with the label, the variable, its lowest and highest value, the
- *   value names in that order, and an apply function (NULL when the emulator reads the
- *   variable directly).
+ *   A setting row (ROW_CYCLE or ROW_RADIO) needs: its OPTIONS[] line in Gamecube/GamecubeMain.cpp
+ *   (the key, the variable, its lowest and highest value, the label, the choice names and the
+ *   help line; that line is what saves and loads it, and what the menu shows); a row in
+ *   SETTINGS.md; and one entry below with the key and an apply function (NULL when the emulator
+ *   reads the variable directly). The label, names and range are read from the table by key
+ *   when the page is shown: nothing is copied here. scripts/settings_check.py checks each key.
  *     ROW_CYCLE is one button that steps through the values: compact, right for a long list
  *     or for a setting whose values are obvious (On/Off).
  *     ROW_RADIO shows every value at once as its own button with the current one lit, the
  *     way the Settings tabs themselves do it: right when the choice is worth seeing whole.
  *     It fits OPT_MAX_CHOICES values; a row with fewer leaves the trailing slots empty.
  *   A readout row (ROW_INFO) needs only a label and a function that writes the right-hand
- *   text. Readouts refresh every frame while their page is open.
+ *   text. Readouts are read when their page opens.
  *
  * HOW TO ADD A PAGE
  *   One OptRow[] array, one PAGES[] entry (title, rows, optional help lines, which Settings
@@ -30,12 +30,16 @@
  *   and a button somewhere in SettingsFrame that calls setActiveFrame(FRAME_OPTIONS, that value).
  *   Help is a term and its explanation, in two columns under the rows: the term is drawn
  *   bold and right-aligned so the colons line up, and a line with no term continues the one
- *   above it. A page that has help needs its rows to end above HELP_Y0, which a compile-time
- *   check below enforces; scripts/menu_text_width.py measures the lines themselves against
- *   the screen and against the spinning logo's corner (Gamecube/menu/MenuLayout.h).
+ *   above it. A help block that runs into the rows or the logo is reported by the menu
+ *   engine's layout check in debug builds; scripts/menu_text_width.py measures the lines
+ *   themselves against the screen (Gamecube/menu/MenuLayout.h).
  *
- * Layout, focus order, click handlers and the label refresh are all derived from the
- * tables; nothing else has to be touched.
+ * WHERE THINGS GO
+ *   The menu engine (Gamecube/menu/MenuEngine.h) works out every position and every focus
+ *   link. This frame describes the page on show as an engine Page, built from the tables
+ *   below, and places its buttons, labels and help at the rectangles the engine gives back.
+ *   That happens when a page or a tab is shown, never per frame. The click handlers, the
+ *   settings bindings and the readouts are the same as they always were.
  *
  * This program is free software; you can redistribute it and/
  * or modify it under the terms of the GNU General Public Li-
@@ -53,17 +57,18 @@
 #include <string.h>
 #include <ogc/system.h>
 #include <ogc/lwp_heap.h>
+#include "MenuGlue.h"
 
 #include "MenuContext.h"
 #include "SettingsFrame.h"
 #include "OptionsFrame.h"
+#include "MenuEngine.h"
 #include "../libgui/Button.h"
 #include "../libgui/TextBox.h"
 #include "../libgui/IPLFont.h"
 #include "../libgui/resources.h"
 #include "../libgui/FocusManager.h"
 #include "../libgui/CursorManager.h"
-#include "MenuLayout.h"
 #include "../wiiSXconfig.h"
 #include "../MEM2.h"
 
@@ -73,6 +78,9 @@ extern "C" {
 }
 
 extern MenuContext *pMenuContext;
+extern "C" void SysPrintf(const char *fmt, ...);
+
+namespace eng = menu::engine;
 
 /* Applied when the Plugins page is left, not on every press: changing either plugin with a
  * game loaded tears the emulator down and starts it again, which would fire on each step of
@@ -92,40 +100,34 @@ void Func_ReturnFromOptionsFrame();
 struct OptRow
 {
 	int					kind;
-	const char*			label;		// text on the left
-	char*				var;		// CYCLE/RADIO: the setting it edits
-	char				min, max;	// CYCLE: A cycles min..max and wraps. RADIO: one button each
-	const char* const*	names;		// CYCLE/RADIO: names[value - min], shown on the button
-	void				(*apply)(void);	// CYCLE/RADIO: tell the emulator; NULL = it reads var itself
+	const char*			key;		// CYCLE/RADIO: the setting, by its key in the OPTIONS table (GamecubeMain.cpp)
+	void				(*apply)(void);	// CYCLE/RADIO: tell the emulator; NULL = it reads the setting itself
 	void				(*info)(char *buf, int len);	// INFO: writes the right-hand text
+	const char*			label;		// INFO: the readout's label (a setting's label is in the table)
 	bool				fit;		// RADIO: size each button to its own word, not to RADIO_W
 };
 
-#define ROW_CYCLE(label, var, lo, hi, names, apply) \
-	{ OPT_CYCLE, label, (char*)&(var), (char)(lo), (char)(hi), names, apply, NULL }
-#define ROW_RADIO(label, var, lo, hi, names, apply) \
-	{ OPT_RADIO, label, (char*)&(var), (char)(lo), (char)(hi), names, apply, NULL, false }
+#define ROW_CYCLE(key, apply) \
+	{ OPT_CYCLE, key, apply, NULL, NULL, false }
+#define ROW_RADIO(key, apply) \
+	{ OPT_RADIO, key, apply, NULL, NULL, false }
 /* The same, but each button only as wide as its own word. Right when the words differ a
  * lot in length; a row whose choices are of a size reads better on the fixed grid. */
-#define ROW_RADIO_FIT(label, var, lo, hi, names, apply) \
-	{ OPT_RADIO, label, (char*)&(var), (char)(lo), (char)(hi), names, apply, NULL, true }
+#define ROW_RADIO_FIT(key, apply) \
+	{ OPT_RADIO, key, apply, NULL, NULL, true }
 #define ROW_INFO(label, fn) \
-	{ OPT_INFO, label, NULL, 0, 0, NULL, NULL, fn }
-
-static const char* const RESAMPLER_NAMES[]   = { "Hold", "Linear", "Cubic" };
-static const char* const ON_OFF_NAMES[]      = { "Off", "On" };
-static const char* const LEGACY_HIFI_NAMES[] = { "Legacy", "Hi-Fi" };
-static const char* const CD_BUFFER_NAMES[]   = { "16 KB", "64 KB", "256 KB" };
-static const char* const CD_HUNKS_NAMES[]    = { "2", "4", "8" };
-/* dynacore: 0 Lightrec, 1 Interpreter, 2 old PPC dynarec (wiiSXconfig.h) */
-static const char* const CPU_CORE_NAMES[]    = { "Lightrec", "Interpreter", "Dynarec" };
-/* gpuPlugin: 0 Soft Fast (WiiSX P.E.Op.S. path, no GPU timing), 1 Soft Timed (gpulib: GPU time per primitive), 2 OpenGX */
-static const char* const GPU_PLUGIN_NAMES[]  = { "Soft Fast", "Soft Timed", "OpenGX" };
-static const char* const FAST_ACCURATE_NAMES[] = { "Fast", "Accurate" };
+	{ OPT_INFO, NULL, NULL, fn, label, false }
 
 /* setSpuReverb(int) takes the raw setting value; the table's apply slot is void(void), so
  * this wrapper reads the setting itself, the same way GamecubeMain.cpp does at startup. */
 extern "C" void setSpuReverb(int soundReverb);
+/* The Memory readouts: Lightrec's code use (deps/lightrec), the OpenGX texture pool (deps/opengx),
+ * and the PS1 RAM / VRAM sizes (gpulib). */
+extern "C" {
+unsigned int lightrec_get_mem_usage(int type);	/* MEM_FOR_CODE is 0 */
+void ogx_tex_mem(unsigned *n, unsigned *data_kb, unsigned *semi_kb);
+extern const unsigned globalVramSize;
+}
 static void applySpuReverb(void) { setSpuReverb(soundReverb); }
 
 /*  Readouts (Memory page)  */
@@ -137,7 +139,7 @@ static void applySpuReverb(void) { setSpuReverb(soundReverb); }
 static void infoMem1(char *buf, int len)
 {
 	unsigned long free_kb = (unsigned long)(SYS_GetArena1Size() >> 10);
-	snprintf(buf, len, "%lu / %u KB", MEM1_KB - free_kb, MEM1_KB);
+	snprintf(buf, len, "%lu used, %lu free KB", MEM1_KB - free_kb, free_kb);
 }
 
 /* The locked cache: half of the CPU's 32 KB data cache, locked as 16 KB of scratch memory
@@ -155,7 +157,15 @@ static void infoLockedCache(char *buf, int len)
 static void infoMem2(char *buf, int len)
 {
 	unsigned long used = gx_mem2_used() >> 10, total = gx_mem2_total() >> 10;
-	snprintf(buf, len, "%lu / %lu KB", used, total);
+	snprintf(buf, len, "%lu used, %lu free KB", used, total - used);
+}
+
+/* The OpenGX textures in MEM2: how many, and their 16-bit data (and the semi-transparent copies). */
+static void infoTexPool(char *buf, int len)
+{
+	unsigned n = 0, data = 0, semi = 0;
+	ogx_tex_mem(&n, &data, &semi);
+	snprintf(buf, len, "%u textures, %u + %u KB", n, data, semi);
 }
 
 /* The glyph cache: one 1152-byte RGB5A3 tile per character, in a block of the general MEM2
@@ -179,7 +189,7 @@ static void infoJitBuffer(char *buf, int len)
 	if (dynacore == DYNACORE_DYNAREC_OLD)
 		snprintf(buf, len, "%lu KB (PPC)", (unsigned long)RECMEM2_SIZE >> 10);
 	else
-		snprintf(buf, len, "%lu KB (Lightrec, MEM1)", (unsigned long)LIGHTREC_CODE_SIZE >> 10);
+		snprintf(buf, len, "%u of %lu KB used", lightrec_get_mem_usage(0) >> 10, (unsigned long)LIGHTREC_CODE_SIZE >> 10);
 }
 
 /* Sound and disc buffers, both fixed regions. */
@@ -189,41 +199,90 @@ static void infoFixedBuffers(char *buf, int len)
 		(unsigned long)SPU_BUF_SIZE >> 10, (unsigned long)PSXR_BUF_SIZE >> 10);
 }
 
+/* The emulated PlayStation's main RAM (2 MB) and VRAM: the sizes of the buffers, not what a game uses. */
+static void infoPsxBuffers(char *buf, int len)
+{
+	snprintf(buf, len, "%u + %lu KB", 2048u, (unsigned long)globalVramSize >> 10);
+}
+
 /*  Pages  */
 
 static const OptRow SOUND_ROWS[] =
 {
-	ROW_CYCLE("Output Resampler", soundResampler,      SOUND_RESAMPLE_HOLD,          SOUND_RESAMPLE_CUBIC,        RESAMPLER_NAMES,   NULL),
-	ROW_CYCLE("Reverb",           soundReverb,         SOUND_REVERB_OFF,             SOUND_REVERB_ON,             ON_OFF_NAMES,      applySpuReverb),
-	ROW_CYCLE("Mixer Precision",  soundMixerPrecision, SOUND_MIXER_PRECISION_LEGACY, SOUND_MIXER_PRECISION_HIFI,  LEGACY_HIFI_NAMES, NULL),
-	ROW_CYCLE("XA Resampler",     soundXaResampler,    SOUND_XA_RESAMPLER_LEGACY,    SOUND_XA_RESAMPLER_HIFI,     LEGACY_HIFI_NAMES, NULL),
+	ROW_CYCLE("SoundResampler", NULL),
+	ROW_CYCLE("SoundReverb", applySpuReverb),
+	ROW_CYCLE("SoundMixerPrecision", NULL),
+	ROW_CYCLE("SoundXaResampler", NULL),
 };
 
 /* A line of help under the rows. `term` is the setting being explained, drawn bold in its
  * own column; `text` continues in the second column, so a NULL term indents under the
- * definition above it. Both columns are measured against the screen by
- * scripts/menu_text_width.py -- a line that is too long simply runs off the right. */
-struct OptHelp { const char* term; const char* text; };
+ * definition above it. The engine's HelpLine is exactly this. */
+typedef eng::HelpLine OptHelp;
 
 /* Radio rows, not cycling ones: which core and which renderer is running is worth seeing
- * whole, the way the General tab used to show it. Both tear down and restart the emulator
- * when a game is loaded, so they are applied once on leaving the page (pluginsEnter /
- * pluginsLeave) rather than on every press. */
+ * whole. Both tear down and restart the emulator when a game is loaded, so they are applied
+ * once on leaving the page (pluginsEnter / pluginsLeave) rather than on every press. */
 static const OptRow PLUGIN_ROWS[] =
 {
-	ROW_RADIO("CPU Core",   dynacore,  DYNACORE_DYNAREC, DYNACORE_DYNAREC_OLD, CPU_CORE_NAMES,   NULL),
-	ROW_RADIO("GPU Plugin", gpuPlugin, OLD_SOFT,         OPEN_GX,              GPU_PLUGIN_NAMES, NULL),
-	ROW_CYCLE("GPU Timing", gpuTiming, GPU_TIMING_FAST,  GPU_TIMING_ACCURATE,  FAST_ACCURATE_NAMES, NULL),
-	ROW_CYCLE("CPU Timing", cpuTiming, CPU_TIMING_FAST,  CPU_TIMING_ACCURATE,  FAST_ACCURATE_NAMES, NULL),
+	/* Fitted: "Interpreter" is wider than a fixed 135 px button. */
+	ROW_RADIO_FIT("Core", NULL),
+	ROW_CYCLE("CpuTiming", NULL),
+	ROW_CYCLE("CpuSpeed", NULL),
+};
+
+/* The SPU plugin: there is one (P.E.Op.S. DFSound, from PCSX-ReARMed), so it is a readout;
+ * what can be swapped is where its output is resampled and mixed for the Wii. */
+static void infoSpuPlugin(char *buf, int len) { snprintf(buf, len, "P.E.Op.S. DFSound"); }
+
+static const OptRow SPU_ROWS[] =
+{
+	ROW_INFO("SPU Plugin", infoSpuPlugin),
+	ROW_RADIO("SoundHwAccel", NULL),
+};
+
+static const OptHelp SPU_HELP[] =
+{
+	{ "Output:", "CPU resamples and mixes on the Wii's CPU." },
+	{ NULL,      "DSP hands the stream to the Wii's sound chip." },
+	{ NULL,      "Sound quality is in Audio, Advanced." },
+};
+
+static const OptRow GPU_ROWS[] =
+{
+	/* Fitted: "Soft Timed" is wider than a fixed 135 px button. The row starts further left
+	 * than the others to fit (MenuEngine's choiceStart). */
+	ROW_RADIO_FIT("gpuPlugin", NULL),
+	ROW_CYCLE("GpuTiming", NULL),
+	ROW_RADIO("FrameRate", NULL),
+};
+
+static const OptHelp GPU_HELP[] =
+{
+	{ "GPU Plugin:", "OpenGX uses the Wii's GPU; Soft avoids its quirks." },
+	{ "GPU Timing:", "Accurate: the GPU is busy as long as on a PS1." },
+	{ "Frame Rate:", "TV: 59.94 Hz, one frame per TV refresh: smoothest." },
+	{ NULL,          "PS1: 59.82 Hz, a PlayStation's own speed." },
+};
+
+static const OptRow INPUT_ROWS[] =
+{
+	ROW_CYCLE("SioTiming", NULL),
+};
+
+static const OptHelp INPUT_HELP[] =
+{
+	{ "Port Timing:", "Accurate: each byte on the controller ports takes" },
+	{ NULL,           "as long as on a PS1. Fast is the default." },
 };
 
 static const OptHelp PLUGIN_HELP[] =
 {
-	{ "CPU Core:",   "Lightrec is the recompiler most games run best on." },
-	{ NULL,          "Interpreter is exact but slow; Dynarec is the older one." },
-	{ "GPU Plugin:", "OpenGX uses the Wii's GPU; the soft ones avoid its quirks." },
-	{ "Timing:",     "Accurate: GPU and 3D-maths waits as on a PS1." },
-	{ NULL,          "A new core or plugin restarts a loaded game." },
+	{ "CPU Core:",   "Lightrec runs most games best; Interpreter is" },
+	{ NULL,          "exact but slow. A new core restarts the game." },
+	{ "CPU Timing:", "Accurate: 3D-maths and multiply waits as on a PS1." },
+	{ "CPU Speed:",  "Over 100% eases slowdown in some games, at more" },
+	{ NULL,          "Wii CPU time. Save it for one game: This Game." },
 };
 
 static char pluginsCoreOnEntry, pluginsGpuOnEntry;
@@ -241,18 +300,13 @@ static void pluginsLeave(void)
 }
 
 /* All three are read when a disc image is opened, so they take effect at the next game
- * load rather than immediately (SETTINGS.md section 2). */
-/* The same three words the Video tab used: "Game Dependent" is 204px and a radio slot
- * is RADIO_W, 135. The help text below says what Default means. */
-static const char* const DITHER_NAMES[]   = { "None", "Default", "Always" };
-static const char* const CHROMA_NAMES[]   = { "Sharp", "Smooth" };
-static const char* const FMV_COLOUR_NAMES[] = { "15-bit", "24-bit" };
-
+ * load rather than immediately (SETTINGS.md section 2). "Default" is the Dithering setting's
+ * middle choice. The help text below says what it means. */
 static const OptRow ADVGFX_ROWS[] =
 {
-	ROW_RADIO_FIT("Dithering", useDithering, USEDITHER_NONE,  USEDITHER_ALWAYS,  DITHER_NAMES, NULL),
-	ROW_CYCLE("MDEC Chroma", mdecChroma,   MDECCHROMA_SHARP,  MDECCHROMA_SMOOTH, CHROMA_NAMES, NULL),
-	ROW_CYCLE("Video Colour", fmvColour,   FMVCOLOUR_15BIT,   FMVCOLOUR_24BIT,   FMV_COLOUR_NAMES, NULL),
+	ROW_RADIO_FIT("Dithering", NULL),
+	ROW_CYCLE("MdecChroma", NULL),
+	ROW_CYCLE("FmvColour", NULL),
 };
 
 static const OptHelp ADVGFX_HELP[] =
@@ -268,9 +322,9 @@ static const OptHelp ADVGFX_HELP[] =
 
 static const OptRow CD_ROWS[] =
 {
-	ROW_CYCLE("CD Read Buffer", cdBuffer,   CD_BUFFER_16K,   CD_BUFFER_256K, CD_BUFFER_NAMES, NULL),
-	ROW_CYCLE("CD Read-Ahead",  cdPrefetch, CD_PREFETCH_OFF, CD_PREFETCH_ON, ON_OFF_NAMES,    NULL),
-	ROW_CYCLE("CHD Hunk Cache", cdChdHunks, CD_CHD_HUNKS_2,  CD_CHD_HUNKS_8, CD_HUNKS_NAMES,  NULL),
+	ROW_CYCLE("CdBuffer", NULL),
+	ROW_CYCLE("CdPrefetch", NULL),
+	ROW_CYCLE("CdChdHunks", NULL),
 };
 
 static const OptHelp CD_HELP[] =
@@ -291,15 +345,18 @@ static const OptRow MEMORY_ROWS[] =
 {
 	ROW_INFO("MEM1 (fast)",         infoMem1),
 	ROW_INFO("MEM2 heap",           infoMem2),
+	ROW_INFO("Texture pool",        infoTexPool),
 	ROW_INFO("Locked cache",        infoLockedCache),
 	ROW_INFO("Font glyph cache",    infoFontCache),
 	ROW_INFO("Recompiler buffer",   infoJitBuffer),
+	ROW_INFO("PS1 RAM + VRAM",      infoPsxBuffers),
 	ROW_INFO("SPU + BIOS buffers",  infoFixedBuffers),
 };
 
 struct OptPage
 {
-	const char*			title;
+	const char*			title;			// shown at the top; a tabbed page shows its tabs instead
+	const char*			tab;			// the page's tab among the Advanced pages, or NULL
 	const OptRow*		rows;
 	int					nrows;
 	const OptHelp*		help;			// explanation under the rows; NULL for none
@@ -307,73 +364,40 @@ struct OptPage
 	int					returnSubmenu;	// the Settings tab B goes back to
 	void				(*onEnter)(void);
 	void				(*onLeave)(void);
+	float				rowDy;			// the row pitch, or 0 for the default (60)
 };
 
 #define COUNT(a)	((int)(sizeof(a) / sizeof((a)[0])))
 
 static const OptPage PAGES[] =
 {
-	{ "Advanced Sound", SOUND_ROWS,   COUNT(SOUND_ROWS),   NULL,         0,                    SettingsFrame::SUBMENU_AUDIO,   NULL,         NULL         },
-	{ "Advanced Graphics", ADVGFX_ROWS, COUNT(ADVGFX_ROWS), ADVGFX_HELP, COUNT(ADVGFX_HELP), SettingsFrame::SUBMENU_VIDEO,   NULL,         NULL         },
-	{ "Plugins",        PLUGIN_ROWS,  COUNT(PLUGIN_ROWS),  PLUGIN_HELP,  COUNT(PLUGIN_HELP),   SettingsFrame::SUBMENU_GENERAL, pluginsEnter, pluginsLeave },
-	{ "CD",             CD_ROWS,      COUNT(CD_ROWS),      CD_HELP,      COUNT(CD_HELP),       SettingsFrame::SUBMENU_GENERAL, NULL,         NULL         },
-	{ "Memory",         MEMORY_ROWS,  COUNT(MEMORY_ROWS),  NULL,         0,                    SettingsFrame::SUBMENU_GENERAL, NULL,         NULL         },
+	{ "Advanced Sound", NULL, SOUND_ROWS, COUNT(SOUND_ROWS), NULL,        0,                  SettingsFrame::SUBMENU_AUDIO,   NULL,         NULL         },
+	{ "Advanced Graphics", NULL, ADVGFX_ROWS, COUNT(ADVGFX_ROWS), ADVGFX_HELP, COUNT(ADVGFX_HELP), SettingsFrame::SUBMENU_VIDEO, NULL,  NULL         },
+	{ "Advanced", "CPU",  PLUGIN_ROWS,  COUNT(PLUGIN_ROWS),  PLUGIN_HELP, COUNT(PLUGIN_HELP), SettingsFrame::SUBMENU_GENERAL, pluginsEnter, pluginsLeave },
+	{ "Advanced", "CD",   CD_ROWS,      COUNT(CD_ROWS),      CD_HELP,     COUNT(CD_HELP),     SettingsFrame::SUBMENU_GENERAL, pluginsEnter, pluginsLeave },
+	{ "Memory",   NULL,   MEMORY_ROWS,  COUNT(MEMORY_ROWS),  NULL,        0,                  SettingsFrame::SUBMENU_GENERAL, NULL,         NULL,         46.0f },
+	{ "Advanced", "GPU",  GPU_ROWS,     COUNT(GPU_ROWS),     GPU_HELP,    COUNT(GPU_HELP),    SettingsFrame::SUBMENU_GENERAL, pluginsEnter, pluginsLeave },
+	{ "Advanced", "Input", INPUT_ROWS,  COUNT(INPUT_ROWS),   INPUT_HELP,  COUNT(INPUT_HELP),  SettingsFrame::SUBMENU_GENERAL, pluginsEnter, pluginsLeave },
+	{ "Advanced", "SPU",  SPU_ROWS,     COUNT(SPU_ROWS),     SPU_HELP,    COUNT(SPU_HELP),    SettingsFrame::SUBMENU_GENERAL, pluginsEnter, pluginsLeave },
 };
 
+/* The Advanced pages, in the order their tabs run across the top. A tab switch stays inside
+ * the group: the page entered first decides where B returns to, and the core/plugin choice
+ * (pluginsEnter/pluginsLeave) is taken on entering the group and applied on leaving it. */
+static const int ADV_TABS[] = {
+	OptionsFrame::PAGE_PLUGINS, OptionsFrame::PAGE_ADV_GPU, OptionsFrame::PAGE_ADV_SPU,
+	OptionsFrame::PAGE_STORAGE, OptionsFrame::PAGE_ADV_INPUT
+};
+#define NUM_TABS	((int)(sizeof(ADV_TABS) / sizeof(ADV_TABS[0])))
+/* The engine centres the tab row. Its widths are the Settings tab row's (SettingsFrame.h), so
+ * moving between the two menus does not shift anything. */
+
 #define NUM_PAGES		COUNT(PAGES)
-#define OPT_MAX_ROWS	6
+#define OPT_MAX_ROWS	8
 #define OPT_MAX_CHOICES	3
 #define OPT_MAX_HELP	8
 
-/*  Layout: title, then a row every ROW_DY from ROW_Y0, then any help text. Rows are 56 high
- *  in a 54-high slot, so there is a clear gap between them. No Back button on a page of
- *  settings: B returns to the tab the page came from (setBackFunc).
- *
- *  A ROW_CYCLE or ROW_INFO row is a label on the left and one button (or one piece of text)
- *  in the right-hand column. A ROW_RADIO row needs the whole width, so its label sits
- *  further left and its buttons occupy OPT_MAX_CHOICES evenly spaced slots. */
-#define TITLE_X		320.0
-#define TITLE_Y		44.0
-#define ROW_Y0		86.0
-#define ROW_DY		60.0		// the tabs' row pitch
-#define LABEL_X		175.0		// ROW_CYCLE / ROW_INFO label, centred
-#define BUTTON_X	340.0
-#define BUTTON_W	250.0
-#define BUTTON_H	56.0		// the height every button on the tabs has
-#define RLABEL_X	110.0		// ROW_RADIO label, centred
-#define RADIO_X0	205.0		// first choice button
-#define RADIO_W		135.0		// the widest a choice may be, and what one is built at
-#define RADIO_DX	147.0		// 135 wide with a 12 gap; three of them end at 634
-#define RADIO_GAP	 12.0		// between two auto-sized choices
-/* The padding around the text is Button's own default; see setPadding(). */
-
-/* Help is two columns: the term right-aligned so its colons line up, then the text.
- * The lower lines are beside the spinning logo's corner and have to stop short of it,
- * which MENU_ROW_RIGHT() works out from the line's own y (see MenuLayout.h). */
-/* Both columns are centred on the screen at page time (activateSubmenu measures the widest
- * term and the widest explanation), so these are only where the widgets start out. */
-#define HELP_TERM_R	152.0		// the term ENDS here
-#define HELP_TEXT_X	162.0		// the text starts here
-#define HELP_COL_GAP	10.0	// between the term column and the text column
-/* The help block starts where the page's next row would have been, so the space above it
- * is the same as the space between two rows. HELP_Y0 is the earliest that can be, which
- * is what the widgets are first placed at before a page moves them. */
-#define HELP_Y(nrows)	(ROW_Y0 + (nrows) * ROW_DY)
-#define HELP_Y0			HELP_Y(1)
-#define HELP_LINE_DY	19.0	// between the lines of one explanation: tight, they read as one
-#define HELP_CELL_GAP	 9.0	// extra before a line that starts a new term
-#define HELP_SCALE		0.62
-#define HELP_LINE_H		(24.0 * HELP_SCALE)
-
 #define VALUE_LEN	32
-
-/* What one help string will measure on screen. getStringWidth takes a char*, and the
- * tables are const, so the cast is here rather than at every call. */
-static int helpWidth(const char *s)
-{
-	if (!s || !*s) return 0;
-	return menu::IplFont::getInstance().getStringWidth((char*)s, HELP_SCALE);
-}
 
 struct OptWidget
 {
@@ -389,6 +413,9 @@ struct OptWidget
 };
 
 static OptWidget		ROWS[OPT_MAX_ROWS];
+/* The setting each row edits, by its key, looked up once when its page is shown (bindPage).
+ * A readout has none. */
+static const SettingOption*	ROW_SET[OPT_MAX_ROWS];
 static menu::TextBox*	helpTermBox[OPT_MAX_HELP];
 static menu::TextBox*	helpBox[OPT_MAX_HELP];
 static char*			helpTermString[OPT_MAX_HELP];
@@ -396,8 +423,32 @@ static char*			helpString[OPT_MAX_HELP];
 static char				helpEmpty[1] = "";
 static menu::TextBox*	titleBox;
 static char*			titleString;
-static char				titleText[32];
 static int				currentPage;
+static menu::Button*	TABS[NUM_TABS];
+static char*			tabString[NUM_TABS];
+static int				returnSubmenu;		// the Settings tab B goes back to
+static bool				tabSwitch;			// activateSubmenu called for a tab, inside the group
+static OptionsFrame*	optionsFrame;
+
+/* The page on show, as the engine sees it, and the engine's layout of it. The layout is
+ * about 7 KB, so it is static, not on the stack. */
+static eng::Row			ENG_ROWS[OPT_MAX_ROWS];
+static eng::Tab			ENG_TABS[NUM_TABS];
+static eng::Page		ENG_PAGE;
+static eng::Layout		ENG_LAYOUT;
+
+/* The fixed sizes this frame relies on, against the engine's. */
+typedef char opt_rows_match_engine[OPT_MAX_ROWS == eng::MAX_ROWS ? 1 : -1];
+typedef char opt_help_match_engine[OPT_MAX_HELP == eng::MAX_HELP ? 1 : -1];
+typedef char opt_choices_fit_engine[OPT_MAX_CHOICES <= eng::MAX_SLOTS ? 1 : -1];
+typedef char opt_tabs_fit_engine[NUM_TABS <= eng::MAX_TABS ? 1 : -1];
+
+static void Func_OptTab0() { optionsFrame->showTab(0); }
+static void Func_OptTab1() { optionsFrame->showTab(1); }
+static void Func_OptTab2() { optionsFrame->showTab(2); }
+static void Func_OptTab3() { optionsFrame->showTab(3); }
+static void Func_OptTab4() { optionsFrame->showTab(4); }
+static void (*const TAB_FUNCS[5])() = { Func_OptTab0, Func_OptTab1, Func_OptTab2, Func_OptTab3, Func_OptTab4 };
 
 /*  One click handler per possible row, and per choice within a radio row: the Button API
  *  takes a plain function pointer with no argument, so the position has to be baked in.
@@ -421,38 +472,43 @@ static void (*const SET_FUNCS[OPT_MAX_ROWS][OPT_MAX_CHOICES])() =
 	{ OPT_SET_ROW(0), OPT_SET_ROW(1), OPT_SET_ROW(2),
 	  OPT_SET_ROW(3), OPT_SET_ROW(4), OPT_SET_ROW(5) };
 
-/* Every page must fit on the screen, the page tables must not outgrow the widgets, and a
- * page with help text must leave room for it. */
+/* Every page must fit on the screen (the engine checks the geometry), the page tables must
+ * not outgrow the widgets. */
 #define OPT_PAGE_FITS(rows)		(COUNT(rows) <= OPT_MAX_ROWS)
-/* Worst case for a page: every help line starts a new term, so every one takes the gap. */
-#define OPT_HELP_FITS(rows, help)	(COUNT(help) <= OPT_MAX_HELP && \
-	HELP_Y(COUNT(rows)) + (COUNT(help) - 1) * (HELP_LINE_DY + HELP_CELL_GAP) \
-		+ HELP_LINE_H <= MENU_BOTTOM)
+#define OPT_HELP_FITS(help)		(COUNT(help) <= OPT_MAX_HELP)
 
 typedef char opt_sound_fits  [OPT_PAGE_FITS(SOUND_ROWS)   ? 1 : -1];
 typedef char opt_plugin_fits [OPT_PAGE_FITS(PLUGIN_ROWS)  ? 1 : -1];
 typedef char opt_advgfx_fits[OPT_PAGE_FITS(ADVGFX_ROWS) ? 1 : -1];
 typedef char opt_cd_fits[OPT_PAGE_FITS(CD_ROWS) ? 1 : -1];
+typedef char opt_gpu_fits[OPT_PAGE_FITS(GPU_ROWS) ? 1 : -1];
+typedef char opt_spu_fits[OPT_PAGE_FITS(SPU_ROWS) ? 1 : -1];
+typedef char opt_spu_help_fits[OPT_HELP_FITS(SPU_HELP) ? 1 : -1];
+typedef char opt_input_fits[OPT_PAGE_FITS(INPUT_ROWS) ? 1 : -1];
+typedef char opt_gpu_help_fits[OPT_HELP_FITS(GPU_HELP) ? 1 : -1];
+typedef char opt_input_help_fits[OPT_HELP_FITS(INPUT_HELP) ? 1 : -1];
 typedef char opt_memory_fits [OPT_PAGE_FITS(MEMORY_ROWS)  ? 1 : -1];
-typedef char opt_plugin_help_fits [OPT_HELP_FITS(PLUGIN_ROWS,  PLUGIN_HELP)  ? 1 : -1];
-typedef char opt_advgfx_help_fits[OPT_HELP_FITS(ADVGFX_ROWS, ADVGFX_HELP) ? 1 : -1];
-typedef char opt_cd_help_fits[OPT_HELP_FITS(CD_ROWS, CD_HELP) ? 1 : -1];
-/* A radio row must not run off the right, and the term column must end before the text. */
-typedef char opt_help_columns[HELP_TEXT_X > HELP_TERM_R ? 1 : -1];
-/* The rows above the help must not run into it, and the rows themselves must stay on screen. */
-typedef char opt_rows_on_screen[ROW_Y0 + (OPT_MAX_ROWS - 1) * ROW_DY + BUTTON_H <= MENU_BOTTOM ? 1 : -1];
-typedef char opt_radio_on_screen[RADIO_X0 + (OPT_MAX_CHOICES - 1) * RADIO_DX + RADIO_W <= 640.0 ? 1 : -1];
+typedef char opt_plugin_help_fits [OPT_HELP_FITS(PLUGIN_HELP)  ? 1 : -1];
+typedef char opt_advgfx_help_fits[OPT_HELP_FITS(ADVGFX_HELP) ? 1 : -1];
+typedef char opt_cd_help_fits[OPT_HELP_FITS(CD_HELP) ? 1 : -1];
 
 static const OptRow* pageRow(int row)
 {
 	return &PAGES[currentPage].rows[row];
 }
 
+static void bindPage(int page)
+{
+	for (int i = 0; i < PAGES[page].nrows; i++)
+		ROW_SET[i] = PAGES[page].rows[i].kind == OPT_INFO ? NULL : settingByKey(PAGES[page].rows[i].key);
+}
+
 /* How many buttons a radio row shows. A row that declares more values than there are slots
  * would silently lose the rest, so it is clamped here and the clamp is the documented limit. */
-static int rowChoices(const OptRow *o)
+static int rowChoices(int row)
 {
-	int n = (int)o->max - (int)o->min + 1;
+	const SettingOption *s = ROW_SET[row];
+	int n = (int)s->max - (int)s->min + 1;
 	if (n < 1) n = 1;
 	if (n > OPT_MAX_CHOICES) n = OPT_MAX_CHOICES;
 	return n;
@@ -462,18 +518,19 @@ static int rowChoices(const OptRow *o)
 static void refreshRow(int row)
 {
 	const OptRow *o = pageRow(row);
+	const SettingOption *s = ROW_SET[row];
 	if (o->kind == OPT_INFO) {
 		o->info(ROWS[row].value, VALUE_LEN);
 	} else if (o->kind == OPT_RADIO) {
-		int n = rowChoices(o), v = *o->var;
-		if (v < o->min || v > o->max) v = o->min;
+		int n = rowChoices(row), v = *s->value;
+		if (v < s->min || v > s->max) v = s->min;
 		for (int c = 0; c < n; c++)
-			ROWS[row].choice[c]->setSelected(c == v - o->min);
+			ROWS[row].choice[c]->setSelected(c == v - s->min);
 		return;
 	} else {
-		int v = *o->var;
-		if (v < o->min || v > o->max) v = o->min;	// a value the file parser let through
-		snprintf(ROWS[row].value, VALUE_LEN, "%s", o->names[v - o->min]);
+		int v = *s->value;
+		if (v < s->min || v > s->max) v = s->min;	// a value the settings file parser let through
+		snprintf(ROWS[row].value, VALUE_LEN, "%s", s->choices[v - s->min]);
 	}
 	ROWS[row].valueString = ROWS[row].value;
 }
@@ -485,9 +542,10 @@ static void optCycle(int row)
 	o = pageRow(row);
 	if (o->kind != OPT_CYCLE) return;
 	{
-		int v = *o->var + 1;
-		if (v > o->max || v < o->min) v = o->min;
-		*o->var = (char)v;
+		const SettingOption *s = ROW_SET[row];
+		int v = *s->value + 1;
+		if (v > s->max || v < s->min) v = s->min;
+		*s->value = (char)v;
 	}
 	refreshRow(row);
 	if (o->apply) o->apply();
@@ -498,51 +556,250 @@ static void optSet(int row, int choice)
 	const OptRow *o;
 	if (row >= PAGES[currentPage].nrows) return;
 	o = pageRow(row);
-	if (o->kind != OPT_RADIO || choice >= rowChoices(o)) return;
-	*o->var = (char)(o->min + choice);
+	if (o->kind != OPT_RADIO || choice >= rowChoices(row)) return;
+	*ROW_SET[row]->value = (char)(ROW_SET[row]->min + choice);
 	refreshRow(row);
 	if (o->apply) o->apply();
 }
 
-/* Which button vertical focus should land on when moving into `row`, coming from column
- * `col`. Keeping the column means Up/Down does not jump back to the left of a radio row. */
-static menu::Button* focusTarget(int row, int col)
+/*  The page, for the engine  */
+
+/* Describes the page on show as an engine Page. The rows keep their values in ROWS (readouts
+ * are read into ROWS[i].value before this runs), so the engine lays out what is drawn. */
+static void buildEnginePage(int page, int curTab)
 {
-	const OptRow *o = pageRow(row);
-	if (o->kind != OPT_RADIO) return ROWS[row].button;
+	const OptPage &p = PAGES[page];
+	const bool tabbed = p.tab != NULL;
+
+	for (int t = 0; t < NUM_TABS; t++)
 	{
-		int n = rowChoices(o);
-		if (col >= n) col = n - 1;
-		return ROWS[row].choice[col];
+		ENG_TABS[t].text  = PAGES[ADV_TABS[t]].tab;
+		ENG_TABS[t].width = settingsTabWidths[t];
+	}
+	for (int i = 0; i < p.nrows; i++)
+	{
+		const OptRow *o = &p.rows[i];
+		const SettingOption *s = ROW_SET[i];
+		eng::Row &r = ENG_ROWS[i];
+		memset(&r, 0, sizeof r);
+		r.label = o->kind == OPT_INFO ? o->label : s->label;
+		if (o->kind == OPT_INFO)
+		{
+			r.kind = eng::ROW_READOUT;
+			r.text = ROWS[i].value;
+		}
+		else if (o->kind == OPT_RADIO)
+		{
+			r.kind  = eng::ROW_CHOICE;
+			r.names = s->choices;
+			r.lo    = s->min;
+			r.count = rowChoices(i);
+			r.value = *s->value;
+			r.fit   = o->fit;
+		}
+		else
+		{
+			r.kind  = eng::ROW_CYCLE;
+			r.names = s->choices;
+			r.lo    = s->min;
+			r.count = s->max - s->min + 1;
+			r.value = *s->value;
+		}
+	}
+
+	ENG_PAGE.title  = p.title;
+	ENG_PAGE.tabs   = tabbed ? ENG_TABS : NULL;
+	ENG_PAGE.nTabs  = tabbed ? NUM_TABS : 0;
+	ENG_PAGE.curTab = curTab < 0 ? 0 : curTab;
+	ENG_PAGE.rows   = ENG_ROWS;
+	ENG_PAGE.nRows  = p.nrows;
+	ENG_PAGE.help   = p.help;
+	ENG_PAGE.nHelp  = p.nhelp;
+	ENG_PAGE.logo   = eng::LOGO_SPOT_BOTTOM;	/* MenuContext: FRAME_OPTIONS is in LOGO_BOTTOM_FRAMES */
+	ENG_PAGE.focus  = eng::FOCUS_ROWS;
+	ENG_PAGE.rowDy  = p.rowDy;
+}
+
+/* The widget a control of the engine's layout is drawn with. */
+static menu::Button* buttonFor(const eng::Control &c)
+{
+	switch (c.role)
+	{
+	case eng::ROLE_TAB:    return TABS[c.slot];
+	case eng::ROLE_BUTTON: return ROWS[c.row].button;
+	case eng::ROLE_CHOICE: return ROWS[c.row].choice[c.slot];
+	default:               return NULL;
 	}
 }
 
-static bool rowIsFocusable(int row)
+/* Every widget off and unlit: the engine's layout then switches on what the page shows. */
+static void hideWidgets()
 {
-	int kind = pageRow(row)->kind;
-	return kind == OPT_CYCLE || kind == OPT_RADIO;
+	titleBox->setVisible(false);
+	for (int t = 0; t < NUM_TABS; t++)
+	{
+		TABS[t]->setVisible(false);
+		TABS[t]->setActive(false);
+		TABS[t]->setSelected(false);
+	}
+	for (int i = 0; i < OPT_MAX_ROWS; i++)
+	{
+		ROWS[i].textBox->setVisible(false);
+		ROWS[i].rlabelBox->setVisible(false);
+		ROWS[i].valueBox->setVisible(false);
+		ROWS[i].button->setVisible(false);
+		ROWS[i].button->setActive(false);
+		for (int c = 0; c < OPT_MAX_CHOICES; c++)
+		{
+			ROWS[i].choice[c]->setVisible(false);
+			ROWS[i].choice[c]->setActive(false);
+			ROWS[i].choice[c]->setSelected(false);
+		}
+	}
+	for (int i = 0; i < OPT_MAX_HELP; i++)
+	{
+		helpTermString[i] = helpEmpty;
+		helpString[i] = helpEmpty;
+		helpTermBox[i]->setVisible(false);
+		helpBox[i]->setVisible(false);
+	}
 }
 
-OptionsFrame::OptionsFrame()
-		: activePage(PAGE_SOUND)
+/* A button at the engine's rectangle. Its lit state is set by the caller, as it always was.
+ * The pointer's hit box follows it, so a click lands where the button is drawn. */
+static void placeButton(menu::Button *b, const eng::Control &c)
 {
-	titleString = titleText;
-	snprintf(titleText, sizeof(titleText), "%s", PAGES[PAGE_SOUND].title);
-	titleBox = new menu::TextBox(&titleString, TITLE_X, TITLE_Y, 1.0, true);
+	b->setBounds(c.rect.x, c.rect.y, c.rect.w, c.rect.h);
+	b->setVisible(true);
+	b->setActive(true);
+	menu::Cursor::getInstance().moveComponent(optionsFrame, b,
+		c.rect.x, c.rect.x + c.rect.w, c.rect.y, c.rect.y + c.rect.h);
+}
+
+/* Each shown control at its place. Text takes the engine's anchor: a TextBox draws itself
+ * from there (centred, or right-aligned for the help terms), as it always has. */
+static void placeLayout()
+{
+	for (int i = 0; i < ENG_LAYOUT.n; i++)
+	{
+		const eng::Control &c = ENG_LAYOUT.c[i];
+		switch (c.role)
+		{
+		case eng::ROLE_TAB:
+			placeButton(TABS[c.slot], c);
+			TABS[c.slot]->setSelected(c.selected);
+			break;
+		case eng::ROLE_TITLE:
+			titleString = (char*)c.text;
+			titleBox->setPosition(c.ax, c.ay);
+			titleBox->setVisible(true);
+			break;
+		case eng::ROLE_LABEL:
+		case eng::ROLE_RLABEL:
+		{
+			menu::TextBox *box = c.role == eng::ROLE_LABEL ? ROWS[c.row].textBox : ROWS[c.row].rlabelBox;
+			ROWS[c.row].labelString = (char*)c.text;
+			box->setPosition(c.ax, c.ay);
+			box->setVisible(true);
+			break;
+		}
+		case eng::ROLE_VALUE:
+			ROWS[c.row].valueBox->setPosition(c.ax, c.ay);
+			ROWS[c.row].valueBox->setVisible(true);
+			break;
+		case eng::ROLE_BUTTON:
+			placeButton(ROWS[c.row].button, c);
+			break;
+		case eng::ROLE_CHOICE:
+			ROWS[c.row].choiceString[c.slot] = (char*)c.text;
+			placeButton(ROWS[c.row].choice[c.slot], c);
+			break;
+		case eng::ROLE_HELP_TERM:
+			helpTermString[c.slot] = (char*)c.text;
+			helpTermBox[c.slot]->setPosition(c.ax, c.ay);
+			helpTermBox[c.slot]->setVisible(true);
+			break;
+		case eng::ROLE_HELP_TEXT:
+			helpString[c.slot] = (char*)c.text;
+			helpBox[c.slot]->setPosition(c.ax, c.ay);
+			helpBox[c.slot]->setVisible(true);
+			break;
+		}
+	}
+}
+
+/* The engine's focus links, on the buttons. A link of -1 is no link. */
+static void linkButtons()
+{
+	for (int i = 0; i < ENG_LAYOUT.n; i++)
+	{
+		const eng::Control &c = ENG_LAYOUT.c[i];
+		if (!c.focusable)
+			continue;
+		menu::glue::linkFocus(buttonFor(c), ENG_LAYOUT, c, buttonFor);
+	}
+}
+
+#ifdef PERF_PROF
+/* The engine's checks, in debug builds only. Each page's problems are logged once, the first
+ * time it is laid out. A problem is a finding about the layout, not a crash: a label wider
+ * than its button, a readout over its label, a control in the logo's corner. */
+static void logLayoutProblems(int page)
+{
+	static unsigned logged;		/* bit N: page N has been checked and logged */
+	static eng::Problem probs[eng::MAX_PROBLEMS];
+	int np;
+
+	if (logged & (1u << page))
+		return;
+	logged |= 1u << page;
+
+	np = eng::checkLayout(ENG_PAGE, menu::glue::METRICS, ENG_LAYOUT, probs, eng::MAX_PROBLEMS);
+	if (np > 0)
+		SysPrintf("OptionsFrame: page '%s' has %d layout problem(s)\n", PAGES[page].title, np);
+	for (int k = 0; k < np && k < eng::MAX_PROBLEMS; k++)
+	{
+		const eng::Problem &p = probs[k];
+		if (p.b >= 0)
+			SysPrintf("OptionsFrame:   %s: '%s' and '%s'\n", eng::problemName(p.kind),
+				ENG_LAYOUT.c[p.a].text, ENG_LAYOUT.c[p.b].text);
+		else
+			SysPrintf("OptionsFrame:   %s: '%s'\n", eng::problemName(p.kind), ENG_LAYOUT.c[p.a].text);
+	}
+}
+#endif
+
+OptionsFrame::OptionsFrame()
+{
+	titleString = (char*)PAGES[PAGE_SOUND].title;
+	titleBox = new menu::TextBox(&titleString, 0.0f, 0.0f, eng::grid::TEXT_SCALE, true);
 	add(titleBox);
+	optionsFrame = this;
+
+	for (int t = 0; t < NUM_TABS; t++)
+	{
+		tabString[t] = (char*)PAGES[ADV_TABS[t]].tab;
+		/* BTN_A_SEL, as the Settings tabs: the current one stays lit */
+		TABS[t] = new menu::Button(BTN_A_SEL, &tabString[t], 0.0f, 0.0f, 0.0f, 0.0f);
+		TABS[t]->setActive(true);
+		TABS[t]->setClicked(TAB_FUNCS[t]);
+		TABS[t]->setReturn(Func_ReturnFromOptionsFrame);
+		add(TABS[t]);
+		/* The pointer's box is set by activateSubmenu(), from the engine's layout. */
+		menu::Cursor::getInstance().addComponent(this, TABS[t], 0.0f, 0.0f, 0.0f, 0.0f);
+	}
 
 	for (int i = 0; i < OPT_MAX_ROWS; i++)
 	{
-		float y = ROW_Y0 + i * ROW_DY;
 		ROWS[i].labelString = (char*)"";
 		ROWS[i].value[0] = '\0';
 		ROWS[i].valueString = ROWS[i].value;
 		/* The label lives in two places depending on the row kind, so it gets two boxes and
 		 * whichever one the current page needs is the one made visible. */
-		ROWS[i].textBox   = new menu::TextBox(&ROWS[i].labelString, LABEL_X,  y + 20.0, 1.0, true);
-		ROWS[i].rlabelBox = new menu::TextBox(&ROWS[i].labelString, RLABEL_X, y + 20.0, 1.0, true);
-		ROWS[i].valueBox  = new menu::TextBox(&ROWS[i].valueString, BUTTON_X + BUTTON_W / 2, y + 20.0, 1.0, true);
-		ROWS[i].button   = new menu::Button(BTN_A_NRM, &ROWS[i].valueString, BUTTON_X, y, BUTTON_W, BUTTON_H);
+		ROWS[i].textBox   = new menu::TextBox(&ROWS[i].labelString, 0.0f, 0.0f, eng::grid::TEXT_SCALE, true);
+		ROWS[i].rlabelBox = new menu::TextBox(&ROWS[i].labelString, 0.0f, 0.0f, eng::grid::TEXT_SCALE, true);
+		ROWS[i].valueBox  = new menu::TextBox(&ROWS[i].valueString, 0.0f, 0.0f, eng::grid::TEXT_SCALE, true);
+		ROWS[i].button    = new menu::Button(BTN_A_NRM, &ROWS[i].valueString, 0.0f, 0.0f, 0.0f, 0.0f);
 		ROWS[i].button->setActive(true);
 		ROWS[i].button->setClicked(ROW_FUNCS[i]);
 		ROWS[i].button->setReturn(Func_ReturnFromOptionsFrame);
@@ -550,32 +807,30 @@ OptionsFrame::OptionsFrame()
 		add(ROWS[i].rlabelBox);
 		add(ROWS[i].valueBox);
 		add(ROWS[i].button);
-		menu::Cursor::getInstance().addComponent(this, ROWS[i].button, BUTTON_X, BUTTON_X + BUTTON_W, y, y + BUTTON_H);
+		menu::Cursor::getInstance().addComponent(this, ROWS[i].button, 0.0f, 0.0f, 0.0f, 0.0f);
 
 		for (int c = 0; c < OPT_MAX_CHOICES; c++)
 		{
-			float cx = RADIO_X0 + c * RADIO_DX;
 			ROWS[i].choiceString[c] = (char*)"";
 			/* BTN_A_SEL is the style the Settings tabs use for a one-of-several choice: the
 			 * selected one stays lit whether or not it has focus. */
-			ROWS[i].choice[c] = new menu::Button(BTN_A_SEL, &ROWS[i].choiceString[c], cx, y, RADIO_W, BUTTON_H);
+			ROWS[i].choice[c] = new menu::Button(BTN_A_SEL, &ROWS[i].choiceString[c], 0.0f, 0.0f, 0.0f, 0.0f);
 			ROWS[i].choice[c]->setActive(true);
 			ROWS[i].choice[c]->setClicked(SET_FUNCS[i][c]);
 			ROWS[i].choice[c]->setReturn(Func_ReturnFromOptionsFrame);
 			add(ROWS[i].choice[c]);
-			menu::Cursor::getInstance().addComponent(this, ROWS[i].choice[c], cx, cx + RADIO_W, y, y + BUTTON_H);
+			menu::Cursor::getInstance().addComponent(this, ROWS[i].choice[c], 0.0f, 0.0f, 0.0f, 0.0f);
 		}
 	}
 
 	for (int i = 0; i < OPT_MAX_HELP; i++)
 	{
-		float y = HELP_Y0 + i * (HELP_LINE_DY + HELP_CELL_GAP);   /* placed per page below */
 		helpTermString[i] = helpEmpty;
 		helpString[i] = helpEmpty;
-		helpTermBox[i] = new menu::TextBox(&helpTermString[i], HELP_TERM_R, y, HELP_SCALE, false);
+		helpTermBox[i] = new menu::TextBox(&helpTermString[i], 0.0f, 0.0f, eng::grid::HELP_SCALE, false);
 		helpTermBox[i]->setRightAligned(true);
 		helpTermBox[i]->setBold(true);
-		helpBox[i] = new menu::TextBox(&helpString[i], HELP_TEXT_X, y, HELP_SCALE, false);
+		helpBox[i] = new menu::TextBox(&helpString[i], 0.0f, 0.0f, eng::grid::HELP_SCALE, false);
 		add(helpTermBox[i]);
 		add(helpBox[i]);
 	}
@@ -589,6 +844,11 @@ OptionsFrame::OptionsFrame()
 OptionsFrame::~OptionsFrame()
 {
 	delete titleBox;
+	for (int t = 0; t < NUM_TABS; t++)
+	{
+		menu::Cursor::getInstance().removeComponent(this, TABS[t]);
+		delete TABS[t];
+	}
 	for (int i = 0; i < OPT_MAX_ROWS; i++)
 	{
 		delete ROWS[i].textBox;
@@ -611,175 +871,68 @@ OptionsFrame::~OptionsFrame()
 
 void OptionsFrame::activateSubmenu(int submenu)
 {
-	int n;
-
 	if (submenu < 0 || submenu >= NUM_PAGES) submenu = PAGE_SOUND;
-	activePage = submenu;
 	currentPage = submenu;
-	n = PAGES[currentPage].nrows;
+	bindPage(currentPage);
 
-	snprintf(titleText, sizeof(titleText), "%s", PAGES[currentPage].title);
-	if (PAGES[currentPage].onEnter) PAGES[currentPage].onEnter();
+	int curTab = -1;
+	for (int t = 0; t < NUM_TABS; t++)
+		if (ADV_TABS[t] == currentPage) curTab = t;
 
-	for (int i = 0; i < OPT_MAX_ROWS; i++)
+	if (!tabSwitch)
 	{
-		float y     = ROW_Y0 + i * ROW_DY;
-		bool used   = (i < n);
-		int  kind   = used ? pageRow(i)->kind : OPT_INFO;
-		bool cycles = used && kind == OPT_CYCLE;
-		bool radio  = used && kind == OPT_RADIO;
-		int  nc     = radio ? rowChoices(pageRow(i)) : 0;
-
-		if (used) {
-			ROWS[i].labelString = (char*)pageRow(i)->label;
-			for (int c = 0; c < nc; c++)
-				ROWS[i].choiceString[c] = (char*)pageRow(i)->names[c];
-		}
-		/* A radio row needs the full width, so its label sits further left. Both boxes read
-		 * the same string; exactly one of them is shown. */
-		ROWS[i].textBox->setVisible(used && !radio);
-		ROWS[i].rlabelBox->setVisible(radio);
-		/* A setting is a button you press; a readout is plain text in the same column. */
-		ROWS[i].button->setVisible(cycles);
-		ROWS[i].button->setActive(cycles);
-		ROWS[i].valueBox->setVisible(used && kind == OPT_INFO);
-		for (int c = 0; c < OPT_MAX_CHOICES; c++)
-		{
-			bool on = radio && c < nc;
-			ROWS[i].choice[c]->setVisible(on);
-			ROWS[i].choice[c]->setActive(on);
-			if (!on) ROWS[i].choice[c]->setSelected(false);
-		}
-		if (used) refreshRow(i);
-
-		/* Size each choice to its own label and lay the row out left to right. Here rather
-		 * than in the constructor, because the labels arrive with the page. */
-		if (radio)
-		{
-			bool fit = pageRow(i)->fit;
-			float cx = RADIO_X0;
-			for (int c = 0; c < nc; c++)
-			{
-				float w;
-				/* A fitted row takes its width from the label, height left alone, and the
-				 * next button starts after it. A plain row keeps the fixed grid. */
-				ROWS[i].choice[c]->setAutoSize(fit ? menu::Button::BTN_FIT_WIDTH
-				                                   : menu::Button::BTN_FIT_NONE);
-				ROWS[i].choice[c]->setBounds(cx, y, RADIO_W, BUTTON_H);
-				w = ROWS[i].choice[c]->getWidth();
-				menu::Cursor::getInstance().moveComponent(this, ROWS[i].choice[c],
-					cx, cx + w, y, y + BUTTON_H);
-				cx += fit ? w + RADIO_GAP : RADIO_DX;
-			}
-		}
+		returnSubmenu = PAGES[currentPage].returnSubmenu;
+		if (PAGES[currentPage].onEnter) PAGES[currentPage].onEnter();
 	}
 
-	/* Focus runs down the rows that can be pressed, and wraps; left and right step through
-	 * a radio row's choices. A page of readouts has nothing focusable, and B is the only
-	 * way out, which is what the back function is for. */
-	int firstRow = -1, prevRow = -1;
-	for (int i = 0; i < n; i++)
+	/* Hidden first; the layout then shows what this page has. */
+	hideWidgets();
+	/* The values the rows show. A readout's text is read here, before the engine lays it out. */
+	for (int i = 0; i < PAGES[currentPage].nrows; i++)
+		refreshRow(i);
+
+	/* The engine lays the page out and links its focus: once, here, not per frame. */
+	buildEnginePage(currentPage, curTab);
+	if (eng::layoutPage(ENG_PAGE, menu::glue::METRICS, ENG_LAYOUT) < 0)
 	{
-		if (!rowIsFocusable(i)) continue;
-		if (firstRow < 0) firstRow = i;
-		if (pageRow(i)->kind == OPT_RADIO)
-		{
-			int nc = rowChoices(pageRow(i));
-			for (int c = 0; c < nc; c++)
-			{
-				ROWS[i].choice[c]->setNextFocus(menu::Focus::DIRECTION_LEFT,  ROWS[i].choice[(c + nc - 1) % nc]);
-				ROWS[i].choice[c]->setNextFocus(menu::Focus::DIRECTION_RIGHT, ROWS[i].choice[(c + 1) % nc]);
-			}
-		}
-		if (prevRow >= 0)
-		{
-			int ncPrev = pageRow(prevRow)->kind == OPT_RADIO ? rowChoices(pageRow(prevRow)) : 1;
-			int ncThis = pageRow(i)->kind      == OPT_RADIO ? rowChoices(pageRow(i))      : 1;
-			for (int c = 0; c < ncPrev; c++)
-				focusTarget(prevRow, c)->setNextFocus(menu::Focus::DIRECTION_DOWN, focusTarget(i, c));
-			for (int c = 0; c < ncThis; c++)
-				focusTarget(i, c)->setNextFocus(menu::Focus::DIRECTION_UP, focusTarget(prevRow, c));
-		}
-		prevRow = i;
+		/* The tables are fixed and checked at compile time, so this is a programming error.
+		 * Nothing is shown rather than a half-placed page, and the error says which page. */
+		ENG_LAYOUT.n = 0;
+		ENG_LAYOUT.defaultFocus = -1;
+		SysPrintf("OptionsFrame: page %d does not fit the menu engine\n", currentPage);
 	}
-	/* Also when there is only one focusable row: it then links to itself, which is what stops
-	 * Up/Down following a link left over from the page shown before. */
-	if (firstRow >= 0)
+	else
 	{
-		int ncLast  = pageRow(prevRow)->kind  == OPT_RADIO ? rowChoices(pageRow(prevRow))  : 1;
-		int ncFirst = pageRow(firstRow)->kind == OPT_RADIO ? rowChoices(pageRow(firstRow)) : 1;
-		for (int c = 0; c < ncLast; c++)
-			focusTarget(prevRow, c)->setNextFocus(menu::Focus::DIRECTION_DOWN, focusTarget(firstRow, c));
-		for (int c = 0; c < ncFirst; c++)
-			focusTarget(firstRow, c)->setNextFocus(menu::Focus::DIRECTION_UP, focusTarget(prevRow, c));
+		eng::linkFocus(ENG_PAGE, ENG_LAYOUT);
+		placeLayout();
+		linkButtons();
+#ifdef PERF_PROF
+		logLayoutProblems(currentPage);
+#endif
 	}
 
-	/* Help text under the rows, if the page has any.
-	 *
-	 * The two columns are centred on the screen together, so the block is measured first:
-	 * the widest term and the widest explanation give its width. A page whose lower lines
-	 * reach the logo's corner then moves left far enough to clear it, and no further. */
-	float termR = HELP_TERM_R, textX = HELP_TEXT_X;
-	{
-		const OptHelp *help = PAGES[currentPage].help;
-		int n = PAGES[currentPage].nhelp, wTerm = 0, wText = 0, shift = 0;
-		float y = HELP_Y(PAGES[currentPage].nrows);
-		for (int i = 0; i < n; i++) {
-			if (help[i].term) {
-				int w = helpWidth(help[i].term);
-				if (w > wTerm) wTerm = w;
-			}
-			{
-				int w = helpWidth(help[i].text);
-				if (w > wText) wText = w;
-			}
-		}
-		termR = (MENU_W - (wTerm + HELP_COL_GAP + wText)) / 2 + wTerm;
-		textX = termR + HELP_COL_GAP;
-		/* Nothing may enter the logo's corner, and the term must stay on screen. */
-		for (int i = 0; i < n; i++) {
-			int over;
-			if (i > 0 && help[i].term) y += HELP_CELL_GAP;
-			over = (int)(textX + helpWidth(help[i].text) - MENU_ROW_RIGHT(y + HELP_LINE_H));
-			if (over > shift) shift = over;
-			y += HELP_LINE_DY;
-		}
-		if (termR - wTerm - shift < MENU_EDGE) shift = (int)(termR - wTerm - MENU_EDGE);
-		termR -= shift;
-		textX -= shift;
-	}
-
-	/* The lines of one explanation sit close together so they read as one paragraph; the
-	 * space goes before the line that starts a new term. */
-	float helpY = HELP_Y(PAGES[currentPage].nrows);
-	for (int i = 0; i < OPT_MAX_HELP; i++)
-	{
-		bool on = i < PAGES[currentPage].nhelp;
-		const char *term = on ? PAGES[currentPage].help[i].term : NULL;
-		if (i > 0 && term) helpY += HELP_CELL_GAP;
-		helpTermString[i] = term ? (char*)term : helpEmpty;
-		helpString[i] = on ? (char*)PAGES[currentPage].help[i].text : helpEmpty;
-		helpTermBox[i]->setPosition(termR, helpY);
-		helpBox[i]->setPosition(textX, helpY);
-		helpY += HELP_LINE_DY;
-		helpTermBox[i]->setVisible(term != NULL);
-		helpBox[i]->setVisible(on);
-	}
-
-	/* B leaves every page, so none of them carries a Back button. A page of readouts has
-	 * nothing to focus at all, and the frame itself takes the focus then. */
-	setDefaultFocus(firstRow >= 0 ? focusTarget(firstRow, 0) : NULL);
+	/* Focus starts on the page's first control. After a tab press it stays on the tab row, so
+	 * Left/Right keep turning pages. */
+	menu::Button *start = NULL;
+	if (tabSwitch && curTab >= 0)
+		start = TABS[curTab];
+	else if (ENG_LAYOUT.defaultFocus >= 0)
+		start = buttonFor(ENG_LAYOUT.c[ENG_LAYOUT.defaultFocus]);
+	setDefaultFocus(start);
 }
 
-/* Readouts are live: the emulator is not running while this page is open, so re-reading a
- * few heap counters per frame costs nothing that anyone can see. */
+void OptionsFrame::showTab(int tab)
+{
+	if (tab < 0 || tab >= NUM_TABS || ADV_TABS[tab] == currentPage) return;
+	tabSwitch = true;
+	activateSubmenu(ADV_TABS[tab]);
+	tabSwitch = false;
+}
+
+/* Readouts are read once, when their page opens (activateSubmenu), not per frame. */
 void OptionsFrame::drawChildren(menu::Graphics& gfx)
 {
 	if (!isVisible()) return;
-
-	for (int i = 0; i < PAGES[currentPage].nrows; i++)
-		if (pageRow(i)->kind == OPT_INFO)
-			refreshRow(i);
 
 	menu::ComponentList::const_iterator iteration;
 	for (iteration = componentList.begin(); iteration != componentList.end(); ++iteration)
@@ -793,6 +946,6 @@ void Func_ReturnFromOptionsFrame()
 	/* Go back to the tab first: a plugin change with a game loaded restarts the emulator
 	 * and ends in Func_SetPlayGame(), which puts the game on screen. Switching frames
 	 * afterwards would undo that, so the hook runs last. */
-	pMenuContext->setActiveFrame(MenuContext::FRAME_SETTINGS, PAGES[currentPage].returnSubmenu);
+	pMenuContext->setActiveFrame(MenuContext::FRAME_SETTINGS, returnSubmenu);
 	if (onLeave) onLeave();
 }

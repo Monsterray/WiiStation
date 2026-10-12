@@ -1,7 +1,11 @@
 # mipsdis.py -- a small R3000 disassembler for PS1 RAM dumps (e.g. a save state RAM, see
 # .claude/skills/wiistation-diagnostics/references/test-roms.md).
 #   python scripts/mipsdis.py RAM.bin OFF:PC:N [OFF:PC:N ...]   (hex file offset, guest PC, word count)
+import os
 import struct, sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from cliutil import need, req_file  # noqa: E402
 R=['zero','at','v0','v1','a0','a1','a2','a3','t0','t1','t2','t3','t4','t5','t6','t7','s0','s1','s2','s3','s4','s5','s6','s7','t8','t9','k0','k1','gp','sp','fp','ra']
 def dis(w, pc):
     op=w>>26; rs=(w>>21)&31; rt=(w>>16)&31; rd=(w>>11)&31; sh=(w>>6)&31; fn=w&63; imm=w&0xffff; simm=imm-0x10000 if imm&0x8000 else imm
@@ -19,9 +23,15 @@ def dis(w, pc):
     if op==15: return f'lui {R[rt]},{hex(imm)}'
     if op>=32: return f'{n} {R[rt]},{simm}({R[rs]})'
     return f'{n} {R[rt]},{R[rs]},{simm if op in (8,9,10,11) else hex(imm)}'
-rom=open(sys.argv[1],'rb').read()
+need(sys.argv, 3, "mipsdis.py ROM OFF:PC:N [OFF:PC:N ...]  (hex, e.g. 800:80010000:6)")
+rom=open(req_file(sys.argv[1], 'ROM'), 'rb').read()
 for spec in sys.argv[2:]:
-    off,pc,n=[int(x,16) for x in spec.split(':')]
+    try:
+        off,pc,n=[int(x,16) for x in spec.split(':')]
+    except ValueError:
+        sys.exit(f"bad spec {spec!r}: need OFF:PC:N in hex")
+    if n < 0 or off < 0 or off + 4 * n > len(rom):
+        sys.exit(f"spec {spec!r} reads past the {len(rom)}-byte ROM")
     print('== pc', hex(pc))
     for k in range(n):
         w=struct.unpack('<I', rom[off+4*k:off+4*k+4])[0]; print('  %08x  %08x  %s'%(pc+4*k, w, dis(w, pc+4*k)))

@@ -23,10 +23,13 @@
 #include <strings.h>
 #include <sys/stat.h>   /* the RomDir folders */
 #include "../config_parse.h"   /* config_list_next */
+#include "MenuGlue.h"
 #define CONFIG_ITEM_SIZE 256
 #include "MenuContext.h"
+#include "MenuEngine.h"	/* before Button.h: its include guard is BUTTON_H, a name the engine uses */
 #include "FileBrowserFrame.h"
 #include "../libgui/Button.h"
+#include "../libgui/IPLFont.h"
 #include "../libgui/resources.h"
 #include "../libgui/MessageBox.h"
 #include "../libgui/FocusManager.h"
@@ -48,7 +51,8 @@ extern long ISOgetTN(unsigned char *buffer);
 extern char debugInfo[256];
 }
 
-extern "C" char * JoinString(char *s1, char *s2);
+
+namespace eng = menu::engine;
 
 void Func_PrevPage();
 void Func_NextPage();
@@ -64,77 +68,159 @@ void Func_Select8();
 void Func_Select9();
 void Func_Select10();
 
-#define NUM_FRAME_BUTTONS 12
-#define NUM_FILE_SLOTS 10
-#define FRAME_BUTTONS fileBrowserFrameButtons
-#define FRAME_STRINGS fileBrowserFrameStrings
+static const int NUM_FRAME_BUTTONS = 12;	/* 0 Prev, 1 Next, 2..11 the file slots */
+static const int NUM_FILE_SLOTS = 10;
 
-static char FRAME_STRINGS[3][5] =
+static char fileBrowserStrings[3][5] =
 	{ "Prev",
 	  "Next",
 	  ""};
 
+/* The directory listing, owned here: dir_entries holds num_entries entries. */
+static fileBrowser_file* dir_entries;
+static bool				romFolderList;   /* dir_entries are the RomDir folders: show whole paths */
+static int				num_entries;
 
-struct ButtonInfo
+/* The buttons: 0 Prev, 1 Next, 2..11 the file slots. Their boxes, focus links, text and label
+ * colour come from the engine's list layout (FB_LAYOUT), made again whenever the page changes. */
+struct FileBrowserButtonInfo
 {
 	menu::Button	*button;
 	int				buttonStyle;
 	char*			buttonString;
-	float			x;
-	float			y;
-	float			width;
-	float			height;
-	int				focusUp;
-	int				focusDown;
-	int				focusLeft;
-	int				focusRight;
 	ButtonFunc		clickedFunc;
 	ButtonFunc		returnFunc;
-} FRAME_BUTTONS[NUM_FRAME_BUTTONS] =
-{ //	button	buttonStyle		buttonString		x		y		width	height	Up	Dwn	Lft	Rt	clickFunc		returnFunc
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[0],	 35.0,	220.0,	 70.0,	40.0,	-1,	-1,	-1,	 2,	Func_PrevPage,	Func_ReturnFromFileBrowserFrame }, // Prev
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[1],	535.0,	220.0,	 70.0,	40.0,	-1,	-1,	 2,	-1,	Func_NextPage,	Func_ReturnFromFileBrowserFrame }, // Next
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[2],	120.0,	 40.0,	400.0,	35.0,	11,	 3,	 0,	 1,	Func_Select1,	Func_ReturnFromFileBrowserFrame }, // File Button 1
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[2],	120.0,	 80.0,	400.0,	35.0,	 2,	 4,	 0,	 1,	Func_Select2,	Func_ReturnFromFileBrowserFrame }, // File Button 2
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[2],	120.0,	120.0,	400.0,	35.0,	 3,	 5,	 0,	 1,	Func_Select3,	Func_ReturnFromFileBrowserFrame }, // File Button 3
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[2],	120.0,	160.0,	400.0,	35.0,	 4,	 6,	 0,	 1,	Func_Select4,	Func_ReturnFromFileBrowserFrame }, // File Button 4
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[2],	120.0,	200.0,	400.0,	35.0,	 5,	 7,	 0,	 1,	Func_Select5,	Func_ReturnFromFileBrowserFrame }, // File Button 5
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[2],	120.0,	240.0,	400.0,	35.0,	 6,	 8,	 0,	 1,	Func_Select6,	Func_ReturnFromFileBrowserFrame }, // File Button 6
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[2],	120.0,	280.0,	400.0,	35.0,	 7,	 9,	 0,	 1,	Func_Select7,	Func_ReturnFromFileBrowserFrame }, // File Button 7
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[2],	120.0,	320.0,	400.0,	35.0,	 8,	10,	 0,	 1,	Func_Select8,	Func_ReturnFromFileBrowserFrame }, // File Button 8
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[2],	120.0,	360.0,	400.0,	35.0,	 9,	11,	 0,	 1,	Func_Select9,	Func_ReturnFromFileBrowserFrame }, // File Button 9
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[2],	120.0,	400.0,	400.0,	35.0,	10,	 2,	 0,	 1,	Func_Select10,	Func_ReturnFromFileBrowserFrame }, // File Button 10
+	int				ctl;			/* this button's control in FB_LAYOUT */
 };
 
-FileBrowserFrame::FileBrowserFrame()
+static FileBrowserButtonInfo fileBrowserButtons[NUM_FRAME_BUTTONS] =
+{ //	button	buttonStyle		buttonString		clickFunc		returnFunc
+	{	NULL,	BTN_A_NRM,	fileBrowserStrings[0],	Func_PrevPage,	Func_ReturnFromFileBrowserFrame }, // Prev
+	{	NULL,	BTN_A_NRM,	fileBrowserStrings[1],	Func_NextPage,	Func_ReturnFromFileBrowserFrame }, // Next
+	{	NULL,	BTN_A_NRM,	fileBrowserStrings[2],	Func_Select1,	Func_ReturnFromFileBrowserFrame }, // File Button 1
+	{	NULL,	BTN_A_NRM,	fileBrowserStrings[2],	Func_Select2,	Func_ReturnFromFileBrowserFrame }, // File Button 2
+	{	NULL,	BTN_A_NRM,	fileBrowserStrings[2],	Func_Select3,	Func_ReturnFromFileBrowserFrame }, // File Button 3
+	{	NULL,	BTN_A_NRM,	fileBrowserStrings[2],	Func_Select4,	Func_ReturnFromFileBrowserFrame }, // File Button 4
+	{	NULL,	BTN_A_NRM,	fileBrowserStrings[2],	Func_Select5,	Func_ReturnFromFileBrowserFrame }, // File Button 5
+	{	NULL,	BTN_A_NRM,	fileBrowserStrings[2],	Func_Select6,	Func_ReturnFromFileBrowserFrame }, // File Button 6
+	{	NULL,	BTN_A_NRM,	fileBrowserStrings[2],	Func_Select7,	Func_ReturnFromFileBrowserFrame }, // File Button 7
+	{	NULL,	BTN_A_NRM,	fileBrowserStrings[2],	Func_Select8,	Func_ReturnFromFileBrowserFrame }, // File Button 8
+	{	NULL,	BTN_A_NRM,	fileBrowserStrings[2],	Func_Select9,	Func_ReturnFromFileBrowserFrame }, // File Button 9
+	{	NULL,	BTN_A_NRM,	fileBrowserStrings[2],	Func_Select10,	Func_ReturnFromFileBrowserFrame }, // File Button 10
+};
+
+/*  The list: the engine's ROW_LIST, paged (Gamecube/menu/MenuEngine.h)  */
+
+static void fileBrowserItem(void *ctx, int index, eng::ListItem &out);
+
+/* The file list: 10 slots, the page turned by Prev and Next (clamped) or by L and R (wrapped).
+ * The boxes are those the browser has always drawn: 400 x 35 from (120, 40), 40 apart; Prev and
+ * Next beside the list. */
+static eng::ListState FB_LIST = { 0, NUM_FILE_SLOTS, 0, -1 };
+static eng::ListSpec  FB_SPEC = {
+	&FB_LIST, eng::LIST_PAGED, fileBrowserItem, NULL,
+	120.0f, 40.0f, 400.0f, 35.0f, 40.0f,
+	{ "Prev",  35.0f, 220.0f, 70.0f, 40.0f },
+	{ "Next", 535.0f, 220.0f, 70.0f, 40.0f }
+};
+static eng::Row    FB_ROW;
+static eng::Page   FB_PAGE;
+static eng::Layout FB_LAYOUT;
+
+/* The engine's text widths: IplFont, as the other frames use it (CurrentRomFrame.cpp). */
+static void setupFileBrowserPage(void)
+{
+	memset(&FB_ROW, 0, sizeof FB_ROW);
+	FB_ROW.kind = eng::ROW_LIST;
+	FB_ROW.list = &FB_SPEC;
+	memset(&FB_PAGE, 0, sizeof FB_PAGE);
+	FB_PAGE.rows = &FB_ROW;
+	FB_PAGE.nRows = 1;
+	FB_PAGE.logo = eng::LOGO_SPOT_TOP;		/* the browser has always had the logo at the top */
+	FB_PAGE.focus = eng::FOCUS_ROWS;
+}
+
+/* Lays the page out for the list as it is now: once per page turn, never per frame. */
+static void layoutFileBrowser(void)
+{
+	eng::layoutPage(FB_PAGE, menu::glue::METRICS, FB_LAYOUT);
+	eng::linkFocus(FB_PAGE, FB_LAYOUT);
+}
+
+/* The control of fileBrowserButtons[i]: Prev, Next, then the window's items, in slot order. */
+static int fileBrowserControl(int i)
+{
+	if (i == 0) return FB_LAYOUT.slot[FB_LAYOUT.list][0];
+	if (i == 1) return FB_LAYOUT.slot[FB_LAYOUT.list][1];
+	return FB_LAYOUT.listItem[i - 2];
+}
+
+/* The button drawn for a control of FB_LAYOUT, or NULL. */
+static menu::Button *fileBrowserButtonAt(int ctl)
 {
 	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
-		FRAME_BUTTONS[i].button = new menu::Button(FRAME_BUTTONS[i].buttonStyle, &FRAME_BUTTONS[i].buttonString,
-										FRAME_BUTTONS[i].x, FRAME_BUTTONS[i].y,
-										FRAME_BUTTONS[i].width, FRAME_BUTTONS[i].height);
+		if (fileBrowserButtons[i].ctl == ctl)
+			return fileBrowserButtons[i].button;
+	return NULL;
+}
+
+/* The button drawn for a layout control. */
+static menu::Button *fileBrowserButtonOf(const eng::Control &c)
+{
+	return fileBrowserButtonAt(int(&c - FB_LAYOUT.c));
+}
+
+/* Copies the layout onto the buttons: text, label colour, active, and every focus link. */
+static void applyFileBrowserLayout(void)
+{
 
 	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
 	{
-		if (FRAME_BUTTONS[i].focusUp != -1) FRAME_BUTTONS[i].button->setNextFocus(menu::Focus::DIRECTION_UP, FRAME_BUTTONS[FRAME_BUTTONS[i].focusUp].button);
-		if (FRAME_BUTTONS[i].focusDown != -1) FRAME_BUTTONS[i].button->setNextFocus(menu::Focus::DIRECTION_DOWN, FRAME_BUTTONS[FRAME_BUTTONS[i].focusDown].button);
-		if (FRAME_BUTTONS[i].focusLeft != -1) FRAME_BUTTONS[i].button->setNextFocus(menu::Focus::DIRECTION_LEFT, FRAME_BUTTONS[FRAME_BUTTONS[i].focusLeft].button);
-		if (FRAME_BUTTONS[i].focusRight != -1) FRAME_BUTTONS[i].button->setNextFocus(menu::Focus::DIRECTION_RIGHT, FRAME_BUTTONS[FRAME_BUTTONS[i].focusRight].button);
-		FRAME_BUTTONS[i].button->setActive(true);
-		if (FRAME_BUTTONS[i].clickedFunc) FRAME_BUTTONS[i].button->setClicked(FRAME_BUTTONS[i].clickedFunc);
-		if (FRAME_BUTTONS[i].returnFunc) FRAME_BUTTONS[i].button->setReturn(FRAME_BUTTONS[i].returnFunc);
-		add(FRAME_BUTTONS[i].button);
-		menu::Cursor::getInstance().addComponent(this, FRAME_BUTTONS[i].button, FRAME_BUTTONS[i].x,
-												FRAME_BUTTONS[i].x+FRAME_BUTTONS[i].width, FRAME_BUTTONS[i].y,
-												FRAME_BUTTONS[i].y+FRAME_BUTTONS[i].height);
+		const eng::Control &c = FB_LAYOUT.c[fileBrowserButtons[i].ctl];
+		fileBrowserButtons[i].buttonString = (char*)c.text;	/* the button reads its text through this */
+		if (c.folder)
+			fileBrowserButtons[i].button->setLabelColor((GXColor) {254,213,95,255});
+		else
+			fileBrowserButtons[i].button->setLabelColor((GXColor) {255,255,255,255});
+		fileBrowserButtons[i].button->setActive(c.focusable);
+	}
+	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
+		menu::glue::linkFocus(fileBrowserButtons[i].button, FB_LAYOUT,
+		                      FB_LAYOUT.c[fileBrowserButtons[i].ctl], fileBrowserButtonOf);
+}
+
+FileBrowserFrame::FileBrowserFrame()
+{
+	setupFileBrowserPage();
+	layoutFileBrowser();		/* an empty list: every button is drawn inactive, at its box */
+
+	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
+	{
+		fileBrowserButtons[i].ctl = fileBrowserControl(i);
+		const eng::Control &c = FB_LAYOUT.c[fileBrowserButtons[i].ctl];
+		fileBrowserButtons[i].button = new menu::Button(fileBrowserButtons[i].buttonStyle, &fileBrowserButtons[i].buttonString,
+										c.rect.x, c.rect.y, c.rect.w, c.rect.h);
+	}
+	applyFileBrowserLayout();
+
+	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
+	{
+		const eng::Control &c = FB_LAYOUT.c[fileBrowserButtons[i].ctl];
+		if (fileBrowserButtons[i].clickedFunc) fileBrowserButtons[i].button->setClicked(fileBrowserButtons[i].clickedFunc);
+		if (fileBrowserButtons[i].returnFunc) fileBrowserButtons[i].button->setReturn(fileBrowserButtons[i].returnFunc);
+		add(fileBrowserButtons[i].button);
+		menu::Cursor::getInstance().addComponent(this, fileBrowserButtons[i].button, c.rect.x,
+												c.rect.x+c.rect.w, c.rect.y,
+												c.rect.y+c.rect.h);
 	}
 
 	for (int i = 2; i < NUM_FRAME_BUTTONS; i++)
 	{
-		FRAME_BUTTONS[i].button->setLabelMode(menu::Button::LABEL_SCROLLONFOCUS);
-		FRAME_BUTTONS[i].button->setLabelScissor(6);
+		fileBrowserButtons[i].button->setLabelMode(menu::Button::LABEL_SCROLLONFOCUS);
+		fileBrowserButtons[i].button->setLabelScissor(6);
 	}
 
-	setDefaultFocus(FRAME_BUTTONS[2].button);
+	setDefaultFocus(fileBrowserButtons[2].button);
 	setBackFunc(Func_ReturnFromFileBrowserFrame);
 	setEnabled(true);
 
@@ -144,8 +230,8 @@ FileBrowserFrame::~FileBrowserFrame()
 {
 	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
 	{
-		menu::Cursor::getInstance().removeComponent(this, FRAME_BUTTONS[i].button);
-		delete FRAME_BUTTONS[i].button;
+		menu::Cursor::getInstance().removeComponent(this, fileBrowserButtons[i].button);
+		delete fileBrowserButtons[i].button;
 	}
 
 }
@@ -156,12 +242,6 @@ void FileBrowserFrame::activateSubmenu(int submenu)
 {
 	fileBrowserMode = submenu;
 }
-
-static fileBrowser_file* dir_entries;
-static bool				romFolderList;   /* dir_entries are the RomDir folders: show whole paths */
-static int				num_entries;
-static int				current_page;
-static int				max_page;
 
 void fileBrowserFrame_OpenDirectory(fileBrowser_file* dir);
 void fileBrowserFrame_Error(fileBrowser_file* dir, int error_code);
@@ -190,7 +270,7 @@ void FileBrowserFrame::drawChildren(menu::Graphics &gfx)
 					fileSortMode ^= 1;
 					// Resort the list
 					qsort(dir_entries, num_entries, sizeof(fileBrowser_file), dir_comparator);
-					current_page = 0;
+					FB_LIST.top = 0;
 					fileBrowserFrame_FillPage();
 					menu::Focus::getInstance().clearPrimaryFocus();
 					break;
@@ -198,7 +278,7 @@ void FileBrowserFrame::drawChildren(menu::Graphics &gfx)
 				else if (currentButtonsDownGC & PAD_TRIGGER_R)
 				{
 					//move to next set & return
-					current_page = (current_page + 1) % max_page;
+					eng::listTurn(FB_LIST, 1, true);
 					fileBrowserFrame_FillPage();
 					menu::Focus::getInstance().clearPrimaryFocus();
 					break;
@@ -206,7 +286,7 @@ void FileBrowserFrame::drawChildren(menu::Graphics &gfx)
 				else if (currentButtonsDownGC & PAD_TRIGGER_L)
 				{
 					//move to the previous set & return
-					current_page = (max_page + current_page - 1) % max_page;
+					eng::listTurn(FB_LIST, -1, true);
 					fileBrowserFrame_FillPage();
 					menu::Focus::getInstance().clearPrimaryFocus();
 					break;
@@ -225,7 +305,7 @@ void FileBrowserFrame::drawChildren(menu::Graphics &gfx)
 						fileSortMode ^= 1;
 						// Resort the list
 						qsort(dir_entries, num_entries, sizeof(fileBrowser_file), dir_comparator);
-						current_page = 0;
+						FB_LIST.top = 0;
 						fileBrowserFrame_FillPage();
 						menu::Focus::getInstance().clearPrimaryFocus();
 						break;
@@ -233,7 +313,7 @@ void FileBrowserFrame::drawChildren(menu::Graphics &gfx)
 					else if (currentButtonsDownWii & WPAD_CLASSIC_BUTTON_FULL_R)
 					{
 						//move to next set & return
-						current_page = (current_page + 1) % max_page;
+						eng::listTurn(FB_LIST, 1, true);
 						fileBrowserFrame_FillPage();
 						menu::Focus::getInstance().clearPrimaryFocus();
 						break;
@@ -241,7 +321,7 @@ void FileBrowserFrame::drawChildren(menu::Graphics &gfx)
 					else if (currentButtonsDownWii & WPAD_CLASSIC_BUTTON_FULL_L)
 					{
 						//move to the previous set & return
-						current_page = (max_page + current_page - 1) % max_page;
+						eng::listTurn(FB_LIST, -1, true);
 						fileBrowserFrame_FillPage();
 						menu::Focus::getInstance().clearPrimaryFocus();
 						break;
@@ -255,7 +335,7 @@ void FileBrowserFrame::drawChildren(menu::Graphics &gfx)
 						fileSortMode ^= 1;
 						// Resort the list
 						qsort(dir_entries, num_entries, sizeof(fileBrowser_file), dir_comparator);
-						current_page = 0;
+						FB_LIST.top = 0;
 						fileBrowserFrame_FillPage();
 						menu::Focus::getInstance().clearPrimaryFocus();
 						break;
@@ -263,7 +343,7 @@ void FileBrowserFrame::drawChildren(menu::Graphics &gfx)
 					else if (currentButtonsDownWii & WPAD_BUTTON_PLUS)
 					{
 						//move to next set & return
-						current_page = (current_page + 1) % max_page;
+						eng::listTurn(FB_LIST, 1, true);
 						fileBrowserFrame_FillPage();
 						menu::Focus::getInstance().clearPrimaryFocus();
 						break;
@@ -271,7 +351,7 @@ void FileBrowserFrame::drawChildren(menu::Graphics &gfx)
 					else if (currentButtonsDownWii & WPAD_BUTTON_MINUS)
 					{
 						//move to the previous set & return
-						current_page = (max_page + current_page - 1) % max_page;
+						eng::listTurn(FB_LIST, -1, true);
 						fileBrowserFrame_FillPage();
 						menu::Focus::getInstance().clearPrimaryFocus();
 						break;
@@ -287,7 +367,7 @@ void FileBrowserFrame::drawChildren(menu::Graphics &gfx)
 					fileSortMode ^= 1;
 					// Resort the list
 					qsort(dir_entries, num_entries, sizeof(fileBrowser_file), dir_comparator);
-					current_page = 0;
+					FB_LIST.top = 0;
 					fileBrowserFrame_FillPage();
 					menu::Focus::getInstance().clearPrimaryFocus();
 					break;
@@ -295,7 +375,7 @@ void FileBrowserFrame::drawChildren(menu::Graphics &gfx)
 				else if (hidGcPad[i].button & PAD_TRIGGER_R)
 				{
 					//move to next set & return
-					current_page = (current_page + 1) % max_page;
+					eng::listTurn(FB_LIST, 1, true);
 					fileBrowserFrame_FillPage();
 					menu::Focus::getInstance().clearPrimaryFocus();
 					break;
@@ -303,7 +383,7 @@ void FileBrowserFrame::drawChildren(menu::Graphics &gfx)
 				else if (hidGcPad[i].button & PAD_TRIGGER_L)
 				{
 					//move to the previous set & return
-					current_page = (max_page + current_page - 1) % max_page;
+					eng::listTurn(FB_LIST, -1, true);
 					fileBrowserFrame_FillPage();
 					menu::Focus::getInstance().clearPrimaryFocus();
 					break;
@@ -323,13 +403,13 @@ void FileBrowserFrame::drawChildren(menu::Graphics &gfx)
 
 void Func_PrevPage()
 {
-	if(current_page > 0) current_page -= 1;
+	eng::listTurn(FB_LIST, -1, false);
 	fileBrowserFrame_FillPage();
 }
 
 void Func_NextPage()
 {
-	if(current_page+1 < max_page) current_page +=1;
+	eng::listTurn(FB_LIST, 1, false);
 	fileBrowserFrame_FillPage();
 }
 
@@ -340,25 +420,25 @@ void Func_ReturnFromFileBrowserFrame()
 	pMenuContext->setActiveFrame(MenuContext::FRAME_MAIN);
 }
 
-void Func_Select1() { fileBrowserFrame_LoadFile((current_page*NUM_FILE_SLOTS) + 0); }
+void Func_Select1() { fileBrowserFrame_LoadFile(FB_LIST.top + 0); }
 
-void Func_Select2() { fileBrowserFrame_LoadFile((current_page*NUM_FILE_SLOTS) + 1); }
+void Func_Select2() { fileBrowserFrame_LoadFile(FB_LIST.top + 1); }
 
-void Func_Select3() { fileBrowserFrame_LoadFile((current_page*NUM_FILE_SLOTS) + 2); }
+void Func_Select3() { fileBrowserFrame_LoadFile(FB_LIST.top + 2); }
 
-void Func_Select4() { fileBrowserFrame_LoadFile((current_page*NUM_FILE_SLOTS) + 3); }
+void Func_Select4() { fileBrowserFrame_LoadFile(FB_LIST.top + 3); }
 
-void Func_Select5() { fileBrowserFrame_LoadFile((current_page*NUM_FILE_SLOTS) + 4); }
+void Func_Select5() { fileBrowserFrame_LoadFile(FB_LIST.top + 4); }
 
-void Func_Select6() { fileBrowserFrame_LoadFile((current_page*NUM_FILE_SLOTS) + 5); }
+void Func_Select6() { fileBrowserFrame_LoadFile(FB_LIST.top + 5); }
 
-void Func_Select7() { fileBrowserFrame_LoadFile((current_page*NUM_FILE_SLOTS) + 6); }
+void Func_Select7() { fileBrowserFrame_LoadFile(FB_LIST.top + 6); }
 
-void Func_Select8() { fileBrowserFrame_LoadFile((current_page*NUM_FILE_SLOTS) + 7); }
+void Func_Select8() { fileBrowserFrame_LoadFile(FB_LIST.top + 7); }
 
-void Func_Select9() { fileBrowserFrame_LoadFile((current_page*NUM_FILE_SLOTS) + 8); }
+void Func_Select9() { fileBrowserFrame_LoadFile(FB_LIST.top + 8); }
 
-void Func_Select10() { fileBrowserFrame_LoadFile((current_page*NUM_FILE_SLOTS) + 9); }
+void Func_Select10() { fileBrowserFrame_LoadFile(FB_LIST.top + 9); }
 
 
 char* filenameFromAbsPath(char* absPath)
@@ -374,6 +454,13 @@ char* filenameFromAbsPath(char* absPath)
 	while( filename != absPath && (*(filename-1) != '\\' && *(filename-1) != '/'))
 		--filename;
 	return filename;
+}
+
+/* The engine asks for each shown item: its label, and whether it is a folder. */
+static void fileBrowserItem(void *, int index, eng::ListItem &out)
+{
+	out.text = romFolderList ? dir_entries[index].name : filenameFromAbsPath(dir_entries[index].name);
+	out.folder = (dir_entries[index].attr & FILE_BROWSER_ATTR_DIR) != 0;
 }
 
 int loadISO(fileBrowser_file*);
@@ -393,8 +480,6 @@ static int dir_comparator(const void* _x, const void* _y){
 
 void fileBrowserFrame_OpenDirectory(fileBrowser_file* dir)
 {
-	// Free the old menu stuff
-//	if(menu_items){  free(menu_items);  menu_items  = NULL; }
 	if(dir_entries){ free(dir_entries); dir_entries = NULL; }
 
 	romFolderList = false;
@@ -410,12 +495,12 @@ void fileBrowserFrame_OpenDirectory(fileBrowser_file* dir)
 	// Sort the listing
 	qsort(dir_entries, num_entries, sizeof(fileBrowser_file), dir_comparator);
 
-	current_page = 0;
-	max_page = (int)ceil((float)num_entries/NUM_FILE_SLOTS);
+	FB_LIST.count = num_entries;
+	FB_LIST.top = 0;
 	fileBrowserFrame_FillPage();
 }
 
-#define ROM_DIRS_MAX 16
+static const int ROM_DIRS_MAX = 16;
 /* Load from SD / Load from USB: the folders of RomDirSD or RomDirUSB ("/wiistation/isos,
  * /roms/psx") that exist on that device ("sd:", "usb:"). One opens straight away; several
  * are listed, by whole path, to choose from; none opens the device's /wiistation/isos as
@@ -456,8 +541,8 @@ void fileBrowserFrame_OpenRomFolders(fileBrowser_file* deviceDefault, const char
 	memcpy(dir_entries, found, n * sizeof(fileBrowser_file));
 	num_entries = n;
 	romFolderList = true;
-	current_page = 0;
-	max_page = (int)ceil((float)num_entries/NUM_FILE_SLOTS);
+	FB_LIST.count = num_entries;
+	FB_LIST.top = 0;
 	fileBrowserFrame_FillPage();
 }
 
@@ -466,9 +551,9 @@ void fileBrowserFrame_Error(fileBrowser_file* dir, int error_code)
 	char feedback_string[256];
 	//disable all buttons
 	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
-		FRAME_BUTTONS[i].button->setActive(false);
+		fileBrowserButtons[i].button->setActive(false);
 	for (int i = 0; i<NUM_FILE_SLOTS; i++)
-		FRAME_BUTTONS[i+2].buttonString = FRAME_STRINGS[2];
+		fileBrowserButtons[i+2].buttonString = fileBrowserStrings[2];
 	/* The box is 560px wide and does not wrap, so each line breaks by hand.
 	 * scripts/menu_text_width.py measures them. */
 	if(error_code == SMB_NETINITERR) {
@@ -513,60 +598,24 @@ void fileBrowserFrame_Error(fileBrowser_file* dir, int error_code)
 	  sprintf(feedback_string,"Error opening directory \"%s\"",&dir->name[0]);
 	else
 	  strcpy(feedback_string,"An error occured");
-/*	FRAME_BUTTONS[2].buttonString = feedback_string;
-	FRAME_BUTTONS[2].button->setClicked(Func_ReturnFromFileBrowserFrame);
-	FRAME_BUTTONS[2].button->setActive(true);
-	for (int i = 1; i<NUM_FILE_SLOTS; i++)
-		FRAME_BUTTONS[i+2].buttonString = FRAME_STRINGS[2];
-	FRAME_BUTTONS[2].button->setNextFocus(menu::Focus::DIRECTION_UP, NULL);
-	FRAME_BUTTONS[2].button->setNextFocus(menu::Focus::DIRECTION_DOWN, NULL);
-	pMenuContext->getFrame(MenuContext::FRAME_FILEBROWSER)->setDefaultFocus(FRAME_BUTTONS[2].button);
-	menu::Focus::getInstance().clearPrimaryFocus();*/
 	menu::MessageBox::getInstance().setMessage(feedback_string);
 	pMenuContext->setActiveFrame(MenuContext::FRAME_MAIN);
 }
 
 void fileBrowserFrame_FillPage()
 {
-	//Restore next focus directions for top item in list
-	FRAME_BUTTONS[2].button->setNextFocus(menu::Focus::DIRECTION_UP, FRAME_BUTTONS[FRAME_BUTTONS[2].focusUp].button);
-	FRAME_BUTTONS[2].button->setNextFocus(menu::Focus::DIRECTION_DOWN, FRAME_BUTTONS[FRAME_BUTTONS[2].focusDown].button);
-
-	//disable all buttons
-	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
-	{
-		FRAME_BUTTONS[i].button->setActive(false);
-		FRAME_BUTTONS[i].button->setLabelColor((GXColor) {255,255,255,255});
-	}
-	//set entries according to page
-	for (int i = 0; i < NUM_FILE_SLOTS; i++)
-	{
-		if ((current_page*NUM_FILE_SLOTS) + i < num_entries)
-		{
-			FRAME_BUTTONS[i+2].buttonString = romFolderList ? dir_entries[i+(current_page*NUM_FILE_SLOTS)].name
-				: filenameFromAbsPath(dir_entries[i+(current_page*NUM_FILE_SLOTS)].name);
-			FRAME_BUTTONS[i+2].button->setClicked(FRAME_BUTTONS[i+2].clickedFunc);
-			FRAME_BUTTONS[i+2].button->setActive(true);
-			if(dir_entries[i+(current_page*NUM_FILE_SLOTS)].attr & FILE_BROWSER_ATTR_DIR)
-				FRAME_BUTTONS[i+2].button->setLabelColor((GXColor) {254,213,95,255});
-		}
-		else
-			FRAME_BUTTONS[i+2].buttonString = FRAME_STRINGS[2];
-	}
-	if (!FRAME_BUTTONS[3].button->getActive())
-	{ //NULL out up/down focus if there's only one item in list
-		FRAME_BUTTONS[2].button->setNextFocus(menu::Focus::DIRECTION_UP, NULL);
-		FRAME_BUTTONS[2].button->setNextFocus(menu::Focus::DIRECTION_DOWN, NULL);
-	}
-	//activate next/prev buttons
-	if (current_page > 0) FRAME_BUTTONS[0].button->setActive(true);
-	if (current_page+1 < max_page) FRAME_BUTTONS[1].button->setActive(true);
 	//set default focus past "." and ".." entries
 	int default_index = 0;
-	while ( (!strcmp(filenameFromAbsPath(dir_entries[default_index+(current_page*NUM_FILE_SLOTS)].name),".") ||
-			 !strcmp(filenameFromAbsPath(dir_entries[default_index+(current_page*NUM_FILE_SLOTS)].name),"..")) &&
+	while ( (!strcmp(filenameFromAbsPath(dir_entries[default_index+FB_LIST.top].name),".") ||
+			 !strcmp(filenameFromAbsPath(dir_entries[default_index+FB_LIST.top].name),"..")) &&
 			 num_entries > default_index+1 ) default_index++;
-	pMenuContext->getFrame(MenuContext::FRAME_FILEBROWSER)->setDefaultFocus(FRAME_BUTTONS[default_index+2].button);
+	FB_LIST.focus = FB_LIST.top + default_index;
+
+	//the page as the engine lays it out: once per page turn
+	layoutFileBrowser();
+	applyFileBrowserLayout();
+	if (menu::Button *def = fileBrowserButtonAt(FB_LAYOUT.defaultFocus))
+		pMenuContext->getFrame(MenuContext::FRAME_FILEBROWSER)->setDefaultFocus(def);
 }
 
 extern BOOL hasLoadedISO;
@@ -657,16 +706,6 @@ static void CheckGameR3000AutoFix(void)
     }
 }
 
-// Appends src to dst without overflowing dst's declared size. Used to build
-// up RomInfo/feedback_string from several independently-gated pieces whose
-// combined length isn't bounded by any single piece's fixed size.
-static void appendBounded(char* dst, size_t dstSize, const char* src)
-{
-	size_t used = strlen(dst);
-	if (used < dstSize - 1)
-		strncat(dst, src, dstSize - used - 1);
-}
-
 void fileBrowserFrame_LoadFile(int i)
 {
 	char feedback_string[256] = "Failed to load ISO";
@@ -704,40 +743,40 @@ void fileBrowserFrame_LoadFile(int i)
 
 			char RomInfo[512] = "";
 			char buffer [50];
-			appendBounded(RomInfo, sizeof(RomInfo), feedback_string);
+			menu::glue::appendBounded(RomInfo, sizeof(RomInfo), feedback_string);
 			sprintf(buffer,"\nCD-ROM Label: %s\n",CdromLabel);
-			appendBounded(RomInfo, sizeof(RomInfo), buffer);
+			menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
 			sprintf(buffer,"CD-ROM ID: %s\n", CdromId);
-			appendBounded(RomInfo, sizeof(RomInfo), buffer);
+			menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
             if (check_unsatisfied_libcrypt())
             {
                 sprintf(buffer, "LibCrypt protected game with missing SBI\n");
-                appendBounded(RomInfo, sizeof(RomInfo), buffer);
+                menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
             }
             if (Config.hacks.gpu_slow_list_walking)
             {
                 sprintf(buffer, "GpuSlowListWalking auto fixed\n");
-                appendBounded(RomInfo, sizeof(RomInfo), buffer);
+                menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
             }
             if (Config.cycle_multiplier_override)
             {
                 sprintf(buffer, "CycleMultiplierOverride fixed\n");
-                appendBounded(RomInfo, sizeof(RomInfo), buffer);
+                menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
             }
             if (Config.hacks.gpu_busy_hack)
             {
                 sprintf(buffer, "GPU 'Fake Busy States' hacked\n");
-                appendBounded(RomInfo, sizeof(RomInfo), buffer);
+                menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
             }
             if (Config.hacks.dwActFixes)
             {
                 sprintf(buffer, "Special game auto fixed %08lx\n", Config.hacks.dwActFixes);
-                appendBounded(RomInfo, sizeof(RomInfo), buffer);
+                menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
             }
             if (Config.hacks.lightrec_hacks)
             {
                 sprintf(buffer, "Applied Lightrec hacks\n");
-                appendBounded(RomInfo, sizeof(RomInfo), buffer);
+                menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
             }
             // Switches for painting textured quads as 2 triangles (small glitches, but better shading!)
             // This function has been automatically started in soft.c and dwActFixes have been determined in gpu code, so need to set it here
@@ -748,7 +787,7 @@ void fileBrowserFrame_LoadFile(int i)
             if (Config.pR3000Fix)
             {
                 sprintf(buffer, "pR3000 auto fixed\n");
-                appendBounded(RomInfo, sizeof(RomInfo), buffer);
+                menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
             }
 
 			/* Under 1 MB in KB (rounded up), so a small image does not read "0 MB" */
@@ -756,33 +795,33 @@ void fileBrowserFrame_LoadFile(int i)
 				sprintf(buffer, "ISO Size: %u KB\n", (isoFile.size + 1023) / 1024);
 			else
 				sprintf(buffer, "ISO Size: %u MB\n", isoFile.size / 1024 / 1024);
-			appendBounded(RomInfo, sizeof(RomInfo), buffer);
+			menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
 			sprintf(buffer,"Country: %s\n",forceNTSC == FORCENTSC_ENABLE ? "FORCE NTSC" : ((!Config.PsxType) ? "NTSC":"PAL"));
-			appendBounded(RomInfo, sizeof(RomInfo), buffer);
+			menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
 			sprintf(buffer,"BIOS: %s\n",(Config.HLE==BIOS_USER_DEFINED) ? "PSX":"HLE");
-			appendBounded(RomInfo, sizeof(RomInfo), buffer);
+			menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
 			sprintf(buffer, "BIOS Name: %s\n", biosFileName);
-			appendBounded(RomInfo, sizeof(RomInfo), buffer);
+			menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
 			unsigned char tracks[2];
             ISOgetTN(&tracks[0]);
             sprintf(buffer,"Number of tracks %u\n", tracks[1]);
-			appendBounded(RomInfo, sizeof(RomInfo), buffer);
+			menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
 
 			switch (autoSaveLoaded)
 			{
 			case NATIVESAVEDEVICE_NONE:
 				break;
 			case NATIVESAVEDEVICE_SD:
-				appendBounded(RomInfo, sizeof(RomInfo), "\nFound & loaded save from SD card\n");
+				menu::glue::appendBounded(RomInfo, sizeof(RomInfo), "\nFound & loaded save from SD card\n");
 				break;
 			case NATIVESAVEDEVICE_USB:
-				appendBounded(RomInfo, sizeof(RomInfo), "\nFound & loaded save from USB device\n");
+				menu::glue::appendBounded(RomInfo, sizeof(RomInfo), "\nFound & loaded save from USB device\n");
 				break;
 			case NATIVESAVEDEVICE_CARDA:
-				appendBounded(RomInfo, sizeof(RomInfo), "\nFound & loaded save from memcard in slot A\n");
+				menu::glue::appendBounded(RomInfo, sizeof(RomInfo), "\nFound & loaded save from memcard in slot A\n");
 				break;
 			case NATIVESAVEDEVICE_CARDB:
-				appendBounded(RomInfo, sizeof(RomInfo), "\nFound & loaded save from memcard in slot B\n");
+				menu::glue::appendBounded(RomInfo, sizeof(RomInfo), "\nFound & loaded save from memcard in slot B\n");
 				break;
 			}
 			autoSaveLoaded = NATIVESAVEDEVICE_NONE;
@@ -791,37 +830,11 @@ void fileBrowserFrame_LoadFile(int i)
 		}
 		else		// If not.
 		{
-/*  		switch(ret) {
-    		case ROM_CACHE_ERROR_READ:
-			    strcpy(feedback_string,"A read error occured");
-			    break;
-			  case ROM_CACHE_INVALID_ROM:
-			   strcpy(feedback_string,"Invalid ROM type");
-			    break;
-			  default:
-			    strcpy(feedback_string,"An error has occured");
-			    break;
-		  }
-*/
 			menu::MessageBox::getInstance().setMessage(feedback_string);
 		}
 
-/*		//disable all buttons
-		for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
-			FRAME_BUTTONS[i].button->setActive(false);
-		//set first entry to report 'success'/'error' and return to main menu
-		FRAME_BUTTONS[2].buttonString = feedback_string;
-		FRAME_BUTTONS[2].button->setClicked(Func_ReturnFromFileBrowserFrame);
-		FRAME_BUTTONS[2].button->setActive(true);
-		FRAME_BUTTONS[2].button->setNextFocus(menu::Focus::DIRECTION_UP, NULL);
-		FRAME_BUTTONS[2].button->setNextFocus(menu::Focus::DIRECTION_DOWN, NULL);
-		for (int i = 1; i<NUM_FILE_SLOTS; i++)
-			FRAME_BUTTONS[i+2].buttonString = FRAME_STRINGS[2];
-		pMenuContext->getFrame(MenuContext::FRAME_FILEBROWSER)->setDefaultFocus(FRAME_BUTTONS[2].button);
-		menu::Focus::getInstance().clearPrimaryFocus();*/
 
 		pMenuContext->setActiveFrame(MenuContext::FRAME_MAIN);
-		//if(hasLoadedISO) Func_SetPlayGame();
 		Func_SetPlayGame(); //hasLoadedISO will be set to False if SysInit() fails
 	}
 	else if (fileBrowserMode == FileBrowserFrame::FILEBROWSER_SWAPCD) {

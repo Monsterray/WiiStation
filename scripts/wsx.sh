@@ -30,8 +30,19 @@
 #                                   from save state STATE; prints the table. --rec plays REC on.
 #   scripts/wsx.sh summary NAME...                        re-read finished runs (run_summary.py)
 #   scripts/wsx.sh table NAME [--detail gpu|tex|cpu|lc|pmc|upl]  a chain's per-game table (chain_table.py)
-#   scripts/wsx.sh compare A [B] [--detail GROUP]         two chains, or one A/B chain's pairs (chain_compare.py)
+#   scripts/wsx.sh compare A [B] [--detail GROUP] [--explain]  two chains, or one A/B chain's pairs
+#                                   (chain_compare.py); --explain adds <= 8 lines on what changed (llm)
+#   scripts/wsx.sh triage NAME [question]                 condense a run's logs with the local LLM into
+#                                   <= 15 lines, saved to .runs/NAME/triage.txt (run_triage.py)
+#                                   run/chain/wii_lab/wii_crash_job do this by themselves when a run
+#                                   looks wrong (a "triage:" block); WSX_NO_LLM=1 turns that off
 #   scripts/wsx.sh frames A B [--crop OUT.png]            two runs' frame dumps, pixel by pixel (frame_compare.py)
+#   scripts/wsx.sh menu NAME --dol A.dol [--dol2 B.dol] (--page N | --input FILE) [--secs S]
+#                                   guarded menu comparison (menu_compare.py): one or two builds,
+#                                   every frame kept; Wiimote Source=0 during the run and restored
+#                                   byte for byte after. --page compares the first settled frame;
+#                                   --input walks frame by frame and warns if the menu never moved.
+#                                   Output: .runs/menu_NAME/ (before_after.png, input.txt)
 #   scripts/wsx.sh audio A B                              two runs' audio dumps, sample by sample (wav_compare.py --exact)
 #   scripts/wsx.sh last                                   summary of the newest run
 #   scripts/wsx.sh runs                                   list runs
@@ -52,6 +63,33 @@ cmd="${1:-}"; shift || true
 PROFILE="${WSX_PROFILE:-$REPO/.dolphin}"
 dolphin_running() {
 	powershell.exe -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object { \$_.Name -eq 'Dolphin.exe' -and \$_.CommandLine -like '*$(basename "$PROFILE")*' }" 2>/dev/null | grep -q .
+}
+
+# The summarise/compare steps below are Python. Plain `python` does not exist in the
+# devkitPro MSYS2 bash on a stock machine (`python3` there is a dead WindowsApps stub),
+# so without this every post-processing step silently no-ops. An exported PYTHON wins.
+if [ -n "${PYTHON:-}" ]; then :;
+elif command -v python >/dev/null 2>&1; then PYTHON=python;
+elif [ -x /c/Python312/python.exe ]; then PYTHON=/c/Python312/python.exe;
+else PYTHON=python3; fi
+
+# The automatic triage after a run (run_triage.py --auto: only when the run looks wrong, a
+# "triage:" block of <= 10 lines). It never changes this script's exit code; WSX_NO_LLM=1 is off.
+auto_triage() {
+	[ -n "${WSX_NO_LLM:-}" ] && return 0
+	"$PYTHON" "$REPO/scripts/run_triage.py" --auto "$1" || true
+}
+
+# menu: put the profile's WiimoteNew.ini back from its backup and check it by checksum. The
+# menu branch sets MENU_INI, MENU_BAK and MENU_SHA (the checksum of the original) before it
+# changes anything, and this runs on every way out of the script (trap EXIT).
+menu_restore_ini() {
+	[ -n "${MENU_BAK:-}" ] && [ -e "$MENU_BAK" ] || return 0
+	if cp -f "$MENU_BAK" "$MENU_INI" && [ "$(sha256sum "$MENU_INI" | cut -d' ' -f1)" = "$MENU_SHA" ]; then
+		rm -f "$MENU_BAK"; echo "WiimoteNew.ini restored (sha256 ${MENU_SHA:0:12}...)"
+	else
+		echo "WARNING: WiimoteNew.ini is not restored; the original is in $MENU_BAK"
+	fi
 }
 
 case "$cmd" in
@@ -122,6 +160,7 @@ run)
 	rm -rf "$dir/card" "$dir/frames"
 	# what the last run under this name collected: a result this run does not produce must not stay behind
 	rm -f "$dir"/*.log "$dir"/vram*.bin "$dir"/vram*.png "$dir"/xfb*.bin "$dir"/*.wav
+	rm -f "$dir/dolphin.rc" "$dir/triage.txt"
 	for c in "${cards[@]:-}"; do [ -n "$c" ] && mkdir -p "$dir/card" && cp "$c" "$dir/card/"; done
 	{
 		printf 'gpuPlugin = 2\nFPS = 1\nPadType1 = 1\nPadAutoAssign = 0\n'
@@ -140,9 +179,13 @@ run)
 	for e in "${extra[@]:-}"; do [ -n "$e" ] && export "$e"; done
 	DOL="$dir/boot.dol" bash "$REPO/scripts/dolphin_run.sh" "$dir" "$secs" "$dir/autoinput.txt" "$dir/settings.cfg" $ab > "$dir/run.log" 2>&1
 	rc=$?
+	echo "$rc" > "$dir/dolphin.rc"
 	grep -E "refusing|no such|faults in dolphin.log: [1-9]|PANIC|Unknown instruction" "$dir/run.log" | head -5
 	[ $rc -ne 0 ] && echo "dolphin_run.sh exit $rc (see $dir/run.log)"
-	python "$REPO/scripts/run_summary.py" "$dir"
+	"$PYTHON" "$REPO/scripts/run_summary.py" "$dir"
+	st=$?
+	[ -n "${WSX_TRIAGE_DEFER:-}" ] || auto_triage "$dir"   # a chain does it once, at its end
+	exit $st
 	;;
 
 chain)
@@ -155,8 +198,11 @@ chain)
 		[ -f "$REPO/scripts/autoinput/$f" ] || { echo "chain names sd:/wiistation/$f: no scripts/autoinput/$f"; exit 2; }
 		cardargs+=(--card "$REPO/scripts/autoinput/$f")
 	done
-	bash "$0" run "$name" --autoboot "$cf" --input "$P/autoinput_none.txt" --nodump --env FRAMES_DUMP=False ${cardargs[@]+"${cardargs[@]}"} "$@" | grep -v "^  "
-	python "$REPO/scripts/chain_table.py" "$RUNS/$name"
+	WSX_TRIAGE_DEFER=1 bash "$0" run "$name" --autoboot "$cf" --input "$P/autoinput_none.txt" --nodump --env FRAMES_DUMP=False ${cardargs[@]+"${cardargs[@]}"} "$@" | grep -v "^  "
+	"$PYTHON" "$REPO/scripts/chain_table.py" "$RUNS/$name"
+	st=$?
+	auto_triage "$RUNS/$name"
+	exit $st
 	;;
 
 state)
@@ -234,29 +280,118 @@ abstate)
 	;;
 
 table)
-	n="$1"; shift; python "$REPO/scripts/chain_table.py" "$RUNS/$n" "$@"
+	n="$1"; shift; "$PYTHON" "$REPO/scripts/chain_table.py" "$RUNS/$n" "$@"
 	;;
 compare)
-	a=(); for x in "$@"; do case "$x" in --*|gpu|tex|cpu|lc|pmc) a+=("$x") ;; *) a+=("$RUNS/$x") ;; esac; done
-	python "$REPO/scripts/chain_compare.py" "${a[@]}"
+	explain=""; a=(); names=()
+	for x in "$@"; do
+		case "$x" in
+			--explain) explain=1 ;;
+			--*|gpu|tex|cpu|lc|pmc) a+=("$x") ;;
+			*) a+=("$RUNS/$x"); names+=("$RUNS/$x") ;;
+		esac
+	done
+	if [ -z "$explain" ]; then
+		"$PYTHON" "$REPO/scripts/chain_compare.py" "${a[@]}"
+	else
+		# the table, then the reading under it (run_triage.py --explain: both tables and run.info)
+		out=$("$PYTHON" "$REPO/scripts/chain_compare.py" "${a[@]}"); st=$?
+		printf '%s\n' "$out"
+		tf="$(mktemp)"; printf '%s\n' "$out" > "$tf"
+		"$PYTHON" "$REPO/scripts/run_triage.py" --explain "$tf" "${names[@]}" || true
+		rm -f "$tf"
+		exit $st
+	fi
+	;;
+triage)
+	n="${1:-}"; shift || true
+	[ -n "$n" ] || { echo "triage NAME [question]"; exit 2; }
+	d="$RUNS/$n"; [ -d "$d" ] || d="$n"
+	[ -d "$d" ] || { echo "no run $n"; exit 2; }
+	"$PYTHON" "$REPO/scripts/run_triage.py" "$d" "$@"
 	;;
 frames)
-	a="$1"; b="$2"; shift 2; python "$REPO/scripts/frame_compare.py" "$RUNS/$a" "$RUNS/$b" "$@"
+	a="$1"; b="$2"; shift 2; "$PYTHON" "$REPO/scripts/frame_compare.py" "$RUNS/$a" "$RUNS/$b" "$@"
 	;;
 audio)
 	wa=$(ls "$RUNS/$1"/*dspdump1.wav 2>/dev/null | head -1); wb=$(ls "$RUNS/$2"/*dspdump1.wav 2>/dev/null | head -1)
 	[ -n "$wa" ] && [ -n "$wb" ] || { echo "no *dspdump1.wav in both runs (run them without --nodump)"; exit 2; }
-	python "$REPO/scripts/wav_compare.py" "$wa" "$wb" --exact | tail -3
+	"$PYTHON" "$REPO/scripts/wav_compare.py" "$wa" "$wb" --exact | tail -3
+	;;
+
+menu)
+	# A guarded menu comparison (scripts/menu_compare.py): one or two DOLs, each photographed
+	# (--page N) or walked (--input FILE) with every frame kept. The emulated Wiimotes are off
+	# (Source=0) for the whole comparison, because menukeys is ignored while an IR pointer is
+	# valid, and their WiimoteNew.ini is put back byte for byte however the script ends.
+	name="${1:-}"; shift || true
+	[ -n "$name" ] || { echo "menu NAME --dol A.dol [--dol2 B.dol] (--page N | --input FILE) [--secs S]"; exit 2; }
+	dolA=""; dolB=""; page=""; input=""; secs=20
+	while [ $# -gt 0 ]; do
+		case "$1" in
+			--dol) dolA="$2"; shift 2 ;;
+			--dol2) dolB="$2"; shift 2 ;;
+			--page) page="$2"; shift 2 ;;
+			--input) input="$2"; shift 2 ;;
+			--secs) secs="$2"; shift 2 ;;
+			*) echo "unknown option $1"; exit 2 ;;
+		esac
+	done
+	[ -f "$dolA" ] || { echo "menu: --dol A.dol needed (an existing file)"; exit 2; }
+	[ -z "$dolB" ] || [ -f "$dolB" ] || { echo "no such dol: $dolB"; exit 2; }
+	if { [ -n "$page" ] && [ -n "$input" ]; } || [ -z "$page$input" ]; then
+		echo "menu: give exactly one of --page N or --input FILE"; exit 2
+	fi
+	if [ -n "$page" ]; then
+		case "$page" in *[!0-9]*) echo "menu: --page needs a number"; exit 2 ;; esac
+	fi
+	[ -z "$input" ] || [ -f "$input" ] || { echo "no such walk file: $input"; exit 2; }
+	prof="${WSX_PROFILE:-$REPO/.dolphin}"
+	[ -d "$prof" ] || { echo "no profile directory $prof"; exit 2; }
+	prof=$(cd "$prof" && pwd)
+	MENU_INI="$prof/Config/WiimoteNew.ini"; MENU_BAK="$MENU_INI.menu-backup"
+	[ -f "$MENU_INI" ] || { echo "no $MENU_INI (run the profile once first)"; exit 2; }
+	if dolphin_running; then echo "a Dolphin is running on this profile: its WiimoteNew.ini is not touched"; exit 2; fi
+	if [ -e "$MENU_BAK" ]; then   # an earlier menu run died: its backup holds the original bytes
+		echo "an earlier menu run died with WiimoteNew.ini changed: restoring it from $MENU_BAK"
+		MENU_SHA=$(sha256sum "$MENU_BAK" | cut -d' ' -f1)
+		menu_restore_ini
+		echo "run the command again"; exit 2
+	fi
+	MENU_SHA=$(sha256sum "$MENU_INI" | cut -d' ' -f1)
+	cp -f "$MENU_INI" "$MENU_BAK" || { echo "cannot write $MENU_BAK"; exit 2; }
+	trap menu_restore_ini EXIT
+	trap 'exit 130' INT TERM
+	"$PYTHON" "$REPO/scripts/menu_compare.py" ini-off "$MENU_INI" || exit 1
+	out="$RUNS/menu_$name"; mkdir -p "$out"
+	if [ -n "$page" ]; then
+		printf 'menupage %s\n' "$page" > "$out/input.txt"; flag=(--page)
+	else
+		cp -f "$input" "$out/input.txt"; flag=(--input "$out/input.txt")
+	fi
+	inp="$out/input.txt"
+	menu_run() {   # menu_run RUN DOL: every frame kept (KEEP), no audio dump
+		bash "$0" run "$1" --dol "$2" --autoboot none --input "$inp" --secs "$secs" --nodump --env KEEP=100000 > "$out/$1.log" 2>&1
+		echo "run $1: exit $? (log $out/$1.log)"
+	}
+	menu_run "menu_${name}_a" "$dolA"
+	cmp_args=("$RUNS/menu_${name}_a")
+	if [ -n "$dolB" ]; then
+		menu_run "menu_${name}_b" "$dolB"
+		cmp_args+=("$RUNS/menu_${name}_b")
+	fi
+	"$PYTHON" "$REPO/scripts/menu_compare.py" compare "${cmp_args[@]}" --out "$out" "${flag[@]}"
+	exit $?
 	;;
 
 summary)
 	dirs=(); for n in "$@"; do [ -d "$n" ] && dirs+=("$n") || dirs+=("$RUNS/$n"); done
-	python "$REPO/scripts/run_summary.py" "${dirs[@]}"
+	"$PYTHON" "$REPO/scripts/run_summary.py" "${dirs[@]}"
 	;;
 
 last)
 	d=$(ls -td "$RUNS"/*/ 2>/dev/null | head -1)
-	[ -n "$d" ] && python "$REPO/scripts/run_summary.py" "$d" || echo "no runs in $RUNS"
+	[ -n "$d" ] && "$PYTHON" "$REPO/scripts/run_summary.py" "$d" || echo "no runs in $RUNS"
 	;;
 
 runs)

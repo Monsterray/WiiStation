@@ -174,7 +174,31 @@ void FrameCap (void)
 {
  static unsigned long due256 = 0;       /* the tick this frame may end at, in 1/256 tick */
  static int have_due = 0;
- unsigned long now = timeGetTime();
+ unsigned long now;
+
+ /* FrameRate = TV: one emulated vblank per Wii video retrace, so every emulated frame meets
+  * exactly one TV refresh (no doubled or dropped picture, the core runs the TV's own rate,
+  * psxcounters.c). VIDEO_WaitVSync sleeps on the retrace interrupt, so other threads run while
+  * it waits. A frame that ran late is let off for up to 3 retraces of catch-up, then forgiven. */
+ if (frameRateMode == FRAMERATE_TV)
+  {
+   static unsigned int next;
+   unsigned int rc = VIDEO_GetRetraceCount();
+   if ((int)(rc - next) > 3 || (int)(next - rc) > 3)
+     next = rc;                          /* first frame, a stall, or back from the menu */
+   if ((int)(next - rc) > 0)
+    {
+     unsigned long long limit_t0 = perf_now_ticks();
+     while ((int)(next - VIDEO_GetRetraceCount()) > 0)
+       VIDEO_WaitVSync();
+     PERF_ADD(limit_ticks, perf_now_ticks() - limit_t0);
+     PERF_INC(limit_calls);
+    }
+   next++;
+   have_due = 0;                         /* the timer schedule starts afresh if the mode changes */
+   return;
+  }
+ now = timeGetTime();
  unsigned long period256 = framecap_period256();
  unsigned long due;
  long late;
@@ -351,6 +375,41 @@ void FrameSkip(void)
 
 ////////////////////////////////////////////////////////////////////////
 
+/* The on-screen counter (FPS setting): what happened in the last second of wall time,
+ * nothing rounded to a table value. Called once per emulated vblank by every plugin.
+ *   FPS   frames the game presented (ws_presents, counted at each plugin's flip): 30 for a
+ *         game that draws every other vblank, whatever the vblank rate;
+ *   VPS   emulated vblanks: the PlayStation's refresh as the core runs it (60.00 NTSC,
+ *         50.00 PAL; 59.81/49.75 for the games in database.c fractional_Framerate_hack_db);
+ *   n%    VPS against the rate the core aims for (psxGetFps): 100% is full speed.
+ * Before 5.9.5 the number was VPS measured over 10 vblanks and then clamped to the PEOPS
+ * table's 59.83 ("optical adjust ;)") whenever it was higher, so it never showed what the
+ * core really did. */
+unsigned int ws_presents;
+
+void ws_fps_vblank(void)
+{
+ extern double psxGetFps(void);
+ static unsigned long t0;
+ static unsigned int vbl, pres0;
+ unsigned long now = timeGetTime();
+
+ vbl++;
+ if (!t0 || now - t0 > 10 * TIMEBASE)   /* first call, or back from the menu */
+  {
+   t0 = now; vbl = 0; pres0 = ws_presents;
+   return;
+  }
+ if (now - t0 >= TIMEBASE)
+  {
+   double secs = (double)(now - t0) / TIMEBASE;
+   double vps = vbl / secs, fps = (ws_presents - pres0) / secs, hz = psxGetFps();
+   snprintf(fpsInfo, sizeof(fpsInfo), "FPS %.1f  VPS %.2f  %d%%", fps, vps,
+            (int)(vps * 100.0 / (hz > 1.0 ? hz : 60.0) + 0.5));
+   t0 = now; vbl = 0; pres0 = ws_presents;
+  }
+}
+
 void calcfps(void)
 {
  static unsigned long _ticks_since_last_update;
@@ -394,11 +453,9 @@ void calcfps(void)
    fps_cnt = 0;
    fps_tck = 1;
 
-   if(UseFrameLimit && fps_cur>fFrameRateHz)           // optical adjust ;) avoids flickering fps display
-    fps_cur=fFrameRateHz;
   }
 
-  sprintf(fpsInfo, "FPS %.2f", fps_cur);
+ ws_fps_vblank();
 
 }
 

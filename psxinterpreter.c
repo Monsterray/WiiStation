@@ -1207,8 +1207,7 @@ void intApplyConfig() {
 //	else
 //		fetch = fetchICache;
 
-	cycle_mult = Config.cycle_multiplier_override && Config.cycle_multiplier == CYCLE_MULT_DEFAULT
-		? Config.cycle_multiplier_override : Config.cycle_multiplier;
+	cycle_mult = psxCycleMult();
 	psxRegs.subCycleStep = 0x10000 * cycle_mult / 100;
 }
 

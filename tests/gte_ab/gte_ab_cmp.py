@@ -1,12 +1,18 @@
 """Compare two gte_ab output files (tests/gte_ab/run.sh): per op and input kind, how many cases differ, and in
 which registers (data by name, FLAG split out)."""
+import os
 import sys, struct, collections
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "scripts"))
+from cliutil import need, req_file  # noqa: E402
 OPS = "RTPS NCLIP OP DPCS INTPL MVMVA NCDS CDP NCDT NCCS CC NCS NCT SQR DCPL DPCT AVSZ3 AVSZ4 RTPT GPF GPL NCCT".split()
 DN = "VXY0 VZ0 VXY1 VZ1 VXY2 VZ2 RGB OTZ IR0 IR1 IR2 IR3 SXY0 SXY1 SXY2 SXYP SZ0 SZ1 SZ2 SZ3 RGB0 RGB1 RGB2 RES1 MAC0 MAC1 MAC2 MAC3 IRGB ORGB LZCS LZCR".split()
 KIND = ["sdk any32", "sdk game", "sdk mid", "rnd any32", "rnd game", "rnd mid"]
-a = open(sys.argv[1], 'rb').read()
-b = open(sys.argv[2], 'rb').read()
-assert len(a) == len(b)
+need(sys.argv, 3, "gte_ab_cmp.py A.BIN B.BIN [ex]")
+a = open(req_file(sys.argv[1], 'A bin'), 'rb').read()
+b = open(req_file(sys.argv[2], 'B bin'), 'rb').read()
+if len(a) != len(b):
+    sys.exit(f"bins differ in size ({len(a)} vs {len(b)}): incomparable runs")
 R = 66 * 4
 tot = collections.Counter(); diff = collections.Counter(); fdiff = collections.Counter()
 regs = collections.defaultdict(collections.Counter)

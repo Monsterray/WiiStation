@@ -135,6 +135,16 @@ static const struct lightrec_mem_map_ops lightrec_default_ops = {
 
 /* WiiStation: the last fault, for the crash report (pr_err goes nowhere on the Wii) */
 u32 lightrec_segv_addr, lightrec_segv_block, lightrec_segv_site;
+
+/* WiiStation: a compile with no room left even after the clean (blockcache.c counts the
+ * cleans), and how many of those came after the first pass had already run the block --
+ * before 5.9.3 each of those ran the block a second time */
+unsigned int lightrec_code_fails, lightrec_code_reruns;
+
+/* WiiStation, debug: called for each guest store into [lo,hi) that goes through lightrec_rw
+ * (all of them when the plugin runs Lightrec's interpreter; "ramwatch" in autoinput.txt) */
+u32 lightrec_store_watch_lo, lightrec_store_watch_hi;
+void (*lightrec_store_watch_cb)(u32 addr, u32 data, u32 pc);
 #define SEGV_AT(a, site) (lightrec_segv_addr = (a), lightrec_segv_site = (site))
 
 static void __segfault_cb(struct lightrec_state *state, u32 addr,
@@ -312,6 +322,11 @@ u32 lightrec_rw(struct lightrec_state *state, union code op, u32 base,
 
 	addr = kunseg(base + (s16) op.i.imm);
 
+	/* WiiStation, debug "ramwatch": with the interpreter every guest store passes here */
+	if (unlikely(lightrec_store_watch_cb) && op.i.op >= OP_SB && op.i.op <= OP_SWR &&
+	    addr - lightrec_store_watch_lo < lightrec_store_watch_hi - lightrec_store_watch_lo)
+		lightrec_store_watch_cb(addr, data, block ? block->pc + ((u32)offset << 2) : 0);
+
 	map = lightrec_get_map(state, &host, addr);
 	if (!map) {
 		__segfault_cb(state, addr, block);
@@ -326,6 +341,10 @@ u32 lightrec_rw(struct lightrec_state *state, union code op, u32 base,
 			/* Force parallel port accesses as HW accesses, because
 			 * the direct-I/O emitters can't differenciate it. */
 			if (unlikely(map == &state->maps[PSX_MAP_PARALLEL_PORT]))
+				*flags |= LIGHTREC_IO_MODE(LIGHTREC_IO_HW);
+			/* WiiStation, debug "ramwatch": keep every store coming back here */
+			else if (unlikely(lightrec_store_watch_cb) &&
+				 op.i.op >= OP_SB && op.i.op <= OP_SWR)
 				*flags |= LIGHTREC_IO_MODE(LIGHTREC_IO_HW);
 			/* If the base register is 0x0, be extra suspicious.
 			 * Some games (e.g. Sled Storm) actually do segmentation
@@ -826,8 +845,13 @@ static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 				lightrec_jit_ticks += JIT_TB() - jt0;
 				lightrec_jit_blocks++;
 				if (err) {
-					state->exit_flags = LIGHTREC_EXIT_NOMEM;
-					return NULL;
+					/* WiiStation: the code buffer is full. Interpret this
+					 * visit (the flag may mean the old code is stale) and
+					 * try again on the next. The NOMEM exit this replaces
+					 * left curr_pc behind a block an earlier pass of this
+					 * loop had already run, so the guest ran it twice. */
+					pc = lightrec_emulate_block(state, block, pc);
+					continue;
 				}
 			}
 		}
@@ -844,11 +868,15 @@ static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 			pc = lightrec_emulate_block(state, block, pc);
 
 		} else if (!ENABLE_THREADED_COMPILER) {
+			bool interpreted = false;
+
 			/* Block wasn't compiled yet - run the interpreter */
 			if (block_has_flag(block, BLOCK_FULLY_TAGGED))
 				pr_debug("Block fully tagged, skipping first pass\n");
-			else if (ENABLE_FIRST_PASS && likely(!should_recompile))
+			else if (ENABLE_FIRST_PASS && likely(!should_recompile)) {
 				pc = lightrec_emulate_block(state, block, pc);
+				interpreted = true;
+			}
 
 			/* Then compile it using the profiled data */
 			{
@@ -858,8 +886,16 @@ static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 				lightrec_jit_blocks++;
 			}
 			if (err) {
-				state->exit_flags = LIGHTREC_EXIT_NOMEM;
-				return NULL;
+				/* WiiStation: the code buffer is full even after the
+				 * clean. Never stop the slice here: the NOMEM exit this
+				 * replaces returned without moving curr_pc past the block
+				 * the first pass had just run, so the guest ran it again
+				 * (CTR's crash at a race's end, 2026-10-09). Interpret it
+				 * now if the first pass did not; the next visit compiles. */
+				lightrec_code_reruns += interpreted;
+				if (!interpreted)
+					pc = lightrec_emulate_block(state, block, pc);
+				continue;
 			}
 		} else if (unlikely(block_has_flag(block, BLOCK_IS_DEAD))) {
 			/*
@@ -958,14 +994,28 @@ static void * lightrec_emit_code(struct lightrec_state *state,
 				return NULL;
 			}
 
-			/* Remove outdated blocks, and try again */
-			lightrec_remove_outdated_blocks(state->block_cache, block);
+			/* WiiStation: remove outdated blocks and the oldest ones
+			 * first, then younger, then all but this one, until it
+			 * fits: the fewest recompiles for a full buffer. */
+			{
+				static const u32 ages[] = {
+					LIGHTREC_AGE_4S, LIGHTREC_AGE_1S, LIGHTREC_AGE_250MS,
+				};
+				unsigned int i;
 
-			pr_debug("Re-try to alloc %zu bytes...\n", code_size);
-
-			code = lightrec_alloc_code(state, code_size);
+				for (i = 0; !code && i < ARRAY_SIZE(ages); i++) {
+					lightrec_remove_outdated_blocks(state->block_cache,
+									block, ages[i]);
+					code = lightrec_alloc_code(state, code_size);
+				}
+				if (!code) {
+					lightrec_free_all_blocks_except(state->block_cache, block);
+					code = lightrec_alloc_code(state, code_size);
+				}
+			}
 			if (!code) {
 				pr_err("Could not alloc even after removing old blocks!\n");
+				lightrec_code_fails++;
 				return NULL;
 			}
 		}
@@ -973,12 +1023,18 @@ static void * lightrec_emit_code(struct lightrec_state *state,
 		jit_set_code(code, code_size);
 	}
 
-	code = jit_emit();
-	if (!code) {
-		if (has_code_buffer)
-			lightrec_free_code(state, code);
+	{
+		void *emitted = jit_emit();
 
-		return NULL;
+		if (!emitted) {
+			/* WiiStation: free the chunk lightrec_alloc_code() gave,
+			 * not the NULL jit_emit() returned (it leaked) */
+			if (has_code_buffer)
+				lightrec_free_code(state, code);
+
+			return NULL;
+		}
+		code = emitted;
 	}
 
 	jit_get_code(&new_code_size);
@@ -1482,7 +1538,7 @@ static struct block * lightrec_precompile_block(struct lightrec_state *state,
 	block->next = NULL;
 	block->flags = 0;
 	block->code_size = 0;
-	block->precompile_date = state->current_cycle;
+	block->precompile_date = lightrec_age_now(state);
 	block->nb_ops = length / sizeof(u32);
 
 	lightrec_optimize(state, block);
@@ -1722,6 +1778,12 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 	 * the old block->function pointer to the code LUT. */
 	if (ENABLE_THREADED_COMPILER)
 		lightrec_reaper_pause(state->reaper);
+
+	/* WiiStation: a recompile frees the old code below; clear every LUT entry into it
+	 * first, so none survives that the new code's own targets do not overwrite */
+	if (oldjit)
+		memset(lut_address(state, lut_offset(block->pc)), 0,
+		       block->nb_ops * lut_elm_size(state));
 
 	block->function = new_fn;
 	block_clear_flags(block, BLOCK_SHOULD_RECOMPILE);
@@ -2207,6 +2269,8 @@ u32 lightrec_current_cycle_count(const struct lightrec_state *state)
 
 void lightrec_reset_cycle_count(struct lightrec_state *state, u32 cycles)
 {
+	/* WiiStation: keep the block-age clock running across the reset */
+	state->age_base += (state->current_cycle >> 10) - (cycles >> 10);
 	state->current_cycle = cycles;
 
 	if (state->target_cycle < cycles)

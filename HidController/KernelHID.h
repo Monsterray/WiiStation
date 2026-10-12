@@ -211,8 +211,8 @@ void HIDUpdateControllerIni();
 void HIDReadData(void);
 int IsHidRuning(void);
 
-extern s32 hidControllerConnected;
-extern s32 loadingControllerIni;
+extern volatile s32 hidControllerConnected;
+extern volatile s32 loadingControllerIni;
 
 #ifdef __cplusplus
 }

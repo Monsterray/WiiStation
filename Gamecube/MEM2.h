@@ -46,9 +46,14 @@
 
 // Lightrec's code buffer is in MEM1 (lightrec.c), not here: an instruction-cache miss in
 // compiled code is served faster from MEM1 -- every one of eleven games ran 0.3-1.3 load
-// points lower on the Wii (2026-09-30). Its code peaked at 1.0 MB in the five recordings;
-// a full buffer makes Lightrec interpret a block (perf.log jit_full), never crash.
-#define LIGHTREC_CODE_SIZE (1536*KB)
+// points lower on the Wii (2026-09-30). Its code peaked at 1.0 MB in the five recordings.
+// 2 MB since 5.9.3: Crash Team Racing filled 1.5 MB at every race load (1.28 MB live,
+// TLSF fragmentation does the rest), and each clean recompiled the race (250-410 ms
+// stalls). A full buffer frees the oldest blocks, then all (lightrec.c lightrec_emit_code;
+// perf.log jitcode: cleans/fails). MEM1 free at its lowest on current code was 1323 KB
+// (bench Wii, CTR, debug lab build with its 600 KB console), so 2 MB leaves ~800 KB
+// there and ~1.3 MB in a release build; 2.5 MB needs ~0.9 MB moved to MEM2 first.
+#define LIGHTREC_CODE_SIZE (2048*KB)
 
 // We want 512KB for the PSX BIOS ROM image. It's read-mostly data that HLE
 // mode -- the hardcoded default -- never fetches as code, so it doesn't

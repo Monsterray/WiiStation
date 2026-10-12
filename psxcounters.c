@@ -32,6 +32,7 @@
 
 /* Scripted save states (Gamecube/statetool.cpp): stops the CPU when one is due. */
 void statetool_vblank(void);
+void screenshot_vblank(void);   /* Gamecube/screenshot.c */
 
 /******************************************************************************/
 
@@ -96,11 +97,24 @@ int gLightgun;
 #define FPS_FRACTIONAL_PAL  (53203425/314./3406) // ~49.75
 #define FPS_FRACTIONAL_NTSC (53693175/263./3413) // ~59.81
 
+/* The FrameRate setting (Gamecube/wiiSXconfig.h): Auto keeps 60/50 Hz and the per-game
+ * fractional fixes; TV runs the TV's own rate (NTSC 60000/1001 = 59.94 Hz, PAL 50 Hz), which
+ * SoftGPU/oldGpuFps.c FrameCap then paces one emulated vblank per Wii video retrace; PS1 runs
+ * a PlayStation's rate (the GPU's dot clock over its lines and dots: 59.82 / 49.75 Hz). Read
+ * every frame, so a change in the menu applies at the next vblank. */
+extern char frameRateMode;
+#define FPS_TV_NTSC (60000.0 / 1001.0)
+#define FPS_TV_PAL  50.0
+
 static inline
 u32 frameCycles(void)
 {
     int ff = Config.FractionalFramerate >= 0
         ? Config.FractionalFramerate : Config.hacks.fractional_Framerate;
+    if (frameRateMode == 1)   /* FRAMERATE_TV */
+        return (u32)(PSXCLK / (Config.PsxType ? FPS_TV_PAL : FPS_TV_NTSC));
+    if (frameRateMode == 2)   /* FRAMERATE_PS1 */
+        ff = 1;
     if (ff)
     {
         if (Config.PsxType)
@@ -116,6 +130,10 @@ double psxGetFps()
 {
     int ff = Config.FractionalFramerate >= 0
         ? Config.FractionalFramerate : Config.hacks.fractional_Framerate;
+    if (frameRateMode == 1)
+        return Config.PsxType ? FPS_TV_PAL : FPS_TV_NTSC;
+    if (frameRateMode == 2)
+        ff = 1;
     if (ff)
         return Config.PsxType ? FPS_FRACTIONAL_PAL : FPS_FRACTIONAL_NTSC;
     else
@@ -448,6 +466,7 @@ void psxRcntUpdate()
             }
             ws_alive();   /* progress, for the HBC agent's hang watchdog (Gamecube/ws_crash.h) */
             statetool_vblank();
+            screenshot_vblank();
             perf_pc_sample(psxRegs.pc);
             /* A chained autoboot's game is over: back to GamecubeMain.cpp for the next. */
             if (chain_stop_vbl && frame_counter >= chain_stop_vbl)

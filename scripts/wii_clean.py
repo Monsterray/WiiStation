@@ -68,5 +68,10 @@ def clean(wii, dry_run=False):
 
 
 if __name__ == "__main__":
+    # Unknown --flags used to be silently ignored, so a --dry-ruun typo performed a
+    # real delete. Refuse them: the only flag is --dry-run, plus one positional Wii.
+    for a in sys.argv[1:]:
+        if a.startswith("--") and a != "--dry-run":
+            sys.exit(f"wii_clean.py: unknown flag {a} (nothing was done)")
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     clean(args[0] if args else os.environ.get("WII_BENCH_IP", "192.168.8.213"), "--dry-run" in sys.argv)
