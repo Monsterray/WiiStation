@@ -136,7 +136,7 @@ test's `psx.log` -- its console output on a real PlayStation. The EXEs are stage
 127.0.0.1:2345 (`[Debug] EnableGDBServer`). Use it to ask "does a PS1 do this too?".
 
 - Start it like the test Dolphins, minimized and never activated:
-  `cmd //c start "" //min C:	ools\DuckStation\duckstation-qt-x64-ReleaseLTCG.exe -batch -fastboot GAME.cue`.
+  `cmd //c start "" //min C:/tools/DuckStation/duckstation-qt-x64-ReleaseLTCG.exe -batch -fastboot GAME.cue`.
 - Screenshots: `powershell -File scripts/ds_key.ps1 F10 [-Repeat N -IntervalMs M]` posts the
   hotkey to its windows only (no focus, no real keyboard). Files land in
   `C:/tools/DuckStation/screenshots`. Pad keys posted this way are ignored (Qt sends keys to
