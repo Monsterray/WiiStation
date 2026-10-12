@@ -31,6 +31,10 @@
  * state is a ListState the caller owns, changed by listTurn() (pages) or listScroll() (focus at
  * the ends), and the page is laid out again after each change -- never per frame.
  *
+ * Free buttons (step 5) are buttons at their own rectangles, for a picture rather than a grid:
+ * Customize Co-Op's presets and controller buttons. Page::freeButtons holds them, after the rows;
+ * they take part in FOCUS_GEOMETRY links, and Layout::freeCtl gives each one's control.
+ *
  * This program is free software; you can redistribute it and/
  * or modify it under the terms of the GNU General Public Li-
  * cence as published by the Free Software Foundation; either
@@ -59,7 +63,8 @@ enum {
 	MAX_HELP     = 8,
 	MAX_CONTROLS = 96,
 	MAX_PROBLEMS = 64,
-	MAX_LIST_SLOTS = 16		/* item buttons in one list's window */
+	MAX_LIST_SLOTS = 16,	/* item buttons in one list's window */
+	MAX_FREE     = 24		/* free buttons on one page (Customize Co-Op has 24) */
 };
 
 /* The numbers of OptionsFrame.cpp, under their names. Three disagree with MenuLayout.h and are
@@ -200,6 +205,19 @@ struct Row {
 	const ListSpec     *list;
 };
 
+/*  Free buttons (step 5)  */
+
+/* A button at its own rectangle, for a screen that is a picture rather than a grid: Customize Co-Op's
+ * presets and controller buttons, Configure Buttons' controller. The caller owns the array and sets
+ * lit (and inactive) before layoutPage. Its links come from FOCUS_GEOMETRY only, like every button of a
+ * geometry page, so a page with free buttons is laid out with that focus mode. */
+struct FreeButton {
+	const char *text;
+	float       x, y, w, h;
+	bool        lit;
+	bool        inactive;		/* drawn, but not a focus target (as Row::inactive) */
+};
+
 /*  Pages  */
 
 struct Tab {
@@ -254,6 +272,10 @@ struct Page {
 	/* Added for Current ROM (step 3). Zero means none. */
 	const LinkOverride *overrides;	/* focus links set by hand, after the rule (linkFocus) */
 	int              nOverrides;
+	/* Added for Customize Co-Op (step 5). Zero means the default for each. */
+	const FreeButton *freeButtons;	/* buttons at their own rectangles, after the rows */
+	int              nFreeButtons;
+	float            titleY;		/* the title's centre y, not TITLE_Y (Customize Co-Op: 112) */
 };
 
 /*  Layout output  */
@@ -271,7 +293,8 @@ enum CtrlRole {
 	ROLE_HELP_TERM,	/* bold, right-aligned in the term column */
 	ROLE_HELP_TEXT,
 	ROLE_LIST_ITEM,	/* one item of a list's window; inactive past the end of the list */
-	ROLE_LIST_PAGE	/* a list's Prev or Next button */
+	ROLE_LIST_PAGE,	/* a list's Prev or Next button */
+	ROLE_FREE		/* a free button: at its own rectangle, not on the grid (FreeButton) */
 };
 
 enum TextAlign {
@@ -310,6 +333,7 @@ struct Layout {
 	                                 * slots 0 and 1 are its Prev and Next buttons */
 	int     list;					/* the list row's index, or -1 */
 	int     listItem[MAX_LIST_SLOTS];	/* control index of each window slot, or -1 */
+	int     freeCtl[MAX_FREE];		/* control index of each free button, or -1 */
 	int     defaultFocus;			/* where focus lands when the page is shown, or -1 */
 };
 

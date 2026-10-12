@@ -2747,6 +2747,176 @@ static void testListPaging(void)
 	       bad ? "MISMATCHES" : "all as the browser", (unsigned)(sizeof COUNTS / sizeof COUNTS[0]));
 }
 
+/*  Customize Co-Op (step 5): 24 free buttons and geometry focus, from CustomizeCoopFrame.cpp's tables  */
+
+/* The buttons as CustomizeCoopFrame.cpp had them: six presets, two rows of three (190 x 34, at
+ * x 20 + 205 x column, y 12 then 50), and the 18 controller buttons (indicatorRect). Their names are
+ * coop.c's, as the frame shows them. */
+static const float COOP_IND[18][4] = {
+	{140, 130,  80, 40}, {140, 180,  80, 40}, {235, 140,  80, 40}, {325, 140,  80, 40},
+	{420, 130,  80, 40}, {420, 180,  80, 40}, { 75, 230,  80, 40}, { 30, 280,  80, 40},
+	{120, 280,  80, 40}, { 75, 330,  80, 40}, {485, 230,  80, 40}, {440, 280,  80, 40},
+	{530, 280,  80, 40}, {485, 330,  80, 40}, {160, 345, 100, 40}, {380, 345, 100, 40},
+	{235, 395,  80, 40}, {325, 395,  80, 40} };
+static const char *const COOP_TEXT[24] = {
+	"Full pad", "Left half", "Right half", "D-pad+sticks", "Action", "Shoulders",
+	"L1", "L2", "Select", "Start", "R1", "R2", "Up", "Left", "Right", "Down",
+	"Tri", "Squ", "Cir", "Cro", "L Stick", "R Stick", "L3", "R3" };
+
+static void coopTable(int i, float *x, float *y, float *w, float *h)
+{
+	if (i < 6) {
+		*x = 20.0f + 205.0f * (i % 3);
+		*y = i < 3 ? 12.0f : 50.0f;
+		*w = 190.0f;
+		*h = 34.0f;
+	} else {
+		const float *r = COOP_IND[i - 6];
+		*x = r[0]; *y = r[1]; *w = r[2]; *h = r[3];
+	}
+}
+
+/* The page as CustomizeCoopFrame builds it: free buttons, geometry focus, the title at y 112, no logo. */
+static Page coopPageOf(FreeButton *fb)
+{
+	Page p;
+	memset(&p, 0, sizeof p);
+	for (int i = 0; i < 24; i++) {
+		coopTable(i, &fb[i].x, &fb[i].y, &fb[i].w, &fb[i].h);
+		fb[i].text = COOP_TEXT[i];
+		fb[i].lit = false;
+		fb[i].inactive = false;
+	}
+	p.title = "PSX Port 1, player 1: GameCube pad 1";
+	p.titleY = 112.0f;
+	p.logo = LOGO_SPOT_NONE;
+	p.focus = FOCUS_GEOMETRY;
+	p.freeButtons = fb;
+	p.nFreeButtons = 24;
+	return p;
+}
+
+/* CustomizeCoopFrame's constructor as it was: each button's nearest other button in each direction,
+ * scored as along + 2 x the sideways offset, a button one pixel or less behind not a candidate.
+ * Written out again here, in the engine's direction order (up, down, left, right); -1 is none. */
+static void coopOldLinks(int want[24][DIR_COUNT])
+{
+	float cx[24], cy[24];
+	for (int j = 0; j < 24; j++) {
+		float x, y, w, h;
+		coopTable(j, &x, &y, &w, &h);
+		cx[j] = x + w / 2;
+		cy[j] = y + h / 2;
+	}
+	for (int i = 0; i < 24; i++)
+		for (int d = 0; d < DIR_COUNT; d++) {
+			int best = -1;
+			float bestCost = 1e9f;
+			for (int j = 0; j < 24; j++) {
+				const float dx = cx[j] - cx[i], dy = cy[j] - cy[i];
+				float along, side;
+				if (d == DIR_LEFT)       { along = -dx; side = dy; }
+				else if (d == DIR_RIGHT) { along = dx;  side = dy; }
+				else if (d == DIR_UP)    { along = -dy; side = dx; }
+				else                     { along = dy;  side = dx; }
+				if (j == i || along <= 1.0f)
+					continue;
+				{
+					const float cost = along + 2.0f * (side < 0 ? -side : side);
+					if (cost < bestCost) { bestCost = cost; best = j; }
+				}
+			}
+			want[i][d] = best;
+		}
+}
+
+static int checkCoopPage(void)
+{
+	FreeButton fb[24];
+	Page p = coopPageOf(fb);
+	Layout lay;
+	Problem probs[16];
+	int want[24][DIR_COUNT];
+	int bad = 0, diffs = 0;
+	static const char *const DIR[DIR_COUNT] = { "Up", "Down", "Left", "Right" };
+
+	printf("Customize Co-Op (24 free buttons, geometry focus, the title, no logo)\n");
+	if (layoutPage(p, kFont, lay) < 0) {
+		fail("CustomizeCoop", "layoutPage refused the page");
+		return 1;
+	}
+	linkFocus(p, lay);
+
+	for (int i = 0; i < 24; i++) {
+		const int c = lay.freeCtl[i];
+		float x, y, w, h;
+		char msg[160];
+		coopTable(i, &x, &y, &w, &h);
+		if (c < 0 || lay.c[c].role != ROLE_FREE || !lay.c[c].focusable) {
+			snprintf(msg, sizeof msg, "free button %d is not a focusable free control", i);
+			fail("CustomizeCoop", msg);
+			bad++;
+			continue;
+		}
+		if (!nearly(lay.c[c].rect.x, x) || !nearly(lay.c[c].rect.y, y) ||
+		    !nearly(lay.c[c].rect.w, w) || !nearly(lay.c[c].rect.h, h)) {
+			snprintf(msg, sizeof msg, "button %d at (%g,%g %gx%g), the frame has (%g,%g %gx%g)", i,
+			         lay.c[c].rect.x, lay.c[c].rect.y, lay.c[c].rect.w, lay.c[c].rect.h, x, y, w, h);
+			fail("CustomizeCoop", msg);
+			bad++;
+		}
+	}
+
+	/* The title: centred on x 320, its anchor at y 112 */
+	if (lay.title < 0 || !nearly(lay.c[lay.title].ax, 320.0f) || !nearly(lay.c[lay.title].ay, 112.0f) ||
+	    lay.c[lay.title].align != ALIGN_CENTRE) {
+		fail("CustomizeCoop", "the title is not centred at (320, 112)");
+		bad++;
+	}
+
+	/* The links, against the frame's own rule, direction by direction */
+	coopOldLinks(want);
+	for (int i = 0; i < 24; i++) {
+		const int c = lay.freeCtl[i];
+		for (int d = 0; d < DIR_COUNT; d++) {
+			const int got = lay.c[c].link[d];
+			const int gotIdx = got < 0 ? -1 : lay.c[got].slot;	/* a free control's slot is its button */
+			if (gotIdx != want[i][d]) {
+				char msg[160];
+				diffs++;
+				snprintf(msg, sizeof msg, "button %d %s links to %d, the frame's rule gives %d",
+				         i, DIR[d], gotIdx, want[i][d]);
+				fail("CustomizeCoop", msg);
+				bad++;
+			}
+		}
+	}
+
+	if (lay.defaultFocus != lay.freeCtl[0]) {
+		fail("CustomizeCoop", "the default focus is not Full pad");
+		bad++;
+	}
+
+	{
+		const int n = checkLayout(p, kFont, lay, probs, 16);
+		for (int k = 0; k < n && k < 16; k++) {
+			char msg[160];
+			const int a = probs[k].a;
+			if (probs[k].kind == PROB_TEXT_WIDE) {
+				printf("        CustomizeCoop finding: '%s' is wider than its button less 2 x 16 px\n",
+				       lay.c[a].text);
+				continue;
+			}
+			snprintf(msg, sizeof msg, "checkLayout: %s ('%s')", problemName(probs[k].kind), lay.c[a].text);
+			fail("CustomizeCoop", msg);
+			bad++;
+		}
+	}
+	printf("  CustomizeCoop  24 buttons against the frame's rectangles, %d link%s differ from the frame's rule\n",
+	       diffs, diffs == 1 ? "" : "s");
+	return bad;
+}
+
 int main(int argc, char **argv)
 {
 	const char *font = argc > 1 ? argv[1] : "fonts/En.dat";
@@ -2771,6 +2941,7 @@ int main(int argc, char **argv)
 	checkTabBoxes("Saves", 4, SAVES_BOXES, COUNT(SAVES_BOXES), SAVES_LABEL_Y, COUNT(SAVES_LABEL_Y));
 	checkTabLinks("Saves", 4, SAVES_BOXES, COUNT(SAVES_BOXES));
 	checkButtonRowScreens();
+	checkCoopPage();
 	testLinkOverrides();
 	reportGeometry();
 	testCheckCatches();

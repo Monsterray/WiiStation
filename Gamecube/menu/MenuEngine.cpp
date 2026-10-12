@@ -308,10 +308,30 @@ static void layoutList(Layout &out, const ListSpec &L, int row)
 	}
 }
 
+/* Every control a page makes, counted before any is placed, so that a page too big for Layout::c is
+ * refused here rather than written past its end. A row of buttons is its label and its buttons. */
+static int controlBound(const Page &p)
+{
+	int n = p.nTabs > 0 ? p.nTabs : (p.title ? 1 : 0);
+	for (int i = 0; i < p.nRows; i++) {
+		const Row &r = p.rows[i];
+		switch (r.kind) {
+		case ROW_TOGGLE:
+		case ROW_CYCLE:
+		case ROW_READOUT: n += 2; break;
+		case ROW_CHOICE:
+		case ROW_BUTTONS: n += 1 + r.count; break;
+		case ROW_LIST:    n += 2 + r.list->state->slots; break;
+		}
+	}
+	return n + p.nFreeButtons + 2 * p.nHelp;
+}
+
 int layoutPage(const Page &p, const Metrics &m, Layout &out)
 {
 	if (p.nRows < 0 || p.nRows > MAX_ROWS || p.nHelp < 0 || p.nHelp > MAX_HELP ||
-	    p.nTabs < 0 || p.nTabs > MAX_TABS || (p.nTabs > 0 && (!p.tabs || p.curTab < 0 || p.curTab >= p.nTabs)))
+	    p.nTabs < 0 || p.nTabs > MAX_TABS || (p.nTabs > 0 && (!p.tabs || p.curTab < 0 || p.curTab >= p.nTabs)) ||
+	    p.nFreeButtons < 0 || p.nFreeButtons > MAX_FREE || (p.nFreeButtons > 0 && !p.freeButtons))
 		return -1;
 	int lists = 0;
 	for (int i = 0; i < p.nRows; i++) {
@@ -320,7 +340,7 @@ int layoutPage(const Page &p, const Metrics &m, Layout &out)
 		if (p.rows[i].kind == ROW_LIST)
 			lists++;
 	}
-	if (lists > 1)
+	if (lists > 1 || controlBound(p) > MAX_CONTROLS)
 		return -1;
 
 	out.n = 0;
@@ -334,6 +354,8 @@ int layoutPage(const Page &p, const Metrics &m, Layout &out)
 			out.slot[r][s] = -1;
 	for (int k = 0; k < MAX_LIST_SLOTS; k++)
 		out.listItem[k] = -1;
+	for (int k = 0; k < MAX_FREE; k++)
+		out.freeCtl[k] = -1;
 
 	/* The choice labels' shared centre: RLABEL_CX, moved left only when a row of buttons had
 	 * to move left, so that its label still clears them by RLABEL_GAP. */
@@ -367,7 +389,8 @@ int layoutPage(const Page &p, const Metrics &m, Layout &out)
 			x += p.tabs[t].width + TAB_ROW_GAP;
 		}
 	} else if (p.title) {
-		out.title = addText(out, m, ROLE_TITLE, -1, 0, TITLE_X, TITLE_Y, ALIGN_CENTRE, TEXT_SCALE, p.title);
+		out.title = addText(out, m, ROLE_TITLE, -1, 0, TITLE_X, p.titleY > 0 ? p.titleY : TITLE_Y,
+		                    ALIGN_CENTRE, TEXT_SCALE, p.title);
 	}
 
 	for (int i = 0; i < p.nRows; i++) {
@@ -435,6 +458,11 @@ int layoutPage(const Page &p, const Metrics &m, Layout &out)
 			break;
 		}
 		}
+	}
+
+	for (int k = 0; k < p.nFreeButtons; k++) {
+		const FreeButton &b = p.freeButtons[k];
+		out.freeCtl[k] = addButton(out, ROLE_FREE, -1, k, b.x, b.y, b.w, b.h, b.text, b.lit, !b.inactive);
 	}
 
 	if (p.nHelp > 0)
@@ -695,6 +723,11 @@ void linkFocus(const Page &p, Layout &lay)
 		if (n > 0)
 			def = A[0];
 	}
+	for (int k = 0; def < 0 && k < p.nFreeButtons; k++) {
+		const int c = lay.freeCtl[k];
+		if (c >= 0 && lay.c[c].focusable)
+			def = c;
+	}
 	if (def < 0 && p.nTabs > 0)
 		def = lay.tab[p.curTab];
 	lay.defaultFocus = def;
@@ -740,7 +773,8 @@ int checkLayout(const Page &p, const Metrics &m, const Layout &lay, Problem *out
 		}
 
 		if (c.kind == CTRL_BUTTON &&
-		    (c.role == ROLE_TAB || c.role == ROLE_BUTTON || c.role == ROLE_CHOICE || c.role == ROLE_LIST_PAGE)) {
+		    (c.role == ROLE_TAB || c.role == ROLE_BUTTON || c.role == ROLE_CHOICE ||
+		     c.role == ROLE_LIST_PAGE || c.role == ROLE_FREE)) {
 			if (m.width(c.text, TEXT_SCALE, m.ctx) + 2.0f * BUTTON_PAD_X > r.w)
 				note(out, maxOut, np, PROB_TEXT_WIDE, i, -1);
 		}
