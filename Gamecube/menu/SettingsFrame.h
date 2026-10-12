@@ -24,6 +24,9 @@
 #include "../libgui/Frame.h"
 #include "MenuTypes.h"
 
+/* The five tab buttons' widths. OptionsFrame's Advanced tabs use the same widths. */
+extern const float settingsTabWidths[5];
+
 class SettingsFrame : public menu::Frame
 {
 public:
