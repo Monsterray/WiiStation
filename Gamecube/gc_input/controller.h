@@ -100,6 +100,7 @@ typedef struct {
 	int invertedYL, invertedYR;
 	float sensitivity;
 	button_tp fastf;
+	button_tp screenshot;	/* the screenshot combination; mask 0 (Off) takes no picture */
 } controller_config_t;
 
 typedef struct HidController
@@ -151,6 +152,9 @@ typedef struct {
 	int num_menu_combos;
 	// Pointer to analog sources for this controller type
 	button_t* menu_combos;
+	// Number of screenshot combinations (entry 0 is Off) and the list itself
+	int num_screenshot_combos;
+	button_t* screenshot_combos;
 	// Default controller mapping
 	controller_config_t config_default;
 	// Current controller mapping

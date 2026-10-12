@@ -102,8 +102,14 @@ static button_t menu_combos[] = {
 	{ 2, CLASSIC_CTRL_BUTTON_HOME, "Home" },
 };
 
-/* Screenshot combination: no Start (plus) or Select (minus) by default, and no menu combination. */
-static button_t screenshot_combo = { 0, CLASSIC_CTRL_BUTTON_FULL_L | CLASSIC_CTRL_BUTTON_FULL_R, "L+R" };
+/* Screenshot combinations, entry 0 is Off. Start is in none of them, so the game does not pause.
+ * Entry 1 is the default. No menu combination may lie inside one of these (Configure Buttons
+ * refuses it). */
+static button_t screenshot_combos[] = {
+	{ 0, 0,                                                    "Off" },
+	{ 1, CLASSIC_CTRL_BUTTON_FULL_L|CLASSIC_CTRL_BUTTON_FULL_R|CLASSIC_CTRL_BUTTON_ZL, "L+R+ZL" },
+	{ 2, CLASSIC_CTRL_BUTTON_FULL_L|CLASSIC_CTRL_BUTTON_FULL_R,                         "L+R" },
+};
 
 
 static unsigned int getButtons(classic_ctrl_t* controller)
@@ -222,7 +228,7 @@ static int _GetKeys(int Control, BUTTONS * Keys, controller_config_t* config)
 	// Return 1 if exit, 2 if fastforward
 	if (!isHeld(config->exit)) return 1;
 	if (!isHeld(config->fastf)) return 2;
-	screenshot_poll(Control, !isHeld(&screenshot_combo));
+	screenshot_poll(Control, config->screenshot && config->screenshot->mask && !isHeld(config->screenshot));
 	return 0;
 }
 
@@ -266,6 +272,8 @@ controller_t controller_Classic =
 	  analog_sources,
 	  sizeof(menu_combos)/sizeof(menu_combos[0]),
 	  menu_combos,
+	  sizeof(screenshot_combos)/sizeof(screenshot_combos[0]),
+	  screenshot_combos,
 	  { .SQU        = &buttons[12], // Y
 	    .CRO        = &buttons[10], // B
 	    .CIR        = &buttons[9],  // A
@@ -289,6 +297,7 @@ controller_t controller_Classic =
 	    .invertedYR = 0,
 		.sensitivity = 1.0,
 		.fastf       = &menu_combos[1], // ZL+ZR+L
+		.screenshot = &screenshot_combos[1],
 	  }
 	 };
 

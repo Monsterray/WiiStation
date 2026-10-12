@@ -100,8 +100,14 @@ static button_t menu_combos[] = {
 	{ 2, WPAD_BUTTON_HOME, "Home" },
 };
 
-/* Screenshot combination: no menu combination. */
-static button_t screenshot_combo = { 0, WPAD_BUTTON_A | WPAD_BUTTON_B, "A+B" };
+/* Screenshot combinations, entry 0 is Off. Start is in none of them, so the game does not pause.
+ * Entry 1 is the default. No menu combination may lie inside one of these (Configure Buttons
+ * refuses it). */
+static button_t screenshot_combos[] = {
+	{ 0, 0,                                                  "Off" },
+	{ 1, WPAD_BUTTON_A|WPAD_BUTTON_B|WPAD_BUTTON_1, "A+B+1" },
+	{ 2, WPAD_BUTTON_A|WPAD_BUTTON_B,                "A+B" },
+};
 
 static int _GetKeys(int Control, BUTTONS * Keys, controller_config_t* config,
                     int (*available)(int),
@@ -196,7 +202,7 @@ static int _GetKeys(int Control, BUTTONS * Keys, controller_config_t* config,
 	// Return 1 if exit, 2 if fastforward
 	if (!isHeld(config->exit)) return 1;
 	if (!isHeld(config->fastf)) return 2;
-	screenshot_poll(Control, !isHeld(&screenshot_combo));
+	screenshot_poll(Control, config->screenshot && config->screenshot->mask && !isHeld(config->screenshot));
 	return 0;
 }
 
@@ -314,6 +320,8 @@ controller_t controller_Wiimote =
 	  analog_sources_wm,
 	  sizeof(menu_combos)/sizeof(menu_combos[0]),
 	  menu_combos,
+	  sizeof(screenshot_combos)/sizeof(screenshot_combos[0]),
+	  screenshot_combos,
 	  { .SQU        = &buttons[0],  // None
 	    .CRO        = &buttons[10], // 1
 	    .CIR        = &buttons[11], // 2
@@ -337,6 +345,7 @@ controller_t controller_Wiimote =
 	    .invertedYR = 0,
 		.sensitivity = 1.0,
 		.fastf       = &menu_combos[0], // 1+2
+		.screenshot = &screenshot_combos[1],
 	  }
 	};
 
@@ -356,6 +365,8 @@ controller_t controller_WiimoteNunchuk =
 	  analog_sources_wmn,
 	  sizeof(menu_combos)/sizeof(menu_combos[0]),
 	  menu_combos,
+	  sizeof(screenshot_combos)/sizeof(screenshot_combos[0]),
+	  screenshot_combos,
 	  { .SQU        = &buttons[2], // D Left
 	    .CRO        = &buttons[4], // D Down
 	    .CIR        = &buttons[3], // D Right
@@ -379,6 +390,7 @@ controller_t controller_WiimoteNunchuk =
 	    .invertedYR = 0,
 		.sensitivity = 1.0,
 		.fastf       = &menu_combos[1], // +&-
+		.screenshot = &screenshot_combos[1],
 	  }
 	 };
 
