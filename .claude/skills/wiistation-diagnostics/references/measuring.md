@@ -433,3 +433,5 @@ hashes in UploadScreen, OpenGX texel checks). The pattern to grep for is a loop 
   default is 20).
 - Code: `scripts/menu_compare.py` (PIL). The Python does the comparing and the bash does the
   Wiimote switch and the restore.
+
+- Parallel agents each need their own Dolphin profile (copy .dolphin2 to .dolphinN, ~5 GB): two agents on one profile refused or collided for an hour on 2026-10-12, and one stray Dolphin made a menu highlight vanish in a capture.
