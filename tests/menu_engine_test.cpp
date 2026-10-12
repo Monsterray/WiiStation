@@ -3643,6 +3643,11 @@ static void testTwoColumns(void)
 		static const int cells[3][2] = { { 0, 1 }, { 3, 4 }, { 5, -1 } };
 		static const float ys[3] = { 100.0f, 220.0f, 280.0f };
 		checkGrid(lay, odd, cells, ys, 3);	/* the lone cell sits in column 1 of the same grid */
+		{	/* the wide row starts on the grid: its first button at column 1's button x */
+			const Key wide = { ROLE_CHOICE, 2, 0 }, cell = { ROLE_BUTTON, 0, 0 };
+			if (lay.c[findCtrl(lay, wide)].rect.x != lay.c[findCtrl(lay, cell)].rect.x)
+				fail("2 columns", "a wide row does not start at column 1's button");
+		}
 		if (checkLayout(q, kFont, lay, probs, MAX_PROBLEMS) != 0)
 			fail("2 columns", "checkLayout finds a problem on the mixed page");
 	}

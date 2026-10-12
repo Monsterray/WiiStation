@@ -499,8 +499,19 @@ int layoutPage(const Page &p, const Metrics &m, Layout &out)
 			/* The last `plain` buttons are actions: drawn like the rest, never lit. */
 			const int lit = shownValue(r) - r.lo;
 			float cx = rowStart(m, r, y, p.logo);
+			float lx = rlabelCx;
+			if (p.columns >= 2) {
+				/* a whole line in a two-column page starts on the grid: its label ends on
+				 * column 1's label edge, its buttons start at column 1's button */
+				float bw, lr;
+				gridPlace(p, m, 0, cx, bw, lr);
+				if (r.label) {
+					const int lw = measure(m, r.label, TEXT_SCALE);
+					lx = lr - (float)(lw - lw / 2);
+				}
+			}
 			if (r.label)
-				addText(out, m, ROLE_RLABEL, i, 0, rlabelCx, y + ldy, ALIGN_CENTRE, TEXT_SCALE, r.label);
+				addText(out, m, ROLE_RLABEL, i, 0, lx, y + ldy, ALIGN_CENTRE, TEXT_SCALE, r.label);
 			for (int c = 0; c < r.count; c++) {
 				float w = choiceWidth(m, r, c);
 				out.slot[i][c] = addButton(out, ROLE_CHOICE, i, c, cx, y, w, BUTTON_H, r.names[c],

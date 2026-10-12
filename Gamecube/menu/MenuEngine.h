@@ -319,10 +319,14 @@ struct Page {
 	 * A direction with no target wraps to the farthest focusable control on its row or column.
 	 * With none there, it wraps to the farthest focusable control on that side, nearest in the cross axis. */
 	bool             wrap;
-	/* 2 = two cells of label + button per line. Toggle and Cycle rows fill the cells in reading order
-	 * (left, then right, then the next line); any other row (a choice row, readouts, buttons,
-	 * a list) takes a whole line. Zero or 1 is one row per line, as every page was.
-	 * FOCUS_ROWS: Left and Right run along a line, Up and Down keep the column. */
+	/* The compact (four-column) layout, for any page with many short settings: 2 = two cells of
+	 * label + button per line, on one grid for the page (shared label edges and button x; each
+	 * button as wide as its widest name, so cycling never moves it). Toggle and Cycle rows fill
+	 * the cells in reading order (left, then right, then the next line); any other row takes a
+	 * whole line, and a choice row starts on the grid (label edge and first button of column 1).
+	 * Zero or 1 is one row per line, as every page was. Help runs under the last line.
+	 * FOCUS_ROWS: Left and Right run along a line, Up and Down keep the column.
+	 * Use: columns = 2 in the page (eng::Page, or OptPage::columns in OptionsFrame.cpp); nothing else changes. */
 	int              columns;
 };
 
