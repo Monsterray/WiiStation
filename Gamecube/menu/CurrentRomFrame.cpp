@@ -19,8 +19,10 @@
 **/
 
 #include "MenuContext.h"
+#include "MenuEngine.h"	/* before Button.h: its include guard is BUTTON_H, a name the engine uses */
 #include "CurrentRomFrame.h"
 #include "../libgui/Button.h"
+#include "../libgui/IPLFont.h"
 #include "../libgui/resources.h"
 #include "../libgui/FocusManager.h"
 #include "../libgui/CursorManager.h"
@@ -79,53 +81,151 @@ struct ButtonInfo
 	menu::Button	*button;
 	int				buttonStyle;
 	char*			buttonString;
-	float			x;
-	float			y;
-	float			width;
-	float			height;
-	int				focusUp;
-	int				focusDown;
-	int				focusLeft;
-	int				focusRight;
 	ButtonFunc		clickedFunc;
 	ButtonFunc		returnFunc;
 } FRAME_BUTTONS[NUM_FRAME_BUTTONS] =
-{ //	button	buttonStyle	buttonString		x		y		width	height	Up	Dwn	Lft	Rt	clickFunc			returnFunc
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[0],	100.0,	 60.0,	210.0,	56.0,	 6,	 2,	 1,	 1,	Func_ResetROM,		Func_ReturnFromCurrentRomFrame }, // Reset ROM
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[1],	330.0,	 60.0,	210.0,	56.0,	 7,	 3,	 0,	 0,	Func_SwapCD,		Func_ReturnFromCurrentRomFrame }, // Swap CD
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[2],	100.0,	120.0,	210.0,	56.0,	 0,	 4,	 3,	 3,	Func_LoadSave,		Func_ReturnFromCurrentRomFrame }, // Load MemCards
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[3],	330.0,	120.0,	210.0,	56.0,	 1,	 4,	 2,	 2,	Func_SaveGame,		Func_ReturnFromCurrentRomFrame }, // Save MemCards
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[4],	150.0,	180.0,	340.0,	56.0,	 2,	 5,	-1,	-1,	Func_ShowRomInfo,	Func_ReturnFromCurrentRomFrame }, // Show ISO Info
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[5],	150.0,	240.0,	220.0,	56.0,	 4,	 6,	 7,	 7,	Func_LoadState,		Func_ReturnFromCurrentRomFrame }, // Load State
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[6],	150.0,	300.0,	220.0,	56.0,	 5,	 0,	 7,	 7,	Func_SaveState,		Func_ReturnFromCurrentRomFrame }, // Save State
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[7],	390.0,	270.0,	120.0,	56.0,	 4,	 1,	 5,	 5,	Func_StateCycle,	Func_ReturnFromCurrentRomFrame }, // Cycle State
+{ //	button	buttonStyle	buttonString		clickFunc			returnFunc
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[0],	Func_ResetROM,		Func_ReturnFromCurrentRomFrame }, // Reset ROM
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[1],	Func_SwapCD,		Func_ReturnFromCurrentRomFrame }, // Swap CD
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[2],	Func_LoadSave,		Func_ReturnFromCurrentRomFrame }, // Load MemCards
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[3],	Func_SaveGame,		Func_ReturnFromCurrentRomFrame }, // Save MemCards
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[4],	Func_ShowRomInfo,	Func_ReturnFromCurrentRomFrame }, // Show ISO Info
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[5],	Func_LoadState,		Func_ReturnFromCurrentRomFrame }, // Load State
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[6],	Func_SaveState,		Func_ReturnFromCurrentRomFrame }, // Save State
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[7],	Func_StateCycle,	Func_ReturnFromCurrentRomFrame }, // Cycle State
 };
+
+/*  The Current ROM page, on the menu engine (Docs/MENU_FRAMEWORK_PLAN.md, step 3)  */
+
+/* Two button columns, kept as the page has always had them: Restart Game and Swap CD on the first
+ * row, Load and Save MemCards on the second (each column 210 wide, 20 apart, from x 100 and x 330).
+ * Then Show ISO Info across the middle, Load State with the Cycle State button beside it, and Save
+ * State below. The Cycle State button sits 30 lower than its row, between two rows (dy). Rows are
+ * 60 apart from y 60. The logo is bottom right (MenuContext's LOGO_BOTTOM_FRAMES). Focus is the
+ * engine's row rule: Up and Down keep the column, and Left and Right move within a row. The layout
+ * is fixed, so it is done once, here, and tests/menu_engine_test.cpp checks its numbers. */
+namespace eng = menu::engine;
+
+/* The row and slot each FRAME_BUTTONS entry is in. */
+static const int CUR_AT[NUM_FRAME_BUTTONS][2] = {
+	{ 0, 0 }, { 0, 1 }, { 1, 0 }, { 1, 1 }, { 2, 0 }, { 3, 0 }, { 4, 0 }, { 3, 1 },
+};
+#define CUR_ROWS_N 5
+
+/* The buttons of each row, by slot: a row's actions must be consecutive, so they are kept by place. */
+static eng::ActionButton CUR_ACTIONS[CUR_ROWS_N][2];
+static eng::Row CUR_ROWS[CUR_ROWS_N];
+static eng::Page CUR_PAGE;
+static eng::Layout CUR_LAYOUT;
+
+/* The FRAME_BUTTONS entry at a row and slot of the layout, or -1. */
+static int curButtonAt(int row, int slot)
+{
+	for (int k = 0; k < NUM_FRAME_BUTTONS; k++)
+		if (CUR_AT[k][0] == row && CUR_AT[k][1] == slot)
+			return k;
+	return -1;
+}
+
+/* The engine's text widths: IplFont, as the other frames use it (SettingsFrame.cpp). */
+static int curWidth(const char *s, float scale, void *)
+{
+	return menu::IplFont::getInstance().getStringWidth((char*)s, scale);
+}
+
+static int curHeight(const char *s, float scale, void *)
+{
+	return menu::IplFont::getInstance().getStringHeight((char*)s, scale);
+}
+
+static const eng::Metrics CUR_METRICS = { curWidth, curHeight, NULL };
+
+static void layoutCurrentRom(void)
+{
+	for (int k = 0; k < NUM_FRAME_BUTTONS; k++)
+	{
+		eng::ActionButton &a = CUR_ACTIONS[CUR_AT[k][0]][CUR_AT[k][1]];
+		a.text  = FRAME_BUTTONS[k].buttonString;	/* Slot N changes this text in place */
+		a.lit   = false;
+		a.dy    = (k == 7) ? 30.0f : 0.0f;			/* Cycle State: between its row and the next */
+		a.width = (k == 0 || k == 1 || k == 2 || k == 3) ? 210.0f
+		        : (k == 4) ? 340.0f
+		        : (k == 7) ? 120.0f
+		        : 220.0f;
+	}
+
+	/* Each row's buttons, in slot order; a row's gap and first x are the page's two columns and
+	 * the centred rows' left edges. */
+	static const int ROW_COUNT[CUR_ROWS_N]  = { 2, 2, 1, 2, 1 };
+	static const float ROW_X0[CUR_ROWS_N]   = { 100.0f, 100.0f, 150.0f, 150.0f, 150.0f };
+	static const float ROW_GAP[CUR_ROWS_N]  = { 20.0f, 20.0f, 0.0f, 20.0f, 0.0f };
+	for (int r = 0; r < CUR_ROWS_N; r++)
+	{
+		eng::Row &row = CUR_ROWS[r];
+		memset(&row, 0, sizeof row);
+		row.kind    = eng::ROW_BUTTONS;
+		row.count   = ROW_COUNT[r];
+		row.actions = CUR_ACTIONS[r];
+		row.x0      = ROW_X0[r];
+		row.gap     = ROW_GAP[r];
+	}
+	CUR_PAGE.title   = NULL;
+	CUR_PAGE.tabs    = NULL;
+	CUR_PAGE.nTabs   = 0;
+	CUR_PAGE.curTab  = 0;
+	CUR_PAGE.rows    = CUR_ROWS;
+	CUR_PAGE.nRows   = CUR_ROWS_N;
+	CUR_PAGE.help    = NULL;
+	CUR_PAGE.nHelp   = 0;
+	CUR_PAGE.logo    = eng::LOGO_SPOT_BOTTOM;
+	CUR_PAGE.focus   = eng::FOCUS_ROWS;
+	CUR_PAGE.labelCx = 0.0f;
+	CUR_PAGE.labelDy = 0.0f;
+	CUR_PAGE.rowDy   = 0.0f;	/* the default pitch, 60 */
+	CUR_PAGE.rowY0   = 60.0f;
+
+	/* The tables are fixed: a page that does not fit is a programming error, which the host
+	 * test catches before it reaches the menu. */
+	eng::layoutPage(CUR_PAGE, CUR_METRICS, CUR_LAYOUT);
+	eng::linkFocus(CUR_PAGE, CUR_LAYOUT);
+}
 
 CurrentRomFrame::CurrentRomFrame()
 {
-	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
-		FRAME_BUTTONS[i].button = new menu::Button(FRAME_BUTTONS[i].buttonStyle, &FRAME_BUTTONS[i].buttonString,
-										FRAME_BUTTONS[i].x, FRAME_BUTTONS[i].y,
-										FRAME_BUTTONS[i].width, FRAME_BUTTONS[i].height);
+	layoutCurrentRom();
 
+	/* Each button's box, and so its Cursor range, is the engine's rectangle for its place. */
 	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
 	{
-		if (FRAME_BUTTONS[i].focusUp != -1) FRAME_BUTTONS[i].button->setNextFocus(menu::Focus::DIRECTION_UP, FRAME_BUTTONS[FRAME_BUTTONS[i].focusUp].button);
-		if (FRAME_BUTTONS[i].focusDown != -1) FRAME_BUTTONS[i].button->setNextFocus(menu::Focus::DIRECTION_DOWN, FRAME_BUTTONS[FRAME_BUTTONS[i].focusDown].button);
-		if (FRAME_BUTTONS[i].focusLeft != -1) FRAME_BUTTONS[i].button->setNextFocus(menu::Focus::DIRECTION_LEFT, FRAME_BUTTONS[FRAME_BUTTONS[i].focusLeft].button);
-		if (FRAME_BUTTONS[i].focusRight != -1) FRAME_BUTTONS[i].button->setNextFocus(menu::Focus::DIRECTION_RIGHT, FRAME_BUTTONS[FRAME_BUTTONS[i].focusRight].button);
+		const eng::Control &c = CUR_LAYOUT.c[CUR_LAYOUT.slot[CUR_AT[i][0]][CUR_AT[i][1]]];
+		FRAME_BUTTONS[i].button = new menu::Button(FRAME_BUTTONS[i].buttonStyle, &FRAME_BUTTONS[i].buttonString,
+										c.rect.x, c.rect.y, c.rect.w, c.rect.h);
+	}
+
+	static const int DIRS[eng::DIR_COUNT] = {
+		menu::Focus::DIRECTION_UP, menu::Focus::DIRECTION_DOWN,
+		menu::Focus::DIRECTION_LEFT, menu::Focus::DIRECTION_RIGHT
+	};
+	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
+	{
+		const eng::Control &c = CUR_LAYOUT.c[CUR_LAYOUT.slot[CUR_AT[i][0]][CUR_AT[i][1]]];
+		for (int d = 0; d < eng::DIR_COUNT; d++)
+		{
+			const int to = c.link[d];	/* a link of -1 is no link */
+			FRAME_BUTTONS[i].button->setNextFocus(DIRS[d],
+				to >= 0 ? FRAME_BUTTONS[curButtonAt(CUR_LAYOUT.c[to].row, CUR_LAYOUT.c[to].slot)].button : NULL);
+		}
 		FRAME_BUTTONS[i].button->setActive(true);
 		if (FRAME_BUTTONS[i].clickedFunc) FRAME_BUTTONS[i].button->setClicked(FRAME_BUTTONS[i].clickedFunc);
 		if (FRAME_BUTTONS[i].returnFunc) FRAME_BUTTONS[i].button->setReturn(FRAME_BUTTONS[i].returnFunc);
 		add(FRAME_BUTTONS[i].button);
-		menu::Cursor::getInstance().addComponent(this, FRAME_BUTTONS[i].button, FRAME_BUTTONS[i].x,
-												FRAME_BUTTONS[i].x+FRAME_BUTTONS[i].width, FRAME_BUTTONS[i].y,
-												FRAME_BUTTONS[i].y+FRAME_BUTTONS[i].height);
+		menu::Cursor::getInstance().addComponent(this, FRAME_BUTTONS[i].button, c.rect.x,
+												c.rect.x+c.rect.w, c.rect.y,
+												c.rect.y+c.rect.h);
 	}
 	setDefaultFocus(FRAME_BUTTONS[0].button);
 	setBackFunc(Func_ReturnFromCurrentRomFrame);
 	setEnabled(true);
-
 }
 
 CurrentRomFrame::~CurrentRomFrame()

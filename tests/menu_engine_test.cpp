@@ -1979,6 +1979,22 @@ static Row LOADROM_ROWS[] = {
 	{ ROW_BUTTONS, NULL, NULL, 0, 1, 0, NULL, false, &LOADROM_ACTIONS[3], 0.0f, 0.0f, NULL, 0 },
 };
 
+/* Current ROM: two columns (x 100 and x 330, 210 wide, 20 apart) on the first two rows, then rows
+ * of one, two (Load State and Slot, the Slot 30 lower than its row: dy) and one. Rows 60 apart
+ * from y 60. The logo is bottom right (MenuContext's LOGO_BOTTOM_FRAMES). */
+static const ActionButton CUR_R0[] = { { "Restart Game", 210.0f, false }, { "Swap CD", 210.0f, false } };
+static const ActionButton CUR_R1[] = { { "Load MemCards", 210.0f, false }, { "Save MemCards", 210.0f, false } };
+static const ActionButton CUR_R2[] = { { "Show ISO Info", 340.0f, false } };
+static const ActionButton CUR_R3[] = { { "Load State", 220.0f, false }, { "Slot 0", 120.0f, false, 30.0f } };
+static const ActionButton CUR_R4[] = { { "Save State", 220.0f, false } };
+static Row CURRENT_ROWS[] = {
+	{ ROW_BUTTONS, NULL, NULL, 0, 2, 0, NULL, false, CUR_R0, 100.0f, 20.0f, NULL, 0 },
+	{ ROW_BUTTONS, NULL, NULL, 0, 2, 0, NULL, false, CUR_R1, 100.0f, 20.0f, NULL, 0 },
+	{ ROW_BUTTONS, NULL, NULL, 0, 1, 0, NULL, false, CUR_R2, 150.0f,  0.0f, NULL, 0 },
+	{ ROW_BUTTONS, NULL, NULL, 0, 2, 0, NULL, false, CUR_R3, 150.0f, 20.0f, NULL, 0 },
+	{ ROW_BUTTONS, NULL, NULL, 0, 1, 0, NULL, false, CUR_R4, 150.0f,  0.0f, NULL, 0 },
+};
+
 /* The page a screen's rows make. */
 static Page screenPage(Row *rows, int nRows, LogoSpot logo, float rowY0, float rowDy)
 {
@@ -2022,6 +2038,17 @@ static const ScreenBox LOADROM_BOXES[] = {
 static const ScreenLink LOADROM_LINKS[] = {
 	{ 0, 3, 1, -1, -1 }, { 1, 0, 2, -1, -1 }, { 2, 1, 3, -1, -1 }, { 3, 2, 0, -1, -1 },
 };
+static const ScreenBox CURRENT_BOXES[] = {
+	{ 0, 0, 0, 100.0f,  60.0f, 210.0f, 56.0f }, { 1, 0, 1, 330.0f,  60.0f, 210.0f, 56.0f },
+	{ 2, 1, 0, 100.0f, 120.0f, 210.0f, 56.0f }, { 3, 1, 1, 330.0f, 120.0f, 210.0f, 56.0f },
+	{ 4, 2, 0, 150.0f, 180.0f, 340.0f, 56.0f }, { 5, 3, 0, 150.0f, 240.0f, 220.0f, 56.0f },
+	{ 6, 4, 0, 150.0f, 300.0f, 220.0f, 56.0f }, { 7, 3, 1, 390.0f, 270.0f, 120.0f, 56.0f },
+};
+static const ScreenLink CURRENT_LINKS[] = {
+	{ 0, 6, 2, 1, 1 }, { 1, 7, 3, 0, 0 }, { 2, 0, 4, 3, 3 }, { 3, 1, 4, 2, 2 },
+	{ 4, 2, 5, -1, -1 }, { 5, 4, 6, 7, 7 }, { 6, 5, 0, 7, 7 }, { 7, 4, 1, 5, 5 },
+};
+
 /* Checks one screen: its boxes against the table (a failure), its links against the table (printed,
  * a finding), and checkLayout's problems (a failure). Returns the failures. */
 static int checkScreen(const char *name, const Page &page, const ScreenBox *boxes, unsigned nb,
@@ -2108,10 +2135,12 @@ static int checkButtonRowScreens(void)
 	int bad = 0;
 	const Page main    = screenPage(MAIN_ROWS, (int)COUNT(MAIN_ROWS), LOGO_SPOT_TOP, 60.0f, 0.0f);
 	const Page loadrom = screenPage(LOADROM_ROWS, (int)COUNT(LOADROM_ROWS), LOGO_SPOT_TOP, 0.0f, 80.0f);
+	const Page current = screenPage(CURRENT_ROWS, (int)COUNT(CURRENT_ROWS), LOGO_SPOT_BOTTOM, 60.0f, 0.0f);
 
 	printf("Button-row screens (boxes against the frames' tables, focus against their links)\n");
 	bad += checkScreen("Main", main, MAIN_BOXES, COUNT(MAIN_BOXES), MAIN_LINKS, COUNT(MAIN_LINKS));
 	bad += checkScreen("LoadRom", loadrom, LOADROM_BOXES, COUNT(LOADROM_BOXES), LOADROM_LINKS, COUNT(LOADROM_LINKS));
+	bad += checkScreen("CurrentRom", current, CURRENT_BOXES, COUNT(CURRENT_BOXES), CURRENT_LINKS, COUNT(CURRENT_LINKS));
 	return bad;
 }
 
