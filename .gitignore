@@ -44,9 +44,13 @@ SOUND_SYSTEM.md
 # committed baselines/<id>/perf.log + notes; see baselines/README.md
 baselines/media/
 
-# Per-project Dolphin user directory for unattended runs (scripts/dolphin_run.sh).
-# Holds a copy of the card content and the SD image, so it is large.
+# Dolphin user directories for unattended runs (scripts/profile.sh, scripts/dolphin_run.sh).
+# Each run's profile (with its SD image) is deleted when the run ends; named ones (movie_capture,
+# kept profiles) and their locks stay until scripts/profile.sh rm. Several GB each.
+/.profiles/
+# Legacy test profiles from before scripts/profile.sh (about 23 GB together): never commit them.
 /.dolphin/
+/.dolphin2/
 
 # Safe local copies of personal memory cards and save states
 /quarantine/

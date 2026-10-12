@@ -124,8 +124,9 @@ and the recorder no longer fsyncs on every change (a dropped frame per button pr
 
 ## Save states: run settings from one moment
 
-Docs/SAVE_STATES.md. `wsx.sh state NAME GAME --at V [--rec REC]` saves a game at vblank V on
-the test card; `wsx.sh abstate RUN NAME VBL SETS...` runs each settings group ("K=V,K=V", `-`
+Docs/SAVE_STATES.md. `wsx.sh state NAME GAME --at V [--rec REC]` saves a game at vblank V; the
+state is promoted to the library (`C:\wiistation-lib\states\`) when its run ends, and every run
+stages the library's states onto its card. `wsx.sh abstate RUN NAME VBL SETS...` runs each settings group ("K=V,K=V", `-`
 for none) from that moment for VBL vblanks, in one boot, and prints the table. A chain line's
 `State=NAME` does the same by hand. Script lines: `state save|load NAME V`, `statefp V`,
 `statecheck V N` (save, run N, fingerprint; load, run N, fingerprint; `match` or the parts
@@ -359,7 +360,8 @@ hashes in UploadScreen, OpenGX texel checks). The pattern to grep for is a loop 
   `dvd:/PSX Games/<game>` + `.cue`; `menupage 72` = Load from DVD. Same end state as SD
   (Ape Escape ram=c1f11dea, Frogger 900 vbl ram=0d083f06). No DefaultISO = empty drive.
   Dolphin's DVD reads do not show in its log (direct register reads); write a file to
-  sd:/ from the code and read it with `scripts/sdimage_read.py .dolphin/Load/WiiSD.raw`.
+  sd:/ from the code and read it with `scripts/sdimage_read.py <profile>/Load/WiiSD.raw`. A run's
+  profile is deleted at its end: keep it with `KEEP_PROFILE=1`, or run on a named one (`WSX_PROFILE`).
   A Dolphin run whose SD folder changed spends ~40 s repacking before boot: give it 120 s.
 - TWO WIIS: the bench Wii 192.168.8.213 (tests, always via the queue) and the PRODUCTION Wii
   192.168.8.200 (Monty's everyday console, real saves and data): read-only there unless he asks;
@@ -417,9 +419,10 @@ hashes in UploadScreen, OpenGX texel checks). The pattern to grep for is a loop 
 - `wsx.sh menu NAME --dol A.dol [--dol2 B.dol] --page N` opens menu page N (`menupage N`) in
   each build and compares the still picture. `--input FILE` walks the menu frame by frame (a
   file of `menupage` and `menukeys` lines) and compares frame N of A with frame N of B.
-- The run sets `Source = 0` on Wiimotes 1-4 in the profile's WiimoteNew.ini, and restores the
-  file byte for byte at the end (checksum checked). A `WiimoteNew.ini.menu-backup` left behind
-  means an earlier run died. The next run restores from it and stops.
+- The menu runs on its own profile, `menu_NAME`, made from the template and removed at the end
+  (`KEEP_PROFILE=1` keeps it). The run sets `Source = 0` on Wiimotes 1-4 in that profile's
+  WiimoteNew.ini, and the child runs use the profile (`WSX_PROFILE`) without taking its lock.
+  The user's own profile is never touched.
 - The masks are the FPS overlay and the spinning logo. The logo boxes come from
   Gamecube/menu/MenuLayout.h and are padded by 12 px.
 - `--page` takes the last still picture of each run: the page opens a few frames after boot,
@@ -434,4 +437,8 @@ hashes in UploadScreen, OpenGX texel checks). The pattern to grep for is a loop 
 - Code: `scripts/menu_compare.py` (PIL). The Python does the comparing and the bash does the
   Wiimote switch and the restore.
 
-- Parallel agents each need their own Dolphin profile (copy .dolphin2 to .dolphinN, ~5 GB): two agents on one profile refused or collided for an hour on 2026-10-12, and one stray Dolphin made a menu highlight vanish in a capture.
+- Parallel agents: every run gets its own profile, so runs in parallel need no copies. Two runs
+  on different profiles go at once. Two on the same named profile: the second is refused by the
+  lock, and the refusal names the holder (`scripts/profile.sh list`). Do not copy a profile by hand
+  (2026-10-12: that is how `.dolphin_ui` and `.dolphin-shot` came to exist). One stray Dolphin made
+  a menu highlight vanish in a capture, so a menu capture still wants the machine to itself.
