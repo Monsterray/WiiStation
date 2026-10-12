@@ -114,6 +114,7 @@ static void event(const rc_runtime_event_t *e)
     if (e->type != RC_RUNTIME_EVENT_ACHIEVEMENT_TRIGGERED) return;
     for (i = 0; i < count; ++i)
         if (entries[i].id == e->id) entries[i].earned = 1;
+    achievements_flush(); /* a trigger is rare: one small journal append, not a per-frame write */
 }
 
 static void keep_earned(void)
@@ -129,6 +130,7 @@ void achievements_reset(void)
     if (!active) return;
     rc_runtime_reset(&runtime);
     keep_earned();
+    rc_runtime_validate_addresses(&runtime, event, valid_address); /* address validity: once per reset */
     running = 1;
 }
 
@@ -138,7 +140,6 @@ void achievements_frame(void)
 #if defined(PERF_PROF) && PERF_PROF_ACHIEVEMENTS
     unsigned long long started = perf_now_ticks();
 #endif
-    rc_runtime_validate_addresses(&runtime, event, valid_address);
     rc_runtime_do_frame(&runtime, event, achievements_read_memory, NULL, NULL);
 #if defined(PERF_PROF) && PERF_PROF_ACHIEVEMENTS
     unsigned long long elapsed = perf_now_ticks() - started;
@@ -252,6 +253,7 @@ int achievements_load(const char *game_id)
         fclose(f);
     }
     keep_earned();
+    rc_runtime_validate_addresses(&runtime, event, valid_address); /* address validity: once per load */
     running = 1;
     SysPrintf("Local achievements: loaded %u for %s (%u earned)\n", count, game_id, achievements_earned());
     return (int)count;
