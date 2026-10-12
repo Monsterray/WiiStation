@@ -238,6 +238,7 @@ static void layoutConfigureButtons(void)
 	memset(&CB_PAGE, 0, sizeof CB_PAGE);
 	CB_PAGE.logo = eng::LOGO_SPOT_NONE;
 	CB_PAGE.focus = eng::FOCUS_GEOMETRY;
+	CB_PAGE.wrap = true;		/* the old table wrapped at the screen edges */
 	CB_PAGE.freeButtons = CB_FREE;
 	CB_PAGE.nFreeButtons = NUM_FRAME_BUTTONS;
 	CB_PAGE.freeTexts = CB_TEXTS;

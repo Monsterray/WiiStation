@@ -3209,6 +3209,135 @@ static int checkConfigureButtons(void)
 	return bad;
 }
 
+/*  Edge wrap (Page::wrap)  */
+
+static void expectLink(int &bad, const char *where, bool ok, const char *what)
+{
+	if (!ok) {
+		fail(where, what);
+		bad++;
+	}
+}
+
+/* Lays a page out with the wrap flag off and on. With it on, each link the rule made stays the same.
+ * Each link the rule left out may now name a control on the same row or column. Returns the wrap count. */
+static int wrapLinks(const char *where, Page p, Layout &off, Layout &on, int &bad)
+{
+	int n = 0;
+
+	p.wrap = false;
+	if (layoutPage(p, kFont, off) < 0) {
+		fail(where, "the page does not lay out");
+		bad++;
+		return 0;
+	}
+	linkFocus(p, off);
+	p.wrap = true;
+	layoutPage(p, kFont, on);
+	linkFocus(p, on);
+
+	for (int i = 0; i < on.n; i++) {
+		if (!on.c[i].focusable)
+			continue;
+		for (int d = 0; d < DIR_COUNT; d++) {
+			const int was = off.c[i].link[d], now = on.c[i].link[d];
+			const Rect &A = on.c[i].rect;
+			if (was >= 0)
+				expectLink(bad, where, now == was, "a link the rule made changed with wrap on");
+			if (was < 0 && now >= 0) {
+				const Rect &B = on.c[now].rect;
+				const bool horizontal = d == DIR_LEFT || d == DIR_RIGHT;
+				const bool sameLine = horizontal ? (B.y < A.y + A.h && A.y < B.y + B.h)
+				                                 : (B.x < A.x + A.w && A.x < B.x + B.w);
+				n++;
+				expectLink(bad, where, on.c[now].focusable && sameLine,
+				           "a wrap link is not a focusable control in the same row or column");
+			}
+		}
+	}
+	return n;
+}
+
+static void testEdgeWrap(void)
+{
+	/* Row 0: A B C D. Row 1: E F, under A and B. In round 1, D is inactive. */
+	static FreeButton fb[6];
+	static const float at[6][2] = { {20, 20}, {150, 20}, {280, 20}, {410, 20}, {20, 200}, {150, 200} };
+	static Layout off, on;
+	Page p;
+	int bad = 0;
+	const char *where = "wrap";
+
+	printf("Edge wrap (Page::wrap): a 6-button page with and without an inactive button, and Configure Buttons\n");
+	for (int round = 0; round < 2; round++) {
+		for (int i = 0; i < 6; i++) {
+			fb[i].text = "Button";
+			fb[i].x = at[i][0];
+			fb[i].y = at[i][1];
+			fb[i].w = 100;
+			fb[i].h = 40;
+			fb[i].lit = false;
+			fb[i].inactive = round == 1 && i == 3;
+		}
+		memset(&p, 0, sizeof p);
+		p.logo = LOGO_SPOT_NONE;
+		p.focus = FOCUS_GEOMETRY;
+		p.freeButtons = fb;
+		p.nFreeButtons = 6;
+		wrapLinks(where, p, off, on, bad);
+
+		{
+			const int A = on.freeCtl[0], B = on.freeCtl[1], C = on.freeCtl[2];
+			const int D = on.freeCtl[3], E = on.freeCtl[4], F = on.freeCtl[5];
+			const int far = round == 0 ? D : C;	/* the far end of row 0 from A: D, or C with D inactive */
+
+			expectLink(bad, where, off.c[A].link[DIR_LEFT] == -1 && off.c[A].link[DIR_UP] == -1,
+			           "wrap off: an edge has a link");
+			expectLink(bad, where, on.c[A].link[DIR_LEFT] == far, "Left from A does not wrap to the far end of row 0");
+			expectLink(bad, where, on.c[far].link[DIR_RIGHT] == A, "Right from the far end does not wrap to A");
+			expectLink(bad, where, on.c[A].link[DIR_UP] == E, "Up from A does not wrap to the far end of column 0");
+			expectLink(bad, where, on.c[E].link[DIR_DOWN] == A, "Down from E does not wrap to A");
+			expectLink(bad, where, on.c[E].link[DIR_LEFT] == F, "Left from E does not wrap to the far end of row 1");
+			expectLink(bad, where, on.c[A].link[DIR_RIGHT] == B, "Right from A changed");
+			if (round == 1) {
+				bool toInactive = false;
+				for (int i = 0; i < on.n; i++)
+					for (int d = 0; d < DIR_COUNT; d++)
+						if (on.c[i].link[d] == D)
+							toInactive = true;
+				expectLink(bad, where, !toInactive, "a link points at an inactive button");
+			}
+		}
+	}
+
+	/* The real table: Next Pad is the leftmost button of the top row, Gun/Mouse the rightmost. */
+	{
+		static FreeButton cb[30];
+		Page q;
+		for (int i = 0; i < 30; i++) {
+			cb[i].text = "Button";
+			cb[i].x = CB_RECT[i][0];
+			cb[i].y = CB_RECT[i][1];
+			cb[i].w = CB_RECT[i][2];
+			cb[i].h = CB_RECT[i][3];
+			cb[i].lit = false;
+			cb[i].inactive = false;
+		}
+		memset(&q, 0, sizeof q);
+		q.logo = LOGO_SPOT_NONE;
+		q.focus = FOCUS_GEOMETRY;
+		q.freeButtons = cb;
+		q.nFreeButtons = 30;
+		const int n = wrapLinks("ConfigureButtons", q, off, on, bad);
+		expectLink(bad, "ConfigureButtons", on.c[on.freeCtl[0]].link[DIR_LEFT] == on.freeCtl[29],
+		           "Left from Next Pad does not wrap to Gun/Mouse");
+		expectLink(bad, "ConfigureButtons", off.c[off.freeCtl[0]].link[DIR_LEFT] == -1,
+		           "wrap off: Left from Next Pad has a link");
+		printf("        ConfigureButtons: %d links wrap with the flag on\n", n);
+	}
+	printf("  Edge wrap  far ends, inactive skipped, wrap off unchanged  %s\n", bad ? "FAILED" : "ok");
+}
+
 int main(int argc, char **argv)
 {
 	const char *font = argc > 1 ? argv[1] : "fonts/En.dat";
@@ -3236,6 +3365,7 @@ int main(int argc, char **argv)
 	checkCoopPage();
 	checkConfigureInput();
 	checkConfigureButtons();
+	testEdgeWrap();
 	testLinkOverrides();
 	reportGeometry();
 	testCheckCatches();

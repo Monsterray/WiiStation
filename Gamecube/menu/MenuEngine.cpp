@@ -608,10 +608,50 @@ static void linkList(const Page &p, Layout &lay)
 	}
 }
 
+/* The distance along direction d from an offset (dx, dy), and the offset sideways. */
+static void alongSide(int d, float dx, float dy, float &along, float &side)
+{
+	switch (d) {
+	case DIR_LEFT:  along = -dx; side = dy; break;
+	case DIR_RIGHT: along =  dx; side = dy; break;
+	case DIR_UP:    along = -dy; side = dx; break;
+	default:        along =  dy; side = dx; break;
+	}
+}
+
+/* Edge wrap: the farthest focusable control on the origin's row or column, on the side opposite d.
+ * Returns -1 when there is none. */
+static int edgeWrap(const Layout &lay, const int cand[], int nc, int a, int d)
+{
+	const Control &A = lay.c[cand[a]];
+	const float ax = A.rect.x + A.rect.w / 2, ay = A.rect.y + A.rect.h / 2;
+	const int od = d ^ 1;		/* the enum's pairs: UP/DOWN, LEFT/RIGHT */
+	const bool horizontal = d == DIR_LEFT || d == DIR_RIGHT;
+	int best = -1;
+	float bestAlong = 1.0f;
+
+	for (int b = 0; b < nc; b++) {
+		const Control &B = lay.c[cand[b]];
+		float along, side;
+		if (b == a)
+			continue;
+		if (horizontal ? !(B.rect.y < A.rect.y + A.rect.h && A.rect.y < B.rect.y + B.rect.h)
+		               : !(B.rect.x < A.rect.x + A.rect.w && A.rect.x < B.rect.x + B.rect.w))
+			continue;
+		alongSide(od, (B.rect.x + B.rect.w / 2) - ax, (B.rect.y + B.rect.h / 2) - ay, along, side);
+		if (along > bestAlong) {
+			bestAlong = along;
+			best = cand[b];
+		}
+	}
+	return best;
+}
+
 /* CustomizeCoopFrame's rule: from each focusable control, the nearest other one in each
  * direction, scored as along + 2 x the sideways offset, so a straight line wins. Controls
- * further than one pixel behind the origin are not candidates. */
-static void linkGeometry(Layout &lay)
+ * further than one pixel behind the origin are not candidates. With wrap, a direction that
+ * finds none takes edgeWrap() instead. */
+static void linkGeometry(Layout &lay, bool wrap)
 {
 	int cand[MAX_CONTROLS], nc = 0;
 
@@ -632,12 +672,7 @@ static void linkGeometry(Layout &lay)
 				const Control &B = lay.c[cand[b]];
 				const float dx = (B.rect.x + B.rect.w / 2) - ax, dy = (B.rect.y + B.rect.h / 2) - ay;
 				float along, side, cost;
-				switch (d) {
-				case DIR_LEFT:  along = -dx; side = dy; break;
-				case DIR_RIGHT: along =  dx; side = dy; break;
-				case DIR_UP:    along = -dy; side = dx; break;
-				default:        along =  dy; side = dx; break;
-				}
+				alongSide(d, dx, dy, along, side);
 				if (along <= 1.0f)
 					continue;
 				cost = along + 2.0f * fabsf(side);
@@ -646,6 +681,8 @@ static void linkGeometry(Layout &lay)
 					best = cand[b];
 				}
 			}
+			if (best < 0 && wrap)
+				best = edgeWrap(lay, cand, nc, a, d);
 			lay.c[cand[a]].link[d] = best;
 		}
 	}
@@ -729,7 +766,7 @@ void linkFocus(const Page &p, Layout &lay)
 			lay.c[i].link[d] = -1;
 
 	if (p.focus == FOCUS_GEOMETRY)
-		linkGeometry(lay);
+		linkGeometry(lay, p.wrap);
 	else
 		linkRows(p, lay);
 	linkList(p, lay);
