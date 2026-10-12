@@ -32,6 +32,9 @@ What it checks:
 """
 import os, re, struct, sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import settings_check   # the OPTIONS table: a setting button's words come from it
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OPTS = os.path.join(ROOT, 'Gamecube', 'menu', 'OptionsFrame.cpp')
 TABS = os.path.join(ROOT, 'Gamecube', 'menu', 'SettingsFrame.cpp')
@@ -49,21 +52,16 @@ TAB_STRIP = [0, 1, 2, 3, 4]
 # (OptionsFrame), which button 78 opens. 74 is the CD page, now an Advanced tab.
 HIDDEN_BUTTONS = {5, 6, 58, 64, 65, 66, 42, 43, 44, 60, 61, 74, 25, 26, 27}
 
-# Buttons whose label is not the string their table entry names: activateSubmenu or a
-# click handler swaps in one of a set, and the button has to fit all of them.
+# Buttons whose label is not the string their table entry names: a click handler swaps in one
+# of a set, and the button has to fit all of them. A setting button (a key in its entry) takes
+# every choice from the OPTIONS table instead, so only the memory cards are listed here.
 CYCLING = {
-    22: ['4:3', '16:9', 'Force 16:9'],                  # FRAME_STRINGS[27 + screenMode]
-    28: ['Default', 'Near', 'Bilinear'],                # TEXTURE_FILTER_STRINGS
-    38: ['Default', '1', '2', '3', '4'],                # Auto Load Slot
-    45: ['Simple', 'Gaussian'],                         # FRAME_STRINGS[46 + spuInterpolation]
-    54: ['En', 'Chs', 'Kr', 'Es', 'Pte', 'It', 'De',    # LANG_STRINGS
-         'Cht', 'Jp', 'Fr', 'Br', 'Ca', 'Tu'],
-    59: ['Off', 'GunCon', 'Justifier', 'Mouse'],        # FRAME_STRINGS[70 + lightGun]
-    76: ['Off', 'Shared', 'Game'],                             # FRAME_STRINGS[92 + memCardFile[0]]
-    77: ['Off', 'Shared', 'Game'],                             # FRAME_STRINGS[92 + memCardFile[1]]
+    76: ['Off', 'Shared', 'Game'],                      # cardText(): Memcard0 Off, or Memcard0File
+    77: ['Off', 'Shared', 'Game'],                      # cardText(): Memcard1 Off, or Memcard1File
 }
 
-STRING_TABLES = ('FRAME_STRINGS', 'LANG_STRINGS', 'GPU_PLUGIN_STRINGS', 'TEXTURE_FILTER_STRINGS')
+STRING_TABLES = ('FRAME_STRINGS', 'GPU_PLUGIN_STRINGS')
+KEYED = re.compile(r'"(\w+)",\s*([^,}]+?)\s*\}')    # a setting button's key and value
 BUTTON_LINE = '{\tNULL'
 
 
@@ -97,6 +95,18 @@ def _button_body(src):
     return src[start:src.index('\n};', start)]
 
 
+def table_texts(key, value):
+    """What a setting button shows, from the OPTIONS table: its label, its choice, or every
+    choice of a cycle (SETTING_CURRENT)."""
+    row = {r['key']: r for r in settings_check.table()}[key]
+    if value == 'SETTING_LABEL':
+        return [row['label']]
+    if value == 'SETTING_CURRENT':
+        return list(row['texts'])
+    v = settings_check.evaluate(value, settings_check.c_constants())
+    return [row['texts'][v - row['min']]]
+
+
 def button_labels():
     """Every label every button can show, by index."""
     src = open(TABS, encoding='utf-8').read()
@@ -113,6 +123,10 @@ def button_labels():
         idx += 1
         if idx in CYCLING:
             out[idx] = CYCLING[idx]
+            continue
+        km = KEYED.search(line.split('//')[0])
+        if km:
+            out[idx] = table_texts(km.group(1), km.group(2))
             continue
         m = re.search(r'(\w+)\[([0-9]+)\]', line.split('//')[0])
         out[idx] = [strings[m.group(1)][int(m.group(2))]] if m and m.group(1) in strings else []
@@ -136,7 +150,7 @@ def right_edge(d, bottom):
 
 SET_PAGE_RE = re.compile(r'\{\s*SettingsFrame::SUBMENU_(\w+),\s*(\w+),\s*COUNT\(\w+\),\s*([0-9.]+)f?,')
 SET_ROW_RE = re.compile(
-    r'\{\s*eng::(ROW_\w+),\s*(FRAME_STRINGS\[\d+\]|NULL),\s*\{([^}]*)\},\s*\{([^}]*)\},\s*'
+    r'\{\s*eng::(ROW_\w+),\s*(NULL|"\w+"),\s*(FRAME_STRINGS\[\d+\]|NULL|"[^"]*"),\s*\{([^}]*)\},\s*\{([^}]*)\},\s*'
     r'(-?[0-9.]+)f?,\s*([0-9.]+)f?,\s*(\d+)\s*\}')
 
 
@@ -149,10 +163,11 @@ def settings_pages():
     for tab, rows_name, dy in SET_PAGE_RE.findall(src):
         m = re.search(r'static const SetRow ' + rows_name + r'\[\] =\s*\{(.*?)\n\};', src, re.S)
         rows = []
-        for kind, label, btns, ws, x0, gap, plain in SET_ROW_RE.findall(m.group(1)):
+        for kind, key, label, btns, ws, x0, gap, plain in SET_ROW_RE.findall(m.group(1)):
             buttons = [int(v) for v in re.findall(r'-?\d+', btns) if int(v) >= 0]
             widths = [float(v) for v in re.findall(r'\d+(?:\.\d+)?', ws)][:len(buttons)]
-            rows.append({'kind': kind, 'label': label != 'NULL', 'buttons': buttons,
+            # a row with a key has the table's label, unless it gives its own
+            rows.append({'kind': kind, 'label': label != 'NULL' or key != 'NULL', 'buttons': buttons,
                          'widths': widths, 'x0': float(x0), 'gap': float(gap), 'plain': int(plain)})
         pages.append((tab, float(dy), rows))
     return pages

@@ -17,6 +17,11 @@ The OPTIONS table in Gamecube/GamecubeMain.cpp is the one source. The checks:
   5. A labelled row has one choice text for each value. It has one help line.
   6. Each ROW_CYCLE/ROW_RADIO row of Gamecube/menu/OptionsFrame.cpp names a key of the
      table, and the table gives that key a label. The menu's text is the table's.
+  7. Settings screens (Gamecube/menu/SettingsFrame.cpp): each row with a key names a key of
+     the table. A row's label override is a quoted text that differs from the table's label
+     (an override equal to the table's is redundant). A setting button names a key and a
+     value the table gives: SETTING_LABEL needs a label, SETTING_CURRENT needs choices, a
+     number or a constant needs to be in the table's range.
 
 Exit 1 on any difference.
 """
@@ -99,11 +104,12 @@ def unquote(text):
 
 def table():
     """the value rows of OPTIONS: dicts with section, key, min, max (None for a text setting),
-    label, choices (the count of choice texts, or None) and help. A NULL value starts a section."""
+    label, choices (the count of choice texts, or None), texts (the choice texts themselves, or
+    None) and help. A NULL value starts a section."""
     consts = c_constants()
     s = (REPO / "Gamecube/GamecubeMain.cpp").read_text(encoding="utf-8")
-    counts = {m.group(1): len(re.findall(r'"', m.group(2))) // 2
-              for m in re.finditer(r"static const char\* const (OPT_\w+)\[\]\s*=\s*\{([^}]*)\}", s)}
+    texts = {m.group(1): re.findall(r'"((?:[^"\\]|\\.)*)"', m.group(2))
+             for m in re.finditer(r"static const char\* const (OPT_\w+)\[\]\s*=\s*\{([^}]*)\}", s)}
     t = s[s.index("OPTIONS[] ="):]
     t = t[:t.index("};")]
 
@@ -123,7 +129,8 @@ def table():
             "section": sec, "key": m.group(1),
             "min": number(f[1]), "max": number(f[2]),
             "label": unquote(f[4]) if len(f) > 4 and f[4] != "NULL" else None,
-            "choices": counts[f[5]] if len(f) > 5 and f[5] != "NULL" else None,
+            "choices": len(texts[f[5]]) if len(f) > 5 and f[5] != "NULL" else None,
+            "texts": texts[f[5]] if len(f) > 5 and f[5] != "NULL" else None,
             "help": unquote(f[6]) if len(f) > 6 and f[6] != "NULL" else None,
         })
     return out
@@ -302,7 +309,69 @@ def main():
             bad = 1
             print(f"OptionsFrame.cpp: row key '{k}' has no label in OPTIONS")
 
-    print(f"checked {len(rows)} keys, {checked} ranges, {labelled} menu labels, {len(frame_rows)} frame rows")
+    # 7. the Settings screens: row keys, label overrides, and the keyed buttons' values
+    consts = c_constants()
+    sf = (REPO / "Gamecube/menu/SettingsFrame.cpp").read_text(encoding="utf-8")
+    sf = re.sub(r"/\*.*?\*/", "", sf, flags=re.S)
+    sf = re.sub(r"(?m)^\s*//[^\n]*", "", sf)
+    row_re = re.compile(r'\{\s*eng::ROW_\w+,\s*(NULL|"\w+"),\s*(NULL|"[^"]*"|FRAME_STRINGS\[\d+\])\s*,')
+    rows_keyed = overrides = 0
+    for m in row_re.finditer(sf):
+        key, label = m.group(1), m.group(2)
+        if key == "NULL":
+            continue
+        k = unquote(key)
+        rows_keyed += 1
+        if k not in by_key:
+            bad = 1
+            print(f"SettingsFrame.cpp: row key '{k}' is not in OPTIONS")
+            continue
+        if label == "NULL":
+            if by_key[k]["label"] is None:
+                bad = 1
+                print(f"SettingsFrame.cpp: row key '{k}' has no label in OPTIONS and no override")
+        elif label.startswith('"'):
+            overrides += 1
+            if unquote(label) == by_key[k]["label"]:
+                bad = 1
+                print(f"SettingsFrame.cpp: row '{k}' overrides the label with the table's own, remove it")
+        else:
+            bad = 1
+            print(f"SettingsFrame.cpp: row '{k}' has a string-table label; a keyed row takes the table's or an override")
+    button_re = re.compile(r'\{\s*NULL,\s*BTN_\w+,\s*[^,]+,\s*Func_\w+,\s*Func_\w+,\s*"(\w+)",\s*([^}]+?)\s*\}')
+    buttons = 0
+    for m in button_re.finditer(sf):
+        key, val = m.group(1), m.group(2)
+        buttons += 1
+        if key not in by_key:
+            bad = 1
+            print(f"SettingsFrame.cpp: button key '{key}' is not in OPTIONS")
+            continue
+        r = by_key[key]
+        if val == "SETTING_LABEL":
+            if r["label"] is None:
+                bad = 1
+                print(f"SettingsFrame.cpp: button '{key}' shows a label the table does not have")
+        elif val == "SETTING_CURRENT":
+            if r["choices"] is None:
+                bad = 1
+                print(f"SettingsFrame.cpp: button '{key}' is a cycle, the table has no choices")
+        else:
+            try:
+                v = evaluate(val, consts)
+            except ValueError:
+                bad = 1
+                print(f"SettingsFrame.cpp: button '{key}' value '{val}' is not a constant")
+                continue
+            if r["min"] is None or not (r["min"] <= v <= r["max"]):
+                bad = 1
+                print(f"SettingsFrame.cpp: button '{key}' value {val} is outside the table's range")
+            elif r["choices"] is None or not (0 <= v - r["min"] < r["choices"]):
+                bad = 1
+                print(f"SettingsFrame.cpp: button '{key}' value {val} has no choice text in the table")
+
+    print(f"checked {len(rows)} keys, {checked} ranges, {labelled} menu labels, {len(frame_rows)} frame rows, "
+          f"{rows_keyed} settings rows ({overrides} overrides), {buttons} setting buttons")
     print("settings: ok" if not bad else "settings: DIFFERENT")
     return bad
 
