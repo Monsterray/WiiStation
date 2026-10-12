@@ -1,0 +1,23 @@
+# spyro_speech.txt through New Game and the no-save warning (Start at 2904, 2923), then no input: the opening movie plays
+354 0000
+1500 0008   # Start
+1504 0000
+1565 0008   # Start
+1570 0000
+1712 0008   # Start
+1716 0000
+1755 0080   # Left
+1764 0000
+1783 0008   # Start
+1787 0000
+1793 0008   # Start
+1798 0000
+1832 0008   # Start
+1838 0000
+2904 0008   # Start
+2912 0000
+2923 0008   # Start
+2931 0000
+tracebox 280 0 430 511
+trace 4200
+trace 4300

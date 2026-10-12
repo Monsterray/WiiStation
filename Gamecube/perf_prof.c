@@ -186,6 +186,22 @@ static void perf_sample_mem(void)
 extern unsigned short *psxVuw;
 extern unsigned autoinput_dump_vbl;
 static int autoinput_dump_vbl_set(void) { return autoinput_dump_vbl != 0; }
+/* The XFB the TV shows: an 8-byte header (width, height, big-endian u32) and YUYV.
+ * Under Dolphin it holds the copies only with XFB_RAM=1 (XFBToTextureEnable=False). */
+static void perf_xfb_write(const char *path)
+{
+	extern u32 *xfb[3];
+	extern unsigned g_xfb_w, g_xfb_h;
+	unsigned hdr[2] = { g_xfb_w, g_xfb_h };
+	FILE *f = fopen(path, "wb");
+	if (f) {
+		fwrite(hdr, 4, 2, f);
+		if (xfb[2])   /* FB_FRONT in SoftGPU/drawGX.c */
+			fwrite(MEM_K1_TO_K0(xfb[2]), 2, g_xfb_w * g_xfb_h, f);
+		fclose(f);
+	}
+}
+
 static void perf_vram_dump(void)
 {
 	size_t n = 0;
@@ -196,18 +212,7 @@ static void perf_vram_dump(void)
 	}
 	/* The XFB the TV shows: an 8-byte header (width, height, big-endian u32) and YUYV.
 	 * Under Dolphin it holds the copies only with XFB_RAM=1 (XFBToTextureEnable=False). */
-	{
-		extern u32 *xfb[3];
-		extern unsigned g_xfb_w, g_xfb_h;
-		unsigned hdr[2] = { g_xfb_w, g_xfb_h };
-		f = fopen("sd:/wiistation/xfb.bin", "wb");
-		if (f) {
-			fwrite(hdr, 4, 2, f);
-			if (xfb[2])   /* FB_FRONT in SoftGPU/drawGX.c */
-				fwrite(MEM_K1_TO_K0(xfb[2]), 2, g_xfb_w * g_xfb_h, f);
-			fclose(f);
-		}
-	}
+	perf_xfb_write("sd:/wiistation/xfb.bin");
 	f = fopen("sd:/wiistation/perf.log", "a");
 	if (f) {
 		fprintf(f, "vramdump: frames=%lu vblanks=%lu bytes=%lu\n",
@@ -268,6 +273,7 @@ void perf_audio_event(unsigned kind, unsigned cycle, int a, int b, unsigned c)
 }
 extern unsigned autoinput_trace_vbl[8];       /* PadWiiSX.c: 'trace <vblank>' lines */
 extern int autoinput_trace_n;
+extern int autoinput_tbox[4], autoinput_tbox_on;   /* PadWiiSX.c: 'tracebox x0 y0 x1 y1' */
 static int trace_sched_next = 0;
 #if PERF_PROF_TRACE
 static void perf_trace_flush(void);
@@ -278,8 +284,12 @@ void perf_prim_trace(unsigned cmd, unsigned flags, unsigned abr, unsigned color,
 	if (trace_sched_next < autoinput_trace_n && frame_counter >= autoinput_trace_vbl[trace_sched_next]) {
 		trace_sched_next++; sched = 1;
 	}
-	int trigger = ((flags & 3) == 1 && cmd >= 0x20 && cmd < 0x80 && (x1 - x0) >= 200 && (y1 - y0) >= 150) ||
+	int trigger = (!autoinput_trace_n && (flags & 3) == 1 && cmd >= 0x20 && cmd < 0x80 && (x1 - x0) >= 200 && (y1 - y0) >= 150) ||
 	              (PERF_PT_ARM_PRESENT && !g_perf.pt_armed && g_perf.present_frames >= PERF_PT_ARM_PRESENT);
+	/* tracebox: a primitive outside the rectangle is not recorded (synthetic entries >= 0xC0 are) */
+	if (autoinput_tbox_on && !sched && (cmd < 0xC0 || cmd == 0xC9) &&
+	    (x1 < autoinput_tbox[0] || x0 > autoinput_tbox[2] || y1 < autoinput_tbox[1] || y0 > autoinput_tbox[3]))
+		return;
 	if (sched) {
 		/* scheduled capture: start a fresh episode now, whatever the primitive */
 		if (g_perf.pt_armed && !g_perf.pt_printed) perf_trace_flush();
@@ -312,12 +322,12 @@ void perf_prim_trace(unsigned cmd, unsigned flags, unsigned abr, unsigned color,
 	}
 	/* keep the ring for what matters: once a quarter full, small opaque
 	 * polygons are counted but no longer stored */
-	if (g_perf.pt_n >= 650 && cmd >= 0x20 && cmd < 0x80 && !(flags & 1) && (x1 - x0) * (y1 - y0) < 60000) return;
+	if (!autoinput_tbox_on && g_perf.pt_n >= 650 && cmd >= 0x20 && cmd < 0x80 && !(flags & 1) && (x1 - x0) * (y1 - y0) < 60000) return;
 	/* a scene that draws hundreds of SMALL SEMI-TRANSPARENT primitives per present
 	 * (Crash 3's title glow: 479 of them) fills the ring in five presents, so the
 	 * whole-screen primitive at the end of each present never reaches the log.
 	 * Past half full, keep only the big ones, whatever their blend. */
-	if (g_perf.pt_n >= 1300 && cmd >= 0x20 && cmd < 0x80 && (x1 - x0) * (y1 - y0) < 60000) return;
+	if (!autoinput_tbox_on && g_perf.pt_n >= 1300 && cmd >= 0x20 && cmd < 0x80 && (x1 - x0) * (y1 - y0) < 60000) return;
 	if (g_perf.pt_n < 2600) {
 		unsigned k = g_perf.pt_n++;
 		g_perf.pt[k].present = (uint16_t)idx; g_perf.pt[k].cmd = (uint8_t)cmd; g_perf.pt[k].flags = (uint8_t)flags;
@@ -886,6 +896,18 @@ void perf_vblank_tick(void)
 				fprintf(pf, "padtype: vblank=%u port=%u type=%u\n", frame_counter, pt_port + 1, pt_type);
 				fclose(pf);
 			}
+		}
+	}
+	/* "xfb <vblank>" lines: the picture on the TV at each of those vblanks, xfb_01.bin ...
+	 * (scripts/xfb2png.py), so two builds or plugins compare at the same guest moment */
+	{
+		extern unsigned autoinput_xfb_vbl[16];
+		extern int autoinput_xfb_n;
+		static int xfb_next;
+		while (xfb_next < autoinput_xfb_n && frame_counter >= autoinput_xfb_vbl[xfb_next]) {
+			char path[48];
+			sprintf(path, "sd:/wiistation/xfb_%02d.bin", ++xfb_next);
+			perf_xfb_write(path);
 		}
 	}
 	if (!g_perf.vram_dumped && autoinput_dump_vbl && frame_counter >= autoinput_dump_vbl) {

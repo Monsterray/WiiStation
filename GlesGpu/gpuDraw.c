@@ -707,6 +707,9 @@ static __inline BOOL CheckCoord2()
 BOOL offsetline(void)
 {
  short x0,x1,y0,y1,dx,dy;float px,py;
+#if PERF_PROF_GPU
+ perf_prim_trace(0xC9, 0, 0, 0, lx0 < lx1 ? lx0 : lx1, ly0 < ly1 ? ly0 : ly1, lx0 < lx1 ? lx1 : lx0, ly0 < ly1 ? ly1 : ly0);   /* C9 = a line given to offsetline, before its checks */
+#endif
 
  if(bDisplayNotSet)
   SetOGLDisplaySettings(1);

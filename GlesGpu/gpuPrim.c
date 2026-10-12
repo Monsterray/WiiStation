@@ -2111,6 +2111,9 @@ static inline void cmdSTP ( unsigned char * baseAddr )
 
     STATUSREG &= ~0x1800;                                 // clear the necessary bits
     STATUSREG |= ( ( gdata & 0x03 ) << 11 );              // set the current bits
+#if PERF_PROF_GPU
+    perf_prim_trace(0xE6, 0, 0, gdata, (int)(gdata & 1), (int)((gdata >> 1) & 1), iUseMask, 0);   /* E6: x0 = set mask, y0 = check mask, x1 = OpenGX mask emulation on */
+#endif
 
     if ( !iUseMask ) return;
 
