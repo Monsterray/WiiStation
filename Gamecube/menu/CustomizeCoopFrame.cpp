@@ -7,6 +7,10 @@
  * inversion). Each button lights when this player has it; the presets above choose a set,
  * and each button turns on or off by itself (the Custom layout, kept in CoopPButtonsK).
  *
+ * The page is on the menu engine (Docs/MENU_FRAMEWORK_PLAN.md, step 5): its 24 buttons are
+ * free buttons at the rectangles this file gives, and its focus is the engine's geometry rule
+ * (the nearest button in each direction). The controller picture and its lines are drawn here.
+ *
  * This program is free software; you can redistribute it and/
  * or modify it under the terms of the GNU General Public Li-
  * cence as published by the Free Software Foundation; either
@@ -14,23 +18,29 @@
 **/
 
 #include <stdio.h>
+#include <string.h>
 #include "MenuContext.h"
+#include "MenuEngine.h"	/* before Button.h: its include guard is BUTTON_H, a name the engine uses */
 #include "ConfigureInputFrame.h"
 #include "CustomizeCoopFrame.h"
 #include "../libgui/GuiTypes.h"
 #include "../libgui/GuiResources.h"
 #include "../libgui/Button.h"
 #include "../libgui/Image.h"
+#include "../libgui/IPLFont.h"
 #include "../libgui/TextBox.h"
 #include "../libgui/resources.h"
 #include "../libgui/FocusManager.h"
 #include "../libgui/CursorManager.h"
+#include "MenuGlue.h"
 extern "C" {
 #include "../gc_input/controller.h"
 #include "../wiiSXconfig.h"
 }
 
 extern MenuContext *pMenuContext;
+
+namespace eng = menu::engine;
 
 static int coopPort, coopPlayer;   /* whose layout this page shows */
 
@@ -56,8 +66,8 @@ static void Func_LayoutShoulders() { setLayout(COOP_LAYOUT_SHOULDERS); }
 enum { IND_L1, IND_L2, IND_SELECT, IND_START, IND_R1, IND_R2, IND_DUP, IND_DLEFT, IND_DRIGHT,
        IND_DDOWN, IND_TRI, IND_SQU, IND_CIR, IND_CRO, IND_LSTICK, IND_RSTICK, IND_L3, IND_R3,
        NUM_INDICATORS };
-#define NUM_PRESETS COOP_LAYOUT_CUSTOM   /* Custom is no button: a toggled set that is no preset */
-#define NUM_FRAME_BUTTONS (NUM_PRESETS + NUM_INDICATORS)
+static const int NUM_PRESETS = COOP_LAYOUT_CUSTOM;   /* Custom is no button: a toggled set that is no preset */
+static const int NUM_FRAME_BUTTONS = NUM_PRESETS + NUM_INDICATORS;
 
 static char indicatorNames[NUM_INDICATORS][10] = {
 	"L1", "L2", "Select", "Start", "R1", "R2", "Up", "Left", "Right", "Down",
@@ -119,68 +129,92 @@ static void presetRect(int i, float *x, float *y)
 	*y = i < 3 ? 12.0f : 50.0f;
 }
 
-CustomizeCoopFrame::CustomizeCoopFrame()
+/*  The page, on the engine  */
+
+static eng::FreeButton COOP_FREE[NUM_FRAME_BUTTONS];
+static eng::Page       COOP_PAGE;
+static eng::Layout     COOP_LAYOUT;
+
+/* The engine's text widths: IplFont, as the other frames use it. */
+/* The button a layout control is, or NULL. */
+static menu::Button *buttonAt(int control)
+{
+	for (int k = 0; k < NUM_FRAME_BUTTONS; k++)
+		if (COOP_LAYOUT.freeCtl[k] == control)
+			return buttons[k];
+	return NULL;
+}
+
+/* The page as the engine lays it out: each button at its rectangle, its lit state from COOP_FREE,
+ * the title centred at y 112 (no logo). Focus is the engine's geometry rule, which links every
+ * button to the nearest one in each direction. Laid out when the page is shown (activateSubmenu),
+ * never per frame. */
+static void layoutCoop(void)
 {
 	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
 	{
-		float x, y, w, h;
+		eng::FreeButton &b = COOP_FREE[i];
 		if (i < NUM_PRESETS)
 		{
-			snprintf(presetNames[i], sizeof(presetNames[i]), "%s", coop_layout_names[i]);
-			buttonStrings[i] = presetNames[i];
-			presetRect(i, &x, &y);
-			w = 190.0f; h = 34.0f;
+			presetRect(i, &b.x, &b.y);
+			b.w = 190.0f; b.h = 34.0f;
 		}
 		else
 		{
 			const float *r = indicatorRect[i - NUM_PRESETS];
-			buttonStrings[i] = indicatorNames[i - NUM_PRESETS];
-			x = r[0]; y = r[1]; w = r[2]; h = r[3];
+			b.x = r[0]; b.y = r[1]; b.w = r[2]; b.h = r[3];
 		}
-		buttons[i] = new menu::Button(BTN_A_SEL, &buttonStrings[i], x, y, w, h);
-		buttons[i]->setBounds(x, y, w, h);   /* style A makes itself 56 high otherwise */
+		b.text = buttonStrings[i];
+		b.inactive = false;
+	}
+	memset(&COOP_PAGE, 0, sizeof COOP_PAGE);
+	COOP_PAGE.title        = titleString;
+	COOP_PAGE.titleY       = 112.0f;
+	COOP_PAGE.logo         = eng::LOGO_SPOT_NONE;
+	COOP_PAGE.focus        = eng::FOCUS_GEOMETRY;
+	COOP_PAGE.freeButtons  = COOP_FREE;
+	COOP_PAGE.nFreeButtons = NUM_FRAME_BUTTONS;
+	eng::layoutPage(COOP_PAGE, menu::glue::METRICS, COOP_LAYOUT);
+	eng::linkFocus(COOP_PAGE, COOP_LAYOUT);
+}
+
+/* The button drawn for a layout control. */
+static menu::Button *coopButtonOf(const eng::Control &c)
+{
+	return buttonAt(int(&c - COOP_LAYOUT.c));
+}
+
+CustomizeCoopFrame::CustomizeCoopFrame()
+{
+	for (int i = 0; i < NUM_PRESETS; i++)
+	{
+		snprintf(presetNames[i], sizeof(presetNames[i]), "%s", coop_layout_names[i]);
+		buttonStrings[i] = presetNames[i];
+	}
+	for (int i = NUM_PRESETS; i < NUM_FRAME_BUTTONS; i++)
+		buttonStrings[i] = indicatorNames[i - NUM_PRESETS];
+	layoutCoop();
+
+	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
+	{
+		const eng::Control &c = COOP_LAYOUT.c[COOP_LAYOUT.freeCtl[i]];
+		buttons[i] = new menu::Button(BTN_A_SEL, &buttonStrings[i], c.rect.x, c.rect.y, c.rect.w, c.rect.h);
+		buttons[i]->setBounds(c.rect.x, c.rect.y, c.rect.w, c.rect.h);   /* style A makes itself 56 high otherwise */
 		buttons[i]->setActive(true);
 		buttons[i]->setClicked(i < NUM_PRESETS ? presetFuncs[i] : toggleFuncs[i - NUM_PRESETS]);
 		buttons[i]->setReturn(Func_ReturnFromCustomizeCoopFrame);
 		add(buttons[i]);
-		menu::Cursor::getInstance().addComponent(this, buttons[i], x, x + w, y, y + h);
+		menu::Cursor::getInstance().addComponent(this, buttons[i], c.rect.x, c.rect.x + c.rect.w,
+		                                         c.rect.y, c.rect.y + c.rect.h);
 	}
-	/* The D-pad goes to the nearest button that way, from the buttons' centres: a step
-	 * along the direction plus twice the sideways offset, so a straight line wins. */
+	/* The engine's links (linkFocus, FOCUS_GEOMETRY). */
 	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
-	{
-		static const int dirs[4] = { menu::Focus::DIRECTION_LEFT, menu::Focus::DIRECTION_RIGHT,
-		                             menu::Focus::DIRECTION_UP, menu::Focus::DIRECTION_DOWN };
-		float cx[NUM_FRAME_BUTTONS], cy[NUM_FRAME_BUTTONS];
-		for (int j = 0; j < NUM_FRAME_BUTTONS; j++)
-		{
-			float x, y, w, h;
-			if (j < NUM_PRESETS) { presetRect(j, &x, &y); w = 190.0f; h = 34.0f; }
-			else { const float *r = indicatorRect[j - NUM_PRESETS]; x = r[0]; y = r[1]; w = r[2]; h = r[3]; }
-			cx[j] = x + w / 2; cy[j] = y + h / 2;
-		}
-		for (int d = 0; d < 4; d++)
-		{
-			int best = -1;
-			float bestCost = 1e9f;
-			for (int j = 0; j < NUM_FRAME_BUTTONS; j++)
-			{
-				float dx = cx[j] - cx[i], dy = cy[j] - cy[i], along, side;
-				if (d == 0) { along = -dx; side = dy; } else if (d == 1) { along = dx; side = dy; }
-				else if (d == 2) { along = -dy; side = dx; } else { along = dy; side = dx; }
-				if (j == i || along <= 1.0f)
-					continue;
-				float cost = along + 2.0f * (side < 0 ? -side : side);
-				if (cost < bestCost) { bestCost = cost; best = j; }
-			}
-			if (best >= 0)
-				buttons[i]->setNextFocus(dirs[d], buttons[best]);
-		}
-	}
-	title = new menu::TextBox(&titlePtr, 320.0f, 112.0f, 1.0f, true);
+		menu::glue::linkFocus(buttons[i], COOP_LAYOUT, COOP_LAYOUT.c[COOP_LAYOUT.freeCtl[i]], coopButtonOf);
+	const eng::Control &t = COOP_LAYOUT.c[COOP_LAYOUT.title];
+	title = new menu::TextBox(&titlePtr, t.ax, t.ay, 1.0f, true);
 	add(title);
 
-	setDefaultFocus(buttons[0]);
+	setDefaultFocus(buttonAt(COOP_LAYOUT.defaultFocus));
 	setBackFunc(Func_ReturnFromCustomizeCoopFrame);
 	setEnabled(true);
 }
@@ -213,7 +247,7 @@ void CustomizeCoopFrame::activateSubmenu(int submenu)
 		coopAssign[coopPort][coopPlayer] + 1, layout == COOP_LAYOUT_CUSTOM ? ", custom" : "");
 
 	for (int i = 0; i < NUM_PRESETS; i++)
-		buttons[i]->setSelected(i == layout);
+		COOP_FREE[i].lit = (i == layout);
 	b.All = coop_player_buttons(coopPort, coopPlayer, &sticks);
 	const bool lit[NUM_INDICATORS] = {
 		(bool)b.L1_BUTTON, (bool)b.L2_BUTTON, (bool)b.SELECT_BUTTON, (bool)b.START_BUTTON,
@@ -221,6 +255,17 @@ void CustomizeCoopFrame::activateSubmenu(int submenu)
 		(bool)b.D_DPAD, (bool)b.TRIANGLE_BUTTON, (bool)b.SQUARE_BUTTON, (bool)b.CIRCLE_BUTTON,
 		(bool)b.CROSS_BUTTON, (sticks & COOP_STICK_L) != 0, (sticks & COOP_STICK_R) != 0,
 		(bool)b.L3_BUTTON, (bool)b.R3_BUTTON };
+	for (int i = 0; i < NUM_INDICATORS; i++)
+		COOP_FREE[NUM_PRESETS + i].lit = lit[i];
+
+	/* The title's text is new, and so are the lit states: the page is laid out again, as it is shown. */
+	layoutCoop();
+	{
+		const eng::Control &t = COOP_LAYOUT.c[COOP_LAYOUT.title];
+		title->setPosition(t.ax, t.ay);
+	}
+	for (int i = 0; i < NUM_PRESETS; i++)
+		buttons[i]->setSelected(COOP_FREE[i].lit);
 	/* a button this player has is lit; the others are grey, image and label (the font
 	 * ignores alpha, so grey it is), and still pressable: A turns one on or off */
 	for (int i = 0; i < NUM_INDICATORS; i++)

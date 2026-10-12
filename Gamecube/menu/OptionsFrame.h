@@ -46,8 +46,6 @@ public:
 	};
 	void showTab(int tab);	// a tab of the Advanced pages was pressed
 
-private:
-	int activePage;
 };
 
 #endif
