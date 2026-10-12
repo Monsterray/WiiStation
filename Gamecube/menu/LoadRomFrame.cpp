@@ -44,37 +44,32 @@ void Func_LoadFromUSB();
 void Func_LoadFromSamba();
 void Func_ReturnFromLoadRomFrame();
 
-#define NUM_FRAME_BUTTONS 4
-#define FRAME_BUTTONS loadRomFrameButtons
-#define FRAME_STRINGS loadRomFrameStrings
+static const int NUM_FRAME_BUTTONS = 4;
 
-static char FRAME_STRINGS[4][25] =
+static char loadRomStrings[4][25] =
 	{ "Load from SD",
 	  "Load from DVD",
 	  "Load from USB",
 	  "Load from Samba"};
 
-struct ButtonInfo
+struct LoadRomButtonInfo
 {
 	menu::Button	*button;
 	int				buttonStyle;
 	char*			buttonString;
 	ButtonFunc		clickedFunc;
 	ButtonFunc		returnFunc;
-} FRAME_BUTTONS[NUM_FRAME_BUTTONS] =
-{ //	button	buttonStyle	buttonString		clickFunc			returnFunc
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[0],	Func_LoadFromSD,	Func_ReturnFromLoadRomFrame }, // Load From SD
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[1],	Func_LoadFromDVD,	Func_ReturnFromLoadRomFrame }, // Load From DVD
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[2],	Func_LoadFromUSB,	Func_ReturnFromLoadRomFrame }, // Load From USB
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[3],	Func_LoadFromSamba,	Func_ReturnFromLoadRomFrame }, // Load From Samba
 };
 
-/*  The Load ROM page, on the menu engine (Docs/MENU_FRAMEWORK_PLAN.md, step 3)  */
+static LoadRomButtonInfo loadRomButtons[NUM_FRAME_BUTTONS] =
+{	//	button	buttonStyle	buttonString		clickFunc			returnFunc
+	{	NULL,	BTN_A_NRM,	loadRomStrings[0],	Func_LoadFromSD,	Func_ReturnFromLoadRomFrame },
+	{	NULL,	BTN_A_NRM,	loadRomStrings[1],	Func_LoadFromDVD,	Func_ReturnFromLoadRomFrame },
+	{	NULL,	BTN_A_NRM,	loadRomStrings[2],	Func_LoadFromUSB,	Func_ReturnFromLoadRomFrame },
+	{	NULL,	BTN_A_NRM,	loadRomStrings[3],	Func_LoadFromSamba,	Func_ReturnFromLoadRomFrame },
+};
 
-/* Four rows, each one action button 340 wide, centred on the screen (x 150): the first row's top
- * at y 100 and the rows 80 apart. The logo is top right, where MenuContext draws it. Focus is the
- * engine's row rule: Up and Down go row to row and wrap. The layout is fixed, so it is done once,
- * here, and tests/menu_engine_test.cpp checks its numbers. */
+/* The Load ROM page: four rows, one action button each. */
 namespace eng = menu::engine;
 
 static eng::ActionButton LOADROM_ACTIONS[NUM_FRAME_BUTTONS];
@@ -82,7 +77,6 @@ static eng::Row LOADROM_ROWS[NUM_FRAME_BUTTONS];
 static eng::Page LOADROM_PAGE;
 static eng::Layout LOADROM_LAYOUT;
 
-/* The engine's text widths: IplFont, as the other frames use it (SettingsFrame.cpp). */
 static int loadRomWidth(const char *s, float scale, void *)
 {
 	return menu::IplFont::getInstance().getStringWidth((char*)s, scale);
@@ -99,7 +93,7 @@ static void layoutLoadRom(void)
 {
 	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
 	{
-		LOADROM_ACTIONS[i].text  = FRAME_BUTTONS[i].buttonString;
+		LOADROM_ACTIONS[i].text  = loadRomButtons[i].buttonString;
 		LOADROM_ACTIONS[i].width = 340.0f;
 		LOADROM_ACTIONS[i].lit   = false;
 		LOADROM_ACTIONS[i].dy    = 0.0f;
@@ -108,26 +102,16 @@ static void layoutLoadRom(void)
 		memset(&row, 0, sizeof row);
 		row.kind    = eng::ROW_BUTTONS;
 		row.count   = 1;
-		row.actions = &LOADROM_ACTIONS[i];
-		row.x0      = 0.0f;		/* centred: (640 - 340) / 2 = 150 */
+		row.actions = &LOADROM_ACTIONS[i];	/* x0 0: centred */
 	}
-	LOADROM_PAGE.title   = NULL;
-	LOADROM_PAGE.tabs    = NULL;
-	LOADROM_PAGE.nTabs   = 0;
-	LOADROM_PAGE.curTab  = 0;
-	LOADROM_PAGE.rows    = LOADROM_ROWS;
-	LOADROM_PAGE.nRows   = NUM_FRAME_BUTTONS;
-	LOADROM_PAGE.help    = NULL;
-	LOADROM_PAGE.nHelp   = 0;
-	LOADROM_PAGE.logo    = eng::LOGO_SPOT_TOP;
-	LOADROM_PAGE.focus   = eng::FOCUS_ROWS;
-	LOADROM_PAGE.labelCx = 0.0f;
-	LOADROM_PAGE.labelDy = 0.0f;
-	LOADROM_PAGE.rowDy   = 80.0f;
-	LOADROM_PAGE.rowY0   = 100.0f;
+	memset(&LOADROM_PAGE, 0, sizeof LOADROM_PAGE);
+	LOADROM_PAGE.rows  = LOADROM_ROWS;
+	LOADROM_PAGE.nRows = NUM_FRAME_BUTTONS;
+	LOADROM_PAGE.logo  = eng::LOGO_SPOT_TOP;
+	LOADROM_PAGE.focus = eng::FOCUS_ROWS;
+	LOADROM_PAGE.rowDy = 80.0f;
+	LOADROM_PAGE.rowY0 = 100.0f;
 
-	/* The tables are fixed: a page that does not fit is a programming error, which the host
-	 * test catches before it reaches the menu. */
 	eng::layoutPage(LOADROM_PAGE, LOADROM_METRICS, LOADROM_LAYOUT);
 	eng::linkFocus(LOADROM_PAGE, LOADROM_LAYOUT);
 }
@@ -140,10 +124,11 @@ LoadRomFrame::LoadRomFrame()
 	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
 	{
 		const eng::Control &c = LOADROM_LAYOUT.c[LOADROM_LAYOUT.slot[i][0]];
-		FRAME_BUTTONS[i].button = new menu::Button(FRAME_BUTTONS[i].buttonStyle, &FRAME_BUTTONS[i].buttonString,
+		loadRomButtons[i].button = new menu::Button(loadRomButtons[i].buttonStyle, &loadRomButtons[i].buttonString,
 										c.rect.x, c.rect.y, c.rect.w, c.rect.h);
 	}
 
+	/* The engine's links, handed to the buttons. */
 	static const int DIRS[eng::DIR_COUNT] = {
 		menu::Focus::DIRECTION_UP, menu::Focus::DIRECTION_DOWN,
 		menu::Focus::DIRECTION_LEFT, menu::Focus::DIRECTION_RIGHT
@@ -154,18 +139,18 @@ LoadRomFrame::LoadRomFrame()
 		for (int d = 0; d < eng::DIR_COUNT; d++)
 		{
 			const int to = c.link[d];	/* a link of -1 is no link */
-			FRAME_BUTTONS[i].button->setNextFocus(DIRS[d],
-				to >= 0 ? FRAME_BUTTONS[LOADROM_LAYOUT.c[to].row].button : NULL);
+			loadRomButtons[i].button->setNextFocus(DIRS[d],
+				to >= 0 ? loadRomButtons[LOADROM_LAYOUT.c[to].row].button : NULL);
 		}
-		FRAME_BUTTONS[i].button->setActive(true);
-		if (FRAME_BUTTONS[i].clickedFunc) FRAME_BUTTONS[i].button->setClicked(FRAME_BUTTONS[i].clickedFunc);
-		if (FRAME_BUTTONS[i].returnFunc) FRAME_BUTTONS[i].button->setReturn(FRAME_BUTTONS[i].returnFunc);
-		add(FRAME_BUTTONS[i].button);
-		menu::Cursor::getInstance().addComponent(this, FRAME_BUTTONS[i].button, c.rect.x,
+		loadRomButtons[i].button->setActive(true);
+		if (loadRomButtons[i].clickedFunc) loadRomButtons[i].button->setClicked(loadRomButtons[i].clickedFunc);
+		if (loadRomButtons[i].returnFunc) loadRomButtons[i].button->setReturn(loadRomButtons[i].returnFunc);
+		add(loadRomButtons[i].button);
+		menu::Cursor::getInstance().addComponent(this, loadRomButtons[i].button, c.rect.x,
 												c.rect.x+c.rect.w, c.rect.y,
 												c.rect.y+c.rect.h);
 	}
-	setDefaultFocus(FRAME_BUTTONS[0].button);
+	setDefaultFocus(loadRomButtons[0].button);
 	setBackFunc(Func_ReturnFromLoadRomFrame);
 	setEnabled(true);
 }
@@ -174,10 +159,9 @@ LoadRomFrame::~LoadRomFrame()
 {
 	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
 	{
-		menu::Cursor::getInstance().removeComponent(this, FRAME_BUTTONS[i].button);
-		delete FRAME_BUTTONS[i].button;
+		menu::Cursor::getInstance().removeComponent(this, loadRomButtons[i].button);
+		delete loadRomButtons[i].button;
 	}
-
 }
 
 int loadRomMode = FileBrowserFrame::FILEBROWSER_LOADISO;
