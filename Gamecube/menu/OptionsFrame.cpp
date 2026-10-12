@@ -254,15 +254,12 @@ static const OptRow GPU_ROWS[] =
 	 * than the others to fit (MenuEngine's choiceStart). */
 	ROW_RADIO_FIT("gpuPlugin", NULL),
 	ROW_CYCLE("GpuTiming", NULL),
-	ROW_RADIO("FrameRate", NULL),
 };
 
 static const OptHelp GPU_HELP[] =
 {
 	{ "GPU Plugin:", "OpenGX uses the Wii's GPU; Soft avoids its quirks." },
 	{ "GPU Timing:", "Accurate: the GPU is busy as long as on a PS1." },
-	{ "Frame Rate:", "TV: 59.94 Hz, one frame per TV refresh: smoothest." },
-	{ NULL,          "PS1: 59.82 Hz, a PlayStation's own speed." },
 };
 
 static const OptRow INPUT_ROWS[] =
