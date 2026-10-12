@@ -32,6 +32,7 @@
 #include "../libgui/resources.h"
 #include "../libgui/FocusManager.h"
 #include "../libgui/CursorManager.h"
+#include "MenuGlue.h"
 extern "C" {
 #include "../gc_input/controller.h"
 #include "../wiiSXconfig.h"
@@ -135,18 +136,6 @@ static eng::Page       COOP_PAGE;
 static eng::Layout     COOP_LAYOUT;
 
 /* The engine's text widths: IplFont, as the other frames use it. */
-static int coopWidth(const char *s, float scale, void *)
-{
-	return menu::IplFont::getInstance().getStringWidth((char*)s, scale);
-}
-
-static int coopHeight(const char *s, float scale, void *)
-{
-	return menu::IplFont::getInstance().getStringHeight((char*)s, scale);
-}
-
-static const eng::Metrics COOP_METRICS = { coopWidth, coopHeight, NULL };
-
 /* The button a layout control is, or NULL. */
 static menu::Button *buttonAt(int control)
 {
@@ -185,8 +174,14 @@ static void layoutCoop(void)
 	COOP_PAGE.focus        = eng::FOCUS_GEOMETRY;
 	COOP_PAGE.freeButtons  = COOP_FREE;
 	COOP_PAGE.nFreeButtons = NUM_FRAME_BUTTONS;
-	eng::layoutPage(COOP_PAGE, COOP_METRICS, COOP_LAYOUT);
+	eng::layoutPage(COOP_PAGE, menu::glue::METRICS, COOP_LAYOUT);
 	eng::linkFocus(COOP_PAGE, COOP_LAYOUT);
+}
+
+/* The button drawn for a layout control. */
+static menu::Button *coopButtonOf(const eng::Control &c)
+{
+	return buttonAt(int(&c - COOP_LAYOUT.c));
 }
 
 CustomizeCoopFrame::CustomizeCoopFrame()
@@ -212,20 +207,9 @@ CustomizeCoopFrame::CustomizeCoopFrame()
 		menu::Cursor::getInstance().addComponent(this, buttons[i], c.rect.x, c.rect.x + c.rect.w,
 		                                         c.rect.y, c.rect.y + c.rect.h);
 	}
-	/* The engine's links (linkFocus, FOCUS_GEOMETRY), by direction; a link of -1 is none. */
-	static const int DIRS[eng::DIR_COUNT] = {
-		menu::Focus::DIRECTION_UP, menu::Focus::DIRECTION_DOWN,
-		menu::Focus::DIRECTION_LEFT, menu::Focus::DIRECTION_RIGHT
-	};
+	/* The engine's links (linkFocus, FOCUS_GEOMETRY). */
 	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
-	{
-		const eng::Control &c = COOP_LAYOUT.c[COOP_LAYOUT.freeCtl[i]];
-		for (int d = 0; d < eng::DIR_COUNT; d++)
-		{
-			const int to = c.link[d];
-			buttons[i]->setNextFocus(DIRS[d], to >= 0 ? buttonAt(to) : NULL);
-		}
-	}
+		menu::glue::linkFocus(buttons[i], COOP_LAYOUT, COOP_LAYOUT.c[COOP_LAYOUT.freeCtl[i]], coopButtonOf);
 	const eng::Control &t = COOP_LAYOUT.c[COOP_LAYOUT.title];
 	title = new menu::TextBox(&titlePtr, t.ax, t.ay, 1.0f, true);
 	add(title);

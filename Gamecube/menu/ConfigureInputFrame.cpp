@@ -29,6 +29,7 @@
 #include "../libgui/resources.h"
 #include "../libgui/FocusManager.h"
 #include "../libgui/CursorManager.h"
+#include "MenuGlue.h"
 
 extern "C" {
 #include "../gc_input/controller.h"
@@ -338,18 +339,6 @@ ConfigureInputFrame::~ConfigureInputFrame()
  * their places (the table's rectangles), so the Cursor ranges set in the constructor stay right. */
 namespace eng = menu::engine;
 
-static int ciWidth(const char *s, float scale, void *)
-{
-	return menu::IplFont::getInstance().getStringWidth((char*)s, scale);
-}
-
-static int ciHeight(const char *s, float scale, void *)
-{
-	return menu::IplFont::getInstance().getStringHeight((char*)s, scale);
-}
-
-static const eng::Metrics CI_METRICS = { ciWidth, ciHeight, NULL };
-
 /* The state: shown, active and lit, by button and by label (ciButtons and ciTextBoxes index) */
 static bool ciShown[NUM_FRAME_BUTTONS], ciActive[NUM_FRAME_BUTTONS], ciLit[NUM_FRAME_BUTTONS];
 static bool ciTextShown[NUM_FRAME_TEXTBOXES];
@@ -385,6 +374,12 @@ static eng::Layout     CI_LAYOUT;
 
 /* Lays the page out for the state, links it, and gives each button and label its place, state and links.
  * A link to a button the state does not show is left out: the state never gives one. */
+/* The button drawn for a layout control. */
+static menu::Button *ciButtonOf(const eng::Control &c)
+{
+	return ciButtons[CI_FREE_ID[c.slot]].button;
+}
+
 static void layoutState(void)
 {
 	int nf = 0, nt = 0, nl = 0;
@@ -439,7 +434,7 @@ static void layoutState(void)
 	CI_PAGE.nFreeTexts = nt;
 	CI_PAGE.freeLinks = CI_FLINKS;
 	CI_PAGE.nFreeLinks = nl;
-	if (eng::layoutPage(CI_PAGE, CI_METRICS, CI_LAYOUT) < 0)
+	if (eng::layoutPage(CI_PAGE, menu::glue::METRICS, CI_LAYOUT) < 0)
 		return;		/* the tables are fixed: a page that does not fit is a programming error */
 	eng::linkFocus(CI_PAGE, CI_LAYOUT);
 
@@ -458,10 +453,6 @@ static void layoutState(void)
 			ciButtons[i].button->setActive(false);
 		}
 
-	static const int DIRS[eng::DIR_COUNT] = {
-		menu::Focus::DIRECTION_UP, menu::Focus::DIRECTION_DOWN,
-		menu::Focus::DIRECTION_LEFT, menu::Focus::DIRECTION_RIGHT
-	};
 	for (int c = 0; c < CI_LAYOUT.n; c++)
 	{
 		const eng::Control &ctl = CI_LAYOUT.c[c];
@@ -469,11 +460,7 @@ static void layoutState(void)
 		{
 			menu::Button *b = ciButtons[CI_FREE_ID[ctl.slot]].button;
 			b->setBounds(ctl.rect.x, ctl.rect.y, ctl.rect.w, ctl.rect.h);
-			for (int d = 0; d < eng::DIR_COUNT; d++)
-			{
-				const int to = ctl.link[d];
-				b->setNextFocus(DIRS[d], to >= 0 ? ciButtons[CI_FREE_ID[CI_LAYOUT.c[to].slot]].button : NULL);
-			}
+			menu::glue::linkFocus(b, CI_LAYOUT, ctl, ciButtonOf);
 		}
 		else if (ctl.role == eng::ROLE_FREE_TEXT)
 		{

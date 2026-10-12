@@ -349,6 +349,31 @@ FRAME_FILE = {
 }
 
 
+CUR_BUTTON_RE = re.compile(r'\{\s*NULL,[^\n]*?(\d+),\s*(\d+),\s*([0-9.]+)f,\s*([0-9.]+)f\s*\}')
+
+
+def current_rom_boxes(d):
+    """The Current ROM page as the engine places it (CurrentRomFrame.cpp). Each row of action
+    buttons starts at its x0, with its gap between buttons; each button is BUTTON_H high, at
+    its row's top plus its own dy. Rows are rowY0 and the default pitch."""
+    src = open(os.path.join(os.path.dirname(OPTS), 'CurrentRomFrame.cpp'), encoding='utf-8').read()
+    table = re.search(r'currentRomButtons\[NUM_FRAME_BUTTONS\] =\s*\{(.*?)\n\};', src, re.S).group(1)
+    x0 = [float(v) for v in re.search(r'CUR_ROW_X0\[CUR_ROWS_N\]\s*=\s*\{([^}]*)\}', src).group(1).replace('f', '').split(',')]
+    gap = [float(v) for v in re.search(r'CUR_ROW_GAP\[CUR_ROWS_N\]\s*=\s*\{([^}]*)\}', src).group(1).replace('f', '').split(',')]
+    top0 = float(re.search(r'CUR_PAGE\.rowY0\s*=\s*([0-9.]+)f', src).group(1))
+    buttons = sorted((int(r), int(s), float(w), float(dy)) for r, s, w, dy in CUR_BUTTON_RE.findall(table))
+    boxes = []
+    for row in range(len(x0)):
+        x = x0[row]
+        top = top0 + row * d['ROW_DY']
+        for r, s, w, dy in buttons:
+            if r != row:
+                continue
+            boxes.append((x, top + dy, x + w, top + dy + d['BUTTON_H']))
+            x += w + (gap[row] or d['TAB_GAP'])
+    return boxes
+
+
 def check_logo(d, verbose, bad):
     """MenuContext.cpp lists the frames that put something where the logo sits in the top
     right. Measure each frame's own button table and say whether that list is still true.
@@ -356,7 +381,8 @@ def check_logo(d, verbose, bad):
     MainFrame builds its buttons one by one and OptionsFrame generates its rows, so
     neither has a table to read; OptionsFrame's widest row is worked out from its own
     defines and MainFrame draws nothing on the right at all. SettingsFrame's boxes come
-    from its rows, as the engine places them."""
+    from its rows, as the engine places them. Current ROM's come from its action rows,
+    the same way."""
     menu = os.path.dirname(OPTS)
     src = open(os.path.join(menu, 'MenuContext.cpp'), encoding='utf-8').read()
     m = re.search(r'LOGO_BOTTOM_FRAMES\[\] =\s*\{(.*?)\};', src, re.S)
@@ -377,6 +403,9 @@ def check_logo(d, verbose, bad):
             # The engine places the Settings tabs, so their boxes come from the rows.
             boxes = [(x, r['y'], x + bw, r['y'] + r['h'])
                      for r in settings_layout(d) for _, x, bw in r['buttons']]
+        elif frame == 'FRAME_CURRENTROM':
+            # The engine places this page too, from its action rows (current_rom_boxes).
+            boxes = current_rom_boxes(d)
         else:
             text = open(path, encoding='utf-8', errors='replace').read()
             mm = re.search(r'\} FRAME_BUTTONS\[NUM_FRAME_BUTTONS\] =(.*?)\n\};', text, re.S)

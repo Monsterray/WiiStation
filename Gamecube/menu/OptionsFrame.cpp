@@ -57,6 +57,7 @@
 #include <string.h>
 #include <ogc/system.h>
 #include <ogc/lwp_heap.h>
+#include "MenuGlue.h"
 
 #include "MenuContext.h"
 #include "SettingsFrame.h"
@@ -436,17 +437,6 @@ typedef char opt_help_match_engine[OPT_MAX_HELP == eng::MAX_HELP ? 1 : -1];
 typedef char opt_choices_fit_engine[OPT_MAX_CHOICES <= eng::MAX_SLOTS ? 1 : -1];
 typedef char opt_tabs_fit_engine[NUM_TABS <= eng::MAX_TABS ? 1 : -1];
 
-/* Text widths for the engine: IplFont, the font every label is drawn with. */
-static int iplWidth(const char *s, float scale, void *)
-{
-	return menu::IplFont::getInstance().getStringWidth((char*)s, scale);
-}
-static int iplHeight(const char *s, float scale, void *)
-{
-	return menu::IplFont::getInstance().getStringHeight((char*)s, scale);
-}
-static const eng::Metrics METRICS = { iplWidth, iplHeight, NULL };
-
 static void Func_OptTab0() { optionsFrame->showTab(0); }
 static void Func_OptTab1() { optionsFrame->showTab(1); }
 static void Func_OptTab2() { optionsFrame->showTab(2); }
@@ -724,22 +714,12 @@ static void placeLayout()
 /* The engine's focus links, on the buttons. A link of -1 is no link. */
 static void linkButtons()
 {
-	static const int DIRS[eng::DIR_COUNT] = {
-		menu::Focus::DIRECTION_UP, menu::Focus::DIRECTION_DOWN,
-		menu::Focus::DIRECTION_LEFT, menu::Focus::DIRECTION_RIGHT
-	};
-
 	for (int i = 0; i < ENG_LAYOUT.n; i++)
 	{
 		const eng::Control &c = ENG_LAYOUT.c[i];
 		if (!c.focusable)
 			continue;
-		menu::Button *b = buttonFor(c);
-		for (int d = 0; d < eng::DIR_COUNT; d++)
-		{
-			const int to = c.link[d];
-			b->setNextFocus(DIRS[d], to >= 0 ? buttonFor(ENG_LAYOUT.c[to]) : NULL);
-		}
+		menu::glue::linkFocus(buttonFor(c), ENG_LAYOUT, c, buttonFor);
 	}
 }
 
@@ -757,7 +737,7 @@ static void logLayoutProblems(int page)
 		return;
 	logged |= 1u << page;
 
-	np = eng::checkLayout(ENG_PAGE, METRICS, ENG_LAYOUT, probs, eng::MAX_PROBLEMS);
+	np = eng::checkLayout(ENG_PAGE, menu::glue::METRICS, ENG_LAYOUT, probs, eng::MAX_PROBLEMS);
 	if (np > 0)
 		SysPrintf("OptionsFrame: page '%s' has %d layout problem(s)\n", PAGES[page].title, np);
 	for (int k = 0; k < np && k < eng::MAX_PROBLEMS; k++)
@@ -895,7 +875,7 @@ void OptionsFrame::activateSubmenu(int submenu)
 
 	/* The engine lays the page out and links its focus: once, here, not per frame. */
 	buildEnginePage(currentPage, curTab);
-	if (eng::layoutPage(ENG_PAGE, METRICS, ENG_LAYOUT) < 0)
+	if (eng::layoutPage(ENG_PAGE, menu::glue::METRICS, ENG_LAYOUT) < 0)
 	{
 		/* The tables are fixed and checked at compile time, so this is a programming error.
 		 * Nothing is shown rather than a half-placed page, and the error says which page. */

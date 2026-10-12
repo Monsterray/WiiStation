@@ -23,6 +23,7 @@
 #include <strings.h>
 #include <sys/stat.h>   /* the RomDir folders */
 #include "../config_parse.h"   /* config_list_next */
+#include "MenuGlue.h"
 #define CONFIG_ITEM_SIZE 256
 #include "MenuContext.h"
 #include "MenuEngine.h"	/* before Button.h: its include guard is BUTTON_H, a name the engine uses */
@@ -127,18 +128,6 @@ static eng::Page   FB_PAGE;
 static eng::Layout FB_LAYOUT;
 
 /* The engine's text widths: IplFont, as the other frames use it (CurrentRomFrame.cpp). */
-static int fbWidth(const char *s, float scale, void *)
-{
-	return menu::IplFont::getInstance().getStringWidth((char*)s, scale);
-}
-
-static int fbHeight(const char *s, float scale, void *)
-{
-	return menu::IplFont::getInstance().getStringHeight((char*)s, scale);
-}
-
-static const eng::Metrics FB_METRICS = { fbWidth, fbHeight, NULL };
-
 static void setupFileBrowserPage(void)
 {
 	memset(&FB_ROW, 0, sizeof FB_ROW);
@@ -154,7 +143,7 @@ static void setupFileBrowserPage(void)
 /* Lays the page out for the list as it is now: once per page turn, never per frame. */
 static void layoutFileBrowser(void)
 {
-	eng::layoutPage(FB_PAGE, FB_METRICS, FB_LAYOUT);
+	eng::layoutPage(FB_PAGE, menu::glue::METRICS, FB_LAYOUT);
 	eng::linkFocus(FB_PAGE, FB_LAYOUT);
 }
 
@@ -175,13 +164,15 @@ static menu::Button *fileBrowserButtonAt(int ctl)
 	return NULL;
 }
 
+/* The button drawn for a layout control. */
+static menu::Button *fileBrowserButtonOf(const eng::Control &c)
+{
+	return fileBrowserButtonAt(int(&c - FB_LAYOUT.c));
+}
+
 /* Copies the layout onto the buttons: text, label colour, active, and every focus link. */
 static void applyFileBrowserLayout(void)
 {
-	static const int DIRS[eng::DIR_COUNT] = {
-		menu::Focus::DIRECTION_UP, menu::Focus::DIRECTION_DOWN,
-		menu::Focus::DIRECTION_LEFT, menu::Focus::DIRECTION_RIGHT
-	};
 
 	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
 	{
@@ -194,14 +185,8 @@ static void applyFileBrowserLayout(void)
 		fileBrowserButtons[i].button->setActive(c.focusable);
 	}
 	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
-	{
-		const eng::Control &c = FB_LAYOUT.c[fileBrowserButtons[i].ctl];
-		for (int d = 0; d < eng::DIR_COUNT; d++)
-		{
-			const int to = c.link[d];	/* a link of -1 is no link */
-			fileBrowserButtons[i].button->setNextFocus(DIRS[d], to >= 0 ? fileBrowserButtonAt(to) : NULL);
-		}
-	}
+		menu::glue::linkFocus(fileBrowserButtons[i].button, FB_LAYOUT,
+		                      FB_LAYOUT.c[fileBrowserButtons[i].ctl], fileBrowserButtonOf);
 }
 
 FileBrowserFrame::FileBrowserFrame()
@@ -721,16 +706,6 @@ static void CheckGameR3000AutoFix(void)
     }
 }
 
-// Appends src to dst without overflowing dst's declared size. Used to build
-// up RomInfo/feedback_string from several independently-gated pieces whose
-// combined length isn't bounded by any single piece's fixed size.
-static void appendBounded(char* dst, size_t dstSize, const char* src)
-{
-	size_t used = strlen(dst);
-	if (used < dstSize - 1)
-		strncat(dst, src, dstSize - used - 1);
-}
-
 void fileBrowserFrame_LoadFile(int i)
 {
 	char feedback_string[256] = "Failed to load ISO";
@@ -768,40 +743,40 @@ void fileBrowserFrame_LoadFile(int i)
 
 			char RomInfo[512] = "";
 			char buffer [50];
-			appendBounded(RomInfo, sizeof(RomInfo), feedback_string);
+			menu::glue::appendBounded(RomInfo, sizeof(RomInfo), feedback_string);
 			sprintf(buffer,"\nCD-ROM Label: %s\n",CdromLabel);
-			appendBounded(RomInfo, sizeof(RomInfo), buffer);
+			menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
 			sprintf(buffer,"CD-ROM ID: %s\n", CdromId);
-			appendBounded(RomInfo, sizeof(RomInfo), buffer);
+			menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
             if (check_unsatisfied_libcrypt())
             {
                 sprintf(buffer, "LibCrypt protected game with missing SBI\n");
-                appendBounded(RomInfo, sizeof(RomInfo), buffer);
+                menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
             }
             if (Config.hacks.gpu_slow_list_walking)
             {
                 sprintf(buffer, "GpuSlowListWalking auto fixed\n");
-                appendBounded(RomInfo, sizeof(RomInfo), buffer);
+                menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
             }
             if (Config.cycle_multiplier_override)
             {
                 sprintf(buffer, "CycleMultiplierOverride fixed\n");
-                appendBounded(RomInfo, sizeof(RomInfo), buffer);
+                menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
             }
             if (Config.hacks.gpu_busy_hack)
             {
                 sprintf(buffer, "GPU 'Fake Busy States' hacked\n");
-                appendBounded(RomInfo, sizeof(RomInfo), buffer);
+                menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
             }
             if (Config.hacks.dwActFixes)
             {
                 sprintf(buffer, "Special game auto fixed %08lx\n", Config.hacks.dwActFixes);
-                appendBounded(RomInfo, sizeof(RomInfo), buffer);
+                menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
             }
             if (Config.hacks.lightrec_hacks)
             {
                 sprintf(buffer, "Applied Lightrec hacks\n");
-                appendBounded(RomInfo, sizeof(RomInfo), buffer);
+                menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
             }
             // Switches for painting textured quads as 2 triangles (small glitches, but better shading!)
             // This function has been automatically started in soft.c and dwActFixes have been determined in gpu code, so need to set it here
@@ -812,7 +787,7 @@ void fileBrowserFrame_LoadFile(int i)
             if (Config.pR3000Fix)
             {
                 sprintf(buffer, "pR3000 auto fixed\n");
-                appendBounded(RomInfo, sizeof(RomInfo), buffer);
+                menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
             }
 
 			/* Under 1 MB in KB (rounded up), so a small image does not read "0 MB" */
@@ -820,33 +795,33 @@ void fileBrowserFrame_LoadFile(int i)
 				sprintf(buffer, "ISO Size: %u KB\n", (isoFile.size + 1023) / 1024);
 			else
 				sprintf(buffer, "ISO Size: %u MB\n", isoFile.size / 1024 / 1024);
-			appendBounded(RomInfo, sizeof(RomInfo), buffer);
+			menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
 			sprintf(buffer,"Country: %s\n",forceNTSC == FORCENTSC_ENABLE ? "FORCE NTSC" : ((!Config.PsxType) ? "NTSC":"PAL"));
-			appendBounded(RomInfo, sizeof(RomInfo), buffer);
+			menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
 			sprintf(buffer,"BIOS: %s\n",(Config.HLE==BIOS_USER_DEFINED) ? "PSX":"HLE");
-			appendBounded(RomInfo, sizeof(RomInfo), buffer);
+			menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
 			sprintf(buffer, "BIOS Name: %s\n", biosFileName);
-			appendBounded(RomInfo, sizeof(RomInfo), buffer);
+			menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
 			unsigned char tracks[2];
             ISOgetTN(&tracks[0]);
             sprintf(buffer,"Number of tracks %u\n", tracks[1]);
-			appendBounded(RomInfo, sizeof(RomInfo), buffer);
+			menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
 
 			switch (autoSaveLoaded)
 			{
 			case NATIVESAVEDEVICE_NONE:
 				break;
 			case NATIVESAVEDEVICE_SD:
-				appendBounded(RomInfo, sizeof(RomInfo), "\nFound & loaded save from SD card\n");
+				menu::glue::appendBounded(RomInfo, sizeof(RomInfo), "\nFound & loaded save from SD card\n");
 				break;
 			case NATIVESAVEDEVICE_USB:
-				appendBounded(RomInfo, sizeof(RomInfo), "\nFound & loaded save from USB device\n");
+				menu::glue::appendBounded(RomInfo, sizeof(RomInfo), "\nFound & loaded save from USB device\n");
 				break;
 			case NATIVESAVEDEVICE_CARDA:
-				appendBounded(RomInfo, sizeof(RomInfo), "\nFound & loaded save from memcard in slot A\n");
+				menu::glue::appendBounded(RomInfo, sizeof(RomInfo), "\nFound & loaded save from memcard in slot A\n");
 				break;
 			case NATIVESAVEDEVICE_CARDB:
-				appendBounded(RomInfo, sizeof(RomInfo), "\nFound & loaded save from memcard in slot B\n");
+				menu::glue::appendBounded(RomInfo, sizeof(RomInfo), "\nFound & loaded save from memcard in slot B\n");
 				break;
 			}
 			autoSaveLoaded = NATIVESAVEDEVICE_NONE;

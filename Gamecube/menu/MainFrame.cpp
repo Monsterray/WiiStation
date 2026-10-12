@@ -31,6 +31,7 @@
 #include "../libgui/FocusManager.h"
 #include "../libgui/CursorManager.h"
 #include "../libgui/MessageBox.h"
+#include "MenuGlue.h"
 #ifdef DEBUGON
 # include <debug.h>
 #endif
@@ -95,18 +96,6 @@ static eng::Row MAIN_ROWS[NUM_MAIN_BUTTONS];
 static eng::Page MAIN_PAGE;
 static eng::Layout MAIN_LAYOUT;
 
-static int mainWidth(const char *s, float scale, void *)
-{
-	return menu::IplFont::getInstance().getStringWidth((char*)s, scale);
-}
-
-static int mainHeight(const char *s, float scale, void *)
-{
-	return menu::IplFont::getInstance().getStringHeight((char*)s, scale);
-}
-
-static const eng::Metrics MAIN_METRICS = { mainWidth, mainHeight, NULL };
-
 static void layoutMain(void)
 {
 	for (int i = 0; i < NUM_MAIN_BUTTONS; i++)
@@ -130,8 +119,14 @@ static void layoutMain(void)
 	MAIN_PAGE.focus = eng::FOCUS_ROWS;
 	MAIN_PAGE.rowY0 = 60.0f;
 
-	eng::layoutPage(MAIN_PAGE, MAIN_METRICS, MAIN_LAYOUT);
+	eng::layoutPage(MAIN_PAGE, menu::glue::METRICS, MAIN_LAYOUT);
 	eng::linkFocus(MAIN_PAGE, MAIN_LAYOUT);
+}
+
+/* The button drawn for a layout control. */
+static menu::Button *mainButtonOf(const eng::Control &c)
+{
+	return mainButtons[c.row].button;
 }
 
 MainFrame::MainFrame()
@@ -150,19 +145,10 @@ MainFrame::MainFrame()
 	}
 
 	/* The engine's links, handed to the buttons. */
-	static const int DIRS[eng::DIR_COUNT] = {
-		menu::Focus::DIRECTION_UP, menu::Focus::DIRECTION_DOWN,
-		menu::Focus::DIRECTION_LEFT, menu::Focus::DIRECTION_RIGHT
-	};
 	for (int i = 0; i < NUM_MAIN_BUTTONS; i++)
 	{
 		const eng::Control &c = MAIN_LAYOUT.c[MAIN_LAYOUT.slot[i][0]];
-		for (int d = 0; d < eng::DIR_COUNT; d++)
-		{
-			const int to = c.link[d];	/* a link of -1 is no link */
-			mainButtons[i].button->setNextFocus(DIRS[d],
-				to >= 0 ? mainButtons[MAIN_LAYOUT.c[to].row].button : NULL);
-		}
+		menu::glue::linkFocus(mainButtons[i].button, MAIN_LAYOUT, c, mainButtonOf);
 		mainButtons[i].button->setActive(true);
 		if (mainButtons[i].clickedFunc) mainButtons[i].button->setClicked(mainButtons[i].clickedFunc);
 		if (mainButtons[i].returnFunc) mainButtons[i].button->setReturn(mainButtons[i].returnFunc);

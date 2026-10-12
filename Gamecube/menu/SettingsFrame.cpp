@@ -19,6 +19,7 @@
 **/
 
 #include <sys/stat.h>
+#include "MenuGlue.h"
 
 #include "MenuContext.h"
 #include "../perf_prof.h"
@@ -506,17 +507,6 @@ static menu::TextBox		*freeBox[NUM_FREE_TEXTS];
 
 extern "C" void SysPrintf(const char *fmt, ...);
 
-/* Text widths for the engine: IplFont, the font every label is drawn with. */
-static int setWidth(const char *s, float scale, void *)
-{
-	return menu::IplFont::getInstance().getStringWidth((char*)s, scale);
-}
-static int setHeight(const char *s, float scale, void *)
-{
-	return menu::IplFont::getInstance().getStringHeight((char*)s, scale);
-}
-static const eng::Metrics SET_METRICS = { setWidth, setHeight, NULL };
-
 /* The FRAME_BUTTONS entry a control is drawn with. A tab's control is the tab button itself. */
 static menu::Button *buttonOf(const eng::Control &c)
 {
@@ -538,20 +528,12 @@ static void placeButton(SettingsFrame *frame, menu::Button *b, const eng::Contro
 /* The engine's focus links, on the buttons. A link of -1 is no link. */
 static void linkButtons(const eng::Layout &lay)
 {
-	static const int DIRS[eng::DIR_COUNT] = {
-		menu::Focus::DIRECTION_UP, menu::Focus::DIRECTION_DOWN,
-		menu::Focus::DIRECTION_LEFT, menu::Focus::DIRECTION_RIGHT
-	};
 	for (int i = 0; i < lay.n; i++)
 	{
 		const eng::Control &c = lay.c[i];
 		if (!c.focusable)
 			continue;
-		for (int d = 0; d < eng::DIR_COUNT; d++)
-		{
-			const int to = c.link[d];
-			buttonOf(c)->setNextFocus(DIRS[d], to >= 0 ? buttonOf(lay.c[to]) : NULL);
-		}
+		menu::glue::linkFocus(buttonOf(c), lay, c, buttonOf);
 	}
 }
 
@@ -732,7 +714,7 @@ static void layoutTab(SettingsFrame *frame, const SetTab &tab)
 	SET_PAGE.freeTexts  = tab.freeTexts;
 	SET_PAGE.nFreeTexts = tab.nFreeTexts;
 
-	if (eng::layoutPage(SET_PAGE, SET_METRICS, SET_LAYOUT) < 0)
+	if (eng::layoutPage(SET_PAGE, menu::glue::METRICS, SET_LAYOUT) < 0)
 	{
 		/* The tables are fixed, so this is a programming error. The tab stays hidden. */
 		SysPrintf("SettingsFrame: tab %d does not fit the menu engine\n", tab.curTab);

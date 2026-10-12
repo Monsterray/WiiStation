@@ -29,6 +29,7 @@
 #include "../libgui/MessageBox.h"
 #include "../wiiSXconfig.h"
 #include "../../psxcommon.h"
+#include "MenuGlue.h"
 
 extern "C" {
 #include "../fileBrowser/fileBrowser.h"
@@ -120,18 +121,6 @@ static int curButtonAt(int row, int slot)
 	return -1;
 }
 
-static int curWidth(const char *s, float scale, void *)
-{
-	return menu::IplFont::getInstance().getStringWidth((char*)s, scale);
-}
-
-static int curHeight(const char *s, float scale, void *)
-{
-	return menu::IplFont::getInstance().getStringHeight((char*)s, scale);
-}
-
-static const eng::Metrics CUR_METRICS = { curWidth, curHeight, NULL };
-
 static void layoutCurrentRom(void)
 {
 	for (int k = 0; k < NUM_FRAME_BUTTONS; k++)
@@ -162,8 +151,14 @@ static void layoutCurrentRom(void)
 	CUR_PAGE.overrides  = CUR_LINKS;
 	CUR_PAGE.nOverrides = (int)(sizeof CUR_LINKS / sizeof CUR_LINKS[0]);
 
-	eng::layoutPage(CUR_PAGE, CUR_METRICS, CUR_LAYOUT);
+	eng::layoutPage(CUR_PAGE, menu::glue::METRICS, CUR_LAYOUT);
 	eng::linkFocus(CUR_PAGE, CUR_LAYOUT);
+}
+
+/* The button drawn for a layout control. */
+static menu::Button *curButtonOf(const eng::Control &c)
+{
+	return currentRomButtons[curButtonAt(c.row, c.slot)].button;
 }
 
 CurrentRomFrame::CurrentRomFrame()
@@ -180,20 +175,11 @@ CurrentRomFrame::CurrentRomFrame()
 	}
 
 	/* The engine's links, handed to the buttons. */
-	static const int DIRS[eng::DIR_COUNT] = {
-		menu::Focus::DIRECTION_UP, menu::Focus::DIRECTION_DOWN,
-		menu::Focus::DIRECTION_LEFT, menu::Focus::DIRECTION_RIGHT
-	};
 	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
 	{
 		CurrentRomButtonInfo &b = currentRomButtons[i];
 		const eng::Control &c = CUR_LAYOUT.c[CUR_LAYOUT.slot[b.row][b.slot]];
-		for (int d = 0; d < eng::DIR_COUNT; d++)
-		{
-			const int to = c.link[d];	/* a link of -1 is no link */
-			b.button->setNextFocus(DIRS[d],
-				to >= 0 ? currentRomButtons[curButtonAt(CUR_LAYOUT.c[to].row, CUR_LAYOUT.c[to].slot)].button : NULL);
-		}
+		menu::glue::linkFocus(b.button, CUR_LAYOUT, c, curButtonOf);
 		b.button->setActive(true);
 		if (b.clickedFunc) b.button->setClicked(b.clickedFunc);
 		if (b.returnFunc) b.button->setReturn(b.returnFunc);
@@ -221,55 +207,45 @@ extern char CdromId[10];
 extern char CdromLabel[33];
 extern char debugInfo[256];
 
-// Appends src to dst without overflowing dst's declared size. Used to build
-// up RomInfo from several independently-gated pieces whose combined length
-// isn't bounded by any single piece's fixed size.
-static void appendBounded(char* dst, size_t dstSize, const char* src)
-{
-	size_t used = strlen(dst);
-	if (used < dstSize - 1)
-		strncat(dst, src, dstSize - used - 1);
-}
-
 void Func_ShowRomInfo()
 {
 	char RomInfo[256] = "";
 	char buffer [50];
 
 	sprintf(buffer,"CD-ROM Label: %s\n",CdromLabel);
-  appendBounded(RomInfo, sizeof(RomInfo), buffer);
+  menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
   sprintf(buffer,"CD-ROM ID: %s\n", CdromId);
 
-	appendBounded(RomInfo, sizeof(RomInfo), buffer);
+	menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
   if (Config.hacks.gpu_slow_list_walking)
   {
   	sprintf(buffer, "GpuSlowListWalking auto fixed\n");
-  	appendBounded(RomInfo, sizeof(RomInfo), buffer);
+  	menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
   }
   if (Config.cycle_multiplier_override)
   {
   	sprintf(buffer, "CycleMultiplierOverride fixed\n");
-  	appendBounded(RomInfo, sizeof(RomInfo), buffer);
+  	menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
   }
   if (Config.hacks.gpu_busy_hack)
   {
   	sprintf(buffer, "GPU 'Fake Busy States' hacked\n");
-  	appendBounded(RomInfo, sizeof(RomInfo), buffer);
+  	menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
   }
   if (Config.hacks.dwActFixes)
   {
   	sprintf(buffer, "Special game auto fixed %08lx\n", Config.hacks.dwActFixes);
-  	appendBounded(RomInfo, sizeof(RomInfo), buffer);
+  	menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
   }
   if (Config.hacks.lightrec_hacks)
   {
   	sprintf(buffer, "Applied Lightrec hacks\n");
-  	appendBounded(RomInfo, sizeof(RomInfo), buffer);
+  	menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
   }
   if (Config.pR3000Fix)
   {
   	sprintf(buffer, "pR3000 auto fixed\n");
-  	appendBounded(RomInfo, sizeof(RomInfo), buffer);
+  	menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
   }
 
   /* Under 1 MB in KB (rounded up), so a small image does not read "0 MB" */
@@ -277,15 +253,15 @@ void Func_ShowRomInfo()
     sprintf(buffer, "ISO Size: %u KB\n", (isoFile.size + 1023) / 1024);
   else
     sprintf(buffer, "ISO Size: %u MB\n", isoFile.size / 1024 / 1024);
-  appendBounded(RomInfo, sizeof(RomInfo), buffer);
+  menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
   sprintf(buffer,"Country: %s\n",(!Config.PsxType) ? "NTSC":"PAL");
-  appendBounded(RomInfo, sizeof(RomInfo), buffer);
+  menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
   sprintf(buffer,"BIOS: %s\n",(Config.HLE==BIOS_USER_DEFINED) ? "PSX":"HLE");
-  appendBounded(RomInfo, sizeof(RomInfo), buffer);
+  menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
   unsigned char tracks[2];
   ISOgetTN(&tracks[0]);
   sprintf(buffer,"Number of tracks %u\n", tracks[1]);
-	appendBounded(RomInfo, sizeof(RomInfo), buffer);
+	menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
 
 	menu::MessageBox::getInstance().setMessage(RomInfo);
 }

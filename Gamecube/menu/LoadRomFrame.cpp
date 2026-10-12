@@ -28,6 +28,7 @@
 #include "../libgui/FocusManager.h"
 #include "../libgui/CursorManager.h"
 #include "../libgui/MessageBox.h"
+#include "MenuGlue.h"
 
 extern "C" {
 #include "../fileBrowser/fileBrowser.h"
@@ -77,18 +78,6 @@ static eng::Row LOADROM_ROWS[NUM_FRAME_BUTTONS];
 static eng::Page LOADROM_PAGE;
 static eng::Layout LOADROM_LAYOUT;
 
-static int loadRomWidth(const char *s, float scale, void *)
-{
-	return menu::IplFont::getInstance().getStringWidth((char*)s, scale);
-}
-
-static int loadRomHeight(const char *s, float scale, void *)
-{
-	return menu::IplFont::getInstance().getStringHeight((char*)s, scale);
-}
-
-static const eng::Metrics LOADROM_METRICS = { loadRomWidth, loadRomHeight, NULL };
-
 static void layoutLoadRom(void)
 {
 	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
@@ -112,8 +101,14 @@ static void layoutLoadRom(void)
 	LOADROM_PAGE.rowDy = 80.0f;
 	LOADROM_PAGE.rowY0 = 100.0f;
 
-	eng::layoutPage(LOADROM_PAGE, LOADROM_METRICS, LOADROM_LAYOUT);
+	eng::layoutPage(LOADROM_PAGE, menu::glue::METRICS, LOADROM_LAYOUT);
 	eng::linkFocus(LOADROM_PAGE, LOADROM_LAYOUT);
+}
+
+/* The button drawn for a layout control. */
+static menu::Button *loadRomButtonOf(const eng::Control &c)
+{
+	return loadRomButtons[c.row].button;
 }
 
 LoadRomFrame::LoadRomFrame()
@@ -129,19 +124,10 @@ LoadRomFrame::LoadRomFrame()
 	}
 
 	/* The engine's links, handed to the buttons. */
-	static const int DIRS[eng::DIR_COUNT] = {
-		menu::Focus::DIRECTION_UP, menu::Focus::DIRECTION_DOWN,
-		menu::Focus::DIRECTION_LEFT, menu::Focus::DIRECTION_RIGHT
-	};
 	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
 	{
 		const eng::Control &c = LOADROM_LAYOUT.c[LOADROM_LAYOUT.slot[i][0]];
-		for (int d = 0; d < eng::DIR_COUNT; d++)
-		{
-			const int to = c.link[d];	/* a link of -1 is no link */
-			loadRomButtons[i].button->setNextFocus(DIRS[d],
-				to >= 0 ? loadRomButtons[LOADROM_LAYOUT.c[to].row].button : NULL);
-		}
+		menu::glue::linkFocus(loadRomButtons[i].button, LOADROM_LAYOUT, c, loadRomButtonOf);
 		loadRomButtons[i].button->setActive(true);
 		if (loadRomButtons[i].clickedFunc) loadRomButtons[i].button->setClicked(loadRomButtons[i].clickedFunc);
 		if (loadRomButtons[i].returnFunc) loadRomButtons[i].button->setReturn(loadRomButtons[i].returnFunc);

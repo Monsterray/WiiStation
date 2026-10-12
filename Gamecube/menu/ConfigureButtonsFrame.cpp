@@ -32,6 +32,7 @@
 #include "../libgui/FocusManager.h"
 #include "../libgui/CursorManager.h"
 #include "../libgui/MessageBox.h"
+#include "MenuGlue.h"
 //#include "../main/timers.h"
 //#include "../main/wii64config.h"
 
@@ -201,18 +202,6 @@ static eng::FreeText   CB_TEXTS[NUM_FRAME_TEXTBOXES];
 static eng::Page       CB_PAGE;
 static eng::Layout     CB_LAYOUT;
 
-static int cbWidth(const char *s, float scale, void *)
-{
-	return menu::IplFont::getInstance().getStringWidth((char*)s, scale);
-}
-
-static int cbHeight(const char *s, float scale, void *)
-{
-	return menu::IplFont::getInstance().getStringHeight((char*)s, scale);
-}
-
-static const eng::Metrics CB_METRICS = { cbWidth, cbHeight, NULL };
-
 static void layoutConfigureButtons(void)
 {
 	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
@@ -243,7 +232,7 @@ static void layoutConfigureButtons(void)
 	CB_PAGE.nFreeButtons = NUM_FRAME_BUTTONS;
 	CB_PAGE.freeTexts = CB_TEXTS;
 	CB_PAGE.nFreeTexts = NUM_FRAME_TEXTBOXES;
-	if (eng::layoutPage(CB_PAGE, CB_METRICS, CB_LAYOUT) < 0)
+	if (eng::layoutPage(CB_PAGE, menu::glue::METRICS, CB_LAYOUT) < 0)
 		return;		/* the table is fixed: a page that does not fit is a programming error */
 }
 
@@ -462,12 +451,14 @@ static void padName(int vc, char *out, size_t size)
  * again only when those flags change: activateSubmenu runs every frame. */
 static unsigned cbInactive = ~0u;
 
+/* The button drawn for a layout control. */
+static menu::Button *cbButtonOf(const eng::Control &c)
+{
+	return FRAME_BUTTONS[c.slot].button;
+}
+
 static void cbRelink(void)
 {
-	static const int DIRS[eng::DIR_COUNT] = {
-		menu::Focus::DIRECTION_UP, menu::Focus::DIRECTION_DOWN,
-		menu::Focus::DIRECTION_LEFT, menu::Focus::DIRECTION_RIGHT
-	};
 	unsigned inactive = 0;
 	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
 	{
@@ -479,18 +470,11 @@ static void cbRelink(void)
 	if (inactive == cbInactive)
 		return;
 	cbInactive = inactive;
-	if (eng::layoutPage(CB_PAGE, CB_METRICS, CB_LAYOUT) < 0)
+	if (eng::layoutPage(CB_PAGE, menu::glue::METRICS, CB_LAYOUT) < 0)
 		return;
 	eng::linkFocus(CB_PAGE, CB_LAYOUT);
 	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
-	{
-		const eng::Control &c = CB_LAYOUT.c[CB_LAYOUT.freeCtl[i]];
-		for (int d = 0; d < eng::DIR_COUNT; d++)
-		{
-			const int to = c.link[d];
-			FRAME_BUTTONS[i].button->setNextFocus(DIRS[d], to >= 0 ? FRAME_BUTTONS[CB_LAYOUT.c[to].slot].button : NULL);
-		}
-	}
+		menu::glue::linkFocus(FRAME_BUTTONS[i].button, CB_LAYOUT, CB_LAYOUT.c[CB_LAYOUT.freeCtl[i]], cbButtonOf);
 }
 
 void ConfigureButtonsFrame::activateSubmenu(int submenu)
