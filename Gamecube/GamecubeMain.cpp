@@ -224,7 +224,7 @@ static const char* const OPT_STATES_DEVICE[] = { "SD", "USB" };
 static const char* const OPT_MEMCARD_TYPE[]  = { "Shared", "Game" };
 static const char* const OPT_PAD_ASSIGN[]    = { "Manual", "Automatic" };
 static const char* const OPT_CONTROLLER[]    = { "Standard", "Analog", "Stick D-pad" };
-static const char* const OPT_SLOT[]          = { "Slot 1", "Slot 2", "Slot 3", "Slot 4", "Default" };
+static const char* const OPT_SLOT[]          = { "Slot 1", "Slot 2", "Slot 3", "Slot 4", "Default", "Auto" };
 static const char* const OPT_LIGHTGUN[]      = { "Off", "GunCon", "Justifier", "Mouse" };
 
 static SettingOption OPTIONS[] =
@@ -296,7 +296,7 @@ static SettingOption OPTIONS[] =
   { "PadAutoAssign", &padAutoAssign, PADAUTOASSIGN_MANUAL, PADAUTOASSIGN_AUTOMATIC, NULL, "Pad Assignment", OPT_PAD_ASSIGN, "Automatic assigns the controllers to the ports." },
   { "ControllerType", &controllerType, CONTROLLERTYPE_STANDARD, CONTROLLERTYPE_STICKDPAD, NULL, "PSX Controller Type", OPT_CONTROLLER, "Stick D-pad: a digital pad whose D-pad follows the left stick." },
   { "RumbleEnabled", &rumbleEnabled, RUMBLE_DISABLE, RUMBLE_ENABLE, NULL, "Enable Rumble", OPT_NO_YES, "Turns the controller rumble on or off." },
-  { "LoadButtonSlot", &loadButtonSlot, LOADBUTTON_SLOT0, LOADBUTTON_DEFAULT, NULL, "Auto Load Slot", OPT_SLOT, "The button config slot that loads at start." },
+  { "LoadButtonSlot", &loadButtonSlot, LOADBUTTON_SLOT0, LOADBUTTON_AUTO, NULL, "Auto Load Slot", OPT_SLOT, "The button mapping that loads at start: a slot, the default, or Auto (this game's own)." },
   { "LightGun", &lightGun, LIGHTGUN_DISABLE, LIGHTGUN_MOUSE, NULL, "Light Gun", OPT_LIGHTGUN, "Sets the light gun type. Off uses the pad." },
   /* PadAssign: a physical controller, 0..3: 4..9 indexed the drivers' 4-entry available[] past its end */
   { "PadType1", &padType[0], PADTYPE_NONE, PADTYPE_COOP },
@@ -1267,6 +1267,72 @@ void biosFileInit()
 	biosFile_init(biosFile);  //initialize the bios device (it might not be the same as ISO device)
 }
 
+/* The Game slot of the button mappings (ConfigureButtons' fifth slot): one file per game, named by
+ * its CD-ROM ID and kept beside the slot files. USB when the USB has a wiistation folder,
+ * otherwise SD. */
+static void gameButtonsPath(char* buf, size_t size, const char* dev)
+{
+	snprintf(buf, size, "%s:/wiistation/%s.btn", dev, CdromId);
+}
+
+int saveGameButtons(void)
+{
+	char path[256];
+	struct stat s;
+	bool usb = stat("usb:/wiistation/", &s) == 0;
+	FILE* f;
+	if (!CdromId[0] || !fileBrowser_libfat_init(usb ? &saveDir_libfat_USB : &saveDir_libfat_Default))
+		return 0;
+	gameButtonsPath(path, sizeof path, usb ? "usb" : "sd");
+	makeParentDirs(path);
+	f = fopen(path, "wb");
+	if (!f)
+		return 0;
+	for (int i = 0; i < num_controller_t; i++)
+		save_game_slot(f, controller_ts[i]);
+	fclose(f);
+	return 1;
+}
+
+/* The Game slot of the game that starts: USB first, then SD, as the settings are. */
+static FILE* openGameButtons(void)
+{
+	char path[256];
+	FILE* f = NULL;
+	if (!CdromId[0])
+		return NULL;
+	if (fileBrowser_libfat_init(&saveDir_libfat_USB)) {
+		gameButtonsPath(path, sizeof path, "usb");
+		f = fopen(path, "rb");
+	}
+	if (!f && fileBrowser_libfat_init(&saveDir_libfat_Default)) {
+		gameButtonsPath(path, sizeof path, "sd");
+		f = fopen(path, "rb");
+	}
+	return f;
+}
+
+/* At each game start, every controller's Game slot is the game's own, or the default when the
+ * game has no file (so the menu's Game slot shows this game's). Auto Load Slot = Auto copies it
+ * to the mapping. Once per game start, not per frame. */
+static void loadGameButtons(void)
+{
+	FILE* f = openGameButtons();
+	bool loaded = f != NULL;
+	for (int i = 0; loaded && i < num_controller_t; i++)
+		loaded = load_game_slot(f, controller_ts[i]);
+	if (f)
+		fclose(f);
+	for (int i = 0; i < num_controller_t; i++) {
+		controller_t* c = controller_ts[i];
+		if (!loaded)
+			memcpy(&c->config_slot[CONTROLLER_GAME_SLOT], &c->config_default, sizeof(controller_config_t));
+		else if (loadButtonSlot == LOADBUTTON_AUTO)
+			for (int j = 0; j < 4; j++)
+				memcpy(&c->config[j], &c->config_slot[CONTROLLER_GAME_SLOT], sizeof(controller_config_t));
+	}
+}
+
 static bool loadSeparatelySettingItem(char* s1, char* s2, bool isUsb)
 {
     struct stat s;
@@ -1331,6 +1397,8 @@ static void loadSeparatelySetting()
             loadControllerMapping("sd");
         }
     }
+
+    loadGameButtons();   /* the Game slot of the button mappings: this game's, and Auto applies it */
 
     Config.pR3000Fix = 0;
     Config.Cpu = dynacore;

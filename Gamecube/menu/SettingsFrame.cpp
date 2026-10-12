@@ -319,7 +319,7 @@ struct ButtonInfo
 	{	NULL,	BTN_A_SEL,	NULL,				Func_EnableRumbleNo,	Func_ReturnFromSettingsFrame, "RumbleEnabled", RUMBLE_DISABLE }, // Enable Rumble: No
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[9],	Func_SaveButtonsSD,		Func_ReturnFromSettingsFrame }, // Save Button Mappings: SD
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[10],	Func_SaveButtonsUSB,	Func_ReturnFromSettingsFrame }, // Save Button Mappings: USB
-	{	NULL,	BTN_A_NRM,	NULL,				Func_ToggleButtonLoad,	Func_ReturnFromSettingsFrame, "LoadButtonSlot", SETTING_CURRENT }, // Auto Load Button Config Slot: Default,1,2,3,4
+	{	NULL,	BTN_A_NRM,	NULL,				Func_ToggleButtonLoad,	Func_ReturnFromSettingsFrame, "LoadButtonSlot", SETTING_CURRENT }, // Auto Load Button Config Slot: Default,1,2,3,4, Auto
 	//Buttons for Audio Tab (starts at button[39]) ..was[45]
 	{	NULL,	BTN_A_SEL,	NULL,				Func_ToggleAudio,		Func_ReturnFromSettingsFrame, "Audio", SETTING_LABEL }, // Enable: Audio
 	{	NULL,	BTN_A_SEL,	NULL,				Func_ToggleXa,			Func_ReturnFromSettingsFrame, "DisableXa", SETTING_LABEL }, // Enable: XA
@@ -1794,7 +1794,7 @@ void Func_SetButtonLoad()
 
 void Func_ToggleButtonLoad()
 {
-	loadButtonSlot = (loadButtonSlot + 1) % 5;
+	loadButtonSlot = (loadButtonSlot + 1) % 6;
 	Func_SetButtonLoad();
 }
 

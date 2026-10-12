@@ -43,6 +43,7 @@ extern "C" {
 void Func_NextPad();
 void Func_DefaultConfig();
 void Func_ToggleConfigSlot();
+int saveGameButtons(void);   /* GamecubeMain.cpp: the Game slot's file for this game */
 void Func_LoadConfig();
 void Func_SaveConfig();
 
@@ -783,8 +784,11 @@ static unsigned int which_slot = 0;
 
 void Func_ToggleConfigSlot()
 {
-	which_slot = (which_slot+1) %4;
-	FRAME_STRINGS[2][5] = which_slot + '1';
+	which_slot = (which_slot+1) %5;   /* 4 is the Game slot: this game's own file */
+	if (which_slot < 4)
+		FRAME_STRINGS[2][5] = which_slot + '1';
+	else
+		strcpy(FRAME_STRINGS[2], "Game");
 }
 
 void Func_LoadConfig()
@@ -803,7 +807,12 @@ void Func_SaveConfig()
 
 	//todo: save button configuration to file here
 
-	sprintf(buffer,"Saved current button mapping to slot %u.",which_slot+1);
+	if (which_slot < 4)
+		sprintf(buffer,"Saved current button mapping to slot %u.",which_slot+1);
+	else if (saveGameButtons())
+		strcpy(buffer,"Saved current button mapping for this game.");
+	else
+		strcpy(buffer,"Could not save the button mapping for this game.");
 	menu::MessageBox::getInstance().fadeMessage(buffer);
 //	menu::MessageBox::getInstance().setMessage(buffer);
 }

@@ -433,7 +433,8 @@ enum loadButtonSlot
 	LOADBUTTON_SLOT1,
 	LOADBUTTON_SLOT2,
 	LOADBUTTON_SLOT3,
-	LOADBUTTON_DEFAULT
+	LOADBUTTON_DEFAULT,
+	LOADBUTTON_AUTO      /* the game's own Game slot when it has one, else the default */
 };
 
 extern char controllerType;
