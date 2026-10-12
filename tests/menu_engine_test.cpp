@@ -689,7 +689,7 @@ static int buildExpected(const TestPage &t, Exp *e, Key *defaultFocus)
 
 	if (t.tabbed) {
 		for (int k = 0; k < nTabsOf(t); k++) {
-			n = addExpButton(e, n, ROLE_TAB, -1, k, TAB_X_LITERAL[k], 20.0f, tabsOf(t)[k].width, 56.0f,
+			n = addExpButton(e, n, ROLE_TAB, -1, k, TAB_X_LITERAL[k], 30.0f, tabsOf(t)[k].width, 56.0f,
 			                 tabsOf(t)[k].text, k == t.curTab);
 		}
 	} else if (t.title) {
@@ -1407,8 +1407,8 @@ static int frameIndexOf(Key want)
 /* The General tab's boxes and label anchors as SettingsFrame.cpp's tables write them, read from
  * the numbers themselves (not from the rules above), so that a rule that is wrong fails here. */
 static const struct { int idx; float x, y, w, h; } OLD_RECTS[] = {
-	{ 0, 25, 20, 110, 56 }, { 1, 155, 20, 100, 56 }, { 2, 275, 20, 100, 56 },
-	{ 3, 395, 20, 100, 56 }, { 4, 515, 20, 100, 56 },
+	{ 0, 25, 30, 110, 56 }, { 1, 155, 30, 100, 56 }, { 2, 275, 30, 100, 56 },
+	{ 3, 395, 30, 100, 56 }, { 4, 515, 30, 100, 56 },
 	{ 7, 295, 160, 70, 56 }, { 8, 375, 160, 55, 56 }, { 9, 440, 160, 70, 56 }, { 10, 520, 160, 70, 56 },
 	{ 11, 295, 220, 75, 56 }, { 12, 380, 220, 75, 56 }, { 13, 465, 220, 171, 56 },
 	{ 14, 253, 400, 55, 56 }, { 15, 318, 400, 70, 56 }, { 62, 398, 400, 140, 56 },
@@ -1525,8 +1525,8 @@ static int checkGeneralAgainstTable(void)
 /* The Video tab's boxes as SettingsFrame.cpp's tables write them: the five tabs (the same as General's,
  * read from the numbers there) and the buttons the tab shows. Dithering (25..27) is hidden on this tab. */
 static const struct { int idx; float x, y, w, h; } VIDEO_OLD_RECTS[] = {
-	{ 0, 25, 20, 110, 56 }, { 1, 155, 20, 100, 56 }, { 2, 275, 20, 100, 56 },
-	{ 3, 395, 20, 100, 56 }, { 4, 515, 20, 100, 56 },
+	{ 0, 25, 30, 110, 56 }, { 1, 155, 30, 100, 56 }, { 2, 275, 30, 100, 56 },
+	{ 3, 395, 30, 100, 56 }, { 4, 515, 30, 100, 56 },
 	{ 16, 295, 100, 75, 56 }, { 17, 380, 100, 75, 56 },
 	{ 18, 295, 160, 75, 56 }, { 19, 380, 160, 75, 56 }, { 63, 465, 160, 160, 56 },
 	{ 20, 295, 220, 75, 56 }, { 21, 380, 220, 75, 56 },
@@ -1798,11 +1798,11 @@ static int checkTabLinks(const char *name, int page, const OldBox *b, unsigned n
 
 /* The Input tab. Tabs: each tab's own box; Up 38 and Down 30 as activateSubmenu(SUBMENU_INPUT) sets. */
 static const OldBox INPUT_BOXES[] = {
-	{ 0, ROLE_TAB, -1, 0, 25.0f, 20.0f, 110.0f, 56.0f, 38, 30, 4, 1 },
-	{ 1, ROLE_TAB, -1, 1, 155.0f, 20.0f, 100.0f, 56.0f, 38, 30, 0, 2 },
-	{ 2, ROLE_TAB, -1, 2, 275.0f, 20.0f, 100.0f, 56.0f, 38, 30, 1, 3 },
-	{ 3, ROLE_TAB, -1, 3, 395.0f, 20.0f, 100.0f, 56.0f, 38, 30, 2, 4 },
-	{ 4, ROLE_TAB, -1, 4, 515.0f, 20.0f, 100.0f, 56.0f, 38, 30, 3, 0 },
+	{ 0, ROLE_TAB, -1, 0, 25.0f, 30.0f, 110.0f, 56.0f, 38, 30, 4, 1 },
+	{ 1, ROLE_TAB, -1, 1, 155.0f, 30.0f, 100.0f, 56.0f, 38, 30, 0, 2 },
+	{ 2, ROLE_TAB, -1, 2, 275.0f, 30.0f, 100.0f, 56.0f, 38, 30, 1, 3 },
+	{ 3, ROLE_TAB, -1, 3, 395.0f, 30.0f, 100.0f, 56.0f, 38, 30, 2, 4 },
+	{ 4, ROLE_TAB, -1, 4, 515.0f, 30.0f, 100.0f, 56.0f, 38, 30, 3, 0 },
 	{ 30, ROLE_BUTTON, 0, 0,  85.0f, 100.0f, 220.0f, 56.0f,  2, 32, 31, 31 },
 	{ 31, ROLE_BUTTON, 0, 1, 320.0f, 100.0f, 235.0f, 56.0f,  2, 32, 30, 30 },
 	{ 32, ROLE_CHOICE, 1, 0, 271.0f, 160.0f, 105.0f, 56.0f, 30, 59, 79, 33 },
@@ -1820,11 +1820,11 @@ static const float INPUT_LABEL_Y[6] = { 0.0f, 188.0f, 248.0f, 308.0f, 368.0f, 42
 
 /* The Audio tab: its tab row's Up is 72 and Down 39. */
 static const OldBox AUDIO_BOXES[] = {
-	{ 0, ROLE_TAB, -1, 0, 25.0f, 20.0f, 110.0f, 56.0f, 72, 39, 4, 1 },
-	{ 1, ROLE_TAB, -1, 1, 155.0f, 20.0f, 100.0f, 56.0f, 72, 39, 0, 2 },
-	{ 2, ROLE_TAB, -1, 2, 275.0f, 20.0f, 100.0f, 56.0f, 72, 39, 1, 3 },
-	{ 3, ROLE_TAB, -1, 3, 395.0f, 20.0f, 100.0f, 56.0f, 72, 39, 2, 4 },
-	{ 4, ROLE_TAB, -1, 4, 515.0f, 20.0f, 100.0f, 56.0f, 72, 39, 3, 0 },
+	{ 0, ROLE_TAB, -1, 0, 25.0f, 30.0f, 110.0f, 56.0f, 72, 39, 4, 1 },
+	{ 1, ROLE_TAB, -1, 1, 155.0f, 30.0f, 100.0f, 56.0f, 72, 39, 0, 2 },
+	{ 2, ROLE_TAB, -1, 2, 275.0f, 30.0f, 100.0f, 56.0f, 72, 39, 1, 3 },
+	{ 3, ROLE_TAB, -1, 3, 395.0f, 30.0f, 100.0f, 56.0f, 72, 39, 2, 4 },
+	{ 4, ROLE_TAB, -1, 4, 515.0f, 30.0f, 100.0f, 56.0f, 72, 39, 3, 0 },
 	{ 39, ROLE_BUTTON, 0, 0, 295.0f, 100.0f, 100.0f, 56.0f,  3, 45, 41, 40 },
 	{ 40, ROLE_BUTTON, 0, 1, 405.0f, 100.0f,  75.0f, 56.0f,  3, 45, 39, 41 },
 	{ 41, ROLE_BUTTON, 0, 2, 490.0f, 100.0f, 110.0f, 56.0f,  3, 45, 40, 39 },
@@ -1841,11 +1841,11 @@ static const float AUDIO_LABEL_Y[5] = { 128.0f, 198.0f, 268.0f, 338.0f, 0.0f };
 
 /* The Saves tab: its tab row's Up is 52 and Down 46. */
 static const OldBox SAVES_BOXES[] = {
-	{ 0, ROLE_TAB, -1, 0, 25.0f, 20.0f, 110.0f, 56.0f, 52, 46, 4, 1 },
-	{ 1, ROLE_TAB, -1, 1, 155.0f, 20.0f, 100.0f, 56.0f, 52, 46, 0, 2 },
-	{ 2, ROLE_TAB, -1, 2, 275.0f, 20.0f, 100.0f, 56.0f, 52, 46, 1, 3 },
-	{ 3, ROLE_TAB, -1, 3, 395.0f, 20.0f, 100.0f, 56.0f, 52, 46, 2, 4 },
-	{ 4, ROLE_TAB, -1, 4, 515.0f, 20.0f, 100.0f, 56.0f, 52, 46, 3, 0 },
+	{ 0, ROLE_TAB, -1, 0, 25.0f, 30.0f, 110.0f, 56.0f, 52, 46, 4, 1 },
+	{ 1, ROLE_TAB, -1, 1, 155.0f, 30.0f, 100.0f, 56.0f, 52, 46, 0, 2 },
+	{ 2, ROLE_TAB, -1, 2, 275.0f, 30.0f, 100.0f, 56.0f, 52, 46, 1, 3 },
+	{ 3, ROLE_TAB, -1, 3, 395.0f, 30.0f, 100.0f, 56.0f, 52, 46, 2, 4 },
+	{ 4, ROLE_TAB, -1, 4, 515.0f, 30.0f, 100.0f, 56.0f, 52, 46, 3, 0 },
 	{ 46, ROLE_BUTTON, 0, 0, 295.0f, 100.0f,  55.0f, 56.0f,  4, 76, 49, 47 },
 	{ 47, ROLE_BUTTON, 0, 1, 360.0f, 100.0f,  70.0f, 56.0f,  4, 77, 46, 48 },
 	{ 48, ROLE_BUTTON, 0, 2, 440.0f, 100.0f,  90.0f, 56.0f,  4, 77, 47, 49 },

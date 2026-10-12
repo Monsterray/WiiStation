@@ -74,7 +74,7 @@ enum {
  *   TAB_ROW_GAP  20  -- the gap between two tabs; TAB_GAP is for buttons in a row.
  */
 namespace grid {
-	const float TAB_Y         =  20.0f;	/* the tab row: 56 high, centred */
+	const float TAB_Y         =  30.0f;	/* the tab row: 56 high, centred */
 	const float TAB_ROW_GAP   =  20.0f;
 	const float TITLE_X       = 320.0f;
 	const float TITLE_Y       =  44.0f;
