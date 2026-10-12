@@ -132,15 +132,15 @@ profiler proves 240 frames executed. The first corrected-core run
 expected rollback. Its retained state sections and journals passed the corrected
 judge. The final matrix and recovery verified the restart checks as described above.
 
-The `ACHIEVEMENTS_BENCH` hooks were removed from the product file. The build no longer
-records stopped-boundary counts, runs the emulator reset and disc-swap checks, or
-returns chains to HBC for collection. The collector gets no achievement-bench log lines. A second
-DOL boot runs just five frames per core, before guest conditions become true;
+The bench DOL is built by `scripts/build-achievements-bench.sh`, which defines `ACHIEVEMENTS_BENCH`. That
+compiles `Gamecube/achievements_bench.cpp`: it records stopped-boundary counts, runs the
+emulator reset and disc-swap checks, isolates cards, and returns chains to HBC. Product
+builds omit these hooks. A second DOL boot runs just five frames per core, before guest conditions become true;
 all three achievements must be restored from SD journals with no new records.
 
 ```sh
 PROBES='-DPERF_PROF_TRACE=0 -DPERF_PROF_GPU=0 -DPERF_PROF_CPU=0' \
-  bash scripts/build.sh debug
+  bash scripts/build-achievements-bench.sh
 python3 scripts/achievement_fixture.py .runs/bench/fixture
 python3 scripts/bench_achievement_games.py prepare \
   --dol Gamecube/WiiSXRX_debug.dol --client ../hbc-reborn/tools/hbc.py \

@@ -72,9 +72,10 @@ See the pinned [port source](https://github.com/AndrewPiroli/wii-curl/tree/d9b21
 ## Gameplay pilot and reproducibility
 
 `scripts/bench_gameplay.py` freezes a real-game profile, recording, CUE, DOL/ELF
-and collector. The `AchievementBenchRoot` card redirect was removed from the product file, so this
-mode no longer isolates cards. Capacity definitions remain unearned; each arm uses a
-fresh local journal. The boundary reset and disc-swap hooks are removed too.
+and collector. The test-only `AchievementBenchRoot` redirects card reads, writes
+and chained cleanup into a fresh UUID directory (bench builds only). Capacity
+definitions remain unearned; each arm uses a fresh local journal. All cards begin
+empty. Boundary reset/swap correctness hooks are disabled for this real-game mode.
 
 `PERF_PROF_VSIG=0` removes per-frame RAM signature work/allocation;
 `PERF_PROF_ACHIEVEMENTS=1` measures evaluation time and calls. Those counters and
@@ -84,7 +85,7 @@ test-only paths have no production timer overhead. Build the pilot with:
 DEVKITPRO=/tmp/wiistation-devkitpro-local \
 DEVKITPPC=/tmp/wiistation-devkitpro-local/devkitPPC-r41-2 \
 PROBES='-DPERF_PROF_TRACE=0 -DPERF_PROF_GPU=0 -DPERF_PROF_CPU=0 -DPERF_PROF_VSIG=0 -DPERF_PROF_ACHIEVEMENTS=1' \
-bash scripts/build.sh debug
+bash scripts/build-achievements-bench.sh
 ```
 
 Use `scripts/gameplay_profiles/spyro_capacity.json` with the existing
