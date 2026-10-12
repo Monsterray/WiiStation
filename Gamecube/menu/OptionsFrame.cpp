@@ -10,12 +10,12 @@
  *               -> "Memory"    : what the machine's memory is doing right now
  *
  * HOW TO ADD A ROW
- *   A setting row (ROW_CYCLE or ROW_RADIO) needs: a `char` variable and an enum of its
- *   values in Gamecube/wiiSXconfig.h; its definition, default and one OPTIONS[] line in
- *   Gamecube/GamecubeMain.cpp (that line is what saves and loads it); a row in SETTINGS.md;
- *   and one entry below with the label, the variable, its lowest and highest value, the
- *   value names in that order, and an apply function (NULL when the emulator reads the
- *   variable directly).
+ *   A setting row (ROW_CYCLE or ROW_RADIO) needs: its OPTIONS[] line in Gamecube/GamecubeMain.cpp
+ *   (the key, the variable, its lowest and highest value, the label, the choice names and the
+ *   help line; that line is what saves and loads it, and what the menu shows); a row in
+ *   SETTINGS.md; and one entry below with the key and an apply function (NULL when the emulator
+ *   reads the variable directly). The label, names and range are read from the table by key
+ *   when the page is shown: nothing is copied here. scripts/settings_check.py checks each key.
  *     ROW_CYCLE is one button that steps through the values: compact, right for a long list
  *     or for a setting whose values are obvious (On/Off).
  *     ROW_RADIO shows every value at once as its own button with the current one lit, the
@@ -100,37 +100,23 @@ void Func_ReturnFromOptionsFrame();
 struct OptRow
 {
 	int					kind;
-	const char*			label;		// text on the left
-	char*				var;		// CYCLE/RADIO: the setting it edits
-	char				min, max;	// CYCLE: A cycles min..max and wraps. RADIO: one button each
-	const char* const*	names;		// CYCLE/RADIO: names[value - min], shown on the button
-	void				(*apply)(void);	// CYCLE/RADIO: tell the emulator; NULL = it reads var itself
+	const char*			key;		// CYCLE/RADIO: the setting, by its key in the OPTIONS table (GamecubeMain.cpp)
+	void				(*apply)(void);	// CYCLE/RADIO: tell the emulator; NULL = it reads the setting itself
 	void				(*info)(char *buf, int len);	// INFO: writes the right-hand text
+	const char*			label;		// INFO: the readout's label (a setting's label is in the table)
 	bool				fit;		// RADIO: size each button to its own word, not to RADIO_W
 };
 
-#define ROW_CYCLE(label, var, lo, hi, names, apply) \
-	{ OPT_CYCLE, label, (char*)&(var), (char)(lo), (char)(hi), names, apply, NULL }
-#define ROW_RADIO(label, var, lo, hi, names, apply) \
-	{ OPT_RADIO, label, (char*)&(var), (char)(lo), (char)(hi), names, apply, NULL, false }
+#define ROW_CYCLE(key, apply) \
+	{ OPT_CYCLE, key, apply, NULL, NULL, false }
+#define ROW_RADIO(key, apply) \
+	{ OPT_RADIO, key, apply, NULL, NULL, false }
 /* The same, but each button only as wide as its own word. Right when the words differ a
  * lot in length; a row whose choices are of a size reads better on the fixed grid. */
-#define ROW_RADIO_FIT(label, var, lo, hi, names, apply) \
-	{ OPT_RADIO, label, (char*)&(var), (char)(lo), (char)(hi), names, apply, NULL, true }
+#define ROW_RADIO_FIT(key, apply) \
+	{ OPT_RADIO, key, apply, NULL, NULL, true }
 #define ROW_INFO(label, fn) \
-	{ OPT_INFO, label, NULL, 0, 0, NULL, NULL, fn }
-
-static const char* const RESAMPLER_NAMES[]   = { "Hold", "Linear", "Cubic" };
-static const char* const ON_OFF_NAMES[]      = { "Off", "On" };
-static const char* const LEGACY_HIFI_NAMES[] = { "Legacy", "Hi-Fi" };
-static const char* const CD_BUFFER_NAMES[]   = { "16 KB", "64 KB", "256 KB" };
-static const char* const CD_HUNKS_NAMES[]    = { "2", "4", "8" };
-/* dynacore: 0 Lightrec, 1 Interpreter, 2 old PPC dynarec (wiiSXconfig.h) */
-static const char* const CPU_CORE_NAMES[]    = { "Lightrec", "Interpreter", "Dynarec" };
-/* gpuPlugin: 0 Soft Fast (WiiSX P.E.Op.S. path, no GPU timing), 1 Soft Timed (gpulib: GPU time per primitive), 2 OpenGX */
-static const char* const GPU_PLUGIN_NAMES[]  = { "Soft Fast", "Soft Timed", "OpenGX" };
-static const char* const FAST_ACCURATE_NAMES[] = { "Fast", "Accurate" };
-static const char* const CPU_SPEED_NAMES[] = { "Auto", "50%", "75%", "100%", "125%", "150%", "200%", "300%" };
+	{ OPT_INFO, NULL, NULL, fn, label, false }
 
 /* setSpuReverb(int) takes the raw setting value; the table's apply slot is void(void), so
  * this wrapper reads the setting itself, the same way GamecubeMain.cpp does at startup. */
@@ -202,10 +188,10 @@ static void infoFixedBuffers(char *buf, int len)
 
 static const OptRow SOUND_ROWS[] =
 {
-	ROW_CYCLE("Output Resampler", soundResampler,      SOUND_RESAMPLE_HOLD,          SOUND_RESAMPLE_CUBIC,        RESAMPLER_NAMES,   NULL),
-	ROW_CYCLE("Reverb",           soundReverb,         SOUND_REVERB_OFF,             SOUND_REVERB_ON,             ON_OFF_NAMES,      applySpuReverb),
-	ROW_CYCLE("Mixer Precision",  soundMixerPrecision, SOUND_MIXER_PRECISION_LEGACY, SOUND_MIXER_PRECISION_HIFI,  LEGACY_HIFI_NAMES, NULL),
-	ROW_CYCLE("XA Resampler",     soundXaResampler,    SOUND_XA_RESAMPLER_LEGACY,    SOUND_XA_RESAMPLER_HIFI,     LEGACY_HIFI_NAMES, NULL),
+	ROW_CYCLE("SoundResampler", NULL),
+	ROW_CYCLE("SoundReverb", applySpuReverb),
+	ROW_CYCLE("SoundMixerPrecision", NULL),
+	ROW_CYCLE("SoundXaResampler", NULL),
 };
 
 /* A line of help under the rows. `term` is the setting being explained, drawn bold in its
@@ -219,20 +205,19 @@ typedef eng::HelpLine OptHelp;
 static const OptRow PLUGIN_ROWS[] =
 {
 	/* Fitted: "Interpreter" is wider than a fixed 135 px button. */
-	ROW_RADIO_FIT("CPU Core", dynacore,  DYNACORE_DYNAREC, DYNACORE_DYNAREC_OLD, CPU_CORE_NAMES,   NULL),
-	ROW_CYCLE("CPU Timing", cpuTiming, CPU_TIMING_FAST,  CPU_TIMING_ACCURATE,  FAST_ACCURATE_NAMES, NULL),
-	ROW_CYCLE("CPU Speed",  cpuSpeed,  CPU_SPEED_AUTO,   CPU_SPEED_300,        CPU_SPEED_NAMES,     NULL),
+	ROW_RADIO_FIT("Core", NULL),
+	ROW_CYCLE("CpuTiming", NULL),
+	ROW_CYCLE("CpuSpeed", NULL),
 };
 
 /* The SPU plugin: there is one (P.E.Op.S. DFSound, from PCSX-ReARMed), so it is a readout;
  * what can be swapped is where its output is resampled and mixed for the Wii. */
 static void infoSpuPlugin(char *buf, int len) { snprintf(buf, len, "P.E.Op.S. DFSound"); }
-static const char* const SPU_OUTPUT_NAMES[] = { "CPU", "DSP" };
 
 static const OptRow SPU_ROWS[] =
 {
 	ROW_INFO("SPU Plugin", infoSpuPlugin),
-	ROW_RADIO("Output", soundHwAccel, SOUND_HW_ACCEL_OFF, SOUND_HW_ACCEL_ON, SPU_OUTPUT_NAMES, NULL),
+	ROW_RADIO("SoundHwAccel", NULL),
 };
 
 static const OptHelp SPU_HELP[] =
@@ -242,15 +227,13 @@ static const OptHelp SPU_HELP[] =
 	{ NULL,      "Sound quality is in Audio, Advanced." },
 };
 
-static const char* const FRAME_RATE_NAMES[] = { "Auto", "TV", "PS1" };
-
 static const OptRow GPU_ROWS[] =
 {
 	/* Fitted: "Soft Timed" is wider than a fixed 135 px button. The row starts further left
 	 * than the others to fit (MenuEngine's choiceStart). */
-	ROW_RADIO_FIT("GPU Plugin", gpuPlugin, OLD_SOFT,     OPEN_GX,              GPU_PLUGIN_NAMES, NULL),
-	ROW_CYCLE("GPU Timing", gpuTiming, GPU_TIMING_FAST,  GPU_TIMING_ACCURATE,  FAST_ACCURATE_NAMES, NULL),
-	ROW_RADIO("Frame Rate", frameRateMode, FRAMERATE_AUTO, FRAMERATE_PS1,     FRAME_RATE_NAMES, NULL),
+	ROW_RADIO_FIT("gpuPlugin", NULL),
+	ROW_CYCLE("GpuTiming", NULL),
+	ROW_RADIO("FrameRate", NULL),
 };
 
 static const OptHelp GPU_HELP[] =
@@ -263,7 +246,7 @@ static const OptHelp GPU_HELP[] =
 
 static const OptRow INPUT_ROWS[] =
 {
-	ROW_CYCLE("Port Timing", sioTiming, SIO_TIMING_FAST, SIO_TIMING_ACCURATE, FAST_ACCURATE_NAMES, NULL),
+	ROW_CYCLE("SioTiming", NULL),
 };
 
 static const OptHelp INPUT_HELP[] =
@@ -298,15 +281,11 @@ static void pluginsLeave(void)
 /* All three are read when a disc image is opened, so they take effect at the next game
  * load rather than immediately (SETTINGS.md section 2). "Default" is the Dithering setting's
  * middle choice. The help text below says what it means. */
-static const char* const DITHER_NAMES[]   = { "None", "Default", "Always" };
-static const char* const CHROMA_NAMES[]   = { "Sharp", "Smooth" };
-static const char* const FMV_COLOUR_NAMES[] = { "15-bit", "24-bit" };
-
 static const OptRow ADVGFX_ROWS[] =
 {
-	ROW_RADIO_FIT("Dithering", useDithering, USEDITHER_NONE,  USEDITHER_ALWAYS,  DITHER_NAMES, NULL),
-	ROW_CYCLE("MDEC Chroma", mdecChroma,   MDECCHROMA_SHARP,  MDECCHROMA_SMOOTH, CHROMA_NAMES, NULL),
-	ROW_CYCLE("Video Colour", fmvColour,   FMVCOLOUR_15BIT,   FMVCOLOUR_24BIT,   FMV_COLOUR_NAMES, NULL),
+	ROW_RADIO_FIT("Dithering", NULL),
+	ROW_CYCLE("MdecChroma", NULL),
+	ROW_CYCLE("FmvColour", NULL),
 };
 
 static const OptHelp ADVGFX_HELP[] =
@@ -322,9 +301,9 @@ static const OptHelp ADVGFX_HELP[] =
 
 static const OptRow CD_ROWS[] =
 {
-	ROW_CYCLE("CD Read Buffer", cdBuffer,   CD_BUFFER_16K,   CD_BUFFER_256K, CD_BUFFER_NAMES, NULL),
-	ROW_CYCLE("CD Read-Ahead",  cdPrefetch, CD_PREFETCH_OFF, CD_PREFETCH_ON, ON_OFF_NAMES,    NULL),
-	ROW_CYCLE("CHD Hunk Cache", cdChdHunks, CD_CHD_HUNKS_2,  CD_CHD_HUNKS_8, CD_HUNKS_NAMES,  NULL),
+	ROW_CYCLE("CdBuffer", NULL),
+	ROW_CYCLE("CdPrefetch", NULL),
+	ROW_CYCLE("CdChdHunks", NULL),
 };
 
 static const OptHelp CD_HELP[] =
@@ -410,6 +389,9 @@ struct OptWidget
 };
 
 static OptWidget		ROWS[OPT_MAX_ROWS];
+/* The setting each row edits, by its key, looked up once when its page is shown (bindPage).
+ * A readout has none. */
+static const SettingOption*	ROW_SET[OPT_MAX_ROWS];
 static menu::TextBox*	helpTermBox[OPT_MAX_HELP];
 static menu::TextBox*	helpBox[OPT_MAX_HELP];
 static char*			helpTermString[OPT_MAX_HELP];
@@ -491,11 +473,18 @@ static const OptRow* pageRow(int row)
 	return &PAGES[currentPage].rows[row];
 }
 
+static void bindPage(int page)
+{
+	for (int i = 0; i < PAGES[page].nrows; i++)
+		ROW_SET[i] = PAGES[page].rows[i].kind == OPT_INFO ? NULL : settingByKey(PAGES[page].rows[i].key);
+}
+
 /* How many buttons a radio row shows. A row that declares more values than there are slots
  * would silently lose the rest, so it is clamped here and the clamp is the documented limit. */
-static int rowChoices(const OptRow *o)
+static int rowChoices(int row)
 {
-	int n = (int)o->max - (int)o->min + 1;
+	const SettingOption *s = ROW_SET[row];
+	int n = (int)s->max - (int)s->min + 1;
 	if (n < 1) n = 1;
 	if (n > OPT_MAX_CHOICES) n = OPT_MAX_CHOICES;
 	return n;
@@ -505,18 +494,19 @@ static int rowChoices(const OptRow *o)
 static void refreshRow(int row)
 {
 	const OptRow *o = pageRow(row);
+	const SettingOption *s = ROW_SET[row];
 	if (o->kind == OPT_INFO) {
 		o->info(ROWS[row].value, VALUE_LEN);
 	} else if (o->kind == OPT_RADIO) {
-		int n = rowChoices(o), v = *o->var;
-		if (v < o->min || v > o->max) v = o->min;
+		int n = rowChoices(row), v = *s->value;
+		if (v < s->min || v > s->max) v = s->min;
 		for (int c = 0; c < n; c++)
-			ROWS[row].choice[c]->setSelected(c == v - o->min);
+			ROWS[row].choice[c]->setSelected(c == v - s->min);
 		return;
 	} else {
-		int v = *o->var;
-		if (v < o->min || v > o->max) v = o->min;	// a value the settings file parser let through
-		snprintf(ROWS[row].value, VALUE_LEN, "%s", o->names[v - o->min]);
+		int v = *s->value;
+		if (v < s->min || v > s->max) v = s->min;	// a value the settings file parser let through
+		snprintf(ROWS[row].value, VALUE_LEN, "%s", s->choices[v - s->min]);
 	}
 	ROWS[row].valueString = ROWS[row].value;
 }
@@ -528,9 +518,10 @@ static void optCycle(int row)
 	o = pageRow(row);
 	if (o->kind != OPT_CYCLE) return;
 	{
-		int v = *o->var + 1;
-		if (v > o->max || v < o->min) v = o->min;
-		*o->var = (char)v;
+		const SettingOption *s = ROW_SET[row];
+		int v = *s->value + 1;
+		if (v > s->max || v < s->min) v = s->min;
+		*s->value = (char)v;
 	}
 	refreshRow(row);
 	if (o->apply) o->apply();
@@ -541,8 +532,8 @@ static void optSet(int row, int choice)
 	const OptRow *o;
 	if (row >= PAGES[currentPage].nrows) return;
 	o = pageRow(row);
-	if (o->kind != OPT_RADIO || choice >= rowChoices(o)) return;
-	*o->var = (char)(o->min + choice);
+	if (o->kind != OPT_RADIO || choice >= rowChoices(row)) return;
+	*ROW_SET[row]->value = (char)(ROW_SET[row]->min + choice);
 	refreshRow(row);
 	if (o->apply) o->apply();
 }
@@ -564,9 +555,10 @@ static void buildEnginePage(int page, int curTab)
 	for (int i = 0; i < p.nrows; i++)
 	{
 		const OptRow *o = &p.rows[i];
+		const SettingOption *s = ROW_SET[i];
 		eng::Row &r = ENG_ROWS[i];
 		memset(&r, 0, sizeof r);
-		r.label = o->label;
+		r.label = o->kind == OPT_INFO ? o->label : s->label;
 		if (o->kind == OPT_INFO)
 		{
 			r.kind = eng::ROW_READOUT;
@@ -575,19 +567,19 @@ static void buildEnginePage(int page, int curTab)
 		else if (o->kind == OPT_RADIO)
 		{
 			r.kind  = eng::ROW_CHOICE;
-			r.names = o->names;
-			r.lo    = o->min;
-			r.count = rowChoices(o);
-			r.value = *o->var;
+			r.names = s->choices;
+			r.lo    = s->min;
+			r.count = rowChoices(i);
+			r.value = *s->value;
 			r.fit   = o->fit;
 		}
 		else
 		{
 			r.kind  = eng::ROW_CYCLE;
-			r.names = o->names;
-			r.lo    = o->min;
-			r.count = o->max - o->min + 1;
-			r.value = *o->var;
+			r.names = s->choices;
+			r.lo    = s->min;
+			r.count = s->max - s->min + 1;
+			r.value = *s->value;
 		}
 	}
 
@@ -856,6 +848,7 @@ void OptionsFrame::activateSubmenu(int submenu)
 {
 	if (submenu < 0 || submenu >= NUM_PAGES) submenu = PAGE_SOUND;
 	currentPage = submenu;
+	bindPage(currentPage);
 
 	int curTab = -1;
 	for (int t = 0; t < NUM_TABS; t++)

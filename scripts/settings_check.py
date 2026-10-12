@@ -15,6 +15,8 @@ The OPTIONS table in Gamecube/GamecubeMain.cpp is the one source. The checks:
      A label means a menu location. Grid settings need no label: the ports and Co-Op
      are drawn as one grid, not as rows.
   5. A labelled row has one choice text for each value. It has one help line.
+  6. Each ROW_CYCLE/ROW_RADIO row of Gamecube/menu/OptionsFrame.cpp names a key of the
+     table, and the table gives that key a label. The menu's text is the table's.
 
 Exit 1 on any difference.
 """
@@ -102,7 +104,7 @@ def table():
     s = (REPO / "Gamecube/GamecubeMain.cpp").read_text(encoding="utf-8")
     counts = {m.group(1): len(re.findall(r'"', m.group(2))) // 2
               for m in re.finditer(r"static const char\* const (OPT_\w+)\[\]\s*=\s*\{([^}]*)\}", s)}
-    t = s[s.index("} OPTIONS[] ="):]
+    t = s[s.index("OPTIONS[] ="):]
     t = t[:t.index("};")]
 
     def number(text):
@@ -288,7 +290,19 @@ def main():
             bad = 1
             print(f"{k}: no help line")
 
-    print(f"checked {len(rows)} keys, {checked} ranges, {labelled} menu labels")
+    # 6. the menu frames: a row names a key that has a label in the table
+    by_key = {r["key"]: r for r in rows}
+    frame = (REPO / "Gamecube/menu/OptionsFrame.cpp").read_text(encoding="utf-8")
+    frame_rows = re.findall(r'\bROW_(?:CYCLE|RADIO|RADIO_FIT)\(\s*"(\w+)"', frame)
+    for k in frame_rows:
+        if k not in by_key:
+            bad = 1
+            print(f"OptionsFrame.cpp: row key '{k}' is not in OPTIONS")
+        elif by_key[k]["label"] is None:
+            bad = 1
+            print(f"OptionsFrame.cpp: row key '{k}' has no label in OPTIONS")
+
+    print(f"checked {len(rows)} keys, {checked} ranges, {labelled} menu labels, {len(frame_rows)} frame rows")
     print("settings: ok" if not bad else "settings: DIFFERENT")
     return bad
 

@@ -227,24 +227,7 @@ static const char* const OPT_CONTROLLER[]    = { "Standard", "Analog", "Stick D-
 static const char* const OPT_SLOT[]          = { "Slot 1", "Slot 2", "Slot 3", "Slot 4", "Default" };
 static const char* const OPT_LIGHTGUN[]      = { "Off", "GunCon", "Justifier", "Mouse" };
 
-static struct {
-	const char* key;
-	// For integral options this is a pointer to a char
-	// for string values, this is a pointer to a 256-byte string
-	// thus, assigning a string value to an integral type will cause overflow
-	char* value;
-	char  min, max;
-	/* A row with no value starts a section of settings.ini: the key is its [name] and this
-	 * is the comment written under it. The reader ignores sections; keys are unique. */
-	const char* note;
-	/* The menu text of a row. Docs/MENU_FRAMEWORK_PLAN.md, section 6, has the plan.
-	 * A NULL label means the setting has no row of its own. Such a setting is file-only,
-	 * a port grid, or a trigger. choices[value - min] is the text on each button.
-	 * help is one line under the row. */
-	const char* label;
-	const char* const* choices;
-	const char* help;
-} OPTIONS[] =
+static SettingOption OPTIONS[] =
 {
   { "General", NULL, 0, 0, "The menu and the emulator." },
   { "lang", &lang, ENGLISH, TURKISH, NULL, "Select Language", OPT_LANG, "The language of the menu text." },
@@ -421,6 +404,14 @@ static struct {
   { "smbpassword", smbPassWord, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "RomDirSMB", romDirSMB, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE }
 };
+
+const SettingOption* settingByKey(const char* key)
+{
+	for (unsigned int i = 0; i < sizeof(OPTIONS) / sizeof(OPTIONS[0]); i++)
+		if (OPTIONS[i].value && !strcmp(OPTIONS[i].key, key))	/* a section row has no value */
+			return &OPTIONS[i];
+	return NULL;
+}
 void handleConfigPair(char* kv);
 void readConfig(FILE* f);
 void writeConfig(FILE* f);
