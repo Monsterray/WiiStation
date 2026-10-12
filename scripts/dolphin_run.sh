@@ -226,10 +226,14 @@ echo "dol: $DOL ($(stat -c %y "$DOL" 2>/dev/null | cut -c1-19))"
 echo "profile: $PROFILE_WIN"
 printf 'options:'; printf ' %s' "${CFGARGS[@]}"; echo
 printf '%s\n' "${CFGARGS[@]}" > "$OUT/dolphin-options.txt"
-"$D/Dolphin.exe" -b -e "$DOL" -u "$PROFILE_WIN" "${CFGARGS[@]}" &
-DPID=$!; sleep 2; WPID=$(ps -p $DPID 2>/dev/null | awk 'NR==2{print $4}')
-# Fallback for the Windows PID: the only instance on our profile is the one just started.
-[ -n "$WPID" ] || WPID=$(same_userdir_pids | head -1)
+# Never on the user's screen or input (user rule 2026-10-12): "start /min" opens the window
+# minimized and NOT activated (SW_SHOWMINNOACTIVE), so it never takes keyboard or mouse focus;
+# the template binds no host device (profiles/template/Config: Device None, Wiimote Source 0).
+# WSX_SHOW=1 (movie_capture.sh only: the user plays) opens it normally.
+if [ "${WSX_SHOW:-0}" = 1 ]; then SHOW=; else SHOW=//min; fi
+cmd //c start "" $SHOW "$(cygpath -w "$D/Dolphin.exe")" -b -e "$DOL" -u "$PROFILE_WIN" "${CFGARGS[@]}"
+# The Windows PID: the only instance on our profile is the one just started.
+WPID=; for _ in 1 2 3 4 5 6 7 8 9 10; do WPID=$(same_userdir_pids | head -1); [ -n "$WPID" ] && break; sleep 1; done
 echo "dolphin windows pid: ${WPID:-unknown}"
 # Alive check: the tasklist line must name Dolphin.exe, not just any recycled pid.
 # Process enumeration flaked repeatedly (2026-10-10: live pids missed by tasklist AND
