@@ -43,7 +43,9 @@ extern "C" {
 void Func_NextPad();
 void Func_DefaultConfig();
 void Func_ToggleConfigSlot();
-int saveGameButtons(void);   /* GamecubeMain.cpp: the Game slot's file for this game */
+extern const char* buttonDevice;                 /* GamecubeMain.cpp: "usb" or "sd" */
+int saveButtonConfigs(const char* dev);          /* GamecubeMain.cpp: every slot file and the Game file */
+void saveAllButtonConfigs(const char* dev, bool fade);   /* below: the one Save, with its message */
 void Func_LoadConfig();
 void Func_SaveConfig();
 
@@ -806,22 +808,31 @@ void Func_LoadConfig()
 	pMenuContext->getFrame(MenuContext::FRAME_CONFIGUREBUTTONS)->activateSubmenu(activePad);
 }
 
+/* The one Save of the button mappings: every slot file and the Game file, on dev. The message
+ * names the device. Settings' Save Button Configs rows call this too. */
+void saveAllButtonConfigs(const char* dev, bool fade)
+{
+	char buffer[120];
+	const char* where = strcmp(dev, "usb") == 0 ? "USB" : "SD";
+	int result = saveButtonConfigs(dev);
+	if (result == 1)
+		snprintf(buffer, sizeof buffer, "Saved all button configs to %s.", where);
+	else if (result == 2)
+		snprintf(buffer, sizeof buffer, "Saved to %s. No game is loaded, so the Game slot was not saved.", where);
+	else
+		snprintf(buffer, sizeof buffer, "Could not save all button configs to %s.", where);
+	if (fade)
+		menu::MessageBox::getInstance().fadeMessage(buffer);
+	else
+		menu::MessageBox::getInstance().setMessage(buffer);
+}
+
+/* The slot is copied in RAM, then every file is written, so nothing is left unsaved. */
 void Func_SaveConfig()
 {
-	char buffer [50] = "";
 	controller_config_t* currentConfig = virtualControllers[activePad].config;
 	memcpy(&virtualControllers[activePad].control->config_slot[which_slot], currentConfig, sizeof(controller_config_t));
-
-	//todo: save button configuration to file here
-
-	if (which_slot < 4)
-		sprintf(buffer,"Saved current button mapping to slot %u.",which_slot+1);
-	else if (saveGameButtons())
-		strcpy(buffer,"Saved current button mapping for this game.");
-	else
-		strcpy(buffer,"Could not save the button mapping for this game.");
-	menu::MessageBox::getInstance().fadeMessage(buffer);
-//	menu::MessageBox::getInstance().setMessage(buffer);
+	saveAllButtonConfigs(buttonDevice, true);
 }
 
 /* A combination inside another one is pressed with it. The menu and fast-forward combinations

@@ -158,7 +158,7 @@ The menu also has the buttons **Disable XA** and **Disable CDDA**. WiiStation do
 | `PadAssign1` to `PadAssign10` | 0 to 3 | 0, except `PadAssign2` = 1 and the multitap slots: A to D are 0 to 3 (`PadAssign3`..`6` and `PadAssign7`..`10`) | Input, Configure Input | Sets which physical controller (1 to 4, written 0 to 3) drives each port. Values 4 to 9, which older versions accepted, are ignored. |
 | `RumbleEnabled` | 0 = No, 1 = Yes | 1 | Input, Enable Rumble | Enables the controller rumble. Note: the menu label is inverted. **Disable Rumble = Yes** writes `RumbleEnabled = 0`. |
 | `ControllerType` | 0 = Standard, 1 = Analog, 2 = Stick D-pad | 0 | Input, PSX Pad Type | Sets the emulated PlayStation controller type. **Standard** is a digital pad (SCPH-1080): it answers the read command 42h and nothing else. **Analog** is a PS1 DualShock (SCPH-1200): it starts in digital mode, as the real pad does, and a game that supports analog switches it to analog mode itself with the config commands (Spyro, Ape Escape). Both behave as the real pads do, checked command by command with PadTest DX (Docs/CONTROLLER_TESTING.md). Games made for the older Dual Analog pad, which expect the player to press the ANALOG button, stay digital. **Stick D-pad** is the Standard digital pad, and the left stick also presses its D-pad: past half of full travel, the stick's direction presses Up, Down, Left or Right, or two of them on a diagonal (each of the eight directions takes 45 degrees). Use it for games that read only the D-pad, so they can be played with the stick. It applies to every port and multitap slot. |
-| `LoadButtonSlot` | 0 to 3 = Slot 1 to Slot 4, 4 = Default, 5 = Auto | 5 | Input, Auto Load Slot | Loads a saved button mapping at start. Auto loads the game's own mapping (the Game slot, `<CdromId>.btn` beside the slot files) if it has one, else the default. |
+| `LoadButtonSlot` | 0 to 3 = Slot 1 to Slot 4, 4 = Default, 5 = Auto | 5 | Input, Auto Load Slot | Loads a saved button mapping at start. Auto loads the game's own mapping (the Game slot, `wiistation/buttons/games/<CdromId>.cfg`) if it has one, else the default. |
 | `LightGun` | 0 = Off, 1 = GunCon, 2 = Justifier, 3 = Mouse | 0 | Input, Light Gun | Selects the emulated light gun or mouse. The Wii Remote pointer controls it. |
 | `PadLightgun1` to `PadLightgun10` | 0 = Off, 1 = On | 1 | Input, Configure Buttons, Gun/Mouse | Enables the light gun or mouse on each port. |
 
@@ -187,7 +187,27 @@ In the menu: Configure Input, Manual, then press the port's type button until it
 
 ### 6.2 Button mapping files
 
-The button mappings are not in the settings file. WiiStation keeps them in the files `controlG.cfg`, `controlH.cfg`, `controlC.cfg`, `controlN.cfg`, `controlW.cfg`, `controlP.cfg`, and `controlD.cfg` in `wiistation/`. The Configure Buttons menu writes these files. Each one also holds that controller's analog sensitivity, below.
+The button mappings are not in the settings file. They are in the folder `wiistation/buttons/`, one file for each controller type:
+
+| File | Controller |
+|---|---|
+| `gamecube.cfg` | GameCube pad |
+| `usb-hid.cfg` | USB HID gamepad |
+| `classic.cfg` | Classic Controller |
+| `wiimote-nunchuk.cfg` | Wiimote with Nunchuk |
+| `wiimote.cfg` | Wiimote alone |
+| `wiiu-pro.cfg` | Wii U Pro Controller |
+| `wiiu-gamepad.cfg` | Wii U GamePad |
+
+Each game has its own file, `wiistation/buttons/games/<CdromId>.cfg`. It holds the Game slot of every controller type.
+
+Each controller file holds that controller's four slots, its analog sensitivity (below) and its screenshot combination (below). The files are binary. Do not edit them by hand.
+
+**Save.** Configure Buttons, Save writes every file at once: the four slots of every controller type and the game's file. Settings, Save Button Configs (SD or USB) writes every file too. The Settings rows choose the device. Configure Buttons, Save writes to the device last chosen. The message names the device.
+
+**Read.** At boot and at each game start, one set of files comes from one device. WiiStation first tries the device it booted from, or the device last chosen in Settings. If that device has a file for every controller type, WiiStation uses it. Otherwise it uses the other device when that one has every file. If neither has every file, it uses the device with more files. A set is never a mix of USB and SD.
+
+**Older names.** Earlier versions used the files `controlG.cfg`, `controlH.cfg`, `controlC.cfg`, `controlN.cfg`, `controlW.cfg`, `controlP.cfg` and `controlD.cfg` in `wiistation/`, and `<CdromId>.btn` in `wiistation/` for each game. WiiStation reads an older file when its new file is missing. A Save writes only the new names. It never deletes the older files. You can delete them yourself after you check that the new files work.
 
 ### 6.3 Analog stick sensitivity
 

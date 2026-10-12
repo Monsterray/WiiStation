@@ -64,6 +64,7 @@ extern "C" {
 #include "fileBrowser/fileBrowser-CARD.h"
 #include "fileBrowser/fileBrowser-SMB.h"
 #include "gc_input/controller.h"
+#include "buttonfiles.h"
 #include "vm/vm.h"
 #include "ws_crash.h"
 #include "../gpu.h"
@@ -487,94 +488,44 @@ static void setGpuPlugin()
 /* The Auto Load Slot whose key mapping is loaded now (loadSettings, loadSeparatelySetting) */
 static char mappingSlot = -1;
 
-static bool loadControllerMapping(char* usbSd)
+/* The device the button files were read from and are saved to: "usb" or "sd". The one Save
+ * writes here, so the set that is read and the set that is written are always the same. */
+const char* buttonDevice = "sd";
+
+static int buttonFileExists(const char* path)
 {
-    char settingPathBuf[256];
-    FILE* f;
-    bool loadRet = true;
+    struct stat s;
+    return stat(path, &s) == 0;
+}
 
-    sprintf(settingPathBuf, "%s:/wiistation/controlG.cfg", usbSd);
-    f = fopen(settingPathBuf, "rb" );  //attempt to open file
-    if (f) {
-        load_configurations(f, &controller_GC);					//read in GC controller mappings
-        fclose(f);
-    }
-    else
-    {
-        loadRet = false;
-    }
+static bool buttonDeviceReady(const char* dev)
+{
+    return fileBrowser_libfat_init(strcmp(dev, "usb") == 0 ? &saveDir_libfat_USB : &saveDir_libfat_Default) != 0;
+}
 
-    #ifdef HW_RVL
+/* Reads the slot files of every controller type on this build from one device: pref when it has
+ * them all, else the other device (button_read_device). A type with no file keeps its mapping. */
+static void loadControllerMapping(const char* pref)
+{
+    char ids[num_controller_t + 1];
+    char path[256];
+    for (int i = 0; i < num_controller_t; i++)
+        ids[i] = controller_ts[i]->identifier;
+    ids[num_controller_t] = '\0';
 
-    sprintf(settingPathBuf, "%s:/wiistation/controlH.cfg", usbSd);
-    f = fopen(settingPathBuf, "rb" );  //attempt to open file
-    if(f) {
-        load_configurations(f, &controller_HidGC);			//read in HID controller mappings
-        fclose(f);
+    buttonDeviceReady(pref);
+    buttonDeviceReady(button_other_device(pref));
+    buttonDevice = button_read_device(pref, ids, buttonFileExists);
+    for (int i = 0; i < num_controller_t; i++) {
+        controller_t* c = controller_ts[i];
+        if (!button_slot_read(path, sizeof path, buttonDevice, c->identifier, buttonFileExists))
+            continue;
+        FILE* f = fopen(path, "rb");
+        if (f) {
+            load_configurations(f, c);
+            fclose(f);
+        }
     }
-    else
-    {
-        loadRet = false;
-    }
-
-    sprintf(settingPathBuf, "%s:/wiistation/controlC.cfg", usbSd);
-    f = fopen(settingPathBuf, "rb" );  //attempt to open file
-    if(f) {
-        load_configurations(f, &controller_Classic);			//read in Classic controller mappings
-        fclose(f);
-    }
-    else
-    {
-        loadRet = false;
-    }
-
-    sprintf(settingPathBuf, "%s:/wiistation/controlN.cfg", usbSd);
-    f = fopen(settingPathBuf, "rb" );  //attempt to open file
-    if(f) {
-        load_configurations(f, &controller_WiimoteNunchuk);		//read in WM+NC controller mappings
-        fclose(f);
-    }
-    else
-    {
-        loadRet = false;
-    }
-
-    sprintf(settingPathBuf, "%s:/wiistation/controlW.cfg", usbSd);
-    f = fopen(settingPathBuf, "rb" );  //attempt to open file
-    if(f) {
-        load_configurations(f, &controller_Wiimote);			//read in Wiimote controller mappings
-        fclose(f);
-    }
-    else
-    {
-        loadRet = false;
-    }
-
-    sprintf(settingPathBuf, "%s:/wiistation/controlP.cfg", usbSd);
-    f = fopen(settingPathBuf, "rb" );  //attempt to open file
-    if (f) {
-        load_configurations(f, &controller_WiiUPro);			//read in Wii U Pro controller mappings
-        fclose(f);
-    }
-    else
-    {
-        loadRet = false;
-    }
-
-    sprintf(settingPathBuf, "%s:/wiistation/controlD.cfg", usbSd);
-    f = fopen(settingPathBuf, "rb" );  //attempt to open file
-    if (f) {
-        load_configurations(f, &controller_WiiUGamepad);		//read in Wii U Gamepad controller mappings
-        fclose(f);
-    }
-    else
-    {
-        loadRet = false;
-    }
-
-    #endif // HW_RVL
-
-    return loadRet;
 }
 
 void loadSettings(int argc, char *argv[])
@@ -1267,49 +1218,68 @@ void biosFileInit()
 	biosFile_init(biosFile);  //initialize the bios device (it might not be the same as ISO device)
 }
 
-/* The Game slot of the button mappings (ConfigureButtons' fifth slot): one file per game, named by
- * its CD-ROM ID and kept beside the slot files. USB when the USB has a wiistation folder,
- * otherwise SD. */
-static void gameButtonsPath(char* buf, size_t size, const char* dev)
-{
-	snprintf(buf, size, "%s:/wiistation/%s.btn", dev, CdromId);
-}
-
-int saveGameButtons(void)
+/* The Game file of this game: one file per CD-ROM ID, with every type's Game slot. */
+static bool writeGameButtons(const char* dev)
 {
 	char path[256];
-	struct stat s;
-	bool usb = stat("usb:/wiistation/", &s) == 0;
 	FILE* f;
-	if (!CdromId[0] || !fileBrowser_libfat_init(usb ? &saveDir_libfat_USB : &saveDir_libfat_Default))
-		return 0;
-	gameButtonsPath(path, sizeof path, usb ? "usb" : "sd");
+	if (!CdromId[0] || !button_game_path(path, sizeof path, dev, CdromId, 0))
+		return false;
 	makeParentDirs(path);
 	f = fopen(path, "wb");
 	if (!f)
-		return 0;
+		return false;
 	for (int i = 0; i < num_controller_t; i++)
 		save_game_slot(f, controller_ts[i]);
 	fclose(f);
-	return 1;
+	return true;
 }
 
-/* The Game slot of the game that starts: USB first, then SD, as the settings are. */
+/* The one Save of the button mappings: every type's four slot files and this game's Game file,
+ * on dev. Every write is tried. Returns 1 when all were written, 2 when the slot files were
+ * written but no game is loaded (so there is no Game file), 0 when a write failed. Every Save
+ * goes through here. */
+int saveButtonConfigs(const char* dev)
+{
+	char path[256];
+	bool slotsOk = buttonDeviceReady(dev);
+	buttonDevice = dev;
+	for (int i = 0; slotsOk && i < num_controller_t; i++) {
+		controller_t* c = controller_ts[i];
+		FILE* f = NULL;
+		if (button_slot_path(path, sizeof path, dev, c->identifier, 0)) {
+			makeParentDirs(path);
+			f = fopen(path, "wb");
+		}
+		if (!f) {
+			slotsOk = false;
+			break;
+		}
+		save_configurations(f, c);
+		fclose(f);
+	}
+	if (!CdromId[0])
+		return slotsOk ? 2 : 0;
+	bool gameOk = writeGameButtons(dev);
+	return slotsOk && gameOk ? 1 : 0;
+}
+
+/* The Game file of the game that starts: the device the buttons are read from first, then the
+ * other. The old name (<CdromId>.btn beside the slot files) is read when the new one is missing. */
 static FILE* openGameButtons(void)
 {
 	char path[256];
-	FILE* f = NULL;
 	if (!CdromId[0])
 		return NULL;
-	if (fileBrowser_libfat_init(&saveDir_libfat_USB)) {
-		gameButtonsPath(path, sizeof path, "usb");
-		f = fopen(path, "rb");
+	for (int d = 0; d < 2; d++) {
+		const char* dev = d == 0 ? buttonDevice : button_other_device(buttonDevice);
+		if (!buttonDeviceReady(dev) || !button_game_read(path, sizeof path, dev, CdromId, buttonFileExists))
+			continue;
+		FILE* f = fopen(path, "rb");
+		if (f)
+			return f;
 	}
-	if (!f && fileBrowser_libfat_init(&saveDir_libfat_Default)) {
-		gameButtonsPath(path, sizeof path, "sd");
-		f = fopen(path, "rb");
-	}
-	return f;
+	return NULL;
 }
 
 /* At each game start, every controller's Game slot is the game's own, or the default when the
@@ -1390,13 +1360,8 @@ static void loadSeparatelySetting()
     if (mappingSlot != loadButtonSlot)
     {
         mappingSlot = loadButtonSlot;
-        // Load button mapping from USB
-        if (!loadControllerMapping("usb"))
-        {
-            // If the key mapping in USB does not exist
-            // Load button mapping from SD
-            loadControllerMapping("sd");
-        }
+        // The set of the device it was last read from (buttonDevice): never a mix of USB and SD
+        loadControllerMapping(buttonDevice);
     }
 
     loadGameButtons();   /* the Game slot of the button mappings: this game's, and Auto applies it */

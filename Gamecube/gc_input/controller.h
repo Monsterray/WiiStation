@@ -159,7 +159,7 @@ typedef struct {
 	controller_config_t config_default;
 	// Current controller mapping
 	controller_config_t config[4];
-	// Saved controller mappings: slots 0..3 (the Save Button Mappings files), and the Game
+	// Saved controller mappings: slots 0..3 (the slot files, buttonfiles.c), and the Game
 	// slot at CONTROLLER_GAME_SLOT (its own file per game, save_game_slot)
 	controller_config_t config_slot[5];
 } controller_t;
