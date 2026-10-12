@@ -112,6 +112,8 @@ def table():
              for m in re.finditer(r"static const char\* const (OPT_\w+)\[\]\s*=\s*\{([^}]*)\}", s)}
     t = s[s.index("OPTIONS[] ="):]
     t = t[:t.index("};")]
+    # The bench key exists only in ACHIEVEMENTS_BENCH builds; the published example is the product.
+    t = re.sub(r"#ifdef ACHIEVEMENTS_BENCH\n.*?#endif", "", t, flags=re.S)
 
     def number(text):
         return None if text == "CONFIG_STRING_TYPE" else evaluate(text, consts)

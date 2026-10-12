@@ -1,0 +1,16 @@
+{
+  "serial": "SCUS94228",
+  "directory": "sd:/wiistation/isos/Spyro the Dragon",
+  "cue": "Spyro the Dragon [NTSC-U] [SCUS-94228].cue",
+  "start": 6000,
+  "stop": 13200,
+  "definitions": 128,
+  "arms": [
+    0,
+    1,
+    0
+  ],
+  "timeout": 900,
+  "screens": false,
+  "media_hash": "3e9eb765a7b2912e60c30f363f0a3574"
+}

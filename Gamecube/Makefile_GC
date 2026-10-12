@@ -25,9 +25,13 @@ TARGET		:=	CubeSXRX
 BUILD		:=	build
 SOURCES		:=	. ../cdrmooby28/ ./gc_input/ ./libgui/ ./menu/ ./fileBrowser/ .. ../ppc/ ../Peops$(GPU)GPU/ ../franspu/
 
+# Pinned rcheevos C runtime; no client/network stack in the local engine.
+SOURCES += ../deps/rcheevos/src/runtime ../deps/rcheevos/src/util
+
 DATA		:=	data  
 
 INCLUDES	:=	
+INCLUDES += ../deps/rcheevos/include
 
 #---------------------------------------------------------------------------------
 # options for code generation
@@ -123,6 +127,10 @@ clean:
 
 #---------------------------------------------------------------------------------
 else
+
+# rcheevos supports floating-point operands: preserve NaN/Inf semantics even
+# though the emulator uses -Ofast. Keep LTO from inheriting the core's fast-math.
+$(filter rc_%.o md5.o achievements.o,$(OFILES)): CFLAGS += -fno-fast-math -fno-lto
 
 DEPENDS	:=	$(OFILES:.o=.d)
 

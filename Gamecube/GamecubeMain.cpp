@@ -43,6 +43,8 @@ extern "C" void __exception_setreload(int t);
 #include "../psxcommon.h"
 #include "wiiSXconfig.h"
 #include "config_parse.h"   /* the two scans in the settings parser */
+#include "../achievements.h"
+#include "achievements_bench.h"   /* test-only; no-ops in product builds */
 #include "menu/MenuContext.h"
 #include "libgui/IPLFont.h"
 #include "libgui/MessageBox.h"
@@ -396,6 +398,13 @@ static SettingOption OPTIONS[] =
   { "Coop2Assign8", &coopAssign[1][7], 0, 3 },
   { "Coop2Layout8", &coopLayout[1][7], COOP_LAYOUT_FULL, COOP_LAYOUT_COUNT - 1 },
   { "Coop2Buttons8", coopButtons[1][7], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
+  { "Achievements", NULL, 0, 0, "Local achievement engine. It reads a local definition file; no online awards." },
+  { "Achievements", &achievementsEnabled, 0, 1, NULL, "Achievements", OPT_OFF_ON, "Turns the local achievement engine on or off. Load the game again after a change." },
+  { "AchievementFile", achievementFile, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
+  { "AchievementLog", achievementLog, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
+#ifdef ACHIEVEMENTS_BENCH
+  { "AchievementBenchRoot", achievementBenchRoot, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
+#endif
   { "Network", NULL, 0, 0, "Games from a network share (SMB)." },
   { "smbipaddr", smbIpAddr, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "smbsharename", smbShareName, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
@@ -958,6 +967,7 @@ static bool chainNext(void)
 	}
 	f = fopen("sd:/wiistation/perf.log", "a");
 	if (f) {
+		achievements_bench_chain_end(f, chainList[chainI].input[0] != 0);
 		char sets[CHAIN_SETS * 32 + 8] = "";
 		int k;
 		for (k = 0; k < chainList[chainI].nset; k++) {
@@ -985,6 +995,10 @@ static bool chainNext(void)
 		lab_report();
 		hb_phase("exit", "lab");
 		net_deinit();
+		fatUnmount("sd");
+		exit(0);
+	}
+	if (achievements_bench_hbc_return()) {
 		fatUnmount("sd");
 		exit(0);
 	}
@@ -1402,6 +1416,7 @@ static void loadSeparatelySetting()
 
 // loadISO loads an ISO file as current media to read from.
 int loadISOSwap(fileBrowser_file* file) {
+	achievements_close(); /* local sets cannot establish same-game media association yet */
 
   // Refresh file pointers
 	memset(&isoFile, 0, sizeof(fileBrowser_file));
@@ -1483,6 +1498,8 @@ int loadISO(fileBrowser_file* file)
 	else
 		LoadCdrom();
 	hb_phase("load: memory cards and state", isoFile.name);
+	achievements_load(CdromId); /* after settings and boot; a wrong/absent game ID rejects the set */
+	achievements_bench_isolate_cards();
 
 	if(autoSave==AUTOSAVE_ENABLE) {
 		setSaveDevice();   /* fileBrowser.c: point saveFile_* at nativeSaveDevice */
@@ -1633,9 +1650,10 @@ void go(void) {
 	/* A scripted save or load (statetool.cpp) stops the CPU at its vblank; it is carried out
 	 * here, with the CPU stopped as the menu has it, and the game goes on. */
 	hb_phase("game", isoFile.name);
-	do
+	do {
 		psxCpu->Execute();
-	while (statetool_service());
+		achievements_flush();
+	} while (statetool_service());
 	hb_phase("menu", "game stopped");
 	GL_flip05Drop();   /* GlesGpu/gpuPlugin.c: a GP1 05 flip not yet presented */
 

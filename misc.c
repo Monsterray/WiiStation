@@ -30,6 +30,7 @@
 #include "ppf.h"
 #include "gpu.h"
 #include "Gamecube/wiiSXconfig.h"
+#include "achievements.h"
 #include "Gamecube/fileBrowser/fileBrowser-libfat.h"
 
 #include "dfsound/externals.h"
@@ -650,7 +651,9 @@ struct misc_save_data {
  *         written with the HLE BIOS
  *   TIM1  no data: the timers and the event table were saved exactly, and are put back as
  *         they were, after the devices' own restores have rescheduled their events
- *         (psxcounters.c psxRcntRestoreExact) */
+ *         (psxcounters.c psxRcntRestoreExact)
+ *   ACH1  bounded, versioned local achievement progress tied to the definition digest;
+ *         missing/invalid data resets progress, while earned unlocks remain earned */
 int SSS_PADfreeze(int save, void *data, int len);
 void psxRcntRestoreExact(void);
 int spu_ext_save(void *data, int len);
@@ -700,6 +703,12 @@ static void stateExtWrite(gzFile f)
 		}
 	}
 	stateExtSection(f, "TIM1", NULL, 0);
+	n = achievements_state_save(NULL, 0);
+	if (n > 0 && (pad = malloc(n)) != NULL) {
+		if (achievements_state_save(pad, n) == n)
+			stateExtSection(f, "ACH1", pad, (u32)n);
+		free(pad);
+	}
 	stateExtSection(f, "END0", NULL, 0);
 }
 
@@ -729,6 +738,9 @@ static int stateExtRead(gzFile f)
 		else if (!memcmp(tag, "BIO1", 4) && Config.HLE && len <= 4096
 		 && (data = malloc(len)) != NULL && gzread(f, data, len) == (int)len)
 			psxBiosSoftcallFreeze(0, data, (int)len);
+		else if (!memcmp(tag, "ACH1", 4) && len > 0 && len <= ACHIEVEMENTS_STATE_MAX
+		 && (data = malloc(len)) != NULL && gzread(f, data, len) == (int)len)
+			achievements_state_load(data, len);
 		else if (!data)
 			gzseek(f, len, SEEK_CUR);
 		free(data);
@@ -936,6 +948,7 @@ int LoadStateFile(const char *filename, int force) {
 		}
 	}
 	STATE_READ(&Config.HLE, sizeof(bool));
+	achievements_state_load(NULL, 0); /* old/missing/corrupt extensions reset trigger progress */
 	STATE_BAR(0.10f, LOAD_STATE_MSG);
 
 	if (Config.HLE)

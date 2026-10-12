@@ -8,7 +8,7 @@ The line numbers in this document refer to `Gamecube/GamecubeMain.cpp` unless th
 
 ### 1.1 Name and location
 
-The settings file is `settings.ini`, an INI file: one `key = value` on each line, text values in double quotes, and a line that starts with `;` or `#` is a comment. WiiStation writes it in sections (`[General]`, `[Files]`, `[Video]`, `[Audio]`, `[Timing]`, `[Performance]`, `[Saves]`, `[Controllers]`, `[Co-Op]`, `[Network]`), each with a one-line comment. The sections are only for people: WiiStation reads a key in any section, or outside one. `example_settings.ini` (in the release, and in `sd:/wiistation/` after an install) lists every setting in its section, with its default and a comment that tells what it does; WiiStation does not read it. `scripts/settings_check.py` keeps it the same as the code. WiiStation reads the settings from one of two locations:
+The settings file is `settings.ini`, an INI file: one `key = value` on each line, text values in double quotes, and a line that starts with `;` or `#` is a comment. WiiStation writes it in sections (`[General]`, `[Files]`, `[Video]`, `[Audio]`, `[Timing]`, `[Performance]`, `[Saves]`, `[Controllers]`, `[Co-Op]`, `[Achievements]`, `[Network]`), each with a one-line comment. The sections are only for people: WiiStation reads a key in any section, or outside one. `example_settings.ini` (in the release, and in `sd:/wiistation/` after an install) lists every setting in its section, with its default and a comment that tells what it does; WiiStation does not read it. `scripts/settings_check.py` keeps it the same as the code. WiiStation reads the settings from one of two locations:
 
 | Launch device | File that WiiStation reads |
 |---|---|
@@ -246,6 +246,20 @@ Press the combination in a game to save the picture on screen. The file goes to 
 A screenshot combination never contains a menu combination. Configure Buttons refuses a screenshot choice that contains the exit or fast-forward combination, and it refuses an exit or fast-forward choice that lies inside the screenshot combination, because either one would open the menu or fast-forward first.
 
 A mapping file from before this version has no screenshot entry. Each controller then takes its default.
+
+## Achievement engine
+
+The engine evaluates a local rcheevos definition file for each game. It is off by
+default. There is no account login, online award, or hardcore mode yet. Load the
+game again after you change a set. See [the engine guide](Docs/ACHIEVEMENTS_ENGINE.md)
+for the definition format, state handling, persistence boundaries, and tests.
+
+| Key | Values | Default | Menu | Effect |
+|---|---|---|---|---|
+| `Achievements` | 0 = Off, 1 = On | 0 | Achievements | Turns the local achievement engine on or off. |
+| `AchievementFile` | `"Path"` | empty | none, settings file only | The rcheevos definition file for a game, for example `sd:/wiistation/achievements/<game>.txt`. |
+| `AchievementLog` | `"Path"` | empty | none, settings file only | Stores earned unlocks. Empty puts them beside the definition file, with `.unlocks` appended. A quoted full path overrides it. |
+
 ## 7. Network settings
 
 WiiStation can read games from a network share (SMB2 or SMB3: a Samba server, a NAS or a
