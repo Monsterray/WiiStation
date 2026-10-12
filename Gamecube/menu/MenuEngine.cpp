@@ -647,10 +647,48 @@ static int edgeWrap(const Layout &lay, const int cand[], int nc, int a, int d)
 	return best;
 }
 
+/* Edge wrap, second stage: edgeWrap() found no control on the origin's row or column on the side
+ * opposite d. Take the farthest focusable control on that side, of any row or column, and of
+ * those the one nearest in the cross axis. Returns -1 when no control lies beyond the origin. */
+static int farWrap(const Layout &lay, const int cand[], int nc, int a, int d)
+{
+	const Control &A = lay.c[cand[a]];
+	const float ax = A.rect.x + A.rect.w / 2, ay = A.rect.y + A.rect.h / 2;
+	const int od = d ^ 1;
+	float far = 1.0f, bestSide = 1e9f;
+	int best = -1;
+
+	for (int b = 0; b < nc; b++) {
+		const Control &B = lay.c[cand[b]];
+		float along, side;
+		if (b == a)
+			continue;
+		alongSide(od, (B.rect.x + B.rect.w / 2) - ax, (B.rect.y + B.rect.h / 2) - ay, along, side);
+		if (along > far)
+			far = along;
+	}
+	if (far <= 1.0f)
+		return -1;
+	for (int b = 0; b < nc; b++) {
+		const Control &B = lay.c[cand[b]];
+		float along, side;
+		if (b == a)
+			continue;
+		alongSide(od, (B.rect.x + B.rect.w / 2) - ax, (B.rect.y + B.rect.h / 2) - ay, along, side);
+		/* within one pixel of the farthest: controls in the same column or row are equally far */
+		if (along >= far - 1.0f && fabsf(side) < bestSide) {
+			bestSide = fabsf(side);
+			best = cand[b];
+		}
+	}
+	return best;
+}
+
 /* CustomizeCoopFrame's rule: from each focusable control, the nearest other one in each
  * direction, scored as along + 2 x the sideways offset, so a straight line wins. Controls
  * further than one pixel behind the origin are not candidates. With wrap, a direction that
- * finds none takes edgeWrap() instead. */
+ * finds none takes edgeWrap(), then farWrap(). So with wrap, a direction has a target whenever
+ * another focusable control lies on the opposite side. */
 static void linkGeometry(Layout &lay, bool wrap)
 {
 	int cand[MAX_CONTROLS], nc = 0;
@@ -683,6 +721,8 @@ static void linkGeometry(Layout &lay, bool wrap)
 			}
 			if (best < 0 && wrap)
 				best = edgeWrap(lay, cand, nc, a, d);
+			if (best < 0 && wrap)
+				best = farWrap(lay, cand, nc, a, d);
 			lay.c[cand[a]].link[d] = best;
 		}
 	}

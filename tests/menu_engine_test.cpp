@@ -3211,6 +3211,38 @@ static int checkConfigureButtons(void)
 
 /*  Edge wrap (Page::wrap)  */
 
+/* Offset of control j from control i along direction d: positive when j lies on d's side. */
+static float alongOf(const Layout &lay, int i, int j, int d)
+{
+	const Rect &A = lay.c[i].rect, &B = lay.c[j].rect;
+	const float dx = (B.x + B.w / 2) - (A.x + A.w / 2), dy = (B.y + B.h / 2) - (A.y + A.h / 2);
+	switch (d) {
+	case DIR_UP:   return -dy;
+	case DIR_DOWN: return dy;
+	case DIR_LEFT: return -dx;
+	default:       return dx;
+	}
+}
+
+/* j shares a row (for Left and Right) or a column (for Up and Down) with i. */
+static bool sharesLine(const Layout &lay, int i, int j, int d)
+{
+	const Rect &A = lay.c[i].rect, &B = lay.c[j].rect;
+	if (d == DIR_LEFT || d == DIR_RIGHT)
+		return B.y < A.y + A.h && A.y < B.y + B.h;
+	return B.x < A.x + A.w && A.x < B.x + B.w;
+}
+
+/* The first wrap stage (the row or column) has a target: a focusable control on i's row or
+ * column, beyond i on the side opposite d. */
+static bool hasLineWrap(const Layout &lay, int i, int d)
+{
+	for (int j = 0; j < lay.n; j++)
+		if (j != i && lay.c[j].focusable && sharesLine(lay, i, j, d) && alongOf(lay, i, j, d ^ 1) > 1.0f)
+			return true;
+	return false;
+}
+
 static void expectLink(int &bad, const char *where, bool ok, const char *what)
 {
 	if (!ok) {
@@ -3250,8 +3282,10 @@ static int wrapLinks(const char *where, Page p, Layout &off, Layout &on, int &ba
 				const bool sameLine = horizontal ? (B.y < A.y + A.h && A.y < B.y + B.h)
 				                                 : (B.x < A.x + A.w && A.x < B.x + B.w);
 				n++;
-				expectLink(bad, where, on.c[now].focusable && sameLine,
-				           "a wrap link is not a focusable control in the same row or column");
+				/* The row or column first; with none on that side, the farthest control on that side. */
+				expectLink(bad, where, on.c[now].focusable && alongOf(on, i, now, d ^ 1) > 1.0f &&
+				           (sameLine || !hasLineWrap(on, i, d)),
+				           "a wrap link is not a focusable control beyond the origin, on its row or column first");
 			}
 		}
 	}
@@ -3338,6 +3372,137 @@ static void testEdgeWrap(void)
 	printf("  Edge wrap  far ends, inactive skipped, wrap off unchanged  %s\n", bad ? "FAILED" : "ok");
 }
 
+/*  Configure Buttons in every controller state (Page::wrap)  */
+
+/* The states ConfigureButtonsFrame::activateSubmenu sets up: no pad, a plain pad (not a lightgun),
+ * a lightgun pad with the gun off, on with no gun mode, and on with Mouse, Just or GunCon. */
+enum CbState { CB_NO_PAD, CB_PLAIN_PAD, CB_GUN_OFF, CB_GUN_IDLE, CB_GUN_MOUSE, CB_GUN_JUST, CB_GUN_GUNCON, CB_STATES };
+static const char *const CB_STATE_NAME[CB_STATES] = {
+	"no controller", "plain pad", "lightgun pad, gun off", "lightgun pad, gun on, no mode",
+	"gun on, Mouse", "gun on, Just", "gun on, GunCon" };
+
+/* The buttons a state turns on (visible and active). Button 0, Next Pad, is always on. */
+static void cbActive(int state, bool on[30])
+{
+	int lo = 0, hi = -1;		/* buttons lo..hi are on, besides the extras set below */
+
+	for (int i = 0; i < 30; i++)
+		on[i] = false;
+	on[0] = true;
+	switch (state) {
+	case CB_NO_PAD:    break;
+	case CB_PLAIN_PAD: lo = 1; hi = 28; break;	/* button 29 (Gun/Mouse) is off: not a lightgun */
+	case CB_GUN_OFF:
+	case CB_GUN_IDLE:  lo = 1; hi = 29; break;
+	case CB_GUN_MOUSE:
+		lo = 1; hi = 5;
+		on[10] = on[11] = on[19] = on[26] = on[27] = on[28] = on[29] = true;
+		break;
+	case CB_GUN_JUST:
+		lo = 1; hi = 5;
+		on[9] = on[17] = on[19] = on[28] = on[29] = true;
+		break;
+	case CB_GUN_GUNCON:
+		lo = 1; hi = 5;
+		on[9] = on[18] = on[19] = on[28] = on[29] = true;
+		break;
+	}
+	for (int i = lo; i <= hi; i++)
+		on[i] = true;
+}
+
+static const char *const DIR_NAME[DIR_COUNT] = { "Up", "Down", "Left", "Right" };
+
+static void testConfigureButtonStates(void)
+{
+	static FreeButton cb[30];
+	static Layout off, on;
+	int bad = 0, addedAll = 0, deadBefore = 0, deadAfter = 0;
+
+	printf("Configure Buttons in every controller state (Page::wrap: no dead ends, no link to a hidden or inactive button)\n");
+	for (int s = 0; s < CB_STATES; s++) {
+		bool act[30];
+		Page q;
+		int nFocus = 0, added = 0, before = 0, after = 0, deadI = -1, deadD = -1;
+		const char *where = CB_STATE_NAME[s];
+
+		cbActive(s, act);
+		for (int i = 0; i < 30; i++) {
+			cb[i].text = "Button";
+			cb[i].x = CB_RECT[i][0];
+			cb[i].y = CB_RECT[i][1];
+			cb[i].w = CB_RECT[i][2];
+			cb[i].h = CB_RECT[i][3];
+			cb[i].lit = false;
+			cb[i].inactive = !act[i];
+		}
+		memset(&q, 0, sizeof q);
+		q.logo = LOGO_SPOT_NONE;
+		q.focus = FOCUS_GEOMETRY;
+		q.freeButtons = cb;
+		q.nFreeButtons = 30;
+		q.wrap = false;
+		if (layoutPage(q, kFont, off) < 0) {
+			fail(where, "the page does not lay out");
+			continue;
+		}
+		linkFocus(q, off);
+		q.wrap = true;
+		if (layoutPage(q, kFont, on) < 0) {
+			fail(where, "the page does not lay out with wrap");
+			continue;
+		}
+		linkFocus(q, on);
+
+		for (int i = 0; i < on.n; i++) {
+			if (!on.c[i].focusable)
+				continue;
+			nFocus++;
+			for (int d = 0; d < DIR_COUNT; d++) {
+				const int was = off.c[i].link[d], now = on.c[i].link[d];
+
+				/* the current code: the geometric rule, then the row or column wrap */
+				if (was < 0 && !hasLineWrap(on, i, d))
+					before++;
+				if (was >= 0)
+					expectLink(bad, where, now == was, "a link the rule made changed with wrap on");
+				if (was < 0 && now >= 0 && hasLineWrap(on, i, d))
+					expectLink(bad, where, sharesLine(on, i, now, d) && on.c[now].focusable,
+					           "a row or column wrap changed");
+				if (was < 0 && now >= 0 && !hasLineWrap(on, i, d))
+					added++;
+				if (now < 0) {
+					if (deadI < 0) {
+						deadI = i;
+						deadD = d;
+					}
+					after++;
+					continue;
+				}
+				expectLink(bad, where, on.c[now].focusable, "a link points at a hidden or inactive button");
+				if (was < 0)
+					expectLink(bad, where, alongOf(on, i, now, d ^ 1) > 1.0f,
+					           "a wrap link does not reach beyond the origin on that side");
+			}
+		}
+		if (nFocus >= 2 && deadI >= 0) {
+			char msg[96];
+			snprintf(msg, sizeof msg, "button %d has no %s target", on.c[deadI].slot, DIR_NAME[deadD]);
+			expectLink(bad, where, false, msg);
+		} else if (nFocus < 2)	/* a lone focus target has nothing to link to */
+			expectLink(bad, where, after == 4 * nFocus, "a lone focus target has a link");
+		printf("        %-34s %2d focusable, dead ends %d -> %d, links added %d%s\n", where, nFocus,
+		       before, after, added, nFocus < 2 ? " (lone focus target)" : "");
+		addedAll += added;
+		deadBefore += before;
+		deadAfter += after;
+	}
+	printf("        total: dead ends %d -> %d, links added vs the current code %d\n",
+	       deadBefore, deadAfter, addedAll);
+	printf("  Configure Buttons states  every focusable button has Left, Right, Up and Down  %s\n",
+	       bad ? "FAILED" : "ok");
+}
+
 int main(int argc, char **argv)
 {
 	const char *font = argc > 1 ? argv[1] : "fonts/En.dat";
@@ -3366,6 +3531,7 @@ int main(int argc, char **argv)
 	checkConfigureInput();
 	checkConfigureButtons();
 	testEdgeWrap();
+	testConfigureButtonStates();
 	testLinkOverrides();
 	reportGeometry();
 	testCheckCatches();

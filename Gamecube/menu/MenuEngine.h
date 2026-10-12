@@ -302,7 +302,8 @@ struct Page {
 	const FreeLink   *freeLinks;	/* focus links set by hand, after the rule and overrides */
 	int              nFreeLinks;
 	/* Edge wrap. FOCUS_GEOMETRY only; FOCUS_ROWS always wraps. Off by default.
-	 * A direction with no target wraps to the farthest focusable control on its row or column. */
+	 * A direction with no target wraps to the farthest focusable control on its row or column.
+	 * With none there, it wraps to the farthest focusable control on that side, nearest in the cross axis. */
 	bool             wrap;
 };
 
