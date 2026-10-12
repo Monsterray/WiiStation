@@ -24,6 +24,8 @@
 #include "ConfigureButtonsFrame.h"
 #include "../libgui/GuiTypes.h"
 #include "../libgui/GuiResources.h"
+#include "MenuEngine.h"	/* before Button.h: its include guard is BUTTON_H, a name the engine uses */
+#include "../libgui/IPLFont.h"
 #include "../libgui/Button.h"
 #include "../libgui/TextBox.h"
 #include "../libgui/resources.h"
@@ -190,6 +192,78 @@ struct TextBoxInfo
 	{	NULL,	FRAME_STRINGS[34],	 520.0,	310.0,	 0.9,	true }, // Lift Mouse
 };
 
+/*  The page's places, on the engine (Docs/MENU_FRAMEWORK_PLAN.md, step 5)  */
+
+/* The buttons and labels at the rectangles and places the table gives. The engine lays them out here,
+ * once, and the frame takes its rectangles from the layout. Focus is not the engine's: the links change
+ * with the state (activateSubmenu), and some point at buttons the state hides, which the engine never
+ * links to, so the table's links stay as the frame has them (see activateSubmenu). */
+namespace eng = menu::engine;
+
+static eng::FreeButton CB_FREE[NUM_FRAME_BUTTONS];
+static eng::FreeText   CB_TEXTS[NUM_FRAME_TEXTBOXES];
+static eng::Page       CB_PAGE;
+static eng::Layout     CB_LAYOUT;
+
+static int cbWidth(const char *s, float scale, void *)
+{
+	return menu::IplFont::getInstance().getStringWidth((char*)s, scale);
+}
+
+static int cbHeight(const char *s, float scale, void *)
+{
+	return menu::IplFont::getInstance().getStringHeight((char*)s, scale);
+}
+
+static const eng::Metrics CB_METRICS = { cbWidth, cbHeight, NULL };
+
+static void layoutConfigureButtons(void)
+{
+	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
+	{
+		eng::FreeButton &b = CB_FREE[i];
+		b.text = FRAME_BUTTONS[i].buttonString;
+		b.x = FRAME_BUTTONS[i].x;
+		b.y = FRAME_BUTTONS[i].y;
+		b.w = FRAME_BUTTONS[i].width;
+		b.h = FRAME_BUTTONS[i].height;
+		b.lit = false;
+		b.inactive = false;
+	}
+	for (int t = 0; t < NUM_FRAME_TEXTBOXES; t++)
+	{
+		eng::FreeText &x = CB_TEXTS[t];
+		x.text = FRAME_TEXTBOXES[t].textBoxString;
+		x.ax = FRAME_TEXTBOXES[t].x;
+		x.ay = FRAME_TEXTBOXES[t].y;
+		x.scale = FRAME_TEXTBOXES[t].scale;
+		x.centred = FRAME_TEXTBOXES[t].centered;
+	}
+	memset(&CB_PAGE, 0, sizeof CB_PAGE);
+	CB_PAGE.logo = eng::LOGO_SPOT_NONE;
+	CB_PAGE.focus = eng::FOCUS_GEOMETRY;
+	CB_PAGE.freeButtons = CB_FREE;
+	CB_PAGE.nFreeButtons = NUM_FRAME_BUTTONS;
+	CB_PAGE.freeTexts = CB_TEXTS;
+	CB_PAGE.nFreeTexts = NUM_FRAME_TEXTBOXES;
+	if (eng::layoutPage(CB_PAGE, CB_METRICS, CB_LAYOUT) < 0)
+		return;		/* the table is fixed: a page that does not fit is a programming error */
+}
+
+/* The layout's rectangle of button i, and the anchor of label t. */
+static const eng::Control &cbButtonCtl(int i)
+{
+	return CB_LAYOUT.c[CB_LAYOUT.freeCtl[i]];
+}
+
+static const eng::Control &cbTextCtl(int t)
+{
+	for (int k = 0; k < CB_LAYOUT.n; k++)
+		if (CB_LAYOUT.c[k].role == eng::ROLE_FREE_TEXT && CB_LAYOUT.c[k].slot == t)
+			return CB_LAYOUT.c[k];
+	return CB_LAYOUT.c[0];
+}
+
 /* The buttons that show a mapping (5..25: the menu combination, the PlayStation buttons,
  * the sticks and their inversion; 28: fast forward). Their labels are whatever the
  * controller calls its buttons, up to "RS-Button", so each one takes its width from its
@@ -238,14 +312,14 @@ static void fitMappingButtons(menu::Frame *frame)
 
 ConfigureButtonsFrame::ConfigureButtonsFrame()
 {
+	layoutConfigureButtons();
 	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
 	{
+		const eng::Control &c = cbButtonCtl(i);
 		FRAME_BUTTONS[i].button = new menu::Button(FRAME_BUTTONS[i].buttonStyle, &FRAME_BUTTONS[i].buttonString,
-										FRAME_BUTTONS[i].x, FRAME_BUTTONS[i].y,
-										FRAME_BUTTONS[i].width, FRAME_BUTTONS[i].height);
+										c.rect.x, c.rect.y, c.rect.w, c.rect.h);
 		/* style A makes itself 56 high; the table's rows are 40 apart in places */
-		FRAME_BUTTONS[i].button->setBounds(FRAME_BUTTONS[i].x, FRAME_BUTTONS[i].y,
-										FRAME_BUTTONS[i].width, FRAME_BUTTONS[i].height);
+		FRAME_BUTTONS[i].button->setBounds(c.rect.x, c.rect.y, c.rect.w, c.rect.h);
 		if (isMapping(i))
 		{
 			mapMaxWidth[i] = maxWidthFor(i);
@@ -275,9 +349,9 @@ ConfigureButtonsFrame::ConfigureButtonsFrame()
 
 	for (int i = 0; i < NUM_FRAME_TEXTBOXES; i++)
 	{
+		const eng::Control &c = cbTextCtl(i);
 		FRAME_TEXTBOXES[i].textBox = new menu::TextBox(&FRAME_TEXTBOXES[i].textBoxString,
-										FRAME_TEXTBOXES[i].x, FRAME_TEXTBOXES[i].y,
-										FRAME_TEXTBOXES[i].scale, FRAME_TEXTBOXES[i].centered);
+										c.ax, c.ay, FRAME_TEXTBOXES[i].scale, FRAME_TEXTBOXES[i].centered);
 		add(FRAME_TEXTBOXES[i].textBox);
 	}
 

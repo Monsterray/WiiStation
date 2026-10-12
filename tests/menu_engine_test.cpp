@@ -3104,6 +3104,111 @@ static int checkConfigureInput(void)
 	return checkConfigureInputState(CI_AUTO) + checkConfigureInputState(CI_MANUAL);
 }
 
+/*  Configure Buttons (step 5): the 30 buttons and 5 labels at ConfigureButtonsFrame.cpp's places  */
+
+/* The table's rectangles, by FRAME_BUTTONS index (x, y, w, h), and the labels (x, y, scale, centred). */
+static const float CB_RECT[30][4] = {
+	{ 20, 20, 80, 40 }, { 110, 20, 100, 40 }, { 220, 20, 80, 40 }, { 310, 20, 70, 40 }, { 390, 20, 70, 40 },
+	{ 15, 160, 110, 40 }, { 140, 130, 80, 40 }, { 140, 180, 80, 40 }, { 235, 140, 80, 40 }, { 325, 140, 80, 40 },
+	{ 420, 130, 80, 40 }, { 420, 180, 80, 40 }, { 75, 230, 80, 40 }, { 30, 280, 80, 40 }, { 120, 280, 80, 40 },
+	{ 75, 330, 80, 40 }, { 485, 230, 80, 40 }, { 440, 280, 80, 40 }, { 530, 280, 80, 40 }, { 485, 330, 80, 40 },
+	{ 160, 345, 100, 40 }, { 380, 345, 100, 40 }, { 95, 395, 130, 40 }, { 415, 395, 130, 40 }, { 235, 395, 80, 40 },
+	{ 325, 395, 80, 40 }, { 325, 340, 50, 40 }, { 265, 340, 50, 40 }, { 515, 160, 110, 40 }, { 480, 20, 140, 40 } };
+static const float CB_LABEL[5][4] = {
+	{ 320, 100, 1.0f, 1 }, { 70, 145, 0.9f, 1 }, { 318, 323, 0.9f, 1 }, { 565, 145, 0.9f, 1 }, { 520, 310, 0.9f, 1 } };
+
+static int checkConfigureButtons(void)
+{
+	FreeButton fb[30];
+	FreeText ft[5];
+	Page p;
+	Layout lay;
+	Problem probs[MAX_PROBLEMS];
+	int bad = 0, wide = 0;
+
+	printf("Configure Buttons (30 buttons and 5 labels at the table's places)\n");
+	for (int i = 0; i < 30; i++) {
+		fb[i].text = "Button";
+		fb[i].x = CB_RECT[i][0];
+		fb[i].y = CB_RECT[i][1];
+		fb[i].w = CB_RECT[i][2];
+		fb[i].h = CB_RECT[i][3];
+		fb[i].lit = false;
+		fb[i].inactive = false;
+	}
+	for (int t = 0; t < 5; t++) {
+		ft[t].text = "label";
+		ft[t].ax = CB_LABEL[t][0];
+		ft[t].ay = CB_LABEL[t][1];
+		ft[t].scale = CB_LABEL[t][2];
+		ft[t].centred = CB_LABEL[t][3] != 0;
+	}
+	memset(&p, 0, sizeof p);
+	p.logo = LOGO_SPOT_NONE;
+	p.focus = FOCUS_GEOMETRY;
+	p.freeButtons = fb;
+	p.nFreeButtons = 30;
+	p.freeTexts = ft;
+	p.nFreeTexts = 5;
+	if (layoutPage(p, kFont, lay) < 0) {
+		fail("ConfigureButtons", "layoutPage refused the page");
+		return 1;
+	}
+	for (int i = 0; i < 30; i++) {
+		const int c = lay.freeCtl[i];
+		if (c < 0 || !nearly(lay.c[c].rect.x, CB_RECT[i][0]) || !nearly(lay.c[c].rect.y, CB_RECT[i][1]) ||
+		    !nearly(lay.c[c].rect.w, CB_RECT[i][2]) || !nearly(lay.c[c].rect.h, CB_RECT[i][3])) {
+			char msg[160];
+			snprintf(msg, sizeof msg, "button %d is not at the table's place", i);
+			fail("ConfigureButtons", msg);
+			bad++;
+		}
+	}
+	{
+		int nt = 0;
+		for (int k = 0; k < lay.n; k++) {
+			if (lay.c[k].role != ROLE_FREE_TEXT)
+				continue;
+			nt++;
+			if (!nearly(lay.c[k].ax, CB_LABEL[lay.c[k].slot][0]) || !nearly(lay.c[k].ay, CB_LABEL[lay.c[k].slot][1])) {
+				fail("ConfigureButtons", "a label is not at its anchor");
+				bad++;
+			}
+		}
+		if (nt != 5) {
+			fail("ConfigureButtons", "not all 5 labels are in the layout");
+			bad++;
+		}
+	}
+	/* Findings are printed, not failed: the table's labels sit as the frame has them. A control past an
+	 * edge, or one button on another, is a failure. */
+	{
+		const int np = checkLayout(p, kFont, lay, probs, MAX_PROBLEMS);
+		for (int k = 0; k < np && k < MAX_PROBLEMS; k++) {
+			const Problem &q = probs[k];
+			const bool buttons = q.b >= 0 && lay.c[q.a].kind == CTRL_BUTTON && lay.c[q.b].kind == CTRL_BUTTON;
+			if (q.kind == PROB_UNREACHABLE)
+				continue;	/* the focus is the frame's table, not the engine's (see the frame) */
+			if (q.kind == PROB_TEXT_WIDE) {
+				wide++;
+			} else if (q.kind == PROB_PAST_EDGE || (q.kind == PROB_OVERLAP && buttons)) {
+				char msg[160];
+				snprintf(msg, sizeof msg, "checkLayout: %s", problemName(q.kind));
+				fail("ConfigureButtons", msg);
+				bad++;
+			} else {
+				printf("        ConfigureButtons finding: %s ('%s', '%s')\n", problemName(q.kind),
+				       lay.c[q.a].text, q.b >= 0 ? lay.c[q.b].text : "");
+			}
+		}
+	}
+	if (wide)
+		printf("        ConfigureButtons finding: %d label%s wider than the button less 2 x 16 px (the table's look)\n",
+		       wide, wide == 1 ? "" : "s");
+	printf("  ConfigureButtons  30 buttons and 5 labels at the table's places\n");
+	return bad;
+}
+
 int main(int argc, char **argv)
 {
 	const char *font = argc > 1 ? argv[1] : "fonts/En.dat";
@@ -3130,6 +3235,7 @@ int main(int argc, char **argv)
 	checkButtonRowScreens();
 	checkCoopPage();
 	checkConfigureInput();
+	checkConfigureButtons();
 	testLinkOverrides();
 	reportGeometry();
 	testCheckCatches();
