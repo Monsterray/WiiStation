@@ -389,6 +389,7 @@ static int        nTabsOf(const TestPage &t) { return t.tabs ? t.nTabs : (int)CO
 static Page toPage(const TestPage &t, FocusMode mode)
 {
 	Page p;
+	memset(&p, 0, sizeof p);	/* rowY0 and the other fields the table does not give: zero, as a static page is */
 	p.title = t.title;
 	p.tabs = t.tabbed ? tabsOf(t) : NULL;
 	p.nTabs = t.tabbed ? nTabsOf(t) : 0;
@@ -1945,6 +1946,154 @@ static void testInactiveNeverFocus(void)
 	}
 }
 
+/*  The button-row screens: Main, Load ROM and Current ROM (step 3), from their frames' tables  */
+
+/* Each page is written as its frame builds it (MainFrame.cpp, LoadRomFrame.cpp, CurrentRomFrame.cpp):
+ * the rows of action buttons, the first row's top, the pitch and the logo. Their boxes and their
+ * focus are checked against the numbers the frames had before the port: the boxes as their tables
+ * gave them, the links as their FRAME_BUTTONS tables gave them. */
+
+/* Main: six rows of one button, 200 wide at x 315, the first at y 60 and then 60 apart. */
+static const ActionButton MAIN_ACTIONS[] = {
+	{ "Load ISO", 200.0f, false }, { "Current ISO", 200.0f, false }, { "Settings", 200.0f, false },
+	{ "Credits", 200.0f, false },  { "Quit", 200.0f, false },        { "Play Game", 200.0f, false },
+};
+static Row MAIN_ROWS[] = {
+	{ ROW_BUTTONS, NULL, NULL, 0, 1, 0, NULL, false, &MAIN_ACTIONS[0], 315.0f, 0.0f, NULL, 0 },
+	{ ROW_BUTTONS, NULL, NULL, 0, 1, 0, NULL, false, &MAIN_ACTIONS[1], 315.0f, 0.0f, NULL, 0 },
+	{ ROW_BUTTONS, NULL, NULL, 0, 1, 0, NULL, false, &MAIN_ACTIONS[2], 315.0f, 0.0f, NULL, 0 },
+	{ ROW_BUTTONS, NULL, NULL, 0, 1, 0, NULL, false, &MAIN_ACTIONS[3], 315.0f, 0.0f, NULL, 0 },
+	{ ROW_BUTTONS, NULL, NULL, 0, 1, 0, NULL, false, &MAIN_ACTIONS[4], 315.0f, 0.0f, NULL, 0 },
+	{ ROW_BUTTONS, NULL, NULL, 0, 1, 0, NULL, false, &MAIN_ACTIONS[5], 315.0f, 0.0f, NULL, 0 },
+};
+
+/* The page a screen's rows make. */
+static Page screenPage(Row *rows, int nRows, LogoSpot logo, float rowY0, float rowDy)
+{
+	Page p;
+	memset(&p, 0, sizeof p);
+	p.rows = rows;
+	p.nRows = nRows;
+	p.logo = logo;
+	p.focus = FOCUS_ROWS;
+	p.rowY0 = rowY0;
+	p.rowDy = rowDy;
+	return p;
+}
+
+/* A frame's table entry: which button (row, slot), its box as the table gave it, and its links by
+ * table index (up, down, left, right; -1 for none). */
+struct ScreenBox { int idx, row, slot; float x, y, w, h; };
+struct ScreenLink { int idx, up, down, left, right; };
+
+static int boxIdxAt(const ScreenBox *b, unsigned n, int row, int slot)
+{
+	for (unsigned k = 0; k < n; k++)
+		if (b[k].row == row && b[k].slot == slot)
+			return b[k].idx;
+	return -1;
+}
+
+static const ScreenBox MAIN_BOXES[] = {
+	{ 0, 0, 0, 315.0f,  60.0f, 200.0f, 56.0f }, { 1, 1, 0, 315.0f, 120.0f, 200.0f, 56.0f },
+	{ 2, 2, 0, 315.0f, 180.0f, 200.0f, 56.0f }, { 3, 3, 0, 315.0f, 240.0f, 200.0f, 56.0f },
+	{ 4, 4, 0, 315.0f, 300.0f, 200.0f, 56.0f }, { 5, 5, 0, 315.0f, 360.0f, 200.0f, 56.0f },
+};
+static const ScreenLink MAIN_LINKS[] = {
+	{ 0, 5, 1, -1, -1 }, { 1, 0, 2, -1, -1 }, { 2, 1, 3, -1, -1 },
+	{ 3, 2, 4, -1, -1 }, { 4, 3, 5, -1, -1 }, { 5, 4, 0, -1, -1 },
+};
+/* Checks one screen: its boxes against the table (a failure), its links against the table (printed,
+ * a finding), and checkLayout's problems (a failure). Returns the failures. */
+static int checkScreen(const char *name, const Page &page, const ScreenBox *boxes, unsigned nb,
+                       const ScreenLink *links, unsigned nl)
+{
+	static const char *const DIR[DIR_COUNT] = { "Up", "Down", "Left", "Right" };
+	Layout lay;
+	Problem probs[16];
+	int bad = 0, diffs = 0;
+
+	if (layoutPage(page, kFont, lay) < 0) {
+		fail(name, "layoutPage refused the page");
+		return 1;
+	}
+	linkFocus(page, lay);
+
+	for (unsigned k = 0; k < nb; k++) {
+		const int at = lay.slot[boxes[k].row][boxes[k].slot];
+		char msg[160];
+		if (at < 0) {
+			fail(name, "a table button is not in the layout");
+			bad++;
+			continue;
+		}
+		{
+			const Rect &r = lay.c[at].rect;
+			if (!nearly(r.x, boxes[k].x) || !nearly(r.y, boxes[k].y) ||
+			    !nearly(r.w, boxes[k].w) || !nearly(r.h, boxes[k].h)) {
+				snprintf(msg, sizeof msg, "button %d at (%g,%g %gx%g), the table has (%g,%g %gx%g)",
+				         boxes[k].idx, r.x, r.y, r.w, r.h, boxes[k].x, boxes[k].y, boxes[k].w, boxes[k].h);
+				fail(name, msg);
+				bad++;
+			}
+		}
+	}
+
+	for (unsigned k = 0; k < nl; k++) {
+		const ScreenLink &o = links[k];
+		const int want[DIR_COUNT] = { o.up, o.down, o.left, o.right };
+		for (unsigned b = 0; b < nb; b++) {
+			if (boxes[b].idx != o.idx)
+				continue;
+			const int from = lay.slot[boxes[b].row][boxes[b].slot];
+			for (int d = 0; d < DIR_COUNT; d++) {
+				const int got = lay.c[from].link[d];
+				const int gotIdx = got < 0 ? -1 : boxIdxAt(boxes, nb, lay.c[got].row, lay.c[got].slot);
+				if (gotIdx != want[d]) {
+					diffs++;
+					printf("        %-10s button %d %-5s table %2d, engine %2d\n",
+					       name, o.idx, DIR[d], want[d], gotIdx);
+				}
+			}
+		}
+	}
+
+	/* checkLayout: a label wider than its button minus the 16 px each side is a finding, printed
+	 * and kept (the look is the frame's, and the label fits the drawn button); anything else fails. */
+	{
+		const int n = checkLayout(page, kFont, lay, probs, 16);
+		for (int k = 0; k < n && k < 16; k++) {
+			const int a = probs[k].a;
+			char msg[160];
+			if (probs[k].kind == PROB_TEXT_WIDE) {
+				printf("        %-10s finding: '%s' is wider than its button less 2 x 16 px\n",
+				       name, lay.c[a].text);
+				continue;
+			}
+			snprintf(msg, sizeof msg, "checkLayout: %s ('%s')", problemName(probs[k].kind), lay.c[a].text);
+			fail(name, msg);
+			bad++;
+		}
+	}
+	if (lay.defaultFocus < 0 || lay.defaultFocus != lay.slot[boxes[0].row][boxes[0].slot]) {
+		fail(name, "the default focus is not the first button");
+		bad++;
+	}
+	printf("  %-10s %zu buttons against the table, %d link%s differ from the table (a finding, not a failure)\n",
+	       name, (size_t)nb, diffs, diffs == 1 ? "" : "s");
+	return bad;
+}
+
+static int checkButtonRowScreens(void)
+{
+	int bad = 0;
+	const Page main    = screenPage(MAIN_ROWS, (int)COUNT(MAIN_ROWS), LOGO_SPOT_TOP, 60.0f, 0.0f);
+
+	printf("Button-row screens (boxes against the frames' tables, focus against their links)\n");
+	bad += checkScreen("Main", main, MAIN_BOXES, COUNT(MAIN_BOXES), MAIN_LINKS, COUNT(MAIN_LINKS));
+	return bad;
+}
+
 int main(int argc, char **argv)
 {
 	const char *font = argc > 1 ? argv[1] : "fonts/En.dat";
@@ -1968,6 +2117,7 @@ int main(int argc, char **argv)
 	checkTabLinks("Audio", 3, AUDIO_BOXES, COUNT(AUDIO_BOXES));
 	checkTabBoxes("Saves", 4, SAVES_BOXES, COUNT(SAVES_BOXES), SAVES_LABEL_Y, COUNT(SAVES_LABEL_Y));
 	checkTabLinks("Saves", 4, SAVES_BOXES, COUNT(SAVES_BOXES));
+	checkButtonRowScreens();
 	reportGeometry();
 	testCheckCatches();
 	testInactiveNeverFocus();

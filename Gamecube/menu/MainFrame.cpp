@@ -19,10 +19,12 @@
 **/
 
 #include "MenuContext.h"
+#include "MenuEngine.h"	/* before Button.h: its include guard is BUTTON_H, a name the engine uses */
 #include "../version.h"
 #include "MainFrame.h"
 #include "SettingsFrame.h"
 #include "../libgui/Button.h"
+#include "../libgui/IPLFont.h"
 #include "../libgui/Gui.h"
 #include "../libgui/InputStatusBar.h"
 #include "../libgui/resources.h"
@@ -75,54 +77,121 @@ char FRAME_STRINGS[7][20] =
 	  "Resume Game"};
 
 
+namespace eng = menu::engine;
+
 struct ButtonInfo
 {
 	menu::Button	*button;
 	int				buttonStyle;
 	char*			buttonString;
-	float			x;
-	float			y;
-	float			width;
-	float			height;
-	int				focusUp;
-	int				focusDown;
-	int				focusLeft;
-	int				focusRight;
 	ButtonFunc		clickedFunc;
 	ButtonFunc		returnFunc;
 } FRAME_BUTTONS[NUM_MAIN_BUTTONS] =
-{ //	button	buttonStyle	buttonString		x		y		width	height	Up	Dwn	Lft	Rt	clickFunc				returnFunc
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[0],	315.0,	 60.0,	200.0,	56.0,	 5,	 1,	-1,	-1,	Func_LoadROM,			NULL }, // Load ROM
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[1],	315.0,	120.0,	200.0,	56.0,	 0,	 2,	-1,	-1,	Func_CurrentROM,		NULL }, // Current ROM
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[2],	315.0,	180.0,	200.0,	56.0,	 1,	 3,	-1,	-1,	Func_Settings,			NULL }, // Settings
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[3],	315.0,	240.0,	200.0,	56.0,	 2,	 4,	-1,	-1,	Func_Credits,			NULL }, // Credits
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[4],	315.0,	300.0,	200.0,	56.0,	 3,	 5,	-1,	-1,	Func_ExitToLoader,		NULL }, // Exit to Loader
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[5],	315.0,	360.0,	200.0,	56.0,	 4,	 0,	-1,	-1,	Func_PlayGame,			NULL }, // Play/Resume Game
+{ //	button	buttonStyle	buttonString		clickFunc				returnFunc
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[0],	Func_LoadROM,			NULL }, // Load ROM
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[1],	Func_CurrentROM,		NULL }, // Current ROM
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[2],	Func_Settings,			NULL }, // Settings
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[3],	Func_Credits,			NULL }, // Credits
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[4],	Func_ExitToLoader,		NULL }, // Exit to Loader
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[5],	Func_PlayGame,			NULL }, // Play/Resume Game
 };
+
+/*  The Main menu, on the menu engine (Docs/MENU_FRAMEWORK_PLAN.md, step 3)  */
+
+/* Six rows, each one action button 200 wide at x 315: the first row's top at y 60, the rows 60
+ * apart (the engine's pitch). The logo is top right, where MenuContext draws it. Focus is the
+ * engine's row rule: Up and Down go row to row and wrap; Left and Right go nowhere. The layout is
+ * fixed, so it is done once, here, and tests/menu_engine_test.cpp checks its numbers. */
+static eng::ActionButton MAIN_ACTIONS[NUM_MAIN_BUTTONS];
+static eng::Row MAIN_ROWS[NUM_MAIN_BUTTONS];
+static eng::Page MAIN_PAGE;
+static eng::Layout MAIN_LAYOUT;
+
+/* The engine's text widths: IplFont, as the other frames use it (SettingsFrame.cpp). */
+static int mainWidth(const char *s, float scale, void *)
+{
+	return menu::IplFont::getInstance().getStringWidth((char*)s, scale);
+}
+
+static int mainHeight(const char *s, float scale, void *)
+{
+	return menu::IplFont::getInstance().getStringHeight((char*)s, scale);
+}
+
+static const eng::Metrics MAIN_METRICS = { mainWidth, mainHeight, NULL };
+
+static void layoutMain(void)
+{
+	for (int i = 0; i < NUM_MAIN_BUTTONS; i++)
+	{
+		MAIN_ACTIONS[i].text  = FRAME_BUTTONS[i].buttonString;	/* Play/Resume changes this text */
+		MAIN_ACTIONS[i].width = 200.0f;
+		MAIN_ACTIONS[i].lit   = false;
+		MAIN_ACTIONS[i].dy    = 0.0f;
+
+		eng::Row &row = MAIN_ROWS[i];
+		memset(&row, 0, sizeof row);
+		row.kind    = eng::ROW_BUTTONS;
+		row.count   = 1;
+		row.actions = &MAIN_ACTIONS[i];
+		row.x0      = 315.0f;
+	}
+	MAIN_PAGE.title   = NULL;
+	MAIN_PAGE.tabs    = NULL;
+	MAIN_PAGE.nTabs   = 0;
+	MAIN_PAGE.curTab  = 0;
+	MAIN_PAGE.rows    = MAIN_ROWS;
+	MAIN_PAGE.nRows   = NUM_MAIN_BUTTONS;
+	MAIN_PAGE.help    = NULL;
+	MAIN_PAGE.nHelp   = 0;
+	MAIN_PAGE.logo    = eng::LOGO_SPOT_TOP;
+	MAIN_PAGE.focus   = eng::FOCUS_ROWS;
+	MAIN_PAGE.labelCx = 0.0f;
+	MAIN_PAGE.labelDy = 0.0f;
+	MAIN_PAGE.rowDy   = 0.0f;	/* the default pitch, 60 */
+	MAIN_PAGE.rowY0   = 60.0f;
+
+	/* The tables are fixed: a page that does not fit is a programming error, which the host
+	 * test catches before it reaches the menu. */
+	eng::layoutPage(MAIN_PAGE, MAIN_METRICS, MAIN_LAYOUT);
+	eng::linkFocus(MAIN_PAGE, MAIN_LAYOUT);
+}
 
 MainFrame::MainFrame()
 {
 	inputStatusBar = new menu::InputStatusBar(450,100);
 	add(inputStatusBar);
 
-	for (int i = 0; i < NUM_MAIN_BUTTONS; i++)
-		FRAME_BUTTONS[i].button = new menu::Button(FRAME_BUTTONS[i].buttonStyle, &FRAME_BUTTONS[i].buttonString,
-										FRAME_BUTTONS[i].x, FRAME_BUTTONS[i].y,
-										FRAME_BUTTONS[i].width, FRAME_BUTTONS[i].height);
+	layoutMain();
 
+	/* Each button's box, and so its Cursor range, is the engine's rectangle for its row. */
 	for (int i = 0; i < NUM_MAIN_BUTTONS; i++)
 	{
-		if (FRAME_BUTTONS[i].focusUp != -1) FRAME_BUTTONS[i].button->setNextFocus(menu::Focus::DIRECTION_UP, FRAME_BUTTONS[FRAME_BUTTONS[i].focusUp].button);
-		if (FRAME_BUTTONS[i].focusDown != -1) FRAME_BUTTONS[i].button->setNextFocus(menu::Focus::DIRECTION_DOWN, FRAME_BUTTONS[FRAME_BUTTONS[i].focusDown].button);
-		if (FRAME_BUTTONS[i].focusLeft != -1) FRAME_BUTTONS[i].button->setNextFocus(menu::Focus::DIRECTION_LEFT, FRAME_BUTTONS[FRAME_BUTTONS[i].focusLeft].button);
-		if (FRAME_BUTTONS[i].focusRight != -1) FRAME_BUTTONS[i].button->setNextFocus(menu::Focus::DIRECTION_RIGHT, FRAME_BUTTONS[FRAME_BUTTONS[i].focusRight].button);
+		const eng::Control &c = MAIN_LAYOUT.c[MAIN_LAYOUT.slot[i][0]];
+		FRAME_BUTTONS[i].button = new menu::Button(FRAME_BUTTONS[i].buttonStyle, &FRAME_BUTTONS[i].buttonString,
+										c.rect.x, c.rect.y, c.rect.w, c.rect.h);
+	}
+
+	static const int DIRS[eng::DIR_COUNT] = {
+		menu::Focus::DIRECTION_UP, menu::Focus::DIRECTION_DOWN,
+		menu::Focus::DIRECTION_LEFT, menu::Focus::DIRECTION_RIGHT
+	};
+	for (int i = 0; i < NUM_MAIN_BUTTONS; i++)
+	{
+		const eng::Control &c = MAIN_LAYOUT.c[MAIN_LAYOUT.slot[i][0]];
+		for (int d = 0; d < eng::DIR_COUNT; d++)
+		{
+			const int to = c.link[d];	/* a link of -1 is no link */
+			FRAME_BUTTONS[i].button->setNextFocus(DIRS[d],
+				to >= 0 ? FRAME_BUTTONS[MAIN_LAYOUT.c[to].row].button : NULL);
+		}
 		FRAME_BUTTONS[i].button->setActive(true);
 		if (FRAME_BUTTONS[i].clickedFunc) FRAME_BUTTONS[i].button->setClicked(FRAME_BUTTONS[i].clickedFunc);
 		if (FRAME_BUTTONS[i].returnFunc) FRAME_BUTTONS[i].button->setReturn(FRAME_BUTTONS[i].returnFunc);
 		add(FRAME_BUTTONS[i].button);
-		menu::Cursor::getInstance().addComponent(this, FRAME_BUTTONS[i].button, FRAME_BUTTONS[i].x,
-												FRAME_BUTTONS[i].x+FRAME_BUTTONS[i].width, FRAME_BUTTONS[i].y,
-												FRAME_BUTTONS[i].y+FRAME_BUTTONS[i].height);
+		menu::Cursor::getInstance().addComponent(this, FRAME_BUTTONS[i].button, c.rect.x,
+												c.rect.x+c.rect.w, c.rect.y,
+												c.rect.y+c.rect.h);
 	}
 	setDefaultFocus(FRAME_BUTTONS[0].button);
 	setEnabled(true);

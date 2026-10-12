@@ -117,6 +117,7 @@ struct ActionButton {
 	const char *text;
 	float       width;
 	bool        lit;		/* Buttons: a toggle that is on (drawn lit); an action is never lit */
+	float       dy;			/* Buttons: this far below the row's top; 0 = the row's top (Current ROM's Slot) */
 };
 
 struct Row {
@@ -178,6 +179,7 @@ struct Page {
 	float            labelCx;	/* every label centred here, not LABEL_CX (and RLABEL_CX for a choice's) */
 	float            labelDy;	/* a label's centre this far below its row's top, not LABEL_DY */
 	float            rowDy;		/* the row pitch, not ROW_DY (the Settings Audio and Saves tabs: 70) */
+	float            rowY0;		/* the first row's top, not ROW_Y0 (Main: 60); 0 = ROW_Y0 */
 };
 
 /*  Layout output  */

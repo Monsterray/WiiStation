@@ -82,10 +82,11 @@ static int shownValue(const Row &r)
 	return v;
 }
 
-/* The top of row i: ROW_Y0 plus i row pitches, the page's own pitch or ROW_DY. */
+/* The top of row i: the page's first row (rowY0, or ROW_Y0) plus i row pitches, the page's own
+ * pitch or ROW_DY. */
 static float rowTop(const Page &p, int i)
 {
-	return ROW_Y0 + i * (p.rowDy > 0 ? p.rowDy : ROW_DY);
+	return (p.rowY0 > 0 ? p.rowY0 : ROW_Y0) + i * (p.rowDy > 0 ? p.rowDy : ROW_DY);
 }
 
 /*  Placing  */
@@ -377,7 +378,7 @@ int layoutPage(const Page &p, const Metrics &m, Layout &out)
 			if (r.label)
 				addText(out, m, ROLE_LABEL, i, 0, lcx, y + ldy, ALIGN_CENTRE, TEXT_SCALE, r.label);
 			for (int k = 0; k < r.count; k++) {
-				out.slot[i][k] = addButton(out, ROLE_BUTTON, i, k, x, y, r.actions[k].width, BUTTON_H,
+				out.slot[i][k] = addButton(out, ROLE_BUTTON, i, k, x, y + r.actions[k].dy, r.actions[k].width, BUTTON_H,
 				                           r.actions[k].text, r.actions[k].lit, !isInactive(r, k));
 				x += r.actions[k].width + gap;
 			}
