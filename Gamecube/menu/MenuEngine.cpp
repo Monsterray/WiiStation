@@ -54,15 +54,10 @@ int buttonFitWidth(const Metrics &m, const char *text)
 	}
 }
 
-static int rowSlots(const Row &r)
+/* Button k of the row is shown but inactive: drawn, never a focus target (Row::inactive). */
+static bool isInactive(const Row &r, int k)
 {
-	switch (r.kind) {
-	case ROW_TOGGLE:
-	case ROW_CYCLE:   return 1;
-	case ROW_CHOICE:
-	case ROW_BUTTONS: return r.count;
-	default:          return 0;
-	}
+	return k < 32 && ((r.inactive >> k) & 1u) != 0;
 }
 
 static bool rowValid(const Row &r)
@@ -151,7 +146,7 @@ static int addText(Layout &out, const Metrics &m, CtrlRole role, int row, int sl
 }
 
 static int addButton(Layout &out, CtrlRole role, int row, int slot,
-                     float x, float y, float w, float h, const char *text, bool lit)
+                     float x, float y, float w, float h, const char *text, bool lit, bool focusable)
 {
 	int i = newControl(out);
 	Control &c = out.c[i];
@@ -168,7 +163,7 @@ static int addButton(Layout &out, CtrlRole role, int row, int slot,
 	c.align = ALIGN_CENTRE;
 	c.scale = TEXT_SCALE;
 	c.text = text ? text : "";
-	c.focusable = true;
+	c.focusable = focusable;
 	c.selected = lit;
 	return i;
 }
@@ -321,7 +316,7 @@ int layoutPage(const Page &p, const Metrics &m, Layout &out)
 		x = (MENU_W - total) / 2;
 		for (int t = 0; t < p.nTabs; t++) {
 			out.tab[t] = addButton(out, ROLE_TAB, -1, t, x, TAB_Y, p.tabs[t].width, BUTTON_H,
-			                       p.tabs[t].text, t == p.curTab);
+			                       p.tabs[t].text, t == p.curTab, true);
 			x += p.tabs[t].width + TAB_ROW_GAP;
 		}
 	} else if (p.title) {
@@ -338,7 +333,7 @@ int layoutPage(const Page &p, const Metrics &m, Layout &out)
 			if (r.label)
 				addText(out, m, ROLE_LABEL, i, 0, lcx, y + ldy, ALIGN_CENTRE, TEXT_SCALE, r.label);
 			out.slot[i][0] = addButton(out, ROLE_BUTTON, i, 0, CYCLE_X, y, CYCLE_W, BUTTON_H,
-			                           r.names[shownValue(r) - r.lo], false);
+			                           r.names[shownValue(r) - r.lo], false, !isInactive(r, 0));
 			break;
 		}
 		case ROW_READOUT: {
@@ -366,7 +361,7 @@ int layoutPage(const Page &p, const Metrics &m, Layout &out)
 			for (int c = 0; c < r.count; c++) {
 				float w = choiceWidth(m, r, c);
 				out.slot[i][c] = addButton(out, ROLE_CHOICE, i, c, cx, y, w, BUTTON_H, r.names[c],
-				                           c < r.count - r.plain && c == lit);
+				                           c < r.count - r.plain && c == lit, !isInactive(r, c));
 				cx += w + choiceGap(r);
 			}
 			break;
@@ -383,7 +378,7 @@ int layoutPage(const Page &p, const Metrics &m, Layout &out)
 				addText(out, m, ROLE_LABEL, i, 0, lcx, y + ldy, ALIGN_CENTRE, TEXT_SCALE, r.label);
 			for (int k = 0; k < r.count; k++) {
 				out.slot[i][k] = addButton(out, ROLE_BUTTON, i, k, x, y, r.actions[k].width, BUTTON_H,
-				                           r.actions[k].text, r.actions[k].lit);
+				                           r.actions[k].text, r.actions[k].lit, !isInactive(r, k));
 				x += r.actions[k].width + gap;
 			}
 			break;
@@ -398,42 +393,56 @@ int layoutPage(const Page &p, const Metrics &m, Layout &out)
 
 /*  Focus  */
 
+/* The focus targets of row i, in order: the control indices of its focusable buttons. An
+ * inactive button is not one, so a row with none takes no part in the links. */
+static void activeSlots(const Layout &lay, int i, int out[MAX_SLOTS], int &n)
+{
+	n = 0;
+	for (int c = 0; c < MAX_SLOTS; c++) {
+		const int k = lay.slot[i][c];
+		if (k >= 0 && lay.c[k].focusable)
+			out[n++] = k;
+	}
+}
+
 /* OptionsFrame's rule. Rows run top to bottom and wrap, a row's buttons go left and right
  * and wrap, and Up/Down keep the column (a shorter row takes its last column). On a tabbed
  * page the tab row is the top of the loop: the last row goes down to the lit tab, the first
- * row up to it, and every tab goes down to the first row and up to the last. */
+ * row up to it, and every tab goes down to the first row and up to the last. Inactive
+ * buttons are left out of every row, so the columns are those of the active buttons. */
 static void linkRows(const Page &p, Layout &lay)
 {
 	int F[MAX_ROWS], nf = 0;
+	int A[MAX_ROWS][MAX_SLOTS], nA[MAX_ROWS];
 	const bool tabbed = p.nTabs > 0;
 	const int cur = tabbed ? lay.tab[p.curTab] : -1;
 
-	for (int i = 0; i < p.nRows; i++)
-		if (rowSlots(p.rows[i]) > 0)
+	for (int i = 0; i < p.nRows; i++) {
+		activeSlots(lay, i, A[i], nA[i]);
+		if (nA[i] > 0)
 			F[nf++] = i;
+	}
 
 	for (int k = 0; k < nf; k++) {
-		const int i = F[k], n = rowSlots(p.rows[i]);
+		const int i = F[k], n = nA[i];
 		if (n > 1)
 			for (int c = 0; c < n; c++) {
-				lay.c[lay.slot[i][c]].link[DIR_LEFT]  = lay.slot[i][(c + n - 1) % n];
-				lay.c[lay.slot[i][c]].link[DIR_RIGHT] = lay.slot[i][(c + 1) % n];
+				lay.c[A[i][c]].link[DIR_LEFT]  = A[i][(c + n - 1) % n];
+				lay.c[A[i][c]].link[DIR_RIGHT] = A[i][(c + 1) % n];
 			}
 	}
 
 	for (int k = 0; k < nf; k++) {
 		const bool wrap = (k == nf - 1);
-		int A, B, nA, nB;
+		int a, b;
 		if (wrap && tabbed)
 			continue;		/* the tab row takes the wrap, below */
-		A = F[k];
-		B = F[wrap ? 0 : k + 1];
-		nA = rowSlots(p.rows[A]);
-		nB = rowSlots(p.rows[B]);
-		for (int c = 0; c < nA; c++)
-			lay.c[lay.slot[A][c]].link[DIR_DOWN] = lay.slot[B][c < nB ? c : nB - 1];
-		for (int c = 0; c < nB; c++)
-			lay.c[lay.slot[B][c]].link[DIR_UP] = lay.slot[A][c < nA ? c : nA - 1];
+		a = F[k];
+		b = F[wrap ? 0 : k + 1];
+		for (int c = 0; c < nA[a]; c++)
+			lay.c[A[a][c]].link[DIR_DOWN] = A[b][c < nA[b] ? c : nA[b] - 1];
+		for (int c = 0; c < nA[b]; c++)
+			lay.c[A[b][c]].link[DIR_UP] = A[a][c < nA[a] ? c : nA[a] - 1];
 	}
 
 	if (tabbed) {
@@ -442,16 +451,16 @@ static void linkRows(const Page &p, Layout &lay)
 			tc.link[DIR_LEFT]  = lay.tab[(t + p.nTabs - 1) % p.nTabs];
 			tc.link[DIR_RIGHT] = lay.tab[(t + 1) % p.nTabs];
 			if (nf) {
-				tc.link[DIR_DOWN] = lay.slot[F[0]][0];
-				tc.link[DIR_UP]   = lay.slot[F[nf - 1]][0];
+				tc.link[DIR_DOWN] = A[F[0]][0];
+				tc.link[DIR_UP]   = A[F[nf - 1]][0];
 			}
 		}
 		if (nf) {
 			const int first = F[0], last = F[nf - 1];
-			for (int c = 0; c < rowSlots(p.rows[last]); c++)
-				lay.c[lay.slot[last][c]].link[DIR_DOWN] = cur;
-			for (int c = 0; c < rowSlots(p.rows[first]); c++)
-				lay.c[lay.slot[first][c]].link[DIR_UP] = cur;
+			for (int c = 0; c < nA[last]; c++)
+				lay.c[A[last][c]].link[DIR_DOWN] = cur;
+			for (int c = 0; c < nA[first]; c++)
+				lay.c[A[first][c]].link[DIR_UP] = cur;
 		}
 	}
 }
@@ -514,9 +523,12 @@ void linkFocus(const Page &p, Layout &lay)
 	else
 		linkRows(p, lay);
 
-	for (int i = 0; i < p.nRows && def < 0; i++)
-		if (rowSlots(p.rows[i]) > 0)
-			def = lay.slot[i][0];
+	for (int i = 0; i < p.nRows && def < 0; i++) {
+		int A[MAX_SLOTS], n;
+		activeSlots(lay, i, A, n);
+		if (n > 0)
+			def = A[0];
+	}
 	if (def < 0 && p.nTabs > 0)
 		def = lay.tab[p.curTab];
 	lay.defaultFocus = def;

@@ -625,6 +625,11 @@ static void layoutGeneral(SettingsFrame *frame)
 		row.gap     = GEN_GAP[r];
 		row.plain   = GEN_PLAIN[r];
 		row.widths  = row.kind == eng::ROW_CHOICE ? GEN_WIDTH[r] : NULL;
+		/* This Game is shown always, but with no game loaded it is inactive: drawn, never a
+		 * focus target (the engine keeps focus off it, and no link points at it). */
+		for (int c = 0; c < GEN_COUNT[r]; c++)
+			if (GEN_BUTTON[r][c] == 62 && !hasLoadedISO)
+				row.inactive |= 1u << c;
 	}
 	/* The values the rows show: the BIOS device, Boot Through BIOS, Fast Load. */
 	GEN_ROWS[1].value = biosDevice;

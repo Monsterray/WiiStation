@@ -1855,6 +1855,96 @@ static const OldBox SAVES_BOXES[] = {
 /* The label centres: row top + 28 (textboxes 18, 23, 19 and 20). */
 static const float SAVES_LABEL_Y[4] = { 128.0f, 198.0f, 268.0f, 338.0f };
 
+/*  Inactive buttons are never focus targets  */
+
+/* Counts the links that point at a control which is not focusable. */
+static int linksToInactive(const Layout &lay)
+{
+	int n = 0;
+	for (int i = 0; i < lay.n; i++)
+		for (int d = 0; d < DIR_COUNT; d++) {
+			const int t = lay.c[i].link[d];
+			if (t >= 0 && !lay.c[t].focusable)
+				n++;
+		}
+	return n;
+}
+
+/* The control of a row's slot, or -1. */
+static int findButton(const Layout &lay, int row, int slot)
+{
+	for (int i = 0; i < lay.n; i++)
+		if (lay.c[i].row == row && lay.c[i].slot == slot &&
+		    (lay.c[i].role == ROLE_BUTTON || lay.c[i].role == ROLE_CHOICE))
+			return i;
+	return -1;
+}
+
+static void testInactiveNeverFocus(void)
+{
+	static const char *const THREE[] = { "On", "Off", "Auto" };
+	static const char *const TWO[]   = { "Off", "On" };
+	static const ActionButton ACT[]  = { {"Save", 100, false}, {"Load", 100, false}, {"This Game", 140, false} };
+	static Row rows[4];
+	static Layout lay;
+	static Page page;
+	static const FocusMode modes[] = { FOCUS_ROWS, FOCUS_GEOMETRY };
+	static const char *const modeName[] = { "rows", "geometry" };
+
+	for (int m = 0; m < 2; m++) {
+		char where[64];
+		Problem probs[MAX_PROBLEMS];
+		int np;
+
+		memset(rows, 0, sizeof rows);
+		/* Row 0: Save (slot 0) inactive. Row 1: the middle choice inactive. Row 2: its only
+		 * button inactive, so the whole row is out of the links. Row 3: all active. */
+		rows[0].kind = ROW_BUTTONS;  rows[0].actions = ACT; rows[0].count = 3; rows[0].inactive = 1u << 0;
+		rows[1].kind = ROW_CHOICE;   rows[1].names = THREE; rows[1].count = 3; rows[1].value = 1;
+		rows[1].inactive = 1u << 1;
+		rows[2].kind = ROW_CYCLE;    rows[2].names = TWO;   rows[2].count = 2; rows[2].inactive = 1u << 0;
+		rows[3].kind = ROW_TOGGLE;   rows[3].names = TWO;   rows[3].count = 2;
+
+		memset(&page, 0, sizeof page);
+		page.nRows = 4;
+		page.rows = rows;
+		page.logo = LOGO_SPOT_NONE;
+		page.focus = modes[m];
+		snprintf(where, sizeof where, "inactive/%s", modeName[m]);
+
+		if (layoutPage(page, kFont, lay) < 0) {
+			fail(where, "the page does not lay out");
+			continue;
+		}
+		linkFocus(page, lay);
+
+		{
+			const int save = findButton(lay, 0, 0), load = findButton(lay, 0, 1), game = findButton(lay, 0, 2);
+			const int mid = findButton(lay, 1, 1), cycle = findButton(lay, 2, 0), toggle = findButton(lay, 3, 0);
+
+			if (save < 0 || mid < 0 || cycle < 0 || load < 0 || game < 0 || toggle < 0) {
+				fail(where, "a button is missing from the layout");
+				continue;
+			}
+			if (lay.c[save].focusable || lay.c[mid].focusable || lay.c[cycle].focusable)
+				fail(where, "an inactive button is focusable");
+			if (!lay.c[load].focusable || !lay.c[game].focusable || !lay.c[toggle].focusable)
+				fail(where, "an active button is not focusable");
+			if (lay.defaultFocus != load)
+				fail(where, "focus does not start on the first active button");
+		}
+		if (linksToInactive(lay) != 0)
+			fail(where, "a focus link points at an inactive button");
+
+		np = checkLayout(page, kFont, lay, probs, MAX_PROBLEMS);
+		for (int i = 0; i < np && i < MAX_PROBLEMS; i++)
+			if (probs[i].kind == PROB_BAD_LINK || probs[i].kind == PROB_UNREACHABLE) {
+				fail(where, problemName(probs[i].kind));
+				break;
+			}
+	}
+}
+
 int main(int argc, char **argv)
 {
 	const char *font = argc > 1 ? argv[1] : "fonts/En.dat";
@@ -1880,6 +1970,7 @@ int main(int argc, char **argv)
 	checkTabLinks("Saves", 4, SAVES_BOXES, COUNT(SAVES_BOXES));
 	reportGeometry();
 	testCheckCatches();
+	testInactiveNeverFocus();
 
 	printf("\n%s: %d check%s failed\n", failures ? "FAILED" : "PASSED", failures, failures == 1 ? "" : "s");
 	return failures > 255 ? 255 : failures;

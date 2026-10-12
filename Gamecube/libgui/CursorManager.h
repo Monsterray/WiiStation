@@ -33,7 +33,8 @@ public:
 	void setCursorFocus(Component* component);
 	void addComponent(Frame* frame, Component* component, float x1, float x2, float y1, float y2);
 	void removeComponent(Frame* frame, Component* component);
-	/* Follow a component that moved or changed size; does nothing if it is not known. */
+	/* Sets the box of a component that is not a Button, the only kind that keeps one here. A
+	 * Button's box is read from the Button itself at hit time, so it follows setBounds(). */
 	void moveComponent(Frame* frame, Component* component, float x1, float x2, float y1, float y2);
 	void setCurrentFrame(Frame* frame);
 	Frame* getCurrentFrame();
@@ -57,6 +58,9 @@ private:
 		Component *comp;
 		float xRange[2], yRange[2];
 	};
+	/* The box the pointer can hit: false when the component is hidden or, for a Button,
+	 * inactive. A Button gives its current box; anything else gives the stored one. */
+	bool pointerBox(const CursorEntry &entry, float box[4]);
 
 	Frame *currentFrame;
 	std::vector<CursorEntry> cursorList;

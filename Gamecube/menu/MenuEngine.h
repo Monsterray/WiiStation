@@ -134,6 +134,10 @@ struct Row {
 	float               gap;		/* Choice with widths, Buttons: between two buttons; 0 = TAB_GAP */
 	const float        *widths;		/* Choice: each button's width (the fixed grid is CHOICE_W); NULL = the default */
 	int                 plain;		/* Choice: the last `plain` buttons are actions, never lit */
+	/* Bit k set: button k of the row is shown but inactive (This Game with no game loaded).
+	 * It is drawn, but it is never a focus target and no link points at it. A Toggle or Cycle
+	 * has one button, bit 0. Zero, the default, makes every button active. */
+	unsigned            inactive;
 };
 
 /*  Pages  */
@@ -214,13 +218,14 @@ struct Control {
 	TextAlign   align;
 	float       scale;			/* text */
 	const char *text;
-	bool        focusable;
+	bool        focusable;		/* a focus target: a shown, active button (or a tab) */
 	bool        selected;		/* lit: the current choice or the current tab */
 	int         link[DIR_COUNT];	/* index into Layout::c, or -1 */
 };
 
 struct Layout {
-	Control c[MAX_CONTROLS];		/* shown controls only: a hidden one is not in the list */
+	Control c[MAX_CONTROLS];		/* shown controls only: a hidden one is not in the list;
+	                                 * an inactive button is in it, but not focusable */
 	int     n;
 	int     tab[MAX_TABS];			/* index of each tab, -1 when there is no tab row */
 	int     title;					/* index, or -1 */
