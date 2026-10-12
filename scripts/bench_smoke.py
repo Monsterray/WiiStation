@@ -11,7 +11,11 @@ import json
 import os
 from pathlib import Path
 import shutil
+import sys
 import time
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from wii_targets import refuse_production  # noqa: E402
 
 
 def digest(path):
@@ -69,7 +73,7 @@ def check(client, wii, bundle, settle=5):
 
     before = client.status(wii)
     save("hbc-before", before)
-    if before.get("agent"):
+    if before.get("agent") or before.get("app"):
         raise RuntimeError("Expected idle HBC; no upload sent")
     entries, truncated = client.list_dir(wii, "sd:/wiistation")
     if truncated or any(name.lower() == "autoboot.txt" for _, _, name in entries):
@@ -134,6 +138,7 @@ def main():
         return
     if not os.environ.get("WII_BENCH_JOB_START") or not os.environ.get("WII_BENCH_IP"):
         parser.error("Run through wiibench.py; no Wii request was sent")
+    refuse_production(os.environ["WII_BENCH_IP"], "bench_smoke.py")
     verify(args.bundle)
     spec = importlib.util.spec_from_file_location("bench_hbc", args.bundle / "hbc.py")
     client = importlib.util.module_from_spec(spec)

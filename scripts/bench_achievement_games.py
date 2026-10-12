@@ -13,6 +13,7 @@ import time
 import uuid
 
 import bench_smoke
+from wii_targets import refuse_production
 
 
 def judge(output, cases):
@@ -282,6 +283,7 @@ def main():
         return
     if not os.environ.get("WII_BENCH_JOB_START") or not os.environ.get("WII_BENCH_IP"):
         parser.error("Run through wiibench.py; no Wii request sent")
+    refuse_production(os.environ["WII_BENCH_IP"], "bench_achievement_games.py")
     manifest = json.loads((args.bundle / "manifest.json").read_text())
     for name, item in manifest["inputs"].items():
         if bench_smoke.digest(args.bundle / name) != item["sha256"]:

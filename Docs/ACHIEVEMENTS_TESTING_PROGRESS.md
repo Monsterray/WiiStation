@@ -19,7 +19,7 @@ The selected future live-test username is Monsterray; no credentials are staged.
 | File-backed NV seed | Wii job `20261011-025257-be84db` and host sanitizer harness | Rotation/reopen, exact size, exclusive ownership, failed commit and simulated interrupted restart pass; zero failures |
 | Source-built NV HTTPS | Wii job `20261011-032017-49eea1` | Final reproducible build: all five certificate cases and seed cleanup pass in 31 seconds; public dummy seeds only |
 | UTC callback and certificate dates | Wii job `20261011-040024-514221`, host ASan/UBSan | Zero clock failures; all five HTTPS cases pass; explicit +420 correction falls within host time window; clean HBC return in 37 seconds |
-| Production release | `.runs/achievement-build/production-release-build.log` | Pinned r41-2 build succeeds |
+| Release build | `.runs/achievement-build/production-release-build.log` | Pinned r41-2 build succeeds |
 | Collectors | `tests/bench_gameplay_test.py`, `tests/gameplay_results_test.py`, existing bench tests | Completion, invalid paths, memory telemetry, saturation, retries, frozen identity/checkpoints and replay failure gates pass |
 
 Wii evidence is under `.runs/bench/`; DOL, matching ELF, collector, SDK client and
@@ -131,7 +131,7 @@ with a bounded three-attempt policy. No launch or delete operation is retried.
 The replacement five-pair campaign uses the clean DOL and frozen bundles
 `20261011-spyro-clean-pair-1` through `-5`; all dependencies were rebuilt through
 `PROBES=... bash scripts/build.sh debug` in a clean source snapshot.
-The independent production release smoke also passed, job
+The independent release smoke also passed, job
 `20261011-015705-283c84` (menu/SDK/HOME/HBC, 38 seconds).
 Each accepted run has 7,200 analyzed NTSC intervals; all 128 conditions remain
 unearned and evaluation runs once for each of 13,199 profiled guest frames.

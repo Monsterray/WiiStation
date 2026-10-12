@@ -8,6 +8,10 @@ devkitPPC r41 toolchain; Wii64's compiler setup is not interchangeable.
 
 ## Release smoke test
 
+This smoke test runs the release build. It is not a test of production data.
+The bench Wii address is 192.168.8.213. Every bench script refuses
+192.168.8.200, the production Wii, through `scripts/wii_targets.py`.
+
 `scripts/bench_smoke.py` freezes the DOL, accompanying ELF, HBC client, and test
 script into a new bundle. Its manifest records SHA256 hashes and source paths.
 Run the frozen script through the installed queue, which provides the shared
@@ -22,8 +26,8 @@ python3 scripts/bench_smoke.py prepare \
   --client '../hbc-reborn/tools/hbc.py' \
   --bundle .runs/bench/my-release-smoke
 
-python3 "$HOME/.wii-bench/wiibench.py" status
-python3 "$HOME/.wii-bench/wiibench.py" add \
+python3 "C:/tools/wii-bench/wiibench.py" status
+python3 "C:/tools/wii-bench/wiibench.py" add \
   --name wiistation-release-smoke --agent wiistation --timeout 300 \
   --cwd "$PWD" -- \
   python3 .runs/bench/my-release-smoke/bench_smoke.py run \
@@ -31,8 +35,8 @@ python3 "$HOME/.wii-bench/wiibench.py" add \
 
 # Use the job ID returned by add. If the dispatcher is already running,
 # do not start another. Otherwise:
-python3 "$HOME/.wii-bench/wiibench.py" run --idle 5
-python3 "$HOME/.wii-bench/wiibench.py" wait JOB_ID
+python3 "C:/tools/wii-bench/wiibench.py" run --idle 5
+python3 "C:/tools/wii-bench/wiibench.py" wait JOB_ID
 ```
 
 The smoke test checks idle HBC and refuses an existing SD

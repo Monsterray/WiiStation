@@ -71,7 +71,7 @@ bash scripts/build-achievements-wii-test.sh .runs/bench/unit-build
 python3 scripts/bench_achievements.py prepare \
   --dol .runs/bench/unit-build/boot.dol \
   --client ../hbc-reborn/tools/hbc.py --bundle .runs/bench/unit-frozen
-python3 "$HOME/.wii-bench/wiibench.py" add \
+python3 "C:/tools/wii-bench/wiibench.py" add \
   --name wiistation-achievements-unit --agent wiistation --timeout 240 \
   --cwd "$PWD" -- python3 .runs/bench/unit-frozen/bench_achievements.py run \
   --bundle .runs/bench/unit-frozen
@@ -94,7 +94,7 @@ when it misses that short agent window, with a bounded restart timeout.
 
 Raw matrix, restart, recovery and pass evidence is in
 `.runs/bench/20261010-achievements-integration-final/results/`. Frozen inputs
-remain unchanged. The corrected production release also passed menu, SDK safety,
+remain unchanged. The corrected release build also passed menu, SDK safety,
 HOME overlay/resume and HBC return in job `20261010-220901-deb05a` (30 seconds),
 with evidence in `.runs/bench/20261010-release-stop-fixed-smoke/`.
 
@@ -145,7 +145,7 @@ python3 scripts/achievement_fixture.py .runs/bench/fixture
 python3 scripts/bench_achievement_games.py prepare \
   --dol Gamecube/WiiSXRX_debug.dol --client ../hbc-reborn/tools/hbc.py \
   --fixture .runs/bench/fixture --bundle .runs/bench/games-frozen
-python3 "$HOME/.wii-bench/wiibench.py" add \
+python3 "C:/tools/wii-bench/wiibench.py" add \
   --name wiistation-achievements-games --agent wiistation --timeout 600 \
   --cwd "$PWD" -- python3 .runs/bench/games-frozen/bench_achievement_games.py run \
   --bundle .runs/bench/games-frozen

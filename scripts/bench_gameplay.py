@@ -11,6 +11,7 @@ import statistics
 import time
 import uuid
 import bench_smoke
+from wii_targets import refuse_production
 import chain_table
 import vtl_view
 
@@ -224,6 +225,7 @@ def main():
         m['recording_sha256']=bench_smoke.digest(a.input)
         (a.bundle/'manifest.json').write_text(json.dumps(m,indent=2));return
     if not os.environ.get('WII_BENCH_JOB_START') or not os.environ.get('WII_BENCH_IP'):p.error('Use shared bench queue')
+    refuse_production(os.environ['WII_BENCH_IP'],'bench_gameplay.py')
     m=json.loads((a.bundle/'manifest.json').read_text())
     for name,entry in m['inputs'].items():
         if bench_smoke.digest(a.bundle/name)!=entry['sha256']:p.error('Frozen input changed: '+name)
