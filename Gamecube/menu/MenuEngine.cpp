@@ -115,6 +115,49 @@ static void rowCell(const Page &p, int i, int &line, int &col)
 	}
 }
 
+/* A two-column cell: its button is as wide as its widest name (so it does not change width when
+ * cycled), its label sits right-aligned RLABEL_GAP before it. */
+static float cellButtonW(const Metrics &m, const Row &r)
+{
+	int w = 0;
+	for (int k = 0; k < r.count; k++) {
+		const int b = buttonFitWidth(m, r.names[k]);
+		if (b > w)
+			w = b;
+	}
+	return (float)w;
+}
+
+static float cellW(const Metrics &m, const Row &r)
+{
+	return (float)measure(m, r.label, TEXT_SCALE) + RLABEL_GAP + cellButtonW(m, r);
+}
+
+/* Where row i's button goes, and the right edge of its label. The line's one or two cells are
+ * centred as a pair. */
+static void cellPlace(const Page &p, const Metrics &m, int i, int col, float &btnX, float &btnW, float &labelRight)
+{
+	const int left = col ? i - 1 : i;
+	int right = -1, line, c2;
+	float w0 = cellW(m, p.rows[left]), w1 = 0, x;
+
+	if (!col && i + 1 < p.nRows) {
+		rowCell(p, i + 1, line, c2);
+		if (c2 == 1)
+			right = i + 1;
+	}
+	if (col)
+		right = i;
+	if (right >= 0)
+		w1 = cellW(m, p.rows[right]);
+	x = (MENU_W - (w0 + (right >= 0 ? COL2_GAP + w1 : 0))) / 2;
+	if (col)
+		x += w0 + COL2_GAP;
+	btnW = cellButtonW(m, p.rows[i]);
+	btnX = x + cellW(m, p.rows[i]) - btnW;
+	labelRight = btnX - RLABEL_GAP;
+}
+
 /* How many lines the rows take: where the help starts. */
 static int pageLines(const Page &p)
 {
@@ -437,10 +480,15 @@ int layoutPage(const Page &p, const Metrics &m, Layout &out)
 		case ROW_TOGGLE:
 		case ROW_CYCLE: {
 			const bool two = p.columns >= 2;
-			if (r.label)
-				addText(out, m, ROLE_LABEL, i, 0, two ? COL2_LABEL_CX[col] : lcx, y + ldy, ALIGN_CENTRE, TEXT_SCALE, r.label);
-			out.slot[i][0] = addButton(out, ROLE_BUTTON, i, 0, two ? COL2_BTN_X[col] : CYCLE_X, y,
-			                           two ? COL2_BTN_W : CYCLE_W, BUTTON_H,
+			float bx = CYCLE_X, bw = CYCLE_W, lr = 0;
+			if (two)
+				cellPlace(p, m, i, col, bx, bw, lr);
+			if (r.label) {
+				/* centred on an anchor that puts its right edge at lr (the choice rows' rounding) */
+				const int lw = measure(m, r.label, TEXT_SCALE);
+				addText(out, m, ROLE_LABEL, i, 0, two ? lr - (float)(lw - lw / 2) : lcx, y + ldy, ALIGN_CENTRE, TEXT_SCALE, r.label);
+			}
+			out.slot[i][0] = addButton(out, ROLE_BUTTON, i, 0, bx, y, bw, BUTTON_H,
 			                           r.names[shownValue(r) - r.lo], false, !isInactive(r, 0));
 			break;
 		}

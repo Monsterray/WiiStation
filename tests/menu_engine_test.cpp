@@ -3521,6 +3521,40 @@ static void testCycle(void)
 	printf("cycle: wraps through all names ... %s\n", failures == before ? "ok" : "FAILED");
 }
 
+/* A two-column cell: the button as wide as its widest name, the label right-aligned 10 px before it;
+ * a line's cells are 30 apart and the pair is centred. Nothing in the 15 px margins or past 636. */
+static float cellBtnW(const Row &r)
+{
+	float w = 0;
+	for (int k = 0; k < r.count; k++)
+		if (fitWidth(r.names[k]) > w)
+			w = fitWidth(r.names[k]);
+	return w;
+}
+
+static float cellWd(const Row &r) { return (float)fontWidth(r.label, 1.0f, NULL) + 10.0f + cellBtnW(r); }
+
+static void checkCells(const Layout &lay, const Row *rows, int i0, int i1, float y)
+{
+	const float w0 = cellWd(rows[i0]), w1 = i1 >= 0 ? cellWd(rows[i1]) : 0.0f;
+	float x = (640.0f - (w0 + (i1 >= 0 ? 30.0f + w1 : 0.0f))) / 2;
+
+	for (int n = 0; n < (i1 >= 0 ? 2 : 1); n++) {
+		const int i = n ? i1 : i0;
+		const float cw = n ? w1 : w0, bw = cellBtnW(rows[i]), bx = x + cw - bw;
+		const Key kb = { ROLE_BUTTON, i, 0 }, kl = { ROLE_LABEL, i, 0 };
+		const int b = findCtrl(lay, kb), l = findCtrl(lay, kl);
+		if (b < 0 || l < 0) { fail("2 columns", "a row lost its label or button"); continue; }
+		if (lay.c[b].rect.x != bx || lay.c[b].rect.y != y || lay.c[b].rect.w != bw || lay.c[b].rect.h != 56.0f)
+			fail("2 columns", "a button is not in its cell");
+		if (fabsf(lay.c[l].rect.x + lay.c[l].rect.w - (bx - 10.0f)) > 1.0f || lay.c[l].ay != y + 20.0f)
+			fail("2 columns", "a label does not end 10 px before its button");
+		if (lay.c[l].rect.x < 15.0f || bx + bw > 636.0f)
+			fail("2 columns", "a cell reaches the margin");
+		x += cw + 30.0f;
+	}
+}
+
 /* Page::columns == 2 (Advanced Graphics): Cycle rows fill two columns of label + button, a choice
  * row takes the whole line, the help starts under the last line, focus runs by geometry. */
 static void testTwoColumns(void)
@@ -3556,20 +3590,8 @@ static void testTwoColumns(void)
 		fail("2 columns", "checkLayout finds a problem on the page");
 
 	/* Lines: Dithering at 100, the two Cycle pairs at 160 and 220. */
-	{
-		static const float WANT_X[5] = { 0, 188, 507, 188, 507 };
-		static const float WANT_Y[5] = { 0, 160, 160, 220, 220 };
-		for (int i = 1; i < 5; i++) {
-			const Key kb = { ROLE_BUTTON, i, 0 }, kl = { ROLE_LABEL, i, 0 };
-			const int b = findCtrl(lay, kb), l = findCtrl(lay, kl);
-			if (b < 0 || l < 0) { fail("2 columns", "a row lost its label or button"); continue; }
-			if (lay.c[b].rect.x != WANT_X[i] || lay.c[b].rect.y != WANT_Y[i] ||
-			    lay.c[b].rect.w != 126.0f || lay.c[b].rect.h != 56.0f)
-				fail("2 columns", "a button is not in its cell");
-			if (lay.c[l].ax != (i % 2 ? 95.0f : 414.0f) || lay.c[l].ay != WANT_Y[i] + 20.0f)
-				fail("2 columns", "a label is not in its cell");
-		}
-	}
+	checkCells(lay, rows, 1, 2, 160.0f);
+	checkCells(lay, rows, 3, 4, 220.0f);
 	/* The choice row is where it always was; the help starts under line 3 (y 280), not row 5 (400). */
 	{
 		const Key kc = { ROLE_CHOICE, 0, 0 }, kh = { ROLE_HELP_TERM, -1, 0 };
@@ -3602,8 +3624,6 @@ static void testTwoColumns(void)
 		Row odd[] = { CYC("Gamma", GAMMA_NAMES, 0), CYC("Video Colour", FMV_COLOUR_NAMES, 0),
 		              RADIO_FIT("Dithering", DITHER_NAMES, 1), CYC("Gamma", GAMMA_NAMES, 0),
 		              CYC("Gamma", GAMMA_NAMES, 0), CYC("Gamma", GAMMA_NAMES, 0) };
-		static const float WANT_X[6] = { 188, 507, 0, 188, 507, 188 };
-		static const float WANT_Y[6] = { 100, 100, 0, 220, 220, 280 };
 		Page q = p;
 		q.rows = odd;
 		q.nRows = COUNT(odd);
@@ -3612,13 +3632,9 @@ static void testTwoColumns(void)
 		if (layoutPage(q, kFont, lay) < 0)
 			fail("2 columns", "layoutPage refused the mixed page");
 		linkFocus(q, lay);
-		for (int i = 0; i < 6; i++) {
-			const Key kb = { ROLE_BUTTON, i, 0 };
-			const int b = findCtrl(lay, kb);
-			if (i == 2) continue;
-			if (b < 0 || lay.c[b].rect.x != WANT_X[i] || lay.c[b].rect.y != WANT_Y[i])
-				fail("2 columns", "a mixed page cell is in the wrong place");
-		}
+		checkCells(lay, odd, 0, 1, 100.0f);
+		checkCells(lay, odd, 3, 4, 220.0f);
+		checkCells(lay, odd, 5, -1, 280.0f);	/* the lone cell is centred */
 		if (checkLayout(q, kFont, lay, probs, MAX_PROBLEMS) != 0)
 			fail("2 columns", "checkLayout finds a problem on the mixed page");
 	}
