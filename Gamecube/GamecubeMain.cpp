@@ -412,6 +412,53 @@ const SettingOption* settingByKey(const char* key)
 			return &OPTIONS[i];
 	return NULL;
 }
+
+/* Unsaved menu changes. A game load reads a settings file over every setting, so a setting the
+ * menu changed and did not save would lose its value. settingBase holds what the settings file
+ * last gave, or what the last save wrote. Before the read, every setting that differs from it is
+ * kept (setOption skips it); after the read, the values the file gave become the base again,
+ * except for the kept settings, whose base stays as it was: their menu value is still unsaved. */
+#define OPTION_COUNT ((int)(sizeof(OPTIONS) / sizeof(OPTIONS[0])))
+static char settingBaseNum[OPTION_COUNT];
+static char *settingBaseStr[OPTION_COUNT];   /* a string setting's base: a copy each */
+static char settingKeep[OPTION_COUNT];       /* 1 = setOption skips this setting in the read */
+static bool settingBaseSet;
+
+static bool settingUnsaved(int i)
+{
+	if (!settingBaseSet || !OPTIONS[i].value)
+		return false;
+	if (OPTIONS[i].max == CONFIG_STRING_TYPE)
+		return settingBaseStr[i] && strcmp(OPTIONS[i].value, settingBaseStr[i]) != 0;
+	return *OPTIONS[i].value != settingBaseNum[i];
+}
+
+static void settingRemember(int i)
+{
+	if (!OPTIONS[i].value)
+		return;
+	if (OPTIONS[i].max == CONFIG_STRING_TYPE) {
+		free(settingBaseStr[i]);
+		settingBaseStr[i] = strdup(OPTIONS[i].value);
+	} else
+		settingBaseNum[i] = *OPTIONS[i].value;
+}
+
+static void keepUnsavedSettings(void)
+{
+	for (int i = 0; i < OPTION_COUNT; i++)
+		settingKeep[i] = settingUnsaved(i);
+}
+
+static void rememberFileSettings(void)
+{
+	for (int i = 0; i < OPTION_COUNT; i++)
+		if (!settingKeep[i])
+			settingRemember(i);
+	memset(settingKeep, 0, sizeof settingKeep);
+	settingBaseSet = true;
+}
+
 void handleConfigPair(char* kv);
 void readConfig(FILE* f);
 void writeConfig(FILE* f);
@@ -436,6 +483,9 @@ static void setGpuPlugin()
         gpuPtr = &glesGpu;
     }
 }
+
+/* The Auto Load Slot whose key mapping is loaded now (loadSettings, loadSeparatelySetting) */
+static char mappingSlot = -1;
 
 static bool loadControllerMapping(char* usbSd)
 {
@@ -657,6 +707,7 @@ void loadSettings(int argc, char *argv[])
 				fclose(f);
 			}
 			loadControllerMapping("usb");
+			mappingSlot = loadButtonSlot;
 		}
 	}
 	else /*if((argv[0][0]=='s') || (argv[0][0]=='/'))*/
@@ -675,6 +726,7 @@ void loadSettings(int argc, char *argv[])
 			}
 
 			loadControllerMapping("sd");
+			mappingSlot = loadButtonSlot;
 		}
 	}
 #ifdef HW_RVL
@@ -1055,6 +1107,8 @@ int main(int argc, char *argv[])
 		}
 	}
 
+	rememberFileSettings();   /* what the boot read is the file's: the base for unsaved changes */
+
 	/* Test automation: a bare .dol booted by Dolphin gets no loader argv, so
 	 * sd:/wiistation/autoboot.txt -- two lines, the ISO's directory and its
 	 * filename -- stands in for argv[1]/argv[2] and boots straight into the
@@ -1239,7 +1293,8 @@ static bool loadSeparatelySettingItem(char* s1, char* s2, bool isUsb)
 
 static void loadSeparatelySetting()
 {
-    char oldLoadButtonSlot = loadButtonSlot;
+    // The menu's unsaved changes survive the reads below (setOption skips them).
+    keepUnsavedSettings();
 
     // First, we load separately game settings.
     // Load separately game settings from USB device
@@ -1260,11 +1315,14 @@ static void loadSeparatelySetting()
             }
         }
     }
+    rememberFileSettings();
     chainReapply();   /* a chained game's own settings win over the file */
 
-    // If the loadButton Slot changes, reload the key mapping
-    if (oldLoadButtonSlot != loadButtonSlot)
+    // If the Auto Load Slot differs from the one whose mapping is loaded, reload the key mapping.
+    // Compared with mappingSlot: the menu's value may have survived the read above.
+    if (mappingSlot != loadButtonSlot)
     {
+        mappingSlot = loadButtonSlot;
         // Load button mapping from USB
         if (!loadControllerMapping("usb"))
         {
@@ -1435,6 +1493,8 @@ void setOption(char* key, char* valuePointer){
 
 	for(unsigned int i=0; i<sizeof(OPTIONS)/sizeof(OPTIONS[0]); i++){
 		if(OPTIONS[i].value && !strcmp(OPTIONS[i].key, key)){   /* a section row has no value */
+			if (settingKeep[i])   /* an unsaved menu change: the read leaves it */
+				break;
 			if(isString) {
 				if(OPTIONS[i].max == CONFIG_STRING_TYPE)
 					strncpy(OPTIONS[i].value, valuePointer,
@@ -1464,7 +1524,7 @@ void readConfig(FILE* f){
 	}
 }
 
-void writeConfig(FILE* f){
+static void writeSettingLines(FILE* f){
 	fprintf(f, "; WiiStation settings. Write one \"key = value\" on each line.\n"
 	           "; example_settings.ini and SETTINGS.md tell what each setting does.\n");
 	for(unsigned int i=0; i<sizeof(OPTIONS)/sizeof(OPTIONS[0]); ++i){
@@ -1475,6 +1535,19 @@ void writeConfig(FILE* f){
 		else
 			fprintf(f, "%s = %d\n", OPTIONS[i].key, *OPTIONS[i].value);
 	}
+}
+
+/* A save to a settings file: from here the menu's values are the file's, so none is unsaved. */
+void writeConfig(FILE* f){
+	writeSettingLines(f);
+	for (int i = 0; i < OPTION_COUNT; i++)
+		settingRemember(i);
+	settingBaseSet = true;
+}
+
+/* The settings written into a save state: a copy, not a save, so the menu's changes stay unsaved. */
+void writeConfigCopy(FILE* f){
+	writeSettingLines(f);
 }
 
 extern "C" {
