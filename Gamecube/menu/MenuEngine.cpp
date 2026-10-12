@@ -511,6 +511,32 @@ static void linkGeometry(Layout &lay)
 
 /* Where focus starts: the first row's first button, as OptionsFrame does, or the lit tab on a
  * page with no focusable row. Shared by both focus modes. */
+/* The focus target at (row, slot): its control index, or -1 when there is no such row or slot,
+ * or the button is hidden, inactive or not a button at all. */
+static int focusTargetAt(const Page &p, const Layout &lay, int row, int slot)
+{
+	if (row < 0 || row >= p.nRows || slot < 0 || slot >= MAX_SLOTS)
+		return -1;
+	{
+		const int k = lay.slot[row][slot];
+		return (k >= 0 && lay.c[k].focusable) ? k : -1;
+	}
+}
+
+/* LinkOverride: each override that names two focus targets replaces that one link. Any other
+ * override is left out, and the link the rule made stands. */
+static void applyOverrides(const Page &p, Layout &lay)
+{
+	for (int k = 0; p.overrides && k < p.nOverrides; k++) {
+		const LinkOverride &o = p.overrides[k];
+		const int from = focusTargetAt(p, lay, o.row, o.slot);
+		const int to = focusTargetAt(p, lay, o.toRow, o.toSlot);
+		if (from < 0 || to < 0 || o.dir < 0 || o.dir >= DIR_COUNT)
+			continue;
+		lay.c[from].link[o.dir] = to;
+	}
+}
+
 void linkFocus(const Page &p, Layout &lay)
 {
 	int def = -1;
@@ -523,6 +549,7 @@ void linkFocus(const Page &p, Layout &lay)
 		linkGeometry(lay);
 	else
 		linkRows(p, lay);
+	applyOverrides(p, lay);
 
 	for (int i = 0; i < p.nRows && def < 0; i++) {
 		int A[MAX_SLOTS], n;

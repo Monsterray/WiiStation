@@ -2048,11 +2048,16 @@ static const ScreenLink CURRENT_LINKS[] = {
 	{ 0, 6, 2, 1, 1 }, { 1, 7, 3, 0, 0 }, { 2, 0, 4, 3, 3 }, { 3, 1, 4, 2, 2 },
 	{ 4, 2, 5, -1, -1 }, { 5, 4, 6, 7, 7 }, { 6, 5, 0, 7, 7 }, { 7, 4, 1, 5, 5 },
 };
+/* The four links the rule does not give, as CurrentRomFrame.cpp's CUR_LINKS sets them. */
+static const LinkOverride CURRENT_OVERRIDES[] = {
+	{ 0, 1, DIR_UP,    3, 1 }, { 3, 1, DIR_DOWN,  0, 1 },
+	{ 4, 0, DIR_LEFT,  3, 1 }, { 4, 0, DIR_RIGHT, 3, 1 },
+};
 
 /* Checks one screen: its boxes against the table (a failure), its links against the table (printed,
- * a finding), and checkLayout's problems (a failure). Returns the failures. */
+ * a finding; a failure when linksExact), and checkLayout's problems (a failure). Returns the failures. */
 static int checkScreen(const char *name, const Page &page, const ScreenBox *boxes, unsigned nb,
-                       const ScreenLink *links, unsigned nl)
+                       const ScreenLink *links, unsigned nl, bool linksExact)
 {
 	static const char *const DIR[DIR_COUNT] = { "Up", "Down", "Left", "Right" };
 	Layout lay;
@@ -2097,8 +2102,16 @@ static int checkScreen(const char *name, const Page &page, const ScreenBox *boxe
 				const int gotIdx = got < 0 ? -1 : boxIdxAt(boxes, nb, lay.c[got].row, lay.c[got].slot);
 				if (gotIdx != want[d]) {
 					diffs++;
-					printf("        %-10s button %d %-5s table %2d, engine %2d\n",
-					       name, o.idx, DIR[d], want[d], gotIdx);
+					if (linksExact) {
+						char msg[160];
+						snprintf(msg, sizeof msg, "button %d %s links to %d, the table has %d",
+						         o.idx, DIR[d], gotIdx, want[d]);
+						fail(name, msg);
+						bad++;
+					} else {
+						printf("        %-10s button %d %-5s table %2d, engine %2d\n",
+						       name, o.idx, DIR[d], want[d], gotIdx);
+					}
 				}
 			}
 		}
@@ -2125,9 +2138,161 @@ static int checkScreen(const char *name, const Page &page, const ScreenBox *boxe
 		fail(name, "the default focus is not the first button");
 		bad++;
 	}
-	printf("  %-10s %zu buttons against the table, %d link%s differ from the table (a finding, not a failure)\n",
-	       name, (size_t)nb, diffs, diffs == 1 ? "" : "s");
+	if (linksExact)
+		printf("  %-10s %zu buttons against the table, every link as the table has it\n", name, (size_t)nb);
+	else
+		printf("  %-10s %zu buttons against the table, %d link%s differ from the table (a finding, not a failure)\n",
+		       name, (size_t)nb, diffs, diffs == 1 ? "" : "s");
 	return bad;
+}
+
+/*  Link overrides (Page::overrides), and the D-pad reach of Current ROM  */
+
+/* The controls a D-pad walk from the default focus reaches, by following the links. Returns the
+ * count; reached[i] is set for each control reached. */
+static int reachFromDefault(const Layout &lay, bool *reached)
+{
+	int queue[MAX_CONTROLS], qh = 0, qt = 0;
+
+	memset(reached, 0, sizeof(bool) * MAX_CONTROLS);
+	if (lay.defaultFocus < 0 || lay.defaultFocus >= lay.n || !lay.c[lay.defaultFocus].focusable)
+		return 0;
+	reached[lay.defaultFocus] = true;
+	queue[qt++] = lay.defaultFocus;
+	while (qh < qt) {
+		const int u = queue[qh++];
+		for (int d = 0; d < DIR_COUNT; d++) {
+			const int v = lay.c[u].link[d];
+			if (v >= 0 && v < lay.n && lay.c[v].focusable && !reached[v]) {
+				reached[v] = true;
+				queue[qt++] = v;
+			}
+		}
+	}
+	return qt;
+}
+
+/* Every button of a screen must be reached from its default focus by the D-pad links. */
+static int checkDpadReach(const char *name, const Page &page, const ScreenBox *boxes, unsigned nb)
+{
+	static bool reached[MAX_CONTROLS];
+	Layout lay;
+	int bad = 0;
+
+	if (layoutPage(page, kFont, lay) < 0) {
+		fail(name, "layoutPage refused the page");
+		return 1;
+	}
+	linkFocus(page, lay);
+	{
+		const int n = reachFromDefault(lay, reached);
+		for (unsigned k = 0; k < nb; k++) {
+			const int at = lay.slot[boxes[k].row][boxes[k].slot];
+			if (at < 0 || !reached[at]) {
+				char msg[120];
+				snprintf(msg, sizeof msg, "button %d cannot be reached by the D-pad", boxes[k].idx);
+				fail(name, msg);
+				bad++;
+			}
+		}
+		printf("  %-10s a D-pad walk from the default focus reaches %d of %zu buttons\n",
+		       name, n, (size_t)nb);
+	}
+	return bad;
+}
+
+/* Lays out a page and links it, with the page's overrides. Returns false if it does not lay out. */
+static bool layOutLinked(const Page &page, Layout &lay, const char *where)
+{
+	if (layoutPage(page, kFont, lay) < 0) {
+		fail(where, "the page does not lay out");
+		return false;
+	}
+	linkFocus(page, lay);
+	return true;
+}
+
+/* Three rows of buttons and a readout, one row with an inactive button. The rule links first, then
+ * the overrides are checked against it: one applies, and the others each name something that is
+ * not a focus target (an inactive button, a readout, a row past the page, a slot past the row's
+ * buttons, an inactive source) and must leave the rule's link alone. */
+static void testLinkOverrides(void)
+{
+	static const ActionButton TOP[] = { { "A", 100.0f, false }, { "B", 100.0f, false } };
+	static const ActionButton MID[] = { { "C", 100.0f, false }, { "D", 100.0f, false } };
+	static const ActionButton LOW[] = { { "E", 100.0f, false } };
+	static const LinkOverride OV[] = {
+		{ 0, 1, DIR_DOWN,  3, 0 },		/* B down to E: applied */
+		{ 0, 0, DIR_DOWN,  1, 1 },		/* A down to D, which is inactive: the rule's C stands */
+		{ 0, 0, DIR_RIGHT, 2, 0 },		/* A right to the readout's row (no button): B stands */
+		{ 0, 0, DIR_LEFT,  7, 0 },		/* A left to a row past the page: B stands */
+		{ 3, 0, DIR_UP,    0, MAX_SLOTS },	/* E up to a slot past the row's buttons: C stands */
+		{ 1, 1, DIR_UP,    3, 0 },		/* D up, from an inactive button: nothing to link */
+	};
+	static Row rows[4];
+	static Layout lay;
+	static bool reached[MAX_CONTROLS];
+	Page page;
+	Problem probs[MAX_PROBLEMS];
+	const char *where = "overrides";
+	int A, B, C, D, E, np;
+
+	printf("Link overrides (Page::overrides)\n");
+	memset(rows, 0, sizeof rows);
+	rows[0].kind = ROW_BUTTONS; rows[0].actions = TOP; rows[0].count = 2;
+	rows[1].kind = ROW_BUTTONS; rows[1].actions = MID; rows[1].count = 2; rows[1].inactive = 1u << 1;
+	rows[2].kind = ROW_READOUT; rows[2].label = "Readout"; rows[2].text = "0";
+	rows[3].kind = ROW_BUTTONS; rows[3].actions = LOW; rows[3].count = 1;
+
+	memset(&page, 0, sizeof page);
+	page.rows = rows; page.nRows = 4; page.logo = LOGO_SPOT_NONE; page.focus = FOCUS_ROWS;
+
+	/* The rule alone: A and B go down to C (D is inactive), C down to E, and E up to C. */
+	if (!layOutLinked(page, lay, where))
+		return;
+	A = lay.slot[0][0]; B = lay.slot[0][1]; C = lay.slot[1][0]; D = lay.slot[1][1]; E = lay.slot[3][0];
+	if (A < 0 || B < 0 || C < 0 || D < 0 || E < 0) {
+		fail(where, "a button is missing from the layout");
+		return;
+	}
+	if (lay.c[B].link[DIR_DOWN] != C || lay.c[A].link[DIR_DOWN] != C || lay.c[E].link[DIR_UP] != C)
+		fail(where, "the rule's links are not the ones this test expects");
+
+	page.overrides = OV;
+	page.nOverrides = (int)COUNT(OV);
+	if (!layOutLinked(page, lay, where))
+		return;
+
+	if (lay.c[B].link[DIR_DOWN] != E)
+		fail(where, "an override that names two focus targets was not applied");
+	if (lay.c[A].link[DIR_DOWN] != C)
+		fail(where, "an override to an inactive button replaced the rule's link");
+	if (lay.c[A].link[DIR_RIGHT] != B || lay.c[A].link[DIR_LEFT] != B)
+		fail(where, "an override to a readout or a row past the page replaced the rule's link");
+	if (lay.c[E].link[DIR_UP] != C)
+		fail(where, "an override to a slot past the row's buttons replaced the rule's link");
+	if (lay.c[D].link[DIR_UP] != -1 || lay.c[D].link[DIR_DOWN] != -1 ||
+	    lay.c[D].link[DIR_LEFT] != -1 || lay.c[D].link[DIR_RIGHT] != -1)
+		fail(where, "an override from an inactive button set a link");
+	if (linksToInactive(lay) != 0)
+		fail(where, "a focus link points at an inactive button");
+	np = checkLayout(page, kFont, lay, probs, MAX_PROBLEMS);
+	for (int i = 0; i < np && i < MAX_PROBLEMS; i++)
+		if (probs[i].kind == PROB_BAD_LINK || probs[i].kind == PROB_UNREACHABLE) {
+			fail(where, problemName(probs[i].kind));
+			break;
+		}
+	if (reachFromDefault(lay, reached) != 4 || !reached[A] || !reached[B] || !reached[C] || !reached[E])
+		fail(where, "the overridden page is not reachable from the default focus");
+
+	/* A NULL array is ignored, whatever the count says: the page keeps the rule's links. */
+	page.overrides = NULL;
+	page.nOverrides = 3;
+	if (!layOutLinked(page, lay, where))
+		return;
+	if (lay.c[B].link[DIR_DOWN] != C)
+		fail(where, "a NULL override array was not ignored");
+	printf("  overrides: one applied; inactive, readout, out-of-range and inactive-source ones fall back\n");
 }
 
 static int checkButtonRowScreens(void)
@@ -2135,12 +2300,15 @@ static int checkButtonRowScreens(void)
 	int bad = 0;
 	const Page main    = screenPage(MAIN_ROWS, (int)COUNT(MAIN_ROWS), LOGO_SPOT_TOP, 60.0f, 0.0f);
 	const Page loadrom = screenPage(LOADROM_ROWS, (int)COUNT(LOADROM_ROWS), LOGO_SPOT_TOP, 0.0f, 80.0f);
-	const Page current = screenPage(CURRENT_ROWS, (int)COUNT(CURRENT_ROWS), LOGO_SPOT_BOTTOM, 60.0f, 0.0f);
+	Page current = screenPage(CURRENT_ROWS, (int)COUNT(CURRENT_ROWS), LOGO_SPOT_BOTTOM, 60.0f, 0.0f);
+	current.overrides = CURRENT_OVERRIDES;
+	current.nOverrides = (int)COUNT(CURRENT_OVERRIDES);
 
 	printf("Button-row screens (boxes against the frames' tables, focus against their links)\n");
-	bad += checkScreen("Main", main, MAIN_BOXES, COUNT(MAIN_BOXES), MAIN_LINKS, COUNT(MAIN_LINKS));
-	bad += checkScreen("LoadRom", loadrom, LOADROM_BOXES, COUNT(LOADROM_BOXES), LOADROM_LINKS, COUNT(LOADROM_LINKS));
-	bad += checkScreen("CurrentRom", current, CURRENT_BOXES, COUNT(CURRENT_BOXES), CURRENT_LINKS, COUNT(CURRENT_LINKS));
+	bad += checkScreen("Main", main, MAIN_BOXES, COUNT(MAIN_BOXES), MAIN_LINKS, COUNT(MAIN_LINKS), false);
+	bad += checkScreen("LoadRom", loadrom, LOADROM_BOXES, COUNT(LOADROM_BOXES), LOADROM_LINKS, COUNT(LOADROM_LINKS), false);
+	bad += checkScreen("CurrentRom", current, CURRENT_BOXES, COUNT(CURRENT_BOXES), CURRENT_LINKS, COUNT(CURRENT_LINKS), true);
+	bad += checkDpadReach("CurrentRom", current, CURRENT_BOXES, COUNT(CURRENT_BOXES));
 	return bad;
 }
 
@@ -2168,6 +2336,7 @@ int main(int argc, char **argv)
 	checkTabBoxes("Saves", 4, SAVES_BOXES, COUNT(SAVES_BOXES), SAVES_LABEL_Y, COUNT(SAVES_LABEL_Y));
 	checkTabLinks("Saves", 4, SAVES_BOXES, COUNT(SAVES_BOXES));
 	checkButtonRowScreens();
+	testLinkOverrides();
 	reportGeometry();
 	testCheckCatches();
 	testInactiveNeverFocus();

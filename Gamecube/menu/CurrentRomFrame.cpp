@@ -102,7 +102,8 @@ struct ButtonInfo
  * Then Show ISO Info across the middle, Load State with the Cycle State button beside it, and Save
  * State below. The Cycle State button sits 30 lower than its row, between two rows (dy). Rows are
  * 60 apart from y 60. The logo is bottom right (MenuContext's LOGO_BOTTOM_FRAMES). Focus is the
- * engine's row rule: Up and Down keep the column, and Left and Right move within a row. The layout
+ * engine's row rule: Up and Down keep the column, and Left and Right move within a row, except
+ * for the four links in CUR_LINKS, which keep Save State and Cycle State together. The layout
  * is fixed, so it is done once, here, and tests/menu_engine_test.cpp checks its numbers. */
 namespace eng = menu::engine;
 
@@ -111,6 +112,16 @@ static const int CUR_AT[NUM_FRAME_BUTTONS][2] = {
 	{ 0, 0 }, { 0, 1 }, { 1, 0 }, { 1, 1 }, { 2, 0 }, { 3, 0 }, { 4, 0 }, { 3, 1 },
 };
 #define CUR_ROWS_N 5
+
+/* The four focus links the rule does not give: Swap CD Up and Cycle State Down (the two buttons
+ * that sit above and below each other on the right), and Save State Left and Right (Cycle State,
+ * its slot selector). Each is applied after the rule, from the button to the target (row, slot). */
+static const eng::LinkOverride CUR_LINKS[] = {
+	{ 0, 1, eng::DIR_UP,    3, 1 },		/* Swap CD up: Cycle State */
+	{ 3, 1, eng::DIR_DOWN,  0, 1 },		/* Cycle State down: Swap CD */
+	{ 4, 0, eng::DIR_LEFT,  3, 1 },		/* Save State left: Cycle State */
+	{ 4, 0, eng::DIR_RIGHT, 3, 1 },		/* Save State right: Cycle State */
+};
 
 /* The buttons of each row, by slot: a row's actions must be consecutive, so they are kept by place. */
 static eng::ActionButton CUR_ACTIONS[CUR_ROWS_N][2];
@@ -183,6 +194,8 @@ static void layoutCurrentRom(void)
 	CUR_PAGE.labelDy = 0.0f;
 	CUR_PAGE.rowDy   = 0.0f;	/* the default pitch, 60 */
 	CUR_PAGE.rowY0   = 60.0f;
+	CUR_PAGE.overrides  = CUR_LINKS;
+	CUR_PAGE.nOverrides = (int)(sizeof CUR_LINKS / sizeof CUR_LINKS[0]);
 
 	/* The tables are fixed: a page that does not fit is a programming error, which the host
 	 * test catches before it reaches the menu. */

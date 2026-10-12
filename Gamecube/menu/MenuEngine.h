@@ -21,6 +21,10 @@
  * top of the loop) or FOCUS_GEOMETRY (CustomizeCoopFrame's rule: the nearest control in each
  * direction, scored along + 2 x sideways). Both use only controls that are shown.
  *
+ * A page may also set some links by hand (Page::overrides, LinkOverride): applied after the rule,
+ * each one only when both of its buttons are focus targets, so one never points at a hidden or
+ * inactive control. Current ROM uses four of them to keep Save State and Cycle State together.
+ *
  * This program is free software; you can redistribute it and/
  * or modify it under the terms of the GNU General Public Li-
  * cence as published by the Free Software Foundation; either
@@ -164,6 +168,18 @@ enum FocusMode {
 	FOCUS_GEOMETRY		/* CustomizeCoopFrame's rule: the nearest control in each direction */
 };
 
+enum Dir { DIR_UP, DIR_DOWN, DIR_LEFT, DIR_RIGHT, DIR_COUNT };
+
+/* A focus link the page sets by hand, after the rule has made the links: from the button at
+ * (row, slot), the direction dir goes to the button at (toRow, toSlot). The override stands only
+ * when both are focus targets (shown and active). Otherwise the rule's link is kept, so an
+ * override never points at a hidden or inactive control. */
+struct LinkOverride {
+	int   row, slot;
+	Dir   dir;
+	int   toRow, toSlot;
+};
+
 struct Page {
 	const char      *title;		/* shown only when there is no tab row */
 	const Tab       *tabs;		/* the tab row, or NULL */
@@ -180,6 +196,9 @@ struct Page {
 	float            labelDy;	/* a label's centre this far below its row's top, not LABEL_DY */
 	float            rowDy;		/* the row pitch, not ROW_DY (the Settings Audio and Saves tabs: 70) */
 	float            rowY0;		/* the first row's top, not ROW_Y0 (Main: 60); 0 = ROW_Y0 */
+	/* Added for Current ROM (step 3). Zero means none. */
+	const LinkOverride *overrides;	/* focus links set by hand, after the rule (linkFocus) */
+	int              nOverrides;
 };
 
 /*  Layout output  */
@@ -203,8 +222,6 @@ enum TextAlign {
 	ALIGN_CENTRE,		/* the anchor is the centre: TextBox(..., centred = true) */
 	ALIGN_RIGHT_TOP		/* the anchor is the top-right corner: setRightAligned(true) */
 };
-
-enum Dir { DIR_UP, DIR_DOWN, DIR_LEFT, DIR_RIGHT, DIR_COUNT };
 
 struct Rect {
 	float x, y, w, h;
@@ -239,7 +256,8 @@ struct Layout {
  * malformed row (a Choice of more than MAX_SLOTS buttons, a Cycle with no names). */
 int layoutPage(const Page &page, const Metrics &m, Layout &out);
 
-/* Sets Up/Down/Left/Right on every focusable control, by page.focus. Call after layoutPage. */
+/* Sets Up/Down/Left/Right on every focusable control, by page.focus, then applies the page's
+ * overrides. Call after layoutPage. */
 void linkFocus(const Page &page, Layout &lay);
 
 /* The width a fitted choice is drawn at: its label plus 16 px each side, rounded up to an
