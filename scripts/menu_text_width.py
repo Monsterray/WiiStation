@@ -50,7 +50,7 @@ TAB_STRIP = [0, 1, 2, 3, 4]
 # In the tables so that no later index moves, but never shown on any tab.
 # 25/26/27 are the Dithering trio: it moved to the Advanced Graphics page
 # (OptionsFrame), which button 78 opens. 74 is the CD page, now an Advanced tab.
-HIDDEN_BUTTONS = {5, 6, 58, 64, 65, 66, 42, 43, 44, 60, 61, 74, 25, 26, 27}
+HIDDEN_BUTTONS = {5, 6, 19, 58, 64, 65, 66, 42, 43, 44, 60, 61, 74, 25, 26, 27}
 # Rows placed on the button column even though their last button reaches the logo's corner, by the
 # user's choice: Video's Filters row (y 340), its Deflicker button covers a few pixels of the logo's
 # box. Only these rows may pass the logo's edge; they still stay within the screen's margin.

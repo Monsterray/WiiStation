@@ -53,23 +53,14 @@
 set -u
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 RUNS="${WSX_RUNS:-$REPO/.runs}"
-P="/c/tools/Dolphin-x64/User/Load/WiiSDSync_paused_by_claude"
+P="$REPO/scripts/runfiles"                # the autoboot, input and settings presets
+LIB="${WSX_LIBRARY:-/c/wiistation-lib}"   # the game library; save states are in $LIB/states
 DKP_BASH="/c/devkitPro/msys2/usr/bin/bash.exe"
 cmd="${1:-}"; shift || true
 
-# Only a run of OUR OWN is a reason not to build: the build would take CPU from it. The
-# user's own Dolphin, and another project's runs, have their own profile and are not ours
-# to stop for. dolphin_run.sh uses the same directory.
-PROFILE="${WSX_PROFILE:-$REPO/.dolphin}"
-# A Dolphin whose -u is THIS profile. The profile name must end there (quote, space or end of the
-# command line): ".dolphin" must not match ".dolphin2" (it did, and blocked parallel runs).
-dolphin_running() {
-	local name; name=$(basename "$PROFILE")
-	powershell.exe -NoProfile -Command 'Get-CimInstance Win32_Process | Where-Object Name -eq Dolphin.exe | ForEach-Object { $_.CommandLine }' 2>/dev/null | tr -d '\r' | tr '\\' '/' |
-	while read -r cmd; do
-		case "$cmd" in */"$name"\"*|*/"$name"" "*|*/"$name") echo busy;; esac
-	done | grep -q busy
-}
+# Only a run of OUR OWN is a reason not to build: the build would take CPU from it. The user's
+# own Dolphin, and another project's runs, have their own profile and are not ours to stop for.
+dolphin_running() { bash "$REPO/scripts/profile.sh" dolphin-busy ANY; }
 
 # The summarise/compare steps below are Python. Plain `python` does not exist in the
 # devkitPro MSYS2 bash on a stock machine (`python3` there is a dead WindowsApps stub),
@@ -243,7 +234,7 @@ state)
 	bash "$0" chain "state_$name" "$RUNS/state_$name/chain.txt" --secs $((at / 30 + 200)) ${rest[@]+"${rest[@]}"} > /dev/null
 	rm -f "$sf"
 	grep -a "^state:" "$RUNS/state_$name/perf.log"
-	card="${WSX_PROFILE:-$REPO/.dolphin}/Load/WiiSDSync/wiistation/states"
+	card="$LIB/states"   # promoted from each run's card when it ends (dolphin_run.sh)
 	[ -f "$card/$name.txt" ] && sed -n '1,8p' "$card/$name.txt"
 	;;
 
@@ -251,7 +242,7 @@ abstate)
 	# Several settings from one saved moment, in one boot: a chain line per SETS, each loading
 	# the state (State=NAME) and running VBL vblanks from it.
 	run="${1:-}"; st="${2:-}"; vbl="${3:-}"; shift 3 || { echo "abstate RUN STATE VBL SETS... [--rec REC]"; exit 2; }
-	card="${WSX_PROFILE:-$REPO/.dolphin}/Load/WiiSDSync/wiistation/states"
+	card="$LIB/states"   # promoted from each run's card when it ends (dolphin_run.sh)
 	[ -f "$card/$st.txt" ] || { echo "no save state $st on the test card ($card); make it with wsx.sh state"; exit 2; }
 	folder=$(sed -n 's/^# folder: //p' "$card/$st.txt" | tr -d '\r'); cue=$(sed -n 's/^# cue: //p' "$card/$st.txt" | tr -d '\r')
 	rec=""; sets=(); rest=()
@@ -352,21 +343,25 @@ menu)
 		case "$page" in *[!0-9]*) echo "menu: --page needs a number"; exit 2 ;; esac
 	fi
 	[ -z "$input" ] || [ -f "$input" ] || { echo "no such walk file: $input"; exit 2; }
-	prof="${WSX_PROFILE:-$REPO/.dolphin}"
-	[ -d "$prof" ] || { echo "no profile directory $prof"; exit 2; }
-	prof=$(cd "$prof" && pwd)
+	# The menu gets its own profile, made from the template for this command only. Its
+	# WiimoteNew.ini is the one changed; the child runs use it (WSX_PROFILE) and do not take
+	# the lock, which this command holds (WSX_LOCK_HELD). Removed at the end (KEEP_PROFILE=1 keeps it).
+	mname="menu_$name"
+	if dolphin_running; then echo "a Dolphin is running on one of this repo's profiles: the menu run waits for none"; exit 2; fi
+	bash "$REPO/scripts/profile.sh" rm "$mname" >/dev/null 2>&1   # an earlier menu run's leftovers
+	prof=$(bash "$REPO/scripts/profile.sh" new "$mname") || exit 2
+	bash "$REPO/scripts/profile.sh" lock "$mname" "menu:$name" $$ || exit 2
+	export WSX_PROFILE="$mname" WSX_LOCK_HELD=1
 	MENU_INI="$prof/Config/WiimoteNew.ini"; MENU_BAK="$MENU_INI.menu-backup"
-	[ -f "$MENU_INI" ] || { echo "no $MENU_INI (run the profile once first)"; exit 2; }
-	if dolphin_running; then echo "a Dolphin is running on this profile: its WiimoteNew.ini is not touched"; exit 2; fi
-	if [ -e "$MENU_BAK" ]; then   # an earlier menu run died: its backup holds the original bytes
-		echo "an earlier menu run died with WiimoteNew.ini changed: restoring it from $MENU_BAK"
-		MENU_SHA=$(sha256sum "$MENU_BAK" | cut -d' ' -f1)
-		menu_restore_ini
-		echo "run the command again"; exit 2
-	fi
+	[ -f "$MENU_INI" ] || { echo "no $MENU_INI in the template"; exit 2; }
 	MENU_SHA=$(sha256sum "$MENU_INI" | cut -d' ' -f1)
 	cp -f "$MENU_INI" "$MENU_BAK" || { echo "cannot write $MENU_BAK"; exit 2; }
-	trap menu_restore_ini EXIT
+	menu_cleanup() {
+		menu_restore_ini
+		bash "$REPO/scripts/profile.sh" unlock "$mname" $$ >/dev/null 2>&1
+		[ -n "${KEEP_PROFILE:-}" ] || rm -rf "$prof"
+	}
+	trap menu_cleanup EXIT
 	trap 'exit 130' INT TERM
 	"$PYTHON" "$REPO/scripts/menu_compare.py" ini-off "$MENU_INI" || exit 1
 	out="$RUNS/menu_$name"; mkdir -p "$out"

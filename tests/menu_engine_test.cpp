@@ -108,7 +108,6 @@ static const char *const GPU_PLUGIN_NAMES[]   = { "Soft Fast", "Soft Timed", "Op
 static const char *const FAST_ACCURATE_NAMES[] = { "Fast", "Accurate" };
 static const char *const CPU_SPEED_NAMES[]    = { "Auto", "50%", "75%", "100%", "125%", "150%", "200%", "300%" };
 static const char *const SPU_OUTPUT_NAMES[]   = { "CPU", "DSP" };
-static const char *const FRAME_RATE_NAMES[]   = { "Auto", "TV", "PS1" };
 static const char *const DITHER_NAMES[]       = { "None", "Default", "Always" };
 static const char *const CHROMA_NAMES[]       = { "Sharp", "Smooth" };
 static const char *const FMV_COLOUR_NAMES[]   = { "15-bit", "24-bit" };
@@ -154,7 +153,6 @@ static Row MEMORY_ROWS[] = {
 static Row GPU_ROWS[] = {
 	RADIO_FIT("GPU Plugin", GPU_PLUGIN_NAMES, 2),
 	CYC("GPU Timing",     FAST_ACCURATE_NAMES, 0),
-	RADIO("Frame Rate",   FRAME_RATE_NAMES,  0),
 };
 
 static Row INPUT_ROWS[] = {
@@ -181,8 +179,6 @@ static const HelpLine SPU_HELP[] = {
 static const HelpLine GPU_HELP[] = {
 	{ "GPU Plugin:", "OpenGX uses the Wii's GPU; Soft avoids its quirks." },
 	{ "GPU Timing:", "Accurate: the GPU is busy as long as on a PS1." },
-	{ "Frame Rate:", "TV: 59.94 Hz, one frame per TV refresh: smoothest." },
-	{ NULL,          "PS1: 59.82 Hz, a PlayStation's own speed." },
 };
 
 static const HelpLine INPUT_HELP[] = {
@@ -292,12 +288,12 @@ static const Tab GEN_TABS[] = {
 };
 
 /*  The Settings Video tab (menupage 2), from SettingsFrame.cpp's FRAME_BUTTONS, FRAME_TEXTBOXES and
- *  layoutVideo(). The lit buttons are one set state: Show FPS On, FPS Limit Auto with Force NTSC on,
+ *  layoutVideo(). The lit buttons are one set state: Show FPS On, Frame Rate Auto with Force NTSC on,
  *  Frame Skip Off, Interlaced off with 240p on, Trap off with Deflicker on. The button texts are the
  *  state's (Screen Mode 4:3, Bilinear Default). The rows, labels and widths are the table's. */
 static const char *const VID_ON_OFF_NAMES[] = { "On", "Off" };
 static const float        VID_ON_OFF_W[]    = { 75.0f, 75.0f };
-static const ActionButton VID_LIMIT_ACTIONS[]  = { { "Auto", 75.0f, true }, { "Off", 75.0f, false }, { "Force NTSC", 160.0f, true } };
+static const ActionButton VID_FRAMERATE_ACTIONS[] = { { "Auto", 130.0f, false }, { "Force NTSC", 160.0f, true } };
 static const ActionButton VID_SCREEN_ACTIONS[] = { { "4:3", 130.0f, false }, { "Interlaced", 125.0f, false }, { "240p", 66.0f, true } };
 static const ActionButton VID_FILTER_ACTIONS[] = { { "Default", 95.0f, false }, { "Trap", 75.0f, false }, { "Deflicker", 110.0f, true } };
 static const ActionButton VID_ADV_ACTIONS[]    = { { "Advanced", 150.0f, false } };
@@ -305,7 +301,7 @@ static const ActionButton VID_ADV_ACTIONS[]    = { { "Advanced", 150.0f, false }
 /* Row fields: kind, label, names, lo, count, value, text, fit, actions, x0, gap, widths, plain. */
 static Row VIDEO_ROWS[] = {
 	{ ROW_CHOICE,  "Show FPS",    VID_ON_OFF_NAMES, 0, 2, 0, NULL, false, NULL,               295.0f, 0.0f, VID_ON_OFF_W, 0 },
-	{ ROW_BUTTONS, "Limit FPS",   NULL,             0, 3, 0, NULL, false, VID_LIMIT_ACTIONS,  295.0f, 0.0f, NULL,         0 },
+	{ ROW_BUTTONS, "Frame Rate", NULL,             0, 2, 0, NULL, false, VID_FRAMERATE_ACTIONS, 295.0f, 0.0f, NULL,         0 },
 	{ ROW_CHOICE,  "Frame Skip",  VID_ON_OFF_NAMES, 0, 2, 1, NULL, false, NULL,               295.0f, 0.0f, VID_ON_OFF_W, 0 },
 	{ ROW_BUTTONS, "Screen Mode", NULL,             0, 3, 0, NULL, false, VID_SCREEN_ACTIONS, 295.0f, 0.0f, NULL,         0 },
 	{ ROW_BUTTONS, "Filters",     NULL,             0, 3, 0, NULL, false, VID_FILTER_ACTIONS, 295.0f, 0.0f, NULL,         0 },
@@ -1533,7 +1529,7 @@ static const struct { int idx; float x, y, w, h; } VIDEO_OLD_RECTS[] = {
 	{ 0, 25, 30, 110, 56 }, { 1, 155, 30, 100, 56 }, { 2, 275, 30, 100, 56 },
 	{ 3, 395, 30, 100, 56 }, { 4, 515, 30, 100, 56 },
 	{ 16, 295, 100, 75, 56 }, { 17, 380, 100, 75, 56 },
-	{ 18, 295, 160, 75, 56 }, { 19, 380, 160, 75, 56 }, { 63, 465, 160, 160, 56 },
+	{ 18, 295, 160, 130, 56 }, { 63, 435, 160, 160, 56 },
 	{ 20, 295, 220, 75, 56 }, { 21, 380, 220, 75, 56 },
 	{ 22, 295, 280, 130, 56 }, { 23, 435, 280, 125, 56 }, { 57, 570, 280, 66, 56 },
 	{ 24, 485, 340, 110, 56 }, { 28, 295, 340, 95, 56 }, { 29, 400, 340, 75, 56 },
@@ -1548,7 +1544,7 @@ static const float VIDEO_OLD_LABEL_Y[5] = { 128.0f, 188.0f, 248.0f, 308.0f, 368.
 static const OldLink OLD_VIDEO[] = {
 	{ 0, 26, 16, 4, 1 }, { 1, 26, 16, 0, 2 }, { 2, 26, 16, 1, 3 }, { 3, 26, 16, 2, 4 }, { 4, 26, 16, 3, 0 },
 	{ 16, 1, 18, 17, 17 }, { 17, 1, 19, 16, 16 },
-	{ 18, 16, 20, 63, 19 }, { 19, 17, 21, 18, 63 }, { 63, 17, 21, 19, 18 },
+	{ 18, 16, 20, 63, 63 }, { 63, 17, 21, 18, 18 },
 	{ 20, 18, 23, 21, 21 }, { 21, 19, 23, 20, 20 },
 	{ 22, 20, 25, 57, 23 }, { 23, 20, 26, 22, 57 }, { 57, 21, 27, 23, 22 },
 	{ 24, 23, 78, 29, 28 }, { 28, 22, 78, 24, 29 }, { 29, 22, 78, 28, 24 },
@@ -1560,8 +1556,8 @@ static bool vidKey(int idx, Key &k)
 {
 	if (idx >= 0 && idx < 5)    { k = tabKey(idx); return true; }
 	if (idx == 16 || idx == 17) { k.role = ROLE_CHOICE; k.row = 0; k.slot = idx - 16; return true; }
-	if (idx == 18 || idx == 19) { k.role = ROLE_BUTTON; k.row = 1; k.slot = idx - 18; return true; }
-	if (idx == 63)              { k.role = ROLE_BUTTON; k.row = 1; k.slot = 2; return true; }
+	if (idx == 18)              { k.role = ROLE_BUTTON; k.row = 1; k.slot = 0; return true; }
+	if (idx == 63)              { k.role = ROLE_BUTTON; k.row = 1; k.slot = 1; return true; }
 	if (idx == 20 || idx == 21) { k.role = ROLE_CHOICE; k.row = 2; k.slot = idx - 20; return true; }
 	if (idx == 22 || idx == 23 || idx == 57) {
 		k.role = ROLE_BUTTON; k.row = 3; k.slot = idx == 22 ? 0 : idx == 23 ? 1 : 2; return true;

@@ -2,21 +2,35 @@
 
 ## Layout on this machine
 
-A run uses its OWN Dolphin user directory, `<repo>\.dolphin\` (gitignored, about 1.8 GB).
+A run uses its OWN Dolphin user directory, a fresh lean profile under `<repo>\.profiles\`
+(gitignored). `scripts/profile.sh new` builds it from `profiles/template/` (the pad and key
+INIs) and copies in only the games the run names, from the game library `C:\wiistation-lib\`
+(one copy of each game). The profile is locked while the run uses it and deleted when the run
+ends, errors included; `KEEP_PROFILE=1` keeps it. Dolphin rebuilds the card image at every boot,
+so a profile holds nothing a run must keep (save states are promoted to the library at the end).
 Nothing is shared with the user's Dolphin except the executable and the CPU, so a run can go
-while they play something else, and while another project runs its own tests. `WSX_PROFILE=`
-moves it.
+while they play something else, and while another project runs its own tests.
+`WSX_PROFILE=NAME` runs on a named profile instead: `scripts/profile.sh new NAME` makes it, it
+is kept, and `scripts/profile.sh rm NAME` removes it. `movie_capture` records on one.
+
+`scripts/profile.sh list` shows kind (run or named), lock owner, age and size. `scripts/profile.sh gc`
+deletes unlocked run profiles older than two days and clears locks whose holder is gone. A lock
+names its owner, so a second user is refused with the holder's line. `dolphin-busy` matches the
+profile path exactly (`.dolphin` does not match `.dolphin2`).
 
 | Thing | Where |
 |---|---|
 | Dolphin | `C:\tools\Dolphin-2609\Dolphin.exe` (2609, since 2026-10-01). Its `User\` is a junction to `C:\tools\Dolphin-x64\User` (16 GB, one copy), so paths below that name `Dolphin-x64\User` are the same folder. The old build in `Dolphin-x64` is the fallback: `DOLPHIN_DIR=/c/tools/Dolphin-x64`. |
-| This project's user dir (`-u`) | `<repo>\.dolphin\` |
-| SD sync folder (master; synced INTO the image at launch, never back on a kill) | `.dolphin\Load\WiiSDSync\wiistation\` |
-| SD image (locked while Dolphin runs) | `.dolphin\Load\WiiSD.raw` |
-| Frame dumps | `.dolphin\Dump\Frames\framedump_<n>.png` (824x480) |
-| Dolphin log | `.dolphin\Logs\dolphin.log`, timestamps are `MM:SS:mmm`, not hours |
-| Where the USER drops games, and where the card is copied FROM | `C:\tools\Dolphin-x64\User\Load\WiiSDSync\wiistation\` |
-| Staged test files kept out of the way | `C:\tools\Dolphin-x64\User\Load\WiiSDSync_paused_by_claude\` (autoinput*.txt, settings*.cfg, autoboot_*.txt) |
+| This run's user dir (`-u`) | `<repo>\.profiles\run-<name>-<time>\` (deleted at the end), or the `WSX_PROFILE` named profile |
+| SD sync folder (master; synced INTO the image at launch, never back on a kill) | `<profile>\Load\WiiSDSync\wiistation\` (`isos\` holds the games the run names) |
+| SD image (locked while Dolphin runs) | `<profile>\Load\WiiSD.raw` |
+| Game library (one copy; `scripts/library_check.py` checks it, `games.tsv` lists it) | `C:\wiistation-lib\games\<game>\`; a game is named by its path there, e.g. `Final Fantasy VII/Final Fantasy VII 1` |
+| Save states (promoted from each run's card when it ends) | `C:\wiistation-lib\states\` |
+| BIOS, fonts, NAND skeleton copied into each profile | `C:\wiistation-lib\bios\`, `fonts\`, `wii\` |
+| Frame dumps | `<profile>\Dump\Frames\framedump_<n>.png` (824x480), moved to the run directory |
+| Dolphin log | `<profile>\Logs\dolphin.log`, timestamps are `MM:SS:mmm`, not hours |
+| Where the USER drops games (the library was copied from it; read only) | `C:\tools\Dolphin-x64\User\Load\WiiSDSync\wiistation\` |
+| Staged test files (autoboot, autoinput, settings presets) | `scripts\runfiles\` in the repo |
 | Builds | `Gamecube\WiiSXRX_debug.dol` (run this), `Gamecube\WiiSXRX_Release.dol` (never boot the release .elf under Dolphin: unzeroed BSS crashes) |
 
 ## The short loop: `scripts/wsx.sh`
@@ -94,7 +108,7 @@ out before the next.
 **`autoboot.txt`** (SD sync folder, read after settings load): line 1 the ISO folder, line 2
 the file name (matched with `strcasestr`, so it must be unique); or just `BIOS` to run the
 BIOS shell via the menu's Execute Bios path. Delete it (or pass an empty file as the run
-script's autoboot argument, `WiiSDSync_paused_by_claude/autoboot_none.txt`) to boot to the
+script's autoboot argument, `scripts/runfiles/autoboot_none.txt`) to boot to the
 WiiStation menu itself — that is how menu rendering (fonts, buttons) gets frame-dumped. The
 menu cannot be navigated by autoinput.txt (it reads the host pads, not the PSX port), so only
 the first screen is reachable unattended. A savestate-
@@ -173,7 +187,7 @@ another way after a session, or its folder sync repacks over them.
 
 
 The script restores INIs and removes the staged files; `autoboot.txt` stays because the
-user's own movies depend on it. Leave `WiiSDSync_paused_by_claude/` as the parking place.
+user's own movies depend on it. `scripts/runfiles/` holds the presets (copies of the old paused_by_claude files).
 Two permanent GFX.ini changes are deliberate (see dolphin-pitfalls.md).
 
 ## The bench Wii (real hardware, unattended)

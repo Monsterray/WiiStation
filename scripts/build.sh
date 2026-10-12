@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Build WiiStation for Wii. Run scripts/setup-devkitpro-windows.sh once first.
+# Build WiiStation for Wii. Use setup-devkitpro-windows.sh on Windows or
+# setup-devkitpro-local.sh for an isolated macOS/Linux toolchain.
 #
 # Run this from devkitPro's own MSYS2 shell (Start Menu -> devkitPro -> MSys2,
 # or C:\devkitPro\msys2\msys2_shell.bat) -- that's what provides `make` and
@@ -24,21 +25,50 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 if [[ "$REPO_ROOT" == *" "* ]]; then
-	echo "ERROR: this repo is checked out at a path containing a space:"
-	echo "  $REPO_ROOT"
-	echo "devkitPro's Makefiles break on spaces in the path (unquoted \$(CURDIR))."
-	echo "Move or clone the repo to a path with no spaces, e.g. C:/projects/WiiStation."
-	exit 1
+	if [ "${1:-debug}" = clean ]; then
+		echo "Run clean from a checkout without spaces; isolated builds clean themselves." >&2
+		exit 1
+	fi
+	# devkitPro's make rules cannot quote CURDIR. Snapshot source (including working
+	# edits) into a space-free directory; ignored saves, quarantine and build caches
+	# are excluded. Copy only successful build outputs back to the user's checkout.
+	task_build=$(mktemp -d /tmp/wiistation-build.XXXXXX)
+	trap 'rm -rf "$task_build"' EXIT
+	echo "Building a source snapshot in $task_build (checkout path contains spaces)."
+	git -C "$REPO_ROOT" ls-files --cached --others --exclude-standard -z |
+	while IFS= read -r -d '' source_file; do
+		if [ -f "$REPO_ROOT/$source_file" ] || [ -L "$REPO_ROOT/$source_file" ]; then
+			printf '%s\0' "$source_file"
+		fi
+	done | tar -C "$REPO_ROOT" --null -T - -cf - | tar -C "$task_build" -xf -
+	bash "$task_build/scripts/build.sh" "$@"
+	for artifact in "$task_build"/Gamecube/*.dol "$task_build"/Gamecube/*.elf; do
+		[ ! -f "$artifact" ] || cp "$artifact" "$REPO_ROOT/Gamecube/"
+	done
+	echo "Build outputs copied to $REPO_ROOT/Gamecube."
+	exit 0
 fi
 
-export DEVKITPRO=/c/devkitPro
-# Pinned, not the pacman-managed $DEVKITPRO/devkitPPC -- see
-# scripts/setup-devkitpro-windows.sh's header comment for why.
-export DEVKITPPC="$DEVKITPRO/devkitPPC-r41-2"
+# Windows: force-assign. The login shell here carries a stale DEVKITPRO=/opt/devkitpro and may carry
+# the newer pacman devkitPPC; inheriting either breaks the build (AGENTS.md "Building").
+# macOS/Linux: an isolated toolchain (setup-devkitpro-local.sh) may live elsewhere, so a set value wins.
+case "$(uname -s)" in
+	MINGW*|MSYS*|CYGWIN*)
+		export DEVKITPRO=/c/devkitPro
+		export DEVKITPPC="$DEVKITPRO/devkitPPC-r41-2" ;;   # pinned: see setup-devkitpro-windows.sh
+	*)
+		export DEVKITPRO="${DEVKITPRO:-/opt/devkitpro}"
+		export DEVKITPPC="${DEVKITPPC:-$DEVKITPRO/devkitPPC-r41-2}" ;;
+esac
 export PATH="$DEVKITPRO/tools/bin:$DEVKITPPC/bin:$PATH"
 
-if [ ! -x "$DEVKITPPC/bin/powerpc-eabi-gcc.exe" ]; then
-	echo "devkitPPC r41-2 not found at $DEVKITPPC -- run scripts/setup-devkitpro-windows.sh first."
+if [ ! -x "$DEVKITPPC/bin/powerpc-eabi-gcc" ] && [ ! -x "$DEVKITPPC/bin/powerpc-eabi-gcc.exe" ]; then
+	echo "devkitPPC r41-2 not found at $DEVKITPPC. Use setup-devkitpro-windows.sh on Windows or setup-devkitpro-local.sh on macOS/Linux."
+	exit 1
+fi
+bash "$REPO_ROOT/scripts/check-wii-libraries.sh" "$DEVKITPRO/libogc2"
+if ! "$DEVKITPPC/bin/powerpc-eabi-gcc" --version | head -n 1 | grep -q 'release 41'; then
+	echo "WiiStation's bundled libraries require devkitPPC release 41. Set DEVKITPPC to the pinned compiler." >&2
 	exit 1
 fi
 if ! command -v make >/dev/null 2>&1; then

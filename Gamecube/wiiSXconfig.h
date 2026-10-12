@@ -142,7 +142,8 @@ enum frameRateMode
 {
 	FRAMERATE_AUTO=0,       /* 60.00 / 50.00 Hz, timer-paced (and the per-game fractional fixes) */
 	FRAMERATE_TV,           /* the TV's 59.94 / 50 Hz, one emulated vblank per Wii video retrace */
-	FRAMERATE_PS1           /* a PlayStation's own 59.82 / 49.75 Hz, timer-paced */
+	FRAMERATE_PS1,          /* a PlayStation's own 59.82 / 49.75 Hz, timer-paced */
+	FRAMERATE_UNLIMITED     /* Auto's rate, and the frame limit off (syncFrameLimit) */
 };
 extern char cpuSpeed;            /* CPU overclock/underclock (r3000a.c psxCycleMult) */
 enum cpuSpeed
@@ -236,6 +237,14 @@ enum frameLimit
 	FRAMELIMIT_NONE=0,
 	FRAMELIMIT_AUTO
 };
+
+/* The one Frame Rate setting also sets the frame limit: Unlimited turns it off. frameLimit[1] is
+ * what a game starts with and what the controller button restores; frameLimit[0] is the live copy. */
+static inline void syncFrameLimit(void)
+{
+	frameLimit[1] = frameRateMode == FRAMERATE_UNLIMITED ? FRAMELIMIT_NONE : FRAMELIMIT_AUTO;
+	frameLimit[0] = frameLimit[1];
+}
 
 extern char frameSkip;
 enum frameSkip

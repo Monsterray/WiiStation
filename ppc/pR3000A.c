@@ -798,7 +798,7 @@ static void SetBranch() {
 }
 
 static void iJump(u32 branchPC) {
-	u32 *b1, *b2;
+	u32 *b1, *b2, *stop_return;
 	branch = 1;
 	psxRegs.code = PSXMu32(pc);
 	pc+=4;
@@ -846,6 +846,12 @@ static void iJump(u32 branchPC) {
 	//Return();
 
 	// maybe just happened an interruption, check so
+	/* Chained blocks bypass recExecute's outer stop check. Return after a
+	 * frame/menu/state stop instead of jumping straight into another block. */
+	LIW(3, (u32)&stop);
+	LWZ(3, 0, 3);
+	CMPLWI(3, 0);
+	BNE_L(stop_return);
 	LIW(0, branchPC);
 	CMPLW(GetHWRegSpecial(PSXPC), 0);
 	BNE_L(b1);
@@ -856,6 +862,7 @@ static void iJump(u32 branchPC) {
 	BNE_L(b2);
 
 	B_DST(b1);
+	B_DST(stop_return);
 	Return();
 
 	// next bit is already compiled - jump right to it
@@ -869,7 +876,7 @@ static void iBranch(u32 branchPC, int savectx) {
 	iRegisters iRegsS[NUM_REGISTERS];
 	int HWRegUseCountS = 0;
 	u32 respold=0;
-	u32 *b1, *b2;
+	u32 *b1, *b2, *stop_return;
 
 	if (savectx) {
 		respold = resp;
@@ -921,6 +928,10 @@ static void iBranch(u32 branchPC, int savectx) {
 	// always return for now...
 	//Return();
 
+	LIW(3, (u32)&stop);
+	LWZ(3, 0, 3);
+	CMPLWI(3, 0);
+	BNE_L(stop_return);
 	LIW(0, branchPC);
 	CMPLW(GetHWRegSpecial(PSXPC), 0);
 	BNE_L(b1);
@@ -931,6 +942,7 @@ static void iBranch(u32 branchPC, int savectx) {
 	BNE_L(b2);
 
 	B_DST(b1);
+	B_DST(stop_return);
 	Return();
 
 	B_DST(b2);

@@ -533,7 +533,8 @@ void save_configurations(FILE* f, controller_t* controller){
 }
 
 /* The Game slot of one controller (config_slot[CONTROLLER_GAME_SLOT]): the magic and that slot.
- * GamecubeMain.cpp writes one for every controller, in controller_ts order, to <CdromId>.btn. */
+ * GamecubeMain.cpp writes one for every controller, in controller_ts order, to the game's file
+ * (buttonfiles.c: buttons/games/<CdromId>.cfg). */
 void save_game_slot(FILE* f, controller_t* controller){
 	char magic[4] = { 
 		'W', 'X', controller->identifier, CONTROLLER_CONFIG_VERSION

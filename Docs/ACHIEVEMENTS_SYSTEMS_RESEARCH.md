@@ -1,0 +1,66 @@
+# Achievement systems relevant to WiiStation
+
+Checked 2026-10-10 against primary documentation and project source. This surveys the major practical families; it is not a claim to enumerate every game-specific achievement plugin or private service. WiiStation's target is a PS1 emulator running on Wii hardware. A backend that stores an unlock is different from an evaluator that knows which PS1 RAM condition earns it.
+
+## Recommendation
+
+Use RetroAchievements (RA) with its MIT-licensed C library, `rcheevos`, for community PS1 sets and account synchronization. Prototype casual mode first. A local-only mode is a separate fallback, not a promise that offline unlocks will become official RA awards. Of the systems surveyed, RA is the only service identified that supplies both community PS1 achievement definitions and an emulator-oriented runtime. This is a comparative inference, not proof that no other service exists. [rcheevos](https://github.com/RetroAchievements/rcheevos), [RA system/emulator support](https://docs.retroachievements.org/general/emulator-support-and-issues.html).
+
+## Emulator and retro-game options
+
+| Option | What it actually provides | Fit for WiiStation |
+| --- | --- | --- |
+| RA + `rcheevos`/`rc_client` | Achievement/leaderboard evaluator, game hashing and client/session logic. Emulator supplies memory reads, HTTP/HTTPS and UI. | Best direct path. C code is portable in principle; Wii build, TLS, endianness and frame budget still require validation. |
+| RAIntegration | Windows DLL with achievement development/debugging tools and runtime integration. | Useful on a PC for authoring/debugging or comparison; cannot load the Windows DLL on Wii. |
+| RetroArch/libretro | Frontend integrates RA; compatible cores expose memory and execute games. | Reference implementation or a larger alternative port. A libretro conversion does not by itself add achievements to the existing WiiStation UI. |
+| RAWeb/self-hosting | RA's Laravel/React web application and services, GPL-3.0. | Possible independent backend, but adds database/server operations and data provisioning. Does not remove emulator integration or automatically grant rights to mirror the live site's complete database. |
+| Local custom achievements using `rcheevos` runtime | Evaluate locally supplied RAM expressions; save unlocks to SD/USB. | Feasible engineering option for private challenges and offline progress. Must author/test conditions per game/region and clearly distinguish local from official unlocks. |
+| Save-file-derived milestones | Decode a known game's memory-card fields and show milestones. | Possible custom feature using game-specific parsers. It cannot reconstruct one-time/no-damage/time-limit events from a final save and is not equivalent to live RA evaluation. |
+
+The library README recommends the official-release `master` branch and `rc_client` for new clients; it includes custom file handlers for formats such as CHD. It ships no networking implementation. [rcheevos README](https://github.com/RetroAchievements/rcheevos).
+
+The runtime works across platforms in principle, while its authoring toolkit is Windows-only. The client guide recommends starting with hardcore disabled, token login after initial authentication, unique versioned client identification, and contacting RA administrators for hardcore validation. [rc_client integration](https://github.com/RetroAchievements/rcheevos/wiki/rc_client-integration). RAIntegration is explicitly a Windows DLL. [Authoring emulator setup](https://docs.retroachievements.org/developer-docs/emulator-setup-for-developers.html).
+
+### Current evidence on actual Wii hardware
+
+Do not assume historical reports that “Wii RetroArch cannot do RA” describe today's source. Current RetroArch `Makefile.wii` sets `HAVE_NETWORKING = 1`, `HAVE_CHEEVOS := 1`, adds `-DHAVE_SOCKET_LEGACY -DHAVE_CHEEVOS`, and includes rcheevos headers. This proves build configuration intent, not that a particular released binary successfully logs in over HTTPS or is approved for hardcore. The separately documented `Makefile.griffin platform=wii` path should be checked too. [Wii makefile](https://github.com/libretro/RetroArch/blob/master/Makefile.wii), [Griffin makefile](https://github.com/libretro/RetroArch/blob/master/Makefile.griffin), [Wii compilation guide](https://docs.libretro.com/development/retroarch/compilation/wii/).
+
+There is also an early original-hardware Wii/GameCube RA project: an ESP32-S3 in GameCube memory-card Slot B runs `rc_client`, networking and evaluation; forked loaders/kernel components send watched RAM snapshots over EXI each frame. Its author announced a public release in July 2026 and describes it as casual-only and still needing substantial testing. It supports native Wii/GameCube games, not WiiStation PS1 games. [Project README](https://github.com/odelot/wii-ra-adapter/blob/main/README.md), [author's announcement](https://retroachievements.org/forums/topic/36728?page=1).
+
+Inference: this is evidence that offloading RA work is possible. Adapting it for WiiStation would require a new PS1 memory provider, hash path, synchronization and protocol integration, plus hardware. It is a fallback experiment if native TLS/evaluation proves too costly, not a ready-made WiiStation plugin. A PC companion could instead relay HTTPS while evaluation stays on Wii; that still introduces another device and a transport/security protocol. Evaluate direct support first. RA support for Wii games in Dolphin is a separate question from running PS1 achievements on a physical Wii.
+
+### RA interfaces and service requirements
+
+Use the ordinary emulator `rc_client` path. The public Web API is aimed at apps/websites/frontends tracking data. RA's “Standalones Integration Guide” is for native games assigned to its Standalones console, with admin-created pages and integration credentials; “standalone emulator” does not mean WiiStation should use that guide. [Web API introduction](https://api-docs.retroachievements.org/), [Standalones guide](https://api-docs.retroachievements.org/connect/standalone.html).
+
+For hardcore, current requirements include correct triggers and visible measured/trigger states, achievements list access, Rich Presence and leaderboards, secure offline caching/sync, unique versioned client identification, and prohibited cheat/debug/state-load/rewind/slowdown/frame-advance paths. Casual-to-hardcore switching requires a game reset. Standard compatible memory-card formats are recommended, as is preserving achievement hit counts in casual save states. An emulator or its parent must have six months of public release history. Official approval is a later service gate. [Hardcore requirements](https://docs.retroachievements.org/general/hardcore-compliance-requirements.html).
+
+Imported ordinary memory-card progress can be played, but an archived save is not evidence that all associated past achievements were earned. Do not add an automatic bulk-award or local-to-hardcore upload feature without explicit service guidance and validation.
+
+## Other public achievement backends
+
+These services generally expect a developer-owned product and developer-created definitions/unlock calls. None of their cited interfaces supplies an RA-like PS1 RAM-condition catalog.
+
+| System | Integration requirements | WiiStation assessment |
+| --- | --- | --- |
+| Steamworks | Configure app achievements, integrate statistics/unlock APIs and Steam product environment. | No practical native Wii SDK path identified. A publisher server/companion would still need a legitimate product namespace and custom trigger logic; it cannot award another publisher's PS1 rerelease achievements. [Stats/achievements](https://partner.steamgames.com/doc/features/achievements), [SDK](https://partner.steamgames.com/doc/sdk), [Web API](https://partner.steamgames.com/doc/webapi_overview). |
+| GOG GALAXY | Developer Portal product access, achievement definitions, GALAXY SDK `IStats`. | Desktop ecosystem, not Wii homebrew. SDK can cache offline unlocks, but game definitions and ownership/authentication are product-specific. [SDK](https://docs.gog.com/sdk/), [achievements](https://docs.gog.com/sdk-stats-and-achievements/), [portal access](https://docs.gog.com/developer-portal/). |
+| Epic Online Services / Epic Games Store achievements | Product configuration and EOS client integration; store achievements are a related storefront feature. | EOS SDK list covers desktop/mobile/current approved consoles, not Wii. Would require a custom product backend/companion and custom PS1 triggers. [Achievements interface](https://dev.epicgames.com/docs/epic-online-services/player-and-game-data/achievements-interface), [platform reference](https://dev.epicgames.com/docs/epic-online-services/eos-get-started/eos-get-started-reference). |
+| Google Play Games Services | Game configuration and published achievement definitions in Play Console; app client calls unlock APIs. | Android/Google ecosystem, no native Wii integration identified. No PS1 definitions supplied. [Achievement integration](https://developer.android.com/games/pgs/integrate-achievements). |
+| Apple Game Center | Apple GameKit, Game Center capability, authenticated player, app achievement configuration. | Apple-device framework, not Wii. Relevant only to a separate Apple app port. [GameKit](https://developer.apple.com/documentation/gamekit). |
+| Xbox achievements | Xbox services/GDK, title definitions in Partner Center and title-managed progress APIs. | GDK targets supported Windows/Xbox environments. No native Wii or generic PS1 achievement backend path identified. [Implementation](https://learn.microsoft.com/en-us/gaming/gdk/docs/gdk-dev/pc-dev/tutorials/pc-e2e-guide/e2e-services/e2e-achievements), [GDK repository](https://github.com/microsoft/GDK). |
+| PlayStation trophies | Approved PlayStation developer/product integration; detailed SDK access follows registration and agreement. | Official trophies for approved products are not a public cross-platform PS1 emulator unlock API. No Wii path established. [Sony partner process](https://sonyinteractive.com/en/news/blog/showing-your-game-to-playstation/). |
+| Nintendo developer services | Developer registration/access for current platforms. | No public Wii achievement service identified for homebrew. Current portal focuses on current platforms and says new Wii U/3DS titles/patches cannot be released. Do not conflate Wii hardware with a supported Nintendo online achievement API. [Portal](https://developer.nintendo.com/register). |
+| Game Jolt trophies | Developer game entry, trophy definitions, signed HTTP requests and player token. | Technically adaptable through networking/custom logic, but no PS1 condition catalog and no advantage over RA for this purpose. [Game API](https://ssr.gamejolt.net/help-docs/creators/game-api), [request construction](https://ssr.gamejolt.net/game-api/doc/construction). |
+| Newgrounds medals | Application medal definitions and signed-in session; `Medal.unlock` API. | Custom-game service; would require its own triggers and account/product setup. No PS1 catalog identified. [API components](https://www.newgrounds.io/help/components/). |
+| PlayFab / Nakama-Hiro / custom server | Store player progress or define custom achievement systems; operate/configure game backend. | Technically possible over a Wii-compatible transport. Much greater operational/authentication/authoring work; no ready PS1 catalog. [PlayFab player data](https://learn.microsoft.com/en-us/xbox/playfab/player-progression/player-data/), [Hiro achievements](https://heroiclabs.com/docs/hiro/server-framework/achievements/), [Nakama overview](https://heroiclabs.com/docs/index.html). |
+
+For commercial SDKs and self-hosted data, verify redistribution terms before shipping. Having source for a client/server is not itself authorization to write another publisher's achievement namespace or redistribute all third-party content. No accounts, SDK downloads or service registrations were performed for this research.
+
+## Trackers and companion displays
+
+Exophase imports/tracks RA activity: its own May 2026 announcement describes scanning earned hardcore/casual unlocks and beaten status. It is useful downstream after WiiStation submits to RA; it does not evaluate PS1 RAM or replace the RA connection. [Exophase announcement](https://forums.exophase.com/threads/retroachievements-tracking-updates-for-may-2026-hardcore-leaderboard-and-beaten-status.73869/).
+
+Achievement Watcher is a PC achievement-file parser/notifier with a Windows/Node/Electron build environment. Its “Steam emulator” support concerns Steam-compatible PC achievement files, not PS1 emulation achievement definitions. A Wii export file could feed a custom companion, but that is display plumbing, not a ready evaluation backend. [Upstream](https://github.com/xan105/Achievement-Watcher). The newer Achievement Watcher Next repository also describes itself as a Windows tracker. [Next](https://github.com/Shirowwww/Achievement-Watcher-Next).
+
+There is no useful reason to integrate multiple commercial backends into the first WiiStation implementation. Establish direct RA casual mode, performance and reliable networking; then decide whether an explicitly local-only mode or transport companion solves a demonstrated need.

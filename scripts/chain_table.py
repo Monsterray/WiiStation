@@ -9,9 +9,9 @@ game started -- and then the line "=== chain <n>/<total> end vblanks=<v> [set=K=
 A game run with settings of its own is named with them, e.g. "Crash Bash LockedCache=2".
 The last block before each end line is that game's whole run.
 
-Also takes each game's VRAM snapshot (sd:/wiistation/vram_NN.bin) off the card image and draws
-it as RUN_DIR/vram_NN.png, so each row can be checked against what the game was doing. Do
-that straight after the run: the next run's card replaces them.
+Also draws each game's VRAM snapshot as RUN_DIR/vram_NN.png, so each row can be checked against
+what the game was doing. dolphin_run.sh collects the .bin files into the run directory; the
+card image is read only when a .bin is missing (a named WSX_PROFILE that is still there).
 
 The columns, all percent of wall except where named:
   load    wall minus the frame limiter's idle: 100 means the emulator could not keep up
@@ -181,15 +181,17 @@ def fmt(col, v):
 
 
 def vram_pictures(run, n):
-    card = os.path.join(os.environ.get('WSX_PROFILE', os.path.join(REPO, '.dolphin')),
-                        'Load', 'WiiSD.raw')
+    card = os.path.join(os.environ.get('WSX_PROFILE', ''), 'Load', 'WiiSD.raw')
     for i in range(1, n + 1):
         b = os.path.join(run, 'vram_%02d.bin' % i)
         p = os.path.join(run, 'vram_%02d.png' % i)
-        if os.path.exists(p) or not os.path.exists(card):
+        if os.path.exists(p):
             continue
-        subprocess.run([sys.executable, os.path.join(HERE, 'sdimage_read.py'), card,
-                        'wiistation/vram_%02d.bin' % i, b], capture_output=True)
+        if not os.path.exists(b):
+            if not os.path.isfile(card):
+                continue
+            subprocess.run([sys.executable, os.path.join(HERE, 'sdimage_read.py'), card,
+                            'wiistation/vram_%02d.bin' % i, b], capture_output=True)
         if os.path.exists(b) and os.path.getsize(b) == 1024 * 512 * 2:
             subprocess.run([sys.executable, os.path.join(HERE, 'vram2png.py'), b, p],
                            capture_output=True)

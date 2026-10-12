@@ -25,6 +25,7 @@
 #include "gpu.h"
 #include "Gamecube/DEBUG.h"
 #include "Gamecube/wiiSXconfig.h"
+#include "achievements.h"
 #include "psxcommon.h"
 #include "Gamecube/perf_prof.h"
 #include "Gamecube/ws_crash.h"
@@ -457,6 +458,7 @@ void psxRcntUpdate()
             rcnts[3].cycleStart += frameCycles();
             hSyncCount = 0;
             frame_counter++;
+            achievements_frame(); /* every emulated frame, including skipped displays */
             {
                 extern unsigned char pad_unplug[2];   /* Gamecube/PlugPAD.c set_port_type() */
                 if (pad_unplug[0]) pad_unplug[0]--;

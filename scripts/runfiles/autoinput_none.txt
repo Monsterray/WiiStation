@@ -1,0 +1,1 @@
+# no presses: boot and let the game idle (attract / intro FMV)

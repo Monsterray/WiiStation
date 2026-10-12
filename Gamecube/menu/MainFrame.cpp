@@ -343,7 +343,7 @@ void Func_PlayGame()
 #endif
 	if (originalMode)
 		backFromMenu = 1;
-	frameLimit[0] = frameLimit[1];
+	syncFrameLimit();
 	glResetCacheRegion();
 	go();
 

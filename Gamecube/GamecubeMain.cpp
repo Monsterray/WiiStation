@@ -43,6 +43,8 @@ extern "C" void __exception_setreload(int t);
 #include "../psxcommon.h"
 #include "wiiSXconfig.h"
 #include "config_parse.h"   /* the two scans in the settings parser */
+#include "../achievements.h"
+#include "achievements_bench.h"   /* test-only; no-ops in product builds */
 #include "menu/MenuContext.h"
 #include "libgui/IPLFont.h"
 #include "libgui/MessageBox.h"
@@ -64,6 +66,7 @@ extern "C" {
 #include "fileBrowser/fileBrowser-CARD.h"
 #include "fileBrowser/fileBrowser-SMB.h"
 #include "gc_input/controller.h"
+#include "buttonfiles.h"
 #include "vm/vm.h"
 #include "ws_crash.h"
 #include "../gpu.h"
@@ -133,7 +136,7 @@ char soundRateControl;      // dfsound/ratectl.c: nudge the output rate from the
 char soundResampler;        // read by dfsound/resample.c on every block it converts
 char gpuTiming, cpuTiming, limiterWait, limiterDebt, sioTiming;
 char cpuSpeed;   /* CpuSpeed: r3000a.c psxCycleMult */
-char frameRateMode;   /* FrameRate: psxcounters.c frameCycles, SoftGPU/oldGpuFps.c FrameCap */
+char frameRateMode;   /* FrameRate: 0 Auto, 1 TV, 2 PS1, 3 Unlimited (no frame limit). psxcounters.c, oldGpuFps.c */
 char cdBuffer, cdPrefetch, cdChdHunks;   // read by cdriso.c when an image is opened
 char xaDisabled;            // mirrors Config.Xa   (see wiiSXconfig.h)
 char cddaDisabled;          // mirrors Config.Cdda
@@ -209,7 +212,6 @@ static const char* const OPT_BIOS[]          = { "HLE", "SD", "USB" };
 static const char* const OPT_CORE[]          = { "Lightrec", "Interpreter", "Dynarec" };
 static const char* const OPT_GPU[]           = { "Soft Fast", "Soft Timed", "OpenGX" };
 static const char* const OPT_SCREEN[]        = { "4:3", "16:9", "Force 16:9" };
-static const char* const OPT_LIMIT[]         = { "Off", "Auto" };
 static const char* const OPT_DITHER[]        = { "None", "Default", "Always" };
 static const char* const OPT_BILINEAR[]      = { "Default", "Near", "Bilinear" };
 static const char* const OPT_CHROMA[]        = { "Sharp", "Smooth" };
@@ -220,7 +222,7 @@ static const char* const OPT_RESAMPLE[]      = { "Hold", "Linear", "Cubic" };
 static const char* const OPT_OUTPUT[]        = { "CPU", "DSP" };
 static const char* const OPT_INTERP[]        = { "Simple", "Gaussian" };
 static const char* const OPT_SPEED[]         = { "Auto", "50%", "75%", "100%", "125%", "150%", "200%", "300%" };
-static const char* const OPT_FRAMERATE[]     = { "Auto", "TV", "PS1" };
+static const char* const OPT_FRAMERATE[]     = { "Auto", "TV", "PS1", "Unlimited" };
 static const char* const OPT_CD_BUFFER[]     = { "16 KB", "64 KB", "256 KB" };
 static const char* const OPT_CD_HUNKS[]      = { "2", "4", "8" };
 static const char* const OPT_SAVE_DEVICE[]   = { "SD", "USB", "CardA", "CardB" };
@@ -259,7 +261,6 @@ static SettingOption OPTIONS[] =
   { "FmvColour", &fmvColour, FMVCOLOUR_15BIT, FMVCOLOUR_24BIT, NULL, "Video Colour", OPT_COLOUR, "24-bit is full colour. 15-bit shows bands in dark scenes." },
   { "Gamma", &gammaLevel, 0, 5, NULL, "Gamma", OPT_GAMMA, "Brightens the TV picture. 1.0 changes nothing." },
   { "DeflickerLevel", &deflickerLevel, DEFLICKERLEVEL_NORMAL, DEFLICKERLEVEL_LIGHT, NULL, "Deflicker Level", OPT_DEFLICKER, "Light blurs less than Normal. Needs Deflicker on." },
-  { "LimitFrames", &frameLimit[1], FRAMELIMIT_NONE, FRAMELIMIT_AUTO, NULL, "Limit FPS", OPT_LIMIT, "Turns the frame limiter on (Auto) or off." },
   { "SkipFrames", &frameSkip, FRAMESKIP_DISABLE, FRAMESKIP_ENABLE, NULL, "Frame Skip", OPT_OFF_ON, "Skips frames when the Wii is too slow." },
   { "FPS", &showFPSonScreen, FPS_HIDE, FPS_SHOW, NULL, "Show FPS", OPT_OFF_ON, "Shows the frame rate on the screen." },
   { "EfbSync", &efbSyncSetting, 0, 2 },
@@ -280,7 +281,7 @@ static SettingOption OPTIONS[] =
   { "GpuTiming", &gpuTiming, GPU_TIMING_FAST, GPU_TIMING_ACCURATE, NULL, "GPU Timing", OPT_FAST_ACCURATE, "Accurate: the GPU is busy as long as on a PS1." },
   { "SioTiming", &sioTiming, SIO_TIMING_FAST, SIO_TIMING_ACCURATE, NULL, "Port Timing", OPT_FAST_ACCURATE, "Accurate: each controller port byte takes as long as on a PS1." },
   { "CpuSpeed", &cpuSpeed, CPU_SPEED_AUTO, CPU_SPEED_300, NULL, "CPU Speed", OPT_SPEED, "Over 100% eases slowdown in some games, at more CPU cost." },
-  { "FrameRate", &frameRateMode, FRAMERATE_AUTO, FRAMERATE_PS1, NULL, "Frame Rate", OPT_FRAMERATE, "Sets the refresh rate the game runs at." },
+  { "FrameRate", &frameRateMode, FRAMERATE_AUTO, FRAMERATE_UNLIMITED, NULL, "Frame Rate", OPT_FRAMERATE, "Sets the refresh rate the game runs at. Unlimited turns the frame limit off." },
   { "Performance", NULL, 0, 0, "Disc reads and the frame limiter. Keep the defaults." },
   { "CdBuffer", &cdBuffer, CD_BUFFER_16K, CD_BUFFER_256K, NULL, "CD Read Buffer", OPT_CD_BUFFER, "16 KB is best: a larger buffer reads more than the game uses." },
   { "CdPrefetch", &cdPrefetch, CD_PREFETCH_OFF, CD_PREFETCH_ON, NULL, "CD Read-Ahead", OPT_OFF_ON, "A thread reads the next sectors early. Raw bin/cue and .iso only." },
@@ -403,6 +404,13 @@ static SettingOption OPTIONS[] =
   { "Coop2Assign8", &coopAssign[1][7], 0, 3 },
   { "Coop2Layout8", &coopLayout[1][7], COOP_LAYOUT_FULL, COOP_LAYOUT_COUNT - 1 },
   { "Coop2Buttons8", coopButtons[1][7], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
+  { "Achievements", NULL, 0, 0, "Local achievement engine. It reads a local definition file; no online awards." },
+  { "Achievements", &achievementsEnabled, 0, 1, NULL, "Achievements", OPT_OFF_ON, "Turns the local achievement engine on or off. Load the game again after a change." },
+  { "AchievementFile", achievementFile, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
+  { "AchievementLog", achievementLog, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
+#ifdef ACHIEVEMENTS_BENCH
+  { "AchievementBenchRoot", achievementBenchRoot, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
+#endif
   { "Network", NULL, 0, 0, "Games from a network share (SMB)." },
   { "smbipaddr", smbIpAddr, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "smbsharename", smbShareName, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
@@ -493,94 +501,44 @@ static void setGpuPlugin()
 /* The Auto Load Slot whose key mapping is loaded now (loadSettings, loadSeparatelySetting) */
 static char mappingSlot = -1;
 
-static bool loadControllerMapping(char* usbSd)
+/* The device the button files were read from and are saved to: "usb" or "sd". The one Save
+ * writes here, so the set that is read and the set that is written are always the same. */
+const char* buttonDevice = "sd";
+
+static int buttonFileExists(const char* path)
 {
-    char settingPathBuf[256];
-    FILE* f;
-    bool loadRet = true;
+    struct stat s;
+    return stat(path, &s) == 0;
+}
 
-    sprintf(settingPathBuf, "%s:/wiistation/controlG.cfg", usbSd);
-    f = fopen(settingPathBuf, "rb" );  //attempt to open file
-    if (f) {
-        load_configurations(f, &controller_GC);					//read in GC controller mappings
-        fclose(f);
-    }
-    else
-    {
-        loadRet = false;
-    }
+static bool buttonDeviceReady(const char* dev)
+{
+    return fileBrowser_libfat_init(strcmp(dev, "usb") == 0 ? &saveDir_libfat_USB : &saveDir_libfat_Default) != 0;
+}
 
-    #ifdef HW_RVL
+/* Reads the slot files of every controller type on this build from one device: pref when it has
+ * them all, else the other device (button_read_device). A type with no file keeps its mapping. */
+static void loadControllerMapping(const char* pref)
+{
+    char ids[num_controller_t + 1];
+    char path[256];
+    for (int i = 0; i < num_controller_t; i++)
+        ids[i] = controller_ts[i]->identifier;
+    ids[num_controller_t] = '\0';
 
-    sprintf(settingPathBuf, "%s:/wiistation/controlH.cfg", usbSd);
-    f = fopen(settingPathBuf, "rb" );  //attempt to open file
-    if(f) {
-        load_configurations(f, &controller_HidGC);			//read in HID controller mappings
-        fclose(f);
+    buttonDeviceReady(pref);
+    buttonDeviceReady(button_other_device(pref));
+    buttonDevice = button_read_device(pref, ids, buttonFileExists);
+    for (int i = 0; i < num_controller_t; i++) {
+        controller_t* c = controller_ts[i];
+        if (!button_slot_read(path, sizeof path, buttonDevice, c->identifier, buttonFileExists))
+            continue;
+        FILE* f = fopen(path, "rb");
+        if (f) {
+            load_configurations(f, c);
+            fclose(f);
+        }
     }
-    else
-    {
-        loadRet = false;
-    }
-
-    sprintf(settingPathBuf, "%s:/wiistation/controlC.cfg", usbSd);
-    f = fopen(settingPathBuf, "rb" );  //attempt to open file
-    if(f) {
-        load_configurations(f, &controller_Classic);			//read in Classic controller mappings
-        fclose(f);
-    }
-    else
-    {
-        loadRet = false;
-    }
-
-    sprintf(settingPathBuf, "%s:/wiistation/controlN.cfg", usbSd);
-    f = fopen(settingPathBuf, "rb" );  //attempt to open file
-    if(f) {
-        load_configurations(f, &controller_WiimoteNunchuk);		//read in WM+NC controller mappings
-        fclose(f);
-    }
-    else
-    {
-        loadRet = false;
-    }
-
-    sprintf(settingPathBuf, "%s:/wiistation/controlW.cfg", usbSd);
-    f = fopen(settingPathBuf, "rb" );  //attempt to open file
-    if(f) {
-        load_configurations(f, &controller_Wiimote);			//read in Wiimote controller mappings
-        fclose(f);
-    }
-    else
-    {
-        loadRet = false;
-    }
-
-    sprintf(settingPathBuf, "%s:/wiistation/controlP.cfg", usbSd);
-    f = fopen(settingPathBuf, "rb" );  //attempt to open file
-    if (f) {
-        load_configurations(f, &controller_WiiUPro);			//read in Wii U Pro controller mappings
-        fclose(f);
-    }
-    else
-    {
-        loadRet = false;
-    }
-
-    sprintf(settingPathBuf, "%s:/wiistation/controlD.cfg", usbSd);
-    f = fopen(settingPathBuf, "rb" );  //attempt to open file
-    if (f) {
-        load_configurations(f, &controller_WiiUGamepad);		//read in Wii U Gamepad controller mappings
-        fclose(f);
-    }
-    else
-    {
-        loadRet = false;
-    }
-
-    #endif // HW_RVL
-
-    return loadRet;
 }
 
 void loadSettings(int argc, char *argv[])
@@ -625,7 +583,6 @@ void loadSettings(int argc, char *argv[])
 #endif
 	printToScreen    = 1; // Show DEBUG text on screen
 	printToSD        = 0; // Disable SD logging
-	frameLimit[1]		 = 1; // Auto limit FPS
 	frameSkip		 = 0; // Disable frame skipping
 	useDithering		 = 1; // Default dithering (set to 0 (disabled) in PEOPSgpu)
 	mdecChroma		 = MDECCHROMA_SHARP;   /* what the console does */
@@ -757,7 +714,7 @@ void loadSettings(int argc, char *argv[])
 	// plugin-open time (PEOPS_GPUopen -> GPUsetframelimit). Without this they
 	// would open with the zero-initialised FRAMELIMIT_NONE and never correct
 	// it, since their per-frame re-check only fires on a *change*.
-	frameLimit[0] = frameLimit[1];
+	syncFrameLimit();
 	//iUseDither = useDithering;
 	setSpuInterpolation(spuInterpolation);
 	setSpuTempo(soundTempo);
@@ -1016,6 +973,7 @@ static bool chainNext(void)
 	}
 	f = fopen("sd:/wiistation/perf.log", "a");
 	if (f) {
+		achievements_bench_chain_end(f, chainList[chainI].input[0] != 0);
 		char sets[CHAIN_SETS * 32 + 8] = "";
 		int k;
 		for (k = 0; k < chainList[chainI].nset; k++) {
@@ -1043,6 +1001,10 @@ static bool chainNext(void)
 		lab_report();
 		hb_phase("exit", "lab");
 		net_deinit();
+		fatUnmount("sd");
+		exit(0);
+	}
+	if (achievements_bench_hbc_return()) {
 		fatUnmount("sd");
 		exit(0);
 	}
@@ -1273,49 +1235,68 @@ void biosFileInit()
 	biosFile_init(biosFile);  //initialize the bios device (it might not be the same as ISO device)
 }
 
-/* The Game slot of the button mappings (ConfigureButtons' fifth slot): one file per game, named by
- * its CD-ROM ID and kept beside the slot files. USB when the USB has a wiistation folder,
- * otherwise SD. */
-static void gameButtonsPath(char* buf, size_t size, const char* dev)
-{
-	snprintf(buf, size, "%s:/wiistation/%s.btn", dev, CdromId);
-}
-
-int saveGameButtons(void)
+/* The Game file of this game: one file per CD-ROM ID, with every type's Game slot. */
+static bool writeGameButtons(const char* dev)
 {
 	char path[256];
-	struct stat s;
-	bool usb = stat("usb:/wiistation/", &s) == 0;
 	FILE* f;
-	if (!CdromId[0] || !fileBrowser_libfat_init(usb ? &saveDir_libfat_USB : &saveDir_libfat_Default))
-		return 0;
-	gameButtonsPath(path, sizeof path, usb ? "usb" : "sd");
+	if (!CdromId[0] || !button_game_path(path, sizeof path, dev, CdromId, 0))
+		return false;
 	makeParentDirs(path);
 	f = fopen(path, "wb");
 	if (!f)
-		return 0;
+		return false;
 	for (int i = 0; i < num_controller_t; i++)
 		save_game_slot(f, controller_ts[i]);
 	fclose(f);
-	return 1;
+	return true;
 }
 
-/* The Game slot of the game that starts: USB first, then SD, as the settings are. */
+/* The one Save of the button mappings: every type's four slot files and this game's Game file,
+ * on dev. Every write is tried. Returns 1 when all were written, 2 when the slot files were
+ * written but no game is loaded (so there is no Game file), 0 when a write failed. Every Save
+ * goes through here. */
+int saveButtonConfigs(const char* dev)
+{
+	char path[256];
+	bool slotsOk = buttonDeviceReady(dev);
+	buttonDevice = dev;
+	for (int i = 0; slotsOk && i < num_controller_t; i++) {
+		controller_t* c = controller_ts[i];
+		FILE* f = NULL;
+		if (button_slot_path(path, sizeof path, dev, c->identifier, 0)) {
+			makeParentDirs(path);
+			f = fopen(path, "wb");
+		}
+		if (!f) {
+			slotsOk = false;
+			break;
+		}
+		save_configurations(f, c);
+		fclose(f);
+	}
+	if (!CdromId[0])
+		return slotsOk ? 2 : 0;
+	bool gameOk = writeGameButtons(dev);
+	return slotsOk && gameOk ? 1 : 0;
+}
+
+/* The Game file of the game that starts: the device the buttons are read from first, then the
+ * other. The old name (<CdromId>.btn beside the slot files) is read when the new one is missing. */
 static FILE* openGameButtons(void)
 {
 	char path[256];
-	FILE* f = NULL;
 	if (!CdromId[0])
 		return NULL;
-	if (fileBrowser_libfat_init(&saveDir_libfat_USB)) {
-		gameButtonsPath(path, sizeof path, "usb");
-		f = fopen(path, "rb");
+	for (int d = 0; d < 2; d++) {
+		const char* dev = d == 0 ? buttonDevice : button_other_device(buttonDevice);
+		if (!buttonDeviceReady(dev) || !button_game_read(path, sizeof path, dev, CdromId, buttonFileExists))
+			continue;
+		FILE* f = fopen(path, "rb");
+		if (f)
+			return f;
 	}
-	if (!f && fileBrowser_libfat_init(&saveDir_libfat_Default)) {
-		gameButtonsPath(path, sizeof path, "sd");
-		f = fopen(path, "rb");
-	}
-	return f;
+	return NULL;
 }
 
 /* At each game start, every controller's Game slot is the game's own, or the default when the
@@ -1396,13 +1377,8 @@ static void loadSeparatelySetting()
     if (mappingSlot != loadButtonSlot)
     {
         mappingSlot = loadButtonSlot;
-        // Load button mapping from USB
-        if (!loadControllerMapping("usb"))
-        {
-            // If the key mapping in USB does not exist
-            // Load button mapping from SD
-            loadControllerMapping("sd");
-        }
+        // The set of the device it was last read from (buttonDevice): never a mix of USB and SD
+        loadControllerMapping(buttonDevice);
     }
 
     loadGameButtons();   /* the Game slot of the button mappings: this game's, and Auto applies it */
@@ -1446,6 +1422,7 @@ static void loadSeparatelySetting()
 
 // loadISO loads an ISO file as current media to read from.
 int loadISOSwap(fileBrowser_file* file) {
+	achievements_close(); /* local sets cannot establish same-game media association yet */
 
   // Refresh file pointers
 	memset(&isoFile, 0, sizeof(fileBrowser_file));
@@ -1527,6 +1504,8 @@ int loadISO(fileBrowser_file* file)
 	else
 		LoadCdrom();
 	hb_phase("load: memory cards and state", isoFile.name);
+	achievements_load(CdromId); /* after settings and boot; a wrong/absent game ID rejects the set */
+	achievements_bench_isolate_cards();
 
 	if(autoSave==AUTOSAVE_ENABLE) {
 		setSaveDevice();   /* fileBrowser.c: point saveFile_* at nativeSaveDevice */
@@ -1592,11 +1571,19 @@ void handleConfigPair(char* kv){
 
 void readConfig(FILE* f){
 	char line[CONFIG_LINE_MAX];
+	bool limitOff = false;
 	while(config_getline(line, CONFIG_LINE_MAX, f)){   /* whole lines only: config_parse.h */
 		char* l = config_line(line);   /* config_parse.h: blank, comment and [section] lines hold none */
-		if(l)
+		if(l){
+			/* Files from before Frame Rate had Unlimited: "LimitFrames = 0" was the limit off */
+			char* eq = strchr(l, '=');
+			if(eq && !strncmp(l, "LimitFrames", 11) && atoi(eq + 1) == 0)
+				limitOff = true;
 			handleConfigPair(l);
+		}
 	}
+	if(limitOff)
+		frameRateMode = FRAMERATE_UNLIMITED;
 }
 
 static void writeSettingLines(FILE* f){
@@ -1640,7 +1627,7 @@ void go(void) {
 	// time gameplay resumes. Unconditional (not inside the newSoftGpu guard):
 	// every GPU plugin reads frameLimit[0], unlike gc_rearmed_cbs which is
 	// newSoftGpu-only.
-	frameLimit[0] = frameLimit[1];
+	syncFrameLimit();
 
 #ifdef PERF_PROF
 	g_carry.pad[0] = virtualControllers[0].inUse;
@@ -1669,9 +1656,10 @@ void go(void) {
 	/* A scripted save or load (statetool.cpp) stops the CPU at its vblank; it is carried out
 	 * here, with the CPU stopped as the menu has it, and the game goes on. */
 	hb_phase("game", isoFile.name);
-	do
+	do {
 		psxCpu->Execute();
-	while (statetool_service());
+		achievements_flush();
+	} while (statetool_service());
 	hb_phase("menu", "game stopped");
 	GL_flip05Drop();   /* GlesGpu/gpuPlugin.c: a GP1 05 flip not yet presented */
 

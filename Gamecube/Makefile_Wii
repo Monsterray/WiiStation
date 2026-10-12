@@ -28,9 +28,13 @@ SOURCES		:=	../lang ../fonts \
                 ../GlesGpu/ ../gpulib/ ../SoftGPU/ \
 				./libgui/gui2 ../dfsound/ ./vm ../ppc
 
+# Pinned rcheevos C runtime; no client/network stack in the local engine.
+SOURCES += ../deps/rcheevos/src/runtime ../deps/rcheevos/src/util
+
 DATA		:=	data
 
 INCLUDES	:=	../deps/libsmb2/include   # libsmb2: its headers include <smb2/...>
+INCLUDES += ../deps/rcheevos/include
 
 #---------------------------------------------------------------------------------
 # options for code generation
@@ -156,6 +160,10 @@ clean:
 
 #---------------------------------------------------------------------------------
 else
+
+# rcheevos supports floating-point operands: preserve NaN/Inf semantics even
+# though the emulator uses -Ofast. Keep LTO from inheriting the core's fast-math.
+$(filter rc_%.o md5.o achievements.o,$(OFILES)): CFLAGS += -fno-fast-math -fno-lto
 
 DEPENDS	:=	$(OFILES:.o=.d)
 

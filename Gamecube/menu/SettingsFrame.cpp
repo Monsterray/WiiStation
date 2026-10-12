@@ -84,8 +84,7 @@ void Func_SaveSettingsSeparately();
 
 void Func_ShowFpsOn();
 void Func_ShowFpsOff();
-void Func_FpsLimitAuto();
-void Func_FpsLimitOff();
+void Func_FrameRateCycle();
 void Func_FrameSkipOn();
 void Func_FrameSkipOff();
 void Func_ScreenMode();
@@ -111,6 +110,7 @@ void Func_EnableRumbleYes();
 void Func_EnableRumbleNo();
 void Func_SaveButtonsSD();
 void Func_SaveButtonsUSB();
+void saveAllButtonConfigs(const char* dev, bool fade);   /* ConfigureButtonsFrame.cpp */
 void Func_SetButtonLoad();
 void Func_ToggleButtonLoad();
 
@@ -298,8 +298,8 @@ struct ButtonInfo
 	//Buttons for Video Tab (starts at button[16])
 	{	NULL,	BTN_A_SEL,	NULL,				Func_ShowFpsOn,			Func_ReturnFromSettingsFrame, "FPS", FPS_SHOW }, // Show FPS: On
 	{	NULL,	BTN_A_SEL,	NULL,				Func_ShowFpsOff,		Func_ReturnFromSettingsFrame, "FPS", FPS_HIDE }, // Show FPS: Off
-	{	NULL,	BTN_A_SEL,	NULL,				Func_FpsLimitAuto,		Func_ReturnFromSettingsFrame, "LimitFrames", FRAMELIMIT_AUTO }, // FPS Limit: Auto
-	{	NULL,	BTN_A_SEL,	NULL,				Func_FpsLimitOff,		Func_ReturnFromSettingsFrame, "LimitFrames", FRAMELIMIT_NONE }, // FPS Limit: Off
+	{	NULL,	BTN_A_NRM,	NULL,				Func_FrameRateCycle,	Func_ReturnFromSettingsFrame, "FrameRate", SETTING_CURRENT }, // Frame Rate: a cycle (Auto, PS1, TV, Unlimited)
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[13],	Func_FrameRateCycle,	Func_ReturnFromSettingsFrame }, // (spare, never shown. The Frame Rate cycle replaced FPS Limit: Auto and Off. Kept so no later index moves.)
 	{	NULL,	BTN_A_SEL,	NULL,				Func_FrameSkipOn,		Func_ReturnFromSettingsFrame, "SkipFrames", FRAMESKIP_ENABLE }, // Frame Skip: On
 	{	NULL,	BTN_A_SEL,	NULL,				Func_FrameSkipOff,		Func_ReturnFromSettingsFrame, "SkipFrames", FRAMESKIP_DISABLE }, // Frame Skip: Off
 	{	NULL,	BTN_A_NRM,	NULL,				Func_ScreenMode,		Func_ReturnFromSettingsFrame, "ScreenMode", SETTING_CURRENT }, // ScreenMode: 4:3/16:9/Force16:9
@@ -525,9 +525,7 @@ static void prepVideo(void)
 {
 	SET_ROWS[0].value = showFPSonScreen == FPS_SHOW ? 0 : 1;
 	SET_ROWS[2].value = frameSkip == FRAMESKIP_ENABLE ? 0 : 1;
-	SET_ACTIONS[1][0].lit = frameLimit[1] == FRAMELIMIT_AUTO;
-	SET_ACTIONS[1][1].lit = frameLimit[1] != FRAMELIMIT_AUTO;
-	SET_ACTIONS[1][2].lit = forceNTSC == FORCENTSC_ENABLE;
+	SET_ACTIONS[1][1].lit = forceNTSC == FORCENTSC_ENABLE;
 	SET_ACTIONS[3][1].lit = interlacedMode == INTERLACED_ENABLE;
 	SET_ACTIONS[3][2].lit = originalMode == ORIGINALMODE_ENABLE;
 	SET_ACTIONS[4][1].lit = trapFilter == TRAPFILTER_ENABLE;
@@ -576,7 +574,7 @@ static const SetRow GEN_ROWS[] =
 static const SetRow VID_ROWS[] =
 {
 	{ eng::ROW_CHOICE,  "FPS",           NULL,               { 16, 17, -1, -1 }, {  75,  75,   0,  0 }, 295.0f, 0.0f, 0 },	/* Show FPS: On, Off */
-	{ eng::ROW_BUTTONS, "LimitFrames",   NULL,               { 18, 19, 63, -1 }, {  75,  75, 160,  0 }, 295.0f, 0.0f, 0 },	/* FPS Limit: Auto, Off. Force NTSC (a toggle) */
+	{ eng::ROW_BUTTONS, "FrameRate",     NULL,               { 18, 63, -1, -1 }, { 130, 160,   0,  0 }, 295.0f, 0.0f, 0 },	/* Frame Rate (a cycle). Force NTSC (a toggle) */
 	{ eng::ROW_CHOICE,  "SkipFrames",    NULL,               { 20, 21, -1, -1 }, {  75,  75,   0,  0 }, 295.0f, 0.0f, 0 },	/* Frame Skip: On, Off */
 	{ eng::ROW_BUTTONS, "ScreenMode",    NULL,               { 22, 23, 57, -1 }, { 130, 125,  66,  0 }, 295.0f, 0.0f, 0 },	/* Screen Mode (a cycle). Interlaced, 240p (toggles) */
 	{ eng::ROW_BUTTONS, NULL,            FRAME_STRINGS[14],  { 28, 29, 24, -1 }, {  95,  75, 110,  0 }, 295.0f, 0.0f, 0 },	/* Filters: Bilinear (a cycle). Trap, Deflicker (toggles) */
@@ -1322,24 +1320,19 @@ void SetFrameLimit()
     }
 }
 
-void Func_FpsLimitAuto()
+/* The Frame Rate cycle: Auto, PS1, TV, Unlimited, then Auto again. The stored values are the
+ * FRAMERATE_ numbers, so the order is written out here. */
+void Func_FrameRateCycle()
 {
-	for (int i = 18; i <= 19; i++)
-		FRAME_BUTTONS[i].button->setSelected(false);
+	static const char order[] = { FRAMERATE_AUTO, FRAMERATE_PS1, FRAMERATE_TV, FRAMERATE_UNLIMITED };
+	int i = 0;
+	while (order[i] != frameRateMode)
+		i++;
+	frameRateMode = order[(i + 1) % 4];
+	syncFrameLimit();
+	SetFrameLimit();
 	FRAME_BUTTONS[18].button->setSelected(true);
-	frameLimit[0] = FRAMELIMIT_AUTO;
-	frameLimit[1] = FRAMELIMIT_AUTO;
-	SetFrameLimit();
-}
-
-void Func_FpsLimitOff()
-{
-	for (int i = 18; i <= 19; i++)
-		FRAME_BUTTONS[i].button->setSelected(false);
-	FRAME_BUTTONS[19].button->setSelected(true);
-	frameLimit[0] = FRAMELIMIT_NONE;
-	frameLimit[1] = FRAMELIMIT_NONE;
-	SetFrameLimit();
+	refreshButton(18);
 }
 
 void Func_FrameSkipOn()
@@ -1673,120 +1666,16 @@ void Func_CardType2() { cardTypeCycle(1); }
 
 
 
+/* Save Button Configs: the device choice. Each row writes every button file to its device, the
+ * same as Configure Buttons' Save, and sets the device that Save uses from now on. */
 void Func_SaveButtonsSD()
 {
-	fileBrowser_file* configFile_file;
-	int (*configFile_init)(fileBrowser_file*) = fileBrowser_libfat_init;
-	int num_written = 0;
-	configFile_file = &saveDir_libfat_Default;
-	if(configFile_init(configFile_file)) {                //only if device initialized ok
-		FILE* f = fopen( "sd:/wiistation/controlG.cfg", "wb" );  //attempt to open file
-		if(f) {
-			save_configurations(f, &controller_GC);					//write out GC controller mappings
-			fclose(f);
-			num_written++;
-		}
-#ifdef HW_RVL
-        f = fopen( "sd:/wiistation/controlH.cfg", "wb" );  //attempt to open file
-		if(f) {
-			save_configurations(f, &controller_HidGC);			//write out HID controller mappings
-			fclose(f);
-			num_written++;
-		}
-		f = fopen( "sd:/wiistation/controlC.cfg", "wb" );  //attempt to open file
-		if(f) {
-			save_configurations(f, &controller_Classic);			//write out Classic controller mappings
-			fclose(f);
-			num_written++;
-		}
-		f = fopen( "sd:/wiistation/controlN.cfg", "wb" );  //attempt to open file
-		if(f) {
-			save_configurations(f, &controller_WiimoteNunchuk);	//write out WM+NC controller mappings
-			fclose(f);
-			num_written++;
-		}
-		f = fopen( "sd:/wiistation/controlW.cfg", "wb" );  //attempt to open file
-		if(f) {
-			save_configurations(f, &controller_Wiimote);			//write out Wiimote controller mappings
-			fclose(f);
-			num_written++;
-		}
-		f = fopen("sd:/wiistation/controlP.cfg", "wb");  //attempt to open file
-		if (f) {
-			save_configurations(f, &controller_WiiUPro);			//write out Wii U Pro controller mappings
-			fclose(f);
-			num_written++;
-		}
-		f = fopen("sd:/wiistation/controlD.cfg", "wb");  //attempt to open file
-		if (f) {
-			save_configurations(f, &controller_WiiUGamepad);		//write out Wii U Gamepad controller mappings
-			fclose(f);
-			num_written++;
-		}
-#endif //HW_RVL
-	}
-	if (num_written == num_controller_t)
-		menu::MessageBox::getInstance().setMessage("Saved Button Configs to SD");
-	else
-		menu::MessageBox::getInstance().setMessage("Error saving Button Configs to SD");
+	saveAllButtonConfigs("sd", false);
 }
 
 void Func_SaveButtonsUSB()
 {
-	fileBrowser_file* configFile_file;
-	int (*configFile_init)(fileBrowser_file*) = fileBrowser_libfat_init;
-	int num_written = 0;
-	configFile_file = &saveDir_libfat_USB;
-	if(configFile_init(configFile_file)) {                //only if device initialized ok
-		FILE* f = fopen( "usb:/wiistation/controlG.cfg", "wb" );  //attempt to open file
-		if(f) {
-			save_configurations(f, &controller_GC);					//write out GC controller mappings
-			fclose(f);
-			num_written++;
-		}
-#ifdef HW_RVL
-        f = fopen( "usb:/wiistation/controlH.cfg", "wb" );  //attempt to open file
-		if(f) {
-			save_configurations(f, &controller_HidGC);			//write out HID controller mappings
-			fclose(f);
-			num_written++;
-		}
-		f = fopen( "usb:/wiistation/controlC.cfg", "wb" );  //attempt to open file
-		if(f) {
-			save_configurations(f, &controller_Classic);			//write out Classic controller mappings
-			fclose(f);
-			num_written++;
-		}
-		f = fopen( "usb:/wiistation/controlN.cfg", "wb" );  //attempt to open file
-		if(f) {
-			save_configurations(f, &controller_WiimoteNunchuk);	//write out WM+NC controller mappings
-			fclose(f);
-			num_written++;
-		}
-		f = fopen( "usb:/wiistation/controlW.cfg", "wb" );  //attempt to open file
-		if(f) {
-			save_configurations(f, &controller_Wiimote);			//write out Wiimote controller mappings
-			fclose(f);
-			num_written++;
-		}
-		f = fopen("usb:/wiistation/controlP.cfg", "wb");  //attempt to open file
-		if (f) {
-			save_configurations(f, &controller_WiiUPro);			//write out Wii U Pro controller mappings
-			fclose(f);
-			num_written++;
-		}
-		f = fopen("usb:/wiistation/controlD.cfg", "wb");  //attempt to open file
-		if (f) {
-			save_configurations(f, &controller_WiiUGamepad);		//write out Wii U Gamepad controller mappings
-			fclose(f);
-			num_written++;
-		}
-#endif //HW_RVL
-	}
-	if (num_written == num_controller_t)
-		menu::MessageBox::getInstance().setMessage("Saved Button Configs to USB");
-	else
-		menu::MessageBox::getInstance().setMessage("Error saving Button Configs to USB");
+	saveAllButtonConfigs("usb", false);
 }
 
 void Func_SetButtonLoad()
