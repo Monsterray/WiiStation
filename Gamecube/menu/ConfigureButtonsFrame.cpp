@@ -122,7 +122,7 @@ static char FRAME_STRINGS[38][20] =
 	  "Lift Mouse:",
 	  "Gun/Mouse",
 	  "Off",
-	  "Screenshot"};
+	  "Shot:"};
 
 static char TITLE_STRING[64] = "Gamecube Pad 1 to PSX Port 1 Mapping";
 
@@ -145,7 +145,7 @@ struct ConfigButtonInfo
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[3],	310.0,	 20.0,	 70.0,	40.0,	Func_LoadConfig,		Func_ReturnFromConfigureButtonsFrame }, // Load Config
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[4],	390.0,	 20.0,	 70.0,	40.0,	Func_SaveConfig,		Func_ReturnFromConfigureButtonsFrame }, // Save Config
 
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[5],	 15.0,	160.0,	110.0,	40.0,	Func_ToggleButtonExit,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Button Exit
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[5],	 15.0,	135.0,	110.0,	40.0,	Func_ToggleButtonExit,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Button Exit
 
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[6],	140.0,	130.0,	 80.0,	40.0,	Func_ToggleButtonL1,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Button L1
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[7],	140.0,	180.0,	 80.0,	40.0,	Func_ToggleButtonL2,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Button L2
@@ -154,15 +154,15 @@ struct ConfigButtonInfo
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[10],	420.0,	130.0,	 80.0,	40.0,	Func_ToggleButtonR1,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Button R1
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[11],	420.0,	180.0,	 80.0,	40.0,	Func_ToggleButtonR2,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Button R2
 
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[12],	 75.0,	230.0,	 80.0,	40.0,	Func_ToggleButtonDup,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Button D-up
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[13],	 30.0,	280.0,	 80.0,	40.0,	Func_ToggleButtonDleft,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Button D-left
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[14],	120.0,	280.0,	 80.0,	40.0,	Func_ToggleButtonDright,Func_ReturnFromConfigureButtonsFrame }, // Toggle Button D-right
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[15],	 75.0,	330.0,	 80.0,	40.0,	Func_ToggleButtonDdown,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Button D-down
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[12],	 75.0,	250.0,	 80.0,	40.0,	Func_ToggleButtonDup,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Button D-up
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[13],	 30.0,	300.0,	 80.0,	40.0,	Func_ToggleButtonDleft,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Button D-left
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[14],	120.0,	300.0,	 80.0,	40.0,	Func_ToggleButtonDright,Func_ReturnFromConfigureButtonsFrame }, // Toggle Button D-right
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[15],	 75.0,	350.0,	 80.0,	40.0,	Func_ToggleButtonDdown,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Button D-down
 
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[16],	485.0,	230.0,	 80.0,	40.0,	Func_ToggleButtonTri,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Button Triangle
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[17],	440.0,	280.0,	 80.0,	40.0,	Func_ToggleButtonSqu,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Button Square
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[18],	530.0,	280.0,	 80.0,	40.0,	Func_ToggleButtonCir,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Button Circle
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[19],	485.0,	330.0,	 80.0,	40.0,	Func_ToggleButtonCro,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Button Cross
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[16],	485.0,	250.0,	 80.0,	40.0,	Func_ToggleButtonTri,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Button Triangle
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[17],	440.0,	300.0,	 80.0,	40.0,	Func_ToggleButtonSqu,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Button Square
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[18],	530.0,	300.0,	 80.0,	40.0,	Func_ToggleButtonCir,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Button Circle
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[19],	485.0,	350.0,	 80.0,	40.0,	Func_ToggleButtonCro,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Button Cross
 
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[20],	160.0,	345.0,	100.0,	40.0,	Func_ToggleAnalogL,		Func_ReturnFromConfigureButtonsFrame }, // Toggle Analog Stick L
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[21],	380.0,	345.0,	100.0,	40.0,	Func_ToggleAnalogR,		Func_ReturnFromConfigureButtonsFrame }, // Toggle Analog Stick R
@@ -172,9 +172,9 @@ struct ConfigButtonInfo
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[25],	325.0,	395.0,	 80.0,	40.0,	Func_ToggleButtonR3,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Button R3
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[31],	325.0,	340.0,	 50.0,	40.0,	Func_SensPlus,			Func_ReturnFromConfigureButtonsFrame }, // Stick Sensitivity +
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[28],	265.0,	340.0,	 50.0,	40.0,	Func_SensMinus,			Func_ReturnFromConfigureButtonsFrame }, // Stick Sensitivity -
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[32],	515.0,	160.0,	110.0,	40.0,	Func_ToggleButtonFastF,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Button FastForward
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[32],	515.0,	135.0,	110.0,	40.0,	Func_ToggleButtonFastF,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Button FastForward
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[35],	480.0,	 20.0,	140.0,	40.0,	Func_ToggleGunMouse,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Gun/Mouse Enable
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[36],	235.0,	205.0,	110.0,	40.0,	Func_ToggleButtonScreenshot,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Button Screenshot
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[36],	 15.0,	205.0,	110.0,	40.0,	Func_ToggleButtonScreenshot,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Button Screenshot
 };
 
 struct TextBoxInfo
@@ -188,11 +188,11 @@ struct TextBoxInfo
 } FRAME_TEXTBOXES[NUM_FRAME_TEXTBOXES] =
 { //	textBox	textBoxString		x		y		scale	centered
 	{	NULL,	TITLE_STRING,		320.0,	100.0,	 1.0,	true }, // ______ Pad X to N64 Pad Y Mapping
-	{	NULL,	FRAME_STRINGS[30],	 70.0,	145.0,	 0.9,	true }, // Menu Combo
+	{	NULL,	FRAME_STRINGS[30],	 70.0,	120.0,	 0.9,	true }, // Menu Combo
 	{	NULL,	FRAME_STRINGS[29],	 318.0,	323.0,	 0.9,	true }, // Stick Sensitivity
-	{	NULL,	FRAME_STRINGS[33],	 565.0,	145.0,	 0.9,	true }, // Fast Forward
+	{	NULL,	FRAME_STRINGS[33],	 570.0,	120.0,	 0.9,	true }, // Fast Forward
 	{	NULL,	FRAME_STRINGS[34],	 520.0,	310.0,	 0.9,	true }, // Lift Mouse
-	{	NULL,	FRAME_STRINGS[37],	 290.0,	190.0,	 0.9,	true }, // Screenshot
+	{	NULL,	FRAME_STRINGS[37],	 70.0,	190.0,	 0.9,	true }, // Screenshot
 };
 
 /*  The page's places, on the engine (Docs/MENU_FRAMEWORK_PLAN.md, step 5)  */
@@ -660,8 +660,8 @@ void ConfigureButtonsFrame::drawChildren(menu::Graphics &gfx)
 		fitMappingButtons(this);
 		int base_x = 204;
 		int base_y = 188;
-		int lines[NUM_LINES][4] = {{164, 265, 221, 244}, //D-pad (17,56)
-								   {476, 265, 419, 244}, //Tri,Squ,Cir,Cro btns (215,56)
+		int lines[NUM_LINES][4] = {{164, 285, 221, 244}, //D-pad (17,56)
+								   {476, 285, 419, 244}, //Tri,Squ,Cir,Cro btns (215,56)
 								   {275, 160, 302, 240}, //SELECT (98,52)
 								   {365, 160, 338, 242}, //START (134,54)
 								   {220, 170, 242, 192}, //L1 (38,4)
@@ -736,8 +736,8 @@ void ConfigureButtonsFrame::drawChildren(menu::Graphics &gfx)
 		gfx.setColor(controllerColors[5]);
 		gfx.setLineWidth(1);
 		if ((lightGun == LIGHTGUN_DISABLE) || !isLightgun || padGun() == PADLIGHTGUN_DISABLE){
-			gfx.drawCircle(115, 300, 60, 33);
-			gfx.drawCircle(525, 300, 60, 33);
+			gfx.drawCircle(115, 320, 60, 33);
+			gfx.drawCircle(525, 320, 60, 33);
 
 			for (int i=0; i<NUM_LINES; i++)
 				gfx.drawLine(lines[i][0], lines[i][1], lines[i][2], lines[i][3]);
@@ -787,15 +787,15 @@ void Func_DefaultConfig()
 	pMenuContext->getFrame(MenuContext::FRAME_CONFIGUREBUTTONS)->activateSubmenu(activePad);
 }
 
+/* The slot to load or save. 4 is the Game slot: the file of this game. */
+static const char *const SLOT_NAMES[] = { "Slot 1", "Slot 2", "Slot 3", "Slot 4", "Game" };
+static eng::Cycle slotCycle = { SLOT_NAMES, 5, 0 };
 static unsigned int which_slot = 0;
 
 void Func_ToggleConfigSlot()
 {
-	which_slot = (which_slot+1) %5;   /* 4 is the Game slot: this game's own file */
-	if (which_slot < 4)
-		FRAME_STRINGS[2][5] = which_slot + '1';
-	else
-		strcpy(FRAME_STRINGS[2], "Game");
+	FRAME_BUTTONS[2].buttonString = (char *)eng::cycleNext(slotCycle);
+	which_slot = slotCycle.index;
 }
 
 void Func_LoadConfig()

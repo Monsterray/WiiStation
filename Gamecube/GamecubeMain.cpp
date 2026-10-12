@@ -665,7 +665,7 @@ void loadSettings(int argc, char *argv[])
 	memCardFile[0]	 = MEMCARDFILE_PER_GAME;   /* what WiiStation always did */
 	memCardFile[1]	 = MEMCARDFILE_SHARED;
 	rumbleEnabled	 = RUMBLE_ENABLE;
-	loadButtonSlot	 = LOADBUTTON_DEFAULT;
+	loadButtonSlot	 = LOADBUTTON_AUTO;
 	controllerType	 = CONTROLLERTYPE_STANDARD;
 	numMultitaps	 = MULTITAPS_NONE;
 	menuActive = 1;

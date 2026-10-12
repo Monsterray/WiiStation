@@ -3507,6 +3507,23 @@ static void testConfigureButtonStates(void)
 	       bad ? "FAILED" : "ok");
 }
 
+/* A cycle wraps and its text always comes from its names (the Configure Buttons Slot button
+ * once stopped at "Game": it wrote one digit into the label, past the end of "Game"). */
+static void testCycle(void)
+{
+	static const char *const names[] = { "Slot 1", "Slot 2", "Slot 3", "Slot 4", "Game" };
+	Cycle c = { names, 5, 0 };
+	int before = failures;
+	for (unsigned step = 1; step <= 11; step++) {
+		const char *got = cycleNext(c);
+		if (strcmp(got, names[step % 5]) != 0) {
+			printf("cycle step %u: got \"%s\", expected \"%s\"\n", step, got, names[step % 5]);
+			failures++;
+		}
+	}
+	printf("cycle: wraps through all names ... %s\n", failures == before ? "ok" : "FAILED");
+}
+
 int main(int argc, char **argv)
 {
 	const char *font = argc > 1 ? argv[1] : "fonts/En.dat";
@@ -3516,6 +3533,7 @@ int main(int argc, char **argv)
 		return 2;
 	}
 
+	testCycle();
 	testPageList(PAGES, NPAGES,
 	             "OptionsFrame pages (rectangles, focus links, help, logo, every value of every setting)");
 	testPageList(SETTINGS_PAGES, NSETTINGS,

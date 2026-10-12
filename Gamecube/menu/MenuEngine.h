@@ -211,6 +211,16 @@ struct Row {
  * presets and controller buttons, Configure Buttons' controller. The caller owns the array and sets
  * lit (and inactive) before layoutPage. Its links come from FOCUS_GEOMETRY only, like every button of a
  * geometry page, so a page with free buttons is laid out with that focus mode. */
+/* A button that steps through names[] and wraps (ROW_CYCLE is the same rule for a row). The
+ * label is always names[index]. A screen does not edit the text of a cycle button by hand. */
+struct Cycle {
+	const char *const *names;
+	unsigned    count;
+	unsigned    index;
+};
+inline const char *cycleText(const Cycle &c) { return c.names[c.index % c.count]; }
+inline const char *cycleNext(Cycle &c) { c.index = (c.index + 1) % c.count; return cycleText(c); }
+
 struct FreeButton {
 	const char *text;
 	float       x, y, w, h;
