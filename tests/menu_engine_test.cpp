@@ -324,7 +324,7 @@ static const ActionButton INP_AUTOLOAD_ACTIONS[] = { { "Default", 135.0f, false 
 /* Row fields: kind, label, names, lo, count, value, text, fit, actions, x0, gap, widths, plain. */
 static Row SET_INPUT_ROWS[] = {
 	{ ROW_BUTTONS, NULL,                  NULL,            0, 2, 0, NULL, false, INP_CONFIG_ACTIONS,  85.0f,  15.0f, NULL,       0 },
-	{ ROW_CHOICE,  "PSX Controller Type", INP_PSX_NAMES,   0, 3, 0, NULL, false, NULL,                271.0f,  0.0f, INP_PSX_W,  0 },
+	{ ROW_CHOICE,  "PSX Pad Type", INP_PSX_NAMES,   0, 3, 0, NULL, false, NULL,                271.0f,  0.0f, INP_PSX_W,  0 },
 	{ ROW_BUTTONS, "Light Gun",           NULL,            0, 1, 0, NULL, false, INP_LIGHTGUN_ACTIONS, 295.0f,  0.0f, NULL,       0 },
 	{ ROW_CHOICE,  "Enable Rumble",       INP_RUMBLE_NAMES, 0, 2, 0, NULL, false, NULL,                295.0f,  0.0f, INP_RUMBLE_W, 0 },
 	{ ROW_BUTTONS, "Save Button Configs", NULL,            0, 2, 0, NULL, false, INP_SAVEBTN_ACTIONS,  295.0f,  0.0f, NULL,       0 },
@@ -968,7 +968,7 @@ static const Known KNOWN[] = {
 	{ "Video", PROB_TEXT_WIDE, "Trap", NULL },
 	{ "Video", PROB_TEXT_WIDE, "Deflicker", NULL },
 	/* The Input tab: the same fit-rule findings on the Settings buttons (the tab row's labels too), and
-	 * the label "PSX Controller Type" reaching 1 px into "Standard". */
+	 * the label "PSX Pad Type" reaching 1 px into "Standard". */
 	{ "Input", PROB_TEXT_WIDE, "General", NULL },
 	{ "Input", PROB_TEXT_WIDE, "Video", NULL },
 	{ "Input", PROB_TEXT_WIDE, "Audio", NULL },
@@ -980,7 +980,7 @@ static const Known KNOWN[] = {
 	{ "Input", PROB_TEXT_WIDE, "Yes", NULL },
 	{ "Input", PROB_TEXT_WIDE, "SD", NULL },
 	{ "Input", PROB_TEXT_WIDE, "USB", NULL },
-	{ "Input", PROB_OVERLAP, "PSX Controller Type", "Standard" },
+	{ "Input", PROB_OVERLAP, "PSX Pad Type", "Standard" },
 	{ "Audio", PROB_TEXT_WIDE, "General", NULL },
 	{ "Audio", PROB_TEXT_WIDE, "Video", NULL },
 	{ "Audio", PROB_TEXT_WIDE, "Audio", NULL },

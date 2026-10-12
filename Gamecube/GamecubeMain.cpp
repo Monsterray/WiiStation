@@ -294,7 +294,7 @@ static SettingOption OPTIONS[] =
   { "Memcard1File", &memCardFile[1], MEMCARDFILE_SHARED, MEMCARDFILE_PER_GAME, NULL, "Memcard Type", OPT_MEMCARD_TYPE, "Shared: one card file for all games. Game: one per game." },
   { "Controllers", NULL, 0, 0, "The PlayStation ports and the controllers on them." },
   { "PadAutoAssign", &padAutoAssign, PADAUTOASSIGN_MANUAL, PADAUTOASSIGN_AUTOMATIC, NULL, "Pad Assignment", OPT_PAD_ASSIGN, "Automatic assigns the controllers to the ports." },
-  { "ControllerType", &controllerType, CONTROLLERTYPE_STANDARD, CONTROLLERTYPE_STICKDPAD, NULL, "PSX Controller Type", OPT_CONTROLLER, "Stick D-pad: a digital pad whose D-pad follows the left stick." },
+  { "ControllerType", &controllerType, CONTROLLERTYPE_STANDARD, CONTROLLERTYPE_STICKDPAD, NULL, "PSX Pad Type", OPT_CONTROLLER, "Stick D-pad: a digital pad whose D-pad follows the left stick." },
   { "RumbleEnabled", &rumbleEnabled, RUMBLE_DISABLE, RUMBLE_ENABLE, NULL, "Enable Rumble", OPT_NO_YES, "Turns the controller rumble on or off." },
   { "LoadButtonSlot", &loadButtonSlot, LOADBUTTON_SLOT0, LOADBUTTON_DEFAULT, NULL, "Auto Load Slot", OPT_SLOT, "The button config slot that loads at start." },
   { "LightGun", &lightGun, LIGHTGUN_DISABLE, LIGHTGUN_MOUSE, NULL, "Light Gun", OPT_LIGHTGUN, "Sets the light gun type. Off uses the pad." },
