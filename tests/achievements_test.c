@@ -171,6 +171,20 @@ int main(int argc, char **argv)
         fclose(f);
         achievements_close();
     }
+
+    /* A journal over the 1 MiB cap refuses the whole set; it is never partly restored. */
+    {
+        char big[256];
+        unsigned long n;
+        assert(snprintf(big, sizeof big, "%s/big_unlocks", argv[1]) < 256);
+        strcpy(achievementLog, big);
+        f = fopen(big, "wb"); assert(f);
+        for (n = 0; n < 1024UL * 1024UL + 1; ++n) fputc('#', f);
+        fclose(f);
+        set_file("Game=TEST12345\n1|Big|0xH000010=1\n");
+        assert(achievements_load("TEST12345") == -1 && !achievements_count());
+        achievementLog[0] = 0;
+    }
     free(state); free(old_state);
     puts("achievements: memory, evaluation, state identity, journal, and malformed sets ok");
     return 0;

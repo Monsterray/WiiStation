@@ -12,6 +12,7 @@
 
 #define MAX_ACHIEVEMENTS 128
 #define MAX_SET_SIZE (64 * 1024)
+#define JOURNAL_MAX (1024 * 1024) /* unlock log cap; load and append both fail closed past it */
 #define STATE_HEADER 36 /* WAC1, 16-byte definition digest, 128 earned bits */
 
 extern unsigned char *psxM, *psxH;
@@ -58,27 +59,40 @@ unsigned achievements_earned(void)
     return n;
 }
 
+/* Append one unlock record. Past JOURNAL_MAX, the next load would refuse the whole
+ * journal, so refuse the append too: fail closed, never grow the file past the cap. */
+static int journal_append(unsigned index)
+{
+    char line[256];
+    FILE *f;
+    long size;
+    int len = snprintf(line, sizeof line, "%s %u %s\n", digest_text,
+                       (unsigned)entries[index].id, entries[index].title);
+    int ok;
+    if (len < 0 || len >= (int)sizeof line) return 0;
+    f = fopen(log_path, "a");
+    if (!f) {
+        SysPrintf("Local achievements: cannot append unlock log %s\n", log_path);
+        return 0;
+    }
+    if (fseek(f, 0, SEEK_END) || (size = ftell(f)) < 0 || size + len > JOURNAL_MAX) {
+        fclose(f);
+        SysPrintf("Local achievements: unlock log full or unreadable, not appending %s\n", log_path);
+        return 0;
+    }
+    ok = fwrite(line, 1, (size_t)len, f) == (size_t)len;
+    if (fclose(f) != 0) ok = 0;
+    if (!ok) SysPrintf("Local achievements: unlock log write failed\n");
+    return ok;
+}
+
 void achievements_flush(void)
 {
-    FILE *f;
     unsigned i;
     if (!active) return;
     for (i = 0; i < count; ++i) {
         if (!entries[i].earned || entries[i].written) continue;
-        f = fopen(log_path, "a");
-        if (!f) {
-            SysPrintf("Local achievements: cannot append unlock log %s\n", log_path);
-            return; /* retry on the next menu/state boundary, never per frame */
-        }
-        {
-            int ok = fprintf(f, "%s %u %s\n", digest_text, (unsigned)entries[i].id,
-                             entries[i].title) >= 0;
-            if (fclose(f) != 0) ok = 0;
-            if (!ok) {
-                SysPrintf("Local achievements: unlock log write failed\n");
-                return;
-            }
-        }
+        if (!journal_append(i)) return; /* retry on the next menu/state boundary, never per frame */
         entries[i].written = 1;
         SysPrintf("Local achievement unlocked: %u %s\n", (unsigned)entries[i].id, entries[i].title);
     }
@@ -220,8 +234,17 @@ int achievements_load(const char *game_id)
     if (f) {
         char record[256], hash[33];
         unsigned saved_id;
-        size_t bytes = 0;
-        while (fgets(record, sizeof(record), f) && (bytes += strlen(record)) <= 1024 * 1024) {
+        long journal_size;
+        /* Oversize journal: restoring part of it would re-earn the rest and append
+         * duplicates. Refuse the whole set instead. */
+        if (fseek(f, 0, SEEK_END) || (journal_size = ftell(f)) < 0 || journal_size > JOURNAL_MAX ||
+            fseek(f, 0, SEEK_SET)) {
+            fclose(f);
+            SysPrintf("Local achievements: unlock log too large or unreadable, set refused: %s\n", log_path);
+            achievements_close();
+            return -1;
+        }
+        while (fgets(record, sizeof(record), f)) {
             if (sscanf(record, "%32s %u", hash, &saved_id) != 2 || strcmp(hash, digest_text)) continue;
             for (i = 0; i < count; ++i)
                 if (entries[i].id == saved_id) entries[i].earned = entries[i].written = 1;
