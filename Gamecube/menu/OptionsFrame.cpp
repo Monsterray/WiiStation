@@ -129,6 +129,7 @@ void ogx_tex_mem(unsigned *n, unsigned *data_kb, unsigned *semi_kb);
 extern const unsigned globalVramSize;
 }
 static void applySpuReverb(void) { setSpuReverb(soundReverb); }
+void applyVideoGamma(void);		/* Gamecube/libgui/GraphicsGX.cpp: one VI write */
 
 /*  Readouts (Memory page)  */
 
@@ -299,14 +300,18 @@ static void pluginsLeave(void)
 	}
 }
 
-/* All three are read when a disc image is opened, so they take effect at the next game
- * load rather than immediately (SETTINGS.md section 2). "Default" is the Dithering setting's
- * middle choice. The help text below says what it means. */
+/* The page is two columns of label + button (OptPage::columns): Dithering, a choice row, takes a
+ * whole line, the four cycles pair up below it. Dithering and MDEC Chroma are read when a disc
+ * image is opened, so they take effect at the next game load rather than immediately
+ * (SETTINGS.md section 2). "Default" is the Dithering setting's middle choice. Gamma is written
+ * to the video encoder now; Deflicker Level is read when the video mode is set up. */
 static const OptRow ADVGFX_ROWS[] =
 {
 	ROW_RADIO_FIT("Dithering", NULL),
 	ROW_CYCLE("MdecChroma", NULL),
 	ROW_CYCLE("FmvColour", NULL),
+	ROW_CYCLE("Gamma", applyVideoGamma),
+	ROW_CYCLE("DeflickerLevel", NULL),
 };
 
 static const OptHelp ADVGFX_HELP[] =
@@ -316,8 +321,9 @@ static const OptHelp ADVGFX_HELP[] =
 	{ "MDEC Chroma:",  "Sharp is the console: one colour sample per 2x2 pixels." },
 	{ NULL,            "Smooth mixes the samples: it looks better, costs more." },
 	{ NULL,            "It applies to the next video that starts." },
-	{ "Video Colour:", "24-bit is full colour, as on the console. 15-bit is" },
-	{ NULL,            "the old way: it shows bands in dark scenes." },
+	{ "Video Colour:", "24-bit is full colour. 15-bit bands in dark scenes." },
+	{ "Gamma:",        "Brightens the TV picture. 1.0 changes nothing." },
+	{ "Deflicker Level:", "Light blurs less than Normal. Needs Deflicker on." },
 };
 
 static const OptRow CD_ROWS[] =
@@ -365,6 +371,7 @@ struct OptPage
 	void				(*onEnter)(void);
 	void				(*onLeave)(void);
 	float				rowDy;			// the row pitch, or 0 for the default (60)
+	int					columns;		// 2: cycle rows in two label + button columns (eng::Page::columns)
 };
 
 #define COUNT(a)	((int)(sizeof(a) / sizeof((a)[0])))
@@ -372,7 +379,7 @@ struct OptPage
 static const OptPage PAGES[] =
 {
 	{ "Advanced Sound", NULL, SOUND_ROWS, COUNT(SOUND_ROWS), NULL,        0,                  SettingsFrame::SUBMENU_AUDIO,   NULL,         NULL         },
-	{ "Advanced Graphics", NULL, ADVGFX_ROWS, COUNT(ADVGFX_ROWS), ADVGFX_HELP, COUNT(ADVGFX_HELP), SettingsFrame::SUBMENU_VIDEO, NULL,  NULL         },
+	{ "Advanced Graphics", NULL, ADVGFX_ROWS, COUNT(ADVGFX_ROWS), ADVGFX_HELP, COUNT(ADVGFX_HELP), SettingsFrame::SUBMENU_VIDEO, NULL,  NULL,         0.0f, 2 },
 	{ "Advanced", "CPU",  PLUGIN_ROWS,  COUNT(PLUGIN_ROWS),  PLUGIN_HELP, COUNT(PLUGIN_HELP), SettingsFrame::SUBMENU_GENERAL, pluginsEnter, pluginsLeave },
 	{ "Advanced", "CD",   CD_ROWS,      COUNT(CD_ROWS),      CD_HELP,     COUNT(CD_HELP),     SettingsFrame::SUBMENU_GENERAL, pluginsEnter, pluginsLeave },
 	{ "Memory",   NULL,   MEMORY_ROWS,  COUNT(MEMORY_ROWS),  NULL,        0,                  SettingsFrame::SUBMENU_GENERAL, NULL,         NULL,         46.0f },
@@ -618,6 +625,7 @@ static void buildEnginePage(int page, int curTab)
 	ENG_PAGE.logo   = eng::LOGO_SPOT_BOTTOM;	/* MenuContext: FRAME_OPTIONS is in LOGO_BOTTOM_FRAMES */
 	ENG_PAGE.focus  = eng::FOCUS_ROWS;
 	ENG_PAGE.rowDy  = p.rowDy;
+	ENG_PAGE.columns = p.columns;
 }
 
 /* The widget a control of the engine's layout is drawn with. */

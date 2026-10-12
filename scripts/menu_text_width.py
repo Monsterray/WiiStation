@@ -299,9 +299,20 @@ def check_help(d, w, verbose, bad):
 
     # A page's help starts where its next row would have been, so the space above it is the
     # same as the space between two rows. XXX_HELP belongs to XXX_ROWS.
+    # A page with OptPage::columns = 2 (the last field of its PAGES entry) pairs its cycle rows
+    # into one line (MenuEngine.cpp rowCell): a ROW_CYCLE after a lone ROW_CYCLE shares its line.
+    two = set(re.findall(r'(\w+)_ROWS,[^\n]*,\s*2\s*\}', src))
     rowcount = {}
     for name, body in re.findall(r'static const OptRow (\w+)_ROWS\[\] =\s*\{(.*?)\n\};', src, re.S):
-        rowcount[name] = len(re.findall(r'\bROW_(?:CYCLE|RADIO|INFO)\s*\(', body))
+        kinds = re.findall(r'\bROW_(CYCLE|RADIO(?:_FIT)?|INFO)\s*\(', body)
+        lines, open_cell = 0, False
+        for k in kinds:
+            if name in two and k == 'CYCLE' and open_cell:
+                open_cell = False
+                continue
+            lines += 1
+            open_cell = name in two and k == 'CYCLE'
+        rowcount[name] = lines
 
     for page, body in re.findall(r'static const OptHelp (\w+)_HELP\[\] =\s*\{(.*?)\n\};', src, re.S):
         name = page + '_HELP'
