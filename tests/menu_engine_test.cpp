@@ -1000,6 +1000,10 @@ static const Known KNOWN[] = {
 	{ "Saves", PROB_TEXT_WIDE, "CardB", NULL },
 	{ "Saves", PROB_TEXT_WIDE, "Shared", NULL },
 	{ "Saves", PROB_TEXT_WIDE, "Yes", NULL },
+	/* The list pages (the file browser): "Prev" and "Next" are 56 and 59 px in the font, on 70 px
+	 * buttons with 16 px of padding a side. The browser has always drawn them so; the look is kept. */
+	{ "List", PROB_TEXT_WIDE, "Prev", NULL },
+	{ "List", PROB_TEXT_WIDE, "Next", NULL },
 	{ NULL, 0, NULL, NULL },
 };
 
@@ -2312,6 +2316,437 @@ static int checkButtonRowScreens(void)
 	return bad;
 }
 
+/*  Lists (ROW_LIST, step 4): a window of 10 over 5,000 items  */
+
+/* The item names, made once: the callback hands out pointers into this, as the file browser
+ * hands out its directory entries. */
+static char listNames[5000][16];
+static int  listCalls;
+
+static void listItemFn(void *, int index, ListItem &out)
+{
+	listCalls++;
+	out.text = listNames[index];
+	out.folder = (index % 7) == 0;		/* every seventh item is a folder */
+}
+
+static const ListButton LIST_PREV = { "Prev",  35.0f, 220.0f, 70.0f, 40.0f };
+static const ListButton LIST_NEXT = { "Next", 535.0f, 220.0f, 70.0f, 40.0f };
+
+/* The file browser's geometry: items at x 120, 400 wide, 35 high, 40 apart from y 40. */
+static ListSpec listSpec(ListState *st, ListMode mode)
+{
+	ListSpec sp;
+	memset(&sp, 0, sizeof sp);
+	sp.state = st;
+	sp.mode = mode;
+	sp.item = listItemFn;
+	sp.ctx = NULL;
+	sp.x0 = 120.0f; sp.y0 = 40.0f;
+	sp.w = 400.0f; sp.h = 35.0f; sp.pitch = 40.0f;
+	sp.prev = LIST_PREV;
+	sp.next = LIST_NEXT;
+	return sp;
+}
+
+/* A page of one list row, and nothing else. */
+static void listPageOf(Page &page, Row &row, const ListSpec &spec)
+{
+	memset(&row, 0, sizeof row);
+	row.kind = ROW_LIST;
+	row.list = &spec;
+	memset(&page, 0, sizeof page);
+	page.rows = &row;
+	page.nRows = 1;
+	page.logo = LOGO_SPOT_TOP;
+	page.focus = FOCUS_ROWS;
+}
+
+/* The window's item i, as a control index, or -1. */
+static int listItemCtl(const Layout &lay, int k)
+{
+	return (k >= 0 && k < MAX_LIST_SLOTS) ? lay.listItem[k] : -1;
+}
+
+static bool checkListWindow(const char *where, const Layout &lay, const ListState &st)
+{
+	bool ok = true;
+	for (int k = 0; k < st.slots; k++) {
+		const int c = listItemCtl(lay, k);
+		const int index = st.top + k;
+		if (c < 0) {
+			fail(where, "a window slot has no control");
+			return false;
+		}
+		if (index < st.count) {
+			if (!lay.c[c].text || strcmp(lay.c[c].text, listNames[index]) != 0) {
+				fail(where, "a shown item has the wrong text");
+				ok = false;
+			}
+			if (!lay.c[c].focusable || lay.c[c].folder != (index % 7 == 0)) {
+				fail(where, "a shown item is not an active button, or its folder flag is wrong");
+				ok = false;
+			}
+		} else {
+			if (lay.c[c].text[0] != '\0' || lay.c[c].focusable || lay.c[c].folder) {
+				fail(where, "a slot past the end of the list is not an empty inactive button");
+				ok = false;
+			}
+		}
+		if (!nearly(lay.c[c].rect.x, 120.0f) || !nearly(lay.c[c].rect.w, 400.0f) ||
+		    !nearly(lay.c[c].rect.y, 40.0f + 40.0f * k) || !nearly(lay.c[c].rect.h, 35.0f)) {
+			fail(where, "an item's box is not the file browser's");
+			ok = false;
+			break;
+		}
+	}
+	return ok;
+}
+
+/* Lays a list page out and links it, after the state has changed. Returns false if it does not lay out. */
+static bool layOutList(const Page &page, Layout &lay, const char *where)
+{
+	listCalls = 0;
+	if (layoutPage(page, kFont, lay) < 0) {
+		fail(where, "the list page does not lay out");
+		return false;
+	}
+	linkFocus(page, lay);
+	if (listCalls > page.rows[0].list->state->slots) {
+		fail(where, "the layout asked for more items than the window shows");
+		return false;
+	}
+	return true;
+}
+
+/* Checks the window's focus links and the window itself after a layout. */
+static void checkListLinks(const char *where, const Layout &lay, const ListState &st, bool paged)
+{
+	int A[MAX_LIST_SLOTS], n = 0;
+	const int prev = lay.slot[0][0], next = lay.slot[0][1];
+
+	for (int k = 0; k < st.slots; k++) {
+		const int c = listItemCtl(lay, k);
+		if (c >= 0 && lay.c[c].focusable)
+			A[n++] = c;
+	}
+	if (linksToInactive(lay) != 0)
+		fail(where, "a focus link points at an inactive control");
+	for (int j = 0; j < n; j++) {
+		const Control &c = lay.c[A[j]];
+		if (paged && n > 1) {
+			if (c.link[DIR_UP] != A[(j + n - 1) % n] || c.link[DIR_DOWN] != A[(j + 1) % n])
+				fail(where, "a paged window does not wrap up and down round its shown items");
+		} else {
+			if (c.link[DIR_UP] != (j > 0 ? A[j - 1] : -1) || c.link[DIR_DOWN] != (j + 1 < n ? A[j + 1] : -1))
+				fail(where, "a scrolling window does not stop at its ends");
+		}
+		if (c.link[DIR_LEFT] != (prev >= 0 && lay.c[prev].focusable ? prev : -1) ||
+		    c.link[DIR_RIGHT] != (next >= 0 && lay.c[next].focusable ? next : -1))
+			fail(where, "an item does not go to Prev and Next");
+	}
+}
+
+static void testListWindow(void)
+{
+	static ListState st;
+	static ListSpec spec;
+	static Row row;
+	static Page page;
+	static Layout lay;
+	static bool reached[MAX_CONTROLS];
+	const char *where = "list";
+
+	printf("Lists (a window of 10 over 5,000 items)\n");
+	for (int i = 0; i < 5000; i++)
+		snprintf(listNames[i], sizeof listNames[i], "file%04d", i);
+
+	/* The first page: ten items, Next active, Prev inactive, the default focus on item 0. */
+	st.count = 5000; st.slots = 10; st.top = 0; st.focus = -1;
+	spec = listSpec(&st, LIST_PAGED);
+	listPageOf(page, row, spec);
+	if (!layOutList(page, lay, where))
+		return;
+	if (listCalls != 10)
+		fail(where, "the layout did not ask for exactly the window's items");
+	if (!checkListWindow(where, lay, st))
+		return;
+	if (lay.list != 0 || lay.slot[0][0] < 0 || lay.slot[0][1] < 0)
+		fail(where, "the Prev and Next buttons are missing");
+	if (lay.c[lay.slot[0][0]].focusable || !lay.c[lay.slot[0][1]].focusable)
+		fail(where, "on the first page, Prev is active or Next is not");
+	if (lay.defaultFocus != lay.listItem[0])
+		fail(where, "the default focus is not the first item");
+	if (lay.c[lay.slot[0][0]].link[DIR_RIGHT] != lay.listItem[0])
+		fail(where, "an inactive Prev does not keep its link to the first item");
+	checkListLinks(where, lay, st, true);
+	if (reachFromDefault(lay, reached) != 11)
+		fail(where, "the first page's focus does not reach its ten items and Next");
+	if (auditLayout(page, lay, "List", -1, true) != 0)
+		fail(where, "checkLayout reports a problem with the first page that is not a known one");
+
+	/* Paging with Prev and Next: clamped at both ends, a page at a time. */
+	listTurn(st, -1, false);
+	if (st.top != 0 || st.focus != 0)
+		fail(where, "Prev on the first page moved");
+	listTurn(st, 1, false);
+	if (st.top != 10 || st.focus != 10)
+		fail(where, "Next did not turn to the second page, or focus did not land on its first item");
+	if (!layOutList(page, lay, where))
+		return;
+	if (!checkListWindow(where, lay, st))
+		return;
+	if (!lay.c[lay.slot[0][0]].focusable)
+		fail(where, "Prev is not active on the second page");
+	checkListLinks(where, lay, st, true);
+
+	/* The last page is full (4,990..4,999): Next is inactive there, and Next clamps. */
+	for (int i = 0; i < 499; i++)
+		listTurn(st, 1, false);
+	if (st.top != 4990)
+		fail(where, "paging forward did not reach the last full page");
+	listTurn(st, 1, false);
+	if (st.top != 4990)
+		fail(where, "Next on the last page moved");
+	if (!layOutList(page, lay, where))
+		return;
+	if (!checkListWindow(where, lay, st))
+		return;
+	if (lay.c[lay.slot[0][1]].focusable || !lay.c[lay.slot[0][0]].focusable)
+		fail(where, "on the last page, Next is active or Prev is not");
+	/* Focus can stay on a page button that has just gone inactive (the browser's Next, clicked on
+	 * the last page): its links stay, so Left still goes to the first item, and Right is none. */
+	if (lay.c[lay.slot[0][1]].link[DIR_LEFT] != listItemCtl(lay, 0) ||
+	    lay.c[lay.slot[0][1]].link[DIR_RIGHT] != -1)
+		fail(where, "an inactive Next lost its links: focus left on it would be stuck");
+
+	/* L and R wrap (listTurn with wrap): from the last page to the first, and back. */
+	listTurn(st, 1, true);
+	if (st.top != 0 || st.focus != 0)
+		fail(where, "R on the last page did not wrap to the first");
+	listTurn(st, -1, true);
+	if (st.top != 4990 || st.focus != 4990)
+		fail(where, "L on the first page did not wrap to the last");
+
+	/* A partial last page (5,005 items: 5,000..5,004 shown, five empty slots). The empty slots
+	 * are inactive and the window's links skip them, and the ring is the five shown items. */
+	st.count = 5005; st.top = 5000; st.focus = 5000;
+	if (!layOutList(page, lay, where))
+		return;
+	if (!checkListWindow(where, lay, st))
+		return;
+	checkListLinks(where, lay, st, true);
+	{
+		const int c4 = listItemCtl(lay, 4), c0 = listItemCtl(lay, 0);
+		if (lay.c[c4].link[DIR_DOWN] != c0)
+			fail(where, "the last shown item does not wrap to the first shown item");
+	}
+	if (reachFromDefault(lay, reached) != 6)
+		fail(where, "a partial last page does not reach its five items and Prev");
+	listTurn(st, 1, false);
+	if (st.top != 5000 || st.count != 5005)
+		fail(where, "a partial last page turned past its end");
+	st.count = 5000; st.top = 0; st.focus = -1;
+
+	/* Focus inside the window: a focus in the window is the default focus; one outside it is not. */
+	st.top = 10; st.focus = 13;
+	if (!layOutList(page, lay, where))
+		return;
+	if (lay.defaultFocus != listItemCtl(lay, 3))
+		fail(where, "a focus inside the window is not the default focus");
+	st.focus = 99;
+	if (!layOutList(page, lay, where))
+		return;
+	if (lay.defaultFocus != listItemCtl(lay, 0))
+		fail(where, "a focus outside the window does not fall back to the first shown item");
+	st.top = 0; st.focus = -1;
+
+	/* Errors: a window too small or too large, two lists on one page, a missing state. */
+	{
+		ListState bad = st;
+		ListSpec badSpec;
+		Row badRow;
+		Page badPage;
+		Layout badLay;
+
+		bad.slots = 0;
+		badSpec = listSpec(&bad, LIST_PAGED);
+		listPageOf(badPage, badRow, badSpec);
+		if (layoutPage(badPage, kFont, badLay) >= 0)
+			fail(where, "a list with no window was laid out");
+		bad.slots = MAX_LIST_SLOTS + 1;
+		badSpec = listSpec(&bad, LIST_PAGED);
+		listPageOf(badPage, badRow, badSpec);
+		if (layoutPage(badPage, kFont, badLay) >= 0)
+			fail(where, "a list window past MAX_LIST_SLOTS was laid out");
+	}
+	{
+		Row two[2];
+		Page twoPage;
+		memset(two, 0, sizeof two);
+		two[0].kind = ROW_LIST; two[0].list = &spec;
+		two[1].kind = ROW_LIST; two[1].list = &spec;
+		memset(&twoPage, 0, sizeof twoPage);
+		twoPage.rows = two; twoPage.nRows = 2; twoPage.logo = LOGO_SPOT_TOP;
+		if (layoutPage(twoPage, kFont, lay) >= 0)
+			fail(where, "two lists on one page were laid out");
+	}
+	{
+		Row nostate;
+		ListSpec nospec = spec;
+		Page nopage;
+		nospec.state = NULL;
+		memset(&nostate, 0, sizeof nostate);
+		nostate.kind = ROW_LIST; nostate.list = &nospec;
+		memset(&nopage, 0, sizeof nopage);
+		nopage.rows = &nostate; nopage.nRows = 1;
+		if (layoutPage(nopage, kFont, lay) >= 0)
+			fail(where, "a list with no state was laid out");
+	}
+
+	/* An empty list lays out with nothing focusable, and listTurn does nothing to it. */
+	{
+		ListState empty = { 0, 10, 0, -1 };
+		ListSpec es = listSpec(&empty, LIST_PAGED);
+		Row er;
+		Page ep;
+		listPageOf(ep, er, es);
+		if (!layOutList(ep, lay, where))
+			return;
+		if (lay.defaultFocus != -1 || lay.c[lay.slot[0][1]].focusable || lay.c[lay.slot[0][0]].focusable)
+			fail(where, "an empty list has something to focus");
+		listTurn(empty, 1, true);
+		if (empty.top != 0)
+			fail(where, "listTurn moved an empty list");
+	}
+}
+
+static void testListScroll(void)
+{
+	static ListState st;
+	static ListSpec spec;
+	static Row row;
+	static Page page;
+	static Layout lay;
+	static bool reached[MAX_CONTROLS];
+	const char *where = "list scroll";
+
+	printf("Lists, LIST_SCROLL (focus off an end scrolls the window)\n");
+	st.count = 5000; st.slots = 10; st.top = 0; st.focus = 0;
+	spec = listSpec(&st, LIST_SCROLL);
+	listPageOf(page, row, spec);
+	if (!layOutList(page, lay, where))
+		return;
+	if (!checkListWindow(where, lay, st))
+		return;
+	checkListLinks(where, lay, st, false);
+	if (lay.c[lay.slot[0][0]].focusable || lay.c[lay.slot[0][1]].focusable)
+		fail(where, "Prev or Next is active in a scrolling list");
+	if (reachFromDefault(lay, reached) != 10)
+		fail(where, "the scrolling window's focus does not reach its ten items");
+	if (auditLayout(page, lay, "List", -1, true) != 0)
+		fail(where, "checkLayout reports a problem with the scrolling window that is not a known one");
+
+	/* Inside the window, focus moves and the window stays. */
+	for (int i = 0; i < 9; i++)
+		if (listScroll(st, 1)) {
+			fail(where, "the window scrolled while focus was still inside it");
+			break;
+		}
+	if (st.focus != 9 || st.top != 0)
+		fail(where, "focus did not reach the window's last item without scrolling");
+
+	/* One step more leaves the window: it scrolls by one item and focus is its last item. */
+	if (!listScroll(st, 1) || st.focus != 10 || st.top != 1)
+		fail(where, "focus leaving the window's end did not scroll it by one item");
+	if (!layOutList(page, lay, where))
+		return;
+	if (!checkListWindow(where, lay, st))
+		return;
+	if (lay.defaultFocus != listItemCtl(lay, 9))
+		fail(where, "after scrolling, focus is not on the window's last item");
+
+	/* To the bottom of the list, then clamped there. */
+	while (st.focus < 4999)
+		listScroll(st, 1);
+	if (st.focus != 4999 || st.top != 4990)
+		fail(where, "scrolling to the end did not stop at the last item with the window at the end");
+	if (listScroll(st, 1) || st.focus != 4999 || st.top != 4990)
+		fail(where, "focus past the last item moved, or the window scrolled");
+	if (!layOutList(page, lay, where))
+		return;
+	if (!checkListWindow(where, lay, st))
+		return;
+
+	/* Back up: inside the window nothing scrolls; past its top, the window follows. */
+	listScroll(st, -1);
+	if (st.focus != 4998 || st.top != 4990)
+		fail(where, "moving up inside the window scrolled it");
+	while (st.focus > 4990)
+		listScroll(st, -1);
+	if (st.focus != 4990 || st.top != 4990)
+		fail(where, "moving up to the window's first item scrolled it");
+	if (!listScroll(st, -1) || st.focus != 4989 || st.top != 4989)
+		fail(where, "focus leaving the window's top did not scroll it up by one item");
+	while (st.focus > 0)
+		listScroll(st, -1);
+	if (st.focus != 0 || st.top != 0)
+		fail(where, "scrolling back to the first item did not stop at the top");
+	if (listScroll(st, -1) || st.focus != 0 || st.top != 0)
+		fail(where, "focus above the first item moved, or the window scrolled");
+
+	/* A list shorter than its window never scrolls. */
+	{
+		ListState shortSt = { 4, 10, 0, 0 };
+		int moved = 0;
+		for (int i = 0; i < 9; i++)
+			if (listScroll(shortSt, 1))
+				moved++;
+		if (moved != 0 || shortSt.focus != 3 || shortSt.top != 0)
+			fail(where, "a list shorter than its window scrolled, or focus passed its last item");
+	}
+
+	printf("  scrolling: focus leaving either end of the window scrolls it by one item; the ends clamp\n");
+}
+
+static void testListPaging(void)
+{
+	/* The browser's own turn rule, written out: Prev and Next clamp, L and R wrap, and a page is
+	 * ten items. Checked against the arithmetic the browser has always used (current_page,
+	 * max_page). */
+	static const int COUNTS[] = { 1, 10, 11, 25, 5000, 5005 };
+	int bad = 0;
+
+	printf("Lists, page turns against the browser's own arithmetic\n");
+	for (unsigned c = 0; c < sizeof COUNTS / sizeof COUNTS[0]; c++) {
+		const int maxPage = (COUNTS[c] + 9) / 10;
+		for (int start = 0; start < maxPage; start++) {
+			for (int dir = -1; dir <= 1; dir += 2) {
+				for (int wrap = 0; wrap <= 1; wrap++) {
+					ListState s = { COUNTS[c], 10, start * 10, -1 };
+					int want, got;
+					if (wrap)
+						want = ((start + dir) % maxPage + maxPage) % maxPage;
+					else
+						want = start + dir < 0 ? 0 : (start + dir >= maxPage ? maxPage - 1 : start + dir);
+					listTurn(s, dir, wrap != 0);
+					got = s.top / 10;
+					if (got != want || s.top % 10 != 0 || s.focus != s.top) {
+						bad++;
+						if (bad <= 5)
+							printf("  FAIL  list      count %d page %d dir %d wrap %d: went to %d, want %d\n",
+							       COUNTS[c], start, dir, wrap, got, want);
+					}
+				}
+			}
+		}
+	}
+	if (bad)
+		fail("list", "page turns differ from the browser's arithmetic (see above)");
+	printf("  page turns: %s over %u counts, every page, both directions, wrap and clamp\n",
+	       bad ? "MISMATCHES" : "all as the browser", (unsigned)(sizeof COUNTS / sizeof COUNTS[0]));
+}
+
 int main(int argc, char **argv)
 {
 	const char *font = argc > 1 ? argv[1] : "fonts/En.dat";
@@ -2340,6 +2775,9 @@ int main(int argc, char **argv)
 	reportGeometry();
 	testCheckCatches();
 	testInactiveNeverFocus();
+	testListWindow();
+	testListScroll();
+	testListPaging();
 
 	printf("\n%s: %d check%s failed\n", failures ? "FAILED" : "PASSED", failures, failures == 1 ? "" : "s");
 	return failures > 255 ? 255 : failures;

@@ -25,6 +25,12 @@
  * each one only when both of its buttons are focus targets, so one never points at a hidden or
  * inactive control. Current ROM uses four of them to keep Save State and Cycle State together.
  *
+ * A list (ROW_LIST, step 4) is a window of N item buttons over a list of any length, plus Prev and
+ * Next buttons where the page turns. The engine lays out only the window: the caller gives the
+ * count, and a callback that says what item i is, called for the shown items only. The scrolling
+ * state is a ListState the caller owns, changed by listTurn() (pages) or listScroll() (focus at
+ * the ends), and the page is laid out again after each change -- never per frame.
+ *
  * This program is free software; you can redistribute it and/
  * or modify it under the terms of the GNU General Public Li-
  * cence as published by the Free Software Foundation; either
@@ -52,7 +58,8 @@ enum {
 	MAX_TABS     = 6,
 	MAX_HELP     = 8,
 	MAX_CONTROLS = 96,
-	MAX_PROBLEMS = 64
+	MAX_PROBLEMS = 64,
+	MAX_LIST_SLOTS = 16		/* item buttons in one list's window */
 };
 
 /* The numbers of OptionsFrame.cpp, under their names. Three disagree with MenuLayout.h and are
@@ -107,6 +114,51 @@ struct Metrics {
 	void        *ctx;
 };
 
+/*  Lists  */
+
+/* The scrolling state of one list. The caller owns it and sets count, slots and focus; the
+ * engine changes top and focus through listTurn() and listScroll(). Nothing is kept per item. */
+struct ListState {
+	int count;		/* items in the list, of any length */
+	int slots;		/* items shown at once: the window, 1..MAX_LIST_SLOTS */
+	int top;		/* the first item shown; a multiple of slots in LIST_PAGED */
+	int focus;		/* the item focus lands on when the page is shown; -1 for the first shown */
+};
+
+enum ListMode {
+	LIST_PAGED,		/* the file browser: Prev and Next turn pages (clamped); focus wraps round the
+	                 * window, as the links say; listTurn() with wrap also turns pages by L/R */
+	LIST_SCROLL		/* focus moving off either end of the window scrolls it by one item, clamped at
+	                 * the list's own ends (listScroll); the links stop at the window's ends */
+};
+
+/* What item i is: its text, and whether it is a folder (drawn in the folder colour). The text must
+ * stay valid while the page is shown: the caller's own storage, nothing copied. */
+struct ListItem {
+	const char *text;
+	bool        folder;
+};
+
+/* Called by the engine for each shown item, when the window is laid out. index is absolute. */
+typedef void (*ListItemFn)(void *ctx, int index, ListItem &out);
+
+/* A Prev or Next button: its text and its box, which need not be on the grid. */
+struct ListButton {
+	const char *text;
+	float       x, y, w, h;
+};
+
+struct ListSpec {
+	ListState  *state;		/* caller-owned */
+	ListMode    mode;
+	ListItemFn  item;
+	void       *ctx;
+	float       x0, y0;		/* the first item's top left */
+	float       w, h;		/* an item's size */
+	float       pitch;		/* item to item; 0 = h */
+	ListButton  prev, next;	/* LIST_PAGED's page buttons; drawn in both modes, active only when paged */
+};
+
 /*  Rows  */
 
 enum RowKind {
@@ -114,7 +166,8 @@ enum RowKind {
 	ROW_CYCLE,		/* label + one button stepping through names[] and wrapping */
 	ROW_CHOICE,		/* a row of 2..MAX_SLOTS buttons, the current one lit */
 	ROW_READOUT,	/* label + text on the right, not focusable */
-	ROW_BUTTONS		/* no label: action buttons centred on the screen */
+	ROW_BUTTONS,	/* no label: action buttons centred on the screen */
+	ROW_LIST		/* a ListSpec: a window of item buttons (and Prev/Next); at most one per page */
 };
 
 struct ActionButton {
@@ -143,6 +196,8 @@ struct Row {
 	 * It is drawn, but it is never a focus target and no link points at it. A Toggle or Cycle
 	 * has one button, bit 0. Zero, the default, makes every button active. */
 	unsigned            inactive;
+	/* Added for lists (step 4). ROW_LIST only. */
+	const ListSpec     *list;
 };
 
 /*  Pages  */
@@ -214,7 +269,9 @@ enum CtrlRole {
 	ROLE_BUTTON,	/* a toggle or cycle button, or an action button */
 	ROLE_CHOICE,	/* one button of a choice row */
 	ROLE_HELP_TERM,	/* bold, right-aligned in the term column */
-	ROLE_HELP_TEXT
+	ROLE_HELP_TEXT,
+	ROLE_LIST_ITEM,	/* one item of a list's window; inactive past the end of the list */
+	ROLE_LIST_PAGE	/* a list's Prev or Next button */
 };
 
 enum TextAlign {
@@ -239,6 +296,7 @@ struct Control {
 	const char *text;
 	bool        focusable;		/* a focus target: a shown, active button (or a tab) */
 	bool        selected;		/* lit: the current choice or the current tab */
+	bool        folder;			/* a list item that is a folder: drawn in the folder colour */
 	int         link[DIR_COUNT];	/* index into Layout::c, or -1 */
 };
 
@@ -248,7 +306,10 @@ struct Layout {
 	int     n;
 	int     tab[MAX_TABS];			/* index of each tab, -1 when there is no tab row */
 	int     title;					/* index, or -1 */
-	int     slot[MAX_ROWS][MAX_SLOTS];	/* focusable control of each row slot, or -1 */
+	int     slot[MAX_ROWS][MAX_SLOTS];	/* focusable control of each row slot, or -1; a list row's
+	                                 * slots 0 and 1 are its Prev and Next buttons */
+	int     list;					/* the list row's index, or -1 */
+	int     listItem[MAX_LIST_SLOTS];	/* control index of each window slot, or -1 */
 	int     defaultFocus;			/* where focus lands when the page is shown, or -1 */
 };
 
@@ -259,6 +320,15 @@ int layoutPage(const Page &page, const Metrics &m, Layout &out);
 /* Sets Up/Down/Left/Right on every focusable control, by page.focus, then applies the page's
  * overrides. Call after layoutPage. */
 void linkFocus(const Page &page, Layout &lay);
+
+/* Lists. listTurn() turns a page: LIST_PAGED's Prev and Next clamp (wrap false), L and R wrap
+ * (wrap true), and focus lands on the page's first item. Lays out nothing: the caller lays the
+ * page out again. */
+void listTurn(ListState &s, int delta, bool wrap);
+
+/* LIST_SCROLL: focus moves by delta (+1 or -1), clamped at the list's ends. Where focus leaves the
+ * window, the window scrolls by one item to keep it in. Returns true when the window moved. */
+bool listScroll(ListState &s, int delta);
 
 /* The width a fitted choice is drawn at: its label plus 16 px each side, rounded up to an
  * even width (Button::fitToLabel). An empty label keeps the choice width. */

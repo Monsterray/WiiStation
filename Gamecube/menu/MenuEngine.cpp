@@ -31,9 +31,10 @@ namespace engine {
 using namespace grid;
 
 /* Every control the worst legal page can need must fit in Layout::c: the tabs, the title,
- * two controls per row plus a row of up to MAX_SLOTS buttons, and two per help line. */
+ * two controls per row plus a row of up to MAX_SLOTS buttons, two per help line, and a list's
+ * window with its Prev and Next. */
 typedef char engine_controls_fit
-	[(MAX_TABS + 1 + MAX_ROWS * (2 + MAX_SLOTS) + 2 * MAX_HELP) <= MAX_CONTROLS ? 1 : -1];
+	[(MAX_TABS + 1 + MAX_ROWS * (2 + MAX_SLOTS) + 2 * MAX_HELP + MAX_LIST_SLOTS + 2) <= MAX_CONTROLS ? 1 : -1];
 
 /* The text of a measured string. OptionsFrame's helpWidth() gives 0 for an empty string; the
  * Button fit and TextBox drawing use IplFont directly, which gives 5 for an empty one. */
@@ -68,6 +69,10 @@ static bool rowValid(const Row &r)
 	case ROW_CHOICE:  return r.count >= 1 && r.count <= MAX_SLOTS && r.names != NULL;
 	case ROW_BUTTONS: return r.count >= 1 && r.count <= MAX_SLOTS && r.actions != NULL;
 	case ROW_READOUT: return true;
+	case ROW_LIST:
+		return r.list && r.list->state && r.list->item &&
+		       r.list->state->slots >= 1 && r.list->state->slots <= MAX_LIST_SLOTS &&
+		       r.list->state->count >= 0;
 	}
 	return false;
 }
@@ -271,23 +276,64 @@ static float rowStart(const Metrics &m, const Row &r, float y, LogoSpot spot)
 	return r.x0 > 0 ? r.x0 : choiceStart(m, r, y, spot);
 }
 
+/* A list's window: its Prev and Next buttons, then the item buttons, slot by slot. The items past
+ * the end of the list are drawn inactive, with no text, as the file browser has always drawn its
+ * empty slots. Items are asked for only in the window: nothing is kept per item. */
+static void layoutList(Layout &out, const ListSpec &L, int row)
+{
+	const ListState &s = *L.state;
+	const float pitch = L.pitch > 0 ? L.pitch : L.h;
+	const bool paged = L.mode == LIST_PAGED;
+	const bool canPrev = paged && s.top > 0;
+	const bool canNext = paged && s.top + s.slots < s.count;
+
+	out.slot[row][0] = addButton(out, ROLE_LIST_PAGE, row, 0, L.prev.x, L.prev.y, L.prev.w, L.prev.h,
+	                             L.prev.text, false, canPrev);
+	out.slot[row][1] = addButton(out, ROLE_LIST_PAGE, row, 1, L.next.x, L.next.y, L.next.w, L.next.h,
+	                             L.next.text, false, canNext);
+	for (int k = 0; k < s.slots; k++) {
+		const int index = s.top + k;
+		const bool shown = index < s.count;
+		ListItem it;
+		int c;
+
+		it.text = "";
+		it.folder = false;
+		if (shown)
+			L.item(L.ctx, index, it);
+		c = addButton(out, ROLE_LIST_ITEM, row, k, L.x0, L.y0 + k * pitch, L.w, L.h,
+		              shown && it.text ? it.text : "", false, shown);
+		out.c[c].folder = shown && it.folder;
+		out.listItem[k] = c;
+	}
+}
+
 int layoutPage(const Page &p, const Metrics &m, Layout &out)
 {
 	if (p.nRows < 0 || p.nRows > MAX_ROWS || p.nHelp < 0 || p.nHelp > MAX_HELP ||
 	    p.nTabs < 0 || p.nTabs > MAX_TABS || (p.nTabs > 0 && (!p.tabs || p.curTab < 0 || p.curTab >= p.nTabs)))
 		return -1;
-	for (int i = 0; i < p.nRows; i++)
+	int lists = 0;
+	for (int i = 0; i < p.nRows; i++) {
 		if (!rowValid(p.rows[i]))
 			return -1;
+		if (p.rows[i].kind == ROW_LIST)
+			lists++;
+	}
+	if (lists > 1)
+		return -1;
 
 	out.n = 0;
 	out.title = -1;
+	out.list = -1;
 	out.defaultFocus = -1;
 	for (int t = 0; t < MAX_TABS; t++)
 		out.tab[t] = -1;
 	for (int r = 0; r < MAX_ROWS; r++)
 		for (int s = 0; s < MAX_SLOTS; s++)
 			out.slot[r][s] = -1;
+	for (int k = 0; k < MAX_LIST_SLOTS; k++)
+		out.listItem[k] = -1;
 
 	/* The choice labels' shared centre: RLABEL_CX, moved left only when a row of buttons had
 	 * to move left, so that its label still clears them by RLABEL_GAP. */
@@ -367,6 +413,10 @@ int layoutPage(const Page &p, const Metrics &m, Layout &out)
 			}
 			break;
 		}
+		case ROW_LIST:
+			out.list = i;
+			layoutList(out, *r.list, i);
+			break;
 		case ROW_BUTTONS: {
 			/* Centred on the screen, or from x0. With a label, the label is drawn left of them. */
 			const float gap = r.gap > 0 ? r.gap : TAB_GAP;
@@ -419,6 +469,10 @@ static void linkRows(const Page &p, Layout &lay)
 	const int cur = tabbed ? lay.tab[p.curTab] : -1;
 
 	for (int i = 0; i < p.nRows; i++) {
+		if (i == lay.list) {		/* a list's links are its own (linkList) */
+			nA[i] = 0;
+			continue;
+		}
 		activeSlots(lay, i, A[i], nA[i]);
 		if (nA[i] > 0)
 			F[nf++] = i;
@@ -463,6 +517,60 @@ static void linkRows(const Page &p, Layout &lay)
 			for (int c = 0; c < nA[first]; c++)
 				lay.c[A[first][c]].link[DIR_UP] = cur;
 		}
+	}
+}
+
+/* A list's rule (the file browser's): LIST_PAGED's items go up and down round the window and skip
+ * the inactive ones, as the file browser has always wrapped; LIST_SCROLL's stop at the window's
+ * ends, where the caller scrolls. Left and Right go to Prev and Next, and each of those goes back
+ * to the window's first item. Only focus targets are linked. */
+static void linkList(const Page &p, Layout &lay)
+{
+	const ListSpec *L;
+	int A[MAX_LIST_SLOTS], n = 0;
+	int prev, next;
+
+	if (lay.list < 0)
+		return;
+	L = p.rows[lay.list].list;
+	for (int k = 0; k < L->state->slots; k++) {
+		const int c = lay.listItem[k];
+		if (c >= 0 && lay.c[c].focusable)
+			A[n++] = c;
+	}
+
+	prev = lay.slot[lay.list][0];
+	next = lay.slot[lay.list][1];
+	if (prev >= 0 && !lay.c[prev].focusable)
+		prev = -1;
+	if (next >= 0 && !lay.c[next].focusable)
+		next = -1;
+
+	for (int j = 0; j < n; j++) {
+		Control &c = lay.c[A[j]];
+		if (L->mode == LIST_PAGED && n > 1) {
+			c.link[DIR_UP]   = A[(j + n - 1) % n];
+			c.link[DIR_DOWN] = A[(j + 1) % n];
+		} else {
+			c.link[DIR_UP]   = j > 0 ? A[j - 1] : -1;
+			c.link[DIR_DOWN] = j + 1 < n ? A[j + 1] : -1;
+		}
+		c.link[DIR_LEFT]  = prev;
+		c.link[DIR_RIGHT] = next;
+	}
+
+	/* A page button's own links are kept while it is inactive: focus stays on Next after the last
+	 * page turns it off, and from there Left still goes to the first item, as the browser always
+	 * did. No link points at it, so only focus that is already on it uses these. */
+	if (lay.slot[lay.list][0] >= 0) {
+		Control &c = lay.c[lay.slot[lay.list][0]];
+		c.link[DIR_UP] = c.link[DIR_DOWN] = c.link[DIR_LEFT] = -1;
+		c.link[DIR_RIGHT] = n > 0 ? A[0] : -1;
+	}
+	if (lay.slot[lay.list][1] >= 0) {
+		Control &c = lay.c[lay.slot[lay.list][1]];
+		c.link[DIR_UP] = c.link[DIR_DOWN] = c.link[DIR_RIGHT] = -1;
+		c.link[DIR_LEFT] = n > 0 ? A[0] : -1;
 	}
 }
 
@@ -537,6 +645,31 @@ static void applyOverrides(const Page &p, Layout &lay)
 	}
 }
 
+/* The list's focus: the item the state names when it is shown and active, else the first
+ * active item, else the first active Prev or Next. */
+static int listDefault(const Page &p, const Layout &lay)
+{
+	const ListState &s = *p.rows[lay.list].list->state;
+	const int want = s.focus - s.top;
+
+	if (s.focus >= 0 && want >= 0 && want < s.slots) {
+		const int c = lay.listItem[want];
+		if (c >= 0 && lay.c[c].focusable)
+			return c;
+	}
+	for (int k = 0; k < s.slots; k++) {
+		const int c = lay.listItem[k];
+		if (c >= 0 && lay.c[c].focusable)
+			return c;
+	}
+	for (int k = 0; k < 2; k++) {
+		const int c = lay.slot[lay.list][k];
+		if (c >= 0 && lay.c[c].focusable)
+			return c;
+	}
+	return -1;
+}
+
 void linkFocus(const Page &p, Layout &lay)
 {
 	int def = -1;
@@ -549,10 +682,15 @@ void linkFocus(const Page &p, Layout &lay)
 		linkGeometry(lay);
 	else
 		linkRows(p, lay);
+	linkList(p, lay);
 	applyOverrides(p, lay);
 
+	if (lay.list >= 0)
+		def = listDefault(p, lay);
 	for (int i = 0; i < p.nRows && def < 0; i++) {
 		int A[MAX_SLOTS], n;
+		if (i == lay.list)
+			continue;
 		activeSlots(lay, i, A, n);
 		if (n > 0)
 			def = A[0];
@@ -602,7 +740,7 @@ int checkLayout(const Page &p, const Metrics &m, const Layout &lay, Problem *out
 		}
 
 		if (c.kind == CTRL_BUTTON &&
-		    (c.role == ROLE_TAB || c.role == ROLE_BUTTON || c.role == ROLE_CHOICE)) {
+		    (c.role == ROLE_TAB || c.role == ROLE_BUTTON || c.role == ROLE_CHOICE || c.role == ROLE_LIST_PAGE)) {
 			if (m.width(c.text, TEXT_SCALE, m.ctx) + 2.0f * BUTTON_PAD_X > r.w)
 				note(out, maxOut, np, PROB_TEXT_WIDE, i, -1);
 		}
@@ -644,6 +782,41 @@ int checkLayout(const Page &p, const Metrics &m, const Layout &lay, Problem *out
 			note(out, maxOut, np, PROB_UNREACHABLE, i, -1);
 
 	return np;
+}
+
+void listTurn(ListState &s, int delta, bool wrap)
+{
+	const int slots = s.slots > 0 ? s.slots : 1;
+	const int pages = (s.count + slots - 1) / slots;
+	int p = s.top / slots;
+
+	if (pages <= 0)
+		return;
+	if (wrap) {
+		p = ((p + delta) % pages + pages) % pages;
+	} else {
+		p += delta;
+		if (p < 0) p = 0;
+		if (p >= pages) p = pages - 1;
+	}
+	s.top = p * slots;
+	s.focus = s.top;
+}
+
+bool listScroll(ListState &s, int delta)
+{
+	const int top = s.top;
+	int f = s.focus < 0 ? s.top : s.focus;
+
+	if (s.count <= 0 || s.slots < 1)
+		return false;
+	f += delta;
+	if (f < 0) f = 0;
+	if (f >= s.count) f = s.count - 1;
+	s.focus = f;
+	if (f < s.top) s.top = f;
+	if (f >= s.top + s.slots) s.top = f - s.slots + 1;
+	return s.top != top;
 }
 
 const char *problemName(int kind)
