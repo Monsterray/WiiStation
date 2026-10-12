@@ -95,6 +95,11 @@ void Frame::remove(Component* component)
 	}
 }
 
+bool Frame::has(Component* component)
+{
+	return std::find(componentList.begin(), componentList.end(), component) != componentList.end();
+}
+
 void Frame::removeAll()
 {
 	componentList.clear();

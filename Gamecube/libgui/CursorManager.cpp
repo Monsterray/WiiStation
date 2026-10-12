@@ -140,7 +140,7 @@ void Cursor::setCursorFocus(Component* component)
 	if (buttonsPressed & WPAD_BUTTON_B) buttonsDown |= Focus::ACTION_BACK;
 #endif
 	if (freezeAction) buttonsDown = 0;
-	if (component) newHoverOverComponent = component->updateFocus(0/*focusDirection*/,buttonsDown);
+	if (component) newHoverOverComponent = Focus::getInstance().pressOn(component, 0/*focusDirection*/, buttonsDown);
 	if (newHoverOverComponent) 
 	{
 		if (hoverOverComponent) hoverOverComponent->setFocus(false);
