@@ -462,6 +462,14 @@ int load_configurations(FILE* f, controller_t* controller){
 		controller->config_slot[i].fastf =
 			getPointer(controller->menu_combos, controller->num_menu_combos);
 	}
+	/* The screenshot combinations come after the four slots. A file from before them
+	 * has none, so every slot takes the controller's default. */
+	for(i=0; i<4; ++i){
+		int index;
+		if (fread(&index, 4, 1, f) != 1 || index < 0 || index >= controller->num_screenshot_combos)
+			index = controller->config_default.screenshot->index;
+		controller->config_slot[i].screenshot = controller->screenshot_combos + index;
+	}
 
 	if (loadButtonSlot != LOADBUTTON_DEFAULT) {
 		int j;
@@ -510,6 +518,8 @@ void save_configurations(FILE* f, controller_t* controller){
 		fwrite(&controller->config_slot[i].sensitivity, 4, 1, f);
 		fwrite(&controller->config_slot[i].fastf->index, 4, 1, f);
 	}
+	for(i=0; i<4; ++i)
+		fwrite(&controller->config_slot[i].screenshot->index, 4, 1, f);
 }
 
 long PAD__init(long flags) {

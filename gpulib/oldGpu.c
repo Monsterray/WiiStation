@@ -1325,3 +1325,15 @@ gpu_t oldSoftGpu = {
     PEOPS_GPUwriteDataMem,
     GPUsetframelimit
 };
+
+/* Screenshots (Gamecube/screenshot.c): the rectangle of VRAM the old soft and OpenGX
+ * renderers draw, at its real resolution (PSXDisplay, as CHECK_SCREEN_INFO in
+ * GlesGpu/gpuPlugin.c reads it). The two renderers share this global. */
+void PSX_display_rect(int *x, int *y, int *w, int *h, int *rgb24)
+{
+    *x = PSXDisplay.DisplayPosition.x;
+    *y = PSXDisplay.DisplayPosition.y;
+    *w = PSXDisplay.DisplayModeNew.x;
+    *h = PSXDisplay.DisplayModeNew.y;
+    *rgb24 = PSXDisplay.RGB24;
+}

@@ -211,6 +211,22 @@ Until 2026-09-21 this setting moved the light-gun and mouse pointer only and did
 
 A USB HID controller needs a configuration file in the Nintendont format. The file name is the vendor ID and the product ID of the controller in hexadecimal, for example `0810_0003.ini`. Put the file in `sd:/wiistation/controllers/` or `usb:/wiistation/controllers/`. See `README.md` for the file format.
 
+### 6.5 Screenshot combination
+
+Each controller type has its own screenshot combination. It is set in Configure Buttons, with the Screenshot button, and it is saved in that controller's button-mapping file, as the menu combination is. It is not a key of the settings file.
+
+The choices are Off and a short list for each controller type. The default is:
+
+- GameCube pad: L+R+Z.
+- HID pad: L2+R2+Select.
+- Wii Classic Controller, Wii U Pro Controller and Wii U GamePad: L+R+ZL.
+- Wiimote with Nunchuk, or Wiimote alone: A+B+1.
+
+Press the combination in a game to save the picture on screen. The file goes to `sd:/wiistation/screenshots/`. Each press saves one picture. The Current ROM page has a Screenshot button that does the same.
+
+A screenshot combination never contains a menu combination. Configure Buttons refuses a screenshot choice that contains the exit or fast-forward combination, and it refuses an exit or fast-forward choice that lies inside the screenshot combination, because either one would open the menu or fast-forward first.
+
+A mapping file from before this version has no screenshot entry. Each controller then takes its default.
 ## 7. Network settings
 
 WiiStation can read games from a network share (SMB2 or SMB3: a Samba server, a NAS or a

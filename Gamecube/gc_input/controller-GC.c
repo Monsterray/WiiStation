@@ -83,6 +83,15 @@ static button_t menu_combos[] = {
 	{ 2, PAD_BUTTON_START|PAD_BUTTON_Y, "Start+Y" },
 };
 
+/* Screenshot combinations, entry 0 is Off. Start is in none of them, so the game does not pause.
+ * Entry 1 is the default. No menu combination may lie inside one of these (Configure Buttons
+ * refuses it). */
+static button_t screenshot_combos[] = {
+	{ 0, 0,                                          "Off" },
+	{ 1, PAD_TRIGGER_L|PAD_TRIGGER_R|PAD_TRIGGER_Z, "L+R+Z" },
+	{ 2, PAD_TRIGGER_L|PAD_TRIGGER_R,                "L+R" },
+};
+
 u32 gc_connected;
 
 /* One reading of a GameCube pad: the buttons held and the two sticks, as libogc reports
@@ -266,8 +275,8 @@ static int _GetKeys(int Control, BUTTONS * Keys, controller_config_t* config)
 	// Return 1 if exit, 2 if fastforward
 	if (!isHeld(config->exit)) return 1;
 	if (!isHeld(config->fastf)) return 2;
-	else 
-		return 0;
+	screenshot_poll(Control, config->screenshot && config->screenshot->mask && !isHeld(config->screenshot));
+	return 0;
 }
 
 static void pause(int Control){
@@ -306,6 +315,8 @@ controller_t controller_GC =
 	  analog_sources,
 	  sizeof(menu_combos)/sizeof(menu_combos[0]),
 	  menu_combos,
+	  sizeof(screenshot_combos)/sizeof(screenshot_combos[0]),
+	  screenshot_combos,
 	  { .SQU        = &buttons[10], // B
 	    .CRO        = &buttons[9],  // A
 	    .CIR        = &buttons[11], // X
@@ -329,6 +340,7 @@ controller_t controller_GC =
 	    .invertedYR = 0,
 		.sensitivity = 1.0,
 		.fastf       = &menu_combos[2], // Start+Y
+		.screenshot = &screenshot_combos[1],
 	  }
 	 };
 
