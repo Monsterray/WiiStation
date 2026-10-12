@@ -106,6 +106,11 @@ namespace grid {
 	const float HELP_LINE_DY  =  19.0f;	/* lines of one explanation */
 	const float HELP_CELL_GAP =   9.0f;	/* extra before a line that starts a new term */
 	const float FONT_H        =  24.0f;	/* the glyph tile: CH_FONT_HEIGHT in IPLFont.cpp */
+	/* Page::columns == 2: each column is a label and a button, 6 px apart; the four fill the
+	 * width (the longest label, "Deflicker Level", is 175 px; "Smooth" needs a 125 px button). */
+	const float COL2_LABEL_CX[2] = {  95.0f, 414.0f };
+	const float COL2_BTN_X[2]    = { 188.0f, 507.0f };
+	const float COL2_BTN_W       = 126.0f;
 }
 
 /* Text measurement. The Wii passes IplFont's getStringWidth and getStringHeight; the host
@@ -315,6 +320,11 @@ struct Page {
 	 * A direction with no target wraps to the farthest focusable control on its row or column.
 	 * With none there, it wraps to the farthest focusable control on that side, nearest in the cross axis. */
 	bool             wrap;
+	/* 2 = two columns of label + button. Toggle and Cycle rows fill the cells in reading order
+	 * (left, then right, then the next line); any other row (a choice row, readouts, buttons,
+	 * a list) takes a whole line. Zero or 1 is one row per line, as every page was.
+	 * FOCUS_ROWS: Left and Right run along a line, Up and Down keep the column. */
+	int              columns;
 };
 
 /*  Layout output  */

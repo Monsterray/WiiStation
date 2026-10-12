@@ -3524,6 +3524,138 @@ static void testCycle(void)
 	printf("cycle: wraps through all names ... %s\n", failures == before ? "ok" : "FAILED");
 }
 
+/* Page::columns == 2 (Advanced Graphics): Cycle rows fill two columns of label + button, a choice
+ * row takes the whole line, the help starts under the last line, focus runs by geometry. */
+static void testTwoColumns(void)
+{
+	static const char *const GAMMA_NAMES[] = { "1.0", "1.1", "1.2", "1.3", "1.4", "1.5" };
+	static const char *const DEFLICKER_NAMES[] = { "Normal", "Light" };
+	static Row rows[] = {
+		RADIO_FIT("Dithering",       DITHER_NAMES,      1),
+		CYC("MDEC Chroma",           CHROMA_NAMES,      0),
+		CYC("Video Colour",          FMV_COLOUR_NAMES,  1),
+		CYC("Gamma",                 GAMMA_NAMES,       0),
+		CYC("Deflicker Level",       DEFLICKER_NAMES,   0),
+	};
+	Page p;
+	Layout lay;
+	Problem probs[MAX_PROBLEMS];
+	int before = failures;
+
+	memset(&p, 0, sizeof p);
+	p.title = "Advanced Graphics";
+	p.rows = rows;
+	p.nRows = COUNT(rows);
+	p.help = ADVGFX_HELP;
+	p.nHelp = COUNT(ADVGFX_HELP);
+	p.logo = LOGO_SPOT_BOTTOM;
+	p.focus = FOCUS_ROWS;
+	p.columns = 2;
+
+	if (layoutPage(p, kFont, lay) < 0)
+		fail("2 columns", "layoutPage refused the page");
+	linkFocus(p, lay);
+	if (checkLayout(p, kFont, lay, probs, MAX_PROBLEMS) != 0)
+		fail("2 columns", "checkLayout finds a problem on the page");
+
+	/* Lines: Dithering at 100, the two Cycle pairs at 160 and 220. */
+	{
+		static const float WANT_X[5] = { 0, 188, 507, 188, 507 };
+		static const float WANT_Y[5] = { 0, 160, 160, 220, 220 };
+		for (int i = 1; i < 5; i++) {
+			const Key kb = { ROLE_BUTTON, i, 0 }, kl = { ROLE_LABEL, i, 0 };
+			const int b = findCtrl(lay, kb), l = findCtrl(lay, kl);
+			if (b < 0 || l < 0) { fail("2 columns", "a row lost its label or button"); continue; }
+			if (lay.c[b].rect.x != WANT_X[i] || lay.c[b].rect.y != WANT_Y[i] ||
+			    lay.c[b].rect.w != 126.0f || lay.c[b].rect.h != 56.0f)
+				fail("2 columns", "a button is not in its cell");
+			if (lay.c[l].ax != (i % 2 ? 95.0f : 414.0f) || lay.c[l].ay != WANT_Y[i] + 20.0f)
+				fail("2 columns", "a label is not in its cell");
+		}
+	}
+	/* The choice row is where it always was; the help starts under line 3 (y 280), not row 5 (400). */
+	{
+		const Key kc = { ROLE_CHOICE, 0, 0 }, kh = { ROLE_HELP_TERM, -1, 0 };
+		const int c = findCtrl(lay, kc), h = findCtrl(lay, kh);
+		if (c < 0 || lay.c[c].rect.y != 100.0f)
+			fail("2 columns", "the Dithering row moved");
+		if (h < 0 || lay.c[h].rect.y != 280.0f)
+			fail("2 columns", "the help does not start under the last line");
+	}
+	/* Focus: Down and Up keep the column, Left and Right change it and wrap. */
+	{
+		static const struct { int row, dir, to; } F[] = {
+			{ 1, DIR_RIGHT, 2 }, { 2, DIR_LEFT, 1 }, { 2, DIR_RIGHT, 1 }, { 1, DIR_LEFT, 2 },
+			{ 1, DIR_DOWN, 3 },  { 2, DIR_DOWN, 4 }, { 3, DIR_UP, 1 },    { 4, DIR_UP, 2 },
+			{ 3, DIR_DOWN, 0 },  { 4, DIR_DOWN, 0 },	/* the bottom line wraps to the top line, by column */
+		};
+		for (unsigned k = 0; k < COUNT(F); k++) {
+			const Key kf = { ROLE_BUTTON, F[k].row, 0 };
+			const int a = findCtrl(lay, kf);
+			const int t = a < 0 ? -1 : lay.c[a].link[F[k].dir];
+			if (t < 0 || lay.c[t].row != F[k].to) {
+				printf("    row %d dir %d -> row %d, want %d\n", F[k].row, F[k].dir, t < 0 ? -1 : lay.c[t].row, F[k].to);
+				fail("2 columns", "a focus link goes to the wrong cell");
+			}
+		}
+	}
+
+	/* An odd run leaves the right cell of its last line empty; a wide row splits the runs. */
+	{
+		Row odd[] = { CYC("Gamma", GAMMA_NAMES, 0), CYC("Video Colour", FMV_COLOUR_NAMES, 0),
+		              RADIO_FIT("Dithering", DITHER_NAMES, 1), CYC("Gamma", GAMMA_NAMES, 0),
+		              CYC("Gamma", GAMMA_NAMES, 0), CYC("Gamma", GAMMA_NAMES, 0) };
+		static const float WANT_X[6] = { 188, 507, 0, 188, 507, 188 };
+		static const float WANT_Y[6] = { 100, 100, 0, 220, 220, 280 };
+		Page q = p;
+		q.rows = odd;
+		q.nRows = COUNT(odd);
+		q.help = NULL;
+		q.nHelp = 0;
+		if (layoutPage(q, kFont, lay) < 0)
+			fail("2 columns", "layoutPage refused the mixed page");
+		linkFocus(q, lay);
+		for (int i = 0; i < 6; i++) {
+			const Key kb = { ROLE_BUTTON, i, 0 };
+			const int b = findCtrl(lay, kb);
+			if (i == 2) continue;
+			if (b < 0 || lay.c[b].rect.x != WANT_X[i] || lay.c[b].rect.y != WANT_Y[i])
+				fail("2 columns", "a mixed page cell is in the wrong place");
+		}
+		if (checkLayout(q, kFont, lay, probs, MAX_PROBLEMS) != 0)
+			fail("2 columns", "checkLayout finds a problem on the mixed page");
+	}
+
+	/* The check still sees a label too long for its cell: it runs over the button beside it. */
+	{
+		Row bad[] = { CYC("A label far too long to fit in its half of the screen", GAMMA_NAMES, 0) };
+		Page q = p;
+		bool over = false;
+		q.rows = bad;
+		q.nRows = 1;
+		q.help = NULL;
+		q.nHelp = 0;
+		layoutPage(q, kFont, lay);
+		linkFocus(q, lay);
+		for (int i = 0, n = checkLayout(q, kFont, lay, probs, MAX_PROBLEMS); i < n && i < MAX_PROBLEMS; i++)
+			if (probs[i].kind == PROB_OVERLAP || probs[i].kind == PROB_PAST_EDGE)
+				over = true;
+		if (!over)
+			fail("2 columns", "checkLayout missed a label wider than its cell");
+	}
+
+	/* Columns unset: one row per line, as before. */
+	{
+		Page q = p;
+		const Key k = { ROLE_BUTTON, 2, 0 };
+		q.columns = 0;
+		layoutPage(q, kFont, lay);
+		if (lay.c[findCtrl(lay, k)].rect.x != 295.0f || lay.c[findCtrl(lay, k)].rect.y != 220.0f)
+			fail("2 columns", "columns 0 changed the one-column layout");
+	}
+	printf("two columns: cells, help, focus, checks ... %s\n", failures == before ? "ok" : "FAILED");
+}
+
 int main(int argc, char **argv)
 {
 	const char *font = argc > 1 ? argv[1] : "fonts/En.dat";
@@ -3534,6 +3666,7 @@ int main(int argc, char **argv)
 	}
 
 	testCycle();
+	testTwoColumns();
 	testPageList(PAGES, NPAGES,
 	             "OptionsFrame pages (rectangles, focus links, help, logo, every value of every setting)");
 	testPageList(SETTINGS_PAGES, NSETTINGS,
