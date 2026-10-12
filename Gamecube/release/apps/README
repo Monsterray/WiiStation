@@ -1,5 +1,5 @@
 README : WiiStation
-Version 5.11.0
+Version 5.12.0
 
 LICENSE:
     This software is licensed under the GNU General Public License v2
@@ -125,6 +125,13 @@ LATER UPDATES BY:
  * Monty Perrotti (WiiStation)
 
 WiiStation CHANGE LOG:
+Ver 5.12.0 (2026-10-12):
+* New: Advanced Graphics has Gamma (1.0 to 1.5, the TV picture) and Deflicker
+  Level (Light: less blur than Normal). The page uses the new compact layout:
+  two settings per line on one grid. Neither costs anything while a game runs.
+* Changed: the PSX Pad Type buttons are as wide as their words (Standard,
+  Analog, Stick D-pad), so none is cramped.
+
 Ver 5.11.0 (2026-10-12):
 * New: one menu framework draws and moves the focus on every page, so every
   page acts the same way. Back returns to the button you came from.
@@ -142,9 +149,6 @@ Ver 5.11.0 (2026-10-12):
   Limit FPS on Video and Frame Rate on Advanced). Old settings still load.
 * New: a local achievement engine (rcheevos), off by default. No account or
   online awards yet. See SETTINGS.md.
-* New: Advanced Graphics has Gamma (1.0 to 1.5, the TV picture) and Deflicker
-  Level (Light: less blur than Normal). The page uses the new compact layout:
-  two settings per line. Neither costs anything while a game runs.
 * Fixed: unsaved menu settings are kept through a game load.
 * Fixed: Configure Buttons' Slot button stopped at Game; it cycles again.
 * Fixed: the Wiimote lights are set only when they change; idle timeout

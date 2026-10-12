@@ -5,7 +5,7 @@
 # Record how a game is to be played -- once, by a person -- as an input script that a
 # chained run (scripts/chains/) plays back exactly.
 #
-#   GAME    part of the game's folder name in scripts/chains/all.txt ("spyro", "ff7" does
+#   GAME    part of the game's folder name in the game library (scripts/profile.sh keys) ("spyro", "ff7" does
 #           not work, "final fantasy" does); run with no GAME to list them
 #   NAME    the script's name (default: from the folder); saved as
 #           scripts/autoinput/NAME_play.txt, the previous one kept as .prev
@@ -39,7 +39,7 @@
 # for the run, so a second player can join.
 set -u
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
-ALL="$REPO/scripts/chains/all.txt"
+TSV="${WSX_LIBRARY:-/c/wiistation-lib}/games.tsv"   # every library game and the file it boots (scripts/library_check.py)
 PAD_USER="/c/tools/Dolphin-x64/User/Config/GCPadNew.ini"   # the user's own controller setup
 # Recordings run on one named profile, kept between them (scripts/profile.sh), so the card the
 # recording is read back from still exists when the run is over.
@@ -68,7 +68,10 @@ while [ $# -gt 0 ]; do
 	esac
 done
 
-games() { tr -d '\r' < "$ALL" | grep -n '^sd:/wiistation/isos/'; }
+# Every bootable library game, one per line: its key (the folder under games/).
+games() { tr -d '\r' < "$TSV" | awk -F '\t' 'NR > 1 && $4 == "ok" { print $1 }'; }
+# The file a chain line boots for game key $1 (a .cue, .ccd, .chd ... as the browser shows it).
+disc() { tr -d '\r' < "$TSV" | awk -F '\t' -v k="$1" '$1 == k { print $2; exit }'; }
 
 if [ -n "$play" ]; then
 	script="$REPO/scripts/autoinput/${play}_play.txt"
@@ -94,13 +97,13 @@ if [ -n "$play" ]; then
 		echo "      To replay it exactly, build that commit and pass the DOL with --dol."
 	fi
 else
-	[ -n "$game" ] || { echo "usage: movie_capture.sh GAME [NAME] [--mins M]   games:"; games | sed 's|^[0-9]*:sd:/wiistation/isos/|  |'; exit 2; }
+	[ -n "$game" ] || { echo "usage: movie_capture.sh GAME [NAME] [--mins M]   games:"; games | sed 's/^/  /'; exit 2; }
 	hit=$(games | grep -i -F -- "$game")
 	if [ "$(printf '%s' "$hit" | grep -c .)" != 1 ]; then
-		echo "\"$game\" matches $(printf '%s' "$hit" | grep -c .) games in all.txt; one of:"; games | sed 's|^[0-9]*:sd:/wiistation/isos/|  |'; exit 2
+		echo "\"$game\" matches $(printf '%s' "$hit" | grep -c .) games in the library; one of:"; games | sed 's/^/  /'; exit 2
 	fi
-	ln=${hit%%:*}; folder=${hit#*:}
-	cue=$(tr -d '\r' < "$ALL" | sed -n "$((ln + 1))p")
+	folder="sd:/wiistation/isos/$hit"   # dolphin_run.sh stages the games the chain names
+	cue=$(disc "$hit")
 	[ -n "$name" ] || name=$(basename "$folder" | tr 'A-Z' 'a-z' | sed -E 's/[^a-z0-9]+/_/g; s/^_+|_+$//g')
 	# emulated minutes to vblanks (60 a second); decimals allowed
 	vbl=$(awk -v m="$mins" 'BEGIN { if (m !~ /^[0-9]*\.?[0-9]+$/ || m <= 0) exit 1; printf "%d", m * 3600 + 0.5 }') ||

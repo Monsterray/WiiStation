@@ -2,7 +2,7 @@
  <app version="2">
    <name>WiiStation</name>
    <coder>Monty Perrotti</coder>
-   <version>5.11.0</version>
+   <version>5.12.0</version>
    <release_date>20261012</release_date>
    <short_description>PSX Emulator for Wii</short_description>
    <long_description>
@@ -15,12 +15,13 @@ Featuring:
 - HID (USB) controllers; GameCube, Wiimote, Classic and Classic Pro, NES/SNES Classic Mini, Wii U Pro and Wii U GamePad (WiiVC) controllers.
 - CDDA tracks, CHD v1-v5, BIN/CUE, ISO, IMG and PBP images, CD read-ahead.
 - Games from SD, USB or a network share (SMB2/SMB3), with any folder layout.
-- Save states, memory cards on SD/USB, per-game settings.
-- 240p, 480i, bilinear/trap/deflicker filters, force NTSC.
+- Save states, memory cards on SD/USB, per-game settings and button mappings, screenshots.
+- 240p, 480i, gamma, bilinear/trap/deflicker filters (two deflicker strengths), force NTSC.
 - Lightguns (GunCon/Justifier), mouse, multitap for up to 8 players.
 - Co-Op: up to 8 controllers play one PlayStation port together, each with its own buttons.
 - Multiple languages.
 - Crash reports for the Homebrew Channel (hangs, crashes, no audio).
+- A local achievement engine (rcheevos), off by default.
 
 * WiiSX/CubeSX is a PCSX port. The original team was:
 emu_kidid - general coding
