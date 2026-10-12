@@ -101,7 +101,8 @@ dolphin_instances() {   # prints "pid|commandline" per Dolphin.exe
 same_userdir_pids() {   # instances that use our profile
   dolphin_instances | while IFS='|' read -r pid cmd; do
     [ -n "$pid" ] || continue
-    case "$cmd" in *"$PROFILE_WIN"*) echo "$pid";; esac
+    # the path must END there (quote, space or end): ".dolphin" must not match ".dolphin2"
+    case "$cmd" in *"$PROFILE_WIN"\"*|*"$PROFILE_WIN"" "*|*"$PROFILE_WIN") echo "$pid";; esac
   done
 }
 BLOCKERS=$(same_userdir_pids | tr '\n' ' ')
