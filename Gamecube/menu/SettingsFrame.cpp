@@ -194,7 +194,7 @@ engine places every button and label. What each row holds:
 General:  Advanced, Memory; Select BIOS; Boot Through BIOS (and Execute BIOS); Select Language;
           Fast Load; Save Settings. The CPU core and GPU plugin are on the Advanced pages.
 Video:    Show FPS; FPS Limit; Frame Skip; Screen Mode; Filters; Advanced (Advanced Graphics).
-Input:    Configure Input and Button Mappings; PSX Controller Type; Light Gun; Enable Rumble;
+Input:    Configure Input and Button Mappings; PSX Pad Type; Light Gun; Enable Rumble;
           Save Button Configs; Auto Load Slot.
 Audio:    Enable; Interpolation; DSP Sound; Sync; Advanced (Advanced Sound).
 Saves:    Memcard Save Device; Memcard Type; Auto Save Memcards; Save State Device.
@@ -313,8 +313,8 @@ struct ButtonInfo
 	//Buttons for Input Tab (starts at button[30])
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[19],	Func_ConfigureInput,	Func_ReturnFromSettingsFrame }, // Configure Input Assignment
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[20],	Func_ConfigureButtons,	Func_ReturnFromSettingsFrame }, // Configure Button Mappings
-	{	NULL,	BTN_A_SEL,	NULL,				Func_PsxTypeStandard,	Func_ReturnFromSettingsFrame, "ControllerType", CONTROLLERTYPE_STANDARD }, // PSX Controller Type: Standard
-	{	NULL,	BTN_A_SEL,	NULL,				Func_PsxTypeAnalog,		Func_ReturnFromSettingsFrame, "ControllerType", CONTROLLERTYPE_ANALOG }, // PSX Controller Type: Analog
+	{	NULL,	BTN_A_SEL,	NULL,				Func_PsxTypeStandard,	Func_ReturnFromSettingsFrame, "ControllerType", CONTROLLERTYPE_STANDARD }, // PSX Pad Type: Standard
+	{	NULL,	BTN_A_SEL,	NULL,				Func_PsxTypeAnalog,		Func_ReturnFromSettingsFrame, "ControllerType", CONTROLLERTYPE_ANALOG }, // PSX Pad Type: Analog
 	{	NULL,	BTN_A_SEL,	NULL,				Func_EnableRumbleYes,	Func_ReturnFromSettingsFrame, "RumbleEnabled", RUMBLE_ENABLE }, // Enable Rumble: Yes
 	{	NULL,	BTN_A_SEL,	NULL,				Func_EnableRumbleNo,	Func_ReturnFromSettingsFrame, "RumbleEnabled", RUMBLE_DISABLE }, // Enable Rumble: No
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[9],	Func_SaveButtonsSD,		Func_ReturnFromSettingsFrame }, // Save Button Mappings: SD
@@ -376,7 +376,7 @@ struct ButtonInfo
 	{	NULL,	BTN_A_NRM,	NULL,			Func_CardType2,			Func_ReturnFromSettingsFrame }, // Memcard 2 type: Off/Shared/Game
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[34],	Func_AdvGfxPage,		Func_ReturnFromSettingsFrame }, // Video tab: Advanced Graphics page
 	//Input tab: the third controller type (button 79), appended so no index moves
-	{	NULL,	BTN_A_SEL,	NULL,				Func_PsxTypeStickDpad,	Func_ReturnFromSettingsFrame, "ControllerType", CONTROLLERTYPE_STICKDPAD }, // PSX Controller Type: Stick D-pad
+	{	NULL,	BTN_A_SEL,	NULL,				Func_PsxTypeStickDpad,	Func_ReturnFromSettingsFrame, "ControllerType", CONTROLLERTYPE_STICKDPAD }, // PSX Pad Type: Stick D-pad
 };
 
 /*  The tabs, on the menu engine  */
@@ -579,14 +579,14 @@ static const SetRow VID_ROWS[] =
 	{ eng::ROW_BUTTONS, "LimitFrames",   NULL,               { 18, 19, 63, -1 }, {  75,  75, 160,  0 }, 295.0f, 0.0f, 0 },	/* FPS Limit: Auto, Off. Force NTSC (a toggle) */
 	{ eng::ROW_CHOICE,  "SkipFrames",    NULL,               { 20, 21, -1, -1 }, {  75,  75,   0,  0 }, 295.0f, 0.0f, 0 },	/* Frame Skip: On, Off */
 	{ eng::ROW_BUTTONS, "ScreenMode",    NULL,               { 22, 23, 57, -1 }, { 130, 125,  66,  0 }, 295.0f, 0.0f, 0 },	/* Screen Mode (a cycle). Interlaced, 240p (toggles) */
-	{ eng::ROW_BUTTONS, NULL,            FRAME_STRINGS[14],  { 28, 29, 24, -1 }, {  95,  75, 110,  0 }, 238.0f, 0.0f, 0 },	/* Filters: Bilinear (a cycle). Trap, Deflicker (toggles) */
+	{ eng::ROW_BUTTONS, NULL,            FRAME_STRINGS[14],  { 28, 29, 24, -1 }, {  95,  75, 110,  0 }, 295.0f, 0.0f, 0 },	/* Filters: Bilinear (a cycle). Trap, Deflicker (toggles) */
 	{ eng::ROW_BUTTONS, NULL,            NULL,               { 78, -1, -1, -1 }, { 150,   0,   0,  0 }, 245.0f, 0.0f, 0 },	/* Advanced Graphics (an action) */
 };
 
 static const SetRow INP_ROWS[] =
 {
 	{ eng::ROW_BUTTONS, NULL,            NULL,               { 30, 31, -1, -1 }, { 220, 235,   0, 0 }, 85.0f,  15.0f, 0 },	/* Configure Input, Configure Button Mappings */
-	{ eng::ROW_CHOICE,  "ControllerType", NULL,              { 32, 33, 79, -1 }, { 105, 100, 140, 0 }, 271.0f,  0.0f, 0 },	/* PSX Controller Type: Standard, Analog, Stick D-pad */
+	{ eng::ROW_CHOICE,  "ControllerType", NULL,              { 32, 33, 79, -1 }, { 105, 100, 140, 0 }, 271.0f,  0.0f, 0 },	/* PSX Pad Type: Standard, Analog, Stick D-pad */
 	{ eng::ROW_BUTTONS, "LightGun",      NULL,               { 59, -1, -1, -1 }, { 135,   0,   0, 0 }, 295.0f,  0.0f, 0 },	/* Light Gun (a cycle, lit when a gun is on) */
 	{ eng::ROW_CHOICE,  "RumbleEnabled", NULL,               { 34, 35, -1, -1 }, {  75,  75,   0, 0 }, 295.0f,  0.0f, 0 },	/* Enable Rumble: Yes, No */
 	{ eng::ROW_BUTTONS, NULL,            FRAME_STRINGS[21],  { 36, 37, -1, -1 }, {  55,  70,   0, 0 }, 295.0f,  0.0f, 0 },	/* Save Button Configs: SD, USB */
@@ -605,16 +605,18 @@ static const SetRow AUD_ROWS[] =
 static const SetRow SAV_ROWS[] =
 {
 	{ eng::ROW_BUTTONS, "NativeDevice",  NULL,               { 46, 47, 48, 49 }, { 55, 70, 90, 90 }, 295.0f, 0.0f,  0 },	/* Memcard Save Device: SD, USB, Card A, Card B */
-	{ eng::ROW_BUTTONS, "Memcard0File",  NULL,               { 76, 77, -1, -1 }, { 105, 105, 0, 0 }, 295.0f, 30.0f, 0 },	/* Memcard Type: card 1, card 2 (their text is the card's type) */
+	{ eng::ROW_BUTTONS, "Memcard0File",  NULL,               { 76, 77, -1, -1 }, { 105, 105, 0, 0 }, 323.0f, 38.0f, 0 },	/* Memcard Type: card 1, card 2 (their text is the card's type) */
 	{ eng::ROW_CHOICE,  "AutoSave",      NULL,               { 50, 51, -1, -1 }, {  75,  75, 0, 0 }, 295.0f, 0.0f,  0 },	/* Auto Save Memcards: Yes, No */
 	{ eng::ROW_CHOICE,  "StatesDevice",  NULL,               { 52, 53, -1, -1 }, {  55,  70, 0, 0 }, 295.0f, 0.0f,  0 },	/* Save State Device: SD, USB */
 };
 
-/* The card numbers "1" and "2", beside the Memcard Type buttons. */
+/* The card numbers "1" and "2": "1" starts at the button column (x 295), then card 1's button after a
+ * 10 px gap; "2" follows card 1's button after the same gap, then card 2's button. Widths from the
+ * font (menu_text_width.py px): "1" is 18 wide, so its centre is 304; "2" is at 438..456, centre 447. */
 static const eng::FreeText SAV_FREE[NUM_FREE_TEXTS] =
 {
-	{ FRAME_STRINGS[32], 285.0f, 198.0f, 1.0f, true },
-	{ FRAME_STRINGS[33], 420.0f, 198.0f, 1.0f, true },
+	{ FRAME_STRINGS[32], 304.0f, 198.0f, 1.0f, true },
+	{ FRAME_STRINGS[33], 447.0f, 198.0f, 1.0f, true },
 };
 
 /* The five tabs. The Audio and Saves tabs have rows 70 apart. */
