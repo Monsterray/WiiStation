@@ -141,11 +141,13 @@ static Row CD_ROWS[] = {
 
 /* Readouts: the text is whatever the emulator reports, so the longest it can be is used. */
 static Row MEMORY_ROWS[] = {
-	INFO("MEM1 (fast)",        "24576 / 24576 KB"),
-	INFO("MEM2 heap",          "65536 / 65536 KB"),
+	INFO("MEM1 (fast)",        "24576 used, 24576 free KB"),
+	INFO("MEM2 heap",          "48128 used, 48128 free KB"),
+	INFO("Texture pool",       "999 textures, 9999 + 9999 KB"),
 	INFO("Locked cache",       "16 / 16 KB (spu-gauss, tex-tile)"),	/* lc_usage(): the region names */
 	INFO("Font glyph cache",   "1024 / 1024 KB"),
-	INFO("Recompiler buffer",  "16384 KB (Lightrec, MEM1)"),
+	INFO("Recompiler buffer",  "1536 of 1536 KB used"),
+	INFO("PS1 RAM + VRAM",     "2048 + 2048 KB"),
 	INFO("SPU + BIOS buffers", "64 + 512 KB"),
 };
 
@@ -249,7 +251,7 @@ static TestPage PAGES[] = {
 	{ "Adv Graphics","Advanced Graphics", false, 0, ADVGFX_ROWS, COUNT(ADVGFX_ROWS), ADVGFX_HELP, COUNT(ADVGFX_HELP) },
 	{ "CPU",         NULL,                true,  0, PLUGIN_ROWS, COUNT(PLUGIN_ROWS), PLUGIN_HELP, COUNT(PLUGIN_HELP) },
 	{ "CD",          NULL,                true,  3, CD_ROWS,     COUNT(CD_ROWS),     CD_HELP,     COUNT(CD_HELP) },
-	{ "Memory",      "Memory",            false, 0, MEMORY_ROWS, COUNT(MEMORY_ROWS), NULL,        0 },
+	{ "Memory",      "Memory",            false, 0, MEMORY_ROWS, COUNT(MEMORY_ROWS), NULL,        0, NULL, 0, 0.0f, 0.0f, 46.0f },
 	{ "GPU",         NULL,                true,  1, GPU_ROWS,    COUNT(GPU_ROWS),    GPU_HELP,    COUNT(GPU_HELP) },
 	{ "Input",       NULL,                true,  4, INPUT_ROWS,  COUNT(INPUT_ROWS),  INPUT_HELP,  COUNT(INPUT_HELP) },
 	{ "SPU",         NULL,                true,  2, SPU_ROWS,    COUNT(SPU_ROWS),    SPU_HELP,    COUNT(SPU_HELP),
@@ -305,7 +307,7 @@ static Row VIDEO_ROWS[] = {
 	{ ROW_BUTTONS, "Limit FPS",   NULL,             0, 3, 0, NULL, false, VID_LIMIT_ACTIONS,  295.0f, 0.0f, NULL,         0 },
 	{ ROW_CHOICE,  "Frame Skip",  VID_ON_OFF_NAMES, 0, 2, 1, NULL, false, NULL,               295.0f, 0.0f, VID_ON_OFF_W, 0 },
 	{ ROW_BUTTONS, "Screen Mode", NULL,             0, 3, 0, NULL, false, VID_SCREEN_ACTIONS, 295.0f, 0.0f, NULL,         0 },
-	{ ROW_BUTTONS, "Filters",     NULL,             0, 3, 0, NULL, false, VID_FILTER_ACTIONS, 238.0f, 0.0f, NULL,         0 },
+	{ ROW_BUTTONS, "Filters",     NULL,             0, 3, 0, NULL, false, VID_FILTER_ACTIONS, 295.0f, 0.0f, NULL,         0 },
 	{ ROW_BUTTONS, NULL,          NULL,             0, 1, 0, NULL, false, VID_ADV_ACTIONS,    245.0f, 0.0f, NULL,         0 },
 };
 
@@ -324,7 +326,7 @@ static const ActionButton INP_AUTOLOAD_ACTIONS[] = { { "Default", 135.0f, false 
 /* Row fields: kind, label, names, lo, count, value, text, fit, actions, x0, gap, widths, plain. */
 static Row SET_INPUT_ROWS[] = {
 	{ ROW_BUTTONS, NULL,                  NULL,            0, 2, 0, NULL, false, INP_CONFIG_ACTIONS,  85.0f,  15.0f, NULL,       0 },
-	{ ROW_CHOICE,  "PSX Controller Type", INP_PSX_NAMES,   0, 3, 0, NULL, false, NULL,                271.0f,  0.0f, INP_PSX_W,  0 },
+	{ ROW_CHOICE,  "PSX Pad Type", INP_PSX_NAMES,   0, 3, 0, NULL, false, NULL,                271.0f,  0.0f, INP_PSX_W,  0 },
 	{ ROW_BUTTONS, "Light Gun",           NULL,            0, 1, 0, NULL, false, INP_LIGHTGUN_ACTIONS, 295.0f,  0.0f, NULL,       0 },
 	{ ROW_CHOICE,  "Enable Rumble",       INP_RUMBLE_NAMES, 0, 2, 0, NULL, false, NULL,                295.0f,  0.0f, INP_RUMBLE_W, 0 },
 	{ ROW_BUTTONS, "Save Button Configs", NULL,            0, 2, 0, NULL, false, INP_SAVEBTN_ACTIONS,  295.0f,  0.0f, NULL,       0 },
@@ -362,7 +364,7 @@ static const ActionButton SAV_CARD_ACTIONS[]   = { { "Off", 105.0f, false }, { "
 /* Row fields: kind, label, names, lo, count, value, text, fit, actions, x0, gap, widths, plain. */
 static Row SAVES_ROWS[] = {
 	{ ROW_BUTTONS, "Memcard Save Device", NULL,             0, 4, 0, NULL, false, SAV_DEVICE_ACTIONS, 295.0f,  0.0f, NULL,      0 },
-	{ ROW_BUTTONS, "Memcard Type",        NULL,             0, 2, 0, NULL, false, SAV_CARD_ACTIONS,   295.0f, 30.0f, NULL,      0 },
+	{ ROW_BUTTONS, "Memcard Type",        NULL,             0, 2, 0, NULL, false, SAV_CARD_ACTIONS,   323.0f, 38.0f, NULL,      0 },
 	{ ROW_CHOICE,  "Auto Save Memcards",  SAV_YESNO_NAMES,  0, 2, 0, NULL, false, NULL,               295.0f,  0.0f, SAV_YESNO_W, 0 },
 	{ ROW_CHOICE,  "Save States Device",  SAV_STATE_NAMES,  0, 2, 0, NULL, false, NULL,               295.0f,  0.0f, SAV_STATE_W, 0 },
 };
@@ -689,7 +691,7 @@ static int buildExpected(const TestPage &t, Exp *e, Key *defaultFocus)
 
 	if (t.tabbed) {
 		for (int k = 0; k < nTabsOf(t); k++) {
-			n = addExpButton(e, n, ROLE_TAB, -1, k, TAB_X_LITERAL[k], 20.0f, tabsOf(t)[k].width, 56.0f,
+			n = addExpButton(e, n, ROLE_TAB, -1, k, TAB_X_LITERAL[k], 30.0f, tabsOf(t)[k].width, 56.0f,
 			                 tabsOf(t)[k].text, k == t.curTab);
 		}
 	} else if (t.title) {
@@ -967,8 +969,10 @@ static const Known KNOWN[] = {
 	{ "Video", PROB_TEXT_WIDE, "Default", NULL },
 	{ "Video", PROB_TEXT_WIDE, "Trap", NULL },
 	{ "Video", PROB_TEXT_WIDE, "Deflicker", NULL },
+	/* The Filters row sits on the button column, so its last button reaches the logo's box by a few pixels. */
+	{ "Video", PROB_IN_LOGO, "Deflicker", NULL },
 	/* The Input tab: the same fit-rule findings on the Settings buttons (the tab row's labels too), and
-	 * the label "PSX Controller Type" reaching 1 px into "Standard". */
+	 * the label "PSX Pad Type" reaching 1 px into "Standard". */
 	{ "Input", PROB_TEXT_WIDE, "General", NULL },
 	{ "Input", PROB_TEXT_WIDE, "Video", NULL },
 	{ "Input", PROB_TEXT_WIDE, "Audio", NULL },
@@ -980,7 +984,7 @@ static const Known KNOWN[] = {
 	{ "Input", PROB_TEXT_WIDE, "Yes", NULL },
 	{ "Input", PROB_TEXT_WIDE, "SD", NULL },
 	{ "Input", PROB_TEXT_WIDE, "USB", NULL },
-	{ "Input", PROB_OVERLAP, "PSX Controller Type", "Standard" },
+	{ "Input", PROB_OVERLAP, "PSX Pad Type", "Standard" },
 	{ "Audio", PROB_TEXT_WIDE, "General", NULL },
 	{ "Audio", PROB_TEXT_WIDE, "Video", NULL },
 	{ "Audio", PROB_TEXT_WIDE, "Audio", NULL },
@@ -1407,8 +1411,8 @@ static int frameIndexOf(Key want)
 /* The General tab's boxes and label anchors as SettingsFrame.cpp's tables write them, read from
  * the numbers themselves (not from the rules above), so that a rule that is wrong fails here. */
 static const struct { int idx; float x, y, w, h; } OLD_RECTS[] = {
-	{ 0, 25, 20, 110, 56 }, { 1, 155, 20, 100, 56 }, { 2, 275, 20, 100, 56 },
-	{ 3, 395, 20, 100, 56 }, { 4, 515, 20, 100, 56 },
+	{ 0, 25, 30, 110, 56 }, { 1, 155, 30, 100, 56 }, { 2, 275, 30, 100, 56 },
+	{ 3, 395, 30, 100, 56 }, { 4, 515, 30, 100, 56 },
 	{ 7, 295, 160, 70, 56 }, { 8, 375, 160, 55, 56 }, { 9, 440, 160, 70, 56 }, { 10, 520, 160, 70, 56 },
 	{ 11, 295, 220, 75, 56 }, { 12, 380, 220, 75, 56 }, { 13, 465, 220, 171, 56 },
 	{ 14, 253, 400, 55, 56 }, { 15, 318, 400, 70, 56 }, { 62, 398, 400, 140, 56 },
@@ -1525,13 +1529,13 @@ static int checkGeneralAgainstTable(void)
 /* The Video tab's boxes as SettingsFrame.cpp's tables write them: the five tabs (the same as General's,
  * read from the numbers there) and the buttons the tab shows. Dithering (25..27) is hidden on this tab. */
 static const struct { int idx; float x, y, w, h; } VIDEO_OLD_RECTS[] = {
-	{ 0, 25, 20, 110, 56 }, { 1, 155, 20, 100, 56 }, { 2, 275, 20, 100, 56 },
-	{ 3, 395, 20, 100, 56 }, { 4, 515, 20, 100, 56 },
+	{ 0, 25, 30, 110, 56 }, { 1, 155, 30, 100, 56 }, { 2, 275, 30, 100, 56 },
+	{ 3, 395, 30, 100, 56 }, { 4, 515, 30, 100, 56 },
 	{ 16, 295, 100, 75, 56 }, { 17, 380, 100, 75, 56 },
 	{ 18, 295, 160, 75, 56 }, { 19, 380, 160, 75, 56 }, { 63, 465, 160, 160, 56 },
 	{ 20, 295, 220, 75, 56 }, { 21, 380, 220, 75, 56 },
 	{ 22, 295, 280, 130, 56 }, { 23, 435, 280, 125, 56 }, { 57, 570, 280, 66, 56 },
-	{ 24, 428, 340, 110, 56 }, { 28, 238, 340, 95, 56 }, { 29, 343, 340, 75, 56 },
+	{ 24, 485, 340, 110, 56 }, { 28, 295, 340, 95, 56 }, { 29, 400, 340, 75, 56 },
 	{ 78, 245, 400, 150, 56 },
 };
 /* The labels: textboxes 4, 5, 6, 7 and 9 on the rows 0..4, centred at x 150 on the row's middle. */
@@ -1798,11 +1802,11 @@ static int checkTabLinks(const char *name, int page, const OldBox *b, unsigned n
 
 /* The Input tab. Tabs: each tab's own box; Up 38 and Down 30 as activateSubmenu(SUBMENU_INPUT) sets. */
 static const OldBox INPUT_BOXES[] = {
-	{ 0, ROLE_TAB, -1, 0, 25.0f, 20.0f, 110.0f, 56.0f, 38, 30, 4, 1 },
-	{ 1, ROLE_TAB, -1, 1, 155.0f, 20.0f, 100.0f, 56.0f, 38, 30, 0, 2 },
-	{ 2, ROLE_TAB, -1, 2, 275.0f, 20.0f, 100.0f, 56.0f, 38, 30, 1, 3 },
-	{ 3, ROLE_TAB, -1, 3, 395.0f, 20.0f, 100.0f, 56.0f, 38, 30, 2, 4 },
-	{ 4, ROLE_TAB, -1, 4, 515.0f, 20.0f, 100.0f, 56.0f, 38, 30, 3, 0 },
+	{ 0, ROLE_TAB, -1, 0, 25.0f, 30.0f, 110.0f, 56.0f, 38, 30, 4, 1 },
+	{ 1, ROLE_TAB, -1, 1, 155.0f, 30.0f, 100.0f, 56.0f, 38, 30, 0, 2 },
+	{ 2, ROLE_TAB, -1, 2, 275.0f, 30.0f, 100.0f, 56.0f, 38, 30, 1, 3 },
+	{ 3, ROLE_TAB, -1, 3, 395.0f, 30.0f, 100.0f, 56.0f, 38, 30, 2, 4 },
+	{ 4, ROLE_TAB, -1, 4, 515.0f, 30.0f, 100.0f, 56.0f, 38, 30, 3, 0 },
 	{ 30, ROLE_BUTTON, 0, 0,  85.0f, 100.0f, 220.0f, 56.0f,  2, 32, 31, 31 },
 	{ 31, ROLE_BUTTON, 0, 1, 320.0f, 100.0f, 235.0f, 56.0f,  2, 32, 30, 30 },
 	{ 32, ROLE_CHOICE, 1, 0, 271.0f, 160.0f, 105.0f, 56.0f, 30, 59, 79, 33 },
@@ -1820,11 +1824,11 @@ static const float INPUT_LABEL_Y[6] = { 0.0f, 188.0f, 248.0f, 308.0f, 368.0f, 42
 
 /* The Audio tab: its tab row's Up is 72 and Down 39. */
 static const OldBox AUDIO_BOXES[] = {
-	{ 0, ROLE_TAB, -1, 0, 25.0f, 20.0f, 110.0f, 56.0f, 72, 39, 4, 1 },
-	{ 1, ROLE_TAB, -1, 1, 155.0f, 20.0f, 100.0f, 56.0f, 72, 39, 0, 2 },
-	{ 2, ROLE_TAB, -1, 2, 275.0f, 20.0f, 100.0f, 56.0f, 72, 39, 1, 3 },
-	{ 3, ROLE_TAB, -1, 3, 395.0f, 20.0f, 100.0f, 56.0f, 72, 39, 2, 4 },
-	{ 4, ROLE_TAB, -1, 4, 515.0f, 20.0f, 100.0f, 56.0f, 72, 39, 3, 0 },
+	{ 0, ROLE_TAB, -1, 0, 25.0f, 30.0f, 110.0f, 56.0f, 72, 39, 4, 1 },
+	{ 1, ROLE_TAB, -1, 1, 155.0f, 30.0f, 100.0f, 56.0f, 72, 39, 0, 2 },
+	{ 2, ROLE_TAB, -1, 2, 275.0f, 30.0f, 100.0f, 56.0f, 72, 39, 1, 3 },
+	{ 3, ROLE_TAB, -1, 3, 395.0f, 30.0f, 100.0f, 56.0f, 72, 39, 2, 4 },
+	{ 4, ROLE_TAB, -1, 4, 515.0f, 30.0f, 100.0f, 56.0f, 72, 39, 3, 0 },
 	{ 39, ROLE_BUTTON, 0, 0, 295.0f, 100.0f, 100.0f, 56.0f,  3, 45, 41, 40 },
 	{ 40, ROLE_BUTTON, 0, 1, 405.0f, 100.0f,  75.0f, 56.0f,  3, 45, 39, 41 },
 	{ 41, ROLE_BUTTON, 0, 2, 490.0f, 100.0f, 110.0f, 56.0f,  3, 45, 40, 39 },
@@ -1841,17 +1845,17 @@ static const float AUDIO_LABEL_Y[5] = { 128.0f, 198.0f, 268.0f, 338.0f, 0.0f };
 
 /* The Saves tab: its tab row's Up is 52 and Down 46. */
 static const OldBox SAVES_BOXES[] = {
-	{ 0, ROLE_TAB, -1, 0, 25.0f, 20.0f, 110.0f, 56.0f, 52, 46, 4, 1 },
-	{ 1, ROLE_TAB, -1, 1, 155.0f, 20.0f, 100.0f, 56.0f, 52, 46, 0, 2 },
-	{ 2, ROLE_TAB, -1, 2, 275.0f, 20.0f, 100.0f, 56.0f, 52, 46, 1, 3 },
-	{ 3, ROLE_TAB, -1, 3, 395.0f, 20.0f, 100.0f, 56.0f, 52, 46, 2, 4 },
-	{ 4, ROLE_TAB, -1, 4, 515.0f, 20.0f, 100.0f, 56.0f, 52, 46, 3, 0 },
+	{ 0, ROLE_TAB, -1, 0, 25.0f, 30.0f, 110.0f, 56.0f, 52, 46, 4, 1 },
+	{ 1, ROLE_TAB, -1, 1, 155.0f, 30.0f, 100.0f, 56.0f, 52, 46, 0, 2 },
+	{ 2, ROLE_TAB, -1, 2, 275.0f, 30.0f, 100.0f, 56.0f, 52, 46, 1, 3 },
+	{ 3, ROLE_TAB, -1, 3, 395.0f, 30.0f, 100.0f, 56.0f, 52, 46, 2, 4 },
+	{ 4, ROLE_TAB, -1, 4, 515.0f, 30.0f, 100.0f, 56.0f, 52, 46, 3, 0 },
 	{ 46, ROLE_BUTTON, 0, 0, 295.0f, 100.0f,  55.0f, 56.0f,  4, 76, 49, 47 },
 	{ 47, ROLE_BUTTON, 0, 1, 360.0f, 100.0f,  70.0f, 56.0f,  4, 77, 46, 48 },
 	{ 48, ROLE_BUTTON, 0, 2, 440.0f, 100.0f,  90.0f, 56.0f,  4, 77, 47, 49 },
 	{ 49, ROLE_BUTTON, 0, 3, 540.0f, 100.0f,  90.0f, 56.0f,  4, 77, 48, 46 },
-	{ 76, ROLE_BUTTON, 1, 0, 295.0f, 170.0f, 105.0f, 56.0f, 46, 50, 77, 77 },
-	{ 77, ROLE_BUTTON, 1, 1, 430.0f, 170.0f, 105.0f, 56.0f, 47, 51, 76, 76 },
+	{ 76, ROLE_BUTTON, 1, 0, 323.0f, 170.0f, 105.0f, 56.0f, 46, 50, 77, 77 },
+	{ 77, ROLE_BUTTON, 1, 1, 466.0f, 170.0f, 105.0f, 56.0f, 47, 51, 76, 76 },
 	{ 50, ROLE_CHOICE, 2, 0, 295.0f, 240.0f,  75.0f, 56.0f, 76, 52, 51, 51 },
 	{ 51, ROLE_CHOICE, 2, 1, 380.0f, 240.0f,  75.0f, 56.0f, 77, 53, 50, 50 },
 	{ 52, ROLE_CHOICE, 3, 0, 295.0f, 310.0f,  55.0f, 56.0f, 50,  4, 53, 53 },

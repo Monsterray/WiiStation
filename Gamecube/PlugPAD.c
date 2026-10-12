@@ -466,6 +466,15 @@ int load_configurations(FILE* f, controller_t* controller){
 	for(i=0; i<4; ++i)
 		read_slot(f, controller, &controller->config_slot[i]);
 
+	/* The screenshot combinations come after the four slots. A file from before them
+	 * has none, so every slot takes the controller's default. */
+	for(i=0; i<4; ++i){
+		int index;
+		if (fread(&index, 4, 1, f) != 1 || index < 0 || index >= controller->num_screenshot_combos)
+			index = controller->config_default.screenshot->index;
+		controller->config_slot[i].screenshot = controller->screenshot_combos + index;
+	}
+
 	/* Auto Load Slot 1..4 copies that slot to the mapping now; the Game slot and Default do not
 	 * (loadGameButtons, GamecubeMain.cpp, and the mapping keeps what it had). */
 	if (loadButtonSlot >= LOADBUTTON_SLOT0 && loadButtonSlot <= LOADBUTTON_SLOT3) {
@@ -519,6 +528,8 @@ void save_configurations(FILE* f, controller_t* controller){
 
 	for(i=0; i<4; ++i)
 		write_slot(f, controller, &controller->config_slot[i]);
+	for(i=0; i<4; ++i)
+		fwrite(&controller->config_slot[i].screenshot->index, 4, 1, f);
 }
 
 /* The Game slot of one controller (config_slot[CONTROLLER_GAME_SLOT]): the magic and that slot.
@@ -529,6 +540,7 @@ void save_game_slot(FILE* f, controller_t* controller){
 	};
 	fwrite(magic, 1, 4, f);
 	write_slot(f, controller, &controller->config_slot[CONTROLLER_GAME_SLOT]);
+	fwrite(&controller->config_slot[CONTROLLER_GAME_SLOT].screenshot->index, 4, 1, f);
 }
 
 int load_game_slot(FILE* f, controller_t* controller){
@@ -539,6 +551,12 @@ int load_game_slot(FILE* f, controller_t* controller){
 	if(fread(actual, 1, 4, f) != 4 || memcmp(magic, actual, 4))
 		return 0;
 	read_slot(f, controller, &controller->config_slot[CONTROLLER_GAME_SLOT]);
+	{
+		int index;
+		if (fread(&index, 4, 1, f) != 1 || index < 0 || index >= controller->num_screenshot_combos)
+			index = controller->config_default.screenshot->index;
+		controller->config_slot[CONTROLLER_GAME_SLOT].screenshot = controller->screenshot_combos + index;
+	}
 	return 1;
 }
 

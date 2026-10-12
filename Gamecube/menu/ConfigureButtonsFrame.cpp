@@ -49,6 +49,7 @@ void Func_SaveConfig();
 
 void Func_ToggleButtonExit();
 void Func_ToggleButtonFastF();
+void Func_ToggleButtonScreenshot();
 void Func_ToggleButtonL1();
 void Func_ToggleButtonL2();
 void Func_ToggleButtonSelect();
@@ -76,14 +77,14 @@ void Func_ToggleGunMouse();
 void Func_ReturnFromConfigureButtonsFrame();
 
 
-#define NUM_FRAME_BUTTONS 30
+#define NUM_FRAME_BUTTONS 31
 #define FRAME_BUTTONS configureButtonsFrameButtons
 #define FRAME_STRINGS configureButtonsFrameStrings
-#define NUM_FRAME_TEXTBOXES 5
+#define NUM_FRAME_TEXTBOXES 6
 #define FRAME_TEXTBOXES configureButtonsFrameTextBoxes
 #define TITLE_STRING configureButtonsTitleString
 
-static char FRAME_STRINGS[36][20] =
+static char FRAME_STRINGS[38][20] =
 	{ "Next",
 	  "Default",
 	  "Slot 1",
@@ -119,7 +120,9 @@ static char FRAME_STRINGS[36][20] =
 	  "X+Y",
 	  "Limit FPS:",
 	  "Lift Mouse:",
-	  "Gun/Mouse"};
+	  "Gun/Mouse",
+	  "Off",
+	  "Screenshot"};
 
 static char TITLE_STRING[64] = "Gamecube Pad 1 to PSX Port 1 Mapping";
 
@@ -171,6 +174,7 @@ struct ConfigButtonInfo
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[28],	265.0,	340.0,	 50.0,	40.0,	Func_SensMinus,			Func_ReturnFromConfigureButtonsFrame }, // Stick Sensitivity -
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[32],	515.0,	160.0,	110.0,	40.0,	Func_ToggleButtonFastF,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Button FastForward
 	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[35],	480.0,	 20.0,	140.0,	40.0,	Func_ToggleGunMouse,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Gun/Mouse Enable
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[36],	235.0,	205.0,	110.0,	40.0,	Func_ToggleButtonScreenshot,	Func_ReturnFromConfigureButtonsFrame }, // Toggle Button Screenshot
 };
 
 struct TextBoxInfo
@@ -188,6 +192,7 @@ struct TextBoxInfo
 	{	NULL,	FRAME_STRINGS[29],	 318.0,	323.0,	 0.9,	true }, // Stick Sensitivity
 	{	NULL,	FRAME_STRINGS[33],	 565.0,	145.0,	 0.9,	true }, // Fast Forward
 	{	NULL,	FRAME_STRINGS[34],	 520.0,	310.0,	 0.9,	true }, // Lift Mouse
+	{	NULL,	FRAME_STRINGS[37],	 290.0,	190.0,	 0.9,	true }, // Screenshot
 };
 
 /*  The page's places, on the engine (Docs/MENU_FRAMEWORK_PLAN.md, step 5)  */
@@ -526,6 +531,7 @@ void ConfigureButtonsFrame::activateSubmenu(int submenu)
 		for (int i = 5; i < 26; i++)
 			strcpy(FRAME_STRINGS[i], "");
 		strcpy(FRAME_STRINGS[32], "");
+		strcpy(FRAME_STRINGS[36], "");
 		for (int i = 1; i < NUM_FRAME_BUTTONS; i++)
 			FRAME_BUTTONS[i].button->setActive(false);
 	}
@@ -635,6 +641,7 @@ void ConfigureButtonsFrame::activateSubmenu(int submenu)
 		if (currentConfig->sensitivity < 0.1) currentConfig->sensitivity = 1.0;
 		sprintf(FRAME_STRINGS[29], "x%.1f", currentConfig->sensitivity);
 		strcpy(FRAME_STRINGS[32], currentConfig->fastf->name);
+		strcpy(FRAME_STRINGS[36], currentConfig->screenshot->name);
 	}
 	cbRelink();
 }
@@ -817,22 +824,56 @@ void Func_SaveConfig()
 //	menu::MessageBox::getInstance().setMessage(buffer);
 }
 
+/* A combination inside another one is pressed with it. The menu and fast-forward combinations
+ * are checked first, so a menu combination inside the screenshot combination would open the
+ * menu, and a screenshot combination inside a menu combination would be taken as one. Neither
+ * is offered. b is the outer combination; Off (mask 0) contains nothing. */
+static bool comboInside(const button_t *a, const button_t *b)
+{
+	return a->mask && b && (a->mask & b->mask) == a->mask;
+}
+
 void Func_ToggleButtonExit()
 {
 	controller_config_t* currentConfig = virtualControllers[activePad].config;
+	controller_t* control = virtualControllers[activePad].control;
 	int currentButton = currentConfig->exit->index;
-	currentButton = (currentButton+1) %virtualControllers[activePad].control->num_menu_combos;
-	currentConfig->exit = &virtualControllers[activePad].control->menu_combos[currentButton];
+	for (int n = 0; n < control->num_menu_combos; n++) {
+		currentButton = (currentButton+1) % control->num_menu_combos;
+		if (!comboInside(&control->menu_combos[currentButton], currentConfig->screenshot))
+			break;
+	}
+	currentConfig->exit = &control->menu_combos[currentButton];
 	strcpy(FRAME_STRINGS[5], currentConfig->exit->name);
 }
 
 void Func_ToggleButtonFastF()
 {
 	controller_config_t* currentConfig = virtualControllers[activePad].config;
+	controller_t* control = virtualControllers[activePad].control;
 	int currentButton = currentConfig->fastf->index;
-	currentButton = (currentButton+1) %virtualControllers[activePad].control->num_menu_combos;
-	currentConfig->fastf = &virtualControllers[activePad].control->menu_combos[currentButton];
+	for (int n = 0; n < control->num_menu_combos; n++) {
+		currentButton = (currentButton+1) % control->num_menu_combos;
+		if (!comboInside(&control->menu_combos[currentButton], currentConfig->screenshot))
+			break;
+	}
+	currentConfig->fastf = &control->menu_combos[currentButton];
 	strcpy(FRAME_STRINGS[32], currentConfig->fastf->name);
+}
+
+void Func_ToggleButtonScreenshot()
+{
+	controller_config_t* currentConfig = virtualControllers[activePad].config;
+	controller_t* control = virtualControllers[activePad].control;
+	int currentButton = currentConfig->screenshot->index;
+	for (int n = 0; n < control->num_screenshot_combos; n++) {
+		currentButton = (currentButton+1) % control->num_screenshot_combos;
+		const button_t *s = &control->screenshot_combos[currentButton];
+		if (!comboInside(currentConfig->exit, s) && !comboInside(currentConfig->fastf, s))
+			break;
+	}
+	currentConfig->screenshot = &control->screenshot_combos[currentButton];
+	strcpy(FRAME_STRINGS[36], currentConfig->screenshot->name);
 }
 
 void Func_ToggleButtonL1()

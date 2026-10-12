@@ -3024,3 +3024,10 @@ gpu_t glesGpu = {
     GL_GPUwriteDataMem,
     GPUsetframelimit
 };
+
+/* Screenshots (Gamecube/screenshot.c): the GX-drawn pixels of a VRAM rect go into psxVuw
+ * before the picture is read. This is the copy every VRAM read makes (efb_sync). */
+int gpu_screenshot_sync(int x, int y, int w, int h)
+{
+    return efb_sync(x, y, w, h);
+}

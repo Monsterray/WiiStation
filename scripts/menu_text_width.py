@@ -51,6 +51,13 @@ TAB_STRIP = [0, 1, 2, 3, 4]
 # 25/26/27 are the Dithering trio: it moved to the Advanced Graphics page
 # (OptionsFrame), which button 78 opens. 74 is the CD page, now an Advanced tab.
 HIDDEN_BUTTONS = {5, 6, 58, 64, 65, 66, 42, 43, 44, 60, 61, 74, 25, 26, 27}
+# Rows placed on the button column even though their last button reaches the logo's corner, by the
+# user's choice: Video's Filters row (y 340), its Deflicker button covers a few pixels of the logo's
+# box. Only these rows may pass the logo's edge; they still stay within the screen's margin.
+LOGO_CORNER_ROWS = {('VIDEO', 340.0)}
+# Rows that start with a card number "1" at the button column, then the first button after a 10 px
+# gap: Saves' Memcard Type row (y 170). The row's buttons start at TAB_BUTTON_X + the number's width + 10.
+NUMBERED_ROWS = {('SAVES', 170.0)}
 
 # Buttons whose label is not the string their table entry names: a click handler swaps in one
 # of a set, and the button has to fit all of them. A setting button (a key in its entry) takes
@@ -222,6 +229,8 @@ def check_row(d, texts, px, r, verbose, bad):
     tab, y, h, total = r['tab'], r['y'], r['h'], r['total']
     items = r['buttons']
     limit = right_edge(d, y + h)
+    if (tab.upper(), y) in LOGO_CORNER_ROWS:
+        limit = d['MENU_W'] - d['MENU_EDGE']
     note = ''
 
     # A row with no label is centred. The table's x0 must agree, if it gives one.
@@ -234,6 +243,8 @@ def check_row(d, texts, px, r, verbose, bad):
     else:
         # A row with a label starts at TAB_BUTTON_X, or as far right as it can.
         want0 = d['TAB_BUTTON_X'] if d['TAB_BUTTON_X'] + total <= limit else limit - total
+        if (tab.upper(), y) in NUMBERED_ROWS:
+            want0 = d['TAB_BUTTON_X'] + px('1') + 10
         if abs(r['x0_given'] - want0) > 0.01:
             bad.append('%s row at y=%g starts at %g; it should start at %g'
                        % (tab, y, r['x0_given'], want0))

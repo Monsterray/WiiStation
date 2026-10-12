@@ -157,7 +157,7 @@ The menu also has the buttons **Disable XA** and **Disable CDDA**. WiiStation do
 | `PadType1` to `PadType10` | 0 = None, 1 = GameCube Pad, 2 = Wii Pad, 3 = HID Pad, 4 = Multitap, 5 = Co-Op (`PadType1` and `PadType2` only, section 6.1.1) | 0 for `PadType1` and `PadType2`; 1 (GameCube Pad) for the multitap slots `PadType3` to `PadType10` | Input, Configure Input | Sets the controller type of each PlayStation port. See the port list below. A multitap's slots A to D start as GameCube pads 1 to 4; a port switched to Multitap whose four slots are all None gets the same. When a port's type changes while a game runs, the port shows as empty for half a second before the new controller appears, as when a real controller is unplugged and another plugged in: the game then looks for its controllers again. Without this, Crash Bash took no input from a multitap that had become a GameCube pad. |
 | `PadAssign1` to `PadAssign10` | 0 to 3 | 0, except `PadAssign2` = 1 and the multitap slots: A to D are 0 to 3 (`PadAssign3`..`6` and `PadAssign7`..`10`) | Input, Configure Input | Sets which physical controller (1 to 4, written 0 to 3) drives each port. Values 4 to 9, which older versions accepted, are ignored. |
 | `RumbleEnabled` | 0 = No, 1 = Yes | 1 | Input, Enable Rumble | Enables the controller rumble. Note: the menu label is inverted. **Disable Rumble = Yes** writes `RumbleEnabled = 0`. |
-| `ControllerType` | 0 = Standard, 1 = Analog, 2 = Stick D-pad | 0 | Input, PSX Controller Type | Sets the emulated PlayStation controller type. **Standard** is a digital pad (SCPH-1080): it answers the read command 42h and nothing else. **Analog** is a PS1 DualShock (SCPH-1200): it starts in digital mode, as the real pad does, and a game that supports analog switches it to analog mode itself with the config commands (Spyro, Ape Escape). Both behave as the real pads do, checked command by command with PadTest DX (Docs/CONTROLLER_TESTING.md). Games made for the older Dual Analog pad, which expect the player to press the ANALOG button, stay digital. **Stick D-pad** is the Standard digital pad, and the left stick also presses its D-pad: past half of full travel, the stick's direction presses Up, Down, Left or Right, or two of them on a diagonal (each of the eight directions takes 45 degrees). Use it for games that read only the D-pad, so they can be played with the stick. It applies to every port and multitap slot. |
+| `ControllerType` | 0 = Standard, 1 = Analog, 2 = Stick D-pad | 0 | Input, PSX Pad Type | Sets the emulated PlayStation controller type. **Standard** is a digital pad (SCPH-1080): it answers the read command 42h and nothing else. **Analog** is a PS1 DualShock (SCPH-1200): it starts in digital mode, as the real pad does, and a game that supports analog switches it to analog mode itself with the config commands (Spyro, Ape Escape). Both behave as the real pads do, checked command by command with PadTest DX (Docs/CONTROLLER_TESTING.md). Games made for the older Dual Analog pad, which expect the player to press the ANALOG button, stay digital. **Stick D-pad** is the Standard digital pad, and the left stick also presses its D-pad: past half of full travel, the stick's direction presses Up, Down, Left or Right, or two of them on a diagonal (each of the eight directions takes 45 degrees). Use it for games that read only the D-pad, so they can be played with the stick. It applies to every port and multitap slot. |
 | `LoadButtonSlot` | 0 to 3 = Slot 1 to Slot 4, 4 = Default, 5 = Auto | 4 | Input, Auto Load Slot | Loads a saved button mapping at start. Auto loads the game's own mapping (the Game slot, `<CdromId>.btn` beside the slot files) if it has one, else the default. |
 | `LightGun` | 0 = Off, 1 = GunCon, 2 = Justifier, 3 = Mouse | 0 | Input, Light Gun | Selects the emulated light gun or mouse. The Wii Remote pointer controls it. |
 | `PadLightgun1` to `PadLightgun10` | 0 = Off, 1 = On | 1 | Input, Configure Buttons, Gun/Mouse | Enables the light gun or mouse on each port. |
@@ -211,6 +211,22 @@ Until 2026-09-21 this setting moved the light-gun and mouse pointer only and did
 
 A USB HID controller needs a configuration file in the Nintendont format. The file name is the vendor ID and the product ID of the controller in hexadecimal, for example `0810_0003.ini`. Put the file in `sd:/wiistation/controllers/` or `usb:/wiistation/controllers/`. See `README.md` for the file format.
 
+### 6.5 Screenshot combination
+
+Each controller type has its own screenshot combination. It is set in Configure Buttons, with the Screenshot button, and it is saved in that controller's button-mapping file, as the menu combination is. It is not a key of the settings file.
+
+The choices are Off and a short list for each controller type. The default is:
+
+- GameCube pad: L+R+Z.
+- HID pad: L2+R2+Select.
+- Wii Classic Controller, Wii U Pro Controller and Wii U GamePad: L+R+ZL.
+- Wiimote with Nunchuk, or Wiimote alone: A+B+1.
+
+Press the combination in a game to save the picture on screen. The file goes to `sd:/wiistation/screenshots/`. Each press saves one picture. The Current ROM page has a Screenshot button that does the same.
+
+A screenshot combination never contains a menu combination. Configure Buttons refuses a screenshot choice that contains the exit or fast-forward combination, and it refuses an exit or fast-forward choice that lies inside the screenshot combination, because either one would open the menu or fast-forward first.
+
+A mapping file from before this version has no screenshot entry. Each controller then takes its default.
 ## 7. Network settings
 
 WiiStation can read games from a network share (SMB2 or SMB3: a Samba server, a NAS or a

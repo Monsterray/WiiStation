@@ -100,6 +100,7 @@ typedef struct {
 	int invertedYL, invertedYR;
 	float sensitivity;
 	button_tp fastf;
+	button_tp screenshot;	/* the screenshot combination; mask 0 (Off) takes no picture */
 } controller_config_t;
 
 typedef struct HidController
@@ -151,6 +152,9 @@ typedef struct {
 	int num_menu_combos;
 	// Pointer to analog sources for this controller type
 	button_t* menu_combos;
+	// Number of screenshot combinations (entry 0 is Off) and the list itself
+	int num_screenshot_combos;
+	button_t* screenshot_combos;
 	// Default controller mapping
 	controller_config_t config_default;
 	// Current controller mapping
@@ -178,6 +182,9 @@ void coop_assign_port(int port);     /* assign the port's players their controll
 void coop_unassign_port(int port);
 int  coop_get_keys(int port, BUTTONS *out, int *connected);   /* combined, as GetKeys */
 void coop_rumble(int port, int on);
+/* screenshot.c: a driver reports the screenshot combination's state each time it reads a pad.
+ * It takes the shot when the combination goes down. */
+void screenshot_poll(int control, int held);
 extern const char *coop_layout_names[];
 #define COOP_STICK_L 1
 #define COOP_STICK_R 2

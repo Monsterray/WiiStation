@@ -53,9 +53,16 @@ MenuContext::MenuContext(GXRModeObj *vmode)
 		  configureInputFrame(0),
 		  configureButtonsFrame(0),
 		  optionsFrame(0),
-		  customizeCoopFrame(0)
+		  customizeCoopFrame(0),
+		  activeIndex(0),
+		  activeSubmenu(0)
 {
 	pMenuContext = this;
+	for (int i = 0; i <= FRAME_CUSTOMIZECOOP; i++)
+	{
+		focusMemory[i].button = NULL;
+		focusMemory[i].submenu = 0;
+	}
 
 	menu::Gui::getInstance().setVmode(vmode);
 
@@ -205,6 +212,31 @@ bool MenuContext::isRunning()
 
 void MenuContext::setActiveFrame(int frameIndex)
 {
+	enterFrame(frameIndex, 0);
+}
+
+void MenuContext::enterFrame(int frameIndex, int submenu)
+{
+	menu::Focus &focus = menu::Focus::getInstance();
+	bool back = focus.actionIsBack();
+	menu::Component *returnTo = NULL;
+
+	/* A screen left by a press that is not B remembers the button pressed, so that a Back to
+	 * it can return there. A screen left with no press (a script) remembers nothing. */
+	if (activeIndex && !back)
+	{
+		focusMemory[activeIndex].button = focus.actionTarget();
+		focusMemory[activeIndex].submenu = activeSubmenu;
+	}
+
+	/* A Back takes what the screen remembers, but only for the tab it was left from. */
+	if (back && frameIndex >= FRAME_MAIN && frameIndex <= FRAME_CUSTOMIZECOOP)
+	{
+		if (focusMemory[frameIndex].submenu == submenu)
+			returnTo = focusMemory[frameIndex].button;
+		focusMemory[frameIndex].button = NULL;
+	}
+
 	if(currentActiveFrame)
 		currentActiveFrame->hideFrame();
 
@@ -258,11 +290,15 @@ void MenuContext::setActiveFrame(int frameIndex)
 		menu::Focus::getInstance().setCurrentFrame(currentActiveFrame);
 		menu::Cursor::getInstance().setCurrentFrame(currentActiveFrame);
 	}
+
+	focus.setReturnFocus(returnTo);
+	activeIndex = frameIndex;
+	activeSubmenu = submenu;
 }
 
 void MenuContext::setActiveFrame(int frameIndex, int submenu)
 {
-	setActiveFrame(frameIndex);
+	enterFrame(frameIndex, submenu);
 	if(currentActiveFrame) currentActiveFrame->activateSubmenu(submenu);
 }
 

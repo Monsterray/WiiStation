@@ -38,6 +38,7 @@ public:
 	void setEnabled(bool enable);
 	virtual void drawChildren(Graphics& gfx);
 	void remove(Component* component);
+	bool has(Component* component);
 	void removeAll();
 	void add(Component* comp);
 	void updateTime(float deltaTime);

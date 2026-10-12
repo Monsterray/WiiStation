@@ -23,6 +23,7 @@
 #include "InputManager.h"
 #include "Frame.h"
 #include "IPLFont.h"
+#include "Button.h"
 
 #include "../../HidController/KernelHID.h"
 
@@ -123,7 +124,10 @@ Focus::Focus()
 		  buttonsPressed(0),
 		  focusList(0),
 		  primaryFocusOwner(0),
-		  secondaryFocusOwner(0)
+		  secondaryFocusOwner(0),
+		  returnFocus(0),
+		  actionOwner(0),
+		  actionBack(false)
 {
 	for (int i=0; i<4; i++) {
 		previousButtonsWii[i] = 0;
@@ -155,8 +159,22 @@ void Focus::updateFocus()
 	if (frameSwitch)
 	{
 		if(primaryFocusOwner) primaryFocusOwner->setFocus(false);
-		if (currentFrame) primaryFocusOwner = currentFrame->getDefaultFocus();
+		if (currentFrame)
+		{
+			/* A Back returns to the button the screen was left by, if it is still shown and can
+			 * take focus. Otherwise the frame's default, as on any other switch. */
+			bool returning = returnFocus && currentFrame->has(returnFocus) &&
+				(returnFocus->getType() != Component::TYPE_BUTTON ||
+				 static_cast<Button*>(returnFocus)->canTakeFocus());
+			if (returning)
+			{
+				primaryFocusOwner = returnFocus;
+				primaryFocusOwner->setFocus(true);
+			}
+			else primaryFocusOwner = currentFrame->getDefaultFocus();
+		}
 		else primaryFocusOwner = NULL;
+		returnFocus = NULL;
 		frameSwitch = false;
 	}
 
@@ -217,8 +235,7 @@ void Focus::updateFocus()
 				focusDirection = DIRECTION_NONE;
 				buttonsDown = 0;
 			}
-			if (primaryFocusOwner) primaryFocusOwner = primaryFocusOwner->updateFocus(focusDirection,buttonsDown);
-			else primaryFocusOwner = currentFrame->updateFocus(focusDirection,buttonsDown);
+			primaryFocusOwner = pressOn(primaryFocusOwner, focusDirection, buttonsDown);
 			previousButtonsGC[i] = currentButtonsGC;
 			break;
 		}
@@ -271,8 +288,7 @@ void Focus::updateFocus()
 				focusDirection = DIRECTION_NONE;
 				buttonsDown = 0;
 			}
-			if (primaryFocusOwner) primaryFocusOwner = primaryFocusOwner->updateFocus(focusDirection,buttonsDown);
-			else primaryFocusOwner = currentFrame->updateFocus(focusDirection,buttonsDown);
+			primaryFocusOwner = pressOn(primaryFocusOwner, focusDirection, buttonsDown);
 			previousButtonsWii[i] = currentButtonsWii;
 			break;
 		}
@@ -301,8 +317,7 @@ void Focus::updateFocus()
 				focusDirection = DIRECTION_NONE;
 				buttonsDown = 0;
 			}
-			if (primaryFocusOwner) primaryFocusOwner = primaryFocusOwner->updateFocus(focusDirection, buttonsDown);
-			else primaryFocusOwner = currentFrame->updateFocus(focusDirection, buttonsDown);
+			primaryFocusOwner = pressOn(primaryFocusOwner, focusDirection, buttonsDown);
 			previousButtonsWiiUPro[i] = currentButtonsWiiUPro;
 			break;
 		}
@@ -331,8 +346,7 @@ void Focus::updateFocus()
 				focusDirection = DIRECTION_NONE;
 				buttonsDown = 0;
 			}
-			if (primaryFocusOwner) primaryFocusOwner = primaryFocusOwner->updateFocus(focusDirection, buttonsDown);
-			else primaryFocusOwner = currentFrame->updateFocus(focusDirection, buttonsDown);
+			primaryFocusOwner = pressOn(primaryFocusOwner, focusDirection, buttonsDown);
 			previousButtonsWiiUGamepad[i] = currentButtonsWiiUGamepad;
 			break;
 		}
@@ -361,13 +375,41 @@ void Focus::updateFocus()
 				focusDirection = DIRECTION_NONE;
 				buttonsDown = 0;
 			}
-			if (primaryFocusOwner) primaryFocusOwner = primaryFocusOwner->updateFocus(focusDirection, buttonsDown);
-			else primaryFocusOwner = currentFrame->updateFocus(focusDirection, buttonsDown);
+			primaryFocusOwner = pressOn(primaryFocusOwner, focusDirection, buttonsDown);
 			previousButtonsGCHid[i] = currentButtonsGCHid;
 			break;
 		}
 #endif
 	}
+}
+
+/* Runs a press on target. NULL means the frame itself (its Back func). */
+Component* Focus::pressOn(Component* target, int direction, int buttons)
+{
+	bool prevBack = actionBack;
+	Component* prevOwner = actionOwner;
+	actionBack = (buttons & ACTION_BACK) != 0;
+	actionOwner = target;
+	Component* result = target ? target->updateFocus(direction, buttons)
+		: currentFrame->updateFocus(direction, buttons);
+	actionBack = prevBack;
+	actionOwner = prevOwner;
+	return result;
+}
+
+bool Focus::actionIsBack() const
+{
+	return actionBack;
+}
+
+Component* Focus::actionTarget() const
+{
+	return actionOwner;
+}
+
+void Focus::setReturnFocus(Component* component)
+{
+	returnFocus = component;
 }
 
 void Focus::addComponent(Component* component)

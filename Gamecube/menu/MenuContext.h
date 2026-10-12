@@ -61,6 +61,7 @@ public:
 
 private:
 	void draw();
+	void enterFrame(int frameIndex, int submenu);
 	menu::Frame *currentActiveFrame;
 	MainFrame *mainFrame;
 	LoadRomFrame *loadRomFrame;
@@ -71,6 +72,18 @@ private:
 	ConfigureButtonsFrame *configureButtonsFrame;
 	OptionsFrame *optionsFrame;
 	CustomizeCoopFrame *customizeCoopFrame;
+
+	/* Where focus goes on a Back: the button a screen was left by, and the submenu (tab) it
+	 * was left from. Set when the screen is left by a press; see enterFrame().
+	 * ponytail: one slot per screen, so a screen left from two tabs remembers only the last one.
+	 * A table per tab is the upgrade if both tabs must return where they were. */
+	struct FocusMemory
+	{
+		menu::Component *button;
+		int submenu;
+	};
+	FocusMemory focusMemory[FRAME_CUSTOMIZECOOP + 1];
+	int activeIndex, activeSubmenu;
 
 };
 
