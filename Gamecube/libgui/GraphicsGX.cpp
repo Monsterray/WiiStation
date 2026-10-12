@@ -59,7 +59,24 @@ GXRModeObj TVMODE_240p =
 };
 extern "C" unsigned int usleep(unsigned int us);
 void video_mode_init(GXRModeObj *rmode, u32 *fb1, u32 *fb2, u32 *fb3);
-extern "C" void VIDEO_SetTrapFilter(bool enable);
+extern "C" {
+#include "../vi_encoder.h"
+}
+
+/* The VI gamma the Gamma setting names. One I2C write; the callers run it when the setting
+ * or the video mode changes, never per frame. */
+void applyVideoGamma(void)
+{
+	VIDEO_SetGamma((VIGamma)(VI_GM_1_0 + gammaLevel));
+}
+
+/* The taps of the frame copy's vertical filter: the mode's own, or the light ones when the
+ * Deflicker Level asks for them. Only read while Deflicker is on. */
+extern "C" u8 *videoCopyTaps(u8 *modeTaps)
+{
+	static u8 light[7] = { 0, 0, 21, 22, 21, 0, 0 };	/* the 480p taps */
+	return deflickerLevel == DEFLICKERLEVEL_LIGHT ? light : modeTaps;
+}
 
 GXRModeObj gvmode;
 GXRModeObj mgvmode;
@@ -160,7 +177,7 @@ extern "C" void switchToTVMode(short dWidth, short dHeight, bool retMenu){
 
 	}
 
-	GX_SetCopyFilter(rmode->aa,rmode->sample_pattern,(deflickerFilter)?GX_TRUE:GX_FALSE,rmode->vfilter);
+	GX_SetCopyFilter(rmode->aa,rmode->sample_pattern,(deflickerFilter)?GX_TRUE:GX_FALSE,videoCopyTaps(rmode->vfilter));
 
 	GX_SetCopyClear(background, 0x00ffffff);
 	GX_SetViewport(0.0F, 0.0F, rmode->fbWidth, rmode->efbHeight, 0.0F, 1.0F);
@@ -280,6 +297,8 @@ Graphics::Graphics(GXRModeObj *rmode)
 	memcpy( &mgvmode, vmode, sizeof(GXRModeObj));
 	if (trapFilter)
 		VIDEO_SetTrapFilter(1);
+	if (gammaLevel)
+		applyVideoGamma();
 
 	VIDEO_Configure(vmode);
 

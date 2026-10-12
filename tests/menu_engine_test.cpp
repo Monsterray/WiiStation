@@ -197,11 +197,12 @@ static const HelpLine PLUGIN_HELP[] = {
 static const HelpLine ADVGFX_HELP[] = {
 	{ "Dithering:",    "Hides the steps between colours in a 15-bit picture." },
 	{ NULL,            "Default uses it only where the game asks for it." },
+	{ "Video Colour:", "24-bit is full colour. 15-bit bands in dark scenes." },
 	{ "MDEC Chroma:",  "Sharp is the console: one colour sample per 2x2 pixels." },
 	{ NULL,            "Smooth mixes the samples: it looks better, costs more." },
 	{ NULL,            "It applies to the next video that starts." },
-	{ "Video Colour:", "24-bit is full colour, as on the console. 15-bit is" },
-	{ NULL,            "the old way: it shows bands in dark scenes." },
+	{ "Gamma:",        "Brightens the TV picture. 1.0 changes nothing." },
+	{ "Deflicker Level:", "Light blurs less than Normal. Needs Deflicker on." },
 };
 
 static const HelpLine CD_HELP[] = {
@@ -3520,6 +3521,167 @@ static void testCycle(void)
 	printf("cycle: wraps through all names ... %s\n", failures == before ? "ok" : "FAILED");
 }
 
+/* The two-column grid: a column's label width is its widest label and its button width its widest
+ * fitted button, so every line shares the edges. A cell is a label right-aligned 10 px before its
+ * button; the columns are 24 apart and the grid is centred once. Nothing in the 15 px margins or
+ * past 636. cells[line] = { left row, right row } (-1 for none), ys[line] the line's top. */
+static void checkGrid(const Layout &lay, const Row *rows, const int (*cells)[2], const float *ys, int nLines)
+{
+	float lw[2] = { 0, 0 }, bw[2] = { 0, 0 }, x0, colX[2];
+	bool two = false;
+
+	for (int l = 0; l < nLines; l++)
+		for (int c = 0; c < 2; c++) {
+			if (cells[l][c] < 0) continue;
+			const Row &r = rows[cells[l][c]];
+			two = two || c == 1;
+			if ((float)fontWidth(r.label, 1.0f, NULL) > lw[c]) lw[c] = (float)fontWidth(r.label, 1.0f, NULL);
+			for (int k = 0; k < r.count; k++)
+				if (fitWidth(r.names[k]) > bw[c]) bw[c] = fitWidth(r.names[k]);
+		}
+	x0 = (640.0f - (lw[0] + 10.0f + bw[0] + (two ? 24.0f + lw[1] + 10.0f + bw[1] : 0.0f))) / 2;
+	colX[0] = x0 + lw[0] + 10.0f;
+	colX[1] = x0 + lw[0] + 10.0f + bw[0] + 24.0f + lw[1] + 10.0f;
+
+	for (int l = 0; l < nLines; l++)
+		for (int c = 0; c < 2; c++) {
+			const int i = cells[l][c];
+			if (i < 0) continue;
+			const Key kb = { ROLE_BUTTON, i, 0 }, kl = { ROLE_LABEL, i, 0 };
+			const int b = findCtrl(lay, kb), t = findCtrl(lay, kl);
+			if (b < 0 || t < 0) { fail("2 columns", "a row lost its label or button"); continue; }
+			if (lay.c[b].rect.x != colX[c] || lay.c[b].rect.y != ys[l] || lay.c[b].rect.w != bw[c] ||
+			    lay.c[b].rect.h != 56.0f)
+				fail("2 columns", "a button is not on the grid");
+			if (fabsf(lay.c[t].rect.x + lay.c[t].rect.w - (colX[c] - 10.0f)) > 1.0f || lay.c[t].ay != ys[l] + 20.0f)
+				fail("2 columns", "a label does not end 10 px before its button");
+			if (lay.c[t].rect.x < 15.0f || colX[c] + bw[c] > 636.0f)
+				fail("2 columns", "a cell reaches the margin");
+		}
+}
+
+/* Page::columns == 2 (Advanced Graphics): Cycle rows fill two columns of label + button, a choice
+ * row takes the whole line, the help starts under the last line, focus runs by geometry. */
+static void testTwoColumns(void)
+{
+	static const char *const GAMMA_NAMES[] = { "1.0", "1.1", "1.2", "1.3", "1.4", "1.5" };
+	static const char *const DEFLICKER_NAMES[] = { "Normal", "Light" };
+	static Row rows[] = {
+		RADIO_FIT("Dithering",       DITHER_NAMES,      1),
+		CYC("Video Colour",          FMV_COLOUR_NAMES,  1),
+		CYC("MDEC Chroma",           CHROMA_NAMES,      0),
+		CYC("Gamma",                 GAMMA_NAMES,       0),
+		CYC("Deflicker Level",       DEFLICKER_NAMES,   0),
+	};
+	Page p;
+	Layout lay;
+	Problem probs[MAX_PROBLEMS];
+	int before = failures;
+
+	memset(&p, 0, sizeof p);
+	p.title = "Advanced Graphics";
+	p.rows = rows;
+	p.nRows = COUNT(rows);
+	p.help = ADVGFX_HELP;
+	p.nHelp = COUNT(ADVGFX_HELP);
+	p.logo = LOGO_SPOT_BOTTOM;
+	p.focus = FOCUS_ROWS;
+	p.columns = 2;
+
+	if (layoutPage(p, kFont, lay) < 0)
+		fail("2 columns", "layoutPage refused the page");
+	linkFocus(p, lay);
+	if (checkLayout(p, kFont, lay, probs, MAX_PROBLEMS) != 0)
+		fail("2 columns", "checkLayout finds a problem on the page");
+
+	/* Lines: Dithering at 100, the two Cycle pairs at 160 and 220. */
+	{
+		static const int cells[2][2] = { { 1, 2 }, { 3, 4 } };
+		static const float ys[2] = { 160.0f, 220.0f };
+		checkGrid(lay, rows, cells, ys, 2);
+	}
+	/* The choice row is where it always was; the help starts under line 3 (y 280), not row 5 (400). */
+	{
+		const Key kc = { ROLE_CHOICE, 0, 0 }, kh = { ROLE_HELP_TERM, -1, 0 };
+		const int c = findCtrl(lay, kc), h = findCtrl(lay, kh);
+		if (c < 0 || lay.c[c].rect.y != 100.0f)
+			fail("2 columns", "the Dithering row moved");
+		if (h < 0 || lay.c[h].rect.y != 280.0f)
+			fail("2 columns", "the help does not start under the last line");
+	}
+	/* Focus: Down and Up keep the column, Left and Right change it and wrap. */
+	{
+		static const struct { int row, dir, to; } F[] = {
+			{ 1, DIR_RIGHT, 2 }, { 2, DIR_LEFT, 1 }, { 2, DIR_RIGHT, 1 }, { 1, DIR_LEFT, 2 },
+			{ 1, DIR_DOWN, 3 },  { 2, DIR_DOWN, 4 }, { 3, DIR_UP, 1 },    { 4, DIR_UP, 2 },
+			{ 3, DIR_DOWN, 0 },  { 4, DIR_DOWN, 0 },	/* the bottom line wraps to the top line, by column */
+		};
+		for (unsigned k = 0; k < COUNT(F); k++) {
+			const Key kf = { ROLE_BUTTON, F[k].row, 0 };
+			const int a = findCtrl(lay, kf);
+			const int t = a < 0 ? -1 : lay.c[a].link[F[k].dir];
+			if (t < 0 || lay.c[t].row != F[k].to) {
+				printf("    row %d dir %d -> row %d, want %d\n", F[k].row, F[k].dir, t < 0 ? -1 : lay.c[t].row, F[k].to);
+				fail("2 columns", "a focus link goes to the wrong cell");
+			}
+		}
+	}
+
+	/* An odd run leaves the right cell of its last line empty; a wide row splits the runs. */
+	{
+		Row odd[] = { CYC("Gamma", GAMMA_NAMES, 0), CYC("Video Colour", FMV_COLOUR_NAMES, 0),
+		              RADIO_FIT("Dithering", DITHER_NAMES, 1), CYC("Gamma", GAMMA_NAMES, 0),
+		              CYC("Gamma", GAMMA_NAMES, 0), CYC("Gamma", GAMMA_NAMES, 0) };
+		Page q = p;
+		q.rows = odd;
+		q.nRows = COUNT(odd);
+		q.help = NULL;
+		q.nHelp = 0;
+		if (layoutPage(q, kFont, lay) < 0)
+			fail("2 columns", "layoutPage refused the mixed page");
+		linkFocus(q, lay);
+		static const int cells[3][2] = { { 0, 1 }, { 3, 4 }, { 5, -1 } };
+		static const float ys[3] = { 100.0f, 220.0f, 280.0f };
+		checkGrid(lay, odd, cells, ys, 3);	/* the lone cell sits in column 1 of the same grid */
+		{	/* the wide row starts on the grid: its first button at column 1's button x */
+			const Key wide = { ROLE_CHOICE, 2, 0 }, cell = { ROLE_BUTTON, 0, 0 };
+			if (lay.c[findCtrl(lay, wide)].rect.x != lay.c[findCtrl(lay, cell)].rect.x)
+				fail("2 columns", "a wide row does not start at column 1's button");
+		}
+		if (checkLayout(q, kFont, lay, probs, MAX_PROBLEMS) != 0)
+			fail("2 columns", "checkLayout finds a problem on the mixed page");
+	}
+
+	/* The check still sees a label too long for its cell: it runs over the button beside it. */
+	{
+		Row bad[] = { CYC("A label far too long to fit in its half of the screen", GAMMA_NAMES, 0) };
+		Page q = p;
+		bool over = false;
+		q.rows = bad;
+		q.nRows = 1;
+		q.help = NULL;
+		q.nHelp = 0;
+		layoutPage(q, kFont, lay);
+		linkFocus(q, lay);
+		for (int i = 0, n = checkLayout(q, kFont, lay, probs, MAX_PROBLEMS); i < n && i < MAX_PROBLEMS; i++)
+			if (probs[i].kind == PROB_OVERLAP || probs[i].kind == PROB_PAST_EDGE)
+				over = true;
+		if (!over)
+			fail("2 columns", "checkLayout missed a label wider than its cell");
+	}
+
+	/* Columns unset: one row per line, as before. */
+	{
+		Page q = p;
+		const Key k = { ROLE_BUTTON, 2, 0 };
+		q.columns = 0;
+		layoutPage(q, kFont, lay);
+		if (lay.c[findCtrl(lay, k)].rect.x != 295.0f || lay.c[findCtrl(lay, k)].rect.y != 220.0f)
+			fail("2 columns", "columns 0 changed the one-column layout");
+	}
+	printf("two columns: cells, help, focus, checks ... %s\n", failures == before ? "ok" : "FAILED");
+}
+
 int main(int argc, char **argv)
 {
 	const char *font = argc > 1 ? argv[1] : "fonts/En.dat";
@@ -3530,6 +3692,7 @@ int main(int argc, char **argv)
 	}
 
 	testCycle();
+	testTwoColumns();
 	testPageList(PAGES, NPAGES,
 	             "OptionsFrame pages (rectangles, focus links, help, logo, every value of every setting)");
 	testPageList(SETTINGS_PAGES, NSETTINGS,

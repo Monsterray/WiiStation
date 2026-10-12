@@ -87,11 +87,72 @@ static int shownValue(const Row &r)
 	return v;
 }
 
-/* The top of row i: the page's first row (rowY0, or ROW_Y0) plus i row pitches, the page's own
+/* The top of line i: the page's first row (rowY0, or ROW_Y0) plus i row pitches, the page's own
  * pitch or ROW_DY. */
 static float rowTop(const Page &p, int i)
 {
 	return (p.rowY0 > 0 ? p.rowY0 : ROW_Y0) + i * (p.rowDy > 0 ? p.rowDy : ROW_DY);
+}
+
+/* Which line and column row i is in. One column: line i, column 0. Two columns: a Toggle or
+ * Cycle row takes the open right-hand cell of the line above, or opens a new line; any other
+ * row is a line of its own. */
+static void rowCell(const Page &p, int i, int &line, int &col)
+{
+	bool open = false;		/* the line has a left cell and no right one yet */
+	line = -1;
+	col = 0;
+	for (int k = 0; k <= i; k++) {
+		const bool cell = p.columns >= 2 && (p.rows[k].kind == ROW_TOGGLE || p.rows[k].kind == ROW_CYCLE);
+		if (cell && open) {
+			col = 1;
+			open = false;
+		} else {
+			line++;
+			col = 0;
+			open = cell;
+		}
+	}
+}
+
+/* The two-column grid. Column c has one label width (the widest label in it) and one button width
+ * (the widest fitted button, over every name of every row in it), so every line shares the same
+ * edges. A cell is a right-aligned label, RLABEL_GAP, then the button; the two columns are
+ * COL2_GAP apart and the whole grid is centred once. */
+static void gridPlace(const Page &p, const Metrics &m, int col, float &btnX, float &btnW, float &labelRight)
+{
+	float lw[2] = { 0, 0 }, bw[2] = { 0, 0 }, x;
+	int cols = 1;
+
+	for (int k = 0; k < p.nRows; k++) {
+		const Row &r = p.rows[k];
+		int line, c;
+		if (r.kind != ROW_TOGGLE && r.kind != ROW_CYCLE)
+			continue;
+		rowCell(p, k, line, c);
+		cols = c ? 2 : cols;
+		if ((float)measure(m, r.label, TEXT_SCALE) > lw[c])
+			lw[c] = (float)measure(m, r.label, TEXT_SCALE);
+		for (int n = 0; n < r.count; n++)
+			if ((float)buttonFitWidth(m, r.names[n]) > bw[c])
+				bw[c] = (float)buttonFitWidth(m, r.names[n]);
+	}
+	x = (MENU_W - (lw[0] + RLABEL_GAP + bw[0] + (cols > 1 ? COL2_GAP + lw[1] + RLABEL_GAP + bw[1] : 0))) / 2;
+	if (col)
+		x += lw[0] + RLABEL_GAP + bw[0] + COL2_GAP;
+	btnX = x + lw[col] + RLABEL_GAP;
+	btnW = bw[col];
+	labelRight = btnX - RLABEL_GAP;
+}
+
+/* How many lines the rows take: where the help starts. */
+static int pageLines(const Page &p)
+{
+	int line, col;
+	if (p.nRows <= 0)
+		return 0;
+	rowCell(p, p.nRows - 1, line, col);
+	return line + 1;
 }
 
 /*  Placing  */
@@ -207,7 +268,7 @@ static void layoutHelp(const Page &p, const Metrics &m, Layout &out)
 	termR = (MENU_W - (wTerm + HELP_COL_GAP + wText)) / 2 + wTerm;
 	textX = termR + HELP_COL_GAP;
 
-	y = rowTop(p, p.nRows);
+	y = rowTop(p, pageLines(p));
 	for (int i = 0; i < p.nHelp; i++) {
 		const HelpLine &h = p.help[i];
 		int over;
@@ -221,7 +282,7 @@ static void layoutHelp(const Page &p, const Metrics &m, Layout &out)
 	termR -= shift;
 	textX -= shift;
 
-	y = rowTop(p, p.nRows);
+	y = rowTop(p, pageLines(p));
 	for (int i = 0; i < p.nHelp; i++) {
 		const HelpLine &h = p.help[i];
 		if (i > 0 && h.term) y += HELP_CELL_GAP;
@@ -368,7 +429,9 @@ int layoutPage(const Page &p, const Metrics &m, Layout &out)
 		if (r.kind != ROW_CHOICE || !r.label)
 			continue;
 		{
-			const float x0 = rowStart(m, r, rowTop(p, i), p.logo);
+			int line, col;
+			rowCell(p, i, line, col);
+			const float x0 = rowStart(m, r, rowTop(p, line), p.logo);
 			const int lw = measure(m, r.label, TEXT_SCALE);
 			const float cx = x0 - RLABEL_GAP - (float)(lw - lw / 2);
 			if (cx < rlabelCx)
@@ -396,14 +459,23 @@ int layoutPage(const Page &p, const Metrics &m, Layout &out)
 
 	for (int i = 0; i < p.nRows; i++) {
 		const Row &r = p.rows[i];
-		const float y = rowTop(p, i);
+		int line, col;
+		rowCell(p, i, line, col);
+		const float y = rowTop(p, line);
 
 		switch (r.kind) {
 		case ROW_TOGGLE:
 		case ROW_CYCLE: {
-			if (r.label)
-				addText(out, m, ROLE_LABEL, i, 0, lcx, y + ldy, ALIGN_CENTRE, TEXT_SCALE, r.label);
-			out.slot[i][0] = addButton(out, ROLE_BUTTON, i, 0, CYCLE_X, y, CYCLE_W, BUTTON_H,
+			const bool two = p.columns >= 2;
+			float bx = CYCLE_X, bw = CYCLE_W, lr = 0;
+			if (two)
+				gridPlace(p, m, col, bx, bw, lr);
+			if (r.label) {
+				/* centred on an anchor that puts its right edge at lr (the choice rows' rounding) */
+				const int lw = measure(m, r.label, TEXT_SCALE);
+				addText(out, m, ROLE_LABEL, i, 0, two ? lr - (float)(lw - lw / 2) : lcx, y + ldy, ALIGN_CENTRE, TEXT_SCALE, r.label);
+			}
+			out.slot[i][0] = addButton(out, ROLE_BUTTON, i, 0, bx, y, bw, BUTTON_H,
 			                           r.names[shownValue(r) - r.lo], false, !isInactive(r, 0));
 			break;
 		}
@@ -427,8 +499,19 @@ int layoutPage(const Page &p, const Metrics &m, Layout &out)
 			/* The last `plain` buttons are actions: drawn like the rest, never lit. */
 			const int lit = shownValue(r) - r.lo;
 			float cx = rowStart(m, r, y, p.logo);
+			float lx = rlabelCx;
+			if (p.columns >= 2) {
+				/* a whole line in a two-column page starts on the grid: its label ends on
+				 * column 1's label edge, its buttons start at column 1's button */
+				float bw, lr;
+				gridPlace(p, m, 0, cx, bw, lr);
+				if (r.label) {
+					const int lw = measure(m, r.label, TEXT_SCALE);
+					lx = lr - (float)(lw - lw / 2);
+				}
+			}
 			if (r.label)
-				addText(out, m, ROLE_RLABEL, i, 0, rlabelCx, y + ldy, ALIGN_CENTRE, TEXT_SCALE, r.label);
+				addText(out, m, ROLE_RLABEL, i, 0, lx, y + ldy, ALIGN_CENTRE, TEXT_SCALE, r.label);
 			for (int c = 0; c < r.count; c++) {
 				float w = choiceWidth(m, r, c);
 				out.slot[i][c] = addButton(out, ROLE_CHOICE, i, c, cx, y, w, BUTTON_H, r.names[c],
@@ -502,15 +585,23 @@ static void linkRows(const Page &p, Layout &lay)
 	const bool tabbed = p.nTabs > 0;
 	const int cur = tabbed ? lay.tab[p.curTab] : -1;
 
+	/* A line is a row, or on a two-column page the one or two cells that share it: its buttons
+	 * run left to right as one row. A list's links are its own (linkList). */
+	const int nl = pageLines(p);
+	for (int l = 0; l < nl; l++)
+		nA[l] = 0;
 	for (int i = 0; i < p.nRows; i++) {
-		if (i == lay.list) {		/* a list's links are its own (linkList) */
-			nA[i] = 0;
+		int line, col, a[MAX_SLOTS], n;
+		if (i == lay.list)
 			continue;
-		}
-		activeSlots(lay, i, A[i], nA[i]);
-		if (nA[i] > 0)
-			F[nf++] = i;
+		rowCell(p, i, line, col);
+		activeSlots(lay, i, a, n);
+		for (int k = 0; k < n; k++)
+			A[line][nA[line]++] = a[k];
 	}
+	for (int l = 0; l < nl; l++)
+		if (nA[l] > 0)
+			F[nf++] = l;
 
 	for (int k = 0; k < nf; k++) {
 		const int i = F[k], n = nA[i];
