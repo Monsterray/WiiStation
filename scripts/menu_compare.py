@@ -42,7 +42,9 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LAYOUT = os.path.join(REPO, 'Gamecube', 'menu', 'MenuLayout.h')
 PAD = 12                     # dump pixels of margin around each logo box
 STILL = 3                    # frames that must stay unchanged to count as a still picture
-MOVE_PX = 2000               # a change above this is a menu movement; flicker is under 20 px
+MOVE_PX = 200                # a change above this is a menu movement. Flicker is under 20 px. A focus
+                             # change on a small button can be under 2000 px (4 of 28 Configure Buttons
+                             # moves were missed at 2000, 2026-10-11).
 WIIMOTES = ('Wiimote1', 'Wiimote2', 'Wiimote3', 'Wiimote4')
 USAGE = ("menu_compare.py compare RUN_A [RUN_B] --out DIR [--page | --input WALK]  |  "
          "menu_compare.py ini-off WIIMOTE_INI")
