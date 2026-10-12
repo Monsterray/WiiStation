@@ -122,7 +122,7 @@ static char FRAME_STRINGS[36][20] =
 
 static char TITLE_STRING[64] = "Gamecube Pad 1 to PSX Port 1 Mapping";
 
-struct ButtonInfo
+struct ConfigButtonInfo
 {
 	menu::Button	*button;
 	int				buttonStyle;
@@ -262,12 +262,12 @@ static float mapMaxWidth[NUM_FRAME_BUTTONS], mapWidth[NUM_FRAME_BUTTONS];
 
 static float maxWidthFor(int i)
 {
-	const ButtonInfo &b = FRAME_BUTTONS[i];
+	const ConfigButtonInfo &b = FRAME_BUTTONS[i];
 	float cx = b.x + b.width / 2, half = b.width / 2;
 	float room = cx - 4.0f < 636.0f - cx ? cx - 4.0f : 636.0f - cx;   /* the screen edges */
 	for (int j = 0; j < NUM_FRAME_BUTTONS; j++)
 	{
-		const ButtonInfo &o = FRAME_BUTTONS[j];
+		const ConfigButtonInfo &o = FRAME_BUTTONS[j];
 		float ocx = o.x + o.width / 2, d = cx > ocx ? cx - ocx : ocx - cx;
 		if (j == i || o.y >= b.y + b.height || b.y >= o.y + o.height || d < 1.0f)
 			continue;   /* not beside it */
@@ -288,7 +288,7 @@ static void fitMappingButtons(menu::Frame *frame)
 		btn->fitToLabel();
 		float w = btn->getWidth();
 		if (w == mapWidth[i]) continue;
-		const ButtonInfo &b = FRAME_BUTTONS[i];
+		const ConfigButtonInfo &b = FRAME_BUTTONS[i];
 		float x = floorf(b.x + b.width / 2 - w / 2);   /* whole pixels: see Button::fitToLabel */
 		btn->setBounds(x, b.y, w, b.height);
 		menu::Cursor::getInstance().moveComponent(frame, btn, x, x + w, b.y, b.y + b.height);
