@@ -19,6 +19,7 @@ extern u32 frame_counter;          /* psxcounters.c: +1 per vblank */
 extern fileBrowser_file isoFile;   /* GamecubeMain.cpp: the ISO file */
 void SysReset();                   /* GamecubeMain.cpp */
 int loadISOSwap(fileBrowser_file *file);
+extern char CdromId[10];           /* the game's serial, set at load */
 
 /* Real-game benchmarks must never load or let chain cleanup delete a personal card.
  * Fail closed before selecting the private SD directory. */
