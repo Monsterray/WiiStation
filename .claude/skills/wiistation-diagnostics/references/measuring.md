@@ -409,3 +409,27 @@ hashes in UploadScreen, OpenGX texel checks). The pattern to grep for is a loop 
   (cdriso.c), and an SD chain of the same game three times. The windows stay a fixed pool.
 - After changing a bundled library (deps/*/lib), the DOL now relinks (Makefile_Wii
   BUNDLED_LIBS); before, a rebuilt libsmb2 was silently not linked in.
+
+- `menukeys` presses are ignored while a Wiimote IR pointer is valid (the menu follows the pointer): for scripted menu walks in Dolphin set the emulated Wiimotes' Source=0 in the run profile (restore after). Found 2026-10-11; a focus walk "passed" with no movement before this was known.
+
+## Menu comparisons: wsx.sh menu (2026-10-11)
+
+- `wsx.sh menu NAME --dol A.dol [--dol2 B.dol] --page N` opens menu page N (`menupage N`) in
+  each build and compares the still picture. `--input FILE` walks the menu frame by frame (a
+  file of `menupage` and `menukeys` lines) and compares frame N of A with frame N of B.
+- The run sets `Source = 0` on Wiimotes 1-4 in the profile's WiimoteNew.ini, and restores the
+  file byte for byte at the end (checksum checked). A `WiimoteNew.ini.menu-backup` left behind
+  means an earlier run died. The next run restores from it and stops.
+- The masks are the FPS overlay and the spinning logo. The logo boxes come from
+  Gamecube/menu/MenuLayout.h and are padded by 12 px.
+- `--page` takes the last still picture of each run: the page opens a few frames after boot,
+  so the main menu is an earlier still. Check the picture in `before_after.png`.
+- A walk prints how many times each run moved: changes above 2000 px after the menu settled. A
+  focus move repaints a button. A page opening is not a press, so it is not counted. A walk with
+  a `menukeys` line that never moves exits 2, with "the walk did not move the menu".
+- Exit codes: 0 same, 1 differs, 2 the walk did not move, 3 nothing to compare or a usage error.
+- Output: `.runs/menu_NAME/` (`before_after.png`, `input.txt`) and the runs `menu_NAME_a` and
+  `menu_NAME_b`. Every frame is kept: about 220 MB per 1000 frames, so keep `--secs` short (the
+  default is 20).
+- Code: `scripts/menu_compare.py` (PIL). The Python does the comparing and the bash does the
+  Wiimote switch and the restore.
