@@ -11,8 +11,8 @@
 #   --frames   also dump Dolphin frames, to .runs/padtest_dx/frames
 #   --rom DIR  folder with padtest.bin + padtest.cue. Default C:/projects/padtest/build.
 #   -v         print what each cell's ROM received, not just the verdict
-# Other options go to wsx.sh run (e.g. --dol release). The ROM goes on the test profile's
-# card only (.dolphin), never the shared SD folder.
+# Other options go to wsx.sh run (e.g. --dol release). The ROM goes on this run's card only
+# (a copy in .runs/padtest_dx.rom), never the library or the shared SD folder.
 set -e
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 RUNS="${WSX_RUNS:-$REPO/.runs}"
@@ -32,11 +32,12 @@ elif command -v python >/dev/null 2>&1; then PYTHON=python;
 elif [ -x /c/Python312/python.exe ]; then PYTHON=/c/Python312/python.exe;
 else PYTHON=python3; fi
 name=padtest_dx
-card="${WSX_PROFILE:-$REPO/.dolphin}/Load/WiiSDSync/wiistation/isos/PadTestDX"
 [ -f "$rom/padtest.bin" ] || { echo "padtest_dx.sh: no such ROM $rom/padtest.bin (--rom DIR)" >&2; exit 2; }
 [ -f "$rom/padtest.cue" ] || { echo "padtest_dx.sh: no such ROM $rom/padtest.cue (--rom DIR)" >&2; exit 2; }
-mkdir -p "$card" "$RUNS"
-cp "$rom/padtest.bin" "$rom/padtest.cue" "$card/"
+# This build of the ROM is the PadTestDX game for the run: WSX_EXTRA_ISOS wins over the library's copy.
+mkdir -p "$RUNS" "$RUNS/$name.rom/PadTestDX"
+cp "$rom/padtest.bin" "$rom/padtest.cue" "$RUNS/$name.rom/PadTestDX/"
+export WSX_EXTRA_ISOS="$RUNS/$name.rom"
 chain="$RUNS/$name.chain.txt"
 "$PYTHON" "$REPO/scripts/padtest_dx.py" chain "$chain" "$cells"
 # Wall time: Dolphin runs the ROM at about full speed; the chain's own loads add ~3 s a cell

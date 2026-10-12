@@ -41,9 +41,13 @@ set -u
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 ALL="$REPO/scripts/chains/all.txt"
 PAD_USER="/c/tools/Dolphin-x64/User/Config/GCPadNew.ini"   # the user's own controller setup
-PAD_TEST="$REPO/.dolphin/Config/GCPadNew.ini"              # the test profile's (dolphin_run.sh)
-CARD="$REPO/.dolphin/Load/WiiSD.raw"
-SYNC="$REPO/.dolphin/Load/WiiSDSync/wiistation"
+# Recordings run on one named profile, kept between them (scripts/profile.sh), so the card the
+# recording is read back from still exists when the run is over.
+MOVIE_PROFILE="$(bash "$REPO/scripts/profile.sh" path movie_capture 2>/dev/null || bash "$REPO/scripts/profile.sh" new movie_capture)" || exit 2
+export WSX_PROFILE=movie_capture
+PAD_TEST="$MOVIE_PROFILE/Config/GCPadNew.ini"      # the profile's pads: backed up and restored around the run
+CARD="$MOVIE_PROFILE/Load/WiiSD.raw"
+SYNC="$MOVIE_PROFILE/Load/WiiSDSync/wiistation"
 
 if [ -n "${PYTHON:-}" ]; then :;
 elif command -v python >/dev/null 2>&1; then PYTHON=python;

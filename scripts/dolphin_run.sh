@@ -22,10 +22,13 @@
 #                         and fills the disk
 #          AUDIO_DUMP=1   write the mixed audio to the profile's Dump/Audio and collect it;
 #                         compare two runs with scripts/wav_compare.py
-#          WSX_PROFILE=<dir>  this run's Dolphin user directory (default <repo>/.dolphin)
-#          WSX_ISOS=<list>    extra game folders to put on the card, comma separated, or
-#                         "all" for every one. The game the autoboot file names is always
-#                         copied; this is for a run that browses to another one.
+#          WSX_PROFILE=NAME|DIR  run on this named profile (scripts/profile.sh new NAME), which
+#                         must exist and is kept. Default: a fresh profile for this run, deleted
+#                         at the end (KEEP_PROFILE=1 keeps it). See the PROFILE note below.
+#          WSX_ISOS=<list>    extra library games for the card, comma separated, or "all" for
+#                         every one. The game the autoboot file names is always staged; this
+#                         is for a run that browses to another one.
+#          WSX_LIBRARY=DIR    the game library (default /c/wiistation-lib)
 #          DOLPHIN_ARGS   extra arguments appended verbatim, e.g. "-C Graphics.Settings.OverlayStats=True"
 #          SMB_FROM=FILE  add the smb* / RomDirSMB lines of FILE (a settings.ini with the
 #                         share login) to the run's settings, unread and unprinted
@@ -42,25 +45,22 @@
 # ---------------------------------------------------------------------------------------
 # THE PROFILE. This runs against its own Dolphin user directory, not the install's shared
 # User/, so it can run beside the user's own Dolphin session and beside another project's
-# runs: nothing is shared except the CPU. The pattern is Wii64's .dev/dolphin_test.sh.
+# runs: nothing is shared except the CPU.
 #
-# Only two things have to be brought into it. Dolphin's SD folder sync is fixed at
-# <userdir>/Load/WiiSDSync and does NOT follow junctions -- a junctioned folder syncs as
-# empty, which Wii64 tested -- so the card's files are COPIED (cp -u, once) from the shared
-# drop location the user puts games in. And every Dolphin setting the run depends on is
-# passed with -C below, because a fresh profile has no Dolphin.ini to inherit them from.
-# That is the better way round in any case: the run now says what it is, instead of
-# quietly taking whatever the user last set in the GUI.
+# A run gets a fresh, lean profile (scripts/profile.sh new): the template's Config, the BIOS and
+# fonts, and only the games this run names, copied from the library (C:/wiistation-lib). It is
+# locked while it runs and deleted at the end (KEEP_PROFILE=1 keeps it). Dolphin rebuilds the
+# card image at every boot, so nothing in a profile has to outlive a run; save states are
+# promoted to the library when a run ends. WSX_PROFILE=NAME runs on a named profile instead.
 #
-# The first run copies about 700 MB and Dolphin then builds the card image, so it takes a
-# few minutes. Later runs reuse both.
+# Dolphin's SD folder sync is fixed at <userdir>/Load/WiiSDSync and does NOT follow junctions,
+# so the games are COPIED in. Every Dolphin setting the run depends on is passed with -C below.
 # ---------------------------------------------------------------------------------------
 #
 # Stages the input script, settings and (optionally) autoboot.txt into the SD sync folder, boots the
 # .dol in batch mode, kills Dolphin after <seconds>, keeps the last KEEP frames, extracts
 # ptrace.log/vram.bin and reads perf.log straight from the FAT image (sdimage_read.py), then builds a
-# contact sheet (sheet.py). Defaults for the optional files come from the
-# WiiSDSync_paused_by_claude folder next to the shared sync dir.
+# contact sheet (sheet.py). Defaults for the optional files come from scripts/runfiles/.
 #
 # Every Dolphin setting is passed with -C <System>.<Section>.<Key>=<Value>. Nothing here writes to
 # Dolphin.ini/GFX.ini/Logger.ini, so a run that dies half way cannot leave anything misconfigured.
@@ -82,15 +82,51 @@ elif command -v python >/dev/null 2>&1; then PYTHON=python;
 elif [ -x /c/Python312/python.exe ]; then PYTHON=/c/Python312/python.exe;
 else PYTHON=python3; fi
 
-# This run's own user directory, and the shared folder the user drops games into.
-PROFILE="${WSX_PROFILE:-$REPO/.dolphin}"
-SHARED="$D/User/Load/WiiSDSync/wiistation"     # the user's games (isos/), BIOS, fonts and saves
-P="$D/User/Load/WiiSDSync_paused_by_claude"
+# The library of games, the shared folder (the user's own: read only, for CARDS=1), and the
+# autoboot/input/settings presets (scripts/runfiles).
+LIB="${WSX_LIBRARY:-/c/wiistation-lib}"
+PROF="$SP/profile.sh"
+SHARED="$D/User/Load/WiiSDSync/wiistation"
+P="$SP/runfiles"
+
+# The games this run puts on its card: the autoboot file's game folders, plus WSX_ISOS.
+want_isos() {
+  [ -n "$ABOOT" ] && tr -d '\r' < "$ABOOT" 2>/dev/null | sed -n 's|^sd:/wiistation/isos/||p'
+  case "${WSX_ISOS:-}" in
+    "")    ;;
+    all)   bash "$PROF" keys ;;
+    *)     echo "${WSX_ISOS}" | tr ',' '\n' ;;
+  esac
+}
+GAME_ARGS=()
+while IFS= read -r g; do
+  g=$(echo "$g" | sed 's/[[:space:]]*$//')
+  [ -n "$g" ] && GAME_ARGS+=(--game "$g")
+done < <(want_isos | sort -u)
+
+# The run's profile: a fresh one (deleted at the end), or the named WSX_PROFILE that must exist.
+if [ -z "${WSX_PROFILE:-}" ]; then
+  EPHEMERAL=1
+  PROFILE_NAME="run-$(basename "$OUT" | tr -c 'A-Za-z0-9._-' '_')-$(date +%H%M%S)-$$"
+  PROFILE=$(bash "$PROF" new "$PROFILE_NAME" --ephemeral ${GAME_ARGS[@]+"${GAME_ARGS[@]}"}) || exit 2
+else
+  EPHEMERAL=""
+  PROFILE=$(bash "$PROF" path "$WSX_PROFILE") || { echo "no profile $WSX_PROFILE: make it with scripts/profile.sh new NAME"; exit 2; }
+  PROFILE_NAME=$(basename "$PROFILE")
+fi
 S="$PROFILE/Load/WiiSDSync/wiistation"
-# The games, as on the bench Wii's card: chain files name sd:/wiistation/isos/<game>.
-ISOS="$S/isos"
-mkdir -p "$S" "$PROFILE/Logs" "$PROFILE/Load"
 PROFILE_WIN=$(cd "$PROFILE" && pwd -W | tr '/' '\\')
+
+# Released at exit, however the run ends. An ephemeral profile goes with its card image unless
+# KEEP_PROFILE is set. A child run of wsx.sh menu (WSX_LOCK_HELD) does not own the lock.
+cleanup() {
+  [ -n "${WSX_LOCK_HELD:-}" ] || bash "$PROF" unlock "$PROFILE_NAME" $$ >/dev/null 2>&1
+  if [ -n "$EPHEMERAL" ] && [ -z "${KEEP_PROFILE:-}" ]; then rm -rf "$PROFILE" 2>/dev/null; fi
+}
+trap cleanup EXIT
+if [ -z "${WSX_LOCK_HELD:-}" ]; then
+  bash "$PROF" lock "$PROFILE_NAME" "run:$(basename "$OUT")" $$ || exit 2
+fi
 
 # Only a Dolphin on THIS profile blocks a run: it would hold the same card image. Any other
 # instance -- the user's own session, another project's runs -- has its own directory and is
@@ -98,17 +134,13 @@ PROFILE_WIN=$(cd "$PROFILE" && pwd -W | tr '/' '\\')
 dolphin_instances() {   # prints "pid|commandline" per Dolphin.exe
   powershell.exe -NoProfile -Command 'Get-CimInstance Win32_Process | Where-Object Name -eq Dolphin.exe | ForEach-Object { "$($_.ProcessId)|$($_.CommandLine)" }' 2>/dev/null | tr -d '\r'
 }
-same_userdir_pids() {   # instances that use our profile
-  dolphin_instances | while IFS='|' read -r pid cmd; do
-    [ -n "$pid" ] || continue
-    # the path must END there (quote, space or end): ".dolphin" must not match ".dolphin2"
-    case "$cmd" in *"$PROFILE_WIN"\"*|*"$PROFILE_WIN"" "*|*"$PROFILE_WIN") echo "$pid";; esac
-  done
-}
+same_userdir_pids() { bash "$PROF" busy-pids "$PROFILE_NAME"; }
 BLOCKERS=$(same_userdir_pids | tr '\n' ' ')
 if [ -n "${BLOCKERS// /}" ]; then
   echo "refusing to start: Dolphin PID(s) $BLOCKERS already use this profile ($PROFILE_WIN): same SD image. If stale from a killed run: taskkill //F //PID <pid>"; exit 2
 fi
+# a named profile gets this run's games now, under its lock (an ephemeral one got them in new)
+[ -n "$EPHEMERAL" ] || bash "$PROF" stage "$PROFILE" ${GAME_ARGS[@]+"${GAME_ARGS[@]}"} || exit 2
 OTHERS=$(dolphin_instances | wc -l | tr -d ' ')
 [ "$OTHERS" != "0" ] && echo "note: $OTHERS other Dolphin instance(s) are running on their own profiles; this run shares the CPU with them"
 [ -f "$DOL" ] || { echo "no such .dol: $DOL"; exit 2; }
@@ -162,36 +194,12 @@ CFGARGS=(
 # shellcheck disable=SC2206
 [ -n "${DOLPHIN_ARGS:-}" ] && CFGARGS+=(${DOLPHIN_ARGS})
 
-# --- put the card together --------------------------------------------------------------
-# Small and always needed: the BIOS, the menu fonts and the memory cards.
-for dir in bios fonts saves; do
-  src="$SHARED/$dir"
-  [ -d "$src" ] || continue
-  mkdir -p "$S/$dir"
-  cp -ru "$src/." "$S/$dir/" 2>/dev/null || true
-done
-# the memory cards: fresh ones unless CARDS=1 (a chain deletes the cards a game used after
-# it, but the first boot of each game read whatever card was here)
-[ "${CARDS:-0}" = 1 ] || { [ "$(cd "$S" && pwd -P)" != "$(cd "$SHARED" && pwd -P)" ] && rm -f "$S/saves/"*.mcd; }
-# Games are hundreds of megabytes each, so only the ones this run can reach are copied: every
-# line of the autoboot file that is a folder on the card -- one for a single game, one per game
-# for a chain.
-want_isos() {
-  [ -n "$ABOOT" ] && tr -d '\r' < "$ABOOT" 2>/dev/null | sed -n 's|^sd:/wiistation/isos/||p'
-  case "${WSX_ISOS:-}" in
-    "")    ;;
-    all)   ls "$SHARED/isos" 2>/dev/null ;;
-    *)     echo "${WSX_ISOS}" | tr ',' '\n' ;;
-  esac
-}
-want_isos | sed 's/[[:space:]]*$//' | sort -u | while read -r game; do
-  [ -n "$game" ] && [ -d "$SHARED/isos/$game" ] || continue
-  if [ ! -d "$ISOS/$game" ]; then
-    echo "copying game to this profile's card (once): $game ($(du -sh "$SHARED/isos/$game" | cut -f1))"
-  fi
-  mkdir -p "$ISOS/$game"
-  cp -ru "$SHARED/isos/$game/." "$ISOS/$game/" 2>/dev/null || true
-done
+# --- the card ---------------------------------------------------------------------------
+# The BIOS, fonts, save states and games were staged by profile.sh (new / stage) above.
+# The memory cards: fresh ones unless CARDS=1, which copies the user's own saves (read only).
+mkdir -p "$S/saves"
+if [ "${CARDS:-0}" = 1 ]; then cp -ru "$SHARED/saves/." "$S/saves/" 2>/dev/null || true; else rm -f "$S/saves/"*.mcd; fi
+echo "card: $(( ${#GAME_ARGS[@]} / 2 )) game(s) from the library"
 
 # --- stage the guest's files ------------------------------------------------------------
 rm -rf "$PROFILE/Dump/Frames" "$PROFILE/Dump/Audio"
@@ -277,6 +285,8 @@ N=$(ls "$PROFILE/Dump/Frames" 2>/dev/null | wc -l); echo "frames dumped: $N"
 ls "$PROFILE/Dump/Frames"/framedump_*.png 2>/dev/null | sed -E 's/.*framedump_([0-9]+)\.png/\1/' | sort -n | tail -${KEEP:-120} | while read i; do mv "$PROFILE/Dump/Frames/framedump_$i.png" "$OUT/frames/"; done
 rm -rf "$PROFILE/Dump/Frames"
 cp "$PROFILE/Logs/dolphin.log" "$OUT/dolphin.log" 2>/dev/null || true
+# save states the guest wrote: promoted to the library, which outlives this run's profile
+if [ -d "$S/states" ]; then cp -ru "$S/states/." "$LIB/states/" 2>/dev/null || true; fi
 if [ "${AUDIO_DUMP:-0}" != 0 ]; then
   cp "$PROFILE/Dump/Audio"/*.wav "$OUT/" 2>/dev/null && ls -la "$OUT"/*.wav | awk '{print "audio dump:", $5, $9}'
 fi
