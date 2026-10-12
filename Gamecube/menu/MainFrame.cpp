@@ -28,11 +28,9 @@
 #include "../libgui/Gui.h"
 #include "../libgui/InputStatusBar.h"
 #include "../libgui/resources.h"
-//#include "../libgui/InputManager.h"
 #include "../libgui/FocusManager.h"
 #include "../libgui/CursorManager.h"
 #include "../libgui/MessageBox.h"
-//#include "../main/wii64config.h"
 #ifdef DEBUGON
 # include <debug.h>
 #endif
@@ -43,10 +41,6 @@ extern "C" {
 #ifdef WII
 #include <di/di.h>
 #endif
-/*#include "../gc_memory/memory.h"
-#include "../gc_memory/Saves.h"
-#include "../main/plugin.h"
-#include "../main/savestates.h"*/
 #include "../fileBrowser/fileBrowser.h"
 #include "../fileBrowser/fileBrowser-libfat.h"
 #include "../fileBrowser/fileBrowser-CARD.h"
@@ -63,11 +57,9 @@ void Func_Credits();
 void Func_ExitToLoader();
 void Func_PlayGame();
 
-#define NUM_MAIN_BUTTONS 6
-#define FRAME_BUTTONS mainFrameButtons
-#define FRAME_STRINGS mainFrameStrings
+static const int NUM_MAIN_BUTTONS = 6;
 
-char FRAME_STRINGS[7][20] =
+static char mainStrings[7][20] =
 	{ "Load ISO",
 	  "Current ISO",
 	  "Settings",
@@ -76,38 +68,33 @@ char FRAME_STRINGS[7][20] =
 	  "Play Game",
 	  "Resume Game"};
 
-
 namespace eng = menu::engine;
 
-struct ButtonInfo
+struct MainButtonInfo
 {
 	menu::Button	*button;
 	int				buttonStyle;
 	char*			buttonString;
 	ButtonFunc		clickedFunc;
 	ButtonFunc		returnFunc;
-} FRAME_BUTTONS[NUM_MAIN_BUTTONS] =
-{ //	button	buttonStyle	buttonString		clickFunc				returnFunc
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[0],	Func_LoadROM,			NULL }, // Load ROM
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[1],	Func_CurrentROM,		NULL }, // Current ROM
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[2],	Func_Settings,			NULL }, // Settings
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[3],	Func_Credits,			NULL }, // Credits
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[4],	Func_ExitToLoader,		NULL }, // Exit to Loader
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[5],	Func_PlayGame,			NULL }, // Play/Resume Game
 };
 
-/*  The Main menu, on the menu engine (Docs/MENU_FRAMEWORK_PLAN.md, step 3)  */
+static MainButtonInfo mainButtons[NUM_MAIN_BUTTONS] =
+{	//	button	buttonStyle	buttonString		clickFunc			returnFunc
+	{	NULL,	BTN_A_NRM,	mainStrings[0],	Func_LoadROM,		NULL },
+	{	NULL,	BTN_A_NRM,	mainStrings[1],	Func_CurrentROM,	NULL },
+	{	NULL,	BTN_A_NRM,	mainStrings[2],	Func_Settings,		NULL },
+	{	NULL,	BTN_A_NRM,	mainStrings[3],	Func_Credits,		NULL },
+	{	NULL,	BTN_A_NRM,	mainStrings[4],	Func_ExitToLoader,	NULL },
+	{	NULL,	BTN_A_NRM,	mainStrings[5],	Func_PlayGame,		NULL },
+};
 
-/* Six rows, each one action button 200 wide at x 315: the first row's top at y 60, the rows 60
- * apart (the engine's pitch). The logo is top right, where MenuContext draws it. Focus is the
- * engine's row rule: Up and Down go row to row and wrap; Left and Right go nowhere. The layout is
- * fixed, so it is done once, here, and tests/menu_engine_test.cpp checks its numbers. */
+/* The Main menu page: six rows, one action button each. */
 static eng::ActionButton MAIN_ACTIONS[NUM_MAIN_BUTTONS];
 static eng::Row MAIN_ROWS[NUM_MAIN_BUTTONS];
 static eng::Page MAIN_PAGE;
 static eng::Layout MAIN_LAYOUT;
 
-/* The engine's text widths: IplFont, as the other frames use it (SettingsFrame.cpp). */
 static int mainWidth(const char *s, float scale, void *)
 {
 	return menu::IplFont::getInstance().getStringWidth((char*)s, scale);
@@ -124,7 +111,7 @@ static void layoutMain(void)
 {
 	for (int i = 0; i < NUM_MAIN_BUTTONS; i++)
 	{
-		MAIN_ACTIONS[i].text  = FRAME_BUTTONS[i].buttonString;	/* Play/Resume changes this text */
+		MAIN_ACTIONS[i].text  = mainButtons[i].buttonString;	/* Play/Resume changes this text */
 		MAIN_ACTIONS[i].width = 200.0f;
 		MAIN_ACTIONS[i].lit   = false;
 		MAIN_ACTIONS[i].dy    = 0.0f;
@@ -136,23 +123,13 @@ static void layoutMain(void)
 		row.actions = &MAIN_ACTIONS[i];
 		row.x0      = 315.0f;
 	}
-	MAIN_PAGE.title   = NULL;
-	MAIN_PAGE.tabs    = NULL;
-	MAIN_PAGE.nTabs   = 0;
-	MAIN_PAGE.curTab  = 0;
-	MAIN_PAGE.rows    = MAIN_ROWS;
-	MAIN_PAGE.nRows   = NUM_MAIN_BUTTONS;
-	MAIN_PAGE.help    = NULL;
-	MAIN_PAGE.nHelp   = 0;
-	MAIN_PAGE.logo    = eng::LOGO_SPOT_TOP;
-	MAIN_PAGE.focus   = eng::FOCUS_ROWS;
-	MAIN_PAGE.labelCx = 0.0f;
-	MAIN_PAGE.labelDy = 0.0f;
-	MAIN_PAGE.rowDy   = 0.0f;	/* the default pitch, 60 */
-	MAIN_PAGE.rowY0   = 60.0f;
+	memset(&MAIN_PAGE, 0, sizeof MAIN_PAGE);
+	MAIN_PAGE.rows  = MAIN_ROWS;
+	MAIN_PAGE.nRows = NUM_MAIN_BUTTONS;
+	MAIN_PAGE.logo  = eng::LOGO_SPOT_TOP;
+	MAIN_PAGE.focus = eng::FOCUS_ROWS;
+	MAIN_PAGE.rowY0 = 60.0f;
 
-	/* The tables are fixed: a page that does not fit is a programming error, which the host
-	 * test catches before it reaches the menu. */
 	eng::layoutPage(MAIN_PAGE, MAIN_METRICS, MAIN_LAYOUT);
 	eng::linkFocus(MAIN_PAGE, MAIN_LAYOUT);
 }
@@ -168,10 +145,11 @@ MainFrame::MainFrame()
 	for (int i = 0; i < NUM_MAIN_BUTTONS; i++)
 	{
 		const eng::Control &c = MAIN_LAYOUT.c[MAIN_LAYOUT.slot[i][0]];
-		FRAME_BUTTONS[i].button = new menu::Button(FRAME_BUTTONS[i].buttonStyle, &FRAME_BUTTONS[i].buttonString,
+		mainButtons[i].button = new menu::Button(mainButtons[i].buttonStyle, &mainButtons[i].buttonString,
 										c.rect.x, c.rect.y, c.rect.w, c.rect.h);
 	}
 
+	/* The engine's links, handed to the buttons. */
 	static const int DIRS[eng::DIR_COUNT] = {
 		menu::Focus::DIRECTION_UP, menu::Focus::DIRECTION_DOWN,
 		menu::Focus::DIRECTION_LEFT, menu::Focus::DIRECTION_RIGHT
@@ -182,28 +160,27 @@ MainFrame::MainFrame()
 		for (int d = 0; d < eng::DIR_COUNT; d++)
 		{
 			const int to = c.link[d];	/* a link of -1 is no link */
-			FRAME_BUTTONS[i].button->setNextFocus(DIRS[d],
-				to >= 0 ? FRAME_BUTTONS[MAIN_LAYOUT.c[to].row].button : NULL);
+			mainButtons[i].button->setNextFocus(DIRS[d],
+				to >= 0 ? mainButtons[MAIN_LAYOUT.c[to].row].button : NULL);
 		}
-		FRAME_BUTTONS[i].button->setActive(true);
-		if (FRAME_BUTTONS[i].clickedFunc) FRAME_BUTTONS[i].button->setClicked(FRAME_BUTTONS[i].clickedFunc);
-		if (FRAME_BUTTONS[i].returnFunc) FRAME_BUTTONS[i].button->setReturn(FRAME_BUTTONS[i].returnFunc);
-		add(FRAME_BUTTONS[i].button);
-		menu::Cursor::getInstance().addComponent(this, FRAME_BUTTONS[i].button, c.rect.x,
+		mainButtons[i].button->setActive(true);
+		if (mainButtons[i].clickedFunc) mainButtons[i].button->setClicked(mainButtons[i].clickedFunc);
+		if (mainButtons[i].returnFunc) mainButtons[i].button->setReturn(mainButtons[i].returnFunc);
+		add(mainButtons[i].button);
+		menu::Cursor::getInstance().addComponent(this, mainButtons[i].button, c.rect.x,
 												c.rect.x+c.rect.w, c.rect.y,
 												c.rect.y+c.rect.h);
 	}
-	setDefaultFocus(FRAME_BUTTONS[0].button);
+	setDefaultFocus(mainButtons[0].button);
 	setEnabled(true);
-
 }
 
 MainFrame::~MainFrame()
 {
 	for (int i = 0; i < NUM_MAIN_BUTTONS; i++)
 	{
-		menu::Cursor::getInstance().removeComponent(this, FRAME_BUTTONS[i].button);
-		delete FRAME_BUTTONS[i].button;
+		menu::Cursor::getInstance().removeComponent(this, mainButtons[i].button);
+		delete mainButtons[i].button;
 	}
 	delete inputStatusBar;
 }
@@ -318,7 +295,6 @@ void resumeAudio(void); void resumeInput(void);
 void go(void);
 }
 
-//void control_info_init();
 
 extern int backFromMenu;
 extern char menuActive;
@@ -328,7 +304,6 @@ extern "C" char mcd2Written;
 extern "C" unsigned int usleep(unsigned int us);
 
 extern "C" void switchToTVMode(short dWidth, short dHeight, bool retMenu);
-extern "C" void GPUsetframelimit(unsigned long option);
 
 void Func_PlayGame()
 {
@@ -383,7 +358,6 @@ void Func_PlayGame()
 	if (originalMode)
 		backFromMenu = 1;
 	frameLimit[0] = frameLimit[1];
-	//GPUsetframelimit(0);
 	glResetCacheRegion();
 	go();
 
@@ -436,16 +410,16 @@ void Func_PlayGame()
   continueRemovalThread();
   resume_netinit_thread();
 #endif
-	FRAME_BUTTONS[5].buttonString = FRAME_STRINGS[6];
+	mainButtons[5].buttonString = mainStrings[6];
 	menu::Cursor::getInstance().clearCursorFocus();
 }
 
 void Func_SetPlayGame()
 {
-	FRAME_BUTTONS[5].buttonString = FRAME_STRINGS[5];
+	mainButtons[5].buttonString = mainStrings[5];
 }
 
 void Func_SetResumeGame()
 {
-	FRAME_BUTTONS[5].buttonString = FRAME_STRINGS[6];
+	mainButtons[5].buttonString = mainStrings[6];
 }
