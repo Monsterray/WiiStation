@@ -111,6 +111,7 @@ void Func_EnableRumbleYes();
 void Func_EnableRumbleNo();
 void Func_SaveButtonsSD();
 void Func_SaveButtonsUSB();
+void saveAllButtonConfigs(const char* dev, bool fade);   /* ConfigureButtonsFrame.cpp */
 void Func_SetButtonLoad();
 void Func_ToggleButtonLoad();
 
@@ -1673,120 +1674,16 @@ void Func_CardType2() { cardTypeCycle(1); }
 
 
 
+/* Save Button Configs: the device choice. Each row writes every button file to its device, the
+ * same as Configure Buttons' Save, and sets the device that Save uses from now on. */
 void Func_SaveButtonsSD()
 {
-	fileBrowser_file* configFile_file;
-	int (*configFile_init)(fileBrowser_file*) = fileBrowser_libfat_init;
-	int num_written = 0;
-	configFile_file = &saveDir_libfat_Default;
-	if(configFile_init(configFile_file)) {                //only if device initialized ok
-		FILE* f = fopen( "sd:/wiistation/controlG.cfg", "wb" );  //attempt to open file
-		if(f) {
-			save_configurations(f, &controller_GC);					//write out GC controller mappings
-			fclose(f);
-			num_written++;
-		}
-#ifdef HW_RVL
-        f = fopen( "sd:/wiistation/controlH.cfg", "wb" );  //attempt to open file
-		if(f) {
-			save_configurations(f, &controller_HidGC);			//write out HID controller mappings
-			fclose(f);
-			num_written++;
-		}
-		f = fopen( "sd:/wiistation/controlC.cfg", "wb" );  //attempt to open file
-		if(f) {
-			save_configurations(f, &controller_Classic);			//write out Classic controller mappings
-			fclose(f);
-			num_written++;
-		}
-		f = fopen( "sd:/wiistation/controlN.cfg", "wb" );  //attempt to open file
-		if(f) {
-			save_configurations(f, &controller_WiimoteNunchuk);	//write out WM+NC controller mappings
-			fclose(f);
-			num_written++;
-		}
-		f = fopen( "sd:/wiistation/controlW.cfg", "wb" );  //attempt to open file
-		if(f) {
-			save_configurations(f, &controller_Wiimote);			//write out Wiimote controller mappings
-			fclose(f);
-			num_written++;
-		}
-		f = fopen("sd:/wiistation/controlP.cfg", "wb");  //attempt to open file
-		if (f) {
-			save_configurations(f, &controller_WiiUPro);			//write out Wii U Pro controller mappings
-			fclose(f);
-			num_written++;
-		}
-		f = fopen("sd:/wiistation/controlD.cfg", "wb");  //attempt to open file
-		if (f) {
-			save_configurations(f, &controller_WiiUGamepad);		//write out Wii U Gamepad controller mappings
-			fclose(f);
-			num_written++;
-		}
-#endif //HW_RVL
-	}
-	if (num_written == num_controller_t)
-		menu::MessageBox::getInstance().setMessage("Saved Button Configs to SD");
-	else
-		menu::MessageBox::getInstance().setMessage("Error saving Button Configs to SD");
+	saveAllButtonConfigs("sd", false);
 }
 
 void Func_SaveButtonsUSB()
 {
-	fileBrowser_file* configFile_file;
-	int (*configFile_init)(fileBrowser_file*) = fileBrowser_libfat_init;
-	int num_written = 0;
-	configFile_file = &saveDir_libfat_USB;
-	if(configFile_init(configFile_file)) {                //only if device initialized ok
-		FILE* f = fopen( "usb:/wiistation/controlG.cfg", "wb" );  //attempt to open file
-		if(f) {
-			save_configurations(f, &controller_GC);					//write out GC controller mappings
-			fclose(f);
-			num_written++;
-		}
-#ifdef HW_RVL
-        f = fopen( "usb:/wiistation/controlH.cfg", "wb" );  //attempt to open file
-		if(f) {
-			save_configurations(f, &controller_HidGC);			//write out HID controller mappings
-			fclose(f);
-			num_written++;
-		}
-		f = fopen( "usb:/wiistation/controlC.cfg", "wb" );  //attempt to open file
-		if(f) {
-			save_configurations(f, &controller_Classic);			//write out Classic controller mappings
-			fclose(f);
-			num_written++;
-		}
-		f = fopen( "usb:/wiistation/controlN.cfg", "wb" );  //attempt to open file
-		if(f) {
-			save_configurations(f, &controller_WiimoteNunchuk);	//write out WM+NC controller mappings
-			fclose(f);
-			num_written++;
-		}
-		f = fopen( "usb:/wiistation/controlW.cfg", "wb" );  //attempt to open file
-		if(f) {
-			save_configurations(f, &controller_Wiimote);			//write out Wiimote controller mappings
-			fclose(f);
-			num_written++;
-		}
-		f = fopen("usb:/wiistation/controlP.cfg", "wb");  //attempt to open file
-		if (f) {
-			save_configurations(f, &controller_WiiUPro);			//write out Wii U Pro controller mappings
-			fclose(f);
-			num_written++;
-		}
-		f = fopen("usb:/wiistation/controlD.cfg", "wb");  //attempt to open file
-		if (f) {
-			save_configurations(f, &controller_WiiUGamepad);		//write out Wii U Gamepad controller mappings
-			fclose(f);
-			num_written++;
-		}
-#endif //HW_RVL
-	}
-	if (num_written == num_controller_t)
-		menu::MessageBox::getInstance().setMessage("Saved Button Configs to USB");
-	else
-		menu::MessageBox::getInstance().setMessage("Error saving Button Configs to USB");
+	saveAllButtonConfigs("usb", false);
 }
 
 void Func_SetButtonLoad()
