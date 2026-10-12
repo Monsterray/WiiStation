@@ -61,8 +61,14 @@ cmd="${1:-}"; shift || true
 # user's own Dolphin, and another project's runs, have their own profile and are not ours
 # to stop for. dolphin_run.sh uses the same directory.
 PROFILE="${WSX_PROFILE:-$REPO/.dolphin}"
+# A Dolphin whose -u is THIS profile. The profile name must end there (quote, space or end of the
+# command line): ".dolphin" must not match ".dolphin2" (it did, and blocked parallel runs).
 dolphin_running() {
-	powershell.exe -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object { \$_.Name -eq 'Dolphin.exe' -and \$_.CommandLine -like '*$(basename "$PROFILE")*' }" 2>/dev/null | grep -q .
+	local name; name=$(basename "$PROFILE")
+	powershell.exe -NoProfile -Command 'Get-CimInstance Win32_Process | Where-Object Name -eq Dolphin.exe | ForEach-Object { $_.CommandLine }' 2>/dev/null | tr -d '\r' | tr '\\' '/' |
+	while read -r cmd; do
+		case "$cmd" in */"$name"\"*|*/"$name"" "*|*/"$name") echo busy;; esac
+	done | grep -q busy
 }
 
 # The summarise/compare steps below are Python. Plain `python` does not exist in the
