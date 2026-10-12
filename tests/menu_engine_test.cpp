@@ -141,11 +141,13 @@ static Row CD_ROWS[] = {
 
 /* Readouts: the text is whatever the emulator reports, so the longest it can be is used. */
 static Row MEMORY_ROWS[] = {
-	INFO("MEM1 (fast)",        "24576 / 24576 KB"),
-	INFO("MEM2 heap",          "65536 / 65536 KB"),
+	INFO("MEM1 (fast)",        "24576 used, 24576 free KB"),
+	INFO("MEM2 heap",          "48128 used, 48128 free KB"),
+	INFO("Texture pool",       "999 textures, 9999 + 9999 KB"),
 	INFO("Locked cache",       "16 / 16 KB (spu-gauss, tex-tile)"),	/* lc_usage(): the region names */
 	INFO("Font glyph cache",   "1024 / 1024 KB"),
-	INFO("Recompiler buffer",  "16384 KB (Lightrec, MEM1)"),
+	INFO("Recompiler buffer",  "1536 of 1536 KB used"),
+	INFO("PS1 RAM + VRAM",     "2048 + 2048 KB"),
 	INFO("SPU + BIOS buffers", "64 + 512 KB"),
 };
 
@@ -249,7 +251,7 @@ static TestPage PAGES[] = {
 	{ "Adv Graphics","Advanced Graphics", false, 0, ADVGFX_ROWS, COUNT(ADVGFX_ROWS), ADVGFX_HELP, COUNT(ADVGFX_HELP) },
 	{ "CPU",         NULL,                true,  0, PLUGIN_ROWS, COUNT(PLUGIN_ROWS), PLUGIN_HELP, COUNT(PLUGIN_HELP) },
 	{ "CD",          NULL,                true,  3, CD_ROWS,     COUNT(CD_ROWS),     CD_HELP,     COUNT(CD_HELP) },
-	{ "Memory",      "Memory",            false, 0, MEMORY_ROWS, COUNT(MEMORY_ROWS), NULL,        0 },
+	{ "Memory",      "Memory",            false, 0, MEMORY_ROWS, COUNT(MEMORY_ROWS), NULL,        0, NULL, 0, 0.0f, 0.0f, 46.0f },
 	{ "GPU",         NULL,                true,  1, GPU_ROWS,    COUNT(GPU_ROWS),    GPU_HELP,    COUNT(GPU_HELP) },
 	{ "Input",       NULL,                true,  4, INPUT_ROWS,  COUNT(INPUT_ROWS),  INPUT_HELP,  COUNT(INPUT_HELP) },
 	{ "SPU",         NULL,                true,  2, SPU_ROWS,    COUNT(SPU_ROWS),    SPU_HELP,    COUNT(SPU_HELP),

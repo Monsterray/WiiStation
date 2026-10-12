@@ -22,7 +22,7 @@
  *     way the Settings tabs themselves do it: right when the choice is worth seeing whole.
  *     It fits OPT_MAX_CHOICES values; a row with fewer leaves the trailing slots empty.
  *   A readout row (ROW_INFO) needs only a label and a function that writes the right-hand
- *   text. Readouts refresh every frame while their page is open.
+ *   text. Readouts are read when their page opens.
  *
  * HOW TO ADD A PAGE
  *   One OptRow[] array, one PAGES[] entry (title, rows, optional help lines, which Settings
@@ -121,6 +121,13 @@ struct OptRow
 /* setSpuReverb(int) takes the raw setting value; the table's apply slot is void(void), so
  * this wrapper reads the setting itself, the same way GamecubeMain.cpp does at startup. */
 extern "C" void setSpuReverb(int soundReverb);
+/* The Memory readouts: Lightrec's code use (deps/lightrec), the OpenGX texture pool (deps/opengx),
+ * and the PS1 RAM / VRAM sizes (gpulib). */
+extern "C" {
+unsigned int lightrec_get_mem_usage(int type);	/* MEM_FOR_CODE is 0 */
+void ogx_tex_mem(unsigned *n, unsigned *data_kb, unsigned *semi_kb);
+extern const unsigned globalVramSize;
+}
 static void applySpuReverb(void) { setSpuReverb(soundReverb); }
 
 /*  Readouts (Memory page)  */
@@ -132,7 +139,7 @@ static void applySpuReverb(void) { setSpuReverb(soundReverb); }
 static void infoMem1(char *buf, int len)
 {
 	unsigned long free_kb = (unsigned long)(SYS_GetArena1Size() >> 10);
-	snprintf(buf, len, "%lu / %u KB", MEM1_KB - free_kb, MEM1_KB);
+	snprintf(buf, len, "%lu used, %lu free KB", MEM1_KB - free_kb, free_kb);
 }
 
 /* The locked cache: half of the CPU's 32 KB data cache, locked as 16 KB of scratch memory
@@ -150,7 +157,15 @@ static void infoLockedCache(char *buf, int len)
 static void infoMem2(char *buf, int len)
 {
 	unsigned long used = gx_mem2_used() >> 10, total = gx_mem2_total() >> 10;
-	snprintf(buf, len, "%lu / %lu KB", used, total);
+	snprintf(buf, len, "%lu used, %lu free KB", used, total - used);
+}
+
+/* The OpenGX textures in MEM2: how many, and their 16-bit data (and the semi-transparent copies). */
+static void infoTexPool(char *buf, int len)
+{
+	unsigned n = 0, data = 0, semi = 0;
+	ogx_tex_mem(&n, &data, &semi);
+	snprintf(buf, len, "%u textures, %u + %u KB", n, data, semi);
 }
 
 /* The glyph cache: one 1152-byte RGB5A3 tile per character, in a block of the general MEM2
@@ -174,7 +189,7 @@ static void infoJitBuffer(char *buf, int len)
 	if (dynacore == DYNACORE_DYNAREC_OLD)
 		snprintf(buf, len, "%lu KB (PPC)", (unsigned long)RECMEM2_SIZE >> 10);
 	else
-		snprintf(buf, len, "%lu KB (Lightrec, MEM1)", (unsigned long)LIGHTREC_CODE_SIZE >> 10);
+		snprintf(buf, len, "%u of %lu KB used", lightrec_get_mem_usage(0) >> 10, (unsigned long)LIGHTREC_CODE_SIZE >> 10);
 }
 
 /* Sound and disc buffers, both fixed regions. */
@@ -182,6 +197,12 @@ static void infoFixedBuffers(char *buf, int len)
 {
 	snprintf(buf, len, "%lu + %lu KB",
 		(unsigned long)SPU_BUF_SIZE >> 10, (unsigned long)PSXR_BUF_SIZE >> 10);
+}
+
+/* The emulated PlayStation's main RAM (2 MB) and VRAM: the sizes of the buffers, not what a game uses. */
+static void infoPsxBuffers(char *buf, int len)
+{
+	snprintf(buf, len, "%u + %lu KB", 2048u, (unsigned long)globalVramSize >> 10);
 }
 
 /*  Pages  */
@@ -324,9 +345,11 @@ static const OptRow MEMORY_ROWS[] =
 {
 	ROW_INFO("MEM1 (fast)",         infoMem1),
 	ROW_INFO("MEM2 heap",           infoMem2),
+	ROW_INFO("Texture pool",        infoTexPool),
 	ROW_INFO("Locked cache",        infoLockedCache),
 	ROW_INFO("Font glyph cache",    infoFontCache),
 	ROW_INFO("Recompiler buffer",   infoJitBuffer),
+	ROW_INFO("PS1 RAM + VRAM",      infoPsxBuffers),
 	ROW_INFO("SPU + BIOS buffers",  infoFixedBuffers),
 };
 
@@ -341,6 +364,7 @@ struct OptPage
 	int					returnSubmenu;	// the Settings tab B goes back to
 	void				(*onEnter)(void);
 	void				(*onLeave)(void);
+	float				rowDy;			// the row pitch, or 0 for the default (60)
 };
 
 #define COUNT(a)	((int)(sizeof(a) / sizeof((a)[0])))
@@ -351,7 +375,7 @@ static const OptPage PAGES[] =
 	{ "Advanced Graphics", NULL, ADVGFX_ROWS, COUNT(ADVGFX_ROWS), ADVGFX_HELP, COUNT(ADVGFX_HELP), SettingsFrame::SUBMENU_VIDEO, NULL,  NULL         },
 	{ "Advanced", "CPU",  PLUGIN_ROWS,  COUNT(PLUGIN_ROWS),  PLUGIN_HELP, COUNT(PLUGIN_HELP), SettingsFrame::SUBMENU_GENERAL, pluginsEnter, pluginsLeave },
 	{ "Advanced", "CD",   CD_ROWS,      COUNT(CD_ROWS),      CD_HELP,     COUNT(CD_HELP),     SettingsFrame::SUBMENU_GENERAL, pluginsEnter, pluginsLeave },
-	{ "Memory",   NULL,   MEMORY_ROWS,  COUNT(MEMORY_ROWS),  NULL,        0,                  SettingsFrame::SUBMENU_GENERAL, NULL,         NULL         },
+	{ "Memory",   NULL,   MEMORY_ROWS,  COUNT(MEMORY_ROWS),  NULL,        0,                  SettingsFrame::SUBMENU_GENERAL, NULL,         NULL,         46.0f },
 	{ "Advanced", "GPU",  GPU_ROWS,     COUNT(GPU_ROWS),     GPU_HELP,    COUNT(GPU_HELP),    SettingsFrame::SUBMENU_GENERAL, pluginsEnter, pluginsLeave },
 	{ "Advanced", "Input", INPUT_ROWS,  COUNT(INPUT_ROWS),   INPUT_HELP,  COUNT(INPUT_HELP),  SettingsFrame::SUBMENU_GENERAL, pluginsEnter, pluginsLeave },
 	{ "Advanced", "SPU",  SPU_ROWS,     COUNT(SPU_ROWS),     SPU_HELP,    COUNT(SPU_HELP),    SettingsFrame::SUBMENU_GENERAL, pluginsEnter, pluginsLeave },
@@ -369,7 +393,7 @@ static const int ADV_TABS[] = {
  * moving between the two menus does not shift anything. */
 
 #define NUM_PAGES		COUNT(PAGES)
-#define OPT_MAX_ROWS	6
+#define OPT_MAX_ROWS	8
 #define OPT_MAX_CHOICES	3
 #define OPT_MAX_HELP	8
 
@@ -593,6 +617,7 @@ static void buildEnginePage(int page, int curTab)
 	ENG_PAGE.nHelp  = p.nhelp;
 	ENG_PAGE.logo   = eng::LOGO_SPOT_BOTTOM;	/* MenuContext: FRAME_OPTIONS is in LOGO_BOTTOM_FRAMES */
 	ENG_PAGE.focus  = eng::FOCUS_ROWS;
+	ENG_PAGE.rowDy  = p.rowDy;
 }
 
 /* The widget a control of the engine's layout is drawn with. */
@@ -904,15 +929,10 @@ void OptionsFrame::showTab(int tab)
 	tabSwitch = false;
 }
 
-/* Readouts are live: the emulator is not running while this page is open, so re-reading a
- * few heap counters per frame costs nothing that anyone can see. */
+/* Readouts are read once, when their page opens (activateSubmenu), not per frame. */
 void OptionsFrame::drawChildren(menu::Graphics& gfx)
 {
 	if (!isVisible()) return;
-
-	for (int i = 0; i < PAGES[currentPage].nrows; i++)
-		if (pageRow(i)->kind == OPT_INFO)
-			refreshRow(i);
 
 	menu::ComponentList::const_iterator iteration;
 	for (iteration = componentList.begin(); iteration != componentList.end(); ++iteration)

@@ -57,7 +57,7 @@ namespace engine {
 
 /* Fixed sizes: a page is laid out in these arrays and nothing else is allocated. */
 enum {
-	MAX_ROWS     = 6,		/* rows from ROW_Y0 down; a seventh could not fit the screen */
+	MAX_ROWS     = 8,		/* rows from ROW_Y0 down; a page sets its pitch (Memory: 46, eight rows) */
 	MAX_SLOTS    = 4,		/* focusable buttons in one row: choices, or action buttons */
 	MAX_TABS     = 6,
 	MAX_HELP     = 8,
