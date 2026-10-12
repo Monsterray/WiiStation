@@ -311,7 +311,7 @@ static Row VIDEO_ROWS[] = {
  *  layoutInput(). The state is the default one: Standard pad, rumble on, Light Gun off, Auto Load
  *  Default. The rows and widths are the table's; the labels are textboxes 10, 29, 11, 12 and 13. */
 static const char *const INP_PSX_NAMES[]    = { "Standard", "Analog", "Stick D-pad" };
-static const float        INP_PSX_W[]       = { 105.0f, 100.0f, 140.0f };
+static const float        INP_PSX_W[]       = { 117.0f,  95.0f, 152.0f };
 static const char *const INP_RUMBLE_NAMES[] = { "Yes", "No" };
 static const float        INP_RUMBLE_W[]    = { 75.0f, 75.0f };
 static const ActionButton INP_CONFIG_ACTIONS[]   = { { "Configure Input", 220.0f, false }, { "Configure Buttons", 235.0f, false } };
@@ -322,7 +322,7 @@ static const ActionButton INP_AUTOLOAD_ACTIONS[] = { { "Default", 135.0f, false 
 /* Row fields: kind, label, names, lo, count, value, text, fit, actions, x0, gap, widths, plain. */
 static Row SET_INPUT_ROWS[] = {
 	{ ROW_BUTTONS, NULL,                  NULL,            0, 2, 0, NULL, false, INP_CONFIG_ACTIONS,  85.0f,  15.0f, NULL,       0 },
-	{ ROW_CHOICE,  "PSX Pad Type", INP_PSX_NAMES,   0, 3, 0, NULL, false, NULL,                271.0f,  0.0f, INP_PSX_W,  0 },
+	{ ROW_CHOICE,  "PSX Pad Type", INP_PSX_NAMES,   0, 3, 0, NULL, false, NULL,                252.0f,  0.0f, INP_PSX_W,  0 },
 	{ ROW_BUTTONS, "Light Gun",           NULL,            0, 1, 0, NULL, false, INP_LIGHTGUN_ACTIONS, 295.0f,  0.0f, NULL,       0 },
 	{ ROW_CHOICE,  "Enable Rumble",       INP_RUMBLE_NAMES, 0, 2, 0, NULL, false, NULL,                295.0f,  0.0f, INP_RUMBLE_W, 0 },
 	{ ROW_BUTTONS, "Save Button Configs", NULL,            0, 2, 0, NULL, false, INP_SAVEBTN_ACTIONS,  295.0f,  0.0f, NULL,       0 },
@@ -1805,9 +1805,9 @@ static const OldBox INPUT_BOXES[] = {
 	{ 4, ROLE_TAB, -1, 4, 515.0f, 30.0f, 100.0f, 56.0f, 38, 30, 3, 0 },
 	{ 30, ROLE_BUTTON, 0, 0,  85.0f, 100.0f, 220.0f, 56.0f,  2, 32, 31, 31 },
 	{ 31, ROLE_BUTTON, 0, 1, 320.0f, 100.0f, 235.0f, 56.0f,  2, 32, 30, 30 },
-	{ 32, ROLE_CHOICE, 1, 0, 271.0f, 160.0f, 105.0f, 56.0f, 30, 59, 79, 33 },
-	{ 33, ROLE_CHOICE, 1, 1, 386.0f, 160.0f, 100.0f, 56.0f, 31, 59, 32, 79 },
-	{ 79, ROLE_CHOICE, 1, 2, 496.0f, 160.0f, 140.0f, 56.0f, 31, 59, 33, 32 },
+	{ 32, ROLE_CHOICE, 1, 0, 252.0f, 160.0f, 117.0f, 56.0f, 30, 59, 79, 33 },
+	{ 33, ROLE_CHOICE, 1, 1, 379.0f, 160.0f,  95.0f, 56.0f, 31, 59, 32, 79 },
+	{ 79, ROLE_CHOICE, 1, 2, 484.0f, 160.0f, 152.0f, 56.0f, 31, 59, 33, 32 },
 	{ 59, ROLE_BUTTON, 2, 0, 295.0f, 220.0f, 135.0f, 56.0f, 32, 34, -1, -1 },
 	{ 34, ROLE_CHOICE, 3, 0, 295.0f, 280.0f,  75.0f, 56.0f, 59, 36, 35, 35 },
 	{ 35, ROLE_CHOICE, 3, 1, 380.0f, 280.0f,  75.0f, 56.0f, 59, 37, 34, 34 },
