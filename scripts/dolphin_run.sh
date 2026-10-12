@@ -208,7 +208,7 @@ rm -rf "$PROFILE/Dump/Frames" "$PROFILE/Dump/Audio"
 [ -f "$PROFILE/Logs/dolphin.log" ] && mv "$PROFILE/Logs/dolphin.log" "$PROFILE/Logs/dolphin.log.prev"
 # the logs a run leaves: an earlier run's must not pass for this one's (a run cut off before
 # its trace fired read the previous run's ptrace.log)
-rm -f "$S/perf.log" "$S/tty.log" "$S/ptrace.log" "$S/vramio.log" "$S/atrace.log" "$S/lab.log" "$S/pcring.log" "$S/xfb.bin" "$S/"vram_*.bin "$S/"vtl_*.bin "$S/"hprof_*.bin "$S/"vsig_*.bin
+rm -f "$S/perf.log" "$S/tty.log" "$S/ptrace.log" "$S/vramio.log" "$S/atrace.log" "$S/lab.log" "$S/pcring.log" "$S/xfb.bin" "$S/"xfb_*.bin "$S/"vram_*.bin "$S/"vtl_*.bin "$S/"hprof_*.bin "$S/"vsig_*.bin
 cp "${AIN:-$P/autoinput.txt}" "$S/autoinput.txt"; cp "${SET:-$P/settingsRX2022.cfg}" "$S/settings.ini"
 # SMB_FROM=<settings.ini>: the share settings (smb* and RomDirSMB lines) of the user's own
 # file, appended unread and unprinted -- the password stays out of logs and run folders; the
@@ -315,6 +315,11 @@ ls "$OUT"/vtl_*.bin >/dev/null 2>&1 && echo "vtl: $(ls "$OUT"/vtl_*.bin | wc -l)
 for i in $(seq -w 1 16); do
 	"$PYTHON" "$SP/sdimage_read.py" "$CARD" "wiistation/vsig_$i.bin" "$OUT/vsig_$i.bin" >/dev/null 2>&1 || break
 done
+# the TV pictures of "xfb <vblank>" lines (debug builds; scripts/xfb2png.py)
+for i in $(seq -w 1 16); do
+	"$PYTHON" "$SP/sdimage_read.py" "$CARD" "wiistation/xfb_$i.bin" "$OUT/xfb_$i.bin" >/dev/null 2>&1 || break
+done
+ls "$OUT"/xfb_*.bin >/dev/null 2>&1 && echo "xfb: $(ls "$OUT"/xfb_*.bin | wc -l) picture(s)"
 # the sampling profiles (PROBES=hprof builds; scripts/hprof_view.py)
 for i in $(seq -w 1 16); do
 	"$PYTHON" "$SP/sdimage_read.py" "$CARD" "wiistation/hprof_$i.bin" "$OUT/hprof_$i.bin" >/dev/null 2>&1 || break

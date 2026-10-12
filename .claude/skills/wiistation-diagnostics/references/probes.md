@@ -113,6 +113,21 @@ present would inflate it.
 
 `scripts/ptrace_summary.py` decodes all of this; read its output, not the raw file.
 
+**Small objects in a busy scene (2026-10-12, Spyro mouths).** `tracebox x0 y0 x1 y1` in the
+input script keeps only primitives touching that screen rectangle and lifts the 650/1300 ring
+limits, so every primitive there is kept; scheduled `trace` lines switch the automatic fade
+trigger off (it used to overwrite the episode you asked for). Extra entries: `c9` = a line given
+to OpenGX `offsetline` before its checks; `e6` = GP0 E6 (x0 set mask, y0 check mask, x1
+`iUseMask`). `ogxnomask` turns OpenGX mask emulation off for an A/B.
+
+**Comparing two plugins: same vblank is not same frame.** The GPU plugin changes the game's
+own timing (at vblank 4301 Soft had shown 2008 presents, OpenGX 1959), so frame N of one run
+is not frame N of the other, and even one vblank can hold a different animation step. `xfb
+<vblank>` (up to 16 lines; with `--env XFB_RAM=1`) saves the TV picture as xfb_NN.bin
+(`xfb2png.py`) for exact-moment pictures; for an artifact, compare whole stretches (contact
+sheets of both runs) and ask "does the reference show it too", not pixel pairs.
+
+
 ## Audio timeline (sd:/wiistation/atrace.log)
 
 `perf_audio_event(kind, cycle, a, b, c)` appends to a 3072-record ring that starts at
