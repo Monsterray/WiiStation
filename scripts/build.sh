@@ -49,13 +49,17 @@ if [[ "$REPO_ROOT" == *" "* ]]; then
 	exit 0
 fi
 
+# Windows: force-assign. The login shell here carries a stale DEVKITPRO=/opt/devkitpro and may carry
+# the newer pacman devkitPPC; inheriting either breaks the build (AGENTS.md "Building").
+# macOS/Linux: an isolated toolchain (setup-devkitpro-local.sh) may live elsewhere, so a set value wins.
 case "$(uname -s)" in
-	MINGW*|MSYS*|CYGWIN*) export DEVKITPRO="${DEVKITPRO:-/c/devkitPro}" ;;
-	*) export DEVKITPRO="${DEVKITPRO:-/opt/devkitpro}" ;;
+	MINGW*|MSYS*|CYGWIN*)
+		export DEVKITPRO=/c/devkitPro
+		export DEVKITPPC="$DEVKITPRO/devkitPPC-r41-2" ;;   # pinned: see setup-devkitpro-windows.sh
+	*)
+		export DEVKITPRO="${DEVKITPRO:-/opt/devkitpro}"
+		export DEVKITPPC="${DEVKITPPC:-$DEVKITPRO/devkitPPC-r41-2}" ;;
 esac
-# Pinned, not the pacman-managed $DEVKITPRO/devkitPPC -- see
-# scripts/setup-devkitpro-windows.sh's header comment for why.
-export DEVKITPPC="${DEVKITPPC:-$DEVKITPRO/devkitPPC-r41-2}"
 export PATH="$DEVKITPRO/tools/bin:$DEVKITPPC/bin:$PATH"
 
 if [ ! -x "$DEVKITPPC/bin/powerpc-eabi-gcc" ] && [ ! -x "$DEVKITPPC/bin/powerpc-eabi-gcc.exe" ]; then

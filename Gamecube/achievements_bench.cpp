@@ -17,7 +17,7 @@ char achievementBenchRoot[256];
 
 extern u32 frame_counter;          /* psxcounters.c: +1 per vblank */
 extern fileBrowser_file isoFile;   /* GamecubeMain.cpp: the ISO file */
-void SysReset();                   /* GamecubeMain.cpp */
+extern "C" void SysReset();        /* GamecubeMain.cpp, C linkage there */
 int loadISOSwap(fileBrowser_file *file);
 extern char CdromId[10];           /* the game's serial, set at load */
 
