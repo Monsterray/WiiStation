@@ -324,14 +324,15 @@ static int controlBound(const Page &p)
 		case ROW_LIST:    n += 2 + r.list->state->slots; break;
 		}
 	}
-	return n + p.nFreeButtons + 2 * p.nHelp;
+	return n + p.nFreeButtons + p.nFreeTexts + 2 * p.nHelp;
 }
 
 int layoutPage(const Page &p, const Metrics &m, Layout &out)
 {
 	if (p.nRows < 0 || p.nRows > MAX_ROWS || p.nHelp < 0 || p.nHelp > MAX_HELP ||
 	    p.nTabs < 0 || p.nTabs > MAX_TABS || (p.nTabs > 0 && (!p.tabs || p.curTab < 0 || p.curTab >= p.nTabs)) ||
-	    p.nFreeButtons < 0 || p.nFreeButtons > MAX_FREE || (p.nFreeButtons > 0 && !p.freeButtons))
+	    p.nFreeButtons < 0 || p.nFreeButtons > MAX_FREE || (p.nFreeButtons > 0 && !p.freeButtons) ||
+	    p.nFreeTexts < 0 || (p.nFreeTexts > 0 && !p.freeTexts) || p.nFreeLinks < 0 || (p.nFreeLinks > 0 && !p.freeLinks))
 		return -1;
 	int lists = 0;
 	for (int i = 0; i < p.nRows; i++) {
@@ -463,6 +464,11 @@ int layoutPage(const Page &p, const Metrics &m, Layout &out)
 	for (int k = 0; k < p.nFreeButtons; k++) {
 		const FreeButton &b = p.freeButtons[k];
 		out.freeCtl[k] = addButton(out, ROLE_FREE, -1, k, b.x, b.y, b.w, b.h, b.text, b.lit, !b.inactive);
+	}
+	for (int k = 0; k < p.nFreeTexts; k++) {
+		const FreeText &t = p.freeTexts[k];
+		addText(out, m, ROLE_FREE_TEXT, -1, k, t.ax, t.ay, t.centred ? ALIGN_CENTRE : ALIGN_LEFT_TOP,
+		        t.scale, t.text);
 	}
 
 	if (p.nHelp > 0)
@@ -673,6 +679,22 @@ static void applyOverrides(const Page &p, Layout &lay)
 	}
 }
 
+/* FreeLink: each link that names a free button as a focus target (or no target) replaces that one
+ * link, as applyOverrides does for rows. */
+static void applyFreeLinks(const Page &p, Layout &lay)
+{
+	for (int k = 0; p.freeLinks && k < p.nFreeLinks; k++) {
+		const FreeLink &l = p.freeLinks[k];
+		const int from = (l.from >= 0 && l.from < p.nFreeButtons) ? lay.freeCtl[l.from] : -1;
+		const int to = (l.to < 0) ? -1 : (l.to < p.nFreeButtons ? lay.freeCtl[l.to] : -2);
+		if (from < 0 || !lay.c[from].focusable || l.dir < 0 || l.dir >= DIR_COUNT || to == -2)
+			continue;
+		if (to >= 0 && !lay.c[to].focusable)
+			continue;
+		lay.c[from].link[l.dir] = to;
+	}
+}
+
 /* The list's focus: the item the state names when it is shown and active, else the first
  * active item, else the first active Prev or Next. */
 static int listDefault(const Page &p, const Layout &lay)
@@ -712,6 +734,7 @@ void linkFocus(const Page &p, Layout &lay)
 		linkRows(p, lay);
 	linkList(p, lay);
 	applyOverrides(p, lay);
+	applyFreeLinks(p, lay);
 
 	if (lay.list >= 0)
 		def = listDefault(p, lay);

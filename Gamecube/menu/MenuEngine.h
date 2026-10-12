@@ -64,7 +64,7 @@ enum {
 	MAX_CONTROLS = 96,
 	MAX_PROBLEMS = 64,
 	MAX_LIST_SLOTS = 16,	/* item buttons in one list's window */
-	MAX_FREE     = 24		/* free buttons on one page (Customize Co-Op has 24) */
+	MAX_FREE     = 56		/* free buttons on one page (Configure Input: 2 + 4 + 2 x 4 slots x 2 + 2 x 8 x 3) */
 };
 
 /* The numbers of OptionsFrame.cpp, under their names. Three disagree with MenuLayout.h and are
@@ -218,6 +218,27 @@ struct FreeButton {
 	bool        inactive;		/* drawn, but not a focus target (as Row::inactive) */
 };
 
+enum Dir { DIR_UP, DIR_DOWN, DIR_LEFT, DIR_RIGHT, DIR_COUNT };
+
+/* A text at its own anchor, for a free page's labels: centred on (ax, ay) or with its top left there,
+ * drawn at scale. The caller owns the text and keeps it valid while the page is shown. */
+struct FreeText {
+	const char *text;
+	float       ax, ay;
+	float       scale;
+	bool        centred;
+};
+
+/* A focus link the caller sets by hand on a free page, after the rule (linkFocus): from free button
+ * `from` (its index in Page::freeButtons), the direction dir goes to free button `to`; to < 0 means
+ * no link. Applied only when `from` is a focus target, and when `to` is one too (or to < 0), so a
+ * link never points at a hidden or inactive control: the rule's link stands otherwise. */
+struct FreeLink {
+	int   from;
+	Dir   dir;
+	int   to;
+};
+
 /*  Pages  */
 
 struct Tab {
@@ -241,7 +262,6 @@ enum FocusMode {
 	FOCUS_GEOMETRY		/* CustomizeCoopFrame's rule: the nearest control in each direction */
 };
 
-enum Dir { DIR_UP, DIR_DOWN, DIR_LEFT, DIR_RIGHT, DIR_COUNT };
 
 /* A focus link the page sets by hand, after the rule has made the links: from the button at
  * (row, slot), the direction dir goes to the button at (toRow, toSlot). The override stands only
@@ -276,6 +296,11 @@ struct Page {
 	const FreeButton *freeButtons;	/* buttons at their own rectangles, after the rows */
 	int              nFreeButtons;
 	float            titleY;		/* the title's centre y, not TITLE_Y (Customize Co-Op: 112) */
+	/* Added for Configure Input and Configure Buttons (step 5). Zero means none. */
+	const FreeText   *freeTexts;	/* labels at their own anchors, after the free buttons */
+	int              nFreeTexts;
+	const FreeLink   *freeLinks;	/* focus links set by hand, after the rule and overrides */
+	int              nFreeLinks;
 };
 
 /*  Layout output  */
@@ -294,7 +319,8 @@ enum CtrlRole {
 	ROLE_HELP_TEXT,
 	ROLE_LIST_ITEM,	/* one item of a list's window; inactive past the end of the list */
 	ROLE_LIST_PAGE,	/* a list's Prev or Next button */
-	ROLE_FREE		/* a free button: at its own rectangle, not on the grid (FreeButton) */
+	ROLE_FREE,		/* a free button: at its own rectangle, not on the grid (FreeButton) */
+	ROLE_FREE_TEXT	/* a free text: at its own anchor (FreeText) */
 };
 
 enum TextAlign {

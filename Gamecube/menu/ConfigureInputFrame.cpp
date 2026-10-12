@@ -22,6 +22,8 @@
 #include "SettingsFrame.h"
 #include "ConfigureInputFrame.h"
 #include "MenuLayout.h"
+#include "MenuEngine.h"	/* before Button.h: its include guard is BUTTON_H, a name the engine uses */
+#include "../libgui/IPLFont.h"
 #include "../libgui/Button.h"
 #include "../libgui/TextBox.h"
 #include "../libgui/resources.h"
@@ -109,36 +111,32 @@ struct ButtonInfo
 	float			y;
 	float			width;
 	float			height;
-	int				focusUp;
-	int				focusDown;
-	int				focusLeft;
-	int				focusRight;
 	ButtonFunc		clickedFunc;
 	ButtonFunc		returnFunc;
 } FRAME_BUTTONS[NUM_FRAME_BUTTONS] =
-{ //	button	buttonStyle buttonString		x		y		width	height	Up	Dwn	Lft	Rt	clickFunc				returnFunc
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[5],	240.0,	 30.0,	135.0,	56.0,	 17, 2,	 1,	 1,	Func_AutoSelectInput,	Func_ReturnFromConfigureInputFrame }, // Automatic Pad Assignment
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[6],	395.0,	 30.0,	120.0,	56.0,	 21, 3,	 0,	 0,	Func_ManualSelectInput,	Func_ReturnFromConfigureInputFrame }, // Manual Pad Assignment
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[11],	30.0,	135.0,	200.0,	56.0,	 0,	 4,	 13, 12,Func_TogglePad0Type,	Func_ReturnFromConfigureInputFrame }, // Toggle Pad 0 Type
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[11],	330.0,	135.0,	200.0,	56.0,	 1,	 8,	 12, 13,Func_TogglePad1Type,	Func_ReturnFromConfigureInputFrame }, // Toggle Pad 1 Type
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[11],	30.0,	250.0,	200.0,	56.0,	 3,	 5,	 18, 14,Func_TogglePad0AType,	Func_ReturnFromConfigureInputFrame }, // Toggle Pad 0A Type
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[11],	30.0,	306.0,	200.0,	56.0,	 4,	 6,	 19, 15,Func_TogglePad0BType,	Func_ReturnFromConfigureInputFrame }, // Toggle Pad 0B Type
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[11],	30.0,	362.0,	200.0,	56.0,	 5,	 7,	 20, 16,Func_TogglePad0CType,	Func_ReturnFromConfigureInputFrame }, // Toggle Pad 0C Type
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[11],	30.0,	418.0,	200.0,	56.0,	 6,	 0,	 21, 17,Func_TogglePad0DType,	Func_ReturnFromConfigureInputFrame }, // Toggle Pad 0D Type
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[11],	330.0,	250.0,	200.0,	56.0,	 3,	 9,	 14, 18,Func_TogglePad1AType,	Func_ReturnFromConfigureInputFrame }, // Toggle Pad 1A Type
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[11],	330.0,	306.0,	200.0,	56.0,	 8,	 10, 15, 19,Func_TogglePad1BType,	Func_ReturnFromConfigureInputFrame }, // Toggle Pad 1B Type
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[11],	330.0,	362.0,	200.0,	56.0,	 9,	 11, 16, 20,Func_TogglePad1CType,	Func_ReturnFromConfigureInputFrame }, // Toggle Pad 1C Type
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[11],	330.0,	418.0,	200.0,	56.0,	 10, 1,	 17, 21,Func_TogglePad1DType,	Func_ReturnFromConfigureInputFrame }, // Toggle Pad 1D Type
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[12],	250.0,	135.0,	 55.0,	56.0,	 0,	 14, 2,	 3,	Func_TogglePad0Assign,	Func_ReturnFromConfigureInputFrame }, // Toggle Pad 0 Assignment
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[12],	550.0,	135.0,	 55.0,	56.0,	 1,	 18, 3,	 2,	Func_TogglePad1Assign,	Func_ReturnFromConfigureInputFrame }, // Toggle Pad 1 Assignment
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[12],	250.0,	250.0,	 55.0,	56.0,	 12, 15, 4,	 8,	Func_TogglePad0AAssign,	Func_ReturnFromConfigureInputFrame }, // Toggle Pad 0A Assignment
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[12],	250.0,	306.0,	 55.0,	56.0,	 14, 16, 5,	 9,	Func_TogglePad0BAssign,	Func_ReturnFromConfigureInputFrame }, // Toggle Pad 0B Assignment
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[12],	250.0,	362.0,	 55.0,	56.0,	 15, 17, 6,	 10,Func_TogglePad0CAssign,	Func_ReturnFromConfigureInputFrame }, // Toggle Pad 0C Assignment
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[12],	250.0,	418.0,	 55.0,	56.0,	 16, 0,	 7,	 11,Func_TogglePad0DAssign,	Func_ReturnFromConfigureInputFrame }, // Toggle Pad 0D Assignment
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[12],	550.0,	250.0,	 55.0,	56.0,	 13, 19, 8,	 4,	Func_TogglePad1AAssign,	Func_ReturnFromConfigureInputFrame }, // Toggle Pad 1A Assignment
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[12],	550.0,	306.0,	 55.0,	56.0,	 18, 20, 9,	 5,	Func_TogglePad1BAssign,	Func_ReturnFromConfigureInputFrame }, // Toggle Pad 1B Assignment
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[12],	550.0,	362.0,	 55.0,	56.0,	 19, 21, 10, 6,	Func_TogglePad1CAssign,	Func_ReturnFromConfigureInputFrame }, // Toggle Pad 1C Assignment
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[12],	550.0,	418.0,	 55.0,	56.0,	 20, 1,	 11, 7,	Func_TogglePad1DAssign,	Func_ReturnFromConfigureInputFrame }, // Toggle Pad 1D Assignment
+{ //	button	buttonStyle buttonString		x		y		width	height	clickFunc				returnFunc
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[5],	240.0,	 30.0,	135.0,	56.0,	Func_AutoSelectInput,	Func_ReturnFromConfigureInputFrame }, // Automatic Pad Assignment
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[6],	395.0,	 30.0,	120.0,	56.0,	Func_ManualSelectInput,	Func_ReturnFromConfigureInputFrame }, // Manual Pad Assignment
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[11],	30.0,	135.0,	200.0,	56.0,	Func_TogglePad0Type,	Func_ReturnFromConfigureInputFrame }, // Toggle Pad 0 Type
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[11],	330.0,	135.0,	200.0,	56.0,	Func_TogglePad1Type,	Func_ReturnFromConfigureInputFrame }, // Toggle Pad 1 Type
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[11],	30.0,	250.0,	200.0,	56.0,	Func_TogglePad0AType,	Func_ReturnFromConfigureInputFrame }, // Toggle Pad 0A Type
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[11],	30.0,	306.0,	200.0,	56.0,	Func_TogglePad0BType,	Func_ReturnFromConfigureInputFrame }, // Toggle Pad 0B Type
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[11],	30.0,	362.0,	200.0,	56.0,	Func_TogglePad0CType,	Func_ReturnFromConfigureInputFrame }, // Toggle Pad 0C Type
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[11],	30.0,	418.0,	200.0,	56.0,	Func_TogglePad0DType,	Func_ReturnFromConfigureInputFrame }, // Toggle Pad 0D Type
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[11],	330.0,	250.0,	200.0,	56.0,	Func_TogglePad1AType,	Func_ReturnFromConfigureInputFrame }, // Toggle Pad 1A Type
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[11],	330.0,	306.0,	200.0,	56.0,	Func_TogglePad1BType,	Func_ReturnFromConfigureInputFrame }, // Toggle Pad 1B Type
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[11],	330.0,	362.0,	200.0,	56.0,	Func_TogglePad1CType,	Func_ReturnFromConfigureInputFrame }, // Toggle Pad 1C Type
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[11],	330.0,	418.0,	200.0,	56.0,	Func_TogglePad1DType,	Func_ReturnFromConfigureInputFrame }, // Toggle Pad 1D Type
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[12],	250.0,	135.0,	 55.0,	56.0,	Func_TogglePad0Assign,	Func_ReturnFromConfigureInputFrame }, // Toggle Pad 0 Assignment
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[12],	550.0,	135.0,	 55.0,	56.0,	Func_TogglePad1Assign,	Func_ReturnFromConfigureInputFrame }, // Toggle Pad 1 Assignment
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[12],	250.0,	250.0,	 55.0,	56.0,	Func_TogglePad0AAssign,	Func_ReturnFromConfigureInputFrame }, // Toggle Pad 0A Assignment
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[12],	250.0,	306.0,	 55.0,	56.0,	Func_TogglePad0BAssign,	Func_ReturnFromConfigureInputFrame }, // Toggle Pad 0B Assignment
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[12],	250.0,	362.0,	 55.0,	56.0,	Func_TogglePad0CAssign,	Func_ReturnFromConfigureInputFrame }, // Toggle Pad 0C Assignment
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[12],	250.0,	418.0,	 55.0,	56.0,	Func_TogglePad0DAssign,	Func_ReturnFromConfigureInputFrame }, // Toggle Pad 0D Assignment
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[12],	550.0,	250.0,	 55.0,	56.0,	Func_TogglePad1AAssign,	Func_ReturnFromConfigureInputFrame }, // Toggle Pad 1A Assignment
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[12],	550.0,	306.0,	 55.0,	56.0,	Func_TogglePad1BAssign,	Func_ReturnFromConfigureInputFrame }, // Toggle Pad 1B Assignment
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[12],	550.0,	362.0,	 55.0,	56.0,	Func_TogglePad1CAssign,	Func_ReturnFromConfigureInputFrame }, // Toggle Pad 1C Assignment
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[12],	550.0,	418.0,	 55.0,	56.0,	Func_TogglePad1DAssign,	Func_ReturnFromConfigureInputFrame }, // Toggle Pad 1D Assignment
 };
 
 struct TextBoxInfo
@@ -246,8 +244,7 @@ static void layoutTables(void)
 				ButtonInfo &b = FRAME_BUTTONS[COOP_BTN(p, k, c)];
 				b.buttonStyle = BTN_A_NRM;
 				b.buttonString = FRAME_STRINGS[c == 1 ? 19 : 12];
-				b.focusUp = b.focusDown = b.focusLeft = b.focusRight = -1;
-				b.clickedFunc = coopFuncs[p][k][c];
+						b.clickedFunc = coopFuncs[p][k][c];
 				b.returnFunc = Func_ReturnFromConfigureInputFrame;
 				setRect(COOP_BTN(p, k, c), CI_COL_X(p) + coopX[c], CI_COOP_Y(k), coopW[c], CI_COOP_H);
 			}
@@ -276,24 +273,9 @@ ConfigureInputFrame::ConfigureInputFrame()
 										FRAME_BUTTONS[i].x, FRAME_BUTTONS[i].y,
 										FRAME_BUTTONS[i].width, FRAME_BUTTONS[i].height);
 
-	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
-	{
-		if (FRAME_BUTTONS[i].focusUp != -1) FRAME_BUTTONS[i].button->setNextFocus(menu::Focus::DIRECTION_UP, FRAME_BUTTONS[FRAME_BUTTONS[i].focusUp].button);
-		if (FRAME_BUTTONS[i].focusDown != -1) FRAME_BUTTONS[i].button->setNextFocus(menu::Focus::DIRECTION_DOWN, FRAME_BUTTONS[FRAME_BUTTONS[i].focusDown].button);
-		if (FRAME_BUTTONS[i].focusLeft != -1) FRAME_BUTTONS[i].button->setNextFocus(menu::Focus::DIRECTION_LEFT, FRAME_BUTTONS[FRAME_BUTTONS[i].focusLeft].button);
-		if (FRAME_BUTTONS[i].focusRight != -1) FRAME_BUTTONS[i].button->setNextFocus(menu::Focus::DIRECTION_RIGHT, FRAME_BUTTONS[FRAME_BUTTONS[i].focusRight].button);
-		FRAME_BUTTONS[i].button->setActive(true);
-		if (FRAME_BUTTONS[i].clickedFunc) FRAME_BUTTONS[i].button->setClicked(FRAME_BUTTONS[i].clickedFunc);
-		if (FRAME_BUTTONS[i].returnFunc) FRAME_BUTTONS[i].button->setReturn(FRAME_BUTTONS[i].returnFunc);
-		add(FRAME_BUTTONS[i].button);
-		menu::Cursor::getInstance().addComponent(this, FRAME_BUTTONS[i].button, FRAME_BUTTONS[i].x,
-												FRAME_BUTTONS[i].x+FRAME_BUTTONS[i].width, FRAME_BUTTONS[i].y,
-												FRAME_BUTTONS[i].y+FRAME_BUTTONS[i].height);
-	}
-
 	/* A style-A button makes itself 56 high whatever it is given: every one gets its own
 	 * bounds back. Automatic and Manual take their width from their label, as the Settings
-	 * tabs' buttons do, Manual TAB_GAP after Automatic. */
+	 * tabs' buttons do, Manual TAB_GAP after Automatic. Their rectangles are then the page's. */
 	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
 		FRAME_BUTTONS[i].button->setBounds(FRAME_BUTTONS[i].x, FRAME_BUTTONS[i].y,
 		                                   FRAME_BUTTONS[i].width, FRAME_BUTTONS[i].height);
@@ -304,9 +286,22 @@ ConfigureInputFrame::ConfigureInputFrame()
 			menu::Button *b = FRAME_BUTTONS[i].button;
 			b->setAutoSize(menu::Button::BTN_FIT_WIDTH);
 			b->setBounds(x, CI_ROW_Y(0), 0, CI_ROW_H);
-			menu::Cursor::getInstance().moveComponent(this, b, x, x + b->getWidth(), CI_ROW_Y(0), CI_ROW_Y(0) + CI_ROW_H);
+			FRAME_BUTTONS[i].x = x;
+			FRAME_BUTTONS[i].width = b->getWidth();
+			FRAME_BUTTONS[i].height = CI_ROW_H;
 			x += b->getWidth() + TAB_GAP;
 		}
+	}
+
+	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
+	{
+		FRAME_BUTTONS[i].button->setActive(true);
+		if (FRAME_BUTTONS[i].clickedFunc) FRAME_BUTTONS[i].button->setClicked(FRAME_BUTTONS[i].clickedFunc);
+		if (FRAME_BUTTONS[i].returnFunc) FRAME_BUTTONS[i].button->setReturn(FRAME_BUTTONS[i].returnFunc);
+		add(FRAME_BUTTONS[i].button);
+		menu::Cursor::getInstance().addComponent(this, FRAME_BUTTONS[i].button, FRAME_BUTTONS[i].x,
+												FRAME_BUTTONS[i].x+FRAME_BUTTONS[i].width, FRAME_BUTTONS[i].y,
+												FRAME_BUTTONS[i].y+FRAME_BUTTONS[i].height);
 	}
 
 	for (int i = 0; i < NUM_FRAME_TEXTBOXES; i++)
@@ -335,19 +330,158 @@ ConfigureInputFrame::~ConfigureInputFrame()
 
 }
 
-static void showButton(int i, bool on, bool active)
+/*  The page, on the engine (Docs/MENU_FRAMEWORK_PLAN.md, step 5)  */
+
+/* The page changes with the state: which buttons and labels are there, which are active, which lit,
+ * and where focus goes. activateSubmenu() works those out, then the engine lays the page out and
+ * links it (layoutState), as it does when the page is shown -- never per frame. The buttons keep
+ * their places (the table's rectangles), so the Cursor ranges set in the constructor stay right. */
+namespace eng = menu::engine;
+
+static int ciWidth(const char *s, float scale, void *)
 {
-	FRAME_BUTTONS[i].button->setVisible(on);
-	FRAME_BUTTONS[i].button->setActive(on && active);
+	return menu::IplFont::getInstance().getStringWidth((char*)s, scale);
 }
 
-static void setLinks(int i, int up, int down, int left, int right)
+static int ciHeight(const char *s, float scale, void *)
 {
-	menu::Button *b = FRAME_BUTTONS[i].button;
-	b->setNextFocus(menu::Focus::DIRECTION_UP,    up    < 0 ? NULL : FRAME_BUTTONS[up].button);
-	b->setNextFocus(menu::Focus::DIRECTION_DOWN,  down  < 0 ? NULL : FRAME_BUTTONS[down].button);
-	b->setNextFocus(menu::Focus::DIRECTION_LEFT,  left  < 0 ? NULL : FRAME_BUTTONS[left].button);
-	b->setNextFocus(menu::Focus::DIRECTION_RIGHT, right < 0 ? NULL : FRAME_BUTTONS[right].button);
+	return menu::IplFont::getInstance().getStringHeight((char*)s, scale);
+}
+
+static const eng::Metrics CI_METRICS = { ciWidth, ciHeight, NULL };
+
+/* The state: shown, active and lit, by button and by label (FRAME_BUTTONS and FRAME_TEXTBOXES index) */
+static bool ciShown[NUM_FRAME_BUTTONS], ciActive[NUM_FRAME_BUTTONS], ciLit[NUM_FRAME_BUTTONS];
+static bool ciTextShown[NUM_FRAME_TEXTBOXES];
+
+/* The focus the state gives: from button `from`, each direction to a button (-1: none). The links are
+ * the engine's FreeLink overrides, which replace the rule's link where both are focus targets. */
+struct CiLink { int from; eng::Dir dir; int to; };
+#define CI_MAX_LINKS (NUM_FRAME_BUTTONS * eng::DIR_COUNT)
+static CiLink ciLinks[CI_MAX_LINKS];
+static int nCiLinks;
+
+static void linkButton(int from, int up, int down, int left, int right)
+{
+	const int to[eng::DIR_COUNT] = { up, down, left, right };
+	static const eng::Dir dirs[eng::DIR_COUNT] = { eng::DIR_UP, eng::DIR_DOWN, eng::DIR_LEFT, eng::DIR_RIGHT };
+	for (int d = 0; d < eng::DIR_COUNT; d++)
+	{
+		ciLinks[nCiLinks].from = from;
+		ciLinks[nCiLinks].dir = dirs[d];
+		ciLinks[nCiLinks].to = to[d];
+		nCiLinks++;
+	}
+}
+
+/* The page's own arrays: the engine keeps none of them. */
+static eng::FreeButton CI_FREE[NUM_FRAME_BUTTONS];
+static int             CI_FREE_ID[NUM_FRAME_BUTTONS];	/* free index -> FRAME_BUTTONS index */
+static eng::FreeText   CI_TEXTS[NUM_FRAME_TEXTBOXES];
+static int             CI_TEXT_ID[NUM_FRAME_TEXTBOXES];	/* free text index -> FRAME_TEXTBOXES index */
+static eng::FreeLink   CI_FLINKS[CI_MAX_LINKS];
+static eng::Page       CI_PAGE;
+static eng::Layout     CI_LAYOUT;
+
+/* Lays the page out for the state, links it, and gives each button and label its place, state and links.
+ * A link to a button the state does not show is left out: the state never gives one. */
+static void layoutState(void)
+{
+	int nf = 0, nt = 0, nl = 0;
+	int freeOf[NUM_FRAME_BUTTONS];
+
+	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
+	{
+		freeOf[i] = -1;
+		if (!ciShown[i])
+			continue;
+		eng::FreeButton &b = CI_FREE[nf];
+		b.text = FRAME_BUTTONS[i].buttonString;
+		b.x = FRAME_BUTTONS[i].x;
+		b.y = FRAME_BUTTONS[i].y;
+		b.w = FRAME_BUTTONS[i].width;
+		b.h = FRAME_BUTTONS[i].height;
+		b.lit = ciLit[i];
+		b.inactive = !ciActive[i];
+		CI_FREE_ID[nf] = i;
+		freeOf[i] = nf++;
+	}
+	for (int t = 0; t < NUM_FRAME_TEXTBOXES; t++)
+	{
+		if (!ciTextShown[t])
+			continue;
+		eng::FreeText &x = CI_TEXTS[nt];
+		x.text = FRAME_TEXTBOXES[t].textBoxString;
+		x.ax = FRAME_TEXTBOXES[t].x;
+		x.ay = FRAME_TEXTBOXES[t].y;
+		x.scale = FRAME_TEXTBOXES[t].scale;
+		x.centred = FRAME_TEXTBOXES[t].centered;
+		CI_TEXT_ID[nt++] = t;
+	}
+	for (int k = 0; k < nCiLinks; k++)
+	{
+		const CiLink &l = ciLinks[k];
+		const int to = l.to < 0 ? -1 : freeOf[l.to];
+		if (freeOf[l.from] < 0 || (l.to >= 0 && to < 0))
+			continue;
+		CI_FLINKS[nl].from = freeOf[l.from];
+		CI_FLINKS[nl].dir = l.dir;
+		CI_FLINKS[nl].to = to;
+		nl++;
+	}
+
+	memset(&CI_PAGE, 0, sizeof CI_PAGE);
+	CI_PAGE.logo = eng::LOGO_SPOT_NONE;	/* no logo on this frame: it needs the room */
+	CI_PAGE.focus = eng::FOCUS_GEOMETRY;
+	CI_PAGE.freeButtons = CI_FREE;
+	CI_PAGE.nFreeButtons = nf;
+	CI_PAGE.freeTexts = CI_TEXTS;
+	CI_PAGE.nFreeTexts = nt;
+	CI_PAGE.freeLinks = CI_FLINKS;
+	CI_PAGE.nFreeLinks = nl;
+	if (eng::layoutPage(CI_PAGE, CI_METRICS, CI_LAYOUT) < 0)
+		return;		/* the tables are fixed: a page that does not fit is a programming error */
+	eng::linkFocus(CI_PAGE, CI_LAYOUT);
+
+	for (int k = 0; k < nf; k++)
+	{
+		const int i = CI_FREE_ID[k];
+		menu::Button *b = FRAME_BUTTONS[i].button;
+		b->setVisible(true);
+		b->setActive(ciActive[i]);
+		b->setSelected(ciLit[i]);
+	}
+	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
+		if (!ciShown[i])
+		{
+			FRAME_BUTTONS[i].button->setVisible(false);
+			FRAME_BUTTONS[i].button->setActive(false);
+		}
+
+	static const int DIRS[eng::DIR_COUNT] = {
+		menu::Focus::DIRECTION_UP, menu::Focus::DIRECTION_DOWN,
+		menu::Focus::DIRECTION_LEFT, menu::Focus::DIRECTION_RIGHT
+	};
+	for (int c = 0; c < CI_LAYOUT.n; c++)
+	{
+		const eng::Control &ctl = CI_LAYOUT.c[c];
+		if (ctl.role == eng::ROLE_FREE)
+		{
+			menu::Button *b = FRAME_BUTTONS[CI_FREE_ID[ctl.slot]].button;
+			b->setBounds(ctl.rect.x, ctl.rect.y, ctl.rect.w, ctl.rect.h);
+			for (int d = 0; d < eng::DIR_COUNT; d++)
+			{
+				const int to = ctl.link[d];
+				b->setNextFocus(DIRS[d], to >= 0 ? FRAME_BUTTONS[CI_FREE_ID[CI_LAYOUT.c[to].slot]].button : NULL);
+			}
+		}
+		else if (ctl.role == eng::ROLE_FREE_TEXT)
+		{
+			FRAME_TEXTBOXES[CI_TEXT_ID[ctl.slot]].textBox->setPosition(ctl.ax, ctl.ay);
+		}
+	}
+	for (int t = 0; t < NUM_FRAME_TEXTBOXES; t++)
+		FRAME_TEXTBOXES[t].textBox->setVisible(ciTextShown[t]);
 }
 
 /* What each port shows: its type and number on its own row; in its column below, four
@@ -361,8 +495,15 @@ void ConfigureInputFrame::activateSubmenu(int submenu)
 	int cell[2][COOP_MAX][3];          /* each column's buttons by row and column, -1: none */
 	int ncol[2] = { 0, 0 };            /* buttons in each of a column's rows */
 
-	FRAME_BUTTONS[0].button->setSelected(!manual);
-	FRAME_BUTTONS[1].button->setSelected(manual);
+	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
+		ciShown[i] = ciActive[i] = ciLit[i] = false;
+	for (int t = 0; t < NUM_FRAME_TEXTBOXES; t++)
+		ciTextShown[t] = t <= 2;		/* Pad Assignment and the two port labels */
+	nCiLinks = 0;
+
+	ciShown[0] = ciShown[1] = ciActive[0] = ciActive[1] = true;
+	ciLit[0] = !manual;
+	ciLit[1] = manual;
 	for (int p = 0; p < 2; p++)
 	{
 		const bool mtap = padType[p] == PADTYPE_MULTITAP, coop = padType[p] == PADTYPE_COOP;
@@ -373,20 +514,22 @@ void ConfigureInputFrame::activateSubmenu(int submenu)
 			coop ? FRAME_STRINGS[18] : FRAME_STRINGS[padType[p] + 7];
 		FRAME_BUTTONS[12 + p].buttonString = !manual || mtap ? FRAME_STRINGS[12] :
 			coop ? FRAME_STRINGS[31 + coopPlayers[p]] : FRAME_STRINGS[padAssign[p] + 13];
-		showButton(2 + p, true, manual);
-		showButton(12 + p, !mtap, manual);   /* a multitap has no number of its own */
+		ciShown[2 + p] = true;
+		ciActive[2 + p] = manual;
+		ciShown[12 + p] = !mtap;		/* a multitap has no number of its own */
+		ciActive[12 + p] = manual;
 
 		/* its column: a heading, then the slots or the players */
 		FRAME_TEXTBOXES[3 + p].textBoxString = coop ? FRAME_STRINGS[40 + p] : FRAME_STRINGS[3 + p];
-		FRAME_TEXTBOXES[3 + p].textBox->setVisible(mtap || coop);
+		ciTextShown[3 + p] = mtap || coop;
 		for (int sl = 0; sl < 4; sl++)
 		{
 			int i = 2 + p * 4 + sl;
 			FRAME_BUTTONS[i + 2].buttonString = padType[i] == PADTYPE_HID ? FRAME_STRINGS[17] :
 				FRAME_STRINGS[padType[i] + 7];
 			FRAME_BUTTONS[i + 12].buttonString = FRAME_STRINGS[padAssign[i] + 13];
-			showButton(i + 2, mtap, manual);
-			showButton(i + 12, mtap, manual);
+			ciShown[i + 2] = ciShown[i + 12] = mtap;
+			ciActive[i + 2] = ciActive[i + 12] = manual;
 			if (mtap)
 			{
 				cell[p][sl][0] = i + 2;
@@ -401,8 +544,11 @@ void ConfigureInputFrame::activateSubmenu(int submenu)
 			FRAME_BUTTONS[COOP_BTN(p, k, 0)].buttonString = FRAME_STRINGS[28 + coopType[p][k]];
 			FRAME_BUTTONS[COOP_BTN(p, k, 2)].buttonString = FRAME_STRINGS[13 + coopAssign[p][k]];
 			for (int c = 0; c < 3; c++)
-				showButton(COOP_BTN(p, k, c), on, manual);
-			FRAME_TEXTBOXES[COOP_LABEL(p, k)].textBox->setVisible(on);
+			{
+				ciShown[COOP_BTN(p, k, c)] = on;
+				ciActive[COOP_BTN(p, k, c)] = manual;
+			}
+			ciTextShown[COOP_LABEL(p, k)] = on;
 			if (on)
 			{
 				for (int c = 0; c < 3; c++)
@@ -415,8 +561,9 @@ void ConfigureInputFrame::activateSubmenu(int submenu)
 
 	if (!manual)
 	{
-		setLinks(0, -1, -1, 1, 1);
-		setLinks(1, -1, -1, 0, 0);
+		linkButton(0, -1, -1, 1, 1);
+		linkButton(1, -1, -1, 0, 0);
+		layoutState();
 		return;
 	}
 	/* Pad Assignment, then the ports' row: port 1's type and number, port 2's */
@@ -425,12 +572,12 @@ void ConfigureInputFrame::activateSubmenu(int submenu)
 	const int r0 = num0 ? 12 : 2, r1 = num1 ? 13 : 3;   /* each port's rightmost button */
 	const int lastCol0 = rows[0] ? cell[0][rows[0] - 1][0] : 2;
 	const int lastCol1 = rows[1] ? cell[1][rows[1] - 1][ncol[1] - 1] : r1;
-	setLinks(0, lastCol0, 2, 1, 1);
-	setLinks(1, lastCol1, 3, 0, 0);
-	setLinks(2, 0, rows[0] ? cell[0][0][0] : 0, r1, num0 ? 12 : 3);
-	if (num0) setLinks(12, 0, rows[0] ? cell[0][0][ncol[0] - 1] : 0, 2, 3);
-	setLinks(3, 1, rows[1] ? cell[1][0][0] : 1, r0, num1 ? 13 : 2);
-	if (num1) setLinks(13, 1, rows[1] ? cell[1][0][ncol[1] - 1] : 1, 3, 2);
+	linkButton(0, lastCol0, 2, 1, 1);
+	linkButton(1, lastCol1, 3, 0, 0);
+	linkButton(2, 0, rows[0] ? cell[0][0][0] : 0, r1, num0 ? 12 : 3);
+	if (num0) linkButton(12, 0, rows[0] ? cell[0][0][ncol[0] - 1] : 0, 2, 3);
+	linkButton(3, 1, rows[1] ? cell[1][0][0] : 1, r0, num1 ? 13 : 2);
+	if (num1) linkButton(13, 1, rows[1] ? cell[1][0][ncol[1] - 1] : 1, 3, 2);
 
 	/* the columns */
 	for (int p = 0; p < 2; p++)
@@ -442,8 +589,9 @@ void ConfigureInputFrame::activateSubmenu(int submenu)
 				int down = r + 1 < rows[p] ? cell[p][r + 1][c] : (p == 0 ? 0 : 1);
 				int left = c ? cell[p][r][c - 1] : (r < rows[o] ? cell[o][r][ncol[o] - 1] : cell[p][r][ncol[p] - 1]);
 				int right = c + 1 < ncol[p] ? cell[p][r][c + 1] : (r < rows[o] ? cell[o][r][0] : cell[p][r][0]);
-				setLinks(cell[p][r][c], up, down, left, right);
+				linkButton(cell[p][r][c], up, down, left, right);
 			}
+	layoutState();
 }
 
 extern MenuContext *pMenuContext;

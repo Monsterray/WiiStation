@@ -2917,6 +2917,193 @@ static int checkCoopPage(void)
 	return bad;
 }
 
+/*  Configure Input (step 5): free buttons and free links, from ConfigureInputFrame.cpp's rectangles and links  */
+
+/* The buttons, by FRAME_BUTTONS index. 0 Automatic and 1 Manual; 2 and 3 the ports' types; 12 and 13 their
+ * numbers; 4..11 and 14..21 the multitap slots of port 1 and 2; 22..69 the Co-Op rows (COOP_BTN). The
+ * rectangles are layoutTables()'s: columns at x 8 and 324, the port row at y 114, the slots from 206 in
+ * steps of 62, the Co-Op players from 206 in steps of 33. Automatic and Manual are as wide as their
+ * labels (buttonFitWidth), TAB_GAP apart from x 295. */
+static void ciRect(int id, float *x, float *y, float *w, float *h)
+{
+	const float slotX = 17.0f;		/* (308 - (204 + 10 + 60)) / 2 */
+	if (id == 0) { *x = 295.0f; *y = 20.0f; *w = (float)buttonFitWidth(kFont, "Automatic"); *h = 56.0f; return; }
+	if (id == 1) { *x = 295.0f + (float)buttonFitWidth(kFont, "Automatic") + 10.0f; *y = 20.0f;
+	               *w = (float)buttonFitWidth(kFont, "Manual"); *h = 56.0f; return; }
+	if (id == 2 || id == 3) { *x = (id == 2 ? 8.0f : 324.0f) + slotX; *y = 114.0f; *w = 204.0f; *h = 56.0f; return; }
+	if (id == 12 || id == 13) { *x = (id == 12 ? 8.0f : 324.0f) + slotX + 204.0f + 10.0f; *y = 114.0f; *w = 60.0f; *h = 56.0f; return; }
+	if (id >= 4 && id <= 21) {
+		const int i = id <= 11 ? id - 2 : id - 12;		/* 2 + p*4 + sl */
+		const int p = (i - 2) / 4, sl = (i - 2) % 4;
+		*x = (p ? 324.0f : 8.0f) + slotX + (id >= 14 ? 214.0f : 0.0f);
+		*y = 206.0f + 62.0f * sl;
+		*w = id >= 14 ? 60.0f : 204.0f;
+		*h = 56.0f;
+		return;
+	}
+	{
+		const int c = (id - 22) % 3, k = ((id - 22) / 3) % 8, p = (id - 22) / 24;
+		static const float coopX[3] = { 32.0f, 104.0f, 256.0f }, coopW[3] = { 66.0f, 146.0f, 52.0f };
+		*x = (p ? 324.0f : 8.0f) + coopX[c];
+		*y = 206.0f + 33.0f * k;
+		*w = coopW[c];
+		*h = 30.0f;
+	}
+}
+
+/* The shown buttons of a state, in FRAME_BUTTONS order, each with its links to ids (-1: none) in the
+ * engine's direction order (up, down, left, right). */
+struct CiState {
+	const char *name;
+	int shown[8];			/* ids; -1 ends */
+	int active[8];			/* 1 if active */
+	int lit;				/* id lit, or -1 */
+	int links[8][4];		/* per shown id, the links the frame gives it */
+};
+
+/* Automatic (the default): Automatic and Manual active; the ports' buttons are shown and greyed. The frame
+ * links Automatic and Manual to each other sideways only. */
+static const CiState CI_AUTO = {
+	"Automatic", { 0, 1, 2, 3, 12, 13, -1 }, { 1, 1, 0, 0, 0, 0, -1 }, 0,
+	{ { -1, -1, 1, 1 }, { -1, -1, 0, 0 }, { 0, 0, 0, 0 }, { 0, 0, 0, 0 }, { 0, 0, 0, 0 }, { 0, 0, 0, 0 } },
+};
+
+/* Manual with no port types: the ports' type and number are focus targets, linked as the frame's
+ * activateSubmenu links them (lastCol0 2, lastCol1 13, r0 12, r1 13, no multitap or Co-Op rows). */
+static const CiState CI_MANUAL = {
+	"Manual", { 0, 1, 2, 3, 12, 13, -1 }, { 1, 1, 1, 1, 1, 1, -1 }, 1,
+	{ { 2, 2, 1, 1 }, { 13, 3, 0, 0 }, { 0, 0, 13, 12 }, { 1, 1, 12, 13 }, { 0, 0, 2, 3 }, { 1, 1, 3, 2 } },
+};
+
+/* Builds the state's page as the frame does: its shown buttons as free buttons, its links as free links. */
+static int checkConfigureInputState(const CiState &s)
+{
+	FreeButton fb[8];
+	FreeLink fl[8 * 4];
+	int n = 0, nl = 0, bad = 0, diffs = 0;
+	int freeOf[70];
+	Page p;
+	Layout lay;
+	Problem probs[16];
+	char where[64];
+	static const char *const DIR[DIR_COUNT] = { "Up", "Down", "Left", "Right" };
+
+	snprintf(where, sizeof where, "ConfigureInput %s", s.name);
+	for (int i = 0; i < 70; i++)
+		freeOf[i] = -1;
+	for (int k = 0; s.shown[k] >= 0; k++) {
+		const int id = s.shown[k];
+		ciRect(id, &fb[n].x, &fb[n].y, &fb[n].w, &fb[n].h);
+		fb[n].text = "";
+		fb[n].lit = (s.lit == id);
+		fb[n].inactive = !s.active[k];
+		freeOf[id] = n++;
+	}
+	for (int k = 0; s.shown[k] >= 0; k++)
+		for (int d = 0; d < DIR_COUNT; d++) {
+			const int to = s.links[k][d];
+			if (to < 0 || freeOf[to] < 0) {
+				if (to >= 0) { fail(where, "a link to a button the state does not show"); bad++; }
+				continue;
+			}
+			fl[nl].from = freeOf[s.shown[k]];
+			fl[nl].dir = (Dir)d;
+			fl[nl].to = freeOf[to];
+			nl++;
+		}
+	/* no link where the state gives none: a to of -1 */
+	for (int k = 0; s.shown[k] >= 0; k++)
+		for (int d = 0; d < DIR_COUNT; d++)
+			if (s.links[k][d] < 0) {
+				fl[nl].from = freeOf[s.shown[k]];
+				fl[nl].dir = (Dir)d;
+				fl[nl].to = -1;
+				nl++;
+			}
+
+	memset(&p, 0, sizeof p);
+	p.logo = LOGO_SPOT_NONE;
+	p.focus = FOCUS_GEOMETRY;
+	p.freeButtons = fb;
+	p.nFreeButtons = n;
+	p.freeLinks = fl;
+	p.nFreeLinks = nl;
+	if (layoutPage(p, kFont, lay) < 0) {
+		fail(where, "layoutPage refused the page");
+		return bad + 1;
+	}
+	linkFocus(p, lay);
+
+	for (int k = 0; s.shown[k] >= 0; k++) {
+		const int id = s.shown[k];
+		const int c = lay.freeCtl[freeOf[id]];
+		float x, y, w, h;
+		char msg[160];
+		ciRect(id, &x, &y, &w, &h);
+		if (c < 0 || !nearly(lay.c[c].rect.x, x) || !nearly(lay.c[c].rect.y, y) ||
+		    !nearly(lay.c[c].rect.w, w) || !nearly(lay.c[c].rect.h, h)) {
+			snprintf(msg, sizeof msg, "button %d is not where the table puts it", id);
+			fail(where, msg);
+			bad++;
+			continue;
+		}
+		if (lay.c[c].focusable != (s.active[k] != 0)) {
+			snprintf(msg, sizeof msg, "button %d focus target is %d, the state has it %s", id,
+			         (int)lay.c[c].focusable, s.active[k] ? "active" : "inactive");
+			fail(where, msg);
+			bad++;
+		}
+		for (int d = 0; d < DIR_COUNT; d++) {
+			const int got = lay.c[c].link[d];
+			if (s.active[k] == 0)
+				continue;
+			{
+				int gotIdx = -1;
+				for (int q = 0; q < n && got >= 0; q++)
+					if (lay.freeCtl[q] == got) { gotIdx = q; break; }
+				{
+					const int want = s.links[k][d];
+					const int wantIdx = want < 0 ? -1 : freeOf[want];
+					if (gotIdx != wantIdx) {
+						char msg2[160];
+						diffs++;
+						snprintf(msg2, sizeof msg2, "button %d %s links to free %d, the state has free %d",
+						         id, DIR[d], gotIdx, wantIdx);
+						fail(where, msg2);
+						bad++;
+					}
+				}
+			}
+		}
+	}
+	if (lay.defaultFocus != lay.freeCtl[0]) {
+		fail(where, "the default focus is not Automatic or the first shown button");
+		bad++;
+	}
+	{
+		const int np = checkLayout(p, kFont, lay, probs, 16);
+		for (int k = 0; k < np && k < 16; k++) {
+			char msg[160];
+			if (probs[k].kind == PROB_TEXT_WIDE) {
+				printf("        %s finding: '%s' wider than its button less 2 x 16 px\n", where, lay.c[probs[k].a].text);
+				continue;
+			}
+			snprintf(msg, sizeof msg, "checkLayout: %s", problemName(probs[k].kind));
+			fail(where, msg);
+			bad++;
+		}
+	}
+	printf("  %-22s %d shown buttons against the frame's rectangles and links, %d link%s differ\n",
+	       where, n, diffs, diffs == 1 ? "" : "s");
+	return bad;
+}
+
+static int checkConfigureInput(void)
+{
+	printf("Configure Input (free buttons, free links; the states the frame gives)\n");
+	return checkConfigureInputState(CI_AUTO) + checkConfigureInputState(CI_MANUAL);
+}
+
 int main(int argc, char **argv)
 {
 	const char *font = argc > 1 ? argv[1] : "fonts/En.dat";
@@ -2942,6 +3129,7 @@ int main(int argc, char **argv)
 	checkTabLinks("Saves", 4, SAVES_BOXES, COUNT(SAVES_BOXES));
 	checkButtonRowScreens();
 	checkCoopPage();
+	checkConfigureInput();
 	testLinkOverrides();
 	reportGeometry();
 	testCheckCatches();
