@@ -133,7 +133,7 @@ char soundRateControl;      // dfsound/ratectl.c: nudge the output rate from the
 char soundResampler;        // read by dfsound/resample.c on every block it converts
 char gpuTiming, cpuTiming, limiterWait, limiterDebt, sioTiming;
 char cpuSpeed;   /* CpuSpeed: r3000a.c psxCycleMult */
-char frameRateMode;   /* FrameRate: psxcounters.c frameCycles, SoftGPU/oldGpuFps.c FrameCap */
+char frameRateMode;   /* FrameRate: 0 Auto, 1 TV, 2 PS1, 3 Unlimited (no frame limit). psxcounters.c, oldGpuFps.c */
 char cdBuffer, cdPrefetch, cdChdHunks;   // read by cdriso.c when an image is opened
 char xaDisabled;            // mirrors Config.Xa   (see wiiSXconfig.h)
 char cddaDisabled;          // mirrors Config.Cdda
@@ -207,7 +207,6 @@ static const char* const OPT_BIOS[]          = { "HLE", "SD", "USB" };
 static const char* const OPT_CORE[]          = { "Lightrec", "Interpreter", "Dynarec" };
 static const char* const OPT_GPU[]           = { "Soft Fast", "Soft Timed", "OpenGX" };
 static const char* const OPT_SCREEN[]        = { "4:3", "16:9", "Force 16:9" };
-static const char* const OPT_LIMIT[]         = { "Off", "Auto" };
 static const char* const OPT_DITHER[]        = { "None", "Default", "Always" };
 static const char* const OPT_BILINEAR[]      = { "Default", "Near", "Bilinear" };
 static const char* const OPT_CHROMA[]        = { "Sharp", "Smooth" };
@@ -216,7 +215,7 @@ static const char* const OPT_RESAMPLE[]      = { "Hold", "Linear", "Cubic" };
 static const char* const OPT_OUTPUT[]        = { "CPU", "DSP" };
 static const char* const OPT_INTERP[]        = { "Simple", "Gaussian" };
 static const char* const OPT_SPEED[]         = { "Auto", "50%", "75%", "100%", "125%", "150%", "200%", "300%" };
-static const char* const OPT_FRAMERATE[]     = { "Auto", "TV", "PS1" };
+static const char* const OPT_FRAMERATE[]     = { "Auto", "TV", "PS1", "Unlimited" };
 static const char* const OPT_CD_BUFFER[]     = { "16 KB", "64 KB", "256 KB" };
 static const char* const OPT_CD_HUNKS[]      = { "2", "4", "8" };
 static const char* const OPT_SAVE_DEVICE[]   = { "SD", "USB", "CardA", "CardB" };
@@ -253,7 +252,6 @@ static SettingOption OPTIONS[] =
   { "Dithering", &useDithering, USEDITHER_NONE, USEDITHER_ALWAYS, NULL, "Dithering", OPT_DITHER, "Hides the steps between colours in a 15-bit picture." },
   { "MdecChroma", &mdecChroma, MDECCHROMA_SHARP, MDECCHROMA_SMOOTH, NULL, "MDEC Chroma", OPT_CHROMA, "Sharp is the console. Smooth looks better and costs more." },
   { "FmvColour", &fmvColour, FMVCOLOUR_15BIT, FMVCOLOUR_24BIT, NULL, "Video Colour", OPT_COLOUR, "24-bit is full colour. 15-bit shows bands in dark scenes." },
-  { "LimitFrames", &frameLimit[1], FRAMELIMIT_NONE, FRAMELIMIT_AUTO, NULL, "Limit FPS", OPT_LIMIT, "Turns the frame limiter on (Auto) or off." },
   { "SkipFrames", &frameSkip, FRAMESKIP_DISABLE, FRAMESKIP_ENABLE, NULL, "Frame Skip", OPT_OFF_ON, "Skips frames when the Wii is too slow." },
   { "FPS", &showFPSonScreen, FPS_HIDE, FPS_SHOW, NULL, "Show FPS", OPT_OFF_ON, "Shows the frame rate on the screen." },
   { "EfbSync", &efbSyncSetting, 0, 2 },
@@ -274,7 +272,7 @@ static SettingOption OPTIONS[] =
   { "GpuTiming", &gpuTiming, GPU_TIMING_FAST, GPU_TIMING_ACCURATE, NULL, "GPU Timing", OPT_FAST_ACCURATE, "Accurate: the GPU is busy as long as on a PS1." },
   { "SioTiming", &sioTiming, SIO_TIMING_FAST, SIO_TIMING_ACCURATE, NULL, "Port Timing", OPT_FAST_ACCURATE, "Accurate: each controller port byte takes as long as on a PS1." },
   { "CpuSpeed", &cpuSpeed, CPU_SPEED_AUTO, CPU_SPEED_300, NULL, "CPU Speed", OPT_SPEED, "Over 100% eases slowdown in some games, at more CPU cost." },
-  { "FrameRate", &frameRateMode, FRAMERATE_AUTO, FRAMERATE_PS1, NULL, "Frame Rate", OPT_FRAMERATE, "Sets the refresh rate the game runs at." },
+  { "FrameRate", &frameRateMode, FRAMERATE_AUTO, FRAMERATE_UNLIMITED, NULL, "Frame Rate", OPT_FRAMERATE, "Sets the refresh rate the game runs at. Unlimited turns the frame limit off." },
   { "Performance", NULL, 0, 0, "Disc reads and the frame limiter. Keep the defaults." },
   { "CdBuffer", &cdBuffer, CD_BUFFER_16K, CD_BUFFER_256K, NULL, "CD Read Buffer", OPT_CD_BUFFER, "16 KB is best: a larger buffer reads more than the game uses." },
   { "CdPrefetch", &cdPrefetch, CD_PREFETCH_OFF, CD_PREFETCH_ON, NULL, "CD Read-Ahead", OPT_OFF_ON, "A thread reads the next sectors early. Raw bin/cue and .iso only." },
@@ -619,7 +617,6 @@ void loadSettings(int argc, char *argv[])
 #endif
 	printToScreen    = 1; // Show DEBUG text on screen
 	printToSD        = 0; // Disable SD logging
-	frameLimit[1]		 = 1; // Auto limit FPS
 	frameSkip		 = 0; // Disable frame skipping
 	useDithering		 = 1; // Default dithering (set to 0 (disabled) in PEOPSgpu)
 	mdecChroma		 = MDECCHROMA_SHARP;   /* what the console does */
@@ -751,7 +748,7 @@ void loadSettings(int argc, char *argv[])
 	// plugin-open time (PEOPS_GPUopen -> GPUsetframelimit). Without this they
 	// would open with the zero-initialised FRAMELIMIT_NONE and never correct
 	// it, since their per-frame re-check only fires on a *change*.
-	frameLimit[0] = frameLimit[1];
+	syncFrameLimit();
 	//iUseDither = useDithering;
 	setSpuInterpolation(spuInterpolation);
 	setSpuTempo(soundTempo);
@@ -1585,11 +1582,19 @@ void handleConfigPair(char* kv){
 
 void readConfig(FILE* f){
 	char line[CONFIG_LINE_MAX];
+	bool limitOff = false;
 	while(config_getline(line, CONFIG_LINE_MAX, f)){   /* whole lines only: config_parse.h */
 		char* l = config_line(line);   /* config_parse.h: blank, comment and [section] lines hold none */
-		if(l)
+		if(l){
+			/* Files from before Frame Rate had Unlimited: "LimitFrames = 0" was the limit off */
+			char* eq = strchr(l, '=');
+			if(eq && !strncmp(l, "LimitFrames", 11) && atoi(eq + 1) == 0)
+				limitOff = true;
 			handleConfigPair(l);
+		}
 	}
+	if(limitOff)
+		frameRateMode = FRAMERATE_UNLIMITED;
 }
 
 static void writeSettingLines(FILE* f){
@@ -1633,7 +1638,7 @@ void go(void) {
 	// time gameplay resumes. Unconditional (not inside the newSoftGpu guard):
 	// every GPU plugin reads frameLimit[0], unlike gc_rearmed_cbs which is
 	// newSoftGpu-only.
-	frameLimit[0] = frameLimit[1];
+	syncFrameLimit();
 
 #ifdef PERF_PROF
 	g_carry.pad[0] = virtualControllers[0].inUse;
