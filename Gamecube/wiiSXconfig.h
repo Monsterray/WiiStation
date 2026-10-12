@@ -494,6 +494,10 @@ enum trapFilter
 	TRAPFILTER_ENABLE
 };
 
+/* The Wii video encoder's gamma (VIDEO_SetGamma, Gamecube/vi_encoder.c): 0..5 is 1.0..1.5,
+ * brighter as it rises. 0 is the encoder as it starts: nothing is written for it at boot. */
+extern char gammaLevel;
+
 extern char interlacedMode;
 enum interlacedMode
 {
@@ -506,6 +510,15 @@ enum deflickerFilter
 {
 	DEFLICKER_DISABLE=0,
 	DEFLICKER_ENABLE
+};
+
+/* The vertical filter of the frame copy while Deflicker is on. NORMAL is the taps of the video
+ * mode (today's picture); LIGHT is the 480p taps, 0 0 21 22 21 0 0: less blur. */
+extern char deflickerLevel;
+enum deflickerLevel
+{
+	DEFLICKERLEVEL_NORMAL=0,
+	DEFLICKERLEVEL_LIGHT
 };
 
 extern char lightGun;

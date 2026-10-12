@@ -174,6 +174,8 @@ char bilinearFilter = 1;
 char trapFilter = 1;
 char interlacedMode = 0;
 char deflickerFilter = 1;
+char deflickerLevel = DEFLICKERLEVEL_NORMAL;
+char gammaLevel = 0;
 char lightGun = 0;
 char memCard[2];
 char memCardFile[2];
@@ -212,6 +214,8 @@ static const char* const OPT_DITHER[]        = { "None", "Default", "Always" };
 static const char* const OPT_BILINEAR[]      = { "Default", "Near", "Bilinear" };
 static const char* const OPT_CHROMA[]        = { "Sharp", "Smooth" };
 static const char* const OPT_COLOUR[]        = { "15-bit", "24-bit" };
+static const char* const OPT_GAMMA[]         = { "1.0", "1.1", "1.2", "1.3", "1.4", "1.5" };
+static const char* const OPT_DEFLICKER[]     = { "Normal", "Light" };
 static const char* const OPT_RESAMPLE[]      = { "Hold", "Linear", "Cubic" };
 static const char* const OPT_OUTPUT[]        = { "CPU", "DSP" };
 static const char* const OPT_INTERP[]        = { "Simple", "Gaussian" };
@@ -253,6 +257,8 @@ static SettingOption OPTIONS[] =
   { "Dithering", &useDithering, USEDITHER_NONE, USEDITHER_ALWAYS, NULL, "Dithering", OPT_DITHER, "Hides the steps between colours in a 15-bit picture." },
   { "MdecChroma", &mdecChroma, MDECCHROMA_SHARP, MDECCHROMA_SMOOTH, NULL, "MDEC Chroma", OPT_CHROMA, "Sharp is the console. Smooth looks better and costs more." },
   { "FmvColour", &fmvColour, FMVCOLOUR_15BIT, FMVCOLOUR_24BIT, NULL, "Video Colour", OPT_COLOUR, "24-bit is full colour. 15-bit shows bands in dark scenes." },
+  { "Gamma", &gammaLevel, 0, 5, NULL, "Gamma", OPT_GAMMA, "Brightens the TV picture. 1.0 changes nothing." },
+  { "DeflickerLevel", &deflickerLevel, DEFLICKERLEVEL_NORMAL, DEFLICKERLEVEL_LIGHT, NULL, "Deflicker Level", OPT_DEFLICKER, "Light blurs less than Normal. Needs Deflicker on." },
   { "LimitFrames", &frameLimit[1], FRAMELIMIT_NONE, FRAMELIMIT_AUTO, NULL, "Limit FPS", OPT_LIMIT, "Turns the frame limiter on (Auto) or off." },
   { "SkipFrames", &frameSkip, FRAMESKIP_DISABLE, FRAMESKIP_ENABLE, NULL, "Frame Skip", OPT_OFF_ON, "Skips frames when the Wii is too slow." },
   { "FPS", &showFPSonScreen, FPS_HIDE, FPS_SHOW, NULL, "Show FPS", OPT_OFF_ON, "Shows the frame rate on the screen." },

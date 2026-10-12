@@ -64,6 +64,7 @@ extern int gx_vout_open(void); // SoftGPU/drawGX.c
 // Gamecube/libgui/GraphicsGX.cpp is genuine C++ bool (1 byte) -- writing
 // "bool" here would silently declare the wrong parameter width.
 extern void switchToTVMode(short dWidth, short dHeight, _Bool retMenu);
+extern u8 *videoCopyTaps(u8 *modeTaps);   /* Gamecube/libgui/GraphicsGX.cpp: Deflicker Level */
 
 static short DrawSemiTrans=FALSE;
 static short ly0,lx0,ly1,lx1,ly2,lx2,ly3,lx3;        // global psx vertex coords
@@ -1734,7 +1735,7 @@ void RestoreDispCopyInfo(void)
     // gameplay, so hardcoding GX_TRUE here silently re-enabled deflicker on
     // this plugin whenever a readback happened. (GraphicsGX.cpp deliberately
     // forces GX_TRUE for menu / return-to-menu contexts -- that stays as is.)
-    GX_SetCopyFilter(m->aa,m->sample_pattern,(deflickerFilter)?GX_TRUE:GX_FALSE,m->vfilter);
+    GX_SetCopyFilter(m->aa,m->sample_pattern,(deflickerFilter)?GX_TRUE:GX_FALSE,videoCopyTaps(m->vfilter));
     GX_SetFieldMode(m->field_rendering,((m->viHeight==2*m->xfbHeight)?GX_ENABLE:GX_DISABLE));
 }
 
