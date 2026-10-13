@@ -32,7 +32,9 @@ import time
 import zlib
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
-SHARED = pathlib.Path("C:/tools/Dolphin-x64/User/Load/WiiSDSync/wiistation")   # the user's games, for --send-isos
+# --send-isos sends game folders from the library (scripts/profile.sh, WSX_LIBRARY), as the Dolphin
+# runs stage them; it used to read the user's own Dolphin folder, which lacks the converted formats
+LIBRARY = pathlib.Path(os.environ.get("WSX_LIBRARY", "C:/wiistation-lib")) / "games"
 BASE_SETTINGS = "gpuPlugin = 2\nFPS = 1\nPadType1 = 1\nPadAutoAssign = 0\n"
 RESULTS = ["perf.log", "vramio.log", "ptrace.log", "atrace.log", "lab.log", "tty.log", "dvd.log", "hb.log",
            "xfb.bin", "vram.bin"]   # a "dump <vblank>": the TV picture and VRAM then
@@ -252,7 +254,7 @@ def main():
     isos = []
     if a.send_isos:
         for d in folders:
-            for p in sorted((SHARED / "isos" / d).glob("*")):
+            for p in sorted((LIBRARY / d).glob("*")):
                 isos.append((f"isos/{d}/{p.name}", p))
 
     if not hbc_ready(a.wii, 60):
