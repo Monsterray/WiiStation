@@ -1,5 +1,5 @@
 README : WiiStation
-Version 5.12.3
+Version 5.13.0
 
 LICENSE:
     This software is licensed under the GNU General Public License v2
@@ -125,6 +125,14 @@ LATER UPDATES BY:
  * Monty Perrotti (WiiStation)
 
 WiiStation CHANGE LOG:
+Ver 5.13.0 (2026-10-13):
+* Faster: compressed images (.pbp, .cbn, .chd) are unpacked ahead, while the
+  game waits for the next frame. On the Wii, Frogger spent 2.8-4.0 s of every
+  30 s unpacking; now 0.2 s, less than a plain .bin. Uses the CD Read-Ahead
+  option (on by default).
+* Tip: .chd files made with "chdman createcd -c cdzs,cdfl" (zstd) are the same
+  size and unpack faster than chdman's default.
+
 Ver 5.12.3 (2026-10-13):
 * Fixed: a .cbn image no longer fails to start when it is not the first game
   since power-on (it opened as an unreadable disc). Its index is now kept in

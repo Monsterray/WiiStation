@@ -284,7 +284,7 @@ static SettingOption OPTIONS[] =
   { "FrameRate", &frameRateMode, FRAMERATE_AUTO, FRAMERATE_UNLIMITED, NULL, "Frame Rate", OPT_FRAMERATE, "Sets the refresh rate the game runs at. Unlimited turns the frame limit off." },
   { "Performance", NULL, 0, 0, "Disc reads and the frame limiter. Keep the defaults." },
   { "CdBuffer", &cdBuffer, CD_BUFFER_16K, CD_BUFFER_256K, NULL, "CD Read Buffer", OPT_CD_BUFFER, "16 KB is best: a larger buffer reads more than the game uses." },
-  { "CdPrefetch", &cdPrefetch, CD_PREFETCH_OFF, CD_PREFETCH_ON, NULL, "CD Read-Ahead", OPT_OFF_ON, "A thread reads the next sectors early. Raw bin/cue and .iso only." },
+  { "CdPrefetch", &cdPrefetch, CD_PREFETCH_OFF, CD_PREFETCH_ON, NULL, "CD Read-Ahead", OPT_OFF_ON, "A thread reads (and unpacks .pbp/.cbn/.chd) the next sectors early, while the game waits for the next frame." },
   { "CdChdHunks", &cdChdHunks, CD_CHD_HUNKS_2, CD_CHD_HUNKS_8, NULL, "CHD Hunk Cache", OPT_CD_HUNKS, "Decoded CHD hunks kept in memory. 8 is best." },
   { "LimiterWait", &limiterWait, LIMITER_WAIT_SPIN, LIMITER_WAIT_SLEEP },
   { "LimiterDebt", &limiterDebt, LIMITER_DEBT_SHORT, LIMITER_DEBT_LONG },
