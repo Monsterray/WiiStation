@@ -287,10 +287,31 @@ static int cdimg_seek(FILE *f, long pos)
 	return 0;
 }
 
+static void pf_kick_late(void);
+
 /* Phase 1 profiling: fold one sector-read result into the counters. */
+#ifdef PERF_PROF
+static int pf_missed;                        /* debug: 1 = this read missed the ring, 2 = missed while the thread was mid-fetch */
+#endif
+
 static void perf_cd_done(unsigned long long t0, int ret)
 {
 	unsigned long long dt = perf_now_us() - t0;
+	pf_kick_late();
+#ifdef PERF_PROF
+	if (pf_missed == 1) {
+		PERF_ADD(cd_pf_miss_us, dt);
+		PERF_MAX(cd_pf_miss_worst_us, (uint32_t)dt);
+	} else if (pf_missed == 2) {
+		PERF_ADD(cd_pf_bmiss_us, dt);
+		PERF_MAX(cd_pf_bmiss_worst_us, (uint32_t)dt);
+	}
+	pf_missed = 0;
+	if (dt > 1000)
+		PERF_INC(cd_slow1);
+	if (dt > 4000)
+		PERF_INC(cd_slow4);
+#endif
 	PERF_ADD(io_total_us, dt);
 	if (ret > 0) {
 		PERF_INC(cd_reads);
@@ -367,6 +388,12 @@ static FILE *pf_handle;
 static lwp_t pf_thread = LWP_THREAD_NULL;
 static sem_t pf_sem = LWP_SEM_NULL;
 static volatile int pf_active, pf_quit;
+#ifdef PERF_PROF
+static volatile int pf_busy;                 /* the thread is inside pf_fetch (debug probe: cd_pf_bmiss) */
+#define PF_BUSY(v) (pf_busy = (v))
+#else
+#define PF_BUSY(v) ((void)0)
+#endif
 static volatile long pf_want;                /* the position after the emulator's last read */
 static int pf_secbytes;                      /* bytes per sector in this image: 2352 or 2048; 1 for blocks */
 static long pf_filepos = -1;                 /* where pf_handle's stream is, to skip redundant seeks */
@@ -472,8 +499,12 @@ static void *pf_main(void *arg)
 			i = (unsigned long)(next / pf_secbytes) & (pf_nslots - 1);
 			if (pf_tag[i] != next) {
 				pf_tag[i] = -1;
-				if (!pf_fetch(next, pf_data + i * pf_slotbytes))
+				PF_BUSY(1);
+				if (!pf_fetch(next, pf_data + i * pf_slotbytes)) {
+					PF_BUSY(0);
 					break;                                              /* end of image or error: wait for the next kick */
+				}
+				PF_BUSY(0);
 				pf_tag[i] = next;
 				PERF_INC(cd_pf_reads);
 			}
@@ -495,7 +526,25 @@ static void pf_kick(long pos)
 	LWP_SemPost(pf_sem);
 }
 
-/* Copy the sector (or block) at pos out of the ring if it is there. Kicks the thread either way. */
+/* A miss wakes the thread only once the emulator's own read is done (perf_cd_done, at the
+ * end of every read). Woken first, the thread got the card ahead of the sector the game was
+ * waiting for: read-ahead (PF_PRIO, above the emulator) at once; decode-ahead (DA_PRIO,
+ * below) as soon as the emulator blocked in its own seek, after which libfat's partition
+ * lock was handed to the waiting thread on unlock, and the emulator's fread then waited
+ * for the thread's whole fread (priority inheritance only speeds that up). Dolphin,
+ * MediEvil, the worst read of a game, CdPrefetch 0 / kick first / kick after: .cue
+ * 3681/6400/3797 us, CHD 4432/5945/4400, PBP 3865/5896/3990, CBN 3024/5039/3071. */
+static int pf_late;
+static void pf_kick_late(void)
+{
+	if (pf_late) {
+		pf_late = 0;
+		LWP_SemPost(pf_sem);
+	}
+}
+
+/* Copy the sector (or block) at pos out of the ring if it is there. Kicks the thread either
+ * way: on a hit now, on a miss after the emulator's own read (pf_kick_late). */
 static int pf_take(long pos, void *dest)
 {
 	unsigned long i = (unsigned long)(pos / pf_secbytes) & (pf_nslots - 1);
@@ -508,7 +557,13 @@ static int pf_take(long pos, void *dest)
 		}
 	}
 	PERF_INC(cd_pf_miss);
-	pf_kick(pos);
+#ifdef PERF_PROF
+	pf_missed = pf_busy ? 2 : 1;
+	if (pf_busy)
+		PERF_INC(cd_pf_bmiss);
+#endif
+	pf_want = pos + pf_secbytes;    /* pf_kick, after the emulator's own read (pf_kick_late) */
+	pf_late = 1;
 	return 0;
 }
 
@@ -517,6 +572,7 @@ static void pf_stop(void)
 	if (!pf_active)
 		return;
 	pf_active = 0;
+	pf_late = 0;
 	pf_quit = 1;
 	LWP_SemPost(pf_sem);
 	LWP_JoinThread(pf_thread, NULL);

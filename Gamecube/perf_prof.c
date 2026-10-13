@@ -1411,9 +1411,13 @@ void perf_report(void)
 				fprintf(f, "tvlog: %ux%u at vblank %u\n", g_perf.tv_log[k][0],
 					g_perf.tv_log[k][1], g_perf.tv_log[k][2]);
 		}
-		fprintf(f, "cdpf: hit=%lu miss=%lu reads=%lu\n",
+		fprintf(f, "cdpf: hit=%lu miss=%lu reads=%lu bmiss=%lu miss_us=%llu miss_worst=%lu"
+			" bmiss_us=%llu bmiss_worst=%lu slow1=%lu slow4=%lu\n",
 			(unsigned long)g_perf.cd_pf_hit, (unsigned long)g_perf.cd_pf_miss,
-			(unsigned long)g_perf.cd_pf_reads);
+			(unsigned long)g_perf.cd_pf_reads, (unsigned long)g_perf.cd_pf_bmiss,
+			g_perf.cd_pf_miss_us, (unsigned long)g_perf.cd_pf_miss_worst_us,
+			g_perf.cd_pf_bmiss_us, (unsigned long)g_perf.cd_pf_bmiss_worst_us,
+			(unsigned long)g_perf.cd_slow1, (unsigned long)g_perf.cd_slow4);
 		fprintf(f, "chd: hit=%lu miss=%lu err=%lu chd_us=%llu\n",
 			(unsigned long)g_perf.chd_hit, (unsigned long)g_perf.chd_miss,
 			(unsigned long)g_perf.chd_err, g_perf.chd_us);
