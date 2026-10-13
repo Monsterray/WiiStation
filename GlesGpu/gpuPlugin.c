@@ -168,6 +168,7 @@ BOOL    canClearFrameBuf = FALSE;
 static BOOL    needUploadScreen = FALSE;
 static BOOL    uploadedScreen = FALSE;
 static BOOL    needFlipEGL = FALSE;
+extern int     uploadSkippedWhileOff;                 /* gpuPrim.c UploadScreen: a load came while the display was off */
 static unsigned short    RGB24Uploaded = 0;
 extern u32 hSyncCount, frame_counter;   /* psxcounters.c: 0 in the picture, 240+ in the vblank (trace); vblanks */
 static unsigned short    GPUupdateLace5Flg = 0;
@@ -552,6 +553,11 @@ if(PSXDisplay.Disabled)                               // display disabled?
 if(iSkipTwo)                                          // we are in skipping mood?
  {
   iSkipTwo--;
+  /* a 24-bit still (Spyro's logos, Gex 3's loading screen) is uploaded once and never
+   * flipped again: the skipped present was its only one, and the screen stayed black.
+   * Present it at the next vblank instead (a movie's frames keep coming anyway). */
+  if (PSXDisplay.RGB24 && (iDrawnSomething & 0x2))
+   needFlipEGL = TRUE;
   iDrawnSomething=0;                                  // -> simply lie about something drawn
  }
 
@@ -1174,6 +1180,21 @@ else if(usFirstPos==1)                                // initial updates (after 
      #endif // DISP_DEBUG
      GPUupdateLace5Flg = 0;
      {
+     /* A 24-bit picture the game changes with image loads and never flips (Spyro's logos
+      * fade in and change while the display start stays put): once the display has not
+      * flipped for 8 vblanks, present each vblank that brought a whole new picture (0x1/0x2:
+      * a load reaching the right edge; an MDEC frame's earlier slices set only 0x4/0x8, and
+      * presenting those made Frogger's and MediEvil's movies black). A movie flips
+      * every 2-4 vblanks and never gets here: a vblank present between its frames showed
+      * black (Frogger, MediEvil -- the EFB is cleared after a 24-bit present). */
+     static int rgb24_still;
+     static PSXPoint_t rgb24_pos;
+     if (PSXDisplay.DisplayPosition.x != rgb24_pos.x || PSXDisplay.DisplayPosition.y != rgb24_pos.y)
+      { rgb24_pos = PSXDisplay.DisplayPosition; rgb24_still = 0; }
+     else if (rgb24_still < 1000)
+      rgb24_still++;
+     if (PSXDisplay.RGB24 && (RGB24Uploaded & 0x3) && !PSXDisplay.Disabled && rgb24_still >= 8)
+      updateDisplayGl();
      int fullUp = CheckFullScreenUpload() ? 1 : 0;
      /* vramio F1, one per vblank: x,y display, w,h draw offset, a = iDrawnSomething,
       * b = 1 full-screen upload, 2 a present was pending, 4 presented here, 8 drawing into
@@ -1310,7 +1331,24 @@ switch(lCommand)
         STATUSREG|=GPUSTATUS_DISPLAYDISABLED;
    else STATUSREG&=~GPUSTATUS_DISPLAYDISABLED;
 
-   if (iOffscreenDrawing==4 &&
+   /* The display comes back on after an upload was skipped while it was off: a picture
+    * loaded with the display off (Spyro's Sony and Universal logos, Gex 3's loading screen:
+    * display off, image load, 24-bit mode, display on, then no flip and nothing drawn) never
+    * reached the EFB and nothing presented it -- black until the game drew again. Upload the
+    * displayed buffer from VRAM and present it. */
+   if (PreviousPSXDisplay.Disabled && !PSXDisplay.Disabled && uploadSkippedWhileOff)
+    {
+     uploadSkippedWhileOff = 0;
+     if (PSXDisplay.RGB24)
+      RGB24Uploaded |= 0x1;                           /* updateDisplayGl uploads a 24-bit display */
+     else
+      {
+       PrepareFullScreenUpload(TRUE);
+       UploadScreen(TRUE);
+      }
+     updateDisplayGl();
+    }
+   else if (iOffscreenDrawing==4 &&
         PreviousPSXDisplay.Disabled &&
        !(PSXDisplay.Disabled))
     {

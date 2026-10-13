@@ -6,6 +6,29 @@ without doing the investigation a second time.
 
 ---
 
+## Gex 3: the LOADING picture after the Eidos logo is black (OpenGX) -- PARKED 2026-10-12
+
+Found by the per-game sweep (Soft vs OpenGX, the TV picture at the same vblanks:
+`.runs/sweep_xfb.sh`, sheets in `.runs/xs_sheets/`). Soft shows the snowman / Gex LOADING
+picture at vblanks 750 and 900; OpenGX shows black. Older than 2026-10-12: the build
+before that day's OpenGX changes is black too.
+
+**Reproduce.** `printf 'sd:/wiistation/isos/Gex 3 - Deep Cover Gecko\nGex 3 - Deep Cover
+Gecko [NTSC-U] [SLUS-00806].ccd\n' > ab.txt`; `wsx.sh run g3 --dol debug --secs 75 --fast
+--autoboot ab.txt --input xfb8.txt --nodump --env XFB_RAM=1` with `xfb 750` / `xfb 900` lines.
+
+**Known (trace at vblank 745, `build debug all`, `trace 740`).** 15-bit display, double
+buffered (display 0,0 / 0,256 alternating, one present every frame, `EC -T--`), about 1400
+primitives a present (cmd 36/32/34/3e/3a, about half semi-transparent), 85 VRAM moves, two
+full-buffer image loads (0,0 512x256 and 0,240) before it, one of them uploaded (`EA`/`EB`).
+So the picture is drawn, not a still: unlike Spyro's logos (display-on fix, 2026-10-12).
+
+**Next.** Frame-dump the presents around vblank 745 under both plugins; look at what the
+semi-transparent primitives blend over (a black clear after the loads? the mask bit?), and
+at the 85 moves (efb_sync misses in vramio `C1`).
+
+---
+
 ## FF7: one green frame at the start of the opening video (OpenGX) -- FIXED 2026-09-29
 
 Parked 2026-09-23, fixed 2026-09-29. The reproduction below now shows no green frame.

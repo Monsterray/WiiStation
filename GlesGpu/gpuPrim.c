@@ -126,6 +126,8 @@ BOOL           bUsingMovie = FALSE;                    // movie active flag
 /* set around UploadScreen by a VRAM move or an image load: the uploaded pixels are the CPU's
  * own, so black is drawn (LoadTextureMovie) */
 int            bUploadOpaque = 0;
+/* UploadScreen skipped an upload because the display was off (gpuPlugin.c, GP1 03) */
+int            uploadSkippedWhileOff = 0;
 PSXRect_t      xrMovieArea;                            // rect for movie upload
 short          sSprite_ux2;                            // needed for sprire adjust
 short          sSprite_vy2;                            //
@@ -1755,6 +1757,7 @@ int UploadScreen ( int Position )
         #endif // DISP_DEBUG
         PERF_INC(upl_r_dis);
         MIRROR_OFF(5);        /* psxVuw changed, the EFB did not */
+        uploadSkippedWhileOff = 1;   /* GP1 03 uploads it when the display comes back on */
         return 0;
     }
 

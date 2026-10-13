@@ -9,7 +9,7 @@ It stages, in .runs/wii_install/, what a release zip holds, and uploads it with 
 `hbc.py sync` (only new or changed files go over: size, then CRC-32; nothing on the card is
 deleted, so the user's settings, saves and games stay):
   sd:/apps/WiiStation/      boot.dol (Gamecube/WiiSXRX_Release.dol), meta.xml, icon.png
-                            (meta.xml stamped: version "5.12.1-dev <commit>[+]", date = the DOL's;
+                            (meta.xml stamped: version "5.12.2-dev <commit>[+]", date = the DOL's;
                             HBC then shows which build is installed. --production keeps it as is)
   sd:/wiistation/controllers/  the HID controller files (Gamecube/release/controllers)
   sd:/wiistation/fonts/        En.dat, the menu fonts (fonts/menu) and the language fonts (fonts/*.zip)
@@ -39,7 +39,7 @@ STAGE = REPO / ".runs" / "wii_install"
 
 
 def dev_version(dol):
-    """'5.12.1-dev a696e46' (+ when the tree had uncommitted source changes) for the build that
+    """'5.12.2-dev a696e46' (+ when the tree had uncommitted source changes) for the build that
     made dol: the version.h and commit of the checkout the DOL lies in, else this repo's."""
     root = REPO
     try:
