@@ -2617,6 +2617,48 @@ static void PrepareRGB24Upload ( void )
 static void CheckWriteUpdateRect(void);
 
 
+/* A CPU load into the buffer NOT displayed, made while the EFB held the displayed one
+ * (CheckWriteUpdateRect, bDrawFrontBuffer): VRAM rect, uploaded at the next flip */
+static struct { short x0, y0, x1, y1; int pending; } hiddenLoad;
+
+/* updateDisplayGl at a GP1 05 flip, before the present: if the display flipped to the
+ * buffer such a load went to, the EFB (still the other buffer) gets it now */
+static void FrontModeHiddenLoadFlip(void)
+{
+    if (!hiddenLoad.pending)
+        return;
+    hiddenLoad.pending = 0;
+    if (PSXDisplay.RGB24 || PSXDisplay.InterlacedTest)
+        return;
+    if (!CheckAgainstFrontScreen(hiddenLoad.x0, hiddenLoad.y0,
+                                 hiddenLoad.x1 - hiddenLoad.x0, hiddenLoad.y1 - hiddenLoad.y0))
+        return;
+    bUploadOpaque = 1;
+    UploadScreen(TRUE);
+    bUploadOpaque = 0;
+}
+
+/* SetOGLDisplaySettings (gpuDraw.c), when the EFB is the previous buffer again without a
+ * flip (the drawing area moved there): such a load goes in now, at the previous display's
+ * offset, before anything is drawn over it -- where the code before front-buffer drawing
+ * put it at once. Returns 1 if it uploaded (the caller then sets its state up again). */
+static int FrontModeHiddenLoadToEfb(void)
+{
+    if (!hiddenLoad.pending)
+        return 0;
+    hiddenLoad.pending = 0;
+    if (PSXDisplay.RGB24 || PSXDisplay.InterlacedTest)
+        return 0;
+    if (!CheckAgainstScreen(hiddenLoad.x0, hiddenLoad.y0,
+                            hiddenLoad.x1 - hiddenLoad.x0, hiddenLoad.y1 - hiddenLoad.y0))
+        return 0;
+    efb_before_geometry_change();   /* keep the GX pixels of the buffer the EFB held */
+    bUploadOpaque = 1;
+    UploadScreen(FALSE);
+    bUploadOpaque = 0;
+    return 1;
+}
+
 /* A CPU->VRAM transfer is done. What it changed: the copy loop's lowest and highest changed
  * pixel (gpuPlugin.c vw_cmin/vw_cmax) give a one-row transfer's exact columns, a taller one
  * its own columns and the changed rows; a wrapped one counts whole. A texture holds only
@@ -2718,6 +2760,53 @@ static void CheckWriteUpdateRect(void)
         writeLogFile(txtbuffer);
     }
     #endif // DISP_DEBUG
+
+    /* While the game draws into the displayed buffer (bDrawFrontBuffer, gpuDraw.c), the
+     * EFB holds THAT buffer, not the previous one the code below uploads to. A load over
+     * the displayed buffer goes into the EFB at the display position and is presented at
+     * the vblank (no flip will come); a load over the other buffer stays in psxVuw: put
+     * into the EFB at the previous display's offset it painted the wrong buffer over the
+     * picture. Gex 3's LOADING picture: display 0,0 after flips between 0,0 and 0,256, the
+     * picture loaded at 0,0 and 0,240, never flipped -- the 0,0 load waited for a flip
+     * (bNeedUploadAfter) and the 0,240 one put rows 256-495 into the EFB, never presented:
+     * black for 300 vblanks. A load over the other buffer is uploaded when the display
+     * flips to it (FrontModeHiddenLoadFlip): before, it reached the EFB at once, which was
+     * right only for a game that flips to it next without drawing. */
+    if (bDisplayNotSet)
+    {
+        efb_before_geometry_change();   /* the EFB may move to another buffer: keep its GX pixels */
+        SetOGLDisplaySettings(1);       /* bDrawFrontBuffer as the next primitive will see it */
+    }
+    if (bDrawFrontBuffer && !PSXDisplay.InterlacedTest)
+    {
+        if (CheckAgainstScreen(VRAMWrite.x, VRAMWrite.y, VRAMWrite.Width, VRAMWrite.Height))
+        {
+            if (!hiddenLoad.pending)
+            {
+                hiddenLoad.x0 = xrUploadArea.x0; hiddenLoad.y0 = xrUploadArea.y0;
+                hiddenLoad.x1 = xrUploadArea.x1; hiddenLoad.y1 = xrUploadArea.y1;
+                hiddenLoad.pending = 1;
+            }
+            else
+            {
+                hiddenLoad.x0 = min(hiddenLoad.x0, xrUploadArea.x0); hiddenLoad.y0 = min(hiddenLoad.y0, xrUploadArea.y0);
+                hiddenLoad.x1 = max(hiddenLoad.x1, xrUploadArea.x1); hiddenLoad.y1 = max(hiddenLoad.y1, xrUploadArea.y1);
+            }
+        }
+        if (CheckAgainstFrontScreen(VRAMWrite.x, VRAMWrite.y, VRAMWrite.Width, VRAMWrite.Height))
+        {
+            bUploadOpaque = 1;
+            if (UploadScreen(TRUE))
+            {
+                needFlipEGL = TRUE;
+                needUploadScreen = FALSE;
+                uploadedScreen = FALSE;
+            }
+            bUploadOpaque = 0;
+        }
+        skipPreviousDisplayCheckOnce = FALSE;
+        return;
+    }
 
     //if ( !PSXDisplay.InterlacedTest && ((skipPreviousDisplayCheckOnce == FALSE && CheckAgainstScreen ( VRAMWrite.x, VRAMWrite.y, VRAMWrite.Width, VRAMWrite.Height ))
     //                                    || (skipPreviousDisplayCheckOnce == TRUE && CheckAgainstFrontScreen ( VRAMWrite.x, VRAMWrite.y, VRAMWrite.Width, VRAMWrite.Height ))) )
