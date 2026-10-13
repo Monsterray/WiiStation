@@ -31,6 +31,10 @@ INSTALL_HEADER_DIR	?= $(PORTLIBS_PATH)/wii/include
 INSTALL_LIB_DIR		?= $(PORTLIBS_PATH)/wii/lib
 
 # Tools.
+# The compile recipe pipes gcc through sed: without pipefail a compile error was lost (the
+# pipe returned sed's 0), the old archive stayed, and the build linked it and said "built".
+SHELL := /bin/bash
+.SHELLFLAGS := -o pipefail -c
 PIPE_TO_SED := 2>&1 | sed "s/:\([0-9]*\):/\(\1\) :/"
 
 # Library source files.

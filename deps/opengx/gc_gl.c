@@ -2125,7 +2125,9 @@ static inline int _ogx_scramble_4b_sub(unsigned char *src, void *dst, void *semi
 }
 
 /* 16-bit screen upload straight from PSX VRAM (little-endian halfwords, `pitch` pixels a
- * row) into the RGB5A3 tiles, in one pass. LoadTextureMovie used to widen every pixel to
+ * row) into the RGB5A3 tiles, in one pass. zero == 0: an opaque upload -- every pixel is
+ * drawn, black (0x0000) as black: the caller uploads pixels the CPU just wrote (a VRAM move
+ * or image load), which VRAM holds exactly, so black there is a colour, not a hole. LoadTextureMovie used to widen every pixel to
  * 32 bits through P8RGBA_0/1 for _ogx_scramble_4b_5a3 to read back. Those only zero a pixel
  * whose bits under `zero` are all 0 (0xffff opaque, 0x7fff semi-transparent), so the
  * texels are identical. */
@@ -2188,6 +2190,11 @@ static inline int _ogx_scramble_4b_5a3(unsigned char *src, void *dst, unsigned s
                         }
                         if (v16) {
                             tmpPixel = __builtin_bswap16(v16[(block + c) * pitch + i + argb]);
+                            if (!zero) {            /* opaque upload (glSetMovieSource16) */
+                                *q = tmpPixel | 0x8000;
+                                textureType |= TEX_TYPE_2;
+                                continue;
+                            }
                             if (!(tmpPixel & zero))
                                 tmpPixel = 0;
                         } else
@@ -2212,6 +2219,14 @@ static inline int _ogx_scramble_4b_5a3(unsigned char *src, void *dst, unsigned s
                     {
                         if (v16) {
                             tmpPixel = __builtin_bswap16(v16[(block + c) * pitch + i + argb]);
+                            if (!zero) {            /* opaque upload (glSetMovieSource16) */
+                                *(unsigned short*)semiTransP = 0;
+                                *(unsigned short*)p = tmpPixel | 0x8000;
+                                textureType |= TEX_TYPE_2;
+                                p += 2;
+                                semiTransP += 2;
+                                continue;
+                            }
                             if (!(tmpPixel & zero))
                                 tmpPixel = 0;
                         } else

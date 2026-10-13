@@ -123,6 +123,9 @@ int            iSpriteTex = 0;                         // flag for "hey, it's a 
 BOOL           bNeedUploadAfter = FALSE;               // sign for uploading in next frame
 BOOL           bNeedUploadTest = FALSE;                // sign for upload test
 BOOL           bUsingMovie = FALSE;                    // movie active flag
+/* set around UploadScreen by a VRAM move or an image load: the uploaded pixels are the CPU's
+ * own, so black is drawn (LoadTextureMovie) */
+int            bUploadOpaque = 0;
 PSXRect_t      xrMovieArea;                            // rect for movie upload
 short          sSprite_ux2;                            // needed for sprire adjust
 short          sSprite_vy2;                            //
@@ -1998,6 +2001,9 @@ int UploadScreen ( int Position )
 #endif
 
             glPRIMdrawTexturedQuad ( &vertex[0], 1 );
+            /* ED = where this upload quad landed in the EFB (after the display offset) */
+            perf_prim_trace(0xED, 0, 0, ((unsigned)(ly0 & 0xfff) << 12) | (unsigned)(lx0 & 0xfff),
+                            (int)vertex[0].x, (int)vertex[0].y, (int)vertex[2].x, (int)vertex[2].y);
 
             U += UStep;
         }
@@ -2714,7 +2720,9 @@ static void CheckWriteUpdateRect(void)
     //                                    || (skipPreviousDisplayCheckOnce == TRUE && CheckAgainstFrontScreen ( VRAMWrite.x, VRAMWrite.y, VRAMWrite.Width, VRAMWrite.Height ))) )
     if ( !PSXDisplay.InterlacedTest && CheckAgainstScreen ( VRAMWrite.x, VRAMWrite.y, VRAMWrite.Width, VRAMWrite.Height ))
     {
+        bUploadOpaque = 1;
         uploaded = UploadScreen ( FALSE );
+        bUploadOpaque = 0;
         if (uploaded && UploadWentToDisplay())
             needFlipEGL = TRUE;   /* a CPU load into the displayed buffer: no flip may come (CTR's Sony screen) */
 
@@ -3180,7 +3188,12 @@ static void primMoveImage ( unsigned char * baseAddr )
     /* the move reads psxVuw: put what GX drew in the source there first (efbSync.inc).
      * A tile the CPU wrote last (an animation frame uploaded by the game) is left as it
      * is: that is what the old DC2-only rule was protecting. */
+    /* a source the sync could not fill (GX drew it, no snapshot holds it) leaves stale
+     * pixels in psxVuw: the copy is then not the CPU's own, and its upload must not paint
+     * that stale black opaque (bUploadOpaque below) */
+    unsigned move_misses = efb_misses;
     efb_sync(imageX0, imageY0, imageSX, imageSY);
+    int move_src_ok = efb_misses == move_misses;
 
 
     if ( ( imageY0 + imageSY ) > iGPUHeight ||
@@ -3246,7 +3259,9 @@ static void primMoveImage ( unsigned char * baseAddr )
 //            || (screenX == PSXDisplay.DisplayPosition.x && screenY == PSXDisplay.DisplayPosition.y
 //                && screenX1 == PSXDisplay.DisplayEnd.x && screenY1 == PSXDisplay.DisplayEnd.y))
             {
+                bUploadOpaque = move_src_ok;
                 uploaded = UploadScreen ( FALSE );
+                bUploadOpaque = 0;
                 if (uploaded && UploadWentToDisplay())
                     needFlipEGL = TRUE;
 
@@ -3297,7 +3312,9 @@ static void primMoveImage ( unsigned char * baseAddr )
             xrUploadArea.y0 = imageY1;
             xrUploadArea.x1 = imageX1 + imageSX;
             xrUploadArea.y1 = imageY1 + imageSY;
+            bUploadOpaque = move_src_ok;
             uploaded = UploadScreen ( FALSE );
+            bUploadOpaque = 0;
             if (uploaded && UploadWentToDisplay())
             {
                 needFlipEGL = TRUE;

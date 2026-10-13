@@ -136,6 +136,11 @@ static const struct { const char *id; unsigned int fixes; } gpu_game_fixes[] =
      * back (GP0 C0) and redraw it; without it: blue pause, fades cut to black */
     { "SCUS94423", AUTO_FIX_VRAM_READBACK }, { "SCES01564", AUTO_FIX_VRAM_READBACK },
     { "SCPS10091", AUTO_FIX_VRAM_READBACK },
+    /* Gex 2 - Enter the Gecko: the remote's quest menu is drawn once with GX into both
+     * buffers, then its cursor is moved with VRAM moves (GP0 80) from those GX pixels; the
+     * buffer drawn first is lost unless snapshots are on from the start (a ghost cursor
+     * at every old row, or none). NTSC-U only: the other IDs are unverified. */
+    { "SLUS00598", AUTO_FIX_VRAM_READBACK },
 };
 
 #define HACK_ENTRY(var, list) \

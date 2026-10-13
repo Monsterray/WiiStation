@@ -1,0 +1,53 @@
+CHAIN
+# every game of the library (games.tsv), 1200 vblanks each, no input: intros and demos (regression and anomaly sweeps)
+1200
+sd:/wiistation/isos/Ape Escape
+Ape Escape [U] [SCUS-94423].cue
+1200
+sd:/wiistation/isos/Crash Bandicoot 3 - Warped
+Crash Bandicoot 3 - Warped [U] [SLUS-94244].cue
+1200
+sd:/wiistation/isos/Crash Bash
+Crash Bash [U] [SCUS-94570].cue
+1200
+sd:/wiistation/isos/Crash Team Racing
+Crash Team Racing [U] [SCUS-94426].cue
+1200
+sd:/wiistation/isos/Dino Crisis 2 (USA)
+Dino Crisis 2 (USA).cue
+1200
+sd:/wiistation/isos/Final Fantasy VII/Final Fantasy VII 1
+Final Fantasy VII [U] [Disc 1] [SLUS-94163].cue
+1200
+sd:/wiistation/isos/Frogger (USA)
+Frogger (USA).cue
+1200
+sd:/wiistation/isos/Gex (USA)
+Gex (USA).cue
+1200
+sd:/wiistation/isos/Gex 2 - Enter the Gecko
+Gex 2 - Enter the Gecko [NTSC-U] [SLUS-00598].ccd
+1200
+sd:/wiistation/isos/Gex 3 - Deep Cover Gecko
+Gex 3 - Deep Cover Gecko [NTSC-U] [SLUS-00806].ccd
+1200
+sd:/wiistation/isos/Medievil
+Medievil [U] [SCUS-94227].cue
+1200
+sd:/wiistation/isos/Micro Machines V3 (USA)
+Micro Machines V3 (USA).cue
+1200
+sd:/wiistation/isos/PadTest
+padtest.cue
+1200
+sd:/wiistation/isos/PadTestDX
+padtest.cue
+1200
+sd:/wiistation/isos/Point Blank (USA)
+Point Blank (USA).cue
+1200
+sd:/wiistation/isos/Resident Evil 3 - Nemesis (USA, Canada)
+Resident Evil 3 - Nemesis (USA, Canada).cue
+1200
+sd:/wiistation/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue

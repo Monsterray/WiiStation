@@ -1446,9 +1446,14 @@ GLuint LoadTextureMovie(void)
       * every pixel to 32 bits first: the whole pixel opaque, its colour bits semi-transparent. */
      extern void glSetMovieSource16(const void *src, int pitch, unsigned short zero);
 
+     /* bUploadOpaque (gpuPrim.c): the upload is of pixels the CPU just wrote, so it is drawn
+      * whole, black included -- Gex 2 erases its menu cursor by moving black over it, and a
+      * transparent black left every old cursor on screen. Other uploads keep black as a
+      * hole: there VRAM can hold stale black under what GX drew (efbSync.inc). */
+     extern int bUploadOpaque;
      ubOpaqueDraw=0;
      glSetMovieSource16(&psxVuw[(1024*xrMovieArea.y0)+xrMovieArea.x0], 1024,
-                        DrawSemiTrans ? 0x7fff : 0xffff);
+                        bUploadOpaque ? 0 : DrawSemiTrans ? 0x7fff : 0xffff);
     }
 
    //xrMovieArea.x1+=b_X;xrMovieArea.y1+=b_Y;
