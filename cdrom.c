@@ -1499,7 +1499,12 @@ static void cdrReadInterruptSetResult(unsigned char result)
 			cdr.CmdInProgress, cdr.IrqStat);
 		cdr.Irq1Pending = result;
 		// F1 2000 timing hack :(
-		psxRegs.intCycle[PSXINT_CDREAD].sCycle += cdReadTime / 10;
+		// compensate for some csum func @80014380 taking too long. Never while an XA stream
+		// plays (upstream does the same): each miss pushed the whole stream 1.33 ms later, so
+		// a game polling GetlocP through a movie (Gex 2: ~950 a second) starved the XA ring --
+		// 77 repeated-sample holds in 53 s of its intro, heard as stutter.
+		if (!cdr.AdpcmActive)
+			psxRegs.intCycle[PSXINT_CDREAD].sCycle += cdReadTime / 10;
 		return;
 	}
 	SetResultSize(1);
@@ -1723,7 +1728,7 @@ void cdrWrite1(unsigned char rt) {
 	}
 
 	cdr.Cmd = rt;
-	perf_cd_cmd(rt, cdr.Param, cdr.ParamC);
+	perf_cd_cmd(rt, cdr.Param, cdr.ParamC, psxRegs.cycle);
 }
 
 unsigned char cdrRead2(void) {

@@ -782,6 +782,9 @@ void perf_cd_rearm(int line, unsigned now, unsigned s_cycle, unsigned cycle, uns
 	static unsigned n;
 	char s[72];
 	int ahead = (int)(s_cycle + cycle - now);   /* when the event is due, from now */
+	/* atrace 'Q': a sector read (re)started from now (first=1), beside the XA feeds and holds */
+	if (armed)
+		perf_audio_event('Q', now, (int)cycle, line, 0);
 	if (!autoinput_cdlog || (ahead < 33868800 && ahead > -564480) || n >= 12)
 		return;
 	n++;
@@ -791,12 +794,16 @@ void perf_cd_rearm(int line, unsigned now, unsigned s_cycle, unsigned cycle, uns
 }
 
 /* "cdlog" (input script): each CD-ROM command the game issues, with its parameters */
-void perf_cd_cmd(unsigned cmd, const unsigned char *param, unsigned n)
+void perf_cd_cmd(unsigned cmd, const unsigned char *param, unsigned n, unsigned cycle)
 {
 	extern int autoinput_cdlog;
 	char s[72];
 	unsigned i, k;
 	static unsigned ncmd;
+	/* atrace 'C': every CD command but the GetlocP/Getstat polls (Gex 2 sends ~950 GetlocP a second,
+	 * which fill the ring in 3 s), a = command, b = its first parameter bytes */
+	if (cmd != 0x11 && cmd != 0x01)
+		perf_audio_event('C', cycle, (int)cmd, n ? (int)(param[0] | (n > 1 ? param[1] << 8 : 0) | (n > 2 ? param[2] << 16 : 0)) : -1, n);
 	if (!autoinput_cdlog || ncmd++ >= 40)
 		return;
 	k = snprintf(s, sizeof s, "rw: vbl=%u cd %02x", (unsigned)frame_counter, cmd);
