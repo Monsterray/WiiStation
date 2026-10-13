@@ -33,7 +33,10 @@
 
 static char lab_host[64];
 static int lab_port;
-static char lab_want[64][96];   /* the files to send back: RESULTS + vram_NN + vtl_NN per game */
+/* the files to send back: wii_lab.py's RESULTS (10) + vram/vtl/vsig/hprof per game. 64 held
+ * 13 games: a 17-game chain (library20) overflowed, and the extra WANT ended the exchange (FAIL). */
+#define LAB_WANT_MAX 256
+static char lab_want[LAB_WANT_MAX][96];
 static int lab_nwant;
 static u8 lab_buf[32 * 1024] __attribute__((aligned(32)));
 
@@ -303,8 +306,9 @@ int lab_fetch(void)
 				lab_log("files that could not be written", lost);
 			break;
 		}
-		if (!strncmp(line, "WANT ", 5) && lab_path_ok(line + 5) && lab_nwant < 64) {
-			snprintf(lab_want[lab_nwant++], sizeof lab_want[0], "%s", line + 5);
+		if (!strncmp(line, "WANT ", 5)) {   /* past the table or a bad path: not sent back, not fatal */
+			if (lab_path_ok(line + 5) && lab_nwant < LAB_WANT_MAX)
+				snprintf(lab_want[lab_nwant++], sizeof lab_want[0], "%s", line + 5);
 			continue;
 		}
 		if (!strncmp(line, "PUT ", 4)) {
