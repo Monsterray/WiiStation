@@ -11,7 +11,9 @@ VERSION = beta2.5
 # The copy carries sources only (no *.a, *.o, *.d): every archive is rebuilt there, and the
 # sources are re-synced from deps/ on each run. The sources reach the repo root with ../../
 # (deps/opengx/gc_gl.c includes ../../mem2_manager.h, ../../Gamecube/*.h), so every *.h of
-# the repo is mirrored into build_ogc3/ at its own path. The default (LIBOGC unset or 2) is unchanged.
+# the repo is mirrored into build_ogc3/ at its own path. LIBOGC unset means 3 (the default since
+# 5.13.0); LIBOGC=2 builds deps/ in place for libogc2.
+LIBOGC ?= 3
 ifeq ($(LIBOGC),3)
 DEPS_ROOT := build_ogc3/deps
 # devkitPPC r50 has no lightning.h (r41-2 shipped the old one): lightrec takes the GNU Lightning

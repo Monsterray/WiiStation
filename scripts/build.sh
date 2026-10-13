@@ -14,8 +14,8 @@
 #   scripts/build.sh debug-warn   # debug build with -Wall -Wextra (WARN=1)
 #   scripts/build.sh release-warn # release build with -Wall -Wextra (WARN=1)
 #   scripts/build.sh clean        # clean all build artifacts
-#   LIBOGC=3 scripts/build.sh release  # libogc v3 + devkitPPC r50; outputs get _ogc3
-#                                      # (WiiSXRX_Release_ogc3.dol, build_release_ogc3/)
+#   LIBOGC=2 scripts/build.sh release  # libogc2 + devkitPPC r41-2; outputs get _ogc2
+#                                      # (WiiSXRX_Release_ogc2.dol, build_release_ogc2/)
 #
 # The *-warn variants build with real compiler warnings enabled instead of
 # the default fully-quiet (-w) build -- use them when auditing the codebase
@@ -52,11 +52,12 @@ if [[ "$REPO_ROOT" == *" "* ]]; then
 fi
 
 # LIBOGC picks the libogc / devkitPPC pair the Makefiles build against:
-#   2 (default)  libogc2 + devkitPPC-r41-2. Pinned, not the pacman-managed $DEVKITPRO/devkitPPC,
-#                which is incompatible with libogc2 -- see scripts/setup-devkitpro-windows.sh.
-#   3            devkitPro's libogc v3 + devkitPPC r50 ($DEVKITPRO/devkitPPC). Its outputs get the
-#                _ogc3 suffix (build dirs, .elf/.dol, deps/ copy), so nothing mixes with the default.
-LIBOGC="${LIBOGC:-2}"
+#   3 (default)  devkitPro's libogc v3 + devkitPPC r50 ($DEVKITPRO/devkitPPC); dependency archives
+#                are built in build_ogc3/deps (5.13.0).
+#   2            libogc2 + devkitPPC-r41-2. Pinned, not the pacman-managed $DEVKITPRO/devkitPPC,
+#                which is incompatible with libogc2 -- see scripts/setup-devkitpro-windows.sh. Its
+#                outputs get the _ogc2 suffix (build dirs, .elf/.dol), so nothing mixes.
+LIBOGC="${LIBOGC:-3}"
 case "$LIBOGC" in
 	2) DEVKITPPC_NAME=devkitPPC-r41-2 ;;
 	3) DEVKITPPC_NAME=devkitPPC ;;
@@ -75,10 +76,10 @@ case "$(uname -s)" in
 		export DEVKITPPC="${DEVKITPPC:-$DEVKITPRO/$DEVKITPPC_NAME}" ;;
 esac
 export PATH="$DEVKITPRO/tools/bin:$DEVKITPPC/bin:$PATH"
-OGC_SUFFIX=""
+OGC_SUFFIX="_ogc2"
 DEPS_ROOT="deps"
 if [ "$LIBOGC" = 3 ]; then
-	OGC_SUFFIX="_ogc3"
+	OGC_SUFFIX=""
 	DEPS_ROOT="build_ogc3/deps"
 fi
 

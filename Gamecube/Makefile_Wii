@@ -8,13 +8,15 @@ $(error "Please set DEVKITPPC in your environment. export DEVKITPPC=<path to>dev
 endif
 
 # LIBOGC selects the toolchain pair (scripts/build.sh exports it):
-#   2 (default)  libogc2 + devkitPPC r41-2 -- what every prebuilt library here targets
-#   3            libogc v3 + devkitPPC r50. Its wii_rules (devkitPPC's own) points
-#                LIBOGC_INC/LIBOGC_LIB at $(DEVKITPRO)/libogc. Outputs get an _ogc3 suffix,
-#                and the dependency archives come from build_ogc3/deps (see top Makefile).
+#   3 (default)  libogc v3 + devkitPPC r50 (5.13.0). Its wii_rules (devkitPPC's own) points
+#                LIBOGC_INC/LIBOGC_LIB at $(DEVKITPRO)/libogc; the dependency archives come
+#                from build_ogc3/deps (see top Makefile).
+#   2            libogc2 + devkitPPC r41-2, the prebuilt libraries in deps/. Outputs get an
+#                _ogc2 suffix (kept building for one release, then removed).
+LIBOGC ?= 3
 ifeq ($(LIBOGC),3)
 include $(DEVKITPPC)/wii_rules
-OGC_SUFFIX		:= _ogc3
+OGC_SUFFIX		:=
 DEPS_FROM_GC	:= ../build_ogc3/deps
 DEPS_FROM_BUILD	:= ../../build_ogc3/deps
 BUNDLED_ROOT	:= ../build_ogc3/deps
@@ -34,7 +36,7 @@ define bin2o
 endef
 else
 include $(DEVKITPRO)/libogc2/wii_rules
-OGC_SUFFIX		:=
+OGC_SUFFIX		:= _ogc2
 DEPS_FROM_GC	:= ../deps
 DEPS_FROM_BUILD	:= ../../deps
 BUNDLED_ROOT	:= ../../deps
