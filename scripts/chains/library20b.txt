@@ -1,0 +1,26 @@
+CHAIN
+# library20.txt games 10-17 in their own boot (written when Gex 3 seemed to stop the frame dump; that was a bad split, 2026-10-12)
+1200
+sd:/wiistation/isos/Gex 3 - Deep Cover Gecko
+Gex 3 - Deep Cover Gecko [NTSC-U] [SLUS-00806].ccd
+1200
+sd:/wiistation/isos/Medievil
+Medievil [U] [SCUS-94227].cue
+1200
+sd:/wiistation/isos/Micro Machines V3 (USA)
+Micro Machines V3 (USA).cue
+1200
+sd:/wiistation/isos/PadTest
+padtest.cue
+1200
+sd:/wiistation/isos/PadTestDX
+padtest.cue
+1200
+sd:/wiistation/isos/Point Blank (USA)
+Point Blank (USA).cue
+1200
+sd:/wiistation/isos/Resident Evil 3 - Nemesis (USA, Canada)
+Resident Evil 3 - Nemesis (USA, Canada).cue
+1200
+sd:/wiistation/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue

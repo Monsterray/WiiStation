@@ -1,0 +1,15 @@
+CHAIN
+# Storage and state check (libogc3 move, 2026-10-11): the same game from SD and from the SMB
+# share, a game from USB, and a save state round trip. Run with wii_lab.py --smb-from <settings.ini>.
+1200
+sd:/wiistation/isos/Ape Escape
+Ape Escape [U] [SCUS-94423].cue
+1200
+smb:/Modding Systems/PSX/ROMs/Ape Escape
+.cue
+1200
+usb:/wiistation/isos/Gex 3 - Deep Cover Gecko
+Gex 3 - Deep Cover Gecko [NTSC-U] [SLUS-00806].ccd
+1200 sd:/wiistation/statetest600.txt
+sd:/wiistation/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue

@@ -1,0 +1,5 @@
+CHAIN
+# SMB share only (libogc3 HAVE_POLL_H fix check). wii_lab.py --smb-from <settings.ini>
+1200
+smb:/Modding Systems/PSX/ROMs/Ape Escape
+.cue

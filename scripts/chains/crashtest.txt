@@ -1,0 +1,5 @@
+CHAIN
+# Crash-report check: a DSI on purpose at vblank 600 (debug build), as the 2026-09-29 Lightrec crash.
+1200 sd:/wiistation/crashtest600.txt
+sd:/wiistation/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue

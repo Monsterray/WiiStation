@@ -1,0 +1,8 @@
+CHAIN
+# SD card speed: io_ab.txt's SD games (Ape Escape; Spyro with a save-state round trip), no SMB/USB
+1200
+sd:/wiistation/isos/Ape Escape
+Ape Escape [U] [SCUS-94423].cue
+1200 sd:/wiistation/statetest600.txt
+sd:/wiistation/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue
