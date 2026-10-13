@@ -342,20 +342,33 @@ static void cdimg_seek_advance(FILE *f, long pos, int nread)
  *
  * Dolphin backs the SD card with a host file, so its reads never stall; this thread can
  * only be judged on hardware (perf.log `cd:` line: pf_hit/pf_miss/pf_reads). Off by
- * default until that has been done. */
+ * default until that has been done.
+ *
+ * Decode-ahead for compressed images (.pbp, .cbn, .chd) is the same thread, ring and
+ * handoff with a block (PBP: 16 sectors, CBN: 1, CHD: one hunk) in each slot and the block
+ * number as the tag (pf_secbytes = 1). There the cost is the decode, not the card: on the
+ * bench Wii Frogger's 3920 sectors cost the emulator 2.8 s (.cbn) to 4.0 s (.chd) against
+ * 0.35 s from a .bin. So it runs BELOW the emulator (DA_PRIO): it gets the CPU only while
+ * the emulator sleeps in the frame limiter (LimiterWait = 1) or waits on the card, which is
+ * about half of each frame; ahead of the emulator, never instead of it. It owns everything
+ * it touches -- its own FILE*, z_stream and chd_file (none of them is thread-safe) -- and
+ * only reads compr_img's index. If it never gets the CPU, every block is a miss and the
+ * emulator decodes it itself, as before. */
 #define PF_SLOTS 32
 #define PF_PRIO  66
-typedef struct {
-	volatile long pos;                       /* byte position in the image, -1 = empty/being written */
-	unsigned char data[CD_FRAMESIZE_RAW];
-} pf_slot_t;
-static pf_slot_t *pf_ring;
+#define PF_MAX_SLOTS 64
+#define DA_PRIO  48
+#define DA_BYTES (16 * CD_FRAMESIZE_RAW * 4)   /* the decode-ahead ring: 4 PBP blocks, 64 CBN, 4 CHD hunks */
+static volatile long pf_tag[PF_MAX_SLOTS];   /* per slot: its position (bytes, or block number), -1 = empty/being written */
+static unsigned char *pf_data;               /* pf_nslots slots of pf_slotbytes, MEM2 */
+static int pf_nslots, pf_slotbytes;
+static int (*pf_fetch)(long pos, unsigned char *dst);   /* fills one slot; runs on the thread */
 static FILE *pf_handle;
 static lwp_t pf_thread = LWP_THREAD_NULL;
 static sem_t pf_sem = LWP_SEM_NULL;
 static volatile int pf_active, pf_quit;
 static volatile long pf_want;                /* the position after the emulator's last read */
-static int pf_secbytes;                      /* bytes per sector in this image: 2352 or 2048 */
+static int pf_secbytes;                      /* bytes per sector in this image: 2352 or 2048; 1 for blocks */
 static long pf_filepos = -1;                 /* where pf_handle's stream is, to skip redundant seeks */
 static char cd_main_path[MAXPATHLEN];        /* the file cdHandle is open on (the .bin may differ from the .cue) */
 
@@ -373,6 +386,73 @@ static int pf_read_at(long pos, unsigned char *dst)
 	return 1;
 }
 
+#define DA_CBUF_BYTES (CD_FRAMESIZE_RAW * 16 + 100)   /* = sizeof compr_img->buff_compressed */
+static unsigned char *pf_cbuf;               /* decode-ahead: one compressed block, after the slots */
+static z_stream pf_z;                        /* decode-ahead: the thread's own inflate state */
+#ifdef USE_LIBCHDR
+static chd_file *pf_chd;                     /* decode-ahead: the thread's own CHD, on pf_handle */
+#endif
+static int uncompress2_pcsx(z_stream *zp, void *out, unsigned long *out_size, void *in, unsigned long in_size);
+static void uncompress2_pcsx_end(z_stream *zp);
+
+/* Decode-ahead, PBP/CBN: what cdread_compressed does for a block, on the thread's own handle. */
+static int pf_compr_fetch(long block, unsigned char *dst)
+{
+	unsigned long n = (unsigned long)pf_slotbytes;
+	unsigned int size;
+	off_t start;
+	int plain;
+	if ((unsigned long)block >= compr_img->index_len)
+		return 0;
+	start = compr_img->index_table[block] & ~OFF_T_MSB;
+	size = (compr_img->index_table[block + 1] & ~OFF_T_MSB) - start;
+	plain = (compr_img->index_table[block] & OFF_T_MSB) != 0;
+	if (size > (plain ? n : DA_CBUF_BYTES))
+		return 0;
+	if (start != pf_filepos && fseeko(pf_handle, start, SEEK_SET)) {
+		pf_filepos = -1;
+		return 0;
+	}
+	if (fread(plain ? dst : pf_cbuf, 1, size, pf_handle) != size) {
+		pf_filepos = -1;
+		return 0;
+	}
+	pf_filepos = start + size;
+	return plain || uncompress2_pcsx(&pf_z, dst, &n, pf_cbuf, size) == 0;
+}
+
+#ifdef USE_LIBCHDR
+/* Decode-ahead, CHD: a second chd_file on the thread's own handle, opened on first use. */
+static int pf_chd_fetch(long hunk, unsigned char *dst)
+{
+	if (pf_chd == NULL && chd_open_file(pf_handle, CHD_OPEN_READ, NULL, &pf_chd) != CHDERR_NONE) {
+		pf_chd = NULL;
+		return 0;
+	}
+	return chd_read(pf_chd, (uint32_t)hunk, dst) == CHDERR_NONE;
+}
+#endif
+
+/* After the thread is joined (or was never started). */
+static void pf_free(void)
+{
+#ifdef USE_LIBCHDR
+	if (pf_chd) {
+		chd_close(pf_chd);          /* before its FILE: chd_open_file does not own it */
+		pf_chd = NULL;
+	}
+#endif
+	uncompress2_pcsx_end(&pf_z);
+	if (pf_handle) {
+		fclose(pf_handle);          /* its stdio buffer is released with the others in ISOclose */
+		pf_handle = NULL;
+	}
+	if (pf_data) {
+		_mem2_free(pf_data);
+		pf_data = NULL;
+	}
+}
+
 static void *pf_main(void *arg)
 {
 	(void)arg;
@@ -384,17 +464,17 @@ static void *pf_main(void *arg)
 		next = pf_want;
 		while (!pf_quit) {
 			long want = pf_want;
-			pf_slot_t *s;
+			unsigned long i;
 			if (next < want)
 				next = want;                                            /* the emulator jumped ahead: follow it */
-			if (next - want >= (long)(PF_SLOTS - 1) * pf_secbytes)
+			if (next - want >= (long)(pf_nslots - 1) * pf_secbytes)
 				break;                                                  /* far enough ahead; sleep until kicked */
-			s = &pf_ring[(unsigned long)(next / pf_secbytes) % PF_SLOTS];
-			if (s->pos != next) {
-				s->pos = -1;
-				if (!pf_read_at(next, s->data))
+			i = (unsigned long)(next / pf_secbytes) & (pf_nslots - 1);
+			if (pf_tag[i] != next) {
+				pf_tag[i] = -1;
+				if (!pf_fetch(next, pf_data + i * pf_slotbytes))
 					break;                                              /* end of image or error: wait for the next kick */
-				s->pos = next;
+				pf_tag[i] = next;
 				PERF_INC(cd_pf_reads);
 			}
 			next += pf_secbytes;
@@ -415,13 +495,13 @@ static void pf_kick(long pos)
 	LWP_SemPost(pf_sem);
 }
 
-/* Copy the sector at pos out of the ring if it is there. Kicks the thread either way. */
+/* Copy the sector (or block) at pos out of the ring if it is there. Kicks the thread either way. */
 static int pf_take(long pos, void *dest)
 {
-	pf_slot_t *s = &pf_ring[(unsigned long)(pos / pf_secbytes) % PF_SLOTS];
-	if (s->pos == pos) {
-		memcpy(dest, s->data, pf_secbytes);
-		if (s->pos == pos) {
+	unsigned long i = (unsigned long)(pos / pf_secbytes) & (pf_nslots - 1);
+	if (pf_tag[i] == pos) {
+		memcpy(dest, pf_data + i * pf_slotbytes, pf_slotbytes);
+		if (pf_tag[i] == pos) {
 			PERF_INC(cd_pf_hit);
 			pf_kick(pos);
 			return 1;
@@ -443,19 +523,12 @@ static void pf_stop(void)
 	pf_thread = LWP_THREAD_NULL;
 	LWP_SemDestroy(pf_sem);
 	pf_sem = LWP_SEM_NULL;
-	if (pf_handle) {
-		fclose(pf_handle);          /* its stdio buffer is released with the others in ISOclose */
-		pf_handle = NULL;
-	}
-	if (pf_ring) {
-		_mem2_free(pf_ring);
-		pf_ring = NULL;
-	}
+	pf_free();
 }
 
-static void pf_start(const char *path, int secbytes)
+static void pf_start(const char *path, int secbytes, int slotbytes, int nslots, int (*fetch)(long, unsigned char *))
 {
-	int i;
+	int i, extra = fetch == pf_read_at ? 0 : DA_CBUF_BYTES;
 	if (pf_active || !cdPrefetch)
 		return;
 	/* Not for a game on the network share: Gamecube/fileBrowser/smb2dev.c fetches the next
@@ -467,22 +540,33 @@ static void pf_start(const char *path, int secbytes)
 	 * beside the emulator's own handle (Gamecube/fileBrowser/fileBrowser-DVD.c). */
 	if (!strncasecmp(path, "dvd:", 4))
 		return;
-	pf_ring = (pf_slot_t *)_mem2_memalign(32, sizeof(pf_slot_t) * PF_SLOTS);
+	if (nslots > PF_MAX_SLOTS)
+		nslots = PF_MAX_SLOTS;
+	while (nslots & (nslots - 1))
+		nslots &= nslots - 1;       /* a power of two: the thread's scan indexes a slot per step, and a
+		                             * divide there cost every raw-image read 2 us in Dolphin */
+	pf_data = (unsigned char *)_mem2_memalign(32, nslots * slotbytes + extra);
 	pf_handle = fopen(path, "rb");
-	if (pf_ring == NULL || pf_handle == NULL) {
+	if (pf_data == NULL || pf_handle == NULL || nslots < 2) {
 		SysPrintf("cdriso: prefetch not started\n");
 		goto fail;
 	}
 	cd_attach_stdio_buffer(pf_handle);
-	for (i = 0; i < PF_SLOTS; i++)
-		pf_ring[i].pos = -1;
+	for (i = 0; i < nslots; i++)
+		pf_tag[i] = -1;
+	pf_cbuf = pf_data + nslots * slotbytes;
+	pf_nslots = nslots;
+	pf_slotbytes = slotbytes;
+	pf_fetch = fetch;
 	pf_secbytes = secbytes;
 	pf_filepos = 0;
 	pf_want = 0;
 	pf_quit = 0;
 	if (LWP_SemInit(&pf_sem, 0, 1) != 0)
 		goto fail;
-	if (LWP_CreateThread(&pf_thread, pf_main, NULL, NULL, 16 * 1024, PF_PRIO) != 0) {
+	/* 64 KB for the decoders (libchdr's LZMA/zstd/FLAC run on this stack) */
+	if (LWP_CreateThread(&pf_thread, pf_main, NULL, NULL, extra ? 64 * 1024 : 16 * 1024,
+			fetch == pf_read_at ? PF_PRIO : DA_PRIO) != 0) {
 		LWP_SemDestroy(pf_sem);
 		pf_sem = LWP_SEM_NULL;
 		goto fail;
@@ -490,8 +574,7 @@ static void pf_start(const char *path, int secbytes)
 	pf_active = 1;
 	return;
 fail:
-	if (pf_handle) { fclose(pf_handle); pf_handle = NULL; }
-	if (pf_ring) { _mem2_free(pf_ring); pf_ring = NULL; }
+	pf_free();
 }
 
 // this function tries to get the .toc file of the given .bin
@@ -1572,9 +1655,8 @@ fail_io_sub:
  * so was held for the life of the process. */
 static z_stream z_inflate;
 
-static int uncompress2_pcsx(void *out, unsigned long *out_size, void *in, unsigned long in_size)
+static int uncompress2_pcsx(z_stream *zp, void *out, unsigned long *out_size, void *in, unsigned long in_size)
 {
-	z_stream *zp = &z_inflate;
 	int ret = 0;
 
 	if (zp->zalloc == NULL) {
@@ -1601,11 +1683,11 @@ static int uncompress2_pcsx(void *out, unsigned long *out_size, void *in, unsign
 	return ret == 1 ? 0 : ret;
 }
 
-static void uncompress2_pcsx_end(void)
+static void uncompress2_pcsx_end(z_stream *zp)
 {
-	if (z_inflate.zalloc != NULL) {
-		inflateEnd(&z_inflate);
-		memset(&z_inflate, 0, sizeof(z_inflate));
+	if (zp->zalloc != NULL) {
+		inflateEnd(zp);
+		memset(zp, 0, sizeof(*zp));
 	}
 }
 
@@ -1635,6 +1717,10 @@ static int cdread_compressed(FILE *f, unsigned int base, void *dest, int sector)
 		return -1;
 	}
 
+	/* the decode-ahead thread may have it already (pf_start in ISOopen) */
+	if (pf_active && pf_take(block, compr_img->buff_raw[0]))
+		goto decoded;
+
 	start_byte = compr_img->index_table[block] & ~OFF_T_MSB;
 	if (fseeko(cdHandle, start_byte, SEEK_SET) != 0) {
 		SysPrintf("seek error for block %d at %llx: ",
@@ -1663,7 +1749,7 @@ static int cdread_compressed(FILE *f, unsigned int base, void *dest, int sector)
 	if (is_compressed) {
 		cdbuffer_size_expect = sizeof(compr_img->buff_raw[0]) << compr_img->block_shift;
 		cdbuffer_size = cdbuffer_size_expect;
-		ret = uncompress2_pcsx(compr_img->buff_raw[0], &cdbuffer_size, compr_img->buff_compressed, size);
+		ret = uncompress2_pcsx(&z_inflate, compr_img->buff_raw[0], &cdbuffer_size, compr_img->buff_compressed, size);
 		if (ret != 0) {
 			SysPrintf("uncompress failed with %d for block %d, sector %d\n",
 					ret, block, sector);
@@ -1676,6 +1762,7 @@ static int cdread_compressed(FILE *f, unsigned int base, void *dest, int sector)
 	}
 
 	// done at last!
+decoded:
 	compr_img->current_block = block;
 
 finish:
@@ -1713,14 +1800,18 @@ static int chd_hunk_way(unsigned int hunk)
 			lru = w;
 
 	PERF_INC(chd_miss);
-	ct0 = perf_now_us();
-	if (chd_read(chd_img->chd, hunk, chd_img->buffer +
-		lru * chd_img->header->hunkbytes) != CHDERR_NONE) {
-		PERF_INC(chd_err);
-		chd_img->current_hunk[lru] = (unsigned int)-1;
-		return -1;
+	/* the decode-ahead thread may have it already (pf_start in ISOopen); chd_us stays the
+	 * emulator's own decoding */
+	if (!(pf_active && pf_take(hunk, chd_img->buffer + lru * chd_img->header->hunkbytes))) {
+		ct0 = perf_now_us();
+		if (chd_read(chd_img->chd, hunk, chd_img->buffer +
+			lru * chd_img->header->hunkbytes) != CHDERR_NONE) {
+			PERF_INC(chd_err);
+			chd_img->current_hunk[lru] = (unsigned int)-1;
+			return -1;
+		}
+		PERF_ADD(chd_us, perf_now_us() - ct0);
 	}
-	PERF_ADD(chd_us, perf_now_us() - ct0);
 	chd_img->current_hunk[lru] = hunk;
 	chd_img->hunk_stamp[lru] = ++chd_img->stamp;
 	return (int)lru;
@@ -1981,11 +2072,19 @@ static long CALLBACK ISOopen(void) {
 		cd_attach_stdio_buffer(ti[1].handle);
 	}
 
-	/* Raw images only: the compressed formats decode a block at a time and hold it. */
+	/* Raw images read ahead, compressed ones decode ahead (a block per slot, numbered). */
 	if (cdimg_read_func == cdread_normal)
-		pf_start(cd_main_path, CD_FRAMESIZE_RAW);
+		pf_start(cd_main_path, CD_FRAMESIZE_RAW, CD_FRAMESIZE_RAW, PF_SLOTS, pf_read_at);
 	else if (cdimg_read_func == cdread_2048)
-		pf_start(cd_main_path, 2048);
+		pf_start(cd_main_path, 2048, 2048, PF_SLOTS, pf_read_at);
+	else if (cdimg_read_func == cdread_compressed)
+		pf_start(cd_main_path, 1, CD_FRAMESIZE_RAW << compr_img->block_shift,
+			DA_BYTES / (CD_FRAMESIZE_RAW << compr_img->block_shift), pf_compr_fetch);
+#ifdef USE_LIBCHDR
+	else if (cdimg_read_func == cdread_chd)
+		pf_start(cd_main_path, 1, chd_img->header->hunkbytes,
+			DA_BYTES / chd_img->header->hunkbytes, pf_chd_fetch);
+#endif
 
 	return 0;
 }
@@ -2011,7 +2110,7 @@ static long CALLBACK ISOclose(void) {
 		free(compr_img);
 		compr_img = NULL;
 	}
-	uncompress2_pcsx_end();
+	uncompress2_pcsx_end(&z_inflate);
 
 #ifdef USE_LIBCHDR
 	if (chd_img != NULL) {
