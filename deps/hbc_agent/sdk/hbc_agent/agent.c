@@ -74,6 +74,17 @@ static lwp_t thread = LWP_THREAD_NULL;
 static u8 *stack;
 static u64 start_ticks;
 static volatile bool exit_requested;
+
+// hbc_agent_stop(). Each agent thread runs while the generation it started
+// with is current; a stop moves to the next, and the thread ends as it next
+// wakes, touching nothing. One that stop gave up waiting for (blocked in
+// IOS) finds its generation in `abandoned` and leaves even its sockets.
+enum { AGENT_OFF, AGENT_RUNNING, AGENT_STOPPED };
+static volatile int state;
+static volatile u32 gen, abandoned = ~0u;
+static volatile u32 agent_ended = ~0u, monitor_ended = ~0u;   // the last generation that ended
+static volatile s32 listen_sock = -1;
+static volatile bool in_request;
 #if AGENT_TUXEDO
 static PPCExcptPanicFn prev_panic;
 #endif
@@ -90,6 +101,7 @@ int agent_wpad_handles(void) __attribute__((weak));
 int agent_remote_diag(char *buf, int size) __attribute__((weak));
 int agent_overlay_state(char *buf, int size) __attribute__((weak));
 int agent_overlay_cost_json(char *buf, int size) __attribute__((weak));
+void agent_overlay_stop(void) __attribute__((weak));
 volatile bool agent_crash_stay;
 volatile bool agent_listen_enabled = true;
 
@@ -136,6 +148,11 @@ static devoptab_t log_dotab_err = { .name = "hbcagent", .write_r = log_write_err
 
 static volatile bool lastlog_done;
 
+// The app's name for a record, unless the app's crash took the pointer.
+static const char *record_name(void) {
+	return cfg.name && agent_ram((u32) cfg.name, 1) ? cfg.name : "app";
+}
+
 // Runs wherever the app stops, in an exception too (FP off): integer only.
 static void lastlog_write(u32 why) {
 	hbc_lastlog_block *b = (hbc_lastlog_block *) HBC_LASTLOG_ADDR;
@@ -151,7 +168,7 @@ static void lastlog_write(u32 why) {
 	b->why = why;
 	b->len = n;
 	b->uptime_ms = start_ticks ? agent_uptime_ms() : 0;
-	strncpy(b->app, cfg.name ? cfg.name : "app", sizeof(b->app) - 1);
+	strncpy(b->app, record_name(), sizeof(b->app) - 1);
 	for (i = 0; i < n; ++i)
 		b->text[i] = log_ring[(start + i) % LOG_SIZE];
 	b->check = hbc_lastlog_check(b);
@@ -163,7 +180,8 @@ void agent_lastlog(u32 why) {
 }
 
 static void lastlog_at_exit(void) {
-	lastlog_write(HBC_LASTLOG_EXIT);
+	if (state == AGENT_RUNNING)
+		lastlog_write(HBC_LASTLOG_EXIT);
 }
 
 const char *agent_log_text(void) {
@@ -248,6 +266,9 @@ int agent_key_pop(void) {
 bool hbc_agent_home_pending(void) {
 	u32 level;
 	bool home = false;
+
+	if (state == AGENT_STOPPED)
+		return false;
 
 	// The overlay is closed, so only HOME means anything: drop whatever
 	// comes before it, or a stray key would block every HOME behind it.
@@ -556,20 +577,37 @@ static void handle(s32 s, const u8 *hdr, u32 client_ip) {
 	} else if (!memcmp(hdr, "HBCX", 4)) {
 		devfile_reply(s, 0, NULL, 0);
 		tcp_close(s);
-		agent_exit();
+		if (state == AGENT_RUNNING)
+			agent_exit();
+		return;
 	} else if (!memcmp(hdr, "HAXX", 4)) {
 		// Uploads need HBC's loader. Close without reading, so the client
 		// sees the upload fail, and go back to HBC for the retry.
 		net_close(s);
-		agent_exit();
+		if (state == AGENT_RUNNING)
+			agent_exit();
+		return;
 	} else {
 		devfile_reply(s, -ENOSYS, NULL, 0);
 	}
 	tcp_close(s);
 }
 
+// The agent thread may use the network: its generation is current and
+// listening is on (hbc_agent_listen(), the overlay's switch).
+static bool may_listen(u32 my) {
+	return my == gen && agent_listen_enabled;
+}
+
+// Sleeps ms in short steps, ending early once listening may not go on, so a
+// stop or hbc_agent_listen(false) never waits out a retry's second.
+static void nap(u32 my, u32 ms) {
+	for (; ms && may_listen(my); ms -= ms < 50 ? ms : 50)
+		usleep((ms < 50 ? ms : 50) * 1000);
+}
+
 // Starts the network unless it is up or starting; 0 once it is up.
-static s32 net_start(void) {
+static s32 net_start(u32 my) {
 	s32 res = net_get_status();
 
 	if (res == -EBUSY || res < 0) {
@@ -578,7 +616,7 @@ static s32 net_start(void) {
 			if (res < 0 && res != -EBUSY)
 				return res;
 		}
-		while ((res = net_get_status()) == -EBUSY)
+		while ((res = net_get_status()) == -EBUSY && may_listen(my))
 			usleep(50 * 1000);
 	}
 	return res < 0 ? res : 0;
@@ -586,33 +624,34 @@ static s32 net_start(void) {
 
 static void *agent_thread(void *arg) {
 	struct sockaddr_in sa;
-	u32 len_sa, mask = 0;
+	u32 len_sa, mask = 0, my = (u32) arg;
 	s32 ls = -1, s;
 	u8 hdr[16];
-	(void) arg;
 
-	while (true) {
-		// The overlay's "hbc.py connection" switch.
+	while (my == gen) {
 		safety_poll(false);
-		if (!agent_listen_enabled) {
+		// hbc_agent_listen(false) or the overlay's "hbc.py connection" switch.
+		if (!may_listen(my)) {
 			if (ls >= 0) {
 				net_close(ls);
-				ls = -1;
+				ls = listen_sock = -1;
 			}
-			usleep(250 * 1000);
+			usleep(AGENT_ACCEPT_POLL_MS * 1000);
 			continue;
 		}
 		if (ls < 0) {
-			if (net_start() < 0) {
-				usleep(AGENT_RETRY_MS * 1000);
+			if (net_start(my) < 0) {
+				nap(my, AGENT_RETRY_MS);
 				continue;
 			}
+			if (!may_listen(my))
+				continue;
 			mask = net_gethostip() & 0xffff0000;
-			ls = tcp_listen(LD_TCP_PORT, 3);
+			ls = listen_sock = tcp_listen(LD_TCP_PORT, 3);
 			if (ls < 0) {
-				if (ls == -ENETRESET)
+				if (ls == -ENETRESET && my == gen)
 					net_deinit();
-				usleep(AGENT_RETRY_MS * 1000);
+				nap(my, AGENT_RETRY_MS);
 				continue;
 			}
 		}
@@ -624,6 +663,8 @@ static void *agent_thread(void *arg) {
 
 			net_poll(&sd, 1, AGENT_ACCEPT_POLL_MS);
 		}
+		if (!may_listen(my))
+			continue;
 
 		u64 woke = gettime();
 		memset(&sa, 0, sizeof(sa));
@@ -638,29 +679,29 @@ static void *agent_thread(void *arg) {
 		}
 		if (s < 0) {
 			net_close(ls);
-			ls = -1;
-			if (s == -ENETRESET)
+			ls = listen_sock = -1;
+			if (s == -ENETRESET && my == gen)
 				net_deinit();
 			continue;
 		}
 
 		// Like HBC, answer only the Wii's own /16.
+		in_request = true;
 		if ((sa.sin_addr.s_addr & 0xffff0000) != mask ||
-				!tcp_read_timeout(s, hdr, sizeof(hdr), NULL, NULL, LD_HEADER_TIMEOUT)) {
+				!tcp_read_timeout(s, hdr, sizeof(hdr), NULL, NULL, LD_HEADER_TIMEOUT))
 			net_close(s);
-			continue;
-		}
-		handle(s, hdr, sa.sin_addr.s_addr);
+		else
+			handle(s, hdr, sa.sin_addr.s_addr);
+		in_request = false;
 		request_ticks += diff_ticks(woke, gettime());
 	}
+	// Stopped. The socket is ours to close unless stop gave up on us.
+	if (ls >= 0 && my != abandoned) {
+		net_close(ls);
+		listen_sock = -1;
+	}
+	agent_ended = my;
 	return NULL;
-}
-
-// Return addresses up the stack chain: each frame's back chain at 0(sp), and
-// the saved LR of the frame it called at 4(back chain).
-static bool ram_word(u32 a) {
-	return !(a & 3) && ((a >= 0x80000000 && a < 0x81800000) ||
-						(a >= 0x90000000 && a < 0x94000000));
 }
 
 // Runs inside the exception, with floating point off: integer code only.
@@ -686,28 +727,91 @@ static void agent_record_kind(u32 kind, u32 code, const char *reason, u32 exid, 
 	b->code = code;
 	if (reason)
 		strncpy(b->reason, reason, sizeof(b->reason) - 1);
-	for (i = 0; i < HBC_CRASH_FRAMES && ram_word(sp); ++i) {
+	// Return addresses up the stack chain: each frame's back chain at 0(sp),
+	// and the saved LR of the frame it called at 4(back chain).
+	for (i = 0; i < HBC_CRASH_FRAMES && agent_ram_word(sp); ++i) {
 		u32 next = *(u32 *) sp;
 
-		if (!ram_word(next) || next <= sp)
+		if ((next & 3) || !agent_ram(next, 8) || next <= sp)
 			break;
 		b->frames[i] = *(u32 *) (next + 4);
 		sp = next;
 	}
-	strncpy(b->app, cfg.name ? cfg.name : "app", sizeof(b->app) - 1);
+	strncpy(b->app, record_name(), sizeof(b->app) - 1);
 	b->check = hbc_crash_check(b);
 	DCFlushRange(b, sizeof(*b));
 }
 
-static void agent_record(u32 exid, u32 pc, u32 msr, u32 lr, u32 cr, u32 ctr, u32 sp) {
-	u32 dar = mfspr(19), dsisr = mfspr(18);
-	bool stack = safety_stack_hit(exid, dsisr, dar);
+// The crash hook, for both libogc designs. A fault inside it (in the record,
+// safety_on_death() or the crash screen after them) is taken with MSR[RI]
+// clear. libogc 3 then runs its handler on the stack it faulted on and calls
+// the hook again, below itself: a hook that faults every time recurses down
+// through MEM1 into the vectors with no crash screen at all (USB Loader GX
+// froze so). libogc2 and 1.x send that fault to their own crash screen
+// instead. So the app's crash is recorded once; a fault inside the hook is
+// noted beside it, and the caller shows the app's crash again (hook_enter()
+// puts its DAR and DSISR back first); a fault in that too leaves only HBC.
+// hook_depth and the caller's copy of the first frame are written before
+// anything can fault. What the hook reads, it checks with agent_ram().
+static volatile u32 hook_depth;
+static u32 hook_dar, hook_dsisr, hook_why;
 
+static void put_hex8(char *p, u32 v) {
+	int i;
+
+	for (i = 0; i < 8; ++i)
+		p[i] = "0123456789abcdef"[(v >> (28 - 4 * i)) & 15];
+}
+
+// The fault inside the hook: into the crash block's reason, after whatever
+// it said, and into the log; the kept log goes out too, if the hook faulted
+// before it.
+static void hook_fault(u32 pc, u32 dar) {
+	hbc_crash_block *b = (hbc_crash_block *) HBC_CRASH_ADDR;
+	char note[] = "agent crash hook faulted: pc 00000000 dar 00000000\n";
+	u32 len = strnlen(b->reason, sizeof(b->reason) - 1), n;
+
+	put_hex8(note + 29, pc);
+	put_hex8(note + 42, dar);
+	agent_log_raw(note, sizeof(note) - 1);
+	if (len) {
+		b->reason[len++] = ';';
+		if (len < sizeof(b->reason) - 1)
+			b->reason[len++] = ' ';
+	}
+	n = sizeof(b->reason) - 1 - len;
+	if (n > sizeof(note) - 2)   // not the newline
+		n = sizeof(note) - 2;
+	memcpy(b->reason + len, note, n);
+	b->reason[len + n] = 0;
+	b->check = hbc_crash_check(b);
+	DCFlushRange(b, sizeof(*b));
+	lastlog_write(hook_why);
+}
+
+static void hook_enter(u32 exid, u32 pc, u32 msr, u32 lr, u32 cr, u32 ctr, u32 sp) {
+	u32 depth = hook_depth;
+	bool stack;
+
+	hook_depth = depth + 1;
+	if (depth == 1) {
+		hook_fault(pc, mfspr(19));
+		mtspr(19, hook_dar);
+		mtspr(18, hook_dsisr);
+		return;
+	}
+	if (depth > 1)
+		__reload();
+
+	hook_dar = mfspr(19);
+	hook_dsisr = mfspr(18);
+	stack = safety_stack_hit(exid, hook_dsisr, hook_dar);
+	hook_why = stack ? HBC_LASTLOG_STACK : HBC_LASTLOG_EXCEPTION;
 	agent_record_kind(stack ? HBC_CRASH_STACK : HBC_CRASH_EXCEPTION, 0,
 					  stack ? "main thread stack overflow" : NULL, exid, pc, msr, lr, cr, ctr,
-					  sp, dar, dsisr);
+					  sp, hook_dar, hook_dsisr);
 	safety_on_death();
-	lastlog_write(stack ? HBC_LASTLOG_STACK : HBC_LASTLOG_EXCEPTION);
+	lastlog_write(hook_why);
 }
 
 void agent_stop_record(u32 kind, u32 code, const char *reason, u32 pc, u32 lr, u32 sp) {
@@ -754,6 +858,7 @@ volatile bool agent_overlay_open;
 static volatile u64 alive_at;
 static volatile s32 hold_count;
 static lwp_t wd_thread = LWP_THREAD_NULL;
+static u8 *wd_stack;
 static void *alive_thread; // the thread that armed it: KThread* or lwp_cntrl*
 
 #if !AGENT_TUXEDO
@@ -766,10 +871,14 @@ bool agent_paused(void) {
 
 static void *watchdog(void *arg) {
 	u64 limit = secs_to_ticks(cfg.hang_s ? cfg.hang_s : 60);
-	(void) arg;
+	u32 my = (u32) arg, i;
 
-	while (true) {
-		usleep(1000 * 1000);
+	while (my == gen) {
+		// A second, in quarters, so a stop does not wait long for it.
+		for (i = 0; i < 4 && my == gen; ++i)
+			usleep(250 * 1000);
+		if (my != gen)
+			break;
 		safety_poll(true);
 		if (!alive_thread)
 			continue;   // not armed: the safety checks alone
@@ -799,8 +908,12 @@ static void *watchdog(void *arg) {
 #endif
 			snprintf(reason, sizeof(reason), "no hbc_agent_alive() for %u s",
 					 (unsigned) (cfg.hang_s ? cfg.hang_s : 60));
-			printf("%s: hang: %s\n", cfg.name ? cfg.name : "app", reason);
 			_CPU_ISR_Disable(level);
+			if (my != gen) {   // stopped meanwhile: nothing to report
+				_CPU_ISR_Restore(level);
+				break;
+			}
+			printf("%s: hang: %s\n", cfg.name ? cfg.name : "app", reason);
 			agent_record_kind(HBC_CRASH_HANG, 0, reason, 0, pc, 0, lr, 0, 0, sp, 0, 0);
 			safety_on_death();
 			lastlog_write(HBC_LASTLOG_HANG);
@@ -808,17 +921,16 @@ static void *watchdog(void *arg) {
 			__reload();
 		}
 	}
+	monitor_ended = my;
 	return NULL;
 }
 
 u32 agent_monitor_start(void) {
-	static u8 *wd_stack;
-
-	if (wd_thread != LWP_THREAD_NULL || wd_stack)
+	if (state == AGENT_STOPPED || wd_thread != LWP_THREAD_NULL || wd_stack)
 		return 0;
 	wd_stack = memalign(32, WATCHDOG_STACK);
-	if (!wd_stack || LWP_CreateThread(&wd_thread, watchdog, NULL, wd_stack, WATCHDOG_STACK,
-									  LWP_PRIO_HIGHEST) < 0) {
+	if (!wd_stack || LWP_CreateThread(&wd_thread, watchdog, (void *) gen, wd_stack,
+									  WATCHDOG_STACK, LWP_PRIO_HIGHEST) < 0) {
 		wd_thread = LWP_THREAD_NULL;  // no monitor; wd_stack stops a retry
 		return 0;
 	}
@@ -830,6 +942,8 @@ bool agent_monitor_running(void) {
 }
 
 void hbc_agent_alive(void) {
+	if (state == AGENT_STOPPED)
+		return;
 	alive_at = gettime();
 	if (alive_thread)
 		return;
@@ -848,6 +962,8 @@ void hbc_agent_alive_reset(void) {
 void hbc_agent_hold(bool hold) {
 	u32 level;
 
+	if (state == AGENT_STOPPED)
+		return;
 	_CPU_ISR_Disable(level);
 	hold_count += hold ? 1 : -1;
 	if (hold_count < 0)
@@ -859,14 +975,28 @@ void hbc_agent_hold(bool hold) {
 
 #if AGENT_TUXEDO
 static void agent_panic(unsigned exid, PPCContext *ctx) {
-	agent_record(exid, ctx->pc, ctx->msr, ctx->lr, ctx->cr, ctx->ctr, ctx->gpr[1]);
+	static unsigned first_exid;
+	static PPCContext *first;
+
+	if (!hook_depth) {
+		first_exid = exid;
+		first = ctx;
+	}
+	hook_enter(exid, ctx->pc, ctx->msr, ctx->lr, ctx->cr, ctx->ctr, ctx->gpr[1]);
+	// The app's crash, also after a fault inside the hook: its frame is
+	// still there, above the nested one.
 	if (prev_panic)
-		prev_panic(exid, ctx);
+		prev_panic(first_exid, first);
 }
 
 static void install_crash_hook(void) {
 	prev_panic = PPCExcptCurPanicFn;
 	PPCExcptCurPanicFn = agent_panic;
+}
+
+static void remove_crash_hook(void) {
+	if (PPCExcptCurPanicFn == agent_panic)
+		PPCExcptCurPanicFn = prev_panic;
 }
 #else
 // libogc2 and libogc 1.x: _exceptionhandlertable[] holds assembly entry
@@ -894,11 +1024,14 @@ static const u8 exc_vector[NUM_EXCEPTIONS] = {
 };
 
 void agent_exc(frame_context *ctx) {
+	static frame_context *first;
 	u32 n = ctx->FC_NUMBER;
 
-	agent_record(n < NUM_EXCEPTIONS ? exc_vector[n] : n, ctx->FC_SRR0, ctx->FC_SRR1, ctx->FC_LR,
-				 ctx->FC_CR, ctx->FC_CTR, ctx->FC_GPR[1]);
-	c_default_exceptionhandler(ctx);
+	if (!hook_depth)
+		first = ctx;
+	hook_enter(n < NUM_EXCEPTIONS ? exc_vector[n] : n, ctx->FC_SRR0, ctx->FC_SRR1, ctx->FC_LR,
+			   ctx->FC_CR, ctx->FC_CTR, ctx->FC_GPR[1]);
+	c_default_exceptionhandler(first);
 }
 
 // Take over only the exceptions that would reach libogc's crash screen; the
@@ -913,12 +1046,23 @@ static void install_crash_hook(void) {
 			_exceptionhandlertable[i] = agent_exc_entry;
 	_CPU_ISR_Restore(level);
 }
+
+static void remove_crash_hook(void) {
+	u32 level, i;
+
+	_CPU_ISR_Disable(level);
+	for (i = 0; i < NUM_EXCEPTIONS; ++i)
+		if (_exceptionhandlertable[i] == agent_exc_entry)
+			_exceptionhandlertable[i] = default_exceptionhandler;
+	_CPU_ISR_Restore(level);
+}
 #endif
 
 s32 hbc_agent_init(const hbc_agent_config *config) {
+	static bool at_exit_set;
 	s32 res;
 
-	if (thread != LWP_THREAD_NULL)
+	if (state == AGENT_RUNNING)
 		return -EALREADY;
 
 	memset(&cfg, 0, sizeof(cfg));
@@ -935,7 +1079,12 @@ s32 hbc_agent_init(const hbc_agent_config *config) {
 	if (!cfg.exit_grace_ms)
 		cfg.exit_grace_ms = 5000;
 	start_ticks = gettime();
-	atexit(lastlog_at_exit);
+	exit_requested = false;
+	agent_listen_enabled = true;
+	state = AGENT_RUNNING;
+	if (!at_exit_set)   // once: atexit() has no undo, and a stop makes it a no-op
+		atexit(lastlog_at_exit);
+	at_exit_set = true;
 
 	if (!cfg.no_crash_handler) {
 		if (cfg.crash_reload_s > 0)
@@ -951,10 +1100,8 @@ s32 hbc_agent_init(const hbc_agent_config *config) {
 	devoptab_list[STD_ERR] = &log_dotab_err;
 
 	// A host with its own server wants only the overlay.
-	if (cfg.no_network) {
-		thread = 0;
+	if (cfg.no_network)
 		return 0;
-	}
 
 	// Start the network now, so hbc_agent_net_wait() and hbc_netlog_init()
 	// see a start-up in progress rather than none.
@@ -962,21 +1109,102 @@ s32 hbc_agent_init(const hbc_agent_config *config) {
 		net_init_async(NULL, NULL);
 
 	stack = memalign(32, AGENT_STACK);
-	if (!stack)
-		return -ENOMEM;
-	memset(stack, 0, AGENT_STACK);
-	res = LWP_CreateThread(&thread, agent_thread, NULL, stack, AGENT_STACK, cfg.priority);
+	res = stack ? LWP_CreateThread(&thread, agent_thread, (void *) gen, stack, AGENT_STACK,
+								   cfg.priority) : -ENOMEM;
 	if (res) {
-		free(stack);
-		stack = NULL;
 		thread = LWP_THREAD_NULL;
+		hbc_agent_stop();   // undo the rest; frees the stack
 		return res < 0 ? res : -EAGAIN;
 	}
 	return 0;
 }
 
+// Waits up to deadline for a thread of generation `old` to end, then joins
+// it and frees its stack. False if it did not end (blocked in IOS): it is
+// left to end by itself, its stack with it.
+static bool end_thread(lwp_t *t, u8 **stk, volatile u32 *ended, u32 old, u64 start) {
+	bool done;
+
+	if (*t == LWP_THREAD_NULL)
+		done = true;
+	else {
+		while (*ended != old && ticks_to_millisecs(diff_ticks(start, gettime())) < 1000)
+			usleep(10 * 1000);
+		done = *ended == old;
+		if (done)
+			LWP_JoinThread(*t, NULL);
+		*t = LWP_THREAD_NULL;
+	}
+	if (done)
+		free(*stk);   // ponytail: a stuck thread's stack is leaked, 12 or 4 KiB
+	*stk = NULL;
+	return done;
+}
+
+s32 hbc_agent_stop(void) {
+	lwp_t self = LWP_GetSelf();
+	u32 old = gen;
+	u64 start = gettime();
+	s32 res = 0;
+
+	if (state != AGENT_RUNNING)
+		return 0;
+	if ((thread != LWP_THREAD_NULL && self == thread) ||
+			(wd_thread != LWP_THREAD_NULL && self == wd_thread))
+		return -EDEADLK;
+	state = AGENT_STOPPED;
+	gen = old + 1;
+	agent_listen_enabled = false;
+	devfile_abort();   // a transfer in progress ends; its client sees an error
+
+	if (!end_thread(&thread, &stack, &agent_ended, old, start)) {
+		abandoned = old;
+		if (listen_sock >= 0)
+			net_close(listen_sock);   // so the app can bind the port
+		listen_sock = -1;
+		res = -ETIMEDOUT;
+	}
+	if (!end_thread(&wd_thread, &wd_stack, &monitor_ended, old, start))
+		res = -ETIMEDOUT;
+	alive_thread = NULL;
+	hold_count = 0;
+
+	safety_stop();
+	if (agent_overlay_stop)
+		agent_overlay_stop();
+	remove_crash_hook();
+	// The app's own stdout and stderr stay if it replaced ours since.
+	if (devoptab_list[STD_OUT] == &log_dotab_out)
+		devoptab_list[STD_OUT] = log_prev_out;
+	if (devoptab_list[STD_ERR] == &log_dotab_err)
+		devoptab_list[STD_ERR] = log_prev_err;
+	exit_requested = false;
+	key_count = 0;
+	return res;
+}
+
+s32 hbc_agent_listen(bool on) {
+	u64 start = gettime();
+
+	if (state != AGENT_RUNNING || cfg.no_network)
+		return 0;
+	agent_listen_enabled = on;
+	if (on)
+		return 0;
+	devfile_abort();   // a transfer in progress ends; its client sees an error
+	// The agent thread closes the socket within one accept poll.
+	while ((listen_sock >= 0 || in_request) &&
+		   ticks_to_millisecs(diff_ticks(start, gettime())) < 1000)
+		usleep(10 * 1000);
+	return listen_sock >= 0 || in_request ? -ETIMEDOUT : 0;
+}
+
+bool agent_stopped(void) {
+	return state == AGENT_STOPPED;
+}
+
 bool hbc_agent_exit_requested(void) {
-	return exit_requested;
+	return state == AGENT_RUNNING && exit_requested;
 }
 
 s32 hbc_agent_net_wait(u32 ms) {

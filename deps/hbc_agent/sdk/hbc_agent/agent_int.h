@@ -50,9 +50,15 @@ bool agent_paused(void);
  * running and returns the bytes that took (its stack), else 0. */
 u32 agent_monitor_start(void);
 bool agent_monitor_running(void);
+/* hbc_agent_stop() ran (and no hbc_agent_init() since). */
+bool agent_stopped(void);
+/* overlay.c, if linked: its speaker, threads and sounds, for the stop. */
+void agent_overlay_stop(void);
 
 /* safety.c */
 void safety_init(const hbc_agent_config *cfg);
+/* Undoes safety_init (hbc_agent_stop). */
+void safety_stop(void);
 /* From the agent thread as it wakes, and from the monitor each second. */
 void safety_poll(bool from_monitor);
 /* The app is stopping (exception, fatal, hang, abort): guards down, and the
@@ -73,6 +79,18 @@ s32 agent_info_json(char *buf, size_t size, u32 mask);
 typedef struct {
 	u32 count, last_size, last_from;
 } agent_alloc_stats;
+
+/* len bytes at a lie in MEM1 or MEM2, where the app's mapping can read them
+ * without a fault. What runs as an app stops checks every address it did not
+ * just make itself: the app may have written over the pointers it follows. */
+static inline bool agent_ram(u32 a, u32 len) {
+	return (a >= 0x80000000 && a < 0x81800000 && len <= 0x81800000 - a) ||
+		   (a >= 0x90000000 && a < 0x94000000 && len <= 0x94000000 - a);
+}
+
+static inline bool agent_ram_word(u32 a) {
+	return !(a & 3) && agent_ram(a, 4);
+}
 
 /* VIDEO_GetCurrentFramebuffer() gives the VI's physical address; this is the
  * same memory, uncached, whatever form the address took. */

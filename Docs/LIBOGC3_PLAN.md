@@ -98,3 +98,17 @@ the tests' own output on both). Same known gaps against a real PS1 on both.
 statecheck3 all 3 games match with identical fingerprints on both. No floating-point difference
 seen anywhere so far, so no re-baselining is needed yet (decision 3). Note: replay_check.py found
 no reports in these debug logs (no gpupres: line in that build); compared by wall: vblanks instead.
+
+## Step 5 done (2026-10-13): libogc v3 is the default
+Merged f59cfd9, default switched 26d0aea (Monty's call): `LIBOGC` unset means 3; the old pair
+builds with `LIBOGC=2` as `WiiSXRX_*_ogc2.dol` for one release, then goes.
+**Checked on the merged tree:** Dolphin ps1-tests tty.log byte-identical, replay3 guest
+signatures identical at every vblank. Bench Wii: Frogger in nine formats loads on both, CD time
+lower on v3 in every format (PBP -22%, CBN -15%, CHD -9%, raw -12%); SD reads (sd_speed.txt)
+237/274 ms vs 296/331; library20 (16 games, v3_lib20 vs v2_lib20 at the same commit) mean load
+-0.43, CD lower in every game; io_ab.txt: SD, SMB share, USB (Gex 3) and the save-state round
+trip all good; every run returned to HBC. Monty on the dev Wii (5.13.0): Wiimote player LEDs
+work, slot cycling works, screenshot ("Shot:") placement good (other D-pad/button layouts may
+be tried later).
+**Not checked on v3:** Wii U Pro Controller, Wii U GamePad, USB (HID) pads -- need hands;
+DVD -- the bench Wii's drive is broken (to be run on another Wii).

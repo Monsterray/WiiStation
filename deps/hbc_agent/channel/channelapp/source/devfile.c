@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/statvfs.h>
 #include <unistd.h>
 
 #include <ogcsys.h>
@@ -36,6 +37,8 @@ devfile_transfer devfile_last;
 
 // Request state, for aborting before an app launch unmounts the card.
 static volatile bool busy, abort_requested;
+// The file a transfer moves, for devfile_progress().
+static char moving[48];
 static volatile s32 active_socket = -1;
 static s32 request_prio;
 
@@ -111,6 +114,24 @@ static bool valid_path(const char *path) {
 }
 
 // Create each parent directory of path.
+// Whether the card has room for size bytes: the upload is written beside
+// the file it replaces, so all of it, and one cluster for the rounding.
+// Refused before any data arrives, so a big upload to a full card fails at
+// once instead of after the whole transfer. 0, or -ENOSPC.
+static s32 room_for(const char *path, u32 size) {
+	char dev[16];
+	const char *colon = strchr(path, ':');
+	struct statvfs v;
+
+	if (!colon || colon - path + 3 > (int) sizeof(dev))
+		return 0;
+	memcpy(dev, path, colon - path + 1);
+	strcpy(dev + (colon - path + 1), "/");
+	if (statvfs(dev, &v) || !v.f_frsize)
+		return 0;   // unknown: the write itself says
+	return (u64) size + v.f_frsize > (u64) v.f_bavail * v.f_frsize ? -ENOSPC : 0;
+}
+
 static void make_parents(char *path) {
 	char *p = strchr(path, '/');
 
@@ -151,6 +172,7 @@ static s32 file_put_raw(s32 s, const char *path, const char *part, u32 size) {
 		st->net += diff_ticks(t0, t1);
 		st->disk += diff_ticks(t1, gettime());
 		st->wire += block;
+		st->raw += block;
 		left -= block;
 	}
 
@@ -188,6 +210,7 @@ static void file_get_raw(s32 s, const char *path) {
 	}
 
 	left = sb.st_size;
+	st->size = left;
 	put_u32(hdr, 0);
 	put_u32(hdr + 4, left);
 	if (devfile_send_all(s, hdr, sizeof(hdr))) {
@@ -204,6 +227,7 @@ static void file_get_raw(s32 s, const char *path) {
 			st->disk += diff_ticks(t0, t1);
 			st->net += diff_ticks(t1, gettime());
 			st->wire += block;
+			st->raw += block;
 			if (!ok)
 				break;
 			left -= block;
@@ -319,6 +343,17 @@ static void file_request(s32 s, const u8 *hdr, devfile_change_fn changed) {
 	}
 
 	gprintf("devnet: %c %s (%u)\n", op, path, size);
+	if (strchr("pPgG", op)) {
+		const char *base = strrchr(path, '/');
+		const char *name = base ? base + 1 : path;
+		size_t len = strlen(name);
+
+		if (len >= sizeof(moving))   // a long name is cut short
+			len = sizeof(moving) - 1;
+		memcpy(moving, name, len);
+		moving[len] = 0;
+		devfile_last.st.size = op == 'p' || op == 'P' ? size : 0;
+	}
 
 	switch (op) {
 	case 'P':
@@ -331,6 +366,11 @@ static void file_request(s32 s, const u8 *hdr, devfile_change_fn changed) {
 		// "sd:/apps/new/" names a directory, not a file to create.
 		if (trailing_slash) {
 			devfile_reply(s, -EISDIR, NULL, 0);
+			break;
+		}
+		err = room_for(path, size);
+		if (err) {
+			devfile_reply(s, err, NULL, 0);
 			break;
 		}
 		make_parents(path);
@@ -402,6 +442,17 @@ void devfile_handle(s32 s, const u8 *hdr, s32 prio, s32 restore_prio,
 	free(chunk);
 	chunk = NULL;
 	devfile_last.total = diff_ticks(start, gettime());
+}
+
+char devfile_progress(const char **name, u32 *done, u32 *total) {
+	char op = devfile_last.op;
+
+	if (!busy || !op || !strchr("pPgG", op))
+		return 0;
+	*name = moving;
+	*done = devfile_last.st.raw;
+	*total = devfile_last.st.size;
+	return op == 'p' || op == 'P' ? 'p' : 'g';
 }
 
 bool devfile_aborted(void) {

@@ -7,6 +7,11 @@
 # devkitPro repositories, tracked in pacman's own package database like any
 # other install.
 #
+# Since 5.13.0 WiiStation builds by default against pacman's CURRENT devkitPPC
+# and devkitPro's libogc v3 (with libfat-ogc and wii-sdl from pacman; the
+# remaining libraries are rebuilt from deps/ by scripts/build.sh). The steps
+# below the pacman one exist for the old build, LIBOGC=2, kept for one release:
+#
 # The one deliberate exception: this project ships prebuilt libogc2 (Extrems'
 # fork, not the official "libogc" pacman provides) plus Lightrec and GNU
 # Lightning binaries, all built against devkitPPC r41-2 specifically. Newer
@@ -53,9 +58,11 @@ EOF
 fi
 
 # --- 1. Everything pacman can provide, via the real package manager -------
-log "Installing/updating wii-dev, ppc-zlib and unzip via pacman"
+log "Installing/updating wii-dev, wii-sdl, ppc-zlib and unzip via pacman"
 "$PACMAN" -Sy --noconfirm
-"$PACMAN" -S --needed --noconfirm wii-dev ppc-zlib unzip
+# wii-dev: devkitPPC, libogc (v3), libfat-ogc; wii-sdl: the SDL 1.2 the default (libogc v3)
+# build links for its sound output (dfsound/sdl.c)
+"$PACMAN" -S --needed --noconfirm wii-dev wii-sdl ppc-zlib unzip
 
 # --- 2. devkitPPC r41-2, pinned for ABI compatibility with this project's --
 #        bundled prebuilt libogc2/lightrec/lightning (see header comment)
