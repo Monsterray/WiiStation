@@ -1,5 +1,5 @@
 README : WiiStation
-Version 5.12.0
+Version 5.12.1
 
 LICENSE:
     This software is licensed under the GNU General Public License v2
@@ -125,6 +125,16 @@ LATER UPDATES BY:
  * Monty Perrotti (WiiStation)
 
 WiiStation CHANGE LOG:
+Ver 5.12.1 (2026-10-12):
+* Fixed: Gex 2 (and any game that streams CD audio while polling the drive)
+  no longer stutters in its movies: the CD-XA sound sectors were delayed a
+  little more each time, until the sound ran dry between them.
+* Fixed: Gex 2's remote quest menu shows one cursor (it left every old one on
+  screen). VRAM copies and image loads now draw black instead of leaving it out.
+* Fixed: .cbn (CISO) images open (they never did on the Wii); .chd images with
+  CD audio tracks play those tracks from the right place; a bare .iso or .bin
+  boots. Every disc format was tested with the same game.
+
 Ver 5.12.0 (2026-10-12):
 * New: Advanced Graphics has Gamma (1.0 to 1.5, the TV picture) and Deflicker
   Level (Light: less blur than Normal). The page uses the new compact layout:
