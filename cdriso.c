@@ -1167,7 +1167,7 @@ static int handlepbp(const char *isofile) {
 	compr_img->current_block = (unsigned int)-1;
 
 	compr_img->index_len = (0x100000 - 0x4000) / sizeof(index_entry);
-	compr_img->index_table = malloc((compr_img->index_len + 1) * sizeof(compr_img->index_table[0]));
+	compr_img->index_table = _mem2_malloc((compr_img->index_len + 1) * sizeof(compr_img->index_table[0]));
 	if (compr_img->index_table == NULL)
 		goto fail_io;
 
@@ -1192,7 +1192,7 @@ static int handlepbp(const char *isofile) {
 	return 0;
 
 fail_index:
-	free(compr_img->index_table);
+	_mem2_free(compr_img->index_table);
 	compr_img->index_table = NULL;
 	goto done;
 
@@ -1265,9 +1265,13 @@ static int handlecbin(const char *isofile) {
 	compr_img->current_block = (unsigned int)-1;
 
 	compr_img->index_len = ciso_hdr.total_bytes / ciso_hdr.block_size;
-	index_table = malloc((compr_img->index_len + 1) * sizeof(index_table[0]));
-	if (index_table == NULL)
+	/* MEM2: on the Wii the MEM1 heap had no 864 KB block left after one game (a chain's second
+	 * game, Frogger .cbn: the image opened as raw sectors and the game never started) */
+	index_table = _mem2_malloc((compr_img->index_len + 1) * sizeof(index_table[0]));
+	if (index_table == NULL) {
+		SysPrintf("cbn: no memory for the index (%u bytes)\n", (compr_img->index_len + 1) * 4);
 		goto fail_io;
+	}
 
 	/* CISO stores blocks + 1 index entries: the last marks where the last block ends. Only
 	 * index_len were read and index_len + 1 used, so the last block's end was whatever the
@@ -1284,9 +1288,11 @@ static int handlecbin(const char *isofile) {
 		goto fail_index;
 	}
 
-	compr_img->index_table = malloc((compr_img->index_len + 1) * sizeof(compr_img->index_table[0]));
-	if (compr_img->index_table == NULL)
+	compr_img->index_table = _mem2_malloc((compr_img->index_len + 1) * sizeof(compr_img->index_table[0]));
+	if (compr_img->index_table == NULL) {
+		SysPrintf("cbn: no memory for the index table (%u bytes)\n", (compr_img->index_len + 1) * (unsigned)sizeof(compr_img->index_table[0]));
 		goto fail_index;
+	}
 
 	for (i = 0; i < compr_img->index_len + 1; i++) {
 		index = SWAP32(index_table[i]);
@@ -1307,11 +1313,11 @@ static int handlecbin(const char *isofile) {
 		sec2msf(2 * 75, ti[1].start);
 	}
 	sec2msf((unsigned int)((ciso_hdr.total_bytes - ti[numtracks].start_offset) / 2352), ti[numtracks].length);
-	free(index_table);
+	_mem2_free(index_table);
 	return 0;
 
 fail_index:
-	free(index_table);
+	_mem2_free(index_table);
 fail_io:
 	if (compr_img != NULL) {
 		free(compr_img);
@@ -2001,7 +2007,7 @@ static long CALLBACK ISOclose(void) {
 	cdimg_seek_forget();
 
 	if (compr_img != NULL) {
-		free(compr_img->index_table);
+		_mem2_free(compr_img->index_table);
 		free(compr_img);
 		compr_img = NULL;
 	}

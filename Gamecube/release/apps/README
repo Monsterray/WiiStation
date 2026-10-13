@@ -1,5 +1,5 @@
 README : WiiStation
-Version 5.12.2
+Version 5.12.3
 
 LICENSE:
     This software is licensed under the GNU General Public License v2
@@ -125,6 +125,11 @@ LATER UPDATES BY:
  * Monty Perrotti (WiiStation)
 
 WiiStation CHANGE LOG:
+Ver 5.12.3 (2026-10-13):
+* Fixed: a .cbn image no longer fails to start when it is not the first game
+  since power-on (it opened as an unreadable disc). Its index is now kept in
+  the large memory, as .pbp and .chd indexes are.
+
 Ver 5.12.2 (2026-10-13):
 * Fixed: Spyro the Dragon shows its Sony and Universal logos with the OpenGX
   plugin (the screen stayed black). A picture the game loads while the screen
