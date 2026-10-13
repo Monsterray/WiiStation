@@ -1,0 +1,29 @@
+CHAIN
+# Frogger in every disc format WiiStation loads (scripts/disc_convert.py), 1800 vblanks each, no input
+1800
+sd:/wiistation/isos/Frogger (USA)
+Frogger (USA).cue
+1800
+sd:/wiistation/isos/Frogger (USA) [CBN]
+Frogger (USA).cbn
+1800
+sd:/wiistation/isos/Frogger (USA) [CCD]
+Frogger (USA).ccd
+1800
+sd:/wiistation/isos/Frogger (USA) [CHD]
+Frogger (USA).chd
+1800
+sd:/wiistation/isos/Frogger (USA) [CUE1]
+Frogger (USA).cue
+1800
+sd:/wiistation/isos/Frogger (USA) [ISO]
+Frogger (USA).iso
+1800
+sd:/wiistation/isos/Frogger (USA) [MDS]
+Frogger (USA).mdf
+1800
+sd:/wiistation/isos/Frogger (USA) [PBP]
+Frogger (USA).pbp
+1800
+sd:/wiistation/isos/Frogger (USA) [TOC]
+Frogger (USA).toc

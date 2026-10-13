@@ -2,7 +2,9 @@
 """library_check.py [LIB] -- check the game library (default C:/wiistation-lib, or WSX_LIBRARY).
 
 A game is a folder under LIB/games/ that holds a boot file: a .cue (every FILE line must name
-an existing file), a .ccd (needs .img and .sub of the same name), or an .exe (a PS1 test program).
+an existing file), a .ccd (needs .img and .sub of the same name), a .toc (its FILE/DATAFILE
+names must exist), an .mdf (needs its .mds), a .pbp, .chd, .iso or a .cbn (a .cbn wins over
+the .cue beside it, which only names its tracks: boot the .cbn), or an .exe (a PS1 test program).
 Gex 2 and Gex 3 are .ccd sets; FF7 sits one folder down, so a game's key is its path under games/.
 
 Checks, exit 1 on any problem:
@@ -25,7 +27,8 @@ for a in sys.argv[1:]:
     if not a.startswith("--"):
         LIB = a
 GAMES = os.path.join(LIB, "games")
-BOOT_EXT = (".cue", ".ccd", ".exe")
+# in order of preference when a folder holds several (scripts/disc_convert.py makes one of each)
+BOOT_EXT = (".cbn", ".cue", ".ccd", ".toc", ".mdf", ".pbp", ".chd", ".iso", ".exe")
 
 
 def games():
@@ -35,8 +38,9 @@ def games():
         if not boots:
             continue
         key = os.path.relpath(root, GAMES).replace(os.sep, "/")
-        # a folder with several cues (Dino Crisis 2 has one) is one game: take the first cue
-        boot = next((b for b in boots if b.lower().endswith(".cue")), boots[0])
+        # a folder with several cues (Dino Crisis 2 has one) is one game: take the first cue;
+        # across formats, the first in BOOT_EXT order
+        boot = next(b for ext in BOOT_EXT for b in boots if b.lower().endswith(ext))
         yield key, root, boot
 
 
@@ -53,6 +57,16 @@ def problems_of(folder, boot):
         base = os.path.splitext(path)[0]
         missing = [e for e in (".img", ".sub") if not os.path.isfile(base + e)]
         return "ccd", ["ccd %s is missing %s" % (boot, e) for e in missing]
+    if low.endswith(".toc"):
+        names = re.findall(r'(?:FILE|DATAFILE|AUDIOFILE)\s+"([^"]+)"', open(path, errors="replace").read())
+        return "toc", ["toc %s names missing %s" % (boot, n) for n in names
+                       if not os.path.isfile(os.path.join(folder, n))]
+    if low.endswith(".mdf"):
+        mds = os.path.splitext(boot)[0] + ".mds"
+        return "mds", [] if os.path.isfile(os.path.join(folder, mds)) else ["mdf %s is missing %s" % (boot, mds)]
+    for ext in (".cbn", ".pbp", ".chd", ".iso"):
+        if low.endswith(ext):
+            return ext[1:], [] if os.path.getsize(path) > 0 else ["empty %s" % boot]
     return "exe", [] if os.path.isfile(path) else ["missing %s" % boot]
 
 

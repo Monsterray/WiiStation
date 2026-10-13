@@ -30,6 +30,9 @@
 #include <zlib.h>
 #ifdef USE_LIBCHDR
 #include "deps/libchdr/include/libchdr/chd.h"
+#ifndef CD_TRACK_PADDING
+#define CD_TRACK_PADDING 4   /* libchdr cdrom.h: each CHD track is stored padded to 4 frames */
+#endif
 #endif // USE_LIBCHDR
 
 #include <ogc/lwp.h>
@@ -1234,6 +1237,13 @@ static int handlecbin(const char *isofile) {
 		SysPrintf("failed to read ciso header\n");
 		return -1;
 	}
+	/* CISO is little-endian (written on PCs); the Wii is big-endian. Upstream runs on
+	 * little-endian hosts and reads it raw, so on the Wii a .cbn never opened: the sizes
+	 * and every index entry came out byte-swapped (and the image was read as raw sectors). */
+	ciso_hdr.header_size = SWAP32(ciso_hdr.header_size);
+	ciso_hdr.block_size = SWAP32(ciso_hdr.block_size);
+	ciso_hdr.total_bytes = ((unsigned long long)SWAP32((unsigned int)ciso_hdr.total_bytes) << 32) |
+	                       SWAP32((unsigned int)(ciso_hdr.total_bytes >> 32));
 
 	if (strncmp(ciso_hdr.magic, "CISO", 4) != 0 || ciso_hdr.total_bytes <= 0 || ciso_hdr.block_size <= 0) {
 		SysPrintf("bad ciso header\n");
@@ -1259,8 +1269,17 @@ static int handlecbin(const char *isofile) {
 	if (index_table == NULL)
 		goto fail_io;
 
-	ret = fread(index_table, sizeof(index_table[0]), compr_img->index_len, cdHandle);
-	if (ret != compr_img->index_len) {
+	/* CISO stores blocks + 1 index entries: the last marks where the last block ends. Only
+	 * index_len were read and index_len + 1 used, so the last block's end was whatever the
+	 * allocation held. An image with only index_len entries gets the end of the file. */
+	ret = fread(index_table, sizeof(index_table[0]), compr_img->index_len + 1, cdHandle);
+	if (ret == compr_img->index_len) {
+		off_t end;
+		fseeko(cdHandle, 0, SEEK_END);
+		end = ftello(cdHandle);
+		index_table[compr_img->index_len] = SWAP32((unsigned int)(end >> ciso_hdr.align));   /* stored as the file stores it */
+	}
+	else if (ret != compr_img->index_len + 1) {
 		SysPrintf("failed to read index table\n");
 		goto fail_index;
 	}
@@ -1270,7 +1289,7 @@ static int handlecbin(const char *isofile) {
 		goto fail_index;
 
 	for (i = 0; i < compr_img->index_len + 1; i++) {
-		index = index_table[i];
+		index = SWAP32(index_table[i]);
 		plain = index & 0x80000000;
 		index &= 0x7fffffff;
 		compr_img->index_table[i] = (off_t)index << ciso_hdr.align;
@@ -1278,6 +1297,17 @@ static int handlecbin(const char *isofile) {
 			compr_img->index_table[i] |= OFF_T_MSB;
 	}
 
+	/* the TOC (as upstream): one data track when no sheet named the tracks, and the last
+	 * track's length from the uncompressed size -- a .cue beside the .cbn measured it from
+	 * the compressed file (Frogger: a lead-out of 72397 for 108094) */
+	if (numtracks == 0) {
+		numtracks = 1;
+		ti[1].type = DATA;
+		ti[1].start_offset = 0;
+		sec2msf(2 * 75, ti[1].start);
+	}
+	sec2msf((unsigned int)((ciso_hdr.total_bytes - ti[numtracks].start_offset) / 2352), ti[numtracks].length);
+	free(index_table);
 	return 0;
 
 fail_index:
@@ -1368,14 +1398,20 @@ static int handlechd(const char *isofile) {
 
 		ti[md.track].type = !strncmp(md.type, "AUDIO", 5) ? CDDA : DATA;
 
+		/* A pregap of type V... is stored in the CHD and counted in md.frames; any other is
+		 * silence the CHD leaves out. Every track is stored padded to CD_TRACK_PADDING (4)
+		 * frames, so the next track starts in the file at the padded count -- without it a
+		 * CHD's later tracks (CD audio) played from a few sectors early, and the lead-out
+		 * came out a pregap late (scripts/disc_convert.py --check, Frogger: 2 and 150). */
+		int pregap_in_file = md.pgtype[0] == 'V';
 		sec2msf(frame_offset + md.pregap, ti[md.track].start);
-		sec2msf(md.frames, ti[md.track].length);
+		sec2msf(pregap_in_file ? md.frames - md.pregap : md.frames, ti[md.track].length);
 
-		ti[md.track].start_offset = file_offset + md.pregap;
+		ti[md.track].start_offset = file_offset + (pregap_in_file ? md.pregap : 0);
 
 		// XXX: what about postgap?
-		frame_offset += md.frames;
-		file_offset += md.frames;
+		frame_offset += pregap_in_file ? md.frames : md.frames + md.pregap;
+		file_offset += (md.frames + CD_TRACK_PADDING - 1) & ~(CD_TRACK_PADDING - 1);
 		numtracks++;
 	}
 
@@ -1903,9 +1939,26 @@ static long CALLBACK ISOopen(void) {
 	}
 	fseek(cdHandle, 0, SEEK_SET);
 
+	/* A metadata-less image (an .iso, a lone .bin or .img): one data track, as upstream.
+	 * Without it ti[1].type stayed 0 and the drive answered CdlID with "no disc". */
+	if (numtracks == 0 && cdimg_read_func == cdread_normal) {
+		off_t size_main;
+		fseeko(cdHandle, 0, SEEK_END);
+		size_main = ftello(cdHandle);
+		fseek(cdHandle, 0, SEEK_SET);
+		numtracks = 1;
+		ti[1].type = DATA;
+		ti[1].start_offset = 0;
+		sec2msf(2 * 75, ti[1].start);
+		sec2msf((unsigned int)(isMode1ISO ? size_main / 2048 : size_main / 2352), ti[1].length);
+	}
+
 	//SysPrintf("%s (%lld bytes).\n", image_str, (long long)size_main);
 
-	//PrintTracks();
+#ifdef PERF_PROF
+	SysPrintf("%s\n", image_str);   /* the image kind and its track table, in tty.log (debug) */
+	PrintTracks();
+#endif
 
 	if (subChanMixed && cdimg_read_func == cdread_normal) {
 		cdimg_read_func = cdread_sub_mixed;
