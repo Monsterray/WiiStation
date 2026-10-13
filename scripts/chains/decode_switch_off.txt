@@ -1,0 +1,45 @@
+CHAIN
+# Decode-ahead (5.13.0) under game switches: MediEvil's opening video (streamed, XA) from a
+# .cue, CHD (zstd+flac), PBP, CBN and CHD (lzma+zlib+flac), with Frogger in other formats
+# between them and the same formats again later. THIS FILE: CdPrefetch=0 (inline decode),
+# the reference for decode_switch.txt (same rows with CdPrefetch=1).
+# Every MediEvil row must give the same ram/cycle/pc at every vblank as row 1
+# (scripts/vsig_cmp.py .runs/X/vsig_01.bin .runs/X/vsig_NN.bin), and the whole run the same
+# vsig files as decode_switch_off.txt (CdPrefetch=0, the inline decode).
+# bash scripts/wsx.sh chain NAME scripts/chains/decode_switch_off.txt --fast
+3000 CdPrefetch=0
+sd:/wiistation/isos/Medievil
+Medievil [U] [SCUS-94227].cue
+3000 CdPrefetch=0
+sd:/wiistation/isos/Medievil [CHD]
+Medievil [U] [SCUS-94227].chd
+900 CdPrefetch=0
+sd:/wiistation/isos/Frogger (USA) [PBP]
+Frogger (USA).pbp
+3000 CdPrefetch=0
+sd:/wiistation/isos/Medievil [PBP]
+Medievil [U] [SCUS-94227].pbp
+900 CdPrefetch=0
+sd:/wiistation/isos/Frogger (USA) [CHD]
+Frogger (USA).chd
+3000 CdPrefetch=0
+sd:/wiistation/isos/Medievil [CBN]
+Medievil [U] [SCUS-94227].cbn
+3000 CdPrefetch=0
+sd:/wiistation/isos/Medievil [CHDLZ]
+Medievil [U] [SCUS-94227].chd
+900 CdPrefetch=0
+sd:/wiistation/isos/Frogger (USA)
+Frogger (USA).cue
+3000 CdPrefetch=0
+sd:/wiistation/isos/Medievil [CHD]
+Medievil [U] [SCUS-94227].chd
+900 CdPrefetch=0
+sd:/wiistation/isos/Frogger (USA) [CBN]
+Frogger (USA).cbn
+3000 CdPrefetch=0
+sd:/wiistation/isos/Medievil [PBP]
+Medievil [U] [SCUS-94227].pbp
+3000 CdPrefetch=0
+sd:/wiistation/isos/Medievil
+Medievil [U] [SCUS-94227].cue

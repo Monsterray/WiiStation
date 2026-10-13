@@ -1,0 +1,37 @@
+CHAIN
+# Decode-ahead (5.13.0) and save states: MediEvil's opening video from every compressed
+# format and the .cue. Rows 1-5 run decode_state.txt (statecheck 900 300, state save
+# decode_mv 1800, statefp 2400, statecheck 2600 200): every statecheck must say "match" and
+# every statefp at 2400 must be the same. Rows 6-9 load the state saved by row 5 (CHD lzma)
+# into each format at boot (State=) and fingerprint at 2400: the four lines must be the same.
+# (They are 4 cycles off rows 1-5 -- ram bbf743ee cycle 1354757183 against 8c03bab7 / ...179
+# in Dolphin 2026-10-13 -- for the .cue and with CdPrefetch=0 too: a State= boot, not the CD.)
+# THIS FILE: CdPrefetch=0 (inline decode), the reference for decode_state.txt.
+# bash scripts/wsx.sh chain NAME scripts/chains/decode_state_off.txt --fast
+3500 sd:/wiistation/decode_state.txt CdPrefetch=0
+sd:/wiistation/isos/Medievil
+Medievil [U] [SCUS-94227].cue
+3500 sd:/wiistation/decode_state.txt CdPrefetch=0
+sd:/wiistation/isos/Medievil [CHD]
+Medievil [U] [SCUS-94227].chd
+3500 sd:/wiistation/decode_state.txt CdPrefetch=0
+sd:/wiistation/isos/Medievil [PBP]
+Medievil [U] [SCUS-94227].pbp
+3500 sd:/wiistation/decode_state.txt CdPrefetch=0
+sd:/wiistation/isos/Medievil [CBN]
+Medievil [U] [SCUS-94227].cbn
+3500 sd:/wiistation/decode_state.txt CdPrefetch=0
+sd:/wiistation/isos/Medievil [CHDLZ]
+Medievil [U] [SCUS-94227].chd
+900 sd:/wiistation/decode_statefp.txt CdPrefetch=0 State=decode_mv
+sd:/wiistation/isos/Medievil [CHD]
+Medievil [U] [SCUS-94227].chd
+900 sd:/wiistation/decode_statefp.txt CdPrefetch=0 State=decode_mv
+sd:/wiistation/isos/Medievil [PBP]
+Medievil [U] [SCUS-94227].pbp
+900 sd:/wiistation/decode_statefp.txt CdPrefetch=0 State=decode_mv
+sd:/wiistation/isos/Medievil [CBN]
+Medievil [U] [SCUS-94227].cbn
+900 sd:/wiistation/decode_statefp.txt CdPrefetch=0 State=decode_mv
+sd:/wiistation/isos/Medievil
+Medievil [U] [SCUS-94227].cue
