@@ -8,7 +8,8 @@ LICENSE:
       and to have the source available.
 
 QUICK USAGE:
- * ISOs can be .bin/.cue (Make sure .cue contains _relative_ directory!), .img, or .iso format
+ * Disc images: .cue/.bin, .ccd/.img, .toc, .mds/.mdf, .iso, .pbp, .cbn, .chd and PS-X .exe.
+    What each one can and cannot do is under DISC IMAGE FORMATS below.
  * To install: Extract the contents of WiiStation.zip to the root of your SD card
  * For SD/USB: Put ISOs (.bin/.cue or other formats) in the directory named /wiistation/isos,
     or anywhere else: RomDirSD (and RomDirUSB) in wiistation/settings.ini name
@@ -29,6 +30,35 @@ QUICK USAGE:
    Wii U Pro Controller (HOME), or Wii U GamePad (HOME)
    Wiimote+Nunchuk (1 & 2), or the RESET button
         (Note: this must be done to save your game; it will not be done automatically)
+
+DISC IMAGE FORMATS:
+ Every format runs at full speed. Times are what Frogger spent reading its disc in 30 s
+ on a Wii (5.13.0); the game itself was the same in every format.
+ * .cue + .bin (recommended): one .bin or one per track. The .cue must name its .bin
+    files with no folder (relative paths). CD audio tracks play. 0.3 s.
+ * .ccd + .img + .sub (CloneCD): CD audio plays; the .sub file carries the
+    sub-channel, which LibCrypt-protected games check. 0.3 s.
+ * .toc + .bin (cdrdao) and .mds + .mdf (Alcohol 120%): CD audio plays. 0.3 s.
+ * .iso, or a .bin with no sheet: one data track only, so no CD audio. Fine for
+    games without CD music. 0.3 s.
+ * .pbp (PSP eboot, e.g. from PSXPackager): compressed; one file can hold several
+    discs. 0.2 s (compressed images are unpacked ahead while the game waits; that
+    needs CD Read-Ahead, on by default: with it off, 3.0 s).
+ * .cbn (CISO): compressed one sector at a time. Put the .cue beside it (same name)
+    for CD audio tracks; without one it is a single data track. 0.2 s (2.8 s with
+    CD Read-Ahead off).
+ * .chd (MAME): compressed; CD audio plays. Make them with zstd, which unpacks
+    faster than chdman's default (LZMA) at the same size:
+        chdman createcd -i game.cue -o game.chd -c cdzs,cdfl
+    or convert an existing one: chdman copy -i old.chd -o new.chd -c cdzs,cdfl
+    0.2 s (zstd 3.0 s, LZMA 4.0 s with CD Read-Ahead off).
+ * .exe (PS-X EXE): homebrew and test programs; there is no disc.
+ * LibCrypt-protected games (some PAL releases) need their .sbi file beside the
+    image, with the same name, unless the image has a .sub.
+ * Not supported: .ecm (unpack it first), .nrg, .cdi, .m3u playlists, and loose
+    .ape/.flac/.wav audio tracks.
+ * From the network share (smb:) and from DVD, images are not read ahead (nor
+    unpacked ahead), so compressed images cost more there.
 
 Controls:
  * The HID(PS2 PS3) controller is recommended.
