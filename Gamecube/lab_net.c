@@ -27,6 +27,7 @@
 #include <unistd.h>
 #include "lab_net.h"
 #include "ws_crash.h"
+#include "ogc_compat.h"   /* POLL*, ws_if_config() on libogc v3 */
 
 #define LAB_ROOT "sd:/wiistation/"
 
@@ -190,7 +191,7 @@ static s32 lab_connect(void)
 			usleep(100 * 1000);
 		lab_log("net_init", r);
 		for (t = 0; t < 10 && !up; t++) {
-			up = (r = if_config(ip, NULL, NULL, true)) >= 0;
+			up = (r = ws_if_config(ip, NULL, NULL, true)) >= 0;
 			if (!up)
 				usleep(500 * 1000);
 		}

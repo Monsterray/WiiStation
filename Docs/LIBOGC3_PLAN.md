@@ -74,3 +74,27 @@ All in a worktree on `try/libogc3`; main keeps shipping on libogc2 until step 5 
 2. If step 2 shows the MMU map cannot stay: stop the move, or accept the Lightrec slowdown?
    (Numbers first.)
 3. OK to re-baseline recordings/frame dumps on the new toolchain where only FP rounding differs?
+
+## Results
+**2026-10-11, bench Wii, scripts/chains/three.txt (60 s each), release then debug builds.**
+Both builds ran all three games and went back to HBC; no crash. Load = % of the frame budget
+used (debug perf block); A = libogc2, B = libogc3:
+| Game | load A | load B | B-A | notable |
+|---|---|---|---|---|
+| Spyro the Dragon | 55.04 | 54.43 | -0.61 | psx +0.27, gpu -0.21 |
+| Crash Bash | 61.70 | 61.19 | -0.50 | gpu -0.33, cd -0.28 |
+| Micro Machines V3 | 51.54 | 51.64 | +0.10 | gpu +0.53, cd -0.15 |
+No slowdown beyond noise; the CD (file reading) column is a little lower on libogc3. DOL
++139 KB (3,564,800 vs 3,426,240 release).
+Still to check (step 4): DSP audio path, SMB/USB reading, save states, Co-Op/HID/Wii U pads,
+DVD, ps1-tests, replay3/replay_rest, statecheck, Quit, Wiimote LEDs (no WPAD_ControlLed in v3).
+**dsp_ab (CPU and DSP audio paths), bench, debug builds:** 8/8 games on both, no crash.
+Load B-A: Ape Escape CPU -0.57, DSP -1.20; FF7 CPU -0.23, DSP -0.55. The AESND (DSP) path works on
+libogc3's AESND. Audio dropout counters not yet compared (run_summary on both runs).
+**ps1-tests in Dolphin, debug builds (dbgab_ps1_A/B):** tty.log byte-identical and all 10 per-test
+VRAM dumps identical between libogc2 and libogc3 (the magenta/noise screens some tests draw are
+the tests' own output on both). Same known gaps against a real PS1 on both.
+**Dolphin, debug pair:** replay3 guest counters identical at every report vblank (both games);
+statecheck3 all 3 games match with identical fingerprints on both. No floating-point difference
+seen anywhere so far, so no re-baselining is needed yet (decision 3). Note: replay_check.py found
+no reports in these debug logs (no gpupres: line in that build); compared by wall: vblanks instead.

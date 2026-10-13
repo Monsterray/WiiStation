@@ -30,6 +30,7 @@
 
 #include <stdio.h>
 
+#include "../ogc_compat.h"  /* TRUE/FALSE/BOOL on libogc v3 */
 #include "psx_analog.h"     /* psx_analog(), apply_sensitivity() -- the stick path */
 
 /* Every definition here is in a .c file. Most C++ includers wrap this header in

@@ -10,8 +10,13 @@
 #include <string.h>
 #include <gccore.h>
 #include <ogc/lwp_watchdog.h>
+#include "ogc_compat.h"       /* WS_LIBOGC3 */
+#if WS_LIBOGC3
+#include <tuxedo/thread.h>    /* KThread: the threads: line walks s_firstThread */
+#else
 #include <ogc/lwp_objmgr.h>   /* the threads: line (_lwp_thr_objects) */
 #include <ogc/lwp_threads.h>
+#endif
 
 #include "perf_prof.h"
 #include "lc.h"
@@ -657,11 +662,22 @@ void perf_vtl_flush(int game)
 /* How deep the main thread's stack has been: libogc2's is a 128 KiB .bss array, zero until
  * used, so the first non-zero word from its low end is the deepest point reached (the HBC
  * agent's "main_stack deepest" works the same way). Also that word and the current sp. */
+#if WS_LIBOGC3
+/* libogc v3's main stack: tuxedo/default_stacks.c's s_mainStack, 128 KiB below __ppc_main_sp.
+ * Its start is not recorded, so the size is taken from that file. */
+extern void *__ppc_main_sp;
+#define WS_MAIN_STACK_SIZE 0x20000u
+#endif
+
 void perf_stack_log(const char *where)
 {
+#if WS_LIBOGC3
+	u32 hi = (u32)__ppc_main_sp, lo = hi - WS_MAIN_STACK_SIZE, a = lo + 1024 + 8, sp;
+#else
 	extern lwp_cntrl *_thr_main;
 	/* from above the agent's guard room (1 KiB: its marker words and breakpoint), as it scans */
 	u32 lo = (u32)_thr_main->stack, hi = lo + _thr_main->stack_size, a = lo + 1024 + 8, sp;
+#endif
 	FILE *f;
 
 	__asm__ volatile ("mr %0,1" : "=r" (sp));
@@ -1007,6 +1023,23 @@ void perf_report(void)
 		 * game to the next is a leak (the CD read-ahead failed to start late in a 16-game
 		 * chain, 2026-09-30); powerpc-eabi-addr2line -f -e the ELF names the entries. */
 		{
+#if WS_LIBOGC3
+			/* libogc v3: the thread list is tuxedo's s_firstThread chain (thread.c). Its
+			 * entries are not kept, so each shows the thread's saved PC, priority and state
+			 * instead of the entry function; the idle thread (priority KTHR_MIN_PRIO+1) is
+			 * listed too. No object-table free count exists, so there is none on this line. */
+			extern KThread *s_firstThread;
+			KThread *t;
+			unsigned live = 0;
+			char tl[16 * 24] = "";
+			for (t = s_firstThread; t; t = t->next) {
+				live++;
+				if (live <= 16)   /* the field holds 16; the count does not stop at it */
+					snprintf(tl + strlen(tl), sizeof tl - strlen(tl), " %08x@%u/%x",
+						(unsigned)t->ctx.pc, (unsigned)t->prio, (unsigned)t->state);
+			}
+			fprintf(f, "threads: live=%u |%s\n", live, tl);
+#else
 			extern lwp_objinfo _lwp_thr_objects;
 			unsigned i, live = 0;
 			char tl[16 * 24] = "";
@@ -1020,6 +1053,7 @@ void perf_report(void)
 			}
 			fprintf(f, "threads: live=%u of %u free=%u |%s\n", live, (unsigned)_lwp_thr_objects.max_nodes,
 				(unsigned)_lwp_thr_objects.inactives_cnt, tl);
+#endif
 		}
 		/* Lightrec compiling (deps/lightrec/lightrec.c): new blocks decoded and optimized
 		 * (pre) and blocks turned into PowerPC code; a game that loads new code stalls on it */

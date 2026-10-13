@@ -26,6 +26,7 @@
 #include <gccore.h>
 #include <malloc.h>
 #include <ogc/card.h>
+#include "../ogc_compat.h"   /* CARD_WORKAREA on libogc v3 */
 #include "fileBrowser.h"
 #include "imagedata/mupenIcon.h"  //32x32 icon
 

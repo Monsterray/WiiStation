@@ -20,8 +20,14 @@
 #ifndef MSR_PM
 #define MSR_PM 0x00000004       /* the 750 performance-monitor mark bit (ogc/machine/asm.h, assembly only) */
 #endif
+#include "ogc_compat.h"            /* WS_LIBOGC3 */
+#if WS_LIBOGC3
+#include <tuxedo/ppc/exception.h>   /* PPCExcptCurPanicFn, PPCExcptSetHandler, PPC_EXCPT_PM */
+#include <tuxedo/thread.h>          /* KThread, KTHR_MIN_PRIO */
+#else
 #include <ogc/lwp_objmgr.h>
 #include <ogc/lwp_threads.h>
+#endif
 #include "perf_prof.h"
 #include "../mem2_manager.h"
 #include "MEM2.h"   /* LIGHTREC_CODE_SIZE */
@@ -45,8 +51,10 @@
 #define HPROF_MMCR0 (0x04000000u | 0x08000000u | 0x00008000u | (1u << 6))
 
 extern char code_buffer_mem1[];             /* lightrec.c */
+#if !WS_LIBOGC3
 extern void hprof_entry(void);              /* hprof_entry.s */
 void __exception_sethandler(u32 nExcept, void (*pHndl)(frame_context *));   /* libogc, no header */
+#endif
 
 /* libgcc's 64-bit divide helpers: leaves, so LR at a sample in them is the caller.
  * Their samples also go in a second histogram by LR (hprof_view.py --callers). */
@@ -80,6 +88,49 @@ void hprof_sample(u32 pc, u32 lr)
 	__asm__ volatile ("isync");
 }
 
+#if WS_LIBOGC3
+/* libogc v3 (tuxedo) has no frame_context, no table of assembly entries for EX_PERF, and no
+ * lwp object table, so the sampling is wired differently here (hprof_entry.s is libogc2 only):
+ *  - The 0xF00 vector runs PPCExcptDefaultHandler, which saves the interrupted context and
+ *    calls PPCExcptCurPanicFn(exid, ctx) before its rfi (tuxedo/exception_asm.S). hprof_panic
+ *    takes PPC_EXCPT_PM there, samples ctx->pc and ctx->lr, and returns without chaining; any
+ *    other exception chains to the previous hook (the HBC agent's, or vm.c's).
+ *  - MSR[PM] goes into each thread's saved context. tuxedo keeps its thread list through
+ *    KThread::next from s_firstThread (thread.c) and exposes no listing, so this reads that
+ *    libogc-private symbol. The idle thread is the one at KTHR_MIN_PRIO+1, above every app
+ *    thread's priority. The executing thread gets the bit in its live MSR instead.
+ * The hook is installed once: a second install would make it chain to itself. */
+static PPCExcptPanicFn hp_prev_panic;
+static int hp_hooked;
+extern KThread *s_firstThread;              /* tuxedo/thread.c */
+
+static void hprof_panic(unsigned exid, PPCContext *ctx)
+{
+	if (exid == PPC_EXCPT_PM) {
+		hprof_sample(ctx->pc, ctx->lr);
+		return;
+	}
+	if (hp_prev_panic)
+		hp_prev_panic(exid, ctx);
+}
+
+static void hprof_arm_v3(void)
+{
+	KThread *self = KThreadGetSelf(), *t;
+
+	if (!hp_hooked) {
+		hp_prev_panic = PPCExcptCurPanicFn;
+		PPCExcptCurPanicFn = hprof_panic;
+		hp_hooked = 1;
+	}
+	PPCExcptSetHandler(PPC_EXCPT_PM, PPCExcptDefaultHandler);
+	for (t = s_firstThread; t; t = t->next)
+		if (t != self && t->prio != KTHR_MIN_PRIO + 1)
+			t->ctx.msr |= MSR_PM;
+	mtmsr(mfmsr() | MSR_PM);
+}
+#endif
+
 /* perf_reset(): an empty histogram, then sampling on */
 void hprof_start(void)
 {
@@ -97,6 +148,9 @@ void hprof_start(void)
 		if (a[i] > watch_hi) watch_hi = a[i];
 	}
 	watch_hi += 0x400;   /* the last helper's size, about 0x390 */
+#if WS_LIBOGC3
+	hprof_arm_v3();
+#else
 	__exception_sethandler(EX_PERF, (void (*)(frame_context *))hprof_entry);
 	{   /* MSR[PM] = 1: count in every thread but idle (HPROF_MMCR0 FCM0) */
 		extern lwp_objinfo _lwp_thr_objects;
@@ -108,6 +162,7 @@ void hprof_start(void)
 		}
 		mtmsr(mfmsr() | MSR_PM);
 	}
+#endif
 	mtmmcr1(0);
 	mtpmc1(0x80000000u - HPROF_PERIOD);
 	__asm__ volatile ("isync");

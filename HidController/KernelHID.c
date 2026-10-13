@@ -853,8 +853,8 @@ static u32 *HIDRun(void *param)
 {
     while (hidRun)
     {
-        extern volatile char shutdown;
-        if (shutdown)
+        extern volatile char ws_shutdown;
+        if (ws_shutdown)
         {
             break;
         }

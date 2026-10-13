@@ -18,6 +18,7 @@
  ***************************************************************************/
 
 #include <gccore.h>
+#include "../Gamecube/ogc_compat.h"   /* WS_WGPIPE */
 #include <malloc.h>
 #include <time.h>
 #include <ogc/lwp_watchdog.h>
@@ -307,7 +308,7 @@ static void GX_Flip(const void *buffer, int pitch, u8 fmt,
 		GX_InitTexObjFilterMode(&GXtexobj, GX_LINEAR, GX_LINEAR);
 
 	if(fmt==GX_TF_RGBA8) {
-		vu8 *wgPipePtr = GX_RedirectWriteGatherPipe(GXtexture);
+		vu8 *wgPipePtr = WS_WGPIPE(GX_RedirectWriteGatherPipe(GXtexture));
 		u8 *image = (u8 *) buffer;
 		for (h = 0; h < (height >> 2); h++)
 		{
@@ -340,7 +341,7 @@ static void GX_Flip(const void *buffer, int pitch, u8 fmt,
 		}
 	}
 	else {
-		vu32 *wgPipePtr = GX_RedirectWriteGatherPipe(GXtexture);
+		vu32 *wgPipePtr = WS_WGPIPE(GX_RedirectWriteGatherPipe(GXtexture));
 		u32 *src1 = (u32 *) buffer;
 		u32 *src2 = (u32 *) (buffer + pitch);
 		u32 *src3 = (u32 *) (buffer + (pitch * 2));

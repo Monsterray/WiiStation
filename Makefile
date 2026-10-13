@@ -6,6 +6,29 @@ endif
 
 VERSION = beta2.5
 
+# LIBOGC=3 (scripts/build.sh) builds the dependency archives from a copy of deps/ in
+# build_ogc3/deps, so libogc v3 / devkitPPC r50 objects never land beside the default ones.
+# The copy carries sources only (no *.a, *.o, *.d): every archive is rebuilt there, and the
+# sources are re-synced from deps/ on each run. The sources reach the repo root with ../../
+# (deps/opengx/gc_gl.c includes ../../mem2_manager.h, ../../Gamecube/*.h), so every *.h of
+# the repo is mirrored into build_ogc3/ at its own path. The default (LIBOGC unset or 2) is unchanged.
+ifeq ($(LIBOGC),3)
+DEPS_ROOT := build_ogc3/deps
+# devkitPPC r50 has no lightning.h (r41-2 shipped the old one): lightrec takes the GNU Lightning
+# headers that the v3 liblightning.a is built from
+LIGHTNING_CPATH := $(CURDIR)/deps/lightning/include
+else
+DEPS_ROOT := deps
+endif
+
+.PHONY: ogc3_deps
+ogc3_deps:
+ifeq ($(LIBOGC),3)
+	@mkdir -p $(DEPS_ROOT)
+	@tar -C deps --exclude='*.a' --exclude='*.o' --exclude='*.d' -cf - . | tar -C $(DEPS_ROOT) -xf -
+	@find . \( -name deps -o -name 'build*' -o -name .git \) -prune -o -name '*.h' -print | tar -cf - -T - | tar -C build_ogc3 -xf -
+endif
+
 .PHONY:  all Wii_Release Wii
 
 #all:
@@ -18,66 +41,66 @@ VERSION = beta2.5
 #	@rm temp.log
 all: Wii Wii_Release
 
-opengx.a:
+opengx.a: ogc3_deps
 	@echo " "
 	@echo "Building opengx.a library for PPC"
 	@echo " "
-	$(MAKE) -C deps/opengx -f Makefile
-	$(MAKE) -C deps/opengx -f Makefile PROF=1
+	$(MAKE) -C $(DEPS_ROOT)/opengx -f Makefile
+	$(MAKE) -C $(DEPS_ROOT)/opengx -f Makefile PROF=1
 
-lightrecNoLog.a:
+lightrecNoLog.a: ogc3_deps
 	@echo " "
 	@echo "Building lightrecNoLog.a library for PPC"
 	@echo " "
-	$(MAKE) -C deps/lightrec -f Makefile.NoLog
+	$(if $(filter 3,$(LIBOGC)),CPATH=$(LIGHTNING_CPATH),) $(MAKE) -C $(DEPS_ROOT)/lightrec -f Makefile.NoLog
 
-lightrecWithLog.a:
+lightrecWithLog.a: ogc3_deps
 	@echo " "
 	@echo "Building lightrecWithLog.a library for PPC"
 	@echo " "
-	$(MAKE) -C deps/lightrec -f Makefile.WithLog
+	$(if $(filter 3,$(LIBOGC)),CPATH=$(LIGHTNING_CPATH),) $(MAKE) -C $(DEPS_ROOT)/lightrec -f Makefile.WithLog
 
-zstd.a:
+zstd.a: ogc3_deps
 	@echo " "
 	@echo "Building zstd.a library for PPC"
 	@echo " "
-	$(MAKE) -C deps/libchdr/deps/zstd-1.5.6 -f Makefile.wii
+	$(MAKE) -C $(DEPS_ROOT)/libchdr/deps/zstd-1.5.6 -f Makefile.wii
 
-lzma.a:
+lzma.a: ogc3_deps
 	@echo " "
 	@echo "Building lzma.a library for PPC"
 	@echo " "
-	$(MAKE) -C deps/libchdr/deps/lzma-19.00 -f Makefile.wii
+	$(MAKE) -C $(DEPS_ROOT)/libchdr/deps/lzma-19.00 -f Makefile.wii
 
-zlibstatic.a:
+zlibstatic.a: ogc3_deps
 	@echo " "
 	@echo "Building zlibstatic.a library for PPC"
 	@echo " "
-	$(MAKE) -C deps/libchdr/deps/zlib-1.3.1 -f Makefile.wii
+	$(MAKE) -C $(DEPS_ROOT)/libchdr/deps/zlib-1.3.1 -f Makefile.wii
 
-lightning.a:
+lightning.a: ogc3_deps
 	@echo " "
 	@echo "Building liblightning.a (GNU Lightning, deps/lightning) for PPC"
 	@echo " "
-	$(MAKE) -C deps/lightning DEVKITPPC=$(DEVKITPPC)
+	$(MAKE) -C $(DEPS_ROOT)/lightning DEVKITPPC=$(DEVKITPPC)
 
-hbcagent.a:
+hbcagent.a: ogc3_deps
 	@echo " "
 	@echo "Building libhbcagent.a (the Homebrew Channel's in-app agent) for PPC"
 	@echo " "
-	$(MAKE) -C deps/hbc_agent DEVKITPRO=$(DEVKITPRO) DEVKITPPC=$(DEVKITPPC)
+	$(MAKE) -C $(DEPS_ROOT)/hbc_agent DEVKITPRO=$(DEVKITPRO) DEVKITPPC=$(DEVKITPPC)
 
-smb2.a:
+smb2.a: ogc3_deps
 	@echo " "
 	@echo "Building libsmb2.a (SMB2/3 client for the smb: device) for PPC"
 	@echo " "
-	$(MAKE) -C deps/libsmb2 -f Makefile.wiistation DEVKITPRO=$(DEVKITPRO) DEVKITPPC=$(DEVKITPPC)
+	$(MAKE) -C $(DEPS_ROOT)/libsmb2 -f Makefile.wiistation DEVKITPRO=$(DEVKITPRO) DEVKITPPC=$(DEVKITPPC)
 
-chdrstatic.a:
+chdrstatic.a: ogc3_deps
 	@echo " "
 	@echo "Building chdrstatic.a library for PPC"
 	@echo " "
-	$(MAKE) -C deps/libchdr -f Makefile.wii
+	$(MAKE) -C $(DEPS_ROOT)/libchdr -f Makefile.wii
 
 Wii: opengx.a lightrecWithLog.a zstd.a lzma.a zlibstatic.a chdrstatic.a
 	@$(ECHO) "Building Wii..."
@@ -97,13 +120,17 @@ dist: Wii
 
 clean:
 	@$(ECHO) "Cleaning..."
-	@$(MAKE) -C deps/opengx clean -f Makefile
-	@$(MAKE) -C deps/lightrec clean -f Makefile.NoLog
-	@$(MAKE) -C deps/lightrec clean -f Makefile.WithLog
-	@$(MAKE) -C deps/libchdr/deps/zstd-1.5.6 clean -f Makefile.wii
-	@$(MAKE) -C deps/libchdr/deps/lzma-19.00 clean -f Makefile.wii
-	@$(MAKE) -C deps/libchdr/deps/zlib-1.3.1 clean -f Makefile.wii
-	@$(MAKE) -C deps/libchdr clean -f Makefile.wii
+ifeq ($(LIBOGC),3)
+	@rm -rf build_ogc3
+else
+	@$(MAKE) -C $(DEPS_ROOT)/opengx clean -f Makefile
+	@$(MAKE) -C $(DEPS_ROOT)/lightrec clean -f Makefile.NoLog
+	@$(MAKE) -C $(DEPS_ROOT)/lightrec clean -f Makefile.WithLog
+	@$(MAKE) -C $(DEPS_ROOT)/libchdr/deps/zstd-1.5.6 clean -f Makefile.wii
+	@$(MAKE) -C $(DEPS_ROOT)/libchdr/deps/lzma-19.00 clean -f Makefile.wii
+	@$(MAKE) -C $(DEPS_ROOT)/libchdr/deps/zlib-1.3.1 clean -f Makefile.wii
+	@$(MAKE) -C $(DEPS_ROOT)/libchdr clean -f Makefile.wii
+endif
 	@$(MAKE) -C Gamecube clean -f Makefile_Wii
 	@$(MAKE) -C Gamecube clean -f Makefile_Wii_Release
 

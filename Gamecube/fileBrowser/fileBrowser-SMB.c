@@ -27,6 +27,7 @@
 #include <malloc.h>
 #include <network.h>
 #include <ogcsys.h>
+#include "../ogc_compat.h"   /* ws_if_config() */
 #include "smb2dev.h"   /* "smb:" over libsmb2: SMB2/3 (libtinysmb spoke only SMB1) */
 #include "../wiiSXconfig.h"
 #include "fileBrowser.h"
@@ -159,7 +160,7 @@ static void* init_network(void *args)
 	while(1) {
 		if(!net_initialized) {
 			netInitPending = 1;
-			net_initialized = if_config(ip, NULL, NULL, true) >= 0;
+			net_initialized = ws_if_config(ip, NULL, NULL, true) >= 0;
 			netInitPending = 0;
 		}
 

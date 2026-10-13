@@ -101,10 +101,12 @@ build)
 		echo "one of our runs is going: a build now would skew its timing (FORCE=1 to build anyway)"; exit 2
 	fi
 	mkdir -p "$RUNS"
-	log="$RUNS/build_$mode.log"
+	# LIBOGC=3 (environment): devkitPro libogc v3 build, outputs WiiSXRX_*_ogc3.dol (scripts/build.sh)
+	sfx=""; [ "${LIBOGC:-2}" = 3 ] && sfx="_ogc3"
+	log="$RUNS/build_$mode$sfx.log"
 	case "$mode" in
-		debug*)   out="Gamecube/WiiSXRX_debug.dol"; env="PROBES='$probes'" ;;   # quoted: a custom list of -D flags has spaces
-		release*) out="Gamecube/WiiSXRX_Release.dol"; env="" ;;
+		debug*)   out="Gamecube/WiiSXRX_debug$sfx.dol"; env="LIBOGC=${LIBOGC:-2} PROBES='$probes'" ;;   # quoted: a custom list of -D flags has spaces
+		release*) out="Gamecube/WiiSXRX_Release$sfx.dol"; env="LIBOGC=${LIBOGC:-2}" ;;
 		*) echo "build debug|release"; exit 2 ;;
 	esac
 	before=$(stat -c %Y "$REPO/$out" 2>/dev/null || echo 0)

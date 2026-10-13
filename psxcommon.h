@@ -41,6 +41,9 @@
 #include <zlib.h>
 //#include <glib.h>
 
+/* libogc v3 differences (TRUE/FALSE/BOOL, POLL*, CARD_WORKAREA, ...): GEKKO builds only */
+#include "Gamecube/ogc_compat.h"
+
 /* Define types */
 /*typedef int8_t s8;
 typedef int16_t s16;

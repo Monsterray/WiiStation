@@ -149,7 +149,7 @@ char creditsScrolling;
 volatile char padNeedScan=1;   /* the three scan flags: set by ScanPADSandReset (reset callback), polled by the input code */
 volatile char wpadNeedScan=1;
 volatile char hidPadNeedScan = 1;
-volatile char shutdown = 0;   /* set by the menu thread and ShutdownWii, polled by the GUI loop */
+volatile char ws_shutdown = 0;   /* set by the menu thread and ShutdownWii, polled by the GUI loop */
 char nativeSaveDevice;
 char saveStateDevice;
 char autoSave;
@@ -738,7 +738,7 @@ void ScanPADSandReset(u32 dummy)
 void ShutdownWii()
 {
     HIDClose(0);
-    shutdown = 1;
+    ws_shutdown = 1;
     stop = 1;
 }
 #endif

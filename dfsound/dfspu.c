@@ -1502,7 +1502,7 @@ long DF_SPUopen(void)
  return PSE_SPU_ERR_SUCCESS;
 }
 
-extern volatile char shutdown;
+extern volatile char ws_shutdown;
 // SPUCLOSE: called before shutdown
 long DF_SPUclose(void)
 {

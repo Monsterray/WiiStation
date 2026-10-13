@@ -7,7 +7,42 @@ ifeq ($(strip $(DEVKITPPC)),)
 $(error "Please set DEVKITPPC in your environment. export DEVKITPPC=<path to>devkitPPC")
 endif
 
+# LIBOGC selects the toolchain pair (scripts/build.sh exports it):
+#   2 (default)  libogc2 + devkitPPC r41-2 -- what every prebuilt library here targets
+#   3            libogc v3 + devkitPPC r50. Its wii_rules (devkitPPC's own) points
+#                LIBOGC_INC/LIBOGC_LIB at $(DEVKITPRO)/libogc. Outputs get an _ogc3 suffix,
+#                and the dependency archives come from build_ogc3/deps (see top Makefile).
+ifeq ($(LIBOGC),3)
+include $(DEVKITPPC)/wii_rules
+OGC_SUFFIX		:= _ogc3
+DEPS_FROM_GC	:= ../build_ogc3/deps
+DEPS_FROM_BUILD	:= ../../build_ogc3/deps
+BUNDLED_ROOT	:= ../build_ogc3/deps
+EXTRA_INCLUDES	:= ../deps/ext/include ../deps/wiidrc/include
+EXTRA_LIBPATHS	:= -L../../deps/ext/lib -L../../deps/wiidrc/lib
+CSTD		:= -std=gnu17
+CXXSTD		:= -std=gnu++17
+# devkitPPC r50's bin2o (base_rules) runs bin2s -H, which writes a C header with the sizes as
+# static constants and no _size symbol in the object, so en_lang_size, En_dat_size and the
+# other sizes never link. This is r41-2's rule, which the code was written against: the
+# object gets name, name_end and name_size (bin2s without -H), plus the same header.
+define bin2o
+	bin2s -a 32 $< | $(AS) -o $(@)
+	echo "extern const u8" `(echo $(<F) | sed -e 's/^\([0-9]\)/_\1/' -e 's/[^A-Za-z0-9_]/_/g')`"_end[];" > `(echo $(<F) | tr . _)`.h
+	echo "extern const u8" `(echo $(<F) | sed -e 's/^\([0-9]\)/_\1/' -e 's/[^A-Za-z0-9_]/_/g')`"[];" >> `(echo $(<F) | tr . _)`.h
+	echo "extern const u32" `(echo $(<F) | sed -e 's/^\([0-9]\)/_\1/' -e 's/[^A-Za-z0-9_]/_/g')`_size";" >> `(echo $(<F) | tr . _)`.h
+endef
+else
 include $(DEVKITPRO)/libogc2/wii_rules
+OGC_SUFFIX		:=
+DEPS_FROM_GC	:= ../deps
+DEPS_FROM_BUILD	:= ../../deps
+BUNDLED_ROOT	:= ../../deps
+EXTRA_INCLUDES	:=
+EXTRA_LIBPATHS	:=
+CSTD		:=
+CXXSTD		:=
+endif
 
 #---------------------------------------------------------------------------------
 # GPU Plugin (GX or Soft)
@@ -21,8 +56,8 @@ GPU = Soft
 # SOURCES is a list of directories containing source code
 # INCLUDES is a list of directories containing extra header files
 #---------------------------------------------------------------------------------
-TARGET		:=	WiiSXRX_Release
-BUILD		:=	build_release
+TARGET		:=	WiiSXRX_Release$(OGC_SUFFIX)
+BUILD		:=	build_release$(OGC_SUFFIX)
 SOURCES		:=	../lang ../fonts \
                 ../HidController/ . ./gc_input/ ./libgui/ ./menu/ ./fileBrowser/ .. \
                 ../GlesGpu/ ../gpulib/ ../SoftGPU/ \
@@ -33,7 +68,7 @@ SOURCES += ../deps/rcheevos/src/runtime ../deps/rcheevos/src/util
 
 DATA		:=	data
 
-INCLUDES	:=	../deps/libsmb2/include   # libsmb2: its headers include <smb2/...>
+INCLUDES	:=	$(DEPS_FROM_GC)/libsmb2/include $(EXTRA_INCLUDES)   # libsmb2: its headers include <smb2/...>
 INCLUDES += ../deps/rcheevos/include
 
 #---------------------------------------------------------------------------------
@@ -49,29 +84,54 @@ else
 CWARNFLAGS := -w
 endif
 
-CFLAGS	= -flto -Ofast $(CWARNFLAGS) -Wno-stringop-truncation -Wno-strict-aliasing -Wno-misleading-indentation -fno-builtin-gettext -fpermissive $(MACHDEP) $(INCLUDE) -DUSE_LIBCHDR -D__GAMECUBE__ -DWII -DHW_RVL -D__ppc__ -D__BIG_ENDIAN__ -D__powerpc__ -DCPU_IS_BIG_ENDIAN=1 -DWORDS_BIGENDIAN=1 -DPACKAGE_VERSION=\"1.3.2\" -DHAVE_LROUND \
+CFLAGS	= -flto -Ofast $(CWARNFLAGS) -Wno-stringop-truncation -Wno-strict-aliasing -Wno-misleading-indentation -fno-builtin-gettext -fpermissive $(MACHDEP) $(INCLUDE) $(CSTD) -DUSE_LIBCHDR -D__GAMECUBE__ -DWII -DHW_RVL -D__ppc__ -D__BIG_ENDIAN__ -D__powerpc__ -DCPU_IS_BIG_ENDIAN=1 -DWORDS_BIGENDIAN=1 -DPACKAGE_VERSION=\"1.3.2\" -DHAVE_LROUND \
 		  -D__GX__ \
 		  -D_GNU_SOURCE -DNDEBUG
 
 # -Wno-register is C++-only -- see Makefile_Wii's copy of this comment.
-CXXFLAGS	=	$(CFLAGS) -Wno-register
+CXXFLAGS	=	$(CFLAGS) $(CXXSTD) -Wno-register
 
 ASFLAGS := -DHW_RVL
 
-LDFLAGS	=	-g $(MACHDEP) -Wl,-Map,$(notdir $@).map,-wrap,wiiuse_register,-wrap,c_default_exceptionhandler
+# libwupc hooks the Wiimote pairing call: wiiuse_register in libogc2, wiiuse_accept in v3
+ifeq ($(LIBOGC),3)
+WRAP_WIIUSE := wiiuse_accept
+else
+WRAP_WIIUSE := wiiuse_register
+endif
+# v3 only: VIDEO_GetRetraceCount is built on these two wraps (ogc_compat.c).
+ifeq ($(LIBOGC),3)
+WRAP_VIDEO := ,-wrap,VIDEO_Init,-wrap,VIDEO_SetPostRetraceCallback
+else
+WRAP_VIDEO :=
+endif
+# v3 only: WPAD_ControlLed needs the wiimote_t of a channel, which wpad_leds.c records from
+# wiiuse_set_leds calls (libwiiuse keeps its table static).
+ifeq ($(LIBOGC),3)
+WRAP_WPAD := ,-wrap,wiiuse_set_leds
+else
+WRAP_WPAD :=
+endif
+LDFLAGS	=	-g $(MACHDEP) -Wl,-Map,$(notdir $@).map,-wrap,$(WRAP_WIIUSE),-wrap,c_default_exceptionhandler$(WRAP_VIDEO)$(WRAP_WPAD)
 
 #---------------------------------------------------------------------------------
 # any extra libraries we wish to link with the project
 #---------------------------------------------------------------------------------
-LIBS	:=	-lhbcagent -lsmb2 -ldi -lm -laesnd -lSDL -lfat -ldb -lwiiuse -lwupc -lwiidrc -lbte -logc -lz -lwiikeyboard -llightrecNoLog -llightning -llzma -lzstd -lzlibstatic -lchdr -lopengx
+# v3: -lopengx goes ahead of -lSDL. gpuPlugin.o's ogx_initialize would otherwise be satisfied by
+# SDL_ogc_video.o's weak stub, pulling that member in and clashing with ours on vmode/xfb.
+LIBS	:=	$(if $(filter 3,$(LIBOGC)),-lopengx) -lhbcagent -lsmb2 -ldi -lm -laesnd -lSDL -lfat -ldb -lwiiuse -lwupc -lwiidrc -lbte -logc -lz -lwiikeyboard -llightrecNoLog -llightning -llzma -lzstd -lzlibstatic -lchdr -lopengx
 
 #---------------------------------------------------------------------------------
 # list of directories containing libraries, this must be the top level containing
 # include and lib
 #---------------------------------------------------------------------------------
-# portlibs/ppc only: portlibs/wii holds libogc v3 builds (wii-sdl, wii-opengx, installed
-# 2026-10-11) that must never reach this libogc2 link (-lSDL would find v3's SDL first).
+ifeq ($(LIBOGC),3)
+LIBDIRS	:= $(PORTLIBS)
+else
+# libogc2: portlibs/ppc only. portlibs/wii holds libogc v3 builds (wii-sdl, wii-opengx) that
+# must never reach this link: -lSDL would find v3's SDL before libogc2's.
 LIBDIRS	:= $(PORTLIBS_PATH)/ppc
+endif
 
 #---------------------------------------------------------------------------------
 # no real need to edit anything past this point unless you need to add additional
@@ -93,8 +153,14 @@ export DEPSDIR	:=	$(CURDIR)/$(BUILD)
 LANGFILES	:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.lang)))
 FONTFILES	:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.dat)))
 CFILES		:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.c)))
+ifneq ($(LIBOGC),3)
+CFILES		:=	$(filter-out ogc_compat.c wpad_leds.c,$(CFILES))   # the libogc v3 shims: v3 only
+endif
 CPPFILES	:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.cpp)))
 sFILES		:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.s)))
+ifeq ($(LIBOGC),3)
+sFILES	:=	$(filter-out dsihandler.s hprof_entry.s,$(sFILES))   # libogc v3: vm.c hooks DSI through PPCExcptCurPanicFn
+endif
 SFILES		:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.S)))
 BINFILES	:=	$(foreach dir,$(DATA),$(notdir $(wildcard $(dir)/*.*)))
 
@@ -124,18 +190,22 @@ export INCLUDE	:=	$(foreach dir,$(INCLUDES),-I$(CURDIR)/$(dir)) \
 #---------------------------------------------------------------------------------
 # build a list of library paths
 #---------------------------------------------------------------------------------
-export LIBPATHS	:=	$(foreach dir,$(LIBDIRS),-L$(dir)/lib) \
+# v3: our OpenGX (build_ogc3/deps/opengx) goes first. -lopengx resolves to the first
+# libopengx.a on the path, and portlibs/wii's stock one has none of the glXxx/ogx_* extensions
+# gc_gl.c defines, so the link left them undefined. libogc2 has no such archive on its path.
+export LIBPATHS	:=	$(if $(filter 3,$(LIBOGC)),-L$(DEPS_FROM_BUILD)/opengx/lib) \
+					$(foreach dir,$(LIBDIRS),-L$(dir)/lib) \
 					-L$(LIBOGC_LIB) \
 					-L$(DEVKITPRO)/libogc/lib/wii, -L$(DEVKITPRO)/libfat/libogc/lib/wii \
-					-L../../deps/lightrec/lib \
-					-L../../deps/lightning/lib \
-					-L../../deps/libchdr/deps/zstd-1.5.6/bin/lib \
-					-L../../deps/libchdr/deps/lzma-19.00/lib \
-					-L../../deps/libchdr/deps/zlib-1.3.1/bin/lib \
-					-L../../deps/libchdr/lib \
-					-L../../deps/hbc_agent/lib \
-					-L../../deps/libsmb2/lib/wii \
-					-L../../deps/opengx/lib
+					-L$(DEPS_FROM_BUILD)/lightrec/lib \
+					-L$(DEPS_FROM_BUILD)/lightning/lib \
+					-L$(DEPS_FROM_BUILD)/libchdr/deps/zstd-1.5.6/bin/lib \
+					-L$(DEPS_FROM_BUILD)/libchdr/deps/lzma-19.00/lib \
+					-L$(DEPS_FROM_BUILD)/libchdr/deps/zlib-1.3.1/bin/lib \
+					-L$(DEPS_FROM_BUILD)/libchdr/lib \
+					-L$(DEPS_FROM_BUILD)/hbc_agent/lib \
+					-L$(DEPS_FROM_BUILD)/libsmb2/lib/wii \
+					-L$(DEPS_FROM_BUILD)/opengx/lib $(EXTRA_LIBPATHS)
 
 export OUTPUT	:=	$(CURDIR)/$(TARGET)
 .PHONY: $(BUILD) clean
@@ -166,7 +236,7 @@ DEPENDS	:=	$(OFILES:.o=.d)
 #---------------------------------------------------------------------------------
 # the bundled libraries: a rebuilt one relinks the DOL (it did not: a libsmb2 fix was
 # built and never linked in)
-BUNDLED_LIBS := $(wildcard $(CURDIR)/../../deps/libsmb2/lib/wii/libsmb2.a $(CURDIR)/../../deps/hbc_agent/lib/libhbcagent.a)
+BUNDLED_LIBS := $(wildcard $(CURDIR)/$(BUNDLED_ROOT)/libsmb2/lib/wii/libsmb2.a $(CURDIR)/$(BUNDLED_ROOT)/hbc_agent/lib/libhbcagent.a)
 $(OUTPUT).elf: $(OFILES) $(BUNDLED_LIBS)
 
 #---------------------------------------------------------------------------------

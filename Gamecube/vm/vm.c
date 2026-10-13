@@ -27,6 +27,11 @@
 #include <ogc/machine/processor.h>
 #include <ogc/aram.h>
 #include "vm.h"
+#include "../ogc_compat.h"
+#if WS_LIBOGC3
+#include <tuxedo/ppc/exception.h>   /* PPCExcptCurPanicFn, PPCExcptPanicFn, PPC_EXCPT_DSI */
+#include <tuxedo/ppc/intrinsics.h>  /* PPCMfspr */
+#endif
 
 #include <stdio.h>
 
@@ -174,6 +179,12 @@ static void tlbia(void)
 		asm volatile("tlbie %0" :: "r" (i*PAGE_SIZE));
 }
 
+#if WS_LIBOGC3
+/* libogc v3 has no __exception_sethandler, EX_DSI or frame_context. The DSI is hooked through
+ * the panic function instead (vm_panic_install, defined after vm_dsi_handler). */
+static void vm_panic_install(void);
+static void vm_panic_restore(void);
+#else
 /* This definition is wrong, pHndl does not take frame_context* as a parameter,
  * it has to adjust the stack pointer and finish filling frame_context itself
  */
@@ -188,6 +199,7 @@ extern void dsi_handler();
 typedef void (*exc_entry)(frame_context *);
 extern exc_entry _exceptionhandlertable[];
 exc_entry vm_dsi_next = (exc_entry)default_exceptionhandler;
+#endif
 
 void* VM_Init(u32 VMSize, u32 MEMSize)
 {
@@ -271,10 +283,15 @@ void* VM_Init(u32 VMSize, u32 MEMSize)
 	mtspr(25, MEM_VIRTUAL_TO_PHYSICAL(HTABORG)|HTABMASK);
 	// enable SR
 	asm volatile("mtsrin %0,%1" :: "r"((u32)VM_Base >> 28), "r"(VM_Base));
+#if WS_LIBOGC3
+	// hook the DSI through the panic function; SYS_Init (crt0, before main) has already set it
+	vm_panic_install();
+#else
 	// hook DSI, keeping the entry that was there (the HBC agent's, when it runs)
 	if (_exceptionhandlertable[EX_DSI] != (exc_entry)dsi_handler)
 		vm_dsi_next = _exceptionhandlertable[EX_DSI];
 	__exception_sethandler(EX_DSI, dsi_handler);
+#endif
 
 	atexit(VM_Deinit);
 
@@ -293,8 +310,12 @@ void VM_Deinit(void)
 
 	// disable SR
 	asm volatile("mtsrin %0,%1" :: "r"(0x80000000), "r"(VM_Base));
+#if WS_LIBOGC3
+	vm_panic_restore();
+#else
 	// restore the DSI entry VM_Init found
 	__exception_sethandler(EX_DSI, vm_dsi_next);
+#endif
 
 	free(MEM_Base);
 	MEM_Base = NULL;
@@ -309,6 +330,14 @@ void VM_Deinit(void)
 	quit_crumb("VM_Deinit done");
 }
 
+#if WS_LIBOGC3
+/* spr.h (via processor.h) defines DSISR and DAR as SPR numbers, which would turn the
+ * parameters below into "u32 18". Hide the macros for this definition only. */
+#pragma push_macro("DSISR")
+#pragma push_macro("DAR")
+#undef DSISR
+#undef DAR
+#endif
 int vm_dsi_handler(u32 DSISR, u32 DAR)
 {
 	u16 v_index;
@@ -321,7 +350,9 @@ int vm_dsi_handler(u32 DSISR, u32 DAR)
 	if (!vm_initialized)
 		return 0;
 
+#if !WS_LIBOGC3
 	LWP_MutexLock(vm_mutex);
+#endif
 
 	DAR &= ~0xFFF;
 	v_index = (vm_page*)DAR - VM_Base;
@@ -355,7 +386,45 @@ int vm_dsi_handler(u32 DSISR, u32 DAR)
 						 MEM_VIRTUAL_TO_PHYSICAL(MEM_Base+p_index),
 						 0, 0b10) - HTABORG;
 
+#if !WS_LIBOGC3
 	LWP_MutexUnlock(vm_mutex);
+#endif
 
 	return 1;
 }
+
+#if WS_LIBOGC3
+#pragma pop_macro("DSISR")
+#pragma pop_macro("DAR")
+
+/* libogc v3 (tuxedo) calls PPCExcptCurPanicFn(exid, ctx) for every exception, with EE off.
+ * PPCExcptDefaultHandler (tuxedo/exception_asm.S) rfi's to ctx->pc when the panic function
+ * returns, so a DSI that vm_dsi_handler pages in is retried as-is. Anything else, or a DSI
+ * the VM does not own, goes to the panic function that was installed before us. */
+static PPCExcptPanicFn vm_panic_prev = NULL;
+
+static void vm_panic_hook(unsigned exid, PPCContext* ctx)
+{
+	if (exid == PPC_EXCPT_DSI && vm_dsi_handler(PPCMfspr(DSISR), PPCMfspr(DAR)))
+		return;
+	if (vm_panic_prev)
+		vm_panic_prev(exid, ctx);
+}
+
+static void vm_panic_install(void)
+{
+	if (PPCExcptCurPanicFn == vm_panic_hook)
+		return;
+	vm_panic_prev = PPCExcptCurPanicFn;
+	PPCExcptCurPanicFn = vm_panic_hook;
+}
+
+static void vm_panic_restore(void)
+{
+	/* if someone chained on top of the hook, leave it: it returns 0 once the VM is down */
+	if (PPCExcptCurPanicFn != vm_panic_hook)
+		return;
+	PPCExcptCurPanicFn = vm_panic_prev;
+	vm_panic_prev = NULL;
+}
+#endif

@@ -45,7 +45,7 @@ extern "C" void fileBrowser_DVD_shutdown(void);   /* fileBrowser-DVD.c */
 }
 #include "../../HidController/KernelHID.h"
 
-extern volatile char shutdown;
+extern volatile char ws_shutdown;
 
 /* The Quit log, sd:/wiistation/quit.log: one line per step of the way out, each written and
  * closed at once, so the last line survives a freeze that needs the power button (a Wii froze
@@ -172,7 +172,7 @@ void Gui::draw()
 	if (LoadingBar::getInstance().getActive()) LoadingBar::getInstance().drawLoadingBar(*gfx);
 	Cursor::getInstance().drawCursor(*gfx);
 
-	if(shutdown)
+	if(ws_shutdown)
 	{
 		Cursor::getInstance().setFreezeAction(true);
 		Focus::getInstance().setFreezeAction(true);
@@ -210,7 +210,7 @@ void Gui::draw()
 				mask32(0xd8006a8, 0, 2);
 			}
 #endif
-			if(shutdown==1)	//Power off System
+			if(ws_shutdown==1)	//Power off System
 				SYS_ResetSystem(SYS_POWEROFF, 0, 0);
 			else			//Return to Loader
 			{

@@ -38,7 +38,7 @@ extern int backFromMenu;
 extern char originalMode;
 #include "../hbc_home.h"
 extern BOOL hasLoadedISO;      /* GamecubeMain.cpp */
-extern volatile char shutdown;          /* GamecubeMain.cpp: 2 = back to the loader, through Gui.cpp's fade */
+extern volatile char ws_shutdown;          /* GamecubeMain.cpp: 2 = back to the loader, through Gui.cpp's fade */
 extern "C" void SysClose();
 
 MenuContext *pMenuContext;
@@ -147,7 +147,7 @@ bool MenuContext::isRunning()
 	if (hbc_home_menu_frame()) {
 		if (hasLoadedISO)
 			SysClose();
-		shutdown = 2;
+		ws_shutdown = 2;
 	}
 //	printf("MenuContext isRunning\n");
 

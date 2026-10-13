@@ -1,0 +1,37 @@
+diff --git a/source/wupc.c b/source/wupc.c
+index 75b8840..6a681f0 100644
+--- a/source/wupc.c
++++ b/source/wupc.c
+@@ -25,7 +25,7 @@
+ #include "wupc_structs.h"
+ #include "wupc/wupc.h"
+ 
+-extern __typeof(wiiuse_register) __real_wiiuse_register;
++extern __typeof(wiiuse_accept) __real_wiiuse_accept;
+ 
+ static vu32 __WUPC_ChannelsUsed = 0;
+ 
+@@ -143,12 +143,12 @@ int __WUPC_RegisterPad(struct WUPCStat *stat, struct bd_addr *_bdaddr)
+ 	bte_received(stat->sock, __WUPC_HandleData);
+ 	bte_disconnected(stat->sock, __WUPC_HandleDisconnect);
+ 
+-	bte_registerdeviceasync(stat->sock, _bdaddr, __WUPC_HandleConnect);
++	bte_listenasync(stat->sock, _bdaddr, __WUPC_HandleConnect);
+ 
+ 	return ERR_OK;
+ }
+ 
+-int __wrap_wiiuse_register(struct wiimote_listen_t *wml, struct bd_addr *bdaddr, struct wiimote_t *(*assign_cb)(struct bd_addr *bdaddr))
++int __wrap_wiiuse_accept(struct wiimote_listen_t *wml, struct bd_addr *bdaddr, const u8 *name, struct wiimote_t *(*assign_cb)(wiimote_listen *wml, u8 err))
+ {
+ 	if(__WUPC_Inited)
+ 	{
+@@ -164,7 +164,7 @@ int __wrap_wiiuse_register(struct wiimote_listen_t *wml, struct bd_addr *bdaddr,
+ 			}
+ 		}
+ 	}
+-	return __real_wiiuse_register(wml,bdaddr,assign_cb);
++	return __real_wiiuse_accept(wml,bdaddr,name,assign_cb);
+ }
+ 
+ void WUPC_Init()
