@@ -30,6 +30,16 @@
 - Drawing-area clipping (E3/E4) is applied through `GX_SetScissor` in top-origin coordinates,
   lifted around fills (GP0 02 ignores the drawing area), re-armed on E3/E4. Without it,
   polygons spill into the 8 rows above/below a 224-line drawing area inside a 240-line display.
+- A GP1 05 move by less than half the display is a nudge of one buffer, not a flip: Previous
+  follows the new position (gpuPlugin.c; not interlaced, whose InterlacedTest countdown needs
+  Previous != current; `bDisplayNudged` keeps bDrawFrontBuffer's vblank present). Before, CTR (BIOS display y 2, game 0) had its
+  displayed buffer drawn into the EFB 2 lines high, with VRAM rows 216-217 (fonts) as bottom
+  noise; the trace showed it as EA (0,2)-... uploads landing at ED (0,0). (2026-10-13)
+- `IsCompleteInsideNextScreen` (P.E.Op.S.) accepts a full-width fill covering only part of the
+  displayed height, and a "next screen" fill is not drawn: it becomes the clear after the
+  present. With display == previous (a game that never flips: Ape Escape's 480i intro clears
+  with two fills, rows 0-255 and 256-511) that left the old top half on the TV until the next
+  present ~60 vblanks later. Such a fill is now drawn when the game does not flip. (2026-10-13)
 
 ## VRAM readback (GlesGpu/gpuVramReadback.inc)
 

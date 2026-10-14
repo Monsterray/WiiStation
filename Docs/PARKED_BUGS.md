@@ -6,26 +6,45 @@ without doing the investigation a second time.
 
 ---
 
-## Gex 3: the LOADING picture after the Eidos logo is black (OpenGX) -- PARKED 2026-10-12
+## Gex 3: the LOADING picture after the Eidos logo is black (OpenGX) -- FIXED 2026-10-13
 
-Found by the per-game sweep (Soft vs OpenGX, the TV picture at the same vblanks:
-`.runs/sweep_xfb.sh`, sheets in `.runs/xs_sheets/`). Soft shows the snowman / Gex LOADING
-picture at vblanks 750 and 900; OpenGX shows black. Older than 2026-10-12: the build
-before that day's OpenGX changes is black too.
+Parked 2026-10-12, fixed 2026-10-13. Found by the per-game sweep (Soft vs OpenGX, the TV
+picture at the same vblanks: `.runs/sweep_xfb.sh`, sheets in `.runs/xs_sheets/`). Soft shows
+the snowman / Gex LOADING picture at vblanks 750 and 900; OpenGX showed black.
 
-**Reproduce.** `printf 'sd:/wiistation/isos/Gex 3 - Deep Cover Gecko\nGex 3 - Deep Cover
-Gecko [NTSC-U] [SLUS-00806].ccd\n' > ab.txt`; `wsx.sh run g3 --dol debug --secs 75 --fast
---autoboot ab.txt --input xfb8.txt --nodump --env XFB_RAM=1` with `xfb 750` / `xfb 900` lines.
+**Cause.** The picture is not drawn: it is two CPU image loads and nothing else for 300
+vblanks. The game double-buffers 0,0 / 0,256 until vblank 699, stops with the display at 0,0
+(so `PreviousPSXDisplay` = 0,256) and its drawing area in the displayed buffer: the plugin
+draws into the front buffer (`bDrawFrontBuffer`, gpuDraw.c), the EFB holds 0,0. At vblank 744
+it loads the picture at 0,0 512x256 and at 0,240 512x256 (two copies, VRAM rows 0-239 and
+240-479). `CheckWriteUpdateRect` (gpuPrim.c) still assumed the EFB holds the previous buffer:
+the 0,0 load only set `bNeedUploadAfter`, which waits for a flip that never came; the 0,240
+load was uploaded at the previous display's offset (VRAM rows 256-495 into the EFB, the
+picture 16 rows off) and `UploadWentToDisplay` is false for a 256-row jump, so no present was
+asked for. vramio showed it in one line: `745-1039 x295 F1 0,0 0x0 2 8` (iDrawnSomething 2 =
+upload only, 8 = drawing the displayed buffer, never 4 = presented). The trace at vblank 745
+in the parked entry was of the gameplay after 1040: a scheduled trace waits for the next
+present, and there was none in between.
 
-**Known (trace at vblank 745, `build debug all`, `trace 740`).** 15-bit display, double
-buffered (display 0,0 / 0,256 alternating, one present every frame, `EC -T--`), about 1400
-primitives a present (cmd 36/32/34/3e/3a, about half semi-transparent), 85 VRAM moves, two
-full-buffer image loads (0,0 512x256 and 0,240) before it, one of them uploaded (`EA`/`EB`).
-So the picture is drawn, not a still: unlike Spyro's logos (display-on fix, 2026-10-12).
+**Fix.** While `bDrawFrontBuffer`, `CheckWriteUpdateRect` uploads a load over the displayed
+buffer with `UploadScreen(TRUE)` and sets `needFlipEGL`, so the vblank presents it. A load
+over the other buffer is not put into the EFB (it holds the wrong buffer); it is kept
+(`hiddenLoad`) and uploaded when the EFB becomes that buffer: at a GP1 05 flip to it
+(`FrontModeHiddenLoadFlip`, from `updateDisplayGl`) or when the drawing area moves there
+(`FrontModeHiddenLoadToEfb`, from `SetOGLDisplaySettings`), before anything is drawn over it.
 
-**Next.** Frame-dump the presents around vblank 745 under both plugins; look at what the
-semi-transparent primitives blend over (a black clear after the loads? the mask bit?), and
-at the 85 moves (efb_sync misses in vramio `C1`).
+**Reproduce / check.** `printf 'sd:/wiistation/isos/Gex 3 - Deep Cover Gecko\nGex 3 - Deep
+Cover Gecko [NTSC-U] [SLUS-00806].ccd\n' > ab.txt`; `wsx.sh run g3 --dol debug --secs 75 --fast
+--autoboot ab.txt --input xfb8.txt --nodump --env XFB_RAM=1` with `xfb 750` / `xfb 900`
+lines. After the fix the picture at 750 and 900 differs from Soft's in 178 of 168000 pixels
+(the overlay text); before, in 162325.
+
+**Sweep (17 library games, OpenGX, the 8 xfb8 pictures vs the 5.12.1 references).** No new
+black or garbage picture; all pictures within 231 changed pixels (the overlay) except Gex 3 at
+750/900 (now the picture), Crash Bash at 300 (the SCEA "Presents" logo, black before this fix
+and on 81263ce, now as Soft) and Spyro at 150-450 (its logos, already fixed on main by
+d9af5fa). Drawing into the front buffer is common (vramio F1 b&8 in 11 of the 17 games), so
+the sweep covers the new path.
 
 ---
 

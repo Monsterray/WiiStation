@@ -16,7 +16,8 @@
 #        --fast                     Dolphin as fast as the PC allows (about 2x): frames and guest
 #                                   time are unchanged, and SoundRateControl=0 SoundTempo=0 make
 #                                   the audio dump bit-identical to a normal-speed run (with the
-#                                   rate control on, no two Dolphin runs agree, at any speed).
+#                                   rate control on, two Dolphin runs agree for a minute or two at
+#                                   best: skill references/measuring.md, scripts/aq_cmp.py).
 #                                   --secs is wall time, so a fast run covers about twice the game.
 #        --autoboot spyro|bios|none which autoboot file (default spyro)
 #        --env VAR=VALUE            extra environment for dolphin_run.sh (CACHE=1, XFB_RAM=1 ...)

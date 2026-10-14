@@ -1,0 +1,6 @@
+CHAIN
+# Spyro through the level-intro speech (scripts/autoinput/spyro_speech.txt) to vblank 5400, rate
+# control on: the audio-determinism check (two runs: vsig, perf.log "state:" spu_hash, aq_01.bin).
+5400 sd:/wiistation/spyro_speech.txt
+sd:/wiistation/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue

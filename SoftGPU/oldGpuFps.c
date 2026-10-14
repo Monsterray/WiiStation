@@ -116,19 +116,35 @@ void OldGpuCheckFrameRate(void)
  long long gettime(void);
  unsigned int diff_usec(long long start,long long end);
 
-/* Time-base ticks to microseconds as ticks * 2^24 / clock-in-MHz. diff_usec() divides a u64,
- * a libgcc call (__udivdi3) on this CPU, and the limiter's final spin calls this in a loop
- * (hprof, 2026-10-01). 0.6 ppm low; no overflow before 12 days. This file cannot include
- * <ogc/lwp_watchdog.h> (it clashes with the plugin's types), so the clocks are written out. */
+/* Time-base ticks to the limiter's 10 us ticks as ticks * 2^28 / (ticks per 10 us), counted
+ * from the first call. diff_usec() divides a u64, a libgcc call (__udivdi3) on this CPU, and
+ * the limiter's final spin calls this in a loop (hprof, 2026-10-01). This file cannot include
+ * <ogc/lwp_watchdog.h> (it clashes with the plugin's types), so the clocks are written out.
+ *
+ * Until 2026-10-13 this was (unsigned)((gettime() * 276168) >> 24) / 10, written for a time
+ * base that starts at zero. It does not: libogc sets it from the RTC at start-up (seconds
+ * since 2000 at 60.75 MHz, __SYS_SetBootTime; Dolphin the same), so the product overflowed
+ * 64 bits from the first call, and the microseconds were cut to 32 bits BEFORE the divide:
+ * every 2^32 us (71.6 minutes, at a phase the clock sets) the tick fell back by 429496729,
+ * which is not a multiple of the 2^24 FrameCap's differences wrap at. FrameCap took the jump
+ * for a stall of about a minute, dropped it, and ran the bounded debt (125 ms) unthrottled:
+ * the sound ring overflowed and played the rest 125 ms later against the picture, which the
+ * rate control then pulled back at up to +0.5 % for ~50 s. Two Dolphin runs booted in
+ * different seconds parted there even with the rate control off (perf.log limit debt_drops,
+ * aq_cmp.py). Counted from the first call the tick is continuous modulo 2^32, a power of two
+ * the masked differences absorb, for 7.9 days of uptime; 0.14 ppm low. */
 #ifdef HW_RVL
-#define TB_US_MUL 276168ULL   /* 60.75 MHz */
+#define TB_10US_MUL 441869ULL   /* 2^28 / 607.5: 60.75 MHz */
 #else
-#define TB_US_MUL 414252ULL   /* 40.5 MHz */
+#define TB_10US_MUL 662804ULL   /* 2^28 / 405: 40.5 MHz */
 #endif
 
 unsigned long timeGetTime()
 {
- return (unsigned)(((unsigned long long)gettime() * TB_US_MUL) >> 24) / 10;
+ static unsigned long long tb0;
+ unsigned long long t = (unsigned long long)gettime();
+ if (!tb0) tb0 = t;
+ return (unsigned)(((t - tb0) * TB_10US_MUL) >> 28);
 }
 
 extern int newDwFrameRateTicks;
@@ -211,6 +227,13 @@ void FrameCap (void)
   {
    /* a long stall, or a wrap of the tick counter: keep only the bounded debt */
    due256 = (unsigned long)(now - FRAMECAP_MAX_DEBT_TICKS) << 8;
+#ifdef PERF_PROF
+   if (!g_perf.limit_drop_tb) {         /* the first drop: when, and what the tick did */
+     g_perf.limit_drop_tb = (unsigned long long)gettime();
+     g_perf.limit_drop_now = now;
+     g_perf.limit_drop_due = due;
+   }
+#endif
    late = FRAMECAP_MAX_DEBT_TICKS;
    PERF_INC(limit_debt_drops);
   }

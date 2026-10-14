@@ -639,8 +639,16 @@ typedef struct {
 	uint32_t rate_sat;            /* updates whose demand exceeded +-RATECTL_MAX_PPM */
 	uint32_t rate_changes;        /* AESND voice frequency writes (DSP path) */
 	uint32_t rate_prefill;        /* output frames of silence before the queue first reached its target */
+	/* The audio stream on both sides of the output resampler (resample.c resample_feed), as a
+	 * frame count and an FNV-1a hash of the samples: the mixer's side is emulated output and
+	 * must be the same in two runs of one input; the resampled side follows the rate control,
+	 * which steers by Wii time, and may differ. perf.log "state:" at a chained game's end. */
+	uint32_t spu_feed_frames, spu_feed_hash;
+	uint32_t rs_out_frames, rs_out_hash;
 	uint32_t limit_debt_max;      /* FrameCap: largest debt carried, 100 us ticks */
 	uint32_t limit_debt_drops;    /* FrameCap: stalls longer than the debt bound, remainder dropped */
+	uint64_t limit_drop_tb;       /* the first drop: Wii time base, and the limiter's tick then and due */
+	uint32_t limit_drop_now, limit_drop_due;
 
 	/* Audio timeline: one record per XA sector (F, R = stream start), gap start (G), first
 	 * repeated sample (H) and a mixer heartbeat every 16th SPU_async (S). Recording starts at
@@ -759,6 +767,11 @@ void perf_vram_event(unsigned kind, int x, int y, int w, int h, int a, int b);
 void perf_tty(const char *s);   /* the run's console text, for sd:/wiistation/tty.log */
 void perf_vtl_flush(int game);  /* the per-vblank timeline, to sd:/wiistation/vtl_NN.bin */
 void perf_state_log(int game);  /* guest RAM/VRAM hashes at a chained game's end: perf.log "state:" */
+/* One record per output-driver request (sdl.c callback, cube.c feed): where the mixer was
+ * when the Wii asked, to aq_NN.bin at a chained game's end (scripts/aq_cmp.py). */
+void perf_aq_log(unsigned queued, int ppm);
+static inline unsigned perf_fnv(unsigned h, const short *s, int n)
+{ while (n-- > 0) h = (h ^ (unsigned short)*s++) * 16777619u; return h; }
 void perf_stack_log(const char *where);   /* the main thread's deepest stack use: perf.log "stack:" */
 void perf_fatal_log(unsigned code, const char *reason);   /* ws_fatal: perf.log "fatal:" */
 void perf_ram_write(char who, unsigned madr, unsigned bytes);   /* "ramwatch": a DMA or HLE copy into guest RAM */
@@ -795,6 +808,7 @@ void perf_pad_event(unsigned pad, unsigned type, unsigned drv_btns, unsigned drv
 #define PERF_SET(f, v) ((void)(v))
 #define PERF_MAX(f, v) ((void)(v))
 #define perf_audio_event(k, cy, a, b, c) ((void)0)
+#define perf_aq_log(q, ppm) ((void)0)
 static inline unsigned long long perf_now_us(void) { return 0; }
 static inline unsigned long long perf_now_ticks(void) { return 0; }
 static inline void perf_reset(void) {}
