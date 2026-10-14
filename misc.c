@@ -36,6 +36,7 @@
 #include "dfsound/externals.h"
 #include "database.h"
 #include "Gamecube/perf_prof.h"
+#include "mem2_manager.h"   /* save-state buffers */
 
 int Log = 0;
 
@@ -812,7 +813,7 @@ int SaveStateFile(const char *filename) {
 	gzwrite(f, (void*)&psxRegs, offsetof(psxRegisters, gteBusyCycle));
     STATE_BAR(0.70f, SAVE_STATE_MSG);
 	// gpu
-	gpufP = (GPUFreeze_t *) malloc(sizeof(GPUFreeze_t));
+	gpufP = (GPUFreeze_t *) _mem2_malloc(sizeof(GPUFreeze_t));   /* MEM2: see SPU below */
 	if (!gpufP) {
 		gzclose(f);
 		continueRemovalThread();
@@ -821,7 +822,7 @@ int SaveStateFile(const char *filename) {
 	gpufP->ulFreezeVersion = 1;
 	gpuPtr->freeze(1, gpufP);
 	gzwrite(f, gpufP, sizeof(GPUFreeze_t));
-	free(gpufP);
+	_mem2_free(gpufP);
 	// When using the lightrec core at that time, the memory of WiiStation was already less than 2MB
     // so the VRAM data was directly saved to file
 	gzwrite(f, &psxVub[0], 1024 * iGPUHeight * 2);
@@ -836,7 +837,7 @@ int SaveStateFile(const char *filename) {
 	SPU_freeze(2, spufP, psxRegs.cycle);
 	Size = spufP->ulFreezeSize; gzwrite(f, &Size, 4);
 	free(spufP);
-	spufP = (SPUFreeze_t *) malloc(Size);
+	spufP = (SPUFreeze_t *) _mem2_malloc(Size);   /* MEM2: with a CHD's decode-ahead open, MEM1 had 772 KB left and saves failed (bench Wii, 2026-10-13) */
 	if (!spufP) {
 		gzclose(f);
 		continueRemovalThread();
@@ -844,7 +845,7 @@ int SaveStateFile(const char *filename) {
 	}
 	SPU_freeze(1, spufP, psxRegs.cycle);
 	gzwrite(f, spufP, Size);
-	free(spufP);
+	_mem2_free(spufP);
     STATE_BAR(0.90f, SAVE_STATE_MSG);
 
 	sioFreeze(f, 1);
@@ -987,18 +988,18 @@ int LoadStateFile(const char *filename, int force) {
 		psxBiosFreeze(0);
 
 	// gpu
-	gpufP = (GPUFreeze_t *) malloc (sizeof(GPUFreeze_t));
+	gpufP = (GPUFreeze_t *) _mem2_malloc(sizeof(GPUFreeze_t));   /* MEM2, as in SaveState */
 	if (!gpufP) {
 		gzclose(f);
 		continueRemovalThread();
 		return -1;
 	}
 	if (gzread(f, gpufP, sizeof(GPUFreeze_t)) != (int)sizeof(GPUFreeze_t) && !force) {
-		free(gpufP);
+		_mem2_free(gpufP);
 		return stateTruncated(f);
 	}
 	gpuPtr->freeze(0, gpufP);
-	free(gpufP);
+	_mem2_free(gpufP);
 	// gpu VRAM load (load directly to save memory)
 	STATE_READ(&psxVub[0], 1024 * iGPUHeight * 2);
 	gpuSyncPluginSR();
@@ -1016,18 +1017,18 @@ int LoadStateFile(const char *filename, int force) {
 		}
 		Size = 16 * 1024;   /* the file is not to be trusted; take a small, safe amount */
 	}
-	spufP = (SPUFreeze_t *) malloc (Size);
+	spufP = (SPUFreeze_t *) _mem2_malloc(Size);   /* MEM2, as in SaveState */
 	if (!spufP) {
 		gzclose(f);
 		continueRemovalThread();
 		return -1;
 	}
 	if (gzread(f, spufP, Size) != Size && !force) {
-		free(spufP);
+		_mem2_free(spufP);
 		return stateTruncated(f);
 	}
 	SPU_freeze(0, spufP, psxRegs.cycle);
-	free(spufP);
+	_mem2_free(spufP);
     STATE_BAR(0.99f, LOAD_STATE_MSG);
 
 	sioFreeze(f, 0);
