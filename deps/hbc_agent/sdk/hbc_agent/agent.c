@@ -487,6 +487,8 @@ static s32 status_json(char *buf, size_t size) {
 	if (agent_overlay_state)
 		n += agent_overlay_state(buf + n, size - n);
 	n += safety_json(buf + n, size - n);
+	// The Wii's clock, the one file times (op L, S) come from.
+	n += snprintf(buf + n, size - n, ",\"time\":%lld", (long long) time(NULL));
 	n += snprintf(buf + n, size - n, ",\"tcp_last_failure\":\"%s\"}", tcp_last_failure());
 	return n;
 }
@@ -1109,6 +1111,8 @@ s32 hbc_agent_init(const hbc_agent_config *config) {
 		net_init_async(NULL, NULL);
 
 	stack = memalign(32, AGENT_STACK);
+	if (stack)
+		memset(stack, 0, AGENT_STACK);   // stack_used() finds the lowest non-zero byte
 	res = stack ? LWP_CreateThread(&thread, agent_thread, (void *) gen, stack, AGENT_STACK,
 								   cfg.priority) : -ENOMEM;
 	if (res) {

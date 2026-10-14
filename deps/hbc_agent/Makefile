@@ -1,5 +1,5 @@
 # libhbcagent.a for WiiStation: the Homebrew Channel's in-app agent (sdk/hbc_agent.h), from
-# hbc-reborn commit b774f54 (HBC 1.10.4), built against the same libogc as the rest of WiiStation
+# hbc-reborn commit 6ee1c07 (HBC 1.10.6), built against the same libogc as the rest of WiiStation
 # (libogc v3 by default since 5.13.0, libogc2 with LIBOGC=2). The files are hbc-reborn's, unchanged: since HBC 1.8.3 the agent knows
 # libogc2 itself (sdk/hbc_agent/ogc_flavor.h), and its crash hook is an assembly entry
 # (ogc_exc.S) as libogc2's exception table needs -- tested on the bench Wii in HBC 1.8.5.
