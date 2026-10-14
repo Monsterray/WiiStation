@@ -2621,6 +2621,12 @@ static void CheckWriteUpdateRect(void);
  * (CheckWriteUpdateRect, bDrawFrontBuffer): VRAM rect, uploaded at the next flip */
 static struct { short x0, y0, x1, y1; int pending; } hiddenLoad;
 
+/* the plugin reset at a game load: a load the last game left pending is not this game's */
+static void FrontModeHiddenLoadReset(void)
+{
+    hiddenLoad.pending = 0;
+}
+
 /* updateDisplayGl at a GP1 05 flip, before the present: if the display flipped to the
  * buffer such a load went to, the EFB (still the other buffer) gets it now */
 static void FrontModeHiddenLoadFlip(void)
