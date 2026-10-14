@@ -734,11 +734,15 @@ static float  fps_cur  = 0;
 
 static unsigned long timeGetTime()
 {
-    /* the same multiply as SoftGPU/oldGpuFps.c timeGetTime(), not diff_usec()'s u64 divide */
+    /* the same tick as SoftGPU/oldGpuFps.c timeGetTime(), which says why it counts from the
+     * first call (the time base starts at the RTC, not at zero) */
+    static unsigned long long tb0;
+    unsigned long long t = (unsigned long long)gettime();
+    if (!tb0) tb0 = t;
 #ifdef HW_RVL
-    return (unsigned)(((unsigned long long)gettime() * 276168ULL) >> 24) / 10;
+    return (unsigned)(((t - tb0) * 441869ULL) >> 28);
 #else
-    return (unsigned)(((unsigned long long)gettime() * 414252ULL) >> 24) / 10;
+    return (unsigned)(((t - tb0) * 662804ULL) >> 28);
 #endif
 }
 

@@ -40,7 +40,11 @@
 static short hist[4][2];
 static unsigned int phase;
 /* Input frames per output frame in 16.16: SINC (44100/48000) plus the rate control's nudge
- * (resample_set_ppm). Written from the output driver's thread, read here; a 32-bit store. */
+ * (resample_set_ppm). Written from the output driver's thread, read here; a 32-bit store.
+ * resample_feed reads it once per call: a nudge that arrives while a block is being converted
+ * applies from the next block, not from whichever sample the converter had reached when the
+ * driver's thread ran. That sample is wall-clock timing: two Dolphin runs with the same ppm
+ * sequence had different output from the first sound (aq_cmp.py, 2026-10-13). */
 static volatile unsigned int step = SINC;
 
 /* The mixer hands over up to a frame's worth of audio at a time (a few thousand frames);
@@ -116,7 +120,7 @@ static inline short interp(int mode, int x0, int x1, int x2, int x3, unsigned in
 
 /* Convert in_frames input frames, appending to out; returns output frames written. The
  * history carries across calls so the stream is seamless. */
-static int run(const short *in, int in_frames, short *out, int max_out, int mode)
+static int run(const short *in, int in_frames, short *out, int max_out, int mode, unsigned int st)
 {
     int n = 0;
 
@@ -130,7 +134,7 @@ static int run(const short *in, int in_frames, short *out, int max_out, int mode
             out[2 * n]     = interp(mode, hist[0][0], hist[1][0], hist[2][0], hist[3][0], phase);
             out[2 * n + 1] = interp(mode, hist[0][1], hist[1][1], hist[2][1], hist[3][1], phase);
             n++;
-            phase += step;
+            phase += st;
         }
         phase -= 0x10000;
     }
@@ -140,8 +144,13 @@ static int run(const short *in, int in_frames, short *out, int max_out, int mode
 void resample_feed(const short *in, int frames)
 {
     unsigned long long t0;
+    unsigned int st;
     int mode;
 
+#ifdef PERF_PROF
+    g_perf.spu_feed_hash = perf_fnv(g_perf.spu_feed_hash, in, frames * 2);
+    g_perf.spu_feed_frames += frames;
+#endif
     if (!resample_active()) {
         out_current->feed((void *)in, frames * 4);
         return;
@@ -149,9 +158,14 @@ void resample_feed(const short *in, int frames)
 
     t0 = perf_now_ticks();
     mode = soundResampler;
+    st = step;
     while (frames > 0) {
         int chunk = frames > CHUNK_IN ? CHUNK_IN : frames;
-        int n = run(in, chunk, outbuf, CHUNK_OUT, mode);
+        int n = run(in, chunk, outbuf, CHUNK_OUT, mode, st);
+#ifdef PERF_PROF
+        g_perf.rs_out_hash = perf_fnv(g_perf.rs_out_hash, outbuf, n * 2);
+        g_perf.rs_out_frames += n;
+#endif
         out_current->feed(outbuf, n * 4);
         in     += chunk * 2;
         frames -= chunk;
