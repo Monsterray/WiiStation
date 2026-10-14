@@ -399,6 +399,33 @@ static int pf_secbytes;                      /* bytes per sector in this image: 
 static long pf_filepos = -1;                 /* where pf_handle's stream is, to skip redundant seeks */
 static char cd_main_path[MAXPATHLEN];        /* the file cdHandle is open on (the .bin may differ from the .cue) */
 
+#ifdef PERF_PROF
+#include <malloc.h>
+/* debug: MEM1 at points of the read-ahead's life; printed (tty.log) when it stops */
+static struct { unsigned a1, arena, used, freeb; } pf_mem[8];
+static const char *pf_mem_name[8] = { "start", "fopen", "thread", "fetch1", "fetch32", "stop", "freed", "chdopen" };
+static int pf_nfetch;
+static void pf_mem_snap(int k)
+{
+	struct mallinfo mi = mallinfo();
+	pf_mem[k].a1 = SYS_GetArena1Size() >> 10;
+	pf_mem[k].arena = mi.arena >> 10;
+	pf_mem[k].used = mi.uordblks >> 10;
+	pf_mem[k].freeb = mi.fordblks >> 10;
+}
+static void pf_mem_print(void)
+{
+	int k;
+	for (k = 0; k < 8; k++)
+		SysPrintf("pfmem: %-7s arena1_free=%u heap=%u used=%u free_in_heap=%u KB\n", pf_mem_name[k],
+			pf_mem[k].a1, pf_mem[k].arena, pf_mem[k].used, pf_mem[k].freeb);
+	memset(pf_mem, 0, sizeof pf_mem);
+}
+#define PF_MEM(k) pf_mem_snap(k)
+#else
+#define PF_MEM(k) ((void)0)
+#endif
+
 static int pf_read_at(long pos, unsigned char *dst)
 {
 	if (pos != pf_filepos && fseek(pf_handle, pos, SEEK_SET)) {
@@ -415,7 +442,8 @@ static int pf_read_at(long pos, unsigned char *dst)
 
 #define DA_CBUF_BYTES (CD_FRAMESIZE_RAW * 16 + 100)   /* = sizeof compr_img->buff_compressed */
 static unsigned char *pf_cbuf;               /* decode-ahead: one compressed block, after the slots */
-static z_stream pf_z;                        /* decode-ahead: the thread's own inflate state */
+static z_stream pf_z;                        /* decode-ahead: the thread's own inflate state (MEM2: pf_zalloc) */
+static void *pf_stack;                       /* the thread's stack, MEM2 */
 #ifdef USE_LIBCHDR
 static chd_file *pf_chd;                     /* decode-ahead: the thread's own CHD, on pf_handle */
 #endif
@@ -452,9 +480,12 @@ static int pf_compr_fetch(long block, unsigned char *dst)
 /* Decode-ahead, CHD: a second chd_file on the thread's own handle, opened on first use. */
 static int pf_chd_fetch(long hunk, unsigned char *dst)
 {
-	if (pf_chd == NULL && chd_open_file(pf_handle, CHD_OPEN_READ, NULL, &pf_chd) != CHDERR_NONE) {
-		pf_chd = NULL;
-		return 0;
+	if (pf_chd == NULL) {
+		if (chd_open_file(pf_handle, CHD_OPEN_READ, NULL, &pf_chd) != CHDERR_NONE) {
+			pf_chd = NULL;
+			return 0;
+		}
+		PF_MEM(7);
 	}
 	return chd_read(pf_chd, (uint32_t)hunk, dst) == CHDERR_NONE;
 }
@@ -478,6 +509,26 @@ static void pf_free(void)
 		_mem2_free(pf_data);
 		pf_data = NULL;
 	}
+	if (pf_stack) {
+		_mem2_free(pf_stack);
+		pf_stack = NULL;
+	}
+}
+
+/* Everything the thread allocates goes to MEM2 (this, the stack, and libchdr: chdr_malloc
+ * below). In MEM1 the decode-ahead cost a game 700-900 KB of the newlib heap on the bench
+ * Wii (perf.log ram: mem1_free_kb, CHD, PBP and CBN alike): what it allocated at the heap's
+ * top while a game loaded kept the heap from shrinking back, and save states then failed. */
+static voidpf pf_zalloc(voidpf opaque, uInt items, uInt size)
+{
+	(void)opaque;
+	return _mem2_malloc(items * size);
+}
+
+static void pf_zfree(voidpf opaque, voidpf p)
+{
+	(void)opaque;
+	_mem2_free(p);
 }
 
 static void *pf_main(void *arg)
@@ -507,6 +558,12 @@ static void *pf_main(void *arg)
 				PF_BUSY(0);
 				pf_tag[i] = next;
 				PERF_INC(cd_pf_reads);
+#ifdef PERF_PROF
+				if (++pf_nfetch == 1)
+					PF_MEM(3);
+				else if (pf_nfetch == 32)
+					PF_MEM(4);
+#endif
 			}
 			next += pf_secbytes;
 		}
@@ -519,6 +576,42 @@ int cd_prefetch_thread_is_self(void)
 {
 	return pf_thread != LWP_THREAD_NULL && LWP_GetSelf() == pf_thread;
 }
+
+#ifdef USE_LIBCHDR
+/* libchdr allocates through these (deps/libchdr/include/libchdr/wii_alloc.h): MEM2, both
+ * the emulator's chd_file and the decode-ahead thread's. A CHD's map, hunk cache and codec
+ * state are 0.4-0.8 MB each (Dolphin, MediEvil: +764 KB of MEM1 for the thread's
+ * chd_open_file). MEM1 only when MEM2 is full; chdr_free tells them apart by address. */
+#define CHDR_IN_MEM2(p) ((uintptr_t)(p) >= 0x90000000u)
+void *chdr_malloc(size_t n)
+{
+	void *p = _mem2_malloc(n);
+	return p ? p : malloc(n);
+}
+
+void *chdr_calloc(size_t n, size_t s)
+{
+	void *p = chdr_malloc(n * s);
+	if (p)
+		memset(p, 0, n * s);
+	return p;
+}
+
+void chdr_free(void *p)
+{
+	if (CHDR_IN_MEM2(p))
+		_mem2_free(p);
+	else
+		free(p);
+}
+
+void *chdr_realloc(void *p, size_t n)
+{
+	if (p != NULL && !CHDR_IN_MEM2(p))
+		return realloc(p, n);
+	return p ? _mem2_realloc(p, n) : chdr_malloc(n);
+}
+#endif
 
 static void pf_kick(long pos)
 {
@@ -574,12 +667,17 @@ static void pf_stop(void)
 	pf_active = 0;
 	pf_late = 0;
 	pf_quit = 1;
+	PF_MEM(5);
 	LWP_SemPost(pf_sem);
 	LWP_JoinThread(pf_thread, NULL);
 	pf_thread = LWP_THREAD_NULL;
 	LWP_SemDestroy(pf_sem);
 	pf_sem = LWP_SEM_NULL;
 	pf_free();
+	PF_MEM(6);
+#ifdef PERF_PROF
+	pf_mem_print();
+#endif
 }
 
 static void pf_start(const char *path, int secbytes, int slotbytes, int nslots, int (*fetch)(long, unsigned char *))
@@ -601,8 +699,13 @@ static void pf_start(const char *path, int secbytes, int slotbytes, int nslots, 
 	while (nslots & (nslots - 1))
 		nslots &= nslots - 1;       /* a power of two: the thread's scan indexes a slot per step, and a
 		                             * divide there cost every raw-image read 2 us in Dolphin */
+#ifdef PERF_PROF
+	pf_nfetch = 0;
+#endif
+	PF_MEM(0);
 	pf_data = (unsigned char *)_mem2_memalign(32, nslots * slotbytes + extra);
 	pf_handle = fopen(path, "rb");
+	PF_MEM(1);
 	if (pf_data == NULL || pf_handle == NULL || nslots < 2) {
 		SysPrintf("cdriso: prefetch not started\n");
 		goto fail;
@@ -611,6 +714,8 @@ static void pf_start(const char *path, int secbytes, int slotbytes, int nslots, 
 	for (i = 0; i < nslots; i++)
 		pf_tag[i] = -1;
 	pf_cbuf = pf_data + nslots * slotbytes;
+	pf_z.zalloc = pf_zalloc;        /* uncompress2_pcsx keeps them (pf_free's end clears them) */
+	pf_z.zfree = pf_zfree;
 	pf_nslots = nslots;
 	pf_slotbytes = slotbytes;
 	pf_fetch = fetch;
@@ -620,14 +725,18 @@ static void pf_start(const char *path, int secbytes, int slotbytes, int nslots, 
 	pf_quit = 0;
 	if (LWP_SemInit(&pf_sem, 0, 1) != 0)
 		goto fail;
-	/* 64 KB for the decoders (libchdr's LZMA/zstd/FLAC run on this stack) */
-	if (LWP_CreateThread(&pf_thread, pf_main, NULL, NULL, extra ? 64 * 1024 : 16 * 1024,
+	/* 64 KB for the decoders (libchdr's LZMA/zstd/FLAC run on this stack), in MEM2 */
+	pf_stack = _mem2_memalign(32, extra ? 64 * 1024 : 16 * 1024);
+	if (pf_stack == NULL)
+		goto fail;
+	if (LWP_CreateThread(&pf_thread, pf_main, NULL, pf_stack, extra ? 64 * 1024 : 16 * 1024,
 			fetch == pf_read_at ? PF_PRIO : DA_PRIO) != 0) {
 		LWP_SemDestroy(pf_sem);
 		pf_sem = LWP_SEM_NULL;
 		goto fail;
 	}
 	pf_active = 1;
+	PF_MEM(2);
 	return;
 fail:
 	pf_free();
@@ -1715,11 +1824,9 @@ static int uncompress2_pcsx(z_stream *zp, void *out, unsigned long *out_size, vo
 {
 	int ret = 0;
 
-	if (zp->zalloc == NULL) {
+	if (zp->state == Z_NULL) {      /* zalloc/zfree: zlib's (NULL) or the caller's (pf_z) */
 		zp->next_in = Z_NULL;
 		zp->avail_in = 0;
-		zp->zalloc = Z_NULL;
-		zp->zfree = Z_NULL;
 		zp->opaque = Z_NULL;
 		ret = inflateInit2(zp, -15);
 	}
@@ -1741,7 +1848,7 @@ static int uncompress2_pcsx(z_stream *zp, void *out, unsigned long *out_size, vo
 
 static void uncompress2_pcsx_end(z_stream *zp)
 {
-	if (zp->zalloc != NULL) {
+	if (zp->state != Z_NULL) {
 		inflateEnd(zp);
 		memset(zp, 0, sizeof(*zp));
 	}

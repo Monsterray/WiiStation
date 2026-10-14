@@ -36,6 +36,19 @@ update must keep them: libsmb2's own Wii port had never run.
   while IOS has data. Counters for the perf report (`smb2_wii_count`).
 - `lib/sync.c`: the poll error says its errno.
 
+## libchdr patches (deps/libchdr)
+
+- `include/libchdr/wii_alloc.h` (new), forced into every source by `Makefile.wii`
+  (`-include`): `malloc`/`calloc`/`realloc`/`free` become `chdr_malloc` etc., defined in
+  `cdriso.c` on the MEM2 heap (MEM1 only if MEM2 is full; `chdr_free` tells them apart by
+  address). A CHD's map, hunk cache and codec state are 0.4-0.8 MB per open file, and the
+  decode-ahead thread opens a second one (2026-10-13: 300 KB of MEM1 left on the bench Wii,
+  save states failed).
+- `src/libchdr_chd.c` `zstd_codec_init`: `ZSTD_createDStream_advanced(chdr_zstd_mem)`, as zstd
+  allocates with its own malloc otherwise.
+- `Makefile.wii`: the objects depend on `wii_alloc.h` and the makefile too, so a change to
+  either rebuilds them (a stale archive links silently).
+
 ## How each choice is made
 
 **CPU core.** `psxCpuSelect()` is the only mapping from the setting to a core; `psxInit()`,
