@@ -193,6 +193,8 @@ static BOOL    skipPreviousDisplayCheckOnce = FALSE;
 static short   texChgType = 0;
 
 static void efb_reset(void);   /* efbSync.inc, used by gpuDraw.c */
+static int FrontModeHiddenLoadToEfb(void);   /* gpuPrim.c, used by gpuDraw.c */
+static void FrontModeHiddenLoadReset(void);  /* gpuPrim.c */
 static inline unsigned short ReadGXRGB5A3PixelRaw(
     const unsigned char *buf, int texWidth, int px, int py);
 static inline unsigned short GXRGB5A3ToPSX15(unsigned short gx);
@@ -298,6 +300,7 @@ bNeedInterlaceUpdate = bNeedRGB24Update = FALSE;
 bNeedUploadAfter = bNeedUploadTest = bNeedWriteUpload = FALSE;
 needUploadScreen = uploadedScreen = skipPreviousDisplayCheckOnce = FALSE;
 RGB24Uploaded = 0;
+FrontModeHiddenLoadReset();
 GPUupdateLace5Flg = 0;
 iLastRGB24 = 0;
 clearMovieGarbageFlg = clearMovieGarbageCnt = 0;
@@ -485,6 +488,7 @@ if (flip05Pending)
  {
   flip05Pending = 0;
   skipPreviousDisplayCheckOnce = TRUE;
+  FrontModeHiddenLoadFlip();          /* gpuPrim.c: a load into the buffer flipped to */
  }
 
 

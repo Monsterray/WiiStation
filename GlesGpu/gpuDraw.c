@@ -1327,6 +1327,13 @@ void SetOGLDisplaySettings(BOOL DisplaySet)
                      ax>=dx && ax<dx+w && ay>=dy && ay<dy+h &&
                      !(ax>=px && ax<px+w && ay>=py && ay<py+h);
  }
+ /* the EFB is the previous buffer again: an image load made there while it was the
+  * displayed one goes in first (gpuPrim.c), then the state is set up anew */
+ if(!bDrawFrontBuffer && FrontModeHiddenLoadToEfb())
+  {
+   SetOGLDisplaySettings(1);
+   return;
+  }
  PSXDisplay.GDrawOffset.y = bDrawFrontBuffer ? PSXDisplay.DisplayPosition.y : PreviousPSXDisplay.DisplayPosition.y;
  PSXDisplay.GDrawOffset.x = bDrawFrontBuffer ? PSXDisplay.DisplayPosition.x : PreviousPSXDisplay.DisplayPosition.x;
  PSXDisplay.CumulOffset.x = PSXDisplay.DrawOffset.x - PSXDisplay.GDrawOffset.x+PreviousPSXDisplay.Range.x0;
