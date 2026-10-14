@@ -452,7 +452,24 @@ audio dump is bit-identical too. `--secs` stays wall time: a fast run covers abo
 chains end on their own vblank counts, so they are unaffected.
 
 Why rate control is off: its ppm nudge follows the ring fill when the Wii audio callback fires, and
-that interleaving is not reproducible under Dolphin. Two NORMAL-speed runs with it on part about
-10.4 s into Spyro speech (largest step 6062), more than normal vs fast did (3091). Ruled out as the
-cause: Dolphin dual core and the DSP thread (CPUThread=False + DSPThread=False still differ), the
-HBC agent listener (off: still differ). The leak is still unknown.
+that interleaving is not exactly reproducible under Dolphin (the callback lands a tick or a few PSX
+cycles apart between runs, even single-core with a fixed RTC). Settled 2026-10-13 (try/audio-sync,
+`scripts/chains/spyro_speech.txt`, debug probes below): host timing does NOT reach the emulated
+side. Two rate-controlled runs agree on every vblank's vsig, on the final RAM/VRAM hashes and on
+the hash of every frame the mixer fed the resampler (perf.log `state: ... spu_hash=`); only the
+resampled output (`out_hash=`) differed. Three things made it part early, two fixed:
+- the resampler applied a new nudge at whichever sample it had reached when the callback ran
+  (now once per `resample_feed`), and the ring's write index was published per frame, so the
+  callback read a half-written feed (now once per feed). Before: output parted at the first
+  sound (10.3 s); after: debug runs identical for all 5400 vblanks, release runs to 122 s.
+- `timeGetTime()` (the limiter's tick) jumped every 2^32 us of the RTC-based time base (71.6 min,
+  phase set by the boot second): FrameCap dropped a "stall", ran 125 ms ahead, the ring overflowed.
+  Runs booted in different seconds then parted even with the rate control OFF (main: 33 s with
+  `CustomRTCValue=1000002521` vs `1000000000`). Fixed: the tick counts from its first call.
+What remains is the callback crossing a feed boundary by a tick: a rate-controlled release pair
+can still part after a minute or two, by a few LSB. Keep `SoundRateControl=0 SoundTempo=0` for
+`wsx.sh audio`. Probes: `aq_NN.bin` (one record per SDL callback: vblank, cycle, mixer frames,
+queue, ppm, Wii time, resampler output so far) and `scripts/aq_cmp.py A [B]` (latency, ppm range,
+emulated/Wii drift; with two files the first request where they part); perf.log `state: ... tb=
+limit_drop_tb=` (the first limiter debt drop). Pin Dolphin's clock for a repeatable boot with
+`--env "DOLPHIN_ARGS=-C Dolphin.Core.EnableCustomRTC=True -C Dolphin.Core.CustomRTCValue=N"`.

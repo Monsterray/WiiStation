@@ -110,6 +110,7 @@ static void SOUND_FillAudio(void *unused, Uint8 *stream, int len) {
         if (queued < SDL_TARGET_FRAMES) {
             memset(stream, 0, len * 2 * sizeof(int16_t));
             PERF_ADD(rate_prefill, len);
+            perf_aq_log((unsigned)queued, 0);
             return;
         }
         primed = 1;
@@ -118,6 +119,7 @@ static void SOUND_FillAudio(void *unused, Uint8 *stream, int len) {
      * callback's worth of output */
     ppm  = ratectl_update(&rate, queued, (int)(((unsigned)len * SINC) >> 16));
     resample_set_ppm(ppm);
+    perf_aq_log((unsigned)queued, ppm);
 
 //    while (iReadPos != iWritePos && len > 0) {
 //        *p++ = pSndBuffer[iReadPos++];
@@ -261,9 +263,14 @@ static int sdl_feed(void *pSound, int lBytes) {
         pSndBuffer[wp + 1] = p[1];
         p += 2;
         lBytes -= 2 * sizeof(short);
-        __asm__ __volatile__("" ::: "memory");   /* the frame lands before the index that publishes it */
-        iWritePos = wp = next;
+        wp = next;
     }
+    /* Published once per feed, after its frames: the callback's queue reading (the rate
+     * control's input) then counts whole feeds, not however far this loop had got when the
+     * callback interrupted it -- that was wall-clock timing too (aq_cmp.py: 3..27 frames
+     * apart in two runs at the same emulated cycle). */
+    __asm__ __volatile__("" ::: "memory");   /* the frames land before the index that publishes them */
+    iWritePos = wp;
 
     return 0;
 }

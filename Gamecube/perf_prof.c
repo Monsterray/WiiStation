@@ -627,6 +627,38 @@ static void vtl_tick(void)
 	vtl_jit0 = lightrec_jit_ticks;
 }
 
+/* The output driver's requests: at each one, the emulated vblank and PSX cycle, the mixer
+ * frames produced so far, the queue the driver saw, the nudge it chose, the Wii time, and the
+ * resampler's output so far (frames and hash: where the output stage itself first parts).
+ * Under Dolphin two runs of one input that agree on the first four columns had the same
+ * interleaving of mixer and driver; the first record where they part is where host timing
+ * first moved the output stage. Written with the vtl at a chained game's end. */
+typedef struct { u32 vbl, cycle, spu, queued; s32 ppm; u32 wii_us, out, out_hash; } aq_t;
+#define AQ_MAX 65536
+static aq_t *aq;
+static unsigned aq_n;
+static u64 aq_t0;
+
+void perf_aq_log(unsigned queued, int ppm)
+{
+	aq_t *r;
+	if (!aq && !(aq = (aq_t *)_mem2_malloc(AQ_MAX * sizeof(aq_t))))
+		return;
+	if (aq_n == 0)
+		aq_t0 = gettime();
+	if (aq_n >= AQ_MAX)
+		return;
+	r = &aq[aq_n++];
+	r->vbl = frame_counter;
+	r->cycle = psxRegs.cycle;
+	r->spu = g_perf.spu_feed_frames;
+	r->queued = queued;
+	r->ppm = ppm;
+	r->wii_us = (u32)ticks_to_microsecs(gettime() - aq_t0);
+	r->out = g_perf.rs_out_frames;
+	r->out_hash = g_perf.rs_out_hash;
+}
+
 /* A chained game's end (GamecubeMain.cpp chainNext): its timeline to vtl_NN.bin, then a fresh
  * one for the next game. Header: "VTL1", the shift, the vblank count. */
 void perf_vtl_flush(int game)
@@ -649,6 +681,14 @@ void perf_vtl_flush(int game)
 		fwrite(vsig, sizeof(vsig_t), vtl_n, f);
 		fclose(f);
 	}
+	snprintf(path, sizeof path, "sd:/wiistation/aq_%02d.bin", game);
+	if (aq && (f = fopen(path, "wb"))) {
+		unsigned ah[2] = { 0x41513032, aq_n };   /* "AQ02", then an aq_t per request */
+		fwrite(ah, sizeof ah, 1, f);
+		fwrite(aq, sizeof(aq_t), aq_n, f);
+		fclose(f);
+	}
+	aq_n = 0;
 	vtl_n = 0;
 	vtl_t0 = 0;
 #if PERF_PROF_HPROF
@@ -712,6 +752,12 @@ void perf_state_log(int game)
 		fprintf(f, "state: game=%d ram=%08x vram=%08x pc=%08x cycle=%u vblank=%u\n",
 			game, (unsigned)hr, (unsigned)hv, (unsigned)psxRegs.pc, (unsigned)psxRegs.cycle,
 			(unsigned)frame_counter);
+		fprintf(f, "state: game=%d spu_frames=%u spu_hash=%08x out_frames=%u out_hash=%08x\n",
+			game, (unsigned)g_perf.spu_feed_frames, (unsigned)g_perf.spu_feed_hash,
+			(unsigned)g_perf.rs_out_frames, (unsigned)g_perf.rs_out_hash);
+		fprintf(f, "state: game=%d tb=%llu limit_drop_tb=%llu now=%u due=%u\n", game,
+			(unsigned long long)gettime(), (unsigned long long)g_perf.limit_drop_tb,
+			(unsigned)g_perf.limit_drop_now, (unsigned)g_perf.limit_drop_due);
 		fclose(f);
 	}
 }
