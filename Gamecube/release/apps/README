@@ -1,5 +1,5 @@
 README : WiiStation
-Version 5.13.0
+Version 5.13.1
 
 LICENSE:
     This software is licensed under the GNU General Public License v2
@@ -155,6 +155,20 @@ LATER UPDATES BY:
  * Monty Perrotti (WiiStation)
 
 WiiStation CHANGE LOG:
+Ver 5.13.1 (2026-10-13):
+* Fixed: after about 72 minutes of play (and every 72 minutes after that) the
+  sound fell an eighth of a second behind the picture and played slightly high
+  for about a minute while it caught up. The frame limiter's clock jumped back.
+* Fixed (OpenGX): Gex 3's LOADING screen and Crash Bash's "SCEA Presents" logo
+  were black; Crash Team Racing sat two lines too high with noise along the
+  bottom; Ape Escape's intro left half of an old picture on screen.
+* Fixed: saving a state could fail while playing a .chd, .pbp or .cbn image
+  (memory ran short). The unpacking now uses the large memory, and save
+  states do too.
+* Compressed images: the read-ahead no longer delays the game's own reads.
+* The Homebrew Channel agent inside WiiStation is version 1.10.4.
+* Built with devkitPro's libogc 3 (faster SD and USB reading).
+
 Ver 5.13.0 (2026-10-13):
 * Faster: compressed images (.pbp, .cbn, .chd) are unpacked ahead, while the
   game waits for the next frame. On the Wii, Frogger spent 2.8-4.0 s of every
