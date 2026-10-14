@@ -146,6 +146,7 @@ DETAIL = {
             ('h128#', 'sd', 'h[3]', '#'), ('hbig#', 'sd', 'h[4]', '#'), ('bg#', 'sd', 'bg', '#'),
             ('sdus#', 'sd', 'us', '#'), ('worst#', 'sd', 'worst_us', '#'),
             ('pfhit#', 'cdpf', 'hit', '#'), ('pfmiss#', 'cdpf', 'miss', '#'),
+            ('bmiss#', 'cdpf', 'bmiss', '#'), ('slow4#', 'cdpf', 'slow4', '#'),
             ('chdmiss#', 'chd', 'miss', '#')],
     'upl': [('calls#', 'efbloss', 'upl_calls', '#'), ('done#', 'efbloss', 'upl_done', '#'),
             ('dis#', 'uplret', 'dis', '#'), ('skip#', 'uplret', 'skip', '#'),

@@ -469,6 +469,12 @@ typedef struct {
 	uint32_t cd_pf_hit;           /* sector served from the read-ahead ring */
 	uint32_t cd_pf_miss;          /* ring did not have it (or prefetch off: not counted) */
 	uint32_t cd_pf_reads;         /* sectors the read-ahead thread fetched */
+	/* The emulator's own reads after a miss: plain, or begun while the thread was inside a
+	 * fetch (preempted holding libfat's or malloc's lock, perhaps: then this read waits for it) */
+	uint32_t cd_pf_bmiss;         /* misses while the thread was mid-fetch */
+	uint32_t cd_pf_miss_worst_us, cd_pf_bmiss_worst_us;
+	uint64_t cd_pf_miss_us, cd_pf_bmiss_us;
+	uint32_t cd_slow1, cd_slow4;  /* emulator CD reads over 1 ms, over 4 ms */
 	/* The front SD card's own commands, beneath libfat's cache and stdio's buffers
 	 * (fileBrowser-libfat.c wraps the driver). Times are real on a Wii and ~0 under
 	 * Dolphin, whose card answers at once; the counts are exact on both. "bg" = issued by
