@@ -3105,7 +3105,15 @@ static void primBlkFill ( unsigned char * baseAddr )
     #endif // DISP_DEBUG
 
     // mmm... will clean all stuff, also if not all _should_ be cleaned...
-    BOOL clearNext = IsCompleteInsideNextScreen(sprtX, sprtY, sprtW, sprtH);
+    /* "Next screen" is the displayed buffer, which a double-buffered game draws into after
+     * the next flip: its fill becomes the clear after the present. A game that does not
+     * flip (displayed = drawn buffer) clears the screen it is drawing, now: Ape Escape's
+     * 480i intro clears (0,0)-(640,256) and (0,256)-(640,512); the first was deferred to
+     * after the present, which showed the old picture's top half for the ~60 vblanks
+     * until the next one. */
+    BOOL clearNext = IsCompleteInsideNextScreen(sprtX, sprtY, sprtW, sprtH) &&
+                     (PSXDisplay.DisplayPosition.x != PreviousPSXDisplay.DisplayPosition.x ||
+                      PSXDisplay.DisplayPosition.y != PreviousPSXDisplay.DisplayPosition.y);
     BOOL clearCurrent = CLEAR_SCREEN(sprtX, sprtY, sprtX + sprtW, sprtY + sprtH);
 
     if (clearNext)
