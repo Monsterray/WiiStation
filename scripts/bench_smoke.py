@@ -15,7 +15,7 @@ import sys
 import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from wii_targets import refuse_production  # noqa: E402
+from wii_targets import bench_wii  # noqa: E402
 
 
 def digest(path):
@@ -136,14 +136,12 @@ def main():
         prepare(args.dol, args.client, args.bundle)
         print(args.bundle.resolve())
         return
-    if not os.environ.get("WII_BENCH_JOB_START") or not os.environ.get("WII_BENCH_IP"):
-        parser.error("Run through wiibench.py; no Wii request was sent")
-    refuse_production(os.environ["WII_BENCH_IP"], "bench_smoke.py")
+    wii = bench_wii("bench_smoke.py")
     verify(args.bundle)
     spec = importlib.util.spec_from_file_location("bench_hbc", args.bundle / "hbc.py")
     client = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(client)
-    check(client, os.environ["WII_BENCH_IP"], args.bundle)
+    check(client, wii, args.bundle)
 
 
 if __name__ == "__main__":

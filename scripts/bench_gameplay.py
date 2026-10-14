@@ -3,7 +3,6 @@
 import argparse
 import importlib.util
 import json
-import os
 from pathlib import Path
 import re
 import shutil
@@ -11,7 +10,7 @@ import statistics
 import time
 import uuid
 import bench_smoke
-from wii_targets import refuse_production
+from wii_targets import bench_wii
 import chain_table
 import vtl_view
 
@@ -224,11 +223,10 @@ def main():
         m['inputs']['play.txt']['sha256']=bench_smoke.digest(a.bundle/'play.txt')
         m['recording_sha256']=bench_smoke.digest(a.input)
         (a.bundle/'manifest.json').write_text(json.dumps(m,indent=2));return
-    if not os.environ.get('WII_BENCH_JOB_START') or not os.environ.get('WII_BENCH_IP'):p.error('Use shared bench queue')
-    refuse_production(os.environ['WII_BENCH_IP'],'bench_gameplay.py')
+    wii = bench_wii("bench_gameplay.py")
     m=json.loads((a.bundle/'manifest.json').read_text())
     for name,entry in m['inputs'].items():
         if bench_smoke.digest(a.bundle/name)!=entry['sha256']:p.error('Frozen input changed: '+name)
     spec=importlib.util.spec_from_file_location('bench_client',a.bundle/'hbc.py'); client=importlib.util.module_from_spec(spec);spec.loader.exec_module(client)
-    execute(client,os.environ['WII_BENCH_IP'],a.bundle,a.command=='inventory')
+    execute(client,wii,a.bundle,a.command=='inventory')
 if __name__=='__main__':main()

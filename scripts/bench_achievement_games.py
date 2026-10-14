@@ -4,7 +4,6 @@ import argparse
 import gzip
 import importlib.util
 import json
-import os
 from pathlib import Path
 import re
 import shutil
@@ -13,7 +12,7 @@ import time
 import uuid
 
 import bench_smoke
-from wii_targets import refuse_production
+from wii_targets import bench_wii
 
 
 def judge(output, cases):
@@ -281,9 +280,7 @@ def main():
             manifest["inputs"][name] = {"sha256": bench_smoke.digest(args.bundle / name)}
         (args.bundle / "manifest.json").write_text(json.dumps(manifest, indent=2))
         return
-    if not os.environ.get("WII_BENCH_JOB_START") or not os.environ.get("WII_BENCH_IP"):
-        parser.error("Run through wiibench.py; no Wii request sent")
-    refuse_production(os.environ["WII_BENCH_IP"], "bench_achievement_games.py")
+    wii = bench_wii("bench_achievement_games.py")
     manifest = json.loads((args.bundle / "manifest.json").read_text())
     for name, item in manifest["inputs"].items():
         if bench_smoke.digest(args.bundle / name) != item["sha256"]:
@@ -292,9 +289,9 @@ def main():
     client = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(client)
     if args.command == "recover":
-        recover_run(client, os.environ["WII_BENCH_IP"], args.previous, args.verify_restart)
+        recover_run(client, wii, args.previous, args.verify_restart)
         return
-    run(client, os.environ["WII_BENCH_IP"], args.bundle)
+    run(client, wii, args.bundle)
 
 
 def recover_run(client, wii, previous, verify_restart=False):

@@ -3,14 +3,13 @@
 import argparse
 import importlib.util
 import json
-import os
 from pathlib import Path
 import shutil
 import time
 import uuid
 
 import bench_smoke
-from wii_targets import refuse_production
+from wii_targets import bench_wii
 
 
 def collect_diagnostics(client, wii, remote, output):
@@ -124,9 +123,7 @@ def main():
             manifest["payloads"].append(payload.name)
         manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
         return
-    if not os.environ.get("WII_BENCH_JOB_START") or not os.environ.get("WII_BENCH_IP"):
-        parser.error("Run through wiibench.py; no Wii request sent")
-    refuse_production(os.environ["WII_BENCH_IP"], "bench_achievements.py")
+    wii = bench_wii("bench_achievements.py")
     bench_smoke.verify(args.bundle)
     manifest = json.loads((args.bundle / "manifest.json").read_text())
     for name, entry in manifest["inputs"].items():
@@ -135,7 +132,7 @@ def main():
     spec = importlib.util.spec_from_file_location("bench_hbc", args.bundle / "hbc.py")
     client = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(client)
-    unit(client, os.environ["WII_BENCH_IP"], args.bundle)
+    unit(client, wii, args.bundle)
 
 
 if __name__ == "__main__":

@@ -199,10 +199,19 @@ HBC, ready for the next one. A crash returns to HBC after 10 s with no results (
 It needs an inbound firewall allow for TCP 4300 (the network is Public). Speed numbers
 from it are the real ones: Dolphin cannot show cache or locked-cache effects.
 
+The bench scripts (`wii_lab`, `wii_install`, `wii_clean`, `wii_crash_job`, `wii_quit_test`,
+`wii_getfiles`, `wii_check`, `wii_probe/probe`, `bench_*`) share `scripts/wii_targets.py`:
+`bench_wii()` refuses to run outside a queue job (no `WII_BENCH_JOB_START`) and refuses the
+production Wii; `hbc()` puts a timeout on every hbc.py call; `parser()` makes `--help` print the
+docstring with the queue line, and rejects abbreviated flags. A new bench script uses them
+instead of its own `subprocess` + address. `scripts/wii_check.py` replaces the one-off job
+scripts: `agent [DOL]` (send, agent version/status, exit), `triage [--elf]` (read-only status,
+crash, lastlog), `card [FOLDER...] [--fix]` (card game folders vs the library).
+
 Rules and fixes learned on the bench (2026-09-29/30):
 - **Always through the queue**, never wiiload directly:
-  `python C:/tools/wii-bench/wiibench.py add --cwd C:/projects/WiiStation --name "..." --timeout S -- CMD`,
-  then wait on `C:/tools/wii-bench/queue/done/<id>.json` (its `.log` next to it). Other
+  `C:/Python312/python.exe C:/tools/wii-bench/wiibench.py add --cwd C:/projects/WiiStation --name "..." --timeout S -- CMD`,
+  then `wiibench.py wait ID` (prints the end of the log, exits with the job's code). Other
   workstations share the Wii **through the lease server `http://homeserver.local:4310`**
   (the user's rule, 2026-09-30): the dispatcher takes the lease before each job.
   `status` must show a `lease http://homeserver.local:4310: ...` line; if it does not
@@ -213,7 +222,7 @@ Rules and fixes learned on the bench (2026-09-29/30):
   dispatcher's `bash` is WSL's `C:\Windows\System32\bash.exe`, which has no python: a
   `bash job.sh` job fails at once with `python: command not found`.
 - **Never queue `hbc.py get` without the user's go-ahead**, and never a large file: it crashed HBC 1.4.1
-  and 1.5.0. On HBC 1.8.6 files up to 28 KB worked (2026-09-30, `scripts/wii_getfiles.py`: size guard,
+  and 1.5.0. On HBC 1.8.6 files up to 28 KB worked (2026-09-30, `scripts/wii_getfiles.py OUTDIR NAME... --limit BYTES`: size guard,
   smallest first, waits for HBC).
   Logs come back only through wii_lab.py's upload. `hbc.py crash [--clear]` is a small
   status request and is safe.

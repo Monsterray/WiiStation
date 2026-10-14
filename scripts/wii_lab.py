@@ -1,8 +1,13 @@
 #!/usr/bin/env python3
 """wii_lab.py -- run a chain on the Wii on the bench, unattended, and collect its logs.
 
-    python scripts/wii_lab.py NAME CHAINFILE [--wii 192.168.8.213] [--dol debug|release|PATH]
-                              [--set K=V,K=V] [--send-isos] [--timeout SECS]
+    C:/Python312/python.exe C:/tools/wii-bench/wiibench.py add --cwd C:/projects/WiiStation \\
+        --timeout 2400 -- C:/Python312/python.exe scripts/wii_lab.py NAME CHAINFILE
+        [--dol debug|release|PATH] [--set K=V,K=V] [--send-isos] [--timeout SECS]
+
+A wii-bench queue job only (it refuses to run directly, and refuses the production Wii);
+the queue gives it the bench Wii ($WII_BENCH_IP). The queue's --timeout must exceed this
+script's (default 1800 s for the chain, plus up to 5 min to collect after a failure).
 
 The Wii must be sitting in the Homebrew Channel. This script:
   1. waits for HBC's wiiload port (TCP 4299) and listens on --port (4300) itself;
@@ -19,17 +24,18 @@ Wii's card under sd:/wiistation/isos/ (or sent once with --send-isos: slow over 
 A crash returns to HBC after 10 s with no results: the script says so and exits 3.
 Windows asks once to let python accept connections on the port.
 """
-import argparse
 import os
 import pathlib
 import re
 import shutil
 import socket
-import struct
 import subprocess
 import sys
 import time
-import zlib
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from wii_targets import (bench_wii, existing_file, hbc, hbc_ready, card_ls, local_ip_towards,  # noqa: E402
+                        parser, wiiload)
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
 # --send-isos sends game folders from the library (scripts/profile.sh, WSX_LIBRARY), as the Dolphin
@@ -40,22 +46,6 @@ RESULTS = ["perf.log", "vramio.log", "ptrace.log", "atrace.log", "lab.log", "tty
            "xfb.bin", "vram.bin"]   # a "dump <vblank>": the TV picture and VRAM then
 
 
-def hbc_ready(wii, secs):
-    """True once TCP 4299 accepts a connection (HBC is in its menu). The probe sends a
-    header HBC rejects at once: a bare connect and close holds HBC's loader for 10 s, and
-    with a backlog of 3, repeated probes made it stop answering (see wiibench.py hbc_idle)."""
-    end = time.monotonic() + secs
-    while time.monotonic() < end:
-        try:
-            with socket.create_connection((wii, 4299), timeout=2) as s:
-                s.sendall(b"PING" + bytes(12))
-            return True
-        except OSError:
-            time.sleep(1)
-    return False
-
-
-HBC_TOOL = pathlib.Path("C:/projects/hbc-reborn/tools/hbc.py")
 AFTER_FAILURE = ["hb.log", "dvd.log", "lab.log", "tty.log", "perf.log"]   # small files worth having
 AFTER_FAILURE_LIMIT = 4 * 1024 * 1024   # HBC 1.10 sent a 1.5 MB hb.log fine; old HBCs crashed on large gets
 
@@ -70,21 +60,18 @@ def collect_after_failure(wii, run, wait_s=300):
     if not hbc_ready(wii, wait_s):
         print("the Wii did not come back to HBC: it needs a power cycle (IOS is stuck)")
         return False
-    hbc = [sys.executable, str(HBC_TOOL), "--wii", wii]
     run.mkdir(parents=True, exist_ok=True)
     for cmd in ("crash", "lastlog"):
-        r = subprocess.run(hbc + [cmd], capture_output=True, text=True, timeout=60)
-        (run / f"hbc_{cmd}.txt").write_text(r.stdout + r.stderr, encoding="utf-8")
-        print(f"--- hbc.py {cmd}\n{(r.stdout + r.stderr).strip()[-3000:]}")
-    ls = subprocess.run(hbc + ["ls", "sd:/wiistation"], capture_output=True, text=True, timeout=60).stdout
-    sizes = {l.split()[-1]: int(l.split()[1]) for l in ls.splitlines() if l.startswith("f ")}
+        r = hbc(wii, cmd, timeout=60)
+        (run / f"hbc_{cmd}.txt").write_text(r.text, encoding="utf-8")
+        print(f"--- hbc.py {cmd}\n{r.text[-3000:]}")
+    sizes = card_ls(wii, "sd:/wiistation") or {}
     for name in AFTER_FAILURE:
         if name not in sizes or sizes[name] > AFTER_FAILURE_LIMIT:
             print(f"not fetched: {name} ({sizes.get(name, 'absent')})")
             continue
-        r = subprocess.run(hbc + ["get", f"sd:/wiistation/{name}", str(run / name)],
-                           capture_output=True, text=True, timeout=120)
-        print(f"fetched {name} ({sizes[name]} bytes)" if r.returncode == 0 else f"failed: {name}")
+        r = hbc(wii, "get", f"sd:/wiistation/{name}", run / name, timeout=120)
+        print(f"fetched {name} ({sizes[name]} bytes)" if r.rc == 0 else f"failed: {name} ({r.text[-200:]})")
     for name in ("hb.log", "dvd.log", "lab.log"):
         f = run / name
         if f.is_file() and f.stat().st_size:
@@ -101,17 +88,15 @@ CARD = {}
 
 
 def backup_settings(wii, run):
-    hbc = [sys.executable, str(HBC_TOOL), "--wii", wii]
-    ls = subprocess.run(hbc + ["ls", "sd:/wiistation"], capture_output=True, text=True, timeout=60).stdout
-    sizes = {l.split()[-1]: int(l.split()[1]) for l in ls.splitlines() if l.startswith("f ")}
+    sizes = card_ls(wii, "sd:/wiistation")
+    if sizes is None:
+        sys.exit("hbc.py ls sd:/wiistation failed: the card's settings.ini cannot be kept; not starting")
     run.mkdir(parents=True, exist_ok=True)
     CARD["wii"] = wii
     CARD["backup"] = None
     if "settings.ini" in sizes and sizes["settings.ini"] != len(BASE_SETTINGS.encode()):
         dst = run / "settings.user.ini"
-        r = subprocess.run(hbc + ["get", "sd:/wiistation/settings.ini", str(dst)],
-                           capture_output=True, text=True, timeout=120)
-        if r.returncode == 0:
+        if hbc(wii, "get", "sd:/wiistation/settings.ini", dst, timeout=120).rc == 0:
             CARD["backup"] = dst
             print(f"the card's settings.ini ({sizes['settings.ini']} bytes) is kept for after the run")
         else:
@@ -127,45 +112,16 @@ def finish_card():
         print("the Wii is not in HBC: the card was not tidied" +
               (f"; the user's settings are in {backup}" if backup else ""))
         return
-    hbc = [sys.executable, str(HBC_TOOL), "--wii", wii]
     if backup:
-        r = subprocess.run(hbc + ["put", str(backup), "sd:/wiistation/settings.ini"],
-                           capture_output=True, text=True, timeout=120)
-        if r.returncode == 0:
+        if hbc(wii, "put", backup, "sd:/wiistation/settings.ini", timeout=120).rc == 0:
             backup.unlink()   # it may hold a password: no copy left behind
             print("the card's own settings.ini is back")
         else:
             print(f"could not put settings.ini back: it is in {backup}")
     else:   # the runner's own, perhaps with the share's login (--smb-from): none of it stays
-        subprocess.run(hbc + ["rm", "sd:/wiistation/settings.ini"], capture_output=True, text=True, timeout=60)
-    sys.path.insert(0, str(REPO / "scripts"))
+        hbc(wii, "rm", "sd:/wiistation/settings.ini", timeout=60)
     import wii_clean
     wii_clean.clean(wii)
-
-
-def wiiload(wii, dol, args):
-    """The wiiload protocol, version 0.5: HAXX, version, args length, compressed and
-    uncompressed sizes (big-endian), the zlib data, then the NUL-separated arguments."""
-    data = dol.read_bytes()
-    z = zlib.compress(data, 6)
-    argb = b"".join(a.encode() + b"\0" for a in [dol.name] + args) + b"\0"
-    for attempt in range(6):          # HBC takes one connection at a time: a probe or
-        try:                          # another sender can hold it for a moment
-            with socket.create_connection((wii, 4299), timeout=10) as s:
-                s.sendall(b"HAXX" + bytes([0, 5]) + struct.pack(">HII", len(argb), len(z), len(data)))
-                s.sendall(z)
-                s.sendall(argb)
-            return
-        except OSError as e:
-            print(f"  wiiload attempt {attempt + 1}: {e}")
-            time.sleep(5)
-    sys.exit("HBC did not take the DOL")
-
-
-def local_ip_towards(wii):
-    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as u:
-        u.connect((wii, 4299))
-        return u.getsockname()[0]
 
 
 def recv_line(c):
@@ -204,25 +160,25 @@ def chain_files(chain):
 
 
 def main():
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("name")
-    ap.add_argument("chain", type=pathlib.Path)
-    ap.add_argument("--wii", default=os.environ.get("WII_BENCH_IP", "192.168.8.213"))
-    ap.add_argument("--port", type=int, default=4300)
-    ap.add_argument("--dol", default="debug")
-    ap.add_argument("--set", default="")
-    ap.add_argument("--smb-from", type=pathlib.Path, default=None,
+    ap = parser(__doc__)
+    ap.add_argument("name", help="the run's folder: .runs/NAME")
+    ap.add_argument("chain", type=existing_file, help="a chain file (scripts/chains/*.txt)")
+    ap.add_argument("--wii", help="another bench Wii than the queue's $WII_BENCH_IP")
+    ap.add_argument("--port", type=int, default=4300, help="the port WiiStation connects back to")
+    ap.add_argument("--dol", default="debug", help="debug, release or a DOL's path (default debug)")
+    ap.add_argument("--set", default="", help="extra settings, K=V,K=V")
+    ap.add_argument("--smb-from", type=existing_file, default=None,
                     help="a settings.ini with the SMB share login: its smb* and RomDir* lines go to the "
                          "Wii's settings, unread and unprinted (not into run.info)")
-    ap.add_argument("--send-isos", action="store_true")
+    ap.add_argument("--send-isos", action="store_true", help="send the chain's game folders from the library")
     ap.add_argument("--timeout", type=int, default=1800, help="seconds for the whole chain")
     a = ap.parse_args()
-    sys.path.insert(0, str(REPO / "scripts"))
-    from wii_targets import refuse_production
-    refuse_production(a.wii, "wii_lab.py")   # unattended runs and cleanups: the bench Wii only
-
     dol = {"debug": REPO / "Gamecube/WiiSXRX_debug.dol",
            "release": REPO / "Gamecube/WiiSXRX_Release.dol"}.get(a.dol, pathlib.Path(a.dol))
+    if not dol.is_file():
+        ap.error(f"--dol {a.dol}: no such file ({dol})")
+    a.wii = bench_wii("wii_lab.py", a.wii)   # unattended runs and cleanups: the bench Wii, in a queue job
+
     global RUN_DIR
     run = REPO / ".runs" / a.name
     RUN_DIR = run

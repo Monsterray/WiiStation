@@ -1,7 +1,7 @@
-"""wii_clean.py [--dry-run] [WII] -- take the test runs' files off the bench Wii's card.
+"""wii_clean.py [--dry-run] [--wii IP] -- take the test runs' files off the bench Wii's card.
 
 Deletes from sd:/wiistation only what wii_lab.py runs leave there: their logs (perf, hb, dvd,
-tty, lab, atrace, ptrace, vramio, ...), dumps (vram*, vsig_*, vtl_*, hprof_*, xfb.bin), run
+tty, lab, atrace, ptrace, vramio, ...), dumps (vram*, vsig_*, vtl_*, hprof_*, aq_*, xfb.bin), run
 inputs (autoboot/autoinput, and input scripts that are copies of scripts/autoinput/*.txt),
 and stale files (settingsRX2022.cfg, smbtrace.log). settings.ini goes only when it is the
 runner's own minimal file (the size of wii_lab.BASE_SETTINGS): the card's settings are the
@@ -10,28 +10,22 @@ user's, and are never read here (an SMB password may be in them). Saves, button 
   python C:/tools/wii-bench/wiibench.py add --cwd C:/projects/WiiStation -- \\
       C:/Python312/python.exe scripts/wii_clean.py
 """
-import fnmatch, os, pathlib, subprocess, sys
+import fnmatch, os, pathlib, sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from wii_targets import bench_wii, card_ls, hbc, parser, refuse_production  # noqa: E402
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
-HBC_TOOL = pathlib.Path("C:/projects/hbc-reborn/tools/hbc.py")
 LOGS = ["perf.log", "hb.log", "dvd.log", "tty.log", "lab.log", "atrace.log", "ptrace.log",
-        "vramio.log", "pcring.log", "emu.log", "smbtrace.log", "padtrace.csv"]
-DUMPS = ["vram.bin", "vram_*.bin", "vsig_*.bin", "vtl_*.bin", "hprof_*.bin", "xfb.bin"]
+        "vramio.log", "pcring.log", "emu.log", "smbtrace.log", "padtrace.csv", "quit.log"]
+DUMPS = ["vram.bin", "vram_*.bin", "vsig_*.bin", "vtl_*.bin", "hprof_*.bin", "aq_*.bin", "xfb.bin"]
 INPUTS = ["autoboot.txt", "autoboot.txt.disabled", "autoinput.txt", "crashtest.txt", "hangtest.txt"]
 STALE = ["settingsRX2022.cfg"]
 
 
 def lab_settings_size():
-    sys.path.insert(0, str(REPO / "scripts"))
     import wii_lab
     return len(wii_lab.BASE_SETTINGS.encode())
-
-
-def card_files(hbc):
-    ls = subprocess.run(hbc + ["ls", "sd:/wiistation"], capture_output=True, text=True, timeout=60)
-    if ls.returncode:
-        sys.exit("hbc.py ls failed: " + ls.stdout + ls.stderr)
-    return {l.split()[-1]: int(l.split()[1]) for l in ls.stdout.splitlines() if l.startswith("f ")}
 
 
 def doomed(files):
@@ -47,20 +41,19 @@ def doomed(files):
 
 
 def clean(wii, dry_run=False):
-    sys.path.insert(0, str(REPO / "scripts"))
-    from wii_targets import refuse_production
     refuse_production(wii, "wii_clean.py")   # it deletes files: never on the production Wii
-    hbc = [sys.executable, str(HBC_TOOL), "--wii", wii]
-    files = card_files(hbc)
+    files = card_ls(wii, "sd:/wiistation")
+    if files is None:
+        sys.exit("hbc.py ls sd:/wiistation failed: nothing was deleted")
     gone = doomed(files)
     total = sum(files[n] for n in gone)
     for name in gone:
         if dry_run:
             print(f"would delete {name} ({files[name]} bytes)")
             continue
-        r = subprocess.run(hbc + ["rm", f"sd:/wiistation/{name}"], capture_output=True, text=True, timeout=60)
-        if r.returncode:
-            print(f"could not delete {name}: {(r.stdout + r.stderr).strip()}")
+        r = hbc(wii, "rm", f"sd:/wiistation/{name}", timeout=60)
+        if r.rc:
+            print(f"could not delete {name}: {r.text}")
     kept = sorted(set(files) - set(gone))
     print(f"{'would delete' if dry_run else 'deleted'} {len(gone)} files ({total / 1e6:.1f} MB); "
           f"kept {len(kept)}: {', '.join(kept)}")
@@ -68,10 +61,9 @@ def clean(wii, dry_run=False):
 
 
 if __name__ == "__main__":
-    # Unknown --flags used to be silently ignored, so a --dry-ruun typo performed a
-    # real delete. Refuse them: the only flag is --dry-run, plus one positional Wii.
-    for a in sys.argv[1:]:
-        if a.startswith("--") and a != "--dry-run":
-            sys.exit(f"wii_clean.py: unknown flag {a} (nothing was done)")
-    args = [a for a in sys.argv[1:] if not a.startswith("--")]
-    clean(args[0] if args else os.environ.get("WII_BENCH_IP", "192.168.8.213"), "--dry-run" in sys.argv)
+    # argparse refuses unknown flags and prefixes: a --dry-ruun typo once performed a real delete
+    ap = parser(__doc__)
+    ap.add_argument("--dry-run", action="store_true", help="list what would go; delete nothing")
+    ap.add_argument("--wii", help="another bench Wii than the queue's $WII_BENCH_IP")
+    a = ap.parse_args()
+    clean(bench_wii("wii_clean.py", a.wii), a.dry_run)
