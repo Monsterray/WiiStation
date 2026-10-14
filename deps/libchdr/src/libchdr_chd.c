@@ -1096,7 +1096,7 @@ static chd_error zstd_codec_init(void* codec, uint32_t hunkbytes)
 {
 	zstd_codec_data* zstd_codec = (zstd_codec_data*) codec;
 
-	zstd_codec->dstream = ZSTD_createDStream();
+	zstd_codec->dstream = ZSTD_createDStream_advanced(chdr_zstd_mem);   /* WiiStation: MEM2 (wii_alloc.h) */
 	if (!zstd_codec->dstream) {
 		printf("NO DSTREAM CREATED!\n");
 		return CHDERR_DECOMPRESSION_ERROR;

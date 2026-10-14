@@ -124,11 +124,13 @@ void *_mem2_memalign(uint8_t align, uint32_t size)
 #ifdef PERF_PROF
    else {   /* the true high-water mark: a burst between two reports was invisible. A running
              * count, O(1): walking the heap (gx_mem2_used) per allocation cost frames. */
-      uint32_t kb;
+      uint32_t kb, level;
+      _CPU_ISR_Disable(level);   /* the CD decode-ahead thread allocates here too (cdriso.c) */
       mem2_live += __lwp_heap_block_size(&gx_mem2_heap, p);
       kb = mem2_live >> 10;
       if (kb > g_perf.mem2_peak_kb)
          g_perf.mem2_peak_kb = kb;
+      _CPU_ISR_Restore(level);
    }
 #endif
    return p;
@@ -173,7 +175,10 @@ void _mem2_free(void *ptr)
 {
    if (ptr) {
 #ifdef PERF_PROF
+      uint32_t level;
+      _CPU_ISR_Disable(level);
       mem2_live -= __lwp_heap_block_size(&gx_mem2_heap, ptr);
+      _CPU_ISR_Restore(level);
 #endif
       __lwp_heap_free(&gx_mem2_heap, ptr);
    }

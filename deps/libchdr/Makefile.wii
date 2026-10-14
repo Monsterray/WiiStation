@@ -65,13 +65,14 @@ $(LIB_DIR)/libchdr.a: $(LIBCHDR_OBJS)
 COMMON_FLAGS	:= -g -O2 -w $(MACHDEP) -fvisibility=hidden
 INCLUDES		:= -Iinclude -I$(LIBOGC_INC)
 DEFINES			:= -DGEKKO
-CFLAGS			:= $(COMMON_FLAGS) $(INCLUDES) $(INCLUDE) $(DEFINES) --pedantic -D__BIG_ENDIAN__ -D__powerpc__ -D__ppc__ -DBIG_ENDIAN -DLOG_LEVEL=2 -D__BYTE_ORDER__=__ORDER_BIG_ENDIAN__
+# WiiStation: every malloc/calloc/realloc/free goes to chdr_malloc etc. (cdriso.c, MEM2)
+CFLAGS			:= $(COMMON_FLAGS) $(INCLUDES) $(INCLUDE) $(DEFINES) -include include/libchdr/wii_alloc.h --pedantic -D__BIG_ENDIAN__ -D__powerpc__ -D__ppc__ -DBIG_ENDIAN -DLOG_LEVEL=2 -D__BYTE_ORDER__=__ORDER_BIG_ENDIAN__
 
 # Test link flags.
 LDFLAGS			:= $(COMMON_FLAGS) -L$(LIB_DIR) -L$(LIBOGC_LIB) $(PORTLIBS_PATH)/wii/lib -llightning
 
 # How to compile C file (SDL library).
-$(LIBCHDR_OBJ_DIR)/%.o: $(LIBCHDR_SRC_DIR)/%.c
+$(LIBCHDR_OBJ_DIR)/%.o: $(LIBCHDR_SRC_DIR)/%.c include/libchdr/wii_alloc.h Makefile.wii
 	@echo Compiling $<
 	@-mkdir -p $(dir $@)
 	powerpc-eabi-gcc $(CFLAGS) -c $< -o $@ $(PIPE_TO_SED)
