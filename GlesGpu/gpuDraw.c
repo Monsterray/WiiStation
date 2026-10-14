@@ -1323,9 +1323,11 @@ void SetOGLDisplaySettings(BOOL DisplaySet)
   int w=PSXDisplay.DisplayEnd.x-dx, h=PSXDisplay.DisplayEnd.y-dy;
   int px=PreviousPSXDisplay.DisplayPosition.x, py=PreviousPSXDisplay.DisplayPosition.y;
   int ax=PSXDisplay.DrawArea.x0, ay=PSXDisplay.DrawArea.y0;
-  bDrawFrontBuffer = (px!=dx || py!=dy) && w>0 && h>0 &&
+  int moved=(px!=dx || py!=dy);
+  /* a nudged display (GP1 05 within its buffer) set previous = displayed: still the front */
+  bDrawFrontBuffer = (moved || bDisplayNudged) && w>0 && h>0 &&
                      ax>=dx && ax<dx+w && ay>=dy && ay<dy+h &&
-                     !(ax>=px && ax<px+w && ay>=py && ay<py+h);
+                     !(moved && ax>=px && ax<px+w && ay>=py && ay<py+h);
  }
  PSXDisplay.GDrawOffset.y = bDrawFrontBuffer ? PSXDisplay.DisplayPosition.y : PreviousPSXDisplay.DisplayPosition.y;
  PSXDisplay.GDrawOffset.x = bDrawFrontBuffer ? PSXDisplay.DisplayPosition.x : PreviousPSXDisplay.DisplayPosition.x;

@@ -164,6 +164,7 @@ static unsigned short screenY1 = 240;
 static unsigned short screenWidth = 320;
 static unsigned short screenHeight = 240;
 BOOL    canClearFrameBuf = FALSE;
+static BOOL bDisplayNudged = FALSE;   /* the last GP1 05 moved the display within its buffer */
 
 static BOOL    needUploadScreen = FALSE;
 static BOOL    uploadedScreen = FALSE;
@@ -1434,6 +1435,23 @@ switch(lCommand)
       PreviousPSXDisplay.DisplayPosition.y = PSXDisplay.DisplayPosition.y;
       PSXDisplay.DisplayPosition.x = sx;
       PSXDisplay.DisplayPosition.y = sy;
+
+      /* A move by less than half the display is the same buffer nudged, not a flip
+       * (UploadWentToDisplay uses the same test). The GX draw origin is the previous
+       * position: left there, CTR (BIOS display y 2, the game's 0) had every load and
+       * move into its displayed buffer drawn 2 lines high in the EFB, and VRAM rows
+       * 216-217 (font textures) shown as a strip of noise along the bottom. Not for an
+       * interlaced display: its InterlacedTest countdown below needs Previous != current.
+       * bDisplayNudged keeps the vblank present for drawing into the displayed buffer
+       * (bDrawFrontBuffer), which a nudge got before through Previous != current. */
+      bDisplayNudged = !PSXDisplay.Interlaced &&
+          abs(sx - PreviousPSXDisplay.DisplayPosition.x) * 2 < PSXDisplay.DisplayMode.x &&
+          abs(sy - PreviousPSXDisplay.DisplayPosition.y) * 2 < PSXDisplay.DisplayMode.y;
+      if (bDisplayNudged)
+       {
+        PreviousPSXDisplay.DisplayPosition.x = sx;
+        PreviousPSXDisplay.DisplayPosition.y = sy;
+       }
      }
 
     PSXDisplay.DisplayEnd.x=
@@ -3029,6 +3047,7 @@ long GL_GPUopen()
  bSetClip = TRUE;
  CSTEXTURE = CSVERTEX = CSCOLOR = 0;
  canClearFrameBuf = FALSE;
+ bDisplayNudged = FALSE;
 
  InitializeTextureStore();                             // init texture mem
 
