@@ -388,10 +388,18 @@ void psxRcntUpdate()
 
     cycle = psxRegs.cycle;
 
+#if PERF_PROF_GPUSPLIT
+    unsigned long long rcu_t0_ = perf_now_ticks();
+    u32 rcu_loop_fires_ = 0;
+#endif
+
     // rcnt 0.
     cycles_passed = cycle - rcnts[0].cycleStart;
     while( cycles_passed >= rcnts[0].cycle )
     {
+#if PERF_PROF_GPUSPLIT
+        rcu_loop_fires_++;
+#endif
         if (((rcnts[0].mode & 7) == (RcSyncModeEnable | Rc01UnblankReset) ||
              (rcnts[0].mode & 7) == (RcSyncModeEnable | Rc01UnblankReset2))
             && cycles_passed > lineCycles())
@@ -409,18 +417,33 @@ void psxRcntUpdate()
     // rcnt 1.
     while( cycle - rcnts[1].cycleStart >= rcnts[1].cycle )
     {
+#if PERF_PROF_GPUSPLIT
+        rcu_loop_fires_++;
+#endif
         psxRcntReset( 1 );
     }
 
     // rcnt 2.
     while( cycle - rcnts[2].cycleStart >= rcnts[2].cycle )
     {
+#if PERF_PROF_GPUSPLIT
+        rcu_loop_fires_++;
+#endif
         psxRcntReset( 2 );
     }
+
+#if PERF_PROF_GPUSPLIT
+    PERF_ADD(rcu_loop_ticks, perf_now_ticks() - rcu_t0_);
+    g_perf.rcu_loop_fires += rcu_loop_fires_;
+#endif
 
     // rcnt base.
     if( cycle - rcnts[3].cycleStart >= rcnts[3].cycle )
     {
+#if PERF_PROF_GPUSPLIT
+        unsigned long long rcu_b0_ = perf_now_ticks();
+        g_perf.rcu_base_fires++;
+#endif
         hSyncCount += hsync_steps;
 
         // VSync irq.
@@ -430,14 +453,27 @@ void psxRcntUpdate()
 #ifdef PERF_PROF
             g_perf.psx_pal = Config.PsxType;
 #endif
+#if PERF_PROF_GPUSPLIT
+            rcu_t0_ = perf_now_ticks();
+#endif
             perf_vblank_tick();
             HW_GPU_STATUS &= SWAP32(~PSXGPU_LCF);
             gInterlaceLine = !((frame_counter+1) & 0x1);
             //GPU_vBlank( 1, 0 );
             setIrq( 0x01 );
+#if PERF_PROF_GPUSPLIT
+            PERF_ADD(rcu_vbpre_ticks, perf_now_ticks() - rcu_t0_);
+            rcu_t0_ = perf_now_ticks();
+#endif
 
             gpuPtr->updateLace();
+#if PERF_PROF_GPUSPLIT
+            rcu_t0_ = perf_now_ticks();
+#endif
             SysUpdate();
+#if PERF_PROF_GPUSPLIT
+            PERF_ADD(rcu_vbsys_ticks, perf_now_ticks() - rcu_t0_);
+#endif
 
             if (lightGun == LIGHTGUN_JUST){
                 psxRegs.interrupt |= (1 << PSXINT_LIGHTGUN);
@@ -449,6 +485,10 @@ void psxRcntUpdate()
 //            {
 //                SPU_async( cycle, 1 , Config.PsxType);
 //            }
+#if PERF_PROF_GPUSPLIT
+            PERF_ADD(rcu_vblank_ticks, perf_now_ticks() - rcu_b0_);
+            rcu_b0_ = perf_now_ticks();
+#endif
         }
 
         // Update lace.
@@ -502,7 +542,16 @@ void psxRcntUpdate()
             }
         }
 
+#if PERF_PROF_GPUSPLIT
+        PERF_ADD(rcu_frame_ticks, perf_now_ticks() - rcu_b0_);
+        rcu_b0_ = perf_now_ticks();
+#endif
+
         scheduleRcntBase();
+#if PERF_PROF_GPUSPLIT
+        PERF_ADD(rcu_sched_ticks, perf_now_ticks() - rcu_b0_);
+        PERF_ADD(rcu_base_ticks, perf_now_ticks() - rcu_t0_);
+#endif
     }
 
     if ((cycle - rcnts[4].cycleStart) >= rcnts[4].cycle) {
@@ -516,7 +565,9 @@ void psxRcntUpdate()
         psxRcntReset(4);
     }
 
-    psxRcntSet();
+    /* PERF_TIME resolves to a no-op wrapper when GPUSPLIT is off, so the call
+     * is compiled either way. */
+    PERF_TIME(rcu_set_ticks, psxRcntSet());
 
 //#ifndef NDEBUG
 //    DebugVSync();

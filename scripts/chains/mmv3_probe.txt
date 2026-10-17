@@ -1,0 +1,4 @@
+CHAIN
+600
+sd:/wiistation/isos/Micro Machines V3 (USA)
+Micro Machines V3 (USA).cue

@@ -409,6 +409,25 @@ typedef struct {
 	uint32_t irq_fires[PERF_IRQ_SLOTS];
 	uint64_t irq_ticks[PERF_IRQ_SLOTS];   /* lightrec.c irq_test: each event callback's time */
 	uint64_t irq_line_ticks;               /* irq_test_line: the exceptions interrupts raise */
+	/* PSXINT_RCNT (psxRcntUpdate) split. FF7's FMV fires it every ~hblank
+	 * block and the callback took >50% of wall on hardware: what does it?
+	 * Fields are GPUSPLIT-gated (psxcounters.c), so release and light builds
+	 * pay nothing. */
+	uint64_t rcu_loop_ticks;   /* the rcnt 0..2 reset/hit loops, all fires */
+	uint64_t rcu_base_ticks;   /* the hsync base branch (vblank + lace work + SysUpdate) */
+	uint64_t rcu_set_ticks;    /* psxRcntSet: the reschedule, every fire */
+	uint64_t rcu_vblank_ticks; /* base branch: the VBlankStart body (vblank tick, SysUpdate) */
+	uint64_t rcu_frame_ticks;  /* base branch: the frame-end body (housekeeping, gpuSyncPluginSR) */
+	uint64_t rcu_sched_ticks;  /* base branch: scheduleRcntBase */
+	/* GL_GPUupdateLace ( gpuPlugin.c, the OpenGX vblank present): where the
+	 * vblank body's ms go. Same gate as the fields above. */
+	uint64_t rcu_vbpre_ticks;       /* the VBlank body before updateLace (setIrq, records) */
+	uint64_t rcu_vbsys_ticks;       /* SysUpdate in the vblank body (softGpu: frame limit) */
+	uint64_t rcu_lace_flush_ticks;  /* flip05Flush */
+	uint64_t rcu_lace_limit_ticks;  /* the frame-limit housekeeping */
+	uint64_t rcu_lace_flip_ticks;   /* the flip / updateDisplayGl body */
+	uint32_t rcu_loop_fires;   /* reset() calls in the rc 0..2 loops */
+	uint32_t rcu_base_fires;   /* fires where the base branch actually ran */
 	uint64_t slice_cycles;        /* summed PSX-cycle budget over all slices */
 	uint32_t slice_tiny;          /* slices shorter than SLICE_TINY_CYCLES */
 

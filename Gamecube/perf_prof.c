@@ -1221,6 +1221,28 @@ void perf_report(void)
 					fprintf(f, " %s=%llu", perf_irq_name(i),
 						(unsigned long long)ticks_to_microsecs(g_perf.irq_ticks[i]));
 			fprintf(f, " line_exc=%llu\n", (unsigned long long)ticks_to_microsecs(g_perf.irq_line_ticks));
+		{
+			/* PSXINT_RCNT split (psxcounters.c): every hblank-block fire. */
+			unsigned long long rcu_tot = g_perf.rcu_loop_ticks + g_perf.rcu_base_ticks + g_perf.rcu_set_ticks;
+			fprintf(f, "rcntsplit: fires=%lu base_fires=%lu loop_fires=%lu loop_us=%llu base_us=%llu set_us=%llu sum_hot_us=%llu"
+				" | vblank_us=%llu frame_us=%llu sched_us=%llu\n",
+				(unsigned long)g_perf.irq_fires[PSXINT_RCNT],
+				(unsigned long)g_perf.rcu_base_fires,
+				(unsigned long)g_perf.rcu_loop_fires,
+				(unsigned long long)ticks_to_microsecs(g_perf.rcu_loop_ticks),
+				(unsigned long long)ticks_to_microsecs(g_perf.rcu_base_ticks),
+				(unsigned long long)ticks_to_microsecs(g_perf.rcu_set_ticks),
+				(unsigned long long)ticks_to_microsecs(rcu_tot),
+				(unsigned long long)ticks_to_microsecs(g_perf.rcu_vblank_ticks),
+				(unsigned long long)ticks_to_microsecs(g_perf.rcu_frame_ticks),
+				(unsigned long long)ticks_to_microsecs(g_perf.rcu_sched_ticks));
+			fprintf(f, "lace: flush_us=%llu limit_us=%llu flip_us=%llu vbpre_us=%llu vbsys_us=%llu\n",
+				(unsigned long long)ticks_to_microsecs(g_perf.rcu_lace_flush_ticks),
+				(unsigned long long)ticks_to_microsecs(g_perf.rcu_lace_limit_ticks),
+				(unsigned long long)ticks_to_microsecs(g_perf.rcu_lace_flip_ticks),
+				(unsigned long long)ticks_to_microsecs(g_perf.rcu_vbpre_ticks),
+				(unsigned long long)ticks_to_microsecs(g_perf.rcu_vbsys_ticks));
+		}
 		}
 		fprintf(f, "ram: mem1_free_kb=%lu mem2=%lu/%luKB peak=%luKB fails=%lu null_read=%lu heap_ok=%u\n",
 			(unsigned long)mem1_kb, (unsigned long)m2used, (unsigned long)m2tot,

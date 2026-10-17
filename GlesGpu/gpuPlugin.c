@@ -1128,7 +1128,14 @@ static unsigned short usFirstPos=2;
 
 void CALLBACK GL_GPUupdateLace(void)
 {
+#if PERF_PROF_GPUSPLIT
+    unsigned long long rcu_lf0_ = perf_now_ticks();
+#endif
 flip05Flush();
+#if PERF_PROF_GPUSPLIT
+    PERF_ADD(rcu_lace_flush_ticks, perf_now_ticks() - rcu_lf0_);
+    rcu_lf0_ = perf_now_ticks();
+#endif
 if(!(dwActFixes&AUTO_FIX_CHRONO_CROSS))
  STATUSREG^=0x80000000;                               // interlaced bit toggle, if the CC game fix is not active (see gpuReadStatus)
 
@@ -1146,6 +1153,10 @@ if(!(dwActFixes&AUTO_FIX_CHRONO_CROSS))
 
 //if(!(dwActFixes&128))                                 // normal frame limit func
  OldGpuCheckFrameRate();
+#if PERF_PROF_GPUSPLIT
+    PERF_ADD(rcu_lace_limit_ticks, perf_now_ticks() - rcu_lf0_);
+    rcu_lf0_ = perf_now_ticks();
+#endif
 
 //if(iOffscreenDrawing==4)                              // special check if high offscreen drawing is on
 // {
@@ -1219,10 +1230,13 @@ else if(usFirstPos==1)                                // initial updates (after 
          iDrawnSomething = 0;
          why |= 4;
      }
-     perf_vram_event(0xF1, PSXDisplay.DisplayPosition.x, PSXDisplay.DisplayPosition.y,
-                     PSXDisplay.GDrawOffset.x, PSXDisplay.GDrawOffset.y, drawn, why);
-     }
- }
+      perf_vram_event(0xF1, PSXDisplay.DisplayPosition.x, PSXDisplay.DisplayPosition.y,
+                      PSXDisplay.GDrawOffset.x, PSXDisplay.GDrawOffset.y, drawn, why);
+      }
+  }
+#if PERF_PROF_GPUSPLIT
+    PERF_ADD(rcu_lace_flip_ticks, perf_now_ticks() - rcu_lf0_);
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////
