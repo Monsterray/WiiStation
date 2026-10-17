@@ -1,0 +1,13 @@
+CHAIN
+# MediEvil only, from fmv_ab.txt: the 24-bit FmvColour A/B on hardware.
+# MMV3 cannot stage on the bench Wii's card (its 704 MB .bin exceeds the HBC
+# agent's DEVFILE_PUT_MAX = 512 MB, hbc-reborn channel/source/devfile.c:26) and
+# a .chd stays over the cap too. MediEvil is already on the card, matching the
+# library (checked 2026-10-17, wii_check.py card).
+# bash scripts/wsx.sh chain NAME fmv_me.txt --secs 900
+2400 FmvColour=0
+sd:/wiistation/isos/Medievil
+Medievil [U] [SCUS-94227].cue
+2400 FmvColour=1
+sd:/wiistation/isos/Medievil
+Medievil [U] [SCUS-94227].cue

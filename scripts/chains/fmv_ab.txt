@@ -4,6 +4,11 @@ CHAIN
 # setting does not touch it.) FmvColour 0 = 15-bit (RGB5A3 movie texture),
 # 1 = 24-bit (RGBA8). Under Dolphin this shows the CPU side (the texture fill and tiling);
 # the GPU's cost of the larger texture shows only on a Wii (a pmc build).
+# Answered on a Wii 2026-10-17 with the MediEvil pairs only (.runs/fmvme): the 24-bit
+# path is NOT slower there — load 53.2 vs 56.2, gpu 5.6 vs 8.8 (15-bit). The Dolphin-side
+# CPU observation was the whole story; keep FmvColour=1.
+# MMV3's pair cannot stage on the bench Wii (its 704 MB .bin exceeds the HBC agent's
+# 512 MB put cap — see fmv_me.txt); the Dolphin side runs this file as-is.
 # bash scripts/wsx.sh chain NAME fmv_ab.txt --secs 900
 2400 FmvColour=0
 sd:/wiistation/isos/Micro Machines V3 (USA)
