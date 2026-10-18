@@ -54,11 +54,12 @@ MenuContext::MenuContext(GXRModeObj *vmode)
 		  configureButtonsFrame(0),
 		  optionsFrame(0),
 		  customizeCoopFrame(0),
+		  usbPadTestFrame(0),
 		  activeIndex(0),
 		  activeSubmenu(0)
 {
 	pMenuContext = this;
-	for (int i = 0; i <= FRAME_CUSTOMIZECOOP; i++)
+	for (int i = 0; i <= FRAME_USBPADTEST; i++)
 	{
 		focusMemory[i].button = NULL;
 		focusMemory[i].submenu = 0;
@@ -75,6 +76,7 @@ MenuContext::MenuContext(GXRModeObj *vmode)
 	configureButtonsFrame = new ConfigureButtonsFrame();
 	optionsFrame = new OptionsFrame();
 	customizeCoopFrame = new CustomizeCoopFrame();
+	usbPadTestFrame = new UsbPadTestFrame();
 
 	menu::Gui::getInstance().addFrame(mainFrame);
 	menu::Gui::getInstance().addFrame(loadRomFrame);
@@ -85,6 +87,7 @@ MenuContext::MenuContext(GXRModeObj *vmode)
 	menu::Gui::getInstance().addFrame(configureButtonsFrame);
 	menu::Gui::getInstance().addFrame(optionsFrame);
 	menu::Gui::getInstance().addFrame(customizeCoopFrame);
+	menu::Gui::getInstance().addFrame(usbPadTestFrame);
 
 	menu::Focus::getInstance().setFocusActive(true);
 
@@ -95,6 +98,7 @@ MenuContext::MenuContext(GXRModeObj *vmode)
 
 MenuContext::~MenuContext()
 {
+	delete usbPadTestFrame;
 	delete customizeCoopFrame;
 	delete optionsFrame;
 	delete configureButtonsFrame;
@@ -125,6 +129,7 @@ static const int LOGO_HIDDEN_FRAMES[] = {
 	MenuContext::FRAME_CONFIGUREINPUT,
 	MenuContext::FRAME_CUSTOMIZECOOP,
 	MenuContext::FRAME_CONFIGUREBUTTONS,
+	MenuContext::FRAME_USBPADTEST,
 };
 
 /* sd:/wiistation/autoinput.txt's "menupage <n>": see PadWiiSX.c, where it is parsed. */
@@ -231,7 +236,7 @@ void MenuContext::enterFrame(int frameIndex, int submenu)
 	}
 
 	/* A Back takes what the screen remembers, but only for the tab it was left from. */
-	if (back && frameIndex >= FRAME_MAIN && frameIndex <= FRAME_CUSTOMIZECOOP)
+	if (back && frameIndex >= FRAME_MAIN && frameIndex <= FRAME_USBPADTEST)
 	{
 		if (focusMemory[frameIndex].submenu == submenu)
 			returnTo = focusMemory[frameIndex].button;
@@ -268,6 +273,9 @@ void MenuContext::enterFrame(int frameIndex, int submenu)
 		break;
 	case FRAME_CUSTOMIZECOOP:
 		currentActiveFrame = customizeCoopFrame;
+		break;
+	case FRAME_USBPADTEST:
+		currentActiveFrame = usbPadTestFrame;
 		break;
 	}
 
@@ -333,6 +341,9 @@ menu::Frame* MenuContext::getFrame(int frameIndex)
 		break;
 	case FRAME_CUSTOMIZECOOP:
 		pFrame = customizeCoopFrame;
+		break;
+	case FRAME_USBPADTEST:
+		pFrame = usbPadTestFrame;
 		break;
 	}
 
