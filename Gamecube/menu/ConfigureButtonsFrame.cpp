@@ -679,18 +679,21 @@ void ConfigureButtonsFrame::drawChildren(menu::Graphics &gfx)
 								   {295, 335, 345, 335},
 								   {295, 310, 295, 335},
 								   {345, 310, 345, 335}};
-		int baseGCon_x = 133;
-		int baseGCon_y = 215;
-		int linesGCon[3][4] =     {{560, 310, 270, 300}, //Cir
-								   {506, 365, 372, 290}, //Cro
-								   {365, 160, 372, 290}}; //START
-		int baseJust_x = 120;
+		/* The gun and mouse pictures at their own size (GuiResources.cpp: 252x180, 144x256), where
+		 * the pictures were before they were read from the TPL's data; the lines end on the same
+		 * parts of the picture. */
+		int baseGCon_x = 172;
+		int baseGCon_y = 220;
+		int linesGCon[3][4] =     {{560, 310, 274, 300}, //Cir
+								   {506, 365, 362, 291}, //Cro
+								   {365, 160, 362, 291}}; //START
+		int baseJust_x = 153;
 		int baseJust_y = 220;
-		int linesJust[3][4] =     {{500, 310, 315, 300}, //Squ
-								   {490, 380, 370, 275}, //Cro
-								   {365, 160, 343, 270}}; //START
+		int linesJust[3][4] =     {{500, 310, 311, 300}, //Squ
+								   {490, 380, 360, 275}, //Cro
+								   {365, 160, 336, 270}}; //START
 
-		int basePSMouse_x = 105;
+		int basePSMouse_x = 121;
 		int basePSMouse_y = 135;
 		int linesPSMouse[2][4] =  {{170, 240, 460, 150}, //Left
 								   {220, 240, 460, 200}}; //Right
@@ -727,9 +730,9 @@ void ConfigureButtonsFrame::drawChildren(menu::Graphics &gfx)
 		if ((lightGun == LIGHTGUN_DISABLE) || !isLightgun || padGun() == PADLIGHTGUN_DISABLE)
 			gfx.drawImage(0, base_x, base_y, 232, 152, 0, 1, 0, 1);
 		else if (lightGun == LIGHTGUN_GUNCON)
-			gfx.drawImage(0, baseGCon_x, baseGCon_y, 290, 190, 0, 1, 0, 1);
+			gfx.drawImage(0, baseGCon_x, baseGCon_y, 252, 180, 0, 1, 0, 1);
 		else if (lightGun == LIGHTGUN_JUST)
-			gfx.drawImage(0, baseJust_x, baseJust_y, 280, 180, 0, 1, 0, 1);
+			gfx.drawImage(0, baseJust_x, baseJust_y, 252, 180, 0, 1, 0, 1);
 		else
 			gfx.drawImage(0, basePSMouse_x, basePSMouse_y, 144, 256, 0, 1, 0, 1);
 		gfx.setTEV(GX_PASSCLR);

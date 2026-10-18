@@ -103,7 +103,7 @@ believing the symptom.
   two separate emulator runs are never sample-aligned. Its `R==L at shift -1/0/+1` line
   should peak at 0 on dual-mono content (CD-XA speech is); a peak at +1 or -1 is an
   output-stage interleave fault, not a source property (case study 9). A dump from the other
-  driver (`SoundHwAccel=1`, needs `DSP_LLE=1`) tells source faults from driver faults.
+  driver (`SoundDriver=1`, needs `DSP_LLE=1`) tells source faults from driver faults.
   Its **short zero gaps** count is the other line to read. The
   gap count is the one that catches a stream running dry: AESND mixes in 2 ms blocks, so a
   DSP-path voice that misses a buffer hand-over leaves a 2 ms hole, and hundreds of those a

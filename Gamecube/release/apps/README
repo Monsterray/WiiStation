@@ -167,6 +167,22 @@ Unreleased:
   deflicker and trap filter settings and their combinations every 4 seconds,
   named under the FPS counter. The page's help notes are gone (SETTINGS.md).
 * Trap filter: its help says it only works on composite and S-Video.
+* Menu: L and R (- and + on a Wiimote, ZL and ZR on the Wii U GamePad) turn
+  the tabs on every screen with tabs, the Advanced pages too. After the last
+  tab comes the first; TabWrap = 0 in settings.ini stops them at the ends.
+* Menu: closing a message (Credits, Quit, "Please load an ISO first") with B
+  or OK leaves the cursor on the button you pressed. B on the main menu no
+  longer moves the cursor.
+* Settings, General: Load Settings (SD, USB, This Game) reads that settings
+  file and applies it at once. Fast Load moved to Advanced, CD.
+* Settings, Audio: "DSP Sound" is now "Sound Driver" (DSP or CPU). It picks the
+  output driver only; the PS1 sound emulation is the same with either. The
+  settings.ini key is SoundDriver; the old SoundHwAccel is still read. The
+  same option is no longer repeated on Advanced, SPU.
+* Settings: the Advanced buttons on General, Video and Audio are the same size;
+  Audio's Sync Off and Rate buttons are as wide as the Sound Driver buttons.
+* Configure Buttons: the GunCon, Justifier and mouse pictures no longer show
+  garbage in their top-left corner, and are drawn at their own size.
 
 Ver 5.13.1 (2026-10-13):
 * Fixed: after about 72 minutes of play (and every 72 minutes after that) the

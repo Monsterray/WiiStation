@@ -462,6 +462,8 @@ enum numMultitaps
 	MULTITAPS_TWO
 };
 
+extern char tabWrap;   /* TabWrap: L/R past the last tab go to the first (menu::glue::tabShoulder) */
+
 extern char lang;
 enum lang
 {

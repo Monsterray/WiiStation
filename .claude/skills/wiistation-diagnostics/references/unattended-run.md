@@ -41,7 +41,7 @@ three short outputs instead of long paths, log tails and three analysis tools.
 ```bash
 scripts/wsx.sh build debug light          # or: build release. Prints the DOL and time, or the first errors.
 scripts/wsx.sh run rc_cpu                 # debug DOL, Spyro speech script, audio dump, then the summary
-scripts/wsx.sh run rc_dsp --dsp           # DSP sound path: SoundHwAccel=1 + Dolphin DSP LLE
+scripts/wsx.sh run rc_dsp --dsp           # DSP sound path: SoundDriver=1 + Dolphin DSP LLE
 scripts/wsx.sh run legacy --dol release --set SoundRateControl=0,SoundTempo=1
 scripts/wsx.sh run title --input title --secs 120 --nodump
 scripts/wsx.sh summary rc_cpu rc_dsp legacy   # one block per run and a comparison table

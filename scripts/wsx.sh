@@ -11,7 +11,7 @@
 #        --secs N                   run length (default 170)
 #        --input speech|title|FILE  autoinput script: scripts/autoinput/spyro_<name>.txt or a file
 #        --set K=V[,K=V...]         settings on top of the base (gpuPlugin=2 FPS=1 PadType1=1 PadAutoAssign=0)
-#        --dsp                      DSP sound path: SoundHwAccel=1 and Dolphin DSP LLE
+#        --dsp                      DSP sound path: SoundDriver=1 and Dolphin DSP LLE
 #        --nodump                   no audio dump
 #        --fast                     Dolphin as fast as the PC allows (about 2x): frames and guest
 #                                   time are unchanged, and SoundRateControl=0 SoundTempo=0 make
@@ -174,7 +174,7 @@ run)
 	for c in "${cards[@]:-}"; do [ -n "$c" ] && mkdir -p "$dir/card" && cp -r "$c" "$dir/card/"; done
 	{
 		printf 'gpuPlugin = 2\nFPS = 1\nPadType1 = 1\nPadAutoAssign = 0\n'
-		[ -n "$dsp" ] && printf 'SoundHwAccel = 1\n'
+		[ -n "$dsp" ] && printf 'SoundDriver = 1\n'
 		[ -n "$fast" ] && printf 'SoundRateControl = 0\nSoundTempo = 0\n'   # before --set, which may override
 		[ -n "$sets" ] && echo "$sets" | tr ',' '\n' | sed -E 's/^ *([^= ]+) *= *(.*)$/\1 = \2/'
 		[ -n "$setfile" ] && cat "$setfile"
