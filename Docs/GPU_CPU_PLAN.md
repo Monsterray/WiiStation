@@ -16,6 +16,24 @@ HLE 4.7% -> 3.3% of wall, load 50.0% -> 48.7%.
 the G4 items,
 C2, then the hardware session (the bench Wii and `scripts/wii_lab.py` are ready).
 
+**Status corrections 2026-10-17 (checked in code and runs, after this text was written).**
+- G5 and G6 are **written and merged**: G5 = `8245e58` (TEXCHECK oracle) + `dcac40b` (exact
+  invalidation incl. the window cache and the 4/8-bit end-texel rule, host
+  `tests/texinval_test.c`); G6 = 0fbe257. The G5/G6 sections below are the plan as it was, kept
+  for reasoning. G5's evidence since the fix: `.runs/fr3500_texcheck_after` — the 640x480 fill
+  no longer drops anything (`fill=491/0/0`), `texk: conv` 3709 -> 590 at vblank 3450; TEXCHECK
+  stale=0 at 135980 hits. The one open G5 gate is its bench-Wii deep run (MediEvil `texsel`
+  13.2% -> expected ~2-3%; every pre-fix hardware run in `baselines/` predates the fix).
+- Of G4, the only open item is display-list reading (`GlesGpu/gpuPlugin.c:2457-2461`,
+  0.6-1.5%); the FF7 0.86x and readback items are done.
+- C2 (GTE 32-bit fast paths) is open; probes exist (`PERF_PROF_GTE`, `gte: calls=... us=...`),
+  the exact divide table exists (`gte_divider.h`, bit-exact, host-tested) — the fast paths in
+  `gte.c` do not.
+- OPTIMIZATION_PLAN's Phase-1 counter list has since been filled: `jit: pre_blocks= blocks=
+  gen_us=`, `jitparts:`, `jitcode:`, `cd_idle_skips`/`gpu_idle_skips`
+  (8de5fa1/8610af3, after bc014aa) exist. Genuinely missing: a code high-water mark
+  (only cumulative `lightrec_code_bytes`) and bytes-flushed (only texture bytes today).
+
 The sections below are the plan as written, kept for its reasoning.
 Evidence: the eleven-game chained run `baselines/chain_all_20260922/` (debug build, every
 probe on, Dolphin) and the three-game runs `.runs/three_flip`, `.runs/three_nolog`.
@@ -161,7 +179,9 @@ The GPU split probes (`PERF_PROF_GPUSPLIT`: perf.log `gpusplit:`, `gpuprim:`, `g
   Hardware: upload 10.9 -> 6.5 s, VRAM loop 3.7 -> 2.9 s, FF7 0.86 -> 0.93x
   (`baselines/hw_ff7_*`).
 
-### G5. Texture-cache invalidation: exact rectangles (MediEvil, next)
+### G5. Texture-cache invalidation: exact rectangles (MediEvil, next).
+### **DONE** — 8245e58 (TEXCHECK oracle) + dcac40b (exact invalidation, 2026-09-29). See the
+### status corrections above for the post-fix evidence and the one open gate (hardware deep run).
 - **Evidence (bench Wii).** MediEvil is the costliest game on hardware: GPU 23.6% of wall,
   `texsel` 13.2% (`baselines/hw_chain_all2_20260928`, deep run hw_all_deep). It converts 4084
   sub-textures a minute, ~35k texels each.
