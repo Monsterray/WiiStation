@@ -155,6 +155,12 @@ LATER UPDATES BY:
  * Monty Perrotti (WiiStation)
 
 WiiStation CHANGE LOG:
+Unreleased:
+* Fixed: the reverb's left-right reflections read the wrong place in the echo
+  buffer (their own output, one buffer length earlier, instead of the other
+  side's), so games and the BIOS with reverb on had a slightly different echo
+  from a PlayStation's.
+
 Ver 5.13.1 (2026-10-13):
 * Fixed: after about 72 minutes of play (and every 72 minutes after that) the
   sound fell an eighth of a second behind the picture and played slightly high
