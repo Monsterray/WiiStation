@@ -159,6 +159,18 @@ def chain_files(chain):
     return scripts, folders, games
 
 
+def chain_header(chain):
+    """The chain file's first non-empty line. WiiStation's autoboot parser needs CHAIN first:
+    without it the first comment line becomes the content it fails on, and the menu pops a
+    blocking "OK" message box whose text is that line (measured 2026-10-17: a queue job hung
+    17 minutes on it and a person had to press OK on the TV)."""
+    for l in chain.read_text(encoding="utf-8", errors="replace").splitlines():
+        s = l.strip()
+        if s:
+            return s
+    return ""
+
+
 def main():
     ap = parser(__doc__)
     ap.add_argument("name", help="the run's folder: .runs/NAME")
@@ -177,6 +189,10 @@ def main():
            "release": REPO / "Gamecube/WiiSXRX_Release.dol"}.get(a.dol, pathlib.Path(a.dol))
     if not dol.is_file():
         ap.error(f"--dol {a.dol}: no such file ({dol})")
+    head = chain_header(a.chain)
+    if head != "CHAIN":
+        sys.exit(f"{a.chain}: the first line is {head[:40]!r}, not CHAIN -- "
+                 "WiiStation would sit on a blocking message box instead of booting the chain")
     a.wii = bench_wii("wii_lab.py", a.wii)   # unattended runs and cleanups: the bench Wii, in a queue job
 
     global RUN_DIR

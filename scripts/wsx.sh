@@ -201,6 +201,7 @@ chain)
 	name="${1:-}"; cf="${2:-}"; shift 2 || { echo "chain NAME CHAINFILE [options]"; exit 2; }
 	[ -f "$cf" ] || cf="$REPO/scripts/chains/$cf"
 	[ -f "$cf" ] || { echo "no such chain file: $cf"; exit 2; }
+	head -1 "$cf" | grep -q '^CHAIN' || { echo "$cf: the first line is not CHAIN -- WiiStation would sit on a blocking message box (measured 2026-10-17)"; exit 2; }
 	cardargs=()
 	for f in $(tr -d '\r' < "$cf" | sed -n -E 's|^[0-9]+[[:space:]]+sd:/wiistation/([^[:space:]]+).*|\1|p' | sort -u); do
 		[ -f "$REPO/scripts/autoinput/$f" ] || { echo "chain names sd:/wiistation/$f: no scripts/autoinput/$f"; exit 2; }

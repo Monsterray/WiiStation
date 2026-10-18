@@ -105,6 +105,14 @@ out before the next.
 
 ## Files that drive the run
 
+**Chain files need a `CHAIN` header line** (both `wsx.sh chain` and the WiiStation autoboot
+parser): line 1 is the literal `CHAIN`, then blank lines and lines starting `#` are skipped.
+Without it the first comment line becomes the content: nothing boots to a folder named
+"# G5 verify gate...", and WiiStation pops a **blocking "OK" message box whose text is that
+line** — on the bench Wii a person has to press it, and the run hangs until killed (measured
+2026-10-17, the g5verify job: 17 minutes, then the agent self-exited). Both `scripts/wsx.sh
+chain` and `scripts/wii_lab.py` now refuse a chain whose first non-empty line is not `CHAIN`.
+
 **`autoboot.txt`** (SD sync folder, read after settings load): line 1 the ISO folder, line 2
 the file name (matched with `strcasestr`, so it must be unique); or just `BIOS` to run the
 BIOS shell via the menu's Execute Bios path. Delete it (or pass an empty file as the run
