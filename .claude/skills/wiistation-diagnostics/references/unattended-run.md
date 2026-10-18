@@ -116,7 +116,7 @@ anchored Dolphin movie (`.dtm` with `from_savestate=1`) cannot replace it: it re
 recorded binary, so code changes are invisible under it.
 
 **`settings.ini` (was settingsRX2022.cfg)** (bare `key = value`, unlisted keys keep compiled defaults — NOT the
-user's values; per-game files in `wiistation/settings/<CdromId>.cfg` override it when the game
+user's values; per-game files in `wiistation/settings/<CdromId>.ini` (or a legacy `.cfg`) replace it when the game
 has one). Keys that unattended runs need:
 
 ```

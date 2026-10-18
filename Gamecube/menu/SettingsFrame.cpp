@@ -1250,8 +1250,10 @@ void Func_SaveSettingsUSB()
 }
 
 /* Save the settings as they are now for the game that is loaded, to
- * <device>:/wiistation/settings/<CdromId>.cfg, which WiiStation reads over the global file
- * the next time that game starts. USB is used when it has the folder, otherwise SD.
+ * <device>:/wiistation/settings/<CdromId>.ini, which WiiStation reads instead of the global
+ * file the next time that game starts (5.6.1 to 5.13.1 wrote .cfg here, which no game read;
+ * the reader takes such a .cfg when the game has no .ini). USB is used when it has the
+ * folder, otherwise SD.
  * The folder used to have to exist already, and saying so was all this did when it did
  * not; makeParentDirs creates it, the same as every other save. */
 void Func_SaveSettingsSeparately()
@@ -1260,9 +1262,13 @@ void Func_SaveSettingsSeparately()
     char settingPathBuf[256];
     fileBrowser_file* configFile_file;
     extern char CdromId[10];
+	if (!CdromId[0]) {   /* a PS-X EXE has no ID: "settings/.ini" would be no game's file */
+		menu::MessageBox::getInstance().setMessage("This game has no ID: save to SD or USB");
+		return;
+	}
 	if (stat("usb:/wiistation/settings/", &s)) {
 		{
-			sprintf(settingPathBuf, "%s%s%s", "sd:/wiistation/settings/", CdromId, ".cfg");
+			sprintf(settingPathBuf, "%s%s%s", "sd:/wiistation/settings/", CdromId, ".ini");
 			configFile_file = &saveDir_libfat_Default;
 	        int (*configFile_init)(fileBrowser_file*) = fileBrowser_libfat_init;
 	        if(configFile_init(configFile_file)) {                //only if device initialized ok
@@ -1280,7 +1286,7 @@ void Func_SaveSettingsSeparately()
 	}
 	else
 	{
-		sprintf(settingPathBuf, "%s%s%s", "usb:/wiistation/settings/", CdromId, ".cfg");
+		sprintf(settingPathBuf, "%s%s%s", "usb:/wiistation/settings/", CdromId, ".ini");
 		configFile_file = &saveDir_libfat_USB;
 	    int (*configFile_init)(fileBrowser_file*) = fileBrowser_libfat_init;
 	    if (configFile_init(configFile_file)) {                //only if device initialized ok

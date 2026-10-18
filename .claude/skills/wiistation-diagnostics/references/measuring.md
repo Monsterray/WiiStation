@@ -412,6 +412,14 @@ hashes in UploadScreen, OpenGX texel checks). The pattern to grep for is a loop 
 - After changing a bundled library (deps/*/lib), the DOL now relinks (Makefile_Wii
   BUNDLED_LIBS); before, a rebuilt libsmb2 was silently not linked in.
 
+- `menuclick <button> <times> [frame]` calls a Settings button (SettingsFrame.cpp FRAME_BUTTONS
+  index; 14 Save SD, 15 Save USB, 62 Save This Game) at that menu frame (default 40). A modal
+  MessageBox stops the menu frames, so a walk must dismiss it first. Save This Game, proven
+  2026-10-18: `menupage 70`, `menukeys 60 A . . . . . . D A . . . . . . . . A` (open the Spyro
+  folder, load the .cue, OK the info box), `menuclick 62 1 600`, with `WSX_ISOS="Spyro the Dragon"
+  KEEP_PROFILE=1 wsx.sh menu ...`; read the file back with sdimage_read.py from the kept profile.
+  `wsx.sh run --settings FILE` stages a whole settings file; `--card DIR` stages a folder
+  (`settings/` with a game's own file). Round trip of every key: scripts/settings_roundtrip.py.
 - `menukeys` presses are ignored while a Wiimote IR pointer is valid (the menu follows the pointer): for scripted menu walks in Dolphin set the emulated Wiimotes' Source=0 in the run profile (restore after). Found 2026-10-11; a focus walk "passed" with no movement before this was known.
 
 ## Menu comparisons: wsx.sh menu (2026-10-11)

@@ -220,7 +220,7 @@ cp "${AIN:-$P/autoinput.txt}" "$S/autoinput.txt"; cp "${SET:-$P/settingsRX2022.c
 [ -n "$ABOOT" ] || echo "note: no autoboot file given -- the run will stay in the menu"
 if [ -n "$ABOOT" ]; then cp "$ABOOT" "$S/autoboot.txt"; fi
 CARDFILES=$(ls "$OUT/card" 2>/dev/null)
-[ -n "$CARDFILES" ] && cp "$OUT/card/"* "$S/" && echo "card files: $(echo $CARDFILES)"
+[ -n "$CARDFILES" ] && cp -r "$OUT/card/"* "$S/" && echo "card files: $(echo $CARDFILES)"
 
 # --- run --------------------------------------------------------------------------------
 echo "framedump run: start $(date +%T)"
@@ -284,7 +284,7 @@ sleep 3
 # --- unstage ----------------------------------------------------------------------------
 # The card belongs to this profile alone, so only the per-run files are taken back off it.
 rm -f "$S/autoinput.txt" "$S/settings.ini" "$S/autoboot.txt"
-for c in $CARDFILES; do rm -f "$S/$c"; done
+for c in $CARDFILES; do rm -rf "$S/$c"; done   # a folder too (card/settings/<ID>.ini)
 
 # --- collect ----------------------------------------------------------------------------
 N=$(ls "$PROFILE/Dump/Frames" 2>/dev/null | wc -l); echo "frames dumped: $N"
