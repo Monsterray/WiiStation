@@ -214,6 +214,31 @@ int IsHidRuning(void);
 extern volatile s32 hidControllerConnected;
 extern volatile s32 loadingControllerIni;
 
+/* For the USB Pad Test page (Gamecube/menu/UsbPadTestFrame.cpp). HIDOpen fills it in for the
+ * device it picks as the controller; the page only reads it. Games never look at it. */
+typedef struct {
+	u32 nDevices;            /* devices /dev/usb/hid listed at the last HIDOpen */
+	u16 vids[8], pids[8];
+	u32 picked;              /* 1: a device was picked as the controller (vid/pid below) */
+	u32 vid, pid;
+	u32 ifClass, ifSubClass, ifProtocol, ifNumber;
+	u32 epIn, epOut, maxPacket;
+	u32 hasIni;              /* its controllers/VVVV_PPPP.ini was found and matched */
+	u32 raw;                 /* read with no ini (hidRawMode): games never get it */
+	u32 reading;             /* reports are being read into HID_MEM2_PACKET_ADDR */
+	vs32 lastLen;            /* the IOS result of the last report read: its length, or an error */
+	u8 params[0x60];         /* GetDeviceParameters: device, config, interface, endpoint descriptors */
+	vu32 request;            /* the page sets 1; the HID thread reads desc and product, then sets 0 */
+	s32 descLen;             /* the HID report descriptor's length, or the IOS error */
+	u8 desc[512];
+	char product[64];        /* the device's product string, "" if none */
+} hid_probe_t;
+extern hid_probe_t hidProbe;
+/* Set by the USB Pad Test page while it is open: a pad attached then that has no controller
+ * ini is still read (raw), but hidControllerConnected stays 0 for it, so games and the menu
+ * never use it. */
+extern volatile s32 hidRawMode;
+
 #ifdef __cplusplus
 }
 #endif

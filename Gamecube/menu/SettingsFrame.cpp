@@ -180,7 +180,7 @@ void setSpuInterpolation(int spuInterpolation);
 void setSpuTempo(int soundTempo);
 }
 
-#define NUM_FRAME_BUTTONS 80
+#define NUM_FRAME_BUTTONS 81
 #define NUM_TAB_BUTTONS 5
 #define FRAME_BUTTONS settingsFrameButtons
 #define FRAME_STRINGS settingsFrameStrings
@@ -377,6 +377,8 @@ struct ButtonInfo
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[34],	Func_AdvGfxPage,		Func_ReturnFromSettingsFrame }, // Video tab: Advanced Graphics page
 	//Input tab: the third controller type (button 79), appended so no index moves
 	{	NULL,	BTN_A_SEL,	NULL,				Func_PsxTypeStickDpad,	Func_ReturnFromSettingsFrame, "ControllerType", CONTROLLERTYPE_STICKDPAD }, // PSX Pad Type: Stick D-pad
+	//Input tab: Test USB Pad (button 80), the USB Pad Test page (UsbPadTestFrame.cpp)
+	{	NULL,	BTN_A_NRM,	(char*)"Test USB Pad",	Func_UsbPadTest,	Func_ReturnFromSettingsFrame },
 };
 
 /*  The tabs, on the menu engine  */
@@ -585,7 +587,7 @@ static const SetRow INP_ROWS[] =
 {
 	{ eng::ROW_BUTTONS, NULL,            NULL,               { 30, 31, -1, -1 }, { 220, 235,   0, 0 }, 85.0f,  15.0f, 0 },	/* Configure Input, Configure Button Mappings */
 	{ eng::ROW_CHOICE,  "ControllerType", NULL,              { 32, 33, 79, -1 }, { 117,  95, 152, 0 }, 252.0f,  0.0f, 0 },	/* PSX Pad Type: Standard, Analog, Stick D-pad; each its word + 12 (auto width), right-aligned clear of the label */
-	{ eng::ROW_BUTTONS, "LightGun",      NULL,               { 59, -1, -1, -1 }, { 135,   0,   0, 0 }, 295.0f,  0.0f, 0 },	/* Light Gun (a cycle, lit when a gun is on) */
+	{ eng::ROW_BUTTONS, "LightGun",      NULL,               { 59, 80, -1, -1 }, { 135, 180,   0, 0 }, 295.0f,  0.0f, 0 },	/* Light Gun (a cycle, lit when a gun is on); Test USB Pad (an action) */
 	{ eng::ROW_CHOICE,  "RumbleEnabled", NULL,               { 34, 35, -1, -1 }, {  75,  75,   0, 0 }, 295.0f,  0.0f, 0 },	/* Enable Rumble: Yes, No */
 	{ eng::ROW_BUTTONS, NULL,            FRAME_STRINGS[21],  { 36, 37, -1, -1 }, {  55,  70,   0, 0 }, 295.0f,  0.0f, 0 },	/* Save Button Configs: SD, USB */
 	{ eng::ROW_BUTTONS, "LoadButtonSlot", NULL,              { 38, -1, -1, -1 }, { 135,   0,   0, 0 }, 295.0f,  0.0f, 0 },	/* Auto Load Slot (an action) */

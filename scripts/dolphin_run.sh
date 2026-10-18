@@ -210,7 +210,7 @@ rm -rf "$PROFILE/Dump/Frames" "$PROFILE/Dump/Audio"
 [ -f "$PROFILE/Logs/dolphin.log" ] && mv "$PROFILE/Logs/dolphin.log" "$PROFILE/Logs/dolphin.log.prev"
 # the logs a run leaves: an earlier run's must not pass for this one's (a run cut off before
 # its trace fired read the previous run's ptrace.log)
-rm -f "$S/perf.log" "$S/tty.log" "$S/ptrace.log" "$S/vramio.log" "$S/atrace.log" "$S/lab.log" "$S/pcring.log" "$S/xfb.bin" "$S/"xfb_*.bin "$S/"vram_*.bin "$S/"vtl_*.bin "$S/"hprof_*.bin "$S/"vsig_*.bin "$S/"aq_*.bin
+rm -f "$S/perf.log" "$S/usbpad.log" "$S/tty.log" "$S/ptrace.log" "$S/vramio.log" "$S/atrace.log" "$S/lab.log" "$S/pcring.log" "$S/xfb.bin" "$S/"xfb_*.bin "$S/"vram_*.bin "$S/"vtl_*.bin "$S/"hprof_*.bin "$S/"vsig_*.bin "$S/"aq_*.bin
 cp "${AIN:-$P/autoinput.txt}" "$S/autoinput.txt"; cp "${SET:-$P/settingsRX2022.cfg}" "$S/settings.ini"
 # SMB_FROM=<settings.ini>: the share settings (smb* and RomDirSMB lines) of the user's own
 # file, appended unread and unprinted -- the password stays out of logs and run folders; the
@@ -306,6 +306,8 @@ CARD="$PROFILE/Load/WiiSD.raw"
 "$PYTHON" "$SP/sdimage_read.py" "$CARD" wiistation/ptrace.log "$OUT/ptrace.log" >/dev/null 2>&1
 # VRAM transfers of the whole run (C0 reads, A0 loads, 80 moves, readback outcomes), repeats merged
 "$PYTHON" "$SP/sdimage_read.py" "$CARD" wiistation/vramio.log "$OUT/vramio.log" >/dev/null 2>&1 && [ -s "$OUT/vramio.log" ] && echo "vramio: $(sed -n 2p "$OUT/vramio.log" | sed 's/^# //'), $(grep -vc '^#' "$OUT/vramio.log") lines"
+# the USB Pad Test page's log (Settings > Input > Test USB Pad; scripts/usbpad_read.py)
+"$PYTHON" "$SP/sdimage_read.py" "$CARD" wiistation/usbpad.log "$OUT/usbpad.log" >/dev/null 2>&1 && [ -s "$OUT/usbpad.log" ] && echo "usbpad: $(wc -l < "$OUT/usbpad.log") lines"
 # the run's console text (SysPrintf: a PS1 program's printf under the HLE BIOS), debug builds
 "$PYTHON" "$SP/sdimage_read.py" "$CARD" wiistation/tty.log "$OUT/tty.log" >/dev/null 2>&1 && [ -s "$OUT/tty.log" ] && echo "tty: $(wc -l < "$OUT/tty.log") lines"
 # the per-vblank timelines of a chain (debug builds; scripts/vtl_view.py)
