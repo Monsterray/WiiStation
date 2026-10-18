@@ -20,6 +20,12 @@
   DOL then failed with "no such .dol"; keep a copy of the DOL you are measuring in the
   scratchpad if you build anything between runs.
 - Never boot `WiiSXRX_Release.elf` in Dolphin (BSS not zeroed → crash); test with the debug .dol.
+- A worktree under `C:\Users\...` (the opencode temp dir) failed every build with
+  `GL/gl.h: No such file` in opengx: devkitPro's fstab mounts `C:\Users` on `/home`, so make's
+  CURDIR became `/home/Monty Perrotti/...` (a space) although `pwd` showed the 8.3 name
+  `MONTYP~1`. `build.sh` tested the logical path for a space; it now tests `pwd -P` and builds
+  a snapshot in the MSYS `/tmp` (2.5 min, deps from scratch), copying the ignored `deps/ext`
+  (libwupc) in so the snapshot does not fetch it (2026-10-18).
 
 ## Stale dependency archives
 
