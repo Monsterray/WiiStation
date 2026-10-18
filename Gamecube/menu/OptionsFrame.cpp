@@ -6,7 +6,7 @@
  *   Audio tab   -> "Advanced"  : sound options under test
  *   General tab -> "Plugins"   : which CPU core and which GPU renderer
  *               -> "CD"        : how disc images are read
- *  Video tab    -> "Advanced Graphics" : dithering and the video decoder
+ *  Video tab    -> "Advanced Graphics" : dithering, the video decoder, the TV picture
  *               -> "Memory"    : what the machine's memory is doing right now
  *
  * HOW TO ADD A ROW
@@ -298,29 +298,22 @@ static void pluginsLeave(void)
 }
 
 /* The page is two columns of label + button (OptPage::columns): Dithering, a choice row, takes a
- * whole line, the four cycles pair up below it. Dithering and MDEC Chroma are read when a disc
- * image is opened, so they take effect at the next game load rather than immediately
- * (SETTINGS.md section 2). "Default" is the Dithering setting's middle choice. Gamma is written
- * to the video encoder now; Deflicker Level is read when the video mode is set up. */
+ * whole line, the cycles pair up below it. No help lines: the room went to the rows, and
+ * SETTINGS.md section 3 explains each. Dithering and MDEC Chroma are read when a disc image is
+ * opened, so they take effect at the next game load (SETTINGS.md section 2). Gamma is written to
+ * the video encoder now, Deflicker Level to the frame copy now (and again at every game start or
+ * resume, go()). Video Mode is read when WiiStation starts. Filter Tour runs while a game does. */
+extern "C" void applyCopyFilter(void);	/* Gamecube/libgui/GraphicsGX.cpp */
 static const OptRow ADVGFX_ROWS[] =
 {
 	ROW_RADIO_FIT("Dithering", NULL),
 	ROW_CYCLE("FmvColour", NULL),
 	ROW_CYCLE("MdecChroma", NULL),
 	ROW_CYCLE("Gamma", applyVideoGamma),
-	ROW_CYCLE("DeflickerLevel", NULL),
-};
-
-static const OptHelp ADVGFX_HELP[] =
-{
-	{ "Dithering:",    "Hides the steps between colours in a 15-bit picture." },
-	{ NULL,            "Default uses it only where the game asks for it." },
-	{ "Video Colour:", "24-bit is full colour. 15-bit bands in dark scenes." },
-	{ "MDEC Chroma:",  "Sharp is the console: one colour sample per 2x2 pixels." },
-	{ NULL,            "Smooth mixes the samples: it looks better, costs more." },
-	{ NULL,            "It applies to the next video that starts." },
-	{ "Gamma:",        "Brightens the TV picture. 1.0 changes nothing." },
-	{ "Deflicker Level:", "Light blurs less than Normal. Needs Deflicker on." },
+	ROW_CYCLE("DeflickerLevel", applyCopyFilter),
+	/* this way round: Video Mode's "PAL 60" in the left column pushes the grid into the margin */
+	ROW_CYCLE("FilterTour", NULL),
+	ROW_CYCLE("VideoMode", NULL),
 };
 
 static const OptRow CD_ROWS[] =
@@ -376,7 +369,7 @@ struct OptPage
 static const OptPage PAGES[] =
 {
 	{ "Advanced Sound", NULL, SOUND_ROWS, COUNT(SOUND_ROWS), NULL,        0,                  SettingsFrame::SUBMENU_AUDIO,   NULL,         NULL         },
-	{ "Advanced Graphics", NULL, ADVGFX_ROWS, COUNT(ADVGFX_ROWS), ADVGFX_HELP, COUNT(ADVGFX_HELP), SettingsFrame::SUBMENU_VIDEO, NULL,  NULL,         0.0f, 2 },
+	{ "Advanced Graphics", NULL, ADVGFX_ROWS, COUNT(ADVGFX_ROWS), NULL,  0,                  SettingsFrame::SUBMENU_VIDEO, NULL,  NULL,         0.0f, 2 },
 	{ "Advanced", "CPU",  PLUGIN_ROWS,  COUNT(PLUGIN_ROWS),  PLUGIN_HELP, COUNT(PLUGIN_HELP), SettingsFrame::SUBMENU_GENERAL, pluginsEnter, pluginsLeave },
 	{ "Advanced", "CD",   CD_ROWS,      COUNT(CD_ROWS),      CD_HELP,     COUNT(CD_HELP),     SettingsFrame::SUBMENU_GENERAL, pluginsEnter, pluginsLeave },
 	{ "Memory",   NULL,   MEMORY_ROWS,  COUNT(MEMORY_ROWS),  NULL,        0,                  SettingsFrame::SUBMENU_GENERAL, NULL,         NULL,         46.0f },
@@ -465,16 +458,19 @@ static void optSet(int row, int choice);
 #define OPT_SET_FNS(r)		OPT_SET_FN(r, 0) OPT_SET_FN(r, 1) OPT_SET_FN(r, 2)
 #define OPT_SET_ROW(r)		{ Func_OptSet##r##_0, Func_OptSet##r##_1, Func_OptSet##r##_2 }
 
-OPT_CYCLE_FN(0) OPT_CYCLE_FN(1) OPT_CYCLE_FN(2)
-OPT_CYCLE_FN(3) OPT_CYCLE_FN(4) OPT_CYCLE_FN(5)
-OPT_SET_FNS(0)  OPT_SET_FNS(1)  OPT_SET_FNS(2)
-OPT_SET_FNS(3)  OPT_SET_FNS(4)  OPT_SET_FNS(5)
+OPT_CYCLE_FN(0) OPT_CYCLE_FN(1) OPT_CYCLE_FN(2) OPT_CYCLE_FN(3)
+OPT_CYCLE_FN(4) OPT_CYCLE_FN(5) OPT_CYCLE_FN(6) OPT_CYCLE_FN(7)
+OPT_SET_FNS(0)  OPT_SET_FNS(1)  OPT_SET_FNS(2)  OPT_SET_FNS(3)
+OPT_SET_FNS(4)  OPT_SET_FNS(5)  OPT_SET_FNS(6)  OPT_SET_FNS(7)
 
+/* One per row: a row past the end of these had no click handler at all (Advanced Graphics
+ * has seven). */
 static void (*const ROW_FUNCS[OPT_MAX_ROWS])() =
-	{ Func_OptRow0, Func_OptRow1, Func_OptRow2, Func_OptRow3, Func_OptRow4, Func_OptRow5 };
+	{ Func_OptRow0, Func_OptRow1, Func_OptRow2, Func_OptRow3,
+	  Func_OptRow4, Func_OptRow5, Func_OptRow6, Func_OptRow7 };
 static void (*const SET_FUNCS[OPT_MAX_ROWS][OPT_MAX_CHOICES])() =
-	{ OPT_SET_ROW(0), OPT_SET_ROW(1), OPT_SET_ROW(2),
-	  OPT_SET_ROW(3), OPT_SET_ROW(4), OPT_SET_ROW(5) };
+	{ OPT_SET_ROW(0), OPT_SET_ROW(1), OPT_SET_ROW(2), OPT_SET_ROW(3),
+	  OPT_SET_ROW(4), OPT_SET_ROW(5), OPT_SET_ROW(6), OPT_SET_ROW(7) };
 
 /* Every page must fit on the screen (the engine checks the geometry), the page tables must
  * not outgrow the widgets. */
@@ -493,7 +489,6 @@ typedef char opt_gpu_help_fits[OPT_HELP_FITS(GPU_HELP) ? 1 : -1];
 typedef char opt_input_help_fits[OPT_HELP_FITS(INPUT_HELP) ? 1 : -1];
 typedef char opt_memory_fits [OPT_PAGE_FITS(MEMORY_ROWS)  ? 1 : -1];
 typedef char opt_plugin_help_fits [OPT_HELP_FITS(PLUGIN_HELP)  ? 1 : -1];
-typedef char opt_advgfx_help_fits[OPT_HELP_FITS(ADVGFX_HELP) ? 1 : -1];
 typedef char opt_cd_help_fits[OPT_HELP_FITS(CD_HELP) ? 1 : -1];
 
 static const OptRow* pageRow(int row)

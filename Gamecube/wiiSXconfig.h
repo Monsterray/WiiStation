@@ -521,14 +521,22 @@ enum deflickerFilter
 	DEFLICKER_ENABLE
 };
 
-/* The vertical filter of the frame copy while Deflicker is on. NORMAL is the taps of the video
- * mode (today's picture); LIGHT is the 480p taps, 0 0 21 22 21 0 0: less blur. */
+/* The vertical filter of the frame copy while Deflicker is on, in an interlaced mode (a 240p or
+ * 480p mode has no filter of its own and keeps none). The weights of the line above, the line
+ * and the line below, in 64ths: NORMAL the mode's own 16/32/16, LIGHT 8/48/8, STRONG 21/22/21.
+ * GraphicsGX.cpp videoCopyTaps(). */
 extern char deflickerLevel;
 enum deflickerLevel
 {
 	DEFLICKERLEVEL_NORMAL=0,
-	DEFLICKERLEVEL_LIGHT
+	DEFLICKERLEVEL_LIGHT,
+	DEFLICKERLEVEL_STRONG
 };
+
+/* Filter Tour: while a game runs, step through the filters (texture filter, deflicker, trap)
+ * and their combinations every few seconds, the current ones written under the FPS counter.
+ * The player's own values come back when the game stops (GraphicsGX.cpp filterTour*). */
+extern char filterTour;
 
 extern char lightGun;
 enum lightGun

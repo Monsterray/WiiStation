@@ -251,8 +251,10 @@ void gc_vout_disabled(void)
 	gc_vout_vsync(0);
 }
 
+extern void filterTourDraw(void);   /* Gamecube/libgui/GraphicsGX.cpp: the Filter Tour */
 void showFpsAndDebugInfo(void)
 {
+	filterTourDraw();
 	//Write menu/debug text on screen
 	if (showFPSonScreen == FPS_SHOW)
     {
