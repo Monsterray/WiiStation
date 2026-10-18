@@ -22,11 +22,20 @@
 extern void __real_wiiuse_set_leds(struct wiimote_t *wm, int leds, cmd_blk_cb cb);
 
 static struct wiimote_t *ws_wm_by_chan[WPAD_BALANCE_BOARD + 1];
+static volatile int ws_own_call;   /* WPAD_ControlLed below is the caller */
+
+extern void wpad_led_lost(int chan);   /* gc_input/controller-WiimoteNunchuk.c */
 
 void __wrap_wiiuse_set_leds(struct wiimote_t *wm, int leds, cmd_blk_cb cb)
 {
-	if (wm && wm->unid >= 0 && wm->unid <= WPAD_BALANCE_BOARD)
+	if (wm && wm->unid >= 0 && wm->unid <= WPAD_BALANCE_BOARD) {
 		ws_wm_by_chan[wm->unid] = wm;
+		/* libogc lit the LEDs itself: the remote (re)connected and shows its channel's LED,
+		 * so the player LED has to be sent again.
+		 * ponytail: one flag, not a lock; libogc's connect and our send do not overlap in practice */
+		if (!ws_own_call)
+			wpad_led_lost(wm->unid);
+	}
 	__real_wiiuse_set_leds(wm, leds, cb);
 }
 
@@ -42,7 +51,10 @@ s32 WPAD_ControlLed(s32 chan, s32 leds)
 	if (chan < WPAD_CHAN_0 || chan > WPAD_BALANCE_BOARD)
 		return WPAD_ERR_BAD_CHANNEL;
 	/* No wiimote recorded for the channel yet: nothing to light, as in libogc2. */
-	if (ws_wm_by_chan[chan])
+	if (ws_wm_by_chan[chan]) {
+		ws_own_call = 1;
 		wiiuse_set_leds(ws_wm_by_chan[chan], (leds << 4) & 0xf0, NULL);
+		ws_own_call = 0;
+	}
 	return WPAD_ERR_NONE;
 }

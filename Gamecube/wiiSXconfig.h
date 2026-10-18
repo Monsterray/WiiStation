@@ -538,6 +538,7 @@ enum lightGun
 	LIGHTGUN_JUST,
 	LIGHTGUN_MOUSE
 };
+extern char gunReticle;   /* GunReticle: 1 draws where a light gun's Wii Remote points (SoftGPU/drawGX.c) */
 
 extern char memCard[2];
 enum memCard

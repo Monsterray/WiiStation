@@ -20,6 +20,13 @@
   DOL then failed with "no such .dol"; keep a copy of the DOL you are measuring in the
   scratchpad if you build anything between runs.
 - Never boot `WiiSXRX_Release.elf` in Dolphin (BSS not zeroed → crash); test with the debug .dol.
+- A worktree under `C:\Users\Monty Perrotti\...` (the opencode temp dir): MSYS2 turns the 8.3
+  path `/c/Users/MONTYP~1/...` back into `/home/Monty Perrotti/...`, so make's CURDIR has a space
+  and `-I$(CURDIR)` breaks (`GL/gl.h: No such file`). Run `wsx.sh build` from the long path
+  (`cd "/c/Users/Monty Perrotti/..."`): `build.sh` then sees the space and builds a snapshot in the
+  devkitPro MSYS2 `/tmp`. The snapshot left out the ignored `deps/ext` (`wupc/wupc.h: No such
+  file`) until 2026-10-18; it is copied in now. Dolphin runs work from either path since
+  `wsx.sh run` quotes the autoboot path (a chain file's path used to split at the space).
 
 ## Stale dependency archives
 

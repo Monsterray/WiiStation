@@ -43,6 +43,8 @@ if [[ "$REPO_ROOT" == *" "* ]]; then
 			printf '%s\0' "$source_file"
 		fi
 	done | tar -C "$REPO_ROOT" --null -T - -cf - | tar -C "$task_build" -xf -
+	# deps/ext is ignored (fetched by scripts/fetch_deps.sh) but the build needs it (wupc.h)
+	[ ! -d "$REPO_ROOT/deps/ext" ] || cp -r "$REPO_ROOT/deps/ext" "$task_build/deps/"
 	bash "$task_build/scripts/build.sh" "$@"
 	for artifact in "$task_build"/Gamecube/*.dol "$task_build"/Gamecube/*.elf; do
 		[ ! -f "$artifact" ] || cp "$artifact" "$REPO_ROOT/Gamecube/"

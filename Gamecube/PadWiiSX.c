@@ -99,6 +99,12 @@ static unsigned autoin_fc[AUTOIN_PORTS];       /* ... at this vblank */
  * shows (scripts/padtest_dx.py). autoinput_sweep() makes it. */
 static unsigned autoin_sweep_vbl[AUTOIN_PORTS];
 static int autoin_sweeps;                      /* bit per script port with a sweep */
+/* "stick <vblank> <lx> <ly>": port 1's left stick from that vblank on (0..255, 128 at rest),
+ * until the next stick line: an analog game's stick, held (MediEvil, scripts/autoinput).
+ * Up to 16 lines, in vblank order. A sweep on port 1 wins over them. */
+#define AUTOIN_STICKS 16
+static struct { unsigned vbl; unsigned char lx, ly; } autoin_stick[AUTOIN_STICKS];
+static int autoin_stick_n;
 static FILE *autoin_rec;            /* "record": the recording, or NULL */
 static char autoin_path[128] = "sd:/wiistation/autoinput.txt";
 /* "trace <vblank>" lines: the debug build's primitive trace arms at these
@@ -120,6 +126,13 @@ static struct { unsigned vbl, port, type; } autoin_padtype[AUTOIN_PADTYPES];
 static int autoin_padtype_n, autoin_padtype_i;
 unsigned autoinput_hang_vbl = 0;   /* "hangtest <vblank>": debug build spins for good then (ws_crash.c watchdog) */
 int autoinput_crumbs = 0;          /* "crumbs": debug build writes sd:/wiistation/crumb.log once a second (crash hunts) */
+/* "irfake <vblank> <x> <y>": from that vblank, a Wii Remote that reports no pointer points at
+ * x, y (640x480 TV pixels) in debug builds -- for the light gun, the mouse and the reticle.
+ * Dolphin's emulated remote with no device bound sees no sensor bar, so a scripted run has
+ * no pointer otherwise (Docs/GUN_MOUSE_TESTING.md). Up to 8 lines, in vblank order. */
+#define AUTOIN_IRFAKES 8
+static struct { unsigned vbl; int x, y; } autoin_irfake[AUTOIN_IRFAKES];
+static int autoin_irfake_n;
 /* "ramwatch LO HI" and "ramcell ADDR" (hex, up to 8 cells): who writes that guest RAM
  * (perf_prof.c perf_ram_write, perf.log "rw:" lines; debug builds) */
 unsigned autoinput_ramwatch_lo, autoinput_ramwatch_hi, autoinput_ramcell[8], autoinput_ramcells;
@@ -190,6 +203,8 @@ void autoinput_load(void)
 	autoin_n = 0;
 	autoin_ports = 0;
 	autoin_sweeps = 0;
+	autoin_stick_n = 0;
+	autoin_irfake_n = 0;
 	autoin_padtype_n = autoin_padtype_i = 0;
 	if (!autoin)
 		autoin = (struct autoin_line *)_mem2_malloc(AUTOIN_MAX * sizeof(*autoin));
@@ -226,6 +241,30 @@ void autoinput_load(void)
 							autoin_sweep_vbl[sp] = v;
 							autoin_sweeps |= 1 << sp;
 						}
+					continue;
+				}
+			}
+			{
+				unsigned lx, ly;
+				if (sscanf(line, "stick %u %u %u", &v, &lx, &ly) == 3) {
+					if (autoin_stick_n < AUTOIN_STICKS) {
+						autoin_stick[autoin_stick_n].vbl = v;
+						autoin_stick[autoin_stick_n].lx = (unsigned char)(lx > 255 ? 255 : lx);
+						autoin_stick[autoin_stick_n].ly = (unsigned char)(ly > 255 ? 255 : ly);
+						autoin_stick_n++;
+					}
+					continue;
+				}
+			}
+			{
+				int ix, iy;
+				if (sscanf(line, "irfake %u %d %d", &v, &ix, &iy) == 3) {
+					if (autoin_irfake_n < AUTOIN_IRFAKES) {
+						autoin_irfake[autoin_irfake_n].vbl = v;
+						autoin_irfake[autoin_irfake_n].x = ix;
+						autoin_irfake[autoin_irfake_n].y = iy;
+						autoin_irfake_n++;
+					}
 					continue;
 				}
 			}
@@ -370,6 +409,17 @@ int autoinput_sweep(int port, unsigned short *press, unsigned char *sticks)
 	unsigned t;
 	int i;
 	autoinput_load();
+	if (port == 0 && autoin_stick_n && frame_counter >= autoin_stick[0].vbl &&
+	    !(autoin_sweeps & 1 && frame_counter >= autoin_sweep_vbl[0])) {
+		i = autoin_stick_n - 1;
+		while (i > 0 && frame_counter < autoin_stick[i].vbl)
+			i--;
+		sticks[0] = autoin_stick[i].lx;
+		sticks[1] = autoin_stick[i].ly;
+		sticks[2] = sticks[3] = 128;
+		*press = 0;
+		return 1;
+	}
 	if (port < 0 || port >= AUTOIN_PORTS || !(autoin_sweeps >> port & 1) || frame_counter < autoin_sweep_vbl[port])
 		return 0;
 	t = (frame_counter - autoin_sweep_vbl[port]) % SWEEP_PERIOD;
@@ -395,6 +445,20 @@ int autoinput_sweep(int port, unsigned short *press, unsigned char *sticks)
 	}
 	return 1;
 }
+/* "irfake": the pointer the script gives now, 1 if there is one */
+int autoinput_irfake(int *x, int *y)
+{
+	int i;
+	autoinput_load();
+	if (!autoin_irfake_n || frame_counter < autoin_irfake[0].vbl)
+		return 0;
+	for (i = autoin_irfake_n - 1; i > 0 && frame_counter < autoin_irfake[i].vbl; i--)
+		;
+	*x = autoin_irfake[i].x;
+	*y = autoin_irfake[i].y;
+	return 1;
+}
+
 /* The lines are in vblank order (a recording always is), so the mask is found by walking
  * forward from the last poll, not by reading the whole script every time. */
 unsigned short autoinput_mask(int port)

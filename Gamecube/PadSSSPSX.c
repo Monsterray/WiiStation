@@ -113,6 +113,11 @@ static struct
 /* What each controller hands the PlayStation: buttons (active low, wire order) and sticks */
 static PadDataS padOut[10];
 
+/* Since power-on, the game has set the DualShock's mode (44h), and has asked for its status
+ * (45h, whose reply says whether the ANALOG light is on). Not in `global`: that is a save
+ * state's layout. */
+static u8 ds_mode_set[10], ds_asked45[10];
+
 extern void SysPrintf(char *fmt, ...);
 extern volatile int stop;
 
@@ -136,12 +141,32 @@ void setIrq( u32 irq )
     psxHu32ref(0x1070) |= irq;
 }
 
+/* The pointer of Wii Remote chan, 640x480 TV pixels: the remote's own, or in debug builds the
+ * input script's "irfake" while the remote sees no sensor bar (Dolphin with no device bound) */
+static const struct ir_t *pad_ir(int chan)
+{
+	WPADData *wpad = WPAD_Data(chan);
+#ifdef PERF_PROF
+	extern int autoinput_irfake(int *x, int *y);   /* PadWiiSX.c */
+	static struct ir_t fake;
+	int x, y;
+	if (!wpad->ir.valid && autoinput_irfake(&x, &y)) {
+		fake = wpad->ir;
+		fake.valid = 1;
+		fake.x = x;
+		fake.y = y;
+		return &fake;
+	}
+#endif
+	return &wpad->ir;
+}
+
 void lightgunInterrupt()
 {
 	int cursorX;
 	int cursorY;
 	int Control;
-	WPADData* wpad = WPAD_Data(0);
+	const struct ir_t *ir;
 
 
 	if (global.irq10En[0] == 0x10) Control = 0;
@@ -151,14 +176,15 @@ void lightgunInterrupt()
 	if ((global.padID[Control] != 0x31) && (global.padID[Control] != 0x63))
 		return;
 
-	if(screenMode == 2)	cursorX = ((wpad[virtualControllers[Control].number].ir.x*848/640 - 104));
-	else cursorX = (wpad[virtualControllers[Control].number].ir.x);
+	ir = pad_ir(virtualControllers[Control].number);
+	if(screenMode == 2)	cursorX = ((ir->x*848/640 - 104));
+	else cursorX = (ir->x);
 
-	cursorY = (wpad[virtualControllers[Control].number].ir.y/2);
+	cursorY = (ir->y/2);
 
 
 
-	if ((cursorY > 5) && (cursorY < 220) && wpad[virtualControllers[Control].number].ir.valid){
+	if ((cursorY > 5) && (cursorY < 220) && ir->valid){
 		if (gLightgun == 5){
 		gLightgun--;
 		set_event(PSXINT_LIGHTGUN, (Config.PsxType ? 2157: 2146)*(cursorY + (Config.PsxType ? 40 : 0)));
@@ -235,9 +261,7 @@ static int slot_present(int pad)
 
 static void UpdateState (const int pad) //Note: pad = 0 or 1
 {
-	const int vib0 = global.padVibF[pad][0] ? 1 : 0;
 	PERF_INC(pad_update);
-	const int vib1 = global.padVibF[pad][1] ? 1 : 0;
 	int cursorX = 0x1;
 	int cursorY = 0xA;
 	int curMouse;
@@ -246,7 +270,6 @@ static void UpdateState (const int pad) //Note: pad = 0 or 1
 	static int oldcursorX[4];
 	static int oldcursorY[4];
 	static BUTTONS PAD_Data;
-	static WPADData* wpad;
 	float sensitivity;
 	int miscButton;
 
@@ -283,13 +306,13 @@ static void UpdateState (const int pad) //Note: pad = 0 or 1
 					/* This channel's data. It used to say WPAD_Data(0) and then index the
 					 * result, which happens to work because WPAD_Data returns a pointer
 					 * into libogc's array -- but it reads like a mistake. */
-					wpad = WPAD_Data(virtualControllers[Control].number);
-					if(screenMode == 2)	cursorX = ((wpad->ir.x*848/640 - 104)/1.72) + 75;
-					else cursorX = (wpad->ir.x/1.72) + 75;
+					const struct ir_t *ir = pad_ir(virtualControllers[Control].number);
+					if(screenMode == 2)	cursorX = ((ir->x*848/640 - 104)/1.72) + 75;
+					else cursorX = (ir->x/1.72) + 75;
 
-					cursorY = (wpad->ir.y/2) + (Config.PsxType ? 48 : 25);
+					cursorY = (ir->y/2) + (Config.PsxType ? 48 : 25);
 
-					if (!wpad->ir.valid){
+					if (!ir->valid){
 						cursorX = 0x1;
 						cursorY = 0xA;
 					}
@@ -297,11 +320,13 @@ static void UpdateState (const int pad) //Note: pad = 0 or 1
 				else if (lightGun == LIGHTGUN_MOUSE){
 					curMouse = virtualControllers[Control].number;
 					global.padID[pad] = 0x12;
+					/* gMouse: this remote was read in this vblank (pad_vblank clears it), so a
+					 * second poll in the same frame gets the same movement */
 					if (!gMouse[curMouse]){
-						wpad = WPAD_Data(curMouse);
+						const struct ir_t *ir = pad_ir(curMouse);
 
-						if(screenMode == 2)	cursorX = wpad->ir.x*848/640 - 104;
-						else cursorX = wpad->ir.x;
+						if(screenMode == 2)	cursorX = ir->x*848/640 - 104;
+						else cursorX = ir->x;
 						tempcursorX[curMouse] = cursorX;
 						sensitivity = virtualControllers[Control].config->sensitivity;
 						if (sensitivity < 0.1) sensitivity = 1.0;
@@ -309,7 +334,7 @@ static void UpdateState (const int pad) //Note: pad = 0 or 1
 						if (cursorX > 127) cursorX = 127;
 						if (cursorX < -128) cursorX = -128;
 
-						cursorY = wpad->ir.y;
+						cursorY = ir->y;
 						tempcursorY[curMouse] = cursorY;
 						cursorY = (cursorY - oldcursorY[curMouse]) * sensitivity;
 						if (cursorY > 127) cursorY = 127;
@@ -319,11 +344,11 @@ static void UpdateState (const int pad) //Note: pad = 0 or 1
 
 						oldcursorX[curMouse] = tempcursorX[curMouse];
 						oldcursorY[curMouse] = tempcursorY[curMouse];
-						tempcursorX[curMouse] = cursorX;
 
-						if (!wpad->ir.valid){
+						if (!ir->valid){
 							cursorX = 0;
 						}
+						tempcursorX[curMouse] = cursorX;   /* the second poll's: no movement either */
 						gMouse[curMouse] = 1;
 					}
 					else{
@@ -498,18 +523,85 @@ static void UpdateState (const int pad) //Note: pad = 0 or 1
 			(out->rightJoyX << 8) | out->rightJoyY);
 	}
 
-	/* A Wii-side controller has one motor. It runs while either DualShock motor runs:
-	 * before, the small motor stopping stopped it while the big one still ran. */
-	if (global.padVibF[pad][2] != vib0 || global.padVibF[pad][3] != vib1)
+	/* The motors are driven once per vblank, in pad_vblank() below */
+}
+
+/* Rumble. A Wii Remote and a GameCube pad have one motor, on or off. The DualShock's small
+ * motor is on or off too; its large one takes a strength, 00h..FFh (psx-spx "Vibration/Rumble
+ * Control"). The Wii motor runs while the small one runs, and for the large one it runs a
+ * share of every RUMBLE_PERIOD vblanks that follows the strength: FFh all of them, 01h one.
+ * A motor keeps the value the game last sent until the game sends another, as on the pad
+ * (polls that stop, during a load, do not stop it), so the duty cycle runs from the vblank,
+ * not from the polls. The period starts when the large motor starts, on-time first, so a
+ * short knock (MediEvil: 5Ah 2Dh 16h 0Ah 04h 01h, two vblanks each) is felt at once.
+ * padVibF[pad][2] is what the Wii motor was last told, [3] the vblank in the period.
+ * ponytail: RUMBLE_PERIOD 8 = 15 radio reports a second at most per remote, 9 strengths;
+ * shorter is finer but busier, tune it on hardware. */
+#define RUMBLE_PERIOD 8
+
+static void rumble_send(const int pad, const int on)
+{
+	global.padVibF[pad][2] = on;
+	if (on) PERF_INC(rumble_on); else PERF_INC(rumble_off);
+	if (pad < 2 && padType[pad] == PADTYPE_COOP)
+		coop_rumble(pad, on);
+	else if (virtualControllers[pad].control && virtualControllers[pad].control->rumble)
+		DO_CONTROL(pad, rumble, on);
+}
+
+/* Every emulated vblank (psxcounters.c) */
+void pad_vblank(void)
+{
+	int pad;
+
+	/* A mouse reads its remote's pointer once a vblank (UpdateState). This was cleared by
+	 * the GPU plugins at their vblank, and only for a light gun in gpulib.c and never in
+	 * OpenGX: the mouse there kept the first movement it read. */
+	memset(gMouse, 0, sizeof(int) * 4);
+
+	for (pad = 0; pad < 10; pad++)
 	{
-		global.padVibF[pad][2] = vib0;
-		global.padVibF[pad][3] = vib1;
-		if (vib0 | vib1) PERF_INC(rumble_on); else PERF_INC(rumble_off);
-		if (pad < 2 && padType[pad] == PADTYPE_COOP)
-			coop_rumble(pad, vib0 | vib1);
-		else if (virtualControllers[pad].control && virtualControllers[pad].control->rumble)
-			DO_CONTROL(pad, rumble, vib0 | vib1);
+		const int big = global.padVibF[pad][1] & 0xff;
+		int *phase = &global.padVibF[pad][3];
+		const int on = global.padVibF[pad][0] || (big && *phase < (big * RUMBLE_PERIOD + 254) / 255);
+		*phase = big ? (*phase + 1) % RUMBLE_PERIOD : 0;
+#ifdef PERF_PROF
+		/* rumble log (tty.log): the game's motor values at each change, and the vblanks and
+		 * motor-on vblanks of the stretch they replace, so the duty can be checked */
+		static int last_small[10], last_big[10];
+		static unsigned frames[10], frames_on[10];
+		if (global.padVibF[pad][0] != last_small[pad] || big != last_big[pad])
+		{
+			char l[96];
+			snprintf(l, sizeof l, "rumble vbl=%lu pad=%d small=%d large=%02x prev: vbl=%u on=%u\n",
+				(unsigned long)g_perf.vblanks, pad, global.padVibF[pad][0], big, frames[pad], frames_on[pad]);
+			perf_tty(l);
+			last_small[pad] = global.padVibF[pad][0];
+			last_big[pad] = big;
+			frames[pad] = frames_on[pad] = 0;
+		}
+		frames[pad]++;
+		frames_on[pad] += on;
+#endif
+		if (on != global.padVibF[pad][2])
+			rumble_send(pad, on);
 	}
+#if defined(WII) && !defined(NO_BT)
+	{
+		extern void wpad_leds_update(void);   /* controller-WiimoteNunchuk.c: a remote that reconnected */
+		wpad_leds_update();
+	}
+#endif
+}
+
+/* The game stops or goes to the menu (PlugPAD.c pauseInput): every motor off. The values the
+ * game set stay, so the motors start again where they were when it goes on. */
+void pad_rumble_stop(void)
+{
+	int pad;
+	for (pad = 0; pad < 10; pad++)
+		if (global.padVibF[pad][2])
+			rumble_send(pad, 0);
 }
 
 long SSS_PADopen (void *p)
@@ -521,6 +613,8 @@ long SSS_PADopen (void *p)
 	}
 	memset (&global, 0, sizeof (global));
 	memset (&io, 0, sizeof (io));
+	memset (ds_mode_set, 0, sizeof (ds_mode_set));
+	memset (ds_asked45, 0, sizeof (ds_asked45));
 	{
 		extern unsigned char pad_unplug[2];   /* PlugPAD.c: a type change before the game is no swap */
 		pad_unplug[0] = pad_unplug[1] = 0;
@@ -589,6 +683,49 @@ static u8 pad_id_byte (const int pad)
 	return (global.padModeE[pad] && IsDualShock(pad)) ? 0xF3 : (u8)global.padID[pad];
 }
 
+#ifdef PERF_PROF
+/* Pad command log (tty.log, debug builds): each transfer's bytes from the console, the
+ * command first, with the ID byte the pad answered. A 42h read is logged only when its
+ * bytes or the ID change, so a game's motor values and mode switches stand out. */
+static u8 probe_tx[10][9], probe_last42[10][9], probe_id[10], probe_lastid[10];
+static int probe_n[10];
+
+static void pad_probe (const int pad, const int cur, const u8 value)
+{
+	if (cur == 0 && probe_n[pad])
+	{
+		const int is42 = probe_tx[pad][0] == 0x42;
+		if (!is42 || memcmp(probe_tx[pad], probe_last42[pad], 9) || probe_id[pad] != probe_lastid[pad])
+		{
+			char l[96];
+			int k, n = snprintf(l, sizeof l, "pad vbl=%lu p=%d id=%02x tx=",
+				(unsigned long)g_perf.vblanks, pad, probe_id[pad]);
+			for (k = 0; k < probe_n[pad]; k++)
+				n += snprintf(l + n, sizeof l - n, "%02x ", probe_tx[pad][k]);
+			snprintf(l + n, sizeof l - n, "\n");
+			perf_tty(l);
+			if (is42)
+			{
+				memcpy(probe_last42[pad], probe_tx[pad], 9);
+				probe_lastid[pad] = probe_id[pad];
+			}
+		}
+		memset(probe_tx[pad], 0, 9);
+		probe_n[pad] = 0;
+	}
+	if (cur < 9)
+	{
+		probe_tx[pad][cur] = value;
+		probe_n[pad] = cur + 1;
+	}
+}
+#define PAD_PROBE(pad, cur, value) pad_probe(pad, cur, value)
+#define PAD_PROBE_ID(pad, id) (probe_id[pad] = (id))
+#else
+#define PAD_PROBE(pad, cur, value) ((void)0)
+#define PAD_PROBE_ID(pad, id) ((void)0)
+#endif
+
 /* One byte after the address byte, to controller pad (0..9). Returns its reply; *ack says
  * whether it acknowledges, that is, asks for another byte: every byte of its reply but
  * the last. */
@@ -598,6 +735,7 @@ static unsigned char pad_byte (const int pad, const unsigned char value, int *ac
 	const int cur = x->cur;
 	unsigned char r;
 
+	PAD_PROBE(pad, cur, value);
 	x->cur++;
 	if (cur == 0)
 	{
@@ -613,6 +751,7 @@ static unsigned char pad_byte (const int pad, const unsigned char value, int *ac
 		{
 			x->len = 0;
 			*ack = 0;
+			PAD_PROBE_ID(pad, 0xFF);
 			return 0xFF;
 		}
 		switch (x->cmd)
@@ -669,6 +808,7 @@ static unsigned char pad_byte (const int pad, const unsigned char value, int *ac
 			r = 0xf3;
 			break;
 		case 0x45:
+			ds_asked45[pad] = 1;
 			x->len = sizeof (cmd45);
 			memcpy (x->buf.b8, cmd45, sizeof (cmd45));
 			x->buf.b8[4] = (u8)global.padMode1[pad];
@@ -690,6 +830,7 @@ static unsigned char pad_byte (const int pad, const unsigned char value, int *ac
 			break;
 		}
 		*ack = x->len > 1;
+		PAD_PROBE_ID(pad, r);
 		return r;
 	}
 	switch (x->cmd)
@@ -714,6 +855,17 @@ static unsigned char pad_byte (const int pad, const unsigned char value, int *ac
 		/* 01h enters config mode, 00h leaves it; other values change nothing */
 		if (cur == 2 && value <= 1)
 		{
+			/* The game leaves config mode, has read the ANALOG light (45h) and has never set
+			 * the mode (44h): it leaves analog or digital to the player's ANALOG button.
+			 * MediEvil does this (45h, 46h, 47h, 4Ch, then 43h 00h, and reads the sticks
+			 * when the pad answers 73h). There is no ANALOG button on a Wii controller, so
+			 * the Analog type presses it here. A game that sets the mode itself (Spyro, Ape
+			 * Escape) keeps its choice; one that uses config mode only for the motors (43h,
+			 * 4Dh, 43h) and one made for the digital pad that never uses it (Gex) stay
+			 * digital. */
+			if (!value && global.padModeE[pad] && ds_asked45[pad] && !ds_mode_set[pad] &&
+			    !global.padMode1[pad] && IsDualShock(pad))
+				PADsetMode (pad, 1);
 			global.padModeE[pad] = value;
 			global.padModeC[pad] = 0;
 			if (value) global.dsNewRumble[pad] = 1;
@@ -722,7 +874,10 @@ static unsigned char pad_byte (const int pad, const unsigned char value, int *ac
 	case 0x44:
 		/* LED 00h digital, 01h analog, others ignored. Key: AND 3 = 3 locks the Analog button */
 		if (cur == 2 && value <= 1)
+		{
 			PADsetMode (pad, value);
+			ds_mode_set[pad] = 1;
+		}
 		if (cur == 3)
 			global.padModeF[pad] = (value & 3) == 3;
 		break;

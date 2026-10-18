@@ -155,6 +155,20 @@ LATER UPDATES BY:
  * Monty Perrotti (WiiStation)
 
 WiiStation CHANGE LOG:
+Unreleased:
+* Wii Remote lights: in the menu a remote shows its own number (remote 2 lights
+  LED 2); in a game it shows the PlayStation player it plays. A remote that
+  drops out and comes back gets its light again.
+* Light guns and the mouse: a small crosshair shows where the Wii Remote points
+  (both video plugins). GunReticle = 0 in settings.ini turns it off.
+* Rumble: the DualShock's large motor now has its strength (the Wii motor runs
+  for a share of each 8 frames), and every motor stops in the menu.
+* Fixed: MediEvil and other games that leave analog mode to the ANALOG button
+  stayed digital with PSX Pad Type Analog; the stick now moves Dan.
+* Fixed: the mouse kept moving with the first movement it read (OpenGX).
+* Auto Load Slot = Default now loads the built-in mapping at each game start;
+  the previous game's mapping stayed before.
+
 Ver 5.13.1 (2026-10-13):
 * Fixed: after about 72 minutes of play (and every 72 minutes after that) the
   sound fell an eighth of a second behind the picture and played slightly high
