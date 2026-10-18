@@ -171,6 +171,7 @@ char controllerType;
 char numMultitaps;
 char lang = 0;
 char fastLoad = 0;
+char tabWrap = 1;
 char originalMode = 0;
 char displayModeChanged = 0;
 char bilinearFilter = 1;
@@ -239,6 +240,7 @@ static SettingOption OPTIONS[] =
   { "lang", &lang, ENGLISH, TURKISH, NULL, "Select Language", OPT_LANG, "The language of the menu text." },
   { "MenuFont", menuFont, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "FileSortMode", &fileSortMode, FILESORT_DIRS_MIXED, FILESORT_DIRS_FIRST },
+  { "TabWrap", &tabWrap, 0, 1 },
   { "Core", &dynacore, DYNACORE_DYNAREC, DYNACORE_DYNAREC_OLD, NULL, "CPU Core", OPT_CORE, "The CPU emulation core. A change restarts the game." },
   { "fastLoad", &fastLoad, 0, 1, NULL, "Fast Load", OPT_NO_YES, "Shortens the CD drive delays. Some games break with it on." },
   { "Files", NULL, 0, 0, "Where WiiStation finds the games and the BIOS." },
@@ -266,7 +268,7 @@ static SettingOption OPTIONS[] =
   { "EfbSync", &efbSyncSetting, 0, 2 },
   { "Audio", NULL, 0, 0, "The sound." },
   { "Audio", &audioEnabled, AUDIO_DISABLE, AUDIO_ENABLE, NULL, "Audio", OPT_OFF_ON, "Turns the sound output on or off." },
-  { "SoundHwAccel", &soundHwAccel, SOUND_HW_ACCEL_OFF, SOUND_HW_ACCEL_ON, NULL, "Output", OPT_OUTPUT, "CPU mixes the sound. DSP uses the Wii sound chip." },
+  { "SoundDriver", &soundHwAccel, SOUND_HW_ACCEL_OFF, SOUND_HW_ACCEL_ON, NULL, "Sound Driver", OPT_OUTPUT, "The output driver only: DSP plays at 44100 Hz through the Wii's DSP, CPU at 48000 Hz from the CPU. The PS1 sound emulation is the same." },
   { "SoundResampler", &soundResampler, SOUND_RESAMPLE_HOLD, SOUND_RESAMPLE_CUBIC, NULL, "Output Resampler", OPT_RESAMPLE, "Sets how 44100 Hz sound is converted to 48000 Hz." },
   { "SoundRateControl", &soundRateControl, SOUND_RATE_CONTROL_OFF, SOUND_RATE_CONTROL_ON, NULL, "Rate", OPT_OFF_ON, "Nudges the playback rate to keep pace with the mixer." },
   { "SoundTempo", &soundTempo, SOUND_TEMPO_OFF, SOUND_TEMPO_ON, NULL, "Tempo", OPT_OFF_ON, "Legacy: pulls the mixer clock back when sound runs late." },
@@ -890,6 +892,14 @@ static int chainLoad(FILE *f)
 
 /* Set KEY to VALUE for this game, remembering what it was. Only the settings file's numeric
  * settings: a string setting has no business differing per game. */
+/* Keys that were renamed: a file or chain line with the old name still sets the setting. In place,
+ * so each new name is no longer than its old one. */
+static void renamedKey(char *key)
+{
+	if (!strcmp(key, "SoundHwAccel"))	/* its name up to 5.13.1 */
+		strcpy(key, "SoundDriver");
+}
+
 static void chainOverride(char *kv, bool remember)
 {
 	char key[32], *val;
@@ -899,6 +909,7 @@ static void chainOverride(char *kv, bool remember)
 	if (!val)
 		return;
 	*val++ = 0;
+	renamedKey(key);
 	for (i = 0; i < sizeof(OPTIONS) / sizeof(OPTIONS[0]); i++) {
 		if (!OPTIONS[i].value || strcmp(OPTIONS[i].key, key) || OPTIONS[i].max == CONFIG_STRING_TYPE)
 			continue;
@@ -1538,6 +1549,7 @@ int loadISO(fileBrowser_file* file)
 
 void setOption(char* key, char* valuePointer){
 	bool isString = valuePointer[0] == '"';
+	renamedKey(key);
 	char value = 0;
 
 	if(isString)
@@ -1610,6 +1622,42 @@ void writeConfig(FILE* f){
 /* The settings written into a save state: a copy, not a save, so the menu's changes stay unsaved. */
 void writeConfigCopy(FILE* f){
 	writeSettingLines(f);
+}
+
+/* Load Settings (the General tab): one settings file read over every setting it names, now, and
+ * applied as boot applies them. dev "sd" or "usb": <dev>:/wiistation/settings.ini. NULL: this
+ * game's own settings/<CdromId>.ini, USB first, then SD, as a game load looks for it. The values
+ * read become the saved ones (nothing unsaved). The CPU core and renderer are the caller's to
+ * apply (SettingsFrame.cpp: ApplyPluginSelection); the BIOS, as at boot, at the next game start.
+ * False when there is no such file. */
+extern "C" void VIDEO_SetTrapFilter(bool enable);
+void applyVideoGamma(void);
+bool loadSettingsNow(const char *dev)
+{
+	char dir[32];
+	bool ok;
+	if (!dev)
+		ok = CdromId[0] && (loadSeparatelySettingItem((char*)"usb:/wiistation/settings/", CdromId, true) ||
+		                    loadSeparatelySettingItem((char*)"sd:/wiistation/settings/", CdromId, false));
+	else {
+		snprintf(dir, sizeof dir, "%s:/wiistation/", dev);
+		ok = loadSeparatelySettingItem(dir, (char*)"settings", !strcmp(dev, "usb"));
+	}
+	if (!ok)
+		return false;
+	rememberFileSettings();
+
+	if (biosDevice != BIOSDEVICE_HLE && checkBiosExists((int)biosDevice) == FILE_BROWSER_ERROR_NO_FILE)
+		biosDevice = BIOSDEVICE_HLE;
+	Config.Xa = xaDisabled;
+	Config.Cdda = cddaDisabled;
+	syncFrameLimit();
+	setSpuInterpolation(spuInterpolation);
+	setSpuTempo(soundTempo);
+	setSpuReverb(soundReverb);
+	VIDEO_SetTrapFilter(trapFilter == TRAPFILTER_ENABLE);
+	applyVideoGamma();
+	return true;
 }
 
 extern "C" {

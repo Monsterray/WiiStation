@@ -39,6 +39,16 @@ typedef Button *(*ButtonOfControl)(const engine::Control &c);
  * no link. buttonOf gives the button for the control a link points at. */
 void linkFocus(Button *b, const engine::Layout &lay, const engine::Control &c, ButtonOfControl buttonOf);
 
+/* The tab buttons, for every tabbed screen: -1 for a new press of the previous-tab button on any
+ * controller, +1 for the next-tab button, 0 for neither. Previous / next: GameCube and HID pads
+ * L / R, Classic and Wii U Pro L / R, a Wiimote's - / +, the GamePad's ZL / ZR, and an input
+ * script's '<' / '>' (menukeys). Call it once per drawn frame of the screen on show. */
+int tabShoulder(void);
+
+/* The tab a shoulder press turns to from tab cur of n (engine::tabStep with the TabWrap
+ * setting), or cur. */
+int tabShoulderStep(int cur, int n);
+
 /* Appends src to dst, which is dstSize bytes long. Text past the end is cut. */
 void appendBounded(char *dst, size_t dstSize, const char *src);
 

@@ -150,8 +150,8 @@ int autoinput_padsweep_fast = 0;   /* "padsweep <vblank> fast": controller-GC.c'
 unsigned autoinput_menuclick = 0;
 unsigned autoinput_menuclicks = 0;
 /* "menukeys <frame> <keys>": GameCube-pad presses fed to the menu (libgui InputManager.cpp),
- * from that menu frame on: U D L R A B S(tart) Z, each held 6 frames then released 6, '.' a
- * 12-frame pause. Any screen, any dialog: e.g. "menukeys 60 U U A . . R A" is Main > Quit,
+ * from that menu frame on: U D L R A B S(tart) Z < > (the L / R tab buttons), each held 6
+ * frames then released 6, '.' a 12-frame pause. Any screen, any dialog: e.g. "menukeys 60 U U A . . R A" is Main > Quit,
  * then Yes on its question (the HBC agent's `key` presses never reach the menu). */
 unsigned autoinput_menukeys_frame = 0;
 char autoinput_menukeys[64];

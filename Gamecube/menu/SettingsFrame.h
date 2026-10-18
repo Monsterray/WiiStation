@@ -46,8 +46,6 @@ public:
 
 private:
 	int activeSubmenu;
-	u16 previousButtonsGC[4];
-	u32 previousButtonsWii[4];
 
 };
 

@@ -5,7 +5,7 @@
  *
  *   Audio tab   -> "Advanced"  : sound options under test
  *   General tab -> "Plugins"   : which CPU core and which GPU renderer
- *               -> "CD"        : how disc images are read
+ *               -> "CD"        : how disc images are read, and Fast Load
  *  Video tab    -> "Advanced Graphics" : dithering and the video decoder
  *               -> "Memory"    : what the machine's memory is doing right now
  *
@@ -232,21 +232,20 @@ static const OptRow PLUGIN_ROWS[] =
 	ROW_CYCLE("CpuSpeed", NULL),
 };
 
-/* The SPU plugin: there is one (P.E.Op.S. DFSound, from PCSX-ReARMed), so it is a readout;
- * what can be swapped is where its output is resampled and mixed for the Wii. */
+/* The SPU plugin: there is one (P.E.Op.S. DFSound, from PCSX-ReARMed), so it is a readout.
+ * The output driver it plays through is the Audio tab's Sound Driver (SoundDriver). */
 static void infoSpuPlugin(char *buf, int len) { snprintf(buf, len, "P.E.Op.S. DFSound"); }
 
 static const OptRow SPU_ROWS[] =
 {
 	ROW_INFO("SPU Plugin", infoSpuPlugin),
-	ROW_RADIO("SoundHwAccel", NULL),
 };
 
 static const OptHelp SPU_HELP[] =
 {
-	{ "Output:", "CPU resamples and mixes on the Wii's CPU." },
-	{ NULL,      "DSP hands the stream to the Wii's sound chip." },
-	{ NULL,      "Sound quality is in Audio, Advanced." },
+	{ "SPU Plugin:", "Emulates the PS1 sound chip on the Wii's CPU." },
+	{ NULL,          "The Sound Driver is on the Audio tab." },
+	{ NULL,          "Sound quality is in Audio, Advanced." },
 };
 
 static const OptRow GPU_ROWS[] =
@@ -323,11 +322,14 @@ static const OptHelp ADVGFX_HELP[] =
 	{ "Deflicker Level:", "Light blurs less than Normal. Needs Deflicker on." },
 };
 
+/* Two columns (OptPage::columns), so the four rows take two lines and the help fits under them.
+ * Fast Load is read by the CD drive emulation (cdrom.c) as it runs: it applies at once. */
 static const OptRow CD_ROWS[] =
 {
 	ROW_CYCLE("CdBuffer", NULL),
 	ROW_CYCLE("CdPrefetch", NULL),
 	ROW_CYCLE("CdChdHunks", NULL),
+	ROW_CYCLE("fastLoad", NULL),
 };
 
 static const OptHelp CD_HELP[] =
@@ -338,7 +340,8 @@ static const OptHelp CD_HELP[] =
 	{ NULL,              "waits less for the card. Raw bin/cue and .iso only." },
 	{ "CHD Hunk Cache:", "Decoded CHD hunks kept in memory, about 20 KB each." },
 	{ NULL,              "More never decodes more often: 8 is best." },
-	{ NULL,              "All three apply at the next game load." },
+	{ NULL,              "These three apply at the next game load." },
+	{ "Fast Load:",      "Shorter CD waits. Some games break with it." },
 };
 
 /* Readouts only. Every large MEM2 region is reserved at a fixed address (Gamecube/MEM2.h),
@@ -378,7 +381,7 @@ static const OptPage PAGES[] =
 	{ "Advanced Sound", NULL, SOUND_ROWS, COUNT(SOUND_ROWS), NULL,        0,                  SettingsFrame::SUBMENU_AUDIO,   NULL,         NULL         },
 	{ "Advanced Graphics", NULL, ADVGFX_ROWS, COUNT(ADVGFX_ROWS), ADVGFX_HELP, COUNT(ADVGFX_HELP), SettingsFrame::SUBMENU_VIDEO, NULL,  NULL,         0.0f, 2 },
 	{ "Advanced", "CPU",  PLUGIN_ROWS,  COUNT(PLUGIN_ROWS),  PLUGIN_HELP, COUNT(PLUGIN_HELP), SettingsFrame::SUBMENU_GENERAL, pluginsEnter, pluginsLeave },
-	{ "Advanced", "CD",   CD_ROWS,      COUNT(CD_ROWS),      CD_HELP,     COUNT(CD_HELP),     SettingsFrame::SUBMENU_GENERAL, pluginsEnter, pluginsLeave },
+	{ "Advanced", "CD",   CD_ROWS,      COUNT(CD_ROWS),      CD_HELP,     COUNT(CD_HELP),     SettingsFrame::SUBMENU_GENERAL, pluginsEnter, pluginsLeave, 0.0f, 2 },
 	{ "Memory",   NULL,   MEMORY_ROWS,  COUNT(MEMORY_ROWS),  NULL,        0,                  SettingsFrame::SUBMENU_GENERAL, NULL,         NULL,         46.0f },
 	{ "Advanced", "GPU",  GPU_ROWS,     COUNT(GPU_ROWS),     GPU_HELP,    COUNT(GPU_HELP),    SettingsFrame::SUBMENU_GENERAL, pluginsEnter, pluginsLeave },
 	{ "Advanced", "Input", INPUT_ROWS,  COUNT(INPUT_ROWS),   INPUT_HELP,  COUNT(INPUT_HELP),  SettingsFrame::SUBMENU_GENERAL, pluginsEnter, pluginsLeave },
@@ -938,6 +941,20 @@ void OptionsFrame::showTab(int tab)
 void OptionsFrame::drawChildren(menu::Graphics& gfx)
 {
 	if (!isVisible()) return;
+
+	/* The tab buttons turn the Advanced tabs, as the Settings tabs (menu::glue::tabShoulder). */
+	if (PAGES[currentPage].tab)
+	{
+		int cur = 0, tab;
+		while (cur < NUM_TABS - 1 && ADV_TABS[cur] != currentPage)
+			cur++;
+		tab = menu::glue::tabShoulderStep(cur, NUM_TABS);
+		if (tab != cur)
+		{
+			showTab(tab);
+			menu::Focus::getInstance().clearPrimaryFocus();	/* to the new tab: the page's default */
+		}
+	}
 
 	menu::ComponentList::const_iterator iteration;
 	for (iteration = componentList.begin(); iteration != componentList.end(); ++iteration)
