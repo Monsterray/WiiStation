@@ -142,13 +142,15 @@ int autoinput_padsweep_fast = 0;   /* "padsweep <vblank> fast": controller-GC.c'
  * OptionsFrame::OptionsPages: Advanced Sound, Advanced Graphics, Plugins, CD, Memory.
  * 0 leaves the menu alone.
  *
- * "menuclick <button> <times>": press one button of the Settings tabs, that many times,
- * ten frames after the page opens. The menu reads the pads directly rather than through
+ * "menuclick <button> <times> [frame]": press one button of the Settings tabs, that many
+ * times, at that menu frame (default 40: ten frames after the page opens; a later one lets
+ * menukeys load a game first, e.g. for Save Settings > This Game). The menu reads the pads directly rather than through
  * the controller drivers, so nothing else in a scripted run can reach a menu button, and
  * anything that only happens on a press could not be tested at all. The index is into
  * SettingsFrame.cpp's FRAME_BUTTONS. */
 unsigned autoinput_menuclick = 0;
 unsigned autoinput_menuclicks = 0;
+unsigned autoinput_menuclick_frame = 0;   /* 0 = 40 */
 /* "menukeys <frame> <keys>": GameCube-pad presses fed to the menu (libgui InputManager.cpp),
  * from that menu frame on: U D L R A B S(tart) Z, each held 6 frames then released 6, '.' a
  * 12-frame pause. Any screen, any dialog: e.g. "menukeys 60 U U A . . R A" is Main > Quit,
@@ -250,9 +252,9 @@ void autoinput_load(void)
 			if (sscanf(line, "menukeys %u %63[^\r\n]", &v, autoinput_menukeys) == 2)
 				{ autoinput_menukeys_frame = v; continue; }
 			{
-				unsigned b, t;
-				if (sscanf(line, "menuclick %u %u", &b, &t) == 2)
-					{ autoinput_menuclick = b; autoinput_menuclicks = t; continue; }
+				unsigned b, t, fr = 0;
+				if (sscanf(line, "menuclick %u %u %u", &b, &t, &fr) >= 2)
+					{ autoinput_menuclick = b; autoinput_menuclicks = t; autoinput_menuclick_frame = fr; continue; }
 			}
 			{   /* save states (statetool.cpp) */
 				char nm[48];
@@ -314,7 +316,7 @@ void autoinput_reset(const char *path)
 	autoinput_padsweep_vbl = 0;
 	autoinput_padsweep_fast = 0;
 	autoinput_menupage = 0;
-	autoinput_menuclick = autoinput_menuclicks = 0;
+	autoinput_menuclick = autoinput_menuclicks = autoinput_menuclick_frame = 0;
 	autoinput_menukeys_frame = 0;
 	autoinput_menukeys[0] = 0;
 	autoinput_atrace_vbl = 0;

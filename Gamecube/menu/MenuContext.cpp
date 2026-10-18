@@ -132,7 +132,7 @@ extern "C" {
 	void autoinput_load(void);
 	void autoinput_reset(const char *path);
 	extern unsigned autoinput_menupage;
-	extern unsigned autoinput_menuclick, autoinput_menuclicks;
+	extern unsigned autoinput_menuclick, autoinput_menuclicks, autoinput_menuclick_frame;
 	void SettingsFrame_ScriptClick(int button);
 }
 
@@ -191,11 +191,12 @@ bool MenuContext::isRunning()
 		Func_LoadFromSamba();
 	}
 
-	/* Ten frames after that, press what the script asked for: late enough that the page
-	 * has drawn itself once, so the frame dump holds both the before and the after. */
+	/* Ten frames after that (or at the script's frame), press what the script asked for: late
+	 * enough that the page has drawn itself once, so the frame dump holds both the before and
+	 * the after. */
 	{
-		static int framesUntilClick = 40;
-		if (framesUntilClick > 0 && --framesUntilClick == 0 && autoinput_menuclicks) {
+		static unsigned menuFrame;
+		if (++menuFrame == (autoinput_menuclick_frame ? autoinput_menuclick_frame : 40) && autoinput_menuclicks) {
 			for (unsigned i = 0; i < autoinput_menuclicks; i++)
 				SettingsFrame_ScriptClick((int)autoinput_menuclick);
 		}

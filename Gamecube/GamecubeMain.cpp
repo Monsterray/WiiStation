@@ -102,7 +102,9 @@ void plugin_call_rearmed_cbs(unsigned long autoDwActFixes, int cfgUseDithering);
 void setSpuInterpolation(int spuInterpolation);
 void setSpuTempo(int soundTempo);
 void setSpuReverb(int soundReverb);
+void VIDEO_SetTrapFilter(bool enable);   /* vi_encoder.c */
 }
+void applyVideoGamma(void);              /* libgui/GraphicsGX.cpp (C++) */
 
 u32* xfb[3] = { NULL, NULL, NULL };	/*** Framebuffers ***/
 GXRModeObj *vmode;				/*** Graphics Mode Object ***/
@@ -478,7 +480,7 @@ void readConfig(FILE* f);
 void writeConfig(FILE* f);
 int checkBiosExists(int testDevice);
 static void loadSeparatelySetting();
-static bool loadSeparatelySettingItem(char* s1, char* s2, bool isUsb);
+static bool loadSeparatelySettingItem(const char* s1, const char* s2, bool isUsb, const char* ext = ".ini");
 void biosFileInit();
 
 static void setGpuPlugin()
@@ -707,6 +709,8 @@ void loadSettings(int argc, char *argv[])
 
 	//Sync settings with config
 	Config.Cpu=dynacore;
+	Config.Xa = xaDisabled;     /* the file's DisableXa/DisableCdda: the copy above was the default */
+	Config.Cdda = cddaDisabled;
 	// Seed the live frame-limit value from the just-loaded setting. go() also
 	// refreshes it on every gameplay entry, but this boot-time seed is still
 	// required: SysInit() -> OpenPlugins() runs BEFORE the first go(), and the
@@ -1321,12 +1325,12 @@ static void loadGameButtons(void)
 	}
 }
 
-static bool loadSeparatelySettingItem(char* s1, char* s2, bool isUsb)
+static bool loadSeparatelySettingItem(const char* s1, const char* s2, bool isUsb, const char* ext)
 {
     struct stat s;
     char settingPathBuf[256];
     fileBrowser_file* configFile_file;
-    sprintf(settingPathBuf, "%s%s%s", s1, s2, ".ini");   /* settings.ini, settings/<CD-ROM ID>.ini */
+    sprintf(settingPathBuf, "%s%s%s", s1, s2, ext);   /* settings.ini, settings/<CD-ROM ID>.ini */
     if (stat(settingPathBuf, &s))
     {
         return false;
@@ -1339,6 +1343,13 @@ static bool loadSeparatelySettingItem(char* s1, char* s2, bool isUsb)
         if (f) {
             readConfig(f);
             fclose(f);
+#ifdef PERF_PROF
+            perf_log_begin();   /* before the game's first go(), which would start the log anew */
+            if ((f = fopen("sd:/wiistation/perf.log", "a"))) {   /* which file a game start read */
+                fprintf(f, "settings: %s\n", settingPathBuf);
+                fclose(f);
+            }
+#endif
             return true;
         }
     }
@@ -1350,25 +1361,16 @@ static void loadSeparatelySetting()
     // The menu's unsaved changes survive the reads below (setOption skips them).
     keepUnsavedSettings();
 
-    // First, we load separately game settings.
-    // Load separately game settings from USB device
-    if (!loadSeparatelySettingItem("usb:/wiistation/settings/", CdromId, true))
-    {
-        // If there is no separate setting for USB
-        // Load separately game settings from SD card
-        if (!loadSeparatelySettingItem("sd:/wiistation/settings/", CdromId, false))
-        {
-            // If there is no separate setting
-            // we load the common (global) settings.
-            // Load common (global) settings from USB device
-            if (!loadSeparatelySettingItem("usb:/wiistation/", "settings", true))
-            {
-                // If there is no common (global) settings for USB
-                // Load common (global) settings from SD card
-                loadSeparatelySettingItem("sd:/wiistation/", "settings", false);
-            }
-        }
-    }
+    // The game's own file (Save Settings -> This Game), USB before SD; else the global file.
+    // Save -> This Game wrote <CD-ROM ID>.cfg from 5.6.1 to 5.13.1 while this read .ini, so
+    // a game with no .ini takes its .cfg. A PS-X EXE has no ID and so no file of its own.
+    bool own = CdromId[0] &&
+        (loadSeparatelySettingItem("usb:/wiistation/settings/", CdromId, true) ||
+         loadSeparatelySettingItem("usb:/wiistation/settings/", CdromId, true, ".cfg") ||
+         loadSeparatelySettingItem("sd:/wiistation/settings/", CdromId, false) ||
+         loadSeparatelySettingItem("sd:/wiistation/settings/", CdromId, false, ".cfg"));
+    if (!own && !loadSeparatelySettingItem("usb:/wiistation/", "settings", true))
+        loadSeparatelySettingItem("sd:/wiistation/", "settings", false);
     rememberFileSettings();
     chainReapply();   /* a chained game's own settings win over the file */
 
@@ -1416,8 +1418,21 @@ static void loadSeparatelySetting()
     dwActFixes = Config.hacks.dwActFixes;
     iUseDither = useDithering;
 
+    // The settings that act only through a call, as loadSettings and the menu make it: a game's
+    // own file (or a settings.ini changed since boot) set them, and nothing else would apply them.
+    Config.Xa = xaDisabled;
+    Config.Cdda = cddaDisabled;
+    setSpuInterpolation(spuInterpolation);
+    setSpuTempo(soundTempo);
+    setSpuReverb(soundReverb);
+    VIDEO_SetTrapFilter(trapFilter);
+    applyVideoGamma();
+    syncFrameLimit();
+
     // Set Gpu Plugin
     setGpuPlugin();
+    if (gpuPtr == &oldSoftGpu)   /* Soft Fast took SkipFrames when SysInit opened it */
+        gpuPtr->setframelimit(0);
 }
 
 // loadISO loads an ISO file as current media to read from.
