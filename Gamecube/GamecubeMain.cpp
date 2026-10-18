@@ -184,6 +184,7 @@ char deflickerLevel = DEFLICKERLEVEL_NORMAL;
 char filterTour = 0;
 char gammaLevel = 0;
 char lightGun = 0;
+char gunReticle = 1;
 char memCard[2];
 char memCardFile[2];
 char forceNTSC = 0;
@@ -312,6 +313,7 @@ static SettingOption OPTIONS[] =
   { "RumbleEnabled", &rumbleEnabled, RUMBLE_DISABLE, RUMBLE_ENABLE, NULL, "Enable Rumble", OPT_NO_YES, "Turns the controller rumble on or off." },
   { "LoadButtonSlot", &loadButtonSlot, LOADBUTTON_SLOT0, LOADBUTTON_AUTO, NULL, "Auto Load Slot", OPT_SLOT, "The button mapping that loads at start: a slot, the default, or Auto (this game's own)." },
   { "LightGun", &lightGun, LIGHTGUN_DISABLE, LIGHTGUN_MOUSE, NULL, "Light Gun", OPT_LIGHTGUN, "Sets the light gun type. Off uses the pad." },
+  { "GunReticle", &gunReticle, 0, 1, NULL, "Gun Reticle", OPT_OFF_ON, "Shows where the Wii Remote points while it is a light gun or mouse." },
   /* PadAssign: a physical controller, 0..3: 4..9 indexed the drivers' 4-entry available[] past its end */
   { "PadType1", &padType[0], PADTYPE_NONE, PADTYPE_COOP },
   { "PadAssign1", &padAssign[0], 0, 3 },
@@ -1332,10 +1334,14 @@ static void loadGameButtons(void)
 		controller_t* c = controller_ts[i];
 		if (!loaded)
 			memcpy(&c->config_slot[CONTROLLER_GAME_SLOT], &c->config_default, sizeof(controller_config_t));
-		/* Auto: this game's mapping, or the default when it has none -- never the previous game's */
+		/* Auto: this game's mapping, or the default when it has none -- never the previous game's.
+		 * Default: the built-in mapping (config_default), as Restore Default sets it. */
 		if (loadButtonSlot == LOADBUTTON_AUTO)
 			for (int j = 0; j < 4; j++)
 				memcpy(&c->config[j], &c->config_slot[CONTROLLER_GAME_SLOT], sizeof(controller_config_t));
+		else if (loadButtonSlot == LOADBUTTON_DEFAULT)
+			for (int j = 0; j < 4; j++)
+				memcpy(&c->config[j], &c->config_default, sizeof(controller_config_t));
 	}
 }
 

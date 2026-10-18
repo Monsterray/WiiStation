@@ -2978,6 +2978,25 @@ static void OverlayRestoreEfb(void)
     bSetClip = TRUE;
 }
 
+/* The light gun reticle (SoftGPU/drawGX.c) over the whole picture, with the plugin's viewport
+ * put back after it as OverlayRestoreEfb does */
+extern int gunReticleWanted(void);
+extern void drawGunReticles(void);
+static void OverlayGunReticles(void)
+{
+    extern GXRModeObj *g_tv_mode;
+    GXRModeObj *m = g_tv_mode ? g_tv_mode : vmode;
+
+    if (!gunReticleWanted())
+        return;
+    GX_SetViewport(0, 0, m->fbWidth, m->efbHeight, 0.0f, 1.0f);
+    GX_SetScissor(0, 0, m->fbWidth, m->efbHeight);
+    drawGunReticles();
+    glViewport(rRatioRect.left, iResY - (rRatioRect.top + rRatioRect.bottom),
+               rRatioRect.right, rRatioRect.bottom);
+    bSetClip = TRUE;
+}
+
 static void flipEGL(void)
 {
     int presentSubmitted;
@@ -2992,13 +3011,16 @@ static void flipEGL(void)
     efb_present();   /* efbSync.inc: keep the frame the copy to the XFB may clear */
 
     /* a frame that will not reach the TV gets no text */
-    if (showFPSonScreen == 1 && !gx_vout_busy())
+    if ((showFPSonScreen == 1 || gunReticleWanted()) && !gx_vout_busy())
     {
         /* a copy that clears the EFB takes the text with it; otherwise keep what it covers */
         if (!canClearFrameBuf)
             overlaySaved = OverlaySaveEfb();
         if (overlaySaved || canClearFrameBuf)
+        {
             showFpsAndDebugInfo();
+            OverlayGunReticles();
+        }
     }
 
     /* The 240p button was pressed in the menu: a game that does not change its display mode

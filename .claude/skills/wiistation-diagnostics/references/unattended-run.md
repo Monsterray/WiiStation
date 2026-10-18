@@ -138,6 +138,16 @@ a connected digital pad. Known timelines: Spyro title Start ~1400-1500, level pa
 ~3634 with the recorded movie; BIOS shell menu visible from ~600, X at 1500 opens Memory
 Card, Triangle back, Down, X opens CD Player.
 
+**Analog stick and Wii Remote pointer in a script** (2026-10-18): `stick <vblank> <lx> <ly>`
+holds port 1's left stick (0..255, 128 at rest) until the next stick line (MediEvil's analog
+check: `.runs` A/B with ControllerType 0 and 1). `irfake <vblank> <x> <y>` gives a Wii Remote that
+sees no sensor bar a pointer (640x480) in debug builds: Dolphin's emulated remote with no device
+bound has none, and runs must not bind the host mouse. It drives the GunCon, Justifier, mouse and
+the reticle; recipe and expected numbers in `Docs/GUN_MOUSE_TESTING.md`. An emulated remote needs
+a named profile with `[Wiimote1] Source = 1` (`WSX_PROFILE`). `padtrace.csv` is now extracted
+into the run directory. Debug `tty.log` also has `pad` (each config command and every change of
+a 42h read: motor bytes, ID), `rumble` (motor values and the motor-on vblanks) and `led` lines.
+
 **Movies → scripts:** `scripts/dtm2autoinput.py MOVIE.dtm --offset N [--trace-after-start]`
 decodes a Dolphin `.dtm` (8-byte pad polls interleaved with Wiimote records, 2 polls per VI)
 into autoinput lines; find the offset once from the first Start press.

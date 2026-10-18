@@ -83,6 +83,9 @@ The format has no count and no checksum. See `Gamecube/PlugPAD.c` (`read_slot`, 
 - Default in code: Auto (GamecubeMain.cpp, `loadSettings`).
 - Auto: the live mapping is the game's Game slot. With no Game file, the Game slot is the default, and
   so is the live mapping. The previous game's mapping does not stay (fixed in 611a27b).
+- Default: the live mapping is the built-in mapping (`config_default`) at each game start, as Restore
+  Default sets it (`loadGameButtons`, GamecubeMain.cpp). Before, Default copied nothing and the previous
+  game's mapping stayed.
 - A change applies at the next game start.
 
 ## 3. Problems and status

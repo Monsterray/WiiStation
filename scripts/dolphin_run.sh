@@ -308,6 +308,8 @@ CARD="$PROFILE/Load/WiiSD.raw"
 "$PYTHON" "$SP/sdimage_read.py" "$CARD" wiistation/vramio.log "$OUT/vramio.log" >/dev/null 2>&1 && [ -s "$OUT/vramio.log" ] && echo "vramio: $(sed -n 2p "$OUT/vramio.log" | sed 's/^# //'), $(grep -vc '^#' "$OUT/vramio.log") lines"
 # the USB Pad Test page's log (Settings > Input > Test USB Pad; scripts/usbpad_read.py)
 "$PYTHON" "$SP/sdimage_read.py" "$CARD" wiistation/usbpad.log "$OUT/usbpad.log" >/dev/null 2>&1 && [ -s "$OUT/usbpad.log" ] && echo "usbpad: $(wc -l < "$OUT/usbpad.log") lines"
+# what each port handed the PlayStation, one line per change (debug builds; scripts/padtest.py)
+"$PYTHON" "$SP/sdimage_read.py" "$CARD" wiistation/padtrace.csv "$OUT/padtrace.csv" >/dev/null 2>&1
 # the run's console text (SysPrintf: a PS1 program's printf under the HLE BIOS), debug builds
 "$PYTHON" "$SP/sdimage_read.py" "$CARD" wiistation/tty.log "$OUT/tty.log" >/dev/null 2>&1 && [ -s "$OUT/tty.log" ] && echo "tty: $(wc -l < "$OUT/tty.log") lines"
 # the per-vblank timelines of a chain (debug builds; scripts/vtl_view.py)

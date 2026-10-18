@@ -26,6 +26,13 @@
   `MONTYP~1`. `build.sh` tested the logical path for a space; it now tests `pwd -P` and builds
   a snapshot in the MSYS `/tmp` (2.5 min, deps from scratch), copying the ignored `deps/ext`
   (libwupc) in so the snapshot does not fetch it (2026-10-18).
+- A worktree under `C:\Users\Monty Perrotti\...` (the opencode temp dir): MSYS2 turns the 8.3
+  path `/c/Users/MONTYP~1/...` back into `/home/Monty Perrotti/...`, so make's CURDIR has a space
+  and `-I$(CURDIR)` breaks (`GL/gl.h: No such file`). Run `wsx.sh build` from the long path
+  (`cd "/c/Users/Monty Perrotti/..."`): `build.sh` then sees the space and builds a snapshot in the
+  devkitPro MSYS2 `/tmp`. The snapshot left out the ignored `deps/ext` (`wupc/wupc.h: No such
+  file`) until 2026-10-18; it is copied in now. Dolphin runs work from either path since
+  `wsx.sh run` quotes the autoboot path (a chain file's path used to split at the space).
 
 ## Stale dependency archives
 

@@ -216,16 +216,29 @@ void control_info_init(void){
 	auto_assign_controllers();
 }
 
+/* The game stops (the menu, a game switch): every motor stops, multitap and Co-Op ones too,
+ * and the Wii Remotes show their own player number again. resumeInput: the game goes on,
+ * each remote shows the PlayStation player it plays. */
+extern void pad_rumble_stop(void);   /* PadSSSPSX.c */
+#if defined(WII) && !defined(NO_BT)
+extern void wpad_leds_mode(int game);   /* gc_input/controller-WiimoteNunchuk.c */
+#else
+#define wpad_leds_mode(game) ((void)0)
+#endif
+
 void pauseInput(void){
 	int i;
+	pad_rumble_stop();
 	for(i=0; i<2; ++i)
 		if(virtualControllers[i].inUse) DO_CONTROL(i, pause);
+	wpad_leds_mode(0);
 }
 
 void resumeInput(void){
 	int i;
 	for(i=0; i<2; ++i)
 		if(virtualControllers[i].inUse) DO_CONTROL(i, resume);
+	wpad_leds_mode(1);
 }
 
 void init_controller_ts(void){
@@ -255,6 +268,19 @@ static int led_player(int wv)
 	if (wv < 2)  return wv;
 	if (wv < 10) return (wv - 2) % 4;
 	return (wv - 10) % 4;
+}
+
+/* The Wii Remote channel whose pointer is the light gun or mouse of port or multitap slot
+ * wv (0..9), or -1: the test PadSSSPSX.c UpdateState makes (SoftGPU/drawGX.c's reticle) */
+int pad_gun_chan(int wv)
+{
+#if defined(WII) && !defined(NO_BT)
+	const virtualControllers_t *vc = &virtualControllers[wv];
+	if (lightGun && padLightgun[wv] && vc->inUse && vc->number >= 0 && vc->number < 4 &&
+	    (vc->control == &controller_Wiimote || vc->control == &controller_WiimoteNunchuk))
+		return vc->number;
+#endif
+	return -1;
 }
 
 void assign_controller(int wv, controller_t* type, int wp){
@@ -475,8 +501,8 @@ int load_configurations(FILE* f, controller_t* controller){
 		controller->config_slot[i].screenshot = controller->screenshot_combos + index;
 	}
 
-	/* Auto Load Slot 1..4 copies that slot to the mapping now; the Game slot and Default do not
-	 * (loadGameButtons, GamecubeMain.cpp, and the mapping keeps what it had). */
+	/* Auto Load Slot 1..4 copies that slot to the mapping now; Auto (the Game slot) and Default
+	 * (the built-in mapping) are applied at each game start (loadGameButtons, GamecubeMain.cpp). */
 	if (loadButtonSlot >= LOADBUTTON_SLOT0 && loadButtonSlot <= LOADBUTTON_SLOT3) {
 		int j;
 		for(j=0; j<4; ++j)

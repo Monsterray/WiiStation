@@ -190,7 +190,7 @@ run)
 	[ -n "$dsp" ] && export DSP_LLE=1
 	[ -n "$fast" ] && export FAST=1
 	for e in "${extra[@]:-}"; do [ -n "$e" ] && export "$e"; done
-	DOL="$dir/boot.dol" bash "$REPO/scripts/dolphin_run.sh" "$dir" "$secs" "$dir/autoinput.txt" "$dir/settings.cfg" $ab > "$dir/run.log" 2>&1
+	DOL="$dir/boot.dol" bash "$REPO/scripts/dolphin_run.sh" "$dir" "$secs" "$dir/autoinput.txt" "$dir/settings.cfg" ${ab:+"$ab"} > "$dir/run.log" 2>&1   # quoted: a checkout path with spaces
 	rc=$?
 	echo "$rc" > "$dir/dolphin.rc"
 	grep -E "refusing|no such|faults in dolphin.log: [1-9]|PANIC|Unknown instruction" "$dir/run.log" | head -5
