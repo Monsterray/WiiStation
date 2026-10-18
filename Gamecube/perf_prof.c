@@ -1311,6 +1311,9 @@ void perf_report(void)
 			(unsigned long)g_perf.mirror_off[3], (unsigned long)g_perf.mirror_off[4],
 			(unsigned long)g_perf.mirror_off[5], (unsigned long)g_perf.mirror_off[6],
 			(unsigned long)g_perf.mirror_off[7]);
+		fprintf(f, "fskip: frames=%lu cmds=%lu guard=%lu presents=%lu\n",
+			(unsigned long)g_perf.fskip_frames, (unsigned long)g_perf.fskip_cmds,
+			(unsigned long)g_perf.fskip_guard, (unsigned long)g_perf.pres_total);
 		fprintf(f, "uplret: dis=%lu skip=%lu rgb24=%lu px1=%lu\n",
 			(unsigned long)g_perf.upl_r_dis, (unsigned long)g_perf.upl_r_skip,
 			(unsigned long)g_perf.upl_r_rgb24, (unsigned long)g_perf.upl_r_1px);

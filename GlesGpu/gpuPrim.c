@@ -1763,7 +1763,10 @@ int UploadScreen ( int Position )
 
     iLastRGB24 = PSXDisplay.RGB24 + 1;
 
-    if ( bSkipNextFrame ) { PERF_INC(upl_r_skip); MIRROR_OFF(5); return 0; }
+    /* Frame Skip: a 24-bit display is uploaded whole at the next drawn frame's present
+     * (updateDisplayGl), so this one can wait. A 15-bit upload may be the only one its
+     * picture gets (a still, a load into the displayed buffer): it is always done. */
+    if ( bSkipNextFrame && PSXDisplay.RGB24 ) { PERF_INC(upl_r_skip); MIRROR_OFF(5); skipDropped = 1; return 0; }
 
     // Clear Movie garbage
     if (PSXDisplay.RGB24)

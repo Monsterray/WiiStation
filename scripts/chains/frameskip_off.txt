@@ -1,0 +1,11 @@
+CHAIN
+# Frame Skip off must not change anything: run this under main's DOL and the Frame Skip DOL,
+# then wsx.sh frames A B (0 different outside the overlay) and vsig_cmp.py on each vsig_NN.bin.
+#   bash scripts/wsx.sh chain fs_off_main frameskip_off.txt --dol MAIN.dol --secs 600
+#   bash scripts/wsx.sh chain fs_off_new  frameskip_off.txt --dol NEW.dol  --secs 600
+1800 SkipFrames=0
+sd:/wiistation/isos/Crash Team Racing
+Crash Team Racing [U] [SCUS-94426].cue
+1800 SkipFrames=0
+sd:/wiistation/isos/Final Fantasy VII/Final Fantasy VII 1
+Final Fantasy VII [U] [Disc 1] [SLUS-94163].cue

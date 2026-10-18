@@ -354,6 +354,9 @@ typedef struct {
 	/* Where already-drawn EFB content can be lost again: screen re-uploads from
 	 * psxVuw (which has no GX-drawn primitives in it) and the present's clear. */
 	uint32_t upl_calls, upl_done, pres_total, pres_clear, pres_skipped;
+	/* Frame Skip on OpenGX (gpuPlugin.c FrameSkipGx): frames not drawn nor presented,
+	 * drawing commands left out, skips ended because the game stopped flipping */
+	uint32_t fskip_frames, fskip_cmds, fskip_guard;
 	uint32_t upl_partial_calls, upl_partial_used;   /* CPU loads; with the EFB mirroring psxVuw */
 	uint32_t mirror_geom_restarts, mirror_set, mirror_diff_word, mirror_off[8];   /* first differing int of MirrorGeom */
 	/* UploadScreen early returns, by path, and the state its paths read at the first and
