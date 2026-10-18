@@ -16,6 +16,11 @@
 #   scripts/build.sh clean        # clean all build artifacts
 #   LIBOGC=2 scripts/build.sh release  # libogc2 + devkitPPC r41-2; outputs get _ogc2
 #                                      # (WiiSXRX_Release_ogc2.dol, build_release_ogc2/)
+#   WSX_OPT / WSX_LTO        release-only overrides of the main code's optimization
+#                            level / LTO (Makefile_Wii_Release: WSX_OPT ?= -Ofast,
+#                            WSX_LTO ?= -flto). Example: WSX_OPT="-O3" ... release.
+#                            A change to either cleans the release objects (make
+#                            compares timestamps, not compiler flags).
 #
 # The *-warn variants build with real compiler warnings enabled instead of
 # the default fully-quiet (-w) build -- use them when auditing the codebase
@@ -25,8 +30,14 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# MSYS's plain pwd reports the logical path: a worktree reached through an 8.3
+# short name (C:/Users/USER123~1/...) then tests space-free although the real
+# directory name has one, and every "-I$(CURDIR)" compile flag later splits on
+# it (the Deps Makefiles embed CURDIR). The physical resolution (pwd -P) sees
+# the long name; test both spellings, and snapshot when either hides a space.
+REPO_ROOT_PHYS="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P 2>/dev/null || true)"
 
-if [[ "$REPO_ROOT" == *" "* ]]; then
+if [[ "$REPO_ROOT" == *" "* ]] || [[ "$REPO_ROOT_PHYS" == *" "* ]]; then
 	if [ "${1:-debug}" = clean ]; then
 		echo "Run clean from a checkout without spaces; isolated builds clean themselves." >&2
 		exit 1
@@ -197,16 +208,26 @@ case "${1:-debug}" in
 		make -C Gamecube -f Makefile_Wii WARN=1
 		echo "Output: Gamecube/WiiSXRX_debug${OGC_SUFFIX}.dol"
 		;;
-	release)
+	release | release-warn)
 		make opengx.a lightrecNoLog.a lightning.a zstd.a lzma.a zlibstatic.a chdrstatic.a hbcagent.a smb2.a
 		relink_if_deps_newer Gamecube/WiiSXRX_Release${OGC_SUFFIX}.elf
-		make -C Gamecube -f Makefile_Wii_Release
-		echo "Output: Gamecube/WiiSXRX_Release${OGC_SUFFIX}.dol"
-		;;
-	release-warn)
-		make opengx.a lightrecNoLog.a lightning.a zstd.a lzma.a zlibstatic.a chdrstatic.a hbcagent.a smb2.a
-		relink_if_deps_newer Gamecube/WiiSXRX_Release${OGC_SUFFIX}.elf
-		make -C Gamecube -f Makefile_Wii_Release WARN=1
+		# Pass the optimization-level overrides only when the user set them, on the
+		# command line: an exported-but-unset variable must not shadow the Makefile
+		# defaults, and WSX_LTO= (set, empty) must reach make as exactly "".
+		opt_make_args=()
+		[ -n "${WSX_OPT+x}" ] && opt_make_args+=(WSX_OPT="$WSX_OPT")
+		[ -n "${WSX_LTO+x}" ] && opt_make_args+=(WSX_LTO="$WSX_LTO")
+		# The stamp makes a changed WSX_OPT/WSX_LTO clean the release tree the same way
+		# the debug tree clears on a changed PROBES: make compares timestamps, not flags.
+		# release-warn changes CWARNFLAGS but not the level, so WARN is not stamped.
+		opt_stamp="Gamecube/build_release${OGC_SUFFIX}/.opt_flags"
+		opt_signature="${WSX_OPT:-}|${WSX_LTO:-}"
+		if [ -d "Gamecube/build_release${OGC_SUFFIX}" ] && [ "$(cat "$opt_stamp" 2>/dev/null)" != "$opt_signature" ]; then
+			echo "release opt flags changed -- cleaning so the change takes effect"
+			make -C Gamecube -f Makefile_Wii_Release clean >/dev/null 2>&1 || true
+		fi
+		make -C Gamecube -f Makefile_Wii_Release "${opt_make_args[@]}"
+		mkdir -p Gamecube/build_release${OGC_SUFFIX} && printf '%s' "$opt_signature" > "$opt_stamp"
 		echo "Output: Gamecube/WiiSXRX_Release${OGC_SUFFIX}.dol"
 		;;
 	clean)

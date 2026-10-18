@@ -86,7 +86,15 @@ else
 CWARNFLAGS := -w
 endif
 
-CFLAGS	= -flto -Ofast $(CWARNFLAGS) -Wno-stringop-truncation -Wno-strict-aliasing -Wno-misleading-indentation -fno-builtin-gettext -fpermissive $(MACHDEP) $(INCLUDE) $(CSTD) -DUSE_LIBCHDR -D__GAMECUBE__ -DWII -DHW_RVL -D__ppc__ -D__BIG_ENDIAN__ -D__powerpc__ -DCPU_IS_BIG_ENDIAN=1 -DWORDS_BIGENDIAN=1 -DPACKAGE_VERSION=\"1.3.2\" -DHAVE_LROUND \
+# Optimization level and LTO are overridable per build without changing the default,
+# e.g. `WSX_OPT="-O3" scripts/build.sh release` (-O3, still the default -flto) or
+# `WSX_OPT="-O2" WSX_LTO= scripts/build.sh release` (-O2, no LTO). Empty WSX_LTO
+# means no LTO. scripts/build.sh cleans release objects when these change, so a new
+# level never silently reuses the previous build's objects.
+WSX_OPT	?=	-Ofast
+WSX_LTO	?=	-flto
+
+CFLAGS	= $(WSX_LTO) $(WSX_OPT) $(CWARNFLAGS) -Wno-stringop-truncation -Wno-strict-aliasing -Wno-misleading-indentation -fno-builtin-gettext -fpermissive $(MACHDEP) $(INCLUDE) $(CSTD) -DUSE_LIBCHDR -D__GAMECUBE__ -DWII -DHW_RVL -D__ppc__ -D__BIG_ENDIAN__ -D__powerpc__ -DCPU_IS_BIG_ENDIAN=1 -DWORDS_BIGENDIAN=1 -DPACKAGE_VERSION=\"1.3.2\" -DHAVE_LROUND \
 		  -D__GX__ \
 		  -D_GNU_SOURCE -DNDEBUG
 

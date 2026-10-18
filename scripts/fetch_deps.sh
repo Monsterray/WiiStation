@@ -49,14 +49,23 @@ fetch_pinned() {
 
 # Apply a patch once: skip if it is already applied (reverse-applies cleanly).
 apply_patch() {
-    local dir="$1" patch="$2"
+    local dir="$1" patch="$2" stripped
     [ -f "$patch" ] || return 0
-    if git -C "$dir" apply --check --reverse "$patch" >/dev/null 2>&1; then
+    # This repo's patch files are checked out with CRLF when git's global
+    # core.autocrlf is on (a fresh clone has deps/ext/ empty, so this was never
+    # hit while the main checkout existed). A CRLF patch does not apply to the
+    # LF blobs of the pinned clones. Strip the CRs so both the reverse check and
+    # the apply see patch bytes that match the checkout, however it came out.
+    stripped="$(mktemp)"
+    tr -d '\r' < "$patch" > "$stripped"
+    if git -C "$dir" apply --check --reverse "$stripped" >/dev/null 2>&1; then
+        rm -f "$stripped"
         echo "[fetch_deps] patch already applied: $(basename "$patch")"
         return 0
     fi
     echo "[fetch_deps] applying $(basename "$patch")"
-    git -C "$dir" apply "$patch"
+    git -C "$dir" apply "$stripped"
+    rm -f "$stripped"
 }
 
 fetch_wupc() {
