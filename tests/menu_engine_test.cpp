@@ -194,17 +194,6 @@ static const HelpLine PLUGIN_HELP[] = {
 	{ NULL,          "Wii CPU time. Save it for one game: This Game." },
 };
 
-static const HelpLine ADVGFX_HELP[] = {
-	{ "Dithering:",    "Hides the steps between colours in a 15-bit picture." },
-	{ NULL,            "Default uses it only where the game asks for it." },
-	{ "Video Colour:", "24-bit is full colour. 15-bit bands in dark scenes." },
-	{ "MDEC Chroma:",  "Sharp is the console: one colour sample per 2x2 pixels." },
-	{ NULL,            "Smooth mixes the samples: it looks better, costs more." },
-	{ NULL,            "It applies to the next video that starts." },
-	{ "Gamma:",        "Brightens the TV picture. 1.0 changes nothing." },
-	{ "Deflicker Level:", "Light blurs less than Normal. Needs Deflicker on." },
-};
-
 static const HelpLine CD_HELP[] = {
 	{ "CD Read Buffer:", "16 KB is best: the card is read in 32 KB pages anyway," },
 	{ NULL,              "and a larger buffer only reads more than the game uses." },
@@ -245,7 +234,8 @@ struct TestPage {
 
 static TestPage PAGES[] = {
 	{ "Adv Sound",   "Advanced Sound",    false, 0, SOUND_ROWS,   COUNT(SOUND_ROWS),   NULL,        0 },
-	{ "Adv Graphics","Advanced Graphics", false, 0, ADVGFX_ROWS, COUNT(ADVGFX_ROWS), ADVGFX_HELP, COUNT(ADVGFX_HELP) },
+	/* one column here; the real two-column page, with all its rows, is testTwoColumns() */
+	{ "Adv Graphics","Advanced Graphics", false, 0, ADVGFX_ROWS, COUNT(ADVGFX_ROWS), NULL,        0 },
 	{ "CPU",         NULL,                true,  0, PLUGIN_ROWS, COUNT(PLUGIN_ROWS), PLUGIN_HELP, COUNT(PLUGIN_HELP) },
 	{ "CD",          NULL,                true,  3, CD_ROWS,     COUNT(CD_ROWS),     CD_HELP,     COUNT(CD_HELP) },
 	{ "Memory",      "Memory",            false, 0, MEMORY_ROWS, COUNT(MEMORY_ROWS), NULL,        0, NULL, 0, 0.0f, 0.0f, 46.0f },
@@ -3560,18 +3550,21 @@ static void checkGrid(const Layout &lay, const Row *rows, const int (*cells)[2],
 		}
 }
 
-/* Page::columns == 2 (Advanced Graphics): Cycle rows fill two columns of label + button, a choice
- * row takes the whole line, the help starts under the last line, focus runs by geometry. */
+/* Page::columns == 2 (Advanced Graphics, as OptionsFrame.cpp has it): Cycle rows fill two columns
+ * of label + button, a choice row takes the whole line, focus runs by geometry. */
 static void testTwoColumns(void)
 {
 	static const char *const GAMMA_NAMES[] = { "1.0", "1.1", "1.2", "1.3", "1.4", "1.5" };
-	static const char *const DEFLICKER_NAMES[] = { "Normal", "Light" };
+	static const char *const DEFLICKER_NAMES[] = { "Normal", "Light", "Strong" };
+	static const char *const VIDEOMODE_NAMES[] = { "Auto", "NTSC", "PAL 50", "PAL 60", "480p" };
 	static Row rows[] = {
 		RADIO_FIT("Dithering",       DITHER_NAMES,      1),
 		CYC("Video Colour",          FMV_COLOUR_NAMES,  1),
 		CYC("MDEC Chroma",           CHROMA_NAMES,      0),
 		CYC("Gamma",                 GAMMA_NAMES,       0),
 		CYC("Deflicker Level",       DEFLICKER_NAMES,   0),
+		CYC("Filter Tour",           ON_OFF_NAMES,      0),
+		CYC("Video Mode",            VIDEOMODE_NAMES,   0),
 	};
 	Page p;
 	Layout lay;
@@ -3582,8 +3575,6 @@ static void testTwoColumns(void)
 	p.title = "Advanced Graphics";
 	p.rows = rows;
 	p.nRows = COUNT(rows);
-	p.help = ADVGFX_HELP;
-	p.nHelp = COUNT(ADVGFX_HELP);
 	p.logo = LOGO_SPOT_BOTTOM;
 	p.focus = FOCUS_ROWS;
 	p.columns = 2;
@@ -3594,27 +3585,26 @@ static void testTwoColumns(void)
 	if (checkLayout(p, kFont, lay, probs, MAX_PROBLEMS) != 0)
 		fail("2 columns", "checkLayout finds a problem on the page");
 
-	/* Lines: Dithering at 100, the two Cycle pairs at 160 and 220. */
+	/* Lines: Dithering at 100, the three Cycle pairs at 160, 220 and 280. */
 	{
-		static const int cells[2][2] = { { 1, 2 }, { 3, 4 } };
-		static const float ys[2] = { 160.0f, 220.0f };
-		checkGrid(lay, rows, cells, ys, 2);
+		static const int cells[3][2] = { { 1, 2 }, { 3, 4 }, { 5, 6 } };
+		static const float ys[3] = { 160.0f, 220.0f, 280.0f };
+		checkGrid(lay, rows, cells, ys, 3);
 	}
-	/* The choice row is where it always was; the help starts under line 3 (y 280), not row 5 (400). */
+	/* The choice row is where it always was. */
 	{
-		const Key kc = { ROLE_CHOICE, 0, 0 }, kh = { ROLE_HELP_TERM, -1, 0 };
-		const int c = findCtrl(lay, kc), h = findCtrl(lay, kh);
+		const Key kc = { ROLE_CHOICE, 0, 0 };
+		const int c = findCtrl(lay, kc);
 		if (c < 0 || lay.c[c].rect.y != 100.0f)
 			fail("2 columns", "the Dithering row moved");
-		if (h < 0 || lay.c[h].rect.y != 280.0f)
-			fail("2 columns", "the help does not start under the last line");
 	}
 	/* Focus: Down and Up keep the column, Left and Right change it and wrap. */
 	{
 		static const struct { int row, dir, to; } F[] = {
 			{ 1, DIR_RIGHT, 2 }, { 2, DIR_LEFT, 1 }, { 2, DIR_RIGHT, 1 }, { 1, DIR_LEFT, 2 },
 			{ 1, DIR_DOWN, 3 },  { 2, DIR_DOWN, 4 }, { 3, DIR_UP, 1 },    { 4, DIR_UP, 2 },
-			{ 3, DIR_DOWN, 0 },  { 4, DIR_DOWN, 0 },	/* the bottom line wraps to the top line, by column */
+			{ 3, DIR_DOWN, 5 },  { 4, DIR_DOWN, 6 }, { 6, DIR_RIGHT, 5 },
+			{ 5, DIR_DOWN, 0 },  { 6, DIR_DOWN, 0 },	/* the bottom line wraps to the top line, by column */
 		};
 		for (unsigned k = 0; k < COUNT(F); k++) {
 			const Key kf = { ROLE_BUTTON, F[k].row, 0 };

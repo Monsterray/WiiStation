@@ -155,6 +155,19 @@ LATER UPDATES BY:
  * Monty Perrotti (WiiStation)
 
 WiiStation CHANGE LOG:
+Unreleased:
+* Fixed: with the Soft renderers (the default), Deflicker and Deflicker Level
+  did nothing in 480i (the usual mode): the game kept the menu's filter. OpenGX
+  took them only after its first picture readback. They now apply at once.
+* Fixed: Deflicker Level "Light" was no filter at all (the same as Deflicker
+  off). Light now blurs a little; the new "Strong" blurs most and flickers least.
+* Video, Advanced Graphics: new "Video Mode" (Auto, NTSC, PAL 50, PAL 60, 480p;
+  applies at the next start; 480p falls back to Auto without a component cable)
+  and "Filter Tour", which steps a running game through the texture filter,
+  deflicker and trap filter settings and their combinations every 4 seconds,
+  named under the FPS counter. The page's help notes are gone (SETTINGS.md).
+* Trap filter: its help says it only works on composite and S-Video.
+
 Ver 5.13.1 (2026-10-13):
 * Fixed: after about 72 minutes of play (and every 72 minutes after that) the
   sound fell an eighth of a second behind the picture and played slightly high

@@ -266,6 +266,10 @@ void autoinput_load(void)
 				if (sscanf(line, "statefp %u", &v) == 1) { statetool_request(4, "", v, strstr(line, "dump") != NULL); continue; }
 			}
 			if (sscanf(line, "atrace %u", &v) == 1) { autoinput_atrace_vbl = v; continue; }
+			if (sscanf(line, "filtertour %u", &v) == 1) {   /* the Filter Tour, v seconds a step (GraphicsGX.cpp) */
+				extern char filterTour; extern unsigned filterTourVbl; void filterTourStart(void);
+				filterTour = 1; filterTourVbl = v ? v * 60 : 240; filterTourStart(); continue;
+			}
 			if (!strncmp(line, "ogxnomask", 9)) { extern int iUseMask; iUseMask = 0; continue; }   /* test: OpenGX mask-bit emulation off (GlesGpu/gpuDraw.c) */
 			if (sscanf(line, "xfb %u", &v) == 1) { if (autoinput_xfb_n < 16) autoinput_xfb_vbl[autoinput_xfb_n++] = v; continue; }
 			if (sscanf(line, "tracebox %d %d %d %d", &autoinput_tbox[0], &autoinput_tbox[1], &autoinput_tbox[2], &autoinput_tbox[3]) == 4) { autoinput_tbox_on = 1; continue; }

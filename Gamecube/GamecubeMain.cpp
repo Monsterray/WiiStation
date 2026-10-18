@@ -180,6 +180,7 @@ char trapFilter = 1;
 char interlacedMode = 0;
 char deflickerFilter = 1;
 char deflickerLevel = DEFLICKERLEVEL_NORMAL;
+char filterTour = 0;
 char gammaLevel = 0;
 char lightGun = 0;
 char memCard[2];
@@ -219,7 +220,8 @@ static const char* const OPT_BILINEAR[]      = { "Default", "Near", "Bilinear" }
 static const char* const OPT_CHROMA[]        = { "Sharp", "Smooth" };
 static const char* const OPT_COLOUR[]        = { "15-bit", "24-bit" };
 static const char* const OPT_GAMMA[]         = { "1.0", "1.1", "1.2", "1.3", "1.4", "1.5" };
-static const char* const OPT_DEFLICKER[]     = { "Normal", "Light" };
+static const char* const OPT_DEFLICKER[]     = { "Normal", "Light", "Strong" };
+static const char* const OPT_VIDEOMODE[]     = { "Auto", "NTSC", "PAL 50", "PAL 60", "480p" };
 static const char* const OPT_RESAMPLE[]      = { "Hold", "Linear", "Cubic" };
 static const char* const OPT_OUTPUT[]        = { "CPU", "DSP" };
 static const char* const OPT_INTERP[]        = { "Simple", "Gaussian" };
@@ -250,19 +252,20 @@ static SettingOption OPTIONS[] =
   { "BootThruBios", &LoadCdBios, BOOTTHRUBIOS_NO, BOOTTHRUBIOS_YES, NULL, "Boot Through BIOS", OPT_NO_YES, "Shows the PlayStation start screen before a game." },
   { "Video", NULL, 0, 0, "The picture: the renderer, the TV signal and the filters." },
   { "gpuPlugin", &gpuPlugin, OLD_SOFT, OPEN_GX, NULL, "GPU Plugin", OPT_GPU, "The graphics renderer. OpenGX uses the Wii GPU." },
-  { "VideoMode", &videoMode, VIDEOMODE_AUTO, VIDEOMODE_PROGRESSIVE },
+  { "VideoMode", &videoMode, VIDEOMODE_AUTO, VIDEOMODE_PROGRESSIVE, NULL, "Video Mode", OPT_VIDEOMODE, "The TV signal. Auto is the Wii setting. Applies at the next start." },
   { "TVMode", &originalMode, ORIGINALMODE_DISABLE, ORIGINALMODE_ENABLE, NULL, "240p", OPT_OFF_ON, "Turns the 240p display mode on or off." },
   { "ForceNTSC", &forceNTSC, FORCENTSC_DISABLE, FORCENTSC_ENABLE, NULL, "Force NTSC", OPT_OFF_ON, "Treats every game as an NTSC game." },
   { "ScreenMode", &screenMode, SCREENMODE_4x3, SCREENMODE_16x9_PILLARBOX, NULL, "Screen Mode", OPT_SCREEN, "Sets the shape of the picture." },
   { "Interlaced", &interlacedMode, INTERLACED_DISABLE, INTERLACED_ENABLE, NULL, "Interlaced", OPT_OFF_ON, "Turns the interlaced video mode on or off." },
   { "DeflickerFilter", &deflickerFilter, DEFLICKER_DISABLE, DEFLICKER_ENABLE, NULL, "Deflicker", OPT_OFF_ON, "Turns the deflicker filter on or off." },
-  { "TrapFilter", &trapFilter, TRAPFILTER_DISABLE, TRAPFILTER_ENABLE, NULL, "Trap", OPT_OFF_ON, "Turns the trap filter on or off." },
+  { "TrapFilter", &trapFilter, TRAPFILTER_DISABLE, TRAPFILTER_ENABLE, NULL, "Trap", OPT_OFF_ON, "Composite and S-Video only: less colour crawl, softer detail." },
   { "BilinearFilter", &bilinearFilter, BILINEARFILTER_DISABLE, BILINEARFILTER_ENABLE, NULL, "Bilinear", OPT_BILINEAR, "Sets the texture filter." },
   { "Dithering", &useDithering, USEDITHER_NONE, USEDITHER_ALWAYS, NULL, "Dithering", OPT_DITHER, "Hides the steps between colours in a 15-bit picture." },
   { "MdecChroma", &mdecChroma, MDECCHROMA_SHARP, MDECCHROMA_SMOOTH, NULL, "MDEC Chroma", OPT_CHROMA, "Sharp is the console. Smooth looks better and costs more." },
   { "FmvColour", &fmvColour, FMVCOLOUR_15BIT, FMVCOLOUR_24BIT, NULL, "Video Colour", OPT_COLOUR, "24-bit is full colour. 15-bit shows bands in dark scenes." },
   { "Gamma", &gammaLevel, 0, 5, NULL, "Gamma", OPT_GAMMA, "Brightens the TV picture. 1.0 changes nothing." },
-  { "DeflickerLevel", &deflickerLevel, DEFLICKERLEVEL_NORMAL, DEFLICKERLEVEL_LIGHT, NULL, "Deflicker Level", OPT_DEFLICKER, "Light blurs less than Normal. Needs Deflicker on." },
+  { "DeflickerLevel", &deflickerLevel, DEFLICKERLEVEL_NORMAL, DEFLICKERLEVEL_STRONG, NULL, "Deflicker Level", OPT_DEFLICKER, "Light blurs less than Normal, Strong more. Needs Deflicker on." },
+  { "FilterTour", &filterTour, 0, 1, NULL, "Filter Tour", OPT_OFF_ON, "Steps through the filters while a game runs, named on screen." },
   { "SkipFrames", &frameSkip, FRAMESKIP_DISABLE, FRAMESKIP_ENABLE, NULL, "Frame Skip", OPT_OFF_ON, "Skips frames when the Wii is too slow." },
   { "FPS", &showFPSonScreen, FPS_HIDE, FPS_SHOW, NULL, "Show FPS", OPT_OFF_ON, "Shows the frame rate on the screen." },
   { "EfbSync", &efbSyncSetting, 0, 2 },
@@ -1630,6 +1633,9 @@ void writeConfigCopy(FILE* f){
 extern "C" {
 //System Functions
 extern "C" void GL_flip05Drop(void);
+void applyCopyFilter(void);			/* libgui/GraphicsGX.cpp: Deflicker, Deflicker Level */
+void filterTourStart(void);
+void filterTourStop(void);
 void go(void) {
 	Config.PsxOut = 0;
 	stop = 0;
@@ -1668,6 +1674,10 @@ void go(void) {
 	/* CPU Timing may have changed in the menu; Lightrec recompiles only if it did */
 	psxCpu->ApplyConfig();
 
+	/* The menu may have changed Deflicker: in 480i nothing else sets the copy filter again */
+	applyCopyFilter();
+	filterTourStart();
+
 	/* A scripted save or load (statetool.cpp) stops the CPU at its vblank; it is carried out
 	 * here, with the CPU stopped as the menu has it, and the game goes on. */
 	hb_phase("game", isoFile.name);
@@ -1676,6 +1686,7 @@ void go(void) {
 		achievements_flush();
 	} while (statetool_service());
 	hb_phase("menu", "game stopped");
+	filterTourStop();
 	GL_flip05Drop();   /* GlesGpu/gpuPlugin.c: a GP1 05 flip not yet presented */
 
 	// remove this callback to avoid any issues when returning to the menu.
