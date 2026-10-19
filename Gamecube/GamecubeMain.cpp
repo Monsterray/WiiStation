@@ -487,8 +487,107 @@ void readConfig(FILE* f);
 void writeConfig(FILE* f);
 int checkBiosExists(int testDevice);
 static void loadSeparatelySetting();
-static bool loadSeparatelySettingItem(const char* s1, const char* s2, bool isUsb, const char* ext = ".ini");
+static bool loadSeparatelySettingItem(const char* path);
 void biosFileInit();
+
+/* What the settings files hold (SETTINGS.md 1.4).
+ * FilterTour is a demonstration, Off at every boot: no file writes or reads it.
+ * The global-only keys belong to the Wii, not to a game: the menu (language, font, file list),
+ * the folders of the games, saves, states and achievement files, and the network share and its
+ * login. Save Settings > This Game never writes them and a game's own file is not read for them,
+ * so a full game file from 5.14.0 or before cannot hold back the share's login or a folder.
+ * scripts/settings_check.py reads both lists. */
+static const char* const UNSTORED_KEYS[] = { "FilterTour" };
+static const char* const GLOBAL_ONLY_KEYS[] = {
+	"lang", "MenuFont", "FileSortMode", "TabWrap", "RomDirSD", "RomDirUSB",
+	"NativeDevice", "StatesDevice", "AchievementFile", "AchievementLog", "AchievementBenchRoot",
+	"smbipaddr", "smbsharename", "smbusername", "smbpassword", "RomDirSMB" };
+
+static bool keyIn(const char* key, const char* const* list, int n)
+{
+	for (int i = 0; i < n; i++)
+		if (!strcmp(key, list[i]))
+			return true;
+	return false;
+}
+
+/* gameFile false: a key settings.ini holds. True: a key a game's own file holds. */
+static bool settingStored(const char* key, bool gameFile)
+{
+	return !keyIn(key, UNSTORED_KEYS, sizeof UNSTORED_KEYS / sizeof *UNSTORED_KEYS) &&
+	       !(gameFile && keyIn(key, GLOBAL_ONLY_KEYS, sizeof GLOBAL_ONLY_KEYS / sizeof *GLOBAL_ONLY_KEYS));
+}
+
+static bool readingFile, readingGameFile;   /* setOption: what readConfig reads now */
+
+/* Every setting's value at one moment: the defaults (taken before boot reads a file), or the
+ * menu's values while Save > This Game reads the global file to compare with. */
+struct SettingValues { char num[OPTION_COUNT]; char* str[OPTION_COUNT]; };
+static SettingValues settingDefaults;
+
+static void settingsTake(SettingValues* v)
+{
+	for (int i = 0; i < OPTION_COUNT; i++) {
+		if (!OPTIONS[i].value)
+			continue;
+		if (OPTIONS[i].max == CONFIG_STRING_TYPE) {
+			free(v->str[i]);
+			v->str[i] = strdup(OPTIONS[i].value);
+		} else
+			v->num[i] = *OPTIONS[i].value;
+	}
+}
+
+/* Back to v, except the menu's unsaved changes that a game load keeps (settingKeep) and the
+ * settings no file holds. */
+static void settingsPut(const SettingValues* v)
+{
+	for (int i = 0; i < OPTION_COUNT; i++) {
+		if (!OPTIONS[i].value || settingKeep[i] || !settingStored(OPTIONS[i].key, false))
+			continue;
+		if (OPTIONS[i].max != CONFIG_STRING_TYPE)
+			*OPTIONS[i].value = v->num[i];
+		else if (v->str[i])
+			strcpy(OPTIONS[i].value, v->str[i]);
+	}
+}
+
+/* The global layer: the defaults, then settings.ini, USB before SD. A game's own file goes on
+ * top of it (loadGameSettings), and This Game saves only what differs from it. */
+static void loadGlobalSettings(void)
+{
+	settingsPut(&settingDefaults);
+	if (!loadSeparatelySettingItem("usb:/wiistation/settings.ini"))
+		loadSeparatelySettingItem("sd:/wiistation/settings.ini");
+}
+
+/* This game's own file (Save Settings > This Game), USB before SD. Save -> This Game wrote
+ * <CD-ROM ID>.cfg from 5.6.1 to 5.13.1 while the reader took .ini, so a game with no .ini takes
+ * its .cfg. NULL for none; a PS-X EXE has no ID and so no file of its own. */
+extern "C" { extern char CdromId[10]; }   /* libpcsxcore: the disc serial, set when the disc opens */
+static const char* gameSettingsFile(void)
+{
+	static const char* const where[] = {
+		"usb:/wiistation/settings/%s.ini", "usb:/wiistation/settings/%s.cfg",
+		"sd:/wiistation/settings/%s.ini", "sd:/wiistation/settings/%s.cfg" };
+	static char path[64];
+	struct stat s;
+	for (unsigned i = 0; CdromId[0] && i < sizeof where / sizeof *where; i++) {
+		snprintf(path, sizeof path, where[i], CdromId);
+		if (!stat(path, &s))
+			return path;
+	}
+	return NULL;
+}
+
+/* The game's file over the global layer; its global-only keys are not read. */
+static bool loadGameSettings(const char* path)
+{
+	readingGameFile = true;
+	bool ok = path && loadSeparatelySettingItem(path);
+	readingGameFile = false;
+	return ok;
+}
 
 static void setGpuPlugin()
 {
@@ -661,6 +760,7 @@ void loadSettings(int argc, char *argv[])
 	lang = 0;
 	fastLoad = 0;
 	originalMode = 0;
+	settingsTake(&settingDefaults);   /* what a game start puts back before it reads settings.ini */
 
 	//config stuff
 	int (*configFile_init)(fileBrowser_file*) = fileBrowser_libfat_init;
@@ -1360,18 +1460,17 @@ static void loadGameButtons(void)
 	}
 }
 
-static bool loadSeparatelySettingItem(const char* s1, const char* s2, bool isUsb, const char* ext)
+/* One settings file read over the settings: settings.ini, settings/<CD-ROM ID>.ini */
+static bool loadSeparatelySettingItem(const char* settingPathBuf)
 {
     struct stat s;
-    char settingPathBuf[256];
     fileBrowser_file* configFile_file;
-    sprintf(settingPathBuf, "%s%s%s", s1, s2, ext);   /* settings.ini, settings/<CD-ROM ID>.ini */
     if (stat(settingPathBuf, &s))
     {
         return false;
     }
 
-    configFile_file = isUsb ? &saveDir_libfat_USB : &saveDir_libfat_Default;
+    configFile_file = settingPathBuf[0] == 'u' ? &saveDir_libfat_USB : &saveDir_libfat_Default;
     int (*configFile_init)(fileBrowser_file*) = fileBrowser_libfat_init;
     if (configFile_init(configFile_file)) {        //only if device initialized ok
         FILE* f = fopen( settingPathBuf, "r" );   //attempt to open file
@@ -1396,16 +1495,10 @@ static void loadSeparatelySetting()
     // The menu's unsaved changes survive the reads below (setOption skips them).
     keepUnsavedSettings();
 
-    // The game's own file (Save Settings -> This Game), USB before SD; else the global file.
-    // Save -> This Game wrote <CD-ROM ID>.cfg from 5.6.1 to 5.13.1 while this read .ini, so
-    // a game with no .ini takes its .cfg. A PS-X EXE has no ID and so no file of its own.
-    bool own = CdromId[0] &&
-        (loadSeparatelySettingItem("usb:/wiistation/settings/", CdromId, true) ||
-         loadSeparatelySettingItem("usb:/wiistation/settings/", CdromId, true, ".cfg") ||
-         loadSeparatelySettingItem("sd:/wiistation/settings/", CdromId, false) ||
-         loadSeparatelySettingItem("sd:/wiistation/settings/", CdromId, false, ".cfg"));
-    if (!own && !loadSeparatelySettingItem("usb:/wiistation/", "settings", true))
-        loadSeparatelySettingItem("sd:/wiistation/", "settings", false);
+    // The defaults, settings.ini, then the game's own file (Save Settings -> This Game) on top:
+    // it holds only what differs, so a change to settings.ini reaches every game.
+    loadGlobalSettings();
+    loadGameSettings(gameSettingsFile());
     rememberFileSettings();
     chainReapply();   /* a chained game's own settings win over the file */
 
@@ -1600,6 +1693,8 @@ void setOption(char* key, char* valuePointer){
 		if(OPTIONS[i].value && !strcmp(OPTIONS[i].key, key)){   /* a section row has no value */
 			if (settingKeep[i])   /* an unsaved menu change: the read leaves it */
 				break;
+			if (readingFile && !settingStored(key, readingGameFile))   /* not this file's to set */
+				break;
 			if(isString) {
 				if(OPTIONS[i].max == CONFIG_STRING_TYPE)
 					strncpy(OPTIONS[i].value, valuePointer,
@@ -1623,6 +1718,7 @@ void handleConfigPair(char* kv){
 void readConfig(FILE* f){
 	char line[CONFIG_LINE_MAX];
 	bool limitOff = false;
+	readingFile = true;
 	while(config_getline(line, CONFIG_LINE_MAX, f)){   /* whole lines only: config_parse.h */
 		char* l = config_line(line);   /* config_parse.h: blank, comment and [section] lines hold none */
 		if(l){
@@ -1633,6 +1729,7 @@ void readConfig(FILE* f){
 			handleConfigPair(l);
 		}
 	}
+	readingFile = false;
 	if(limitOff)
 		frameRateMode = FRAMERATE_UNLIMITED;
 }
@@ -1643,6 +1740,8 @@ static void writeSettingLines(FILE* f){
 	for(unsigned int i=0; i<sizeof(OPTIONS)/sizeof(OPTIONS[0]); ++i){
 		if(!OPTIONS[i].value)   /* a section: its name and its comment */
 			fprintf(f, "\n[%s]\n; %s\n", OPTIONS[i].key, OPTIONS[i].note);
+		else if(!settingStored(OPTIONS[i].key, false))
+			continue;
 		else if(OPTIONS[i].max == CONFIG_STRING_TYPE)
 			fprintf(f, "%s = \"%s\"\n", OPTIONS[i].key, OPTIONS[i].value);
 		else
@@ -1658,6 +1757,44 @@ void writeConfig(FILE* f){
 	settingBaseSet = true;
 }
 
+/* Save Settings > This Game: only the settings whose value differs from the global layer (the
+ * defaults, then settings.ini, as a game start reads them), never a global-only one. The game
+ * reads this file over that layer. How many settings it wrote; 0 leaves a file with only the
+ * header comment, which still hides an old full .cfg of the game. */
+int writeGameConfig(FILE* f){
+	static SettingValues now, global;
+	const char* section = NULL;
+	int n = 0;
+	settingsTake(&now);
+	loadGlobalSettings();
+	settingsTake(&global);
+	settingsPut(&now);
+	fprintf(f, "; WiiStation settings for one game: only what differs from settings.ini.\n"
+	           "; The game reads settings.ini, then this file. SETTINGS.md tells what each setting does.\n");
+	for (int i = 0; i < OPTION_COUNT; i++) {
+		bool text = OPTIONS[i].max == CONFIG_STRING_TYPE;
+		if (!OPTIONS[i].value) {
+			section = OPTIONS[i].key;
+			continue;
+		}
+		if (!settingStored(OPTIONS[i].key, true) ||
+		    (text ? global.str[i] && !strcmp(OPTIONS[i].value, global.str[i]) : *OPTIONS[i].value == global.num[i]))
+			continue;
+		if (section)
+			fprintf(f, "\n[%s]\n", section);
+		section = NULL;
+		if (text)
+			fprintf(f, "%s = \"%s\"\n", OPTIONS[i].key, OPTIONS[i].value);
+		else
+			fprintf(f, "%s = %d\n", OPTIONS[i].key, *OPTIONS[i].value);
+		n++;
+	}
+	for (int i = 0; i < OPTION_COUNT; i++)
+		settingRemember(i);
+	settingBaseSet = true;
+	return n;
+}
+
 /* The settings written into a save state: a copy, not a save, so the menu's changes stay unsaved. */
 void writeConfigCopy(FILE* f){
 	writeSettingLines(f);
@@ -1665,22 +1802,26 @@ void writeConfigCopy(FILE* f){
 
 /* Load Settings (the General tab): one settings file read over every setting it names, now, and
  * applied as boot applies them. dev "sd" or "usb": <dev>:/wiistation/settings.ini. NULL: this
- * game's own settings/<CdromId>.ini, USB first, then SD, as a game load looks for it. The values
- * read become the saved ones (nothing unsaved). The CPU core and renderer are the caller's to
- * apply (SettingsFrame.cpp: ApplyPluginSelection); the BIOS, as at boot, at the next game start.
- * False when there is no such file. */
+ * game's own file as a game start reads it: the defaults, settings.ini, then the game's file
+ * (gameSettingsFile) on top. The values read become the saved ones (nothing unsaved). The CPU
+ * core and renderer are the caller's to apply (SettingsFrame.cpp: ApplyPluginSelection); the
+ * BIOS, as at boot, at the next game start. False when there is no such file. */
 extern "C" void VIDEO_SetTrapFilter(bool enable);
 void applyVideoGamma(void);
 bool loadSettingsNow(const char *dev)
 {
-	char dir[32];
+	char path[40];
 	bool ok;
-	if (!dev)
-		ok = CdromId[0] && (loadSeparatelySettingItem((char*)"usb:/wiistation/settings/", CdromId, true) ||
-		                    loadSeparatelySettingItem((char*)"sd:/wiistation/settings/", CdromId, false));
-	else {
-		snprintf(dir, sizeof dir, "%s:/wiistation/", dev);
-		ok = loadSeparatelySettingItem(dir, (char*)"settings", !strcmp(dev, "usb"));
+	if (!dev) {
+		const char* game = gameSettingsFile();
+		ok = game != NULL;
+		if (ok) {
+			loadGlobalSettings();
+			loadGameSettings(game);
+		}
+	} else {
+		snprintf(path, sizeof path, "%s:/wiistation/settings.ini", dev);
+		ok = loadSeparatelySettingItem(path);
 	}
 	if (!ok)
 		return false;

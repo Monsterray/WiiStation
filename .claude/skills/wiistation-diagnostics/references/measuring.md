@@ -418,6 +418,8 @@ hashes in UploadScreen, OpenGX texel checks). The pattern to grep for is a loop 
   2026-10-18: `menupage 70`, `menukeys 60 A . . . . . . D A . . . . . . . . A` (open the Spyro
   folder, load the .cue, OK the info box), `menuclick 62 1 600`, with `WSX_ISOS="Spyro the Dragon"
   KEEP_PROFILE=1 wsx.sh menu ...`; read the file back with sdimage_read.py from the kept profile.
+  The file holds only the keys that differ from the staged settings.ini (or the defaults), never
+  a global-only key (GamecubeMain.cpp GLOBAL_ONLY_KEYS); the message says how many it wrote.
   `wsx.sh run --settings FILE` stages a whole settings file; `--card DIR` stages a folder
   (`settings/` with a game's own file). Round trip of every key: scripts/settings_roundtrip.py.
 - `menukeys` presses are ignored while a Wiimote IR pointer is valid (the menu follows the pointer): for scripted menu walks in Dolphin set the emulated Wiimotes' Source=0 in the run profile (restore after). Found 2026-10-11; a focus walk "passed" with no movement before this was known.

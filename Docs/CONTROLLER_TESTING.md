@@ -225,7 +225,10 @@ logs "devices: 0").
 1. Plug the USB controller into the Wii. A pad that has no ini yet: open the page first,
    then unplug it and plug it in again (the page says so). Only while the page is open is
    a pad with no ini read at all, and a game never gets it.
-2. Settings > Input > **Test USB Pad** (on the Light Gun row).
+2. Settings > General > **Advanced** > **Input** tab > USB Pad: **Test**. B on the page
+   goes back there. A scripted run opens the page with the autoinput line
+   `menuclick 83 1` (Settings button 83, kept on no tab for this; B then goes back to
+   Settings > Input); `menupage 12` photographs the Advanced > Input tab.
 3. Put the controller down flat and let go: the first second learns what the pad sends at
    rest. Then the page lights one PlayStation button at a time on the pad picture: the
    d-pad, the four face buttons, L1 R1 L2 R2, Select, Start, L3, R3, then each stick up,

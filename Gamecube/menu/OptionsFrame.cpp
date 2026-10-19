@@ -90,20 +90,22 @@ extern void ApplyPluginSelection(char wantCore, char wantGpu);
 namespace menu { extern heap_cntrl* GXtexCache; extern unsigned int fontHeapBytes; }   /* the font glyph heap, IPLFont.cpp */
 
 void Func_ReturnFromOptionsFrame();
+void Func_UsbPadTestAdvanced();		/* UsbPadTestFrame.cpp: the USB Pad Test page, from here */
 
 /*  Rows  */
 
 #define OPT_CYCLE 0
 #define OPT_INFO  1
 #define OPT_RADIO 2
+#define OPT_ACTION 3
 
 struct OptRow
 {
 	int					kind;
-	const char*			key;		// CYCLE/RADIO: the setting, by its key in the OPTIONS table (GamecubeMain.cpp)
-	void				(*apply)(void);	// CYCLE/RADIO: tell the emulator; NULL = it reads the setting itself
+	const char*			key;		// CYCLE/RADIO: the setting, by its key in the OPTIONS table (GamecubeMain.cpp); ACTION: the button's text
+	void				(*apply)(void);	// CYCLE/RADIO: tell the emulator; NULL = it reads the setting itself; ACTION: what the button does
 	void				(*info)(char *buf, int len);	// INFO: writes the right-hand text
-	const char*			label;		// INFO: the readout's label (a setting's label is in the table)
+	const char*			label;		// INFO/ACTION: the row's label (a setting's label is in the table)
 	bool				fit;		// RADIO: size each button to its own word, not to RADIO_W
 };
 
@@ -117,6 +119,9 @@ struct OptRow
 	{ OPT_RADIO, key, apply, NULL, NULL, true }
 #define ROW_INFO(label, fn) \
 	{ OPT_INFO, NULL, NULL, fn, label, false }
+/* A label and one button that runs fn, e.g. opens a page of its own. No setting. */
+#define ROW_ACTION(label, text, fn) \
+	{ OPT_ACTION, text, fn, NULL, label, false }
 
 /* setSpuReverb(int) takes the raw setting value; the table's apply slot is void(void), so
  * this wrapper reads the setting itself, the same way GamecubeMain.cpp does at startup. */
@@ -265,12 +270,15 @@ static const OptHelp GPU_HELP[] =
 static const OptRow INPUT_ROWS[] =
 {
 	ROW_CYCLE("SioTiming", NULL),
+	ROW_ACTION("USB Pad", "Test", Func_UsbPadTestAdvanced),	/* the USB Pad Test page (UsbPadTestFrame.cpp) */
 };
 
 static const OptHelp INPUT_HELP[] =
 {
 	{ "Port Timing:", "Accurate: each byte on the controller ports takes" },
 	{ NULL,           "as long as on a PS1. Fast is the default." },
+	{ "USB Pad:",     "Shows what a USB controller sends, button by" },
+	{ NULL,           "button, and logs it to usbpad.log." },
 };
 
 static const OptHelp PLUGIN_HELP[] =
@@ -502,7 +510,8 @@ static const OptRow* pageRow(int row)
 static void bindPage(int page)
 {
 	for (int i = 0; i < PAGES[page].nrows; i++)
-		ROW_SET[i] = PAGES[page].rows[i].kind == OPT_INFO ? NULL : settingByKey(PAGES[page].rows[i].key);
+		ROW_SET[i] = PAGES[page].rows[i].kind == OPT_INFO || PAGES[page].rows[i].kind == OPT_ACTION
+		             ? NULL : settingByKey(PAGES[page].rows[i].key);
 }
 
 /* How many buttons a radio row shows. A row that declares more values than there are slots
@@ -523,6 +532,8 @@ static void refreshRow(int row)
 	const SettingOption *s = ROW_SET[row];
 	if (o->kind == OPT_INFO) {
 		o->info(ROWS[row].value, VALUE_LEN);
+	} else if (o->kind == OPT_ACTION) {
+		snprintf(ROWS[row].value, VALUE_LEN, "%s", o->key);
 	} else if (o->kind == OPT_RADIO) {
 		int n = rowChoices(row), v = *s->value;
 		if (v < s->min || v > s->max) v = s->min;
@@ -542,6 +553,7 @@ static void optCycle(int row)
 	const OptRow *o;
 	if (row >= PAGES[currentPage].nrows) return;
 	o = pageRow(row);
+	if (o->kind == OPT_ACTION) { o->apply(); return; }
 	if (o->kind != OPT_CYCLE) return;
 	{
 		const SettingOption *s = ROW_SET[row];
@@ -584,11 +596,17 @@ static void buildEnginePage(int page, int curTab)
 		const SettingOption *s = ROW_SET[i];
 		eng::Row &r = ENG_ROWS[i];
 		memset(&r, 0, sizeof r);
-		r.label = o->kind == OPT_INFO ? o->label : s->label;
+		r.label = s ? s->label : o->label;
 		if (o->kind == OPT_INFO)
 		{
 			r.kind = eng::ROW_READOUT;
 			r.text = ROWS[i].value;
+		}
+		else if (o->kind == OPT_ACTION)
+		{
+			r.kind  = eng::ROW_CYCLE;	/* one button with one name: the action's text */
+			r.names = &o->key;
+			r.count = 1;
 		}
 		else if (o->kind == OPT_RADIO)
 		{
@@ -922,6 +940,15 @@ void OptionsFrame::activateSubmenu(int submenu)
 	else if (ENG_LAYOUT.defaultFocus >= 0)
 		start = buttonFor(ENG_LAYOUT.c[ENG_LAYOUT.defaultFocus]);
 	setDefaultFocus(start);
+}
+
+/* Back from the USB Pad Test page to Advanced > Input, in the same visit to the Advanced pages:
+ * the CPU and GPU taken on entering them are still the ones compared on leaving. */
+void OptionsFrame_BackToInput()
+{
+	tabSwitch = true;
+	pMenuContext->setActiveFrame(MenuContext::FRAME_OPTIONS, OptionsFrame::PAGE_ADV_INPUT);
+	tabSwitch = false;
 }
 
 void OptionsFrame::showTab(int tab)

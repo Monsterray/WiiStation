@@ -382,7 +382,8 @@ struct ButtonInfo
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[9],	Func_LoadSettingsSD,	Func_ReturnFromSettingsFrame }, // Load Settings: SD
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[10],	Func_LoadSettingsUSB,	Func_ReturnFromSettingsFrame }, // Load Settings: USB
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[25],	Func_LoadSettingsGame,	Func_ReturnFromSettingsFrame }, // Load Settings: This Game
-	//Input tab: Test USB Pad (button 83), the USB Pad Test page (UsbPadTestFrame.cpp)
+	//Test USB Pad (button 83): on no tab since the page moved to Advanced > Input (OptionsFrame.cpp);
+	//kept so that "menuclick 83 1" still opens it and no later index moves
 	{	NULL,	BTN_A_NRM,	(char*)"Test USB Pad",	Func_UsbPadTest,	Func_ReturnFromSettingsFrame },
 };
 
@@ -591,7 +592,7 @@ static const SetRow INP_ROWS[] =
 {
 	{ eng::ROW_BUTTONS, NULL,            NULL,               { 30, 31, -1, -1 }, { 220, 235,   0, 0 }, 85.0f,  15.0f, 0 },	/* Configure Input, Configure Button Mappings */
 	{ eng::ROW_CHOICE,  "ControllerType", NULL,              { 32, 33, 79, -1 }, { 117,  95, 152, 0 }, 252.0f,  0.0f, 0 },	/* PSX Pad Type: Standard, Analog, Stick D-pad; each its word + 12 (auto width), right-aligned clear of the label */
-	{ eng::ROW_BUTTONS, "LightGun",      NULL,               { 59, 83, -1, -1 }, { 135, 180,   0, 0 }, 295.0f,  0.0f, 0 },	/* Light Gun (a cycle, lit when a gun is on); Test USB Pad (an action) */
+	{ eng::ROW_BUTTONS, "LightGun",      NULL,               { 59, -1, -1, -1 }, { 135,   0,   0, 0 }, 295.0f,  0.0f, 0 },	/* Light Gun (a cycle, lit when a gun is on); Test USB Pad is on Advanced > Input */
 	{ eng::ROW_CHOICE,  "RumbleEnabled", NULL,               { 34, 35, -1, -1 }, {  75,  75,   0, 0 }, 295.0f,  0.0f, 0 },	/* Enable Rumble: Yes, No */
 	{ eng::ROW_BUTTONS, NULL,            FRAME_STRINGS[21],  { 36, 37, -1, -1 }, {  55,  70,   0, 0 }, 295.0f,  0.0f, 0 },	/* Save Button Configs: SD, USB */
 	{ eng::ROW_BUTTONS, "LoadButtonSlot", NULL,              { 38, -1, -1, -1 }, { 135,   0,   0, 0 }, 295.0f,  0.0f, 0 },	/* Auto Load Slot (an action) */
@@ -1123,58 +1124,37 @@ void Func_SaveSettingsUSB()
 	menu::MessageBox::getInstance().setMessage("Error saving settings to USB");
 }
 
-/* Save the settings as they are now for the game that is loaded, to
- * <device>:/wiistation/settings/<CdromId>.ini, which WiiStation reads instead of the global
- * file the next time that game starts (5.6.1 to 5.13.1 wrote .cfg here, which no game read;
- * the reader takes such a .cfg when the game has no .ini). USB is used when it has the
- * folder, otherwise SD.
- * The folder used to have to exist already, and saying so was all this did when it did
- * not; makeParentDirs creates it, the same as every other save. */
+/* Save the settings for the game that is loaded, to <device>:/wiistation/settings/<CdromId>.ini:
+ * only the settings that differ from settings.ini (writeGameConfig, GamecubeMain.cpp). The game
+ * reads settings.ini, then this file on top, each time it starts. USB is used when it has the
+ * settings folder, otherwise SD; makeParentDirs creates the folder. */
+extern int writeGameConfig(FILE* f);
+
 void Func_SaveSettingsSeparately()
 {
-    struct stat s;
-    char settingPathBuf[256];
-    fileBrowser_file* configFile_file;
-    extern char CdromId[10];
+	struct stat s;
+	char settingPathBuf[64], msg[64];
+	extern char CdromId[10];
 	if (!CdromId[0]) {   /* a PS-X EXE has no ID: "settings/.ini" would be no game's file */
 		menu::MessageBox::getInstance().setMessage("This game has no ID: save to SD or USB");
 		return;
 	}
-	if (stat("usb:/wiistation/settings/", &s)) {
-		{
-			sprintf(settingPathBuf, "%s%s%s", "sd:/wiistation/settings/", CdromId, ".ini");
-			configFile_file = &saveDir_libfat_Default;
-	        int (*configFile_init)(fileBrowser_file*) = fileBrowser_libfat_init;
-	        if(configFile_init(configFile_file)) {                //only if device initialized ok
-				makeParentDirs(settingPathBuf);
-				FILE* f = fopen( settingPathBuf, "wb" );  //attempt to open file
-				if(f) {
-					writeConfig(f);                                   //write out the config
-					fclose(f);
-					menu::MessageBox::getInstance().setMessage("Saved settings to SD");
-					return;
-				}
-			}
-			menu::MessageBox::getInstance().setMessage("Error saving settings to SD");
+	bool usb = !stat("usb:/wiistation/settings/", &s);
+	const char* dev = usb ? "USB" : "SD";
+	snprintf(settingPathBuf, sizeof settingPathBuf, "%s:/wiistation/settings/%s.ini", usb ? "usb" : "sd", CdromId);
+	if (fileBrowser_libfat_init(usb ? &saveDir_libfat_USB : &saveDir_libfat_Default)) {   //only if device initialized ok
+		makeParentDirs(settingPathBuf);
+		FILE* f = fopen(settingPathBuf, "wb");
+		if (f) {
+			int n = writeGameConfig(f);
+			fclose(f);
+			snprintf(msg, sizeof msg, "This game: %d setting(s) saved to %s", n, dev);
+			menu::MessageBox::getInstance().setMessage(msg);
+			return;
 		}
 	}
-	else
-	{
-		sprintf(settingPathBuf, "%s%s%s", "usb:/wiistation/settings/", CdromId, ".ini");
-		configFile_file = &saveDir_libfat_USB;
-	    int (*configFile_init)(fileBrowser_file*) = fileBrowser_libfat_init;
-	    if (configFile_init(configFile_file)) {                //only if device initialized ok
-			makeParentDirs(settingPathBuf);
-			FILE* f = fopen( settingPathBuf, "wb" ); //attempt to open file
-			if(f) {
-				writeConfig(f);                                   //write out the config
-				fclose(f);
-				menu::MessageBox::getInstance().setMessage("Saved settings to USB");
-				return;
-			}
-		}
-		menu::MessageBox::getInstance().setMessage("Error saving settings to USB");
-	}
+	snprintf(msg, sizeof msg, "Error saving settings to %s", dev);
+	menu::MessageBox::getInstance().setMessage(msg);
 }
 void Func_ShowFpsOn()
 {
