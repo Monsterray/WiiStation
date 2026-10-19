@@ -784,9 +784,9 @@ static s32 HIDOpen( u32 LoaderRequest )
                             hidAuto = 1;
                             hid_auto_map(&hidLayout, DeviceVID, &hidMap);
                             hid_ini_map(Data, &hidMap);
-                            if (!strstr(Data, INI_KYY_POLL_TYPE "="))
+                            if (!hid_ini_value(Data, INI_KYY_POLL_TYPE, NULL))
                                 HID_CTRL->Polltype = 1;
-                            if (!strstr(Data, INI_KYY_MULTI_IN "=") && hidLayout.report_id)
+                            if (!hid_ini_value(Data, INI_KYY_MULTI_IN, NULL) && hidLayout.report_id)
                             {
                                 HID_CTRL->MultiIn = 1;
                                 HID_CTRL->MultiInValue = hidLayout.report_id;
@@ -1238,16 +1238,16 @@ static void HIDPS3Rumble( u32 rumblePower )
 
 static u32 ConfigGetValue( char *Data, const char *EntryName, u32 Entry )
 {
-    char *str = strstr( Data, EntryName );
+    /* the "EntryName = value" line, exactly (hid_layout.c); strEnd: the value's end */
+    const char *vend;
+    char *str = (char*)hid_ini_value( Data, EntryName, &vend );
     if( str == (char*)NULL )
     {
         dbgprintf("Entry:\"%s\" not found!\r\n", EntryName );
         return 0;
     }
 
-    str += strlen(EntryName) + 1; // Skip '='
-
-    char *strEnd = strchr( str, 0x0A );
+    char *strEnd = (char*)vend;
     u32 ret = 0;
     u32 i;
 
@@ -1329,16 +1329,16 @@ static u32 ConfigGetValue( char *Data, const char *EntryName, u32 Entry )
 
 static u32 ConfigGetDecValue( char *Data, const char *EntryName, u32 Entry )
 {
-    char *str = strstr( Data, EntryName );
+    /* the "EntryName = value" line, exactly (hid_layout.c); strEnd: the value's end */
+    const char *vend;
+    char *str = (char*)hid_ini_value( Data, EntryName, &vend );
     if( str == (char*)NULL )
     {
         dbgprintf("Entry:\"%s\" not found!\r\n", EntryName );
         return 0;
     }
 
-    str += strlen(EntryName) + 1; // Skip '='
-
-    char *strEnd = strchr( str, 0x0A );
+    char *strEnd = (char*)vend;
     u32 ret = 0;
 
     switch (Entry)

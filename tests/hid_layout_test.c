@@ -287,9 +287,8 @@ static void test_shipped(int n, char **paths)
 		size_t got = fread(buf, 1, sizeof buf - 1, f);
 		fclose(f);
 		buf[got] = 0;
-		hid_ini_clean(buf, got);   /* as PADReadGC.c loads it */
 		/* old-style unless it says Auto=1 (046D_C216: the automatic layout fits the pad) */
-		if (strstr(buf, "Auto=1")) {
+		if (hid_ini_value(buf, "Auto", NULL)) {
 			checks++;
 			CHECK(hid_ini_wants_auto(buf), "%s: Auto=1 not seen", paths[i]);
 			continue;
@@ -335,21 +334,37 @@ static void test_junk(void)
 	checks++;
 }
 
-/* hid_ini_clean: comments and sections cannot match a key; the keys still read the same */
-static void test_ini_clean(void)
+/* hid_ini_value: exact keys on key = value lines; comments, sections and prefixes never match */
+static int value_is(const char *ini, const char *key, const char *want)
 {
-	char t[] = "[KeyA test]\r\n; KeyA=4,10 old line\r\nVID=046D\r\n  # KeyB=1\r\n"
-	           "KeyA=4,20 ; the bottom button\r\nKeyX=4,40#notacomment\r\nAuto=1\r\n";
-	size_t n = strlen(t);
-	hid_ini_clean(t, n);
-	checks += 7;
-	CHECK(strlen(t) == n, "clean keeps the length");
-	CHECK(strstr(t, "KeyA") == strstr(t, "KeyA=4,20"), "first KeyA is the real line: %s", t);
-	CHECK(strstr(t, "KeyB") == NULL, "commented KeyB gone: %s", t);
-	CHECK(strstr(t, "the bottom") == NULL, "inline comment gone: %s", t);
-	CHECK(strstr(t, "KeyX=4,40#notacomment") != NULL, "# inside a value kept: %s", t);
-	CHECK(strstr(t, "VID=046D") && strstr(t, "Auto=1"), "keys kept: %s", t);
-	CHECK(hid_ini_wants_auto(t), "Auto=1 still seen");
+	const char *end, *v = hid_ini_value(ini, key, &end);
+	checks++;
+	if (!want) return v == NULL;
+	return v && (size_t)(end - v) == strlen(want) && !strncmp(v, want, strlen(want));
+}
+
+static void test_ini_value(void)
+{
+	const char *t = "[KeyA test]\r\n; KeyA=4,10 old line\r\nVID=046D\r\n  # KeyB=1\r\n"
+	                "  KeyA = 4,20 ; the bottom button\r\nKeyX=4,40#notacomment\r\n"
+	                "MultiInValue=2\r\nMultiIn=1\r\nAuto=1";
+	CHECK(value_is(t, "KeyA", "4,20"), "KeyA from its own line, spaces and comment off");
+	CHECK(value_is(t, "KeyB", NULL), "a commented KeyB is not there");
+	CHECK(value_is(t, "KeyX", "4,40#notacomment"), "# inside a value is the value");
+	CHECK(value_is(t, "MultiIn", "1"), "MultiIn is not MultiInValue's prefix");
+	CHECK(value_is(t, "MultiInValue", "2"), "MultiInValue");
+	CHECK(value_is(t, "Auto", "1"), "last line without a newline");
+	CHECK(value_is(t, "Key", NULL), "no prefix match");
+	CHECK(value_is(t, "VID", "046D"), "VID");
+	checks++;
+	CHECK(hid_ini_wants_auto(t), "Auto=1 seen");
+	checks++;
+	CHECK(!hid_ini_wants_auto("; Auto=1\n  ; KeyA=Button1\n#KeyB=HatUp\n"
+	                          "[KeyY=Axis]\nVID=046D\n"), "Auto only from real lines");
+	hid_map m;
+	memset(&m, 0, sizeof m);
+	checks++;
+	CHECK(hid_ini_map("; KeyA=Button9\nKeyA = Button2 ; cross\n", &m) == 1, "one real KeyA line");
 }
 
 int main(int argc, char **argv)
@@ -358,7 +373,7 @@ int main(int argc, char **argv)
 	for (size_t i = 0; i < sizeof PADS / sizeof PADS[0]; i++)
 		test_pad(&PADS[i]);
 	test_ini();
-	test_ini_clean();
+	test_ini_value();
 	test_shipped(argc - 1, argv + 1);
 	printf("%d checks, %d failures\n", checks, fails);
 	return fails != 0;

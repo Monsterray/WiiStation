@@ -299,54 +299,84 @@ static int parse_src(const char *v, const char *end, int stick, hid_src *s)
 	return 1;
 }
 
+/* One line of ini text: returns the next line; for a "key = value" line sets the trimmed key
+ * [*k, *k + *kl) and value [*v, *vend), else *kl = 0 (blank, comment or [section] line). */
+static const char *ini_line(const char *p, const char **k, size_t *kl, const char **v, const char **vend)
+{
+	const char *nl = strchr(p, '\n'), *eol = nl ? nl : p + strlen(p), *next = nl ? nl + 1 : eol;
+	const char *a = p, *eq, *e;
+	*kl = 0;
+	while (a < eol && (*a == ' ' || *a == '\t')) a++;
+	if (a == eol || *a == ';' || *a == '#' || *a == '[' || *a == '\r')
+		return next;
+	eq = memchr(a, '=', (size_t)(eol - a));
+	if (!eq)
+		return next;
+	for (e = eq; e > a && (e[-1] == ' ' || e[-1] == '\t'); e--) ;
+	*k = a;
+	*kl = (size_t)(e - a);
+	for (a = eq + 1; a < eol && (*a == ' ' || *a == '\t'); a++) ;
+	for (e = a; e < eol; e++)   /* a comment after the value */
+		if ((*e == ';' || *e == '#') && e > a && (e[-1] == ' ' || e[-1] == '\t')) break;
+	while (e > a && (e[-1] == '\r' || e[-1] == ' ' || e[-1] == '\t')) e--;
+	*v = a;
+	*vend = e;
+	return next;
+}
+
+const char *hid_ini_value(const char *ini, const char *key, const char **end)
+{
+	size_t want = strlen(key);
+	while (ini && *ini) {
+		const char *k, *v, *vend;
+		size_t kl;
+		ini = ini_line(ini, &k, &kl, &v, &vend);
+		if (kl == want && !strncmp(k, key, want)) {
+			if (end) *end = vend;
+			return v;
+		}
+	}
+	return NULL;
+}
+
 int hid_ini_map(const char *ini, hid_map *m)
 {
 	int count = 0;
 	while (ini && *ini) {
-		const char *nl = strchr(ini, '\n'), *eol = nl ? nl : ini + strlen(ini), *eq = memchr(ini, '=', eol - ini);
-		const char *vend = eol;
-		while (vend > ini && (vend[-1] == '\r' || vend[-1] == ' ' || vend[-1] == '\t')) vend--;
-		if (eq && eq < vend) {
-			size_t kl = (size_t)(eq - ini);
-			hid_src s;
-			for (int k = 0; k < HR_NUM + HS_NUM; k++) {
-				const char *key = k < HR_NUM ? hid_role_keys[k] : hid_stick_keys[k - HR_NUM];
-				if (strlen(key) != kl || strncmp(ini, key, kl)) continue;
-				if (parse_src(eq + 1, vend, k >= HR_NUM, &s)) {
-					if (k < HR_NUM) m->btn[k] = s; else m->stick[k - HR_NUM] = s;
-					count++;
-				}
-				break;
+		const char *k, *v, *vend;
+		size_t kl;
+		ini = ini_line(ini, &k, &kl, &v, &vend);
+		if (!kl || v >= vend)
+			continue;
+		hid_src s;
+		for (int r = 0; r < HR_NUM + HS_NUM; r++) {
+			const char *key = r < HR_NUM ? hid_role_keys[r] : hid_stick_keys[r - HR_NUM];
+			if (strlen(key) != kl || strncmp(k, key, kl)) continue;
+			if (parse_src(v, vend, r >= HR_NUM, &s)) {
+				if (r < HR_NUM) m->btn[r] = s; else m->stick[r - HR_NUM] = s;
+				count++;
 			}
+			break;
 		}
-		ini = nl ? nl + 1 : eol;
 	}
 	return count;
 }
 
 int hid_ini_wants_auto(const char *ini)
 {
-	return strstr(ini, "Auto=1") || strstr(ini, "=Button") || strstr(ini, "=Hat") || strstr(ini, "=Axis");
+	const char *a = hid_ini_value(ini, "Auto", NULL);
+	if (a && *a == '1')
+		return 1;
+	while (ini && *ini) {   /* any value naming a HID input */
+		const char *k, *v, *vend;
+		size_t kl;
+		ini = ini_line(ini, &k, &kl, &v, &vend);
+		if (kl && (!strncmp(v, "Button", 6) || !strncmp(v, "Hat", 3) || !strncmp(v, "Axis", 4)))
+			return 1;
+	}
+	return 0;
 }
 
-void hid_ini_clean(char *ini, size_t len)
-{
-	size_t i = 0;
-	while (i < len) {
-		size_t end = i, first = i;
-		while (end < len && ini[end] != '\n' && ini[end] != '\r') end++;
-		while (first < end && (ini[first] == ' ' || ini[first] == '\t')) first++;
-		size_t cut = end;   /* blank from here to the end of the line */
-		if (first < end && (ini[first] == ';' || ini[first] == '#' || ini[first] == '['))
-			cut = first;
-		else
-			for (size_t k = first + 1; k < end; k++)
-				if ((ini[k] == ';' || ini[k] == '#') && (ini[k - 1] == ' ' || ini[k - 1] == '\t')) { cut = k; break; }
-		for (size_t k = cut; k < end; k++) ini[k] = ' ';
-		i = end;
-		while (i < len && (ini[i] == '\n' || ini[i] == '\r')) i++;
-	}
-}
 
 uint32_t hid_map_buttons(const hid_map *m, const hid_state *s, const uint8_t *r, int len)
 {
