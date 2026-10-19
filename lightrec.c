@@ -889,7 +889,12 @@ static void lightrec_plugin_notify(enum R3000Anote note, void *data)
 		// Sent from psxDma3().
 		break;
 	case R3000ACPU_NOTIFY_CACHE_UNISOLATED:
-		//lightrec_plugin_clear(0, 0x200000/4);
+		/* data != NULL: the HLE BIOS's FlushCache (A(44h)). The real BIOS isolates the cache
+		 * there, and lightrec_mtc0 drops every block when SR bit 16 goes back to 0; the HLE
+		 * one did nothing, so code a game patched with CPU stores ran stale (ps1-tests
+		 * gte/test-all writes each GTE command into its code: test 52 ran test 51's). */
+		if (data)
+			lightrec_plugin_clear(0, UINT32_MAX);
 		break;
 	case R3000ACPU_NOTIFY_BEFORE_SAVE:
 		/* non-null 'data' means this is HLE related sync */

@@ -54,6 +54,7 @@ private:
 	bool messageBoxActive;
 	Frame *currentCursorFrame;
 	Frame *currentFocusFrame;
+	Component *returnFocus;	/* the button the box was opened from (deactivate) */
 	GXColor boxColor, textColor;
 	int returnValue;
 	float messageFade;

@@ -8,6 +8,7 @@
 #include <string.h>
 #include <unistd.h>
 #include "hb_probe.h"
+#include "perf_prof.h"   /* PERF_PLAY, perf_datetime */
 #include "../psxcommon.h"
 #include "../r3000a.h"
 
@@ -201,15 +202,26 @@ static void flush(FILE *f)
 	fputc('\n', f);
 }
 
+/* The play build keeps its logs apart, in debuglogs/ (play_log.c), and appends: the heartbeat
+ * of a hang must survive the next boot. */
+#if PERF_PLAY
+#define HB_LOG "sd:/wiistation/debuglogs/hb.log"
+#else
+#define HB_LOG "sd:/wiistation/hb.log"
+#endif
+
 static void *hb_main(void *arg)
 {
 	(void)arg;
 	for (;;) {
-		FILE *f = fopen("sd:/wiistation/hb.log", "a");
+		FILE *f = fopen(HB_LOG, "a");
 		if (f) {
 			flush(f);
 			fclose(f);
 		}
+#if PERF_PLAY
+		play_drain();   /* the queued play.log lines and vtl records: the card is written here */
+#endif
 		usleep(HB_PERIOD_MS * 1000);
 	}
 	return NULL;
@@ -223,10 +235,17 @@ void hb_start(void)
 		return;
 	boot_t = gettime();
 	phase_t0 = boot_t;
-	f = fopen("sd:/wiistation/hb.log", "w");   /* a new log each boot */
+#if PERF_PLAY
+	play_boot();
+	f = fopen(HB_LOG, "a");   /* every boot appended; play_log.c caps it */
+#else
+	f = fopen(HB_LOG, "w");   /* a new log each boot */
+#endif
 	if (f) {
-		fprintf(f, "# WiiStation heartbeat (Gamecube/hb_probe.c): every %d s; IOS calls in flight > %d ms\n",
-		        HB_PERIOD_MS / 1000, HB_SLOW_MS);
+		char when[32];
+		perf_datetime(when, sizeof when);
+		fprintf(f, "# WiiStation heartbeat (Gamecube/hb_probe.c): every %d s; IOS calls in flight > %d ms; boot at=%s\n",
+		        HB_PERIOD_MS / 1000, HB_SLOW_MS, when);
 		fclose(f);
 	}
 	LWP_CreateThread(&hb_thread, hb_main, NULL, NULL, 16 * 1024, HB_PRIO);

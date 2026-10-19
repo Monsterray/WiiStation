@@ -85,6 +85,7 @@ static void GX_Flip(const void *buffer, int pitch, u8 fmt,
 		    int x, int y, int width, int height);
 void drawLine(float x1, float y1, float x2, float y2, char r, char g, char b);
 void drawCircle(int x, int y, int radius, int numSegments, char r, char g, char b);
+void drawGunReticles(void);
 
 void switchToTVMode(short dWidth, short dHeight, bool retMenu);
 void pl_chg_psxtype(int is_pal_); // defined below; used earlier in this file
@@ -251,8 +252,10 @@ void gc_vout_disabled(void)
 	gc_vout_vsync(0);
 }
 
+extern void filterTourDraw(void);   /* Gamecube/libgui/GraphicsGX.cpp: the Filter Tour */
 void showFpsAndDebugInfo(void)
 {
+	filterTourDraw();
 	//Write menu/debug text on screen
 	if (showFPSonScreen == FPS_SHOW)
     {
@@ -268,6 +271,16 @@ void showFpsAndDebugInfo(void)
 		}
 		#endif // SHOW_DEBUG
     }
+	{	/* the ANALOG button's note (Gamecube/PadSSSPSX.c), red when the light is on */
+		extern const char *pad_note(int *red);
+		int red;
+		const char *note = pad_note(&red);
+		if (note) {
+			IplFont_drawInit(red ? (GXColor){ 255, 90, 90, 255 } : (GXColor){ 230, 230, 230, 255 });
+			IplFont_drawString(10, 85, note, 1.0, false);
+			IplFont_drawString(11, 85, note, 1.0, false);	/* bold, as the Filter Tour's */
+		}
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -276,15 +289,11 @@ static int screen_w, screen_h;
 static void GX_Flip(const void *buffer, int pitch, u8 fmt,
 		    int x, int y, int width, int height)
 {
-	int h, w, i;
-	char r, g, b;
+	int h, w;
 	static int oldwidth=0;
 	static int oldheight=0;
 	static int oldformat=-1;
 	static GXTexObj GXtexobj;
-	WPADData* wpad;
-	int cursorX;
-	int cursorY;
 
 	if((width == 0) || (height == 0))
 		return;
@@ -464,47 +473,7 @@ static void GX_Flip(const void *buffer, int pitch, u8 fmt,
 	  GX_TexCoord2f32( 0.0, 1.0);
 	GX_End();
 
-	if (lightGun){
-
-	GX_InvVtxCache();
-	GX_InvalidateTexAll();
-	GX_ClearVtxDesc();
-	GX_SetVtxDesc(GX_VA_POS, GX_DIRECT);
-	GX_SetVtxDesc(GX_VA_CLR0, GX_DIRECT);
-	GX_SetVtxAttrFmt(GX_VTXFMT0, GX_VA_POS,	GX_POS_XY,	GX_F32,	0);
-	GX_SetVtxAttrFmt(GX_VTXFMT0, GX_VA_CLR0, GX_CLR_RGBA, GX_RGBA8,	0);
-	GX_SetNumChans(1);
-	GX_SetNumTexGens(0);
-	GX_SetTevOrder(GX_TEVSTAGE0, GX_TEXCOORDNULL, GX_TEXMAP_NULL, GX_COLOR0A0);
-	GX_SetTevOp(GX_TEVSTAGE0, GX_PASSCLR);
-	GX_SetLineWidth(10, GX_TO_ZERO );
-
-		for (i=0;i<4;i++){
-			if (controller_Wiimote.available[i] || controller_WiimoteNunchuk.available[i]){
-				wpad = WPAD_Data(0);
-				if (!wpad[i].ir.valid) continue;
-				cursorX = wpad[i].ir.x;
-				cursorY = wpad[i].ir.y;
-				switch (i){
-					case 0: r=0; g=255; b=0;break;
-					case 1: r=255; g=0; b=0;break;
-					case 2: r=0; g=0; b=255;break;
-					case 3: r=0; g=255; b=255;break;
-				}
-
-				drawLine(cursorX, cursorY-5, cursorX, cursorY+5, r, g, b);
-				drawLine(cursorX-5, cursorY, cursorX+5, cursorY, r, g, b);
-
-				if (lightGun == LIGHTGUN_GUNCON || lightGun == LIGHTGUN_JUST){
-					drawCircle(cursorX, cursorY, 20, 10, r, g, b);
-					drawLine(cursorX+20, cursorY, cursorX+15, cursorY, r, g, b);
-					drawLine(cursorX-20, cursorY, cursorX-15, cursorY, r, g, b);
-					drawLine(cursorX, cursorY+20, cursorX, cursorY+15, r, g, b);
-					drawLine(cursorX, cursorY-20, cursorX, cursorY-15, r, g, b);
-				}
-			}
-		}
-	}
+	drawGunReticles();
 
 	//Write menu/debug text on screen
 	showFpsAndDebugInfo();
@@ -512,10 +481,123 @@ static void GX_Flip(const void *buffer, int pitch, u8 fmt,
 	gc_vout_render();
 }
 
+/* The light gun reticle: where a Wii Remote points, a small cross, and a ring around it for
+ * a gun, for each PlayStation port or multitap slot whose light gun or mouse takes that
+ * remote's pointer -- the same test as PadSSSPSX.c UpdateState: LightGun set, the port's
+ * PadLightgun on, a Wii Remote (with or without Nunchuk) assigned to it. GunReticle = 0 turns
+ * it off. The pointer is in 640x480 TV pixels whatever the picture's shape, and the reticle
+ * is drawn in those over the whole viewport: GX_Flip (the soft plugins) has the whole picture
+ * as its viewport, and flipEGL (OpenGX, GlesGpu/gpuPlugin.c) sets one for it. The colour is
+ * the remote's: green, red, blue, yellow for remotes 1 to 4. Raw GX in vertex format 7,
+ * which the OpenGX overlay code also takes and OpenGX itself does not use. */
+/* PlugPAD.c: not here, where gpulib/stdafx.h makes BOOL (virtualControllers_t.inUse) a short */
+extern int pad_gun_chan(int pad);
+
+int gunReticleWanted(void)
+{
+	int pad;
+	if (!gunReticle || !lightGun || menuActive)
+		return 0;
+	for (pad = 0; pad < 10; pad++)
+		if (pad_gun_chan(pad) >= 0)
+			return 1;
+	return 0;
+}
+
+void drawGunReticles(void)
+{
+	static const u8 colour[4][3] = { {0,255,0}, {255,0,0}, {0,96,255}, {255,255,0} };
+	Mtx44 proj;
+	Mtx mv;
+	int pad;
+
+	if (!gunReticleWanted())
+		return;
+
+	guOrtho(proj, 1, -1, -1, 1, 0, 1);   /* x, y as given: -1..1 */
+	GX_LoadProjectionMtx(proj, GX_ORTHOGRAPHIC);
+	guMtxIdentity(mv);
+	GX_LoadPosMtxImm(mv, GX_PNMTX0);
+	GX_SetCurrentMtx(GX_PNMTX0);
+	GX_InvVtxCache();
+	GX_ClearVtxDesc();
+	GX_SetVtxDesc(GX_VA_POS, GX_DIRECT);
+	GX_SetVtxDesc(GX_VA_CLR0, GX_DIRECT);
+	GX_SetVtxAttrFmt(GX_VTXFMT7, GX_VA_POS, GX_POS_XY, GX_F32, 0);
+	GX_SetVtxAttrFmt(GX_VTXFMT7, GX_VA_CLR0, GX_CLR_RGBA, GX_RGBA8, 0);
+	GX_SetNumChans(1);
+	GX_SetChanCtrl(GX_COLOR0A0, GX_DISABLE, GX_SRC_REG, GX_SRC_VTX, GX_LIGHTNULL, GX_DF_NONE, GX_AF_NONE);
+	GX_SetNumTexGens(0);
+	GX_SetNumIndStages(0);
+	GX_SetNumTevStages(1);
+	GX_SetTevDirect(GX_TEVSTAGE0);
+	GX_SetTevOrder(GX_TEVSTAGE0, GX_TEXCOORDNULL, GX_TEXMAP_NULL, GX_COLOR0A0);
+	GX_SetTevOp(GX_TEVSTAGE0, GX_PASSCLR);
+	/* RGB as written; gc_vout_render / gx_vout_render put the plugins' BGR table back */
+	GX_SetTevSwapModeTable(GX_TEV_SWAP0, GX_CH_RED, GX_CH_GREEN, GX_CH_BLUE, GX_CH_ALPHA);
+	GX_SetTevSwapMode(GX_TEVSTAGE0, GX_TEV_SWAP0, GX_TEV_SWAP0);
+	GX_SetBlendMode(GX_BM_NONE, GX_BL_ONE, GX_BL_ZERO, GX_LO_CLEAR);
+	GX_SetZMode(GX_FALSE, GX_ALWAYS, GX_FALSE);
+	GX_SetAlphaCompare(GX_ALWAYS, 0, GX_AOP_AND, GX_ALWAYS, 0);
+	GX_SetColorUpdate(GX_TRUE);
+	GX_SetCullMode(GX_CULL_NONE);
+	GX_SetLineWidth(12, GX_TO_ZERO);
+
+	for (pad = 0; pad < 10; pad++)
+	{
+		const int ch = pad_gun_chan(pad);
+		WPADData *wpad;
+		int x, y;
+		char r, g, b;
+		if (ch < 0)
+			continue;
+		wpad = WPAD_Data(ch);
+#ifdef PERF_PROF
+		{	/* tty.log: where the pointer is, once a second of presents */
+			static unsigned n;
+			if (n++ % 60 == 0) {
+				char l[96];
+				snprintf(l, sizeof l, "reticle vbl=%lu pad=%d chan=%d err=%d data=%x dots=%d valid=%d x=%d y=%d\n",
+					(unsigned long)g_perf.vblanks, pad, ch, wpad ? wpad->err : -99,
+					wpad ? (unsigned)wpad->data_present : 0, wpad ? wpad->ir.num_dots : -1,
+					wpad ? wpad->ir.valid : -1,
+					wpad ? (int)wpad->ir.x : 0, wpad ? (int)wpad->ir.y : 0);
+				perf_tty(l);
+			}
+		}
+#endif
+#ifdef PERF_PROF
+		{
+			extern int autoinput_irfake(int *x, int *y);   /* PadWiiSX.c "irfake" */
+			if (wpad && !wpad->ir.valid && autoinput_irfake(&x, &y))
+				goto draw;
+		}
+#endif
+		if (!wpad || !wpad->ir.valid)
+			continue;
+		x = wpad->ir.x;
+		y = wpad->ir.y;
+#ifdef PERF_PROF
+draw:
+#endif
+		r = colour[ch][0]; g = colour[ch][1]; b = colour[ch][2];
+		drawLine(x, y - 5, x, y + 5, r, g, b);
+		drawLine(x - 5, y, x + 5, y, r, g, b);
+		if (lightGun == LIGHTGUN_GUNCON || lightGun == LIGHTGUN_JUST)
+		{
+			drawCircle(x, y, 20, 16, r, g, b);
+			drawLine(x + 20, y, x + 14, y, r, g, b);
+			drawLine(x - 20, y, x - 14, y, r, g, b);
+			drawLine(x, y + 20, x, y + 14, r, g, b);
+			drawLine(x, y - 20, x, y - 14, r, g, b);
+		}
+	}
+}
+
 void drawCircle(int x, int y, int radius, int numSegments, char r, char g, char b)
 {
 
-	GX_Begin(GX_LINESTRIP, GX_VTXFMT0, numSegments+1);
+	GX_Begin(GX_LINESTRIP, GX_VTXFMT7, numSegments+1);
 
 	for (int i = 0; i<=numSegments; i++)
 	{
@@ -540,7 +622,7 @@ void drawLine(float x1, float y1, float x2, float y2, char r, char g, char b)
 	y1 = ((y1/240)-1) *-1;
 	x2 = (x2/320)-1;
 	y2 = ((y2/240)-1) *-1;
-	GX_Begin(GX_LINES, GX_VTXFMT0, 2);
+	GX_Begin(GX_LINES, GX_VTXFMT7, 2);
 		GX_Position2f32((float) x1,(float) y1);
 		GX_Color4u8(r, g, b, 0xFF);
 		GX_Position2f32((float) x2,(float) y2);

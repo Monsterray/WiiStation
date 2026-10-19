@@ -41,6 +41,7 @@
 #include "fileBrowser-libfat.h"
 #include "fileBrowser-DVD.h"
 #include "../hb_probe.h"
+#include "../perf_prof.h"   /* PERF_DIR */
 
 extern void SysPrintf(const char *fmt, ...);
 
@@ -61,7 +62,7 @@ static void dvd_note(const char *fmt, ...)
 	SysPrintf("%s", line);
 #ifdef PERF_PROF
 	{
-		FILE *f = fopen("sd:/wiistation/dvd.log", "a");
+		FILE *f = fopen(PERF_DIR "dvd.log", "a");
 		if (f) {
 			fputs(line, f);
 			fclose(f);

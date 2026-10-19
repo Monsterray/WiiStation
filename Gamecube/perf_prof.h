@@ -27,6 +27,32 @@ extern "C" {
 /* "YYYY-MM-DD HH:MM:SS" wall clock, in every build (perf_prof.c) */
 void perf_datetime(char *buf, int size);
 
+/* The play build (scripts/build.sh PROBES=play, WiiSXRX_play.dol; Docs/DEBUG_PLAY.md): a debug
+ * build for long sessions on a real console. No on-screen debug text, and no SD write from
+ * the emulator thread: perf.log lines go to a RAM queue that the heartbeat thread appends to
+ * sd:/wiistation/debuglogs/play.log (Gamecube/play_log.c). Every other build writes perf.log
+ * directly, as before. */
+#ifndef PERF_PLAY
+#define PERF_PLAY 0
+#endif
+#if PERF_PLAY
+#include <stdio.h>
+FILE *perf_log_open(void);        /* a memory stream; NULL while another is open */
+void perf_log_close(FILE *f);     /* queues what was written for play.log */
+void play_vtl_put(const void *rec, unsigned n);   /* one vblank for the session's vtl file */
+void play_drain(void);            /* write what is queued (heartbeat thread, safe points) */
+void play_boot(void);             /* hb_start(): the folder, the boot line, a kept crash report */
+void play_session_begin(const char *game_id, const char *file);   /* loadISO() */
+void play_session_end(const char *why);   /* SysClose(), the chain's end */
+#define PERF_DIR "sd:/wiistation/debuglogs/"   /* the other debug files it can write */
+#else
+#define PERF_DIR "sd:/wiistation/"
+#define perf_log_open() fopen("sd:/wiistation/perf.log", "a")
+#define perf_log_close(f) fclose(f)
+#define play_session_begin(id, file) ((void)0)
+#define play_session_end(why) ((void)0)
+#endif
+
 /* Size of the per-event histogram below. Must be >= PSXINT_COUNT (r3000a.h);
  * checked at compile time in lightrec.c so this header needs no emulator
  * includes. */
@@ -354,6 +380,11 @@ typedef struct {
 	/* Where already-drawn EFB content can be lost again: screen re-uploads from
 	 * psxVuw (which has no GX-drawn primitives in it) and the present's clear. */
 	uint32_t upl_calls, upl_done, pres_total, pres_clear, pres_skipped;
+	/* Frame Skip on OpenGX (gpuPlugin.c FrameSkipGx): frames not drawn nor presented,
+	 * drawing commands left out, skips ended because the game stopped flipping */
+	uint32_t fskip_frames, fskip_cmds, fskip_guard;
+	/* Textured polygon EFB area by GX LOD (gpuPrim.c lod_probe, PERF_PROF_GPUSPLIT) */
+	unsigned long long lod_px[5];
 	uint32_t upl_partial_calls, upl_partial_used;   /* CPU loads; with the EFB mirroring psxVuw */
 	uint32_t mirror_geom_restarts, mirror_set, mirror_diff_word, mirror_off[8];   /* first differing int of MirrorGeom */
 	/* UploadScreen early returns, by path, and the state its paths read at the first and

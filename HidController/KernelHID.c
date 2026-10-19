@@ -159,6 +159,16 @@ static struct _usb_msg *write_kb_irq_req = NULL;
 volatile s32 hidControllerConnected = 0;   /* set by the HID thread (HIDRun), polled by the input code */
 volatile s32 loadingControllerIni = 0;   /* set by the HID thread (HIDRun), polled by the input code */
 
+hid_probe_t hidProbe;                    /* KernelHID.h: for the USB Pad Test page */
+volatile s32 hidRawMode = 0;             /* KernelHID.h: set while that page is open */
+static u32 ControllerRaw = 0;            /* the controller has no ini: read for that page only */
+static struct _usb_msg *probe_req = NULL;
+hid_layout hidLayout;                    /* KernelHID.h */
+hid_map hidMap;
+volatile u32 hidAuto = 0;
+u32 hidReportLen = 0;
+static void HIDReadLayout(void);
+
 static s32 ipcCallBack(s32 result, void *usrdata)
 {
     if (!hidRun)
@@ -170,6 +180,7 @@ static s32 ipcCallBack(s32 result, void *usrdata)
     if (msgParam->msgData == READ_CONTROLLER_MSG)
     {
         hidread = 1;
+        hidProbe.lastLen = result;
     }
 //    else if (msgParam->msgData == READ_KEYBOARD_MSG)
 //    {
@@ -200,8 +211,16 @@ static s32 ipcCallBack(s32 result, void *usrdata)
     return 0;
 }
 
+/* Why HIDInit stopped, for the USB Pad Test log and the debug log: every early return used to
+ * be silent, so "no controllers" could not tell a missing device from a reader that never
+ * started. 0 = not called, 1 = wrong IOS, 2 = /dev/usb/hid open failed, 3 = USB v4 only,
+ * 4 = not USB v5, 9 = running; hid_init_ret is the IOS value at that step. */
+int hid_init_stage = 0, hid_init_ret = 0;
+
 void HIDInit( u32 ios )
 {
+    hid_init_ret = ios;
+    hid_init_stage = 1;
     if (ios != 58)
     {
         #ifdef DISP_DEBUG
@@ -212,11 +231,15 @@ void HIDInit( u32 ios )
     }
 
     HIDHandle = IOS_Open("/dev/usb/hid", 0 );
+    hid_init_stage = 2;
+    hid_init_ret = HIDHandle;
     if(HIDHandle < 0) return; //should never happen
 
     if (hId == -1 ) hId = iosCreateHeap(USB_HEAPSIZE);
     u32 *hid_ver = (u32*)iosAlloc(hId, 0x20);
     s32 checkRet = IOS_Ioctl(HIDHandle, USBV4_IOCTL_GETVERSION, NULL, 0, NULL, 0);
+    hid_init_stage = 3;
+    hid_init_ret = checkRet;
     if (checkRet == 0x40001)
     {
         #ifdef DISP_DEBUG
@@ -229,6 +252,8 @@ void HIDInit( u32 ios )
     }
 
     checkRet = IOS_Ioctl(HIDHandle, USBV5_IOCTL_GETVERSION, NULL, 0, hid_ver, 0x20);
+    hid_init_stage = 4;
+    hid_init_ret = checkRet ? checkRet : (s32)hid_ver[0];
     if (checkRet  || hid_ver[0] != 0x50001)
     {
         #ifdef DISP_DEBUG
@@ -277,6 +302,7 @@ void HIDInit( u32 ios )
     #endif // DISP_DEBUG
 
     hidRun = 1;
+    hid_init_stage = 9;
     HID_Timer = gettime();
     LWP_CreateThread(&HID_Thread, HIDRun, NULL, NULL, 0, 70);
 
@@ -298,6 +324,7 @@ static s32 HIDOpen( u32 LoaderRequest )
     memset((void*)HID_STATUS, 0, 0x20);
     u32 HIDControllerConnected = 0, HIDKeyboardConnected = 0;
     hidControllerConnected = 0;
+    hidProbe.nDevices = 0;
 
     s32 *io_buffer = (s32*)iosAlloc(hId, 32);
     u8 *HIDHeap = (u8*)iosAlloc(hId, 0x60);
@@ -313,11 +340,17 @@ static s32 HIDOpen( u32 LoaderRequest )
 //            writeLogFile(txtbuffer);
 //            DEBUG_print(txtbuffer, DBG_CORE3);
             #endif // DISP_DEBUG
+            if (hidProbe.nDevices < 8)
+            {
+                hidProbe.vids[hidProbe.nDevices] = AttachedDevices[i].vid;
+                hidProbe.pids[hidProbe.nDevices] = AttachedDevices[i].pid;
+            }
+            hidProbe.nDevices++;
             u32 DeviceID = AttachedDevices[i].device_id;
             if(DeviceID == ControllerID)
             {
                 HIDControllerConnected = 1;
-                hidControllerConnected = 1;
+                hidControllerConnected = !ControllerRaw;
                 continue;
             }
 //            if(DeviceID == KeyboardID)
@@ -364,6 +397,7 @@ static s32 HIDOpen( u32 LoaderRequest )
             u32 bInterfaceClass = *(vu8*)(HIDHeap+Offset+5);
             u32 bInterfaceSubClass = *(vu8*)(HIDHeap+Offset+6);
             u32 bInterfaceProtocol = *(vu8*)(HIDHeap+Offset+7);
+            u32 bInterfaceNumber = *(vu8*)(HIDHeap+Offset+2);
             dbgprintf("HID:bInterfaceClass:%02X\r\n", bInterfaceClass );
             dbgprintf("HID:bInterfaceSubClass:%02X\r\n", bInterfaceSubClass );
             dbgprintf("HID:bInterfaceProtocol:%02X\r\n", bInterfaceProtocol );
@@ -440,6 +474,23 @@ static s32 HIDOpen( u32 LoaderRequest )
                 ControllerID = DeviceID;
                 bEndpointAddressController = bEndpointAddress;
 
+                ControllerRaw = 0;
+                hidProbe.picked = 1;
+                hidProbe.vid = DeviceVID;
+                hidProbe.pid = DevicePID;
+                hidProbe.ifClass = bInterfaceClass;
+                hidProbe.ifSubClass = bInterfaceSubClass;
+                hidProbe.ifProtocol = bInterfaceProtocol;
+                hidProbe.ifNumber = bInterfaceNumber;
+                hidProbe.epIn = bEndpointAddress;
+                hidProbe.epOut = bEndpointAddressOut;
+                hidProbe.maxPacket = wMaxPacketSize;
+                hidProbe.hasIni = 0;
+                hidProbe.raw = 0;
+                hidProbe.descLen = 0;
+                hidProbe.product[0] = 0;
+                memcpy(hidProbe.params, HIDHeap, sizeof(hidProbe.params));
+
                 if ( DeviceVID == 0x054c && DevicePID == 0x0268 )
                 {
                     dbgprintf("HID:PS3 Dualshock Controller detected\r\n");
@@ -456,6 +507,11 @@ static s32 HIDOpen( u32 LoaderRequest )
                 {
                     HIDPS4Init();
                 }
+
+                /* every input the pad has: the layout a pad with no ini is read by */
+                HIDReadLayout();
+                hidAuto = 0;
+                memset(&hidMap, 0, sizeof(hidMap));
 
                 //if (needLoadControllerIni)
                 {
@@ -525,7 +581,32 @@ static s32 HIDOpen( u32 LoaderRequest )
                         //sprintf(txtbuffer, "HIDController Data NULL\r\n");
                         //writeLogFile(txtbuffer);
                         #endif // DISP_DEBUG
-                        continue;
+                        if (hidProbe.nInputs > 0)
+                        {
+                            /* No ini: the report descriptor says where every button, hat and
+                             * axis is, and hid_auto_map lays them out as a standard gamepad. */
+                            hidAuto = 1;
+                            hid_auto_map(&hidLayout, DeviceVID, &hidMap);
+                            HID_CTRL->VID = DeviceVID;
+                            HID_CTRL->PID = DevicePID;
+                            HID_CTRL->Polltype = (DeviceVID == 0x054c && DevicePID == 0x0268) ? 0 : 1;
+                            HID_CTRL->DPAD = 0;
+                            HID_CTRL->DigitalLR = 0;
+                            HID_CTRL->MultiIn = hidLayout.report_id ? 1 : 0;   /* only the gamepad report */
+                            HID_CTRL->MultiInValue = hidLayout.report_id;
+                        }
+                        else if (!hidRawMode)
+                            continue;
+                        else
+                        {
+                            /* The USB Pad Test page is open: read this pad's reports as they come
+                             * (interrupt reads, nothing decoded), but never give it to a game. */
+                            ControllerRaw = 1;
+                            HID_CTRL->VID = 0;
+                            HID_CTRL->Polltype = 1;
+                            HID_CTRL->MultiIn = 0;
+                            RumbleEnabled = 0;
+                        }
                     }
                     else
                     {
@@ -696,6 +777,30 @@ static s32 HIDOpen( u32 LoaderRequest )
                                 RumbleTransfers = ConfigGetValue( Data, INI_KYY_RUMBLE_TRANS, 0 );
                             }
                         }
+                        if (hidProbe.nInputs > 0 && hid_ini_wants_auto(Data))
+                        {
+                            /* A new-style ini: the automatic layout, with its Key.../Stick...
+                             * lines on top (Button13, HatUp, AxisZ+, or the old byte,mask) */
+                            hidAuto = 1;
+                            hid_auto_map(&hidLayout, DeviceVID, &hidMap);
+                            hid_ini_map(Data, &hidMap);
+                            if (!strstr(Data, INI_KYY_POLL_TYPE "="))
+                                HID_CTRL->Polltype = 1;
+                            if (!strstr(Data, INI_KYY_MULTI_IN "=") && hidLayout.report_id)
+                            {
+                                HID_CTRL->MultiIn = 1;
+                                HID_CTRL->MultiInValue = hidLayout.report_id;
+                            }
+                        }
+                        else
+                        {
+                            /* An old ini is read as always; only its KeyL3/KeyR3 are new */
+                            hid_map m;
+                            memset(&m, 0, sizeof(m));
+                            hid_ini_map(Data, &m);
+                            hidMap.btn[HR_L3] = m.btn[HR_L3];
+                            hidMap.btn[HR_R3] = m.btn[HR_R3];
+                        }
                         iosFree(hId, Data);
 
                         dbgprintf("HID:Config file for VID:%04X PID:%04X loaded\r\n", HID_CTRL->VID, HID_CTRL->PID );
@@ -707,6 +812,8 @@ static s32 HIDOpen( u32 LoaderRequest )
                     MemPacketSize = 128;
                 else
                     MemPacketSize = wMaxPacketSize;
+                hidReportLen = HID_CTRL->Polltype ? wMaxPacketSize : SS_DATA_LEN;
+                hidProbe.autoLayout = hidAuto;
 
                 if (Packet == NULL || MemPacketSize > AllocatedPacketSize)
                 {
@@ -744,7 +851,9 @@ static s32 HIDOpen( u32 LoaderRequest )
                 }
 
                 HIDControllerConnected = 1;
-                hidControllerConnected = 1;
+                hidControllerConnected = !ControllerRaw;
+                hidProbe.hasIni = !ControllerRaw;
+                hidProbe.raw = ControllerRaw;
 //                if (HIDKeyboardConnected)
 //                    break;
             }
@@ -753,6 +862,7 @@ static s32 HIDOpen( u32 LoaderRequest )
 
     iosFree(hId, io_buffer);
     iosFree(hId, HIDHeap);
+    hidProbe.reading = HIDControllerConnected;
 
     #ifdef DISP_DEBUG
     //sprintf(txtbuffer, "HIDOpen ConnInfo %d %d \r\n", HIDControllerConnected, HIDKeyboardConnected);
@@ -1279,6 +1389,75 @@ static u32 ConfigGetDecValue( char *Data, const char *EntryName, u32 Entry )
     return ret;
 }
 
+/* USB Pad Test: a GET_DESCRIPTOR control request to the controller, on its own message so
+ * that it never touches the pending report read's. Waits for the answer. */
+static s32 HIDProbeGetDescriptor(u8 *buf, u32 len, u32 requestType, u32 value, u32 index)
+{
+    if (probe_req == NULL)
+        probe_req = (struct _usb_msg*)iosAlloc(hId, sizeof(struct _usb_msg));
+    if (probe_req == NULL || ControllerID == 0)
+        return -1;
+    struct _usb_msg *msg = probe_req;
+    memset(msg, 0, sizeof(struct _usb_msg));
+    msg->fd = ControllerID;
+    msg->ctrl.bmRequestType = requestType;
+    msg->ctrl.bmRequest = USB_REQ_GETDESCRIPTOR;
+    msg->ctrl.wValue = value;
+    msg->ctrl.wIndex = index;
+    msg->ctrl.wLength = len;
+    msg->ctrl.rpData = buf;
+    msg->vec[0].data = msg;
+    msg->vec[0].len = 64;
+    msg->vec[1].data = buf;
+    msg->vec[1].len = len;
+    return IOS_Ioctlv(HIDHandle, ControlMessage, 1, 1, msg->vec);
+}
+
+/* The report descriptor into hidProbe.desc, and every gamepad input in it into hidLayout.
+ * A descriptor longer than 512 bytes is cut: hid_parse keeps what came before the cut, which
+ * for a gamepad is its input report (a DualShock 4's 515 bytes end in feature reports). */
+static void HIDReadLayout(void)
+{
+    u8 *buf = (u8*)iosAlloc(hId, 512);
+    s32 r = -1;
+    if (buf != NULL)
+    {
+        memset(buf, 0, 512);
+        r = HIDProbeGetDescriptor(buf, 512, USB_CTRLTYPE_DIR_DEVICE2HOST | USB_CTRLTYPE_REC_INTERFACE,
+            USB_DT_REPORT << 8, hidProbe.ifNumber);
+        if (r > 512) r = 512;
+        if (r > 0) memcpy(hidProbe.desc, buf, r);
+        iosFree(hId, buf);
+    }
+    hidProbe.descLen = r;
+    hidProbe.nInputs = r > 0 ? hid_parse(hidProbe.desc, r, &hidLayout) : 0;
+    if (hidProbe.nInputs <= 0)
+        memset(&hidLayout, 0, sizeof(hidLayout));
+}
+
+/* The report descriptor and the product string, for hidProbe (KernelHID.h). */
+static void HIDProbeRead(void)
+{
+    HIDReadLayout();
+    u8 *buf = (u8*)iosAlloc(hId, 512);
+    if (buf == NULL)
+        return;
+
+    hidProbe.product[0] = 0;
+    u32 iProduct = hidProbe.params[36 + 15];   /* the device descriptor starts at 36 (HIDOpen) */
+    if (iProduct)
+    {
+        memset(buf, 0, 512);
+        s32 r = HIDProbeGetDescriptor(buf, 255, USB_CTRLTYPE_DIR_DEVICE2HOST | USB_CTRLTYPE_REC_DEVICE,
+            (USB_DT_STRING << 8) | iProduct, 0x0409);
+        int n = 0, i;
+        for (i = 2; i + 1 < r && i + 1 < buf[0] && n < (int)sizeof(hidProbe.product) - 1; i += 2)
+            hidProbe.product[n++] = (buf[i + 1] == 0 && buf[i] >= 32 && buf[i] < 127) ? buf[i] : '?';
+        hidProbe.product[n] = 0;
+    }
+    iosFree(hId, buf);
+}
+
 //static void KeyboardRead()
 //{
 //    memcpy(kb_input, kbbuf, 8);
@@ -1346,6 +1525,11 @@ static void HIDUpdateRegisters(u32 LoaderRequest)
 //                keyboardread = 0;
 //                KeyboardRead();
 //            }
+            if (hidProbe.request)
+            {
+                if (ControllerID) HIDProbeRead();
+                hidProbe.request = 0;
+            }
         }
         HID_Timer = gettime();
     }

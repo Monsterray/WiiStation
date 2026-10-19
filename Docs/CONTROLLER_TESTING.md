@@ -66,6 +66,20 @@ python scripts/padtest.py check out/padtrace.csv
 controller on the port, `PAD_ScanPads` reports nothing connected, no driver is assigned to
 the virtual port, and the trace holds one line saying so (`type` of `-`).
 
+Since 2026-10-12 (c6e0f59) the test profiles bind no host device to Dolphin's GameCube pads,
+and Dolphin then reports the pad as not connected, SIDevice0 or not: every Dolphin run showed
+`carry: ... gc=0` and the PadTest DX matrix passed only the 3 cells without GameCube pad 1
+(measured 2026-10-19, with the 5.14.0 DOL too). Now a script that drives pad 1 (`padsweep`
+or `gcpress`) makes it count as plugged in (`autoinput_gcpad`, `GC_SCAN` in controller-GC.c):
+the matrix is 12/12 again.
+
+**Host button combinations.** `gcpress <vblank> <hex>` holds raw GameCube buttons (libogc
+`PAD_BUTTON_*`/`PAD_TRIGGER_*`, e.g. `1060` = L+R+Start) on pad 1 for 10 vblanks, on top of
+the pad, up to 8 lines. It goes through the driver, so it presses what the PSX press lines
+cannot: the ANALOG button, the screenshot. `scripts/autoinput/medievil_analog_combo.txt`
+presses ANALOG in MediEvil at vblank 6800; tty.log then has `analog vbl=6800 Port 1: Analog
+(red light)` and the pad lines go from `id=41` to `id=73` (Docs/ANALOG_BUTTON.md).
+
 `padtest.py check` reports, per port, how much of 0..255 each axis covered and how many
 buttons moved a bit of their own. It deliberately does not know which bit belongs to which
 button: it asserts only that each press moves exactly one bit and that every press moves a
@@ -211,3 +225,165 @@ right.
 - **The menus.** Nothing here drives the menu, which reads the pads directly rather than
   through these drivers. `scripts/menu_text_width.py` checks the Settings tabs' geometry
   and text widths against the 640-pixel screen instead, which is not the same as looking.
+
+## 6. USB controllers (HID pads): the USB Pad Test page
+
+Added 2026-10-18. A USB controller is read through its controller ini
+(`<device>:/wiistation/controllers/VVVV_PPPP.ini`, VID and PID in hex) when it has one, and
+through its own HID report descriptor when it has none (section 7). When a pad does nothing,
+or the wrong thing, this page shows why, and writes an ini for it. It needs a real Wii: Dolphin has no USB HID pads (in Dolphin the page runs and
+logs "devices: 0").
+
+**Running it.**
+
+1. Plug the USB controller into the Wii. A gamepad with no ini is read by its report
+   descriptor (section 7). A device whose descriptor names no gamepad input, and has no
+   ini: open the page first, then unplug it and plug it in again (the page says so); only
+   while the page is open is it read at all ("raw"), and a game never gets it.
+2. Settings > General > **Advanced** > **Input** tab > USB Pad: **Test**. B on the page
+   goes back there. A scripted run opens the page with the autoinput line
+   `menuclick 83 1` (Settings button 83, kept on no tab for this; B then goes back to
+   Settings > Input); `menupage 12` photographs the Advanced > Input tab.
+3. Put the controller down flat and let go: the first second learns what the pad sends at
+   rest. Then the page lights one PlayStation button at a time on the pad picture: the
+   d-pad, the four face buttons, L1 R1 L2 R2, Select, Start, L3, R3, then each stick up,
+   down, left and right, then "press nothing" for 3 seconds.
+4. Press the lit button and let go. A button the pad does not have: press A on the Wii
+   Remote or GameCube pad to skip it, or wait 10 seconds. B stops the test. At the end, A
+   runs it again and B goes back to Settings.
+5. Take `sd:/wiistation/usbpad.log` (or `usb:` when there is no SD card) to the PC and run
+   `python scripts/usbpad_read.py usbpad.log`.
+
+**What the log holds.** One line per fact, so it can be read by eye too:
+
+| line | what |
+|---|---|
+| `hid:` | `running`, or `not-running` (no IOS58 USB HID: no USB pad can work) |
+| `devices:` | every USB HID device the Wii lists, VID:PID |
+| `device:` | the one picked as the controller: VID, PID, product name, interface class/subclass/protocol, endpoints, packet size |
+| `ini:` | the ini path on SD and USB, `found` or `missing` |
+| `mode:` | `mapped` (decoded as in a game), `raw` (no ini and no gamepad in the descriptor: bytes only), `not-read` |
+| `layout:` | `ini` (an old-style ini), `auto` (no ini, or a new-style one: section 7), `none` (raw) |
+| `params:` | the USB descriptors the Wii's HID driver gave (device, configuration, interface, endpoints), hex |
+| `reportdesc:` | the HID report descriptor, hex, when the pad answered (the first 512 bytes) |
+| `hidinputs:` | what WiiStation found in it: the count, report ID, report length, highest button number, hats, axes |
+| `rest:`, `noise:` | the report at rest; the bytes that moved at rest (sticks, motion sensors) and their range |
+| `step N Name: result` | `pressed` (with `raw=` the whole report held down, `changed=` byte:rest>pressed for each byte that moved, `hid=` the HID input that moved in the ini's words (`Button2`, `HatUp`, `AxisZ+`; for a stick step the axis, `AxisRz`), then `gc=`, `ps1=`, `buttons=`, `sticks=`, `triggers=`: what WiiStation decoded), `timeout`, `skipped`, `no-controller`; for the last step `rest-ok` or `moved` |
+| `suggest:` | after a full run: a new-style controller ini made from the `hid=` answers (section 7) |
+| `end:` | `done` or `stopped` |
+
+**Reading the table.** `usbpad_read.py` prints the header, then one row per step with a
+verdict: OK; WRONG (another PlayStation button came out: the ini, or the HID button
+config, maps it elsewhere); NOT MAPPED (the report changed but WiiStation saw nothing: the
+ini has no key for that byte and bit); NO INI (the pad was read raw); DRIFT (the pad moved
+with nothing pressed: stick drift or a noisy byte). The `ini` column is a first guess at
+the ini line (offset and mask in hex, as the ini takes them) for that button, from the bits
+that turned on. A d-pad sent as a hat switch (one byte, 0..7, 8 or 0x0F at rest) needs
+`DPAD=1` and the values as masks; check the `changed` column before writing it in. The `hid`
+column is the same press in the new-style ini's words.
+
+**The suggested ini.** The page shows the HID input each press moved ("Cross: pressed
+Button2 ...") and, after a full run, writes a complete new-style ini into the log as
+`suggest:` lines. `usbpad_read.py` prints it under the table; `usbpad_read.py --ini
+usbpad.log > 046D_C216.ini` writes only the ini, ready for `<device>:/wiistation/controllers/`.
+For a log from before these lines (no `hid=`), it builds an old-style ini from the `ini`
+column instead (a hat d-pad: `DPAD=1` and the eight values).
+
+The page reads the same report buffer the games read (`HidController/KernelHID.c`,
+`hidProbe`), so a pad that is NOT MAPPED here is not mapped in a game either. Its own code
+is `Gamecube/menu/UsbPadTestFrame.cpp`. A Dolphin run collects the log as
+`.runs/NAME/usbpad.log` (`scripts/dolphin_run.sh`).
+
+## 7. Every input of a USB pad: the report descriptor, the automatic layout, the ini
+
+Added 2026-10-19 (`HidController/hid_layout.c`, plain C). When a USB pad is plugged in,
+WiiStation reads its HID report descriptor (the first 512 bytes) and finds every gamepad
+input in it: buttons 1-32 (usage page Button), up to two hat switches, and the axes X, Y, Z,
+Rx, Ry, Rz, Slider, Dial, Brake and Accelerator, each with its report ID, bit position, bit
+size and logical range. Only inputs inside a Joystick, Gamepad or Multi-axis application
+collection count (a keyboard or a vendor device is not taken for a pad), from the first
+report ID that has one. A descriptor cut off part-way keeps the inputs described before the
+cut. A logical maximum written `25 FF` (strictly -1) is read as 255, as every OS does.
+
+**Which ini wins.**
+
+| the pad has | it is read |
+|---|---|
+| an old-style ini (every shipped one) | exactly as before. New: its `KeyL3=` / `KeyR3=` lines (`byte,mask`), and Configure Buttons' Btn/Hat/Axis entries work on top of it |
+| no ini | by the automatic layout below |
+| a new-style ini: `Auto=1`, or any value `Button..`, `Hat..`, `Axis..` | the automatic layout, then each `Key...`/`Stick...` line of the ini replaces that one role |
+
+A pad whose descriptor names no gamepad input and that has no ini is not read (only raw, in
+the USB Pad Test page). A new-style ini on such a pad is read the old way.
+
+**The automatic layout** (standard DirectInput numbering, which a DualShock 4, a Logitech
+Dual Action and most generic pads use; PlayStation names under WiiStation's default HID
+button config, Square = KeyA):
+
+- Buttons 1-4: Square, Cross, Circle, Triangle (KeyA KeyB KeyX KeyY).
+- 10 or more buttons: 5-8 L1 R1 L2 R2, 9 Select, 10 Start, 11 L3, 12 R3.
+  5 to 9 buttons: Select and Start are the last two, the shoulders (L1 R1 L2 R2) the ones
+  between (an 8-button SNES-style pad: 5 L1, 6 R1, 7 Select, 8 Start).
+- Brake and Accelerator axes (Xbox-style analog triggers): L2 and R2, pushed past half.
+- Hat 1: the D-pad. No hat: the X/Y axes are the D-pad too (an SNES-style pad sends its
+  D-pad as X/Y).
+- Left stick X/Y. Right stick Z/Rz; Rx/Ry when the pad has no Z/Rz pair, or is Microsoft's
+  (VID 045E with Rx/Ry: the older Xbox layout, Z/Rz there are the triggers).
+- A report ID: only reports with it are read (`MultiIn=1`); a DualShock 3 (054C:0268) with
+  no ini is polled the way its ini says (`Polltype=0`).
+
+Guesses that are wrong for known pads, all of which ship an ini: a DualShock 3 numbers its
+buttons Select L3 R3 Start, D-pad, L2 R2 L1 R1, Triangle Circle Cross Square; an Xbox pad
+over Bluetooth numbers A B (gap) X Y. Write a new-style ini for such a pad (the USB Pad Test
+writes one).
+
+**The ini syntax.** Keys: `KeyA KeyB KeyX KeyY KeyL1 KeyR1 KeyL2 KeyR2 KeySelect KeyStart
+KeyL3 KeyR3 KeyUp KeyDown KeyLeft KeyRight` and `StickX StickY CStickX CStickY` (left and
+right stick). Values:
+
+| value | for | means |
+|---|---|---|
+| `Button13` | a key | button 13 (1-32) |
+| `HatUp`, `HatRight`, `HatDown`, `HatLeft`; `Hat2Up` ... | a key | a hat direction (a diagonal holds both) |
+| `AxisZ+`, `AxisRz-`, `AxisBrake+` ... | a key | an axis pushed past half its travel, that way (`-` left/up) |
+| `5,40` | a key | report byte 5, mask 0x40 (hex, as in the old ini) |
+| `AxisRz` | a stick | that axis (names: X Y Z Rx Ry Rz Slider Dial Brake Accel) |
+| `6,0,0` | a stick | report byte 6 read as 0..255 with 128 at rest (the old form) |
+| `None` | either | nothing |
+
+A value it cannot read leaves the automatic layout's choice. In a new-style ini a hat d-pad is
+`KeyUp=HatUp`, not the old `DPAD=1` value form. `Polltype` defaults to 1 there, and the
+report ID filter is set from the descriptor unless the ini has `MultiIn=`. `Rumble...` lines
+work as before. Example, a Dual Action by its descriptor, with Select and Start swapped:
+
+```
+[Logitech Dual Action For WiiStation]
+VID=046D
+PID=C216
+Auto=1
+KeySelect=Button10
+KeyStart=Button9
+```
+
+**In Configure Buttons** every USB pad has, after the old entries (D-Up ... A-Down), `L3` and
+`R3` (the ini's or the layout's), then every HID input by name: `Btn 1` ... `Btn 32`, `Hat Up`
+... `Hat2 Left`, `Axis X-` ... `Axis Accel+`. Entries for inputs the pad does not have are
+skipped. The menu, fast-forward, screenshot and ANALOG combinations can be any one HID input
+alone too (a Home button for the menu). The analog sources add `Axes X/Y`, `Axes Z/Rz`,
+`Axes Rx/Ry` and `Slider/Dial`. The A-/C- stick-direction entries now work (they were never
+set before). A HID axis reaches the PlayStation stick through one mapping: its logical range
+to -1..+1, `psx_square`, `psx_analog` (no GameCube scaling on the way).
+
+**Host test.** `tests/hid_layout_test.c` runs every button, every hat value and every value of
+every axis of five descriptors (the user's Dual Action as logged, cut off; a DualShock 3; a
+DualShock 4 cut at 512 bytes; an Xbox-style pad with 16-bit sticks, 10-bit Brake/Accelerator
+and a 1-based hat; an SNES-style pad with `25 FF`) through `hid_decode` and the automatic
+layout, the ini syntax for all 60 inputs, every cut-off length, 20000 junk descriptors, and
+that no shipped ini reads as new-style:
+
+```
+clang -O2 -Wall -o hid_layout_test tests/hid_layout_test.c HidController/hid_layout.c
+./hid_layout_test Gamecube/release/controllers/[0-9A-F]*.ini
+```
+
+It needs a real Wii for the rest: Dolphin has no USB HID pads.

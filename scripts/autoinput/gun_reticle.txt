@@ -1,0 +1,5 @@
+irfake 0 400 300
+irfake 700 200 150
+xfb 500
+xfb 1000
+dump 1100

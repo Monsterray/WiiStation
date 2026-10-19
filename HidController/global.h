@@ -283,6 +283,9 @@ struct BTPadCont {
 #define PAD_BUTTON_SELECT       0x2000
 #define PAD_TRIGGER_R1          0x4000
 #define PAD_TRIGGER_L1          0x8000
+// The two GameCube bits a HID pad never used (Z, origin): L3 and R3
+#define PAD_BUTTON_L3           0x0010
+#define PAD_BUTTON_R3           0x0080
 
 u64 gettime(void);
 u32 diff_usec(u64 start, u64 end);

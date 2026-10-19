@@ -1,0 +1,21 @@
+CHAIN
+# The light gun reticle and the Wii Remote LEDs (Docs/GUN_MOUSE_TESTING.md). Needs a profile
+# with an emulated Wii Remote 1 (WiimoteNew.ini [Wiimote1] Source = 1, no device bound):
+#   bash scripts/profile.sh new wiimote --game "Point Blank (USA)"   (then set Source = 1)
+#   WSX_PROFILE=wiimote bash scripts/wsx.sh chain gun gun_reticle.txt --env XFB_RAM=1 --secs 240
+# Remote 1 plays port 2 as a GunCon: the reticle in game 1 (OpenGX) and 2 (Soft Fast), none in
+# game 3 (GunReticle=0); game 4 is the mouse (padtrace.csv: one movement per vblank).
+# tty.log "led" lines: LED 1 in the menu, LED 2 in each game. The input script's "irfake"
+# lines stand in for the pointer Dolphin's remote does not have.
+1200 sd:/wiistation/gun_reticle.txt LightGun=1 PadType1=0 PadType2=2 PadAssign2=0 PadAutoAssign=0 GunReticle=1
+sd:/wiistation/isos/Point Blank (USA)
+Point Blank (USA).cue
+1200 sd:/wiistation/gun_reticle.txt LightGun=1 PadType1=0 PadType2=2 PadAssign2=0 PadAutoAssign=0 GunReticle=1 gpuPlugin=0
+sd:/wiistation/isos/Point Blank (USA)
+Point Blank (USA).cue
+1200 sd:/wiistation/gun_reticle.txt LightGun=1 PadType1=0 PadType2=2 PadAssign2=0 PadAutoAssign=0 GunReticle=0
+sd:/wiistation/isos/Point Blank (USA)
+Point Blank (USA).cue
+1200 sd:/wiistation/gun_reticle.txt LightGun=3 PadType1=0 PadType2=2 PadAssign2=0 PadAutoAssign=0 GunReticle=1
+sd:/wiistation/isos/Point Blank (USA)
+Point Blank (USA).cue

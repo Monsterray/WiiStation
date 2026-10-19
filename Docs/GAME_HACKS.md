@@ -99,7 +99,7 @@ No game-keyed code. `dfsound/registers.c` volume sweep is a general approximatio
 
 ## Generic, data-driven per-game mechanisms (not hacks)
 
-`settings/<CdromId>.cfg` per-game settings (GamecubeMain.cpp), PPF patches by CdromId
+`settings/<CdromId>.ini` per-game settings (GamecubeMain.cpp; a legacy `.cfg` is read when there is no `.ini`), PPF patches by CdromId
 (ppf.c), one memory-card file per game (sio.c).
 
 ## Suggested order

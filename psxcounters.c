@@ -504,6 +504,10 @@ void psxRcntUpdate()
                 if (pad_unplug[0]) pad_unplug[0]--;
                 if (pad_unplug[1]) pad_unplug[1]--;
             }
+            {
+                extern void pad_vblank(void);   /* Gamecube/PadSSSPSX.c: rumble duty cycle, Wii Remote LEDs */
+                pad_vblank();
+            }
             ws_alive();   /* progress, for the HBC agent's hang watchdog (Gamecube/ws_crash.h) */
             statetool_vblank();
             screenshot_vblank();
