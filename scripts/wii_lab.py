@@ -206,6 +206,7 @@ def main():
         + [f"vtl_{i:02d}.bin" for i in range(1, games + 1)]   # per-vblank timelines (scripts/vtl_view.py)
     wants += [f"vsig_{i:02d}.bin" for i in range(1, games + 1)]   # per-vblank guest signatures (scripts/vsig_cmp.py)
     wants += [f"hprof_{i:02d}.bin" for i in range(1, games + 1)]   # PROBES=hprof (scripts/hprof_view.py); empty otherwise
+    wants += [f"xfb_{i:02d}.bin" for i in range(1, 33)]   # "xfb <vblank>" TV pictures, numbered across the chain (scripts/xfb2png.py); empty otherwise
     puts += [(w, b"") for w in wants if w != "lab.log"]   # no stale result from an earlier run (lab.log: WiiStation restarts it, and is writing it now)
     isos = []
     if a.send_isos:
@@ -269,7 +270,7 @@ def main():
                 _, n, path = l.split(" ", 2)
                 with open(run / pathlib.Path(path).name, "wb") as f:
                     recv_exact(c, int(n), f)
-                if int(n) == 0 and path.startswith("hprof_"):   # not an hprof build
+                if int(n) == 0 and path.startswith(("hprof_", "xfb_")):   # not an hprof build / no picture that far
                     (run / pathlib.Path(path).name).unlink()
                     continue
                 got.append(path)

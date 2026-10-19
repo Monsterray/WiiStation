@@ -957,6 +957,7 @@ static void SwitchTVModeForDisplay(void)
  PERF_SET(tv_double, PSXDisplay.Double);
  gx_vout_wait_idle();
  switchToTVMode(PSXDisplay.DisplayModeNew.x, PSXDisplay.DisplayModeNew.y, 0);
+ gx_dither_on = -1;   /* switchToTVMode turned GX dither off (gpuPrim.c GxDitherPrim) */
 }
 
 static BOOL TVModeResolution(void)

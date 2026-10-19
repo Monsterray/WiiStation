@@ -970,7 +970,7 @@ void perf_vblank_tick(void)
 	/* "xfb <vblank>" lines: the picture on the TV at each of those vblanks, xfb_01.bin ...
 	 * (scripts/xfb2png.py), so two builds or plugins compare at the same guest moment */
 	{
-		extern unsigned autoinput_xfb_vbl[16];
+		extern unsigned autoinput_xfb_vbl[32];
 		extern int autoinput_xfb_n;
 		static int xfb_next;
 		while (xfb_next < autoinput_xfb_n && frame_counter >= autoinput_xfb_vbl[xfb_next]) {
@@ -1314,6 +1314,8 @@ void perf_report(void)
 		fprintf(f, "fskip: frames=%lu cmds=%lu guard=%lu presents=%lu\n",
 			(unsigned long)g_perf.fskip_frames, (unsigned long)g_perf.fskip_cmds,
 			(unsigned long)g_perf.fskip_guard, (unsigned long)g_perf.pres_total);
+		fprintf(f, "lod: mag=%llu l0=%llu l1=%llu l2=%llu aniso2=%llu\n",
+			g_perf.lod_px[0], g_perf.lod_px[1], g_perf.lod_px[2], g_perf.lod_px[3], g_perf.lod_px[4]);
 		fprintf(f, "uplret: dis=%lu skip=%lu rgb24=%lu px1=%lu\n",
 			(unsigned long)g_perf.upl_r_dis, (unsigned long)g_perf.upl_r_skip,
 			(unsigned long)g_perf.upl_r_rgb24, (unsigned long)g_perf.upl_r_1px);

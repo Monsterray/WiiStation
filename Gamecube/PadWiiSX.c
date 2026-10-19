@@ -115,7 +115,7 @@ int autoinput_trace_n = 0;
 /* "tracebox x0 y0 x1 y1": the primitive trace keeps only primitives touching this screen
  * rectangle (PSX pixels), so small objects survive a busy scene (perf_prim_trace) */
 int autoinput_tbox[4], autoinput_tbox_on;
-unsigned autoinput_xfb_vbl[16];   /* "xfb <vblank>": save the TV picture then (perf_vblank_tick) */
+unsigned autoinput_xfb_vbl[32];   /* "xfb <vblank>": save the TV picture then (perf_vblank_tick); a chain adds each game's */
 int autoinput_xfb_n;
 unsigned autoinput_dump_vbl = 0;   /* "dump <vblank>": debug build writes sd:/wiistation/vram.bin then */
 unsigned autoinput_crash_vbl = 0;  /* "crashtest <vblank>": debug build stores through a NULL base then (a DSI) */
@@ -310,7 +310,7 @@ void autoinput_load(void)
 				filterTour = 1; filterTourVbl = v ? v * 60 : 240; filterTourStart(); continue;
 			}
 			if (!strncmp(line, "ogxnomask", 9)) { extern int iUseMask; iUseMask = 0; continue; }   /* test: OpenGX mask-bit emulation off (GlesGpu/gpuDraw.c) */
-			if (sscanf(line, "xfb %u", &v) == 1) { if (autoinput_xfb_n < 16) autoinput_xfb_vbl[autoinput_xfb_n++] = v; continue; }
+			if (sscanf(line, "xfb %u", &v) == 1) { if (autoinput_xfb_n < 32) autoinput_xfb_vbl[autoinput_xfb_n++] = v; continue; }
 			if (sscanf(line, "tracebox %d %d %d %d", &autoinput_tbox[0], &autoinput_tbox[1], &autoinput_tbox[2], &autoinput_tbox[3]) == 4) { autoinput_tbox_on = 1; continue; }
 			if (sscanf(line, "trace %u", &v) == 1) { if (autoinput_trace_n < 8) autoinput_trace_vbl[autoinput_trace_n++] = v; continue; }
 			{

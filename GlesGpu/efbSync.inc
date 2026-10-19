@@ -242,8 +242,11 @@ static int efb_capture_live(int wait)
         ++efb_token;
 
     /* no deflicker or vertical filter: they would blur the pixels a game reads back */
-    GX_SetCopyFilter(vmode ? vmode->aa : GX_FALSE,
-                     (vmode && vmode->aa) ? vmode->sample_pattern : NULL, GX_FALSE, NULL);
+    {   /* the mode on the TV: its EFB is multisampled with GxColor 2 (Docs/GX_QUALITY.md) */
+        extern GXRModeObj *g_tv_mode;
+        GXRModeObj *m = g_tv_mode ? g_tv_mode : vmode;
+        GX_SetCopyFilter(m ? m->aa : GX_FALSE, (m && m->aa) ? m->sample_pattern : NULL, GX_FALSE, NULL);
+    }
     GX_SetTexCopySrc(0, 0, iResX, iResY);
     GX_SetTexCopyDst(copyW, copyH, GX_TF_RGB565, GX_FALSE);
     GX_CopyTex(MEM_K0_TO_K1(s->pixels), GX_FALSE);

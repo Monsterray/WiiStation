@@ -918,6 +918,20 @@ void glBindTextureBef(GLenum target, GLuint texture)
     glparamstate.glcurtex = texture;
 }
 
+/* GxTexMin (Docs/GX_QUALITY.md): texels seen smaller than a pixel filtered linear, with
+ * anisotropic taps at 2/3. The textures have one level only, so the LOD stays at 0: this is
+ * the filter, not mipmapping. Magnified texels keep the Bilinear setting's filter. */
+extern char gxTexMin;
+static void ogx_texq(GXTexObj *o)
+{
+    static const u8 aniso[4] = { GX_ANISO_1, GX_ANISO_1, GX_ANISO_2, GX_ANISO_4 };
+    if (!gxTexMin)
+        return;
+    GX_InitTexObjLOD(o, gxTexMin > 1 ? GX_LIN_MIP_LIN : GX_LINEAR,
+                     (originalMode == ORIGINALMODE_ENABLE || bilinearFilter == BILINEARFILTER_NEAR) ? GX_NEAR : GX_LINEAR,
+                     0, 0, 0, GX_FALSE, gxTexMin > 1 ? GX_TRUE : GX_FALSE, aniso[gxTexMin & 3]);
+}
+
 void glChgTextureFilter( unsigned int gTexMovieName )
 {
     int i;
@@ -946,6 +960,13 @@ void glChgTextureFilter( unsigned int gTexMovieName )
                 {
                     GX_InitTexObjFilterMode(&currtex->semiTransTexobj, GX_LINEAR, GX_LINEAR);
                 }
+            }
+            if (i != gTexMovieName)
+            {
+                if (currtex->data)
+                    ogx_texq(&currtex->texobj);
+                if (currtex->semiTransData)
+                    ogx_texq(&currtex->semiTransTexobj);
             }
         }
         else
@@ -1931,6 +1952,7 @@ void glInitRGBATextures( GLsizei width, GLsizei height )
     {
         GX_InitTexObjFilterMode(&currtex->texobj, GX_NEAR, GX_NEAR);
     }
+    ogx_texq(&currtex->texobj);
 }
 
 #define RESX_MAX 1024   //Vmem width
@@ -2606,6 +2628,7 @@ static int glTexSubImage2D_body(GLenum target, GLint level,
             {
                 GX_InitTexObjFilterMode(&currtex->semiTransTexobj, GX_NEAR, GX_NEAR);
             }
+            ogx_texq(&currtex->semiTransTexobj);
             memcpy(currtex->semiTransData, semiTransBuf, ogx_tex16_bytes(currtex->w, currtex->h));
             semi_new = 1;
         }
@@ -2685,6 +2708,7 @@ int glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei width
     {
         GX_InitTexObjFilterMode(&currtex->texobj, GX_NEAR, GX_NEAR);
     }
+    ogx_texq(&currtex->texobj);
     // For Non transparent colors in transparent mode
     if (textureType & TEX_TYPE_1)
     {
@@ -2699,6 +2723,7 @@ int glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei width
             {
                 GX_InitTexObjFilterMode(&currtex->semiTransTexobj, GX_NEAR, GX_NEAR);
             }
+            ogx_texq(&currtex->semiTransTexobj);
         }
         memcpy(currtex->semiTransData, semiTransBuf, ogx_tex16_bytes(currtex->w, currtex->h));
         DCFlushRange(currtex->semiTransData, ogx_tex16_bytes(currtex->w, currtex->h));

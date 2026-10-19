@@ -357,6 +357,8 @@ typedef struct {
 	/* Frame Skip on OpenGX (gpuPlugin.c FrameSkipGx): frames not drawn nor presented,
 	 * drawing commands left out, skips ended because the game stopped flipping */
 	uint32_t fskip_frames, fskip_cmds, fskip_guard;
+	/* Textured polygon EFB area by GX LOD (gpuPrim.c lod_probe, PERF_PROF_GPUSPLIT) */
+	unsigned long long lod_px[5];
 	uint32_t upl_partial_calls, upl_partial_used;   /* CPU loads; with the EFB mirroring psxVuw */
 	uint32_t mirror_geom_restarts, mirror_set, mirror_diff_word, mirror_off[8];   /* first differing int of MirrorGeom */
 	/* UploadScreen early returns, by path, and the state its paths read at the first and
