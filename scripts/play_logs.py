@@ -29,8 +29,8 @@ import vtl_view  # noqa: E402
 KINDS = {0: 'exception', 1: 'fatal stop', 2: 'hang', 3: 'assert', 4: 'abort', 5: 'stack overrun'}
 EXC = {2: 'machine check', 3: 'DSI (bad data address)', 4: 'ISI (bad code address)', 6: 'alignment',
        7: 'program', 8: 'FPU unavailable', 0x0f: 'performance monitor'}
-KEYS = ('Core', 'gpuPlugin', 'FrameRate', 'CpuTiming', 'GpuTiming', 'SoundDriver', 'LockedCache',
-        'VideoMode', 'TVMode', 'FrameSkip')
+KEYS = ('Core', 'gpuPlugin', 'SoftGpuMode', 'GxColor', 'GxTexMin', 'SkipFrames', 'FrameRate', 'CpuTiming', 'GpuTiming', 'SoundDriver', 'LockedCache',
+        'VideoMode', 'TVMode')
 ATTR = re.compile(r'(\w+)=(\S+)')
 
 
