@@ -149,6 +149,14 @@ a named profile with `[Wiimote1] Source = 1` (`WSX_PROFILE`). `padtrace.csv` is 
 into the run directory. Debug `tty.log` also has `pad` (each config command and every change of
 a 42h read: motor bytes, ID), `rumble` (motor values and the motor-on vblanks) and `led` lines.
 
+**Host combinations and GameCube pad 1 in Dolphin** (2026-10-19): the test profiles bind no host
+device (c6e0f59), and Dolphin then reports its GameCube pads as unplugged: every run's perf.log
+said `carry: ... gc=0`, so padsweep did nothing and the PadTest DX matrix fell to 3/12 without
+anyone noticing. A script with `padsweep` or `gcpress` lines now makes pad 1 count as connected
+(controller-GC.c `GC_SCAN`); matrix 12/12 again. `gcpress <vblank> <hex>` holds raw GC buttons
+(`1060` = L+R+Start, the ANALOG combination) for 10 vblanks through the real driver; tty.log has
+an `analog vbl=N Port 1: ...` line per ANALOG press. Recipe: Docs/CONTROLLER_TESTING.md.
+
 **Movies → scripts:** `scripts/dtm2autoinput.py MOVIE.dtm --offset N [--trace-after-start]`
 decodes a Dolphin `.dtm` (8-byte pad polls interleaved with Wiimote records, 2 polls per VI)
 into autoinput lines; find the offset once from the first Start press.
@@ -291,6 +299,21 @@ Rules and fixes learned on the bench (2026-09-29/30):
 - Deep builds for A/Bs: `FORCE=1 bash scripts/wsx.sh build debug deep` (the build refuses
   while a Dolphin run is going), then copy the DOL to the scratchpad per variant; two DOLs
   from one tree differing in one file make a clean hardware A/B (`wsx.sh compare A B`).
+
+## A GX question on the hardware in one job: `scripts/wii_probe/gxaa/` (2026-10-19)
+
+When the question is "what does the Wii's GX do with this setup" (EFB formats, AA, copy
+filter, readback), a WiiStation lab run is the slow way: a boot, a game, pictures only at
+`xfb` vblanks. `gxaa.c` is a standalone DOL with the HBC agent: it draws a fixed GX test
+pattern in WiiStation's 240p mode, one variant per wiiload argument (`key=value,...`),
+cycling until `hbc.py exit`, and stamps each frame's variant number (and an EFB readback
+texel) into the XFB with the CPU. `run.py NAME [VARIANT...]` (a queue job, about a minute for
+8 variants) takes `hbc.py screen` pictures, sorts them by the stamp and writes
+`.runs/NAME/sheet.png` + `result.txt`. Build: `bash scripts/wii_probe/gxaa/build.sh`. To test
+a new GX idea, add a key to `parse()`/`apply()` and queue the variants against the default.
+`hbc.py screen` reads the XFB in RAM: for "the TV is black but the XFB is right" questions,
+use the `vireg:` perf.log line (debug builds: the framebuffer the VI scans and its first 32
+registers). Docs/GX_QUALITY.md "AA on the Wii" has the variant table and what it proved.
 
 ## Installing on the bench Wii (2026-10-01)
 

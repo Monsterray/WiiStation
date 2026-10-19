@@ -480,6 +480,22 @@ static void read_slot(FILE* f, controller_t* controller, controller_config_t* sl
 	slot->fastf = getPointer(controller->menu_combos, controller->num_menu_combos);
 }
 
+/* An ANALOG combination index, or the controller's default when the file has none: a file from
+ * before the ANALOG combination ends here, or (a Game file, one controller after another) the next controller's
+ * magic "WX" follows, which is put back. An index is a small number, never "WX". */
+static button_t* read_analog(FILE* f, controller_t* controller){
+	int index;
+	if (fread(&index, 4, 1, f) != 1)
+		index = -1;
+	else if (((u32)index >> 16) == ('W' << 8 | 'X')) {
+		fseek(f, -4, SEEK_CUR);
+		index = -1;
+	}
+	if (index < 0 || index >= controller->num_analog_combos)
+		index = controller->config_default.analog->index;
+	return controller->analog_combos + index;
+}
+
 int load_configurations(FILE* f, controller_t* controller){
 	int i;
 	char magic[4] = { 
@@ -500,6 +516,9 @@ int load_configurations(FILE* f, controller_t* controller){
 			index = controller->config_default.screenshot->index;
 		controller->config_slot[i].screenshot = controller->screenshot_combos + index;
 	}
+	/* The ANALOG button combinations, after them; the default when missing */
+	for(i=0; i<4; ++i)
+		controller->config_slot[i].analog = read_analog(f, controller);
 
 	/* Auto Load Slot 1..4 copies that slot to the mapping now; Auto (the Game slot) and Default
 	 * (the built-in mapping) are applied at each game start (loadGameButtons, GamecubeMain.cpp). */
@@ -556,6 +575,8 @@ void save_configurations(FILE* f, controller_t* controller){
 		write_slot(f, controller, &controller->config_slot[i]);
 	for(i=0; i<4; ++i)
 		fwrite(&controller->config_slot[i].screenshot->index, 4, 1, f);
+	for(i=0; i<4; ++i)
+		fwrite(&controller->config_slot[i].analog->index, 4, 1, f);
 }
 
 /* The Game slot of one controller (config_slot[CONTROLLER_GAME_SLOT]): the magic and that slot.
@@ -568,6 +589,7 @@ void save_game_slot(FILE* f, controller_t* controller){
 	fwrite(magic, 1, 4, f);
 	write_slot(f, controller, &controller->config_slot[CONTROLLER_GAME_SLOT]);
 	fwrite(&controller->config_slot[CONTROLLER_GAME_SLOT].screenshot->index, 4, 1, f);
+	fwrite(&controller->config_slot[CONTROLLER_GAME_SLOT].analog->index, 4, 1, f);
 }
 
 int load_game_slot(FILE* f, controller_t* controller){
@@ -584,6 +606,7 @@ int load_game_slot(FILE* f, controller_t* controller){
 			index = controller->config_default.screenshot->index;
 		controller->config_slot[CONTROLLER_GAME_SLOT].screenshot = controller->screenshot_combos + index;
 	}
+	controller->config_slot[CONTROLLER_GAME_SLOT].analog = read_analog(f, controller);
 	return 1;
 }
 

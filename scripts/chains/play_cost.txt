@@ -1,0 +1,28 @@
+CHAIN
+# The play build's probe cost against release (Docs/DEBUG_PLAY.md): three games with the frame
+# limit off (FrameRate=3), so each runs flat out and the seconds between its "chain end" at=
+# stamps (the emulated clock, also written by a release build; 1 s steps, hence 14400 vblanks) are its cost; then the same
+# three at normal speed, where a debug build's perf.log gives the load (the share not waited).
+# bash scripts/wsx.sh chain NAME play_cost.txt --dol release|play|debug --fast --secs 2400 (about 6 minutes)
+# The first line is an anchor: its end stamp starts the clock for the next game.
+120 FrameRate=3
+sd:/wiistation/isos/Crash Bash
+Crash Bash [U] [SCUS-94570].cue
+14400 sd:/wiistation/spyro_title.txt FrameRate=3
+sd:/wiistation/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue
+14400 FrameRate=3
+sd:/wiistation/isos/Crash Bash
+Crash Bash [U] [SCUS-94570].cue
+14400 FrameRate=3
+sd:/wiistation/isos/Micro Machines V3 (USA)
+Micro Machines V3 (USA).cue
+3600 sd:/wiistation/spyro_title.txt
+sd:/wiistation/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue
+3600
+sd:/wiistation/isos/Crash Bash
+Crash Bash [U] [SCUS-94570].cue
+3600
+sd:/wiistation/isos/Micro Machines V3 (USA)
+Micro Machines V3 (USA).cue

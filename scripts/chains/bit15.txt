@@ -1,0 +1,18 @@
+CHAIN
+# Bit 15 (STP / mask bit) tests, JaCzekanski ps1-tests with real-PS1 results:
+#   mask-bit: tty.log against C:/tools/ps1-tests/bin/gpu/mask-bit/psx.log (5 passes)
+#   transparency: VRAM against C:/tools/ps1-tests/bin/gpu/transparency/vram.png
+# Each under Soft Fast (gpuPlugin=0, the reference) and OpenGX (gpuPlugin=2). HLE BIOS (its
+# printf reaches tty.log). Docs/STP_BIT15.md.
+600 gpuPlugin=0
+sd:/wiistation/isos/ps1t_mask-bit
+mask-bit.exe
+600 gpuPlugin=2
+sd:/wiistation/isos/ps1t_mask-bit
+mask-bit.exe
+600 gpuPlugin=0
+sd:/wiistation/isos/ps1t_transparency
+transparency.exe
+600 gpuPlugin=2
+sd:/wiistation/isos/ps1t_transparency
+transparency.exe

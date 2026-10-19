@@ -15,7 +15,7 @@ already dither exactly like a PS1 (`SoftGPU/soft.c`, `dither5.h`).
 |---|---|---|---|---|---|
 | Mipmaps + trilinear / LOD bias | Yes, with work: the sub-texture pages allow 2 levels | +33% texture MEM2 (CTR: +5.3 MB); a box filter per upload on the CPU | Less shimmer on 8-12% of the textured area (480 lines), 27% in 240p; distant textures blur; seams of 1-2 texels | None: costs CPU, saves nothing measurable | Not built. Measured where it would act (probe) |
 | Anisotropic filter, linear minification | Yes, one call per texture object | Free on the CPU; GPU cycles only where texels are minified (bench) | Distant ground smoother, a little blurred; no mipmaps, so LOD stays 0 | Possibly slower on GPU-bound scenes (Tiger Temple): bench | Prototype `GxTexMin` |
-| Anti-aliasing (GX multisample) | Only in 240p mode (EFB 640x240 <= 264 lines); the 480-line EFB would need two passes | One pass, RGB565 | Smoother polygon edges; 5/6/5 colour (PS1 is 5/5/5) | **Fails on the Wii**: black screen (bench, 2026-10-19) | Prototype `GxColor=2`, do not use |
+| Anti-aliasing (GX multisample) | Only in 240p mode (EFB 640x240 <= 264 lines); the 480-line EFB would need two passes | One pass, RGB565 | Smoother polygon edges; 5/6/5 colour (PS1 is 5/5/5) | Works on the Wii (bench, 2026-10-19 afternoon): AA on polygon edges, same presents and wall as plain 240p; the morning's black TV did not come back ("AA on the Wii" below) | `GxColor=2` (menu: GX Colour "AA (240p)") |
 | GX dither | Only in an RGBA6 or RGB565 EFB | One BP write when it changes | GX's own pattern at EFB resolution: not the PS1 look | None | Prototype `GxColor=1` (and in `GxColor=2`) |
 | PS1-exact dither on OpenGX | Only with RGB565 (240p + AA): a TEV stage + 4x4 offset texture | One TEV stage per dithered draw | The PS1's own pattern | Small GPU cost | Design only (below) |
 | Higher internal resolution | Already 2x for 320-wide games (EFB 640x480) | More needs a tiled multi-pass EFB | -- | -- | Out of scope |
@@ -97,7 +97,7 @@ acts on the LOD 0-1 bin as well.
 - **Recommendation:** not now. Measure `GxTexMin` on the Wii first: if anisotropy helps on
   hardware at LOD 0, it gives most of the gain without the memory.
 
-## Prototypes (off by default, not in the menu)
+## Prototypes (off by default)
 
 | Setting | Values | Where |
 |---|---|---|
@@ -113,18 +113,108 @@ Known limits of the prototypes: `GxColor=1` in the 480-line mode is applied at g
 (`MainFrame`) only; the BIOS autoboot path (`MenuContext.cpp`) does not apply it.
 `GxColor=2` needs NTSC-height 240p (PAL 288-line displays do not fit).
 
-**Bench Wii result (2026-10-19, `hw_gx_quality`, pmc build of 48bd936): `GxColor=2` gives a
-black TV picture.** CTR with `TVMode=1 GxColor=2` kept running (heartbeat steady, 0.99x, 554
-presents in 2016 vblanks) but the screen stayed black until the user pressed RESET, which
-ended that chain game. EFB readback was wrong too: `ogxeq` 82294 mismatches of 86499 checks
-(the other rows: a few). Dolphin emulates neither the AA EFB nor its display copy, so it
-showed a picture. Suspects, in order: the display copy from an AA EFB needs the VI/XFB set
-up for it (`GX_SetCopyFilter` with the AA sample pattern and `GX_SetDispCopyYScale` for the
-half-height EFB), the RGB565 snapshot path reading the AA EFB as RGB8, and the pixel format
-switch (`GX_SetPixelFmt`) issued while a frame is in flight. Same run: `GxTexMin=1/3` and
-`GxColor=1` ran CTR and Spyro at 1.00x with the GPU share unchanged (CTR 9.6 -> 8.7-8.8%,
-Spyro 14.0-14.2%), so their cost is not measurable; how they look needs the TV pictures
-(`.runs/hw_gx_quality/xfb_NN.bin`, `scripts/xfb2png.py`).
+**First bench result (2026-10-19 morning, `hw_gx_quality`, pmc build of 48bd936):** CTR with
+`TVMode=1 GxColor=2` kept running (0.99x, 554 presents in 2016 vblanks) but the user saw a
+black TV until he pressed RESET. Two readings of that run were wrong: its `ogxeq` line
+(82294 mismatches of 86499) is the texture-compare probe, and every row of that chain has the
+same ratio (row 1: 221479 of 242622), so it says nothing about AA; and its 240p `xfb`
+pictures were 54 lines high (libogc v3.1.0 `GX_SetDispCopyYScale` return value, see
+`switchToTVMode`), and the AA game wrote none, so no picture of it existed. Same run:
+`GxTexMin=1/3` and `GxColor=1` ran CTR and Spyro at 1.00x with the GPU share unchanged (CTR
+9.6 -> 8.7-8.8%, Spyro 14.0-14.2%). The afternoon's runs (next section) show the AA path
+working.
+
+## AA on the Wii: the hardware loop and what it showed (2026-10-19)
+
+### The loop: `scripts/wii_probe/gxaa/` (one queue job, about a minute)
+
+`gxaa.c` is a small DOL (devkitPPC r50, libogc v3, the HBC agent linked so `hbc.py screen`
+and `exit` work) that sets up WiiStation's 240p mode (`TVMODE_240p`, NTSC/EuRGB60
+double-strike), switches the EFB the way `switchToTVMode`/`gxApplyEfbFormat` do, and draws a
+fixed pattern with GX: a blue-red gradient, a grey ramp (565 banding shows there), red,
+green, blue and white squares, a pinwheel of thin slivers and two near-horizontal and
+near-vertical wedges (AA shows on every edge), a depth pair (green near, drawn first; red
+far, over it: green must win) and an EFB-to-texture readback drawn back as an inset, as
+`efbSync.inc` does. Each wiiload argument is one variant (`key=value,...`; the keys are in
+the file's header: `fmt`, `aa`, `pat`, `vf`, `w`/`h`, `ys`, `fm`, `sync`, `z`, `tex`,
+`clamp`, `clr`, `zfmt`, `dither`, `scis`, `vp`; the default is WiiStation's `GxColor=2`).
+The DOL shows each for 150 frames in turn and loops until `hbc.py exit` (or 150 s). After
+each copy the CPU stamps the variant's number and the readback texel (RGB565 of the red
+square; `f800` is right) into the XFB's top-left 16 lines, so every screenshot says which
+variant it is, even a black one.
+
+```bash
+bash scripts/wii_probe/gxaa/build.sh              # Git Bash; builds deps/hbc_agent too
+C:/Python312/python.exe C:/tools/wii-bench/wiibench.py add --name gxaa --timeout 300 \
+  --cwd <repo> -- C:/Python312/python.exe scripts/wii_probe/gxaa/run.py NAME [VARIANT ...]
+C:/Python312/python.exe C:/tools/wii-bench/wiibench.py wait ID
+```
+
+`run.py` sends the DOL with the variants (none: its default set of 8), takes `hbc.py
+screen` pictures until each variant was seen twice, exits to HBC and writes
+`.runs/NAME/vNN.png`, `sheet.png` (all variants, labelled) and `result.txt` (captures,
+luma, readback texel). 8 variants take 60-75 s. `hbc.py screen` reads the XFB the VI scans
+(RAM), not the TV signal: a VI-only fault would not show, which is what the `vireg:` line
+below is for.
+
+### What the variants showed (bench Wii, `.runs/gxaa_r1..r3/sheet.png`)
+
+| Variant | Picture |
+|---|---|
+| `fmt=8,aa=0` (RGB8, today's 240p) | right, hard staircase edges, smooth ramp |
+| default (RGB565 + AA + the RGB565 readback) | right, **anti-aliased edges**, readback `f800` (right) |
+| `tex=0` (565 + AA) | right, AA edges, the ramp in 565 steps (`gxaa_r1/crop_aa.png`: RGB8, AA, `aa=0`, centred samples) |
+| `aa=0` (565 EFB, copy filter without AA) | right but aliased: the copy takes one sample |
+| `pat=c` (all samples at the centre) | right but aliased |
+| `fmt=6,aa=0` (RGBA6) | right |
+| `w=512,h=216` (CTR's 240p size) | right |
+| `sync=0` (format switched behind a queued RGB8 frame) | right |
+| `tex=8` (RGBA8 readback, as `OverlaySaveEfb`) | right, readback right |
+| `vf=df` (interlace deflicker taps) | right, vertically softer |
+| `fm=1`, `dither=1`, `zfmt=3`, `h=264` | right (dither: GX's pattern shows in the ramp) |
+| `fmt=8,aa=1` (AA copy filter on a non-AA EFB) | wrong: stretched vertically, bottom cut (`gxaa_r2/v04.png`): what a filter/format mismatch looks like; never black |
+| `h=288` (over the AA limit of 264 lines) | garbage below line ~264, as documented |
+
+Side finding: after a `zfmt=3` (`GX_ZC_FAR`) variant, the next `GX_ZC_LINEAR` variants lost
+their depth pair (r2; r3 without `zfmt=3` never did). WiiStation always uses `GX_ZC_LINEAR`.
+
+So every suspect of the first report is fine on the hardware: the sample pattern and taps
+WiiStation uses, `GX_SetDispCopyYScale`, the RGB565 and RGBA8 readbacks, and a pixel format
+switch with a frame in flight.
+
+### WiiStation itself (debug builds of this branch, `scripts/wii_lab.py`)
+
+| Run | Chain | Result |
+|---|---|---|
+| `hw_gx_aa1` | the AA game first in the boot | 4 TV pictures (vblank 400-2300), all right |
+| `hw_gx_aa2` | a 240p game, then the AA game (the morning's rows 5 -> 6) | all right |
+| `hw_gx_aa3` (`gx_aa_ctr3.txt`) | `GxTexMin=3`, `GxColor=1` (480i), 240p, then AA (the morning's order) | all right |
+| `hw_gx_aa_ab`, `hw_gx_aa_ab_pmc` (`gx_aa_ab.txt`) | 240p base vs AA, same intro moment, light and pmc builds | both right; 446 presents each, wall 30.32 / 30.20 s; 1744 of 110592 pixels differ by more than 8 levels, all on polygon edges (`diffmap.png`, `crop_ab_edge.png`) |
+| `hw_gx_aa_vi` | the same, with the `vireg:` probe | VI registers identical in both games except the beam position (0x2C/0x2E); the VI scans `xfb[2]`, the buffer the `xfb` dump reads |
+
+`vireg:` (debug builds, `perf_prof.c`, in each report): the framebuffer the VI scans
+(`VIDEO_GetCurrentFramebuffer`), `xfb[2]`, and the first 32 VI registers. `VIDEO_Configure`
+does not read `GXRModeObj.aa` (libogc v3 `video.c`; only `VIDEO_GetFrameBufferSize` does), so
+with an identical VI and a right XFB the TV shows the picture.
+
+**Root cause of the morning's black TV: not found, and not in the AA path.** Five boots of
+this code put a right, anti-aliased picture in the XFB the VI scans, with the VI set up
+exactly as for plain 240p. The morning's build differs from this one only in the ANALOG note
+text and the dump's line count. Left to check by eye: run `gx_aa_ab.txt` (or the gxaa loop)
+while watching the bench TV.
+
+### Trying it in person
+
+`GxColor = 2` and `TVMode = 1` in `sd:/wiistation/settings.ini` (or a game's own settings),
+with `gpuPlugin = 2` (OpenGX). In the menu: Video > 240p On, and General > Advanced > GPU > GX
+Colour "AA (240p)". It applies at the next game start or resume. Only NTSC/EuRGB60 240p at
+264 lines or fewer (PAL 288-line 240p stays RGB8). Look at polygon edges (CTR's karts and
+track borders, the Naughty Dog crate); textures and 2D are unchanged. Colours are 5/6/5
+with GX dither where the game dithers (`Dithering`).
+
+Known limit: GX dither stays as the last primitive left it for draws that are not PS1
+primitives (FMV and screen uploads, the overlay restore), so in `GxColor` 1 and 2 those can
+be dithered too.
 
 ## Evidence (Dolphin, debug deep build, worktree `.runs/`)
 
@@ -201,10 +291,11 @@ stage; the cost is one TEV stage and one texgen on dithered draws.
 ## Recommended next steps
 
 1. Run `gx_quality_ab.txt` on the bench Wii (needs the queue; nothing here touched a Wii).
-2. Fix the 240p XFB height (separate task), then re-run row 6 for AA pictures.
+2. Done (2026-10-19): the 240p XFB height (`switchToTVMode`) and the AA pictures (above).
 3. Decide from the pictures: keep `GxTexMin` if aniso does something on hardware at an
    acceptable GPU cost (a menu entry "Distant Textures"?); keep `GxColor=2` as a 240p
-   "Anti-Aliasing" option if edges improve and Tiger Temple does not slow down.
+   "Anti-Aliasing" option: edges improve and the CTR intro costs nothing; Tiger Temple is not
+   measured yet.
 4. `Dithering` on OpenGX: either make it do something (GX dither via `GxColor`, or the
    exact TEV dither in 240p) or say in the menu that it applies to the soft renderers only.
 5. Mipmaps only if 3 shows that minified textures still shimmer and the MEM2 pool has room.

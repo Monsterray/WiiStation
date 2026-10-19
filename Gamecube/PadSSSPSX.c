@@ -113,10 +113,11 @@ static struct
 /* What each controller hands the PlayStation: buttons (active low, wire order) and sticks */
 static PadDataS padOut[10];
 
-/* Since power-on, the game has set the DualShock's mode (44h), and has asked for its status
- * (45h, whose reply says whether the ANALOG light is on). Not in `global`: that is a save
- * state's layout. */
-static u8 ds_mode_set[10], ds_asked45[10];
+/* The ANALOG combination was held on a controller read for the pad being updated (analog_poll,
+ * from the drivers), and on the pad's previous update. Not in `global`: that is a save state's
+ * layout. */
+static int analog_held_now;
+static u8 analog_was_held[10];
 
 extern void SysPrintf(char *fmt, ...);
 extern volatile int stop;
@@ -224,6 +225,66 @@ static void PADsetMode (const int pad, const int mode)	//mode = 0 (digital) or 1
 	global.padMode1[pad] = mode;
 	global.padID[pad] = padID[mode];
 	RumbleReset(pad);
+}
+
+/* The note the ANALOG button leaves on screen for 2 s (showFpsAndDebugInfo, SoftGPU/drawGX.c):
+ * its text, and whether the light is on (red) */
+extern u32 frame_counter;   /* psxcounters.c: +1 per vblank */
+static char pad_note_text[48];
+static u32 pad_note_vbl;
+static int pad_note_red;
+
+const char *pad_note(int *red)
+{
+	if (!pad_note_text[0] || frame_counter - pad_note_vbl >= 120)
+		return NULL;
+	if (red)
+		*red = pad_note_red;
+	return pad_note_text;
+}
+
+void analog_poll(int held)
+{
+	analog_held_now |= held;
+}
+
+/* The DualShock's ANALOG button, pressed with the controller's ANALOG combination (Configure
+ * Buttons), as the real one works (Docs/ANALOG_BUTTON.md): each press switches between digital
+ * (41h, light off) and analog (73h, red light), unless the game locked the mode (44h with key 3).
+ * The switch stops the motors and forgets their map, and once the game has used config mode the
+ * second ID byte reads 00h instead of 5Ah until its next 43h, which tells it the mode changed.
+ * A digital pad, a light gun and a mouse have no such button. */
+static void analog_button(const int pad, const int held)
+{
+	const char *what;
+	if (!held || analog_was_held[pad]) {
+		analog_was_held[pad] = held != 0;
+		return;
+	}
+	analog_was_held[pad] = 1;
+	if (!IsDualShock(pad))
+		what = "no ANALOG button (PSX Pad Type)";
+	else if (global.padModeF[pad])
+		what = "ANALOG locked by the game";
+	else {
+		PADsetMode(pad, !global.padMode1[pad]);
+		if (global.dsNewRumble[pad])
+			global.padModeC[pad] = 1;
+		what = global.padMode1[pad] ? "Analog (red light)" : "Digital (light off)";
+	}
+	if (pad < 2)
+		snprintf(pad_note_text, sizeof pad_note_text, "Port %d: %s", pad + 1, what);
+	else
+		snprintf(pad_note_text, sizeof pad_note_text, "Port %d%c: %s", (pad - 2) / 4 + 1, 'A' + (pad - 2) % 4, what);
+	pad_note_red = global.padMode1[pad] && IsDualShock(pad);
+	pad_note_vbl = frame_counter;
+#ifdef PERF_PROF
+	{
+		char l[80];
+		snprintf(l, sizeof l, "analog vbl=%lu %s\n", (unsigned long)g_perf.vblanks, pad_note_text);
+		perf_tty(l);
+	}
+#endif
 }
 
 /* Which autoinput.txt port drives this pad (PadWiiSX.c): 0 = "p1" (port 1, or multitap 1
@@ -371,7 +432,8 @@ static void UpdateState (const int pad) //Note: pad = 0 or 1
 #endif
 
 	/* ControllerType Analog is a DualShock: digital at power-on (SSS_PADopen), and the game
-	 * switches it to analog with config command 0x44 when it wants the sticks. This used to
+	 * switches it to analog with config command 0x44 when it wants the sticks, or the player
+	 * with the ANALOG combination (analog_button). This used to
 	 * force analog mode on every poll, which undid the game's own choice and left games that
 	 * only understand a digital pad (ID 0x41) ignoring every button -- as a real PlayStation
 	 * does with the DualShock's analog light on. Standard ignores config commands, so a pad
@@ -379,6 +441,7 @@ static void UpdateState (const int pad) //Note: pad = 0 or 1
 	if (controllerType != CONTROLLERTYPE_ANALOG && global.padMode1[pad])
 		PADsetMode( pad, 0);
 
+	analog_held_now = 0;
 	if (pad < 2 && padType[pad] == PADTYPE_COOP)
 	{	/* Co-Op: the port's players, mixed into one pad (coop.c) */
 		int any;
@@ -427,6 +490,12 @@ static void UpdateState (const int pad) //Note: pad = 0 or 1
 		PAD_Data.btns.All = 0xFFFF;
 		PAD_Data.leftStickX = PAD_Data.leftStickY = PAD_Data.rightStickX = PAD_Data.rightStickY = 128;
 	}
+
+	/* The ANALOG combination: the button, and no buttons for the game while it is held, so
+	 * that its Start does not pause */
+	analog_button(pad, analog_held_now);
+	if (analog_held_now)
+		PAD_Data.btns.All = 0xFFFF;
 
 	/* "sweep" in the input script: generated sticks in place of the controller's (its
 	 * presses are added below, with the script's own) */
@@ -613,8 +682,7 @@ long SSS_PADopen (void *p)
 	}
 	memset (&global, 0, sizeof (global));
 	memset (&io, 0, sizeof (io));
-	memset (ds_mode_set, 0, sizeof (ds_mode_set));
-	memset (ds_asked45, 0, sizeof (ds_asked45));
+	memset (analog_was_held, 0, sizeof (analog_was_held));
 	{
 		extern unsigned char pad_unplug[2];   /* PlugPAD.c: a type change before the game is no swap */
 		pad_unplug[0] = pad_unplug[1] = 0;
@@ -808,7 +876,6 @@ static unsigned char pad_byte (const int pad, const unsigned char value, int *ac
 			r = 0xf3;
 			break;
 		case 0x45:
-			ds_asked45[pad] = 1;
 			x->len = sizeof (cmd45);
 			memcpy (x->buf.b8, cmd45, sizeof (cmd45));
 			x->buf.b8[4] = (u8)global.padMode1[pad];
@@ -855,17 +922,6 @@ static unsigned char pad_byte (const int pad, const unsigned char value, int *ac
 		/* 01h enters config mode, 00h leaves it; other values change nothing */
 		if (cur == 2 && value <= 1)
 		{
-			/* The game leaves config mode, has read the ANALOG light (45h) and has never set
-			 * the mode (44h): it leaves analog or digital to the player's ANALOG button.
-			 * MediEvil does this (45h, 46h, 47h, 4Ch, then 43h 00h, and reads the sticks
-			 * when the pad answers 73h). There is no ANALOG button on a Wii controller, so
-			 * the Analog type presses it here. A game that sets the mode itself (Spyro, Ape
-			 * Escape) keeps its choice; one that uses config mode only for the motors (43h,
-			 * 4Dh, 43h) and one made for the digital pad that never uses it (Gex) stay
-			 * digital. */
-			if (!value && global.padModeE[pad] && ds_asked45[pad] && !ds_mode_set[pad] &&
-			    !global.padMode1[pad] && IsDualShock(pad))
-				PADsetMode (pad, 1);
 			global.padModeE[pad] = value;
 			global.padModeC[pad] = 0;
 			if (value) global.dsNewRumble[pad] = 1;
@@ -874,10 +930,7 @@ static unsigned char pad_byte (const int pad, const unsigned char value, int *ac
 	case 0x44:
 		/* LED 00h digital, 01h analog, others ignored. Key: AND 3 = 3 locks the Analog button */
 		if (cur == 2 && value <= 1)
-		{
 			PADsetMode (pad, value);
-			ds_mode_set[pad] = 1;
-		}
 		if (cur == 3)
 			global.padModeF[pad] = (value & 3) == 3;
 		break;

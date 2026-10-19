@@ -340,7 +340,12 @@ extern "C" void switchToTVMode(short dWidth, short dHeight, bool retMenu){
 	 * out as four narrow copies with interleaved lines. */
 	GX_SetDispCopySrc(0,0,rmode->fbWidth,rmode->efbHeight);
 	yscale = GX_GetYScaleFactor(rmode->efbHeight,rmode->xfbHeight);
-	xfbHeight = GX_SetDispCopyYScale(yscale);
+	GX_SetDispCopyYScale(yscale);
+	/* Not its return value: libogc v3.1.0 reads the source height at bit 12 instead of 10
+	 * (gx.c, GX_SetDispCopyYScale), so a 216-line copy returned 54 lines. The copy itself
+	 * uses the register and GX_SetDispCopyDst ignores the height; only the 'xfb' dump read
+	 * the wrong count. efbHeight == xfbHeight here, so the scale is 1 and the lines exact. */
+	xfbHeight = rmode->xfbHeight;
 	xfbWidth = VIDEO_PadFramebufferWidth(rmode->fbWidth);
 	GX_SetScissor(0,0,rmode->fbWidth,rmode->efbHeight);
 	g_tv_mode = rmode;

@@ -21,11 +21,15 @@
  * WiiStation's mapping (the controller ini + the HID pad's button config) made of it. Then both
  * sticks in each direction, then "press nothing". A on the Wii Remote / GameCube pad skips a
  * button the controller does not have; so does waiting 10 s. B stops. The log is
- * <device>:/wiistation/usbpad.log; scripts/usbpad_read.py turns it into a table.
+ * <device>:/wiistation/usbpad.log; scripts/usbpad_read.py turns it into a table. Each press is
+ * also named as the HID input it moved (hid_layout.c: Button2, HatUp, AxisZ+), and a full run
+ * ends with a suggested controller ini ("suggest:" lines).
  *
- * The reports come from HidController/KernelHID.c (HID_MEM2_PACKET_ADDR, hidProbe). A pad with
- * no controller ini is only read while this page is open (hidRawMode), and then only after it
- * is plugged in again; it is never given to a game. Nothing here changes how games read pads. */
+ * The reports come from HidController/KernelHID.c (HID_MEM2_PACKET_ADDR, hidProbe). A gamepad
+ * with no controller ini is read by its report descriptor's layout, as in a game. A device
+ * whose descriptor names no gamepad input is only read while this page is open (hidRawMode),
+ * and then only after it is plugged in again; it is never given to a game. Nothing here
+ * changes how games read pads. */
 
 #include <stdarg.h>
 #include <stdio.h>
@@ -54,30 +58,35 @@ extern MenuContext *pMenuContext;
 
 /* What to press, and where it is on the picture (x, y from its top left). stick: 0 a button,
  * 1 the left stick, 2 the right; dx, dy: the direction to push it. */
-struct Step { const char *name; int x, y; int stick, dx, dy; };
-static const Step STEPS[] = {
-	{ "Up",        48, 40, 0, 0, 0 }, { "Down",     48, 70, 0, 0, 0 },
-	{ "Left",      33, 55, 0, 0, 0 }, { "Right",    63, 55, 0, 0, 0 },
-	{ "Triangle", 183, 35, 0, 0, 0 }, { "Circle",  205, 56, 0, 0, 0 },
-	{ "Cross",    183, 77, 0, 0, 0 }, { "Square",  162, 56, 0, 0, 0 },
-	{ "L1",        47,  8, 0, 0, 0 }, { "R1",      183,  8, 0, 0, 0 },
-	{ "L2",        47,  8, 0, 0, 0 }, { "R2",      183,  8, 0, 0, 0 },
-	{ "Select",    98, 56, 0, 0, 0 }, { "Start",   133, 56, 0, 0, 0 },
-	{ "L3",        81, 92, 0, 0, 0 }, { "R3",      153, 92, 0, 0, 0 },
-	{ "LStickUp",    81, 92, 1, 0, -1 }, { "LStickDown",  81, 92, 1, 0, 1 },
-	{ "LStickLeft",  81, 92, 1, -1, 0 }, { "LStickRight", 81, 92, 1, 1, 0 },
-	{ "RStickUp",   153, 92, 2, 0, -1 }, { "RStickDown", 153, 92, 2, 0, 1 },
-	{ "RStickLeft", 153, 92, 2, -1, 0 }, { "RStickRight",153, 92, 2, 1, 0 },
-	{ "Nothing",   116, 60, 0, 0, 0 },
+struct Step { const char *name; int x, y; int stick, dx, dy; const char *key; };
+static const Step STEPS[] = {   /* key: the controller ini line the step answers */
+	{ "Up",        48, 40, 0, 0, 0, "KeyUp" },   { "Down",     48, 70, 0, 0, 0, "KeyDown" },
+	{ "Left",      33, 55, 0, 0, 0, "KeyLeft" }, { "Right",    63, 55, 0, 0, 0, "KeyRight" },
+	{ "Triangle", 183, 35, 0, 0, 0, "KeyY" },    { "Circle",  205, 56, 0, 0, 0, "KeyX" },
+	{ "Cross",    183, 77, 0, 0, 0, "KeyB" },    { "Square",  162, 56, 0, 0, 0, "KeyA" },
+	{ "L1",        47,  8, 0, 0, 0, "KeyL1" },   { "R1",      183,  8, 0, 0, 0, "KeyR1" },
+	{ "L2",        47,  8, 0, 0, 0, "KeyL2" },   { "R2",      183,  8, 0, 0, 0, "KeyR2" },
+	{ "Select",    98, 56, 0, 0, 0, "KeySelect" }, { "Start", 133, 56, 0, 0, 0, "KeyStart" },
+	{ "L3",        81, 92, 0, 0, 0, "KeyL3" },   { "R3",      153, 92, 0, 0, 0, "KeyR3" },
+	{ "LStickUp",    81, 92, 1, 0, -1, "StickY" },  { "LStickDown",  81, 92, 1, 0, 1, "StickY" },
+	{ "LStickLeft",  81, 92, 1, -1, 0, "StickX" },  { "LStickRight", 81, 92, 1, 1, 0, "StickX" },
+	{ "RStickUp",   153, 92, 2, 0, -1, "CStickY" }, { "RStickDown", 153, 92, 2, 0, 1, "CStickY" },
+	{ "RStickLeft", 153, 92, 2, -1, 0, "CStickX" }, { "RStickRight",153, 92, 2, 1, 0, "CStickX" },
+	{ "Nothing",   116, 60, 0, 0, 0, NULL },
 };
 static const int NSTEPS = sizeof(STEPS) / sizeof(STEPS[0]);
 static const int NOTHING = NSTEPS - 1;
 
-enum { ST_FIND, ST_REST, ST_WAIT, ST_HOLD, ST_RELEASE, ST_DONE };
+enum { ST_FIND, ST_REST, ST_WAIT, ST_HOLD, ST_RELEASE, ST_SHOW, ST_DONE };
 static int state, step, frames;
+/* Pacing, in frames: a prompt can be answered after MIN_PROMPT (it used to flash past), a press
+ * or a release counts once it has lasted STEADY frames, and each result stays SHOW_RESULT. */
+enum { MIN_PROMPT = 30, STEADY = 6, SHOW_RESULT = 40 };
+static int steady;
 static int haveCtrl;          /* reports are coming in */
 static int len;               /* report length */
-static u8 cur[MAXLEN], held[MAXLEN], restMin[MAXLEN], restMax[MAXLEN];
+static u8 cur[MAXLEN], held[MAXLEN], restMin[MAXLEN], restMax[MAXLEN], restRep[MAXLEN];
+static char suggest[32][24];   /* per step: the ini value of the HID input it saw, "Button2" */
 static FILE *logFile;
 static char logPath[48];
 static char line1[96], line2[96], line3[160], line4[96], lastResult[96];
@@ -92,11 +101,15 @@ static void readReport(void)
 }
 
 /* Byte i is away from rest: outside what it did at rest, by more than its noise for a noisy one
- * (a stick at rest, a motion sensor), by anything for a still one (buttons). */
+ * (a stick at rest, a motion sensor), by anything for a still one (buttons). A byte that rests
+ * near the middle is a stick axis even when it kept still for the second of rest: a Logitech
+ * Dual Action rests at 80 and wobbles to 7F, and that one step answered every stick prompt
+ * at once (user test 2026-10-19). */
 static bool moved(const u8 *r, int i)
 {
 	int lo = restMin[i], hi = restMax[i];
-	int m = hi > lo ? (hi - lo > 24 ? hi - lo : 24) : 0;
+	bool axis = lo >= 0x40 && hi <= 0xC0;
+	int m = (hi > lo || axis) ? (hi - lo > 24 ? hi - lo : 24) : 0;
 	return r[i] < lo - m || r[i] > hi + m;
 }
 static bool anyMoved(const u8 *r)
@@ -139,10 +152,10 @@ static void logMapping(void)
 	PADStatus *p = (PADStatus *)HID_MEM2_PAD_BUFF;
 	u16 b = p[0].button;
 	char gc[160] = "", ps1[160] = "";
-	for (int i = 1; i <= 14 && i < controller_HidGC.num_buttons; i++)
+	for (int i = 1; i <= 24 && i < controller_HidGC.num_buttons; i++)   /* 23, 24: L3, R3 */
 	{
 		button_t *t = &controller_HidGC.buttons[i];
-		if ((b & t->mask) == t->mask)
+		if ((i <= 14 || i >= 23) && hidgc_held(t, b))
 			snprintf(gc + strlen(gc), sizeof(gc) - strlen(gc), "%s%s", gc[0] ? "," : "", t->name);
 	}
 	controller_config_t *c = &controller_HidGC.config[0];
@@ -152,7 +165,7 @@ static void logMapping(void)
 		{ c->L1, "L1" }, { c->R1, "R1" }, { c->L2, "L2" }, { c->R2, "R2" },
 		{ c->SELECT, "Select" }, { c->START, "Start" }, { c->L3, "L3" }, { c->R3, "R3" } };
 	for (unsigned i = 0; i < sizeof(map) / sizeof(map[0]); i++)
-		if (map[i].t && (b & map[i].t->mask) == map[i].t->mask)
+		if (hidgc_held(map[i].t, b))
 			snprintf(ps1 + strlen(ps1), sizeof(ps1) - strlen(ps1), "%s%s", ps1[0] ? "," : "", map[i].name);
 	logf_(" gc=%s ps1=%s buttons=%04X sticks=%d,%d,%d,%d triggers=%u,%u",
 		gc[0] ? gc : "-", ps1[0] ? ps1 : "-", b, p[0].stickX, p[0].stickY,
@@ -168,6 +181,38 @@ static void changes(char *out, int size, const u8 *r)
 		if (moved(r, i))
 			k += snprintf(out + k, size - k, "%s%d:%02X>%02X", k ? "," : "", i,
 				(restMin[i] + restMax[i]) / 2, r[i]);
+}
+
+/* The HID input a press moved, by the report descriptor (hid_layout.c): for a button step the
+ * button, hat direction or axis direction that turned on (buttons first); for a stick step the
+ * axis that moved furthest. Its ini name into out ("Button2", "HatUp", "AxisZ+"; "AxisRz" for
+ * a stick), or "" when the descriptor names nothing that moved. */
+static void hidSeen(const u8 *r, int stickStep, char *out, int size)
+{
+	hid_state a, b;
+	out[0] = 0;
+	if (hidProbe.nInputs <= 0 || !hid_decode(&hidLayout, restRep, len, &a) || !hid_decode(&hidLayout, r, len, &b))
+		return;
+	if (stickStep)
+	{
+		int best = -1, most = 48;
+		for (int k = 0; k < HID_NUM_AXES; k++)
+		{
+			int d = b.axis[k] - a.axis[k];
+			if (d < 0) d = -d;
+			if (hidLayout.axis[k].present && d > most) { most = d; best = k; }
+		}
+		if (best >= 0) snprintf(out, size, "Axis%s", hid_axis_names[best]);
+		return;
+	}
+	uint64_t on = b.held & ~a.held;
+	for (int in = 0; in < HID_NUM_INPUTS; in++)
+		if ((on >> in) & 1)
+		{
+			char t[16];
+			snprintf(out, size, "%s", hid_input_token(in, t));
+			return;
+		}
 }
 
 static void openLog(void)
@@ -217,6 +262,7 @@ static void logHeader(void)
 		logf_("ini: %s %s\n", ini, access(ini, F_OK) == 0 ? "found" : "missing");
 	}
 	logf_("mode: %s\n", !hidProbe.reading ? "not-read" : hidProbe.raw ? "raw" : "mapped");
+	logf_("layout: %s\n", hidProbe.raw ? "none" : hidProbe.autoLayout ? "auto" : "ini");
 	hex(buf, sizeof(buf), hidProbe.params, sizeof(hidProbe.params));
 	logf_("params: %s\n", buf);
 	if (hidProbe.request)
@@ -228,6 +274,16 @@ static void logHeader(void)
 		hex(buf, sizeof(buf), hidProbe.desc, hidProbe.descLen);
 		logf_("reportdesc: len=%d %s\n", hidProbe.descLen, buf);
 	}
+	/* what hid_parse found in it */
+	logf_("hidinputs: %d", hidProbe.nInputs);
+	if (hidProbe.nInputs > 0)
+	{
+		logf_(" report_id=%u bytes=%u buttons=%u hats=%d axes=", hidLayout.report_id, hidLayout.bytes,
+			hidLayout.nbuttons, hidLayout.hat[0].present + hidLayout.hat[1].present);
+		for (int k = 0, n = 0; k < HID_NUM_AXES; k++)
+			if (hidLayout.axis[k].present) logf_("%s%s", n++ ? "," : "", hid_axis_names[k]);
+	}
+	logf_("\n");
 }
 
 static void logRest(void)
@@ -268,13 +324,33 @@ static void logStep(const char *result, const u8 *r)
 	{
 		hex(raw, sizeof(raw), r, len);
 		changes(ch, sizeof(ch), r);
-		logf_(" raw=%s changed=%s", raw, ch[0] ? ch : "-");
+		hidSeen(r, STEPS[step].stick, suggest[step], sizeof(suggest[step]));
+		logf_(" raw=%s changed=%s hid=%s", raw, ch[0] ? ch : "-", suggest[step][0] ? suggest[step] : "-");
 		logMapping();
-		snprintf(lastResult, sizeof(lastResult), "%s: %s %.60s", STEPS[step].name, result, ch);
+		snprintf(lastResult, sizeof(lastResult), "%s: %s %s %.40s", STEPS[step].name, result,
+			suggest[step], ch);
 	}
 	else
 		snprintf(lastResult, sizeof(lastResult), "%s: %s", STEPS[step].name, result);
 	logf_("\n");
+}
+
+/* A controller ini from what the steps saw, as "suggest:" lines (scripts/usbpad_read.py prints
+ * them as a file). A stick's two steps make one line. A button nothing answered is left out:
+ * the automatic layout keeps its own guess for it. */
+static void logSuggestion(void)
+{
+	if (hidProbe.nInputs <= 0) return;
+	logf_("suggest: [%s For WiiStation]\n", hidProbe.product[0] ? hidProbe.product : "USB pad");
+	logf_("suggest: VID=%04X\nsuggest: PID=%04X\nsuggest: Auto=1\n", hidProbe.vid, hidProbe.pid);
+	for (int i = 0; i < NOTHING; i++)
+	{
+		if (!suggest[i][0])
+			continue;
+		if (i > 0 && STEPS[i].stick && !strcmp(STEPS[i - 1].key, STEPS[i].key) && suggest[i - 1][0])
+			continue;   /* the stick's other direction said it already */
+		logf_("suggest: %s=%s\n", STEPS[i].key, suggest[i]);
+	}
 }
 
 static void nextStep(void)
@@ -283,12 +359,14 @@ static void nextStep(void)
 	frames = 0;
 	if (step >= NSTEPS)
 	{
+		logSuggestion();
 		closeLog("done");
 		state = ST_DONE;
 		snprintf(line1, sizeof(line1), "Done: A to test again, B to go back");
 		return;
 	}
 	state = ST_WAIT;
+	steady = 0;
 	setPrompt();
 }
 
@@ -322,7 +400,8 @@ void UsbPadTestFrame::updateFrame(float deltaTime)
 			hidProbe.vid, hidProbe.pid);
 	else
 		snprintf(line2, sizeof(line2), "%04X:%04X %.24s, %s", hidProbe.vid, hidProbe.pid,
-			hidProbe.product[0] ? hidProbe.product : "", hidProbe.raw ? "raw (no ini)" : "ini found");
+			hidProbe.product[0] ? hidProbe.product : "", hidProbe.raw ? "raw (no ini, no HID layout)" :
+			hidProbe.autoLayout ? "HID layout" : "ini found");
 	if (hidProbe.reading)
 	{
 		char h[MAXLEN * 3 + 1];
@@ -348,6 +427,8 @@ void UsbPadTestFrame::updateFrame(float deltaTime)
 			frames = 0;
 			memcpy(restMin, cur, len);
 			memcpy(restMax, cur, len);
+			memcpy(restRep, cur, len);
+			memset(suggest, 0, sizeof(suggest));
 			snprintf(line1, sizeof(line1), "Hands off the controller...");
 		}
 		else if (frames > 180)   /* 3 s: no controller; walk the steps anyway, so the log says so */
@@ -387,7 +468,8 @@ void UsbPadTestFrame::updateFrame(float deltaTime)
 			else if (frames >= 180) { logStep("rest-ok", NULL); nextStep(); }
 			break;
 		}
-		if (anyMoved(cur))
+		steady = (frames >= MIN_PROMPT && anyMoved(cur)) ? steady + 1 : 0;
+		if (steady >= STEADY)
 		{
 			memcpy(held, cur, len);
 			state = ST_HOLD;
@@ -411,11 +493,18 @@ void UsbPadTestFrame::updateFrame(float deltaTime)
 		}
 		break;
 	case ST_RELEASE:
-		if (!anyMoved(cur) || frames >= 300)
+		steady = anyMoved(cur) ? 0 : steady + 1;
+		if (steady >= STEADY || frames >= 300)
 		{
 			if (frames >= 300) logf_("step %d %s: release-timeout\n", step + 1, STEPS[step].name);
-			nextStep();
+			state = ST_SHOW;
+			frames = 0;
+			snprintf(line1, sizeof(line1), "Got it");
 		}
+		break;
+	case ST_SHOW:   /* the result stays up before the next prompt */
+		if (frames >= SHOW_RESULT)
+			nextStep();
 		break;
 	}
 }
@@ -504,7 +593,7 @@ void UsbPadTestFrame::drawChildren(menu::Graphics &gfx)
 	gfx.setTEV(GX_PASSCLR);
 
 	/* the button asked for: a ring; a stick also gets the direction */
-	if (state >= ST_WAIT && state <= ST_RELEASE && step < NOTHING)
+	if (state >= ST_WAIT && state <= ST_SHOW && step < NOTHING)
 	{
 		const Step &s = STEPS[step];
 		int x = PAD_X + s.x, y = PAD_Y + s.y;
@@ -522,7 +611,7 @@ void UsbPadTestFrame::drawChildren(menu::Graphics &gfx)
 	font.drawString(320, 40, title, 1.0f, true);
 	font.drawInit(state == ST_DONE ? white : lit);
 	font.drawString(320, 90, line1, 1.0f, true);
-	if (step >= 8 && step <= 11 && state >= ST_WAIT && state <= ST_RELEASE)
+	if (step >= 8 && step <= 11 && state >= ST_WAIT && state <= ST_SHOW)
 		font.drawString(PAD_X + STEPS[step].x, PAD_Y - 22, (char *)STEPS[step].name, 0.8f, true);
 	font.drawInit(white);
 	font.drawString(320, 130, line2, 0.7f, true);

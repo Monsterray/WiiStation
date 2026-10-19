@@ -24,9 +24,9 @@
 #include "../mem2_manager.h"
 #include "wiiSXconfig.h"   /* OPEN_GX */
 #include "screenshot.h"
+#include "perf_prof.h"   /* perf_log_open: perf.log, or the play build's play.log */
 
 #define SHOT_DIR "sd:/wiistation/screenshots"
-#define SHOT_LOG "sd:/wiistation/perf.log"
 
 /* The display width for each GPUSTAT horizontal resolution (gpulib/gpulib.c update_width) */
 static const unsigned short SHOT_HRES[8] = { 256, 368, 320, 368, 512, 368, 640, 368 };
@@ -207,13 +207,13 @@ done:
 	_mem2_free(buf);
 	{
 		/* One line in perf.log: the file and what the save cost in emulator time */
-		FILE *lf = fopen(SHOT_LOG, "a");
+		FILE *lf = perf_log_open();
 
 		if (lf) {
 			fprintf(lf, "screenshot: %s %s %ux%u at %u,%u %llu ms\n", ok ? "saved" : "FAILED",
 			        ok ? file : "-", w, h, sx, sy,
 			        (unsigned long long)ticks_to_millisecs(diff_ticks(t0, gettime())));
-			fclose(lf);
+			perf_log_close(lf);
 		}
 	}
 	return ok ? 0 : -1;

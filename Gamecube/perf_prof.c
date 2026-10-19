@@ -144,7 +144,7 @@ unsigned long g_netwait_old_wakes, g_netwait_new_wakes;
  * markers of games before it that never started -- a disc that could not be read.) */
 void perf_log_begin(void)
 {
-	static int fresh = 0;
+	static int fresh = PERF_PLAY;   /* the play build appends to play.log instead */
 	if (!fresh) {
 		FILE *f = fopen("sd:/wiistation/perf.log", "w");
 		if (f) {
@@ -157,6 +157,8 @@ void perf_log_begin(void)
 	}
 }
 
+static void vtl_restart(void);
+
 void perf_reset(void)
 {
 	/* vramio.log: a line where each game of a chain starts (kind FF) */
@@ -164,6 +166,7 @@ void perf_reset(void)
 	perf_log_begin();
 	memset(&g_perf, 0, sizeof(g_perf));
 	g_perf.wall_start_ticks = gettime();
+	vtl_restart();   /* the counters it takes differences of just went back to zero */
 #if PERF_PROF_PMC
 	perf_pmc_start();
 #endif
@@ -218,11 +221,11 @@ static void perf_vram_dump(void)
 	/* The XFB the TV shows: an 8-byte header (width, height, big-endian u32) and YUYV.
 	 * Under Dolphin it holds the copies only with XFB_RAM=1 (XFBToTextureEnable=False). */
 	perf_xfb_write("sd:/wiistation/xfb.bin");
-	f = fopen("sd:/wiistation/perf.log", "a");
+	f = perf_log_open();
 	if (f) {
 		fprintf(f, "vramdump: frames=%lu vblanks=%lu bytes=%lu\n",
 			(unsigned long)g_perf.present_frames, (unsigned long)g_perf.vblanks, (unsigned long)n);
-		fclose(f);
+		perf_log_close(f);
 	}
 }
 
@@ -595,9 +598,39 @@ static void vsig_take(vsig_t *g)
 	g->cleans = lightrec_code_cleans;
 }
 
+static void vtl_fill(vtl_t *v, uint64_t now)
+{
+	v->wall = vtl_u16(now - vtl_t0);
+	v->cpu = vtl_u16(g_perf.cpu_ticks - vtl_cpu0);
+	v->gpu = vtl_u16(g_perf.hw_gpu_ticks - vtl_gpu0);
+	v->limit = vtl_u16(g_perf.limit_ticks - vtl_lim0);
+	v->spu = vtl_u16(g_perf.spu_ticks - vtl_spu0);
+	v->pres = (unsigned short)(g_perf.present_frames - vtl_pres0);
+	v->jit = vtl_u16(lightrec_jit_ticks - vtl_jit0);
+}
+
+/* perf_reset(): the next vblank only takes the new starting values */
+static void vtl_restart(void)
+{
+	vtl_t0 = 0;
+}
+
 static void vtl_tick(void)
 {
 	uint64_t now = gettime();
+#if PERF_PLAY
+	/* Streamed to the session's vtl_<id>.bin (play_log.c), no ring. The vblank after a
+	 * (re)start has no differences to take: a record of wall 0 and limit 0xffff, so record N
+	 * stays the session's vblank N and marks where the game came back from the menu (a
+	 * real record can have wall 0, never with that limit). */
+	vtl_t r;
+	memset(&r, 0, sizeof r);
+	if (vtl_t0)
+		vtl_fill(&r, now);
+	else
+		r.limit = 0xffff;
+	play_vtl_put(&r, sizeof r);
+#else
 	if (!vtl) {
 		vtl = (vtl_t *)_mem2_malloc(VTL_MAX * sizeof(vtl_t));
 #if PERF_PROF_VSIG
@@ -612,14 +645,9 @@ static void vtl_tick(void)
 		if (vsig)
 			vsig_take(&vsig[vtl_n - 1]);
 #endif
-		v->wall = vtl_u16(now - vtl_t0);
-		v->cpu = vtl_u16(g_perf.cpu_ticks - vtl_cpu0);
-		v->gpu = vtl_u16(g_perf.hw_gpu_ticks - vtl_gpu0);
-		v->limit = vtl_u16(g_perf.limit_ticks - vtl_lim0);
-		v->spu = vtl_u16(g_perf.spu_ticks - vtl_spu0);
-		v->pres = (unsigned short)(g_perf.present_frames - vtl_pres0);
-		v->jit = vtl_u16(lightrec_jit_ticks - vtl_jit0);
+		vtl_fill(v, now);
 	}
+#endif
 	vtl_t0 = now;
 	vtl_cpu0 = g_perf.cpu_ticks; vtl_gpu0 = g_perf.hw_gpu_ticks;
 	vtl_lim0 = g_perf.limit_ticks; vtl_spu0 = g_perf.spu_ticks;
@@ -727,11 +755,11 @@ void perf_stack_log(const char *where)
 	 * card cannot be read back (a Wii started from HBC, not in lab mode) */
 	printf("stack: %s deepest=%u sp_depth=%u\n", where, (unsigned)(hi - a),
 		sp >= lo && sp < hi ? (unsigned)(hi - sp) : 0);
-	if ((f = fopen("sd:/wiistation/perf.log", "a"))) {
+	if ((f = perf_log_open())) {
 		fprintf(f, "stack: %s deepest=%u at=%08x word=%08x sp_depth=%u size=%u lo=%08x\n", where,
 			(unsigned)(hi - a), (unsigned)a, a < hi ? (unsigned)*(u32 *)a : 0,
 			sp >= lo && sp < hi ? (unsigned)(hi - sp) : 0, (unsigned)(hi - lo), (unsigned)lo);
-		fclose(f);
+		perf_log_close(f);
 	}
 }
 
@@ -748,7 +776,7 @@ void perf_state_log(int game)
 	if (psxVuw)
 		for (k = 0, w = (const u32 *)psxVuw; k < 1024 * 512 / 2; k++)
 			hv = (hv ^ w[k]) * 16777619u;
-	if ((f = fopen("sd:/wiistation/perf.log", "a"))) {
+	if ((f = perf_log_open())) {
 		fprintf(f, "state: game=%d ram=%08x vram=%08x pc=%08x cycle=%u vblank=%u\n",
 			game, (unsigned)hr, (unsigned)hv, (unsigned)psxRegs.pc, (unsigned)psxRegs.cycle,
 			(unsigned)frame_counter);
@@ -758,7 +786,7 @@ void perf_state_log(int game)
 		fprintf(f, "state: game=%d tb=%llu limit_drop_tb=%llu now=%u due=%u\n", game,
 			(unsigned long long)gettime(), (unsigned long long)g_perf.limit_drop_tb,
 			(unsigned)g_perf.limit_drop_now, (unsigned)g_perf.limit_drop_due);
-		fclose(f);
+		perf_log_close(f);
 	}
 }
 
@@ -908,11 +936,14 @@ void perf_fatal_log(unsigned code, const char *reason)
 	FILE *f;
 
 	perf_report();   /* the counters so far, then the reason: the run stops here */
-	if ((f = fopen("sd:/wiistation/perf.log", "a"))) {
+	if ((f = perf_log_open())) {
 		fprintf(f, "fatal: code=0x%02x pc=%08x cycle=%u vblank=%u %s\n", code,
 			(unsigned)psxRegs.pc, (unsigned)psxRegs.cycle, (unsigned)frame_counter, reason);
-		fclose(f);
+		perf_log_close(f);
 	}
+#if PERF_PLAY
+	play_drain();   /* the run stops here: the reason has to reach the card now */
+#endif
 }
 
 void perf_vblank_tick(void)
@@ -961,9 +992,9 @@ void perf_vblank_tick(void)
 			FILE *pf;
 			perf_report();
 			set_port_type((int)pt_port, (int)pt_type);
-			if ((pf = fopen("sd:/wiistation/perf.log", "a"))) {
+			if ((pf = perf_log_open())) {
 				fprintf(pf, "padtype: vblank=%u port=%u type=%u\n", frame_counter, pt_port + 1, pt_type);
-				fclose(pf);
+				perf_log_close(pf);
 			}
 		}
 	}
@@ -998,9 +1029,10 @@ void perf_present_tick(unsigned long long present_us)
 #endif
 	g_perf.present_us += present_us;
 	/* the audio ring is written from the present path, not from inside the mixer */
-	if (g_perf.aev_n == PERF_AEV_N && !g_perf.aev_printed)
+	if (!PERF_PLAY && g_perf.aev_n == PERF_AEV_N && !g_perf.aev_printed)
 		perf_audio_flush();
-	if (!g_perf.vram_dumped && g_perf.vblanks >= PERF_VRAM_DUMP_VBLANK && !autoinput_dump_vbl_set()) {
+	/* the play build: no 1 MB card write in the middle of a game */
+	if (!PERF_PLAY && !g_perf.vram_dumped && g_perf.vblanks >= PERF_VRAM_DUMP_VBLANK && !autoinput_dump_vbl_set()) {
 		g_perf.vram_dumped = 1;
 		perf_vram_dump();
 	}
@@ -1031,7 +1063,7 @@ void perf_report(void)
 
 	perf_sample_mem();
 
-	f = fopen("sd:/wiistation/perf.log", "a");
+	f = perf_log_open();
 	if (f) {
 		uint32_t mem1_kb = SYS_GetArena1Size() >> 10;
 		uint32_t m2used = gx_mem2_used() >> 10;
@@ -1484,6 +1516,18 @@ void perf_report(void)
 				fprintf(f, "tvlog: %ux%u at vblank %u\n", g_perf.tv_log[k][0],
 					g_perf.tv_log[k][1], g_perf.tv_log[k][2]);
 		}
+		{	/* what the VI scans now: its first 32 registers (0xCC002000) and the XFB the
+			 * 'xfb' dump reads, so a TV-only symptom can be told from an XFB one
+			 * (Docs/GX_QUALITY.md, AA) */
+			extern u32 *xfb[3];
+			volatile u16 *vi = (volatile u16 *)0xCC002000;
+			unsigned k;
+			fprintf(f, "vireg: cur=%08x front=%08x |", (unsigned)MEM_VIRTUAL_TO_PHYSICAL(VIDEO_GetCurrentFramebuffer()),
+				(unsigned)MEM_VIRTUAL_TO_PHYSICAL(xfb[2]));
+			for (k = 0; k < 32; k++)
+				fprintf(f, " %04x", vi[k]);
+			fprintf(f, "\n");
+		}
 		fprintf(f, "cdpf: hit=%lu miss=%lu reads=%lu bmiss=%lu miss_us=%llu miss_worst=%lu"
 			" bmiss_us=%llu bmiss_worst=%lu slow1=%lu slow4=%lu\n",
 			(unsigned long)g_perf.cd_pf_hit, (unsigned long)g_perf.cd_pf_miss,
@@ -1739,13 +1783,15 @@ void perf_report(void)
 			(unsigned long)g_perf.menu_strings, (unsigned long)g_perf.menu_glyphs,
 			(unsigned long)g_perf.menu_texloads);
 		perf_ramwatch_report(f);
-		fclose(f);
+		perf_log_close(f);
 	}
+#if !PERF_PLAY   /* whole files rewritten at every report: a card write on the emulator thread */
 	if (g_perf.aev_n)
 		perf_audio_flush();
 	perf_pad_flush();
 	perf_vram_flush();
 	perf_tty_flush();
+#endif
 
 #ifdef SHOW_DEBUG
 	/* Mirror compact lines to overlay rows 22..29 (rows 0..21 are taken by

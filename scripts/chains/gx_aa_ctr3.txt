@@ -1,0 +1,16 @@
+CHAIN
+# GxColor=2 after the same settings sequence as hw_gx_quality rows 3-6 (GxTexMin=3, GxColor=1 in
+# 480i, 240p, then 240p AA), short lead-ins: xfb_01..04 = the AA game. Docs/GX_QUALITY.md "AA".
+#   ... wii_lab.py hw_gx_aa3 scripts/chains/gx_aa_ctr3.txt --dol debug --timeout 400
+300 sd:/wiistation/gx_ctr_aa3.txt GxTexMin=3
+sd:/wiistation/isos/Crash Team Racing
+Crash Team Racing [U] [SCUS-94426].cue
+300 sd:/wiistation/gx_ctr_aa3.txt GxColor=1
+sd:/wiistation/isos/Crash Team Racing
+Crash Team Racing [U] [SCUS-94426].cue
+300 sd:/wiistation/gx_ctr_aa3.txt TVMode=1
+sd:/wiistation/isos/Crash Team Racing
+Crash Team Racing [U] [SCUS-94426].cue
+2400 sd:/wiistation/gx_ctr_aa.txt TVMode=1 GxColor=2
+sd:/wiistation/isos/Crash Team Racing
+Crash Team Racing [U] [SCUS-94426].cue

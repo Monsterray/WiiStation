@@ -1,5 +1,5 @@
 README : WiiStation
-Version 5.14.0
+Version 5.15.0
 
 LICENSE:
     This software is licensed under the GNU General Public License v2
@@ -156,6 +156,24 @@ LATER UPDATES BY:
 
 WiiStation CHANGE LOG:
 Unreleased:
+* USB controllers: every button, hat and axis can be used. A USB gamepad with
+  no controller ini now works: WiiStation reads its HID report descriptor and
+  lays it out as a standard pad (buttons 1-4 Square Cross Circle Triangle, 5-8
+  L1 R1 L2 R2, 9 Select, 10 Start, 11 L3, 12 R3, the hat as the D-pad, X/Y and
+  Z/Rz or Rx/Ry as the sticks). Old controller inis work as before.
+* Controller inis can name any input: KeyL3=Button11, KeyUp=HatUp,
+  KeyL2=AxisZ+, StickX=AxisRz, or the old byte,mask (Docs/CONTROLLER_TESTING.md
+  section 7). New keys KeyL3 and KeyR3; the DualShock 3/4 and Logitech Dual
+  Action / RumblePad 2 inis now have L3 and R3.
+* Configure Buttons for a USB pad offers L3, R3 and every input of the pad by
+  name (Btn 13, Hat Up, Axis Z+), for any PlayStation button and for the menu,
+  fast-forward, screenshot and ANALOG combinations (a Home button can open the
+  menu alone). Analog sticks can come from any axis pair. The A-/C- stick
+  direction entries now work.
+* Test USB Pad shows which HID input each press moved and writes a complete
+  suggested controller ini into usbpad.log (scripts/usbpad_read.py --ini).
+
+Ver 5.15.0 (2026-10-19):
 * Save Settings > This Game now saves only the settings that differ from
   settings.ini. When the game starts, WiiStation reads settings.ini first and
   the game's own file on top, so a later change to settings.ini reaches every
@@ -169,6 +187,14 @@ Unreleased:
 * Test USB Pad moved to Settings > General > Advanced > Input ("USB Pad: Test").
   B on the test page goes back there.
 
+* ANALOG button: with PSX Pad Type Analog, a key combination presses the
+  DualShock's ANALOG button (digital <-> analog), as on a PlayStation: GameCube
+  pad L+R+Start, HID pad L2+R2+Start, Classic L+R+ZR, Wii U Pro and GamePad
+  L+R+ZR (or both sticks pressed in), Wiimote A+B+2. Set it in Configure
+  Buttons (ANALOG, or Off). A note on screen says the new mode, or that the
+  game locked it (Ape Escape). This replaces 5.14.0's rule that turned the pad
+  analog by itself: MediEvil now starts digital, as on a PlayStation; press
+  the combination once and the stick moves Dan.
 Ver 5.14.0 (2026-10-18):
 * Fixed: with the Soft renderers (the default), Deflicker and Deflicker Level
   did nothing in 480i (the usual mode): the game kept the menu's filter. OpenGX

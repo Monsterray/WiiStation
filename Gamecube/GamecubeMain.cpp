@@ -228,6 +228,8 @@ static const char* const OPT_CHROMA[]        = { "Sharp", "Smooth" };
 static const char* const OPT_COLOUR[]        = { "15-bit", "24-bit" };
 static const char* const OPT_GAMMA[]         = { "1.0", "1.1", "1.2", "1.3", "1.4", "1.5" };
 static const char* const OPT_DEFLICKER[]     = { "Normal", "Light", "Strong" };
+static const char* const OPT_TEXMIN[]        = { "Off", "Linear", "Aniso 2x", "Aniso 4x" };
+static const char* const OPT_GXCOLOR[]       = { "24-bit", "6-bit dither", "AA (240p)" };
 static const char* const OPT_VIDEOMODE[]     = { "Auto", "NTSC", "PAL 50", "PAL 60", "480p" };
 static const char* const OPT_RESAMPLE[]      = { "Hold", "Linear", "Cubic" };
 static const char* const OPT_OUTPUT[]        = { "CPU", "DSP" };
@@ -277,8 +279,9 @@ static SettingOption OPTIONS[] =
   { "SkipFrames", &frameSkip, FRAMESKIP_DISABLE, FRAMESKIP_ENABLE, NULL, "Frame Skip", OPT_OFF_ON, "Skips frames when the Wii is too slow." },
   { "FPS", &showFPSonScreen, FPS_HIDE, FPS_SHOW, NULL, "Show FPS", OPT_OFF_ON, "Shows the frame rate on the screen." },
   { "EfbSync", &efbSyncSetting, 0, 2 },
-  { "GxTexMin", &gxTexMin, 0, 3 },
-  { "GxColor", &gxColor, 0, 2 },
+  { "GxTexMin", &gxTexMin, 0, 3, NULL, "Far Textures", OPT_TEXMIN, "OpenGX: smooths ground drawn smaller than a pixel. A trial." },
+  /* 2 (RGB565 anti-aliased, 240p) is left out: a black TV picture on the Wii (Docs/GX_QUALITY.md) */
+  { "GxColor", &gxColor, 0, 2, NULL, "GX Colour", OPT_GXCOLOR, "OpenGX: 6-bit dither, or anti-aliased edges in 240p mode. A trial." },
   { "Audio", NULL, 0, 0, "The sound." },
   { "Audio", &audioEnabled, AUDIO_DISABLE, AUDIO_ENABLE, NULL, "Audio", OPT_OFF_ON, "Turns the sound output on or off." },
   { "SoundDriver", &soundHwAccel, SOUND_HW_ACCEL_OFF, SOUND_HW_ACCEL_ON, NULL, "Sound Driver", OPT_OUTPUT, "The output driver only: DSP plays at 44100 Hz through the Wii's DSP, CPU at 48000 Hz from the CPU. The PS1 sound emulation is the same." },
@@ -1002,7 +1005,7 @@ static int chainLoad(FILE *f)
 	}
 	/* The log belongs to this chain from here. perf_reset() empties it again at the first
 	 * go() in a debug build, before anything is written; a release build never does. */
-	if (chainN) { FILE *p = fopen("sd:/wiistation/perf.log", "w"); if (p) fclose(p); }
+	if (chainN && !PERF_PLAY) { FILE *p = fopen("sd:/wiistation/perf.log", "w"); if (p) fclose(p); }
 	return chainN;
 }
 
@@ -1098,7 +1101,7 @@ static bool chainNext(void)
 		perf_vtl_flush(chainI + 1);   /* the per-vblank timeline: vtl_NN.bin */
 		perf_report();
 	}
-	f = fopen("sd:/wiistation/perf.log", "a");
+	f = perf_log_open();
 	if (f) {
 		achievements_bench_chain_end(f, chainList[chainI].input[0] != 0);
 		char sets[CHAIN_SETS * 32 + 8] = "";
@@ -1112,7 +1115,7 @@ static bool chainNext(void)
 		when[10] = 'T';   /* one token: at=2026-09-28T19:50:01 */
 		fprintf(f, "=== chain %d/%d end vblanks=%u%s at=%s rom=%s ===\n", chainI + 1, chainN,
 			(unsigned)frame_counter, sets, when, chainList[chainI].rom);
-		fclose(f);
+		perf_log_close(f);
 	}
 	mcd_track_delete();   /* the memory cards this game used */
 	hb_phase("chain end", chainList[chainI].path);
@@ -1122,6 +1125,7 @@ static bool chainNext(void)
 	}
 	chain_stop_vbl = 0;
 	autoinput_reset(NULL);   /* closes a recording ("record"), before the card is unmounted */
+	play_session_end("chain_end");   /* the play build's queued logs, before the unmount */
 	/* Unmount first: a Wii that powers off with the FAT cache dirty loses the log. */
 	if (lab_active()) {   /* send the results, then back to the Homebrew Channel for the next test */
 		hb_phase("lab report", "");
@@ -1486,9 +1490,9 @@ static bool loadSeparatelySettingItem(const char* settingPathBuf)
             fclose(f);
 #ifdef PERF_PROF
             perf_log_begin();   /* before the game's first go(), which would start the log anew */
-            if ((f = fopen("sd:/wiistation/perf.log", "a"))) {   /* which file a game start read */
+            if ((f = perf_log_open())) {   /* which file a game start read */
                 fprintf(f, "settings: %s\n", settingPathBuf);
-                fclose(f);
+                perf_log_close(f);
             }
 #endif
             return true;
@@ -1632,6 +1636,7 @@ int loadISO(fileBrowser_file* file)
 		CdromId[0] = '\0';
 	else
 		CheckCdrom();
+	play_session_begin(CdromId, isoFile.name);   /* the play build's play.log (play_log.c) */
 
 	gpu_t *oldGpuPtr = gpuPtr;
 
@@ -1847,6 +1852,30 @@ bool loadSettingsNow(const char *dev)
 	return true;
 }
 
+#if PERF_PLAY
+/* The play build's play.log (play_log.c), at each start from the menu and each return to it:
+ * the game's vblank and every numeric setting in force. String settings (folders, names,
+ * logins) are left out. */
+static void playLogGo(const char *what)
+{
+	FILE *f = perf_log_open();
+	char when[32];
+	unsigned i;
+	if (!f)
+		return;
+	perf_datetime(when, sizeof when);
+	fprintf(f, "play: %s at=%s vblank=%u game=%s", what, when, (unsigned)frame_counter, CdromId);
+	if (!strcmp(what, "go")) {
+		fprintf(f, " set:");
+		for (i = 0; i < sizeof(OPTIONS) / sizeof(OPTIONS[0]); i++)
+			if (OPTIONS[i].value && OPTIONS[i].max != CONFIG_STRING_TYPE)
+				fprintf(f, " %s=%d", OPTIONS[i].key, (int)*OPTIONS[i].value);
+	}
+	fprintf(f, "\n");
+	perf_log_close(f);
+}
+#endif
+
 extern "C" {
 //System Functions
 extern "C" void GL_flip05Drop(void);
@@ -1898,11 +1927,18 @@ void go(void) {
 	/* A scripted save or load (statetool.cpp) stops the CPU at its vblank; it is carried out
 	 * here, with the CPU stopped as the menu has it, and the game goes on. */
 	hb_phase("game", isoFile.name);
+#if PERF_PLAY
+	playLogGo("go");
+#endif
 	do {
 		psxCpu->Execute();
 		achievements_flush();
 	} while (statetool_service());
 	hb_phase("menu", "game stopped");
+#if PERF_PLAY
+	perf_report();   /* this stretch's counters: the next start from the menu zeroes them */
+	playLogGo("menu");
+#endif
 	filterTourStop();
 	GL_flip05Drop();   /* GlesGpu/gpuPlugin.c: a GP1 05 flip not yet presented */
 
@@ -1945,6 +1981,7 @@ extern "C" void quit_crumb(const char *fmt, ...);   /* libgui/Gui.cpp: the Quit 
 
 void SysClose()
 {
+	play_session_end("closed");   /* the play build: a new game is loading, or Quit */
 	quit_crumb("SysClose: psxShutdown");
 	psxShutdown();
 	quit_crumb("SysClose: ClosePlugins");

@@ -2984,6 +2984,7 @@ static void OverlayRestoreEfb(void)
  * put back after it as OverlayRestoreEfb does */
 extern int gunReticleWanted(void);
 extern void drawGunReticles(void);
+extern const char *pad_note(int *red);   /* Gamecube/PadSSSPSX.c: the ANALOG button's note */
 static void OverlayGunReticles(void)
 {
     extern GXRModeObj *g_tv_mode;
@@ -3013,7 +3014,7 @@ static void flipEGL(void)
     efb_present();   /* efbSync.inc: keep the frame the copy to the XFB may clear */
 
     /* a frame that will not reach the TV gets no text */
-    if ((showFPSonScreen == 1 || gunReticleWanted()) && !gx_vout_busy())
+    if ((showFPSonScreen == 1 || gunReticleWanted() || pad_note(NULL)) && !gx_vout_busy())
     {
         /* a copy that clears the EFB takes the text with it; otherwise keep what it covers */
         if (!canClearFrameBuf)

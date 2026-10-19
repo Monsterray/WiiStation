@@ -15,6 +15,12 @@
  *
 **/
 
+/* The USB HID gamepad. Two kinds of entry in every list:
+ *  - the GameCube-style pad HidController/PADReadGC.c makes from the controller ini, or from
+ *    the report descriptor for a pad with no ini (A, B, X, Y, L1 ... R3, D-pad, sticks);
+ *  - every input of the pad itself, by its HID name (Btn 1..32, Hat Up.., Axis Z+..), from
+ *    hidState (hid_layout.h). Their mask is HID_RAW | the input number.
+ * Entries are only ever appended: a button file stores each choice as its index. */
 
 #include <string.h>
 #include <ogc/pad.h>
@@ -40,6 +46,14 @@ enum {
     PAD_TRIGGER_Z_UP = 0x0100 << 16,
 };
 
+#define HID_RAW 0x80000000u   /* a HID input, number in the low bits */
+
+/* The 60 HID inputs, as entries base .. base+59 of a list */
+#define RAW(base, i) { (base) + (i), HID_RAW | (i), (char *)hid_input_names[i] },
+#define RAW4(b, i)  RAW(b, i) RAW(b, i + 1) RAW(b, i + 2) RAW(b, i + 3)
+#define RAW20(b, i) RAW4(b, i) RAW4(b, i + 4) RAW4(b, i + 8) RAW4(b, i + 12) RAW4(b, i + 16)
+#define RAW_ALL(b)  RAW20(b, 0) RAW20(b, 20) RAW20(b, 40)
+
 static button_t buttons[] = {
     {  0, ~0,                                "None" },
     {  1, PAD_BUTTON_UP,                     "D-Up" },
@@ -64,17 +78,28 @@ static button_t buttons[] = {
     { 20, ANALOG_L,                          "A-Left" },
     { 21, ANALOG_R,                          "A-Right" },
     { 22, ANALOG_D,                          "A-Down" },
+    { 23, PAD_BUTTON_L3,                     "L3" },
+    { 24, PAD_BUTTON_R3,                     "R3" },
+    RAW_ALL(25)
 };
 
+/* 0, 1: the GameCube-style sticks (the ini's or the automatic layout's); then axis pairs */
 static button_t analog_sources[] = {
     { 0, ANALOG_AS_ANALOG,  "A-Stick" },
     { 1, C_STICK_AS_ANALOG, "C-Stick" },
+    { 2, 0, "Axes X/Y" },
+    { 3, 0, "Axes Z/Rz" },
+    { 4, 0, "Axes Rx/Ry" },
+    { 5, 0, "Slider/Dial" },
 };
+static const int AXIS_PAIRS[][2] = {
+    { HID_AX_X, HID_AX_Y }, { HID_AX_Z, HID_AX_RZ }, { HID_AX_RX, HID_AX_RY }, { HID_AX_SLIDER, HID_AX_DIAL } };
 
 static button_t menu_combos[] = {
     { 0, PAD_BUTTON_X|PAD_BUTTON_Y, "X+Y" },
     { 1, PAD_BUTTON_START|PAD_BUTTON_X, "Start+X" },
     { 2, PAD_BUTTON_START|PAD_BUTTON_Y, "Start+Y" },
+    RAW_ALL(3)   /* one HID input alone: a Home button, a 13th button */
 };
 
 /* Screenshot combinations, entry 0 is Off. Start is in none of them, so the game does not pause.
@@ -84,7 +109,43 @@ static button_t screenshot_combos[] = {
     { 0, 0,                                              "Off" },
     { 1, PAD_TRIGGER_L|PAD_TRIGGER_R|PAD_BUTTON_SELECT, "L2+R2+Sel" },
     { 2, PAD_TRIGGER_L|PAD_TRIGGER_R,                    "L2+R2" },
+    RAW_ALL(3)
 };
+
+/* ANALOG button combinations (PadSSSPSX.c analog_button), entry 0 is Off, entry 1 the default:
+ * the screenshot's pair with another button. While one is held the game sees no buttons, so
+ * its Start does not pause. Configure Buttons keeps it apart from the menu, fast-forward and
+ * screenshot combinations. */
+static button_t analog_combos[] = {
+    { 0, 0, "Off" },
+    { 1, PAD_TRIGGER_L|PAD_TRIGGER_R|PAD_BUTTON_START, "L2+R2+Start" },
+    RAW_ALL(2)
+};
+
+/* An entry is held: b is the GameCube-style pad's bits (with the stick directions) */
+int hidgc_held(const button_t *bt, u32 b)
+{
+    if (!bt || bt->mask == ~0u) return 0;
+    if (bt->mask & HID_RAW) return (int)((hidState.held >> (bt->mask & 63)) & 1);
+    return (b & bt->mask) == bt->mask;
+}
+
+/* The pad has the input an entry names (every GameCube-style entry: yes). Configure Buttons
+ * skips the others, so a 12-button pad does not cycle through Btn 13..32. */
+int hidgc_entry_present(const button_t *bt)
+{
+    if (!(bt->mask & HID_RAW) || bt->mask == ~0u) return 1;
+    return hid_input_present(&hidLayout, bt->mask & 63);
+}
+
+/* Two combinations where one is inside the other (both pressed by pressing the outer one).
+ * A HID input alone is inside only itself. */
+int hidgc_combo_inside(const button_t *a, const button_t *b)
+{
+    if (!a->mask || !b) return 0;
+    if ((a->mask | b->mask) & HID_RAW) return a->mask == b->mask;
+    return (a->mask & b->mask) == a->mask;
+}
 
 /* As controller-GC.c; full is the stick's travel, GC_MAIN_FULL or GC_CSTICK_FULL (psx_analog.h). */
 static void GCtoPSX(int x, int y, int invertY, float full, u8 *px, u8 *py)
@@ -95,11 +156,46 @@ static void GCtoPSX(int x, int y, int invertY, float full, u8 *px, u8 *py)
     *py = psx_analog(fy);
 }
 
-static u32 PAD_Pressed = 0;
-static s8  PAD_Stick_Y = 0;
-static s8  PAD_Stick_X = 0;
-static s8  PAD_SubStick_Y = 0;
-static s8  PAD_SubStick_X = 0;
+/* A HID axis pair (-128..127, + right / down) as a PlayStation stick: the one mapping, the
+ * same shape as GCtoPSX (the full range, the square's corners reachable) */
+static void HIDtoPSX(int x, int y, int invertY, u8 *px, u8 *py)
+{
+    if (invertY) y = -y;
+    float fx = x / (x < 0 ? 128.0f : 127.0f), fy = y / (y < 0 ? 128.0f : 127.0f);
+    psx_square(&fx, &fy);
+    *px = psx_analog(fx);
+    *py = psx_analog(fy);
+}
+
+static void stick(int src, const PADStatus *p, int invertY, u8 *px, u8 *py)
+{
+    const u8 *r = (const u8 *)HID_MEM2_PACKET_ADDR;
+    if (src >= 2 && src < 2 + (int)(sizeof(AXIS_PAIRS) / sizeof(AXIS_PAIRS[0])))
+        HIDtoPSX(hidState.axis[AXIS_PAIRS[src - 2][0]], hidState.axis[AXIS_PAIRS[src - 2][1]], invertY, px, py);
+    else if (hidAuto)
+        HIDtoPSX(hid_map_stick(&hidMap, src ? HS_RX : HS_LX, &hidState, r, hidReportLen),
+                 hid_map_stick(&hidMap, src ? HS_RY : HS_LY, &hidState, r, hidReportLen), invertY, px, py);
+    else if (src)
+        GCtoPSX(p->substickX, p->substickY, invertY, GC_CSTICK_FULL, px, py);
+    else
+        GCtoPSX(p->stickX, p->stickY, invertY, GC_MAIN_FULL, px, py);
+}
+
+/* The GameCube-style sticks' directions, as the A-/C- entries' bits: past half of full travel */
+static u32 stickBits(const PADStatus *p)
+{
+    u32 b = 0;
+    int m = (int)(GC_MAIN_FULL / 2), c = (int)(GC_CSTICK_FULL / 2);
+    if (p->stickX < -m) b |= ANALOG_L;
+    if (p->stickX > m) b |= ANALOG_R;
+    if (p->stickY > m) b |= ANALOG_U;
+    if (p->stickY < -m) b |= ANALOG_D;
+    if (p->substickX < -c) b |= C_STICK_L;
+    if (p->substickX > c) b |= C_STICK_R;
+    if (p->substickY > c) b |= C_STICK_U;
+    if (p->substickY < -c) b |= C_STICK_D;
+    return b;
+}
 
 static void refreshAvailable(void);
 
@@ -115,28 +211,12 @@ static int _GetKeys(int Control, BUTTONS * Keys, controller_config_t* config)
 
     if (!controller_HidGC.available[Control]) return 0;
 
-    PAD_Pressed = 0;
-    PAD_Stick_Y = 0;
-    PAD_Stick_X = 0;
-    PAD_SubStick_Y = 0;
-    PAD_SubStick_X = 0;
-    int i;
-
     PADStatus *Pad = (PADStatus*)(HID_MEM2_PAD_BUFF); //PadBuff
     HidFormatData();
-    //for(i = 0; i < PAD_CHANMAX; ++i) TODO
-    for(i = 0; i < 1; ++i)
-    {
-        PAD_Pressed |= Pad[i].button;
-        PAD_Stick_Y |= Pad[i].stickY;
-        PAD_Stick_X |= Pad[i].stickX;
-        PAD_SubStick_Y |= Pad[i].substickY;
-        PAD_SubStick_X |= Pad[i].substickX;
-    }
-
-    unsigned int b = PAD_Pressed;
+    //only pad 0: one USB controller
+    u32 b = Pad[0].button | stickBits(&Pad[0]);
     inline int isHeld(button_tp button){
-        return (b & button->mask) == button->mask ? 0 : 1;
+        return hidgc_held(button, b) ? 0 : 1;
     }
 
     c->btns.SQUARE_BUTTON    = isHeld(config->SQU);
@@ -159,16 +239,8 @@ static int _GetKeys(int Control, BUTTONS * Keys, controller_config_t* config)
     c->btns.L3_BUTTON    = isHeld(config->L3);
     c->btns.SELECT_BUTTON = isHeld(config->SELECT);
 
-
-    //adjust values by 128 cause PSX sticks range 0-255 with a 128 center pos
-    int stickX = 0, stickY = 0;
-    stickX = PAD_Stick_X;
-    stickY = PAD_Stick_Y;
-    GCtoPSX(stickX, stickY, config->invertedYL, GC_MAIN_FULL, &c->leftStickX, &c->leftStickY);
-
-    stickX = PAD_SubStick_X;
-    stickY = PAD_SubStick_Y;
-    GCtoPSX(stickX, stickY, config->invertedYR, GC_CSTICK_FULL, &c->rightStickX, &c->rightStickY);
+    stick(config->analogL ? config->analogL->index : 0, &Pad[0], config->invertedYL, &c->leftStickX, &c->leftStickY);
+    stick(config->analogR ? config->analogR->index : 1, &Pad[0], config->invertedYR, &c->rightStickX, &c->rightStickY);
 
     // Return 1 if exit, 2 if fastforward
     if (!isHeld(config->exit))
@@ -180,6 +252,7 @@ static int _GetKeys(int Control, BUTTONS * Keys, controller_config_t* config)
         return 2;
     }
     screenshot_poll(Control, config->screenshot && config->screenshot->mask && !isHeld(config->screenshot));
+    analog_poll(config->analog && config->analog->mask && !isHeld(config->analog));
 
     return 0;
 }
@@ -222,6 +295,8 @@ controller_t controller_HidGC =
       menu_combos,
       sizeof(screenshot_combos)/sizeof(screenshot_combos[0]),
       screenshot_combos,
+      sizeof(analog_combos)/sizeof(analog_combos[0]),
+      analog_combos,
       { .SQU        = &buttons[9],  // A
         .CRO        = &buttons[10], // B
         .CIR        = &buttons[11], // X
@@ -230,8 +305,8 @@ controller_t controller_HidGC =
         .L1         = &buttons[7],  // Left Trigger - Z
         .R2         = &buttons[6],  // Right Trigger + Z
         .L2         = &buttons[5],  // Left Trigger + Z
-        .R3         = &buttons[0],  // None
-        .L3         = &buttons[0],  // None
+        .R3         = &buttons[24], // R3 (ini KeyR3, or button 12 with no ini)
+        .L3         = &buttons[23], // L3 (ini KeyL3, or button 11 with no ini)
         .DL         = &buttons[2],  // D-Pad Left
         .DR         = &buttons[3],  // D-Pad Right
         .DU         = &buttons[1],  // D-Pad Up
@@ -246,6 +321,7 @@ controller_t controller_HidGC =
         .sensitivity = 1.0,
         .fastf       = &menu_combos[2], // Start+Y
         .screenshot = &screenshot_combos[1],
+        .analog = &analog_combos[1],
       }
      };
 
