@@ -268,7 +268,7 @@ static const OptHelp GPU_HELP[] =
 	{ "GPU Plugin:", "OpenGX uses the Wii's GPU; Soft avoids its quirks." },
 	{ "GPU Timing:", "Accurate: the GPU is busy as long as on a PS1." },
 	{ "Far Textures:", "OpenGX trial: smoother distant ground." },
-	{ "GX Colour:", "OpenGX trial: 6-bit colour with the Wii's dither." },
+	{ "GX Color:", "OpenGX trial: 6-bit color with the Wii's dither." },
 };
 
 static const OptRow INPUT_ROWS[] =

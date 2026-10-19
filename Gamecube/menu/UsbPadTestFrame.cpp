@@ -81,7 +81,7 @@ enum { ST_FIND, ST_REST, ST_WAIT, ST_HOLD, ST_RELEASE, ST_SHOW, ST_DONE };
 static int state, step, frames;
 /* Pacing, in frames: a prompt can be answered after MIN_PROMPT (it used to flash past), a press
  * or a release counts once it has lasted STEADY frames, and each result stays SHOW_RESULT. */
-enum { MIN_PROMPT = 30, STEADY = 6, SHOW_RESULT = 40 };
+enum { MIN_PROMPT = 30, STEADY = 6, SHOW_RESULT = 15 };
 static int steady;
 static int haveCtrl;          /* reports are coming in */
 static int len;               /* report length */
@@ -134,8 +134,7 @@ static void logf_(const char *fmt, ...)
 	va_list ap;
 	va_start(ap, fmt);
 	vfprintf(logFile, fmt, ap);
-	va_end(ap);
-	fflush(logFile);
+	va_end(ap);   /* no fflush per line: each was an SD write mid-test, and the prompts lagged; closeLog flushes */
 }
 
 /* What WiiStation makes of the pad now: the GameCube-style buttons the ini decodes, the
@@ -489,7 +488,7 @@ void UsbPadTestFrame::updateFrame(float deltaTime)
 			logStep("pressed", held);
 			state = ST_RELEASE;
 			frames = 0;
-			snprintf(line1, sizeof(line1), "Let go");
+			snprintf(line1, sizeof(line1), "Got it - let go");
 		}
 		break;
 	case ST_RELEASE:

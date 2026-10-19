@@ -79,7 +79,7 @@ Ranges (`PadType<n>`, `Coop<p>Type<n>` ...) are one row each.
 | `BilinearFilter` | [Video] | Video, texture filter button | yes | yes | yes | live (read where used) |
 | `Dithering` | [Video] | Video, Dithering | yes | yes | yes | game start (iUseDither) |
 | `MdecChroma` | [Video] | Video, Advanced page, "MDEC Chroma" | yes | yes | yes | live (read where used) |
-| `FmvColour` | [Video] | Video, Advanced page, "Video Colour" | yes | yes | yes | live (read where used) |
+| `FmvColour` | [Video] | Video, Advanced page, "Video Color" | yes | yes | yes | live (read where used) |
 | `Gamma` | [Video] | Video, Advanced page, "Gamma" | yes | yes | yes | FIXED: applyVideoGamma at game start |
 | `DeflickerLevel` | [Video] | Video, Advanced page, "Deflicker Level" | yes | yes | yes | live (read where used) |
 | `SkipFrames` | [Video] | Video, Frame Skip | yes | yes | yes | FIXED: Soft Fast setframelimit at game start (OpenGX/Soft Timed read it live) |
