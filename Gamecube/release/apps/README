@@ -1,5 +1,5 @@
 README : WiiStation
-Version 5.13.1
+Version 5.14.0
 
 LICENSE:
     This software is licensed under the GNU General Public License v2
@@ -155,7 +155,7 @@ LATER UPDATES BY:
  * Monty Perrotti (WiiStation)
 
 WiiStation CHANGE LOG:
-Unreleased:
+Ver 5.14.0 (2026-10-18):
 * Fixed: with the Soft renderers (the default), Deflicker and Deflicker Level
   did nothing in 480i (the usual mode): the game kept the menu's filter. OpenGX
   took them only after its first picture readback. They now apply at once.
