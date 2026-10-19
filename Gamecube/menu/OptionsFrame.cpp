@@ -5,8 +5,8 @@
  *
  *   Audio tab   -> "Advanced"  : sound options under test
  *   General tab -> "Plugins"   : which CPU core and which GPU renderer
- *               -> "CD"        : how disc images are read
- *  Video tab    -> "Advanced Graphics" : dithering and the video decoder
+ *               -> "CD"        : how disc images are read, and Fast Load
+ *  Video tab    -> "Advanced Graphics" : dithering, the video decoder, the TV picture
  *               -> "Memory"    : what the machine's memory is doing right now
  *
  * HOW TO ADD A ROW
@@ -90,20 +90,22 @@ extern void ApplyPluginSelection(char wantCore, char wantGpu);
 namespace menu { extern heap_cntrl* GXtexCache; extern unsigned int fontHeapBytes; }   /* the font glyph heap, IPLFont.cpp */
 
 void Func_ReturnFromOptionsFrame();
+void Func_UsbPadTestAdvanced();		/* UsbPadTestFrame.cpp: the USB Pad Test page, from here */
 
 /*  Rows  */
 
 #define OPT_CYCLE 0
 #define OPT_INFO  1
 #define OPT_RADIO 2
+#define OPT_ACTION 3
 
 struct OptRow
 {
 	int					kind;
-	const char*			key;		// CYCLE/RADIO: the setting, by its key in the OPTIONS table (GamecubeMain.cpp)
-	void				(*apply)(void);	// CYCLE/RADIO: tell the emulator; NULL = it reads the setting itself
+	const char*			key;		// CYCLE/RADIO: the setting, by its key in the OPTIONS table (GamecubeMain.cpp); ACTION: the button's text
+	void				(*apply)(void);	// CYCLE/RADIO: tell the emulator; NULL = it reads the setting itself; ACTION: what the button does
 	void				(*info)(char *buf, int len);	// INFO: writes the right-hand text
-	const char*			label;		// INFO: the readout's label (a setting's label is in the table)
+	const char*			label;		// INFO/ACTION: the row's label (a setting's label is in the table)
 	bool				fit;		// RADIO: size each button to its own word, not to RADIO_W
 };
 
@@ -117,6 +119,9 @@ struct OptRow
 	{ OPT_RADIO, key, apply, NULL, NULL, true }
 #define ROW_INFO(label, fn) \
 	{ OPT_INFO, NULL, NULL, fn, label, false }
+/* A label and one button that runs fn, e.g. opens a page of its own. No setting. */
+#define ROW_ACTION(label, text, fn) \
+	{ OPT_ACTION, text, fn, NULL, label, false }
 
 /* setSpuReverb(int) takes the raw setting value; the table's apply slot is void(void), so
  * this wrapper reads the setting itself, the same way GamecubeMain.cpp does at startup. */
@@ -232,21 +237,20 @@ static const OptRow PLUGIN_ROWS[] =
 	ROW_CYCLE("CpuSpeed", NULL),
 };
 
-/* The SPU plugin: there is one (P.E.Op.S. DFSound, from PCSX-ReARMed), so it is a readout;
- * what can be swapped is where its output is resampled and mixed for the Wii. */
+/* The SPU plugin: there is one (P.E.Op.S. DFSound, from PCSX-ReARMed), so it is a readout.
+ * The output driver it plays through is the Audio tab's Sound Driver (SoundDriver). */
 static void infoSpuPlugin(char *buf, int len) { snprintf(buf, len, "P.E.Op.S. DFSound"); }
 
 static const OptRow SPU_ROWS[] =
 {
 	ROW_INFO("SPU Plugin", infoSpuPlugin),
-	ROW_RADIO("SoundHwAccel", NULL),
 };
 
 static const OptHelp SPU_HELP[] =
 {
-	{ "Output:", "CPU resamples and mixes on the Wii's CPU." },
-	{ NULL,      "DSP hands the stream to the Wii's sound chip." },
-	{ NULL,      "Sound quality is in Audio, Advanced." },
+	{ "SPU Plugin:", "Emulates the PS1 sound chip on the Wii's CPU." },
+	{ NULL,          "The Sound Driver is on the Audio tab." },
+	{ NULL,          "Sound quality is in Audio, Advanced." },
 };
 
 static const OptRow GPU_ROWS[] =
@@ -255,23 +259,30 @@ static const OptRow GPU_ROWS[] =
 	 * than the others to fit (MenuEngine's choiceStart). */
 	ROW_RADIO_FIT("gpuPlugin", NULL),
 	ROW_CYCLE("GpuTiming", NULL),
+	ROW_CYCLE("GxTexMin", NULL),   /* OpenGX trials, read at game start (Docs/GX_QUALITY.md) */
+	ROW_CYCLE("GxColor", NULL),
 };
 
 static const OptHelp GPU_HELP[] =
 {
 	{ "GPU Plugin:", "OpenGX uses the Wii's GPU; Soft avoids its quirks." },
 	{ "GPU Timing:", "Accurate: the GPU is busy as long as on a PS1." },
+	{ "Far Textures:", "OpenGX trial: smoother distant ground." },
+	{ "GX Colour:", "OpenGX trial: 6-bit colour with the Wii's dither." },
 };
 
 static const OptRow INPUT_ROWS[] =
 {
 	ROW_CYCLE("SioTiming", NULL),
+	ROW_ACTION("USB Pad", "Test", Func_UsbPadTestAdvanced),	/* the USB Pad Test page (UsbPadTestFrame.cpp) */
 };
 
 static const OptHelp INPUT_HELP[] =
 {
 	{ "Port Timing:", "Accurate: each byte on the controller ports takes" },
 	{ NULL,           "as long as on a PS1. Fast is the default." },
+	{ "USB Pad:",     "Shows what a USB controller sends, button by" },
+	{ NULL,           "button, and logs it to usbpad.log." },
 };
 
 static const OptHelp PLUGIN_HELP[] =
@@ -298,36 +309,32 @@ static void pluginsLeave(void)
 }
 
 /* The page is two columns of label + button (OptPage::columns): Dithering, a choice row, takes a
- * whole line, the four cycles pair up below it. Dithering and MDEC Chroma are read when a disc
- * image is opened, so they take effect at the next game load rather than immediately
- * (SETTINGS.md section 2). "Default" is the Dithering setting's middle choice. Gamma is written
- * to the video encoder now; Deflicker Level is read when the video mode is set up. */
+ * whole line, the cycles pair up below it. No help lines: the room went to the rows, and
+ * SETTINGS.md section 3 explains each. Dithering and MDEC Chroma are read when a disc image is
+ * opened, so they take effect at the next game load (SETTINGS.md section 2). Gamma is written to
+ * the video encoder now, Deflicker Level to the frame copy now (and again at every game start or
+ * resume, go()). Video Mode is read when WiiStation starts. Filter Tour runs while a game does. */
+extern "C" void applyCopyFilter(void);	/* Gamecube/libgui/GraphicsGX.cpp */
 static const OptRow ADVGFX_ROWS[] =
 {
 	ROW_RADIO_FIT("Dithering", NULL),
 	ROW_CYCLE("FmvColour", NULL),
 	ROW_CYCLE("MdecChroma", NULL),
 	ROW_CYCLE("Gamma", applyVideoGamma),
-	ROW_CYCLE("DeflickerLevel", NULL),
+	ROW_CYCLE("DeflickerLevel", applyCopyFilter),
+	/* this way round: Video Mode's "PAL 60" in the left column pushes the grid into the margin */
+	ROW_CYCLE("FilterTour", NULL),
+	ROW_CYCLE("VideoMode", NULL),
 };
 
-static const OptHelp ADVGFX_HELP[] =
-{
-	{ "Dithering:",    "Hides the steps between colours in a 15-bit picture." },
-	{ NULL,            "Default uses it only where the game asks for it." },
-	{ "Video Colour:", "24-bit is full colour. 15-bit bands in dark scenes." },
-	{ "MDEC Chroma:",  "Sharp is the console: one colour sample per 2x2 pixels." },
-	{ NULL,            "Smooth mixes the samples: it looks better, costs more." },
-	{ NULL,            "It applies to the next video that starts." },
-	{ "Gamma:",        "Brightens the TV picture. 1.0 changes nothing." },
-	{ "Deflicker Level:", "Light blurs less than Normal. Needs Deflicker on." },
-};
-
+/* Two columns (OptPage::columns), so the four rows take two lines and the help fits under them.
+ * Fast Load is read by the CD drive emulation (cdrom.c) as it runs: it applies at once. */
 static const OptRow CD_ROWS[] =
 {
 	ROW_CYCLE("CdBuffer", NULL),
 	ROW_CYCLE("CdPrefetch", NULL),
 	ROW_CYCLE("CdChdHunks", NULL),
+	ROW_CYCLE("fastLoad", NULL),
 };
 
 static const OptHelp CD_HELP[] =
@@ -338,7 +345,8 @@ static const OptHelp CD_HELP[] =
 	{ NULL,              "waits less for the card. Raw bin/cue and .iso only." },
 	{ "CHD Hunk Cache:", "Decoded CHD hunks kept in memory, about 20 KB each." },
 	{ NULL,              "More never decodes more often: 8 is best." },
-	{ NULL,              "All three apply at the next game load." },
+	{ NULL,              "These three apply at the next game load." },
+	{ "Fast Load:",      "Shorter CD waits. Some games break with it." },
 };
 
 /* Readouts only. Every large MEM2 region is reserved at a fixed address (Gamecube/MEM2.h),
@@ -376,9 +384,9 @@ struct OptPage
 static const OptPage PAGES[] =
 {
 	{ "Advanced Sound", NULL, SOUND_ROWS, COUNT(SOUND_ROWS), NULL,        0,                  SettingsFrame::SUBMENU_AUDIO,   NULL,         NULL         },
-	{ "Advanced Graphics", NULL, ADVGFX_ROWS, COUNT(ADVGFX_ROWS), ADVGFX_HELP, COUNT(ADVGFX_HELP), SettingsFrame::SUBMENU_VIDEO, NULL,  NULL,         0.0f, 2 },
+	{ "Advanced Graphics", NULL, ADVGFX_ROWS, COUNT(ADVGFX_ROWS), NULL,  0,                  SettingsFrame::SUBMENU_VIDEO, NULL,  NULL,         0.0f, 2 },
 	{ "Advanced", "CPU",  PLUGIN_ROWS,  COUNT(PLUGIN_ROWS),  PLUGIN_HELP, COUNT(PLUGIN_HELP), SettingsFrame::SUBMENU_GENERAL, pluginsEnter, pluginsLeave },
-	{ "Advanced", "CD",   CD_ROWS,      COUNT(CD_ROWS),      CD_HELP,     COUNT(CD_HELP),     SettingsFrame::SUBMENU_GENERAL, pluginsEnter, pluginsLeave },
+	{ "Advanced", "CD",   CD_ROWS,      COUNT(CD_ROWS),      CD_HELP,     COUNT(CD_HELP),     SettingsFrame::SUBMENU_GENERAL, pluginsEnter, pluginsLeave, 0.0f, 2 },
 	{ "Memory",   NULL,   MEMORY_ROWS,  COUNT(MEMORY_ROWS),  NULL,        0,                  SettingsFrame::SUBMENU_GENERAL, NULL,         NULL,         46.0f },
 	{ "Advanced", "GPU",  GPU_ROWS,     COUNT(GPU_ROWS),     GPU_HELP,    COUNT(GPU_HELP),    SettingsFrame::SUBMENU_GENERAL, pluginsEnter, pluginsLeave },
 	{ "Advanced", "Input", INPUT_ROWS,  COUNT(INPUT_ROWS),   INPUT_HELP,  COUNT(INPUT_HELP),  SettingsFrame::SUBMENU_GENERAL, pluginsEnter, pluginsLeave },
@@ -465,16 +473,19 @@ static void optSet(int row, int choice);
 #define OPT_SET_FNS(r)		OPT_SET_FN(r, 0) OPT_SET_FN(r, 1) OPT_SET_FN(r, 2)
 #define OPT_SET_ROW(r)		{ Func_OptSet##r##_0, Func_OptSet##r##_1, Func_OptSet##r##_2 }
 
-OPT_CYCLE_FN(0) OPT_CYCLE_FN(1) OPT_CYCLE_FN(2)
-OPT_CYCLE_FN(3) OPT_CYCLE_FN(4) OPT_CYCLE_FN(5)
-OPT_SET_FNS(0)  OPT_SET_FNS(1)  OPT_SET_FNS(2)
-OPT_SET_FNS(3)  OPT_SET_FNS(4)  OPT_SET_FNS(5)
+OPT_CYCLE_FN(0) OPT_CYCLE_FN(1) OPT_CYCLE_FN(2) OPT_CYCLE_FN(3)
+OPT_CYCLE_FN(4) OPT_CYCLE_FN(5) OPT_CYCLE_FN(6) OPT_CYCLE_FN(7)
+OPT_SET_FNS(0)  OPT_SET_FNS(1)  OPT_SET_FNS(2)  OPT_SET_FNS(3)
+OPT_SET_FNS(4)  OPT_SET_FNS(5)  OPT_SET_FNS(6)  OPT_SET_FNS(7)
 
+/* One per row: a row past the end of these had no click handler at all (Advanced Graphics
+ * has seven). */
 static void (*const ROW_FUNCS[OPT_MAX_ROWS])() =
-	{ Func_OptRow0, Func_OptRow1, Func_OptRow2, Func_OptRow3, Func_OptRow4, Func_OptRow5 };
+	{ Func_OptRow0, Func_OptRow1, Func_OptRow2, Func_OptRow3,
+	  Func_OptRow4, Func_OptRow5, Func_OptRow6, Func_OptRow7 };
 static void (*const SET_FUNCS[OPT_MAX_ROWS][OPT_MAX_CHOICES])() =
-	{ OPT_SET_ROW(0), OPT_SET_ROW(1), OPT_SET_ROW(2),
-	  OPT_SET_ROW(3), OPT_SET_ROW(4), OPT_SET_ROW(5) };
+	{ OPT_SET_ROW(0), OPT_SET_ROW(1), OPT_SET_ROW(2), OPT_SET_ROW(3),
+	  OPT_SET_ROW(4), OPT_SET_ROW(5), OPT_SET_ROW(6), OPT_SET_ROW(7) };
 
 /* Every page must fit on the screen (the engine checks the geometry), the page tables must
  * not outgrow the widgets. */
@@ -493,7 +504,6 @@ typedef char opt_gpu_help_fits[OPT_HELP_FITS(GPU_HELP) ? 1 : -1];
 typedef char opt_input_help_fits[OPT_HELP_FITS(INPUT_HELP) ? 1 : -1];
 typedef char opt_memory_fits [OPT_PAGE_FITS(MEMORY_ROWS)  ? 1 : -1];
 typedef char opt_plugin_help_fits [OPT_HELP_FITS(PLUGIN_HELP)  ? 1 : -1];
-typedef char opt_advgfx_help_fits[OPT_HELP_FITS(ADVGFX_HELP) ? 1 : -1];
 typedef char opt_cd_help_fits[OPT_HELP_FITS(CD_HELP) ? 1 : -1];
 
 static const OptRow* pageRow(int row)
@@ -504,7 +514,8 @@ static const OptRow* pageRow(int row)
 static void bindPage(int page)
 {
 	for (int i = 0; i < PAGES[page].nrows; i++)
-		ROW_SET[i] = PAGES[page].rows[i].kind == OPT_INFO ? NULL : settingByKey(PAGES[page].rows[i].key);
+		ROW_SET[i] = PAGES[page].rows[i].kind == OPT_INFO || PAGES[page].rows[i].kind == OPT_ACTION
+		             ? NULL : settingByKey(PAGES[page].rows[i].key);
 }
 
 /* How many buttons a radio row shows. A row that declares more values than there are slots
@@ -525,6 +536,8 @@ static void refreshRow(int row)
 	const SettingOption *s = ROW_SET[row];
 	if (o->kind == OPT_INFO) {
 		o->info(ROWS[row].value, VALUE_LEN);
+	} else if (o->kind == OPT_ACTION) {
+		snprintf(ROWS[row].value, VALUE_LEN, "%s", o->key);
 	} else if (o->kind == OPT_RADIO) {
 		int n = rowChoices(row), v = *s->value;
 		if (v < s->min || v > s->max) v = s->min;
@@ -544,6 +557,7 @@ static void optCycle(int row)
 	const OptRow *o;
 	if (row >= PAGES[currentPage].nrows) return;
 	o = pageRow(row);
+	if (o->kind == OPT_ACTION) { o->apply(); return; }
 	if (o->kind != OPT_CYCLE) return;
 	{
 		const SettingOption *s = ROW_SET[row];
@@ -586,11 +600,17 @@ static void buildEnginePage(int page, int curTab)
 		const SettingOption *s = ROW_SET[i];
 		eng::Row &r = ENG_ROWS[i];
 		memset(&r, 0, sizeof r);
-		r.label = o->kind == OPT_INFO ? o->label : s->label;
+		r.label = s ? s->label : o->label;
 		if (o->kind == OPT_INFO)
 		{
 			r.kind = eng::ROW_READOUT;
 			r.text = ROWS[i].value;
+		}
+		else if (o->kind == OPT_ACTION)
+		{
+			r.kind  = eng::ROW_CYCLE;	/* one button with one name: the action's text */
+			r.names = &o->key;
+			r.count = 1;
 		}
 		else if (o->kind == OPT_RADIO)
 		{
@@ -926,6 +946,15 @@ void OptionsFrame::activateSubmenu(int submenu)
 	setDefaultFocus(start);
 }
 
+/* Back from the USB Pad Test page to Advanced > Input, in the same visit to the Advanced pages:
+ * the CPU and GPU taken on entering them are still the ones compared on leaving. */
+void OptionsFrame_BackToInput()
+{
+	tabSwitch = true;
+	pMenuContext->setActiveFrame(MenuContext::FRAME_OPTIONS, OptionsFrame::PAGE_ADV_INPUT);
+	tabSwitch = false;
+}
+
 void OptionsFrame::showTab(int tab)
 {
 	if (tab < 0 || tab >= NUM_TABS || ADV_TABS[tab] == currentPage) return;
@@ -938,6 +967,20 @@ void OptionsFrame::showTab(int tab)
 void OptionsFrame::drawChildren(menu::Graphics& gfx)
 {
 	if (!isVisible()) return;
+
+	/* The tab buttons turn the Advanced tabs, as the Settings tabs (menu::glue::tabShoulder). */
+	if (PAGES[currentPage].tab)
+	{
+		int cur = 0, tab;
+		while (cur < NUM_TABS - 1 && ADV_TABS[cur] != currentPage)
+			cur++;
+		tab = menu::glue::tabShoulderStep(cur, NUM_TABS);
+		if (tab != cur)
+		{
+			showTab(tab);
+			menu::Focus::getInstance().clearPrimaryFocus();	/* to the new tab: the page's default */
+		}
+	}
 
 	menu::ComponentList::const_iterator iteration;
 	for (iteration = componentList.begin(); iteration != componentList.end(); ++iteration)

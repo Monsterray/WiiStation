@@ -1,0 +1,8 @@
+CHAIN
+# CTR left alone (no input): intro, menu, then the attract demos Crash Cove, Roo's Tubes and
+# Tiger Temple (Lost Ruins), the slowest track; in Dolphin (debug) its demo starts near vblank 27000.
+# For a bench-Wii frame-rate reading: build debug pmc (or deep), queue with wii_lab.py, read the
+# per-vblank timeline (vtl_01.bin, scripts/vtl_view.py) over 27000-31000 against the earlier demos.
+31000
+sd:/wiistation/isos/Crash Team Racing
+Crash Team Racing [U] [SCUS-94426].cue

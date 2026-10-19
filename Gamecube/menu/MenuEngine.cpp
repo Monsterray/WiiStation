@@ -1028,6 +1028,16 @@ void listTurn(ListState &s, int delta, bool wrap)
 	s.focus = s.top;
 }
 
+int tabStep(int cur, int n, int delta, bool wrap)
+{
+	int t = cur + delta;
+	if (n <= 0 || cur < 0 || cur >= n)
+		return cur;
+	if (wrap)
+		return ((t % n) + n) % n;
+	return t < 0 || t >= n ? cur : t;
+}
+
 bool listScroll(ListState &s, int delta)
 {
 	const int top = s.top;

@@ -1,0 +1,7 @@
+CHAIN
+# Crash Team Racing through the real BIOS (BootThruBios): the end of the boot sound.
+# User report 2026-10-18: the PlayStation logo sound seems to loop at the end.
+# bash scripts/wsx.sh chain NAME scripts/chains/bios_ctr.txt --secs 300 --env AUDIO_DUMP=1
+1800 BiosDevice=1 BootThruBios=1
+sd:/wiistation/isos/Crash Team Racing
+Crash Team Racing [U] [SCUS-94426].cue

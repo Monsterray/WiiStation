@@ -11,7 +11,7 @@
 #        --secs N                   run length (default 170)
 #        --input speech|title|FILE  autoinput script: scripts/autoinput/spyro_<name>.txt or a file
 #        --set K=V[,K=V...]         settings on top of the base (gpuPlugin=2 FPS=1 PadType1=1 PadAutoAssign=0)
-#        --dsp                      DSP sound path: SoundHwAccel=1 and Dolphin DSP LLE
+#        --dsp                      DSP sound path: SoundDriver=1 and Dolphin DSP LLE
 #        --nodump                   no audio dump
 #        --fast                     Dolphin as fast as the PC allows (about 2x): frames and guest
 #                                   time are unchanged, and SoundRateControl=0 SoundTempo=0 make
@@ -21,8 +21,10 @@
 #                                   --secs is wall time, so a fast run covers about twice the game.
 #        --autoboot spyro|bios|none which autoboot file (default spyro)
 #        --env VAR=VALUE            extra environment for dolphin_run.sh (CACHE=1, XFB_RAM=1 ...)
-#        --card FILE                put FILE in the card's wiistation/ folder for the run (repeatable):
-#                                   the per-game input scripts a chained autoboot names
+#        --card FILE|DIR            put FILE (or the folder DIR) in the card's wiistation/ folder for
+#                                   the run (repeatable): the per-game input scripts a chained
+#                                   autoboot names, or a settings/ folder with a game's own file
+#        --settings FILE            the lines of FILE after the base and --set (a whole settings.ini)
 #   scripts/wsx.sh chain NAME CHAINFILE [options]         a chained autoboot (several games, one
 #                                   boot) from scripts/chains/; stages the input scripts it names,
 #                                   runs until the console powers off, prints scripts/chain_table.py.
@@ -127,7 +129,7 @@ build)
 run)
 	name="${1:-}"; shift || true
 	[ -n "$name" ] || { echo "run NAME [options]"; exit 2; }
-	dol="debug"; secs=170; input="speech"; sets=""; dsp=""; dump=1; aboot="spyro"; extra=(); cards=(); fast=""
+	dol="debug"; secs=170; input="speech"; sets=""; dsp=""; dump=1; aboot="spyro"; extra=(); cards=(); fast=""; setfile=""
 	while [ $# -gt 0 ]; do
 		case "$1" in
 			--dol) dol="$2"; shift 2 ;;
@@ -140,9 +142,11 @@ run)
 			--autoboot) aboot="$2"; shift 2 ;;
 			--env) extra+=("$2"); shift 2 ;;
 			--card) cards+=("$2"); shift 2 ;;
+			--settings) setfile="$2"; shift 2 ;;
 			*) echo "unknown option $1"; exit 2 ;;
 		esac
 	done
+	[ -z "$setfile" ] || [ -f "$setfile" ] || { echo "no such settings file: $setfile"; exit 2; }
 	case "$dol" in
 		debug)   dolsrc="$REPO/Gamecube/WiiSXRX_debug.dol" ;;
 		release) dolsrc="$REPO/Gamecube/WiiSXRX_Release.dol" ;;
@@ -167,12 +171,13 @@ run)
 	# what the last run under this name collected: a result this run does not produce must not stay behind
 	rm -f "$dir"/*.log "$dir"/vram*.bin "$dir"/vram*.png "$dir"/xfb*.bin "$dir"/*.wav
 	rm -f "$dir/dolphin.rc" "$dir/triage.txt"
-	for c in "${cards[@]:-}"; do [ -n "$c" ] && mkdir -p "$dir/card" && cp "$c" "$dir/card/"; done
+	for c in "${cards[@]:-}"; do [ -n "$c" ] && mkdir -p "$dir/card" && cp -r "$c" "$dir/card/"; done
 	{
 		printf 'gpuPlugin = 2\nFPS = 1\nPadType1 = 1\nPadAutoAssign = 0\n'
-		[ -n "$dsp" ] && printf 'SoundHwAccel = 1\n'
+		[ -n "$dsp" ] && printf 'SoundDriver = 1\n'
 		[ -n "$fast" ] && printf 'SoundRateControl = 0\nSoundTempo = 0\n'   # before --set, which may override
 		[ -n "$sets" ] && echo "$sets" | tr ',' '\n' | sed -E 's/^ *([^= ]+) *= *(.*)$/\1 = \2/'
+		[ -n "$setfile" ] && cat "$setfile"
 	} > "$dir/settings.cfg"
 	envline="AUDIO_DUMP=$dump${dsp:+ DSP_LLE=1}${fast:+ FAST=1}${extra[@]:+ ${extra[*]}}"
 	{
@@ -185,7 +190,7 @@ run)
 	[ -n "$dsp" ] && export DSP_LLE=1
 	[ -n "$fast" ] && export FAST=1
 	for e in "${extra[@]:-}"; do [ -n "$e" ] && export "$e"; done
-	DOL="$dir/boot.dol" bash "$REPO/scripts/dolphin_run.sh" "$dir" "$secs" "$dir/autoinput.txt" "$dir/settings.cfg" "$ab" > "$dir/run.log" 2>&1
+	DOL="$dir/boot.dol" bash "$REPO/scripts/dolphin_run.sh" "$dir" "$secs" "$dir/autoinput.txt" "$dir/settings.cfg" ${ab:+"$ab"} > "$dir/run.log" 2>&1   # quoted: a checkout path with spaces
 	rc=$?
 	echo "$rc" > "$dir/dolphin.rc"
 	grep -E "refusing|no such|faults in dolphin.log: [1-9]|PANIC|Unknown instruction" "$dir/run.log" | head -5

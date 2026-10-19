@@ -86,6 +86,15 @@ static button_t screenshot_combos[] = {
     { 2, PAD_TRIGGER_L|PAD_TRIGGER_R,                    "L2+R2" },
 };
 
+/* ANALOG button combinations (PadSSSPSX.c analog_button), entry 0 is Off, entry 1 the default:
+ * the screenshot's pair with another button. While one is held the game sees no buttons, so
+ * its Start does not pause. Configure Buttons keeps it apart from the menu, fast-forward and
+ * screenshot combinations. */
+static button_t analog_combos[] = {
+    { 0, 0, "Off" },
+    { 1, PAD_TRIGGER_L|PAD_TRIGGER_R|PAD_BUTTON_START, "L2+R2+Start" },
+};
+
 /* As controller-GC.c; full is the stick's travel, GC_MAIN_FULL or GC_CSTICK_FULL (psx_analog.h). */
 static void GCtoPSX(int x, int y, int invertY, float full, u8 *px, u8 *py)
 {
@@ -180,6 +189,7 @@ static int _GetKeys(int Control, BUTTONS * Keys, controller_config_t* config)
         return 2;
     }
     screenshot_poll(Control, config->screenshot && config->screenshot->mask && !isHeld(config->screenshot));
+    analog_poll(config->analog && config->analog->mask && !isHeld(config->analog));
 
     return 0;
 }
@@ -222,6 +232,8 @@ controller_t controller_HidGC =
       menu_combos,
       sizeof(screenshot_combos)/sizeof(screenshot_combos[0]),
       screenshot_combos,
+      sizeof(analog_combos)/sizeof(analog_combos[0]),
+      analog_combos,
       { .SQU        = &buttons[9],  // A
         .CRO        = &buttons[10], // B
         .CIR        = &buttons[11], // X
@@ -246,6 +258,7 @@ controller_t controller_HidGC =
         .sensitivity = 1.0,
         .fastf       = &menu_combos[2], // Start+Y
         .screenshot = &screenshot_combos[1],
+        .analog = &analog_combos[1],
       }
      };
 

@@ -1,0 +1,5 @@
+CHAIN
+# ps1-tests gte/test-all on the interpreter (Core=1); real-PS1 log C:/tools/ps1-tests/ref/gte_test-all.psx.log.
+6000 Core=1
+sd:/wiistation/isos/ps1t_test-all
+test-all.exe

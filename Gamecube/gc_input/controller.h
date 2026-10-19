@@ -102,6 +102,7 @@ typedef struct {
 	float sensitivity;
 	button_tp fastf;
 	button_tp screenshot;	/* the screenshot combination; mask 0 (Off) takes no picture */
+	button_tp analog;	/* the DualShock's ANALOG button; mask 0 (Off): none */
 } controller_config_t;
 
 typedef struct HidController
@@ -156,6 +157,9 @@ typedef struct {
 	// Number of screenshot combinations (entry 0 is Off) and the list itself
 	int num_screenshot_combos;
 	button_t* screenshot_combos;
+	// Number of ANALOG button combinations (entry 0 is Off) and the list itself
+	int num_analog_combos;
+	button_t* analog_combos;
 	// Default controller mapping
 	controller_config_t config_default;
 	// Current controller mapping
@@ -186,6 +190,9 @@ void coop_rumble(int port, int on);
 /* screenshot.c: a driver reports the screenshot combination's state each time it reads a pad.
  * It takes the shot when the combination goes down. */
 void screenshot_poll(int control, int held);
+/* PadSSSPSX.c: a driver reports whether the ANALOG combination is held each time it reads a
+ * pad; the PlayStation pad being read presses its ANALOG button when it goes down. */
+void analog_poll(int held);
 extern const char *coop_layout_names[];
 #define COOP_STICK_L 1
 #define COOP_STICK_R 2

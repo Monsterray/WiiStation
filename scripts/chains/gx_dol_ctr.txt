@@ -1,0 +1,20 @@
+CHAIN
+# GX quality trials in Dolphin (Docs/GX_QUALITY.md): CTR Time Trial start line, TV pictures at
+# 5600/5900 (xfb_01..10). Base, minified texels linear + aniso 4, RGBA6 dithered, then 240p base
+# and 240p RGB565 anti-aliased. Run with XFB_RAM=1 so the XFB holds the copies:
+#   bash scripts/wsx.sh chain gx_ctr scripts/chains/gx_dol_ctr.txt --dol debug --fast --secs 900 --env XFB_RAM=1
+6000 sd:/wiistation/gx_ctr.txt
+sd:/wiistation/isos/Crash Team Racing
+Crash Team Racing [U] [SCUS-94426].cue
+6000 sd:/wiistation/gx_ctr.txt GxTexMin=3
+sd:/wiistation/isos/Crash Team Racing
+Crash Team Racing [U] [SCUS-94426].cue
+6000 sd:/wiistation/gx_ctr.txt GxColor=1
+sd:/wiistation/isos/Crash Team Racing
+Crash Team Racing [U] [SCUS-94426].cue
+6000 sd:/wiistation/gx_ctr.txt TVMode=1
+sd:/wiistation/isos/Crash Team Racing
+Crash Team Racing [U] [SCUS-94426].cue
+6000 sd:/wiistation/gx_ctr.txt TVMode=1 GxColor=2
+sd:/wiistation/isos/Crash Team Racing
+Crash Team Racing [U] [SCUS-94426].cue

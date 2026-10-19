@@ -19,6 +19,8 @@
 **/
 
 #include <math.h>
+#include <stdio.h>
+#include <string.h>
 #include "GraphicsGX.h"
 #include "../wiiSXconfig.h"
 extern "C" {
@@ -70,12 +72,21 @@ void applyVideoGamma(void)
 	VIDEO_SetGamma((VIGamma)(VI_GM_1_0 + gammaLevel));
 }
 
-/* The taps of the frame copy's vertical filter: the mode's own, or the light ones when the
- * Deflicker Level asks for them. Only read while Deflicker is on. */
+/* The taps of the frame copy's vertical filter while Deflicker is on, in 64ths. Taps 0-1 weigh
+ * the line above, 2-4 the line itself, 5-6 the line below (libogc's mode tables; Dolphin's
+ * copy filter adds them up the same way). 0 0 21 22 21 0 0 is no filter at all: the 240p and
+ * 480p modes have it, and GX_SetCopyFilter writes it when Deflicker is off. A mode like that
+ * keeps it: with no interlace there is no flicker to filter. An interlaced mode gets Normal (its
+ * own 8 8 10 12 10 8 8: 16/32/16), Light (8/48/8) or Strong (21/22/21). Until the Strong level
+ * came, Light was the no-filter taps, so it looked the same as Deflicker off. */
 extern "C" u8 *videoCopyTaps(u8 *modeTaps)
 {
-	static u8 light[7] = { 0, 0, 21, 22, 21, 0, 0 };	/* the 480p taps */
-	return deflickerLevel == DEFLICKERLEVEL_LIGHT ? light : modeTaps;
+	static u8 light[7]  = { 4, 4, 16, 16, 16, 4, 4 };
+	static u8 strong[7] = { 10, 11, 7, 8, 7, 11, 10 };
+	if (!modeTaps[0] && !modeTaps[1] && !modeTaps[5] && !modeTaps[6])
+		return modeTaps;
+	return deflickerLevel == DEFLICKERLEVEL_LIGHT ? light
+	     : deflickerLevel == DEFLICKERLEVEL_STRONG ? strong : modeTaps;
 }
 
 GXRModeObj gvmode;
@@ -93,6 +104,139 @@ extern "C" { unsigned g_xfb_w = 640, g_xfb_h = 480; }
 /* The video mode switchToTVMode() last set (NULL until then: the menu's vmode). A display
  * copy reset during a game has to use this one, not vmode (GlesGpu RestoreDispCopyInfo). */
 extern "C" { GXRModeObj *g_tv_mode = NULL; }
+extern GXRModeObj *vmode;	/* GamecubeMain.cpp: the menu's mode */
+extern "C" char gxColor;	/* GamecubeMain.cpp: GxColor, Docs/GX_QUALITY.md */
+
+/* The EFB format: RGB8 for the menu and by default; with OpenGX, GxColor 1 = RGBA6 (GX dithers
+ * it where the game asks: GlesGpu/gpuPrim.c GxDitherPrim), 2 = RGB565 multisampled where the
+ * mode on the TV is anti-aliased (switchToTVMode). Docs/GX_QUALITY.md. switchToTVMode runs
+ * only in 240p: MainFrame applies it again before a game resumes. */
+extern "C" void gxApplyEfbFormat(int game)
+{
+	int ogx = game && gpuPlugin == OPEN_GX;
+	GX_SetPixelFmt((ogx && g_tv_mode && g_tv_mode->aa) ? GX_PF_RGB565_Z16
+	               : (ogx && gxColor == 1) ? GX_PF_RGBA6_Z24 : GX_PF_RGB8_Z24, GX_ZC_LINEAR);
+	GX_SetDither(GX_FALSE);
+}
+
+/* The Deflicker setting on the frame copy, now: for the mode on the TV. The menu's changes go
+ * through here, and so does every game start or resume (go()), since in 480i nothing else
+ * sets the copy filter during a game. GlesGpu's RestoreDispCopyInfo calls it after a readback. */
+extern "C" void applyCopyFilter(void)
+{
+	GXRModeObj *m = g_tv_mode ? g_tv_mode : vmode;
+	if (m)
+		GX_SetCopyFilter(m->aa, m->sample_pattern, deflickerFilter ? GX_TRUE : GX_FALSE, videoCopyTaps(m->vfilter));
+}
+
+/*  Filter Tour  */
+
+#include "IPLFontC.h"
+extern "C" {
+extern u32 frame_counter;					/* psxcounters.c: the game's vblanks */
+extern unsigned int gTexMovieName;			/* GlesGpu/gpuTexture.c */
+void glChgTextureFilter(unsigned int gTexMovieName);	/* deps/opengx/gc_gl.c */
+void resetTexCacheInfo(void);
+}
+
+/* The texture filter (Bilinear setting) on the textures OpenGX holds, as the menu's button does.
+ * The soft plugins read the setting at each present. */
+static void applyTexFilter(void)
+{
+	if (gpuPlugin == OPEN_GX) {
+		glChgTextureFilter(gTexMovieName);
+		resetTexCacheInfo();	/* a texture still in TMEM is loaded again, with the new filter */
+	}
+}
+
+/* Each filter alone, then the combinations of two or three. defl -1 is Deflicker off. */
+struct TourStep { signed char tex, defl, trap; };	/* signed: char is unsigned on the PowerPC */
+static const TourStep TOUR[] = {
+	{ BILINEARFILTER_NEAR,   -1, 0 },
+	{ BILINEARFILTER_ENABLE, -1, 0 },
+	{ BILINEARFILTER_NEAR,   DEFLICKERLEVEL_LIGHT,  0 },
+	{ BILINEARFILTER_NEAR,   DEFLICKERLEVEL_NORMAL, 0 },
+	{ BILINEARFILTER_NEAR,   DEFLICKERLEVEL_STRONG, 0 },
+	{ BILINEARFILTER_NEAR,   -1, 1 },
+	{ BILINEARFILTER_ENABLE, DEFLICKERLEVEL_LIGHT,  0 },
+	{ BILINEARFILTER_ENABLE, DEFLICKERLEVEL_NORMAL, 0 },
+	{ BILINEARFILTER_ENABLE, DEFLICKERLEVEL_STRONG, 0 },
+	{ BILINEARFILTER_ENABLE, -1, 1 },
+	{ BILINEARFILTER_NEAR,   DEFLICKERLEVEL_LIGHT,  1 },
+	{ BILINEARFILTER_NEAR,   DEFLICKERLEVEL_NORMAL, 1 },
+	{ BILINEARFILTER_NEAR,   DEFLICKERLEVEL_STRONG, 1 },
+	{ BILINEARFILTER_ENABLE, DEFLICKERLEVEL_LIGHT,  1 },
+	{ BILINEARFILTER_ENABLE, DEFLICKERLEVEL_NORMAL, 1 },
+	{ BILINEARFILTER_ENABLE, DEFLICKERLEVEL_STRONG, 1 },
+};
+#define TOUR_STEPS ((int)(sizeof(TOUR) / sizeof(TOUR[0])))
+
+/* Vblanks per step: 4 s at 60 Hz. autoinput.txt "filtertour <seconds>" sets it (PadWiiSX.c). */
+extern "C" { unsigned filterTourVbl = 240; }
+static bool tourOn;
+static int tourStep;
+static u32 tourAt;
+static char tourSaved[5];		/* the player's Bilinear, Deflicker, Deflicker Level, Trap, FPS */
+static char tourText[80];
+
+/* The game starts or resumes (go()). The text is drawn with the FPS counter, so that is on. */
+extern "C" void filterTourStart(void)
+{
+	if (!filterTour || tourOn)
+		return;
+	tourSaved[0] = bilinearFilter;
+	tourSaved[1] = deflickerFilter;
+	tourSaved[2] = deflickerLevel;
+	tourSaved[3] = trapFilter;
+	tourSaved[4] = showFPSonScreen;
+	showFPSonScreen = FPS_SHOW;
+	tourStep = -1;
+	tourOn = true;
+}
+
+/* The game stops: the player's values come back before the menu shows or saves them. */
+extern "C" void filterTourStop(void)
+{
+	if (!tourOn)
+		return;
+	tourOn = false;
+	bilinearFilter  = tourSaved[0];
+	deflickerFilter = tourSaved[1];
+	deflickerLevel  = tourSaved[2];
+	trapFilter      = tourSaved[3];
+	showFPSonScreen = tourSaved[4];
+	VIDEO_SetTrapFilter(trapFilter);
+	applyTexFilter();
+	applyCopyFilter();
+}
+
+/* Once per present, from showFpsAndDebugInfo (SoftGPU/drawGX.c), before the copy to the XFB:
+ * the next step when its time is up, then its names under the FPS counter, in bold. */
+extern "C" void filterTourDraw(void)
+{
+	static const char *const defl[] = { "Normal", "Light", "Strong" };
+	if (!tourOn)
+		return;
+	if (tourStep < 0 || frame_counter - tourAt >= filterTourVbl) {	/* a reset counter steps on */
+		const TourStep &t = TOUR[tourStep = (tourStep + 1) % TOUR_STEPS];
+		tourAt = frame_counter;
+		bilinearFilter = t.tex;
+		deflickerFilter = t.defl >= 0;
+		if (t.defl >= 0)
+			deflickerLevel = t.defl;
+		trapFilter = t.trap;
+		VIDEO_SetTrapFilter(trapFilter);
+		applyTexFilter();
+		applyCopyFilter();
+		snprintf(tourText, sizeof tourText, "Tour %d/%d: %s, Deflicker %s, Trap %s", tourStep + 1, TOUR_STEPS,
+			t.tex == BILINEARFILTER_NEAR ? "Near" : "Bilinear", t.defl < 0 ? "Off" : defl[(int)t.defl],
+			t.trap ? "On" : "Off");
+	}
+	IplFont_drawInit((GXColor){ 255, 255, 120, 255 });
+	IplFont_drawString(10, 60, tourText, 1.0, false);
+	IplFont_drawString(11, 60, tourText, 1.0, false);	/* bold: TextBox draws it the same way */
+}
+
 enum {
 	FB_BACK,
 	FB_NEXT,
@@ -175,6 +319,15 @@ extern "C" void switchToTVMode(short dWidth, short dHeight, bool retMenu){
 		rmode->fbWidth = dWidth;
 		width = rmode->fbWidth;
 
+		/* GxColor 2 (Docs/GX_QUALITY.md): OpenGX draws into a multisampled RGB565 EFB, which
+		 * GX allows up to 264 lines: the 240p modes only. The copy filter averages the three
+		 * samples of a pixel (taps 2-4) and keeps the mode's own no-filter taps. */
+		rmode->aa = !retMenu && gpuPlugin == OPEN_GX && gxColor == 2 && dHeight <= 264;
+		if (rmode->aa) {
+			static const u8 aaPattern[12][2] = { {3,2},{9,6},{3,10}, {3,2},{9,6},{3,10},
+			                                     {9,2},{3,6},{9,10}, {9,2},{3,6},{9,10} };
+			memcpy(rmode->sample_pattern, aaPattern, sizeof aaPattern);
+		}
 	}
 
 	GX_SetCopyFilter(rmode->aa,rmode->sample_pattern,(deflickerFilter)?GX_TRUE:GX_FALSE,videoCopyTaps(rmode->vfilter));
@@ -190,7 +343,8 @@ extern "C" void switchToTVMode(short dWidth, short dHeight, bool retMenu){
 	xfbHeight = GX_SetDispCopyYScale(yscale);
 	xfbWidth = VIDEO_PadFramebufferWidth(rmode->fbWidth);
 	GX_SetScissor(0,0,rmode->fbWidth,rmode->efbHeight);
-	GX_SetPixelFmt(GX_PF_RGB8_Z24, GX_ZC_LINEAR);
+	g_tv_mode = rmode;
+	gxApplyEfbFormat(!retMenu);
 	GX_SetDispCopyDst(xfbWidth, xfbHeight);
 	g_xfb_w = xfbWidth;
 	g_xfb_h = xfbHeight;
@@ -260,7 +414,9 @@ Graphics::Graphics(GXRModeObj *rmode)
 	CONF_Init();
 #endif
 	VIDEO_Init();
-	switch (videoMode)
+	/* 480p needs the component cable: without it the TV gets no picture, and the menu that
+	 * could put the setting back could not be seen. */
+	switch (videoMode == VIDEOMODE_PROGRESSIVE && !VIDEO_HaveComponentCable() ? VIDEOMODE_AUTO : videoMode)
 	{
 	case VIDEOMODE_AUTO:
 		//vmode = VIDEO_GetPreferredMode(NULL);

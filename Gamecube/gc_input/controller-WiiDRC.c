@@ -88,6 +88,16 @@ static button_t screenshot_combos[] = {
 	{ 2, WIIDRC_BUTTON_L|WIIDRC_BUTTON_R,                   "L+R" },
 };
 
+/* ANALOG button combinations (PadSSSPSX.c analog_button), entry 0 is Off, entry 1 the default:
+ * the screenshot's pair with another button. While one is held the game sees no buttons, so
+ * its Start does not pause. Configure Buttons keeps it apart from the menu, fast-forward and
+ * screenshot combinations. */
+static button_t analog_combos[] = {
+	{ 0, 0, "Off" },
+	{ 1, WIIDRC_BUTTON_L|WIIDRC_BUTTON_R|WIIDRC_BUTTON_ZR, "L+R+ZR" },
+	{ 2, (WIIDRC_EXTRA_BUTTON_L3|WIIDRC_EXTRA_BUTTON_R3)<<24, "LS+RS" },
+};
+
 static void pause(int Control){ }
 
 static void resume(int Control){ }
@@ -189,6 +199,7 @@ static int _GetKeys(int Control, BUTTONS * Keys, controller_config_t* config)
 	if (!isHeld(config->exit)) return 1;
 	if (!isHeld(config->fastf)) return 2;
 	screenshot_poll(Control, config->screenshot && config->screenshot->mask && !isHeld(config->screenshot));
+	analog_poll(config->analog && config->analog->mask && !isHeld(config->analog));
 	return 0;
 }
 
@@ -213,6 +224,8 @@ controller_t controller_WiiUGamepad =
 	menu_combos,
 	sizeof(screenshot_combos)/sizeof(screenshot_combos[0]),
 	screenshot_combos,
+	sizeof(analog_combos)/sizeof(analog_combos[0]),
+	analog_combos,
 	{ 
 		.SQU = &buttons[12], // Y
 		.CRO = &buttons[10], // B
@@ -238,6 +251,7 @@ controller_t controller_WiiUGamepad =
 		.sensitivity = 1.0,
 		.fastf       = &menu_combos[1], // ZL+ZR+L
 		.screenshot = &screenshot_combos[1],
+		.analog = &analog_combos[1],
 	}
 };
 
