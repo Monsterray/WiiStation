@@ -1,5 +1,5 @@
 README : WiiStation
-Version 5.14.0
+Version 5.15.0
 
 LICENSE:
     This software is licensed under the GNU General Public License v2
@@ -155,7 +155,7 @@ LATER UPDATES BY:
  * Monty Perrotti (WiiStation)
 
 WiiStation CHANGE LOG:
-Unreleased:
+Ver 5.15.0 (2026-10-19):
 * Save Settings > This Game now saves only the settings that differ from
   settings.ini. When the game starts, WiiStation reads settings.ini first and
   the game's own file on top, so a later change to settings.ini reaches every
