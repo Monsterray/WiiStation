@@ -1,0 +1,5 @@
+CHAIN
+# CTR left alone: intro, title, then the attract demos. 2.5 minutes.
+9000
+sd:/wiistation/isos/Crash Team Racing
+Crash Team Racing [U] [SCUS-94426].cue

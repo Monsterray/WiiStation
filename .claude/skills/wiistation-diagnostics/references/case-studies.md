@@ -355,3 +355,27 @@ tempting wrong turns.
 - Frogger [CHD] (zstd), real BIOS: `bios_formats.txt` (nine formats + MediEvil CHD/CHDLZ) and
   `bios_chd.txt` (BIOS from the base settings, CHD first in the boot, intro skipped, smallest
   hunk cache without read-ahead) all reach the same RAM/VRAM hashes as the .cue. Needs the Wii.
+
+## 16. CTR's intro transitions turned into vertical stripes -- bit 15 of GX-drawn pixels (OpenGX)
+
+- Symptom (2026-10-18): in CTR's attract intro, the zoom/motion-blur transition between the
+  character clips came out as blocky vertical stripes of stale picture; Soft Fast showed a blur.
+  Unattended: boot CTR with no input (`scripts/chains/ctr_demo.txt`), the intro plays at vblank
+  ~9200 (debug, Dolphin).
+- Trace (`trace 9206` / `trace 9300`): every present ends with two `cmd=2f` (textured, semi,
+  raw 15-bit, ABR 0) quads covering the drawn buffer, textured from the OTHER buffer -- the last
+  frame drawn back at 50% over the new one. vramio.log: `C1 6,300 250x209 224 0` / `C2 ... 100 0`
+  x83: efb_sync filled the texture rect from snapshots, nothing missed. So the pixels were there.
+- Decisive, one line of numpy on the two runs' `vram.bin`: display buffers with bit 15 set --
+  Soft 92.2%, OpenGX 0.0%. A PS1 blends a textured pixel only when the texel's STP (bit 15) is
+  set; OpenGX's split agrees (gc_gl.c: bit 15 set -> the blended pass). efb_sync wrote the
+  snapshot colour and KEPT psxVuw's old bit 15 (0 after the game's GP0 02 clears), so the blur
+  quad was drawn opaque, zoomed, every frame: feedback.
+- Fix (efbSync.inc): `efb_stp[][]` per 16x16 tile, set by `efb_gx_draw()` from the primitive
+  that last covered it: set-mask (E6) or a textured primitive -> 1 (the texel's STP is not
+  kept by GX: RGB8 EFB, RGB565 snapshots), untextured -> 0; efb_sync writes that bit. After:
+  bit 15 100% in the synced buffer, the transition matches Soft
+  (`.runs/ctr_trans_compare.png` in the try/game-render worktree).
+- Lesson: a pixel's colour is not all a game reads back; bit 15 decides blending and mask
+  tests. When a readback is "100% merged" and still wrong, compare the bit-15 share of both
+  plugins' VRAM before anything else.

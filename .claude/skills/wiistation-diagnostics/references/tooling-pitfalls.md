@@ -222,3 +222,16 @@ server live in `C:\ai\README.md`.
   stops with "paths are ignored" yet stages `a` and `b`, so the next commit takes them under
   the wrong message (2be5ad4, 2026-10-01). Add skill files with `git add -f`, and read
   `git diff --cached --stat` before each commit.
+
+- **A worktree under `C:\Users\Monty Perrotti\...` (space) (2026-10-18).** Build it from the
+  long path (`cd "/c/Users/Monty Perrotti/AppData/Local/Temp/opencode/<wt>"`): from the 8.3
+  path (`MONTYP~1`) build.sh misses the space, devkitPro's MSYS maps the cwd to `/home/Monty
+  Perrotti/...` and opengx's `-I$(CURDIR)` breaks (`GL/gl.h: No such file`). The space path
+  takes build.sh's source-snapshot route, which now carries `deps/ext` (libwupc, gitignored)
+  as well; before, `wupc/wupc.h: No such file`. In such a worktree `wsx.sh run` with the
+  default `--autoboot spyro` passed `$P/autoboot_spyro.txt` unquoted ("card: 0 game(s)", the
+  run stays in the menu) -- quoted now; a relative `--autoboot scripts/runfiles/...` always worked.
+- **`KEEP=N` keeps the LAST N frame dumps.** A run whose `--secs` outlasts the scene (other
+  Dolphins sharing the CPU change how far a run gets) loses the scene. Ask for `KEEP=100000`
+  with a short `--secs`, or use `xfb <vblank>` pictures (`--env XFB_RAM=1`), which are exact
+  and cost no disk.
