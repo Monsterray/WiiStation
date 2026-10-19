@@ -206,8 +206,16 @@ static s32 ipcCallBack(s32 result, void *usrdata)
     return 0;
 }
 
+/* Why HIDInit stopped, for the USB Pad Test log and the debug log: every early return used to
+ * be silent, so "no controllers" could not tell a missing device from a reader that never
+ * started. 0 = not called, 1 = wrong IOS, 2 = /dev/usb/hid open failed, 3 = USB v4 only,
+ * 4 = not USB v5, 9 = running; hid_init_ret is the IOS value at that step. */
+int hid_init_stage = 0, hid_init_ret = 0;
+
 void HIDInit( u32 ios )
 {
+    hid_init_ret = ios;
+    hid_init_stage = 1;
     if (ios != 58)
     {
         #ifdef DISP_DEBUG
@@ -218,11 +226,15 @@ void HIDInit( u32 ios )
     }
 
     HIDHandle = IOS_Open("/dev/usb/hid", 0 );
+    hid_init_stage = 2;
+    hid_init_ret = HIDHandle;
     if(HIDHandle < 0) return; //should never happen
 
     if (hId == -1 ) hId = iosCreateHeap(USB_HEAPSIZE);
     u32 *hid_ver = (u32*)iosAlloc(hId, 0x20);
     s32 checkRet = IOS_Ioctl(HIDHandle, USBV4_IOCTL_GETVERSION, NULL, 0, NULL, 0);
+    hid_init_stage = 3;
+    hid_init_ret = checkRet;
     if (checkRet == 0x40001)
     {
         #ifdef DISP_DEBUG
@@ -235,6 +247,8 @@ void HIDInit( u32 ios )
     }
 
     checkRet = IOS_Ioctl(HIDHandle, USBV5_IOCTL_GETVERSION, NULL, 0, hid_ver, 0x20);
+    hid_init_stage = 4;
+    hid_init_ret = checkRet ? checkRet : (s32)hid_ver[0];
     if (checkRet  || hid_ver[0] != 0x50001)
     {
         #ifdef DISP_DEBUG
@@ -283,6 +297,7 @@ void HIDInit( u32 ios )
     #endif // DISP_DEBUG
 
     hidRun = 1;
+    hid_init_stage = 9;
     HID_Timer = gettime();
     LWP_CreateThread(&HID_Thread, HIDRun, NULL, NULL, 0, 70);
 

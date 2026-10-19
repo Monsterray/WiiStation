@@ -1072,6 +1072,14 @@ int main(int argc, char *argv[])
 	/* before loadSettings: its handleConfigPair() cuts every argument at its '=' in place, so
 	 * "lab=HOST:PORT" read afterwards was only "lab" and lab mode never started on a Wii */
 	lab_args(argc, argv);
+#ifdef HW_RVL
+	/* Before loadSettings: its usb: mount starts libogc's USB (USB_Initialize), which opens
+	 * /dev/usb/hid and keeps it, and IOS gives that device to one opener only: HIDInit then
+	 * failed with -4 and no USB pad was ever read (bench Wii, 5.14.0, libogc 2 and 3 alike).
+	 * libogc carries on without its HID handle; USB storage is on /dev/usb/ven. The IOS is
+	 * the one now running, after the reload above. */
+	HIDInit(IOS_GetVersion());
+#endif
 	loadSettings(argc, argv);
 	perf_stack_log("settings");
 
@@ -1138,8 +1146,15 @@ int main(int argc, char *argv[])
 	}
 
 	#ifdef HW_RVL
-	HIDInit(ios);
 	perf_stack_log("hid");
+#ifdef PERF_PROF
+	{	/* the USB pad reader: 9 = running, otherwise where HIDInit stopped (KernelHID.c) */
+		char l[96];
+		snprintf(l, sizeof l, "hid: init stage %d, value %d (0x%x), ios %d\n",
+			hid_init_stage, hid_init_ret, (unsigned)hid_init_ret, (int)IOS_GetVersion());
+		perf_tty(l);
+	}
+#endif
 
 	VM_Init(1024*1024, 256*1024); // whatever for now, we're not really using this for anything other than mmap on Wii.
 	#endif // HW_RVL
