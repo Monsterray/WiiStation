@@ -7,9 +7,11 @@ make: a settings file with every key of the OPTIONS table (Gamecube/GamecubeMain
 value other than its default (Gamecube/release/example_settings.ini), inside the table's range.
 A few keys keep their default because changing them changes the run itself (KEEP below).
 
-check: WRITTEN is the settings.ini (or settings/<ID>.ini) that WiiStation wrote after it read
-IN (a Save from the menu: autoinput "menuclick 14 1"). Every table key must be in WRITTEN, with
-the value IN gave it (the last line of a key wins, as in readConfig). Exit 1 on any difference.
+check: WRITTEN is the settings.ini that WiiStation wrote after it read IN (a Save from the
+menu: autoinput "menuclick 14 1"). Every table key that a settings file holds must be in
+WRITTEN, with the value IN gave it (the last line of a key wins, as in readConfig); a key no file
+holds (FilterTour) must not be. Exit 1 on any difference. A game's own file (settings/<ID>.ini)
+holds only what differs from settings.ini: SETTINGS.md 1.4.
 
 The Dolphin round trip (Docs/SETTINGS_AUDIT.md):
     python scripts/settings_roundtrip.py make .runs/rt_in.ini
@@ -39,6 +41,8 @@ def make(out):
     default = values(sc.REPO / "Gamecube/release/example_settings.ini")
     lines = []
     for r in sc.table():
+        if not r["stored"]:
+            continue
         k, d = r["key"], default[r["key"]]
         if k in KEEP:
             v = d
@@ -57,6 +61,11 @@ def check(given, written):
     bad = 0
     for r in sc.table():
         k = r["key"]
+        if not r["stored"]:
+            if k in got:
+                print(f"{k}: written, but no settings file should hold it")
+                bad = 1
+            continue
         if k not in got:
             print(f"{k}: not written")
             bad = 1

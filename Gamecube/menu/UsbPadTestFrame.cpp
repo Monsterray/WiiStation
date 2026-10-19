@@ -437,17 +437,32 @@ static void Func_UsbPadTestSkip()
 	}
 }
 
+static bool fromAdvanced;	/* opened from Advanced > Input: B goes back there */
+void OptionsFrame_BackToInput();	/* OptionsFrame.cpp */
+
 static void Func_UsbPadTestBack()
 {
 	if (usbPadBusy()) return;
 	if (logFile) closeLog("stopped");
 	hidRawMode = 0;
 	state = ST_DONE;
-	pMenuContext->setActiveFrame(MenuContext::FRAME_SETTINGS, SettingsFrame::SUBMENU_INPUT);
+	if (fromAdvanced)
+		OptionsFrame_BackToInput();
+	else
+		pMenuContext->setActiveFrame(MenuContext::FRAME_SETTINGS, SettingsFrame::SUBMENU_INPUT);
 }
 
+/* Settings button 83, on no tab now: only "menuclick 83 1" presses it. B goes back to Settings. */
 void Func_UsbPadTest()
 {
+	fromAdvanced = false;
+	pMenuContext->setActiveFrame(MenuContext::FRAME_USBPADTEST, 0);
+}
+
+/* Advanced > Input, USB Pad: Test. B goes back there. */
+void Func_UsbPadTestAdvanced()
+{
+	fromAdvanced = true;
 	pMenuContext->setActiveFrame(MenuContext::FRAME_USBPADTEST, 0);
 }
 

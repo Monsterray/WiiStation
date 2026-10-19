@@ -42,28 +42,33 @@ Obey these rules:
 2. Select the General tab.
 3. Select **Save Settings > SD** or **Save Settings > USB**.
 
-WiiStation writes all the keys in this document to the file. If the folder `wiistation` does not exist on the device, WiiStation creates it.
+WiiStation writes all the keys in this document to the file, except `FilterTour`. If the folder `wiistation` does not exist on the device, WiiStation creates it.
 
 ### 1.4 Settings for one game
 
-WiiStation can load a different settings file for one game. The file name is the disc serial number, for example `SLUS00067.ini`. WiiStation looks for the file in this order and uses the first file that it finds:
+A game can have its own settings file. The file name is the disc serial number, for example `SLUS00067.ini`. The file holds only the settings that are different for that game. Each time a game starts, WiiStation sets the settings in this order:
 
-1. `usb:/wiistation/settings/<serial>.ini` (or `<serial>.cfg`, see below)
-2. `sd:/wiistation/settings/<serial>.ini` (or `<serial>.cfg`)
-3. `usb:/wiistation/settings.ini`
-4. `sd:/wiistation/settings.ini`
+1. The default values.
+2. The common settings file: `usb:/wiistation/settings.ini`, or `sd:/wiistation/settings.ini` when there is no file on USB.
+3. The game's own file, on top: the first file of `usb:/wiistation/settings/<serial>.ini`, `usb:/wiistation/settings/<serial>.cfg`, `sd:/wiistation/settings/<serial>.ini`, `sd:/wiistation/settings/<serial>.cfg`.
 
-A game settings file can contain any key in this document. To write the file, load the game, open the Settings menu, and select **Save Settings > This Game** on the General tab. WiiStation writes the file to `usb:/wiistation/settings/` if that folder exists. If not, it writes the file to `sd:/wiistation/settings/`.
+Thus a change to the common file reaches every game, except in the settings that the game's file holds.
 
-Versions 5.6.1 to 5.13.1 wrote this file as `<serial>.cfg`, and no version read it. WiiStation now reads `<serial>.cfg` on a device when that device has no `<serial>.ini`. The next **This Game** save writes `<serial>.ini`. You can then delete the `.cfg` file.
+To write the game's file, load the game, open the Settings menu, and select **Save Settings > This Game** on the General tab. WiiStation compares each setting with the default values and the common file (1 and 2 above) and writes only the settings that are different. The message tells how many. WiiStation writes the file to `usb:/wiistation/settings/` if that folder exists. If not, it writes the file to `sd:/wiistation/settings/`. When no setting is different, the file holds only its comment lines: the game then uses the common file. To remove all the settings of a game, delete its file.
 
-WiiStation reads the game's file after it opens the disc. `SoundHwAccel`, `CdBuffer`, `CdPrefetch` and `CdChdHunks` are used when the disc is opened, so their values in a game's file take effect at the next game load, not at this one. `VideoMode`, `lang` and `MenuFont` take effect only when WiiStation starts. All other keys take effect when the game starts.
+**Load Settings > This Game** sets the settings in the same order (1, 2, 3) now. It does nothing when the game has no file.
 
-A PS-X EXE program (a `.exe` file, for example a test program) has no disc serial number. WiiStation uses the common settings file (3 or 4) for it, never the file of the game that ran before it.
+These keys are never in a game's file: `lang`, `MenuFont`, `FileSortMode`, `TabWrap` (the menu), `RomDirSD`, `RomDirUSB`, `RomDirSMB`, `NativeDevice`, `StatesDevice`, `AchievementFile`, `AchievementLog` (folders and devices), and `smbipaddr`, `smbsharename`, `smbusername`, `smbpassword` (the network share and its login). They belong to the Wii, not to the game. **This Game** does not write them, and WiiStation ignores them in a game's file. A game file from 5.14.0 or earlier holds every key: WiiStation still reads it, and its other keys still replace the common file's values. The next **This Game** save writes only the differences. `FilterTour` is in no settings file (section 3).
+
+Versions 5.6.1 to 5.13.1 wrote the game's file as `<serial>.cfg`, and no version read it. WiiStation reads `<serial>.cfg` on a device when that device has no `<serial>.ini`. The next **This Game** save writes `<serial>.ini`. You can then delete the `.cfg` file.
+
+WiiStation reads the game's file after it opens the disc. `SoundHwAccel`, `CdBuffer`, `CdPrefetch` and `CdChdHunks` are used when the disc is opened, so their values in a game's file take effect at the next game load, not at this one. `VideoMode` takes effect only when WiiStation starts. All other keys take effect when the game starts.
+
+A PS-X EXE program (a `.exe` file, for example a test program) has no disc serial number. WiiStation uses the default values and the common settings file for it, never the file of the game that ran before it.
 
 ### 1.5 Settings from the loader
 
-On the Wii, a loader can give settings as arguments after the program name. Each argument has the form `Key=Value`. WiiStation applies these arguments after it reads the settings file.
+On the Wii, a loader can give settings as arguments after the program name. Each argument has the form `Key=Value`. WiiStation applies these arguments after it reads the settings file. A game start sets the settings again from the default values and the files (section 1.4), so an argument holds until the first game starts.
 
 ## 2. General settings
 
@@ -117,7 +122,7 @@ The values of `lang` are:
 | `FmvColour` | 0 = 15-bit, 1 = 24-bit | 1 | Video, Advanced page, "Video Colour" | How a 24-bit picture (most full-motion video) reaches the screen. **24-bit** keeps all eight bits of each colour, as the console shows it (an RGBA8 texture). **15-bit** cuts each colour to five bits, which shows as bands in dark or smooth scenes; it was the only mode before 2026-09-22. Measured in Dolphin, the CPU side: +0.26% of wall in Micro Machines' intro video, +0.09% in Medievil's, and nothing outside 24-bit video. The graphics chip's side (an RGBA8 texture has twice the bytes to read) shows only on a Wii: `scripts/chains/fmv_ab.txt`. Applies at once. |
 | `Gamma` | 0 to 5 = 1.0, 1.1, 1.2, 1.3, 1.4, 1.5 | 0 | Video, Advanced page, "Gamma" | The gamma of the Wii video encoder (`VIDEO_SetGamma`, `Gamecube/vi_encoder.c`). Higher is brighter. 1.0 writes nothing at start, so the picture is as before. It is one write to the encoder: at start, and when the setting changes. |
 | `DeflickerLevel` | 0 = Normal, 1 = Light, 2 = Strong | 0 | Video, Advanced page, "Deflicker Level" | How much the frame copy mixes each line with the lines above and below while `DeflickerFilter` is on, in an interlaced mode (480i, 576i). In 64ths, line above / line / line below: **Normal** 16/32/16, the video mode's own taps (8 8 10 12 10 8 8); **Light** 8/48/8 (4 4 16 16 16 4 4): sharper, a little more flicker; **Strong** 21/22/21 (10 11 7 8 7 11 10): the softest, the least flicker. 240p and 480p have no flicker to remove and keep no filter whatever the level. Until this version Light was 0 0 21 22 21 0 0, which is no filter at all: it looked the same as Deflicker off. Applies at once: a change is written to the copy filter when it is made, and again whenever a game starts or resumes (`go()`, `applyCopyFilter()` in `Gamecube/libgui/GraphicsGX.cpp`). Before, a game in 480i kept the menu's filter until something else set it: with the Soft renderers Deflicker and its level changed nothing at all (measured in Dolphin's XFB: 0 pixels between Deflicker on and off), OpenGX took them at its first picture readback. |
-| `FilterTour` | 0 = Off, 1 = On | 0 | Video, Advanced page, "Filter Tour" | A demonstration. While a game runs, every 4 seconds the next of 16 steps: each filter alone (texture filter Near or Bilinear, Deflicker off, Light, Normal or Strong, Trap off or on), then their combinations. The step is written in bold under the FPS counter, which is on while the tour runs. Your own Bilinear, Deflicker, Deflicker Level, Trap and Show FPS come back when the game stops, before the menu shows them. Saved like any setting: leave it Off. An `autoinput.txt` line `filtertour <seconds>` turns it on for a test run, with that many seconds a step. The old soft GPU (PeopsSoftGPU, not built) has no tour. |
+| `FilterTour` | 0 = Off, 1 = On | 0 | Video, Advanced page, "Filter Tour" | A demonstration. While a game runs, every 4 seconds the next of 16 steps: each filter alone (texture filter Near or Bilinear, Deflicker off, Light, Normal or Strong, Trap off or on), then their combinations. The step is written in bold under the FPS counter, which is on while the tour runs. Your own Bilinear, Deflicker, Deflicker Level, Trap and Show FPS come back when the game stops, before the menu shows them. It is Off at every start: no settings file holds it, and WiiStation ignores it in a file. An `autoinput.txt` line `filtertour <seconds>` turns it on for a test run, with that many seconds a step. The old soft GPU (PeopsSoftGPU, not built) has no tour. |
 | `TVMode` | 0 = Off, 1 = On | 0 | Video, 240p | Sets the 240p original mode. The picture uses the original PlayStation resolution. Fixed 2026-09-23: with 240p saved in the settings, or on any game after the first, the picture was garbage (a purple screen, a cropped picture, or four narrow copies with interleaved lines) until the 240p button was pressed again. |
 | `BilinearFilter` | 0 = Default, 1 = Near, 2 = Bilinear | 1 | Video, texture filter button | Selects the texture filter of the OpenGX renderer. Near keeps sharp pixels. Bilinear makes textures smooth. |
 | `TrapFilter` | 0 = Off, 1 = On | 1 | Video, Trap | Enables the trap filter of the Wii video encoder: a notch that takes the colour carrier's frequency out of the brightness signal, so composite (and S-Video) shows less colour crawl and fine detail a little softer. It does nothing on component (480p or 480i over YPbPr) or HDMI adapters, and Dolphin does not emulate it. Applies at once. |

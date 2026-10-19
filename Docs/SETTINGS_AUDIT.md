@@ -149,13 +149,27 @@ Ranges (`PadType<n>`, `Coop<p>Type<n>` ...) are one row each.
   the disc ID that names the file is known only after that). 3 are boot-only: `VideoMode`,
   `lang`, `MenuFont`. Both are now written in SETTINGS.md section 1.4. Not fixed.
 
+## 2026-10-19: a game's file holds only its differences
+
+- **Done** (was open here): a game start sets the defaults, reads settings.ini (USB, else SD),
+  then the game's own file on top (`loadGlobalSettings`, `gameSettingsFile`, `loadGameSettings`
+  in GamecubeMain.cpp). Save > This Game (`writeGameConfig`) writes only the keys whose value
+  differs from that global layer; Load Settings > This Game reads in the same order.
+- **Global-only keys** (`GLOBAL_ONLY_KEYS`): `lang`, `MenuFont`, `FileSortMode`, `TabWrap`,
+  `RomDirSD`, `RomDirUSB`, `RomDirSMB`, `NativeDevice`, `StatesDevice`, `AchievementFile`,
+  `AchievementLog`, `AchievementBenchRoot`, `smbipaddr`, `smbsharename`, `smbusername`,
+  `smbpassword`. This Game never writes them, and a game's file is not read for them, so an old
+  full game file no longer holds back the share login or a folder. `BiosDevice` stays per game
+  (HLE or a real BIOS is a per-game choice; the file name is fixed).
+- **Not stored** (`UNSTORED_KEYS`): `FilterTour`, Off at every boot. settings.ini no longer has
+  it; a file that does is ignored for it. `settings_check.py` and `settings_roundtrip.py` read
+  both lists from the C source.
+- An old full game file (.ini or .cfg) still loads: its keys replace settings.ini's as before,
+  except the global-only ones. A This Game save with no difference writes a file of comment
+  lines only, which still hides an old `.cfg` of the game on that device.
+
 ## Open, for a decision
 
-- **A game's file is a copy of every setting**, as before: device paths, Co-Op, RomDirs and the
-  SMB login (`smbpassword`) go into `settings/<ID>.ini`, and later changes to settings.ini never
-  reach a game that has its own file. A per-game file with only the per-game keys (or a
-  per-game file read over settings.ini instead of in its place) would fix both; it changes the
-  file format, so it is not done here.
 - **Next-load keys** above: reading the game's file before `SysInit()` needs the ID first
   (CheckCdrom opens the disc). Possible, not small.
 - `BiosDevice` from a game's file is not checked for a BIOS file (boot falls back to HLE when

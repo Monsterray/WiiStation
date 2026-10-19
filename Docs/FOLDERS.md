@@ -10,7 +10,7 @@ page says what goes where, for players and for anyone running the test tools.
 | What | New place | Old place | Notes |
 |---|---|---|---|
 | Settings | `wiistation/settings.ini` | `wiisxrx/settingsRX2022.cfg` | New format, in [sections]. Every old key still exists with the same name and values; `wiistation/example_settings.ini` lists them all with their defaults. |
-| One game's settings | `wiistation/settings/<serial>.ini` | `wiistation/settings/<serial>.cfg` | Written by Settings > General > Save Settings > **This Game**. 5.6.1 to 5.13.1 wrote `.cfg` (and never read it); the `.cfg` is read when there is no `.ini`. |
+| One game's settings | `wiistation/settings/<serial>.ini` | `wiistation/settings/<serial>.cfg` | Written by Settings > General > Save Settings > **This Game**: only the settings that differ from `settings.ini`, which the game reads first (SETTINGS.md 1.4). 5.6.1 to 5.13.1 wrote `.cfg` (and never read it); the `.cfg` is read when there is no `.ini`. |
 | Memory cards | `wiistation/saves/*.mcd` | `wiisxrx/saves/` | Same file format: copy them across. |
 | Save states | `wiistation/savestates/` | `wiisxrx/savestates/` | States from 5.5 and older may not load in newer versions. |
 | BIOS | `wiistation/bios/SCPH1001.BIN` | `wiisxrx/bios/` | Also `SCPH5501`, `SCPH1000`, `SCPH5500` (NTSC) and `SCPH1002`, `SCPH5502` (PAL). |

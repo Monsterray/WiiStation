@@ -155,6 +155,20 @@ LATER UPDATES BY:
  * Monty Perrotti (WiiStation)
 
 WiiStation CHANGE LOG:
+Unreleased:
+* Save Settings > This Game now saves only the settings that differ from
+  settings.ini. When the game starts, WiiStation reads settings.ini first and
+  the game's own file on top, so a later change to settings.ini reaches every
+  game except in the settings that game changed. A game's file never holds the
+  language, the menu font, the game, save and state folders or devices, or the
+  network share and its login; WiiStation ignores them in an older game file.
+  Older full game files still load; the next This Game save makes them short.
+* Load Settings > This Game reads settings.ini and then the game's file, as a
+  game start does, and also takes an old .cfg game file.
+* Filter Tour is Off at every start: no settings file saves or loads it.
+* Test USB Pad moved to Settings > General > Advanced > Input ("USB Pad: Test").
+  B on the test page goes back there.
+
 Ver 5.14.0 (2026-10-18):
 * Fixed: with the Soft renderers (the default), Deflicker and Deflicker Level
   did nothing in 480i (the usual mode): the game kept the menu's filter. OpenGX
