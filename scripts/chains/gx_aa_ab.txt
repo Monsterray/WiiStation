@@ -1,0 +1,10 @@
+CHAIN
+# 240p without and with GxColor=2 (AA), the same intro moment: xfb_01/02 base, xfb_03/04 AA.
+# Docs/GX_QUALITY.md "AA". About 65 s of game.
+#   ... wii_lab.py hw_gx_aa_ab scripts/chains/gx_aa_ab.txt --dol debug --timeout 400
+1800 sd:/wiistation/gx_ctr_aa4.txt TVMode=1
+sd:/wiistation/isos/Crash Team Racing
+Crash Team Racing [U] [SCUS-94426].cue
+1800 sd:/wiistation/gx_ctr_aa4.txt TVMode=1 GxColor=2
+sd:/wiistation/isos/Crash Team Racing
+Crash Team Racing [U] [SCUS-94426].cue

@@ -1484,6 +1484,18 @@ void perf_report(void)
 				fprintf(f, "tvlog: %ux%u at vblank %u\n", g_perf.tv_log[k][0],
 					g_perf.tv_log[k][1], g_perf.tv_log[k][2]);
 		}
+		{	/* what the VI scans now: its first 32 registers (0xCC002000) and the XFB the
+			 * 'xfb' dump reads, so a TV-only symptom can be told from an XFB one
+			 * (Docs/GX_QUALITY.md, AA) */
+			extern u32 *xfb[3];
+			volatile u16 *vi = (volatile u16 *)0xCC002000;
+			unsigned k;
+			fprintf(f, "vireg: cur=%08x front=%08x |", (unsigned)MEM_VIRTUAL_TO_PHYSICAL(VIDEO_GetCurrentFramebuffer()),
+				(unsigned)MEM_VIRTUAL_TO_PHYSICAL(xfb[2]));
+			for (k = 0; k < 32; k++)
+				fprintf(f, " %04x", vi[k]);
+			fprintf(f, "\n");
+		}
 		fprintf(f, "cdpf: hit=%lu miss=%lu reads=%lu bmiss=%lu miss_us=%llu miss_worst=%lu"
 			" bmiss_us=%llu bmiss_worst=%lu slow1=%lu slow4=%lu\n",
 			(unsigned long)g_perf.cd_pf_hit, (unsigned long)g_perf.cd_pf_miss,

@@ -44,6 +44,7 @@ the draw (GX state, Dolphin); `offsoft prims` > 0 means the title renders off-sc
 ## 240p, the XFB, and the pad protocol (perf.log lines, 2026-09-23)
 
 - `tvmode:` / `tvlog:` -- switchToTVMode() calls: the last one's size, the GP1 07 range and height it came from, and the first 8 calls with their vblank.
+- `vireg: cur= front= | 32 x u16` (2026-10-19) -- the framebuffer the VI scans now (physical), `xfb[2]` (what the `xfb` dump reads), and VI registers 0xCC002000-0x3E. Two runs that differ only in GX settings must match except the beam position (registers 0x2C/0x2E, the 23rd/24th values); then a right `xfb` picture is what the TV shows.
 - `dump <vblank>` also writes `sd:/wiistation/xfb.bin`, the front XFB (header w,h + YUYV); `python scripts/xfb2png.py xfb.bin out.png`. Run with `--env XFB_RAM=1`: Dolphin's default XFB cache never writes copies to memory, and its frame dumps and XFB dumps can both miss a wrong display copy. This is what found the 240p four-copies bug.
 - `padproto:` -- port 1's controller commands by type (0x42 poll, 0x43 config, 0x44 mode, 0x4D rumble map, ...) and the first 0x42 reply sent while a button was held (ID and bytes). A digital pad replies `id=41 len=4`, an analog one `id=73 len=8`.
 - A scheduled `dump`/`trace` fires only at a present after that vblank: a game that is loading (Spyro presents once in its first 300 vblanks) needs a later vblank.
