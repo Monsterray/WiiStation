@@ -1,0 +1,5 @@
+CHAIN
+# The user's Spyro session (new game, the whirlwind elevator, a level): the elevator lag spike
+14400 sd:/wiistation/spyro_tornado_play.txt PadAutoAssign=1 ControllerType=0 PadType2=1
+sd:/wiistation/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue
