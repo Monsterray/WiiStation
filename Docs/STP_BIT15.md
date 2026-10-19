@@ -103,7 +103,8 @@ When a wrong bit can show: (a) the game uses a GX-drawn frame as a semi-transpar
 
 | Path | What happens to bit 15 | Exact? |
 |---|---|---|
-| Soft plugins (Soft Fast / Soft Timed, `SoftGPU/soft.c`) | PS1 rules, in `psxVuw` | yes: the reference |
+| Soft plugins (Soft Fast / Soft Timed), `SoftGpuMode` Accurate or Hi-Fi (`SoftGPU/acc.c`) | PS1 rules on every write path, in `psxVuw`: ps1-tests `gpu/mask-bit` 5/5 | yes: the reference |
+| Soft plugins, `SoftGpuMode` Fast (`SoftGPU/soft.c`, P.E.Op.S.) | primitives as the PS1; GP0 A0 loads ignore E6 (mask-bit 3/5); Soft Timed's masked A0 path swaps bytes on the Wii | no |
 | OpenGX `OffscreenSoftDraw()` (primitives outside the live buffer) | soft rasterizer into `psxVuw` | yes |
 | OpenGX image load / VRAM move / fill in `psxVuw` | CPU code, E6.0 applied in `primMoveImage` | yes in `psxVuw` |
 | OpenGX GX draw into the EFB | the EFB is `GX_PF_RGB8_Z24` (`Gamecube/libgui/GraphicsGX.cpp`, the TV-mode set-up and `GX_Init` path): no alpha bits | lost |

@@ -1,0 +1,40 @@
+CHAIN
+# Soft Fast (gpuPlugin=0) under SoftGpuMode 0 Accurate, 1 Hi-Fi, 2 Fast: the user's recordings
+# (3D gameplay, not intro FMVs). VRAM at the end of each (vram_NN.bin) and speed per mode.
+# Compare: python scripts/softmode_cmp.py .runs/NAME
+2400 sd:/wiistation/spyro_the_dragon_play.txt PadAutoAssign=1 ControllerType=0 gpuPlugin=0 SoftGpuMode=0
+sd:/wiistation/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue
+2400 sd:/wiistation/spyro_the_dragon_play.txt PadAutoAssign=1 ControllerType=0 gpuPlugin=0 SoftGpuMode=1
+sd:/wiistation/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue
+2400 sd:/wiistation/spyro_the_dragon_play.txt PadAutoAssign=1 ControllerType=0 gpuPlugin=0 SoftGpuMode=2
+sd:/wiistation/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue
+3000 sd:/wiistation/crash_bandicoot_3_warped_play.txt PadAutoAssign=1 ControllerType=0 gpuPlugin=0 SoftGpuMode=0
+sd:/wiistation/isos/Crash Bandicoot 3 - Warped
+Crash Bandicoot 3 - Warped [U] [SLUS-94244].cue
+3000 sd:/wiistation/crash_bandicoot_3_warped_play.txt PadAutoAssign=1 ControllerType=0 gpuPlugin=0 SoftGpuMode=1
+sd:/wiistation/isos/Crash Bandicoot 3 - Warped
+Crash Bandicoot 3 - Warped [U] [SLUS-94244].cue
+3000 sd:/wiistation/crash_bandicoot_3_warped_play.txt PadAutoAssign=1 ControllerType=0 gpuPlugin=0 SoftGpuMode=2
+sd:/wiistation/isos/Crash Bandicoot 3 - Warped
+Crash Bandicoot 3 - Warped [U] [SLUS-94244].cue
+2400 sd:/wiistation/crash_bash_play.txt PadAutoAssign=1 ControllerType=0 gpuPlugin=0 SoftGpuMode=0
+sd:/wiistation/isos/Crash Bash
+Crash Bash [U] [SCUS-94570].cue
+2400 sd:/wiistation/crash_bash_play.txt PadAutoAssign=1 ControllerType=0 gpuPlugin=0 SoftGpuMode=1
+sd:/wiistation/isos/Crash Bash
+Crash Bash [U] [SCUS-94570].cue
+2400 sd:/wiistation/crash_bash_play.txt PadAutoAssign=1 ControllerType=0 gpuPlugin=0 SoftGpuMode=2
+sd:/wiistation/isos/Crash Bash
+Crash Bash [U] [SCUS-94570].cue
+3600 sd:/wiistation/ape_escape_play.txt PadAutoAssign=1 ControllerType=1 gpuPlugin=0 SoftGpuMode=0
+sd:/wiistation/isos/Ape Escape
+Ape Escape [U] [SCUS-94423].cue
+3600 sd:/wiistation/ape_escape_play.txt PadAutoAssign=1 ControllerType=1 gpuPlugin=0 SoftGpuMode=1
+sd:/wiistation/isos/Ape Escape
+Ape Escape [U] [SCUS-94423].cue
+3600 sd:/wiistation/ape_escape_play.txt PadAutoAssign=1 ControllerType=1 gpuPlugin=0 SoftGpuMode=2
+sd:/wiistation/isos/Ape Escape
+Ape Escape [U] [SCUS-94423].cue

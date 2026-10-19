@@ -27,6 +27,8 @@
 #include "gpu.h"
 #include "Gamecube/perf_prof.h"   /* perf_ram_write: "ramwatch" */
 
+extern u32 acc_take_ticks(void);   /* SoftGPU/acc.c: GPU ticks drawn (SoftGpuMode Accurate / Hi-Fi) */
+
 #ifndef min
 #define min(a, b) ((b) < (a) ? (b) : (a))
 #endif
@@ -139,7 +141,7 @@ static u32 gpuDmaChainSize(u32 addr) {
 
 void psxDma2(u32 madr, u32 bcr, u32 chcr) { // GPU
 	u32 *ptr, madr_next, *madr_next_p;
-	u32 words, words_left, words_max, words_copy;
+	u32 words, words_left, words_max, words_copy, cyc;
 	s32 cycles_last_cmd = 0;
 	int do_walking;
 	long cycles_sum;
@@ -167,9 +169,11 @@ void psxDma2(u32 madr, u32 bcr, u32 chcr) { // GPU
 			STORE_SWAP32p(psxHAddr(0x10a0), madr + (words << 2));
 
 			// careful: gpu_state_change() also messes with this
-			psxRegs.gpuIdleAfter = psxRegs.cycle + words / 4 + 16;
+			/* GpuTiming Accurate: 2.2 cycles per word (ps1-tests gpu/bandwidth on a PS1) */
+			cyc = gpuTiming == GPU_TIMING_ACCURATE ? (words * 563) >> 8 : words / 4;
+			psxRegs.gpuIdleAfter = psxRegs.cycle + cyc + 16;
 			// already 32-bit word size ((size * 4) / 4)
-			set_event(PSXINT_GPUDMA, words / 4);
+			set_event(PSXINT_GPUDMA, cyc);
 			return;
 
 		case 0x01000201: // mem2vram
@@ -191,9 +195,11 @@ void psxDma2(u32 madr, u32 bcr, u32 chcr) { // GPU
 			STORE_SWAP32p(psxHAddr(0x10a0), madr);
 
 			// careful: gpu_state_change() also messes with this
-			psxRegs.gpuIdleAfter = psxRegs.cycle + words / 4 + 16;
+			/* GpuTiming Accurate: 1.7 cycles per word (ps1-tests gpu/bandwidth on a PS1) */
+			cyc = gpuTiming == GPU_TIMING_ACCURATE ? (words * 435) >> 8 : words / 4;
+			psxRegs.gpuIdleAfter = psxRegs.cycle + cyc + 16;
 			// already 32-bit word size ((size * 4) / 4)
-			set_event(PSXINT_GPUDMA, words / 4);
+			set_event(PSXINT_GPUDMA, cyc);
 			return;
 
 		case 0x01000401: // dma chain
@@ -220,6 +226,10 @@ void psxDma2(u32 madr, u32 bcr, u32 chcr) { // GPU
 			// timing hack with some lame heuristics
 			if (Config.gpu_timing_override && (do_walking || cycles_sum > 64))
 				cycles_sum = Config.gpu_timing_override;
+			/* GpuTiming Accurate with the soft Accurate / Hi-Fi pipeline: its draw time */
+			cyc = acc_take_ticks();
+			if (cyc && gpuTiming == GPU_TIMING_ACCURATE && (long)((cyc * 271) >> 9) > cycles_sum)
+				cycles_sum = (cyc * 271) >> 9;
 
 			psxRegs.gpuIdleAfter = psxRegs.cycle + cycles_sum + cycles_last_cmd;
 			set_event(PSXINT_GPUDMA, cycles_sum);

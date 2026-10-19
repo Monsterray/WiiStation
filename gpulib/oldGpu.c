@@ -579,12 +579,18 @@ void PEOPS_GPUwriteStatus(unsigned long gdata)
     PSXDisplay.DrawOffset.x=PSXDisplay.DrawOffset.y=0;
     drawX=drawY=0;drawW=drawH=0;
     sSetMask=0;lSetMask=0;bCheckMask=FALSE;
+    acc_reset();                                      // SoftGpuMode Accurate / Hi-Fi state
     usMirror=0;
     GlobalTextAddrX=0;GlobalTextAddrY=0;
     GlobalTextTP=0;GlobalTextABR=0;
     PSXDisplay.RGB24=FALSE;
     PSXDisplay.Interlaced=FALSE;
     bUsingTWin = FALSE;
+    return;
+   //--------------------------------------------------//
+   // allow E1.11 to set the texture disable bit (Accurate / Hi-Fi only)
+   case 0x09:
+    acc_gp1_09(gdata);
     return;
    //--------------------------------------------------//
    // dis/enable display
@@ -1002,6 +1008,8 @@ void PEOPS_GPUwriteDataMem(unsigned long * pMem, int iSize)
  unsigned char command;
  unsigned long gdata=0;
  int i=0;
+ const int acc=acc_active();                          // SoftGpuMode: A0 loads wrap in x
+ int accm;                                            // ... and honour E6 (set at each load)
 
 #ifdef PEOPS_SDLOG
  int jj,jjmax;
@@ -1019,6 +1027,7 @@ STARTVRAM:
  if(DataWriteMode==DR_VRAMTRANSFER)
   {
    BOOL bFinished=FALSE;
+   accm=acc && (sSetMask || bCheckMask);             // cmdSTP keeps both in every mode
 
    // make sure we are in vram
    while(VRAMWrite.ImagePtr>=psxVuw_eom)
@@ -1036,7 +1045,10 @@ STARTVRAM:
 
        gdata=GETLE32(pMem); pMem++;
 
-       PUTLE16(VRAMWrite.ImagePtr, (unsigned short)gdata); VRAMWrite.ImagePtr++;
+       if(accm) acc_put(VRAMWrite.ImagePtr, (unsigned short)gdata);
+       else PUTLE16(VRAMWrite.ImagePtr, (unsigned short)gdata);
+       VRAMWrite.ImagePtr++;
+       if(acc && !((VRAMWrite.ImagePtr-psxVuw)&1023)) VRAMWrite.ImagePtr-=1024; // x wraps
        if(VRAMWrite.ImagePtr>=psxVuw_eom) VRAMWrite.ImagePtr-=iGPUHeight*1024;
        VRAMWrite.RowsRemaining --;
 
@@ -1051,17 +1063,22 @@ STARTVRAM:
            goto ENDVRAM;
           }
          VRAMWrite.RowsRemaining = VRAMWrite.Width;
-         VRAMWrite.ImagePtr += 1024 - VRAMWrite.Width;
+         if(acc) VRAMWrite.ImagePtr = psxVuw + (((VRAMWrite.y + VRAMWrite.Height - VRAMWrite.ColsRemaining) & 511) << 10) + VRAMWrite.x;
+         else VRAMWrite.ImagePtr += 1024 - VRAMWrite.Width;
         }
 
-       PUTLE16(VRAMWrite.ImagePtr, (unsigned short)(gdata>>16)); VRAMWrite.ImagePtr++;
+       if(accm) acc_put(VRAMWrite.ImagePtr, (unsigned short)(gdata>>16));
+       else PUTLE16(VRAMWrite.ImagePtr, (unsigned short)(gdata>>16));
+       VRAMWrite.ImagePtr++;
+       if(acc && !((VRAMWrite.ImagePtr-psxVuw)&1023)) VRAMWrite.ImagePtr-=1024; // x wraps
        if(VRAMWrite.ImagePtr>=psxVuw_eom) VRAMWrite.ImagePtr-=iGPUHeight*1024;
        VRAMWrite.RowsRemaining --;
       }
 
      VRAMWrite.RowsRemaining = VRAMWrite.Width;
      VRAMWrite.ColsRemaining--;
-     VRAMWrite.ImagePtr += 1024 - VRAMWrite.Width;
+     if(acc) VRAMWrite.ImagePtr = psxVuw + (((VRAMWrite.y + VRAMWrite.Height - VRAMWrite.ColsRemaining) & 511) << 10) + VRAMWrite.x;
+     else VRAMWrite.ImagePtr += 1024 - VRAMWrite.Width;
      bFinished=TRUE;
     }
 
@@ -1074,8 +1091,10 @@ ENDVRAM:
  if(DataWriteMode==DR_NORMAL)
   {
    void (* *primFunc)(unsigned char *);
+   const unsigned char *cx;
    if(bSkipNextFrame) primFunc=primTableSkip;
-   else               primFunc=primTableJ;
+   else               primFunc=acc_prim_table();   // primTableJ in Fast mode
+   cx = acc ? primTableCXAcc : primTableCX;
 
    for(;i<iSize;)
     {
@@ -1089,9 +1108,9 @@ ENDVRAM:
 
 //if(command>=0xb0 && command<0xc0) auxprintf("b0 %x!!!!!!!!!\n",command);
 
-       if(primTableCX[command])
+       if(cx[command])
         {
-         gpuDataC = primTableCX[command];
+         gpuDataC = cx[command];
          gpuCommand = command;
          PUTLE32(&gpuDataM[0], gdata);
          gpuDataP = 1;

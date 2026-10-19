@@ -172,6 +172,19 @@ Unreleased:
   direction entries now work.
 * Test USB Pad shows which HID input each press moved and writes a complete
   suggested controller ini into usbpad.log (scripts/usbpad_read.py --ini).
+* Soft Mode (Settings > Video > Advanced, SoftGpuMode): the soft
+  renderers (Soft Fast, Soft Timed) draw in one of three ways. Accurate, the
+  default, draws as a PS1 GPU: its dither pattern, semi-transparency, the mask
+  bit on every write (polygons, rectangles, lines, image loads, VRAM copies),
+  the palette and texture caches. Every ps1-tests GPU test with a real-PS1
+  result passes with it (gpu/bandwidth also with GPU Timing Accurate). Hi-Fi
+  draws the same pixels without the dither, with finer colour blends. Fast is
+  the old code (5.15.0 and before), the cheapest on the Wii.
+* GPU Timing Accurate: with Soft Mode Accurate or Hi-Fi, the GPU stays busy as
+  long as each draw takes on a PS1, and image transfers by DMA take PS1 time.
+  GPUSTAT bit 28 (ready for a DMA block) is clear while the GPU is busy.
+* Test runs: a chain runs up to 64 games (was 24), and its VRAM dumps are
+  taken in the game (ChainDump picks the moment; OpenGX syncs first).
 
 Ver 5.15.0 (2026-10-19):
 * Save Settings > This Game now saves only the settings that differ from
