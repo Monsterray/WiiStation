@@ -42,10 +42,33 @@
  * cache is timed, so a primitive divides into preparation and draw (perf.log
  * "gpudraw:"). The macros below turn each call in this file into the timed form. */
 #if PERF_PROF_GPUSPLIT
-static void glPRIMdrawTexturedQuad_t(void *v, int c) { PERF_TIME(ogx_draw_ticks, glPRIMdrawTexturedQuad(v, c)); g_perf.ogx_draw_calls++; }
-static void glPRIMdrawTexturedTri_t(void *v) { PERF_TIME(ogx_draw_ticks, glPRIMdrawTexturedTri(v)); g_perf.ogx_draw_calls++; }
-static void glPRIMdrawTexGouraudTriColor_t(void *v) { PERF_TIME(ogx_draw_ticks, glPRIMdrawTexGouraudTriColor(v)); g_perf.ogx_draw_calls++; }
-static void glPRIMdrawTexGouraudTriColorQuad_t(void *v) { PERF_TIME(ogx_draw_ticks, glPRIMdrawTexGouraudTriColorQuad(v)); g_perf.ogx_draw_calls++; }
+/* Where textures are minified (Docs/GX_QUALITY.md): a textured polygon's affine map gives
+ * texels per EFB pixel along x and y (rho, GX's LOD = log2 rho). Its EFB area goes in lod_px[]
+ * by LOD: <0 magnified, 0-1, 1-2, >=2; lod_px[4] = area with x/y footprint ratio >= 2
+ * (anisotropic). Texture coordinates taken as 256-texel pages (the sub-texture cache's);
+ * sprites (2D rectangles) are left out. */
+static void lod_probe(const OGLVertex *v, int quad)
+{
+ float x1 = v[1].x - v[0].x, y1 = v[1].y - v[0].y, x2 = v[2].x - v[0].x, y2 = v[2].y - v[0].y;
+ float u1 = (v[1].sow - v[0].sow) * 256.f, w1 = (v[1].tow - v[0].tow) * 256.f;
+ float u2 = (v[2].sow - v[0].sow) * 256.f, w2 = (v[2].tow - v[0].tow) * 256.f;
+ float det = x1 * y2 - x2 * y1, sx, sy, dudx, dvdx, dudy, dvdy, lx, ly, rho, area;
+ if (det > -0.5f && det < 0.5f) return;
+ sx = PSXDisplay.DisplayMode.x ? (float)iResX / PSXDisplay.DisplayMode.x : 1.f;   /* EFB pixels per PS1 pixel */
+ sy = PSXDisplay.DisplayMode.y ? (float)iResY / PSXDisplay.DisplayMode.y : 1.f;
+ dudx = (u1 * y2 - u2 * y1) / det / sx;  dvdx = (w1 * y2 - w2 * y1) / det / sx;
+ dudy = (u2 * x1 - u1 * x2) / det / sy;  dvdy = (w2 * x1 - w1 * x2) / det / sy;
+ lx = dudx * dudx + dvdx * dvdx;  ly = dudy * dudy + dvdy * dvdy;   /* squared */
+ rho = lx > ly ? lx : ly;
+ area = (det < 0 ? -det : det) * 0.5f * sx * sy * (quad ? 2.f : 1.f);
+ g_perf.lod_px[rho < 1.f ? 0 : rho < 4.f ? 1 : rho < 16.f ? 2 : 3] += (unsigned long long)area;
+ if (rho >= 1.f && (lx > 4.f * ly || ly > 4.f * lx))
+  g_perf.lod_px[4] += (unsigned long long)area;
+}
+static void glPRIMdrawTexturedQuad_t(void *v, int c) { if (!c) lod_probe(v, 1); PERF_TIME(ogx_draw_ticks, glPRIMdrawTexturedQuad(v, c)); g_perf.ogx_draw_calls++; }
+static void glPRIMdrawTexturedTri_t(void *v) { lod_probe(v, 0); PERF_TIME(ogx_draw_ticks, glPRIMdrawTexturedTri(v)); g_perf.ogx_draw_calls++; }
+static void glPRIMdrawTexGouraudTriColor_t(void *v) { lod_probe(v, 0); PERF_TIME(ogx_draw_ticks, glPRIMdrawTexGouraudTriColor(v)); g_perf.ogx_draw_calls++; }
+static void glPRIMdrawTexGouraudTriColorQuad_t(void *v) { lod_probe(v, 1); PERF_TIME(ogx_draw_ticks, glPRIMdrawTexGouraudTriColorQuad(v)); g_perf.ogx_draw_calls++; }
 static void glPRIMdrawTri_t(void *v) { PERF_TIME(ogx_draw_ticks, glPRIMdrawTri(v)); g_perf.ogx_draw_calls++; }
 static void glPRIMdrawTri2_t(void *v) { PERF_TIME(ogx_draw_ticks, glPRIMdrawTri2(v)); g_perf.ogx_draw_calls++; }
 static void glPRIMdrawGouraudTriColor_t(void *v) { PERF_TIME(ogx_draw_ticks, glPRIMdrawGouraudTriColor(v)); g_perf.ogx_draw_calls++; }
@@ -1018,6 +1041,27 @@ static inline void SetRenderState ( unsigned int DrawAttributes )
 
 ////////////////////////////////////////////////////////////////////////
 
+/* GxColor 1/2 (Docs/GX_QUALITY.md): GX dithers into the RGBA6 or RGB565 EFB where a PS1
+ * would dither: Gouraud-shaded or texture-blended polygons and lines, never rectangles, when
+ * the Dithering setting says so (Default: the game's E1 bit 9). GX's own pattern at the EFB's
+ * resolution, not the PS1's 4x4 table. gx_dither_on -1 = unknown (switchToTVMode clears it). */
+extern char gxColor, useDithering;
+static int gx_dither_on = -1;
+static void GxDitherPrim ( unsigned int DrawAttributes )
+{
+    unsigned cmd = DrawAttributes >> 24;
+    int on;
+    if ( !gxColor )
+        return;
+    on = useDithering == 2 || ( useDithering == 1 && ( STATUSREG & GPUSTATUS_DITHER ) );
+    on = on && ( cmd < 0x60 || cmd >= 0x80 ) && ( bDrawSmoothShaded || ( bDrawTextured && !bDrawNonShaded ) );
+    if ( on != gx_dither_on )
+    {
+        GX_SetDither ( on ? GX_TRUE : GX_FALSE );
+        gx_dither_on = on;
+    }
+}
+
 /* PERF_PROF_GPUSPLIT times SetRenderMode through the same kind of wrapper. */
 static void SetRenderMode_ ( unsigned int DrawAttributes, BOOL bSCol );
 #if PERF_PROF_GPUSPLIT
@@ -1041,6 +1085,7 @@ static void SetRenderMode_ ( unsigned int DrawAttributes, BOOL bSCol )
     }
 #endif
     SetSemiTrans();
+    GxDitherPrim ( DrawAttributes );
 
     glSetTextureMask( sSetMask ? 1 : 0 );
 
@@ -1763,7 +1808,10 @@ int UploadScreen ( int Position )
 
     iLastRGB24 = PSXDisplay.RGB24 + 1;
 
-    if ( bSkipNextFrame ) { PERF_INC(upl_r_skip); MIRROR_OFF(5); return 0; }
+    /* Frame Skip: a 24-bit display is uploaded whole at the next drawn frame's present
+     * (updateDisplayGl), so this one can wait. A 15-bit upload may be the only one its
+     * picture gets (a still, a load into the displayed buffer): it is always done. */
+    if ( bSkipNextFrame && PSXDisplay.RGB24 ) { PERF_INC(upl_r_skip); MIRROR_OFF(5); skipDropped = 1; return 0; }
 
     // Clear Movie garbage
     if (PSXDisplay.RGB24)

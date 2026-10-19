@@ -407,6 +407,11 @@ void listTurn(ListState &s, int delta, bool wrap);
  * window, the window scrolls by one item to keep it in. Returns true when the window moved. */
 bool listScroll(ListState &s, int delta);
 
+/* Tabs. The shoulder buttons (menu::glue::tabShoulder) turn the tabs of every tabbed screen:
+ * delta -1 or +1 from tab cur of n. wrap: past the last tab is the first (the TabWrap setting);
+ * without it the ends stop. Returns the new tab, or cur when there is none to go to. */
+int tabStep(int cur, int n, int delta, bool wrap);
+
 /* The width a fitted choice is drawn at: its label plus 16 px each side, rounded up to an
  * even width (Button::fitToLabel). An empty label keeps the choice width. */
 int buttonFitWidth(const Metrics &m, const char *text);

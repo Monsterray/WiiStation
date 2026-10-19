@@ -5,8 +5,9 @@
 
 The OPTIONS table in Gamecube/GamecubeMain.cpp is the one source. The checks:
 
-  1. example_settings.ini has every table key, in the same [sections] and order.
-     It has no other key. With a settings.ini that WiiStation wrote from its defaults,
+  1. example_settings.ini has every table key that a settings file holds, in the same
+     [sections] and order (UNSTORED_KEYS in GamecubeMain.cpp, e.g. FilterTour, are in no file).
+     It has no other key. Every key of UNSTORED_KEYS and GLOBAL_ONLY_KEYS is a table key. With a settings.ini that WiiStation wrote from its defaults,
      each example value is that default. Keys that WiiStation changes at run time are skipped.
   2. SETTINGS.md documents every table key. It documents no key that the table lacks.
      A key in a range counts, such as "`PadType1` to `PadType10`".
@@ -98,6 +99,14 @@ def split_fields(body):
     return out
 
 
+def key_list(name):
+    """the keys of `static const char* const NAME[]` in GamecubeMain.cpp: UNSTORED_KEYS (no
+    settings file holds them) or GLOBAL_ONLY_KEYS (a game's own file never holds them)"""
+    s = (REPO / "Gamecube/GamecubeMain.cpp").read_text(encoding="utf-8")
+    m = re.search(r"static const char\* const %s\[\]\s*=\s*\{([^}]*)\}" % name, s)
+    return set(re.findall(r'"([^"]+)"', m.group(1)))
+
+
 def unquote(text):
     return text[1:-1] if text.startswith('"') else text
 
@@ -105,7 +114,9 @@ def unquote(text):
 def table():
     """the value rows of OPTIONS: dicts with section, key, min, max (None for a text setting),
     label, choices (the count of choice texts, or None), texts (the choice texts themselves, or
-    None) and help. A NULL value starts a section."""
+    None), help, stored (a settings file holds it) and global_only (settings.ini only, never a
+    game's own file). A NULL value starts a section."""
+    unstored, global_only = key_list("UNSTORED_KEYS"), key_list("GLOBAL_ONLY_KEYS")
     consts = c_constants()
     s = (REPO / "Gamecube/GamecubeMain.cpp").read_text(encoding="utf-8")
     texts = {m.group(1): re.findall(r'"((?:[^"\\]|\\.)*)"', m.group(2))
@@ -134,6 +145,8 @@ def table():
             "choices": len(texts[f[5]]) if len(f) > 5 and f[5] != "NULL" else None,
             "texts": texts[f[5]] if len(f) > 5 and f[5] != "NULL" else None,
             "help": unquote(f[6]) if len(f) > 6 and f[6] != "NULL" else None,
+            "stored": m.group(1) not in unstored,
+            "global_only": m.group(1) in global_only,
         })
     return out
 
@@ -202,8 +215,12 @@ def main():
 
     # 1. the example file
     ex = ini(REPO / "Gamecube/release/example_settings.ini")
-    want = [(r["section"], r["key"]) for r in rows]
+    want = [(r["section"], r["key"]) for r in rows if r["stored"]]
     got = [(s, k) for s, k, _ in ex]
+    for k in sorted(key_list("UNSTORED_KEYS") | key_list("GLOBAL_ONLY_KEYS")):
+        if k not in by_key and k != "AchievementBenchRoot":   # that one is in bench builds only
+            bad = 1
+            print(f"GamecubeMain.cpp lists {k} as unstored or global-only; the table has no such key")
     if got != want:
         bad = 1
         ws, gs = set(want), set(got)

@@ -41,7 +41,7 @@ three short outputs instead of long paths, log tails and three analysis tools.
 ```bash
 scripts/wsx.sh build debug light          # or: build release. Prints the DOL and time, or the first errors.
 scripts/wsx.sh run rc_cpu                 # debug DOL, Spyro speech script, audio dump, then the summary
-scripts/wsx.sh run rc_dsp --dsp           # DSP sound path: SoundHwAccel=1 + Dolphin DSP LLE
+scripts/wsx.sh run rc_dsp --dsp           # DSP sound path: SoundDriver=1 + Dolphin DSP LLE
 scripts/wsx.sh run legacy --dol release --set SoundRateControl=0,SoundTempo=1
 scripts/wsx.sh run title --input title --secs 120 --nodump
 scripts/wsx.sh summary rc_cpu rc_dsp legacy   # one block per run and a comparison table
@@ -124,8 +124,9 @@ anchored Dolphin movie (`.dtm` with `from_savestate=1`) cannot replace it: it re
 recorded binary, so code changes are invisible under it.
 
 **`settings.ini` (was settingsRX2022.cfg)** (bare `key = value`, unlisted keys keep compiled defaults — NOT the
-user's values; per-game files in `wiistation/settings/<CdromId>.cfg` override it when the game
-has one). Keys that unattended runs need:
+user's values; per-game files in `wiistation/settings/<CdromId>.ini` (or a legacy `.cfg`) are read on top of it when the
+game has one: a game start is defaults, then settings.ini, then the game's file, and the game's file
+never sets the global-only keys -- SETTINGS.md 1.4). Keys that unattended runs need:
 
 ```
 gpuPlugin = 2        # 0 Soft Fast (ground truth), 1 Soft Timed, 2 OpenGX
@@ -145,6 +146,24 @@ Triangle 1000, Square 8000, Up 0010, Right 0020, Down 0040, Left 0080, Select 00
 a connected digital pad. Known timelines: Spyro title Start ~1400-1500, level pause ~2100 or
 ~3634 with the recorded movie; BIOS shell menu visible from ~600, X at 1500 opens Memory
 Card, Triangle back, Down, X opens CD Player.
+
+**Analog stick and Wii Remote pointer in a script** (2026-10-18): `stick <vblank> <lx> <ly>`
+holds port 1's left stick (0..255, 128 at rest) until the next stick line (MediEvil's analog
+check: `.runs` A/B with ControllerType 0 and 1). `irfake <vblank> <x> <y>` gives a Wii Remote that
+sees no sensor bar a pointer (640x480) in debug builds: Dolphin's emulated remote with no device
+bound has none, and runs must not bind the host mouse. It drives the GunCon, Justifier, mouse and
+the reticle; recipe and expected numbers in `Docs/GUN_MOUSE_TESTING.md`. An emulated remote needs
+a named profile with `[Wiimote1] Source = 1` (`WSX_PROFILE`). `padtrace.csv` is now extracted
+into the run directory. Debug `tty.log` also has `pad` (each config command and every change of
+a 42h read: motor bytes, ID), `rumble` (motor values and the motor-on vblanks) and `led` lines.
+
+**Host combinations and GameCube pad 1 in Dolphin** (2026-10-19): the test profiles bind no host
+device (c6e0f59), and Dolphin then reports its GameCube pads as unplugged: every run's perf.log
+said `carry: ... gc=0`, so padsweep did nothing and the PadTest DX matrix fell to 3/12 without
+anyone noticing. A script with `padsweep` or `gcpress` lines now makes pad 1 count as connected
+(controller-GC.c `GC_SCAN`); matrix 12/12 again. `gcpress <vblank> <hex>` holds raw GC buttons
+(`1060` = L+R+Start, the ANALOG combination) for 10 vblanks through the real driver; tty.log has
+an `analog vbl=N Port 1: ...` line per ANALOG press. Recipe: Docs/CONTROLLER_TESTING.md.
 
 **Movies → scripts:** `scripts/dtm2autoinput.py MOVIE.dtm --offset N [--trace-after-start]`
 decodes a Dolphin `.dtm` (8-byte pad polls interleaved with Wiimote records, 2 polls per VI)
@@ -297,3 +316,18 @@ nothing but `autoboot.txt` with `--remove-autoboot`. Before 5.2.0 a lab run left
 `sd:/wiistation/autoboot.txt`, so the next start from HBC ran that chain and switched the Wii off;
 lab mode now deletes the file once it has read it. A lab run still writes the lab's base settings
 over `sd:/wiistation/settings.ini`.
+
+
+## Crash Team Racing timelines (debug DOL, Dolphin, 2026-10-18)
+
+- No input: Sony and Naughty Dog logos, intro movie (its blur transitions near vblank 9200),
+  menu, then the attract demos: Crash Cove (~13000), Roo's Tubes (~19000), Tiger Temple (from
+  ~27000). `scripts/chains/ctr_tiger_attract.txt` runs to 31000 for a bench reading.
+- Start at 1500/1800 skips the intro; the menu takes input from ~2950. Time Trial, Crash Cove:
+  `scripts/autoinput/ctr_tt_pause.txt` (Down 3000, X 3100, 3800, 4100, 4400, 4700, 5000): race
+  intro with the TIME TRIAL / CRASH COVE text ~5030-5270, lights ~5300. At track select, Down
+  moves to Roo's Tubes, Tiger Temple, Coco Park.
+- Adventure: X 3000 (Adventure), X 3300 (New), character select from ~3750 (X twice), name
+  entry from ~4350 (X types the highlighted letter; the grid is 4 rows that wrap, the 4th is
+  CANCEL / SAVE). X on SAVE with the fresh test card did nothing visible for 3400 vblanks, so
+  the adventure itself was not reached unattended.

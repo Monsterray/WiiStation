@@ -1,0 +1,16 @@
+CHAIN
+# Point Blank (USA): HLE vs the real BIOS (BootThruBios), LightGun 0 vs 2 (Justifier).
+# User report 2026-10-18: real BIOS + Justifier boots at 0.3 FPS / 0.33 VPS, slower and slower.
+# bash scripts/wsx.sh chain NAME scripts/chains/bios_pointblank.txt --secs 900
+1500 BiosDevice=0 LightGun=0
+sd:/wiistation/isos/Point Blank (USA)
+Point Blank (USA).cue
+1500 BiosDevice=0 LightGun=2
+sd:/wiistation/isos/Point Blank (USA)
+Point Blank (USA).cue
+1500 BiosDevice=1 BootThruBios=1 LightGun=0
+sd:/wiistation/isos/Point Blank (USA)
+Point Blank (USA).cue
+1500 BiosDevice=1 BootThruBios=1 LightGun=2
+sd:/wiistation/isos/Point Blank (USA)
+Point Blank (USA).cue

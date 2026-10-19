@@ -92,6 +92,15 @@ static button_t screenshot_combos[] = {
 	{ 2, PAD_TRIGGER_L|PAD_TRIGGER_R,                "L+R" },
 };
 
+/* ANALOG button combinations (PadSSSPSX.c analog_button), entry 0 is Off, entry 1 the default:
+ * the screenshot's pair with another button. While one is held the game sees no buttons, so
+ * its Start does not pause. Configure Buttons keeps it apart from the menu, fast-forward and
+ * screenshot combinations. */
+static button_t analog_combos[] = {
+	{ 0, 0, "Off" },
+	{ 1, PAD_TRIGGER_L|PAD_TRIGGER_R|PAD_BUTTON_START, "L+R+Start" },
+};
+
 u32 gc_connected;
 
 /* One reading of a GameCube pad: the buttons held and the two sticks, as libogc reports
@@ -137,6 +146,9 @@ static const unsigned int SWEEP_BUTTONS[] = {
 
 extern unsigned autoinput_padsweep_vbl;   /* PadWiiSX.c */
 extern int autoinput_padsweep_fast;
+extern unsigned autoinput_gcpress(void);   /* PadWiiSX.c: "gcpress" lines, raw buttons for pad 1 */
+extern int autoinput_gcpad(void);          /* PadWiiSX.c: a script drives pad 1, which counts as present */
+#define GC_SCAN() (PAD_ScanPads() | (autoinput_gcpad() ? 1 : 0))
 /* psxcounters.h would drag in unistd.h, whose pause() collides with this file's own. */
 extern u32 frame_counter;
 
@@ -178,7 +190,7 @@ static int gc_sweep(gc_raw_t *r)
 static void gc_read(int Control, gc_raw_t *r)
 {
 	if (gc_sweep(r)) return;
-	r->buttons = PAD_ButtonsHeld(Control);
+	r->buttons = PAD_ButtonsHeld(Control) | (Control == 0 ? autoinput_gcpress() : 0);
 	r->sx = PAD_StickX(Control);
 	r->sy = PAD_StickY(Control);
 	r->cx = PAD_SubStickX(Control);
@@ -231,7 +243,7 @@ static void GCtoPSX(const gc_raw_t *r, unsigned int source, int invertY, u8 *px,
 
 static int _GetKeys(int Control, BUTTONS * Keys, controller_config_t* config)
 {
-	if(padNeedScan){ gc_connected = PAD_ScanPads(); padNeedScan = 0; }
+	if(padNeedScan){ gc_connected = GC_SCAN(); padNeedScan = 0; }
 	BUTTONS* c = Keys;
 	memset(c, 0, sizeof(BUTTONS));
 	//Reset buttons & sticks
@@ -276,6 +288,7 @@ static int _GetKeys(int Control, BUTTONS * Keys, controller_config_t* config)
 	if (!isHeld(config->exit)) return 1;
 	if (!isHeld(config->fastf)) return 2;
 	screenshot_poll(Control, config->screenshot && config->screenshot->mask && !isHeld(config->screenshot));
+	analog_poll(config->analog && config->analog->mask && !isHeld(config->analog));
 	return 0;
 }
 
@@ -317,6 +330,8 @@ controller_t controller_GC =
 	  menu_combos,
 	  sizeof(screenshot_combos)/sizeof(screenshot_combos[0]),
 	  screenshot_combos,
+	  sizeof(analog_combos)/sizeof(analog_combos[0]),
+	  analog_combos,
 	  { .SQU        = &buttons[10], // B
 	    .CRO        = &buttons[9],  // A
 	    .CIR        = &buttons[11], // X
@@ -341,13 +356,14 @@ controller_t controller_GC =
 		.sensitivity = 1.0,
 		.fastf       = &menu_combos[2], // Start+Y
 		.screenshot = &screenshot_combos[1],
+		.analog = &analog_combos[1],
 	  }
 	 };
 
 
 static void refreshAvailable(void){
 
-	if(padNeedScan){ gc_connected = PAD_ScanPads(); padNeedScan = 0; }
+	if(padNeedScan){ gc_connected = GC_SCAN(); padNeedScan = 0; }
 
 	int i;
 	for(i=0; i<4; ++i)

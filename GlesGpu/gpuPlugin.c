@@ -64,7 +64,7 @@ extern int gx_vout_open(void); // SoftGPU/drawGX.c
 // Gamecube/libgui/GraphicsGX.cpp is genuine C++ bool (1 byte) -- writing
 // "bool" here would silently declare the wrong parameter width.
 extern void switchToTVMode(short dWidth, short dHeight, _Bool retMenu);
-extern u8 *videoCopyTaps(u8 *modeTaps);   /* Gamecube/libgui/GraphicsGX.cpp: Deflicker Level */
+extern void applyCopyFilter(void);   /* Gamecube/libgui/GraphicsGX.cpp: Deflicker, Deflicker Level */
 
 static short DrawSemiTrans=FALSE;
 static short ly0,lx0,ly1,lx1,ly2,lx2,ly3,lx3;        // global psx vertex coords
@@ -173,6 +173,9 @@ extern int     uploadSkippedWhileOff;                 /* gpuPrim.c UploadScreen:
 static unsigned short    RGB24Uploaded = 0;
 extern u32 hSyncCount, frame_counter;   /* psxcounters.c: 0 in the picture, 240+ in the vblank (trace); vblanks */
 static unsigned short    GPUupdateLace5Flg = 0;
+/* Frame Skip: this skipped frame lost something the EFB needed (a drawing command went to
+ * primTableSkipGx, or a 24-bit upload waited), so its picture must not be presented. */
+static int     skipDropped = 0;
 
 // When display window / display mode has just changed, PreviousPSXDisplay may be stale.
 // Skip CheckAgainstScreen() once to avoid matching the wrong previous screen area.
@@ -470,6 +473,29 @@ void GL_flip05Drop(void)
  flip05Pending = 0;
 }
 
+/* Frame Skip (setting SkipFrames -> UseFrameSkip), at each frame boundary: every
+ * updateDisplayGl, presented or not. When the limiter's schedule says the last vblank ended
+ * behind the wall clock (FrameSkipBehind, SoftGPU/oldGpuFps.c), the next frame is not drawn:
+ * its drawing commands go to primTableSkipGx (fills, image loads, moves, reads and E1-E6 still
+ * run, and off-screen primitives still reach VRAM through OffscreenSoftDraw), a 24-bit upload
+ * waits for the next drawn frame (UploadScreen), and the frame is not presented. At most
+ * GX_MAX_SKIP in a row, so the picture keeps moving. A frame with fewer than GX_SKIP_DRAWS
+ * drawing commands (a 15-bit video, a menu) is not worth skipping: the next one is drawn.
+ * Off: bSkipNextFrame stays FALSE. */
+#define GX_MAX_SKIP   3
+#define GX_SKIP_DRAWS 64
+static int skipRun, skipVbl, frameDraws;
+static void FrameSkipGx(void)
+{
+ if (bSkipNextFrame && skipDropped) { skipRun++; PERF_INC(fskip_frames); }
+ else skipRun = 0;
+ bSkipNextFrame = UseFrameSkip && skipRun < GX_MAX_SKIP &&
+                  (frameDraws >= GX_SKIP_DRAWS || PSXDisplay.RGB24) && FrameSkipBehind();
+ skipDropped = 0;
+ skipVbl = 0;
+ frameDraws = 0;
+}
+
 void updateDisplayGl(void)                               // UPDATE DISPLAY
 {
 BOOL bBlur=FALSE;
@@ -593,21 +619,8 @@ if(iSkipTwo)                                          // we are in skipping mood
 //----------------------------------------------------//
 // main buffer swapping (well, or skip it)
 
-if(UseFrameSkip)                                     // frame skipping active ?
- {
-  if(!bSkipNextFrame)
-   {
-    if(iDrawnSomething)     flipEGL();
-   }
-//    if((fps_skip < fFrameRateHz) && !(bSkipNextFrame))
-//     {bSkipNextFrame = TRUE; fps_skip=fFrameRateHz;}
-//    else bSkipNextFrame = FALSE;
-
- }
-else                                                  // no skip ?
- {
-  if(iDrawnSomething)  flipEGL();
- }
+if(iDrawnSomething && !(bSkipNextFrame && skipDropped)) flipEGL();
+FrameSkipGx();
 
 iDrawnSomething=0;
 
@@ -944,6 +957,7 @@ static void SwitchTVModeForDisplay(void)
  PERF_SET(tv_double, PSXDisplay.Double);
  gx_vout_wait_idle();
  switchToTVMode(PSXDisplay.DisplayModeNew.x, PSXDisplay.DisplayModeNew.y, 0);
+ gx_dither_on = -1;   /* switchToTVMode turned GX dither off (gpuPrim.c GxDitherPrim) */
 }
 
 static BOOL TVModeResolution(void)
@@ -1150,9 +1164,10 @@ if(!(dwActFixes&AUTO_FIX_CHRONO_CROSS))
     if ( frameLimit[0] != oldframeLimit)
         GPUsetframelimit(0);
     oldframeLimit = frameLimit[0];
+    UseFrameSkip = frameSkip;   /* GPUsetframelimit latches it only when the limit changes:
+                                 * the menu and a chain line's SkipFrames= would not reach it */
 
-//if(!(dwActFixes&128))                                 // normal frame limit func
- OldGpuCheckFrameRate();
+ GxCheckFrameRate();                                  // SoftGPU/oldGpuFps.c
 #if PERF_PROF_GPUSPLIT
     PERF_ADD(rcu_lace_limit_ticks, perf_now_ticks() - rcu_lf0_);
     rcu_lf0_ = perf_now_ticks();
@@ -1211,6 +1226,10 @@ else if(usFirstPos==1)                                // initial updates (after 
       rgb24_still++;
      if (PSXDisplay.RGB24 && (RGB24Uploaded & 0x3) && !PSXDisplay.Disabled && rgb24_still >= 8)
       updateDisplayGl();
+     /* Frame Skip: a game that stops flipping (it draws where it displays, or shows a still)
+      * gets its drawing back within a few vblanks */
+     if (bSkipNextFrame && (bDrawFrontBuffer || ++skipVbl > 8))
+      { bSkipNextFrame = FALSE; PERF_INC(fskip_guard); }
      int fullUp = CheckFullScreenUpload() ? 1 : 0;
      /* vramio F1, one per vblank: x,y display, w,h draw offset, a = iDrawnSomething,
       * b = 1 full-screen upload, 2 a present was pending, 4 presented here, 8 drawing into
@@ -1809,7 +1828,7 @@ void RestoreDispCopyInfo(void)
     // gameplay, so hardcoding GX_TRUE here silently re-enabled deflicker on
     // this plugin whenever a readback happened. (GraphicsGX.cpp deliberately
     // forces GX_TRUE for menu / return-to-menu contexts -- that stays as is.)
-    GX_SetCopyFilter(m->aa,m->sample_pattern,(deflickerFilter)?GX_TRUE:GX_FALSE,videoCopyTaps(m->vfilter));
+    applyCopyFilter();
     GX_SetFieldMode(m->field_rendering,((m->viHeight==2*m->xfbHeight)?GX_ENABLE:GX_DISABLE));
 }
 
@@ -2150,7 +2169,8 @@ static void EfbBeforeGxCommand(unsigned char cmd, unsigned long *data, int n)
         x0 = PSXDisplay.DrawArea.x0; y0 = PSXDisplay.DrawArea.y0;
         x1 = PSXDisplay.DrawArea.x1 + 1; y1 = PSXDisplay.DrawArea.y1 + 1;
     }
-    efb_gx_draw(x0, y0, x1, y1);
+    /* bit 15 a PS1 writes: set-mask, or a texel's STP (polygons and rectangles +04) */
+    efb_gx_draw(x0, y0, x1, y1, sSetMask != 0 || ((cmd < 0x40 || cmd >= 0x60) && (cmd & 0x04)));
     mirror_gx_draw(x0, y0, x1, y1);
 }
 
@@ -2500,6 +2520,11 @@ if(iDataWriteMode==DR_NORMAL)
                  gp_done_ = OffscreenSoftDraw(gpuCommand, gpuDataM, nWords));
         if (gp_done_)
          continue;                                 /* drawn into VRAM by the software rasterizer */
+       }
+      if ((unsigned)(gpuCommand - 0x20) < 0x60)    /* Frame Skip: drawing commands for GX */
+       {
+        frameDraws++;
+        if (primFunc != primTableJGx) { skipDropped = 1; PERF_INC(fskip_cmds); }   /* left out */
        }
       GPU_PART(gpu_prim_ticks, gpu_prim_calls,
                (EfbBeforeGxCommand(gpuCommand, gpuDataM, nWords),
@@ -2955,6 +2980,26 @@ static void OverlayRestoreEfb(void)
     bSetClip = TRUE;
 }
 
+/* The light gun reticle (SoftGPU/drawGX.c) over the whole picture, with the plugin's viewport
+ * put back after it as OverlayRestoreEfb does */
+extern int gunReticleWanted(void);
+extern void drawGunReticles(void);
+extern const char *pad_note(int *red);   /* Gamecube/PadSSSPSX.c: the ANALOG button's note */
+static void OverlayGunReticles(void)
+{
+    extern GXRModeObj *g_tv_mode;
+    GXRModeObj *m = g_tv_mode ? g_tv_mode : vmode;
+
+    if (!gunReticleWanted())
+        return;
+    GX_SetViewport(0, 0, m->fbWidth, m->efbHeight, 0.0f, 1.0f);
+    GX_SetScissor(0, 0, m->fbWidth, m->efbHeight);
+    drawGunReticles();
+    glViewport(rRatioRect.left, iResY - (rRatioRect.top + rRatioRect.bottom),
+               rRatioRect.right, rRatioRect.bottom);
+    bSetClip = TRUE;
+}
+
 static void flipEGL(void)
 {
     int presentSubmitted;
@@ -2969,13 +3014,16 @@ static void flipEGL(void)
     efb_present();   /* efbSync.inc: keep the frame the copy to the XFB may clear */
 
     /* a frame that will not reach the TV gets no text */
-    if (showFPSonScreen == 1 && !gx_vout_busy())
+    if ((showFPSonScreen == 1 || gunReticleWanted() || pad_note(NULL)) && !gx_vout_busy())
     {
         /* a copy that clears the EFB takes the text with it; otherwise keep what it covers */
         if (!canClearFrameBuf)
             overlaySaved = OverlaySaveEfb();
         if (overlaySaved || canClearFrameBuf)
+        {
             showFpsAndDebugInfo();
+            OverlayGunReticles();
+        }
     }
 
     /* The 240p button was pressed in the menu: a game that does not change its display mode
