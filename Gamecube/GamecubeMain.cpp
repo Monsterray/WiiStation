@@ -228,6 +228,8 @@ static const char* const OPT_CHROMA[]        = { "Sharp", "Smooth" };
 static const char* const OPT_COLOUR[]        = { "15-bit", "24-bit" };
 static const char* const OPT_GAMMA[]         = { "1.0", "1.1", "1.2", "1.3", "1.4", "1.5" };
 static const char* const OPT_DEFLICKER[]     = { "Normal", "Light", "Strong" };
+static const char* const OPT_TEXMIN[]        = { "Off", "Linear", "Aniso 2x", "Aniso 4x" };
+static const char* const OPT_GXCOLOR[]       = { "24-bit", "6-bit dither" };
 static const char* const OPT_VIDEOMODE[]     = { "Auto", "NTSC", "PAL 50", "PAL 60", "480p" };
 static const char* const OPT_RESAMPLE[]      = { "Hold", "Linear", "Cubic" };
 static const char* const OPT_OUTPUT[]        = { "CPU", "DSP" };
@@ -277,8 +279,9 @@ static SettingOption OPTIONS[] =
   { "SkipFrames", &frameSkip, FRAMESKIP_DISABLE, FRAMESKIP_ENABLE, NULL, "Frame Skip", OPT_OFF_ON, "Skips frames when the Wii is too slow." },
   { "FPS", &showFPSonScreen, FPS_HIDE, FPS_SHOW, NULL, "Show FPS", OPT_OFF_ON, "Shows the frame rate on the screen." },
   { "EfbSync", &efbSyncSetting, 0, 2 },
-  { "GxTexMin", &gxTexMin, 0, 3 },
-  { "GxColor", &gxColor, 0, 2 },
+  { "GxTexMin", &gxTexMin, 0, 3, NULL, "Far Textures", OPT_TEXMIN, "OpenGX: smooths ground drawn smaller than a pixel. A trial." },
+  /* 2 (RGB565 anti-aliased, 240p) is left out: a black TV picture on the Wii (Docs/GX_QUALITY.md) */
+  { "GxColor", &gxColor, 0, 1, NULL, "GX Colour", OPT_GXCOLOR, "OpenGX: 6 bits per colour, dithered where the game dithers. A trial." },
   { "Audio", NULL, 0, 0, "The sound." },
   { "Audio", &audioEnabled, AUDIO_DISABLE, AUDIO_ENABLE, NULL, "Audio", OPT_OFF_ON, "Turns the sound output on or off." },
   { "SoundDriver", &soundHwAccel, SOUND_HW_ACCEL_OFF, SOUND_HW_ACCEL_ON, NULL, "Sound Driver", OPT_OUTPUT, "The output driver only: DSP plays at 44100 Hz through the Wii's DSP, CPU at 48000 Hz from the CPU. The PS1 sound emulation is the same." },

@@ -259,12 +259,16 @@ static const OptRow GPU_ROWS[] =
 	 * than the others to fit (MenuEngine's choiceStart). */
 	ROW_RADIO_FIT("gpuPlugin", NULL),
 	ROW_CYCLE("GpuTiming", NULL),
+	ROW_CYCLE("GxTexMin", NULL),   /* OpenGX trials, read at game start (Docs/GX_QUALITY.md) */
+	ROW_CYCLE("GxColor", NULL),
 };
 
 static const OptHelp GPU_HELP[] =
 {
 	{ "GPU Plugin:", "OpenGX uses the Wii's GPU; Soft avoids its quirks." },
 	{ "GPU Timing:", "Accurate: the GPU is busy as long as on a PS1." },
+	{ "Far Textures:", "OpenGX trial: smoother distant ground." },
+	{ "GX Colour:", "OpenGX trial: 6-bit colour with the Wii's dither." },
 };
 
 static const OptRow INPUT_ROWS[] =

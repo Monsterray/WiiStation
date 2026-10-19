@@ -73,8 +73,12 @@ static const Step STEPS[] = {
 static const int NSTEPS = sizeof(STEPS) / sizeof(STEPS[0]);
 static const int NOTHING = NSTEPS - 1;
 
-enum { ST_FIND, ST_REST, ST_WAIT, ST_HOLD, ST_RELEASE, ST_DONE };
+enum { ST_FIND, ST_REST, ST_WAIT, ST_HOLD, ST_RELEASE, ST_SHOW, ST_DONE };
 static int state, step, frames;
+/* Pacing, in frames: a prompt can be answered after MIN_PROMPT (it used to flash past), a press
+ * or a release counts once it has lasted STEADY frames, and each result stays SHOW_RESULT. */
+enum { MIN_PROMPT = 30, STEADY = 6, SHOW_RESULT = 40 };
+static int steady;
 static int haveCtrl;          /* reports are coming in */
 static int len;               /* report length */
 static u8 cur[MAXLEN], held[MAXLEN], restMin[MAXLEN], restMax[MAXLEN];
@@ -92,11 +96,15 @@ static void readReport(void)
 }
 
 /* Byte i is away from rest: outside what it did at rest, by more than its noise for a noisy one
- * (a stick at rest, a motion sensor), by anything for a still one (buttons). */
+ * (a stick at rest, a motion sensor), by anything for a still one (buttons). A byte that rests
+ * near the middle is a stick axis even when it kept still for the second of rest: a Logitech
+ * Dual Action rests at 80 and wobbles to 7F, and that one step answered every stick prompt
+ * at once (user test 2026-10-19). */
 static bool moved(const u8 *r, int i)
 {
 	int lo = restMin[i], hi = restMax[i];
-	int m = hi > lo ? (hi - lo > 24 ? hi - lo : 24) : 0;
+	bool axis = lo >= 0x40 && hi <= 0xC0;
+	int m = (hi > lo || axis) ? (hi - lo > 24 ? hi - lo : 24) : 0;
 	return r[i] < lo - m || r[i] > hi + m;
 }
 static bool anyMoved(const u8 *r)
@@ -289,6 +297,7 @@ static void nextStep(void)
 		return;
 	}
 	state = ST_WAIT;
+	steady = 0;
 	setPrompt();
 }
 
@@ -387,7 +396,8 @@ void UsbPadTestFrame::updateFrame(float deltaTime)
 			else if (frames >= 180) { logStep("rest-ok", NULL); nextStep(); }
 			break;
 		}
-		if (anyMoved(cur))
+		steady = (frames >= MIN_PROMPT && anyMoved(cur)) ? steady + 1 : 0;
+		if (steady >= STEADY)
 		{
 			memcpy(held, cur, len);
 			state = ST_HOLD;
@@ -411,11 +421,18 @@ void UsbPadTestFrame::updateFrame(float deltaTime)
 		}
 		break;
 	case ST_RELEASE:
-		if (!anyMoved(cur) || frames >= 300)
+		steady = anyMoved(cur) ? 0 : steady + 1;
+		if (steady >= STEADY || frames >= 300)
 		{
 			if (frames >= 300) logf_("step %d %s: release-timeout\n", step + 1, STEPS[step].name);
-			nextStep();
+			state = ST_SHOW;
+			frames = 0;
+			snprintf(line1, sizeof(line1), "Got it");
 		}
+		break;
+	case ST_SHOW:   /* the result stays up before the next prompt */
+		if (frames >= SHOW_RESULT)
+			nextStep();
 		break;
 	}
 }
@@ -504,7 +521,7 @@ void UsbPadTestFrame::drawChildren(menu::Graphics &gfx)
 	gfx.setTEV(GX_PASSCLR);
 
 	/* the button asked for: a ring; a stick also gets the direction */
-	if (state >= ST_WAIT && state <= ST_RELEASE && step < NOTHING)
+	if (state >= ST_WAIT && state <= ST_SHOW && step < NOTHING)
 	{
 		const Step &s = STEPS[step];
 		int x = PAD_X + s.x, y = PAD_Y + s.y;
@@ -522,7 +539,7 @@ void UsbPadTestFrame::drawChildren(menu::Graphics &gfx)
 	font.drawString(320, 40, title, 1.0f, true);
 	font.drawInit(state == ST_DONE ? white : lit);
 	font.drawString(320, 90, line1, 1.0f, true);
-	if (step >= 8 && step <= 11 && state >= ST_WAIT && state <= ST_RELEASE)
+	if (step >= 8 && step <= 11 && state >= ST_WAIT && state <= ST_SHOW)
 		font.drawString(PAD_X + STEPS[step].x, PAD_Y - 22, (char *)STEPS[step].name, 0.8f, true);
 	font.drawInit(white);
 	font.drawString(320, 130, line2, 0.7f, true);
