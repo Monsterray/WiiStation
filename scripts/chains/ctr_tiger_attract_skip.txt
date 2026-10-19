@@ -1,0 +1,7 @@
+CHAIN
+# ctr_tiger_attract.txt with Frame Skip on: does skipping help Tiger Temple (GPU-bound, ~12 fps at vblanks 29340-29609 on the bench Wii, 5.14.0 pmc)?
+31000 SkipFrames=1
+sd:/wiistation/isos/Crash Team Racing
+Crash Team Racing [U] [SCUS-94426].cue
+# Bench Wii, 5.14.0 pmc (2026-10-18): off 0.974x, 663 slow vblanks, Tiger Temple 29340-29609 lost 4932 ms (~12 fps, gpu 75%);
+# SkipFrames=1 0.999x, 215 slow vblanks, same stretch lost 217 ms, 385 frames skipped (.runs/hw_ctr_tiger, hw_ctr_tiger_skip2).
