@@ -25,8 +25,12 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# MSYS may report a space-free 8.3 short name (C:/Users/USER123~1/...) while the
+# real directory has a space; the physical path (pwd -P) sees it. Test both, so a
+# checkout under a spaced temp path still snapshots instead of failing on CURDIR.
+REPO_ROOT_PHYS="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P 2>/dev/null || true)"
 
-if [[ "$REPO_ROOT" == *" "* ]]; then
+if [[ "$REPO_ROOT" == *" "* ]] || [[ "$REPO_ROOT_PHYS" == *" "* ]]; then
 	if [ "${1:-debug}" = clean ]; then
 		echo "Run clean from a checkout without spaces; isolated builds clean themselves." >&2
 		exit 1

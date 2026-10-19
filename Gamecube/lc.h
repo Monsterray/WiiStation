@@ -40,6 +40,7 @@ extern "C" {
 enum lc_region {
 	LC_SPU_GAUSS = 0,   /* the SPU's gaussian interpolation table (dfsound/dfspu.c) */
 	LC_TEX_TILE  = 1,   /* OpenGX's tiling output, two outputs x two bands (deps/opengx/gc_gl.c) */
+	LC_MDEC      = 2,   /* the MDEC's IDCT tables and per-macroblock blocks (mdec.c) */
 	LC_REGION_COUNT
 };
 
@@ -47,6 +48,7 @@ enum lc_region {
 #define LC_SPU_GAUSS_BYTES  2048
 #define LC_TEX_TILE_BAND    2048                        /* one row of 4x4 blocks, 256 texels wide */
 #define LC_TEX_TILE_BYTES   (4 * LC_TEX_TILE_BAND)      /* opaque + semi-transparent, double banked */
+#define LC_MDEC_BYTES       2304                        /* 3x64 ints of tables + 6x64 ints of blk */
 
 #define LC_TOTAL_BYTES      16384
 

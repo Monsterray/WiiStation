@@ -1,6 +1,7 @@
 CHAIN
 # The locked cache on and off, same game, same boot: a hardware session runs this file
-# as it is. LockedCache is a bit per region in Gamecube/lc.c (1 spu-gauss, 2 tex-tile).
+# as it is. LockedCache is a bit per region in Gamecube/lc.c (1 spu-gauss, 2 tex-tile,
+# 4 mdec). MediEvil idles through its intro FMV -- the mdec region's game.
 # bash scripts/wsx.sh chain NAME lc_ab.txt --secs 900
 3600 sd:/wiistation/spyro_title.txt LockedCache=0
 sd:/wiistation/isos/Spyro the Dragon
@@ -14,3 +15,9 @@ Crash Bash [U] [SCUS-94570].cue
 3600 LockedCache=3
 sd:/wiistation/isos/Crash Bash
 Crash Bash [U] [SCUS-94570].cue
+2400 LockedCache=0
+sd:/wiistation/isos/Medievil
+Medievil [U] [SCUS-94227].cue
+2400 LockedCache=4
+sd:/wiistation/isos/Medievil
+Medievil [U] [SCUS-94227].cue

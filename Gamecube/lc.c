@@ -40,13 +40,15 @@ static const struct {
 		"read 4x per sample per voice; the SPU is 1.8-10.9% of wall", gauss },
 	[LC_TEX_TILE]  = { "tex-tile",  LC_TEX_TILE_BYTES,  "deps/opengx/gc_gl.c",
 		"tiling output; the tiling pass is 4.0% of wall in Crash Bash", NULL },
+	[LC_MDEC]      = { "mdec",      LC_MDEC_BYTES,      "mdec.c",
+		"IDCT tables + blocks; the MDEC is 4.4% of wall in MediEvil's intro FMV", NULL },
 };
 
 /* The table must fit even with every region on; a region that would not fit is a build error,
  * not a region that is silently left out. */
-#define LC_SUM (LC_SPU_GAUSS_BYTES + LC_TEX_TILE_BYTES)
+#define LC_SUM (LC_SPU_GAUSS_BYTES + LC_TEX_TILE_BYTES + LC_MDEC_BYTES)
 _Static_assert(LC_SUM <= LC_TOTAL_BYTES, "locked-cache regions exceed 16 KB");
-_Static_assert(LC_REGION_COUNT == 2, "a region was added: add its size to LC_SUM above");
+_Static_assert(LC_REGION_COUNT == 3, "a region was added: add its size to LC_SUM above");
 
 static void *lc_base[LC_REGION_COUNT];
 static unsigned lc_active;   /* the mask in effect */
@@ -156,10 +158,11 @@ void lc_report(FILE *f)
 				(unsigned)((unsigned char *)lc_base[r] - (unsigned char *)LCGetBase()),
 				lc_regions[r].bytes);
 #ifdef PERF_PROF
-	fprintf(f, " | stores=%lu store_kb=%llu loads=%lu load_kb=%llu wait_us=%llu",
-		(unsigned long)g_perf.lc_stores, g_perf.lc_store_bytes >> 10,
-		(unsigned long)g_perf.lc_loads, g_perf.lc_load_bytes >> 10,
-		(unsigned long long)ticks_to_microsecs(g_perf.lc_wait_ticks));
+	fprintf(f, " | stores=%lu store_kb=%llu loads=%lu load_kb=%llu wait_us=%llu sync=%lu",
+		(unsigned long)g_perf.lc_stores, (unsigned long long)g_perf.lc_store_bytes >> 10,
+		(unsigned long)g_perf.lc_loads, (unsigned long long)g_perf.lc_load_bytes >> 10,
+		(unsigned long long)ticks_to_microsecs(g_perf.lc_wait_ticks),
+		(unsigned long)g_perf.lc_mdec_syncs);
 #endif
 	fprintf(f, "\n");
 }
