@@ -70,6 +70,12 @@ enum { EFB_MODE_AUTO = 0, EFB_MODE_ON = 1, EFB_MODE_OFF = 2 };
 static uint64_t efb_seq;
 static uint64_t efb_cpu[EFB_TY][EFB_TX];
 static uint64_t efb_gx[EFB_TY][EFB_TX];
+/* Bit 15 (STP / mask) a PS1 would have written there, per tile, from the last GX primitive:
+ * the E6 set-mask bit, or for a textured primitive the texel's STP, which GX does not keep
+ * (RGB8 EFB, RGB565 snapshots): taken as set. A game that draws one of its frames back as a
+ * semi-transparent texture blends only the texels with bit 15 (CTR's intro blur: 92% set in
+ * Soft's VRAM); the bit kept from stale psxVuw (0) made the blur opaque and it fed back. */
+static unsigned char efb_stp[EFB_TY][EFB_TX];
 static EfbGeom  efb_live;
 static int      efb_live_set;
 static uint64_t efb_live_gx;          /* newest GX stamp inside live */
@@ -329,7 +335,7 @@ static void efb_save_live_if_needed(void)
 
 /* A GX primitive from the display list (gpuPlugin.c dispatcher), before it is drawn, with
  * its VRAM bounds (x1, y1 exclusive; the drawing area when unknown) */
-static void efb_gx_draw(int x0, int y0, int x1, int y1)
+static void efb_gx_draw(int x0, int y0, int x1, int y1, int stp)
 {
     EfbGeom g;
     int tx0, ty0, tx1, ty1, tx, ty;
@@ -364,7 +370,10 @@ static void efb_gx_draw(int x0, int y0, int x1, int y1)
     efb_tiles(x0, y0, x1, y1, &tx0, &ty0, &tx1, &ty1);
     for (ty = ty0; ty < ty1; ty++)
         for (tx = tx0; tx < tx1; tx++)
+        {
             efb_gx[ty][tx] = efb_seq;
+            efb_stp[ty][tx] = (unsigned char)stp;
+        }
     efb_live_gx = efb_seq;
     efb_pages_mark(tx0, ty0, tx1, ty1);
 }
@@ -437,6 +446,7 @@ static int efb_sync(int x, int y, int w, int h)
         {
             const EfbSnap *best = NULL;
             int i, px, py, px0, py0, px1, py1;
+            unsigned short stp = efb_stp[ty][tx] ? 0x8000 : 0;
 
             if (efb_gx[ty][tx] <= efb_cpu[ty][tx])
                 continue;
@@ -473,7 +483,7 @@ static int efb_sync(int x, int y, int w, int h)
                     {
                         unsigned short c = ReadGXRGB5A3PixelRaw(best->pixels, best->texW, px + ox, py + oy);
                         c = (unsigned short)((c >> 11) | (((c >> 6) & 0x1F) << 5) | ((c & 0x1F) << 10));
-                        PUTLE16(d, (unsigned short)((c & 0x7FFF) | (GETLE16(d) & 0x8000)));
+                        PUTLE16(d, (unsigned short)((c & 0x7FFF) | stp));
                     }
                 }
                 if (qx1 > qx0 && qy1 > qy0)
@@ -492,8 +502,8 @@ static int efb_sync(int x, int y, int w, int h)
                     if (!efb_snap_pixel(best, px, py, &c))
                         continue;
                     /* psxVuw is in PlayStation byte order (little-endian) on this big-endian
-                     * CPU; keep the pixel's mask bit */
-                    PUTLE16(d, (unsigned short)((c & 0x7FFF) | (GETLE16(d) & 0x8000)));
+                     * CPU; bit 15 as the primitive would have written it (efb_stp) */
+                    PUTLE16(d, (unsigned short)((c & 0x7FFF) | stp));
                     if (px >= x && px < x + w && py >= y && py < y + h)
                         merged++;
                 }
@@ -577,6 +587,7 @@ static void efb_reset(void)
     }
     memset(efb_cpu, 0, sizeof(efb_cpu));
     memset(efb_gx, 0, sizeof(efb_gx));
+    memset(efb_stp, 0, sizeof(efb_stp));
     efb_seq = 0;
     efb_live_set = 0;
     efb_live_gx = efb_live_saved = 0;

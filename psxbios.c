@@ -1741,7 +1741,7 @@ static void psxBios_SystemErrorUnresolvedException() {
 
 static void FlushCache() {
 	psxCpu->Notify(R3000ACPU_NOTIFY_CACHE_ISOLATED, NULL);
-	psxCpu->Notify(R3000ACPU_NOTIFY_CACHE_UNISOLATED, NULL);
+	psxCpu->Notify(R3000ACPU_NOTIFY_CACHE_UNISOLATED, PTR_1);   /* PTR_1: from FlushCache (lightrec.c) */
 	k0 = 0xbfc0193c;
 	// runs from uncached mem so tons of cycles
 	use_cycles(500);

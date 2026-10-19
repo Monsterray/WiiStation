@@ -43,6 +43,8 @@ if [[ "$REPO_ROOT" == *" "* ]]; then
 			printf '%s\0' "$source_file"
 		fi
 	done | tar -C "$REPO_ROOT" --null -T - -cf - | tar -C "$task_build" -xf -
+	# deps/ext (libwupc headers and archive, gitignored) is not in ls-files: carry it over.
+	[ ! -d "$REPO_ROOT/deps/ext/lib" ] || { mkdir -p "$task_build/deps/ext"; cp -r "$REPO_ROOT/deps/ext/include" "$REPO_ROOT/deps/ext/lib" "$task_build/deps/ext/"; }
 	bash "$task_build/scripts/build.sh" "$@"
 	for artifact in "$task_build"/Gamecube/*.dol "$task_build"/Gamecube/*.elf; do
 		[ ! -f "$artifact" ] || cp "$artifact" "$REPO_ROOT/Gamecube/"

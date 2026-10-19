@@ -289,3 +289,18 @@ nothing but `autoboot.txt` with `--remove-autoboot`. Before 5.2.0 a lab run left
 `sd:/wiistation/autoboot.txt`, so the next start from HBC ran that chain and switched the Wii off;
 lab mode now deletes the file once it has read it. A lab run still writes the lab's base settings
 over `sd:/wiistation/settings.ini`.
+
+
+## Crash Team Racing timelines (debug DOL, Dolphin, 2026-10-18)
+
+- No input: Sony and Naughty Dog logos, intro movie (its blur transitions near vblank 9200),
+  menu, then the attract demos: Crash Cove (~13000), Roo's Tubes (~19000), Tiger Temple (from
+  ~27000). `scripts/chains/ctr_tiger_attract.txt` runs to 31000 for a bench reading.
+- Start at 1500/1800 skips the intro; the menu takes input from ~2950. Time Trial, Crash Cove:
+  `scripts/autoinput/ctr_tt_pause.txt` (Down 3000, X 3100, 3800, 4100, 4400, 4700, 5000): race
+  intro with the TIME TRIAL / CRASH COVE text ~5030-5270, lights ~5300. At track select, Down
+  moves to Roo's Tubes, Tiger Temple, Coco Park.
+- Adventure: X 3000 (Adventure), X 3300 (New), character select from ~3750 (X twice), name
+  entry from ~4350 (X types the highlighted letter; the grid is 4 rows that wrap, the 4th is
+  CANCEL / SAVE). X on SAVE with the fresh test card did nothing visible for 3400 vblanks, so
+  the adventure itself was not reached unattended.

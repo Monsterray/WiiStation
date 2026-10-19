@@ -2150,7 +2150,8 @@ static void EfbBeforeGxCommand(unsigned char cmd, unsigned long *data, int n)
         x0 = PSXDisplay.DrawArea.x0; y0 = PSXDisplay.DrawArea.y0;
         x1 = PSXDisplay.DrawArea.x1 + 1; y1 = PSXDisplay.DrawArea.y1 + 1;
     }
-    efb_gx_draw(x0, y0, x1, y1);
+    /* bit 15 a PS1 writes: set-mask, or a texel's STP (polygons and rectangles +04) */
+    efb_gx_draw(x0, y0, x1, y1, sSetMask != 0 || ((cmd < 0x40 || cmd >= 0x60) && (cmd & 0x04)));
     mirror_gx_draw(x0, y0, x1, y1);
 }
 
