@@ -202,6 +202,7 @@ typedef struct {
 } req_args; // 32 bytes
 
 void HIDInit(u32 ios);
+extern int hid_init_stage, hid_init_ret;   /* why HIDInit stopped (KernelHID.c) */
 void HIDClose(int closeType);
 
 

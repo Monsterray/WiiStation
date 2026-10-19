@@ -194,7 +194,8 @@ static void logHeader(void)
 	char buf[1100];
 	logf_("# WiiStation USB Pad Test -- read it with scripts/usbpad_read.py\n");
 	logf_("version: %s\n", WIISTATION_VERSION);
-	logf_("hid: %s\n", IsHidRuning() ? "running" : "not-running");
+	logf_("hid: %s (init stage %d, ios value %d / 0x%x)\n", IsHidRuning() ? "running" : "not-running",
+	      hid_init_stage, hid_init_ret, (unsigned)hid_init_ret);
 	logf_("devices: %u", hidProbe.nDevices);
 	for (unsigned i = 0; i < hidProbe.nDevices && i < 8; i++)
 		logf_(" %04X:%04X", hidProbe.vids[i], hidProbe.pids[i]);
