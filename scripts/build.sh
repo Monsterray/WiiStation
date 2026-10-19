@@ -146,20 +146,34 @@ case "${PROBES:-all}" in
 	# Its own test: add -DTEXCHECK_SELFTEST=1 (a custom PROBES list); 1 hit in 64 then gets a
 	# changed texel, and texcheck: stale must equal hits/64 (MediEvil: 6668 of 426764).
 	texcheck) PROBE_DEFINES="-DPERF_PROF_TRACE=0 -DPERF_PROF_GPU=0 -DPERF_PROF_GPUSPLIT=1 -DPERF_PROF_GTE=1 -DPERF_PROF_SPU=1 -DPERF_PROF_TEXCHECK=1" ;;
+	# play: a debug build to play with on a real console (Docs/DEBUG_PLAY.md). light without the
+	# per-vblank RAM hash (vsig), no on-screen debug text (the -U come after the Makefile's -D),
+	# and the logs in sd:/wiistation/debuglogs/, written by the heartbeat thread
+	# (Gamecube/play_log.c). Its own output and objects: WiiSXRX_play.dol, Gamecube/build_play/.
+	play)  PROBE_DEFINES="-DPERF_PROF_TRACE=0 -DPERF_PROF_GPU=0 -DPERF_PROF_VSIG=0 -DPERF_PLAY=1 -UDISP_DEBUG -USHOW_DEBUG" ;;
 	*)     PROBE_DEFINES="$PROBES" ;;
 esac
+DEBUG_NAME=debug LIGHTREC=lightrecWithLog
+[ "${PROBES:-}" = play ] && DEBUG_NAME=play LIGHTREC=lightrecNoLog   # release's Lightrec: no asserts
+# Makefile_Wii's names, overridden for the play build so it sits beside WiiSXRX_debug.dol
+DEBUG_DIRS="TARGET=WiiSXRX_${DEBUG_NAME}${OGC_SUFFIX} BUILD=build_${DEBUG_NAME}${OGC_SUFFIX} LIGHTREC_LIB=$LIGHTREC"
 [ -n "$PROBE_DEFINES" ] && echo "probe gates: $PROBE_DEFINES"
 
 # make compares timestamps, not compiler flags, so changing PROBES on its own rebuilds
 # nothing and you silently get the previous build back. Remember what the objects were
 # compiled with and clean when it changes.
-PROBE_STAMP="Gamecube/build_debug${OGC_SUFFIX}/.probe_defines"
+PROBE_STAMP="Gamecube/build_${DEBUG_NAME}${OGC_SUFFIX}/.probe_defines"
 # Debug builds only: a release build does not use the gates, and cleaning the debug tree
 # from it threw away WiiSXRX_debug.dol whenever the last debug build had PROBES set.
-if [ "${1:-debug}" != "${1#debug}" ] && [ -d "Gamecube/build_debug${OGC_SUFFIX}" ] && [ "$(cat "$PROBE_STAMP" 2>/dev/null)" != "$PROBE_DEFINES" ]; then
+if [ "${1:-debug}" != "${1#debug}" ] && [ -d "Gamecube/build_${DEBUG_NAME}${OGC_SUFFIX}" ] && [ "$(cat "$PROBE_STAMP" 2>/dev/null)" != "$PROBE_DEFINES" ]; then
 	echo "probe gates changed since the last build -- cleaning so the change takes effect"
-	make -C Gamecube -f Makefile_Wii clean >/dev/null 2>&1 || true
-	rm -rf "$DEPS_ROOT"/opengx/obj_prof   # the profiling OpenGX takes the same gates
+	make -C Gamecube -f Makefile_Wii $DEBUG_DIRS clean >/dev/null 2>&1 || true
+fi
+# The profiling OpenGX takes the same gates, and the debug and play builds share it: its own
+# stamp, so switching between them rebuilds it.
+OGX_STAMP="$DEPS_ROOT/opengx/obj_prof.defines"
+if [ "${1:-debug}" != "${1#debug}" ] && [ "$(cat "$OGX_STAMP" 2>/dev/null)" != "$PROBE_DEFINES" ]; then
+	rm -rf "$DEPS_ROOT"/opengx/obj_prof
 fi
 
 # The five dependency archives (opengx, zstd, lzma, zlibstatic, chdr) build
@@ -189,11 +203,12 @@ case "${1:-debug}" in
 		# PROBE_DEFINES reaches the profiling OpenGX library too: its per-draw probes are
 		# gated like the plugin's, and a library built with other gates than the plugin
 		# reads state the plugin never writes.
-		make opengx.a lightrecWithLog.a lightning.a zstd.a lzma.a zlibstatic.a chdrstatic.a hbcagent.a smb2.a PROBE_DEFINES="$PROBE_DEFINES"
-		relink_if_deps_newer Gamecube/WiiSXRX_debug${OGC_SUFFIX}.elf
-		make -C Gamecube -f Makefile_Wii EXTRA_CFLAGS="$PROBE_DEFINES"
-		mkdir -p Gamecube/build_debug${OGC_SUFFIX} && printf '%s' "$PROBE_DEFINES" > "$PROBE_STAMP"
-		echo "Output: Gamecube/WiiSXRX_debug${OGC_SUFFIX}.dol"
+		make opengx.a $LIGHTREC.a lightning.a zstd.a lzma.a zlibstatic.a chdrstatic.a hbcagent.a smb2.a PROBE_DEFINES="$PROBE_DEFINES"
+		printf '%s' "$PROBE_DEFINES" > "$OGX_STAMP"
+		relink_if_deps_newer Gamecube/WiiSXRX_${DEBUG_NAME}${OGC_SUFFIX}.elf
+		make -C Gamecube -f Makefile_Wii $DEBUG_DIRS EXTRA_CFLAGS="$PROBE_DEFINES"
+		mkdir -p Gamecube/build_${DEBUG_NAME}${OGC_SUFFIX} && printf '%s' "$PROBE_DEFINES" > "$PROBE_STAMP"
+		echo "Output: Gamecube/WiiSXRX_${DEBUG_NAME}${OGC_SUFFIX}.dol"
 		;;
 	debug-warn)
 		make opengx.a lightrecWithLog.a lightning.a zstd.a lzma.a zlibstatic.a chdrstatic.a hbcagent.a smb2.a

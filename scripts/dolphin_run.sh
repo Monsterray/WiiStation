@@ -348,6 +348,17 @@ ls "$OUT"/vram_[0-9]*.bin >/dev/null 2>&1 && echo "vram-snaps: $(ls "$OUT"/vram_
 "$PYTHON" "$SP/sdimage_read.py" "$CARD" wiistation/xfb.bin "$OUT/xfb.bin" >/dev/null 2>&1 && [ -s "$OUT/xfb.bin" ] && echo "xfb: $(wc -c < "$OUT/xfb.bin") bytes"
 # the interpreter's PC ring (psxinterpreter.c), written once if the PC leaves code
 "$PYTHON" "$SP/sdimage_read.py" "$CARD" wiistation/pcring.log "$OUT/pcring.log" >/dev/null 2>&1 && [ -s "$OUT/pcring.log" ] && echo "pcring: $(head -1 "$OUT/pcring.log")"
+# the play build's folder (Gamecube/play_log.c): .runs/NAME/debuglogs/, read with scripts/play_logs.py
+mkdir -p "$OUT/debuglogs"
+if ! "$PYTHON" "$SP/sdimage_read.py" "$CARD" wiistation/debuglogs/play.log "$OUT/debuglogs/play.log" >/dev/null 2>&1; then
+	rm -rf "$OUT/debuglogs"   # not a play build
+else
+	"$PYTHON" "$SP/sdimage_read.py" "$CARD" wiistation/debuglogs/hb.log "$OUT/debuglogs/hb.log" >/dev/null 2>&1
+	for id in $(sed -n 's/^=== play session \([0-9-]*\) start .*/\1/p' "$OUT/debuglogs/play.log"); do
+		"$PYTHON" "$SP/sdimage_read.py" "$CARD" "wiistation/debuglogs/vtl_$id.bin" "$OUT/debuglogs/vtl_$id.bin" >/dev/null 2>&1
+	done
+	echo "debuglogs: $(ls "$OUT/debuglogs" | wc -l) file(s) (python scripts/play_logs.py $OUT/debuglogs)"
+fi
 # 0 bytes is normal for a short run: the guest writes a perf report every N presents, and a run
 # that ends before the first one has nothing to read.
 echo "run done $(date +%T)"

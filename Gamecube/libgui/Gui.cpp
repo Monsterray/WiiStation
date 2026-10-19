@@ -210,6 +210,7 @@ void Gui::draw()
 				mask32(0xd8006a8, 0, 2);
 			}
 #endif
+			play_session_end("power_off");   /* the play build (play_log.c); Quit ended it in SysClose */
 			if(ws_shutdown==1)	//Power off System
 				SYS_ResetSystem(SYS_POWEROFF, 0, 0);
 			else			//Return to Loader
