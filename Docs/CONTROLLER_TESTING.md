@@ -66,6 +66,20 @@ python scripts/padtest.py check out/padtrace.csv
 controller on the port, `PAD_ScanPads` reports nothing connected, no driver is assigned to
 the virtual port, and the trace holds one line saying so (`type` of `-`).
 
+Since 2026-10-12 (c6e0f59) the test profiles bind no host device to Dolphin's GameCube pads,
+and Dolphin then reports the pad as not connected, SIDevice0 or not: every Dolphin run showed
+`carry: ... gc=0` and the PadTest DX matrix passed only the 3 cells without GameCube pad 1
+(measured 2026-10-19, with the 5.14.0 DOL too). Now a script that drives pad 1 (`padsweep`
+or `gcpress`) makes it count as plugged in (`autoinput_gcpad`, `GC_SCAN` in controller-GC.c):
+the matrix is 12/12 again.
+
+**Host button combinations.** `gcpress <vblank> <hex>` holds raw GameCube buttons (libogc
+`PAD_BUTTON_*`/`PAD_TRIGGER_*`, e.g. `1060` = L+R+Start) on pad 1 for 10 vblanks, on top of
+the pad, up to 8 lines. It goes through the driver, so it presses what the PSX press lines
+cannot: the ANALOG button, the screenshot. `scripts/autoinput/medievil_analog_combo.txt`
+presses ANALOG in MediEvil at vblank 6800; tty.log then has `analog vbl=6800 Port 1: Analog
+(red light)` and the pad lines go from `id=41` to `id=73` (Docs/ANALOG_BUTTON.md).
+
 `padtest.py check` reports, per port, how much of 0..255 each axis covered and how many
 buttons moved a bit of their own. It deliberately does not know which bit belongs to which
 button: it asserts only that each press moves exactly one bit and that every press moves a

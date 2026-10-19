@@ -169,6 +169,14 @@ Unreleased:
 * Test USB Pad moved to Settings > General > Advanced > Input ("USB Pad: Test").
   B on the test page goes back there.
 
+* ANALOG button: with PSX Pad Type Analog, a key combination presses the
+  DualShock's ANALOG button (digital <-> analog), as on a PlayStation: GameCube
+  pad L+R+Start, HID pad L2+R2+Start, Classic L+R+ZR, Wii U Pro and GamePad
+  L+R+ZR (or both sticks pressed in), Wiimote A+B+2. Set it in Configure
+  Buttons (ANALOG, or Off). A note on screen says the new mode, or that the
+  game locked it (Ape Escape). This replaces 5.14.0's rule that turned the pad
+  analog by itself: MediEvil now starts digital, as on a PlayStation; press
+  the combination once and the stick moves Dan.
 Ver 5.14.0 (2026-10-18):
 * Fixed: with the Soft renderers (the default), Deflicker and Deflicker Level
   did nothing in 480i (the usual mode): the game kept the menu's filter. OpenGX

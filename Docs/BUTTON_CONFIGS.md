@@ -12,7 +12,7 @@ This page describes the system as it is now. Section 3 says which problems the c
 | Live mapping | The buttons a pad uses now. One per controller type and pad number (0 to 3). | RAM: `controller_t.config[4]` (controller.h) |
 | Slot | A saved copy of a mapping. Slots 1 to 4. | RAM: `config_slot[0..3]` (controller.h) |
 | Game slot | A saved copy for one disc. The menu shows it as "Game". | RAM: `config_slot[4]` (controller.h) |
-| Slot file | The file of one controller type. Holds Slots 1 to 4 and the screenshot combinations. | Disk: `wiistation/buttons/*.cfg` |
+| Slot file | The file of one controller type. Holds Slots 1 to 4, the screenshot and the ANALOG button combinations. | Disk: `wiistation/buttons/*.cfg` |
 | Game file | The file of one disc. Holds the Game slot of every type. | Disk: `wiistation/buttons/games/<CdromId>.cfg` |
 | Type | One controller family, with one identifier letter (G, H, C, N, W, P, D). | `controller_t.identifier` |
 | Device | The SD card (`sd:`) or the USB device (`usb:`). | `buttonDevice` (RAM) |
@@ -72,7 +72,14 @@ The names come from `Gamecube/buttonfiles.c`. The identifiers are in each driver
 ### 2.5 File format
 
 Unchanged: version 1, binary. Magic `W`, `X`, identifier, version. Four slots of 23 fields, then four
-screenshot indices. The Game file is one such block per type, in `controller_ts` order.
+screenshot indices, then four ANALOG button indices (2026-10-19). The Game file is one such block per
+type, in `controller_ts` order: magic, the Game slot, its screenshot index, its ANALOG index.
+
+A file from before the ANALOG indices still loads: a slot file ends after the screenshot indices, and
+in a Game file the next type's magic follows the screenshot index. `read_analog` (PlugPAD.c) takes
+the type's default then and puts the four magic bytes back (an index is a small number, never "WX").
+A build from before cannot read a new Game file (the extra index is where it expects the next magic),
+so it uses the default mappings for that game; its slot files are fine.
 
 A button field is an index into the type's button table. A bad index becomes 0 with no message.
 The format has no count and no checksum. See `Gamecube/PlugPAD.c` (`read_slot`, `write_slot`).

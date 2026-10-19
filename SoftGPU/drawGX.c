@@ -271,6 +271,16 @@ void showFpsAndDebugInfo(void)
 		}
 		#endif // SHOW_DEBUG
     }
+	{	/* the ANALOG button's note (Gamecube/PadSSSPSX.c), red when the light is on */
+		extern const char *pad_note(int *red);
+		int red;
+		const char *note = pad_note(&red);
+		if (note) {
+			IplFont_drawInit(red ? (GXColor){ 255, 90, 90, 255 } : (GXColor){ 230, 230, 230, 255 });
+			IplFont_drawString(10, 85, note, 1.0, false);
+			IplFont_drawString(11, 85, note, 1.0, false);	/* bold, as the Filter Tour's */
+		}
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////
