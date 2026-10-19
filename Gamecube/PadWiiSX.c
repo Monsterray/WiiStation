@@ -133,6 +133,12 @@ int autoinput_crumbs = 0;          /* "crumbs": debug build writes sd:/wiistatio
 #define AUTOIN_IRFAKES 8
 static struct { unsigned vbl; int x, y; } autoin_irfake[AUTOIN_IRFAKES];
 static int autoin_irfake_n;
+/* "gcpress <vblank> <hex>": GameCube pad 1's driver (controller-GC.c) reads these raw buttons
+ * (libogc PAD_BUTTON_* / PAD_TRIGGER_*: 1060 = L+R+Start) on top of the pad for 10 vblanks
+ * from then, so a run can press a host combination: the ANALOG button, the screenshot. Up to 8. */
+#define AUTOIN_GCPRESSES 8
+static struct { unsigned vbl, mask; } autoin_gcpress[AUTOIN_GCPRESSES];
+static int autoin_gcpress_n;
 /* "ramwatch LO HI" and "ramcell ADDR" (hex, up to 8 cells): who writes that guest RAM
  * (perf_prof.c perf_ram_write, perf.log "rw:" lines; debug builds) */
 unsigned autoinput_ramwatch_lo, autoinput_ramwatch_hi, autoinput_ramcell[8], autoinput_ramcells;
@@ -207,6 +213,7 @@ void autoinput_load(void)
 	autoin_sweeps = 0;
 	autoin_stick_n = 0;
 	autoin_irfake_n = 0;
+	autoin_gcpress_n = 0;
 	autoin_padtype_n = autoin_padtype_i = 0;
 	if (!autoin)
 		autoin = (struct autoin_line *)_mem2_malloc(AUTOIN_MAX * sizeof(*autoin));
@@ -280,6 +287,14 @@ void autoinput_load(void)
 			if (sscanf(line, "ramcell %x", &v) == 1) {
 				if (autoinput_ramcells < 8)
 					autoinput_ramcell[autoinput_ramcells++] = v;
+				continue;
+			}
+			if (sscanf(line, "gcpress %u %x", &v, &k) == 2) {
+				if (autoin_gcpress_n < AUTOIN_GCPRESSES) {
+					autoin_gcpress[autoin_gcpress_n].vbl = v;
+					autoin_gcpress[autoin_gcpress_n].mask = k;
+					autoin_gcpress_n++;
+				}
 				continue;
 			}
 			if (sscanf(line, "padsweep %u", &v) == 1) {
@@ -451,6 +466,24 @@ int autoinput_sweep(int port, unsigned short *press, unsigned char *sticks)
 	}
 	return 1;
 }
+/* The script drives GameCube pad 1 (padsweep, gcpress): it counts as plugged in. Dolphin's
+ * emulated pad with no host device bound (the test profiles) reports none (controller-GC.c). */
+int autoinput_gcpad(void)
+{
+	return autoinput_padsweep_vbl || autoin_gcpress_n;
+}
+
+/* "gcpress": the raw GameCube buttons the script holds now */
+unsigned autoinput_gcpress(void)
+{
+	unsigned m = 0;
+	int i;
+	for (i = 0; i < autoin_gcpress_n; i++)
+		if (frame_counter >= autoin_gcpress[i].vbl && frame_counter - autoin_gcpress[i].vbl < 10)
+			m |= autoin_gcpress[i].mask;
+	return m;
+}
+
 /* "irfake": the pointer the script gives now, 1 if there is one */
 int autoinput_irfake(int *x, int *y)
 {

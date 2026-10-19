@@ -111,6 +111,15 @@ static button_t screenshot_combos[] = {
 	{ 2, CLASSIC_CTRL_BUTTON_FULL_L|CLASSIC_CTRL_BUTTON_FULL_R,                         "L+R" },
 };
 
+/* ANALOG button combinations (PadSSSPSX.c analog_button), entry 0 is Off, entry 1 the default:
+ * the screenshot's pair with another button. While one is held the game sees no buttons, so
+ * its Start does not pause. Configure Buttons keeps it apart from the menu, fast-forward and
+ * screenshot combinations. */
+static button_t analog_combos[] = {
+	{ 0, 0, "Off" },
+	{ 1, CLASSIC_CTRL_BUTTON_FULL_L|CLASSIC_CTRL_BUTTON_FULL_R|CLASSIC_CTRL_BUTTON_ZR, "L+R+ZR" },
+};
+
 
 static unsigned int getButtons(classic_ctrl_t* controller)
 {
@@ -229,6 +238,7 @@ static int _GetKeys(int Control, BUTTONS * Keys, controller_config_t* config)
 	if (!isHeld(config->exit)) return 1;
 	if (!isHeld(config->fastf)) return 2;
 	screenshot_poll(Control, config->screenshot && config->screenshot->mask && !isHeld(config->screenshot));
+	analog_poll(config->analog && config->analog->mask && !isHeld(config->analog));
 	return 0;
 }
 
@@ -272,6 +282,8 @@ controller_t controller_Classic =
 	  menu_combos,
 	  sizeof(screenshot_combos)/sizeof(screenshot_combos[0]),
 	  screenshot_combos,
+	  sizeof(analog_combos)/sizeof(analog_combos[0]),
+	  analog_combos,
 	  { .SQU        = &buttons[12], // Y
 	    .CRO        = &buttons[10], // B
 	    .CIR        = &buttons[9],  // A
@@ -296,6 +308,7 @@ controller_t controller_Classic =
 		.sensitivity = 1.0,
 		.fastf       = &menu_combos[1], // ZL+ZR+L
 		.screenshot = &screenshot_combos[1],
+		.analog = &analog_combos[1],
 	  }
 	 };
 

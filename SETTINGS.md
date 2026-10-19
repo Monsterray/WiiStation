@@ -164,7 +164,7 @@ The menu also has the buttons **Disable XA** and **Disable CDDA**. WiiStation do
 | `PadType1` to `PadType10` | 0 = None, 1 = GameCube Pad, 2 = Wii Pad, 3 = HID Pad, 4 = Multitap, 5 = Co-Op (`PadType1` and `PadType2` only, section 6.1.1) | 0 for `PadType1` and `PadType2`; 1 (GameCube Pad) for the multitap slots `PadType3` to `PadType10` | Input, Configure Input | Sets the controller type of each PlayStation port. See the port list below. A multitap's slots A to D start as GameCube pads 1 to 4; a port switched to Multitap whose four slots are all None gets the same. When a port's type changes while a game runs, the port shows as empty for half a second before the new controller appears, as when a real controller is unplugged and another plugged in: the game then looks for its controllers again. Without this, Crash Bash took no input from a multitap that had become a GameCube pad. |
 | `PadAssign1` to `PadAssign10` | 0 to 3 | 0, except `PadAssign2` = 1 and the multitap slots: A to D are 0 to 3 (`PadAssign3`..`6` and `PadAssign7`..`10`) | Input, Configure Input | Sets which physical controller (1 to 4, written 0 to 3) drives each port. Values 4 to 9, which older versions accepted, are ignored. |
 | `RumbleEnabled` | 0 = No, 1 = Yes | 1 | Input, Enable Rumble | Enables the controller rumble. Note: the menu label is inverted. **Disable Rumble = Yes** writes `RumbleEnabled = 0`. A Wii Remote or GameCube pad motor is only on or off: the DualShock's small motor turns it on, and the large motor's strength (00h to FFh) turns it on for that share of every 8 frames (FFh all of them). A motor keeps the value the game last sent, and every motor stops when the game goes to the menu. |
-| `ControllerType` | 0 = Standard, 1 = Analog, 2 = Stick D-pad | 0 | Input, PSX Pad Type | Sets the emulated PlayStation controller type. **Standard** is a digital pad (SCPH-1080): it answers the read command 42h and nothing else. **Analog** is a PS1 DualShock (SCPH-1200): it starts in digital mode, as the real pad does, and a game that supports analog switches it to analog mode itself with the config commands (Spyro, Ape Escape). Both behave as the real pads do, checked command by command with PadTest DX (Docs/CONTROLLER_TESTING.md). A game that asks the pad what it is in config mode and leaves the mode to the player's ANALOG button (MediEvil) gets the pad in analog mode, as if the player had pressed ANALOG: a Wii controller has no such button. Games made for the older Dual Analog pad, which never use config mode and expect the player to press the ANALOG button, stay digital. **Stick D-pad** is the Standard digital pad, and the left stick also presses its D-pad: past half of full travel, the stick's direction presses Up, Down, Left or Right, or two of them on a diagonal (each of the eight directions takes 45 degrees). Use it for games that read only the D-pad, so they can be played with the stick. It applies to every port and multitap slot. |
+| `ControllerType` | 0 = Standard, 1 = Analog, 2 = Stick D-pad | 0 | Input, PSX Pad Type | Sets the emulated PlayStation controller type. **Standard** is a digital pad (SCPH-1080): it answers the read command 42h and nothing else. **Analog** is a PS1 DualShock (SCPH-1200): it starts in digital mode, as the real pad does, and a game that supports analog switches it to analog mode itself with the config commands (Spyro, Ape Escape). Both behave as the real pads do, checked command by command with PadTest DX (Docs/CONTROLLER_TESTING.md). Its ANALOG button is a key combination on the Wii controller (section 6.6): games that leave the mode to the player (MediEvil, and games made for the older Dual Analog pad) stay digital until it is pressed, as on a PlayStation. **Stick D-pad** is the Standard digital pad, and the left stick also presses its D-pad: past half of full travel, the stick's direction presses Up, Down, Left or Right, or two of them on a diagonal (each of the eight directions takes 45 degrees). Use it for games that read only the D-pad, so they can be played with the stick. It applies to every port and multitap slot. |
 | `LoadButtonSlot` | 0 to 3 = Slot 1 to Slot 4, 4 = Default, 5 = Auto | 5 | Input, Auto Load Slot | Loads a saved button mapping at start. Auto loads the game's own mapping (the Game slot, `wiistation/buttons/games/<CdromId>.cfg`) if it has one, else the default. Default loads the built-in mapping at each game start (as Restore Default does). |
 | `LightGun` | 0 = Off, 1 = GunCon, 2 = Justifier, 3 = Mouse | 0 | Input, Light Gun | Selects the emulated light gun or mouse. The Wii Remote pointer controls it. One type for every port; a port takes it when its `PadLightgunN` is on and a Wii Remote plays it (Docs/GUN_MOUSE_TESTING.md). |
 | `GunReticle` | 0 = Off, 1 = On | 1 | (no menu row yet) | Draws a small crosshair where the Wii Remote points while it is a light gun or mouse: a cross, and a ring for a gun, in the remote's colour (green, red, blue, yellow for remotes 1 to 4). |
@@ -209,7 +209,7 @@ The button mappings are not in the settings file. They are in the folder `wiista
 
 Each game has its own file, `wiistation/buttons/games/<CdromId>.cfg`. It holds the Game slot of every controller type.
 
-Each controller file holds that controller's four slots, its analog sensitivity (below) and its screenshot combination (below). The files are binary. Do not edit them by hand.
+Each controller file holds that controller's four slots, its analog sensitivity (below), its screenshot combination and its ANALOG button combination (below). The files are binary. Do not edit them by hand.
 
 **Save.** Configure Buttons, Save writes every file at once: the four slots of every controller type and the game's file. Settings, Save Button Configs (SD or USB) writes every file too. The Settings rows choose the device. Configure Buttons, Save writes to the device last chosen. The message names the device.
 
@@ -255,6 +255,33 @@ Press the combination in a game to save the picture on screen. The file goes to 
 A screenshot combination never contains a menu combination. Configure Buttons refuses a screenshot choice that contains the exit or fast-forward combination, and it refuses an exit or fast-forward choice that lies inside the screenshot combination, because either one would open the menu or fast-forward first.
 
 A mapping file from before this version has no screenshot entry. Each controller then takes its default.
+
+### 6.6 ANALOG button combination
+
+The PlayStation DualShock has an ANALOG button between the sticks. It switches the pad between digital mode (light off, the game reads the buttons only) and analog mode (red light, the game also reads the sticks). A Wii controller has no such button, so each controller type has a combination that presses it. It is set in Configure Buttons, with the ANALOG button under Fast Forward, and it is saved in that controller's button-mapping file, as the screenshot combination is. It is not a key of the settings file.
+
+The choices are Off and a short list for each controller type. The default is the screenshot combination's two buttons with a third one:
+
+- GameCube pad: L+R+Start.
+- HID pad: L2+R2+Start.
+- Wii Classic Controller: L+R+ZR.
+- Wii U Pro Controller and Wii U GamePad: L+R+ZR, or LS+RS (both sticks pressed in).
+- Wiimote with Nunchuk, or Wiimote alone: A+B+2.
+
+While the combination is held the game gets no buttons from that controller, so the Start in L+R+Start does not pause the game. Press L and R (or A and B) first, then the third button.
+
+It works as the DualShock's button does (Docs/ANALOG_BUTTON.md):
+
+- It works with PSX Pad Type Analog only. Standard and Stick D-pad are digital pads, which have no ANALOG button.
+- Every game starts with the pad in digital mode, as at power-on.
+- Each press switches digital to analog or back, for the PlayStation port (or multitap slot) of the controller that pressed it. On a Co-Op port any player's combination presses it.
+- A game can lock the mode (Ape Escape does). Then the press does nothing.
+- The press stops the rumble motors; the game starts them again.
+- A note shows on the screen for two seconds: "Port 1: Analog (red light)" in red, "Port 1: Digital (light off)", "Port 1: ANALOG locked by the game", or "Port 1: no ANALOG button (PSX Pad Type)".
+
+Games that leave the mode to the player stay digital until the combination is pressed. MediEvil is one: press the combination once in the game and the left stick moves Dan.
+
+Configure Buttons keeps the combination apart from the others: it refuses an ANALOG choice that contains the exit or fast-forward combination, or that contains the screenshot combination or lies inside it, and the same the other way round. A mapping file from before this version has no ANALOG entry. Each controller then takes its default.
 
 ## Achievement engine
 
@@ -465,6 +492,12 @@ controller does nothing while it runs. A debug build writes what came out to
 
 `padsweep <vblank> fast` is a short sweep (214 vblanks instead of 996): each button held 3
 vblanks, the two X axes walked together in steps of 3, then the two Y axes.
+
+`gcpress <vblank> <hex>` holds raw GameCube buttons on GameCube pad 1 for 10 vblanks, on top of
+the pad (up to 8 lines; libogc's values: `1060` is L+R+Start, the ANALOG combination). It is for
+the host combinations, which the PlayStation press lines cannot reach. A script with `padsweep`
+or `gcpress` lines makes GameCube pad 1 count as connected, so it works in a Dolphin with no
+input device bound.
 
 For ports and slots without a GameCube pad, `sweep <vblank> <name>...` generates input in
 the script instead: from that vblank each port or slot named (`p1`, `p2`, `p1b` ... `p2d`)

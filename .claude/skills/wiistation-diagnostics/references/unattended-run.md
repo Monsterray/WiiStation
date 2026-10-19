@@ -148,6 +148,14 @@ a named profile with `[Wiimote1] Source = 1` (`WSX_PROFILE`). `padtrace.csv` is 
 into the run directory. Debug `tty.log` also has `pad` (each config command and every change of
 a 42h read: motor bytes, ID), `rumble` (motor values and the motor-on vblanks) and `led` lines.
 
+**Host combinations and GameCube pad 1 in Dolphin** (2026-10-19): the test profiles bind no host
+device (c6e0f59), and Dolphin then reports its GameCube pads as unplugged: every run's perf.log
+said `carry: ... gc=0`, so padsweep did nothing and the PadTest DX matrix fell to 3/12 without
+anyone noticing. A script with `padsweep` or `gcpress` lines now makes pad 1 count as connected
+(controller-GC.c `GC_SCAN`); matrix 12/12 again. `gcpress <vblank> <hex>` holds raw GC buttons
+(`1060` = L+R+Start, the ANALOG combination) for 10 vblanks through the real driver; tty.log has
+an `analog vbl=N Port 1: ...` line per ANALOG press. Recipe: Docs/CONTROLLER_TESTING.md.
+
 **Movies → scripts:** `scripts/dtm2autoinput.py MOVIE.dtm --offset N [--trace-after-start]`
 decodes a Dolphin `.dtm` (8-byte pad polls interleaved with Wiimote records, 2 polls per VI)
 into autoinput lines; find the offset once from the first Start press.
