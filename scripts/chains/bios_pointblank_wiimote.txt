@@ -1,0 +1,18 @@
+CHAIN
+# bios_pointblank.txt with a Wii Remote on port 1 (PadAutoAssign=1): the Justifier needs one
+# (PadSSSPSX.c gives ID 31h only to a Wiimote). Dolphin side: a named profile whose
+# Config/WiimoteNew.ini has [Wiimote1] Source = 1 and Device None (no host input; IR centred):
+#   bash scripts/profile.sh new pbwii --game "Point Blank (USA)"   (then edit Source)
+#   WSX_PROFILE=pbwii bash scripts/wsx.sh chain NAME scripts/chains/bios_pointblank_wiimote.txt --secs 600
+1200 BiosDevice=0 LightGun=0 PadAutoAssign=1
+sd:/wiistation/isos/Point Blank (USA)
+Point Blank (USA).cue
+1200 BiosDevice=0 LightGun=2 PadAutoAssign=1
+sd:/wiistation/isos/Point Blank (USA)
+Point Blank (USA).cue
+1200 BiosDevice=1 BootThruBios=1 LightGun=0 PadAutoAssign=1
+sd:/wiistation/isos/Point Blank (USA)
+Point Blank (USA).cue
+900 BiosDevice=1 BootThruBios=1 LightGun=2 PadAutoAssign=1
+sd:/wiistation/isos/Point Blank (USA)
+Point Blank (USA).cue

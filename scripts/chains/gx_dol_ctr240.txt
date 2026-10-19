@@ -1,0 +1,6 @@
+CHAIN
+# CTR Time Trial start line in 240p (TVMode=1), TV pictures at 5600/5900: is the 512x216 display's
+# XFB copied right (Docs/GX_QUALITY.md: the trial runs saw a 512x54 XFB)?
+6000 sd:/wiistation/gx_ctr.txt TVMode=1
+sd:/wiistation/isos/Crash Team Racing
+Crash Team Racing [U] [SCUS-94426].cue

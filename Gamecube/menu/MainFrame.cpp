@@ -290,6 +290,7 @@ extern "C" char mcd2Written;
 extern "C" unsigned int usleep(unsigned int us);
 
 extern "C" void switchToTVMode(short dWidth, short dHeight, bool retMenu);
+extern "C" void gxApplyEfbFormat(int game);
 
 void Func_PlayGame()
 {
@@ -345,7 +346,9 @@ void Func_PlayGame()
 		backFromMenu = 1;
 	syncFrameLimit();
 	glResetCacheRegion();
+	gxApplyEfbFormat(1);	/* GxColor: the game's EFB format (GraphicsGX.cpp) */
 	go();
+	gxApplyEfbFormat(0);
 
 #ifdef DEBUGON
 	_break();

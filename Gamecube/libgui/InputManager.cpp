@@ -104,6 +104,7 @@ static u16 scripted_menu_keys(void)
 	case 'L': return PAD_BUTTON_LEFT;  case 'R': return PAD_BUTTON_RIGHT;
 	case 'A': return PAD_BUTTON_A;     case 'B': return PAD_BUTTON_B;
 	case 'S': return PAD_BUTTON_START; case 'Z': return PAD_TRIGGER_Z;
+	case '<': return PAD_TRIGGER_L;    case '>': return PAD_TRIGGER_R;   /* the tab buttons */
 	}
 	return 0;   /* '.', a space: a pause */
 }

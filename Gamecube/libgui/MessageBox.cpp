@@ -98,6 +98,7 @@ MessageBox::MessageBox()
 		  messageBoxActive(false),
 		  currentCursorFrame(0),
 		  currentFocusFrame(0),
+		  returnFocus(0),
 		  returnValue(0)
 {
 	buttonImage = Resources::getInstance().getImage(Resources::IMAGE_DEFAULT_BUTTON);
@@ -175,6 +176,7 @@ void MessageBox::setMessage(const char* string)
 	currentCursorFrame = Cursor::getInstance().getCurrentFrame();
 	Cursor::getInstance().setCurrentFrame(this);
 	currentFocusFrame = Focus::getInstance().getCurrentFrame();
+	returnFocus = Focus::getInstance().actionTarget();   /* the button pressed: focus goes back to it */
 	Focus::getInstance().setCurrentFrame(this);
 	//memset(messageBoxText, 0, MESSAGEBOX_TEXT_WIDTH);
 	strncpy(messageBoxText, string, MESSAGEBOX_TEXT_WIDTH);
@@ -202,6 +204,7 @@ int MessageBox::askMessage(const char* string)
 	currentCursorFrame = Cursor::getInstance().getCurrentFrame();
 	Cursor::getInstance().setCurrentFrame(this);
 	currentFocusFrame = Focus::getInstance().getCurrentFrame();
+	returnFocus = Focus::getInstance().actionTarget();   /* the button pressed: focus goes back to it */
 	Focus::getInstance().setCurrentFrame(this);
 	//memset(messageBoxText, 0, MESSAGEBOX_TEXT_WIDTH);
 	strncpy(messageBoxText, string, MESSAGEBOX_TEXT_WIDTH);
@@ -258,6 +261,10 @@ void MessageBox::deactivate()
 	Focus::getInstance().clearPrimaryFocus();
 	if (currentFocusFrame) Focus::getInstance().setCurrentFrame(currentFocusFrame);
 	currentFocusFrame = NULL;
+	/* Closing the box (OK, Cancel or B) leaves focus on the button that opened it, not on the
+	 * screen's first button: B on the main menu after Credits or Quit did move it. */
+	Focus::getInstance().setReturnFocus(returnFocus);
+	returnFocus = NULL;
 }
 
 bool MessageBox::getActive()

@@ -1,0 +1,13 @@
+CHAIN
+# GX quality trials in Dolphin (Docs/GX_QUALITY.md): the user's Spyro play, TV pictures at
+# 3600/4800 (xfb_01..06): base, minified texels linear + aniso 4, RGBA6 dithered.
+#   bash scripts/wsx.sh chain gx_spyro scripts/chains/gx_dol_spyro.txt --dol debug --fast --secs 900 --env XFB_RAM=1
+5000 sd:/wiistation/gx_spyro.txt PadAutoAssign=1 ControllerType=0
+sd:/wiistation/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue
+5000 sd:/wiistation/gx_spyro.txt PadAutoAssign=1 ControllerType=0 GxTexMin=3
+sd:/wiistation/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue
+5000 sd:/wiistation/gx_spyro.txt PadAutoAssign=1 ControllerType=0 GxColor=1
+sd:/wiistation/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue

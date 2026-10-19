@@ -55,9 +55,11 @@ Resources::Resources()
 	controllerWiimoteNunchuckImage = new Image(ControlWiimoteNunchuckTexture, 48, 64, GX_TF_I4, GX_CLAMP, GX_CLAMP, GX_FALSE);
 	controllerWiimoteImage = new Image(ControlWiimoteTexture, 48, 64, GX_TF_I4, GX_CLAMP, GX_CLAMP, GX_FALSE);
 	psxControllerImage = new Image(PsxControllerTexture, 232, 152, GX_TF_IA4, GX_CLAMP, GX_CLAMP, GX_FALSE);
-	GConImage = new Image(GConTexture, 250, 179, GX_TF_IA4, GX_CLAMP, GX_CLAMP, GX_FALSE);
-	JustImage = new Image(JustTexture, 250, 179, GX_TF_IA4, GX_CLAMP, GX_CLAMP, GX_FALSE);
-	PSMouseImage = new Image(PSMouseTexture, 144, 256, GX_TF_IA4, GX_CLAMP, GX_CLAMP, GX_FALSE);
+	/* GCon.tx, Just.tx and PSMouse.tx are whole TPL files (magic 00 20 af 30): one IA4 image
+	 * whose data starts at 0x40, and whose size is in the header (252x180, 144x256). */
+	GConImage = new Image(GConTexture + 0x40, 252, 180, GX_TF_IA4, GX_CLAMP, GX_CLAMP, GX_FALSE);
+	JustImage = new Image(JustTexture + 0x40, 252, 180, GX_TF_IA4, GX_CLAMP, GX_CLAMP, GX_FALSE);
+	PSMouseImage = new Image(PSMouseTexture + 0x40, 144, 256, GX_TF_IA4, GX_CLAMP, GX_CLAMP, GX_FALSE);
 
 }
 

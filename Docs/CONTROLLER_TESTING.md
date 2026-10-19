@@ -66,6 +66,20 @@ python scripts/padtest.py check out/padtrace.csv
 controller on the port, `PAD_ScanPads` reports nothing connected, no driver is assigned to
 the virtual port, and the trace holds one line saying so (`type` of `-`).
 
+Since 2026-10-12 (c6e0f59) the test profiles bind no host device to Dolphin's GameCube pads,
+and Dolphin then reports the pad as not connected, SIDevice0 or not: every Dolphin run showed
+`carry: ... gc=0` and the PadTest DX matrix passed only the 3 cells without GameCube pad 1
+(measured 2026-10-19, with the 5.14.0 DOL too). Now a script that drives pad 1 (`padsweep`
+or `gcpress`) makes it count as plugged in (`autoinput_gcpad`, `GC_SCAN` in controller-GC.c):
+the matrix is 12/12 again.
+
+**Host button combinations.** `gcpress <vblank> <hex>` holds raw GameCube buttons (libogc
+`PAD_BUTTON_*`/`PAD_TRIGGER_*`, e.g. `1060` = L+R+Start) on pad 1 for 10 vblanks, on top of
+the pad, up to 8 lines. It goes through the driver, so it presses what the PSX press lines
+cannot: the ANALOG button, the screenshot. `scripts/autoinput/medievil_analog_combo.txt`
+presses ANALOG in MediEvil at vblank 6800; tty.log then has `analog vbl=6800 Port 1: Analog
+(red light)` and the pad lines go from `id=41` to `id=73` (Docs/ANALOG_BUTTON.md).
+
 `padtest.py check` reports, per port, how much of 0..255 each axis covered and how many
 buttons moved a bit of their own. It deliberately does not know which bit belongs to which
 button: it asserts only that each press moves exactly one bit and that every press moves a
@@ -211,3 +225,59 @@ right.
 - **The menus.** Nothing here drives the menu, which reads the pads directly rather than
   through these drivers. `scripts/menu_text_width.py` checks the Settings tabs' geometry
   and text widths against the 640-pixel screen instead, which is not the same as looking.
+
+## 6. USB controllers (HID pads): the USB Pad Test page
+
+Added 2026-10-18. A USB controller works in WiiStation only through a controller ini
+(`<device>:/wiistation/controllers/VVVV_PPPP.ini`, VID and PID in hex) that says which
+report byte and bit is which button. When a pad does nothing, or the wrong thing, this page
+shows why. It needs a real Wii: Dolphin has no USB HID pads (in Dolphin the page runs and
+logs "devices: 0").
+
+**Running it.**
+
+1. Plug the USB controller into the Wii. A pad that has no ini yet: open the page first,
+   then unplug it and plug it in again (the page says so). Only while the page is open is
+   a pad with no ini read at all, and a game never gets it.
+2. Settings > General > **Advanced** > **Input** tab > USB Pad: **Test**. B on the page
+   goes back there. A scripted run opens the page with the autoinput line
+   `menuclick 83 1` (Settings button 83, kept on no tab for this; B then goes back to
+   Settings > Input); `menupage 12` photographs the Advanced > Input tab.
+3. Put the controller down flat and let go: the first second learns what the pad sends at
+   rest. Then the page lights one PlayStation button at a time on the pad picture: the
+   d-pad, the four face buttons, L1 R1 L2 R2, Select, Start, L3, R3, then each stick up,
+   down, left and right, then "press nothing" for 3 seconds.
+4. Press the lit button and let go. A button the pad does not have: press A on the Wii
+   Remote or GameCube pad to skip it, or wait 10 seconds. B stops the test. At the end, A
+   runs it again and B goes back to Settings.
+5. Take `sd:/wiistation/usbpad.log` (or `usb:` when there is no SD card) to the PC and run
+   `python scripts/usbpad_read.py usbpad.log`.
+
+**What the log holds.** One line per fact, so it can be read by eye too:
+
+| line | what |
+|---|---|
+| `hid:` | `running`, or `not-running` (no IOS58 USB HID: no USB pad can work) |
+| `devices:` | every USB HID device the Wii lists, VID:PID |
+| `device:` | the one picked as the controller: VID, PID, product name, interface class/subclass/protocol, endpoints, packet size |
+| `ini:` | the ini path on SD and USB, `found` or `missing` |
+| `mode:` | `mapped` (ini found, decoded as in a game), `raw` (no ini: bytes only), `not-read` |
+| `params:` | the USB descriptors the Wii's HID driver gave (device, configuration, interface, endpoints), hex |
+| `reportdesc:` | the HID report descriptor, hex, when the pad answered |
+| `rest:`, `noise:` | the report at rest; the bytes that moved at rest (sticks, motion sensors) and their range |
+| `step N Name: result` | `pressed` (with `raw=` the whole report held down, `changed=` byte:rest>pressed for each byte that moved, then `gc=`, `ps1=`, `buttons=`, `sticks=`, `triggers=`: what WiiStation decoded), `timeout`, `skipped`, `no-controller`; for the last step `rest-ok` or `moved` |
+| `end:` | `done` or `stopped` |
+
+**Reading the table.** `usbpad_read.py` prints the header, then one row per step with a
+verdict: OK; WRONG (another PlayStation button came out: the ini, or the HID button
+config, maps it elsewhere); NOT MAPPED (the report changed but WiiStation saw nothing: the
+ini has no key for that byte and bit); NO INI (the pad was read raw); DRIFT (the pad moved
+with nothing pressed: stick drift or a noisy byte). The `ini` column is a first guess at
+the ini line (offset and mask in hex, as the ini takes them) for that button, from the bits
+that turned on. A d-pad sent as a hat switch (one byte, 0..7, 8 or 0x0F at rest) needs
+`DPAD=1` and the values as masks; check the `changed` column before writing it in.
+
+The page reads the same report buffer the games read (`HidController/KernelHID.c`,
+`hidProbe`), so a pad that is NOT MAPPED here is not mapped in a game either. Its own code
+is `Gamecube/menu/UsbPadTestFrame.cpp`. A Dolphin run collects the log as
+`.runs/NAME/usbpad.log` (`scripts/dolphin_run.sh`).

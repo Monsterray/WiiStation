@@ -38,5 +38,7 @@ void SetFPSHandler(void);
 void InitFPS(void);
 void CheckFrameRate(void);
 void OldGpuCheckFrameRate(void);
+void GxCheckFrameRate(void);
+int FrameSkipBehind(void);
 
 #endif // _FPS_INTERNALS_H

@@ -30,14 +30,9 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-# MSYS's plain pwd reports the logical path: a worktree reached through an 8.3
-# short name (C:/Users/USER123~1/...) then tests space-free although the real
-# directory name has one, and every "-I$(CURDIR)" compile flag later splits on
-# it (the Deps Makefiles embed CURDIR). The physical resolution (pwd -P) sees
-# the long name; test both spellings, and snapshot when either hides a space.
-REPO_ROOT_PHYS="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P 2>/dev/null || true)"
-
-if [[ "$REPO_ROOT" == *" "* ]] || [[ "$REPO_ROOT_PHYS" == *" "* ]]; then
+# pwd -P: a checkout reached by an 8.3 name (C:/Users/MONTYP~1/...) has no space in pwd, but
+# make's CURDIR is the physical path, which MSYS maps to /home/<user name with a space>/...
+if [[ "$(cd "$REPO_ROOT" && pwd -P)" == *" "* ]]; then
 	if [ "${1:-debug}" = clean ]; then
 		echo "Run clean from a checkout without spaces; isolated builds clean themselves." >&2
 		exit 1
@@ -54,6 +49,8 @@ if [[ "$REPO_ROOT" == *" "* ]] || [[ "$REPO_ROOT_PHYS" == *" "* ]]; then
 			printf '%s\0' "$source_file"
 		fi
 	done | tar -C "$REPO_ROOT" --null -T - -cf - | tar -C "$task_build" -xf -
+	# deps/ext (libwupc, ignored) is built once per checkout; without it the snapshot fetches it
+	[ ! -d "$REPO_ROOT/deps/ext" ] || cp -r "$REPO_ROOT/deps/ext" "$task_build/deps/"
 	bash "$task_build/scripts/build.sh" "$@"
 	for artifact in "$task_build"/Gamecube/*.dol "$task_build"/Gamecube/*.elf; do
 		[ ! -f "$artifact" ] || cp "$artifact" "$REPO_ROOT/Gamecube/"

@@ -50,7 +50,8 @@ TAB_STRIP = [0, 1, 2, 3, 4]
 # In the tables so that no later index moves, but never shown on any tab.
 # 25/26/27 are the Dithering trio: it moved to the Advanced Graphics page
 # (OptionsFrame), which button 78 opens. 74 is the CD page, now an Advanced tab.
-HIDDEN_BUTTONS = {5, 6, 19, 58, 64, 65, 66, 42, 43, 44, 60, 61, 74, 25, 26, 27}
+# 83 is Test USB Pad, now on Advanced > Input; "menuclick 83 1" still presses it.
+HIDDEN_BUTTONS = {5, 6, 19, 58, 64, 65, 66, 42, 43, 44, 60, 61, 74, 25, 26, 27, 55, 56, 83}
 # Rows placed on the button column even though their last button reaches the logo's corner, by the
 # user's choice: Video's Filters row (y 340), its Deflicker button covers a few pixels of the logo's
 # box. Only these rows may pass the logo's edge; they still stay within the screen's margin.
@@ -304,7 +305,8 @@ def check_help(d, w, verbose, bad):
     two = set(re.findall(r'(\w+)_ROWS,[^\n]*,\s*2\s*\}', src))
     rowcount = {}
     for name, body in re.findall(r'static const OptRow (\w+)_ROWS\[\] =\s*\{(.*?)\n\};', src, re.S):
-        kinds = re.findall(r'\bROW_(CYCLE|RADIO(?:_FIT)?|INFO)\s*\(', body)
+        # ROW_ACTION is a one-name cycle to the engine
+        kinds = [k.replace('ACTION', 'CYCLE') for k in re.findall(r'\bROW_(CYCLE|RADIO(?:_FIT)?|INFO|ACTION)\s*\(', body)]
         lines, open_cell = 0, False
         for k in kinds:
             if name in two and k == 'CYCLE' and open_cell:

@@ -107,7 +107,7 @@ static const char *const CPU_CORE_NAMES[]     = { "Lightrec", "Interpreter", "Dy
 static const char *const GPU_PLUGIN_NAMES[]   = { "Soft Fast", "Soft Timed", "OpenGX" };
 static const char *const FAST_ACCURATE_NAMES[] = { "Fast", "Accurate" };
 static const char *const CPU_SPEED_NAMES[]    = { "Auto", "50%", "75%", "100%", "125%", "150%", "200%", "300%" };
-static const char *const SPU_OUTPUT_NAMES[]   = { "CPU", "DSP" };
+static const char *const NO_YES_NAMES[]       = { "No", "Yes" };
 static const char *const DITHER_NAMES[]       = { "None", "Default", "Always" };
 static const char *const CHROMA_NAMES[]       = { "Sharp", "Smooth" };
 static const char *const FMV_COLOUR_NAMES[]   = { "15-bit", "24-bit" };
@@ -136,6 +136,7 @@ static Row CD_ROWS[] = {
 	CYC("CD Read Buffer", CD_BUFFER_NAMES, 0),
 	CYC("CD Read-Ahead",  ON_OFF_NAMES,    1),
 	CYC("CHD Hunk Cache", CD_HUNKS_NAMES,  2),
+	CYC("Fast Load",      NO_YES_NAMES,    0),
 };
 
 /* Readouts: the text is whatever the emulator reports, so the longest it can be is used. */
@@ -161,7 +162,6 @@ static Row INPUT_ROWS[] = {
 
 static Row SPU_ROWS[] = {
 	INFO("SPU Plugin", "P.E.Op.S. DFSound"),
-	RADIO("Output",    SPU_OUTPUT_NAMES, 1),
 };
 
 static Row ADVGFX_ROWS[] = {
@@ -171,9 +171,9 @@ static Row ADVGFX_ROWS[] = {
 };
 
 static const HelpLine SPU_HELP[] = {
-	{ "Output:", "CPU resamples and mixes on the Wii's CPU." },
-	{ NULL,      "DSP hands the stream to the Wii's sound chip." },
-	{ NULL,      "Sound quality is in Audio, Advanced." },
+	{ "SPU Plugin:", "Emulates the PS1 sound chip on the Wii's CPU." },
+	{ NULL,          "The Sound Driver is on the Audio tab." },
+	{ NULL,          "Sound quality is in Audio, Advanced." },
 };
 
 static const HelpLine GPU_HELP[] = {
@@ -194,17 +194,6 @@ static const HelpLine PLUGIN_HELP[] = {
 	{ NULL,          "Wii CPU time. Save it for one game: This Game." },
 };
 
-static const HelpLine ADVGFX_HELP[] = {
-	{ "Dithering:",    "Hides the steps between colours in a 15-bit picture." },
-	{ NULL,            "Default uses it only where the game asks for it." },
-	{ "Video Colour:", "24-bit is full colour. 15-bit bands in dark scenes." },
-	{ "MDEC Chroma:",  "Sharp is the console: one colour sample per 2x2 pixels." },
-	{ NULL,            "Smooth mixes the samples: it looks better, costs more." },
-	{ NULL,            "It applies to the next video that starts." },
-	{ "Gamma:",        "Brightens the TV picture. 1.0 changes nothing." },
-	{ "Deflicker Level:", "Light blurs less than Normal. Needs Deflicker on." },
-};
-
 static const HelpLine CD_HELP[] = {
 	{ "CD Read Buffer:", "16 KB is best: the card is read in 32 KB pages anyway," },
 	{ NULL,              "and a larger buffer only reads more than the game uses." },
@@ -212,7 +201,8 @@ static const HelpLine CD_HELP[] = {
 	{ NULL,              "waits less for the card. Raw bin/cue and .iso only." },
 	{ "CHD Hunk Cache:", "Decoded CHD hunks kept in memory, about 20 KB each." },
 	{ NULL,              "More never decodes more often: 8 is best." },
-	{ NULL,              "All three apply at the next game load." },
+	{ NULL,              "These three apply at the next game load." },
+	{ "Fast Load:",      "Shorter CD waits. Some games break with it." },
 };
 
 /* The Advanced tab row: ADV_TABS order, and the same widths as TAB_WS. */
@@ -239,15 +229,18 @@ struct TestPage {
 	float            labelCx;
 	float            labelDy;
 	float            rowDy;		/* 0: 60 (the Settings grid); the Audio and Saves tabs: 70 */
+	int              columns;	/* 2: the two-column layout (OptPage::columns) */
 };
 
 #define COUNT(a) ((int)(sizeof(a) / sizeof((a)[0])))
 
 static TestPage PAGES[] = {
 	{ "Adv Sound",   "Advanced Sound",    false, 0, SOUND_ROWS,   COUNT(SOUND_ROWS),   NULL,        0 },
-	{ "Adv Graphics","Advanced Graphics", false, 0, ADVGFX_ROWS, COUNT(ADVGFX_ROWS), ADVGFX_HELP, COUNT(ADVGFX_HELP) },
+	/* one column here; the real two-column page, with all its rows, is testTwoColumns() */
+	{ "Adv Graphics","Advanced Graphics", false, 0, ADVGFX_ROWS, COUNT(ADVGFX_ROWS), NULL,        0 },
 	{ "CPU",         NULL,                true,  0, PLUGIN_ROWS, COUNT(PLUGIN_ROWS), PLUGIN_HELP, COUNT(PLUGIN_HELP) },
-	{ "CD",          NULL,                true,  3, CD_ROWS,     COUNT(CD_ROWS),     CD_HELP,     COUNT(CD_HELP) },
+	{ "CD",          NULL,                true,  3, CD_ROWS,     COUNT(CD_ROWS),     CD_HELP,     COUNT(CD_HELP),
+	  NULL, 0, 0.0f, 0.0f, 0.0f, 2 },
 	{ "Memory",      "Memory",            false, 0, MEMORY_ROWS, COUNT(MEMORY_ROWS), NULL,        0, NULL, 0, 0.0f, 0.0f, 46.0f },
 	{ "GPU",         NULL,                true,  1, GPU_ROWS,    COUNT(GPU_ROWS),    GPU_HELP,    COUNT(GPU_HELP) },
 	{ "Input",       NULL,                true,  4, INPUT_ROWS,  COUNT(INPUT_ROWS),  INPUT_HELP,  COUNT(INPUT_HELP) },
@@ -261,14 +254,12 @@ static TestPage PAGES[] = {
  *
  *  The rows are the six lines of the tab, top to bottom. Each button's box is the number the
  *  table gives it: 73/75 at y 100, the BIOS four at 160, Yes/No and Execute BIOS at 220, Select
- *  Language at 280, Fast Load at 340, the three Save buttons at 400. Labels sit at the centre
+ *  Language at 280, the three Save buttons at 340, the three Load buttons at 400. Labels sit at the centre
  *  of their row (y + 28) and their centre is x 150 (Settings' TextBox, centred). */
 static const char *const GEN_BIOS_NAMES[]  = { "HLE", "SD", "USB", "DVD" };
 static const char *const GEN_BOOT_NAMES[]  = { "Yes", "No", "Execute BIOS" };
-static const char *const GEN_FAST_NAMES[]  = { "Yes", "No" };
 static const float        GEN_BIOS_W[]     = { 70.0f, 55.0f, 70.0f, 70.0f };
 static const float        GEN_BOOT_W[]     = { 75.0f, 75.0f, 171.0f };
-static const float        GEN_FAST_W[]     = { 75.0f, 75.0f };
 static const ActionButton GEN_ADV_ACTIONS[]  = { { "Advanced", 130.0f, false }, { "Memory", 130.0f, false } };
 static const ActionButton GEN_LANG_ACTIONS[] = { { "En", 90.0f, false } };
 static const ActionButton GEN_SAVE_ACTIONS[] = { { "SD", 55.0f, false }, { "USB", 70.0f, false }, { "This Game", 140.0f, false } };
@@ -279,8 +270,8 @@ static Row GENERAL_ROWS[] = {
 	{ ROW_CHOICE,  "Select BIOS",        GEN_BIOS_NAMES, 0, 4, 0, NULL, false, NULL,             295.0f,  0.0f, GEN_BIOS_W, 0 },
 	{ ROW_CHOICE,  "Boot Through BIOS",  GEN_BOOT_NAMES, 0, 3, 0, NULL, false, NULL,             295.0f,  0.0f, GEN_BOOT_W, 1 },
 	{ ROW_BUTTONS, "Select Language",    NULL,           0, 1, 0, NULL, false, GEN_LANG_ACTIONS, 295.0f,  0.0f, NULL,       0 },
-	{ ROW_CHOICE,  "Fast Load",          GEN_FAST_NAMES, 0, 2, 0, NULL, false, NULL,             295.0f,  0.0f, GEN_FAST_W, 0 },
 	{ ROW_BUTTONS, "Save Settings",      NULL,           0, 3, 0, NULL, false, GEN_SAVE_ACTIONS, 253.0f,  0.0f, NULL,       0 },
+	{ ROW_BUTTONS, "Load Settings",      NULL,           0, 3, 0, NULL, false, GEN_SAVE_ACTIONS, 253.0f,  0.0f, NULL,       0 },
 };
 
 static const Tab GEN_TABS[] = {
@@ -296,7 +287,7 @@ static const float        VID_ON_OFF_W[]    = { 75.0f, 75.0f };
 static const ActionButton VID_FRAMERATE_ACTIONS[] = { { "Auto", 130.0f, false }, { "Force NTSC", 160.0f, true } };
 static const ActionButton VID_SCREEN_ACTIONS[] = { { "4:3", 130.0f, false }, { "Interlaced", 125.0f, false }, { "240p", 66.0f, true } };
 static const ActionButton VID_FILTER_ACTIONS[] = { { "Default", 95.0f, false }, { "Trap", 75.0f, false }, { "Deflicker", 110.0f, true } };
-static const ActionButton VID_ADV_ACTIONS[]    = { { "Advanced", 150.0f, false } };
+static const ActionButton VID_ADV_ACTIONS[]    = { { "Advanced", 130.0f, false } };
 
 /* Row fields: kind, label, names, lo, count, value, text, fit, actions, x0, gap, widths, plain. */
 static Row VIDEO_ROWS[] = {
@@ -305,7 +296,7 @@ static Row VIDEO_ROWS[] = {
 	{ ROW_CHOICE,  "Frame Skip",  VID_ON_OFF_NAMES, 0, 2, 1, NULL, false, NULL,               295.0f, 0.0f, VID_ON_OFF_W, 0 },
 	{ ROW_BUTTONS, "Screen Mode", NULL,             0, 3, 0, NULL, false, VID_SCREEN_ACTIONS, 295.0f, 0.0f, NULL,         0 },
 	{ ROW_BUTTONS, "Filters",     NULL,             0, 3, 0, NULL, false, VID_FILTER_ACTIONS, 295.0f, 0.0f, NULL,         0 },
-	{ ROW_BUTTONS, NULL,          NULL,             0, 1, 0, NULL, false, VID_ADV_ACTIONS,    245.0f, 0.0f, NULL,         0 },
+	{ ROW_BUTTONS, NULL,          NULL,             0, 1, 0, NULL, false, VID_ADV_ACTIONS,    0.0f,   0.0f, NULL,         0 },
 };
 
 /*  The Settings Input tab (menupage 3), from SettingsFrame.cpp's FRAME_BUTTONS, FRAME_TEXTBOXES and
@@ -331,22 +322,22 @@ static Row SET_INPUT_ROWS[] = {
 };
 
 /*  The Settings Audio tab (menupage 4). Rows are 70 apart (rowDy). The state: Audio on, XA on, CDDA off,
- *  DSP Sound No, Sync Off, Interpolation Simple. Labels are textboxes 14, 17, 25 and 26. */
-static const char *const AUD_DSP_NAMES[]  = { "Yes", "No" };
+ *  Sound Driver CPU, Sync Off, Interpolation Simple. Labels are textboxes 14, 17, 25 and 26. */
+static const char *const AUD_DSP_NAMES[]  = { "DSP", "CPU" };
 static const float        AUD_DSP_W[]     = { 75.0f, 75.0f };
 static const char *const AUD_SYNC_NAMES[] = { "Off", "Tempo", "Rate" };
-static const float        AUD_SYNC_W[]    = { 60.0f, 90.0f, 70.0f };
+static const float        AUD_SYNC_W[]    = { 75.0f, 90.0f, 75.0f };
 static const ActionButton AUD_ENABLE_ACTIONS[] = { { "Audio", 100.0f, true }, { "XA", 75.0f, true }, { "CDDA", 110.0f, false } };
 static const ActionButton AUD_INTERP_ACTIONS[] = { { "Simple", 170.0f, false } };
-static const ActionButton AUD_ADV_ACTIONS[]    = { { "Advanced", 125.0f, false } };
+static const ActionButton AUD_ADV_ACTIONS[]    = { { "Advanced", 130.0f, false } };
 
 /* Row fields: kind, label, names, lo, count, value, text, fit, actions, x0, gap, widths, plain. */
 static Row AUDIO_ROWS[] = {
 	{ ROW_BUTTONS, "Enable",           NULL,           0, 3, 0, NULL, false, AUD_ENABLE_ACTIONS, 295.0f,  0.0f, NULL,      0 },
 	{ ROW_BUTTONS, "Interpolation",    NULL,           0, 1, 0, NULL, false, AUD_INTERP_ACTIONS, 295.0f,  0.0f, NULL,      0 },
-	{ ROW_CHOICE,  "DSP Sound",        AUD_DSP_NAMES,  0, 2, 1, NULL, false, NULL,               295.0f,  0.0f, AUD_DSP_W, 0 },
+	{ ROW_CHOICE,  "Sound Driver",     AUD_DSP_NAMES,  0, 2, 1, NULL, false, NULL,               295.0f,  0.0f, AUD_DSP_W, 0 },
 	{ ROW_CHOICE,  "Sync",             AUD_SYNC_NAMES, 0, 3, 0, NULL, false, NULL,               295.0f,  0.0f, AUD_SYNC_W, 0 },
-	{ ROW_BUTTONS, NULL,               NULL,           0, 1, 0, NULL, false, AUD_ADV_ACTIONS,    258.0f,  0.0f, NULL,      0 },
+	{ ROW_BUTTONS, NULL,               NULL,           0, 1, 0, NULL, false, AUD_ADV_ACTIONS,    0.0f,    0.0f, NULL,      0 },
 };
 
 /*  The Settings Saves tab (menupage 5). Rows are 70 apart (rowDy). The state: SD device, card 1 Off,
@@ -402,6 +393,7 @@ static Page toPage(const TestPage &t, FocusMode mode)
 	p.labelCx = t.labelCx;
 	p.labelDy = t.labelDy;
 	p.rowDy = t.rowDy;
+	p.columns = t.columns;
 	return p;
 }
 
@@ -966,6 +958,7 @@ static const Known KNOWN[] = {
 	{ "Video", PROB_TEXT_WIDE, "Default", NULL },
 	{ "Video", PROB_TEXT_WIDE, "Trap", NULL },
 	{ "Video", PROB_TEXT_WIDE, "Deflicker", NULL },
+	{ "Video", PROB_TEXT_WIDE, "Advanced", NULL },
 	/* The Filters row sits on the button column, so its last button reaches the logo's box by a few pixels. */
 	{ "Video", PROB_IN_LOGO, "Deflicker", NULL },
 	/* The Input tab: the same fit-rule findings on the Settings buttons (the tab row's labels too), and
@@ -986,7 +979,8 @@ static const Known KNOWN[] = {
 	{ "Audio", PROB_TEXT_WIDE, "Video", NULL },
 	{ "Audio", PROB_TEXT_WIDE, "Audio", NULL },
 	{ "Audio", PROB_TEXT_WIDE, "Saves", NULL },
-	{ "Audio", PROB_TEXT_WIDE, "Yes", NULL },
+	{ "Audio", PROB_TEXT_WIDE, "DSP", NULL },
+	{ "Audio", PROB_TEXT_WIDE, "CPU", NULL },
 	{ "Audio", PROB_TEXT_WIDE, "Off", NULL },
 	{ "Audio", PROB_TEXT_WIDE, "Tempo", NULL },
 	{ "Audio", PROB_TEXT_WIDE, "Rate", NULL },
@@ -1084,10 +1078,15 @@ static int testPageList(const TestPage *pages, unsigned count, const char *headi
 			bad++;
 			continue;
 		}
-		expectLinks(t, EXP, nExp);
-		compareLayout(t.name, lay, EXP, nExp);
+		/* A two-column page (the CD tab) has no old OptionsFrame arithmetic to re-derive: its grid is
+		 * testTwoColumns()'s. It still has to lay out clear, with two-way links, below. */
+		if (t.columns < 2) {
+			expectLinks(t, EXP, nExp);
+			compareLayout(t.name, lay, EXP, nExp);
+		}
 		linkFocus(page, lay);
-		compareLinks(t.name, lay, EXP, nExp, defFocus);
+		if (t.columns < 2)
+			compareLinks(t.name, lay, EXP, nExp, defFocus);
 		if (checkSymmetry(t.name, lay) != 0)
 			fail(t.name, "a one-way focus link that no tab or row-width case explains");
 
@@ -1364,17 +1363,17 @@ static void testCheckCatches(void)
 
 /* The links SettingsFrame's FRAME_BUTTONS table gives the General tab's buttons (by FRAME_BUTTONS
  * index: up, down, left, right, -1 for none), with the Up and Down that activateSubmenu(SUBMENU_
- * GENERAL) sets on the five tabs: Down to 73 (Advanced), Up to 14 (Save Settings: SD). */
+ * GENERAL) sets on the five tabs: Down to 73 (Advanced), Up to 80 (Load Settings: SD). */
 struct OldLink {
 	int idx, up, down, left, right;
 };
 static const OldLink OLD_GENERAL[] = {
-	{ 0, 14, 73, 4, 1 }, { 1, 14, 73, 0, 2 }, { 2, 14, 73, 1, 3 }, { 3, 14, 73, 2, 4 }, { 4, 14, 73, 3, 0 },
+	{ 0, 80, 73, 4, 1 }, { 1, 80, 73, 0, 2 }, { 2, 80, 73, 1, 3 }, { 3, 80, 73, 2, 4 }, { 4, 80, 73, 3, 0 },
 	{ 7, 73, 11, 10, 8 }, { 8, 73, 11, 7, 9 }, { 9, 75, 12, 8, 10 }, { 10, 75, 12, 9, 7 },
 	{ 11, 7, 54, 13, 12 }, { 12, 8, 54, 11, 13 }, { 13, 9, 54, 12, 11 },
-	{ 14, 55, 0, 62, 15 }, { 15, 55, 0, 14, 62 }, { 62, 56, 0, 15, 14 },
-	{ 54, 11, 55, -1, -1 },
-	{ 55, 54, 14, 56, 56 }, { 56, 54, 14, 55, 55 },
+	{ 14, 54, 80, 62, 15 }, { 15, 54, 81, 14, 62 }, { 62, 54, 82, 15, 14 },
+	{ 80, 14, 0, 82, 81 }, { 81, 15, 0, 80, 82 }, { 82, 62, 0, 81, 80 },
+	{ 54, 11, 14, -1, -1 },
 	{ 73, 0, 7, 75, 75 }, { 75, 0, 9, 73, 73 },
 };
 
@@ -1386,18 +1385,18 @@ static bool frameKey(int idx, Key &k)
 	if (idx >= 7 && idx <= 10) { k.role = ROLE_CHOICE; k.row = 1; k.slot = idx - 7;  return true; }
 	if (idx >= 11 && idx <= 13) { k.role = ROLE_CHOICE; k.row = 2; k.slot = idx - 11; return true; }
 	if (idx == 54)             { k.role = ROLE_BUTTON; k.row = 3; k.slot = 0; return true; }
-	if (idx == 55 || idx == 56) { k.role = ROLE_CHOICE; k.row = 4; k.slot = idx - 55; return true; }
 	if (idx == 14 || idx == 15 || idx == 62) {
-		k.role = ROLE_BUTTON; k.row = 5; k.slot = idx == 14 ? 0 : idx == 15 ? 1 : 2;
+		k.role = ROLE_BUTTON; k.row = 4; k.slot = idx == 14 ? 0 : idx == 15 ? 1 : 2;
 		return true;
 	}
+	if (idx >= 80 && idx <= 82) { k.role = ROLE_BUTTON; k.row = 5; k.slot = idx - 80; return true; }
 	if (idx == 73 || idx == 75) { k.role = ROLE_BUTTON; k.row = 0; k.slot = idx == 73 ? 0 : 1; return true; }
 	return false;
 }
 
 static int frameIndexOf(Key want)
 {
-	for (int i = 0; i < 80; i++) {
+	for (int i = 0; i < 83; i++) {
 		Key k;
 		if (frameKey(i, k) && sameKey(k, want))
 			return i;
@@ -1412,9 +1411,9 @@ static const struct { int idx; float x, y, w, h; } OLD_RECTS[] = {
 	{ 3, 395, 30, 100, 56 }, { 4, 515, 30, 100, 56 },
 	{ 7, 295, 160, 70, 56 }, { 8, 375, 160, 55, 56 }, { 9, 440, 160, 70, 56 }, { 10, 520, 160, 70, 56 },
 	{ 11, 295, 220, 75, 56 }, { 12, 380, 220, 75, 56 }, { 13, 465, 220, 171, 56 },
-	{ 14, 253, 400, 55, 56 }, { 15, 318, 400, 70, 56 }, { 62, 398, 400, 140, 56 },
+	{ 14, 253, 340, 55, 56 }, { 15, 318, 340, 70, 56 }, { 62, 398, 340, 140, 56 },
+	{ 80, 253, 400, 55, 56 }, { 81, 318, 400, 70, 56 }, { 82, 398, 400, 140, 56 },
 	{ 54, 295, 280, 90, 56 },
-	{ 55, 295, 340, 75, 56 }, { 56, 380, 340, 75, 56 },
 	{ 73, 175, 100, 130, 56 }, { 75, 335, 100, 130, 56 },
 };
 /* FRAME_TEXTBOXES' label centres, by the row each label belongs to: (150, row top + 28). */
@@ -1533,7 +1532,7 @@ static const struct { int idx; float x, y, w, h; } VIDEO_OLD_RECTS[] = {
 	{ 20, 295, 220, 75, 56 }, { 21, 380, 220, 75, 56 },
 	{ 22, 295, 280, 130, 56 }, { 23, 435, 280, 125, 56 }, { 57, 570, 280, 66, 56 },
 	{ 24, 485, 340, 110, 56 }, { 28, 295, 340, 95, 56 }, { 29, 400, 340, 75, 56 },
-	{ 78, 245, 400, 150, 56 },
+	{ 78, 255, 400, 130, 56 },
 };
 /* The labels: textboxes 4, 5, 6, 7 and 9 on the rows 0..4, centred at x 150 on the row's middle. */
 static const float VIDEO_OLD_LABEL_Y[5] = { 128.0f, 188.0f, 248.0f, 308.0f, 368.0f };
@@ -1832,10 +1831,10 @@ static const OldBox AUDIO_BOXES[] = {
 	{ 45, ROLE_BUTTON, 1, 0, 295.0f, 170.0f, 170.0f, 56.0f, 39, 67, -1, -1 },
 	{ 67, ROLE_CHOICE, 2, 0, 295.0f, 240.0f,  75.0f, 56.0f, 45, 69, 68, 68 },
 	{ 68, ROLE_CHOICE, 2, 1, 380.0f, 240.0f,  75.0f, 56.0f, 45, 69, 67, 67 },
-	{ 69, ROLE_CHOICE, 3, 0, 295.0f, 310.0f,  60.0f, 56.0f, 67, 72, 71, 70 },
-	{ 70, ROLE_CHOICE, 3, 1, 365.0f, 310.0f,  90.0f, 56.0f, 67, 72, 69, 71 },
-	{ 71, ROLE_CHOICE, 3, 2, 465.0f, 310.0f,  70.0f, 56.0f, 68, 72, 70, 69 },
-	{ 72, ROLE_BUTTON, 4, 0, 258.0f, 380.0f, 125.0f, 56.0f, 69,  3, -1, -1 },
+	{ 69, ROLE_CHOICE, 3, 0, 295.0f, 310.0f,  75.0f, 56.0f, 67, 72, 71, 70 },
+	{ 70, ROLE_CHOICE, 3, 1, 380.0f, 310.0f,  90.0f, 56.0f, 67, 72, 69, 71 },
+	{ 71, ROLE_CHOICE, 3, 2, 480.0f, 310.0f,  75.0f, 56.0f, 68, 72, 70, 69 },
+	{ 72, ROLE_BUTTON, 4, 0, 255.0f, 380.0f, 130.0f, 56.0f, 69,  3, -1, -1 },
 };
 /* The label centres: row top + 28 (textboxes 14, 17, 25 and 26). */
 static const float AUDIO_LABEL_Y[5] = { 128.0f, 198.0f, 268.0f, 338.0f, 0.0f };
@@ -3504,6 +3503,19 @@ static void testConfigureButtonStates(void)
 	       bad ? "FAILED" : "ok");
 }
 
+/* The tab buttons (L/R): tabStep goes round with wrap (TabWrap = 1), stops at the ends without. */
+static void testTabStep(void)
+{
+	const int before = failures;
+	if (tabStep(4, 5, 1, true) != 0 || tabStep(0, 5, -1, true) != 4 || tabStep(2, 5, 1, true) != 3)
+		fail("tabs", "wrap: past the last tab is the first, before the first the last");
+	if (tabStep(4, 5, 1, false) != 4 || tabStep(0, 5, -1, false) != 0 || tabStep(2, 5, -1, false) != 1)
+		fail("tabs", "no wrap: the ends stop");
+	if (tabStep(3, 5, 0, true) != 3 || tabStep(7, 5, 1, true) != 7 || tabStep(0, 0, 1, true) != 0)
+		fail("tabs", "no press, or no such tab: the tab stays");
+	printf("tab buttons: wrap and stop ... %s\n", failures == before ? "ok" : "FAILED");
+}
+
 /* A cycle wraps and its text always comes from its names (the Configure Buttons Slot button
  * once stopped at "Game": it wrote one digit into the label, past the end of "Game"). */
 static void testCycle(void)
@@ -3560,18 +3572,21 @@ static void checkGrid(const Layout &lay, const Row *rows, const int (*cells)[2],
 		}
 }
 
-/* Page::columns == 2 (Advanced Graphics): Cycle rows fill two columns of label + button, a choice
- * row takes the whole line, the help starts under the last line, focus runs by geometry. */
+/* Page::columns == 2 (Advanced Graphics, as OptionsFrame.cpp has it): Cycle rows fill two columns
+ * of label + button, a choice row takes the whole line, focus runs by geometry. */
 static void testTwoColumns(void)
 {
 	static const char *const GAMMA_NAMES[] = { "1.0", "1.1", "1.2", "1.3", "1.4", "1.5" };
-	static const char *const DEFLICKER_NAMES[] = { "Normal", "Light" };
+	static const char *const DEFLICKER_NAMES[] = { "Normal", "Light", "Strong" };
+	static const char *const VIDEOMODE_NAMES[] = { "Auto", "NTSC", "PAL 50", "PAL 60", "480p" };
 	static Row rows[] = {
 		RADIO_FIT("Dithering",       DITHER_NAMES,      1),
 		CYC("Video Colour",          FMV_COLOUR_NAMES,  1),
 		CYC("MDEC Chroma",           CHROMA_NAMES,      0),
 		CYC("Gamma",                 GAMMA_NAMES,       0),
 		CYC("Deflicker Level",       DEFLICKER_NAMES,   0),
+		CYC("Filter Tour",           ON_OFF_NAMES,      0),
+		CYC("Video Mode",            VIDEOMODE_NAMES,   0),
 	};
 	Page p;
 	Layout lay;
@@ -3582,8 +3597,6 @@ static void testTwoColumns(void)
 	p.title = "Advanced Graphics";
 	p.rows = rows;
 	p.nRows = COUNT(rows);
-	p.help = ADVGFX_HELP;
-	p.nHelp = COUNT(ADVGFX_HELP);
 	p.logo = LOGO_SPOT_BOTTOM;
 	p.focus = FOCUS_ROWS;
 	p.columns = 2;
@@ -3594,27 +3607,26 @@ static void testTwoColumns(void)
 	if (checkLayout(p, kFont, lay, probs, MAX_PROBLEMS) != 0)
 		fail("2 columns", "checkLayout finds a problem on the page");
 
-	/* Lines: Dithering at 100, the two Cycle pairs at 160 and 220. */
+	/* Lines: Dithering at 100, the three Cycle pairs at 160, 220 and 280. */
 	{
-		static const int cells[2][2] = { { 1, 2 }, { 3, 4 } };
-		static const float ys[2] = { 160.0f, 220.0f };
-		checkGrid(lay, rows, cells, ys, 2);
+		static const int cells[3][2] = { { 1, 2 }, { 3, 4 }, { 5, 6 } };
+		static const float ys[3] = { 160.0f, 220.0f, 280.0f };
+		checkGrid(lay, rows, cells, ys, 3);
 	}
-	/* The choice row is where it always was; the help starts under line 3 (y 280), not row 5 (400). */
+	/* The choice row is where it always was. */
 	{
-		const Key kc = { ROLE_CHOICE, 0, 0 }, kh = { ROLE_HELP_TERM, -1, 0 };
-		const int c = findCtrl(lay, kc), h = findCtrl(lay, kh);
+		const Key kc = { ROLE_CHOICE, 0, 0 };
+		const int c = findCtrl(lay, kc);
 		if (c < 0 || lay.c[c].rect.y != 100.0f)
 			fail("2 columns", "the Dithering row moved");
-		if (h < 0 || lay.c[h].rect.y != 280.0f)
-			fail("2 columns", "the help does not start under the last line");
 	}
 	/* Focus: Down and Up keep the column, Left and Right change it and wrap. */
 	{
 		static const struct { int row, dir, to; } F[] = {
 			{ 1, DIR_RIGHT, 2 }, { 2, DIR_LEFT, 1 }, { 2, DIR_RIGHT, 1 }, { 1, DIR_LEFT, 2 },
 			{ 1, DIR_DOWN, 3 },  { 2, DIR_DOWN, 4 }, { 3, DIR_UP, 1 },    { 4, DIR_UP, 2 },
-			{ 3, DIR_DOWN, 0 },  { 4, DIR_DOWN, 0 },	/* the bottom line wraps to the top line, by column */
+			{ 3, DIR_DOWN, 5 },  { 4, DIR_DOWN, 6 }, { 6, DIR_RIGHT, 5 },
+			{ 5, DIR_DOWN, 0 },  { 6, DIR_DOWN, 0 },	/* the bottom line wraps to the top line, by column */
 		};
 		for (unsigned k = 0; k < COUNT(F); k++) {
 			const Key kf = { ROLE_BUTTON, F[k].row, 0 };
@@ -3692,6 +3704,7 @@ int main(int argc, char **argv)
 	}
 
 	testCycle();
+	testTabStep();
 	testTwoColumns();
 	testPageList(PAGES, NPAGES,
 	             "OptionsFrame pages (rectangles, focus links, help, logo, every value of every setting)");

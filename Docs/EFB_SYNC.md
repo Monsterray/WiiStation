@@ -43,6 +43,12 @@ Snapshots are RGB565, not RGB5A3: RGB5A3 keeps only 4 bits of colour for a pixel
 alpha is not full, and this EFB's alpha varies (Ape Escape's pause came out speckled).
 `psxVuw` is little-endian on this big-endian CPU: write it with `PUTLE16`.
 
+Bit 15 (STP / mask) of a synced pixel is not in the EFB either. Each tile keeps the bit the last
+GX primitive over it would have written on a PS1 (`efb_stp`): set by a set-mask (E6) draw or a
+textured one (the texel's STP, assumed set), clear for an untextured one. CTR draws its last
+frame back semi-transparently for its intro blur; a PS1 blends only texels with bit 15, and
+with the stale 0 the blur came out opaque and fed back into stripes (2026-10-18).
+
 ## Policy
 
 Tile stamps are always kept. Snapshots at presents (one GX copy per frame) are kept when:
