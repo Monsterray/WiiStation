@@ -168,6 +168,11 @@ char padLightgun[10];
 char rumbleEnabled;
 /* OpenGX EFB sync into VRAM (GlesGpu/efbSync.inc): 0 auto, 1 always keep frames, 2 never */
 extern "C" { char efbSyncSetting = 0; }
+/* OpenGX picture trials, off by default, not in the menu (Docs/GX_QUALITY.md):
+ * GxTexMin 1 = minified texels filtered linear (magnified ones keep the Bilinear setting),
+ * 2/3 = and anisotropic 2x/4x; GxColor 1 = RGBA6 EFB dithered as the game asks, 2 = RGB565
+ * anti-aliased EFB (240p mode, at most 264 lines; else as 0) dithered as the game asks */
+extern "C" { char gxTexMin = 0, gxColor = 0; }
 char loadButtonSlot;
 char controllerType;
 char numMultitaps;
@@ -272,6 +277,8 @@ static SettingOption OPTIONS[] =
   { "SkipFrames", &frameSkip, FRAMESKIP_DISABLE, FRAMESKIP_ENABLE, NULL, "Frame Skip", OPT_OFF_ON, "Skips frames when the Wii is too slow." },
   { "FPS", &showFPSonScreen, FPS_HIDE, FPS_SHOW, NULL, "Show FPS", OPT_OFF_ON, "Shows the frame rate on the screen." },
   { "EfbSync", &efbSyncSetting, 0, 2 },
+  { "GxTexMin", &gxTexMin, 0, 3 },
+  { "GxColor", &gxColor, 0, 2 },
   { "Audio", NULL, 0, 0, "The sound." },
   { "Audio", &audioEnabled, AUDIO_DISABLE, AUDIO_ENABLE, NULL, "Audio", OPT_OFF_ON, "Turns the sound output on or off." },
   { "SoundDriver", &soundHwAccel, SOUND_HW_ACCEL_OFF, SOUND_HW_ACCEL_ON, NULL, "Sound Driver", OPT_OUTPUT, "The output driver only: DSP plays at 44100 Hz through the Wii's DSP, CPU at 48000 Hz from the CPU. The PS1 sound emulation is the same." },

@@ -326,7 +326,7 @@ for i in $(seq -w 1 16); do
 	"$PYTHON" "$SP/sdimage_read.py" "$CARD" "wiistation/aq_$i.bin" "$OUT/aq_$i.bin" >/dev/null 2>&1 || break
 done
 # the TV pictures of "xfb <vblank>" lines (debug builds; scripts/xfb2png.py)
-for i in $(seq -w 1 16); do
+for i in $(seq -w 1 32); do
 	"$PYTHON" "$SP/sdimage_read.py" "$CARD" "wiistation/xfb_$i.bin" "$OUT/xfb_$i.bin" >/dev/null 2>&1 || break
 done
 ls "$OUT"/xfb_*.bin >/dev/null 2>&1 && echo "xfb: $(ls "$OUT"/xfb_*.bin | wc -l) picture(s)"

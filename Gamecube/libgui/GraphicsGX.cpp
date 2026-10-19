@@ -20,6 +20,7 @@
 
 #include <math.h>
 #include <stdio.h>
+#include <string.h>
 #include "GraphicsGX.h"
 #include "../wiiSXconfig.h"
 extern "C" {
@@ -104,6 +105,19 @@ extern "C" { unsigned g_xfb_w = 640, g_xfb_h = 480; }
  * copy reset during a game has to use this one, not vmode (GlesGpu RestoreDispCopyInfo). */
 extern "C" { GXRModeObj *g_tv_mode = NULL; }
 extern GXRModeObj *vmode;	/* GamecubeMain.cpp: the menu's mode */
+extern "C" char gxColor;	/* GamecubeMain.cpp: GxColor, Docs/GX_QUALITY.md */
+
+/* The EFB format: RGB8 for the menu and by default; with OpenGX, GxColor 1 = RGBA6 (GX dithers
+ * it where the game asks: GlesGpu/gpuPrim.c GxDitherPrim), 2 = RGB565 multisampled where the
+ * mode on the TV is anti-aliased (switchToTVMode). Docs/GX_QUALITY.md. switchToTVMode runs
+ * only in 240p: MainFrame applies it again before a game resumes. */
+extern "C" void gxApplyEfbFormat(int game)
+{
+	int ogx = game && gpuPlugin == OPEN_GX;
+	GX_SetPixelFmt((ogx && g_tv_mode && g_tv_mode->aa) ? GX_PF_RGB565_Z16
+	               : (ogx && gxColor == 1) ? GX_PF_RGBA6_Z24 : GX_PF_RGB8_Z24, GX_ZC_LINEAR);
+	GX_SetDither(GX_FALSE);
+}
 
 /* The Deflicker setting on the frame copy, now: for the mode on the TV. The menu's changes go
  * through here, and so does every game start or resume (go()), since in 480i nothing else
@@ -305,6 +319,15 @@ extern "C" void switchToTVMode(short dWidth, short dHeight, bool retMenu){
 		rmode->fbWidth = dWidth;
 		width = rmode->fbWidth;
 
+		/* GxColor 2 (Docs/GX_QUALITY.md): OpenGX draws into a multisampled RGB565 EFB, which
+		 * GX allows up to 264 lines: the 240p modes only. The copy filter averages the three
+		 * samples of a pixel (taps 2-4) and keeps the mode's own no-filter taps. */
+		rmode->aa = !retMenu && gpuPlugin == OPEN_GX && gxColor == 2 && dHeight <= 264;
+		if (rmode->aa) {
+			static const u8 aaPattern[12][2] = { {3,2},{9,6},{3,10}, {3,2},{9,6},{3,10},
+			                                     {9,2},{3,6},{9,10}, {9,2},{3,6},{9,10} };
+			memcpy(rmode->sample_pattern, aaPattern, sizeof aaPattern);
+		}
 	}
 
 	GX_SetCopyFilter(rmode->aa,rmode->sample_pattern,(deflickerFilter)?GX_TRUE:GX_FALSE,videoCopyTaps(rmode->vfilter));
@@ -320,7 +343,8 @@ extern "C" void switchToTVMode(short dWidth, short dHeight, bool retMenu){
 	xfbHeight = GX_SetDispCopyYScale(yscale);
 	xfbWidth = VIDEO_PadFramebufferWidth(rmode->fbWidth);
 	GX_SetScissor(0,0,rmode->fbWidth,rmode->efbHeight);
-	GX_SetPixelFmt(GX_PF_RGB8_Z24, GX_ZC_LINEAR);
+	g_tv_mode = rmode;
+	gxApplyEfbFormat(!retMenu);
 	GX_SetDispCopyDst(xfbWidth, xfbHeight);
 	g_xfb_w = xfbWidth;
 	g_xfb_h = xfbHeight;
