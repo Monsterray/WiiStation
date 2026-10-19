@@ -1,7 +1,7 @@
 """wii_clean.py [--dry-run] [--wii IP] -- take the test runs' files off the bench Wii's card.
 
 Deletes from sd:/wiistation only what wii_lab.py runs leave there: their logs (perf, hb, dvd,
-tty, lab, atrace, ptrace, vramio, ...), dumps (vram*, vsig_*, vtl_*, hprof_*, aq_*, xfb.bin), run
+tty, lab, atrace, ptrace, vramio, ...), dumps (vram*, vsig_*, vtl_*, hprof_*, aq_*, xfb*.bin), run
 inputs (autoboot/autoinput, and input scripts that are copies of scripts/autoinput/*.txt),
 and stale files (settingsRX2022.cfg, smbtrace.log). settings.ini goes only when it is the
 runner's own minimal file (the size of wii_lab.BASE_SETTINGS): the card's settings are the
@@ -18,7 +18,7 @@ from wii_targets import bench_wii, card_ls, hbc, parser, refuse_production  # no
 REPO = pathlib.Path(__file__).resolve().parents[1]
 LOGS = ["perf.log", "hb.log", "dvd.log", "tty.log", "lab.log", "atrace.log", "ptrace.log",
         "vramio.log", "pcring.log", "emu.log", "smbtrace.log", "padtrace.csv", "quit.log"]
-DUMPS = ["vram.bin", "vram_*.bin", "vsig_*.bin", "vtl_*.bin", "hprof_*.bin", "aq_*.bin", "xfb.bin"]
+DUMPS = ["vram.bin", "vram_*.bin", "vsig_*.bin", "vtl_*.bin", "hprof_*.bin", "aq_*.bin", "xfb.bin", "xfb_*.bin"]
 INPUTS = ["autoboot.txt", "autoboot.txt.disabled", "autoinput.txt", "crashtest.txt", "hangtest.txt"]
 STALE = ["settingsRX2022.cfg"]
 

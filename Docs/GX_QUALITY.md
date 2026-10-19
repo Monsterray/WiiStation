@@ -15,7 +15,7 @@ already dither exactly like a PS1 (`SoftGPU/soft.c`, `dither5.h`).
 |---|---|---|---|---|---|
 | Mipmaps + trilinear / LOD bias | Yes, with work: the sub-texture pages allow 2 levels | +33% texture MEM2 (CTR: +5.3 MB); a box filter per upload on the CPU | Less shimmer on 8-12% of the textured area (480 lines), 27% in 240p; distant textures blur; seams of 1-2 texels | None: costs CPU, saves nothing measurable | Not built. Measured where it would act (probe) |
 | Anisotropic filter, linear minification | Yes, one call per texture object | Free on the CPU; GPU cycles only where texels are minified (bench) | Distant ground smoother, a little blurred; no mipmaps, so LOD stays 0 | Possibly slower on GPU-bound scenes (Tiger Temple): bench | Prototype `GxTexMin` |
-| Anti-aliasing (GX multisample) | Only in 240p mode (EFB 640x240 <= 264 lines); the 480-line EFB would need two passes | One pass, RGB565 | Smoother polygon edges; 5/6/5 colour (PS1 is 5/5/5) | Unknown: bench | Prototype `GxColor=2` |
+| Anti-aliasing (GX multisample) | Only in 240p mode (EFB 640x240 <= 264 lines); the 480-line EFB would need two passes | One pass, RGB565 | Smoother polygon edges; 5/6/5 colour (PS1 is 5/5/5) | **Fails on the Wii**: black screen (bench, 2026-10-19) | Prototype `GxColor=2`, do not use |
 | GX dither | Only in an RGBA6 or RGB565 EFB | One BP write when it changes | GX's own pattern at EFB resolution: not the PS1 look | None | Prototype `GxColor=1` (and in `GxColor=2`) |
 | PS1-exact dither on OpenGX | Only with RGB565 (240p + AA): a TEV stage + 4x4 offset texture | One TEV stage per dithered draw | The PS1's own pattern | Small GPU cost | Design only (below) |
 | Higher internal resolution | Already 2x for 320-wide games (EFB 640x480) | More needs a tiled multi-pass EFB | -- | -- | Out of scope |
@@ -112,6 +112,19 @@ Also changed: `efbSync.inc` copies its snapshots with the TV mode's AA state
 Known limits of the prototypes: `GxColor=1` in the 480-line mode is applied at game start
 (`MainFrame`) only; the BIOS autoboot path (`MenuContext.cpp`) does not apply it.
 `GxColor=2` needs NTSC-height 240p (PAL 288-line displays do not fit).
+
+**Bench Wii result (2026-10-19, `hw_gx_quality`, pmc build of 48bd936): `GxColor=2` gives a
+black TV picture.** CTR with `TVMode=1 GxColor=2` kept running (heartbeat steady, 0.99x, 554
+presents in 2016 vblanks) but the screen stayed black until the user pressed RESET, which
+ended that chain game. EFB readback was wrong too: `ogxeq` 82294 mismatches of 86499 checks
+(the other rows: a few). Dolphin emulates neither the AA EFB nor its display copy, so it
+showed a picture. Suspects, in order: the display copy from an AA EFB needs the VI/XFB set
+up for it (`GX_SetCopyFilter` with the AA sample pattern and `GX_SetDispCopyYScale` for the
+half-height EFB), the RGB565 snapshot path reading the AA EFB as RGB8, and the pixel format
+switch (`GX_SetPixelFmt`) issued while a frame is in flight. Same run: `GxTexMin=1/3` and
+`GxColor=1` ran CTR and Spyro at 1.00x with the GPU share unchanged (CTR 9.6 -> 8.7-8.8%,
+Spyro 14.0-14.2%), so their cost is not measurable; how they look needs the TV pictures
+(`.runs/hw_gx_quality/xfb_NN.bin`, `scripts/xfb2png.py`).
 
 ## Evidence (Dolphin, debug deep build, worktree `.runs/`)
 
