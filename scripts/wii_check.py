@@ -26,7 +26,7 @@ from wii_targets import REPO, bench_wii, card_ls, existing_file, hbc, parser, wa
 
 LIBRARY = pathlib.Path(os.environ.get("WSX_LIBRARY", "C:/wiistation-lib")) / "games"
 SKIP = (".orig", ".ibg", ".bmp")   # library-side extras (cue backups, Dolphin shader caches, covers)
-STATUS_KEYS = ("version", "app", "agent", "time", "safety", "memory", "frames")
+STATUS_KEYS = ("version", "ios", "ios_revision", "app", "agent", "time", "safety", "memory", "frames")
 
 
 def agent(wii, a):

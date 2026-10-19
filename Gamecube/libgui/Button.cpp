@@ -428,6 +428,13 @@ Component* Button::followFocus(int direction, int buttonsPressed)
 Component* Button::updateFocus(int direction, int buttonsPressed)
 {
 	Component* newFocus = NULL;
+	if(!getFocus() && canTakeFocus() && direction == Focus::DIRECTION_NONE && buttonsPressed == Focus::ACTION_BACK)
+	{
+		//B alone on a button that is not lit runs its Back and leaves the highlight where it is:
+		//on the main menu (no Back) it used to light the button that last had focus.
+		doReturn();
+		return this;
+	}
 	if(!getFocus() && canTakeFocus())
 	{
 		setFocus(true);

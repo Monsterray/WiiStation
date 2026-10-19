@@ -19,10 +19,7 @@
 **/
 
 /*
- * Overrides: the same setting, different words on two screens -- decide later.
- *   Audio tab, "DSP Sound" row: the label is "DSP Sound". The table says "Output".
- *   Its buttons are "Yes" and "No". The table's choices for SoundHwAccel are "CPU" and "DSP".
- * Every other setting label and choice comes from the table.
+ * Every setting label and choice on these tabs comes from the settings table (GamecubeMain.cpp).
  */
 
 #include <sys/stat.h>
@@ -81,6 +78,9 @@ void Func_SelectLanguage();
 void Func_SaveSettingsSD();
 void Func_SaveSettingsUSB();
 void Func_SaveSettingsSeparately();
+void Func_LoadSettingsSD();
+void Func_LoadSettingsUSB();
+void Func_LoadSettingsGame();
 
 void Func_ShowFpsOn();
 void Func_ShowFpsOff();
@@ -159,7 +159,7 @@ extern "C" void VIDEO_SetTrapFilter(bool enable);
 extern BOOL hasLoadedISO;
 extern volatile int stop;
 extern char menuActive;
-extern char fastLoad;   /* the Fast Load setting, read by the General tab */
+extern char fastLoad;   /* the Fast Load setting: the hidden buttons 55/56 (the CD tab shows it) */
 
 extern "C" {
 void SysReset();
@@ -180,7 +180,7 @@ void setSpuInterpolation(int spuInterpolation);
 void setSpuTempo(int soundTempo);
 }
 
-#define NUM_FRAME_BUTTONS 80
+#define NUM_FRAME_BUTTONS 84
 #define NUM_TAB_BUTTONS 5
 #define FRAME_BUTTONS settingsFrameButtons
 #define FRAME_STRINGS settingsFrameStrings
@@ -192,11 +192,11 @@ The tabs. Each one is a page for the menu engine: its rows are in the tables bel
 engine places every button and label. What each row holds:
 
 General:  Advanced, Memory; Select BIOS; Boot Through BIOS (and Execute BIOS); Select Language;
-          Fast Load; Save Settings. The CPU core and GPU plugin are on the Advanced pages.
+          Save Settings; Load Settings. The CPU core, GPU plugin and Fast Load are on the Advanced pages.
 Video:    Show FPS; FPS Limit; Frame Skip; Screen Mode; Filters; Advanced (Advanced Graphics).
 Input:    Configure Input and Button Mappings; PSX Pad Type; Light Gun; Enable Rumble;
           Save Button Configs; Auto Load Slot.
-Audio:    Enable; Interpolation; DSP Sound; Sync; Advanced (Advanced Sound).
+Audio:    Enable; Interpolation; Sound Driver; Sync; Advanced (Advanced Sound).
 Saves:    Memcard Save Device; Memcard Type; Auto Save Memcards; Save State Device.
 
 Never remove or move an entry of FRAME_BUTTONS. Its index is what a script's "menuclick" names
@@ -205,7 +205,7 @@ Never remove or move an entry of FRAME_BUTTONS. Its index is what a script's "me
 /* The words of the Settings screens that are not a setting's: tab names, action buttons,
  * group labels and the card numbers. A setting's words come from the settings table, by
  * refreshButton. Indexes are FRAME_STRINGS[n] in FRAME_BUTTONS and the rows below. */
-static char FRAME_STRINGS[35][24] =
+static char FRAME_STRINGS[36][24] =
 	{ "General",
 	  "Video",
 	  "Input",
@@ -240,7 +240,8 @@ static char FRAME_STRINGS[35][24] =
 	  "Enable",
 	  "1",				// saves tab: which card the first Memcard Type button is
 	  "2",				// saves tab: which card the second button is
-	  "Advanced"		// video tab: the Advanced Graphics page
+	  "Advanced",		// video tab: the Advanced Graphics page
+	  "Load Settings"
 	  };
 
 
@@ -356,8 +357,8 @@ struct ButtonInfo
 	{	NULL,	BTN_A_SEL,	GPU_PLUGIN_STRINGS[3],	Func_UseOpenGxGpu,		Func_ReturnFromSettingsFrame }, // GpuPlugin: OpenGX
 
 	//Audio tab, appended at the end (starts at button[67]) so no existing index moves
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[12],	Func_SoundHwAccelYes,	Func_ReturnFromSettingsFrame }, // DSP Sound: Yes (an override: see the top of this file)
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[13],	Func_SoundHwAccelNo,	Func_ReturnFromSettingsFrame }, // DSP Sound: No (an override)
+	{	NULL,	BTN_A_SEL,	NULL,				Func_SoundHwAccelYes,	Func_ReturnFromSettingsFrame, "SoundDriver", SOUND_HW_ACCEL_ON }, // Sound Driver: DSP
+	{	NULL,	BTN_A_SEL,	NULL,				Func_SoundHwAccelNo,	Func_ReturnFromSettingsFrame, "SoundDriver", SOUND_HW_ACCEL_OFF }, // Sound Driver: CPU
 	//Audio tab, Sync group (buttons 69..71): like Dithering, one of three is selected. The trio
 	//starts left of the other rows' buttons (the "Sync" label is short) and leaves a gap before
 	//Advanced, which sits in the row's right corner (right edge 645, the tab's widest row).
@@ -377,6 +378,13 @@ struct ButtonInfo
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[34],	Func_AdvGfxPage,		Func_ReturnFromSettingsFrame }, // Video tab: Advanced Graphics page
 	//Input tab: the third controller type (button 79), appended so no index moves
 	{	NULL,	BTN_A_SEL,	NULL,				Func_PsxTypeStickDpad,	Func_ReturnFromSettingsFrame, "ControllerType", CONTROLLERTYPE_STICKDPAD }, // PSX Pad Type: Stick D-pad
+	//General tab: Load Settings (buttons 80..82), beside Save Settings, appended so no index moves
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[9],	Func_LoadSettingsSD,	Func_ReturnFromSettingsFrame }, // Load Settings: SD
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[10],	Func_LoadSettingsUSB,	Func_ReturnFromSettingsFrame }, // Load Settings: USB
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[25],	Func_LoadSettingsGame,	Func_ReturnFromSettingsFrame }, // Load Settings: This Game
+	//Test USB Pad (button 83): on no tab since the page moved to Advanced > Input (OptionsFrame.cpp);
+	//kept so that "menuclick 83 1" still opens it and no later index moves
+	{	NULL,	BTN_A_NRM,	(char*)"Test USB Pad",	Func_UsbPadTest,	Func_ReturnFromSettingsFrame },
 };
 
 /*  The tabs, on the menu engine  */
@@ -516,9 +524,8 @@ static void prepGeneral(void)
 {
 	SET_ROWS[1].value = biosDevice;
 	SET_ROWS[2].value = LoadCdBios == BOOTTHRUBIOS_YES ? 0 : 1;
-	SET_ROWS[4].value = fastLoad == 1 ? 0 : 1;
-	/* This Game (row 5, button 2) is drawn always, and inactive with no game loaded. */
-	SET_ROWS[5].inactive = hasLoadedISO ? 0 : 1u << 2;
+	/* This Game (rows 4 and 5, button 2) is drawn always, and inactive with no game loaded. */
+	SET_ROWS[4].inactive = SET_ROWS[5].inactive = hasLoadedISO ? 0 : 1u << 2;
 }
 
 static void prepVideo(void)
@@ -563,12 +570,12 @@ static void prepSaves(void)
 
 static const SetRow GEN_ROWS[] =
 {
-	{ eng::ROW_BUTTONS, NULL,            NULL,               { 73, 75, -1, -1 }, { 130, 130,   0, 0 }, 0.0f,   30.0f, 0 },	/* Advanced, Memory */
+	{ eng::ROW_BUTTONS, NULL,            NULL,               { 73, 75, -1, -1 }, { 130, 130,   0, 0 }, 0.0f,   30.0f, 0 },	/* Advanced, Memory: every Advanced button is 130 wide and centred */
 	{ eng::ROW_CHOICE,  "BiosDevice",    NULL,               {  7,  8,  9, 10 }, {  70,  55,  70, 70 }, 295.0f, 0.0f,  0 },	/* Select BIOS: HLE, SD, USB, DVD */
 	{ eng::ROW_CHOICE,  "BootThruBios",  NULL,               { 11, 12, 13, -1 }, {  75,  75, 171,  0 }, 295.0f, 0.0f,  1 },	/* Boot Through BIOS: Yes, No, Execute BIOS */
 	{ eng::ROW_BUTTONS, "lang",          NULL,               { 54, -1, -1, -1 }, {  90,   0,   0,  0 }, 295.0f, 0.0f,  0 },	/* Select Language */
-	{ eng::ROW_CHOICE,  "fastLoad",      NULL,               { 55, 56, -1, -1 }, {  75,  75,   0,  0 }, 295.0f, 0.0f,  0 },	/* Fast Load: Yes, No */
 	{ eng::ROW_BUTTONS, NULL,            FRAME_STRINGS[6],   { 14, 15, 62, -1 }, {  55,  70, 140,  0 }, 253.0f, 0.0f,  0 },	/* Save Settings: SD, USB, This Game */
+	{ eng::ROW_BUTTONS, NULL,            FRAME_STRINGS[35],  { 80, 81, 82, -1 }, {  55,  70, 140,  0 }, 253.0f, 0.0f,  0 },	/* Load Settings: SD, USB, This Game */
 };
 
 static const SetRow VID_ROWS[] =
@@ -578,14 +585,14 @@ static const SetRow VID_ROWS[] =
 	{ eng::ROW_CHOICE,  "SkipFrames",    NULL,               { 20, 21, -1, -1 }, {  75,  75,   0,  0 }, 295.0f, 0.0f, 0 },	/* Frame Skip: On, Off */
 	{ eng::ROW_BUTTONS, "ScreenMode",    NULL,               { 22, 23, 57, -1 }, { 130, 125,  66,  0 }, 295.0f, 0.0f, 0 },	/* Screen Mode (a cycle). Interlaced, 240p (toggles) */
 	{ eng::ROW_BUTTONS, NULL,            FRAME_STRINGS[14],  { 28, 29, 24, -1 }, {  95,  75, 110,  0 }, 295.0f, 0.0f, 0 },	/* Filters: Bilinear (a cycle). Trap, Deflicker (toggles) */
-	{ eng::ROW_BUTTONS, NULL,            NULL,               { 78, -1, -1, -1 }, { 150,   0,   0,  0 }, 245.0f, 0.0f, 0 },	/* Advanced Graphics (an action) */
+	{ eng::ROW_BUTTONS, NULL,            NULL,               { 78, -1, -1, -1 }, { 130,   0,   0,  0 }, 0.0f,   0.0f, 0 },	/* Advanced: the Advanced Graphics page */
 };
 
 static const SetRow INP_ROWS[] =
 {
 	{ eng::ROW_BUTTONS, NULL,            NULL,               { 30, 31, -1, -1 }, { 220, 235,   0, 0 }, 85.0f,  15.0f, 0 },	/* Configure Input, Configure Button Mappings */
 	{ eng::ROW_CHOICE,  "ControllerType", NULL,              { 32, 33, 79, -1 }, { 117,  95, 152, 0 }, 252.0f,  0.0f, 0 },	/* PSX Pad Type: Standard, Analog, Stick D-pad; each its word + 12 (auto width), right-aligned clear of the label */
-	{ eng::ROW_BUTTONS, "LightGun",      NULL,               { 59, -1, -1, -1 }, { 135,   0,   0, 0 }, 295.0f,  0.0f, 0 },	/* Light Gun (a cycle, lit when a gun is on) */
+	{ eng::ROW_BUTTONS, "LightGun",      NULL,               { 59, -1, -1, -1 }, { 135,   0,   0, 0 }, 295.0f,  0.0f, 0 },	/* Light Gun (a cycle, lit when a gun is on); Test USB Pad is on Advanced > Input */
 	{ eng::ROW_CHOICE,  "RumbleEnabled", NULL,               { 34, 35, -1, -1 }, {  75,  75,   0, 0 }, 295.0f,  0.0f, 0 },	/* Enable Rumble: Yes, No */
 	{ eng::ROW_BUTTONS, NULL,            FRAME_STRINGS[21],  { 36, 37, -1, -1 }, {  55,  70,   0, 0 }, 295.0f,  0.0f, 0 },	/* Save Button Configs: SD, USB */
 	{ eng::ROW_BUTTONS, "LoadButtonSlot", NULL,              { 38, -1, -1, -1 }, { 135,   0,   0, 0 }, 295.0f,  0.0f, 0 },	/* Auto Load Slot (an action) */
@@ -595,9 +602,9 @@ static const SetRow AUD_ROWS[] =
 {
 	{ eng::ROW_BUTTONS, NULL,            FRAME_STRINGS[31],  { 39, 40, 41, -1 }, { 100,  75, 110, 0 }, 295.0f, 0.0f, 0 },	/* Enable: Audio, XA, CDDA (toggles) */
 	{ eng::ROW_BUTTONS, "Interpolation", NULL,               { 45, -1, -1, -1 }, { 170,   0,   0, 0 }, 295.0f, 0.0f, 0 },	/* Interpolation: Simple/Gaussian (an action) */
-	{ eng::ROW_CHOICE,  "SoundHwAccel",  "DSP Sound",        { 67, 68, -1, -1 }, {  75,  75,   0, 0 }, 295.0f, 0.0f, 0 },	/* DSP Sound: Yes, No (an override: see the top of this file) */
-	{ eng::ROW_CHOICE,  NULL,            FRAME_STRINGS[26],  { 69, 70, 71, -1 }, {  60,  90,  70, 0 }, 295.0f, 0.0f, 0 },	/* Sync: Off, Tempo, Rate (two settings: no key) */
-	{ eng::ROW_BUTTONS, NULL,            NULL,               { 72, -1, -1, -1 }, { 125,   0,   0, 0 }, 258.0f, 0.0f, 0 },	/* Advanced: the Advanced Sound page */
+	{ eng::ROW_CHOICE,  "SoundDriver",   NULL,               { 67, 68, -1, -1 }, {  75,  75,   0, 0 }, 295.0f, 0.0f, 0 },	/* Sound Driver: DSP, CPU */
+	{ eng::ROW_CHOICE,  NULL,            FRAME_STRINGS[26],  { 69, 70, 71, -1 }, {  75,  90,  75, 0 }, 295.0f, 0.0f, 0 },	/* Sync: Off, Tempo, Rate (two settings: no key); Off and Rate as wide as Sound Driver's */
+	{ eng::ROW_BUTTONS, NULL,            NULL,               { 72, -1, -1, -1 }, { 130,   0,   0, 0 }, 0.0f,   0.0f, 0 },	/* Advanced: the Advanced Sound page */
 };
 
 static const SetRow SAV_ROWS[] =
@@ -798,144 +805,12 @@ void SettingsFrame::drawChildren(menu::Graphics &gfx)
 {
 	if(isVisible())
 	{
-#ifdef HW_RVL
-		WPADData* wiiPad = menu::Input::getInstance().getWpad();
-#endif
-		for (int i=0; i<4; i++)
+		/* The tab buttons (L / R, and the others menu::glue::tabShoulder reads) turn the tabs, as a
+		 * press of the tab itself does. */
 		{
-			u16 currentButtonsGC = PAD_ButtonsHeld(i);
-			if (currentButtonsGC ^ previousButtonsGC[i])
-			{
-				u16 currentButtonsDownGC = (currentButtonsGC ^ previousButtonsGC[i]) & currentButtonsGC;
-				previousButtonsGC[i] = currentButtonsGC;
-				if (currentButtonsDownGC & PAD_TRIGGER_R)
-				{
-					//move to next tab
-					if(activeSubmenu < SUBMENU_SAVES)
-					{
-						activateSubmenu(activeSubmenu+1);
-						menu::Focus::getInstance().clearPrimaryFocus();
-					}
-					break;
-				}
-				else if (currentButtonsDownGC & PAD_TRIGGER_L)
-				{
-					//move to the previous tab
-					if(activeSubmenu > SUBMENU_GENERAL)
-					{
-						activateSubmenu(activeSubmenu-1);
-						menu::Focus::getInstance().clearPrimaryFocus();
-					}
-					break;
-				}
-			}
-#ifdef HW_RVL
-			else if (wiiPad[i].btns_h ^ previousButtonsWii[i])
-			{
-				u32 currentButtonsDownWii = (wiiPad[i].btns_h ^ previousButtonsWii[i]) & wiiPad[i].btns_h;
-				previousButtonsWii[i] = wiiPad[i].btns_h;
-				if (wiiPad[i].exp.type == WPAD_EXP_CLASSIC)
-				{
-					if (currentButtonsDownWii & WPAD_CLASSIC_BUTTON_FULL_R)
-					{
-						//move to next tab
-						if(activeSubmenu < SUBMENU_SAVES)
-						{
-							activateSubmenu(activeSubmenu+1);
-							menu::Focus::getInstance().clearPrimaryFocus();
-						}
-						break;
-					}
-					else if (currentButtonsDownWii & WPAD_CLASSIC_BUTTON_FULL_L)
-					{
-						//move to the previous tab
-						if(activeSubmenu > SUBMENU_GENERAL)
-						{
-							activateSubmenu(activeSubmenu-1);
-							menu::Focus::getInstance().clearPrimaryFocus();
-						}
-						break;
-					}
-				}
-				else
-				{
-					if (currentButtonsDownWii & WPAD_BUTTON_PLUS)
-					{
-						//move to next tab
-						if(activeSubmenu < SUBMENU_SAVES)
-						{
-							activateSubmenu(activeSubmenu+1);
-							menu::Focus::getInstance().clearPrimaryFocus();
-						}
-						break;
-					}
-					else if (currentButtonsDownWii & WPAD_BUTTON_MINUS)
-					{
-						//move to the previous tab
-						if(activeSubmenu > SUBMENU_GENERAL)
-						{
-							activateSubmenu(activeSubmenu-1);
-							menu::Focus::getInstance().clearPrimaryFocus();
-						}
-						break;
-					}
-				}
-			}
-			else if (WUPC_ButtonsHeld(i) ^ previousButtonsWii[i])
-			{
-				u32 wupcHeld = WUPC_ButtonsHeld(i);
-				u32 currentButtonsDownWii = (wupcHeld ^ previousButtonsWii[i]) & wupcHeld;
-				previousButtonsWii[i] = wupcHeld;
-
-				if (currentButtonsDownWii & WPAD_CLASSIC_BUTTON_FULL_R)
-				{
-					//move to next tab
-					if (activeSubmenu < SUBMENU_SAVES)
-					{
-						activateSubmenu(activeSubmenu + 1);
-						menu::Focus::getInstance().clearPrimaryFocus();
-					}
-					break;
-				}
-				else if (currentButtonsDownWii & WPAD_CLASSIC_BUTTON_FULL_L)
-				{
-					//move to the previous tab
-					if (activeSubmenu > SUBMENU_GENERAL)
-					{
-						activateSubmenu(activeSubmenu - 1);
-						menu::Focus::getInstance().clearPrimaryFocus();
-					}
-					break;
-				}
-			}
-			else if (i == 0 && WiiDRC_ButtonsHeld() ^ previousButtonsWii[i])
-			{
-				u16 wiidrcHeld = WiiDRC_ButtonsHeld();
-				u16 currentButtonsDownWii = (wiidrcHeld ^ previousButtonsWii[i]) & wiidrcHeld;
-				previousButtonsWii[i] = wiidrcHeld;
-
-				if (currentButtonsDownWii & WIIDRC_BUTTON_ZL)
-				{
-					//move to next tab
-					if (activeSubmenu < SUBMENU_SAVES)
-					{
-						activateSubmenu(activeSubmenu + 1);
-						menu::Focus::getInstance().clearPrimaryFocus();
-					}
-					break;
-				}
-				else if (currentButtonsDownWii & WIIDRC_BUTTON_ZR)
-				{
-					//move to the previous tab
-					if (activeSubmenu > SUBMENU_GENERAL)
-					{
-						activateSubmenu(activeSubmenu - 1);
-						menu::Focus::getInstance().clearPrimaryFocus();
-					}
-					break;
-				}
-			}
-#endif //HW_RVL
+			int tab = menu::glue::tabShoulderStep(activeSubmenu, NUM_TAB_BUTTONS);
+			if (tab != activeSubmenu)
+				FRAME_BUTTONS[tab].clickedFunc();
 		}
 
 		//Draw buttons
@@ -1249,52 +1124,37 @@ void Func_SaveSettingsUSB()
 	menu::MessageBox::getInstance().setMessage("Error saving settings to USB");
 }
 
-/* Save the settings as they are now for the game that is loaded, to
- * <device>:/wiistation/settings/<CdromId>.cfg, which WiiStation reads over the global file
- * the next time that game starts. USB is used when it has the folder, otherwise SD.
- * The folder used to have to exist already, and saying so was all this did when it did
- * not; makeParentDirs creates it, the same as every other save. */
+/* Save the settings for the game that is loaded, to <device>:/wiistation/settings/<CdromId>.ini:
+ * only the settings that differ from settings.ini (writeGameConfig, GamecubeMain.cpp). The game
+ * reads settings.ini, then this file on top, each time it starts. USB is used when it has the
+ * settings folder, otherwise SD; makeParentDirs creates the folder. */
+extern int writeGameConfig(FILE* f);
+
 void Func_SaveSettingsSeparately()
 {
-    struct stat s;
-    char settingPathBuf[256];
-    fileBrowser_file* configFile_file;
-    extern char CdromId[10];
-	if (stat("usb:/wiistation/settings/", &s)) {
-		{
-			sprintf(settingPathBuf, "%s%s%s", "sd:/wiistation/settings/", CdromId, ".cfg");
-			configFile_file = &saveDir_libfat_Default;
-	        int (*configFile_init)(fileBrowser_file*) = fileBrowser_libfat_init;
-	        if(configFile_init(configFile_file)) {                //only if device initialized ok
-				makeParentDirs(settingPathBuf);
-				FILE* f = fopen( settingPathBuf, "wb" );  //attempt to open file
-				if(f) {
-					writeConfig(f);                                   //write out the config
-					fclose(f);
-					menu::MessageBox::getInstance().setMessage("Saved settings to SD");
-					return;
-				}
-			}
-			menu::MessageBox::getInstance().setMessage("Error saving settings to SD");
+	struct stat s;
+	char settingPathBuf[64], msg[64];
+	extern char CdromId[10];
+	if (!CdromId[0]) {   /* a PS-X EXE has no ID: "settings/.ini" would be no game's file */
+		menu::MessageBox::getInstance().setMessage("This game has no ID: save to SD or USB");
+		return;
+	}
+	bool usb = !stat("usb:/wiistation/settings/", &s);
+	const char* dev = usb ? "USB" : "SD";
+	snprintf(settingPathBuf, sizeof settingPathBuf, "%s:/wiistation/settings/%s.ini", usb ? "usb" : "sd", CdromId);
+	if (fileBrowser_libfat_init(usb ? &saveDir_libfat_USB : &saveDir_libfat_Default)) {   //only if device initialized ok
+		makeParentDirs(settingPathBuf);
+		FILE* f = fopen(settingPathBuf, "wb");
+		if (f) {
+			int n = writeGameConfig(f);
+			fclose(f);
+			snprintf(msg, sizeof msg, "This game: %d setting(s) saved to %s", n, dev);
+			menu::MessageBox::getInstance().setMessage(msg);
+			return;
 		}
 	}
-	else
-	{
-		sprintf(settingPathBuf, "%s%s%s", "usb:/wiistation/settings/", CdromId, ".cfg");
-		configFile_file = &saveDir_libfat_USB;
-	    int (*configFile_init)(fileBrowser_file*) = fileBrowser_libfat_init;
-	    if (configFile_init(configFile_file)) {                //only if device initialized ok
-			makeParentDirs(settingPathBuf);
-			FILE* f = fopen( settingPathBuf, "wb" ); //attempt to open file
-			if(f) {
-				writeConfig(f);                                   //write out the config
-				fclose(f);
-				menu::MessageBox::getInstance().setMessage("Saved settings to USB");
-				return;
-			}
-		}
-		menu::MessageBox::getInstance().setMessage("Error saving settings to USB");
-	}
+	snprintf(msg, sizeof msg, "Error saving settings to %s", dev);
+	menu::MessageBox::getInstance().setMessage(msg);
 }
 void Func_ShowFpsOn()
 {
@@ -1911,4 +1771,44 @@ void Func_ReturnFromSettingsFrame()
 	menu::Gui::getInstance().menuLogo->setLocation(580.0, 70.0, -50.0);
 	pMenuContext->setActiveFrame(MenuContext::FRAME_MAIN);
 }
+
+/* Load Settings: one settings file read over the settings now, as at boot or a game load
+ * (loadSettingsNow, GamecubeMain.cpp). A new CPU core or renderer is applied as the Advanced
+ * pages apply it (a loaded game restarts), a new language loads its font, and the General tab
+ * shows the values read. dev NULL: this game's own file. */
+extern bool loadSettingsNow(const char *dev);
+
+static void loadSettingsFrom(const char *dev, const char *loaded, const char *missing)
+{
+	char core = dynacore, gpu = gpuPlugin, language = lang;
+	char msg[64];
+
+	if (!loadSettingsNow(dev))
+	{
+		menu::MessageBox::getInstance().setMessage(missing);
+		return;
+	}
+	if (lang != language)
+	{
+		FILE *fontFile = IplFont_getFontFile((char*)"sd");
+		if (!fontFile)
+			fontFile = IplFont_getFontFile((char*)"usb");
+		IplFont_loadFontFile(fontFile);
+		ChangeLanguage();
+	}
+	{
+		char wantCore = dynacore, wantGpu = gpuPlugin;
+		bool reset = hasLoadedISO && (wantCore != core || wantGpu != gpu);
+		dynacore = core;
+		gpuPlugin = gpu;
+		ApplyPluginSelection(wantCore, wantGpu);
+		snprintf(msg, sizeof msg, "%s%s", loaded, reset ? "\nGame Reset" : "");
+	}
+	layoutTab((SettingsFrame*)pMenuContext->getFrame(MenuContext::FRAME_SETTINGS), SET_PAGES[SettingsFrame::SUBMENU_GENERAL]);
+	menu::MessageBox::getInstance().setMessage(msg);
+}
+
+void Func_LoadSettingsSD()   { loadSettingsFrom("sd", "Loaded settings from SD", "No settings file on SD"); }
+void Func_LoadSettingsUSB()  { loadSettingsFrom("usb", "Loaded settings from USB", "No settings file on USB"); }
+void Func_LoadSettingsGame() { loadSettingsFrom(NULL, "Loaded this game's settings", "No settings file for this game"); }
 

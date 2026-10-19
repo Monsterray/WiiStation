@@ -30,6 +30,8 @@ def load(path):
     else:
         sys.exit(f"{path}: not a timeline")
     nf = 6 if magic == 0x56544c31 else 7          # VTL1: no jit field
+    if n == 0 or 12 + 2 * nf * n > len(d):         # the play build streams it: count 0, to the end
+        n = (len(d) - 12) // (2 * nf)
     unit_ms = (1 << shift) / TB_HZ * 1000
     rows = []
     for i in range(n):
@@ -59,27 +61,43 @@ def main():
             w, c, g, l, s, p, j = rows[i]
             print(f"{i + 1:7d} {w:6.1f} {c - g - s - j:6.1f} {g:6.1f} {s:6.1f} {j:6.1f} {l:6.1f} {p:4d}")
         return
+    bad, runs = slow_runs(rows, slow)
+    print(f"{bad} slow vblanks (> {slow} ms, no limiter wait) in {len(runs)} runs; the costliest:")
+    print(RUNS_HEAD)
+    for r in runs[:top]:
+        print(run_line(r))
+
+
+def slow_runs(rows, slow=17.5):
+    """(count of slow vblanks, [run]) -- runs of vblanks longer than `slow` ms with no limiter
+    wait, merged when under a second apart, the costliest first. A run is a dict: first and
+    last vblank (1-based), lost_ms (wall beyond 60 Hz), wall_ms, the shares, fps."""
     bad = [i for i, r in enumerate(rows) if r[0] > slow and r[3] < 0.1]
-    runs = []
+    spans = []
     for i in bad:
-        if runs and i - runs[-1][1] <= 60:
-            runs[-1][1] = i
+        if spans and i - spans[-1][1] <= 60:
+            spans[-1][1] = i
         else:
-            runs.append([i, i])
-    def cost(a, b):
+            spans.append([i, i])
+    runs = []
+    for a, b in spans:
         seg = rows[a:b + 1]
         w = sum(r[0] for r in seg)
-        return w - (b - a + 1) * 1000 / 60, seg
-    runs.sort(key=lambda r: -cost(*r)[0])
-    print(f"{len(bad)} slow vblanks (> {slow} ms, no limiter wait) in {len(runs)} runs; the costliest:")
-    print("  vblanks          lost_ms  wall_ms  core%   gpu%   spu%   jit%  other%  fps")
-    for a, b in runs[:top]:
-        lost, seg = cost(a, b)
-        w = sum(r[0] for r in seg)
         c, g, s, j = (sum(r[k] for r in seg) for k in (1, 2, 4, 6))
-        fps = sum(r[5] for r in seg) / (w / 1000) if w else 0
-        print(f"  {a + 1:6d}-{b + 1:<6d} {lost:9.0f} {w:8.0f} {100 * (c - g - s - j) / w:6.1f} {100 * g / w:6.1f}"
-              f" {100 * s / w:6.1f} {100 * j / w:6.1f} {100 * (w - c) / w:7.1f} {fps:5.1f}")
+        runs.append(dict(first=a + 1, last=b + 1, lost_ms=w - (b - a + 1) * 1000 / 60, wall_ms=w,
+                         core=100 * (c - g - s - j) / w, gpu=100 * g / w, spu=100 * s / w,
+                         jit=100 * j / w, other=100 * (w - c) / w,
+                         fps=sum(r[5] for r in seg) / (w / 1000)))
+    runs.sort(key=lambda r: -r['lost_ms'])
+    return len(bad), runs
+
+
+RUNS_HEAD = "  vblanks          lost_ms  wall_ms  core%   gpu%   spu%   jit%  other%  fps"
+
+
+def run_line(r):
+    return (f"  {r['first']:6d}-{r['last']:<6d} {r['lost_ms']:9.0f} {r['wall_ms']:8.0f} {r['core']:6.1f}"
+            f" {r['gpu']:6.1f} {r['spu']:6.1f} {r['jit']:6.1f} {r['other']:7.1f} {r['fps']:5.1f}")
 
 if __name__ == '__main__':
     main()

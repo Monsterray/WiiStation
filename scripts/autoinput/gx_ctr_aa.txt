@@ -1,0 +1,10 @@
+# GxColor=2 (240p AA) check on the bench Wii (Docs/GX_QUALITY.md): CTR's intro and menus,
+# TV pictures early (xfb_NN.bin, scripts/xfb2png.py). Inputs as gx_ctr.txt up to Time Trial.
+1500 0008
+1506 0000
+1800 0008
+1806 0000
+xfb 400
+xfb 1000
+xfb 1700
+xfb 2300

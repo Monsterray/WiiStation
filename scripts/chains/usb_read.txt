@@ -1,0 +1,6 @@
+CHAIN
+# USB storage still mounts and reads with the USB pad reader started before the usb: mount
+# (HIDInit before loadSettings, 2026-10-19). One USB game, 20 s.
+1200
+usb:/wiistation/isos/Gex 3 - Deep Cover Gecko
+Gex 3 - Deep Cover Gecko [NTSC-U] [SLUS-00806].ccd

@@ -149,3 +149,24 @@ test's `psx.log` -- its console output on a real PlayStation. The EXEs are stage
   copy and the game's read happen in the same interrupt.
 - First use: Spyro's grey-dragon mouth sorting (new-game movie, head turn) is the same in
   DuckStation: the game's own polygon order, not a WiiStation bug.
+
+
+## GTE against a real PS1, on the PC: `tests/gte_fuzz/run.sh` (2026-10-18)
+
+ps1-tests' `tests.zip` holds `gte-fuzz/gte_valid_0xc0ffee_50.log`: 50 random register states
+per GTE command (22 commands), written with MTC2 0..31 / CTC2 0..31, one command, all 64
+registers read back -- on a real PlayStation. `bash tests/gte_fuzz/run.sh` replays it through
+gte.c twice: with the interpreter's transfers (gte.c MTC2/MFC2) and with Lightrec's (copies of
+lightrec_mtc2/ctc2/mfc2). Result at 84cb091: 0 of 1100 cases differ on either path. `NOOP=1`
+skips the command: the harness must then report differences (it does: 50/50 per command).
+
+`gte/test-all` (real-PS1 log `ref/gte_test-all.psx.log`, 1150 cases) through a chain
+(`scripts/chains/gte_testall.txt`, interpreter: `gte_testall_int.txt`): the interpreter passed
+1150; Lightrec stopped at test 52 (IR1 0 instead of -0x8000). A `cop2` probe in lightrec.c
+printed the command the JIT ran: test 51's (`4a00c401`, lm=1), not test 52's (`4a058001`). The
+test writes each command into its own code and calls FlushCache (A(44h)); the real BIOS
+isolates the cache there and lightrec_mtc0 drops every block, the HLE BIOS did nothing, and
+Lightrec did not see the CPU store as a code write. Fixed: psxbios FlushCache notifies
+`CACHE_UNISOLATED` with PTR_1 and lightrec.c invalidates on it. Now 1150/1150 on Lightrec;
+cost: about one full invalidation per game boot (`cpu: jit_full=` 1 per game over a minute of
+Spyro, Crash 3, CTR, Crash Bash).

@@ -1,0 +1,3 @@
+# gx_aa_ab.txt: CTR intro, the TV picture at 1700 (the Naughty Dog crate) and 1760.
+xfb 1700
+xfb 1760

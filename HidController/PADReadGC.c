@@ -60,6 +60,23 @@ static volatile controller *HID_CTRL = (volatile controller*)HID_MEM2_CTRL_ADDR;
 
 const s8 DEADZONE = 0x1A;
 
+hid_state hidState;   /* KernelHID.h */
+
+/* hid_map_buttons' roles (1 << HR_*) as GameCube pad bits */
+static u16 roleBits(u32 roles)
+{
+    static const u16 GC[HR_NUM] = {
+        PAD_BUTTON_A, PAD_BUTTON_B, PAD_BUTTON_X, PAD_BUTTON_Y,
+        PAD_TRIGGER_L1, PAD_TRIGGER_R1, PAD_TRIGGER_L, PAD_TRIGGER_R,
+        PAD_BUTTON_SELECT, PAD_BUTTON_START, PAD_BUTTON_L3, PAD_BUTTON_R3,
+        PAD_BUTTON_UP, PAD_BUTTON_DOWN, PAD_BUTTON_LEFT, PAD_BUTTON_RIGHT };
+    u16 b = 0;
+    int k;
+    for (k = 0; k < HR_NUM; k++)
+        if (roles & (1u << k)) b |= GC[k];
+    return b;
+}
+
 #define HID_PAD_NONE    4
 #define HID_PAD_NOT_SET    0xFF
 
@@ -265,6 +282,29 @@ u32 HidFormatData(void)
         used |= (1<<chan);
 
         Rumble |= ((1<<31)>>chan);
+
+        /* every input the report descriptor names (hid_layout.c): for Configure Buttons'
+         * Btn/Hat/Axis entries with any pad, and the whole pad when it is read by hidMap */
+        hid_decode(&hidLayout, (const u8*)HID_Packet, hidReportLen, &hidState);
+        if (hidAuto)
+        {
+            u32 roles = hid_map_buttons(&hidMap, &hidState, (const u8*)HID_Packet, hidReportLen);
+            int lx = hid_map_stick(&hidMap, HS_LX, &hidState, (const u8*)HID_Packet, hidReportLen);
+            int ly = hid_map_stick(&hidMap, HS_LY, &hidState, (const u8*)HID_Packet, hidReportLen);
+            int rx = hid_map_stick(&hidMap, HS_RX, &hidState, (const u8*)HID_Packet, hidReportLen);
+            int ry = hid_map_stick(&hidMap, HS_RY, &hidState, (const u8*)HID_Packet, hidReportLen);
+            Pad[chan].button = roleBits(roles);
+            /* GameCube-sized, + up: the menu reads these; a game's sticks come from hidMap
+             * directly (controller-HidGC.c), without this scaling */
+            Pad[chan].stickX = (s8)(lx * 3 / 4);
+            Pad[chan].stickY = (s8)(-ly * 3 / 4);
+            Pad[chan].substickX = (s8)(rx * 3 / 4);
+            Pad[chan].substickY = (s8)(-ry * 3 / 4);
+            Pad[chan].triggerLeft = (roles & (1u << HR_L2)) ? 255 : 0;
+            Pad[chan].triggerRight = (roles & (1u << HR_R2)) ? 255 : 0;
+            continue;
+        }
+
         /* first buttons */
         u16 button = 0;
         if(HID_CTRL->DPAD == 0)
@@ -379,6 +419,8 @@ u32 HidFormatData(void)
 
         if(HID_Packet[HID_CTRL->Select.Offset] & HID_CTRL->Select.Mask)
             button |= PAD_BUTTON_SELECT;
+
+        button |= roleBits(hid_map_buttons(&hidMap, &hidState, (const u8*)HID_Packet, hidReportLen));   /* KeyL3/KeyR3 */
 
         Pad[chan].button = button;
 

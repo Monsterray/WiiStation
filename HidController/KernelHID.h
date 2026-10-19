@@ -7,6 +7,7 @@ extern "C" {
 
 #include "global.h"
 #include "PS3Controller.h"
+#include "hid_layout.h"
 #include "../Gamecube/MEM2.h"
 
 #define C_NOT_SET	(0<<0)
@@ -202,6 +203,7 @@ typedef struct {
 } req_args; // 32 bytes
 
 void HIDInit(u32 ios);
+extern int hid_init_stage, hid_init_ret;   /* why HIDInit stopped (KernelHID.c) */
 void HIDClose(int closeType);
 
 
@@ -213,6 +215,44 @@ int IsHidRuning(void);
 
 extern volatile s32 hidControllerConnected;
 extern volatile s32 loadingControllerIni;
+
+/* For the USB Pad Test page (Gamecube/menu/UsbPadTestFrame.cpp). HIDOpen fills it in for the
+ * device it picks as the controller; the page only reads it. Games never look at it. */
+typedef struct {
+	u32 nDevices;            /* devices /dev/usb/hid listed at the last HIDOpen */
+	u16 vids[8], pids[8];
+	u32 picked;              /* 1: a device was picked as the controller (vid/pid below) */
+	u32 vid, pid;
+	u32 ifClass, ifSubClass, ifProtocol, ifNumber;
+	u32 epIn, epOut, maxPacket;
+	u32 hasIni;              /* its controllers/VVVV_PPPP.ini was found and matched */
+	u32 raw;                 /* read with no ini (hidRawMode): games never get it */
+	u32 reading;             /* reports are being read into HID_MEM2_PACKET_ADDR */
+	vs32 lastLen;            /* the IOS result of the last report read: its length, or an error */
+	u8 params[0x60];         /* GetDeviceParameters: device, config, interface, endpoint descriptors */
+	vu32 request;            /* the page sets 1; the HID thread reads desc and product, then sets 0 */
+	s32 descLen;             /* the HID report descriptor's length, or the IOS error */
+	u8 desc[512];
+	char product[64];        /* the device's product string, "" if none */
+	s32 nInputs;             /* gamepad inputs hid_parse found in desc (0: none) */
+	u32 autoLayout;          /* read through hidMap (hidAuto) */
+} hid_probe_t;
+extern hid_probe_t hidProbe;
+
+/* Every input of the picked pad (hid_layout.h): its report descriptor, read at HIDOpen
+ * (KernelHID.c), and the inputs held in the last report (PADReadGC.c, HidFormatData). */
+extern hid_layout hidLayout;
+extern hid_state hidState;
+/* hidAuto 1: the pad has no ini, or a new-style one (Auto=1, Button13, HatUp, AxisZ+ ...),
+ * and HidFormatData builds its GameCube-style pad from hidMap. 0: an old ini, read as
+ * always; hidMap then holds only its KeyL3/KeyR3 lines. */
+extern hid_map hidMap;
+extern volatile u32 hidAuto;
+extern u32 hidReportLen;     /* bytes in HID_MEM2_PACKET_ADDR */
+/* Set by the USB Pad Test page while it is open: a pad attached then that has no controller
+ * ini is still read (raw), but hidControllerConnected stays 0 for it, so games and the menu
+ * never use it. */
+extern volatile s32 hidRawMode;
 
 #ifdef __cplusplus
 }

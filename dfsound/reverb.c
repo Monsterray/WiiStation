@@ -201,8 +201,15 @@ static void REVERBPrep(void)
 
  prep_offs(IIR_SRC_A0, 32);
  prep_offs(IIR_SRC_A1, 34);
- prep_offs(IIR_SRC_B0, 36);
- prep_offs(IIR_SRC_B1, 38);
+ /* The different-side reflection reads the OTHER side's dDIFF (psx-spx: [mLDIFF] = (Lin +
+  * [dRDIFF]*vWALL - [mLDIFF-2])*vIIR + [mLDIFF-2]): 1DF2 for the left, 1DF0 for the right
+  * (Neill's "IIR_SRC_B0/B1, backwards" below; DuckStation reads the same). These read 36/38,
+  * mLDIFF/mRDIFF themselves, the sample written one whole buffer ago. Found while chasing
+  * CTR's repeating BIOS logo tail, which this does not change: that is CTR switching reverb
+  * processing off (SPUCNT C001) with the reverb volume still up, so the frozen buffer replays
+  * (case-studies.md). */
+ prep_offs(IIR_SRC_B0, 50);
+ prep_offs(IIR_SRC_B1, 48);
  prep_offs(IIR_DEST_A0, 20);
  prep_offs(IIR_DEST_A1, 22);
  prep_offs(IIR_DEST_B0, 36);

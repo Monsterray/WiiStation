@@ -20,6 +20,19 @@
   DOL then failed with "no such .dol"; keep a copy of the DOL you are measuring in the
   scratchpad if you build anything between runs.
 - Never boot `WiiSXRX_Release.elf` in Dolphin (BSS not zeroed → crash); test with the debug .dol.
+- A worktree under `C:\Users\...` (the opencode temp dir) failed every build with
+  `GL/gl.h: No such file` in opengx: devkitPro's fstab mounts `C:\Users` on `/home`, so make's
+  CURDIR became `/home/Monty Perrotti/...` (a space) although `pwd` showed the 8.3 name
+  `MONTYP~1`. `build.sh` tested the logical path for a space; it now tests `pwd -P` and builds
+  a snapshot in the MSYS `/tmp` (2.5 min, deps from scratch), copying the ignored `deps/ext`
+  (libwupc) in so the snapshot does not fetch it (2026-10-18).
+- A worktree under `C:\Users\Monty Perrotti\...` (the opencode temp dir): MSYS2 turns the 8.3
+  path `/c/Users/MONTYP~1/...` back into `/home/Monty Perrotti/...`, so make's CURDIR has a space
+  and `-I$(CURDIR)` breaks (`GL/gl.h: No such file`). Run `wsx.sh build` from the long path
+  (`cd "/c/Users/Monty Perrotti/..."`): `build.sh` then sees the space and builds a snapshot in the
+  devkitPro MSYS2 `/tmp`. The snapshot left out the ignored `deps/ext` (`wupc/wupc.h: No such
+  file`) until 2026-10-18; it is copied in now. Dolphin runs work from either path since
+  `wsx.sh run` quotes the autoboot path (a chain file's path used to split at the space).
 
 ## Stale dependency archives
 
@@ -103,7 +116,7 @@ believing the symptom.
   two separate emulator runs are never sample-aligned. Its `R==L at shift -1/0/+1` line
   should peak at 0 on dual-mono content (CD-XA speech is); a peak at +1 or -1 is an
   output-stage interleave fault, not a source property (case study 9). A dump from the other
-  driver (`SoundHwAccel=1`, needs `DSP_LLE=1`) tells source faults from driver faults.
+  driver (`SoundDriver=1`, needs `DSP_LLE=1`) tells source faults from driver faults.
   Its **short zero gaps** count is the other line to read. The
   gap count is the one that catches a stream running dry: AESND mixes in 2 ms blocks, so a
   DSP-path voice that misses a buffer hand-over leaves a 2 ms hole, and hundreds of those a
@@ -209,3 +222,16 @@ server live in `C:\ai\README.md`.
   stops with "paths are ignored" yet stages `a` and `b`, so the next commit takes them under
   the wrong message (2be5ad4, 2026-10-01). Add skill files with `git add -f`, and read
   `git diff --cached --stat` before each commit.
+
+- **A worktree under `C:\Users\Monty Perrotti\...` (space) (2026-10-18).** Build it from the
+  long path (`cd "/c/Users/Monty Perrotti/AppData/Local/Temp/opencode/<wt>"`): from the 8.3
+  path (`MONTYP~1`) build.sh misses the space, devkitPro's MSYS maps the cwd to `/home/Monty
+  Perrotti/...` and opengx's `-I$(CURDIR)` breaks (`GL/gl.h: No such file`). The space path
+  takes build.sh's source-snapshot route, which now carries `deps/ext` (libwupc, gitignored)
+  as well; before, `wupc/wupc.h: No such file`. In such a worktree `wsx.sh run` with the
+  default `--autoboot spyro` passed `$P/autoboot_spyro.txt` unquoted ("card: 0 game(s)", the
+  run stays in the menu) -- quoted now; a relative `--autoboot scripts/runfiles/...` always worked.
+- **`KEEP=N` keeps the LAST N frame dumps.** A run whose `--secs` outlasts the scene (other
+  Dolphins sharing the CPU change how far a run gets) loses the scene. Ask for `KEEP=100000`
+  with a short `--secs`, or use `xfb <vblank>` pictures (`--env XFB_RAM=1`), which are exact
+  and cost no disk.
