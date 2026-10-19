@@ -216,16 +216,29 @@ void control_info_init(void){
 	auto_assign_controllers();
 }
 
+/* The game stops (the menu, a game switch): every motor stops, multitap and Co-Op ones too,
+ * and the Wii Remotes show their own player number again. resumeInput: the game goes on,
+ * each remote shows the PlayStation player it plays. */
+extern void pad_rumble_stop(void);   /* PadSSSPSX.c */
+#if defined(WII) && !defined(NO_BT)
+extern void wpad_leds_mode(int game);   /* gc_input/controller-WiimoteNunchuk.c */
+#else
+#define wpad_leds_mode(game) ((void)0)
+#endif
+
 void pauseInput(void){
 	int i;
+	pad_rumble_stop();
 	for(i=0; i<2; ++i)
 		if(virtualControllers[i].inUse) DO_CONTROL(i, pause);
+	wpad_leds_mode(0);
 }
 
 void resumeInput(void){
 	int i;
 	for(i=0; i<2; ++i)
 		if(virtualControllers[i].inUse) DO_CONTROL(i, resume);
+	wpad_leds_mode(1);
 }
 
 void init_controller_ts(void){
@@ -255,6 +268,19 @@ static int led_player(int wv)
 	if (wv < 2)  return wv;
 	if (wv < 10) return (wv - 2) % 4;
 	return (wv - 10) % 4;
+}
+
+/* The Wii Remote channel whose pointer is the light gun or mouse of port or multitap slot
+ * wv (0..9), or -1: the test PadSSSPSX.c UpdateState makes (SoftGPU/drawGX.c's reticle) */
+int pad_gun_chan(int wv)
+{
+#if defined(WII) && !defined(NO_BT)
+	const virtualControllers_t *vc = &virtualControllers[wv];
+	if (lightGun && padLightgun[wv] && vc->inUse && vc->number >= 0 && vc->number < 4 &&
+	    (vc->control == &controller_Wiimote || vc->control == &controller_WiimoteNunchuk))
+		return vc->number;
+#endif
+	return -1;
 }
 
 void assign_controller(int wv, controller_t* type, int wp){
@@ -454,6 +480,22 @@ static void read_slot(FILE* f, controller_t* controller, controller_config_t* sl
 	slot->fastf = getPointer(controller->menu_combos, controller->num_menu_combos);
 }
 
+/* An ANALOG combination index, or the controller's default when the file has none: a file from
+ * before the ANALOG combination ends here, or (a Game file, one controller after another) the next controller's
+ * magic "WX" follows, which is put back. An index is a small number, never "WX". */
+static button_t* read_analog(FILE* f, controller_t* controller){
+	int index;
+	if (fread(&index, 4, 1, f) != 1)
+		index = -1;
+	else if (((u32)index >> 16) == ('W' << 8 | 'X')) {
+		fseek(f, -4, SEEK_CUR);
+		index = -1;
+	}
+	if (index < 0 || index >= controller->num_analog_combos)
+		index = controller->config_default.analog->index;
+	return controller->analog_combos + index;
+}
+
 int load_configurations(FILE* f, controller_t* controller){
 	int i;
 	char magic[4] = { 
@@ -474,9 +516,12 @@ int load_configurations(FILE* f, controller_t* controller){
 			index = controller->config_default.screenshot->index;
 		controller->config_slot[i].screenshot = controller->screenshot_combos + index;
 	}
+	/* The ANALOG button combinations, after them; the default when missing */
+	for(i=0; i<4; ++i)
+		controller->config_slot[i].analog = read_analog(f, controller);
 
-	/* Auto Load Slot 1..4 copies that slot to the mapping now; the Game slot and Default do not
-	 * (loadGameButtons, GamecubeMain.cpp, and the mapping keeps what it had). */
+	/* Auto Load Slot 1..4 copies that slot to the mapping now; Auto (the Game slot) and Default
+	 * (the built-in mapping) are applied at each game start (loadGameButtons, GamecubeMain.cpp). */
 	if (loadButtonSlot >= LOADBUTTON_SLOT0 && loadButtonSlot <= LOADBUTTON_SLOT3) {
 		int j;
 		for(j=0; j<4; ++j)
@@ -530,6 +575,8 @@ void save_configurations(FILE* f, controller_t* controller){
 		write_slot(f, controller, &controller->config_slot[i]);
 	for(i=0; i<4; ++i)
 		fwrite(&controller->config_slot[i].screenshot->index, 4, 1, f);
+	for(i=0; i<4; ++i)
+		fwrite(&controller->config_slot[i].analog->index, 4, 1, f);
 }
 
 /* The Game slot of one controller (config_slot[CONTROLLER_GAME_SLOT]): the magic and that slot.
@@ -542,6 +589,7 @@ void save_game_slot(FILE* f, controller_t* controller){
 	fwrite(magic, 1, 4, f);
 	write_slot(f, controller, &controller->config_slot[CONTROLLER_GAME_SLOT]);
 	fwrite(&controller->config_slot[CONTROLLER_GAME_SLOT].screenshot->index, 4, 1, f);
+	fwrite(&controller->config_slot[CONTROLLER_GAME_SLOT].analog->index, 4, 1, f);
 }
 
 int load_game_slot(FILE* f, controller_t* controller){
@@ -558,6 +606,7 @@ int load_game_slot(FILE* f, controller_t* controller){
 			index = controller->config_default.screenshot->index;
 		controller->config_slot[CONTROLLER_GAME_SLOT].screenshot = controller->screenshot_combos + index;
 	}
+	controller->config_slot[CONTROLLER_GAME_SLOT].analog = read_analog(f, controller);
 	return 1;
 }
 

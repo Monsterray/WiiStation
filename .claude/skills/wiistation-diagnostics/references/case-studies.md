@@ -316,3 +316,66 @@ tempting wrong turns.
   menu glyphs and the output rate controller (`rate: prefill` is SDL callback timing).
 - Lesson: when a later game differs, read what the inits did NOT touch, and decide the
   direction per field from power-on; "first is right" was true for three of four.
+
+## 14. "The PlayStation logo sound loops" (CTR through the real BIOS) -- reverb with its master off
+
+- Symptom (user, Wii): at the end of the BIOS boot of Crash Team Racing the logo sound seems to
+  repeat. Reproduced in Dolphin: `wsx.sh chain NAME scripts/chains/bios_ctr.txt --env AUDIO_DUMP=1`.
+  The dump's tail stops decaying for ~6 s at -40 dB, and its raw autocorrelation peaks at a lag
+  of 1.4314 s (0.71): a loop, not an echo.
+- Probes (debug build, removed after): an atrace `K` event per SPU write of KON/KOFF, main and
+  reverb volume, SPUCNT and the reverb registers (dfsound/registers.c DF_SPUwriteRegister), and a
+  per-voice envelope sample in DF_SPUasync. Findings: the BIOS sets the Hall preset (work area
+  1DA2 = E128 -> 0xF6C0 bytes = 31584 halfwords = 1.432 s at 22050 Hz), reverb volume 5EBC; all
+  logo voices are keyed off or released by 18 s; CTR's EXE is in RAM by vblank 770 (`ramcell
+  8007793c`), and its code writes SPUCNT = C001 at 13.9 s (reverb master OFF, reverb volume
+  left at 5EBC) and resets the SPU only at 20.9 s. With the master off nothing writes the
+  buffer, and its frozen content plays every 1.432 s (reverb.c MixREVERB_off).
+- Mednafen/DuckStation model the same (with SPUCNT.7 clear they skip the buffer writes and still
+  output from it), so it is the game's own order of writes, not an emulator bug. Still open:
+  whether CTR's 7 s between the two writes is as long on a PS1 (CD timing).
+- Side find: REVERBPrep read the different-side reflection source (IIR_SRC_B0/B1) from 1DE4/1DE6
+  (mLDIFF/mRDIFF, its own output) instead of 1DF2/1DF0 (dRDIFF/dLDIFF, psx-spx; DuckStation
+  reads `IIR_SRC_B[channel ^ 1]`). Fixed; it changes every reverb game's output slightly and did
+  not change this loop.
+- What did not work: DuckStation's GDB stub refuses I/O addresses (`E00` at 1F801DAA) and
+  attaching halts its CPU, so it cannot time SPU writes; its settings are read-only for agents,
+  so no audio dump from it either. The atrace ring is fixed-size (PERF_AEV_N): a `K` probe left
+  on in every build would crowd out the XA events run_summary.py reads, so it was not kept.
+
+## 15. Real-BIOS reports that Dolphin does not reproduce (Point Blank + Justifier, Frogger CHD)
+
+- Point Blank, real BIOS, LightGun 2: the user saw 0.3 FPS / 0.33 VPS, slower over time.
+  `bios_pointblank.txt` (no Wii Remote) and `bios_pointblank_wiimote.txt` (named profile with
+  `[Wiimote1] Source = 1`, Device None; PadAutoAssign=1 gives port 1 the remote, pad ID 31h)
+  ran at 1.00-1.02 on OpenGX and Soft, debug and release, 3600 vblanks too. A probe in
+  lightgunInterrupt showed every call returning at the IRQ10-enable test (irq10En never 10h in
+  the BIOS or Point Blank's first 60 s), so the remote's IR cannot reach the emulation then.
+  Dolphin's emulated remote with no bound input reports `ir.valid = 0`: IR paths are untested.
+- Frogger [CHD] (zstd), real BIOS: `bios_formats.txt` (nine formats + MediEvil CHD/CHDLZ) and
+  `bios_chd.txt` (BIOS from the base settings, CHD first in the boot, intro skipped, smallest
+  hunk cache without read-ahead) all reach the same RAM/VRAM hashes as the .cue. Needs the Wii.
+
+## 16. CTR's intro transitions turned into vertical stripes -- bit 15 of GX-drawn pixels (OpenGX)
+
+- Symptom (2026-10-18): in CTR's attract intro, the zoom/motion-blur transition between the
+  character clips came out as blocky vertical stripes of stale picture; Soft Fast showed a blur.
+  Unattended: boot CTR with no input (`scripts/chains/ctr_demo.txt`), the intro plays at vblank
+  ~9200 (debug, Dolphin).
+- Trace (`trace 9206` / `trace 9300`): every present ends with two `cmd=2f` (textured, semi,
+  raw 15-bit, ABR 0) quads covering the drawn buffer, textured from the OTHER buffer -- the last
+  frame drawn back at 50% over the new one. vramio.log: `C1 6,300 250x209 224 0` / `C2 ... 100 0`
+  x83: efb_sync filled the texture rect from snapshots, nothing missed. So the pixels were there.
+- Decisive, one line of numpy on the two runs' `vram.bin`: display buffers with bit 15 set --
+  Soft 92.2%, OpenGX 0.0%. A PS1 blends a textured pixel only when the texel's STP (bit 15) is
+  set; OpenGX's split agrees (gc_gl.c: bit 15 set -> the blended pass). efb_sync wrote the
+  snapshot colour and KEPT psxVuw's old bit 15 (0 after the game's GP0 02 clears), so the blur
+  quad was drawn opaque, zoomed, every frame: feedback.
+- Fix (efbSync.inc): `efb_stp[][]` per 16x16 tile, set by `efb_gx_draw()` from the primitive
+  that last covered it: set-mask (E6) or a textured primitive -> 1 (the texel's STP is not
+  kept by GX: RGB8 EFB, RGB565 snapshots), untextured -> 0; efb_sync writes that bit. After:
+  bit 15 100% in the synced buffer, the transition matches Soft
+  (`.runs/ctr_trans_compare.png` in the try/game-render worktree).
+- Lesson: a pixel's colour is not all a game reads back; bit 15 decides blending and mask
+  tests. When a readback is "100% merged" and still wrong, compare the bit-15 share of both
+  plugins' VRAM before anything else.

@@ -50,7 +50,7 @@ cheat_format { name; probe(path, head) ; scan(file, add_entry) ; load(entry, pro
 - `<dev>:/wiistation/cheats/SERIAL.cht` and `.../patches/SERIAL.cht`; SERIAL = CdromId with a hyphen
   after its letters (`SLUS00598` -> `SLUS-00598`; also tried without). usb: before sd:, as settings.
 - Enabled list per game: `<dev>:/wiistation/cheats/enabled/SERIAL.txt`, one `name = option value`
-  line each (a separate file: the per-game `.cfg` is rewritten whole from the settings table).
+  line each (a separate file: the per-game `settings/SERIAL.ini` is rewritten whole from the settings table).
 - At game load: read the enabled list; if not empty, scan the game's file and `load` just those
   (a scan stops once all are found). The full list is scanned only when the Cheats page opens,
   behind the loading bar.

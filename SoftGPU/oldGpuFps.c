@@ -186,7 +186,13 @@ static unsigned long framecap_period256(void)
 
 void framecap_sleep(long wait_ticks);   /* Gamecube/framecap_wait.c: LimiterWait=1 */
 
-void FrameCap (void)
+/* How far the last vblank ended behind its due time, in ticks (<= 0: on time). OpenGX's
+ * Frame Skip reads it (FrameSkipBehind). */
+static long framecap_late;
+
+/* wait = 0 keeps the schedule and framecap_late without waiting: Frame Skip with the
+ * limiter off. */
+static void framecap_run(int wait)
 {
  static unsigned long due256 = 0;       /* the tick this frame may end at, in 1/256 tick */
  static int have_due = 0;
@@ -202,7 +208,8 @@ void FrameCap (void)
    unsigned int rc = VIDEO_GetRetraceCount();
    if ((int)(rc - next) > 3 || (int)(next - rc) > 3)
      next = rc;                          /* first frame, a stall, or back from the menu */
-   if ((int)(next - rc) > 0)
+   framecap_late = (long)(int)(rc - next) * (long)(framecap_period256() >> 8);
+   if (wait && (int)(next - rc) > 0)
     {
      unsigned long long limit_t0 = perf_now_ticks();
      while ((int)(next - VIDEO_GetRetraceCount()) > 0)
@@ -246,11 +253,12 @@ void FrameCap (void)
  /* due256 holds 24 bits of tick; the 100 us tick wraps them every 28 minutes, which the
   * masked, sign-extended differences above absorb like any other wrap. */
  due = due256 >> 8;
+ framecap_late = late;
 #ifdef PERF_PROF
  if (late > 0 && (unsigned long)late > g_perf.limit_debt_max) g_perf.limit_debt_max = late;
 #endif
 
- if (late < 0)
+ if (late < 0 && wait)
     {
      /* This spin serves both the Old Soft and OpenGX plugins (via
       * OldGpuCheckFrameRate) and runs from the VBlank rcnt callback, i.e.
@@ -270,6 +278,25 @@ void FrameCap (void)
 #endif
     }
  due256 += period256;                   /* the next frame is due one period after this one was */
+}
+
+void FrameCap(void) { framecap_run(1); }
+
+/* OpenGX, once per vblank (GL_GPUupdateLace): the limiter exactly as without Frame Skip --
+ * that plugin decides its skipping from the limiter's schedule (FrameSkipBehind), not from
+ * FrameSkip() below, which limits by itself per drawn frame on the old whole-tick clock. */
+void GxCheckFrameRate(void)
+{
+ if(UseFrameLimit) FrameCap();
+ else if(UseFrameSkip) framecap_run(0);
+ if(showFPSonScreen == FPS_SHOW) calcfps();
+}
+
+/* Behind real time: the last vblank ended more than half a period late. Under the default
+ * LimiterDebt bound (12.5 ms) the lateness never exceeds 0.75 period. */
+int FrameSkipBehind(void)
+{
+ return framecap_late > (long)(framecap_period256() >> 9);
 }
 
 ////////////////////////////////////////////////////////////////////////

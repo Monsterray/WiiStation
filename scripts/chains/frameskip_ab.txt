@@ -1,0 +1,26 @@
+CHAIN
+# Frame Skip (SkipFrames) on OpenGX: off and on, same game, same boot. Two heavy games:
+# CTR's attract race and FF7's opening (video, then the bombing mission's first field).
+# Frame Skip only acts when the game falls behind the wall clock, so on a PC where Dolphin
+# keeps up it skips (almost) nothing: make the guest late by underclocking Dolphin's CPU,
+#   bash scripts/wsx.sh chain fs_ab frameskip_ab.txt --dol debug --secs 1500 --fast \
+#     --env "DOLPHIN_ARGS=-C Dolphin.Core.OverclockEnable=True -C Dolphin.Core.Overclock=0.3"
+#   bash scripts/wsx.sh compare fs_ab ; bash scripts/wsx.sh table fs_ab --detail fskip
+# Read: fskip: frames (skipped) and presents in perf.log; the table's wall and speed.
+# Measured 2026-10-18 (debug light, Overclock 0.3): CTR off 745 presents, 57.5 s guest for
+# 2400 vblanks, gpu 8.7 %; on 280 skipped, 465 presents, 56.2 s, gpu 6.3 %. FF7's opening
+# (video, few primitives) skips nothing by design. Without the underclock CTR skips 4 frames
+# (load stalls) and FF7 none. Dolphin's GPU-plugin share is small; the Wii's is not: the
+# gain that matters needs a bench-Wii run.
+2400 SkipFrames=0
+sd:/wiistation/isos/Crash Team Racing
+Crash Team Racing [U] [SCUS-94426].cue
+2400 SkipFrames=1
+sd:/wiistation/isos/Crash Team Racing
+Crash Team Racing [U] [SCUS-94426].cue
+2400 SkipFrames=0
+sd:/wiistation/isos/Final Fantasy VII/Final Fantasy VII 1
+Final Fantasy VII [U] [Disc 1] [SLUS-94163].cue
+2400 SkipFrames=1
+sd:/wiistation/isos/Final Fantasy VII/Final Fantasy VII 1
+Final Fantasy VII [U] [Disc 1] [SLUS-94163].cue

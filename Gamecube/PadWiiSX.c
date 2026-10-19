@@ -99,6 +99,12 @@ static unsigned autoin_fc[AUTOIN_PORTS];       /* ... at this vblank */
  * shows (scripts/padtest_dx.py). autoinput_sweep() makes it. */
 static unsigned autoin_sweep_vbl[AUTOIN_PORTS];
 static int autoin_sweeps;                      /* bit per script port with a sweep */
+/* "stick <vblank> <lx> <ly>": port 1's left stick from that vblank on (0..255, 128 at rest),
+ * until the next stick line: an analog game's stick, held (MediEvil, scripts/autoinput).
+ * Up to 16 lines, in vblank order. A sweep on port 1 wins over them. */
+#define AUTOIN_STICKS 16
+static struct { unsigned vbl; unsigned char lx, ly; } autoin_stick[AUTOIN_STICKS];
+static int autoin_stick_n;
 static FILE *autoin_rec;            /* "record": the recording, or NULL */
 static char autoin_path[128] = "sd:/wiistation/autoinput.txt";
 /* "trace <vblank>" lines: the debug build's primitive trace arms at these
@@ -109,7 +115,7 @@ int autoinput_trace_n = 0;
 /* "tracebox x0 y0 x1 y1": the primitive trace keeps only primitives touching this screen
  * rectangle (PSX pixels), so small objects survive a busy scene (perf_prim_trace) */
 int autoinput_tbox[4], autoinput_tbox_on;
-unsigned autoinput_xfb_vbl[16];   /* "xfb <vblank>": save the TV picture then (perf_vblank_tick) */
+unsigned autoinput_xfb_vbl[32];   /* "xfb <vblank>": save the TV picture then (perf_vblank_tick); a chain adds each game's */
 int autoinput_xfb_n;
 unsigned autoinput_dump_vbl = 0;   /* "dump <vblank>": debug build writes sd:/wiistation/vram.bin then */
 unsigned autoinput_crash_vbl = 0;  /* "crashtest <vblank>": debug build stores through a NULL base then (a DSI) */
@@ -120,6 +126,19 @@ static struct { unsigned vbl, port, type; } autoin_padtype[AUTOIN_PADTYPES];
 static int autoin_padtype_n, autoin_padtype_i;
 unsigned autoinput_hang_vbl = 0;   /* "hangtest <vblank>": debug build spins for good then (ws_crash.c watchdog) */
 int autoinput_crumbs = 0;          /* "crumbs": debug build writes sd:/wiistation/crumb.log once a second (crash hunts) */
+/* "irfake <vblank> <x> <y>": from that vblank, a Wii Remote that reports no pointer points at
+ * x, y (640x480 TV pixels) in debug builds -- for the light gun, the mouse and the reticle.
+ * Dolphin's emulated remote with no device bound sees no sensor bar, so a scripted run has
+ * no pointer otherwise (Docs/GUN_MOUSE_TESTING.md). Up to 8 lines, in vblank order. */
+#define AUTOIN_IRFAKES 8
+static struct { unsigned vbl; int x, y; } autoin_irfake[AUTOIN_IRFAKES];
+static int autoin_irfake_n;
+/* "gcpress <vblank> <hex>": GameCube pad 1's driver (controller-GC.c) reads these raw buttons
+ * (libogc PAD_BUTTON_* / PAD_TRIGGER_*: 1060 = L+R+Start) on top of the pad for 10 vblanks
+ * from then, so a run can press a host combination: the ANALOG button, the screenshot. Up to 8. */
+#define AUTOIN_GCPRESSES 8
+static struct { unsigned vbl, mask; } autoin_gcpress[AUTOIN_GCPRESSES];
+static int autoin_gcpress_n;
 /* "ramwatch LO HI" and "ramcell ADDR" (hex, up to 8 cells): who writes that guest RAM
  * (perf_prof.c perf_ram_write, perf.log "rw:" lines; debug builds) */
 unsigned autoinput_ramwatch_lo, autoinput_ramwatch_hi, autoinput_ramcell[8], autoinput_ramcells;
@@ -142,16 +161,18 @@ int autoinput_padsweep_fast = 0;   /* "padsweep <vblank> fast": controller-GC.c'
  * OptionsFrame::OptionsPages: Advanced Sound, Advanced Graphics, Plugins, CD, Memory.
  * 0 leaves the menu alone.
  *
- * "menuclick <button> <times>": press one button of the Settings tabs, that many times,
- * ten frames after the page opens. The menu reads the pads directly rather than through
+ * "menuclick <button> <times> [frame]": press one button of the Settings tabs, that many
+ * times, at that menu frame (default 40: ten frames after the page opens; a later one lets
+ * menukeys load a game first, e.g. for Save Settings > This Game). The menu reads the pads directly rather than through
  * the controller drivers, so nothing else in a scripted run can reach a menu button, and
  * anything that only happens on a press could not be tested at all. The index is into
  * SettingsFrame.cpp's FRAME_BUTTONS. */
 unsigned autoinput_menuclick = 0;
 unsigned autoinput_menuclicks = 0;
+unsigned autoinput_menuclick_frame = 0;   /* 0 = 40 */
 /* "menukeys <frame> <keys>": GameCube-pad presses fed to the menu (libgui InputManager.cpp),
- * from that menu frame on: U D L R A B S(tart) Z, each held 6 frames then released 6, '.' a
- * 12-frame pause. Any screen, any dialog: e.g. "menukeys 60 U U A . . R A" is Main > Quit,
+ * from that menu frame on: U D L R A B S(tart) Z < > (the L / R tab buttons), each held 6
+ * frames then released 6, '.' a 12-frame pause. Any screen, any dialog: e.g. "menukeys 60 U U A . . R A" is Main > Quit,
  * then Yes on its question (the HBC agent's `key` presses never reach the menu). */
 unsigned autoinput_menukeys_frame = 0;
 char autoinput_menukeys[64];
@@ -190,6 +211,9 @@ void autoinput_load(void)
 	autoin_n = 0;
 	autoin_ports = 0;
 	autoin_sweeps = 0;
+	autoin_stick_n = 0;
+	autoin_irfake_n = 0;
+	autoin_gcpress_n = 0;
 	autoin_padtype_n = autoin_padtype_i = 0;
 	if (!autoin)
 		autoin = (struct autoin_line *)_mem2_malloc(AUTOIN_MAX * sizeof(*autoin));
@@ -229,6 +253,30 @@ void autoinput_load(void)
 					continue;
 				}
 			}
+			{
+				unsigned lx, ly;
+				if (sscanf(line, "stick %u %u %u", &v, &lx, &ly) == 3) {
+					if (autoin_stick_n < AUTOIN_STICKS) {
+						autoin_stick[autoin_stick_n].vbl = v;
+						autoin_stick[autoin_stick_n].lx = (unsigned char)(lx > 255 ? 255 : lx);
+						autoin_stick[autoin_stick_n].ly = (unsigned char)(ly > 255 ? 255 : ly);
+						autoin_stick_n++;
+					}
+					continue;
+				}
+			}
+			{
+				int ix, iy;
+				if (sscanf(line, "irfake %u %d %d", &v, &ix, &iy) == 3) {
+					if (autoin_irfake_n < AUTOIN_IRFAKES) {
+						autoin_irfake[autoin_irfake_n].vbl = v;
+						autoin_irfake[autoin_irfake_n].x = ix;
+						autoin_irfake[autoin_irfake_n].y = iy;
+						autoin_irfake_n++;
+					}
+					continue;
+				}
+			}
 			if (!strncmp(line, "crumbs", 6)) { autoinput_crumbs = 1; continue; }
 			if (!strncmp(line, "cdlog", 5)) { autoinput_cdlog = 1; continue; }
 			if (sscanf(line, "ramwatch %x %x %u", &autoinput_ramwatch_lo, &autoinput_ramwatch_hi,
@@ -241,6 +289,14 @@ void autoinput_load(void)
 					autoinput_ramcell[autoinput_ramcells++] = v;
 				continue;
 			}
+			if (sscanf(line, "gcpress %u %x", &v, &k) == 2) {
+				if (autoin_gcpress_n < AUTOIN_GCPRESSES) {
+					autoin_gcpress[autoin_gcpress_n].vbl = v;
+					autoin_gcpress[autoin_gcpress_n].mask = k;
+					autoin_gcpress_n++;
+				}
+				continue;
+			}
 			if (sscanf(line, "padsweep %u", &v) == 1) {
 				autoinput_padsweep_vbl = v;
 				autoinput_padsweep_fast = strstr(line, "fast") != NULL;
@@ -250,9 +306,9 @@ void autoinput_load(void)
 			if (sscanf(line, "menukeys %u %63[^\r\n]", &v, autoinput_menukeys) == 2)
 				{ autoinput_menukeys_frame = v; continue; }
 			{
-				unsigned b, t;
-				if (sscanf(line, "menuclick %u %u", &b, &t) == 2)
-					{ autoinput_menuclick = b; autoinput_menuclicks = t; continue; }
+				unsigned b, t, fr = 0;
+				if (sscanf(line, "menuclick %u %u %u", &b, &t, &fr) >= 2)
+					{ autoinput_menuclick = b; autoinput_menuclicks = t; autoinput_menuclick_frame = fr; continue; }
 			}
 			{   /* save states (statetool.cpp) */
 				char nm[48];
@@ -264,8 +320,12 @@ void autoinput_load(void)
 				if (sscanf(line, "statefp %u", &v) == 1) { statetool_request(4, "", v, strstr(line, "dump") != NULL); continue; }
 			}
 			if (sscanf(line, "atrace %u", &v) == 1) { autoinput_atrace_vbl = v; continue; }
+			if (sscanf(line, "filtertour %u", &v) == 1) {   /* the Filter Tour, v seconds a step (GraphicsGX.cpp) */
+				extern char filterTour; extern unsigned filterTourVbl; void filterTourStart(void);
+				filterTour = 1; filterTourVbl = v ? v * 60 : 240; filterTourStart(); continue;
+			}
 			if (!strncmp(line, "ogxnomask", 9)) { extern int iUseMask; iUseMask = 0; continue; }   /* test: OpenGX mask-bit emulation off (GlesGpu/gpuDraw.c) */
-			if (sscanf(line, "xfb %u", &v) == 1) { if (autoinput_xfb_n < 16) autoinput_xfb_vbl[autoinput_xfb_n++] = v; continue; }
+			if (sscanf(line, "xfb %u", &v) == 1) { if (autoinput_xfb_n < 32) autoinput_xfb_vbl[autoinput_xfb_n++] = v; continue; }
 			if (sscanf(line, "tracebox %d %d %d %d", &autoinput_tbox[0], &autoinput_tbox[1], &autoinput_tbox[2], &autoinput_tbox[3]) == 4) { autoinput_tbox_on = 1; continue; }
 			if (sscanf(line, "trace %u", &v) == 1) { if (autoinput_trace_n < 8) autoinput_trace_vbl[autoinput_trace_n++] = v; continue; }
 			{
@@ -314,7 +374,7 @@ void autoinput_reset(const char *path)
 	autoinput_padsweep_vbl = 0;
 	autoinput_padsweep_fast = 0;
 	autoinput_menupage = 0;
-	autoinput_menuclick = autoinput_menuclicks = 0;
+	autoinput_menuclick = autoinput_menuclicks = autoinput_menuclick_frame = 0;
 	autoinput_menukeys_frame = 0;
 	autoinput_menukeys[0] = 0;
 	autoinput_atrace_vbl = 0;
@@ -370,6 +430,17 @@ int autoinput_sweep(int port, unsigned short *press, unsigned char *sticks)
 	unsigned t;
 	int i;
 	autoinput_load();
+	if (port == 0 && autoin_stick_n && frame_counter >= autoin_stick[0].vbl &&
+	    !(autoin_sweeps & 1 && frame_counter >= autoin_sweep_vbl[0])) {
+		i = autoin_stick_n - 1;
+		while (i > 0 && frame_counter < autoin_stick[i].vbl)
+			i--;
+		sticks[0] = autoin_stick[i].lx;
+		sticks[1] = autoin_stick[i].ly;
+		sticks[2] = sticks[3] = 128;
+		*press = 0;
+		return 1;
+	}
 	if (port < 0 || port >= AUTOIN_PORTS || !(autoin_sweeps >> port & 1) || frame_counter < autoin_sweep_vbl[port])
 		return 0;
 	t = (frame_counter - autoin_sweep_vbl[port]) % SWEEP_PERIOD;
@@ -395,6 +466,38 @@ int autoinput_sweep(int port, unsigned short *press, unsigned char *sticks)
 	}
 	return 1;
 }
+/* The script drives GameCube pad 1 (padsweep, gcpress): it counts as plugged in. Dolphin's
+ * emulated pad with no host device bound (the test profiles) reports none (controller-GC.c). */
+int autoinput_gcpad(void)
+{
+	return autoinput_padsweep_vbl || autoin_gcpress_n;
+}
+
+/* "gcpress": the raw GameCube buttons the script holds now */
+unsigned autoinput_gcpress(void)
+{
+	unsigned m = 0;
+	int i;
+	for (i = 0; i < autoin_gcpress_n; i++)
+		if (frame_counter >= autoin_gcpress[i].vbl && frame_counter - autoin_gcpress[i].vbl < 10)
+			m |= autoin_gcpress[i].mask;
+	return m;
+}
+
+/* "irfake": the pointer the script gives now, 1 if there is one */
+int autoinput_irfake(int *x, int *y)
+{
+	int i;
+	autoinput_load();
+	if (!autoin_irfake_n || frame_counter < autoin_irfake[0].vbl)
+		return 0;
+	for (i = autoin_irfake_n - 1; i > 0 && frame_counter < autoin_irfake[i].vbl; i--)
+		;
+	*x = autoin_irfake[i].x;
+	*y = autoin_irfake[i].y;
+	return 1;
+}
+
 /* The lines are in vblank order (a recording always is), so the mask is found by walking
  * forward from the last poll, not by reading the whole script every time. */
 unsigned short autoinput_mask(int port)
