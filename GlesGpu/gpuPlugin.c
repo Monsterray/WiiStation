@@ -2959,6 +2959,8 @@ static void flipEGL(void)
 {
     int presentSubmitted;
     int overlaySaved = 0;
+    int font_drew = 0;
+    int overlayRestored = 0;
     unsigned long long flip_t0 = perf_now_us();
     #ifdef DISP_DEBUG
     sprintf(txtbuffer, "flipEGL %d \r\n", canClearFrameBuf);
@@ -2975,7 +2977,10 @@ static void flipEGL(void)
         if (!canClearFrameBuf)
             overlaySaved = OverlaySaveEfb();
         if (overlaySaved || canClearFrameBuf)
+        {
+            font_drew = 1;
             showFpsAndDebugInfo();
+        }
     }
 
     /* The 240p button was pressed in the menu: a game that does not change its display mode
@@ -2998,7 +3003,8 @@ static void flipEGL(void)
     if (presentSubmitted && canClearFrameBuf)
         MIRROR_OFF(2);       /* the copy cleared the EFB */
     /* the text is in the XFB copy (or the copy was skipped): take it out of the game's frame */
-    if (overlaySaved && (!presentSubmitted || !canClearFrameBuf))
+    overlayRestored = overlaySaved && (!presentSubmitted || !canClearFrameBuf);
+    if (overlayRestored)
         OverlayRestoreEfb();
 
 #ifdef PERF_PROF
@@ -3026,8 +3032,12 @@ static void flipEGL(void)
     RGB24Uploaded = 0;
     glSetLoadMtxFlg();
 
-    extern void resetTexCacheInfo(void);
-    resetTexCacheInfo();
+    extern void ogx_on_frame_present(int evicted0);   /* deps/opengx/gc_gl.c */
+    /* The TMEM slot tags survive the present: uploads drop their own tags
+     * (ogx_drop_tex_tags), and the only plain-GX TMEM loads during a present are
+     * the FPS overlay (IPLFont, texCacheRegionS[0]) and OverlayRestoreEfb
+     * (GX_TEXMAP0 = region 0); then only region 0's tag dies. */
+    ogx_on_frame_present(font_drew || overlayRestored);
     /* The copy to the TV and the FPS overlay above set GX state with raw GX calls, past
      * OpenGX's state cache: it has to forget what it last set (deps/opengx/gc_gl.c). */
     ogx_state_invalidate();

@@ -1629,6 +1629,12 @@ void go(void) {
 	// newSoftGpu-only.
 	syncFrameLimit();
 
+	// The menu (and every other plugin path) drew with raw GX since the last
+	// session: OpenGX's TMEM slot tags start from scratch on every entry into
+	// the emulator loop (see ogx_on_frame_present in deps/opengx/gc_gl.c).
+	void resetTexCacheInfo(void);
+	resetTexCacheInfo();
+
 #ifdef PERF_PROF
 	g_carry.pad[0] = virtualControllers[0].inUse;
 	g_carry.pad[1] = (virtualControllers[0].inUse && virtualControllers[0].control)
