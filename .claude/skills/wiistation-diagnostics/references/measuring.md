@@ -17,6 +17,7 @@ hand-written several times.
 | `hprof` | light + the sampling profiler (PMC1 overflow, 100 us) | where the CPU is, per function; not with `pmc` |
 | `min` | light without the per-slice CPU timing | cheapest |
 | `all` | everything, trace included | primitive-trace work |
+| `play` | light without vsig, no on-screen debug text, logs to `sd:/wiistation/debuglogs/` from the heartbeat thread; `WiiSXRX_play.dol`, `build_play/` | long sessions on a real console (Docs/DEBUG_PLAY.md); `--dol play` in Dolphin |
 
 `PROBES="-D..."` still takes raw defines. Build switches worth knowing:
 `-DOGX_STATE_CACHE=0` (GX state cache off), `-DSUBTEX_ALIGN=0` (old texture placement),

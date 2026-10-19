@@ -127,7 +127,9 @@ LDFLAGS	=	-g $(MACHDEP) -Wl,-Map,$(notdir $@).map,-wrap,$(WRAP_WIIUSE),-wrap,c_d
 #---------------------------------------------------------------------------------
 # v3: -lopengx_prof goes ahead of -lSDL. gpuPlugin.o's ogx_initialize would otherwise be satisfied by
 # SDL_ogc_video.o's weak stub, pulling that member in and clashing with ours on vmode/xfb.
-LIBS	:=	$(if $(filter 3,$(LIBOGC)),-lopengx_prof) -lhbcagent -lsmb2 -ldi -lm -laesnd -lSDL -lfat -ldb -lwiiuse -lwupc -lwiidrc -lbte -logc -lz -lwiikeyboard -llightrecWithLog -llightning -llzma -lzstd -lzlibstatic -lchdr -lopengx_prof
+# the play build (scripts/build.sh PROBES=play) links release's Lightrec: no asserts, no log
+LIGHTREC_LIB ?= lightrecWithLog
+LIBS	:=	$(if $(filter 3,$(LIBOGC)),-lopengx_prof) -lhbcagent -lsmb2 -ldi -lm -laesnd -lSDL -lfat -ldb -lwiiuse -lwupc -lwiidrc -lbte -logc -lz -lwiikeyboard -l$(LIGHTREC_LIB) -llightning -llzma -lzstd -lzlibstatic -lchdr -lopengx_prof
 
 #---------------------------------------------------------------------------------
 # list of directories containing libraries, this must be the top level containing

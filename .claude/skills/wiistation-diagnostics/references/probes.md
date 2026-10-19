@@ -41,6 +41,25 @@ Typical readings: a game polls the pad ~2x per vblank (`start` ≈ 2×vblanks); 
 means no pad will ever be seen; `ogxeq mism=0` with wrong pictures means the fault is after
 the draw (GX state, Dolphin); `offsoft prims` > 0 means the title renders off-screen.
 
+## The play build (PROBES=play, 2026-10-19): logs from someone else's play
+
+`wsx.sh build debug play` makes `WiiSXRX_play.dol`: the light probes without vsig, no debug text
+on screen (`-UDISP_DEBUG -USHOW_DEBUG`; the FPS line only with FPS on, the release one), and
+every log in `sd:/wiistation/debuglogs/` (Gamecube/play_log.c, player guide Docs/DEBUG_PLAY.md):
+`play.log` (per session: start/end lines, `settings:`, `play: go ... set:` with every numeric
+setting, `play: menu`, the usual perf blocks, `fatal:`, `crash:` = HBC's crash block copied at
+the next boot), `vtl_<session>.bin` (the vtl streamed for the whole session, header count 0 =
+to the end of the file; a zero record = back from the menu) and `hb.log` (appended per boot).
+Capped: play.log 4 MB + old, hb.log 1 MB + old, vtl 16 MB a session and 32 MB in all.
+The emulator thread never writes the card: `perf_log_open()`/`perf_log_close()` (perf_prof.h;
+every perf.log writer goes through them, the plain file in other builds) fill a RAM queue
+that the heartbeat thread appends every 2 s. A play run in Dolphin brings the folder back as
+`.runs/NAME/debuglogs/`; `chain_table.py` reads its play.log and `scripts/play_logs.py FOLDER`
+gives one block per session. Not in it: ptrace, vramio, atrace, padtrace, tty, the vblank-6000
+VRAM dump. Cost (play_cost.txt, frame limit off, Wii time): +1.7% Spyro, +1.9% Crash Bash, +6.7%
+MMV3 (FMV) against release; the `light` build +12/+14/+16%. A run of one build repeats to the
+second, so 1 s steps over 14400 vblanks resolve it.
+
 ## 240p, the XFB, and the pad protocol (perf.log lines, 2026-09-23)
 
 - `tvmode:` / `tvlog:` -- switchToTVMode() calls: the last one's size, the GP1 07 range and height it came from, and the first 8 calls with their vblank.

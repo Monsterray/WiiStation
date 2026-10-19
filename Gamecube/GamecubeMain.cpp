@@ -1005,7 +1005,7 @@ static int chainLoad(FILE *f)
 	}
 	/* The log belongs to this chain from here. perf_reset() empties it again at the first
 	 * go() in a debug build, before anything is written; a release build never does. */
-	if (chainN) { FILE *p = fopen("sd:/wiistation/perf.log", "w"); if (p) fclose(p); }
+	if (chainN && !PERF_PLAY) { FILE *p = fopen("sd:/wiistation/perf.log", "w"); if (p) fclose(p); }
 	return chainN;
 }
 
@@ -1101,7 +1101,7 @@ static bool chainNext(void)
 		perf_vtl_flush(chainI + 1);   /* the per-vblank timeline: vtl_NN.bin */
 		perf_report();
 	}
-	f = fopen("sd:/wiistation/perf.log", "a");
+	f = perf_log_open();
 	if (f) {
 		achievements_bench_chain_end(f, chainList[chainI].input[0] != 0);
 		char sets[CHAIN_SETS * 32 + 8] = "";
@@ -1115,7 +1115,7 @@ static bool chainNext(void)
 		when[10] = 'T';   /* one token: at=2026-09-28T19:50:01 */
 		fprintf(f, "=== chain %d/%d end vblanks=%u%s at=%s rom=%s ===\n", chainI + 1, chainN,
 			(unsigned)frame_counter, sets, when, chainList[chainI].rom);
-		fclose(f);
+		perf_log_close(f);
 	}
 	mcd_track_delete();   /* the memory cards this game used */
 	hb_phase("chain end", chainList[chainI].path);
@@ -1125,6 +1125,7 @@ static bool chainNext(void)
 	}
 	chain_stop_vbl = 0;
 	autoinput_reset(NULL);   /* closes a recording ("record"), before the card is unmounted */
+	play_session_end("chain_end");   /* the play build's queued logs, before the unmount */
 	/* Unmount first: a Wii that powers off with the FAT cache dirty loses the log. */
 	if (lab_active()) {   /* send the results, then back to the Homebrew Channel for the next test */
 		hb_phase("lab report", "");
@@ -1489,9 +1490,9 @@ static bool loadSeparatelySettingItem(const char* settingPathBuf)
             fclose(f);
 #ifdef PERF_PROF
             perf_log_begin();   /* before the game's first go(), which would start the log anew */
-            if ((f = fopen("sd:/wiistation/perf.log", "a"))) {   /* which file a game start read */
+            if ((f = perf_log_open())) {   /* which file a game start read */
                 fprintf(f, "settings: %s\n", settingPathBuf);
-                fclose(f);
+                perf_log_close(f);
             }
 #endif
             return true;
@@ -1635,6 +1636,7 @@ int loadISO(fileBrowser_file* file)
 		CdromId[0] = '\0';
 	else
 		CheckCdrom();
+	play_session_begin(CdromId, isoFile.name);   /* the play build's play.log (play_log.c) */
 
 	gpu_t *oldGpuPtr = gpuPtr;
 
@@ -1850,6 +1852,30 @@ bool loadSettingsNow(const char *dev)
 	return true;
 }
 
+#if PERF_PLAY
+/* The play build's play.log (play_log.c), at each start from the menu and each return to it:
+ * the game's vblank and every numeric setting in force. String settings (folders, names,
+ * logins) are left out. */
+static void playLogGo(const char *what)
+{
+	FILE *f = perf_log_open();
+	char when[32];
+	unsigned i;
+	if (!f)
+		return;
+	perf_datetime(when, sizeof when);
+	fprintf(f, "play: %s at=%s vblank=%u game=%s", what, when, (unsigned)frame_counter, CdromId);
+	if (!strcmp(what, "go")) {
+		fprintf(f, " set:");
+		for (i = 0; i < sizeof(OPTIONS) / sizeof(OPTIONS[0]); i++)
+			if (OPTIONS[i].value && OPTIONS[i].max != CONFIG_STRING_TYPE)
+				fprintf(f, " %s=%d", OPTIONS[i].key, (int)*OPTIONS[i].value);
+	}
+	fprintf(f, "\n");
+	perf_log_close(f);
+}
+#endif
+
 extern "C" {
 //System Functions
 extern "C" void GL_flip05Drop(void);
@@ -1901,11 +1927,18 @@ void go(void) {
 	/* A scripted save or load (statetool.cpp) stops the CPU at its vblank; it is carried out
 	 * here, with the CPU stopped as the menu has it, and the game goes on. */
 	hb_phase("game", isoFile.name);
+#if PERF_PLAY
+	playLogGo("go");
+#endif
 	do {
 		psxCpu->Execute();
 		achievements_flush();
 	} while (statetool_service());
 	hb_phase("menu", "game stopped");
+#if PERF_PLAY
+	perf_report();   /* this stretch's counters: the next start from the menu zeroes them */
+	playLogGo("menu");
+#endif
 	filterTourStop();
 	GL_flip05Drop();   /* GlesGpu/gpuPlugin.c: a GP1 05 flip not yet presented */
 
@@ -1948,6 +1981,7 @@ extern "C" void quit_crumb(const char *fmt, ...);   /* libgui/Gui.cpp: the Quit 
 
 void SysClose()
 {
+	play_session_end("closed");   /* the play build: a new game is loading, or Quit */
 	quit_crumb("SysClose: psxShutdown");
 	psxShutdown();
 	quit_crumb("SysClose: ClosePlugins");
