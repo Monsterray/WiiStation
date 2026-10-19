@@ -26,6 +26,23 @@
 #include "cdrom.h"
 #include "gpu.h"
 #include "Gamecube/DEBUG.h"
+#include "Gamecube/wiiSXconfig.h"   /* gpuTiming */
+
+extern u32 acc_take_ticks(void);   /* SoftGPU/acc.c: GPU ticks drawn (SoftGpuMode Accurate / Hi-Fi) */
+
+/* GpuTiming Accurate with the soft Accurate / Hi-Fi pipeline: the GPU stays busy for the
+ * time it drew (one tick = 0.5293 CPU cycles, fitted to ps1-tests gpu/bandwidth). Called
+ * after a GP0 port write and before a GPUSTAT read (gpulib draws a buffered command then). */
+static void gpu_charge_draw(void)
+{
+    u32 t = acc_take_ticks(), c;
+    if (!t || gpuTiming != GPU_TIMING_ACCURATE)
+        return;
+    c = psxRegs.cycle;
+    if ((s32)(psxRegs.gpuIdleAfter - c) < 0)
+        psxRegs.gpuIdleAfter = c;
+    psxRegs.gpuIdleAfter += (t * 271) >> 9;
+}
 
 #ifdef DISP_DEBUG
 char debug[256];
@@ -107,8 +124,13 @@ u32 psxHwReadGpuSR(void)
 
     // meh2, syncing for img bit, might want to avoid it..
     gpuSyncPluginSR();
+    gpu_charge_draw();
     v = SWAP32(HW_GPU_STATUS);
     v |= ((s32)(psxRegs.gpuIdleAfter - c) >> 31) & PSXGPU_nBUSY;
+    /* GpuTiming Accurate: "ready to receive a DMA block" (bit 28) is clear while the GPU
+     * draws, as on a PS1 (DrawSync with the DMA off waits for it: ps1-tests gpu/bandwidth) */
+    if (gpuTiming == GPU_TIMING_ACCURATE && (s32)(psxRegs.gpuIdleAfter - c) > 0)
+        v &= ~(1u << 28);
 
     // XXX: because of large timeslices can't use hSyncCount, using rough
     // approximization instead. Perhaps better use hcounter code here or something.
@@ -389,7 +411,7 @@ void psxHwWrite32(u32 add, u32 value) {
         case 0x10ec: DmaExec(0x10e8, 0x10e4, 0x10e0, 6); return;
         case 0x10f4: psxHwWriteDmaIcr32(value); return;
 
-        case 0x1810: gpuPtr->writeData(value); return;
+        case 0x1810: gpuPtr->writeData(value); gpu_charge_draw(); return;
         case 0x1814: psxHwWriteGpuSR(value); return;
         case 0x1820: mdecWrite0(value); break;
         case 0x1824: mdecWrite1(value); break;

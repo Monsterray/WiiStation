@@ -313,7 +313,9 @@ static void pluginsLeave(void)
  * SETTINGS.md section 3 explains each. Dithering and MDEC Chroma are read when a disc image is
  * opened, so they take effect at the next game load (SETTINGS.md section 2). Gamma is written to
  * the video encoder now, Deflicker Level to the frame copy now (and again at every game start or
- * resume, go()). Video Mode is read when WiiStation starts. Filter Tour runs while a game does. */
+ * resume, go()). Video Mode is read when WiiStation starts. Filter Tour runs while a game does.
+ * Soft Mode (SoftGPU/acc.c) is read for every GPU command list: it applies at once. It is here,
+ * not on the Advanced GPU tab, because a fifth row there pushes two help lines off the screen. */
 extern "C" void applyCopyFilter(void);	/* Gamecube/libgui/GraphicsGX.cpp */
 static const OptRow ADVGFX_ROWS[] =
 {
@@ -325,6 +327,7 @@ static const OptRow ADVGFX_ROWS[] =
 	/* this way round: Video Mode's "PAL 60" in the left column pushes the grid into the margin */
 	ROW_CYCLE("FilterTour", NULL),
 	ROW_CYCLE("VideoMode", NULL),
+	ROW_CYCLE("SoftGpuMode", NULL),
 };
 
 /* Two columns (OptPage::columns), so the four rows take two lines and the help fits under them.

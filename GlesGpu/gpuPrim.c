@@ -3100,10 +3100,14 @@ static inline void BlkFillArea(short x0, short y0, short width, short height, un
     }
 }
 
+extern int chain_fill_wait; void chain_fill_hook ( void );   /* GamecubeMain.cpp, ChainDump */
+
 static void primBlkFill ( unsigned char * baseAddr )
 {
     uint32_t *gpuData = ( ( unsigned long * ) baseAddr );
     short *sgpuData = ( ( short * ) baseAddr );
+
+    if ( chain_fill_wait ) chain_fill_hook();
 
     iDrawnSomething |= 0x4;
 

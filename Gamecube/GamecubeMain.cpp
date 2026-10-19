@@ -173,6 +173,13 @@ extern "C" { char efbSyncSetting = 0; }
  * 2/3 = and anisotropic 2x/4x; GxColor 1 = RGBA6 EFB dithered as the game asks, 2 = RGB565
  * anti-aliased EFB (240p mode, at most 264 lines; else as 0) dithered as the game asks */
 extern "C" { char gxTexMin = 0, gxColor = 0; }
+/* The soft GPU plugins' pixel pipeline (SoftGPU/acc.c, SETTINGS.md): 0 Accurate = PS1 rules
+ * (the PS1 dither matrix, mask set/check on every write, exact semi-transparency, CLUT and
+ * texture caches), 1 Hi-Fi = the same rules without dither and with rounded 8-bit blending,
+ * 2 Fast = the P.E.Op.S. code as before 5.16. Read per command list: no restart needed. */
+extern "C" { char softGpuMode = 0; }
+/* ChainDump: when a chained game's VRAM is dumped (chain_end_vram_sync, chain lines only) */
+extern "C" { char chainDump = 0; int chain_fill_wait = 0; }
 char loadButtonSlot;
 char controllerType;
 char numMultitaps;
@@ -230,6 +237,7 @@ static const char* const OPT_GAMMA[]         = { "1.0", "1.1", "1.2", "1.3", "1.
 static const char* const OPT_DEFLICKER[]     = { "Normal", "Light", "Strong" };
 static const char* const OPT_TEXMIN[]        = { "Off", "Linear", "Aniso 2x", "Aniso 4x" };
 static const char* const OPT_GXCOLOR[]       = { "24-bit", "6-bit dither" };
+static const char* const OPT_SOFTMODE[]      = { "Accurate", "Hi-Fi", "Fast" };
 static const char* const OPT_VIDEOMODE[]     = { "Auto", "NTSC", "PAL 50", "PAL 60", "480p" };
 static const char* const OPT_RESAMPLE[]      = { "Hold", "Linear", "Cubic" };
 static const char* const OPT_OUTPUT[]        = { "CPU", "DSP" };
@@ -282,6 +290,7 @@ static SettingOption OPTIONS[] =
   { "GxTexMin", &gxTexMin, 0, 3, NULL, "Far Textures", OPT_TEXMIN, "OpenGX: smooths ground drawn smaller than a pixel. A trial." },
   /* 2 (RGB565 anti-aliased, 240p) is left out: a black TV picture on the Wii (Docs/GX_QUALITY.md) */
   { "GxColor", &gxColor, 0, 1, NULL, "GX Colour", OPT_GXCOLOR, "OpenGX: 6 bits per colour, dithered where the game dithers. A trial." },
+  { "SoftGpuMode", &softGpuMode, 0, 2, NULL, "Soft Mode", OPT_SOFTMODE, "Soft GPU pixels. Accurate: as a PS1. Hi-Fi: no dither, finer blends. Fast: the old shortcuts." },
   { "Audio", NULL, 0, 0, "The sound." },
   { "Audio", &audioEnabled, AUDIO_DISABLE, AUDIO_ENABLE, NULL, "Audio", OPT_OFF_ON, "Turns the sound output on or off." },
   { "SoundDriver", &soundHwAccel, SOUND_HW_ACCEL_OFF, SOUND_HW_ACCEL_ON, NULL, "Sound Driver", OPT_OUTPUT, "The output driver only: DSP plays at 44100 Hz through the Wii's DSP, CPU at 48000 Hz from the CPU. The PS1 sound emulation is the same." },
@@ -309,6 +318,8 @@ static SettingOption OPTIONS[] =
   /* The locked cache: one bit per region in Gamecube/lc.c's table, 0 = all off. Not in the
    * menu -- it is for measuring, and a chained autoboot can set it per game. */
   { "LockedCache", &lockedCache, 0, 127 },
+  /* When a chained game's VRAM is dumped (chain_end_vram_sync): for chain lines only */
+  { "ChainDump", &chainDump, 0, 1 },
   { "Saves", NULL, 0, 0, "Memory cards and save states." },
   { "NativeDevice", &nativeSaveDevice, NATIVESAVEDEVICE_SD, NATIVESAVEDEVICE_CARDB, NULL, "Memcard Save Device", OPT_SAVE_DEVICE, "Where the memory card files are saved." },
   { "StatesDevice", &saveStateDevice, SAVESTATEDEVICE_SD, SAVESTATEDEVICE_USB, NULL, "Save States Device", OPT_STATES_DEVICE, "Where the save state files are saved." },
@@ -943,7 +954,7 @@ char AutobootPath[1024];
  * off. Dolphin in batch mode then exits, and a Wii is off with its SD card ready to take
  * out: on hardware, moving the card is the slow part, so one boot should collect every
  * game. */
-#define CHAIN_MAX 24
+#define CHAIN_MAX 64   /* entries past it are dropped: ps1tests_gpu.txt has 42 */
 #define CHAIN_SETS 16   /* a PadTest DX matrix cell sets 13: PadType1..10, PadAutoAssign, ... */
 static struct {
 	unsigned vbl; char input[128]; char path[256]; char rom[256]; char state[48];
@@ -956,7 +967,56 @@ static int chainSavedN;
 void setOption(char* key, char* valuePointer);
 extern "C" void mcd_track_begin(void);   /* sio.c: note the card files games use */
 extern "C" void mcd_track_delete(void);  /* sio.c: delete them */
+extern "C" int gpu_screenshot_sync(int x, int y, int w, int h);   /* GlesGpu/gpuPlugin.c */
 static int chainN, chainI;
+static bool chainVramDumped;
+extern "C" unsigned short *psxVuw;   /* the PlayStation's VRAM, every GPU plugin */
+/* ChainDump (a chain-line setting, not in the menu): 0 = a chained game's VRAM is dumped at
+ * its last vblank; 1 = at the first GP0 02 fill after it (the clear that starts the next
+ * frame, so the dump holds a whole drawn frame), or 60 vblanks later if no fill comes. A test
+ * program that redraws every frame and takes longer than a vblank to draw (ps1-tests
+ * gpu/lines under WiiStation) is half drawn at any vblank. */
+
+static void chain_vram_dump(void)
+{
+	char vp[40];
+	FILE *f;
+	chain_fill_wait = 0;
+	if (!chainN || !psxVuw || chainVramDumped)
+		return;
+	if (gpuPtr == &glesGpu)
+		gpu_screenshot_sync(0, 0, 1024, 512);
+	snprintf(vp, sizeof vp, "sd:/wiistation/vram_%02d.bin", chainI + 1);
+	if ((f = fopen(vp, "wb"))) {
+		fwrite(psxVuw, 2, 1024 * 512, f);
+		fclose(f);
+	}
+	chainVramDumped = true;
+}
+
+/* The chained game's VRAM: sd:/wiistation/vram_NN.bin, which scripts/chain_table.py and
+ * scripts/ps1tests_gpu_check.py read. Called by psxcounters.c at every vblank from the stop
+ * vblank on (late = vblanks past it); returns 1 when the game may stop. Taken inside the game,
+ * not after go() returns: the CPU runs on for a while after the stop. OpenGX keeps its picture
+ * in the EFB until a VRAM read, so all of VRAM is synced first, while the live EFB is still
+ * the game's. */
+extern "C" int chain_end_vram_sync(unsigned late)
+{
+	if (!chainVramDumped && chainDump) {
+		if (late == 0)
+			chain_fill_wait = 1;
+		if (late < 60)
+			return 0;
+	}
+	chain_vram_dump();
+	return 1;
+}
+
+/* The fills of every GPU plugin call this while chain_fill_wait is set (ChainDump = 1) */
+extern "C" void chain_fill_hook(void)
+{
+	chain_vram_dump();
+}
 extern "C" int perf_chain_index(void) { return chainN ? chainI + 1 : 0; }   /* perf_prof.c breadcrumb */
 extern "C" {
 	unsigned chain_stop_vbl;                   /* psxcounters.c stops the game here; 0 = never */
@@ -1068,6 +1128,8 @@ static void chainStart(int i)
 	snprintf(AutobootPath, sizeof AutobootPath, "%s", chainList[i].path);
 	snprintf(AutobootROM, sizeof AutobootROM, "%s", chainList[i].rom);
 	chain_stop_vbl = chainList[i].vbl;
+	chainVramDumped = false;
+	chain_fill_wait = 0;
 	frame_counter = 0;
 	hb_phase("chain start", chainList[i].path);
 	/* stdout: the HBC agent keeps the end of it for `hbc.py lastlog` after a crash or hang */
@@ -1092,7 +1154,7 @@ static bool chainNext(void)
 		 * picture, which is how a table row says what the numbers were measured on. */
 		char vp[40];
 		snprintf(vp, sizeof vp, "sd:/wiistation/vram_%02d.bin", chainI + 1);
-		if (psxVuw && (f = fopen(vp, "wb"))) {
+		if (!chainVramDumped && psxVuw && (f = fopen(vp, "wb"))) {
 			fwrite(psxVuw, 2, 1024 * 512, f);
 			fclose(f);
 		}

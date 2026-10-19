@@ -228,6 +228,7 @@ long           lLowerpart;
 
 #include "soft.c"
 #include "prim.c"
+#include "acc.c"   /* SoftGpuMode Accurate / Hi-Fi */
 
 /////////////////////////////////////////////////////////////////////////////
 
@@ -288,12 +289,15 @@ int do_cmd_list(uint32_t *list, int list_len,
   unsigned int cmd = 0, len;
   uint32_t *list_start = list;
   uint32_t *list_end = list + list_len;
+  void (**prims)(unsigned char *) = acc_prim_table();   /* primTableJ in Fast mode */
 
   for (; list < list_end; list += 1 + len)
   {
     short *slist = (void *)list;
     cmd = GETLE32(list) >> 24;
     len = cmd_lengths[cmd];
+    if (prims != primTableJ && (cmd & 0xfc) == 0x6c)
+      len = 2;   /* textured 1x1 sprite: cmd_lengths leaves it out */
     if (list + 1 + len > list_end) {
       cmd = -1;
       break;
@@ -306,7 +310,7 @@ int do_cmd_list(uint32_t *list, int list_len,
       gpu.ex_regs[cmd & 7] = GETLE32(list);
 #endif
 
-    PERF_GPU_CMD(cmd, primTableJ[cmd]((void *)list));
+    PERF_GPU_CMD(cmd, prims[cmd]((void *)list));
 
     switch(cmd)
     {
@@ -429,6 +433,7 @@ void renderer_sync_ecmds(uint32_t *ecmds_)
   cmdDrawAreaEnd((unsigned char *)&ecmds[4]);
   cmdDrawOffset((unsigned char *)&ecmds[5]);
   cmdSTP((unsigned char *)&ecmds[6]);
+  acc_sync_ecmds(ecmds);
 }
 
 void renderer_update_caches(int x, int y, int w, int h, int state_changed)

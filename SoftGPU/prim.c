@@ -504,10 +504,14 @@ static void primStoreImage(unsigned char * baseAddr)
 // cmd: blkfill - NO primitive! Doesn't care about draw areas...
 ////////////////////////////////////////////////////////////////////////
 
+extern int chain_fill_wait; void chain_fill_hook(void);   // GamecubeMain.cpp, ChainDump
+
 static void primBlkFill(unsigned char * baseAddr)
 {
  uint32_t *gpuData = ((uint32_t *) baseAddr);
  short *sgpuData = ((short *) baseAddr);
+
+ if (chain_fill_wait) chain_fill_hook();
 
  short sX = GETLEs16(&sgpuData[2]);
  short sY = GETLEs16(&sgpuData[3]);

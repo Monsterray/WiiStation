@@ -150,6 +150,19 @@ extern unsigned short * psxVuw_eom;
 extern long           lSelectedSlot;
 extern unsigned int   lGPUInfoVals[];
 
+// acc.c: SoftGpuMode Accurate / Hi-Fi (Fast = primTableJ)
+void (**acc_prim_table(void))(unsigned char *);
+extern const unsigned char primTableCXAcc[256];
+int  acc_active(void);
+void acc_reset(void);
+void acc_gp1_09(uint32_t w);
+void acc_copy(uint32_t src, uint32_t dst, uint32_t size);
+void acc_invalidate_tex(void);
+void acc_invalidate_all(void);
+uint32_t acc_gpustat15(void);
+void acc_sync_ecmds(const uint32_t *e);
+void acc_put(unsigned short *p, uint16_t v);
+
 extern int            gMouse[4];
 extern BOOL           bDisplayNotSet;
 //#endif

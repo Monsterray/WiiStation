@@ -39,6 +39,18 @@ Accurate option.
 | dma/otc-test | 9 of 15 | The test stops after `testOtcWontStartWithoutStartFlag`; the 9 later tests (OTC/DMA6 direction, sync modes, control bits) do not run. |
 | gte/test-all | 2 of 5 | 51 of 1150 cases pass, then the test stops at the first failure. |
 
+## GPU (2026-10-19)
+
+`scripts/chains/ps1tests_gpu.txt` runs the 14 ps1-tests GPU tests that have a real-PS1 result
+(`bin/gpu/<test>/psx.log` or `vram.png`) under Soft Fast, Soft Timed and OpenGX;
+`python scripts/ps1tests_gpu_check.py .runs/NAME` prints PASS/FAIL per test and renderer.
+With `SoftGpuMode` Accurate (`SoftGPU/acc.c`) both soft plugins pass all 13 picture and
+register tests; `gpu/bandwidth` (GPU and DMA speed) needs `GpuTiming` Accurate as well.
+Hi-Fi passes the 6 tests that check state, not colour (mask-bit, gp0-e1, clut-cache,
+texture-flip, texture-overflow, vram-to-vram-overlap); Fast (the P.E.Op.S. code) passes 2
+(Soft Fast: clipping, transparency) or 3 (Soft Timed: also vram-to-vram-overlap); OpenGX 1
+(clipping). Soft Fast with GpuTiming Accurate gives gpu/bandwidth's 14 timings within 3%.
+
 ## CPU and bus timing
 
 - **Cycles per instruction.** Lightrec and the interpreter charge 1.75 cycles for each
