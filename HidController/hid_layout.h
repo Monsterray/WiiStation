@@ -90,6 +90,10 @@ int hid_ini_map(const char *ini, hid_map *m);
 /* The ini asks for the descriptor-based reading: "Auto=1", or a value that names a HID
  * input (Button.., Hat.., Axis..). An ini with neither is read the old way, unchanged. */
 int hid_ini_wants_auto(const char *ini);
+/* The ini text as the readers need it, in place: comment lines (; or # first), comments after a
+ * value (" ;" or " #") and [section] lines become spaces, so nothing in them can match a key
+ * (the readers find keys with strstr). The length does not change. */
+void hid_ini_clean(char *ini, size_t len);
 
 /* Role bits (1 << HR_*) held now; the stick's value, -128..127, + right / down */
 uint32_t hid_map_buttons(const hid_map *m, const hid_state *s, const uint8_t *r, int len);

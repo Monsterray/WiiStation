@@ -287,6 +287,13 @@ static void test_shipped(int n, char **paths)
 		size_t got = fread(buf, 1, sizeof buf - 1, f);
 		fclose(f);
 		buf[got] = 0;
+		hid_ini_clean(buf, got);   /* as PADReadGC.c loads it */
+		/* old-style unless it says Auto=1 (046D_C216: the automatic layout fits the pad) */
+		if (strstr(buf, "Auto=1")) {
+			checks++;
+			CHECK(hid_ini_wants_auto(buf), "%s: Auto=1 not seen", paths[i]);
+			continue;
+		}
 		CHECK(!hid_ini_wants_auto(buf), "%s reads as new-style", paths[i]);
 		/* KeyL3/KeyR3, where a shipped ini has them, are old-style bits */
 		hid_map m;
@@ -328,12 +335,30 @@ static void test_junk(void)
 	checks++;
 }
 
+/* hid_ini_clean: comments and sections cannot match a key; the keys still read the same */
+static void test_ini_clean(void)
+{
+	char t[] = "[KeyA test]\r\n; KeyA=4,10 old line\r\nVID=046D\r\n  # KeyB=1\r\n"
+	           "KeyA=4,20 ; the bottom button\r\nKeyX=4,40#notacomment\r\nAuto=1\r\n";
+	size_t n = strlen(t);
+	hid_ini_clean(t, n);
+	checks += 7;
+	CHECK(strlen(t) == n, "clean keeps the length");
+	CHECK(strstr(t, "KeyA") == strstr(t, "KeyA=4,20"), "first KeyA is the real line: %s", t);
+	CHECK(strstr(t, "KeyB") == NULL, "commented KeyB gone: %s", t);
+	CHECK(strstr(t, "the bottom") == NULL, "inline comment gone: %s", t);
+	CHECK(strstr(t, "KeyX=4,40#notacomment") != NULL, "# inside a value kept: %s", t);
+	CHECK(strstr(t, "VID=046D") && strstr(t, "Auto=1"), "keys kept: %s", t);
+	CHECK(hid_ini_wants_auto(t), "Auto=1 still seen");
+}
+
 int main(int argc, char **argv)
 {
 	test_junk();
 	for (size_t i = 0; i < sizeof PADS / sizeof PADS[0]; i++)
 		test_pad(&PADS[i]);
 	test_ini();
+	test_ini_clean();
 	test_shipped(argc - 1, argv + 1);
 	printf("%d checks, %d failures\n", checks, fails);
 	return fails != 0;

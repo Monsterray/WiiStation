@@ -110,8 +110,9 @@ Same build, same game: the same seconds to the second on a second run.
 At normal speed every game ran at 1.00x in all three builds; the play build's load (the share
 of the time the emulator works) was 38% / 46% / 35%, the debug build's 43% / 51% / 41%. What
 the play build leaves out against `light`: the per-vblank RAM hash (vsig), the on-screen text
-and its formatting (every flip and every MTC0), the SD writes from the emulator thread, and
-Lightrec's asserts and log (it links release's Lightrec; the same seconds with either). Dolphin
+and its formatting (every flip and every MTC0), and the SD writes from the emulator thread.
+It keeps Lightrec's asserts (the debug Lightrec, so a play session finds its bugs; the same
+seconds as release's Lightrec in Dolphin). Dolphin
 counts instructions, not cache misses: the bench Wii can differ, read the load in `play.log`.
 
 The screen: frame dumps of release and the play build (Show FPS on, Crash 3 and MediEvil, 568
@@ -122,7 +123,7 @@ frames) are identical outside the FPS line; the FPS line differs only in its dig
 
 - Build preset: `scripts/build.sh` `PROBES=play`: `-DPERF_PROF_TRACE=0 -DPERF_PROF_GPU=0
   -DPERF_PROF_VSIG=0 -DPERF_PLAY=1 -UDISP_DEBUG -USHOW_DEBUG` on top of the debug Makefile, and
-  `LIGHTREC_LIB=lightrecNoLog`; built in `Gamecube/build_play/`, output `WiiSXRX_play.dol`/`.elf`.
+  the debug Lightrec (`lightrecWithLog`, asserts on); built in `Gamecube/build_play/`, output `WiiSXRX_play.dol`/`.elf`.
 - `Gamecube/play_log.c` holds the queues, the files and the session lines; `perf_log_open()` /
   `perf_log_close()` (perf_prof.h) are where every `perf.log` line goes in every build (the
   plain file in the others). `GamecubeMain.cpp`: session start in `loadISO()`, end in

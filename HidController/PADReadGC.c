@@ -23,6 +23,7 @@
 
 #include "global.h"
 #include "KernelHID.h"
+#include "hid_layout.h"   /* hid_ini_clean */
 #include "wiidrc.h"
 #include "../Gamecube/DEBUG.h"
 #include "../Gamecube/fileBrowser/fileBrowser.h"
@@ -177,6 +178,8 @@ void HIDUpdateControllerIni()
             }
             else
             {
+                /* comments and [section] lines may hold key names (the reader uses strstr) */
+                hid_ini_clean((char*)HID_CFG_FILE, fsize);
                 DCFlushRange((void*)HID_CFG_FILE, fsize);
                 *(vu32*)HID_CFG_SIZE = fsize;
             }

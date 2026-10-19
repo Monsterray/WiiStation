@@ -329,6 +329,25 @@ int hid_ini_wants_auto(const char *ini)
 	return strstr(ini, "Auto=1") || strstr(ini, "=Button") || strstr(ini, "=Hat") || strstr(ini, "=Axis");
 }
 
+void hid_ini_clean(char *ini, size_t len)
+{
+	size_t i = 0;
+	while (i < len) {
+		size_t end = i, first = i;
+		while (end < len && ini[end] != '\n' && ini[end] != '\r') end++;
+		while (first < end && (ini[first] == ' ' || ini[first] == '\t')) first++;
+		size_t cut = end;   /* blank from here to the end of the line */
+		if (first < end && (ini[first] == ';' || ini[first] == '#' || ini[first] == '['))
+			cut = first;
+		else
+			for (size_t k = first + 1; k < end; k++)
+				if ((ini[k] == ';' || ini[k] == '#') && (ini[k - 1] == ' ' || ini[k - 1] == '\t')) { cut = k; break; }
+		for (size_t k = cut; k < end; k++) ini[k] = ' ';
+		i = end;
+		while (i < len && (ini[i] == '\n' || ini[i] == '\r')) i++;
+	}
+}
+
 uint32_t hid_map_buttons(const hid_map *m, const hid_state *s, const uint8_t *r, int len)
 {
 	uint32_t out = 0;

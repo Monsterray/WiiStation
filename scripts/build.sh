@@ -154,7 +154,7 @@ case "${PROBES:-all}" in
 	*)     PROBE_DEFINES="$PROBES" ;;
 esac
 DEBUG_NAME=debug LIGHTREC=lightrecWithLog
-[ "${PROBES:-}" = play ] && DEBUG_NAME=play LIGHTREC=lightrecNoLog   # release's Lightrec: no asserts
+[ "${PROBES:-}" = play ] && DEBUG_NAME=play   # the debug Lightrec, with its asserts: a play session should find its bugs (user, 2026-10-19)
 # Makefile_Wii's names, overridden for the play build so it sits beside WiiSXRX_debug.dol
 DEBUG_DIRS="TARGET=WiiSXRX_${DEBUG_NAME}${OGC_SUFFIX} BUILD=build_${DEBUG_NAME}${OGC_SUFFIX} LIGHTREC_LIB=$LIGHTREC"
 [ -n "$PROBE_DEFINES" ] && echo "probe gates: $PROBE_DEFINES"
