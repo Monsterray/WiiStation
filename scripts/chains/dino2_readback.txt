@@ -1,5 +1,6 @@
 CHAIN
 # The user's Dino Crisis 2 session (a picture read back from VRAM somewhere in it)
+# Replays exactly (Dolphin, 28798 vblanks vs the capture). Full-frame reads (GP0 C0 320x240) at vblanks 13404, 14373-15108, 16074-16729, 17369-18374 (vramio.log): the readback test.
 28800 sd:/wiistation/dino2_readback_play.txt PadAutoAssign=1 ControllerType=0 PadType2=1
 sd:/wiistation/isos/Dino Crisis 2 (USA)
 Dino Crisis 2 (USA).cue
