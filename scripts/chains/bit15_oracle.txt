@@ -1,0 +1,31 @@
+CHAIN
+# The bit-15 oracle (Docs/STP_BIT15.md section 11): each game to the same vblank under Soft Fast
+# in SoftGpuMode Accurate (the PS1 rules, the reference) and under OpenGX; then
+#   python scripts/bit15_cmp.py .runs/NAME --png .runs/NAME/bit15
+# compares bit 15 of the two VRAM dumps per pixel. ChainDump=1: the dump is the whole frame
+# (before the next frame's clear), with OpenGX's EFB synced into VRAM first. Add a line with
+# GxMask=1 to see the 5.14.0 tile heuristic beside the exact path.
+600 gpuPlugin=0 SoftGpuMode=0 ChainDump=1
+sd:/wiistation/isos/ps1t_mask-bit
+mask-bit.exe
+600 gpuPlugin=2 ChainDump=1
+sd:/wiistation/isos/ps1t_mask-bit
+mask-bit.exe
+600 gpuPlugin=0 SoftGpuMode=0 ChainDump=1
+sd:/wiistation/isos/ps1t_transparency
+transparency.exe
+600 gpuPlugin=2 ChainDump=1
+sd:/wiistation/isos/ps1t_transparency
+transparency.exe
+9210 gpuPlugin=0 SoftGpuMode=0 ChainDump=1
+sd:/wiistation/isos/Crash Team Racing
+Crash Team Racing [U] [SCUS-94426].cue
+9210 gpuPlugin=2 ChainDump=1
+sd:/wiistation/isos/Crash Team Racing
+Crash Team Racing [U] [SCUS-94426].cue
+3400 sd:/wiistation/ape_escape_play.txt PadAutoAssign=1 ControllerType=1 gpuPlugin=0 SoftGpuMode=0 ChainDump=1
+sd:/wiistation/isos/Ape Escape
+Ape Escape [U] [SCUS-94423].cue
+3400 sd:/wiistation/ape_escape_play.txt PadAutoAssign=1 ControllerType=1 gpuPlugin=2 ChainDump=1
+sd:/wiistation/isos/Ape Escape
+Ape Escape [U] [SCUS-94423].cue

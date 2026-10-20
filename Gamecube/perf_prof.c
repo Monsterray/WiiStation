@@ -1324,9 +1324,10 @@ void perf_report(void)
 			(unsigned long)g_perf.ogx_gc, (unsigned long)g_perf.ogx_sub_new,
 			(unsigned long)g_perf.ogx_sub_hit, (unsigned long)g_perf.ogx_skip,
 			(unsigned long)g_perf.ogx_unaligned, (unsigned long)g_perf.ogx_oob_upload);
-		fprintf(f, "ogxskip: b1=%lu b2=%lu op_empty=%lu op_semi=%lu\n",
+		fprintf(f, "ogxskip: b1=%lu b2=%lu op_empty=%lu op_semi=%lu mask2=%lu zcap=%lu\n",
 			(unsigned long)g_perf.ogx_skip_b1, (unsigned long)g_perf.ogx_skip_b2,
-			(unsigned long)g_perf.ogx_skip_op_empty, (unsigned long)g_perf.ogx_skip_op_semi);
+			(unsigned long)g_perf.ogx_skip_op_empty, (unsigned long)g_perf.ogx_skip_op_semi,
+			(unsigned long)g_perf.ogx_mask_2pass, (unsigned long)g_perf.efb_zcap);
 		fprintf(f, "ogxupl: semi=%lu opaque=%lu mismatch=%lu\n",
 			(unsigned long)g_perf.ogx_upl_semi, (unsigned long)g_perf.ogx_upl_opaque,
 			(unsigned long)g_perf.ogx_upl_mismatch);

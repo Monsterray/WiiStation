@@ -153,6 +153,18 @@ no bit 15). Library folders `C:/wiistation-lib/games/ps1t_<test>`.
   Hi-Fi 6/14 (the state tests), Fast 2-3/14, OpenGX 1/14. clut-cache settled two CLUT-cache rules against the
   PS1: GP0 01 empties the CLUT cache, and an 8-bit draw reloads a cache that holds only a
   4-bit load's 16 entries (same CLUT word otherwise: no reload, also after E1 changes).
+- **Bit 15 (STP / mask) of OpenGX against the soft renderer** (2026-10-19): `wsx.sh chain NAME
+  bit15_oracle.txt --fast` (ps1t mask-bit and transparency, CTR's intro blur at 9212, Ape Escape's
+  play at 3460, each under Soft Fast `SoftGpuMode=0` and OpenGX), then `python scripts/bit15_cmp.py
+  .runs/NAME --png DIR [--box X0,Y0,X1,Y1]`: per game the bit-15 share of both VRAM dumps, pixels
+  set only in the reference / only under OpenGX, colour differences (context), and `parted` (the
+  first vblank where the two guests' vsig differ: past it the dumps are different moments; Ape
+  Escape parts at 3930, right after its frame readback, whose colours differ). The PNG map: the
+  reference dimmed, both set green, ref-only red, ogx-only cyan. `bit15_pics.txt` adds TV pictures
+  (`--env XFB_RAM=1`) under the reference, `GxMask=0` and `GxMask=1`. Ape Escape's columns 368-383
+  are drawn by the soft renderer (drawing area) but not by GX (the 368-wide display): `--box
+  0,0,368,512` leaves them out. OpenGX passes mask-bit since GxMask (2/14 with transparency's
+  bit 15 right but 448 colour pixels off).
 - The three SoftGpuMode values on games: `wsx.sh chain NAME softmodes_play.txt` (the user's
   recordings under Soft Fast in Accurate, Hi-Fi, Fast), then `python scripts/softmode_cmp.py
   .runs/NAME`: pixels that differ from Accurate's VRAM and how many by at most one 5-bit step;

@@ -58,7 +58,9 @@ typedef struct {
 
 typedef struct {
     void *pixels;            /* RGB565 texture of the whole EFB, MEM2 */
-    int size, texW, texH;
+    unsigned char *z;        /* Z8 copy beside it (top 8 bits of depth: bit 15, GxMask exact), or NULL */
+    int size, zsize, texW, texH;
+    int zok;                 /* z holds this snapshot's depth */
     EfbGeom g;
     uint64_t seq;            /* stamp at capture: holds every GX write stamped before it */
     int valid;               /* complete and readable */
@@ -70,12 +72,18 @@ enum { EFB_MODE_AUTO = 0, EFB_MODE_ON = 1, EFB_MODE_OFF = 2 };
 static uint64_t efb_seq;
 static uint64_t efb_cpu[EFB_TY][EFB_TX];
 static uint64_t efb_gx[EFB_TY][EFB_TX];
-/* Bit 15 (STP / mask) a PS1 would have written there, per tile, from the last GX primitive:
- * the E6 set-mask bit, or for a textured primitive the texel's STP, which GX does not keep
- * (RGB8 EFB, RGB565 snapshots): taken as set. A game that draws one of its frames back as a
- * semi-transparent texture blends only the texels with bit 15 (CTR's intro blur: 92% set in
- * Soft's VRAM); the bit kept from stale psxVuw (0) made the blur opaque and it fed back. */
+/* Bit 15 (STP / mask) of synced pixels. GxMask 0 (exact, Docs/STP_BIT15.md): per pixel, from
+ * the EFB depth that opengx writes per pass (gc_gl.c OGX_ZC_SET), copied as Z8 with each
+ * snapshot. GxMask 1 (the 5.14.0 heuristic): per tile, from the last GX primitive: the E6
+ * set-mask bit, or for a textured primitive the texel's STP taken as set. A game that draws
+ * one of its frames back as a semi-transparent texture blends only the texels with bit 15
+ * (CTR's intro blur: 92% set in Soft's VRAM); the stale bit 0 made the blur opaque. */
 static unsigned char efb_stp[EFB_TY][EFB_TX];
+#define EFB_Z_SET(z) ((z) < 0x40)   /* Z8 of OGX_ZC_SET is 0x19; clear 0x7F, cleared 0xFF */
+static inline unsigned char efb_snap_z(const unsigned char *z, int texW, int x, int y)
+{   /* Z8 texels in 8x4 blocks of 32 bytes */
+    return z[(((y >> 2) * ((texW + 7) >> 3) + (x >> 3)) << 5) + ((y & 3) << 3) + (x & 7)];
+}
 static EfbGeom  efb_live;
 static int      efb_live_set;
 static uint64_t efb_live_gx;          /* newest GX stamp inside live */
@@ -174,6 +182,8 @@ static void efb_publish(int wait)
         PERF_INC(gx_drawdone);
     }
     DCInvalidateRange(s->pixels, s->size);
+    if (s->z && s->zok)
+        DCInvalidateRange(s->z, s->zsize);
     s->pending = 0;
     s->valid = 1;
     efb_inflight = NULL;
@@ -208,6 +218,7 @@ static int efb_capture_live(int wait)
      * full with 4-bit colour, and this EFB's alpha varies per pixel: frames read back
      * came out speckled in the wrong hues (Ape Escape's pause) */
     int size = GX_GetTexBufferSize(copyW, copyH, GX_TF_RGB565, 0, GX_FALSE);
+    int zsize = ogx_mask_exact ? GX_GetTexBufferSize(copyW, copyH, GX_TF_Z8, 0, GX_FALSE) : 0;
     EfbSnap *s;
 
     if (!efb_live_set || !efb_geom_ok(&efb_live))
@@ -226,6 +237,13 @@ static int efb_capture_live(int wait)
             _mem2_free(s->pixels);
         s->pixels = buf;
         s->size = size;
+    }
+    if (zsize > s->zsize)
+    {
+        if (s->z)
+            _mem2_free(s->z);
+        s->z = _mem2_malloc(zsize);
+        s->zsize = s->z ? zsize : 0;
     }
     s->valid = 0;
     s->pending = 1;
@@ -250,6 +268,14 @@ static int efb_capture_live(int wait)
     GX_SetTexCopySrc(0, 0, iResX, iResY);
     GX_SetTexCopyDst(copyW, copyH, GX_TF_RGB565, GX_FALSE);
     GX_CopyTex(MEM_K0_TO_K1(s->pixels), GX_FALSE);
+    s->zok = 0;
+    if (zsize && s->z)
+    {   /* bit 15 per pixel: the depth's top byte (gc_gl.c OGX_ZC_SET) */
+        GX_SetTexCopyDst(copyW, copyH, GX_TF_Z8, GX_FALSE);
+        GX_CopyTex(MEM_K0_TO_K1(s->z), GX_FALSE);
+        s->zok = 1;
+        PERF_INC(efb_zcap);
+    }
     GX_PixModeSync();
     GX_SetDrawSyncCallback(efb_copy_done);
     GX_SetDrawSync(efb_token);
@@ -277,6 +303,8 @@ static int efb_snap_pixel(const EfbSnap *s, int px, int py, uint16_t *out)
          * pixel is BBBBBGGGGGRRRRR (red in the low bits) */
         unsigned short c = ReadGXRGB5A3PixelRaw(s->pixels, s->texW, tx, ty);
         *out = (uint16_t)((c >> 11) | (((c >> 6) & 0x1F) << 5) | ((c & 0x1F) << 10));
+        if (s->zok && EFB_Z_SET(efb_snap_z(s->z, s->texW, tx, ty)))
+            *out |= 0x8000;      /* bit 15 from the depth (GxMask exact) */
     }
     return 1;
 }
@@ -482,11 +510,22 @@ static int efb_sync(int x, int y, int w, int h)
                 for (py = qy0; py < qy1; py++)
                 {
                     unsigned short *d = &psxVuw[(py << 10) + qx0];
+                    /* this line's rows: RGB565 in 4x4 blocks, Z8 in 8x4 blocks, 32 bytes a block
+                     * (ReadGXRGB5A3PixelRaw, efb_snap_z with the row worked out once) */
+                    const unsigned char *cr = (const unsigned char *)best->pixels +
+                        ((((py + oy) >> 2) * (best->texW >> 2)) << 5) + (((py + oy) & 3) << 3);
+                    const unsigned char *zr = best->zok ? best->z + ((((py + oy) >> 2) * ((best->texW + 7) >> 3)) << 5)
+                                                          + (((py + oy) & 3) << 3) : NULL;
                     for (px = qx0; px < qx1; px++, d++)
                     {
-                        unsigned short c = ReadGXRGB5A3PixelRaw(best->pixels, best->texW, px + ox, py + oy);
+                        int tx = px + ox;
+                        unsigned short c = *(const unsigned short *)(cr + ((tx >> 2) << 5) + ((tx & 3) << 1));
                         c = (unsigned short)((c >> 11) | (((c >> 6) & 0x1F) << 5) | ((c & 0x1F) << 10));
-                        PUTLE16(d, (unsigned short)((c & 0x7FFF) | stp));
+                        if (zr)
+                            c |= EFB_Z_SET(zr[((tx >> 3) << 5) + (tx & 7)]) ? 0x8000 : 0;
+                        else
+                            c |= stp;
+                        PUTLE16(d, c);
                     }
                 }
                 if (qx1 > qx0 && qy1 > qy0)
@@ -505,8 +544,8 @@ static int efb_sync(int x, int y, int w, int h)
                     if (!efb_snap_pixel(best, px, py, &c))
                         continue;
                     /* psxVuw is in PlayStation byte order (little-endian) on this big-endian
-                     * CPU; bit 15 as the primitive would have written it (efb_stp) */
-                    PUTLE16(d, (unsigned short)((c & 0x7FFF) | stp));
+                     * CPU; bit 15 from the depth, or from the tile's primitive (efb_stp) */
+                    PUTLE16(d, best->zok ? c : (unsigned short)((c & 0x7FFF) | stp));
                     if (px >= x && px < x + w && py >= y && py < y + h)
                         merged++;
                 }

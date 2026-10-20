@@ -50,6 +50,20 @@ are taken with `GX_CopyTex` into MEM2 (async, draw-sync token, `GX_DrawDone` +
 merged into psxVuw on a GP0 C0 read (`MergeReadbackToPsxVuw`, `BestOwningSnapshotForPixel`).
 Under Dolphin the copy only reaches RAM with EFB-to-texture-only OFF.
 
+## Bit 15 under OpenGX (GxMask, 2026-10-19)
+
+With `GxMask` 0 (default) the EFB depth is the mask bit: every GX pass writes one of two constant
+depths (`gc_gl.c` `OGX_ZC_SET` -0.9 = bit 1, `OGX_ZC_CLEAR` -0.5 = bit 0; clears leave the far
+plane = bit 0), through the z row of the projection, so vertex z is ignored. Every texture is split
+by texel STP (`upload_semi_flag` returns 1): pass 0 the STP 0 texels (`semiTransData`, bit E6.0),
+pass 1 the STP 1 texels (`data`, bit 1), also for opaque draws. E6.1 = depth LESS (bit-1 pass) or
+LEQUAL (bit-0 pass); fills (`OGX_MASK_FILL`) and UploadScreen (`OGX_MASK_UPLOAD`) write their own
+bit with no check. `efb_capture_live` copies Z8 (top byte; 0x19 set, 0x7F clear, 0xFF cleared)
+beside the RGB565 snapshot; `efb_sync` takes bit 15 per pixel from it. The EFB colour format is
+untouched, so TV pictures are the same as `GxMask` 1 (the 5.14.0 per-tile guess). The game-start
+`clearEFB` now clears depth to far: a depth of 0 reads as bit 1 everywhere (Spyro's letterbox bars
+came back as 0x8000).
+
 ## Off-screen primitives
 
 `OffscreenSoftDraw()` in `gpuPlugin.c`: polygon/rect commands (0x20-0x3F, 0x60-0x7F) whose

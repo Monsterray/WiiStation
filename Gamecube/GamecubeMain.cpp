@@ -173,6 +173,10 @@ extern "C" { char efbSyncSetting = 0; }
  * 2/3 = and anisotropic 2x/4x; GxColor 1 = RGBA6 EFB dithered as the game asks, 2 = RGB565
  * anti-aliased EFB (240p mode, at most 264 lines; else as 0) dithered as the game asks */
 extern "C" { char gxTexMin = 0, gxColor = 0; }
+/* OpenGX bit 15 (STP / mask bit, Docs/STP_BIT15.md): 0 Accurate = kept per pixel in the EFB
+ * depth, the mask check exact (deps/opengx/gc_gl.c OGX_ZC_SET); 1 Fast = the 5.14.0 tile guess
+ * and P.E.Op.S.'s depth mask. Applied at the next present (the texture cache is rebuilt). */
+extern "C" { char gxMask = 0; }
 /* The soft GPU plugins' pixel pipeline (SoftGPU/acc.c, SETTINGS.md): 0 Accurate = PS1 rules
  * (the PS1 dither matrix, mask set/check on every write, exact semi-transparency, CLUT and
  * texture caches), 1 Hi-Fi = the same rules without dither and with rounded 8-bit blending,
@@ -238,6 +242,7 @@ static const char* const OPT_DEFLICKER[]     = { "Normal", "Light", "Strong" };
 static const char* const OPT_TEXMIN[]        = { "Off", "Linear", "Aniso 2x", "Aniso 4x" };
 static const char* const OPT_GXCOLOR[]       = { "24-bit", "6-bit dither", "AA (240p)" };
 static const char* const OPT_SOFTMODE[]      = { "Accurate", "Hi-Fi", "Fast" };
+static const char* const OPT_GXMASK[]        = { "Accurate", "Fast" };
 static const char* const OPT_VIDEOMODE[]     = { "Auto", "NTSC", "PAL 50", "PAL 60", "480p" };
 static const char* const OPT_RESAMPLE[]      = { "Hold", "Linear", "Cubic" };
 static const char* const OPT_OUTPUT[]        = { "CPU", "DSP" };
@@ -289,6 +294,7 @@ static SettingOption OPTIONS[] =
   { "EfbSync", &efbSyncSetting, 0, 2 },
   { "GxTexMin", &gxTexMin, 0, 3, NULL, "Far Textures", OPT_TEXMIN, "OpenGX: smooths ground drawn smaller than a pixel. A trial." },
   { "GxColor", &gxColor, 0, 2, NULL, "GX Color", OPT_GXCOLOR, "OpenGX: 6-bit dither, or anti-aliased edges in 240p mode. A trial." },
+  { "GxMask", &gxMask, 0, 1, NULL, "GX Mask Bit", OPT_GXMASK, "OpenGX: Accurate keeps the PS1 mask bit per pixel. Fast guesses it." },
   { "SoftGpuMode", &softGpuMode, 0, 2, NULL, "Soft Mode", OPT_SOFTMODE, "Soft GPU pixels. Accurate: as a PS1. Hi-Fi: no dither, finer blends. Fast: the old shortcuts." },
   { "Audio", NULL, 0, 0, "The sound." },
   { "Audio", &audioEnabled, AUDIO_DISABLE, AUDIO_ENABLE, NULL, "Audio", OPT_OFF_ON, "Turns the sound output on or off." },

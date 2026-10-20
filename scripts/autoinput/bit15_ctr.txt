@@ -1,0 +1,4 @@
+# bit-15 pictures (scripts/chains/bit15_pics.txt): CTR's intro blur, no input
+xfb 9200
+xfb 9215
+xfb 9300
