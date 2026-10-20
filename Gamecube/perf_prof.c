@@ -1692,6 +1692,22 @@ void perf_report(void)
 				(unsigned long)g_perf.efb_mini_area[0], (unsigned long)g_perf.efb_mini_area[1],
 				(unsigned long)g_perf.efb_mini_area[2], (unsigned long)g_perf.efb_mini_area[3],
 				(unsigned long)g_perf.efb_mini_area[4], (unsigned long)g_perf.efb_mini_area[5]);
+			fprintf(f, "efbminitime: whole_us=%llu fullwait_us=%llu queue_us=%llu drawdone_us=%llu\n",
+				ticks_to_microsecs(g_perf.efb_mini_ticks[0]), ticks_to_microsecs(g_perf.efb_mini_ticks[1]),
+				ticks_to_microsecs(g_perf.efb_mini_ticks[2]), ticks_to_microsecs(g_perf.efb_mini_ticks[3]));
+			fprintf(f, "texsel: search_us=%llu compress_us=%llu compresses=%lu load_us=%llu loads=%lu\n",
+				ticks_to_microsecs(g_perf.ogx_sel_ticks[0]), ticks_to_microsecs(g_perf.ogx_sel_ticks[1]),
+				(unsigned long)g_perf.ogx_sel_n[1], ticks_to_microsecs(g_perf.ogx_sel_ticks[2]),
+				(unsigned long)g_perf.ogx_sel_n[2]);
+			fprintf(f, "texscan: hit=%llu slot=%llu texvisits=%llu rects=%llu resets=%lu\n",
+				g_perf.ogx_scan[0], g_perf.ogx_scan[1], g_perf.ogx_scan[2], g_perf.ogx_scan[3],
+				(unsigned long)g_perf.ogx_scan_reset);
+			fprintf(f, "efbtexrd: semi=%lu texels=%lu bit15=%lu zero=%lu\n",
+				(unsigned long)g_perf.efb_texrd[0], (unsigned long)g_perf.efb_texrd[1],
+				(unsigned long)g_perf.efb_texrd[2], (unsigned long)g_perf.efb_texrd[3]);
+			fprintf(f, "efbexact: clear=%lu drawn=%lu unknown=%lu\n",
+				(unsigned long)g_perf.efb_exact[1], (unsigned long)g_perf.efb_exact[0],
+				(unsigned long)g_perf.efb_exact[2]);
 			fprintf(f, "efbminimode: 4bit=%lu 8bit=%lu 15bit=%lu mode3=%lu\n",
 				(unsigned long)g_perf.efb_mini_mode[0], (unsigned long)g_perf.efb_mini_mode[1],
 				(unsigned long)g_perf.efb_mini_mode[2], (unsigned long)g_perf.efb_mini_mode[3]);

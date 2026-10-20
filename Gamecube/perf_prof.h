@@ -626,6 +626,12 @@ typedef struct {
 	uint32_t efb_mini_by[8];     /* partial captures by efb_sync caller (as efb_cap_by) */
 	uint32_t efb_mini_area[6];   /* their read areas: <=4, <=16, <=64, <=256, <=4096, more pixels */
 	uint32_t efb_mini_mode[4];   /* texture reads among them by mode: 4-bit, 8-bit, 15-bit, 3 */
+	unsigned long long efb_mini_ticks[4];   /* partial captures: whole, waiting for a full copy, queueing, the DrawDone */
+	unsigned long long ogx_sel_ticks[3];   /* SelectSubTextureS: cache search, compress when full, load a new one */
+	uint32_t ogx_sel_n[3];                 /* -, compresses, loads */
+	unsigned long long ogx_scan[4];        /* CheckTextureInSubSCache: hit-search entries, free-slot entries, textures visited, free rects compared */
+	uint32_t ogx_scan_reset;               /* no free space in any cache texture: the whole cache reset */	uint32_t efb_texrd[4];       /* those reads: semi-transparent prims; texels read, with bit 15, 0x0000 */
+	uint32_t efb_exact[3];       /* reads needing live: nothing drawn over them since sync, drawn over, ring too short */
 	/* The primitive time again, by class of GP0 command: index is the top three bits
 	 * of the command byte, so 1 is the polygons, 2 the lines, 3 the sprites, and 7 the
 	 * drawing-state commands (E1..E6). */

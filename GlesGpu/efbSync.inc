@@ -72,6 +72,28 @@ enum { EFB_MODE_AUTO = 0, EFB_MODE_ON = 1, EFB_MODE_OFF = 2 };
 static uint64_t efb_seq;
 static uint64_t efb_cpu[EFB_TY][EFB_TX];
 static uint64_t efb_gx[EFB_TY][EFB_TX];
+#ifdef PERF_PROF
+/* probe: the last EFB_DRAWRING GX draw rects (VRAM, x1/y1 exclusive) and their seq */
+#define EFB_DRAWRING 1024
+typedef struct { int x0, y0, x1, y1; uint64_t seq; } EfbDrawRec;
+static EfbDrawRec efb_drawring[EFB_DRAWRING];
+static unsigned efb_drawring_n;
+/* 1 = no GX draw since the oldest stale tile's last sync touches the rect (a pixel-exact
+ * check would skip the capture), 0 = one does, -1 = the ring no longer reaches back */
+static int efb_drawring_clear(int x, int y, int w, int h, uint64_t since)
+{
+    unsigned n = efb_drawring_n < EFB_DRAWRING ? efb_drawring_n : EFB_DRAWRING, i;
+    int reached = efb_drawring_n < EFB_DRAWRING;
+    for (i = 0; i < n; i++)
+    {
+        const EfbDrawRec *r = &efb_drawring[(efb_drawring_n - 1 - i) & (EFB_DRAWRING - 1)];
+        if (r->seq <= since) { reached = 1; break; }   /* seqs only grow: older ones too */
+        if (r->x0 < x + w && x < r->x1 && r->y0 < y + h && y < r->y1)
+            return 0;
+    }
+    return reached ? 1 : -1;
+}
+#endif
 /* Bit 15 (STP / mask) of synced pixels. GxMask 0 (exact, Docs/STP_BIT15.md): per pixel, from
  * the EFB depth that opengx writes per pass (gc_gl.c OGX_ZC_SET), copied as Z8 with each
  * snapshot. GxMask 1 (the 5.14.0 heuristic): per tile, from the last GX primitive: the E6
@@ -404,6 +426,12 @@ static void efb_gx_draw(int x0, int y0, int x1, int y1, int stp)
         ++efb_seq;
         efb_seq_is_gx = 1;
     }
+#ifdef PERF_PROF
+    {   /* probe: the rects GX drew, for efb_sync's "would a pixel-exact check skip this" */
+        EfbDrawRec *r = &efb_drawring[efb_drawring_n++ & (EFB_DRAWRING - 1)];
+        r->x0 = x0; r->y0 = y0; r->x1 = x1; r->y1 = y1; r->seq = efb_seq;
+    }
+#endif
     efb_tiles(x0, y0, x1, y1, &tx0, &ty0, &tx1, &ty1);
     for (ty = ty0; ty < ty1; ty++)
         for (tx = tx0; tx < tx1; tx++)
@@ -503,7 +531,14 @@ static int efb_capture_rect(int rx0, int ry0, int rx1, int ry1)
         efb_mini.z = _mem2_malloc(zsize);
         efb_mini.zsize = efb_mini.z ? zsize : 0;
     }
+#if PERF_PROF_GPUSPLIT
+    unsigned long long mt0_ = perf_now_ticks(), mt1_;
+#endif
     efb_publish(1);                        /* a full copy in flight first (one at a time) */
+#if PERF_PROF_GPUSPLIT
+    mt1_ = perf_now_ticks();
+    g_perf.efb_mini_ticks[1] += mt1_ - mt0_;   /* waiting for a full copy in flight */
+#endif
     {
         extern GXRModeObj *g_tv_mode;
         GXRModeObj *m = g_tv_mode ? g_tv_mode : vmode;
@@ -520,9 +555,16 @@ static int efb_capture_rect(int rx0, int ry0, int rx1, int ry1)
         efb_mini.zok = 1;
         PERF_INC(efb_zcap);
     }
+#if PERF_PROF_GPUSPLIT
+    g_perf.efb_mini_ticks[2] += perf_now_ticks() - mt1_;   /* setting up and queueing the copies */
+    mt1_ = perf_now_ticks();
+#endif
     GX_PixModeSync();
     GX_DrawDone();
     PERF_INC(gx_drawdone);
+#if PERF_PROF_GPUSPLIT
+    g_perf.efb_mini_ticks[3] += perf_now_ticks() - mt1_;   /* the stall: the GPU drains */
+#endif
     RestoreDispCopyInfo();
     DCInvalidateRange(efb_mini.pixels, size);
     if (efb_mini.zok)
@@ -542,6 +584,9 @@ static int efb_capture_rect(int rx0, int ry0, int rx1, int ry1)
     efb_mini.valid = 1;
     efb_mini.pending = 0;
     PERF_INC(efb_mini_calls);
+#if PERF_PROF_GPUSPLIT
+    g_perf.efb_mini_ticks[0] += perf_now_ticks() - mt0_;   /* the whole partial capture */
+#endif
     return 1;
 }
 
@@ -594,6 +639,20 @@ static int efb_sync(int x, int y, int w, int h)
             }
     if (!stale)
         return 0;
+#ifdef PERF_PROF
+    if (need_live)
+    {   /* probe: would a pixel-exact check (the draw rects since the oldest stale tile's last
+         * sync) have found nothing drawn over this read? (efbexact:) */
+        uint64_t since = ~(uint64_t)0;
+        int r;
+        for (ty = ty0; ty < ty1; ty++)
+            for (tx = tx0; tx < tx1; tx++)
+                if (efb_gx[ty][tx] > efb_cpu[ty][tx] && efb_cpu[ty][tx] < since)
+                    since = efb_cpu[ty][tx];
+        r = efb_drawring_clear(x, y, w, h, since);
+        g_perf.efb_exact[r < 0 ? 2 : r]++;
+    }
+#endif
     efb_mini.valid = 0;
     if (need_live && efb_capture_rect(nx0 * EFB_TILE, ny0 * EFB_TILE, nx1 * EFB_TILE, ny1 * EFB_TILE))
     {
@@ -766,7 +825,21 @@ static void efb_sync_texture(void)
         uint32_t before = g_perf.efb_mini_by[7];
         efb_sync(x0, y0, x1 - x0, y1 - y0);
         if (g_perf.efb_mini_by[7] != before)
+        {
+            int qx, qy;
             g_perf.efb_mini_mode[GlobalTextTP & 3]++;
+            if (DrawSemiTrans)
+                g_perf.efb_texrd[0]++;
+            /* the texels it then samples: bit 15 set, and 0x0000 (a transparent texel) */
+            for (qy = y0; qy < y1 && qy < 512; qy++)
+                for (qx = x0; qx < x1 && qx < 1024; qx++)
+                {
+                    unsigned short t = GETLE16(&psxVuw[(qy << 10) + qx]);
+                    g_perf.efb_texrd[1]++;
+                    if (t & 0x8000) g_perf.efb_texrd[2]++;
+                    if (!t) g_perf.efb_texrd[3]++;
+                }
+        }
     }
 #else
     efb_sync(x0, y0, x1 - x0, y1 - y0);
