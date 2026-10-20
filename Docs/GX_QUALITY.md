@@ -113,6 +113,16 @@ Known limits of the prototypes: `GxColor=1` in the 480-line mode is applied at g
 (`MainFrame`) only; the BIOS autoboot path (`MenuContext.cpp`) does not apply it.
 `GxColor=2` needs NTSC-height 240p (PAL 288-line displays do not fit).
 
+The Filter Tour (Advanced Graphics, `GraphicsGX.cpp filterTour*`) changes both while a game
+runs. `GxTexMin` goes on every OpenGX texture at once through `glChgTextureFilter` (each one
+loaded again at its next bind; Off now also takes the anisotropy and edge LOD back out in
+`ogx_texq`). `GxColor` waits for the next copy to the XFB (`gx_vout_render` calls
+`filterTourCopied`): a copy that kept the EFB is made again with the clear, the EFB mirror ends
+as after a clearing present, then `gxSetAa`, `gxApplyEfbFormat(1)` and `applyCopyFilter`. In
+Dolphin (Spyro, 240p and 480i) no frame around a switch is black or garbled. GX dither's
+per-primitive cache (`gpuPrim.c gx_dither_on`) is not reset by a tour switch, so dither can
+stay off until the next primitive that does not want it.
+
 **First bench result (2026-10-19 morning, `hw_gx_quality`, pmc build of 48bd936):** CTR with
 `TVMode=1 GxColor=2` kept running (0.99x, 554 presents in 2016 vblanks) but the user saw a
 black TV until he pressed RESET. Two readings of that run were wrong: its `ogxeq` line
