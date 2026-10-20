@@ -1,0 +1,8 @@
+CHAIN
+# The user's Tiger Temple race (CTR), OpenGX: GxMask Accurate vs Fast on the bench Wii (speed, bit-15 cost)
+14760 sd:/wiistation/tiger_temple_play.txt PadAutoAssign=1 ControllerType=0 PadType2=1 gpuPlugin=2 GxMask=0
+sd:/wiistation/isos/Crash Team Racing
+Crash Team Racing [U] [SCUS-94426].cue
+14760 sd:/wiistation/tiger_temple_play.txt PadAutoAssign=1 ControllerType=0 PadType2=1 gpuPlugin=2 GxMask=1
+sd:/wiistation/isos/Crash Team Racing
+Crash Team Racing [U] [SCUS-94426].cue

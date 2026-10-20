@@ -6,9 +6,7 @@
 # scripts/playtests.py prints the list with ready-to-paste commands. Remove a line once its
 # recording or log exists.
 Crash Team Racing | Start Adventure mode; while the intro text is on screen, pause, then resume | pause menu stayed drawn while the game played (not seen in Time Trial) | ctr_adventure_pause --mins 3
-Crash Team Racing | Race one lap of Tiger Temple (Lost Ruins) | the worst frame-rate track: speed on the Wii, Frame Skip | ctr_tiger_temple --mins 5
 Spyro the Dragon | Pause once during play, then resume | a bit-15 scene: the paused picture is read back and redrawn tinted | spyro_pause --mins 2
-Dino Crisis 2 (USA) | Play until a scene freezes, fades or distorts the screen (map, item box, a cut scene) | a picture read back from VRAM: never reached by a run | dino2_readback --mins 8
 Point Blank (USA) | Real BIOS on, Justifier (Light Gun), FPS on: boot, point the Wiimote at the screen through the BIOS logo | 0.3 FPS slowdown that Dolphin cannot reproduce (no pointer there) | wii
 Frogger (USA) [CHD] | Real BIOS on: load the game | "would not load"; loads on the dev Wii with 5.14.0: what does it do for you? | wii
 Medievil | PSX Pad Type Analog: press the ANALOG combo, walk with the stick, take a hit | analog mode and rumble strength on a real pad | wii

@@ -1,0 +1,5 @@
+CHAIN
+# The user's Dino Crisis 2 session (a picture read back from VRAM somewhere in it)
+28800 sd:/wiistation/dino2_readback_play.txt PadAutoAssign=1 ControllerType=0 PadType2=1
+sd:/wiistation/isos/Dino Crisis 2 (USA)
+Dino Crisis 2 (USA).cue
