@@ -1641,6 +1641,12 @@ void perf_report(void)
 				(unsigned long long)ticks_to_microsecs(g_perf.pres_sync_ticks),
 				(unsigned long long)ticks_to_microsecs(g_perf.efb_cap_ticks),
 				(unsigned long)g_perf.efb_cap_calls);
+			fprintf(f, "efbcapby: other=%lu read=%lu offsoft=%lu ext=%lu presupl=%lu c0=%lu move=%lu tex=%lu mini=%lu\n",
+				(unsigned long)g_perf.efb_cap_by[0], (unsigned long)g_perf.efb_cap_by[1],
+				(unsigned long)g_perf.efb_cap_by[2], (unsigned long)g_perf.efb_cap_by[3],
+				(unsigned long)g_perf.efb_cap_by[4], (unsigned long)g_perf.efb_cap_by[5],
+				(unsigned long)g_perf.efb_cap_by[6], (unsigned long)g_perf.efb_cap_by[7],
+				(unsigned long)g_perf.efb_mini_calls);
 		{   /* the ten GP0 commands that took longest, any GPU plugin: cmd=us/calls */
 			int c, k, best, used[128] = { 0 };
 			fprintf(f, "gpucmd:");

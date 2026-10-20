@@ -113,3 +113,7 @@ vramio `F1` (per vblank) and `F5` (per GP1 05) show the decision: display, draw 
 
 - Re-uploads of the live buffer copy its GX pixels out and back in (FF7's cost above); the
   upload could skip tiles the EFB already holds.
+
+## Partial captures (2026-10-19)
+
+A read that needs pixels GX drew since the last capture used to copy the whole EFB (640x480 RGB565, plus a Z8 copy with GxMask exact): about 1 ms of GP time on a Wii. CTR's Tiger Temple samples 1-3 pixel spots of the frame it is drawing as textures, about 50 times a frame: 62,000 full copies in 7000 vblanks, 61 s of a 143 s run, 0.63x on the bench Wii. `efb_capture_rect` now copies only the stale tiles' EFB area (8x4 aligned, any VRAM-to-EFB scale: it keeps live's mapping moved to the copy's corner) into a buffer of its own; the merge takes those tiles from it. `efb_live_saved` is not advanced, so what it did not copy is still captured when read. A read wider than a quarter of live keeps the full capture. Also: live is captured only when the read rect itself meets live in a stale tile (GX draws are clipped to live). Bench Wii, Tiger Temple first 7000 vblanks, deep build: GxMask Accurate 0.63x -> 0.92x (GPU 49% -> 24%), Fast 0.74x -> 0.92x; guest identical (vsig), VRAM differs in 271 px by 1-2 colour steps (pixels taken at the read instead of an earlier copy); bit15_oracle unchanged. Debug perf.log: `efbcapby:` (full captures per caller, `mini=` partial ones).

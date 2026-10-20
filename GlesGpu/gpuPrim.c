@@ -3031,7 +3031,9 @@ static void primStoreImage ( unsigned char * baseAddr )
     perf_vram_event(0xC0, VRAMRead.x, VRAMRead.y, VRAMRead.Width, VRAMRead.Height, 0, 0);
 
     /* the CPU reads psxVuw: put what GX drew there into it first (efbSync.inc) */
+    efb_sync_from = 5;
     efb_sync(VRAMRead.x, VRAMRead.y, VRAMRead.Width, VRAMRead.Height);
+    efb_sync_from = 0;
 
     STATUSREG |= GPUSTATUS_READYFORVRAM;
 }
@@ -3361,7 +3363,9 @@ static void primMoveImage ( unsigned char * baseAddr )
      * pixels in psxVuw: the copy is then not the CPU's own, and its upload must not paint
      * that stale black opaque (bUploadOpaque below) */
     unsigned move_misses = efb_misses;
+    efb_sync_from = 6;
     efb_sync(imageX0, imageY0, imageSX, imageSY);
+    efb_sync_from = 0;
     int move_src_ok = efb_misses == move_misses;
 
 

@@ -1886,7 +1886,9 @@ static inline unsigned short GXRGB5A3ToPSX15(unsigned short gx)
 
 static inline void CheckVRamRead(int x, int y, int dx, int dy)
 {
+ efb_sync_from = 1;
  efb_sync(x, y, dx - x, dy - y);
+ efb_sync_from = 0;
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -2250,7 +2252,9 @@ static int OffscreenSoftDraw(unsigned char cmd, unsigned long *data, int n)
     /* the pixels under it may be GX's (a frame in a snapshot): VRAM gets them first, so a
      * semi-transparent primitive blends with the real picture and the tiles it touches
      * can be marked as written by the CPU without losing GX pixels next to it */
+    efb_sync_from = 2;
     efb_sync(x0, y0, x1 - x0, y1 - y0);
+    efb_sync_from = 0;
 
     do_cmd_list(list, 6 + n, &cs, &cl, &lc);
 
@@ -3177,5 +3181,5 @@ gpu_t glesGpu = {
  * before the picture is read. This is the copy every VRAM read makes (efb_sync). */
 int gpu_screenshot_sync(int x, int y, int w, int h)
 {
-    return efb_sync(x, y, w, h);
+    { int r; efb_sync_from = 3; r = efb_sync(x, y, w, h); efb_sync_from = 0; return r; }
 }
