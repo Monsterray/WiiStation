@@ -206,6 +206,15 @@ any number against the table or the log before acting on it.
   Lightning changes is one flag away: `make -C deps/lightning DEVKITPPC=... TMP=... TEMP=...
   EXTRA_CFLAGS=-DLIGHTNING_UPSTREAM=1`, then `wsx.sh build` (touch lightning.c after to go
   back). Compile cost per pass: `lopt:`, `lightning:`, `jitparts:`, `jit:` in perf.log.
+  When a block compiles is guest-visible: Lightrec's interpreter is not cycle-exact with
+  its compiled code, so any change to how often a block is interpreted (the first pass)
+  moves Crash 3's timeline (2026-10-19, Docs/BACKENDS.md "Compiling ahead"). Prove such a
+  change with `vsig_cmp.py` on `replay3.txt`: ram/cycle/pc must stay the same; `jitb`
+  (blocks compiled) may differ. A JIT stall in `vtl_view.py` is new code compiled in the
+  frame that first runs it; look at `--around V` before planning to move the compiles.
+  Dolphin trap: a run that dies in the HBC agent's crash path can fill `dolphin.log` with
+  MMU warnings (38 GB in 40 min, `.runs/NAME/dolphin.log`); a perf.log with only its header
+  and no `fatal:` line is the sign. Keep `--secs` short for a build that may crash.
   On 32-bit PPC, `__builtin_ctzll` is a libgcc call (`__ctzdi2`); check with
   `powerpc-eabi-nm build/lightning.o`.
 
