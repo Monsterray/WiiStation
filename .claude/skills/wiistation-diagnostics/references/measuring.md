@@ -42,6 +42,9 @@ python scripts/hprof_view.py .runs/NAME/hprof_01.bin --elf DOL.elf --callers
   so LR is the caller. Found 2026-10-01: `timeGetTime()` (limiter) and `perf_now_us()` (probes)
   divided a u64 per call; both now multiply by 2^24/60.75.
 - Samples land only with MSR[EE] on. Time in exception handlers shows at the next instruction.
+- `hprof <from> <to>` input lines (up to 8) sample only those vblanks (a slow stretch alone).
+- **libogc v3 builds: broken under Dolphin for now** (runaway in the HBC agent's lastlog
+  checksum, tens of GB of dolphin.log; dolphin-pitfalls.md, "Getting more out of Dolphin").
 - Dolphin emulates the exception, so the profiler runs there. There it counts instructions
   (no cache misses), and its cycle estimate gives about 1.9x the samples of a Wii.
 - On a Wii the idle thread dozes and PMC1 stops, so there are no idle samples: the shares
