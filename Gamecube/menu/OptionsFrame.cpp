@@ -267,9 +267,9 @@ static const OptRow GPU_ROWS[] =
 
 static const OptHelp GPU_HELP[] =
 {
-	{ "GPU Plugin:", "OpenGX: the Wii's GPU. Soft: fewer quirks." },
-	{ "GPU Timing:", "Accurate: the GPU is busy as long as a PS1's." },
-	{ "GX Mask Bit:", "Accurate keeps the PS1 mask bit per pixel." },
+	{ "GPU Plugin:", "OpenGX: the Wii's GPU. Soft: the CPU." },
+	{ "GPU Timing:", "Accurate: busy as long as a PS1's GPU." },
+	{ "GX Mask Bit:", "Accurate: the PS1 mask bit per pixel." },
 };
 
 static const OptRow INPUT_ROWS[] =
