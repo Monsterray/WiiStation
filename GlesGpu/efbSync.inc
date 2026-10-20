@@ -379,6 +379,12 @@ static void efb_gx_draw(int x0, int y0, int x1, int y1, int stp)
         efb_save_live_if_needed();
         efb_live = g;
         efb_live_set = 1;
+#ifdef PERF_PROF
+        g_perf.efb_live_geom[0] = g.x; g_perf.efb_live_geom[1] = g.y;
+        g_perf.efb_live_geom[2] = g.w; g_perf.efb_live_geom[3] = g.h;
+        g_perf.efb_live_geom[4] = PSXDisplay.DrawArea.y0; g_perf.efb_live_geom[5] = PSXDisplay.DrawArea.y1;
+        g_perf.efb_live_changes++;
+#endif
         efb_live_gx = 0;
         efb_live_saved = 0;
     }
@@ -590,7 +596,14 @@ static int efb_sync(int x, int y, int w, int h)
         return 0;
     efb_mini.valid = 0;
     if (need_live && efb_capture_rect(nx0 * EFB_TILE, ny0 * EFB_TILE, nx1 * EFB_TILE, ny1 * EFB_TILE))
-        ;
+    {
+#ifdef PERF_PROF
+        /* probe: who asked for each partial capture, and how big the read was (efbmini:) */
+        int a = w * h;
+        g_perf.efb_mini_by[efb_sync_from & 7]++;
+        g_perf.efb_mini_area[a <= 4 ? 0 : a <= 16 ? 1 : a <= 64 ? 2 : a <= 256 ? 3 : a <= 4096 ? 4 : 5]++;
+#endif
+    }
     else if (need_live)
     {
         PERF_TIME(efb_cap_ticks, efb_capture_live(1));
@@ -748,7 +761,16 @@ static void efb_sync_texture(void)
         y0 += v0;
     }
     efb_sync_from = 7;
+#ifdef PERF_PROF
+    {   /* probe: the texture mode of the reads that needed a partial capture (efbmini: mode) */
+        uint32_t before = g_perf.efb_mini_by[7];
+        efb_sync(x0, y0, x1 - x0, y1 - y0);
+        if (g_perf.efb_mini_by[7] != before)
+            g_perf.efb_mini_mode[GlobalTextTP & 3]++;
+    }
+#else
     efb_sync(x0, y0, x1 - x0, y1 - y0);
+#endif
     efb_sync_from = 0;
 }
 

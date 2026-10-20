@@ -1010,6 +1010,15 @@ void perf_vblank_tick(void)
 			perf_xfb_write(path);
 		}
 	}
+	{
+		extern unsigned autoinput_report_vbl[64];
+		extern int autoinput_report_n;
+		static int report_next;
+		while (report_next < autoinput_report_n && frame_counter >= autoinput_report_vbl[report_next]) {
+			report_next++;
+			perf_report();
+		}
+	}
 	if (!g_perf.vram_dumped && autoinput_dump_vbl && frame_counter >= autoinput_dump_vbl) {
 		g_perf.vram_dumped = 1;
 		perf_vram_dump();
@@ -1671,6 +1680,21 @@ void perf_report(void)
 				(unsigned long)g_perf.efb_cap_by[4], (unsigned long)g_perf.efb_cap_by[5],
 				(unsigned long)g_perf.efb_cap_by[6], (unsigned long)g_perf.efb_cap_by[7],
 				(unsigned long)g_perf.efb_mini_calls);
+			fprintf(f, "efblive: x=%d y=%d w=%d h=%d drawy=%d-%d switches=%lu\n",
+				g_perf.efb_live_geom[0], g_perf.efb_live_geom[1], g_perf.efb_live_geom[2],
+				g_perf.efb_live_geom[3], g_perf.efb_live_geom[4], g_perf.efb_live_geom[5],
+				(unsigned long)g_perf.efb_live_changes);
+			fprintf(f, "efbmini: other=%lu read=%lu offsoft=%lu ext=%lu presupl=%lu c0=%lu move=%lu tex=%lu | area<=4=%lu <=16=%lu <=64=%lu <=256=%lu <=4096=%lu more=%lu\n",
+				(unsigned long)g_perf.efb_mini_by[0], (unsigned long)g_perf.efb_mini_by[1],
+				(unsigned long)g_perf.efb_mini_by[2], (unsigned long)g_perf.efb_mini_by[3],
+				(unsigned long)g_perf.efb_mini_by[4], (unsigned long)g_perf.efb_mini_by[5],
+				(unsigned long)g_perf.efb_mini_by[6], (unsigned long)g_perf.efb_mini_by[7],
+				(unsigned long)g_perf.efb_mini_area[0], (unsigned long)g_perf.efb_mini_area[1],
+				(unsigned long)g_perf.efb_mini_area[2], (unsigned long)g_perf.efb_mini_area[3],
+				(unsigned long)g_perf.efb_mini_area[4], (unsigned long)g_perf.efb_mini_area[5]);
+			fprintf(f, "efbminimode: 4bit=%lu 8bit=%lu 15bit=%lu mode3=%lu\n",
+				(unsigned long)g_perf.efb_mini_mode[0], (unsigned long)g_perf.efb_mini_mode[1],
+				(unsigned long)g_perf.efb_mini_mode[2], (unsigned long)g_perf.efb_mini_mode[3]);
 		{   /* the ten GP0 commands that took longest, any GPU plugin: cmd=us/calls */
 			int c, k, best, used[128] = { 0 };
 			fprintf(f, "gpucmd:");

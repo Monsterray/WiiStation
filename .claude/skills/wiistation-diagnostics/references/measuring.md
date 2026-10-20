@@ -150,6 +150,14 @@ after changing anything a state holds.
 | `wsx.sh table NAME --detail upl` | screen re-uploads asked for and done, and which early return skipped the rest |
 | `wsx.sh compare A B [--detail G]` | two chains game by game: A, B, B - A |
 | `wsx.sh compare A [--detail G]` | one A/B chain: each on/off pair |
+| `scripts/perf_windows.py perf.log --slow A-B,...` | what a game does more of when it is slow: `report <vblank>` lines in the input script put a perf report at each edge of the stretches `vtl_view.py` lists (counters are cumulative, so two reports bracket a window); it ranks time counters by difference and event counters by ratio, slow windows against the rest. Found Tiger Temple's cause in one bench run (2026-10-20: 44 partial EFB captures and 64 DrawDones per vblank when slow, 9 and 12 otherwise) |
+
+Frame proof between two builds: Dolphin's dump numbering can differ by one between DOLs
+(5167.. vs 5168..) while the presents are the same (`efbloss: pres: total=`), and `wsx.sh frames`
+then reported every frame different (2026-10-20); pair the kept frames by position and check
+offsets -1/0/+1 before believing a whole-frame difference. The debug
+overlay's memory line (x 37-328, y 61-71 in an 824x480 dump) and the run's last frame differ
+between any two builds.
 | `wsx.sh frames A B [--crop out.png]` | two runs' frame dumps pixel by pixel, overlay masked |
 | `wsx.sh audio A B` | two runs' audio dumps sample by sample |
 

@@ -1,0 +1,5 @@
+CHAIN
+# Tiger Temple full race, deep+pmc probes (GPU split, GTE, SPU, Broadway counters): diagnosis 2026-10-20
+14760 sd:/wiistation/tiger_temple_diag_play.txt PadAutoAssign=1 ControllerType=0 PadType2=1 gpuPlugin=2
+sd:/wiistation/isos/Crash Team Racing
+Crash Team Racing [U] [SCUS-94426].cue
