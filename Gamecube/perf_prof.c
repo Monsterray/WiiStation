@@ -1158,6 +1158,30 @@ void perf_report(void)
 				lightrec_code_bytes, lightrec_code_sum, lightrec_code_shape,
 				lightrec_code_cleans, lightrec_code_fails, lightrec_code_reruns);
 		}
+		{   /* the background compiler (deps/lightrec/lightrec.c jitq): stall_us is the
+		     * emulator's wait at install points (also in jit:), thread_us the thread's work;
+		     * realfull = allocations that failed with room left by the count (not
+		     * guest-predictable: should stay 0) */
+			extern unsigned int lightrec_jitq_delay, lightrec_jitq_queue_at;
+			extern unsigned int lightrec_jitq_queued, lightrec_jitq_installed, lightrec_jitq_stalls,
+				lightrec_jitq_cancels, lightrec_jitq_errs, lightrec_jitq_stale, lightrec_jitq_full,
+				lightrec_jitq_pend_peak, lightrec_jitq_realfull, lightrec_code_fits;
+			extern unsigned long long lightrec_jitq_stall_ticks, lightrec_jitq_thread_ticks;
+			fprintf(f, "jitq: delay=%u queue_at=%u queued=%u installed=%u stalls=%u stall_us=%llu "
+				"thread_us=%llu cancels=%u errs=%u stale=%u full=%u pend_peak=%u realfull=%u fits=%u\n",
+				lightrec_jitq_delay, lightrec_jitq_queue_at, lightrec_jitq_queued,
+				lightrec_jitq_installed, lightrec_jitq_stalls,
+				(unsigned long long)ticks_to_microsecs(lightrec_jitq_stall_ticks),
+				(unsigned long long)ticks_to_microsecs(lightrec_jitq_thread_ticks),
+				lightrec_jitq_cancels, lightrec_jitq_errs, lightrec_jitq_stale, lightrec_jitq_full,
+				lightrec_jitq_pend_peak, lightrec_jitq_realfull, lightrec_code_fits);
+		}
+		{   /* the code buffer when the last clean began (deps/lightrec/lightrec.c) */
+			extern unsigned int lightrec_full_free, lightrec_full_pieces, lightrec_full_largest,
+				lightrec_full_ask;
+			fprintf(f, "jitfull: free=%u pieces=%u largest=%u ask=%u\n", lightrec_full_free,
+				lightrec_full_pieces, lightrec_full_largest, lightrec_full_ask);
+		}
 #if PERF_PROF_HPROF
 		hprof_report(f);
 #endif

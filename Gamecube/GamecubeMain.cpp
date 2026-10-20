@@ -137,6 +137,7 @@ char soundXaResampler;      // dfsound/xa.c: real hardware zigzag FIR vs the leg
 char soundRateControl;      // dfsound/ratectl.c: nudge the output rate from the queue's occupancy
 char soundResampler;        // read by dfsound/resample.c on every block it converts
 char gpuTiming, cpuTiming, limiterWait, limiterDebt, sioTiming;
+char jitDelay, jitQueueAt, jitThreadTest;
 char cpuSpeed;   /* CpuSpeed: r3000a.c psxCycleMult */
 char frameRateMode;   /* FrameRate: 0 Auto, 1 TV, 2 PS1, 3 Unlimited (no frame limit). psxcounters.c, oldGpuFps.c */
 char cdBuffer, cdPrefetch, cdChdHunks;   // read by cdriso.c when an image is opened
@@ -319,6 +320,10 @@ static SettingOption OPTIONS[] =
   { "CdPrefetch", &cdPrefetch, CD_PREFETCH_OFF, CD_PREFETCH_ON, NULL, "CD Read-Ahead", OPT_OFF_ON, "A thread reads (and unpacks .pbp/.cbn/.chd) the next sectors early, while the game waits for the next frame." },
   { "CdChdHunks", &cdChdHunks, CD_CHD_HUNKS_2, CD_CHD_HUNKS_8, NULL, "CHD Hunk Cache", OPT_CD_HUNKS, "Decoded CHD hunks kept in memory. 8 is best." },
   { "LimiterWait", &limiterWait, LIMITER_WAIT_SPIN, LIMITER_WAIT_SLEEP },
+  /* Lightrec's background compiler (deps/lightrec/lightrec.c jitq): not in the menu */
+  { "JitDelay", &jitDelay, 0, 127 },
+  { "JitQueueAt", &jitQueueAt, 1, 2 },
+  { "JitThreadTest", &jitThreadTest, 0, 100 },
   { "LimiterDebt", &limiterDebt, LIMITER_DEBT_SHORT, LIMITER_DEBT_LONG },
   /* The locked cache: one bit per region in Gamecube/lc.c's table, 0 = all off. Not in the
    * menu -- it is for measuring, and a chained autoboot can set it per game. */
@@ -705,6 +710,9 @@ void loadSettings(int argc, char *argv[])
 	cpuSpeed         = CPU_SPEED_AUTO;
 	frameRateMode    = FRAMERATE_AUTO;
 	sioTiming        = SIO_TIMING_FAST;   /* the same: Accurate is three times as long per pad byte */
+	jitDelay         = 16;  /* deps/lightrec jitq: bench Wii 2026-10-19, Spyro spike 107 -> 7 ms lost (Docs/BACKENDS.md) */
+	jitQueueAt       = 2;
+	jitThreadTest    = 0;
 	limiterWait      = LIMITER_WAIT_SLEEP; /* bench Wii 2026-09-30: same speed, 54% of the time to other threads */
 	limiterDebt      = LIMITER_DEBT_LONG;  /* chains/limiter_debt_ab.txt: speed 1.000 vs 0.995, sound queue fuller, no rate saturation */
 	cdChdHunks       = CD_CHD_HUNKS_8;

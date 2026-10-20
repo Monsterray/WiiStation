@@ -155,6 +155,16 @@ LATER UPDATES BY:
  * Monty Perrotti (WiiStation)
 
 WiiStation CHANGE LOG:
+Unreleased:
+* Lightrec compiles new code on a background thread while the game runs it in
+  the interpreter, so a level that loads a lot of new code stutters less
+  (Spyro's whirlwind elevator: 107 ms lost on the bench Wii before, 7 ms now;
+  the time the emulator spends compiling: 1.41 s before, 0.53 s now). The switch
+  to compiled code happens at a fixed point in the game's own run, so a game
+  and a recording replay exactly the same every time. Recordings made with
+  earlier versions can drift in some games (Crash Bandicoot 3); hidden setting
+  JitDelay=0 restores the old timing.
+
 Ver 5.16.0 (2026-10-20):
 * USB controllers: every button, hat and axis can be used. A USB gamepad with
   no controller ini now works: WiiStation reads its HID report descriptor and

@@ -163,7 +163,7 @@ void lightrec_emit_jump_to_interpreter(struct lightrec_cstate *state,
 	lightrec_load_next_pc_imm(reg_cache, _jit, block->pc,
 				  block->pc + (offset << 2));
 
-	jit_movi(JIT_V1, (uintptr_t)block);
+	jit_movi(JIT_V1, (uintptr_t)state->live_block);
 
 	jit_subi(LIGHTREC_REG_CYCLE, LIGHTREC_REG_CYCLE, state->cycles);
 	lightrec_jump_to_fn(_jit, state->state->interpreter_func);
