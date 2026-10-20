@@ -1,5 +1,5 @@
 README : WiiStation
-Version 5.15.0
+Version 5.16.0
 
 LICENSE:
     This software is licensed under the GNU General Public License v2
@@ -155,7 +155,7 @@ LATER UPDATES BY:
  * Monty Perrotti (WiiStation)
 
 WiiStation CHANGE LOG:
-Unreleased:
+Ver 5.16.0 (2026-10-20):
 * USB controllers: every button, hat and axis can be used. A USB gamepad with
   no controller ini now works: WiiStation reads its HID report descriptor and
   lays it out as a standard pad (buttons 1-4 Square Cross Circle Triangle, 5-8
