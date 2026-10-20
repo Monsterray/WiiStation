@@ -423,3 +423,20 @@ runs)
 	sed -n '2,24p' "$0" | sed 's/^# \{0,1\}//'
 	;;
 esac
+
+# Housekeeping after a run or a chain (user, 2026-10-19: .runs reached 58 GB): past
+# WSX_RUNS_MAX_GB (default 15) thin old runs with runs_prune.py (every run keeps its text;
+# landmarks in .runs/LANDMARKS.txt and the last 2 days stay whole) and remove orphaned Dolphin
+# profiles. Not inside a chain's own runs; WSX_RUNS_MAX_GB=0 turns it off.
+case "$cmd" in
+run|chain)
+	if [ -z "${WSX_TRIAGE_DEFER:-}" ] && [ "${WSX_RUNS_MAX_GB:-15}" != 0 ] && [ -d "$REPO/.runs" ]; then
+		mb=$(du -sm "$REPO/.runs" 2>/dev/null | cut -f1)
+		if [ "${mb:-0}" -gt $(( ${WSX_RUNS_MAX_GB:-15} * 1024 )) ]; then
+			echo "housekeeping: .runs is ${mb} MB (over ${WSX_RUNS_MAX_GB:-15} GB): thinning old runs"
+			"$PYTHON" "$REPO/scripts/runs_prune.py" --apply | tail -1
+			bash "$REPO/scripts/profile.sh" gc >/dev/null 2>&1
+		fi
+	fi
+	;;
+esac
