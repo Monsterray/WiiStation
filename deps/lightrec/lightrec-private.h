@@ -84,6 +84,7 @@
 #define BLOCK_IS_MEMSET		BIT(4)
 #define BLOCK_NO_OPCODE_LIST	BIT(5)
 #define BLOCK_PRELOAD_PC	BIT(6)
+#define BLOCK_SEEN		BIT(7)	/* WiiStation: interpreted once (lightrec.c jitq) */
 
 #define RAM_SIZE	0x200000
 #define BIOS_SIZE	0x80000
@@ -119,6 +120,7 @@ struct block {
 	void (*function)(void);
 	const u32 *code;
 	struct block *next;
+	struct jitq_job *job;	/* WiiStation: its compile on the jitq thread (lightrec.c) */
 	u32 pc;
 	u32 hash;
 	u32 precompile_date;
@@ -163,6 +165,9 @@ struct lightrec_cstate {
 	struct regcache *reg_cache;
 
 	_Bool no_load_delay;
+
+	/* WiiStation: the block the code is for; jitq compiles a copy of it */
+	struct block *live_block;
 };
 
 struct lightrec_state {

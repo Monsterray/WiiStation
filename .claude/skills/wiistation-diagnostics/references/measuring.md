@@ -212,6 +212,19 @@ any number against the table or the log before acting on it.
   change with `vsig_cmp.py` on `replay3.txt`: ram/cycle/pc must stay the same; `jitb`
   (blocks compiled) may differ. A JIT stall in `vtl_view.py` is new code compiled in the
   frame that first runs it; look at `--around V` before planning to move the compiles.
+  Since jitq (the background compiler, `JitDelay`, Docs/BACKENDS.md) the vtl `jit` column is
+  the emulator's share only: decoding, compiles it does itself and its waits for the thread
+  (perf.log `jitq: stall_us=`); the thread's work is `thread_us`. Prove that a jitq change
+  is predictable with two runs of the same build and `--set JitThreadTest=5` on one (the
+  thread sleeps 5 ms per compile): `vsig_cmp.py` must say "the same" for every vblank,
+  jitb included (replay3 + spyro_tornado, Dolphin 2026-10-19). `JitDelay=0` is the old
+  timing (vsig identical to the build before jitq). Chain lines can A/B it per game.
+  Trap found on the way: a recompile request (a newly tagged access) that arrives while a
+  block waits for its install must re-arm the block's LUT entry after the install, or the
+  block keeps its slow generic accesses for good (Dolphin: a quarter more core time).
+  Lightning's estimate (`jit_get_size`) is about 3 times the code; reserving code memory
+  from it per pending compile cut the 2 MB buffer into pieces too small to use (a clean
+  with 685 KB free in 1824 pieces): perf.log `jitfull:` shows the buffer at the last clean.
   Dolphin trap: a run that dies in the HBC agent's crash path can fill `dolphin.log` with
   MMU warnings (38 GB in 40 min, `.runs/NAME/dolphin.log`); a perf.log with only its header
   and no `fatal:` line is the sign. Keep `--secs` short for a build that may crash.

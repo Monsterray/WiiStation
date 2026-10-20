@@ -163,6 +163,9 @@ enum cpuTiming
 	CPU_TIMING_FAST=0,      /* as before: every instruction costs the same */
 	CPU_TIMING_ACCURATE     /* plus the cycles a PS1 waits for its GTE and its mult/div unit */
 };
+extern char jitDelay;            /* deps/lightrec jitq: visits before compiled code runs, 0 = compile at once */
+extern char jitQueueAt;
+extern char jitThreadTest;       /* test only: the jitq thread sleeps this many ms before each compile */          /* deps/lightrec jitq: interpreted visits before the compile is queued */
 extern char limiterWait;         /* how the frame limiter waits (SoftGPU/oldGpuFps.c FrameCap) */
 enum limiterWait
 {
