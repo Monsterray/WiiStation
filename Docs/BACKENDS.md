@@ -87,6 +87,23 @@ The core is synced to a7464cc since 5.2.0 (merge 87d77c4). WiiStation's own chan
   adapter resets `current_cycle` (1/1024 cycles) every slice, so the old 1<<27 test freed
   blocks at random. A recompile clears the block's LUT range before freeing the old code.
   Counters: perf.log `jitcode: cleans= fails= reruns=` and the per-vblank signature (VSG2).
+Compiling ahead (try/jit-ahead, 2026-10-19; not adopted). The Spyro elevator spike
+(`scripts/chains/spyro_tornado.txt`, vblanks 2730-2735) is about 245 ms of compiling code that
+first runs in those same frames (vblank 2731: 136 ms compiling, 10 ms running): there is no
+idle time before it, so nothing done "ahead" can hide it without interpreting the new code.
+- Lightrec's interpreter is not cycle-exact with its compiled code. Interpreting a block on
+  its first 31 visits instead of its first only moved Crash 3 by one cycle at vblank 1
+  (`replay3.txt`). The guest stays the same only if every block runs interpreted on its first
+  visit and compiled from the second, as now.
+- The threaded compiler (`ENABLE_THREADED_COMPILER 1`, libogc v3 pthreads, lowest priority)
+  stopped about 30 s into every Dolphin run (the HBC agent's crash path; not root-caused). It
+  also interprets until the thread finishes, which the point above rules out for replays.
+- Compiling in the frame limiter's sleep between a block's first and second visit (guest
+  identical: same vsig in all 3 games of replay3 + spyro_tornado, same ps1-tests output):
+  on the bench Wii, compiling on the emulator's time 1.45 -> 1.31 s, but the spike was
+  unchanged and slow vblanks went 13 -> 17 (510-512: 21 -> 40 ms lost).
+The lever left is the cost of a compile (about 0.2 ms a block: `jit:`, `jitparts:`).
+
 Check an update with `scripts/chains/ps1tests.txt` + `scripts/ps1tests_check.py` (same lines
 as before) and with the recordings (`scripts/chains/replay3.txt`, `replay_rest.txt`).
 
