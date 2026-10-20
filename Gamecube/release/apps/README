@@ -183,6 +183,12 @@ Unreleased:
 * GPU Timing Accurate: with Soft Mode Accurate or Hi-Fi, the GPU stays busy as
   long as each draw takes on a PS1, and image transfers by DMA take PS1 time.
   GPUSTAT bit 28 (ready for a DMA block) is clear while the GPU is busy.
+* Filter Tour: no more Deflicker and Trap steps. It now steps through the
+  texture filter, Soft Mode and GPU Timing on the soft renderers, and the
+  texture filter, GPU Timing, Far Textures and GX Color on OpenGX, each alone
+  and then in a few combinations (7 or 10 steps, 4 s each; in 240p no
+  Bilinear steps, and OpenGX adds AA). Far Textures and GX Color change at
+  once during the tour instead of at the next game start.
 * Test runs: a chain runs up to 64 games (was 24), and its VRAM dumps are
   taken in the game (ChainDump picks the moment; OpenGX syncs first).
 

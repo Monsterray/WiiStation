@@ -925,8 +925,11 @@ extern char gxTexMin;
 static void ogx_texq(GXTexObj *o)
 {
     static const u8 aniso[4] = { GX_ANISO_1, GX_ANISO_1, GX_ANISO_2, GX_ANISO_4 };
-    if (!gxTexMin)
+    if (!gxTexMin) {   /* Off after a Filter Tour step: no anisotropic taps left on a texture */
+        GX_InitTexObjMaxAniso(o, GX_ANISO_1);
+        GX_InitTexObjEdgeLOD(o, GX_FALSE);
         return;
+    }
     GX_InitTexObjLOD(o, gxTexMin > 1 ? GX_LIN_MIP_LIN : GX_LINEAR,
                      (originalMode == ORIGINALMODE_ENABLE || bilinearFilter == BILINEARFILTER_NEAR) ? GX_NEAR : GX_LINEAR,
                      0, 0, 0, GX_FALSE, gxTexMin > 1 ? GX_TRUE : GX_FALSE, aniso[gxTexMin & 3]);

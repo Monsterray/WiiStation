@@ -149,35 +149,71 @@ static void applyTexFilter(void)
 	}
 }
 
-/* Each filter alone, then the combinations of two or three. defl -1 is Deflicker off. */
-struct TourStep { signed char tex, defl, trap; };	/* signed: char is unsigned on the PowerPC */
+/* GxColor 2 (Docs/GX_QUALITY.md): OpenGX draws into a multisampled RGB565 EFB, which GX allows
+ * up to 264 lines: the 240p modes only. The copy filter averages the three samples of a pixel
+ * (taps 2-4) and keeps the mode's own no-filter taps. switchToTVMode and the Filter Tour. */
+static void gxSetAa(GXRModeObj *m, bool game)
+{
+	m->aa = game && gpuPlugin == OPEN_GX && gxColor == 2 && m->efbHeight <= 264;
+	if (m->aa) {
+		static const u8 aaPattern[12][2] = { {3,2},{9,6},{3,10}, {3,2},{9,6},{3,10},
+		                                     {9,2},{3,6},{9,10}, {9,2},{3,6},{9,10} };
+		memcpy(m->sample_pattern, aaPattern, sizeof aaPattern);
+	}
+}
+
+/* The game runs in 240p on a mode that can take GxColor 2 */
+static bool tourAa240p(void)
+{
+	return originalMode == ORIGINALMODE_ENABLE && g_tv_mode == &TVMODE_240p && g_tv_mode->efbHeight <= 264;
+}
+
+/* Each setting alone, then a few combinations. on: the renderers a step is for. A step that
+ * would change nothing is skipped: Bilinear in 240p (every renderer draws Near there), AA
+ * outside it. The first step, the base, fits everywhere.
+ * soft: SoftGpuMode, gpu: GpuTiming, far: GxTexMin, gxc: GxColor. */
+enum { T_SOFT = 1, T_GX = 2 };
+#define N BILINEARFILTER_NEAR
+#define B BILINEARFILTER_ENABLE
+struct TourStep { signed char tex, soft, gpu, far, gxc, on; };	/* signed: char is unsigned on the PowerPC */
 static const TourStep TOUR[] = {
-	{ BILINEARFILTER_NEAR,   -1, 0 },
-	{ BILINEARFILTER_ENABLE, -1, 0 },
-	{ BILINEARFILTER_NEAR,   DEFLICKERLEVEL_LIGHT,  0 },
-	{ BILINEARFILTER_NEAR,   DEFLICKERLEVEL_NORMAL, 0 },
-	{ BILINEARFILTER_NEAR,   DEFLICKERLEVEL_STRONG, 0 },
-	{ BILINEARFILTER_NEAR,   -1, 1 },
-	{ BILINEARFILTER_ENABLE, DEFLICKERLEVEL_LIGHT,  0 },
-	{ BILINEARFILTER_ENABLE, DEFLICKERLEVEL_NORMAL, 0 },
-	{ BILINEARFILTER_ENABLE, DEFLICKERLEVEL_STRONG, 0 },
-	{ BILINEARFILTER_ENABLE, -1, 1 },
-	{ BILINEARFILTER_NEAR,   DEFLICKERLEVEL_LIGHT,  1 },
-	{ BILINEARFILTER_NEAR,   DEFLICKERLEVEL_NORMAL, 1 },
-	{ BILINEARFILTER_NEAR,   DEFLICKERLEVEL_STRONG, 1 },
-	{ BILINEARFILTER_ENABLE, DEFLICKERLEVEL_LIGHT,  1 },
-	{ BILINEARFILTER_ENABLE, DEFLICKERLEVEL_NORMAL, 1 },
-	{ BILINEARFILTER_ENABLE, DEFLICKERLEVEL_STRONG, 1 },
+	{ N, 0, 0, 0, 0, T_SOFT | T_GX },
+	{ B, 0, 0, 0, 0, T_SOFT | T_GX },
+	{ N, 0, 1, 0, 0, T_SOFT | T_GX },
+	{ N, 1, 0, 0, 0, T_SOFT },
+	{ N, 2, 0, 0, 0, T_SOFT },
+	{ B, 1, 0, 0, 0, T_SOFT },
+	{ N, 1, 1, 0, 0, T_SOFT },
+	{ N, 0, 0, 1, 0, T_GX },
+	{ N, 0, 0, 2, 0, T_GX },
+	{ N, 0, 0, 3, 0, T_GX },
+	{ N, 0, 0, 0, 1, T_GX },
+	{ N, 0, 0, 0, 2, T_GX },
+	{ B, 0, 0, 3, 0, T_GX },
+	{ N, 0, 0, 3, 1, T_GX },
+	{ B, 0, 0, 3, 1, T_GX },
+	{ N, 0, 0, 3, 2, T_GX },
 };
+#undef N
+#undef B
 #define TOUR_STEPS ((int)(sizeof(TOUR) / sizeof(TOUR[0])))
+
+static bool tourFits(const TourStep &t)
+{
+	return (t.on & (gpuPlugin == OPEN_GX ? T_GX : T_SOFT))
+	    && (t.tex == BILINEARFILTER_NEAR || originalMode != ORIGINALMODE_ENABLE)
+	    && (t.gxc != 2 || tourAa240p());
+}
 
 /* Vblanks per step: 4 s at 60 Hz. autoinput.txt "filtertour <seconds>" sets it (PadWiiSX.c). */
 extern "C" { unsigned filterTourVbl = 240; }
+extern "C" char softGpuMode, gxTexMin;	/* GamecubeMain.cpp */
 static bool tourOn;
 static int tourStep;
 static u32 tourAt;
-static char tourSaved[5];		/* the player's Bilinear, Deflicker, Deflicker Level, Trap, FPS */
+static char tourSaved[6];		/* the player's Bilinear, Soft Mode, GPU Timing, Far Textures, GX Color, FPS */
 static char tourText[80];
+static signed char tourGxColor = -1;	/* a GX Color waiting for the next copy to the XFB, or -1 */
 
 /* The game starts or resumes (go()). The text is drawn with the FPS counter, so that is on. */
 extern "C" void filterTourStart(void)
@@ -185,52 +221,97 @@ extern "C" void filterTourStart(void)
 	if (!filterTour || tourOn)
 		return;
 	tourSaved[0] = bilinearFilter;
-	tourSaved[1] = deflickerFilter;
-	tourSaved[2] = deflickerLevel;
-	tourSaved[3] = trapFilter;
-	tourSaved[4] = showFPSonScreen;
+	tourSaved[1] = softGpuMode;
+	tourSaved[2] = gpuTiming;
+	tourSaved[3] = gxTexMin;
+	tourSaved[4] = gxColor;
+	tourSaved[5] = showFPSonScreen;
 	showFPSonScreen = FPS_SHOW;
 	tourStep = -1;
 	tourOn = true;
 }
 
-/* The game stops: the player's values come back before the menu shows or saves them. */
+/* The game stops: the player's values come back before the menu shows or saves them. The EFB
+ * format follows when the game resumes (MainFrame, switchToTVMode in 240p). */
 extern "C" void filterTourStop(void)
 {
 	if (!tourOn)
 		return;
 	tourOn = false;
+	tourGxColor = -1;
 	bilinearFilter  = tourSaved[0];
-	deflickerFilter = tourSaved[1];
-	deflickerLevel  = tourSaved[2];
-	trapFilter      = tourSaved[3];
-	showFPSonScreen = tourSaved[4];
-	VIDEO_SetTrapFilter(trapFilter);
+	softGpuMode     = tourSaved[1];
+	gpuTiming       = tourSaved[2];
+	gxTexMin        = tourSaved[3];
+	gxColor         = tourSaved[4];
+	showFPSonScreen = tourSaved[5];
+	if (g_tv_mode == &TVMODE_240p)
+		gxSetAa(g_tv_mode, tourAa240p());
 	applyTexFilter();
 	applyCopyFilter();
 }
 
+/* OpenGX queued the copy of its frame to the XFB (gx_vout_render, SoftGPU/drawGX.c): the
+ * point between frames for a new EFB format. Pixels left in the EFB would be read in the other
+ * format, so a copy that kept them is made again with the clear (the same picture, the EFB
+ * cleared), as a present that clears does, and the EFB no longer mirrors the uploaded screen
+ * (GlesGpu MIRROR_OFF(2)): a game that draws over the whole screen, or uploads it, shows
+ * nothing wrong; one that redraws only a part has the rest black for that frame, as after
+ * the menu. Then the copy filter for the mode. */
+extern "C" int ogx_efb_mirror;	/* deps/opengx/gc_gl.c */
+extern "C" void filterTourCopied(u32 *xfbBack, int cleared)
+{
+	if (tourGxColor < 0)
+		return;
+	if (!cleared)
+		GX_CopyDisp(xfbBack, GX_TRUE);
+	ogx_efb_mirror = 0;
+	gxColor = tourGxColor;
+	tourGxColor = -1;
+	if (g_tv_mode == &TVMODE_240p)
+		gxSetAa(g_tv_mode, tourAa240p());
+	gxApplyEfbFormat(1);	/* dither off: GxDitherPrim's cache may be stale until a prim changes it */
+	applyCopyFilter();
+}
+
 /* Once per present, from showFpsAndDebugInfo (SoftGPU/drawGX.c), before the copy to the XFB:
- * the next step when its time is up, then its names under the FPS counter, in bold. */
+ * the next step when its time is up, then its names under the FPS counter, in bold. Soft Mode
+ * and GPU Timing are read live; Bilinear and Far Textures go on OpenGX's textures now (each
+ * one loaded again at its next bind); GX Color waits for filterTourCopied. */
 extern "C" void filterTourDraw(void)
 {
-	static const char *const defl[] = { "Normal", "Light", "Strong" };
+	static const char *const soft[] = { "Accurate", "Hi-Fi", "Fast" };
+	static const char *const far[] = { "Off", "Linear", "Aniso 2x", "Aniso 4x" };
+	static const char *const gxc[] = { "24-bit", "6-bit dither", "AA" };
 	if (!tourOn)
 		return;
 	if (tourStep < 0 || frame_counter - tourAt >= filterTourVbl) {	/* a reset counter steps on */
-		const TourStep &t = TOUR[tourStep = (tourStep + 1) % TOUR_STEPS];
+		int i, num = 0, total = 0, ogx = gpuPlugin == OPEN_GX;
+		do
+			tourStep = (tourStep + 1) % TOUR_STEPS;
+		while (!tourFits(TOUR[tourStep]));		/* the first step fits every renderer */
+		for (i = 0; i < TOUR_STEPS; i++)
+			if (tourFits(TOUR[i])) {
+				total++;
+				num += i <= tourStep;
+			}
+		const TourStep &t = TOUR[tourStep];
 		tourAt = frame_counter;
 		bilinearFilter = t.tex;
-		deflickerFilter = t.defl >= 0;
-		if (t.defl >= 0)
-			deflickerLevel = t.defl;
-		trapFilter = t.trap;
-		VIDEO_SetTrapFilter(trapFilter);
+		softGpuMode = t.soft;
+		gpuTiming = t.gpu ? GPU_TIMING_ACCURATE : GPU_TIMING_FAST;
+		gxTexMin = t.far;
 		applyTexFilter();
-		applyCopyFilter();
-		snprintf(tourText, sizeof tourText, "Tour %d/%d: %s, Deflicker %s, Trap %s", tourStep + 1, TOUR_STEPS,
-			t.tex == BILINEARFILTER_NEAR ? "Near" : "Bilinear", t.defl < 0 ? "Off" : defl[(int)t.defl],
-			t.trap ? "On" : "Off");
+		if (ogx && t.gxc != gxColor)
+			tourGxColor = t.gxc;
+		int n = snprintf(tourText, sizeof tourText, "Tour %d/%d: %s", num, total,
+		                 t.tex == BILINEARFILTER_NEAR ? "Near" : "Bilinear");
+		if (ogx)
+			snprintf(tourText + n, sizeof tourText - n, ", Far %s, %s%s", far[(int)t.far], gxc[(int)t.gxc],
+			         t.gpu ? ", GPU Accurate" : "");
+		else
+			snprintf(tourText + n, sizeof tourText - n, ", Soft %s%s", soft[(int)t.soft],
+			         t.gpu ? ", GPU Accurate" : "");
 	}
 	IplFont_drawInit((GXColor){ 255, 255, 120, 255 });
 	IplFont_drawString(10, 60, tourText, 1.0, false);
@@ -319,15 +400,7 @@ extern "C" void switchToTVMode(short dWidth, short dHeight, bool retMenu){
 		rmode->fbWidth = dWidth;
 		width = rmode->fbWidth;
 
-		/* GxColor 2 (Docs/GX_QUALITY.md): OpenGX draws into a multisampled RGB565 EFB, which
-		 * GX allows up to 264 lines: the 240p modes only. The copy filter averages the three
-		 * samples of a pixel (taps 2-4) and keeps the mode's own no-filter taps. */
-		rmode->aa = !retMenu && gpuPlugin == OPEN_GX && gxColor == 2 && dHeight <= 264;
-		if (rmode->aa) {
-			static const u8 aaPattern[12][2] = { {3,2},{9,6},{3,10}, {3,2},{9,6},{3,10},
-			                                     {9,2},{3,6},{9,10}, {9,2},{3,6},{9,10} };
-			memcpy(rmode->sample_pattern, aaPattern, sizeof aaPattern);
-		}
+		gxSetAa(rmode, !retMenu);	/* GxColor 2 */
 	}
 
 	GX_SetCopyFilter(rmode->aa,rmode->sample_pattern,(deflickerFilter)?GX_TRUE:GX_FALSE,videoCopyTaps(rmode->vfilter));

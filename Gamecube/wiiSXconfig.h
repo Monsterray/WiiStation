@@ -535,8 +535,9 @@ enum deflickerLevel
 	DEFLICKERLEVEL_STRONG
 };
 
-/* Filter Tour: while a game runs, step through the filters (texture filter, deflicker, trap)
- * and their combinations every few seconds, the current ones written under the FPS counter.
+/* Filter Tour: while a game runs, step through the picture settings that apply to the renderer
+ * (texture filter, Soft Mode, GPU Timing, Far Textures, GX Color) alone and in a few
+ * combinations every few seconds, the current ones written under the FPS counter.
  * The player's own values come back when the game stops (GraphicsGX.cpp filterTour*). */
 extern char filterTour;
 
