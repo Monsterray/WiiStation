@@ -585,7 +585,8 @@ void Graphics::init()
 	GX_SetViewport(0,0,vmode->fbWidth,vmode->efbHeight,0,1);
 	GX_SetDispCopySrc(0,0,vmode->fbWidth,vmode->efbHeight);   /* before the scale: see switchToTVMode */
 	yscale = GX_GetYScaleFactor(vmode->efbHeight,vmode->xfbHeight);
-	xfbHeight = GX_SetDispCopyYScale(yscale);
+	GX_SetDispCopyYScale(yscale);
+	xfbHeight = vmode->xfbHeight;   /* not the return value: libogc v3.1.0 gets it wrong (see switchToTVMode) */
 	GX_SetScissor(0,0,vmode->fbWidth,vmode->efbHeight);
 	GX_SetDispCopyDst(vmode->fbWidth,xfbHeight);
 	GX_SetCopyFilter(vmode->aa,vmode->sample_pattern,GX_TRUE,vmode->vfilter);

@@ -1831,9 +1831,9 @@ void RestoreDispCopyInfo(void)
     GXRModeObj *m = g_tv_mode ? g_tv_mode : vmode;
     GX_SetDispCopySrc(0,0,m->fbWidth,m->efbHeight);
     float yscale = GX_GetYScaleFactor(m->efbHeight,m->xfbHeight);
-    int xfbHeight = GX_SetDispCopyYScale(yscale);
+    GX_SetDispCopyYScale(yscale);   /* its return value is wrong in libogc v3.1.0 (GraphicsGX.cpp switchToTVMode) */
     GX_SetScissor(0,0,m->fbWidth,m->efbHeight);
-    GX_SetDispCopyDst(VIDEO_PadFramebufferWidth(m->fbWidth),xfbHeight);
+    GX_SetDispCopyDst(VIDEO_PadFramebufferWidth(m->fbWidth),m->xfbHeight);
     // Honour the user's Deflicker setting rather than forcing it on: this runs
     // after every EFB snapshot capture in the VRAM-readback path, i.e. during
     // gameplay, so hardcoding GX_TRUE here silently re-enabled deflicker on
