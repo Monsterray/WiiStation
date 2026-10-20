@@ -309,28 +309,6 @@ static int efb_capture_live(int wait)
     return 1;
 }
 
-/* One PSX pixel from a snapshot; 0 if outside it */
-static int efb_snap_pixel(const EfbSnap *s, int px, int py, uint16_t *out)
-{
-    int nx = px - s->g.x, ny = py - s->g.y, tx, ty;
-
-    if (nx < 0 || ny < 0 || nx >= s->g.w || ny >= s->g.h)
-        return 0;
-    tx = s->g.vx + (nx * s->g.vw) / s->g.w;
-    ty = s->g.vy + (ny * s->g.vh) / s->g.h;
-    if (tx < 0 || tx >= s->texW || ty < 0 || ty >= s->texH)
-        return 0;
-    {
-        /* 16-bit texels in 4x4 blocks, as RGB5A3; RGB565 is RRRRRGGGGGGBBBBB and the PSX
-         * pixel is BBBBBGGGGGRRRRR (red in the low bits) */
-        unsigned short c = ReadGXRGB5A3PixelRaw(s->pixels, s->texW, tx, ty);
-        *out = (uint16_t)((c >> 11) | (((c >> 6) & 0x1F) << 5) | ((c & 0x1F) << 10));
-        if (s->zok && EFB_Z_SET(efb_snap_z(s->z, s->texW, tx, ty)))
-            *out |= 0x8000;      /* bit 15 from the depth (GxMask exact) */
-    }
-    return 1;
-}
-
 /* ---- stamps --------------------------------------------------------------------------- */
 
 /* Tile columns per page: 64 / EFB_TILE = 4; tile rows per page: 256 / EFB_TILE = 16 */
@@ -493,7 +471,7 @@ static int efb_capture_rect(int rx0, int ry0, int rx1, int ry1)
         return 0;
     if ((rx1 - rx0) * (ry1 - ry0) * 4 > g->w * g->h)
         return 0;                          /* a big read: a full capture serves it as well */
-    /* efb_snap_pixel's mapping (tx = vx + nx * vw / w), and one texel more at the far side */
+    /* the snapshot mapping (tx = vx + nx * vw / w), and one texel more at the far side */
     ex0 = g->vx + ((rx0 - g->x) * g->vw) / g->w;
     ey0 = g->vy + ((ry0 - g->y) * g->vh) / g->h;
     ex1 = g->vx + ((rx1 - g->x) * g->vw + g->w - 1) / g->w + 1;
@@ -709,7 +687,7 @@ static int efb_sync(int x, int y, int w, int h)
             {
                 /* A snapshot at VRAM's own scale (the usual case): texel = pixel + offset, so
                  * the tile is clipped to the snapshot once and read row by row. The same pixels
-                 * as efb_snap_pixel() below, without its two divides and bounds checks per
+                 * as the scaled path below, without its two divides and bounds checks per
                  * pixel: FF7's logos merge 58,000 pixels a frame, 9 ms on a Wii. */
                 int ox = best->g.vx - best->g.x, oy = best->g.vy - best->g.y;
                 int qx0 = max(px0, max(best->g.x, -ox)), qx1 = min(px1, min(best->g.x + best->g.w, best->texW - ox));
@@ -743,19 +721,60 @@ static int efb_sync(int x, int y, int w, int h)
                 }
             }
             else
-            for (py = py0; py < py1; py++)
-                for (px = px0; px < px1; px++)
+            {
+                /* A snapshot at another scale (CTR: 512 VRAM pixels on 640 EFB pixels): the
+                 * snapshot's mapping (tx = vx + nx * vw / w), worked out once per column and
+                 * row of the tile (32 divides) instead of twice per pixel (512); the same
+                 * pixels. Tiger Temple's two short slow spots read ~23,500 frame pixels a
+                 * vblank; this loop was the unexplained ~5 ms of their 8.8 ms extra on the
+                 * bench Wii (2026-10-20). sx/sy: -1 = outside the snapshot. */
+                int colx[EFB_TILE], rowy[EFB_TILE], i;
+                for (i = 0; i < EFB_TILE; i++)
                 {
-                    uint16_t c;
-                    unsigned short *d = &psxVuw[(py << 10) + px];
-                    if (!efb_snap_pixel(best, px, py, &c))
-                        continue;
-                    /* psxVuw is in PlayStation byte order (little-endian) on this big-endian
-                     * CPU; bit 15 from the depth, or from the tile's primitive (efb_stp) */
-                    PUTLE16(d, best->zok ? c : (unsigned short)((c & 0x7FFF) | stp));
-                    if (px >= x && px < x + w && py >= y && py < y + h)
-                        merged++;
+                    int nx = px0 + i - best->g.x, ny = py0 + i - best->g.y, t;
+                    colx[i] = rowy[i] = -1;
+                    if (nx >= 0 && nx < best->g.w)
+                    {
+                        t = best->g.vx + (nx * best->g.vw) / best->g.w;
+                        if (t >= 0 && t < best->texW)
+                            colx[i] = t;
+                    }
+                    if (ny >= 0 && ny < best->g.h)
+                    {
+                        t = best->g.vy + (ny * best->g.vh) / best->g.h;
+                        if (t >= 0 && t < best->texH)
+                            rowy[i] = t;
+                    }
                 }
+                for (py = py0; py < py1; py++)
+                {
+                    int sy = rowy[py - py0];
+                    const unsigned char *cr, *zr;
+                    if (sy < 0)
+                        continue;
+                    /* RGB565 in 4x4 blocks, Z8 in 8x4 blocks, 32 bytes a block (as above) */
+                    cr = (const unsigned char *)best->pixels + ((((sy >> 2) * (best->texW >> 2)) << 5) + ((sy & 3) << 3));
+                    zr = best->zok ? best->z + ((((sy >> 2) * ((best->texW + 7) >> 3)) << 5) + ((sy & 3) << 3)) : NULL;
+                    for (px = px0; px < px1; px++)
+                    {
+                        int sx = colx[px - px0];
+                        unsigned short c;
+                        if (sx < 0)
+                            continue;
+                        c = *(const unsigned short *)(cr + ((sx >> 2) << 5) + ((sx & 3) << 1));
+                        c = (unsigned short)((c >> 11) | (((c >> 6) & 0x1F) << 5) | ((c & 0x1F) << 10));
+                        /* psxVuw is in PlayStation byte order (little-endian) on this big-endian
+                         * CPU; bit 15 from the depth, or from the tile's primitive (efb_stp) */
+                        if (zr)
+                            c |= EFB_Z_SET(zr[((sx >> 3) << 5) + (sx & 7)]) ? 0x8000 : 0;
+                        else
+                            c |= stp;
+                        PUTLE16(&psxVuw[(py << 10) + px], c);
+                        if (px >= x && px < x + w && py >= y && py < y + h)
+                            merged++;
+                    }
+                }
+            }
             efb_cpu[ty][tx] = efb_gx[ty][tx];
             if (px0 < ix0) ix0 = px0;
             if (py0 < iy0) iy0 = py0;
