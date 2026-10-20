@@ -261,8 +261,12 @@ Numbers:
   hardware-only.
 - **Side finding, 240p XFB:** CTR in 240p (display 512x216) writes a 512x54 XFB: the whole
   frame squashed into 54 lines. The same with main's debug DOL (`.runs/gx_ctr240_main`,
-  chain `gx_dol_ctr240.txt`), so it is not from this branch. Filed as a separate task. It
-  also means 240p pictures of CTR cannot show the AA yet.
+  chain `gx_dol_ctr240.txt`), so it is not from this branch. **Resolved (08c486c7):** only
+  the dump was wrong. libogc v3.1.0's `GX_SetDispCopyYScale` reads the copy height at bit
+  12 instead of 10, so it returns `((h-1)>>2)+1` lines (216 -> 54, 240 -> 60); the picture
+  on the TV was always right, and the 54 lines were its top quarter, not a squashed frame.
+  switchToTVMode now takes `rmode->xfbHeight`: CTR dumps 512x216 and Spyro 512x240, matching
+  Dolphin's frame dumps (`.runs/xfb_ctr240_frames`).
 
 ## Dolphin is the wrong witness for all four
 
