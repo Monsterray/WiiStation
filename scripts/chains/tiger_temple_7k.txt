@@ -1,0 +1,8 @@
+CHAIN
+# Tiger Temple race, first 7000 vblanks (the slow stretch 6173-6758), GxMask 0 vs 1: GPU profile
+7000 sd:/wiistation/tiger_temple_play.txt PadAutoAssign=1 ControllerType=0 PadType2=1 gpuPlugin=2 GxMask=0
+sd:/wiistation/isos/Crash Team Racing
+Crash Team Racing [U] [SCUS-94426].cue
+7000 sd:/wiistation/tiger_temple_play.txt PadAutoAssign=1 ControllerType=0 PadType2=1 gpuPlugin=2 GxMask=1
+sd:/wiistation/isos/Crash Team Racing
+Crash Team Racing [U] [SCUS-94426].cue

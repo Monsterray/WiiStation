@@ -618,6 +618,8 @@ typedef struct {
 	uint32_t pres_uploads;
 	uint64_t pres_sync_ticks, efb_cap_ticks;   /* UploadScreen's efb_sync; efb_sync's live captures */
 	uint32_t efb_cap_calls;
+	uint32_t efb_mini_calls;   /* partial captures (efbSync.inc efb_capture_rect) */
+	uint32_t efb_cap_by[8];   /* live captures by efb_sync caller (efbSync.inc efb_sync_from) */
 	/* The primitive time again, by class of GP0 command: index is the top three bits
 	 * of the command byte, so 1 is the polygons, 2 the lines, 3 the sprites, and 7 the
 	 * drawing-state commands (E1..E6). */
