@@ -1797,8 +1797,8 @@ void perf_report(void)
 			(unsigned long long)g_perf.pmc[2], (unsigned long long)g_perf.pmc[3]);
 		#endif
 		lc_report(f);
-		fprintf(f, "menu: frames=%lu menu_us=%llu strings=%lu glyphs=%lu texloads=%lu\n",
-			(unsigned long)g_perf.menu_frames, g_perf.menu_us,
+		fprintf(f, "menu: frames=%lu menu_us=%llu draw_us=%llu strings=%lu glyphs=%lu texloads=%lu\n",
+			(unsigned long)g_perf.menu_frames, g_perf.menu_us, g_perf.menu_draw_us,
 			(unsigned long)g_perf.menu_strings, (unsigned long)g_perf.menu_glyphs,
 			(unsigned long)g_perf.menu_texloads);
 		fprintf(f, "menuinit: ctor_us=%llu screens_us=%llu\n",

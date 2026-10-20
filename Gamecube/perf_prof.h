@@ -746,7 +746,8 @@ typedef struct {
 
 	/* Menu (Gamecube/libgui) */
 	uint32_t menu_frames;         /* Gui::draw calls */
-	uint64_t menu_us;             /* time inside Gui::draw */
+	uint64_t menu_us;             /* time inside Gui::draw (includes the vsync wait) */
+	uint64_t menu_draw_us;        /* of that, before swapBuffers: the CPU work */
 	uint32_t menu_strings;        /* drawString calls */
 	uint32_t menu_glyphs;         /* glyphs rastered */
 	uint32_t menu_texloads;       /* font texture loads */

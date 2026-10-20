@@ -246,6 +246,7 @@ void Gui::draw()
 		fade = fade +increment > 255 ? 255 : fade + increment;
 	}
 
+	PERF_ADD(menu_draw_us, perf_now_us() - menu_t0);
 	gfx->swapBuffers();
 	PERF_ADD(menu_us, perf_now_us() - menu_t0);
 	perf_menu_tick();
