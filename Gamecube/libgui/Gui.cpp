@@ -248,6 +248,7 @@ void Gui::draw()
 
 	gfx->swapBuffers();
 	PERF_ADD(menu_us, perf_now_us() - menu_t0);
+	perf_menu_tick();
 }
 
 void Gui::drawBackground()
