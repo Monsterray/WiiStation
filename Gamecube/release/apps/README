@@ -156,6 +156,11 @@ LATER UPDATES BY:
 
 WiiStation CHANGE LOG:
 Unreleased:
+* OpenGX texture cache: a freed texture's space is reused again (since September 2026 it
+  was given back smaller than it took, so the cache filled with unusable
+  slivers that every new texture searched). Crash Team Racing's Tiger Temple,
+  whose rain makes thousands of tiny textures, runs at full speed in the rain:
+  0.88x -> 0.98x over a whole race on the bench Wii (debug build).
 * Lightrec compiles new code on a background thread while the game runs it in
   the interpreter, so a level that loads a lot of new code stutters less
   (Spyro's whirlwind elevator: 107 ms lost on the bench Wii before, 7 ms now;
