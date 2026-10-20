@@ -1348,6 +1348,12 @@ GLAPI void GLAPIENTRY glNoNeedMulConstColor( short noNeedMulConstColorFlg );
 GLAPI void GLAPIENTRY glSetVramClearedFlg( void );
 GLAPI void GLAPIENTRY glSetTextureType( short textureSemiType, short loadTextureType, short textureChgType );
 void glSetUploadSemiTrans(short semiTrans);
+/* Bit 15 kept in the EFB depth (gc_gl.c OGX_ZC_SET, Docs/STP_BIT15.md): on while set */
+extern int ogx_mask_exact;
+/* what the next draws are: a PS1 primitive (E6 applies), a VRAM upload (bit 15 from the
+ * texels, no check), a GP0 02 fill (bit 0, no check) */
+enum { OGX_MASK_DRAW = 0, OGX_MASK_UPLOAD = 1, OGX_MASK_FILL = 2 };
+void glSetMaskMode(int mode);
 GLAPI void GLAPIENTRY glChgTextureFilter( unsigned int gTexMovieName );
 GLAPI void GLAPIENTRY glSetLoadMtxFlg( void );
 GLAPI void GLAPIENTRY glCheckLoadTextureObj( int loadTextureType, int texChgType);

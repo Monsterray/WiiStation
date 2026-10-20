@@ -8,6 +8,12 @@ Related: `Docs/EFB_SYNC.md` (the readback model), `GlesGpu/efbSync.inc`, `GlesGp
 `EfbBeforeGxCommand()`, skill `references/case-studies.md` section 16, commit 173d3dc (merge
 7d3c793).
 
+**Status (2026-10-19, branch try/ogx-bit15): fixed per pixel.** Setting `GxMask` 0 (Accurate,
+the default) keeps bit 15 in the EFB **depth**, not its alpha (design A', section 11): exact on
+every GX write path, the mask check exact, the picture unchanged. `GxMask` 1 (Fast) is the
+5.14.0 heuristic of section 4. Measurements in section 12, what is left in section 13. Sections
+2-10 are the analysis that led there.
+
 ## 1. Summary
 
 - On a PS1, every VRAM pixel has bit 15. It is the STP bit of a texel and the mask bit of a
@@ -311,3 +317,98 @@ Pass bar for each step: CTR and Ape Escape pictures as Soft, the bit-15 share wi
 points of Soft on every dump, replays with identical guest RAM, `library20` frames identical
 outside the overlay except where the change is intended (RGBA6 gradients, reviewed by the
 user), mask-bit.exe 5/5 pass.
+
+## 11. What was built (2026-10-19): design A', the EFB depth carries bit 15
+
+Design A needed an RGBA6 EFB (6-bit colour, a visible change) to have somewhere to put the bit.
+The depth buffer is already there in every EFB format (RGB8_Z24, RGBA6_Z24, and RGB565_Z16 for
+GxColor 2), a PS1 has no depth test of its own, and the mask check needs a per-pixel test, which
+on GX only the depth test can give (DuckStation's hardware renderers do the same). So depth
+carries the bit and the colour format stays as it is: no 6-bit colour, nothing for the user to
+judge in the picture, and it works in the anti-aliased 240p mode too.
+
+Setting `GxMask` (General > Advanced > GPU, "GX Mask Bit"): 0 Accurate (default), 1 Fast (the
+5.14.0 tile heuristic and P.E.Op.S.'s depth mask, section 4). Applied at the next present
+(`updateDisplayGl`: the texture cache is rebuilt, because the two modes split textures
+differently). Code:
+
+- `deps/opengx/gc_gl.c`, `ogx_mask_exact`:
+  - Depth: `_ogx_apply_state()` loads the projection with a constant z row, `OGX_ZC_SET` (-0.9,
+    GX depth 0.1, Z8 0x19) where the pass writes bit 1 and `OGX_ZC_CLEAR` (-0.5, depth 0.5, Z8
+    0x7F) where it writes 0; clears leave the far plane (0xFFFFFF), also bit 0. The projection
+    is reloaded only when the constant changes. Vertex z (P.E.Op.S.'s `gl_z`) is ignored.
+  - Which bit: textured pass 0 (STP 0 texels) = E6.0, pass 1 (STP 1 texels) = 1; untextured =
+    E6.0; `OGX_MASK_FILL` (GP0 02 quads, `primBlkFill`) = 0; `OGX_MASK_UPLOAD` (`UploadScreen`) =
+    the texel's own bit 15, E6 ignored.
+  - Mask check (E6.1, `glDepthFunc(GL_LESS)` from `cmdSTP`): depth LESS for a bit-1 pass,
+    LEQUAL for a bit-0 pass, ALWAYS otherwise. Both fail exactly on pixels at `OGX_ZC_SET`.
+  - Texel STP: `upload_semi_flag()` returns 1, so every texture is split as the semi-transparent
+    ones already were (STP 0 texels in `semiTransData`, STP 1 in `data`), and opaque textured
+    draws take both passes too (`glPRIMdraw*`, `glDrawArrays`), opaque each. A texture with one
+    class skips the other pass. Screen uploads (`glSetMovieSource16`, opaque) are written in one
+    pass when they hold one class (`TEX_TYPE_D0` = all STP 0, drawn at bit 0); a mixed one is
+    split, in place in the movie buffer; after a mixed one the next 64 go straight to the split.
+  - Bugs fixed on the way (both modes): `texChgType` is now a bit per texture object (the
+    second pass of a two-pass draw sampled stale TMEM after a sub-upload); `glClear` sets
+    `needLoadMtx` (the draw after a full-VRAM clear used the clear's matrices); a pass-0 draw
+    without a semi copy (allocation failed) is skipped, not drawn from an uninitialised object.
+- `GlesGpu/efbSync.inc`: `efb_capture_live()` adds a `GX_TF_Z8` copy (top byte of depth, iResX x
+  iResY bytes) beside the RGB565 one; `efb_sync()` sets bit 15 per pixel from it (`EFB_Z_SET`:
+  < 0x40). `efb_stp[][]` is kept for Fast. The fast path now reads both copies row by row (also
+  faster for Fast: FF7's sync 624 -> 393 ms in 1200 vblanks, deep build).
+- `GlesGpu/gpuPlugin.c`: GP0 A0 loads apply E6 (`VW_PUT_MASK`: bit 15 OR set-mask, no write
+  over a set pixel with check-mask; `primLoadImage` syncs the rect first); both modes.
+  `gpuPrim.c`: GP0 80 with check-mask skips set destination pixels (after syncing them);
+  `TitleFillArea` (the psxVuw copy of tile rectangles) ORs set-mask.
+- `Gamecube/menu/MainFrame.cpp`, `MenuContext.cpp`: the game-start `clearEFB` clears depth to far
+  (it was 0, which reads as bit 1: Spyro's letterbox bars came back as 0x8000).
+- Probes: `ogxskip: mask2=` (opaque textured draws that took both passes) `zcap=` (Z8 copies).
+
+## 12. Measurements
+
+The oracle: `scripts/chains/bit15_oracle.txt` + `scripts/bit15_cmp.py` (VRAM bit 15 per pixel
+against Soft Fast in SoftGpuMode Accurate at the same vblank, a map PNG and counts; skill
+`references/test-roms.md`). `scripts/chains/bit15_pics.txt` adds TV pictures (reference,
+GxMask 0, GxMask 1). Dolphin, debug build, `.runs/` of the try/ogx-bit15 worktree:
+
+| Test | before (main 2bf0c8f) | GxMask 0 |
+|---|---|---|
+| ps1-tests gpu/mask-bit | FAIL 2/6 | **PASS** |
+| ps1-tests gpu/transparency | FAIL 3584 px | FAIL 448 px (colour only; bit 15 0 diffs) |
+| ps1-tests GPU, OpenGX total | 1/14 | 2/14 (the rest is rasterization, not bit 15) |
+| CTR intro blur, vblank 9212, bit 15 vs Soft | 0 / 0 (the heuristic already right here) | 4 / 0 (edge pixels) |
+| Ape Escape play, vblank 3460, display (0..367) | 4453 ref-only / 18599 ogx-only | 463 / 561 (polygon edges; colour differs on 123773 px anyway) |
+| Spyro play, vblank 3402 | 0 / 129024 (GxMask 1) | 0 / 0 |
+| Ape Escape 4060 (guests part at 3930, after its frame readback) | 6416 / 35361 (GxMask 1) | 6807 / 384 |
+
+- TV pictures: GxMask 0 and 1 identical outside the debug overlay in 8 of 9 pictures (CTR,
+  Ape, Spyro); 12 px differ in CTR's blur at 9215, where bit 15 differs. On the bench Wii the
+  4 pictures (CTR start line, Spyro) of GxMask 0 and 1 are identical.
+- Replays (`replay3.txt`, Spyro and Crash 3, 10800 vblanks): vsig identical to main for every
+  vblank.
+- Library (17 games, 1200 vblanks, GxMask 0 against 1): VRAM colour identical in every game,
+  no crash; bit 15 differs where expected (Spyro 169984 px, Crash 3 17347, FF7 7025, ...).
+- Cost, Dolphin (CPU only): load +0 to +1.1 points (FF7, its per-frame snapshots and syncs);
+  Crash Bash, RE3, DC2 within 0.5 after the one-pass screen uploads (they were +1..+3).
+- Cost, bench Wii (`scripts/chains/bit15_hw.txt`, pmc, `.runs/hw_bit15`): CTR Time Trial 0.99x
+  against 1.00x, the same 2517 presents in 6000 vblanks, Broadway cycles +0.14%, gpu share
+  8.8% vs 8.0%; Spyro 0.99x both, cycles +0.12%, gpu 13.0% vs 11.6%. Texture pool unchanged
+  (CTR 8192 KB + 8192 KB in both). CTR: 10632 two-pass draws in 2517 frames (4 a frame); Spyro
+  1676 Z8 copies (its snapshots run every present).
+
+## 13. What is left
+
+1. GPU-bound scenes on the Wii: Tiger Temple in CTR's attract (`ctr_tiger_attract.txt`, 31000
+   vblanks, ~12 fps in 5.14.0) with GxMask 0 and 1 was not run (two 9-minute boots). The second
+   pass and the Z8 copy are GX time, which only such a scene would show.
+2. Ape Escape: columns 368-383 of its 384-wide drawing area are drawn by the soft renderer and
+   not by GX (the display is 368 wide, GX draws only that): about 6000 px of bit 15 and colour.
+   An EFB sync coverage question, not bit 15.
+3. Remaining ps1-tests failures under OpenGX are rasterization and colour (edges, blending
+   rounding, lines, texture windows): a separate project.
+4. Games that need the mask check (section 9: Silent Hill, Ghost in the Shell, ...) are not in
+   the library: the exact check is tested only by ps1-tests mask-bit (CPU loads) and the depth
+   logic by reasoning. A game that uses E6.1 with GX draws is the next test.
+5. Bilinear filtering at the border between STP 0 and STP 1 texels of one texture: each pass
+   filters against transparent neighbours, as semi-transparent draws always did. Not seen in
+   any picture here (Dolphin and Wii identical between the modes).

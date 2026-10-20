@@ -379,3 +379,25 @@ tempting wrong turns.
 - Lesson: a pixel's colour is not all a game reads back; bit 15 decides blending and mask
   tests. When a readback is "100% merged" and still wrong, compare the bit-15 share of both
   plugins' VRAM before anything else.
+
+## 17. Bit 15 per pixel under OpenGX -- the depth buffer, not the alpha (2026-10-19)
+
+- Ask: replace 16's tile guess with the exact bit. The written plan (design A) put it in the
+  EFB alpha, which needs an RGBA6 EFB: 6-bit colour, a picture change for the user to judge.
+- Oracle first: `bit15_oracle.txt` + `scripts/bit15_cmp.py` (VRAM bit 15 of OpenGX against Soft
+  Fast in SoftGpuMode Accurate at the same vblank, map PNG + counts, `parted` from vsig). Main:
+  Ape Escape 4453 ref-only / 18599 ogx-only pixels in its display, Spyro 129024 ogx-only.
+- Turn: the mask CHECK needs a per-pixel test, and on GX only the depth test is one; a PS1 has
+  no depth test. So depth carries the bit for both: two constant depths through the projection's
+  z row, LESS/LEQUAL per pass for E6.1, a Z8 copy beside each snapshot for the readback. Colour
+  format untouched: TV pictures identical between the modes, in Dolphin and on the Wii.
+- Texel STP: every texture split as semi-transparent ones were; opaque draws take both passes.
+  Screen uploads are nearly always one class: one pass with a class flag (`TEX_TYPE_D0`) cut
+  DC2's extra cost from +3 to +0.5 points.
+- Trap found by the oracle: the game-start `clearEFB` cleared depth to 0 = "set" everywhere;
+  Spyro's never-drawn letterbox bars came back as 0x8000 (16384 px). Cleared to far now.
+- Result: ps1-tests mask-bit PASS (A0 loads apply E6), Ape 463/561 (edges), Spyro 0/0, replays
+  vsig-identical, bench Wii same presents, +0.13% cycles. Docs/STP_BIT15.md sections 11-13.
+- Lesson: before adding a buffer channel, look for an existing per-pixel channel the console
+  never uses (here depth); and build the per-pixel oracle before the fix -- it found the clear bug
+  in one run that pictures (identical!) would never have shown.

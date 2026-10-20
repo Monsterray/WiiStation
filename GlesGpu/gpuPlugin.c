@@ -511,6 +511,17 @@ if (ogx_tex_alloc_failed)
   PERF_INC(ogx_tex_flush);
  }
 
+/* GxMask changed in the menu (Docs/STP_BIT15.md): the cached textures were split for the
+ * other mode (exact splits every texture by STP; the heuristic only semi-transparent ones) */
+{
+ extern char gxMask;
+ if (ogx_mask_exact != (gxMask == 0))
+  {
+   ogx_mask_exact = gxMask == 0;
+   ResetTextureArea(TRUE);
+  }
+}
+
 if (flip05Pending)
  {
   flip05Pending = 0;
@@ -2427,7 +2438,18 @@ if(iDataWriteMode==DR_VRAMTRANSFER)
      ip += 1024 - wd; \
     }
 
-   if (ogx_efb_mirror == 1 && !PSXDisplay.RGB24)
+/* E6 on a CPU-to-VRAM load (GP0 A0), as on a PS1: bit 15 set with the set-mask bit, and no
+ * write over a pixel whose bit 15 is set while check-mask is on (primLoadImage synced the
+ * rect from the EFB first). ps1-tests gpu/mask-bit writes its pixels this way. */
+#define VW_PUT_MASK(d, v) do { unsigned short *d_ = (d); \
+                               if (!bCheckMask || !(GETLE16(d_) & 0x8000)) \
+                                PUTLE16(d_, (unsigned short)((v) | sSetMask)); } while (0)
+   if (sSetMask || bCheckMask)
+    {
+     vw_tracked = 0;
+     VW_LOOP(VW_PUT_MASK, VW_FAST_NONE)
+    }
+   else if (ogx_efb_mirror == 1 && !PSXDisplay.RGB24)
     {
      VW_LOOP(VW_PUT_TRACK, VW_FAST_TRACK)
     }
@@ -2440,6 +2462,7 @@ if(iDataWriteMode==DR_VRAMTRANSFER)
 #undef VW_LOOP
 #undef VW_PUT_TRACK
 #undef VW_PUT_PLAIN
+#undef VW_PUT_MASK
 #undef VW_FAST_NONE
 #undef VW_FAST_TRACK
 #undef VW_FAST_COPY
@@ -3116,6 +3139,7 @@ long GL_GPUopen()
  bDisplayNudged = FALSE;
 
  InitializeTextureStore();                             // init texture mem
+ { extern char gxMask; ogx_mask_exact = gxMask == 0; }  /* GxMask: the textures now are split by it */
 
  ret = GLinitialize(NULL, NULL);
 

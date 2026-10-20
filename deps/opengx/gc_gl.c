@@ -258,6 +258,7 @@ static void perf_drawdone(void)
 
 #define TEX_TYPE_1  0x1
 #define TEX_TYPE_2  0x2
+#define TEX_TYPE_D0 0x4   /* GxMask exact: the data texels are all STP 0 (a one-class screen upload) */
 
 void (*ogx_draw_submitted_cb)(void);
 #define OGX_DRAW_SUBMITTED() do { if (ogx_draw_submitted_cb) ogx_draw_submitted_cb(); } while (0)
@@ -859,6 +860,24 @@ void glSetTextureMask( short mask )
     setTextureMask = tmpTextureMask;
 }
 
+/* Bit 15 of the pixels GX draws (the PS1's STP / mask bit), exact mode (GlesGpu setting GxMask
+ * 0, Docs/STP_BIT15.md). The EFB depth carries it: every GX pass writes one of two depths,
+ * OGX_ZC_SET where a PS1 writes bit 15 = 1 (nearer) and OGX_ZC_CLEAR where it writes 0; the
+ * clears leave the far plane (0xFFFFFF), which counts as 0 too. The z row of the projection
+ * is a constant, so the vertices' own z does not matter. Textures are split by texel STP for
+ * every draw (the semi-transparent split, also for opaque draws: STP 0 texels in
+ * semiTransData, drawn in pass 0 at bit E6.0; STP 1 texels in data, pass 1, bit 1). The mask
+ * check (E6.1) is the depth test: a pixel at OGX_ZC_SET is nearer than anything a pass can
+ * write except OGX_ZC_SET itself, so LESS (bit-1 passes) and LEQUAL (bit-0 passes) both fail
+ * exactly there. GlesGpu's efbSync.inc reads it back from a Z8 copy (top 8 bits: 0x19 for set,
+ * 0x7F clear, 0xFF cleared). DuckStation's hardware renderers keep the mask bit in depth too. */
+#define OGX_ZC_SET   (-0.9f)       /* GX depth 0.1: clip z -1 is the near plane */
+#define OGX_ZC_CLEAR (-0.5f)
+int ogx_mask_exact = 0;            /* GlesGpu: GxMask == 0 */
+static int ogx_mask_mode;          /* OGX_MASK_DRAW / _UPLOAD / _FILL (glSetMaskMode) */
+static float ogx_proj_zc = 2.0f;   /* the z constant in the loaded projection; 2 = not ours */
+void glSetMaskMode(int mode) { ogx_mask_mode = mode; }
+
 static short vramClearedFlg = 0;
 void glSetVramClearedFlg( void )
 {
@@ -879,6 +898,8 @@ static unsigned short upload_semi_flag(unsigned w, unsigned h, int x, int y, int
 {
     unsigned short gl = glparamstate.blendenabled ? 1 : 0;
     unsigned short st;
+    if (ogx_mask_exact)
+        return 1;              /* split by STP for every draw: pass 0 and 1 write different bits */
     if (uploadSemiTrans < 0)
         return gl;
     st = uploadSemiTrans ? 1 : 0;
@@ -901,7 +922,9 @@ void glSetTextureType( short textureSemiType, short loadTextureType, short textu
 {
     texSemiType = textureSemiType;
     curTexType = loadTextureType;
-    texChgType = textureChgType;
+    /* a bit per texture object: the opaque/semi pass that loads one must not mark the other
+     * as reloaded (a sub-upload changed both; the second pass sampled stale TMEM) */
+    texChgType = textureChgType ? (TEX_TYPE_1 | TEX_TYPE_2) : 0;
 }
 
 static short needLoadMtx = 1;
@@ -1048,9 +1071,9 @@ static void checkLoadTextureObj( int textureType )
         {
             PERF_INC(gx_tex_hits);
             gxTexMapSemi = i;
-            if (texChgType)
+            if (texChgType & TEX_TYPE_1)
             {
-                texChgType = 0;
+                texChgType &= ~TEX_TYPE_1;
                 GX_InvalidateTexRegion(&texCacheRegionS[i]);
                 GX_LoadTexObjPreloaded(&currtex->semiTransTexobj, &texCacheRegionS[i], gxTexMapSemi);
             }
@@ -1060,9 +1083,9 @@ static void checkLoadTextureObj( int textureType )
         {
             PERF_INC(gx_tex_hits);
             gxTexMap = i;
-            if (texChgType)
+            if (texChgType & TEX_TYPE_2)
             {
-                texChgType = 0;
+                texChgType &= ~TEX_TYPE_2;
                 GX_InvalidateTexRegion(&texCacheRegionS[i]);
                 GX_LoadTexObjPreloaded(&currtex->texobj, &texCacheRegionS[i], gxTexMap);
             }
@@ -1675,6 +1698,7 @@ void glClear(GLbitfield mask)
     GX_End();
 
     glparamstate.dirty.all = ~0;
+    needLoadMtx = 1;           /* the clear loaded its own matrices: the next draw needs the game's */
 }
 
 void glDepthFunc(GLenum func)
@@ -2184,24 +2208,30 @@ void glSetMovieSource16(const void *src, int pitch, unsigned short zero)
 
 // 4b texel scrambling, opengx conversion: src(4 bytes bgr555) -> dst(2 bytes bgr5a3).
 // With v16 set, the texels come from there instead (glSetMovieSource16).
+static int ogx_upl_mixed;   /* the last one-pass try found both STP classes: split at once */
 static inline int _ogx_scramble_4b_5a3(unsigned char *src, void *dst, unsigned short semiTransFlg,
                       const unsigned int width, const unsigned int height,
-                      const unsigned short *v16, int pitch, unsigned short zero)
+                      const unsigned short *v16, int pitch, unsigned short zero, void *semiDst)
 {
     unsigned int block;
     unsigned int i;
     unsigned char c;
     unsigned char argb;
     unsigned char *p = (unsigned char *)dst;
-    unsigned char *semiTransP = semiTransBuf;
+    unsigned char *semiTransP = semiDst ? (unsigned char *)semiDst : semiTransBuf;
     unsigned short tmpPixel;
     int textureType = 0;
 
     /* No semi-transparent texels without semiTransFlg, so the semi copy is never used (the
      * callers copy semiTransBuf only for TEX_TYPE_1): write the opaque texels alone. Half the
-     * stores of every screen upload (FF7: six 256x256 parts a frame). */
-    if (!semiTransFlg) {
+     * stores of every screen upload (FF7: six 256x256 parts a frame).
+     * GxMask exact splits every upload by STP, but a screen upload (v16, an opaque draw) is
+     * nearly always one class: written here in one pass with its class noted (TEX_TYPE_D0 =
+     * every texel STP 0, drawn at bit 0); only a mixed one goes on to the split below. */
+    int one = ogx_mask_exact && semiTransFlg && v16 && uploadSemiTrans == 0 && !ogx_upl_mixed;
+    if (!semiTransFlg || one) {
         unsigned short *q = (unsigned short *)dst;
+        unsigned cls = 0;      /* 1: a texel with STP 0 seen, 2: one with STP 1 */
         for (block = 0; block < height; block += 4)
             for (i = 0; i < width; i += 4)
                 for (c = 0; c < 4; c++)
@@ -2215,6 +2245,7 @@ static inline int _ogx_scramble_4b_5a3(unsigned char *src, void *dst, unsigned s
                             if (!zero) {            /* opaque upload (glSetMovieSource16) */
                                 *q = tmpPixel | 0x8000;
                                 textureType |= TEX_TYPE_2;
+                                cls |= (tmpPixel & 0x8000) ? 2 : 1;
                                 continue;
                             }
                             if (!(tmpPixel & zero))
@@ -2222,11 +2253,23 @@ static inline int _ogx_scramble_4b_5a3(unsigned char *src, void *dst, unsigned s
                         } else
                             tmpPixel = *(unsigned short*)(src + ((i + argb) + ((block + c) * width)) * 4 + 2);
                         *q = tmpPixel ? (tmpPixel | 0x8000) : 0;
-                        if (tmpPixel)
+                        if (tmpPixel) {
                             textureType |= TEX_TYPE_2;
+                            cls |= (tmpPixel & 0x8000) ? 2 : 1;
+                        }
                     }
-        return textureType;
+        if (!one)
+            return textureType;
+        if (cls != 3)
+            return cls == 1 ? (TEX_TYPE_2 | TEX_TYPE_D0) : textureType;
+        textureType = 0;       /* both classes: split it, and the next uploads at once */
+        p = (unsigned char *)dst;
+        ogx_upl_mixed = 1;
     }
+    else if (v16 && ogx_upl_mixed)
+        ogx_upl_mixed++;       /* ... for a while: try one pass again after 64 */
+    if (ogx_upl_mixed > 64)
+        ogx_upl_mixed = 0;
 
     for (block = 0; block < height; block += 4) {
         for (i = 0; i < width; i += 4) {
@@ -2242,6 +2285,14 @@ static inline int _ogx_scramble_4b_5a3(unsigned char *src, void *dst, unsigned s
                         if (v16) {
                             tmpPixel = __builtin_bswap16(v16[(block + c) * pitch + i + argb]);
                             if (!zero) {            /* opaque upload (glSetMovieSource16) */
+                                if (ogx_mask_exact && !(tmpPixel & 0x8000)) {   /* bit 15 = 0: pass 0 */
+                                    *(unsigned short*)semiTransP = tmpPixel | 0x8000;
+                                    *(unsigned short*)p = 0;
+                                    textureType |= TEX_TYPE_1;
+                                    p += 2;
+                                    semiTransP += 2;
+                                    continue;
+                                }
                                 *(unsigned short*)semiTransP = 0;
                                 *(unsigned short*)p = tmpPixel | 0x8000;
                                 textureType |= TEX_TYPE_2;
@@ -2360,8 +2411,9 @@ int glInitMovieTextures( GLsizei width, GLsizei height, void * texData )
     }
     else
     {
+        /* the semi half is written in place (the movie buffer holds both halves) */
         textureType = _ogx_scramble_4b_5a3((unsigned char *)texData, currtex->data, upload_semi_flag(currtex->w, currtex->h, 0, 0, width, height), width, height,
-                                           ogx_vram16_src, ogx_vram16_pitch, ogx_vram16_zero);
+                                           ogx_vram16_src, ogx_vram16_pitch, ogx_vram16_zero, currtex->semiTransData);
         GX_InitTexObj(&currtex->texobj, currtex->data,
                       currtex->w, currtex->h, GX_TF_RGB5A3, currtex->wraps, currtex->wrapt, GX_FALSE);
         if (originalMode == ORIGINALMODE_ENABLE || bilinearFilter != BILINEARFILTER_ENABLE)
@@ -2371,7 +2423,6 @@ int glInitMovieTextures( GLsizei width, GLsizei height, void * texData )
         // For Non transparent colors in transparent mode
         if (textureType & TEX_TYPE_1)
         {
-            memcpy(currtex->semiTransData, semiTransBuf, tile16);   /* tiled, like the data */
             GX_InitTexObj(&currtex->semiTransTexobj, currtex->semiTransData,
                           currtex->w, currtex->h, GX_TF_RGB5A3, currtex->wraps, currtex->wrapt, GX_FALSE);
             if (originalMode == ORIGINALMODE_ENABLE || bilinearFilter != BILINEARFILTER_ENABLE)
@@ -2507,8 +2558,20 @@ static int glTexSubImage2D_body(GLenum target, GLint level,
     }
 
     unsigned short semiFlg = upload_semi_flag(currtex->w, currtex->h, xoffset, yoffset, width, height);
+    /* GxMask exact splits every upload, so most textures start without a semi copy and many
+     * (all texels STP 1) never get one: zero, and later copy, only the blocks this upload
+     * writes, not the whole 128 KB scratch on every upload (sb* = its block rectangle) */
+    const int sbw = W_BLOCK(currtex->w), sbx0 = xoffset >> 2, sbx1 = (xoffset + width + 3) >> 2;
+    const int sby0 = yoffset >> 2, sby1 = (yoffset + height + 3) >> 2;
+    int sby;
     if (currtex->semiTransData == 0 && semiFlg)
-        memset(semiTransBuf, 0, ogx_tex16_bytes(currtex->w, currtex->h));
+    {
+        if (ogx_mask_exact)
+            for (sby = sby0; sby < sby1; sby++)
+                memset(semiTransBuf + (sby * sbw + sbx0) * 32, 0, (sbx1 - sbx0) * 32);
+        else
+            memset(semiTransBuf, 0, ogx_tex16_bytes(currtex->w, currtex->h));
+    }
     const int flush_y = yoffset, flush_h = height;   /* the unaligned path moves yoffset */
     int semi_new = 0;
 
@@ -2629,7 +2692,15 @@ static int glTexSubImage2D_body(GLenum target, GLint level,
                 GX_InitTexObjFilterMode(&currtex->semiTransTexobj, GX_NEAR, GX_NEAR);
             }
             ogx_texq(&currtex->semiTransTexobj);
-            memcpy(currtex->semiTransData, semiTransBuf, ogx_tex16_bytes(currtex->w, currtex->h));
+            if (ogx_mask_exact)
+            {   /* the scratch is clean only in this upload's blocks (above) */
+                memset(currtex->semiTransData, 0, ogx_tex16_bytes(currtex->w, currtex->h));
+                for (sby = sby0; sby < sby1; sby++)
+                    memcpy(currtex->semiTransData + (sby * sbw + sbx0) * 32,
+                           semiTransBuf + (sby * sbw + sbx0) * 32, (sbx1 - sbx0) * 32);
+            }
+            else
+                memcpy(currtex->semiTransData, semiTransBuf, ogx_tex16_bytes(currtex->w, currtex->h));
             semi_new = 1;
         }
         /* A fresh copy wrote the whole texture; an existing one only the upload's rows. */
@@ -2695,7 +2766,7 @@ int glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei width
     currtex->bytespp = 2;
 
     textureType = _ogx_scramble_4b_5a3((unsigned char *)data, currtex->data, upload_semi_flag(currtex->w, currtex->h, 0, 0, width, height), width, height,
-                                       NULL, 0, 0);
+                                       NULL, 0, 0, NULL);
     PERF_ADD(gx_tex_bytes, (unsigned long long)currtex->w * currtex->h * 2);
     DCFlushRange(currtex->data, ogx_tex16_bytes(currtex->w, currtex->h));
 
@@ -3341,7 +3412,7 @@ static void setup_texture_stage(u8 stage, u8 raster_color, u8 raster_alpha,
 
 
     short gxTexMapTmp;
-    if ((texSemiType & TEX_TYPE_1) && glDrawArraysFlg == 0 && glparamstate.blendenabled)
+    if ((texSemiType & TEX_TYPE_1) && glDrawArraysFlg == 0 && (glparamstate.blendenabled || ogx_mask_exact))
     {
         gxTexMapTmp = gxTexMapSemi;
         #ifdef DISP_DEBUG
@@ -3502,7 +3573,8 @@ static inline int _ogx_apply_state(int texen, int color_enabled)
         {
             if (glDrawArraysFlg == 0)
             {
-                if (texSemiType & TEX_TYPE_1)
+                /* no semi copy when its allocation failed (glTexImage2D): nothing to sample */
+                if ((texSemiType & TEX_TYPE_1) && texture_list[glparamstate.glcurtex].semiTransData)
                 {
                     checkLoadTextureObj(TEX_TYPE_1);
                     GX_SetBlendMode(GX_BM_BLEND, GX_BL_SRCALPHA, GX_BL_INVSRCALPHA, GX_LO_CLEAR);
@@ -3538,14 +3610,20 @@ static inline int _ogx_apply_state(int texen, int color_enabled)
     {
         if (texen)
         {
-            if (texSemiType & TEX_TYPE_2)
+            /* exact mask: pass 0 draws the STP 0 texels, pass 1 the STP 1 texels, both opaque */
+            int want = (ogx_mask_exact && glDrawArraysFlg == 0) ? TEX_TYPE_1 : TEX_TYPE_2;
+            if ((texSemiType & want) &&
+                (want == TEX_TYPE_2 || texture_list[glparamstate.glcurtex].semiTransData))
             {
-                checkLoadTextureObj(TEX_TYPE_2);
+                checkLoadTextureObj(want);
+                if (want == TEX_TYPE_2 && ogx_mask_exact && (texSemiType & TEX_TYPE_1))
+                    PERF_INC(ogx_mask_2pass);   /* both classes: this draw took two passes */
             }
             else
             {
                 PERF_INC(ogx_skip);
-                if (texSemiType) PERF_INC(ogx_skip_op_semi); else PERF_INC(ogx_skip_op_empty);
+                if (ogx_mask_exact) ;   /* one STP class: the other pass has nothing (benign) */
+                else if (texSemiType) PERF_INC(ogx_skip_op_semi); else PERF_INC(ogx_skip_op_empty);
                 return 0;
             }
         }
@@ -3555,13 +3633,35 @@ static inline int _ogx_apply_state(int texen, int color_enabled)
 
     setup_render_stages(texen, color_enabled);
 
-
+    if (ogx_mask_exact)
+    {
+        /* bit 15 this pass writes, and the mask check (see OGX_ZC_SET) */
+        int stp = ogx_mask_mode != OGX_MASK_FILL &&
+                  ((texen && glDrawArraysFlg && !(texSemiType & TEX_TYPE_D0)) ||
+                   (ogx_mask_mode == OGX_MASK_DRAW && setTextureMask));
+        int check = ogx_mask_mode == OGX_MASK_DRAW && glparamstate.zfunc != GX_ALWAYS;
+        float zc = stp ? OGX_ZC_SET : OGX_ZC_CLEAR;
+        GX_SetZMode(GX_TRUE, check ? (stp ? GX_LESS : GX_LEQUAL) : GX_ALWAYS, GX_TRUE);
+        if (needLoadMtx || zc != ogx_proj_zc)
+        {
+            Mtx44 p;
+            if (needLoadMtx)
+                MODELVIEW_UPDATE
+            memcpy(p, GXprojection2D, sizeof p);
+            p[2][0] = p[2][1] = p[2][2] = 0.0f;
+            p[2][3] = zc;
+            GX_LoadProjectionMtx(p, GX_ORTHOGRAPHIC);
+            ogx_proj_zc = zc;
+            needLoadMtx = 0;
+        }
+    }
     // Matrix stuff
-    if (needLoadMtx)
+    else if (needLoadMtx)
     {
         MODELVIEW_UPDATE
         //PROJECTION_UPDATE
         GX_LoadProjectionMtx(GXprojection2D, GX_ORTHOGRAPHIC);
+        ogx_proj_zc = 2.0f;    /* the game's own z again */
 
         needLoadMtx = 0;
     }
@@ -3706,7 +3806,7 @@ void glDrawArrays(GLenum mode, GLint first, GLsizei count)
         GX_End();
     }
 
-    if (glparamstate.blendenabled && texen)
+    if ((glparamstate.blendenabled || ogx_mask_exact) && texen)
     {
         glDrawArraysFlg = 1;
 
@@ -4084,7 +4184,7 @@ void glPRIMdrawTexturedQuad( void* vertexAdr, int changePointOrder )
         GX_End();
     }
 
-    if (glparamstate.blendenabled && 1)
+    if (glparamstate.blendenabled || ogx_mask_exact)
     {
         glDrawArraysFlg = 1;
 
@@ -4153,7 +4253,7 @@ void glPRIMdrawTexturedTri( void* vertexAdr )
         GX_End();
     }
 
-    if (glparamstate.blendenabled && 1)
+    if (glparamstate.blendenabled || ogx_mask_exact)
     {
         glDrawArraysFlg = 1;
 
@@ -4211,7 +4311,7 @@ void glPRIMdrawTexGouraudTriColor( void* vertexAdr )
         GX_End();
     }
 
-    if (glparamstate.blendenabled && 1)
+    if (glparamstate.blendenabled || ogx_mask_exact)
     {
         glDrawArraysFlg = 1;
 
@@ -4276,7 +4376,7 @@ void glPRIMdrawTexGouraudTriColorQuad( void* vertexAdr )
         GX_End();
     }
 
-    if (glparamstate.blendenabled && 1)
+    if (glparamstate.blendenabled || ogx_mask_exact)
     {
         glDrawArraysFlg = 1;
 

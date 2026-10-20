@@ -325,6 +325,8 @@ typedef struct {
 	uint32_t ogx_skip_b2;        /* blended pass 2: no TEX_TYPE_2 texels */
 	uint32_t ogx_skip_op_empty;  /* opaque draw: mask 0, nothing to draw (benign) */
 	uint32_t ogx_skip_op_semi;   /* opaque draw: mask == TEX_TYPE_1 only (a hole) */
+	uint32_t ogx_mask_2pass;     /* GxMask exact: opaque textured draws that took both passes */
+	uint32_t efb_zcap;           /* GxMask exact: Z8 copies beside the EFB snapshots (efbSync.inc) */
 	/* Upload-time blend state vs the primitive's DrawSemiTrans, the value its
 	 * cache key is built from. The texel split must follow the key. First
 	 * eight disagreements are kept in detail. */

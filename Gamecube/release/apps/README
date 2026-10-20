@@ -183,6 +183,14 @@ Unreleased:
 * GPU Timing Accurate: with Soft Mode Accurate or Hi-Fi, the GPU stays busy as
   long as each draw takes on a PS1, and image transfers by DMA take PS1 time.
   GPUSTAT bit 28 (ready for a DMA block) is clear while the GPU is busy.
+* GX Mask Bit (Settings > General > Advanced > GPU, GxMask): OpenGX keeps
+  the PS1's mask bit (bit 15) per pixel, in the Wii's depth buffer. Games that
+  read their picture back, blend their last frame or use the mask check get it
+  as on a PS1; the picture itself is unchanged. ps1-tests gpu/mask-bit now
+  passes under OpenGX. Fast is the 5.14.0 guess per 16x16 block.
+* OpenGX: image loads (GP0 A0) obey the mask bits (E6), VRAM copies the
+  mask check; a full-VRAM clear no longer leaves the next draw with the
+  clear's matrices.
 * Test runs: a chain runs up to 64 games (was 24), and its VRAM dumps are
   taken in the game (ChainDump picks the moment; OpenGX syncs first).
 

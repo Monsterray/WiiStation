@@ -364,7 +364,7 @@ void MenuContext::Autoboot()
 		 * texture cache. Without it the BIOS runs but the screen stays black. */
 		AutobootBios = false;
 		menu::Gui::getInstance().draw();
-		menu::Gui::getInstance().gfx->clearEFB((GXColor){0, 0, 0, 0xFF}, 0x000000);
+		menu::Gui::getInstance().gfx->clearEFB((GXColor){0, 0, 0, 0xFF}, GX_MAX_Z24);   /* far: OpenGX reads depth as bit 15 = 0 there (STP_BIT15.md) */
 		if (originalMode)
 			backFromMenu = 1;
 		glResetCacheRegion();
