@@ -74,3 +74,67 @@ How a new game enters the regimen: add it to the library only (`scripts/profile.
 `library_check.py` checks the .cue), record one play session with `scripts/movie_capture.sh`
 (it becomes `scripts/autoinput/NAME_play.txt`), add a chain line, and put the game on the
 bench Wii's card (`wii_check.py card` first; the agent's put limit is 512 MB per file).
+
+## The games added 2026-10-21 (`C:/projects/@Shared/ROMs/PS1`, copied into the library)
+
+Boot test: `scripts/chains/newgames_boot.txt`, 40 s each, no input, Dolphin, HLE BIOS.
+
+| Game | Format | Boot test | What it tests | Planned chain |
+|---|---|---|---|---|
+| Bomberman: Party Edition | CUE/BIN | ok | 2D, many sprites, 5-player multitap | multitap |
+| Final Fantasy VIII disc 1 | CCD/IMG/SUB (+ a CUE) | **broken**: "Published by" tiny in a corner, then black with a garbled line; 446 CD reads, then stalls | 24-bit MDEC FMV, FMV with 3D over it, subchannel | fmv |
+| Final Fantasy VIII discs 2, 3 | IMG.ECM | **not loadable**: no ECM reader | ECM format | formats |
+| Final Fantasy VIII disc 4 | CUE/BIN | same as disc 1 (every disc boots the intro) | CUE against CCD of the same game | formats |
+| Gran Turismo 2 (Simulation) | CUE/BIN | ok (title) | hi-res interlaced menus, analog, long races | gpu, input |
+| Soul Reaver | CUE/BIN (its .cue named a missing .bin: fixed in the library copy) | ok (title) | seamless streaming, realm-shift warp effect | cd, gpu |
+| PaRappa the Rapper | CUE/BIN | ok | audio/video sync, XA, input timing | audio |
+| Rayman | CUE + 51 tracks | ok | **CD-DA music** (the only CD-DA game in the library) | audio, formats |
+| Silent Hill | CUE/BIN | ok (warning screen, FMV) | fog, noise, dithering, semi-transparency, reverb | gpu, fmv |
+| Spyro 2 | CCD/IMG/SUB | ok (title) | the Spyro engine, subchannel | replay |
+| Spyro 3 | CCD/IMG/SUB | **broken**: runs (ResetGraph), draws, presents nothing for 40 s, no CD reads after the boot | anti-piracy checks, subchannel | replay |
+| Tobal 2 (Japan) | CUE/BIN | ok | 640x480 interlaced 3D at 60 fps | gpu |
+| Vagrant Story | CUE/BIN | ok (opening FMV) | heavy 3D, battle-sphere overlay, timing | gpu, fmv |
+
+## Movies to record (`scripts/movie_capture.sh GAME NAME --mins N`)
+
+Each one plays a fixed route from power-on, so the replay reaches the same moments every time.
+New game, no memory card unless the route says so. Keep the route and the length.
+
+| Game | Route (from power-on) | Length | Settings |
+|---|---|---|---|
+| Rayman | skip the intro, start a new game, play the first level of the Dream Forest to the first cage, open the pause menu once | 5 min | digital pad |
+| PaRappa the Rapper | start, play stage 1 (Chop Chop Master Onion) to the end of the song | 4 min | digital pad |
+| Silent Hill | new game, the opening FMV, the alley chase until Harry falls, then the first café scene | 6 min | analog off |
+| Vagrant Story | new game, the opening cutscene (skip nothing), the first battle using the targeting sphere, open the menu once | 6 min | digital pad |
+| Soul Reaver | new game, the opening, play through the first area including one shift to the spectral realm and back | 6 min | analog |
+| Gran Turismo 2 | Simulation mode menus (open a few, the hi-res screens), then one license test (B-1) and one Arcade race | 6 min | analog, rumble on |
+| Tobal 2 | 1P versus, pick any fighter, fight two rounds | 3 min | digital pad |
+| Spyro 2 | new game, the intro, Glimmer: run, glide, collect gems, talk to one character | 5 min | analog |
+| Bomberman: Party Edition | battle mode, you against CPU players (as many as it allows), two rounds | 4 min | multitap if you have one |
+| Final Fantasy VIII disc 1 | after the boot bug is fixed: the opening FMV, then walk from the infirmary to the classroom (FMV backgrounds with 3D) | 8 min | digital pad |
+| Spyro 3 | after the boot bug is fixed: new game, the intro, Sunrise Spring to the first level | 5 min | analog |
+
+## Do disc formats change anything? (the study)
+
+What a format can change: (1) audio tracks -- an ISO or a data-only image has no CD-DA, so the
+game plays silence; (2) subchannel data -- .sub/.sbi carry the Q channel that LibCrypt and the
+GetlocP/GetlocL commands read, without it the CD code fakes it; (3) the cost of reading a
+sector on the Wii -- CHD, PBP and CBN decompress, ECM rebuilds the error-correction bytes; (4)
+packaging -- PBP holds several discs. The guest's data reads are the same bytes in every
+format, so the guest must run identically (`vsig_cmp.py`: ram, cycle, pc and the CD hash)
+wherever the data is there; only the Wii's time per read differs.
+
+The runs, one game per question:
+- Rayman CUE (51 tracks) against Rayman CHD (`chdman createcd` keeps the audio): CD-DA, guest identical, the cost (`cd:`) on the bench Wii.
+- Spyro 2 CCD+SUB against the same image with no .sub (and a CHD): what the subchannel changes.
+- Final Fantasy VIII disc 1 CCD against its CUE (both are in its folder).
+- One game as PBP (`psxpackager`) against its CUE: decompression cost.
+- ECM: add a reader or decompress the two discs to .img; then ECM against IMG.
+Earlier result (Frogger, 9 formats, and MediEvil, 5): the loaders all boot the same game; this
+adds audio, subchannel and cost.
+
+## Before the SD card is pulled
+
+Every new game except Rayman is over the HBC agent's 512 MB put limit, so they go onto the bench
+Wii's card by hand: `sd:/wiistation/isos/<the folder name above>/`, the same folder names as
+the library. Rayman can also go over the network. FF8 discs 2 and 3 need converting first.

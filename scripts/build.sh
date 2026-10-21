@@ -125,8 +125,9 @@ v_x=$(sed -n 's/.*<version>\(.*\)<\/version>.*/\1/p' Gamecube/release/apps/WiiSt
 #   PROBES=min    also drops the per-slice CPU timing
 #   PROBES=speed  light without the vsig RAM hash: bench speed/load numbers (vsig is 23.5% on a Wii)
 #   PROBES=deep   light plus the GPU, GTE and SPU splits (chain_table.py --detail)
-#   PROBES=pmc    light plus Broadway's performance counters (hardware sessions)
-#   PROBES=hprof  light plus the sampling profiler (where the Wii's CPU is, per function)
+#   PROBES=pmc    light plus Broadway's performance counters, no vsig (hardware sessions)
+#   PROBES=hprof  light plus the sampling profiler, no vsig: its RAM hash is inlined into
+#                 psxRcntUpdate and was 36-40% of every profile (2026-10-21)
 #   PROBES="-DPERF_PROF_TRACE=0"   pass your own defines
 # See the sub-gate comments in Gamecube/perf_prof.h for what each group costs.
 case "${PROBES:-all}" in
@@ -141,10 +142,10 @@ case "${PROBES:-all}" in
 	# and the SPU split on top of light. What chain_table.py --detail reads. Costs ~1% of wall.
 	deep)  PROBE_DEFINES="-DPERF_PROF_TRACE=0 -DPERF_PROF_GPU=0 -DPERF_PROF_GPUSPLIT=1 -DPERF_PROF_GTE=1 -DPERF_PROF_SPU=1" ;;
 	# pmc: light plus Broadway's performance counters, for a hardware session.
-	pmc)   PROBE_DEFINES="-DPERF_PROF_TRACE=0 -DPERF_PROF_GPU=0 -DPERF_PROF_PMC=1" ;;
+	pmc)   PROBE_DEFINES="-DPERF_PROF_TRACE=0 -DPERF_PROF_GPU=0 -DPERF_PROF_VSIG=0 -DPERF_PROF_PMC=1" ;;
 	# hprof: light plus the sampling profiler (Gamecube/hprof.c, hprof_NN.bin per game,
 	# scripts/hprof_view.py). Uses PMC1, so not with pmc.
-	hprof) PROBE_DEFINES="-DPERF_PROF_TRACE=0 -DPERF_PROF_GPU=0 -DPERF_PROF_HPROF=1" ;;
+	hprof) PROBE_DEFINES="-DPERF_PROF_TRACE=0 -DPERF_PROF_GPU=0 -DPERF_PROF_VSIG=0 -DPERF_PROF_HPROF=1" ;;
 	# texcheck: deep plus the texture-cache staleness oracle (gpuTexture.c, "texcheck:" in
 	# perf.log): every cache hit is checked against VRAM. Slow; for correctness runs only.
 	# Its own test: add -DTEXCHECK_SELFTEST=1 (a custom PROBES list); 1 hit in 64 then gets a

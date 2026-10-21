@@ -1,0 +1,38 @@
+CHAIN
+# boot test of the games added 2026-10-21: 40 s each, no input (formats: cue, multi-track cue, ccd+sub)
+2400 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Bomberman - Party Edition (USA)
+Bomberman - Party Edition (USA).cue
+2400 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Final Fantasy VIII/Final Fantasy VIII [NTSC-U] [Disc1of4] [SLUS-00892]
+Final Fantasy VIII [NTSC-U] [Disc1of4] [SLUS-00892].ccd
+2400 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Final Fantasy VIII/Final Fantasy VIII (USA) (Disc 4)
+Final Fantasy VIII (USA) (Disc 4).cue
+2400 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Gran Turismo 2 (Simulation Mode) (v1.2)
+Gran Turismo 2 (Simulation Mode) (v1.2).cue
+2400 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Legacy of Kain - Soul Reaver [U]
+Legacy of Kain - Soul Reaver [U] [SLUS-00708].cue
+2400 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/PaRappa the Rapper (USA) (En,Fr,De,Es,It)
+PaRappa the Rapper (USA) (En,Fr,De,Es,It).cue
+2400 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Rayman (USA)
+Rayman (USA).cue
+2400 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Silent Hill (USA)
+Silent Hill (USA).cue
+2400 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Spyro the Dragon 2 - Ripto's Rage
+Spyro the Dragon 2 - Ripto's Rage [NTSC-U] [SCUS-94425].ccd
+2400 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Spyro the Dragon 3 - Year of the Dragon
+Spyro the Dragon 3 - Year of the Dragon [NTSC-U] [SCUS-94467].ccd
+2400 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Tobal 2 (Japan) (Rev 1)
+Tobal 2 (Japan) (Rev 1).cue
+2400 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Vagrant Story (USA)
+Vagrant Story (USA).cue
