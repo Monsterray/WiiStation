@@ -49,23 +49,18 @@ fetch_pinned() {
 
 # Apply a patch once: skip if it is already applied (reverse-applies cleanly).
 apply_patch() {
-    local dir="$1" patch="$2" stripped
+    local dir="$1" patch="$2"
     [ -f "$patch" ] || return 0
-    # This repo's patch files are checked out with CRLF when git's global
-    # core.autocrlf is on (a fresh clone has deps/ext/ empty, so this was never
-    # hit while the main checkout existed). A CRLF patch does not apply to the
-    # LF blobs of the pinned clones. Strip the CRs so both the reverse check and
-    # the apply see patch bytes that match the checkout, however it came out.
-    stripped="$(mktemp)"
-    tr -d '\r' < "$patch" > "$stripped"
-    if git -C "$dir" apply --check --reverse "$stripped" >/dev/null 2>&1; then
-        rm -f "$stripped"
+    # A worktree made before .gitattributes said `*.patch text eol=lf` (2026-10-18) has
+    # a CRLF copy of the patch, which git apply rejects. Without its CRs it applies either
+    # way: checked 2026-10-20 on a fresh libwupc clone (wupc.c is itself CRLF) -- the
+    # committed patch and the stripped one apply, an all-CRLF copy does not.
+    if tr -d '\r' < "$patch" | git -C "$dir" apply --check --reverse - >/dev/null 2>&1; then
         echo "[fetch_deps] patch already applied: $(basename "$patch")"
         return 0
     fi
     echo "[fetch_deps] applying $(basename "$patch")"
-    git -C "$dir" apply "$stripped"
-    rm -f "$stripped"
+    tr -d '\r' < "$patch" | git -C "$dir" apply -
 }
 
 fetch_wupc() {
