@@ -313,16 +313,16 @@ CARD="$PROFILE/Load/WiiSD.raw"
 # the run's console text (SysPrintf: a PS1 program's printf under the HLE BIOS), debug builds
 "$PYTHON" "$SP/sdimage_read.py" "$CARD" wiistation/tty.log "$OUT/tty.log" >/dev/null 2>&1 && [ -s "$OUT/tty.log" ] && echo "tty: $(wc -l < "$OUT/tty.log") lines"
 # the per-vblank timelines of a chain (debug builds; scripts/vtl_view.py)
-for i in $(seq -w 1 16); do
+for i in $(seq -w 1 64); do
 	"$PYTHON" "$SP/sdimage_read.py" "$CARD" "wiistation/vtl_$i.bin" "$OUT/vtl_$i.bin" >/dev/null 2>&1 || break
 done
 ls "$OUT"/vtl_*.bin >/dev/null 2>&1 && echo "vtl: $(ls "$OUT"/vtl_*.bin | wc -l) timeline(s)"
 # the per-vblank guest signatures (debug builds; scripts/vsig_cmp.py)
-for i in $(seq -w 1 16); do
+for i in $(seq -w 1 64); do
 	"$PYTHON" "$SP/sdimage_read.py" "$CARD" "wiistation/vsig_$i.bin" "$OUT/vsig_$i.bin" >/dev/null 2>&1 || break
 done
 # the output driver's requests per chained game (debug builds; scripts/aq_cmp.py)
-for i in $(seq -w 1 16); do
+for i in $(seq -w 1 64); do
 	"$PYTHON" "$SP/sdimage_read.py" "$CARD" "wiistation/aq_$i.bin" "$OUT/aq_$i.bin" >/dev/null 2>&1 || break
 done
 # the TV pictures of "xfb <vblank>" lines (debug builds; scripts/xfb2png.py)
@@ -335,10 +335,10 @@ for i in $(seq -w 1 16); do
 	"$PYTHON" "$SP/sdimage_read.py" "$CARD" "wiistation/hprof_$i.bin" "$OUT/hprof_$i.bin" >/dev/null 2>&1 || break
 done
 ls "$OUT"/hprof_*.bin >/dev/null 2>&1 && echo "hprof: $(ls "$OUT"/hprof_*.bin | wc -l) profile(s)"
-# per-cell VRAM snapshots (PadTest DX matrix writes wiistation/vram_NN.bin;
+# per-game VRAM snapshots, up to CHAIN_MAX (64) (PadTest DX matrix writes wiistation/vram_NN.bin;
 # scripts/padtest_dx.py judge reads them from the run dir). Without this loop
 # the matrix always scores 0/12: nothing else collects them.
-for i in $(seq -w 1 24); do
+for i in $(seq -w 1 64); do
 	"$PYTHON" "$SP/sdimage_read.py" "$CARD" "wiistation/vram_$i.bin" "$OUT/vram_$i.bin" >/dev/null 2>&1 || break
 done
 ls "$OUT"/vram_[0-9]*.bin >/dev/null 2>&1 && echo "vram-snaps: $(ls "$OUT"/vram_[0-9]*.bin | wc -l) snapshot(s)"
@@ -348,6 +348,17 @@ ls "$OUT"/vram_[0-9]*.bin >/dev/null 2>&1 && echo "vram-snaps: $(ls "$OUT"/vram_
 "$PYTHON" "$SP/sdimage_read.py" "$CARD" wiistation/xfb.bin "$OUT/xfb.bin" >/dev/null 2>&1 && [ -s "$OUT/xfb.bin" ] && echo "xfb: $(wc -c < "$OUT/xfb.bin") bytes"
 # the interpreter's PC ring (psxinterpreter.c), written once if the PC leaves code
 "$PYTHON" "$SP/sdimage_read.py" "$CARD" wiistation/pcring.log "$OUT/pcring.log" >/dev/null 2>&1 && [ -s "$OUT/pcring.log" ] && echo "pcring: $(head -1 "$OUT/pcring.log")"
+# the play build's folder (Gamecube/play_log.c): .runs/NAME/debuglogs/, read with scripts/play_logs.py
+mkdir -p "$OUT/debuglogs"
+if ! "$PYTHON" "$SP/sdimage_read.py" "$CARD" wiistation/debuglogs/play.log "$OUT/debuglogs/play.log" >/dev/null 2>&1; then
+	rm -rf "$OUT/debuglogs"   # not a play build
+else
+	"$PYTHON" "$SP/sdimage_read.py" "$CARD" wiistation/debuglogs/hb.log "$OUT/debuglogs/hb.log" >/dev/null 2>&1
+	for id in $(sed -n 's/^=== play session \([0-9-]*\) start .*/\1/p' "$OUT/debuglogs/play.log"); do
+		"$PYTHON" "$SP/sdimage_read.py" "$CARD" "wiistation/debuglogs/vtl_$id.bin" "$OUT/debuglogs/vtl_$id.bin" >/dev/null 2>&1
+	done
+	echo "debuglogs: $(ls "$OUT/debuglogs" | wc -l) file(s) (python scripts/play_logs.py $OUT/debuglogs)"
+fi
 # 0 bytes is normal for a short run: the guest writes a perf report every N presents, and a run
 # that ends before the first one has nothing to read.
 echo "run done $(date +%T)"

@@ -318,7 +318,11 @@ void LIB_GPUwriteStatus(uint32_t data)
   switch (cmd) {
     case 0x00:
       do_reset();
+      acc_reset();
       PSXDisplay.Disabled=1;
+      break;
+    case 0x09:
+      acc_gp1_09(data);
       break;
     case 0x01:
       do_cmd_reset();
@@ -432,9 +436,21 @@ static inline void do_vram_line(int x, int y, uint16_t *mem, int l,
     int is_read, uint32_t r6)
 {
   uint16_t *vram = VRAM_MEM_XY(x, y);
+  if (unlikely(r6 & 0x80000000u) && (x + l > 1024 || (!is_read && (r6 & 3)))) {
+    /* SoftGpuMode Accurate / Hi-Fi: x wraps inside the row, a load honours E6 */
+    uint16_t *row = VRAM_MEM_XY(0, y);
+    int i;
+    for (i = 0; i < l; i++) {
+      if (is_read)
+        mem[i] = row[(x + i) & 1023];
+      else
+        acc_put(&row[(x + i) & 1023], GETLE16(&mem[i]));
+    }
+    return;
+  }
   if (unlikely(is_read))
     memcpy(mem, vram, l * 2);
-  else if (unlikely(r6))
+  else if (unlikely(r6) && !(r6 & 0x80000000u))
     cpy_mask(vram, mem, l, r6);
   else
     memcpy(vram, mem, l * 2);
@@ -443,7 +459,8 @@ static inline void do_vram_line(int x, int y, uint16_t *mem, int l,
 static int do_vram_io(uint32_t *data, int count, int is_read)
 {
   int count_initial = count;
-  uint32_t r6 = gpu.ex_regs[6] << 15;
+  /* Fast keeps its old value (E6 << 15, so set-mask never applied); Accurate: E6.0/E6.1 */
+  uint32_t r6 = acc_active() ? 0x80000000u | (gpu.ex_regs[6] & 3) : gpu.ex_regs[6] << 15;
   uint16_t *sdata = (uint16_t *)data;
   int x = gpu.dma.x, y = gpu.dma.y;
   int w = gpu.dma.w, h = gpu.dma.h;
@@ -520,6 +537,8 @@ static void start_vram_transfer(uint32_t pos_word, uint32_t size_word, int is_re
   gpu.dma.offset = 0;
   gpu.dma.is_read = is_read;
   gpu.dma_start = gpu.dma;
+  if (acc_active())
+    acc_invalidate_tex();
 
   renderer_flush_queues();
   if (is_read) {
@@ -574,6 +593,12 @@ static void do_vram_copy(const uint32_t *params, int *cpu_cycles)
   uint32_t x, y;
 
   *cpu_cycles += gput_copy(w, h);
+  if (acc_active()) {
+    renderer_flush_queues();
+    acc_copy(GETLE32(&params[0]), GETLE32(&params[1]), GETLE32(&params[2]));
+    renderer_update_caches(dx, dy, w, h, 0);
+    return;
+  }
   if (sx == dx && sy == dy && msb == 0)
     return;
 
@@ -717,6 +742,8 @@ static noinline int do_cmd_buffer(uint32_t *data, int count,
     else if (cmd < 0x20 && cmd != 2) {
       if (cmd == 0x1f)
         log_anomaly("irq1?\n");
+      if (cmd == 0x01 && acc_active())
+        acc_invalidate_all();   /* GP0 01: CLUT and texture cache */
       pos++;
       continue;
     }
@@ -737,6 +764,8 @@ static noinline int do_cmd_buffer(uint32_t *data, int count,
   gpu.status &= ~0x1fff;
   gpu.status |= gpu.ex_regs[1] & 0x7ff;
   gpu.status |= (gpu.ex_regs[6] & 3) << 11;
+  if (acc_active())
+    gpu.status = (gpu.status & ~0x8000) | acc_gpustat15();   /* texture disable */
 
   gpu.state.fb_dirty |= vram_dirty;
 

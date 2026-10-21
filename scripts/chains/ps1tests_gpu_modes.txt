@@ -1,0 +1,172 @@
+CHAIN
+# The ps1tests_gpu.txt tests under the other two SoftGpuMode values (1 Hi-Fi, 2 Fast) of
+# both soft plugins (0 Soft Fast, 1 Soft Timed); ps1tests_gpu.txt has the default (0 Accurate)
+# and OpenGX. Check: python scripts/ps1tests_gpu_check.py .runs/NAME
+600 gpuPlugin=0 ChainDump=1 SoftGpuMode=1
+sd:/wiistation/isos/ps1t_mask-bit
+mask-bit.exe
+600 gpuPlugin=0 ChainDump=1 SoftGpuMode=2
+sd:/wiistation/isos/ps1t_mask-bit
+mask-bit.exe
+600 gpuPlugin=1 ChainDump=1 SoftGpuMode=1
+sd:/wiistation/isos/ps1t_mask-bit
+mask-bit.exe
+600 gpuPlugin=1 ChainDump=1 SoftGpuMode=2
+sd:/wiistation/isos/ps1t_mask-bit
+mask-bit.exe
+600 gpuPlugin=0 ChainDump=1 SoftGpuMode=1
+sd:/wiistation/isos/ps1t_gp0-e1
+gp0-e1.exe
+600 gpuPlugin=0 ChainDump=1 SoftGpuMode=2
+sd:/wiistation/isos/ps1t_gp0-e1
+gp0-e1.exe
+600 gpuPlugin=1 ChainDump=1 SoftGpuMode=1
+sd:/wiistation/isos/ps1t_gp0-e1
+gp0-e1.exe
+600 gpuPlugin=1 ChainDump=1 SoftGpuMode=2
+sd:/wiistation/isos/ps1t_gp0-e1
+gp0-e1.exe
+600 gpuPlugin=0 ChainDump=1 SoftGpuMode=1
+sd:/wiistation/isos/ps1t_clipping
+clipping.exe
+600 gpuPlugin=0 ChainDump=1 SoftGpuMode=2
+sd:/wiistation/isos/ps1t_clipping
+clipping.exe
+600 gpuPlugin=1 ChainDump=1 SoftGpuMode=1
+sd:/wiistation/isos/ps1t_clipping
+clipping.exe
+600 gpuPlugin=1 ChainDump=1 SoftGpuMode=2
+sd:/wiistation/isos/ps1t_clipping
+clipping.exe
+600 gpuPlugin=0 ChainDump=1 SoftGpuMode=1
+sd:/wiistation/isos/ps1t_clut-cache
+clut-cache.exe
+600 gpuPlugin=0 ChainDump=1 SoftGpuMode=2
+sd:/wiistation/isos/ps1t_clut-cache
+clut-cache.exe
+600 gpuPlugin=1 ChainDump=1 SoftGpuMode=1
+sd:/wiistation/isos/ps1t_clut-cache
+clut-cache.exe
+600 gpuPlugin=1 ChainDump=1 SoftGpuMode=2
+sd:/wiistation/isos/ps1t_clut-cache
+clut-cache.exe
+600 gpuPlugin=0 ChainDump=1 SoftGpuMode=1
+sd:/wiistation/isos/ps1t_lines
+lines.exe
+600 gpuPlugin=0 ChainDump=1 SoftGpuMode=2
+sd:/wiistation/isos/ps1t_lines
+lines.exe
+600 gpuPlugin=1 ChainDump=1 SoftGpuMode=1
+sd:/wiistation/isos/ps1t_lines
+lines.exe
+600 gpuPlugin=1 ChainDump=1 SoftGpuMode=2
+sd:/wiistation/isos/ps1t_lines
+lines.exe
+600 gpuPlugin=0 ChainDump=1 SoftGpuMode=1
+sd:/wiistation/isos/ps1t_quad
+quad.exe
+600 gpuPlugin=0 ChainDump=1 SoftGpuMode=2
+sd:/wiistation/isos/ps1t_quad
+quad.exe
+600 gpuPlugin=1 ChainDump=1 SoftGpuMode=1
+sd:/wiistation/isos/ps1t_quad
+quad.exe
+600 gpuPlugin=1 ChainDump=1 SoftGpuMode=2
+sd:/wiistation/isos/ps1t_quad
+quad.exe
+600 gpuPlugin=0 ChainDump=1 SoftGpuMode=1
+sd:/wiistation/isos/ps1t_rectangles
+rectangles.exe
+600 gpuPlugin=0 ChainDump=1 SoftGpuMode=2
+sd:/wiistation/isos/ps1t_rectangles
+rectangles.exe
+600 gpuPlugin=1 ChainDump=1 SoftGpuMode=1
+sd:/wiistation/isos/ps1t_rectangles
+rectangles.exe
+600 gpuPlugin=1 ChainDump=1 SoftGpuMode=2
+sd:/wiistation/isos/ps1t_rectangles
+rectangles.exe
+600 gpuPlugin=0 ChainDump=1 SoftGpuMode=1
+sd:/wiistation/isos/ps1t_texture-flip
+texture-flip.exe
+600 gpuPlugin=0 ChainDump=1 SoftGpuMode=2
+sd:/wiistation/isos/ps1t_texture-flip
+texture-flip.exe
+600 gpuPlugin=1 ChainDump=1 SoftGpuMode=1
+sd:/wiistation/isos/ps1t_texture-flip
+texture-flip.exe
+600 gpuPlugin=1 ChainDump=1 SoftGpuMode=2
+sd:/wiistation/isos/ps1t_texture-flip
+texture-flip.exe
+600 gpuPlugin=0 ChainDump=1 SoftGpuMode=1
+sd:/wiistation/isos/ps1t_texture-overflow
+texture-overflow.exe
+600 gpuPlugin=0 ChainDump=1 SoftGpuMode=2
+sd:/wiistation/isos/ps1t_texture-overflow
+texture-overflow.exe
+600 gpuPlugin=1 ChainDump=1 SoftGpuMode=1
+sd:/wiistation/isos/ps1t_texture-overflow
+texture-overflow.exe
+600 gpuPlugin=1 ChainDump=1 SoftGpuMode=2
+sd:/wiistation/isos/ps1t_texture-overflow
+texture-overflow.exe
+600 gpuPlugin=0 ChainDump=1 SoftGpuMode=1
+sd:/wiistation/isos/ps1t_transparency
+transparency.exe
+600 gpuPlugin=0 ChainDump=1 SoftGpuMode=2
+sd:/wiistation/isos/ps1t_transparency
+transparency.exe
+600 gpuPlugin=1 ChainDump=1 SoftGpuMode=1
+sd:/wiistation/isos/ps1t_transparency
+transparency.exe
+600 gpuPlugin=1 ChainDump=1 SoftGpuMode=2
+sd:/wiistation/isos/ps1t_transparency
+transparency.exe
+600 gpuPlugin=0 ChainDump=1 SoftGpuMode=1
+sd:/wiistation/isos/ps1t_triangle
+triangle.exe
+600 gpuPlugin=0 ChainDump=1 SoftGpuMode=2
+sd:/wiistation/isos/ps1t_triangle
+triangle.exe
+600 gpuPlugin=1 ChainDump=1 SoftGpuMode=1
+sd:/wiistation/isos/ps1t_triangle
+triangle.exe
+600 gpuPlugin=1 ChainDump=1 SoftGpuMode=2
+sd:/wiistation/isos/ps1t_triangle
+triangle.exe
+600 gpuPlugin=0 ChainDump=1 SoftGpuMode=1
+sd:/wiistation/isos/ps1t_uv-interpolation
+uv-interpolation.exe
+600 gpuPlugin=0 ChainDump=1 SoftGpuMode=2
+sd:/wiistation/isos/ps1t_uv-interpolation
+uv-interpolation.exe
+600 gpuPlugin=1 ChainDump=1 SoftGpuMode=1
+sd:/wiistation/isos/ps1t_uv-interpolation
+uv-interpolation.exe
+600 gpuPlugin=1 ChainDump=1 SoftGpuMode=2
+sd:/wiistation/isos/ps1t_uv-interpolation
+uv-interpolation.exe
+600 gpuPlugin=0 ChainDump=1 SoftGpuMode=1
+sd:/wiistation/isos/ps1t_vram-to-vram-overlap
+vram-to-vram-overlap.exe
+600 gpuPlugin=0 ChainDump=1 SoftGpuMode=2
+sd:/wiistation/isos/ps1t_vram-to-vram-overlap
+vram-to-vram-overlap.exe
+600 gpuPlugin=1 ChainDump=1 SoftGpuMode=1
+sd:/wiistation/isos/ps1t_vram-to-vram-overlap
+vram-to-vram-overlap.exe
+600 gpuPlugin=1 ChainDump=1 SoftGpuMode=2
+sd:/wiistation/isos/ps1t_vram-to-vram-overlap
+vram-to-vram-overlap.exe
+2400 gpuPlugin=0 ChainDump=1 SoftGpuMode=1
+sd:/wiistation/isos/ps1t_bandwidth
+bandwidth.exe
+2400 gpuPlugin=0 ChainDump=1 SoftGpuMode=2
+sd:/wiistation/isos/ps1t_bandwidth
+bandwidth.exe
+2400 gpuPlugin=1 ChainDump=1 SoftGpuMode=1
+sd:/wiistation/isos/ps1t_bandwidth
+bandwidth.exe
+2400 gpuPlugin=1 ChainDump=1 SoftGpuMode=2
+sd:/wiistation/isos/ps1t_bandwidth
+bandwidth.exe

@@ -242,6 +242,11 @@ void save_configurations(FILE*, controller_t*);
 void save_game_slot(FILE*, controller_t*);
 int load_game_slot(FILE*, controller_t*);
 
+/* controller-HidGC.c: the USB pad's entries, which may name a HID input (Btn 13, Hat Up ...) */
+int hidgc_held(const button_t *bt, u32 gcBits);
+int hidgc_entry_present(const button_t *bt);
+int hidgc_combo_inside(const button_t *a, const button_t *b);
+
 #ifdef __cplusplus
 }
 #endif

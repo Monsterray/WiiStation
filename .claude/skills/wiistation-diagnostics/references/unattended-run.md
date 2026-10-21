@@ -300,6 +300,21 @@ Rules and fixes learned on the bench (2026-09-29/30):
   while a Dolphin run is going), then copy the DOL to the scratchpad per variant; two DOLs
   from one tree differing in one file make a clean hardware A/B (`wsx.sh compare A B`).
 
+## A GX question on the hardware in one job: `scripts/wii_probe/gxaa/` (2026-10-19)
+
+When the question is "what does the Wii's GX do with this setup" (EFB formats, AA, copy
+filter, readback), a WiiStation lab run is the slow way: a boot, a game, pictures only at
+`xfb` vblanks. `gxaa.c` is a standalone DOL with the HBC agent: it draws a fixed GX test
+pattern in WiiStation's 240p mode, one variant per wiiload argument (`key=value,...`),
+cycling until `hbc.py exit`, and stamps each frame's variant number (and an EFB readback
+texel) into the XFB with the CPU. `run.py NAME [VARIANT...]` (a queue job, about a minute for
+8 variants) takes `hbc.py screen` pictures, sorts them by the stamp and writes
+`.runs/NAME/sheet.png` + `result.txt`. Build: `bash scripts/wii_probe/gxaa/build.sh`. To test
+a new GX idea, add a key to `parse()`/`apply()` and queue the variants against the default.
+`hbc.py screen` reads the XFB in RAM: for "the TV is black but the XFB is right" questions,
+use the `vireg:` perf.log line (debug builds: the framebuffer the VI scans and its first 32
+registers). Docs/GX_QUALITY.md "AA on the Wii" has the variant table and what it proved.
+
 ## Installing on the bench Wii (2026-10-01)
 
 `scripts/wii_install.py` (as a queue job) syncs the release DOL to `sd:/apps/WiiStation/boot.dol`

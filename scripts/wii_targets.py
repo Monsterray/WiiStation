@@ -46,6 +46,8 @@ import zlib
 
 BENCH_WII = "192.168.8.213"
 PRODUCTION_WII = "192.168.8.200"
+LRWII = "192.168.8.243"      # the living-room Wii: production-style, real data (2026-10-20)
+PROTECTED_WIIS = (PRODUCTION_WII, LRWII)
 HBC_TOOL = "C:/projects/hbc-reborn/tools/hbc.py"
 QUEUE = "C:/tools/wii-bench/wiibench.py"
 PY = "C:/Python312/python.exe"   # the queue's shell has no python of its own: always the full path
@@ -67,22 +69,28 @@ def _canon(ip):
 
 
 def is_production(ip):
+    """A production-style Wii (PROTECTED_WIIS: the everyday one and the living-room one)."""
     c = _canon(ip)
-    if c == PRODUCTION_WII:
+    if c in PROTECTED_WIIS:
         return True
-    if c.isdigit():                      # one decimal number: 3232236744
-        return int(c) == int.from_bytes(socket.inet_aton(PRODUCTION_WII), "big")
-    try:                                 # other numeric forms: 0xC0A808C8, 192.168.2248
-        return socket.inet_aton(c) == socket.inet_aton(PRODUCTION_WII)
-    except OSError:
-        return False
+    for p in PROTECTED_WIIS:
+        if c.isdigit():                  # one decimal number: 3232236744
+            if int(c) == int.from_bytes(socket.inet_aton(p), "big"):
+                return True
+            continue
+        try:                             # other numeric forms: 0xC0A808C8, 192.168.2248
+            if socket.inet_aton(c) == socket.inet_aton(p):
+                return True
+        except OSError:
+            return False
+    return False
 
 
 def refuse_production(ip, what):
     """Stop a test tool aimed at the production Wii."""
     if is_production(ip):
-        sys.exit(f"{what}: refused -- {ip} is the PRODUCTION Wii (real saves and data, in daily "
-                 f"use). Test tools run on the bench Wii ({BENCH_WII}) through the queue. "
+        sys.exit(f"{what}: refused -- {ip} is a PRODUCTION-style Wii (real saves and data, in "
+                 f"daily use: {PRODUCTION_WII} everyday, {LRWII} living room). Test tools run on the bench Wii ({BENCH_WII}) through the queue. "
                  "See scripts/wii_targets.py.")
 
 

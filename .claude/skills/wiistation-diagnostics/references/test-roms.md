@@ -129,6 +129,54 @@ test's `psx.log` -- its console output on a real PlayStation. The EXEs are stage
   in scratchpad/MDEC/IRQ registers must raise a bus error); io-access-bitwidth 42/64 lines
   (BIOS ROM writable, expansion 2/3 read back what was written, register masks).
 
+## ps1-tests GPU tests against a real PS1 (2026-10-19)
+
+`C:/tools/ps1-tests/bin/gpu/<test>/` holds the real-PS1 result of 14 tests: `psx.log`
+(bandwidth, gp0-e1, mask-bit) or `vram.png` (the other 11: VRAM at the end, 5-bit colour,
+no bit 15). Library folders `C:/wiistation-lib/games/ps1t_<test>`.
+- `wsx.sh chain NAME ps1tests_gpu.txt --fast` (each test under gpuPlugin 0, 1, 2; about 10
+  min), `ps1tests_gpu_modes.txt` (the soft plugins under SoftGpuMode 1 and 2), then
+  `python scripts/ps1tests_gpu_check.py .runs/NAME [--detail] [--png DIR]`: a PASS/FAIL table
+  per test and chain-line setting set. `--png` writes the run's VRAM with differing pixels
+  in magenta.
+- The chain lines set `ChainDump=1`: the VRAM dump waits for the next frame's GP0 02 clear.
+  Without it gpu/lines is half drawn in every dump (it redraws every frame and takes longer
+  than a vblank under WiiStation), and identical dumps at vblanks 300/600/601/603 look like
+  a hang that is not one. A dump after go() returned was worse: the CPU runs on after the stop.
+- Reference pictures hold VRAM the test never drew (transparency: white outside 320x240 from
+  whatever ran before on the console): the checker compares a box there (`BOX`). gpu/lines
+  leaves RGB3 of its LINE_G4 unset, so two diagonals fade to stack garbage (`DIAG`).
+- A chain holds at most 64 entries (CHAIN_MAX; was 24 and dropped the rest silently), and
+  dolphin_run.sh collects vram/vtl/vsig/aq files 01..64.
+- Results (SoftGpuMode Accurate, 2026-10-19): both soft plugins 13/14, bandwidth only with
+  GpuTiming=1 (Soft Fast within 3% of the PS1; Soft Timed's DMA lines are still 30-40% fast);
+  Hi-Fi 6/14 (the state tests), Fast 2-3/14, OpenGX 1/14. clut-cache settled two CLUT-cache rules against the
+  PS1: GP0 01 empties the CLUT cache, and an 8-bit draw reloads a cache that holds only a
+  4-bit load's 16 entries (same CLUT word otherwise: no reload, also after E1 changes).
+- **Bit 15 (STP / mask) of OpenGX against the soft renderer** (2026-10-19): `wsx.sh chain NAME
+  bit15_oracle.txt --fast` (ps1t mask-bit and transparency, CTR's intro blur at 9212, Ape Escape's
+  play at 3460, each under Soft Fast `SoftGpuMode=0` and OpenGX), then `python scripts/bit15_cmp.py
+  .runs/NAME --png DIR [--box X0,Y0,X1,Y1]`: per game the bit-15 share of both VRAM dumps, pixels
+  set only in the reference / only under OpenGX, colour differences (context), and `parted` (the
+  first vblank where the two guests' vsig differ: past it the dumps are different moments; Ape
+  Escape parts at 3930, right after its frame readback, whose colours differ). The PNG map: the
+  reference dimmed, both set green, ref-only red, ogx-only cyan. `bit15_pics.txt` adds TV pictures
+  (`--env XFB_RAM=1`) under the reference, `GxMask=0` and `GxMask=1`. Ape Escape's columns 368-383
+  are drawn by the soft renderer (drawing area) but not by GX (the 368-wide display): `--box
+  0,0,368,512` leaves them out. OpenGX passes mask-bit since GxMask (2/14 with transparency's
+  bit 15 right but 448 colour pixels off).
+- The three SoftGpuMode values on games: `wsx.sh chain NAME softmodes_play.txt` (the user's
+  recordings under Soft Fast in Accurate, Hi-Fi, Fast), then `python scripts/softmode_cmp.py
+  .runs/NAME`: pixels that differ from Accurate's VRAM and how many by at most one 5-bit step;
+  the cost is the chain table's load and gpu columns. Intro-only chains (library20) end in
+  FMVs at 1200 vblanks: their VRAM is the same in every mode.
+- Fast must stay as before: `bash scripts/softgpu_check.sh --save NAME --mode 2 --dol OLD.dol`
+  with a DOL from before SoftGpuMode (it ignores the key), then `--compare NAME --mode 2`
+  (IDENTICAL, 36 fingerprints, 2026-10-19: baselines/softgpu/fast_main321ac62.txt). Accurate and
+  Hi-Fi as of 2026-10-19: accurate_20261019.txt, hifi_20261019.txt (an acc.c change that keeps
+  pixels must still match them: `--compare accurate_20261019 --mode 0`, `--compare
+  hifi_20261019 --mode 1`).
+
 ## DuckStation as the reference (2026-10-12)
 
 `C:/tools/DuckStation` (portable, 2026-10-11 build, scanned clean): BIOS and games from

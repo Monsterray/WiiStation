@@ -211,6 +211,8 @@ typedef char textureSubCacheEntryMustRemain16Bytes[
 textureWndCacheEntry     wcWndtexStore[MAXWNDTEXCACHE];    // only 64 entries
 textureSubCacheEntryS *  pscSubtexStore[3][MAXTPAGES_MAX]; // 3 * (64 / 2) * 4096 * 16 = 6M MB
 EXLong *                 pxSsubtexLeft [MAXSORTTEX_MAX];   // 196 * 2048 * 4 = 1568 KB
+static unsigned int SubTexReserve(unsigned int r, unsigned char *adj);   /* MarkFree gives back what it reserved */
+
 GLuint                   uiStexturePage[MAXSORTTEX_MAX];   // 196 * 4 = 160 B
 
 unsigned short           usLRUTexPage=0;
@@ -594,7 +596,7 @@ void InvalidateWndTextureArea(int X0,int Y0,int X1,int Y1)
 void MarkFree(textureSubCacheEntryS * tsx)
 {
  EXLong * ul, * uls;
- int j,iMax;unsigned char x1,y1,dx,dy;
+ int j,iMax;unsigned char x1,y1,dx,dy,adj;
 
  uls=pxSsubtexLeft[tsx->cTexID];
  iMax=GETLE32((unsigned long *)(uls));ul=uls+1;
@@ -608,10 +610,14 @@ void MarkFree(textureSubCacheEntryS * tsx)
   {
    if(j==iMax) PUTLE32((unsigned long *)(uls), GETLE32((unsigned long *)(uls)) + 1);
 
+   /* give back what was reserved (SubTexReserve: size + border, rounded to 4x4 blocks).
+    * It gave back size + 3 after the rounding came in (2026-09-22), always less than a
+    * texture of that size reserves: freed slots never fitted again, the lists filled with
+    * slivers each search walked (Tiger Temple's rain: ~870 per list, 41 s of a 288 s race). */
    x1=tsx->posTX;dx=tsx->pos.c.x2-tsx->pos.c.x1;
-   if(tsx->posTX) {x1--;dx+=3;}
+   if(tsx->posTX) {x1--;dx=SubTexReserve(dx,&adj);}
    y1=tsx->posTY;dy=tsx->pos.c.y2-tsx->pos.c.y1;
-   if(tsx->posTY) {y1--;dy+=3;}
+   if(tsx->posTY) {y1--;dy=SubTexReserve(dy,&adj);}
 
    ul->c.x1=x1;
    ul->c.x2=dx;
@@ -2673,6 +2679,9 @@ textureSubCacheEntryS *CheckTextureInSubSCache(
    tsb=tsg+1;
    do
     {
+#if PERF_PROF_GPUSPLIT
+     g_perf.ogx_scan[0]++;   /* probe: hit-search entries */
+#endif
      if(clutKey==tsb->ClutKey &&
         (INCHECK(tsb->pos,npos)))
       {
@@ -2717,6 +2726,9 @@ textureSubCacheEntryS *CheckTextureInSubSCache(
   {
    if(!tsb->ClutKey) {tsx=tsb;break;}
   }
+#if PERF_PROF_GPUSPLIT
+ g_perf.ogx_scan[1] += i;   /* probe: free-slot search entries */
+#endif
 
  if(!tsx)
   {
@@ -2817,8 +2829,14 @@ ENDLOOP3:
     }
 
    //--------------------------------------------------//
+#if PERF_PROF_GPUSPLIT
+   g_perf.ogx_scan[2]++;   /* probe: cache textures visited for space */
+#endif
    for(i=0;i<iMax;i++,ul++)
     {
+#if PERF_PROF_GPUSPLIT
+     g_perf.ogx_scan[3]++;   /* probe: free rects compared */
+#endif
      if(ul->l!=0xffffffff &&
         ry<=ul->c.y2      &&
         rx<=ul->c.x2)
@@ -2874,6 +2892,9 @@ ENDLOOP3:
  //----------------------------------------------------//
 
 ENDLOOP:
+#if PERF_PROF_GPUSPLIT
+ if(ul) g_perf.ogx_scan_reset++;   /* probe: no space anywhere: the whole cache reset */
+#endif
  if(ul)
   {
    //////////////////////////////////////////////////////
@@ -3278,13 +3299,26 @@ GLuint SelectSubTextureS(int TextureMode, unsigned int GivenClutId)
 
  // search cache
  iCache=0;
+#if PERF_PROF_GPUSPLIT
+ unsigned long long st0_ = perf_now_ticks();   /* probe: texsel: search, compress, load */
+#endif
  newEntry=CheckTextureInSubSCache(TextureMode,clutKey,&iCache);
+#if PERF_PROF_GPUSPLIT
+ g_perf.ogx_sel_ticks[0] += perf_now_ticks() - st0_;
+#endif
 
  // cache full? compress and try again
  if(iCache==0xffff)
   {
+#if PERF_PROF_GPUSPLIT
+   st0_ = perf_now_ticks();
+   g_perf.ogx_sel_n[1]++;
+#endif
    CompressTextureSpace();
    newEntry=CheckTextureInSubSCache(TextureMode,clutKey,&iCache);
+#if PERF_PROF_GPUSPLIT
+   g_perf.ogx_sel_ticks[1] += perf_now_ticks() - st0_;
+#endif
   }
 
  // found? fine
@@ -3307,7 +3341,14 @@ GLuint SelectSubTextureS(int TextureMode, unsigned int GivenClutId)
 // DEBUG_print(txtbuffer,  DBG_CDR3);
  //writeLogFile(txtbuffer);
  #endif // DISP_DEBUG
+#if PERF_PROF_GPUSPLIT
+ st0_ = perf_now_ticks();
+ g_perf.ogx_sel_n[2]++;
+#endif
  LoadSubTexFn(GlobalTexturePage,TextureMode,cx,cy);
+#if PERF_PROF_GPUSPLIT
+ g_perf.ogx_sel_ticks[2] += perf_now_ticks() - st0_;
+#endif
  uiStexturePage[iCache]=gTexName;
  newEntry->drawInfo=PackDrawInfo(ubOpaqueDraw,gl_ux[8]);
  #ifdef DISP_DEBUG

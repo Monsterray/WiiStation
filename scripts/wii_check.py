@@ -3,7 +3,7 @@
     C:/Python312/python.exe C:/tools/wii-bench/wiibench.py add --cwd C:/projects/WiiStation -- \\
         C:/Python312/python.exe scripts/wii_check.py COMMAND ...
 
-  agent [DOL] [--settle S]   start the DOL (default the release build), ask its HBC agent for
+  agent [DOL] [--settle S] [--screen PNG]   start the DOL (default the release build), ask its HBC agent for
                              version and status (stack use, frames, clock), exit back to HBC.
                              Exit 0 when the agent answered and HBC came back.
   triage [--elf ELF]         read-only: HBC status, crash report (with source lines from ELF),
@@ -32,6 +32,8 @@ STATUS_KEYS = ("version", "ios", "ios_revision", "app", "agent", "time", "safety
 def agent(wii, a):
     hbc(wii, "send", a.dol, timeout=120, show=True)
     time.sleep(a.settle)                  # menu up; the agent starts after VIDEO_Init
+    if a.screen:                          # what the TV shows (the XFB), not just "frames flip"
+        hbc(wii, "screen", a.screen, timeout=60, show=True)
     v = hbc(wii, "version", timeout=30, show=True)
     ok = v.rc == 0 and v.out.strip().endswith("agent")
     s = hbc(wii, "status", "--json", timeout=30)
@@ -89,6 +91,7 @@ def main():
     p = sub.add_parser("agent", help="start a DOL, ask its agent, exit back to HBC")
     p.add_argument("dol", nargs="?", type=existing_file, default=REPO / "Gamecube/WiiSXRX_Release.dol")
     p.add_argument("--settle", type=float, default=25, help="seconds from send to the first question")
+    p.add_argument("--screen", metavar="PNG", help="also save the TV picture after --settle")
     p = sub.add_parser("triage", help="read-only: status, crash report, last output")
     p.add_argument("--elf", type=existing_file, help="the ELF of the DOL that ran, for source lines")
     p = sub.add_parser("card", help="the card's game folders against the library")

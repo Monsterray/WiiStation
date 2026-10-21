@@ -32,6 +32,13 @@
 #include "../mem2_manager.h"
 #include "MEM2.h"   /* LIGHTREC_CODE_SIZE */
 
+/* "hprof <from> <to>" input lines (PadWiiSX.c): sample only inside those vblank windows,
+ * e.g. the slow stretches vtl_view.py lists; none = the whole game. Under Dolphin the
+ * profile is of instructions (its cycle estimate), so a window's profile is repeatable.
+ * Defined in every build so the input parser links; only an hprof build reads them. */
+unsigned hprof_win_lo[8], hprof_win_hi[8];
+int hprof_win_n;
+
 #if PERF_PROF_HPROF
 #if PERF_PROF_PMC
 #error "PERF_PROF_HPROF and PERF_PROF_PMC both use PMC1"
@@ -63,9 +70,18 @@ extern char __divdi3[], __moddi3[], __udivdi3[], __umoddi3[];
 static u32 *hist, *lr_hist;
 static u32 hp_total, hp_jit, hp_other, watch_lo, watch_hi;
 
+extern unsigned int frame_counter;
+
 void hprof_sample(u32 pc, u32 lr)
 {
 	u32 o = pc - HPROF_BASE;
+	if (hprof_win_n) {
+		int w, in = 0;
+		for (w = 0; w < hprof_win_n; w++)
+			in |= frame_counter >= hprof_win_lo[w] && frame_counter < hprof_win_hi[w];
+		if (!in)
+			goto rearm;
+	}
 	hp_total++;
 	if (o < HPROF_SPAN) {
 		hist[o >> HPROF_SHIFT]++;
@@ -76,6 +92,7 @@ void hprof_sample(u32 pc, u32 lr)
 		hp_jit++;
 	else
 		hp_other++;
+rearm:
 	/* Re-arm in order: interrupt off, the counter below its top bit, then the interrupt on,
 	 * each SPR write finished (isync) before the next. Written as PMC1 then MMCR0 with no
 	 * isync, a real Wii took a second performance-monitor exception at 0x00000F00 itself

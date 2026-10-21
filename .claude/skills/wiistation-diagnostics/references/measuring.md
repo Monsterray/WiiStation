@@ -17,6 +17,7 @@ hand-written several times.
 | `hprof` | light + the sampling profiler (PMC1 overflow, 100 us) | where the CPU is, per function; not with `pmc` |
 | `min` | light without the per-slice CPU timing | cheapest |
 | `all` | everything, trace included | primitive-trace work |
+| `play` | light without vsig, no on-screen debug text, logs to `sd:/wiistation/debuglogs/` from the heartbeat thread; `WiiSXRX_play.dol`, `build_play/` | long sessions on a real console (Docs/DEBUG_PLAY.md); `--dol play` in Dolphin |
 
 `PROBES="-D..."` still takes raw defines. Build switches worth knowing:
 `-DOGX_STATE_CACHE=0` (GX state cache off), `-DSUBTEX_ALIGN=0` (old texture placement),
@@ -41,6 +42,9 @@ python scripts/hprof_view.py .runs/NAME/hprof_01.bin --elf DOL.elf --callers
   so LR is the caller. Found 2026-10-01: `timeGetTime()` (limiter) and `perf_now_us()` (probes)
   divided a u64 per call; both now multiply by 2^24/60.75.
 - Samples land only with MSR[EE] on. Time in exception handlers shows at the next instruction.
+- `hprof <from> <to>` input lines (up to 8) sample only those vblanks (a slow stretch alone).
+- **libogc v3 builds: broken under Dolphin for now** (runaway in the HBC agent's lastlog
+  checksum, tens of GB of dolphin.log; dolphin-pitfalls.md, "Getting more out of Dolphin").
 - Dolphin emulates the exception, so the profiler runs there. There it counts instructions
   (no cache misses), and its cycle estimate gives about 1.9x the samples of a Wii.
 - On a Wii the idle thread dozes and PMC1 stops, so there are no idle samples: the shares
@@ -149,6 +153,14 @@ after changing anything a state holds.
 | `wsx.sh table NAME --detail upl` | screen re-uploads asked for and done, and which early return skipped the rest |
 | `wsx.sh compare A B [--detail G]` | two chains game by game: A, B, B - A |
 | `wsx.sh compare A [--detail G]` | one A/B chain: each on/off pair |
+| `scripts/perf_windows.py perf.log --slow A-B,...` | what a game does more of when it is slow: `report <vblank>` lines in the input script put a perf report at each edge of the stretches `vtl_view.py` lists (counters are cumulative, so two reports bracket a window); it ranks time counters by difference and event counters by ratio, slow windows against the rest. Found Tiger Temple's cause in one bench run (2026-10-20: 44 partial EFB captures and 64 DrawDones per vblank when slow, 9 and 12 otherwise) |
+
+Frame proof between two builds: Dolphin's dump numbering can differ by one between DOLs
+(5167.. vs 5168..) while the presents are the same (`efbloss: pres: total=`), and `wsx.sh frames`
+then reported every frame different (2026-10-20); pair the kept frames by position and check
+offsets -1/0/+1 before believing a whole-frame difference. The debug
+overlay's memory line (x 37-328, y 61-71 in an 824x480 dump) and the run's last frame differ
+between any two builds.
 | `wsx.sh frames A B [--crop out.png]` | two runs' frame dumps pixel by pixel, overlay masked |
 | `wsx.sh audio A B` | two runs' audio dumps sample by sample |
 
@@ -205,6 +217,28 @@ any number against the table or the log before acting on it.
   Lightning changes is one flag away: `make -C deps/lightning DEVKITPPC=... TMP=... TEMP=...
   EXTRA_CFLAGS=-DLIGHTNING_UPSTREAM=1`, then `wsx.sh build` (touch lightning.c after to go
   back). Compile cost per pass: `lopt:`, `lightning:`, `jitparts:`, `jit:` in perf.log.
+  When a block compiles is guest-visible: Lightrec's interpreter is not cycle-exact with
+  its compiled code, so any change to how often a block is interpreted (the first pass)
+  moves Crash 3's timeline (2026-10-19, Docs/BACKENDS.md "Compiling ahead"). Prove such a
+  change with `vsig_cmp.py` on `replay3.txt`: ram/cycle/pc must stay the same; `jitb`
+  (blocks compiled) may differ. A JIT stall in `vtl_view.py` is new code compiled in the
+  frame that first runs it; look at `--around V` before planning to move the compiles.
+  Since jitq (the background compiler, `JitDelay`, Docs/BACKENDS.md) the vtl `jit` column is
+  the emulator's share only: decoding, compiles it does itself and its waits for the thread
+  (perf.log `jitq: stall_us=`); the thread's work is `thread_us`. Prove that a jitq change
+  is predictable with two runs of the same build and `--set JitThreadTest=5` on one (the
+  thread sleeps 5 ms per compile): `vsig_cmp.py` must say "the same" for every vblank,
+  jitb included (replay3 + spyro_tornado, Dolphin 2026-10-19). `JitDelay=0` is the old
+  timing (vsig identical to the build before jitq). Chain lines can A/B it per game.
+  Trap found on the way: a recompile request (a newly tagged access) that arrives while a
+  block waits for its install must re-arm the block's LUT entry after the install, or the
+  block keeps its slow generic accesses for good (Dolphin: a quarter more core time).
+  Lightning's estimate (`jit_get_size`) is about 3 times the code; reserving code memory
+  from it per pending compile cut the 2 MB buffer into pieces too small to use (a clean
+  with 685 KB free in 1824 pieces): perf.log `jitfull:` shows the buffer at the last clean.
+  Dolphin trap: a run that dies in the HBC agent's crash path can fill `dolphin.log` with
+  MMU warnings (38 GB in 40 min, `.runs/NAME/dolphin.log`); a perf.log with only its header
+  and no `fatal:` line is the sign. Keep `--secs` short for a build that may crash.
   On 32-bit PPC, `__builtin_ctzll` is a libgcc call (`__ctzdi2`); check with
   `powerpc-eabi-nm build/lightning.o`.
 

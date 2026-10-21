@@ -167,7 +167,7 @@ static Row SPU_ROWS[] = {
 static Row ADVGFX_ROWS[] = {
 	RADIO_FIT("Dithering",     DITHER_NAMES, 1),
 	CYC("MDEC Chroma",         CHROMA_NAMES, 0),
-	CYC("Video Colour",        FMV_COLOUR_NAMES, 1),
+	CYC("Video Color",        FMV_COLOUR_NAMES, 1),
 };
 
 static const HelpLine SPU_HELP[] = {
@@ -3581,7 +3581,7 @@ static void testTwoColumns(void)
 	static const char *const VIDEOMODE_NAMES[] = { "Auto", "NTSC", "PAL 50", "PAL 60", "480p" };
 	static Row rows[] = {
 		RADIO_FIT("Dithering",       DITHER_NAMES,      1),
-		CYC("Video Colour",          FMV_COLOUR_NAMES,  1),
+		CYC("Video Color",          FMV_COLOUR_NAMES,  1),
 		CYC("MDEC Chroma",           CHROMA_NAMES,      0),
 		CYC("Gamma",                 GAMMA_NAMES,       0),
 		CYC("Deflicker Level",       DEFLICKER_NAMES,   0),
@@ -3641,7 +3641,7 @@ static void testTwoColumns(void)
 
 	/* An odd run leaves the right cell of its last line empty; a wide row splits the runs. */
 	{
-		Row odd[] = { CYC("Gamma", GAMMA_NAMES, 0), CYC("Video Colour", FMV_COLOUR_NAMES, 0),
+		Row odd[] = { CYC("Gamma", GAMMA_NAMES, 0), CYC("Video Color", FMV_COLOUR_NAMES, 0),
 		              RADIO_FIT("Dithering", DITHER_NAMES, 1), CYC("Gamma", GAMMA_NAMES, 0),
 		              CYC("Gamma", GAMMA_NAMES, 0), CYC("Gamma", GAMMA_NAMES, 0) };
 		Page q = p;

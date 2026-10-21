@@ -23,7 +23,7 @@ scheduled `dump` vblank. Lines and what they mean:
 | `cdpf: hit miss reads` | the CD read-ahead thread (`CdPrefetch`): sectors served from its ring, sectors it did not have, sectors it fetched. With the setting off all three stay 0 |
 | `texk: conv_us conv texels tile_us tile mdec_us mdec` | CPU kernels sized as locked-cache candidates: the CLUT expansion (`LoadSubTexturePageSort`, with texel count), opengx's RGB5A3 tiling pass (`glTexSubImage2D`), and the MDEC decode per DMA (`psxDma1`) |
 | `ogx: gc sub_new sub_hit skip unaligned oob` | opengx sub-texture uploads and skips |
-| `ogxskip`, `ogxupl` | why uploads were skipped / semi vs opaque uploads, `mismatch` must be 0 |
+| `ogxskip`, `ogxupl` | why uploads were skipped / semi vs opaque uploads, `mismatch` must be 0. `ogxskip: mask2=` opaque textured draws that took both STP passes and `zcap=` Z8 copies beside EFB snapshots, both with `GxMask` 0 only (Docs/STP_BIT15.md); with GxMask 0 the `op_*` counters stay 0 (a one-class texture skips a pass by design) |
 | `ogxoff: prims tex off_roi fills fills_off va va_roi` | primitives whose destination misses both display buffers (render-to-texture), fills, VRAM-area invalidations; `ogxva:` the first rects |
 | `efbloss: upl_calls upl_done \| pres: total clear inflight_skip` | the two ways already-drawn EFB content can go away again: `UploadScreen` calls (the PSX VRAM rect blitted over the EFB, which has no GX-drawn primitives in it) and those that reached the EFB; then presents, presents that cleared the EFB (`GX_CopyDisp(.., GX_TRUE)`, armed only by a GP0 02 fill covering the next screen) and presents refused because a copy was still in flight. Crash 3's title reads `upl_calls=0 ... total=1215 clear=2 inflight_skip=0`: the EFB is never re-uploaded, essentially never cleared, and no present is dropped |
 | `ogxeq: n mism hole` | texel-equivalence detector: GX texel at the UV centroid vs PSX texel from VRAM; `mism=0` means the CPU side (converter, cache, placement) is right |
@@ -41,9 +41,29 @@ Typical readings: a game polls the pad ~2x per vblank (`start` ≈ 2×vblanks); 
 means no pad will ever be seen; `ogxeq mism=0` with wrong pictures means the fault is after
 the draw (GX state, Dolphin); `offsoft prims` > 0 means the title renders off-screen.
 
+## The play build (PROBES=play, 2026-10-19): logs from someone else's play
+
+`wsx.sh build debug play` makes `WiiSXRX_play.dol`: the light probes without vsig, no debug text
+on screen (`-UDISP_DEBUG -USHOW_DEBUG`; the FPS line only with FPS on, the release one), and
+every log in `sd:/wiistation/debuglogs/` (Gamecube/play_log.c, player guide Docs/DEBUG_PLAY.md):
+`play.log` (per session: start/end lines, `settings:`, `play: go ... set:` with every numeric
+setting, `play: menu`, the usual perf blocks, `fatal:`, `crash:` = HBC's crash block copied at
+the next boot), `vtl_<session>.bin` (the vtl streamed for the whole session, header count 0 =
+to the end of the file; a zero record = back from the menu) and `hb.log` (appended per boot).
+Capped: play.log 4 MB + old, hb.log 1 MB + old, vtl 16 MB a session and 32 MB in all.
+The emulator thread never writes the card: `perf_log_open()`/`perf_log_close()` (perf_prof.h;
+every perf.log writer goes through them, the plain file in other builds) fill a RAM queue
+that the heartbeat thread appends every 2 s. A play run in Dolphin brings the folder back as
+`.runs/NAME/debuglogs/`; `chain_table.py` reads its play.log and `scripts/play_logs.py FOLDER`
+gives one block per session. Not in it: ptrace, vramio, atrace, padtrace, tty, the vblank-6000
+VRAM dump. Cost (play_cost.txt, frame limit off, Wii time): +1.7% Spyro, +1.9% Crash Bash, +6.7%
+MMV3 (FMV) against release; the `light` build +12/+14/+16%. A run of one build repeats to the
+second, so 1 s steps over 14400 vblanks resolve it.
+
 ## 240p, the XFB, and the pad protocol (perf.log lines, 2026-09-23)
 
 - `tvmode:` / `tvlog:` -- switchToTVMode() calls: the last one's size, the GP1 07 range and height it came from, and the first 8 calls with their vblank.
+- `vireg: cur= front= | 32 x u16` (2026-10-19) -- the framebuffer the VI scans now (physical), `xfb[2]` (what the `xfb` dump reads), and VI registers 0xCC002000-0x3E. Two runs that differ only in GX settings must match except the beam position (registers 0x2C/0x2E, the 23rd/24th values); then a right `xfb` picture is what the TV shows.
 - `dump <vblank>` also writes `sd:/wiistation/xfb.bin`, the front XFB (header w,h + YUYV); `python scripts/xfb2png.py xfb.bin out.png`. Run with `--env XFB_RAM=1`: Dolphin's default XFB cache never writes copies to memory, and its frame dumps and XFB dumps can both miss a wrong display copy. This is what found the 240p four-copies bug.
 - `padproto:` -- port 1's controller commands by type (0x42 poll, 0x43 config, 0x44 mode, 0x4D rumble map, ...) and the first 0x42 reply sent while a button was held (ID and bytes). A digital pad replies `id=41 len=4`, an analog one `id=73 len=8`.
 - A scheduled `dump`/`trace` fires only at a present after that vblank: a game that is loading (Spyro presents once in its first 300 vblanks) needs a later vblank.

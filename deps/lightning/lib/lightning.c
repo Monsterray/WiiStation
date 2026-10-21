@@ -2636,7 +2636,10 @@ _jit_emit(jit_state_t *_jit)
 		    node->flag &= ~jit_flag_patch;
 	    }
 #if !HAVE_MMAP
-	    assert(_jit->user_code);
+	    /* WiiStation: the caller's buffer is too small (Lightrec's jitq reserves less
+	     * than jit_get_size()): fail, as with mmap, instead of emitting again into the
+	     * same buffer forever */
+	    return (NULL);
 #else
 	    if (_jit->user_code)
 		goto fail;

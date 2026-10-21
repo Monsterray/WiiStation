@@ -6,6 +6,30 @@ without doing the investigation a second time.
 
 ---
 
+## CTR Tiger Temple rain: every drop reads the frame back through the CPU (OpenGX) -- PARKED 2026-10-20
+
+**What it is.** The rain drops are opaque 15-bit textured primitives whose texture lies in the
+frame being drawn (1-4 pixels under each drop, drawn back to front). Each read is a partial EFB
+capture (`efb_capture_rect`: RGB565 + Z8 copy, `GX_DrawDone`), a merge into psxVuw, a texture
+rebuild: ~47 a vblank in rain, 185,256 in a 12,300-vblank run. All are needed: `efbexact:`
+found something drawn over the read pixels since the last sync in all but 2.
+**Where it stands.** After cb5c672f (texture-cache free list) and the scaled-merge rewrite, the
+rain stretches run at 17.2 ms a vblank on the bench Wii (debug build, budget 16.7): the rain
+adds ~2 ms of render-mode time and ~3 ms of GPU work a vblank, most of it out of limiter slack.
+Captures cost 3.5 s a race, of which DrawDone 2.8 s (`efbminitime:`).
+**Plan (needs the bench Wii to measure; Dolphin does not model DrawDone or copy cost).** A
+GPU-only path for a 15-bit read wholly inside live: `GX_CopyTex` the rect to a small texture,
+`GX_PixModeSync()` (libogc gx.h: "after using GX_CopyTex() and before a primitive that uses
+the copied texture") and `GX_InvalidateTexAll()`, then draw the drop from that texture with its
+UVs mapped to EFB scale -- no CPU wait. PS1 rules to keep: texel 0x0000 is transparent (13.6%
+of the sampled texels: colour 0 AND mask 0, the mask is in the Z copy), the texel's bit 15 goes
+to the drawn pixel's mask (86% have it); the drops are never semi-transparent. psxVuw stays
+stale (tiles stay GX-newer), so a later CPU read still syncs. Proof bar: frames vs the current
+build (rain colours may legitimately move, see AGENTS.md), `texcheck`, and one bench race.
+**Probes:** `efbmini:`, `efbminimode:`, `efbtexrd:`, `efbexact:`, `efbminitime:` (deep builds).
+
+---
+
 ## Gex 3: the LOADING picture after the Eidos logo is black (OpenGX) -- FIXED 2026-10-13
 
 Parked 2026-10-12, fixed 2026-10-13. Found by the per-game sweep (Soft vs OpenGX, the TV

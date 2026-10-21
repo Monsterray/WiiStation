@@ -149,6 +149,44 @@ extern int autoinput_padsweep_fast;
 extern unsigned autoinput_gcpress(void);   /* PadWiiSX.c: "gcpress" lines, raw buttons for pad 1 */
 extern int autoinput_gcpad(void);          /* PadWiiSX.c: a script drives pad 1, which counts as present */
 #define GC_SCAN() (PAD_ScanPads() | (autoinput_gcpad() ? 1 : 0))
+
+/* A port that drops out of one scan is not unplugged: a read that fails for a frame used to
+ * make the pad "unavailable", so the game saw every button released for that frame (the user's
+ * CTR recording, 2026-10-19: Cross, held for gas, dropped for single vblanks). A port counts as
+ * gone after GC_MISS_MAX scans in a row without it; until then its last good reading stands. */
+#ifdef PERF_PROF
+#include <stdio.h>
+#include "../perf_prof.h"   /* perf_tty: a debug line per miss streak */
+#endif
+#define GC_MISS_MAX 8
+static u8 gc_miss[4];
+static int gc_have[4];
+static gc_raw_t gc_last[4];
+static u32 gc_seen;   /* this scan's own bits; gc_connected is the smoothed mask */
+
+static void gc_scan(void)
+{
+	u32 seen = GC_SCAN();
+	gc_seen = seen;
+	gc_connected = 0;
+	for (int i = 0; i < 4; i++) {
+		if (seen & (1 << i)) {
+#ifdef PERF_PROF
+			if (gc_miss[i] && gc_have[i]) {
+				char l[64];
+				snprintf(l, sizeof l, "gc: port %d missed %d scan(s)\n", i + 1, gc_miss[i]);
+				perf_tty(l);
+			}
+#endif
+			gc_miss[i] = 0;
+		} else if (gc_miss[i] < GC_MISS_MAX)
+			gc_miss[i]++;
+		if ((seen & (1 << i)) || (gc_have[i] && gc_miss[i] < GC_MISS_MAX))
+			gc_connected |= 1 << i;
+		else
+			gc_have[i] = 0;
+	}
+}
 /* psxcounters.h would drag in unistd.h, whose pause() collides with this file's own. */
 extern u32 frame_counter;
 
@@ -243,7 +281,7 @@ static void GCtoPSX(const gc_raw_t *r, unsigned int source, int invertY, u8 *px,
 
 static int _GetKeys(int Control, BUTTONS * Keys, controller_config_t* config)
 {
-	if(padNeedScan){ gc_connected = GC_SCAN(); padNeedScan = 0; }
+	if(padNeedScan){ gc_scan(); padNeedScan = 0; }
 	BUTTONS* c = Keys;
 	memset(c, 0, sizeof(BUTTONS));
 	//Reset buttons & sticks
@@ -254,7 +292,12 @@ static int _GetKeys(int Control, BUTTONS * Keys, controller_config_t* config)
 	if (!controller_GC.available[Control]) return 0;
 
 	gc_raw_t raw;
-	gc_read(Control, &raw);
+	if (gc_seen & (1 << Control)) {
+		gc_read(Control, &raw);
+		gc_last[Control] = raw;
+		gc_have[Control] = 1;
+	} else
+		raw = gc_last[Control];   /* a missed scan: the last good reading */
 	unsigned int b = getButtons(&raw);
 	inline int isHeld(button_tp button){
 		return (b & button->mask) == button->mask ? 0 : 1;
@@ -363,7 +406,7 @@ controller_t controller_GC =
 
 static void refreshAvailable(void){
 
-	if(padNeedScan){ gc_connected = GC_SCAN(); padNeedScan = 0; }
+	if(padNeedScan){ gc_scan(); padNeedScan = 0; }
 
 	int i;
 	for(i=0; i<4; ++i)

@@ -563,6 +563,13 @@ static int lightrec_plugin_init(void)
 	lightrec_map[PSX_MAP_CODE_BUFFER].address = code_buffer; // RECMEM2_LO;
 #endif
 
+	{	/* the background compiler (deps/lightrec/lightrec.c jitq), read at init */
+		extern unsigned int lightrec_jitq_delay, lightrec_jitq_queue_at,
+			lightrec_jitq_test_sleep_us;
+		lightrec_jitq_delay = jitDelay;
+		lightrec_jitq_queue_at = jitQueueAt;
+		lightrec_jitq_test_sleep_us = jitThreadTest * 1000;
+	}
 	lightrec_state = lightrec_init(name,
 			lightrec_map, ARRAY_SIZE(lightrec_map),
 			&lightrec_ops);

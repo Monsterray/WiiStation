@@ -1029,7 +1029,7 @@ static void pcring_add(u32 pc)
 	    ((off >= 0x80 && off < 0x200000) || (off >= 0x1fc00000 && off < 0x1fc80000))))
 		return;
 	{
-		FILE *f = fopen("sd:/wiistation/pcring.log", "w");
+		FILE *f = fopen(PERF_DIR "pcring.log", "w");
 		u32 i;
 		pcring_done = 1;
 		if (!f)

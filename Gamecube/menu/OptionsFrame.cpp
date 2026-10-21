@@ -261,14 +261,15 @@ static const OptRow GPU_ROWS[] =
 	ROW_CYCLE("GpuTiming", NULL),
 	ROW_CYCLE("GxTexMin", NULL),   /* OpenGX trials, read at game start (Docs/GX_QUALITY.md) */
 	ROW_CYCLE("GxColor", NULL),
+	ROW_CYCLE("GxMask", NULL),     /* applied at the next present (GlesGpu updateDisplayGl) */
 };
+/* Five rows: the page uses a 54 px row pitch (PAGES) so the four help lines still fit. */
 
 static const OptHelp GPU_HELP[] =
 {
-	{ "GPU Plugin:", "OpenGX uses the Wii's GPU; Soft avoids its quirks." },
-	{ "GPU Timing:", "Accurate: the GPU is busy as long as on a PS1." },
-	{ "Far Textures:", "OpenGX trial: smoother distant ground." },
-	{ "GX Colour:", "OpenGX trial: 6-bit colour with the Wii's dither." },
+	{ "GPU Plugin:", "OpenGX: the Wii's GPU. Soft: the CPU." },
+	{ "GPU Timing:", "Accurate: busy as long as a PS1's GPU." },
+	{ "GX Mask Bit:", "Accurate: the PS1 mask bit per pixel." },
 };
 
 static const OptRow INPUT_ROWS[] =
@@ -313,7 +314,9 @@ static void pluginsLeave(void)
  * SETTINGS.md section 3 explains each. Dithering and MDEC Chroma are read when a disc image is
  * opened, so they take effect at the next game load (SETTINGS.md section 2). Gamma is written to
  * the video encoder now, Deflicker Level to the frame copy now (and again at every game start or
- * resume, go()). Video Mode is read when WiiStation starts. Filter Tour runs while a game does. */
+ * resume, go()). Video Mode is read when WiiStation starts. Filter Tour runs while a game does.
+ * Soft Mode (SoftGPU/acc.c) is read for every GPU command list: it applies at once. It is here,
+ * not on the Advanced GPU tab, which holds five rows only at a 54 px pitch with four help lines. */
 extern "C" void applyCopyFilter(void);	/* Gamecube/libgui/GraphicsGX.cpp */
 static const OptRow ADVGFX_ROWS[] =
 {
@@ -325,6 +328,7 @@ static const OptRow ADVGFX_ROWS[] =
 	/* this way round: Video Mode's "PAL 60" in the left column pushes the grid into the margin */
 	ROW_CYCLE("FilterTour", NULL),
 	ROW_CYCLE("VideoMode", NULL),
+	ROW_CYCLE("SoftGpuMode", NULL),
 };
 
 /* Two columns (OptPage::columns), so the four rows take two lines and the help fits under them.
@@ -388,7 +392,7 @@ static const OptPage PAGES[] =
 	{ "Advanced", "CPU",  PLUGIN_ROWS,  COUNT(PLUGIN_ROWS),  PLUGIN_HELP, COUNT(PLUGIN_HELP), SettingsFrame::SUBMENU_GENERAL, pluginsEnter, pluginsLeave },
 	{ "Advanced", "CD",   CD_ROWS,      COUNT(CD_ROWS),      CD_HELP,     COUNT(CD_HELP),     SettingsFrame::SUBMENU_GENERAL, pluginsEnter, pluginsLeave, 0.0f, 2 },
 	{ "Memory",   NULL,   MEMORY_ROWS,  COUNT(MEMORY_ROWS),  NULL,        0,                  SettingsFrame::SUBMENU_GENERAL, NULL,         NULL,         46.0f },
-	{ "Advanced", "GPU",  GPU_ROWS,     COUNT(GPU_ROWS),     GPU_HELP,    COUNT(GPU_HELP),    SettingsFrame::SUBMENU_GENERAL, pluginsEnter, pluginsLeave },
+	{ "Advanced", "GPU",  GPU_ROWS,     COUNT(GPU_ROWS),     GPU_HELP,    COUNT(GPU_HELP),    SettingsFrame::SUBMENU_GENERAL, pluginsEnter, pluginsLeave, 54.0f },
 	{ "Advanced", "Input", INPUT_ROWS,  COUNT(INPUT_ROWS),   INPUT_HELP,  COUNT(INPUT_HELP),  SettingsFrame::SUBMENU_GENERAL, pluginsEnter, pluginsLeave },
 	{ "Advanced", "SPU",  SPU_ROWS,     COUNT(SPU_ROWS),     SPU_HELP,    COUNT(SPU_HELP),    SettingsFrame::SUBMENU_GENERAL, pluginsEnter, pluginsLeave },
 };

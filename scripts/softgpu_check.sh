@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# softgpu_check.sh --save NAME | --compare NAME [--plugins "0 1"] [--dol debug|PATH]
+# softgpu_check.sh --save NAME | --compare NAME [--plugins "0 1"] [--dol debug|PATH] [--mode N]
 #
 # The accuracy check for the software GPU plugins (0 = old soft, PeopsSoftGPU; 1 = new
 # soft, SoftGPU). They draw into emulated VRAM and emulation is deterministic, so a VRAM
@@ -9,22 +9,27 @@
 #
 #   --save NAME     run, then keep the fingerprints as baselines/softgpu/NAME.txt
 #   --compare NAME  run, then compare with that baseline: any difference is a changed pixel
+#   --mode N        SoftGpuMode on every line (0 Accurate, 1 Hi-Fi, 2 Fast); the setting text
+#                   is part of each fingerprint line, so save and compare with the same --mode.
+#                   Fast against a DOL from before SoftGpuMode (which ignores the key) proves
+#                   that Fast draws as before.
 #
 # The games: the user's recordings (scripts/autoinput/*_play.txt) plus FF7 and Gex, which
 # need no input to reach their first scenes. Each line of the chain also prints its speed;
 # a debug build with PROBES=deep adds "gpucmd:" (time by GP0 command) to perf.log.
 set -e
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
-mode=""; name=""; plugins="0 1"; dol=debug
+mode=""; name=""; plugins="0 1"; dol=debug; smode=""
 while [ $# -gt 0 ]; do
 	case "$1" in
 		--save|--compare) mode="$1"; name="$2"; shift 2 ;;
 		--plugins) plugins="$2"; shift 2 ;;
 		--dol) dol="$2"; shift 2 ;;
+		--mode) smode=" SoftGpuMode=$2"; shift 2 ;;
 		*) echo "unknown option $1"; exit 2 ;;
 	esac
 done
-[ -n "$mode" ] && [ -n "$name" ] || { sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
+[ -n "$mode" ] && [ -n "$name" ] || { sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
 
 A="$REPO/scripts/autoinput"
 run=softgpu_check
@@ -55,8 +60,8 @@ for g in "${games[@]}"; do
 	} > "$A/$s"
 	made+=("$A/$s")
 	for p in $plugins; do
-		printf '%s sd:/wiistation/%s PadAutoAssign=1 ControllerType=%s gpuPlugin=%s\n%s\n%s\n' \
-			"$vbl" "$s" "$ct" "$p" "$folder" "$cue" >> "$chain"
+		printf '%s sd:/wiistation/%s PadAutoAssign=1 ControllerType=%s gpuPlugin=%s%s\n%s\n%s\n' \
+			"$vbl" "$s" "$ct" "$p" "$smode" "$folder" "$cue" >> "$chain"
 	done
 done
 bash "$REPO/scripts/wsx.sh" chain "$run" "$chain" --dol "$dol" --secs 2400 | tail -n $(( ${#games[@]} * 2 + 2 ))
