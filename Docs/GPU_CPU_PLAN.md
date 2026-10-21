@@ -148,6 +148,18 @@ The GPU split probes (`PERF_PROF_GPUSPLIT`: perf.log `gpusplit:`, `gpuprim:`, `g
   **DONE** (1faf97e: skipped while the drawing area is inside the GX buffer; Spyro -67%,
   Crash 3 -60%, CTR -63%; Crash Bash keeps it, it really draws off screen)
 - **Display-list reading**, 0.6-1.5%: word-by-word with a byte swap per word. Low value.
+  **MEASURED, no win (2026-10-18, `try/dma-read` @ 84cb091):** staged the DR_NORMAL loop in
+  `GL_GPUwriteDataMem` onto C locals (same PUTLE32-clobber pattern as 0bc58e3) and A/B'd
+  window-free builds in Dolphin over ff7_dump450 (500 vbl): parse bucket 49.1 -> 63.3 ms
+  (**+14 ms, a regression**), every other counter and vsig identical. Spyro parses moved
+  the same direction. Re-solving with the read-loop out gives 30-40 ns/word (Spyro 44, FF7
+  a bit more) -- close to the plan's 20-40 estimate, and too small a bucket for staging
+  locals to win; GCC's -Ofast/LTO schedule was already fine, likely because G3/G4
+  store-buffer forwarding makes the PUTLE32 "memory"-clobber reloads nearly free (0bc58e3
+  won only because the VRAM loop is a 24-28 M-words ~10% bucket, not this 0.2-0.4% one).
+  A dl `perf` window probe was also built (`gpudl: dl_us`): its own cost (~0.3 us per
+  window, tens of thousands of windows per run) swamps the loop it times, so a per-window
+  probe is unfit for this path; only window-free parse deltas were trusted. Nothing kept.
 - **FF7's `FinishedVRAMWrite`**, 5.0% in the first chain: texture-cache invalidation for
   42.6 M words of background uploads. Look at `InvalidateSubSTextureArea` after G1.
   **DONE**, and the cause was not the invalidation (0.2 s, 0 cache entries scanned): the
