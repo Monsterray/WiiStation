@@ -1,0 +1,5 @@
+CHAIN
+# Tobal 2: 640x480i, must still render under OpenGX
+2400 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1 gpuPlugin=2
+sd:/wiistation/isos/Tobal 2 (Japan) (Rev 1)
+Tobal 2 (Japan) (Rev 1).cue

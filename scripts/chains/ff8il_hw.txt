@@ -1,0 +1,8 @@
+CHAIN
+# bench Wii: FF8 opening then FF7 opening, OpenGX (try/ff8-interlace-upload A/B)
+2400 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=0 gpuPlugin=2
+sd:/wiistation/isos/Final Fantasy VIII/Final Fantasy VIII [NTSC-U] [Disc1of4] [SLUS-00892]
+Final Fantasy VIII [NTSC-U] [Disc1of4] [SLUS-00892].ccd
+2400 sd:/wiistation/final_fantasy_vii_1_play.txt PadAutoAssign=1 ControllerType=0
+sd:/wiistation/isos/Final Fantasy VII/Final Fantasy VII 1
+Final Fantasy VII [U] [Disc 1] [SLUS-94163].cue
