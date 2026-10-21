@@ -2,10 +2,11 @@
 # wsx.sh -- the short way round the build / run / read loop, for people and for models
 # working with a small context: one command per step, one screen of output per step.
 #
-#   scripts/wsx.sh build debug|release [all|light|min|deep|pmc]  build through the devkitPro shell;
+#   scripts/wsx.sh build debug|release [all|light|min|deep|pmc|play]  build through the devkitPro shell;
 #                                                         prints the DOL and its time, or the errors
+#                                                         (play: WiiSXRX_play.dol, Docs/DEBUG_PLAY.md)
 #   scripts/wsx.sh run NAME [options]                     one unattended Dolphin run, then its summary
-#        --dol debug|release|PATH   what to boot (default debug). The DOL is COPIED into the
+#        --dol debug|play|release|PATH   what to boot (default debug). The DOL is COPIED into the
 #                                   run directory first, so a rebuild between queued runs
 #                                   cannot change what boots.
 #        --secs N                   run length (default 170)
@@ -108,7 +109,7 @@ build)
 	sfx=""; [ "${LIBOGC:-3}" = 2 ] && sfx="_ogc2"
 	log="$RUNS/build_$mode$sfx.log"
 	case "$mode" in
-		debug*)   out="Gamecube/WiiSXRX_debug$sfx.dol"; env="LIBOGC=${LIBOGC:-3} PROBES='$probes'" ;;   # quoted: a custom list of -D flags has spaces
+		debug*)   out="Gamecube/WiiSXRX_$([ "$probes" = play ] && echo play || echo debug)$sfx.dol"; env="LIBOGC=${LIBOGC:-3} PROBES='$probes'" ;;   # quoted: a custom list of -D flags has spaces
 		release*) out="Gamecube/WiiSXRX_Release$sfx.dol"; env="LIBOGC=${LIBOGC:-3}" ;;
 		*) echo "build debug|release"; exit 2 ;;
 	esac
@@ -149,6 +150,7 @@ run)
 	[ -z "$setfile" ] || [ -f "$setfile" ] || { echo "no such settings file: $setfile"; exit 2; }
 	case "$dol" in
 		debug)   dolsrc="$REPO/Gamecube/WiiSXRX_debug.dol" ;;
+		play)    dolsrc="$REPO/Gamecube/WiiSXRX_play.dol" ;;
 		release) dolsrc="$REPO/Gamecube/WiiSXRX_Release.dol" ;;
 		*)       dolsrc="$dol" ;;
 	esac
@@ -419,5 +421,22 @@ runs)
 
 *)
 	sed -n '2,24p' "$0" | sed 's/^# \{0,1\}//'
+	;;
+esac
+
+# Housekeeping after a run or a chain (user, 2026-10-19: .runs reached 58 GB): past
+# WSX_RUNS_MAX_GB (default 15) thin old runs with runs_prune.py (every run keeps its text;
+# landmarks in .runs/LANDMARKS.txt and the last 2 days stay whole) and remove orphaned Dolphin
+# profiles. Not inside a chain's own runs; WSX_RUNS_MAX_GB=0 turns it off.
+case "$cmd" in
+run|chain)
+	if [ -z "${WSX_TRIAGE_DEFER:-}" ] && [ "${WSX_RUNS_MAX_GB:-15}" != 0 ] && [ -d "$REPO/.runs" ]; then
+		mb=$(du -sm "$REPO/.runs" 2>/dev/null | cut -f1)
+		if [ "${mb:-0}" -gt $(( ${WSX_RUNS_MAX_GB:-15} * 1024 )) ]; then
+			echo "housekeeping: .runs is ${mb} MB (over ${WSX_RUNS_MAX_GB:-15} GB): thinning old runs"
+			"$PYTHON" "$REPO/scripts/runs_prune.py" --apply | tail -1
+			bash "$REPO/scripts/profile.sh" gc >/dev/null 2>&1
+		fi
+	fi
 	;;
 esac

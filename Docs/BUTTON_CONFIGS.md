@@ -81,6 +81,17 @@ the type's default then and puts the four magic bytes back (an index is a small 
 A build from before cannot read a new Game file (the extra index is where it expects the next magic),
 so it uses the default mappings for that game; its slot files are fine.
 
+USB HID lists (`controller-HidGC.c`, 2026-10-19): entries are only appended, so an old `usb-hid.cfg`
+means what it meant. Buttons: 0-22 as before (None, D-pad, L2 R2 L1 R1, A B X Y, Start Select,
+C-/A- stick directions), 23 L3, 24 R3, 25-84 the 60 HID inputs (Btn 1-32, Hat Up/Right/Down/Left,
+Hat2 ..., Axis X- X+ ... Accel- Accel+). Menu and screenshot combinations: 0-2 as before, 3-62 the
+HID inputs alone; ANALOG combinations: 0-1, then 2-61. Analog sources: 0 A-Stick, 1 C-Stick,
+2 Axes X/Y, 3 Axes Z/Rz, 4 Axes Rx/Ry, 5 Slider/Dial. A HID entry's mask is `0x80000000 | input`;
+Configure Buttons skips entries for inputs the plugged-in pad does not have, and takes a HID input
+alone as inside only itself when it keeps combinations apart. A file saved with such an entry, read
+by a build from before, falls back to entry 0 (None / the default) for it. The default HID config now
+maps L3 and R3 to entries 23 and 24 (before: None).
+
 A button field is an index into the type's button table. A bad index becomes 0 with no message.
 The format has no count and no checksum. See `Gamecube/PlugPAD.c` (`read_slot`, `write_slot`).
 

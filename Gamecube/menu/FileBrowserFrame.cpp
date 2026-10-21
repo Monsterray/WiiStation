@@ -503,8 +503,8 @@ void fileBrowserFrame_OpenDirectory(fileBrowser_file* dir)
 static const int ROM_DIRS_MAX = 16;
 /* Load from SD / Load from USB: the folders of RomDirSD or RomDirUSB ("/wiistation/isos,
  * /roms/psx") that exist on that device ("sd:", "usb:"). One opens straight away; several
- * are listed, by whole path, to choose from; none opens the device's /wiistation/isos as
- * before, which says what is missing. An item may also name its device ("sd:/roms"). */
+ * are listed, by whole path, to choose from; none opens the device's root (it used to open
+ * /wiistation/isos and say it was missing). An item may also name its device ("sd:/roms"). */
 void fileBrowserFrame_OpenRomFolders(fileBrowser_file* deviceDefault, const char *device)
 {
 	fileBrowser_file found[ROM_DIRS_MAX];
@@ -525,9 +525,8 @@ void fileBrowserFrame_OpenRomFolders(fileBrowser_file* deviceDefault, const char
 		if (!stat(path, &st) && S_ISDIR(st.st_mode))
 			found[n++].attr = FILE_BROWSER_ATTR_DIR;
 	}
-	if (n == 0)   /* the share's own top, or the card's /wiistation/isos */
-		snprintf(deviceDefault->name, sizeof(deviceDefault->name), "%s%s", device,
-		         !strcasecmp(device, "smb:") ? "/" : "/wiistation/isos");
+	if (n == 0)   /* no game folder there: the device's root (user, 2026-10-20) */
+		snprintf(deviceDefault->name, sizeof(deviceDefault->name), "%s/", device);
 	if (n <= 1)
 	{
 		if (n == 1)

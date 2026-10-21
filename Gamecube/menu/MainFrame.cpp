@@ -329,7 +329,7 @@ void Func_PlayGame()
 	menu::Cursor::getInstance().setFreezeAction(false);
 	menu::Focus::getInstance().setFreezeAction(false);
 
-	menu::Gui::getInstance().gfx->clearEFB((GXColor){0, 0, 0, 0xFF}, 0x000000);
+	menu::Gui::getInstance().gfx->clearEFB((GXColor){0, 0, 0, 0xFF}, GX_MAX_Z24);   /* far: OpenGX reads depth as bit 15 = 0 there (STP_BIT15.md) */
 	extern bool executingBios;
 	executingBios = false;
 #ifdef HW_RVL

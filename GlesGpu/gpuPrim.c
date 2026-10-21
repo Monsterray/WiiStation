@@ -1974,6 +1974,7 @@ int UploadScreen ( int Position )
     }
 #endif
 
+    glSetMaskMode ( OGX_MASK_UPLOAD );   /* VRAM's own bit 15 per pixel, no mask check (gc_gl.c) */
     for ( y = ya; y <= yb; y += YStep )                   // loop y
     {
         U = 0;
@@ -2060,6 +2061,7 @@ int UploadScreen ( int Position )
         }
     }
 
+    glSetMaskMode ( OGX_MASK_DRAW );
     bUsingMovie = FALSE;                                  // done...
     bDisplayNotSet = TRUE;
 
@@ -2609,6 +2611,11 @@ static void primLoadImage ( unsigned char * baseAddr )
         clearMovieGarbageCnt = 0;
     }
 
+    /* check-mask (E6.1): the load skips pixels whose bit 15 is set, so GX's pixels there must
+     * be in psxVuw first (gpuPlugin.c VW_PUT_MASK) */
+    if ( bCheckMask && !PSXDisplay.RGB24 )
+        efb_sync ( VRAMWrite.x, VRAMWrite.y, VRAMWrite.Width, VRAMWrite.Height );
+
     iDataWriteMode = DR_VRAMTRANSFER;
     VRAMWrite.ImagePtr = psxVuw + ( VRAMWrite.y << 10 ) + VRAMWrite.x;
     VRAMWrite.RowsRemaining = VRAMWrite.Width;
@@ -3024,7 +3031,9 @@ static void primStoreImage ( unsigned char * baseAddr )
     perf_vram_event(0xC0, VRAMRead.x, VRAMRead.y, VRAMRead.Width, VRAMRead.Height, 0, 0);
 
     /* the CPU reads psxVuw: put what GX drew there into it first (efbSync.inc) */
+    efb_sync_from = 5;
     efb_sync(VRAMRead.x, VRAMRead.y, VRAMRead.Width, VRAMRead.Height);
+    efb_sync_from = 0;
 
     STATUSREG |= GPUSTATUS_READYFORVRAM;
 }
@@ -3100,10 +3109,14 @@ static inline void BlkFillArea(short x0, short y0, short width, short height, un
     }
 }
 
+extern int chain_fill_wait; void chain_fill_hook ( void );   /* GamecubeMain.cpp, ChainDump */
+
 static void primBlkFill ( unsigned char * baseAddr )
 {
     uint32_t *gpuData = ( ( unsigned long * ) baseAddr );
     short *sgpuData = ( ( short * ) baseAddr );
+
+    if ( chain_fill_wait ) chain_fill_hook();
 
     iDrawnSomething |= 0x4;
 
@@ -3206,7 +3219,9 @@ static void primBlkFill ( unsigned char * baseAddr )
             glScissor(rRatioRect.left, rRatioRect.top, rRatioRect.right, rRatioRect.bottom); /* GP0 02 ignores the drawing area */
             vertex[0].c.lcol = gpuData[0] | 0xFF;
             SETCOL ( vertex[0] );
+            glSetMaskMode ( OGX_MASK_FILL );   /* bit 15 = 0, no mask check (gc_gl.c) */
             PERF_TIME(gpu_fill_gx_ticks, glPRIMdrawQuad ( &vertex[0] ));
+            glSetMaskMode ( OGX_MASK_DRAW );
             bSetClip = TRUE; bDisplayNotSet = TRUE;                  /* next primitive re-applies the clip */
         }
         gl_z = 0.0f;
@@ -3229,7 +3244,9 @@ static void primBlkFill ( unsigned char * baseAddr )
         glScissor(rRatioRect.left, rRatioRect.top, rRatioRect.right, rRatioRect.bottom); /* GP0 02 ignores the drawing area */
         vertex[0].c.lcol = gpuData[0] | 0xFF;
         SETCOL ( vertex[0] );
+        glSetMaskMode ( OGX_MASK_FILL );   /* bit 15 = 0, no mask check (gc_gl.c) */
         PERF_TIME(gpu_fill_gx_ticks, glPRIMdrawQuad ( &vertex[0] ));
+        glSetMaskMode ( OGX_MASK_DRAW );
         bSetClip = TRUE; bDisplayNotSet = TRUE;                  /* next primitive re-applies the clip */
     }
 
@@ -3346,7 +3363,9 @@ static void primMoveImage ( unsigned char * baseAddr )
      * pixels in psxVuw: the copy is then not the CPU's own, and its upload must not paint
      * that stale black opaque (bUploadOpaque below) */
     unsigned move_misses = efb_misses;
+    efb_sync_from = 6;
     efb_sync(imageX0, imageY0, imageSX, imageSY);
+    efb_sync_from = 0;
     int move_src_ok = efb_misses == move_misses;
 
 
@@ -3360,6 +3379,17 @@ static void primMoveImage ( unsigned char * baseAddr )
         if ( ( imageX0 + imageSX ) > 1024 )       imageSX = 1024 - imageX0;
         if ( ( imageY1 + imageSY ) > iGPUHeight ) imageSY = iGPUHeight - imageY1;
         if ( ( imageX1 + imageSX ) > 1024 )       imageSX = 1024 - imageX1;
+    }
+    else if ( bCheckMask )   /* E6.1: no write over a pixel whose bit 15 is set */
+    {
+        efb_sync ( imageX1, imageY1, imageSX, imageSY );   /* GX's bits there first */
+        for ( j = 0; j < imageSY; j++ )
+            for ( i = 0; i < imageSX; i++ )
+            {
+                unsigned short *d = psxVuw + 1024 * ( imageY1 + j ) + imageX1 + i;
+                if ( !( GETLE16 ( d ) & 0x8000 ) )
+                    *d = psxVuw[1024 * ( imageY0 + j ) + imageX0 + i] | setMask16;
+            }
     }
     else if ( (imageSX | imageX0 | imageX1) & 1 ) // not dword aligned? slower func
     {
@@ -3593,7 +3623,7 @@ static inline void TitleFillArea(short x0, short y0, short width, short height, 
 
     if (!bCheckMask && !DrawSemiTrans)
     {
-        unsigned short colTmp = SWAP16_C(colInfo);
+        unsigned short colTmp = SWAP16_C(colInfo) | GETLEs16(&sSetMask);   /* E6.0: bit 15 */
         ogx_inv_src = 3;
         InvalidateTextureArea(x0, y0, width, height);
 

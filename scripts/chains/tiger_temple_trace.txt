@@ -1,0 +1,5 @@
+CHAIN
+# Tiger Temple: primitive traces of a fast frame and the worst slow stretch (Dolphin)
+12300 sd:/wiistation/tiger_temple_trace_play.txt PadAutoAssign=1 ControllerType=0 PadType2=1 gpuPlugin=2
+sd:/wiistation/isos/Crash Team Racing
+Crash Team Racing [U] [SCUS-94426].cue

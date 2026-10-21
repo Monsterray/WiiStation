@@ -7,6 +7,7 @@ extern "C" {
 
 #include "global.h"
 #include "PS3Controller.h"
+#include "hid_layout.h"
 #include "../Gamecube/MEM2.h"
 
 #define C_NOT_SET	(0<<0)
@@ -233,8 +234,21 @@ typedef struct {
 	s32 descLen;             /* the HID report descriptor's length, or the IOS error */
 	u8 desc[512];
 	char product[64];        /* the device's product string, "" if none */
+	s32 nInputs;             /* gamepad inputs hid_parse found in desc (0: none) */
+	u32 autoLayout;          /* read through hidMap (hidAuto) */
 } hid_probe_t;
 extern hid_probe_t hidProbe;
+
+/* Every input of the picked pad (hid_layout.h): its report descriptor, read at HIDOpen
+ * (KernelHID.c), and the inputs held in the last report (PADReadGC.c, HidFormatData). */
+extern hid_layout hidLayout;
+extern hid_state hidState;
+/* hidAuto 1: the pad has no ini, or a new-style one (Auto=1, Button13, HatUp, AxisZ+ ...),
+ * and HidFormatData builds its GameCube-style pad from hidMap. 0: an old ini, read as
+ * always; hidMap then holds only its KeyL3/KeyR3 lines. */
+extern hid_map hidMap;
+extern volatile u32 hidAuto;
+extern u32 hidReportLen;     /* bytes in HID_MEM2_PACKET_ADDR */
 /* Set by the USB Pad Test page while it is open: a pad attached then that has no controller
  * ini is still read (raw), but hidControllerConnected stays 0 for it, so games and the menu
  * never use it. */

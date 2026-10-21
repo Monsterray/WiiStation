@@ -47,6 +47,85 @@ unsigned int lightrec_code_shape;
 #include <stddef.h>
 #include <string.h>
 
+/* WiiStation: the background compiler ("jitq", Docs/BACKENDS.md). A block's compile is
+ * queued after it was interpreted lightrec_jitq_queue_at times (the first is the first pass,
+ * which tags its memory accesses) and runs on a low-priority thread from a copy of the
+ * opcode list. The block keeps running interpreted (or its old code, for a recompile), and
+ * its new code is switched in at exactly lightrec_jitq_delay visits after the visit that
+ * queued it; if the thread is not done by then, the emulator waits for it there.
+ * Everything the guest can see happens on the emulator thread at points its own execution
+ * sets: which code runs at which visit, which blocks a new one covers, and the code
+ * buffer's cleans, which follow the bytes of code in use (MEM_FOR_CODE, counted at installs
+ * and frees) and not whether an allocation happened to fail. So a run does not depend on
+ * how fast the thread is. lightrec_jitq_delay 0 = off: compile on the emulator after the
+ * first pass, as before. */
+#include <ogc/lwp.h>
+#include <ogc/mutex.h>
+#include <ogc/semaphore.h>
+#include <unistd.h>
+
+unsigned int lightrec_jitq_delay;		/* set before lightrec_init() (plugin: JitDelay) */
+unsigned int lightrec_jitq_queue_at = 1;
+/* test only: the thread sleeps this long before each compile, to show that a slow thread
+ * changes the stalls and nothing else (Docs/BACKENDS.md) */
+unsigned int lightrec_jitq_test_sleep_us;
+/* perf.log "jitq:" (Gamecube/perf_prof.c) */
+unsigned int lightrec_jitq_queued, lightrec_jitq_installed, lightrec_jitq_stalls,
+	     lightrec_jitq_cancels, lightrec_jitq_errs, lightrec_jitq_stale, lightrec_jitq_full,
+	     lightrec_jitq_pend_peak, lightrec_jitq_realfull, lightrec_code_fits;
+unsigned long long lightrec_jitq_stall_ticks, lightrec_jitq_thread_ticks;
+
+#define JQ_PRIO		20	/* below every other thread: the emulator is 64 */
+#define JQ_STACK	(64 * 1024)
+/* At most this many compiles waiting for their install; past it a block compiles on the
+ * emulator as before. Their code is real memory the guest-side count does not see yet. */
+#define JQ_MAX_PENDING	768
+/* The code buffer is cleaned (oldest blocks first) when the code in use would pass this,
+ * whether or not an allocation failed: the guest-side count of the 2 MB buffer
+ * (LIGHTREC_CODE_SIZE), with room left for the pending compiles and for fragmentation. */
+#define JQ_CODE_MAX	(1664u * 1024u)
+/* A compile still waiting for its install after this much guest time is switched in
+ * anyway (get_next_block_func): code that ran a few times and stopped holds no memory */
+#define JQ_STALE	LIGHTREC_AGE_1S
+/* the most code a block of nb_ops needs, with Lightning's margin of 176 bytes (bench Wii
+ * and Dolphin, Spyro: never over 40 bytes an op + 384); Lightning's own estimate,
+ * jit_get_size(), is about 3 times the code */
+#define JQ_CODE_FIT(nb_ops)	(40u * (nb_ops) + 560u)
+
+enum { JQ_QUEUED, JQ_COMPILING, JQ_DONE };
+
+struct lightrec_compiled {
+	void *fn;
+	jit_state_t *_jit;
+	unsigned int code_size;
+	u32 hash, shape;
+	_Bool fully_tagged;
+	unsigned int nb_targets;
+	struct { u32 offset; void *addr; } *targets;
+};
+
+struct jitq_job {
+	struct jitq_job *next;		/* the thread's queue */
+	struct block *block;		/* the live block: the thread never reads it */
+	struct block shadow;		/* the copy the thread compiles; ops[] is its opcode list */
+	unsigned int visits;
+	u32 date;			/* lightrec_age_now() when queued */
+	struct jitq_job *pnext, *pprev;	/* pending list, queue order (emulator only) */
+	int err;
+	volatile int status;
+	struct lightrec_compiled res;
+	struct opcode ops[];
+};
+
+static lwp_t jq_thread = LWP_THREAD_NULL;
+static mutex_t jq_mutex, jq_alloc_mutex;
+static sem_t jq_work, jq_done;
+static struct jitq_job *jq_head, *jq_tail, *jq_busy, *jq_want, *jq_waiting;
+static struct jitq_job *jq_pend_head, *jq_pend_tail;	/* emulator only */
+static unsigned int jq_npending;
+static struct lightrec_cstate *jq_cstate;
+static _Bool jq_on;
+
 static struct block * lightrec_precompile_block(struct lightrec_state *state,
 						u32 pc);
 static bool lightrec_block_is_fully_tagged(const struct block *block);
@@ -807,6 +886,11 @@ static struct block * lightrec_get_block(struct lightrec_state *state, u32 pc)
 	return block;
 }
 
+static int jq_queue(struct lightrec_state *state, struct block *block);
+static void jq_compile_now(struct lightrec_state *state, struct block *block);
+static void jq_install(struct lightrec_state *state, struct block *block);
+static void jq_cancel(struct lightrec_state *state, struct block *block);
+
 static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 {
 	struct block *block;
@@ -815,6 +899,23 @@ static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 	int err;
 
 	do {
+		/* WiiStation jitq: a compile that waited too long is switched in here, at a
+		 * point the guest sets, before any block is looked up (it may reap some) */
+		if (jq_on && jq_pend_head &&
+		    lightrec_age_now(state) - jq_pend_head->date > JQ_STALE) {
+			struct block *stale = jq_pend_head->block;
+
+			lightrec_jitq_stale++;
+			/* Its code in RAM may have changed since (the install
+			 * would put the old code in the LUT, where no lookup
+			 * checks it again): then drop the compile, and the next
+			 * lookup finds the block outdated, as without jitq. */
+			if (lightrec_block_is_outdated(state, stale))
+				jq_cancel(state, stale);
+			else
+				jq_install(state, stale);
+		}
+
 		func = lut_read(state, lut_offset(pc));
 		if (func && func != state->get_next_block)
 			break;
@@ -833,6 +934,37 @@ static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 		should_recompile = block_has_flag(block, BLOCK_SHOULD_RECOMPILE) &&
 			!block_has_flag(block, BLOCK_NEVER_COMPILE) &&
 			!block_has_flag(block, BLOCK_IS_DEAD);
+
+		if (jq_on) {
+			/* WiiStation: the background compiler (jitq, at the top). The
+			 * visit count is the only clock: guest timing never depends on
+			 * how fast the thread is. */
+			if (block->job) {
+				if (++block->job->visits >= lightrec_jitq_delay)
+					jq_install(state, block);
+			} else if (unlikely(should_recompile)) {
+				/* the old code stays in use until the install */
+				if (jq_queue(state, block))
+					jq_compile_now(state, block);
+			}
+
+			func = block->function;
+			if (likely(func))
+				break;
+
+			if (!block->job && !block_has_flag(block, BLOCK_NEVER_COMPILE)) {
+				bool queue = lightrec_jitq_queue_at <= 1 ||
+					block_has_flag(block, BLOCK_SEEN);
+
+				block_set_flags(block, BLOCK_SEEN);
+				pc = lightrec_emulate_block(state, block, pc);
+				if (queue && jq_queue(state, block))
+					jq_compile_now(state, block);
+			} else {
+				pc = lightrec_emulate_block(state, block, pc);
+			}
+			continue;
+		}
 
 		if (unlikely(should_recompile)) {
 			pr_debug("Block at "PC_FMT" should recompile\n", pc);
@@ -916,17 +1048,16 @@ static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 	return func;
 }
 
+/* WiiStation: with jitq the thread allocates and frees code too: one lock around the TLSF */
 static void * lightrec_alloc_code(struct lightrec_state *state, size_t size)
 {
 	void *code;
 
-	if (ENABLE_THREADED_COMPILER)
-		lightrec_code_alloc_lock(state);
-
+	if (jq_on)
+		LWP_MutexLock(jq_alloc_mutex);
 	code = tlsf_malloc(state->tlsf, size);
-
-	if (ENABLE_THREADED_COMPILER)
-		lightrec_code_alloc_unlock(state);
+	if (jq_on)
+		LWP_MutexUnlock(jq_alloc_mutex);
 
 	return code;
 }
@@ -936,36 +1067,77 @@ static void lightrec_realloc_code(struct lightrec_state *state,
 {
 	/* NOTE: 'size' MUST be smaller than the size specified during
 	 * the allocation. */
-
-	if (ENABLE_THREADED_COMPILER)
-		lightrec_code_alloc_lock(state);
-
+	if (jq_on)
+		LWP_MutexLock(jq_alloc_mutex);
 	tlsf_realloc(state->tlsf, ptr, size);
-
-	if (ENABLE_THREADED_COMPILER)
-		lightrec_code_alloc_unlock(state);
+	if (jq_on)
+		LWP_MutexUnlock(jq_alloc_mutex);
 }
 
 static void lightrec_free_code(struct lightrec_state *state, void *ptr)
 {
-	if (ENABLE_THREADED_COMPILER)
-		lightrec_code_alloc_lock(state);
-
+	if (jq_on)
+		LWP_MutexLock(jq_alloc_mutex);
 	tlsf_free(state->tlsf, ptr);
-
-	if (ENABLE_THREADED_COMPILER)
-		lightrec_code_alloc_unlock(state);
+	if (jq_on)
+		LWP_MutexUnlock(jq_alloc_mutex);
 }
 
 static char lightning_code_data[0x80000];
 
+/* WiiStation: code memory; when the buffer is full remove outdated blocks and the oldest
+ * ones first, then younger, then all but this one, until it fits: the fewest recompiles
+ * for a full buffer. Emulator thread only (jitq reserves the thread's memory here too). */
+/* perf.log "jitfull:": the buffer when the last clean began (free bytes, free pieces, the
+ * largest piece, the size asked for) */
+unsigned int lightrec_full_free, lightrec_full_pieces, lightrec_full_largest, lightrec_full_ask;
+
+static void lightrec_full_walk(void *ptr, size_t size, int used, void *user)
+{
+	if (used)
+		return;
+	lightrec_full_free += size;
+	lightrec_full_pieces++;
+	if (size > lightrec_full_largest)
+		lightrec_full_largest = size;
+}
+
+static void * lightrec_alloc_code_evict(struct lightrec_state *state,
+					const struct block *block, size_t size)
+{
+	static const u32 ages[] = {
+		LIGHTREC_AGE_4S, LIGHTREC_AGE_1S, LIGHTREC_AGE_250MS,
+	};
+	void *code = lightrec_alloc_code(state, size);
+	unsigned int i;
+
+	if (!code) {
+		lightrec_full_free = lightrec_full_pieces = lightrec_full_largest = 0;
+		lightrec_full_ask = size;
+		tlsf_walk_pool(tlsf_get_pool(state->tlsf), lightrec_full_walk, NULL);
+	}
+
+	for (i = 0; !code && i < ARRAY_SIZE(ages); i++) {
+		lightrec_remove_outdated_blocks(state->block_cache, block, ages[i]);
+		code = lightrec_alloc_code(state, size);
+	}
+	if (!code) {
+		lightrec_free_all_blocks_except(state->block_cache, block);
+		code = lightrec_alloc_code(state, size);
+	}
+	return code;
+}
+
+/* thread: called on the jitq thread (no clean there, no MEM_FOR_CODE count: the install
+ * counts it) */
 static void * lightrec_emit_code(struct lightrec_state *state,
 				 const struct block *block,
-				 jit_state_t *_jit, unsigned int *size)
+				 jit_state_t *_jit, struct lightrec_compiled *out,
+				 bool thread)
 {
 	bool has_code_buffer = ENABLE_CODE_BUFFER && state->tlsf;
 	jit_word_t code_size, new_code_size;
-	void *code;
+	void *code = NULL, *emitted;
 
 	jit_realize();
 
@@ -983,74 +1155,73 @@ static void * lightrec_emit_code(struct lightrec_state *state,
 		code_size *= 2;
 #endif
 
-		code = lightrec_alloc_code(state, (size_t) code_size);
-
+		code = lightrec_alloc_code(state, code_size);
 		if (!code) {
-			if (ENABLE_THREADED_COMPILER) {
-				/* If we're using the threaded compiler, return
-				 * an allocation error here. The threaded
-				 * compiler will then empty its job queue and
-				 * request a code flush using the reaper. */
-				return NULL;
-			}
+			/* WiiStation: the free space is in pieces smaller than
+			 * Lightning's estimate (about 3 times the code): try a
+			 * piece the code fits first */
+			size_t fit = JQ_CODE_FIT(block->nb_ops);
 
-			/* WiiStation: remove outdated blocks and the oldest ones
-			 * first, then younger, then all but this one, until it
-			 * fits: the fewest recompiles for a full buffer. */
-			{
-				static const u32 ages[] = {
-					LIGHTREC_AGE_4S, LIGHTREC_AGE_1S, LIGHTREC_AGE_250MS,
-				};
-				unsigned int i;
-
-				for (i = 0; !code && i < ARRAY_SIZE(ages); i++) {
-					lightrec_remove_outdated_blocks(state->block_cache,
-									block, ages[i]);
-					code = lightrec_alloc_code(state, code_size);
+			if (fit < (size_t) code_size &&
+			    (code = lightrec_alloc_code(state, fit))) {
+				jit_set_code(code, fit);
+				emitted = jit_emit();
+				if (emitted) {
+					lightrec_code_fits++;
+					goto emitted_ok;
 				}
-				if (!code) {
-					lightrec_free_all_blocks_except(state->block_cache, block);
-					code = lightrec_alloc_code(state, code_size);
-				}
+				lightrec_free_code(state, code);
+				code = NULL;
 			}
-			if (!code) {
-				pr_err("Could not alloc even after removing old blocks!\n");
-				lightrec_code_fails++;
+		}
+		if (!code) {
+			/* With jitq, cleans follow the code in use (jq_make_room) and a
+			 * real failure here is not guest-predictable: count it. The
+			 * thread gives up; the install compiles the block again. */
+			if (jq_on)
+				lightrec_jitq_realfull++;
+			if (thread)
 				return NULL;
-			}
+			code = lightrec_alloc_code_evict(state, block, code_size);
+		}
+		if (!code) {
+			pr_err("Could not alloc even after removing old blocks!\n");
+			lightrec_code_fails++;
+			return NULL;
 		}
 
 		jit_set_code(code, code_size);
 	}
 
-	{
-		void *emitted = jit_emit();
+	emitted = jit_emit();
+	if (!emitted) {
+		/* WiiStation: free the chunk lightrec_alloc_code() gave,
+		 * not the NULL jit_emit() returned (it leaked) */
+		if (has_code_buffer)
+			lightrec_free_code(state, code);
 
-		if (!emitted) {
-			/* WiiStation: free the chunk lightrec_alloc_code() gave,
-			 * not the NULL jit_emit() returned (it leaked) */
-			if (has_code_buffer)
-				lightrec_free_code(state, code);
-
-			return NULL;
-		}
-		code = emitted;
+		return NULL;
 	}
+emitted_ok:
+	code = emitted;
 
 	jit_get_code(&new_code_size);
-	lightrec_register(MEM_FOR_CODE, new_code_size);
+	if (!thread)
+		lightrec_register(MEM_FOR_CODE, new_code_size);
 	{
-		/* WiiStation: checksum of all emitted code (perf.log "jitcode:"),
-		 * to prove a compiler change emits the same bytes */
+		/* WiiStation: checksum of the block's code; the install adds it to perf.log
+		 * "jitcode:" (a sum, so jitq's compile order does not change it) */
 		const u32 *w = code;
 		unsigned int i;
+		u32 h = 0, s = 0;
 
 		for (i = 0; i < (unsigned int) new_code_size / 4; i++)
 		{
-			lightrec_code_sum = lightrec_code_sum * 31 + w[i];
-			lightrec_code_shape = lightrec_code_shape * 31 + (w[i] >> 16);
+			h = h * 31 + w[i];
+			s = s * 31 + (w[i] >> 16);
 		}
-		lightrec_code_bytes += new_code_size;
+		out->hash = h;
+		out->shape = s;
 	}
 
 	if (has_code_buffer) {
@@ -1061,7 +1232,7 @@ static void * lightrec_emit_code(struct lightrec_state *state,
 			 (uintptr_t) code, code_size, new_code_size);
 	}
 
-	*size = (unsigned int) new_code_size;
+	out->code_size = (unsigned int) new_code_size;
 
 	if (state->ops.code_inv)
 		state->ops.code_inv(code, new_code_size);
@@ -1386,8 +1557,13 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 	block->flags = BLOCK_NO_OPCODE_LIST;
 	block->nb_ops = 0;
 
-	block->function = lightrec_emit_code(state, block, _jit,
-					     &block->code_size);
+	block->job = NULL;
+	{
+		struct lightrec_compiled c = { 0 };
+
+		block->function = lightrec_emit_code(state, block, _jit, &c, false);
+		block->code_size = c.code_size;
+	}
 	if (!block->function)
 		goto err_free_jit;
 
@@ -1536,6 +1712,7 @@ static struct block * lightrec_precompile_block(struct lightrec_state *state,
 	block->opcode_list = list;
 	block->code = code;
 	block->next = NULL;
+	block->job = NULL;
 	block->flags = 0;
 	block->code_size = 0;
 	block->precompile_date = lightrec_age_now(state);
@@ -1649,28 +1826,24 @@ static void lightrec_reap_opcode_list(struct lightrec_state *state, void *data)
 	lightrec_free_opcode_list(state, data);
 }
 
-int lightrec_compile_block(struct lightrec_cstate *cstate,
-			   struct block *block)
+/* WiiStation: compiling is split in two so jitq can run the first half on its thread.
+ * lightrec_compile_code() turns `block` (the live block, or jitq's copy of it) into code and
+ * touches nothing shared but the code memory it allocates (`thread`: on the jitq thread). lightrec_install_code() puts that code in use (the LUT, the blocks
+ * it covers, the old code): emulator thread only. */
+static int lightrec_compile_code(struct lightrec_cstate *cstate, struct block *block,
+				 struct block *live, bool thread,
+				 struct lightrec_compiled *out)
 {
-	struct block *dead_blocks[ARRAY_SIZE(cstate->targets)];
-	u32 was_dead[ARRAY_SIZE(cstate->targets) / 8];
 	struct lightrec_state *state = cstate->state;
 	struct lightrec_branch_target *target;
-	bool fully_tagged = false;
-	struct block *block2;
 	struct opcode *elm;
-	jit_state_t *_jit, *oldjit;
+	jit_state_t *_jit, *oldjit = block->_jit;
 	jit_node_t *start_of_block;
 	bool skip_next = false;
-	void *old_fn, *new_fn;
-	size_t old_code_size;
-	unsigned int i, j;
-	u8 old_flags;
-	u32 offset;
+	void *new_fn;
+	unsigned int i, j, n;
 
-	fully_tagged = lightrec_block_is_fully_tagged(block);
-	if (fully_tagged)
-		block_set_flags(block, BLOCK_FULLY_TAGGED);
+	out->fully_tagged = lightrec_block_is_fully_tagged(block);
 
 	unsigned long long cp0 = JIT_TB(), cp1;
 	_jit = jit_new_state();
@@ -1682,10 +1855,8 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 	if (OPT_DETECT_IDLE && !block_has_flag(block, BLOCK_NO_OPCODE_LIST))
 		lightrec_detect_idle(block);
 
-	oldjit = block->_jit;
-	old_fn = block->function;
-	old_code_size = block->code_size;
 	block->_jit = _jit;
+	cstate->live_block = live;
 
 	lightrec_regcache_reset(cstate->reg_cache);
 
@@ -1762,11 +1933,26 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 
 	cp0 = JIT_TB();
 	lightrec_cprof[1] += cp0 - cp1;
-	new_fn = lightrec_emit_code(state, block, _jit, &block->code_size);
+	new_fn = lightrec_emit_code(state, block, _jit, out, thread);
 	cp1 = JIT_TB();
 	lightrec_cprof[2] += cp1 - cp0;
+
+	for (i = n = 0; new_fn && i < cstate->nb_targets; i++)
+		n += !!cstate->targets[i].offset;
+	out->targets = NULL;
+	if (n) {
+		out->targets = lightrec_malloc(state, MEM_FOR_LIGHTREC,
+					       n * sizeof(*out->targets));
+		if (!out->targets) {
+			lightrec_free_code(state, new_fn);
+			if (!thread)
+				lightrec_unregister(MEM_FOR_CODE, out->code_size);
+			new_fn = NULL;
+		}
+	}
+
 	if (!new_fn) {
-		if (!ENABLE_THREADED_COMPILER)
+		if (!thread)
 			pr_err("Unable to compile block!\n");
 		block->_jit = oldjit;
 		jit_clear_state();
@@ -1774,91 +1960,15 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 		return -ENOMEM;
 	}
 
-	/* Pause the reaper, because lightrec_reset_lut_offset() may try to set
-	 * the old block->function pointer to the code LUT. */
-	if (ENABLE_THREADED_COMPILER)
-		lightrec_reaper_pause(state->reaper);
-
-	/* WiiStation: a recompile frees the old code below; clear every LUT entry into it
-	 * first, so none survives that the new code's own targets do not overwrite */
-	if (oldjit)
-		memset(lut_address(state, lut_offset(block->pc)), 0,
-		       block->nb_ops * lut_elm_size(state));
-
-	block->function = new_fn;
-	block_clear_flags(block, BLOCK_SHOULD_RECOMPILE);
-
-	/* Add compiled function to the LUT */
-	lut_write(state, lut_offset(block->pc), block->function);
-
-	/* Detect old blocks that have been covered by the new one */
-	for (i = 0; ENABLE_THREADED_COMPILER && i < cstate->nb_targets; i++) {
+	/* the entry points inside the block, for the LUT */
+	for (i = n = 0; i < cstate->nb_targets; i++) {
 		target = &cstate->targets[i];
-
 		if (!target->offset)
 			continue;
-
-		offset = block->pc + target->offset * sizeof(u32);
-
-		block2 = lightrec_find_block(state->block_cache, offset);
-		if (block2) {
-			/* No need to check if block2 is compilable - it must
-			 * be, otherwise block wouldn't be compilable either */
-
-			/* Set the "block dead" flag to prevent the dynarec from
-			 * recompiling this block */
-			old_flags = block_set_flags(block2, BLOCK_IS_DEAD);
-
-			if (old_flags & BLOCK_IS_DEAD)
-				was_dead[i / 32] |= BIT(i % 32);
-			else
-				was_dead[i / 32] &= ~BIT(i % 32);
-		}
-
-		dead_blocks[i] = block2;
-
-		/* If block2 was pending for compilation, cancel it.
-		 * If it's being compiled right now, wait until it finishes. */
-		if (block2)
-			lightrec_recompiler_remove(state->rec, block2);
+		out->targets[n].offset = target->offset;
+		out->targets[n++].addr = jit_address(target->label);
 	}
-
-	for (i = 0; i < cstate->nb_targets; i++) {
-		target = &cstate->targets[i];
-
-		if (!target->offset)
-			continue;
-
-		/* We know from now on that block2 (if present) isn't going to
-		 * be compiled. We can override the LUT entry with our new
-		 * block's entry point. */
-		offset = lut_offset(block->pc) + target->offset;
-		lut_write(state, offset, jit_address(target->label));
-
-		if (ENABLE_THREADED_COMPILER) {
-			block2 = dead_blocks[i];
-		} else {
-			offset = block->pc + target->offset * sizeof(u32);
-			block2 = lightrec_find_block(state->block_cache, offset);
-		}
-		if (block2) {
-			pr_debug("Reap block "X32_FMT" as it's covered by block "
-				 X32_FMT"\n", block2->pc, block->pc);
-
-			/* Finally, reap the block. */
-			if (!ENABLE_THREADED_COMPILER) {
-				lightrec_unregister_block(state->block_cache, block2);
-				lightrec_free_block(state, block2);
-			} else if (!(was_dead[i / 32] & BIT(i % 32))) {
-				lightrec_reaper_add(state->reaper,
-						    lightrec_reap_block,
-						    block2);
-			}
-		}
-	}
-
-	if (ENABLE_THREADED_COMPILER)
-		lightrec_reaper_continue(state->reaper);
+	out->nb_targets = n;
 
 	if (ENABLE_DISASSEMBLER) {
 		pr_debug("Compiling block at "PC_FMT"\n", block->pc);
@@ -1866,19 +1976,69 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 	}
 
 	jit_clear_state();
+	block->_jit = oldjit;
+	out->_jit = _jit;
+	out->fn = new_fn;
+	return 0;
+}
 
-	if (fully_tagged)
+static void lightrec_install_code(struct lightrec_state *state, struct block *block,
+				  struct lightrec_compiled *c)
+{
+	unsigned long long cp1 = JIT_TB();
+	jit_state_t *oldjit = block->_jit;
+	void *old_fn = block->function;
+	unsigned int old_code_size = block->code_size;
+	struct block *block2;
+	unsigned int i;
+	u32 offset;
+	u8 old_flags;
+
+	if (c->fully_tagged)
+		block_set_flags(block, BLOCK_FULLY_TAGGED);
+
+	/* WiiStation: a recompile frees the old code below; clear every LUT entry into it
+	 * first, so none survives that the new code's own targets do not overwrite */
+	if (oldjit)
+		memset(lut_address(state, lut_offset(block->pc)), 0,
+		       block->nb_ops * lut_elm_size(state));
+
+	block->_jit = c->_jit;
+	block->function = c->fn;
+	block->code_size = c->code_size;
+	lightrec_code_sum += c->hash;
+	lightrec_code_shape += c->shape;
+	lightrec_code_bytes += c->code_size;
+
+	/* Add compiled function to the LUT */
+	lut_write(state, lut_offset(block->pc), block->function);
+
+	/* The entry points inside the block go to the LUT, and the blocks that started
+	 * there are reaped (and their pending compiles cancelled) */
+	for (i = 0; i < c->nb_targets; i++) {
+		offset = c->targets[i].offset;
+		lut_write(state, lut_offset(block->pc) + offset, c->targets[i].addr);
+
+		block2 = lightrec_find_block(state->block_cache,
+					     block->pc + offset * sizeof(u32));
+		if (block2) {
+			pr_debug("Reap block "X32_FMT" as it's covered by block "
+				 X32_FMT"\n", block2->pc, block->pc);
+			lightrec_unregister_block(state->block_cache, block2);
+			lightrec_free_block(state, block2);
+		}
+	}
+	if (c->targets)
+		lightrec_free(state, MEM_FOR_LIGHTREC,
+			      c->nb_targets * sizeof(*c->targets), c->targets);
+	c->targets = NULL;
+	c->_jit = NULL;
+
+	if (c->fully_tagged) {
 		old_flags = block_set_flags(block, BLOCK_NO_OPCODE_LIST);
-
-	if (fully_tagged && !(old_flags & BLOCK_NO_OPCODE_LIST)) {
-		pr_debug("Block "PC_FMT" is fully tagged"
-			 " - free opcode list\n", block->pc);
-
-		if (ENABLE_THREADED_COMPILER) {
-			lightrec_reaper_add(state->reaper,
-					    lightrec_reap_opcode_list,
-					    block->opcode_list);
-		} else {
+		if (!(old_flags & BLOCK_NO_OPCODE_LIST)) {
+			pr_debug("Block "PC_FMT" is fully tagged"
+				 " - free opcode list\n", block->pc);
 			lightrec_free_opcode_list(state, block->opcode_list);
 		}
 	}
@@ -1886,24 +2046,319 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 	if (oldjit) {
 		pr_debug("Block "X32_FMT" recompiled, reaping old jit context.\n",
 			 block->pc);
-
-		if (ENABLE_THREADED_COMPILER) {
-			lightrec_reaper_add(state->reaper,
-					    lightrec_reap_jit, oldjit);
-			lightrec_reaper_add(state->reaper,
-					    lightrec_reap_function, old_fn);
-		} else {
-			_jit_destroy_state(oldjit);
-			lightrec_free_function(state, old_fn);
-		}
-
+		_jit_destroy_state(oldjit);
+		lightrec_free_function(state, old_fn);
 		lightrec_unregister(MEM_FOR_CODE, old_code_size);
 	}
 
 	pr_debug("Blocks compiled: %u\n", ++state->nb_compile);
-
 	lightrec_cprof[3] += JIT_TB() - cp1;
+}
+
+int lightrec_compile_block(struct lightrec_cstate *cstate,
+			   struct block *block)
+{
+	struct lightrec_compiled c = { 0 };
+	int err = lightrec_compile_code(cstate, block, block, false, &c);
+
+	if (err)
+		return err;
+	lightrec_install_code(cstate->state, block, &c);
+	block_clear_flags(block, BLOCK_SHOULD_RECOMPILE);
 	return 0;
+}
+
+/* ---- jitq: the thread, the queue, the install point (declarations at the top) ---- */
+
+static void jq_unlink(struct jitq_job *job)	/* jq_mutex held */
+{
+	struct jitq_job *prev = NULL, *j;
+
+	for (j = jq_head; j && j != job; j = j->next)
+		prev = j;
+	if (!j)
+		return;
+	if (prev)
+		prev->next = job->next;
+	else
+		jq_head = job->next;
+	if (jq_tail == job)
+		jq_tail = prev;
+	job->next = NULL;
+}
+
+static void * jq_main(void *arg)
+{
+	struct jitq_job *job;
+	unsigned long long t0;
+
+	for (;;) {
+		LWP_SemWait(jq_work);
+		for (;;) {
+			LWP_MutexLock(jq_mutex);
+			/* the job the emulator waits for first, then in queue order */
+			job = jq_want ? jq_want : jq_head;
+			jq_want = NULL;
+			if (job) {
+				jq_unlink(job);
+				job->status = JQ_COMPILING;
+			}
+			jq_busy = job;
+			LWP_MutexUnlock(jq_mutex);
+			if (!job)
+				break;
+
+			if (lightrec_jitq_test_sleep_us)
+				usleep(lightrec_jitq_test_sleep_us);
+			t0 = JIT_TB();
+			job->err = lightrec_compile_code(jq_cstate, &job->shadow, job->block,
+							 true, &job->res);
+			lightrec_jitq_thread_ticks += JIT_TB() - t0;
+
+			LWP_MutexLock(jq_mutex);
+			job->status = JQ_DONE;
+			jq_busy = NULL;
+			if (jq_waiting == job) {
+				jq_waiting = NULL;
+				LWP_SemPost(jq_done);
+			}
+			LWP_MutexUnlock(jq_mutex);
+		}
+	}
+	return NULL;
+}
+
+/* Emulator: until the thread has finished the job (a stall if it has not) */
+static void jq_wait(struct jitq_job *job)
+{
+	unsigned long long t0;
+
+	LWP_MutexLock(jq_mutex);
+	if (job->status == JQ_DONE) {
+		LWP_MutexUnlock(jq_mutex);
+		return;
+	}
+	if (job->status == JQ_QUEUED)
+		jq_want = job;
+	jq_waiting = job;
+	LWP_MutexUnlock(jq_mutex);
+
+	t0 = JIT_TB();
+	LWP_SemWait(jq_done);
+	t0 = JIT_TB() - t0;
+	lightrec_jitq_stalls++;
+	lightrec_jitq_stall_ticks += t0;
+	lightrec_jit_ticks += t0;
+}
+
+static void jq_free_job(struct lightrec_state *state, struct jitq_job *job)
+{
+	if (job->pprev)
+		job->pprev->pnext = job->pnext;
+	else
+		jq_pend_head = job->pnext;
+	if (job->pnext)
+		job->pnext->pprev = job->pprev;
+	else
+		jq_pend_tail = job->pprev;
+	jq_npending--;
+
+	if (job->res._jit)
+		_jit_destroy_state(job->res._jit);
+	if (job->res.targets)
+		lightrec_free(state, MEM_FOR_LIGHTREC,
+			      job->res.nb_targets * sizeof(*job->res.targets),
+			      job->res.targets);
+	if (job->res.fn)
+		lightrec_free_code(state, job->res.fn);
+	lightrec_free(state, MEM_FOR_LIGHTREC,
+		      sizeof(*job) + job->shadow.nb_ops * sizeof(struct opcode), job);
+}
+
+/* lightrec_free_block(): the block goes, so does its compile */
+static void jq_cancel(struct lightrec_state *state, struct block *block)
+{
+	struct jitq_job *job = block->job;
+
+	block->job = NULL;
+	LWP_MutexLock(jq_mutex);
+	if (job->status == JQ_QUEUED) {
+		jq_unlink(job);
+		job->status = JQ_DONE;
+	}
+	LWP_MutexUnlock(jq_mutex);
+	jq_wait(job);
+	lightrec_jitq_cancels++;
+	jq_free_job(state, job);
+}
+
+/* Emulator: clean the code buffer, oldest blocks first, until `size` more bytes of code
+ * stay under JQ_CODE_MAX. The count is of code in use, which only the emulator changes
+ * (installs and frees), so the cleans fall where the guest sets them. */
+static void jq_make_room(struct lightrec_state *state, const struct block *block,
+			 unsigned int size)
+{
+	static const u32 ages[] = {
+		LIGHTREC_AGE_4S, LIGHTREC_AGE_1S, LIGHTREC_AGE_250MS,
+	};
+	unsigned int i;
+
+	for (i = 0; i < ARRAY_SIZE(ages); i++) {
+		if (lightrec_get_mem_usage(MEM_FOR_CODE) + size <= JQ_CODE_MAX)
+			return;
+		lightrec_remove_outdated_blocks(state->block_cache, block, ages[i]);
+	}
+	if (lightrec_get_mem_usage(MEM_FOR_CODE) + size > JQ_CODE_MAX)
+		lightrec_free_all_blocks_except(state->block_cache, block);
+}
+
+static int jq_queue(struct lightrec_state *state, struct block *block)
+{
+	unsigned int n = block->nb_ops;
+	struct jitq_job *job;
+
+	if (block_has_flag(block, BLOCK_NO_OPCODE_LIST))
+		return -1;
+	if (jq_npending >= JQ_MAX_PENDING) {
+		lightrec_jitq_full++;
+		return -1;
+	}
+
+	job = lightrec_malloc(state, MEM_FOR_LIGHTREC,
+			      sizeof(*job) + n * sizeof(struct opcode));
+	if (!job)
+		return -1;
+
+	memcpy(job->ops, block->opcode_list, n * sizeof(struct opcode));
+	job->shadow = *block;
+	job->shadow.opcode_list = job->ops;
+	job->shadow._jit = NULL;
+	job->shadow.function = NULL;
+	job->shadow.job = NULL;
+	job->next = NULL;
+	job->block = block;
+	job->visits = 0;
+	job->date = lightrec_age_now(state);
+	job->pnext = NULL;
+	job->pprev = jq_pend_tail;
+	if (jq_pend_tail)
+		jq_pend_tail->pnext = job;
+	else
+		jq_pend_head = job;
+	jq_pend_tail = job;
+	if (++jq_npending > lightrec_jitq_pend_peak)
+		lightrec_jitq_pend_peak = jq_npending;
+	job->err = 0;
+	job->status = JQ_QUEUED;
+	memset(&job->res, 0, sizeof(job->res));
+
+	/* a tag from now on asks for another compile, after this one is in */
+	block_clear_flags(block, BLOCK_SHOULD_RECOMPILE);
+	block->job = job;
+	lightrec_jitq_queued++;
+
+	LWP_MutexLock(jq_mutex);
+	if (jq_tail)
+		jq_tail->next = job;
+	else
+		jq_head = job;
+	jq_tail = job;
+	LWP_MutexUnlock(jq_mutex);
+	LWP_SemPost(jq_work);
+	return 0;
+}
+
+/* jq_queue() said no, or the thread could not compile it: compile here, as without jitq */
+static void jq_compile_now(struct lightrec_state *state, struct block *block)
+{
+	unsigned long long t0 = JIT_TB();
+
+	jq_make_room(state, block, JQ_CODE_FIT(block->nb_ops));
+	if (lightrec_compile_block(state->cstate, block) && block->function)
+		block_set_flags(block, BLOCK_SHOULD_RECOMPILE);	/* try again later */
+	lightrec_jit_ticks += JIT_TB() - t0;
+	lightrec_jit_blocks++;
+}
+
+/* The visit that switches the new code in */
+static void jq_install(struct lightrec_state *state, struct block *block)
+{
+	struct jitq_job *job = block->job;
+
+	jq_wait(job);
+	block->job = NULL;
+
+	if (job->err) {
+		lightrec_jitq_errs++;
+		jq_free_job(state, job);
+		jq_compile_now(state, block);
+	} else {
+		jq_make_room(state, block, job->res.code_size);
+		lightrec_register(MEM_FOR_CODE, job->res.code_size);
+		lightrec_install_code(state, block, &job->res);
+		job->res.fn = NULL;
+		lightrec_jitq_installed++;
+		lightrec_jit_blocks++;
+		jq_free_job(state, job);
+	}
+
+	/* An access the copy had not seen was tagged while the block waited (by the
+	 * interpreter or the old code): keep the next visit coming here to recompile, as
+	 * lightrec_rw() does for compiled code. Without this the LUT entry just written
+	 * hid the request and the block kept its slow generic accesses for good. */
+	if (block_has_flag(block, BLOCK_SHOULD_RECOMPILE))
+		lut_write(state, lut_offset(block->pc), NULL);
+}
+
+/* Emulator: until the thread is idle (before changing what a compile reads) */
+static void jq_wait_all(void)
+{
+	struct jitq_job *job;
+
+	while (jq_on) {
+		LWP_MutexLock(jq_mutex);
+		job = jq_busy ? jq_busy : jq_head;
+		LWP_MutexUnlock(jq_mutex);
+		if (!job)
+			return;
+		jq_wait(job);
+	}
+}
+
+static void jq_init(struct lightrec_state *state)
+{
+	jq_on = false;
+	if (!lightrec_jitq_delay || !(ENABLE_CODE_BUFFER && state->tlsf))
+		return;
+
+	jq_cstate = lightrec_create_cstate(state);
+	if (!jq_cstate)
+		return;
+
+	if (jq_thread == LWP_THREAD_NULL) {
+		if (LWP_MutexInit(&jq_mutex, false) < 0 ||
+		    LWP_MutexInit(&jq_alloc_mutex, false) < 0 ||
+		    LWP_SemInit(&jq_work, 0, 0x7fffffff) < 0 ||
+		    LWP_SemInit(&jq_done, 0, 1) < 0 ||
+		    LWP_CreateThread(&jq_thread, jq_main, NULL, NULL,
+				     JQ_STACK, JQ_PRIO) < 0) {
+			jq_thread = LWP_THREAD_NULL;
+			lightrec_free_cstate(jq_cstate);
+			jq_cstate = NULL;
+			return;
+		}
+	}
+	jq_on = true;
+}
+
+static void jq_destroy(void)
+{
+	if (!jq_on)
+		return;
+	jq_wait_all();
+	lightrec_free_cstate(jq_cstate);
+	jq_cstate = NULL;
+	jq_on = false;
 }
 
 static void lightrec_print_info(struct lightrec_state *state)
@@ -1979,9 +2434,14 @@ u32 lightrec_run_interpreter(struct lightrec_state *state, u32 pc,
 	return pc;
 }
 
+static void jq_cancel(struct lightrec_state *state, struct block *block);
+
 void lightrec_free_block(struct lightrec_state *state, struct block *block)
 {
 	u8 old_flags;
+
+	if (block->job)
+		jq_cancel(state, block);
 
 	lightrec_unregister(MEM_FOR_MIPS_CODE, block->nb_ops * sizeof(u32));
 	old_flags = block_set_flags(block, BLOCK_NO_OPCODE_LIST);
@@ -2119,6 +2579,7 @@ struct lightrec_state * lightrec_init(char *argv0,
 		state->cstate = lightrec_create_cstate(state);
 		if (!state->cstate)
 			goto err_free_block_cache;
+		jq_init(state);
 	}
 
 	state->nb_maps = nb;
@@ -2202,6 +2663,7 @@ void lightrec_destroy(struct lightrec_state *state)
 		lightrec_free_recompiler(state->rec);
 		lightrec_reaper_destroy(state->reaper);
 	} else {
+		jq_destroy();
 		lightrec_free_cstate(state->cstate);
 	}
 
@@ -2243,6 +2705,7 @@ void lightrec_invalidate_all(struct lightrec_state *state)
 
 void lightrec_set_unsafe_opt_flags(struct lightrec_state *state, u32 flags)
 {
+	jq_wait_all();	/* WiiStation: a compile reads them */
 	if ((flags ^ state->opt_flags) & LIGHTREC_OPT_INV_DMA_ONLY)
 		lightrec_invalidate_all(state);
 

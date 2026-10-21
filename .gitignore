@@ -5,6 +5,7 @@ Gamecube/*.dol
 Gamecube/*.elf
 Gamecube/build_debug/*.*
 Gamecube/build_release/*.*
+Gamecube/build_play/
 deps/lightrec/lib/*
 
 deps/libchdr/lib/libchdr.a

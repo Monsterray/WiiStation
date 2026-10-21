@@ -511,6 +511,17 @@ if (ogx_tex_alloc_failed)
   PERF_INC(ogx_tex_flush);
  }
 
+/* GxMask changed in the menu (Docs/STP_BIT15.md): the cached textures were split for the
+ * other mode (exact splits every texture by STP; the heuristic only semi-transparent ones) */
+{
+ extern char gxMask;
+ if (ogx_mask_exact != (gxMask == 0))
+  {
+   ogx_mask_exact = gxMask == 0;
+   ResetTextureArea(TRUE);
+  }
+}
+
 if (flip05Pending)
  {
   flip05Pending = 0;
@@ -1820,9 +1831,9 @@ void RestoreDispCopyInfo(void)
     GXRModeObj *m = g_tv_mode ? g_tv_mode : vmode;
     GX_SetDispCopySrc(0,0,m->fbWidth,m->efbHeight);
     float yscale = GX_GetYScaleFactor(m->efbHeight,m->xfbHeight);
-    int xfbHeight = GX_SetDispCopyYScale(yscale);
+    GX_SetDispCopyYScale(yscale);   /* its return value is wrong in libogc v3.1.0 (GraphicsGX.cpp switchToTVMode) */
     GX_SetScissor(0,0,m->fbWidth,m->efbHeight);
-    GX_SetDispCopyDst(VIDEO_PadFramebufferWidth(m->fbWidth),xfbHeight);
+    GX_SetDispCopyDst(VIDEO_PadFramebufferWidth(m->fbWidth),m->xfbHeight);
     // Honour the user's Deflicker setting rather than forcing it on: this runs
     // after every EFB snapshot capture in the VRAM-readback path, i.e. during
     // gameplay, so hardcoding GX_TRUE here silently re-enabled deflicker on
@@ -1875,7 +1886,9 @@ static inline unsigned short GXRGB5A3ToPSX15(unsigned short gx)
 
 static inline void CheckVRamRead(int x, int y, int dx, int dy)
 {
+ efb_sync_from = 1;
  efb_sync(x, y, dx - x, dy - y);
+ efb_sync_from = 0;
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -2239,7 +2252,9 @@ static int OffscreenSoftDraw(unsigned char cmd, unsigned long *data, int n)
     /* the pixels under it may be GX's (a frame in a snapshot): VRAM gets them first, so a
      * semi-transparent primitive blends with the real picture and the tiles it touches
      * can be marked as written by the CPU without losing GX pixels next to it */
+    efb_sync_from = 2;
     efb_sync(x0, y0, x1 - x0, y1 - y0);
+    efb_sync_from = 0;
 
     do_cmd_list(list, 6 + n, &cs, &cl, &lc);
 
@@ -2427,7 +2442,18 @@ if(iDataWriteMode==DR_VRAMTRANSFER)
      ip += 1024 - wd; \
     }
 
-   if (ogx_efb_mirror == 1 && !PSXDisplay.RGB24)
+/* E6 on a CPU-to-VRAM load (GP0 A0), as on a PS1: bit 15 set with the set-mask bit, and no
+ * write over a pixel whose bit 15 is set while check-mask is on (primLoadImage synced the
+ * rect from the EFB first). ps1-tests gpu/mask-bit writes its pixels this way. */
+#define VW_PUT_MASK(d, v) do { unsigned short *d_ = (d); \
+                               if (!bCheckMask || !(GETLE16(d_) & 0x8000)) \
+                                PUTLE16(d_, (unsigned short)((v) | sSetMask)); } while (0)
+   if (sSetMask || bCheckMask)
+    {
+     vw_tracked = 0;
+     VW_LOOP(VW_PUT_MASK, VW_FAST_NONE)
+    }
+   else if (ogx_efb_mirror == 1 && !PSXDisplay.RGB24)
     {
      VW_LOOP(VW_PUT_TRACK, VW_FAST_TRACK)
     }
@@ -2440,6 +2466,7 @@ if(iDataWriteMode==DR_VRAMTRANSFER)
 #undef VW_LOOP
 #undef VW_PUT_TRACK
 #undef VW_PUT_PLAIN
+#undef VW_PUT_MASK
 #undef VW_FAST_NONE
 #undef VW_FAST_TRACK
 #undef VW_FAST_COPY
@@ -3116,6 +3143,7 @@ long GL_GPUopen()
  bDisplayNudged = FALSE;
 
  InitializeTextureStore();                             // init texture mem
+ { extern char gxMask; ogx_mask_exact = gxMask == 0; }  /* GxMask: the textures now are split by it */
 
  ret = GLinitialize(NULL, NULL);
 
@@ -3153,5 +3181,5 @@ gpu_t glesGpu = {
  * before the picture is read. This is the copy every VRAM read makes (efb_sync). */
 int gpu_screenshot_sync(int x, int y, int w, int h)
 {
-    return efb_sync(x, y, w, h);
+    { int r; efb_sync_from = 3; r = efb_sync(x, y, w, h); efb_sync_from = 0; return r; }
 }

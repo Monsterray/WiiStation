@@ -211,6 +211,10 @@ int gx_vout_render(short canSwapFrameBuf)
 
 	gx_present_inflight = 1;
 	GX_CopyDisp(xfb[FB_BACK], canSwapFrameBuf ? GX_TRUE : GX_FALSE);
+	{
+		extern void filterTourCopied(u32 *xfbBack, int cleared);   /* Gamecube/libgui/GraphicsGX.cpp */
+		filterTourCopied(xfb[FB_BACK], canSwapFrameBuf);   /* a Filter Tour GX Color step */
+	}
 	GX_PixModeSync();
 	GX_SetDrawDoneCallback(gx_vout_copydone);
 	GX_SetDrawDone();

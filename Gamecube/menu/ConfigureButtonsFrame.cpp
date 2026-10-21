@@ -851,7 +851,34 @@ void Func_SaveConfig()
  * is offered. b is the outer combination; Off (mask 0) contains nothing. */
 static bool comboInside(const button_t *a, const button_t *b)
 {
+#ifdef HW_RVL
+	if (virtualControllers[activePad].control == &controller_HidGC)
+		return hidgc_combo_inside(a, b);   /* a HID input alone is inside only itself */
+#endif
 	return a->mask && b && (a->mask & b->mask) == a->mask;
+}
+
+/* An entry the active pad can press: a USB pad's Btn/Hat/Axis entries for inputs it does not
+ * have are skipped (controller-HidGC.c) */
+static bool usable(const button_t *b)
+{
+#ifdef HW_RVL
+	return virtualControllers[activePad].control != &controller_HidGC || hidgc_entry_present(b);
+#else
+	return b != NULL;
+#endif
+}
+
+/* The next entry of the active pad's buttons, after cur */
+static int nextButton(int cur)
+{
+	controller_t *c = virtualControllers[activePad].control;
+	for (int n = 0; n < c->num_buttons; n++) {
+		cur = (cur + 1) % c->num_buttons;
+		if (usable(&c->buttons[cur]))
+			break;
+	}
+	return cur;
 }
 
 /* Screenshot and ANALOG: either one inside the other would press both */
@@ -867,7 +894,8 @@ void Func_ToggleButtonExit()
 	int currentButton = currentConfig->exit->index;
 	for (int n = 0; n < control->num_menu_combos; n++) {
 		currentButton = (currentButton+1) % control->num_menu_combos;
-		if (!comboInside(&control->menu_combos[currentButton], currentConfig->screenshot) &&
+		if (usable(&control->menu_combos[currentButton]) &&
+		    !comboInside(&control->menu_combos[currentButton], currentConfig->screenshot) &&
 		    !comboInside(&control->menu_combos[currentButton], currentConfig->analog))
 			break;
 	}
@@ -882,7 +910,8 @@ void Func_ToggleButtonFastF()
 	int currentButton = currentConfig->fastf->index;
 	for (int n = 0; n < control->num_menu_combos; n++) {
 		currentButton = (currentButton+1) % control->num_menu_combos;
-		if (!comboInside(&control->menu_combos[currentButton], currentConfig->screenshot) &&
+		if (usable(&control->menu_combos[currentButton]) &&
+		    !comboInside(&control->menu_combos[currentButton], currentConfig->screenshot) &&
 		    !comboInside(&control->menu_combos[currentButton], currentConfig->analog))
 			break;
 	}
@@ -898,7 +927,7 @@ void Func_ToggleButtonScreenshot()
 	for (int n = 0; n < control->num_screenshot_combos; n++) {
 		currentButton = (currentButton+1) % control->num_screenshot_combos;
 		const button_t *s = &control->screenshot_combos[currentButton];
-		if (!comboInside(currentConfig->exit, s) && !comboInside(currentConfig->fastf, s) &&
+		if (usable(s) && !comboInside(currentConfig->exit, s) && !comboInside(currentConfig->fastf, s) &&
 		    !combosClash(s, currentConfig->analog))
 			break;
 	}
@@ -915,7 +944,7 @@ void Func_ToggleButtonAnalog()
 	for (int n = 0; n < control->num_analog_combos; n++) {
 		currentButton = (currentButton+1) % control->num_analog_combos;
 		const button_t *s = &control->analog_combos[currentButton];
-		if (!comboInside(currentConfig->exit, s) && !comboInside(currentConfig->fastf, s) &&
+		if (usable(s) && !comboInside(currentConfig->exit, s) && !comboInside(currentConfig->fastf, s) &&
 		    !combosClash(s, currentConfig->screenshot))
 			break;
 	}
@@ -927,7 +956,7 @@ void Func_ToggleButtonL1()
 {
 	controller_config_t* currentConfig = virtualControllers[activePad].config;
 	int currentButton = currentConfig->L1->index;
-	currentButton = (currentButton+1) %virtualControllers[activePad].control->num_buttons;
+	currentButton = nextButton(currentButton);
 	currentConfig->L1 = &virtualControllers[activePad].control->buttons[currentButton];
 	strcpy(FRAME_STRINGS[6], currentConfig->L1->name);
 }
@@ -936,7 +965,7 @@ void Func_ToggleButtonL2()
 {
 	controller_config_t* currentConfig = virtualControllers[activePad].config;
 	int currentButton = currentConfig->L2->index;
-	currentButton = (currentButton+1) %virtualControllers[activePad].control->num_buttons;
+	currentButton = nextButton(currentButton);
 	currentConfig->L2 = &virtualControllers[activePad].control->buttons[currentButton];
 	strcpy(FRAME_STRINGS[7], currentConfig->L2->name);
 }
@@ -945,7 +974,7 @@ void Func_ToggleButtonSelect()
 {
 	controller_config_t* currentConfig = virtualControllers[activePad].config;
 	int currentButton = currentConfig->SELECT->index;
-	currentButton = (currentButton+1) %virtualControllers[activePad].control->num_buttons;
+	currentButton = nextButton(currentButton);
 	currentConfig->SELECT = &virtualControllers[activePad].control->buttons[currentButton];
 	strcpy(FRAME_STRINGS[8], currentConfig->SELECT->name);
 }
@@ -954,7 +983,7 @@ void Func_ToggleButtonStart()
 {
 	controller_config_t* currentConfig = virtualControllers[activePad].config;
 	int currentButton = currentConfig->START->index;
-	currentButton = (currentButton+1) %virtualControllers[activePad].control->num_buttons;
+	currentButton = nextButton(currentButton);
 	currentConfig->START = &virtualControllers[activePad].control->buttons[currentButton];
 	strcpy(FRAME_STRINGS[9], currentConfig->START->name);
 }
@@ -963,7 +992,7 @@ void Func_ToggleButtonR1()
 {
 	controller_config_t* currentConfig = virtualControllers[activePad].config;
 	int currentButton = currentConfig->R1->index;
-	currentButton = (currentButton+1) %virtualControllers[activePad].control->num_buttons;
+	currentButton = nextButton(currentButton);
 	currentConfig->R1 = &virtualControllers[activePad].control->buttons[currentButton];
 	strcpy(FRAME_STRINGS[10], currentConfig->R1->name);
 }
@@ -972,7 +1001,7 @@ void Func_ToggleButtonR2()
 {
 	controller_config_t* currentConfig = virtualControllers[activePad].config;
 	int currentButton = currentConfig->R2->index;
-	currentButton = (currentButton+1) %virtualControllers[activePad].control->num_buttons;
+	currentButton = nextButton(currentButton);
 	currentConfig->R2 = &virtualControllers[activePad].control->buttons[currentButton];
 	strcpy(FRAME_STRINGS[11], currentConfig->R2->name);
 }
@@ -981,7 +1010,7 @@ void Func_ToggleButtonDup()
 {
 	controller_config_t* currentConfig = virtualControllers[activePad].config;
 	int currentButton = currentConfig->DU->index;
-	currentButton = (currentButton+1) %virtualControllers[activePad].control->num_buttons;
+	currentButton = nextButton(currentButton);
 	currentConfig->DU = &virtualControllers[activePad].control->buttons[currentButton];
 	strcpy(FRAME_STRINGS[12], currentConfig->DU->name);
 }
@@ -990,7 +1019,7 @@ void Func_ToggleButtonDleft()
 {
 	controller_config_t* currentConfig = virtualControllers[activePad].config;
 	int currentButton = currentConfig->DL->index;
-	currentButton = (currentButton+1) %virtualControllers[activePad].control->num_buttons;
+	currentButton = nextButton(currentButton);
 	currentConfig->DL = &virtualControllers[activePad].control->buttons[currentButton];
 	strcpy(FRAME_STRINGS[13], currentConfig->DL->name);
 }
@@ -999,7 +1028,7 @@ void Func_ToggleButtonDright()
 {
 	controller_config_t* currentConfig = virtualControllers[activePad].config;
 	int currentButton = currentConfig->DR->index;
-	currentButton = (currentButton+1) %virtualControllers[activePad].control->num_buttons;
+	currentButton = nextButton(currentButton);
 	currentConfig->DR = &virtualControllers[activePad].control->buttons[currentButton];
 	strcpy(FRAME_STRINGS[14], currentConfig->DR->name);
 }
@@ -1008,7 +1037,7 @@ void Func_ToggleButtonDdown()
 {
 	controller_config_t* currentConfig = virtualControllers[activePad].config;
 	int currentButton = currentConfig->DD->index;
-	currentButton = (currentButton+1) %virtualControllers[activePad].control->num_buttons;
+	currentButton = nextButton(currentButton);
 	currentConfig->DD = &virtualControllers[activePad].control->buttons[currentButton];
 	strcpy(FRAME_STRINGS[15], currentConfig->DD->name);
 }
@@ -1017,7 +1046,7 @@ void Func_ToggleButtonTri()
 {
 	controller_config_t* currentConfig = virtualControllers[activePad].config;
 	int currentButton = currentConfig->TRI->index;
-	currentButton = (currentButton+1) %virtualControllers[activePad].control->num_buttons;
+	currentButton = nextButton(currentButton);
 	currentConfig->TRI = &virtualControllers[activePad].control->buttons[currentButton];
 	strcpy(FRAME_STRINGS[16], currentConfig->TRI->name);
 }
@@ -1026,7 +1055,7 @@ void Func_ToggleButtonSqu()
 {
 	controller_config_t* currentConfig = virtualControllers[activePad].config;
 	int currentButton = currentConfig->SQU->index;
-	currentButton = (currentButton+1) %virtualControllers[activePad].control->num_buttons;
+	currentButton = nextButton(currentButton);
 	currentConfig->SQU = &virtualControllers[activePad].control->buttons[currentButton];
 	strcpy(FRAME_STRINGS[17], currentConfig->SQU->name);
 }
@@ -1035,7 +1064,7 @@ void Func_ToggleButtonCir()
 {
 	controller_config_t* currentConfig = virtualControllers[activePad].config;
 	int currentButton = currentConfig->CIR->index;
-	currentButton = (currentButton+1) %virtualControllers[activePad].control->num_buttons;
+	currentButton = nextButton(currentButton);
 	currentConfig->CIR = &virtualControllers[activePad].control->buttons[currentButton];
 	strcpy(FRAME_STRINGS[18], currentConfig->CIR->name);
 }
@@ -1044,7 +1073,7 @@ void Func_ToggleButtonCro()
 {
 	controller_config_t* currentConfig = virtualControllers[activePad].config;
 	int currentButton = currentConfig->CRO->index;
-	currentButton = (currentButton+1) %virtualControllers[activePad].control->num_buttons;
+	currentButton = nextButton(currentButton);
 	currentConfig->CRO = &virtualControllers[activePad].control->buttons[currentButton];
 	strcpy(FRAME_STRINGS[19], currentConfig->CRO->name);
 }
@@ -1121,7 +1150,7 @@ void Func_ToggleButtonL3()
 {
 	controller_config_t* currentConfig = virtualControllers[activePad].config;
 	int currentButton = currentConfig->L3->index;
-	currentButton = (currentButton+1) %virtualControllers[activePad].control->num_buttons;
+	currentButton = nextButton(currentButton);
 	currentConfig->L3 = &virtualControllers[activePad].control->buttons[currentButton];
 	strcpy(FRAME_STRINGS[24], currentConfig->L3->name);
 }
@@ -1130,7 +1159,7 @@ void Func_ToggleButtonR3()
 {
 	controller_config_t* currentConfig = virtualControllers[activePad].config;
 	int currentButton = currentConfig->R3->index;
-	currentButton = (currentButton+1) %virtualControllers[activePad].control->num_buttons;
+	currentButton = nextButton(currentButton);
 	currentConfig->R3 = &virtualControllers[activePad].control->buttons[currentButton];
 	strcpy(FRAME_STRINGS[25], currentConfig->R3->name);
 }

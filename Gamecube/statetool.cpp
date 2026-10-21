@@ -31,6 +31,7 @@ extern "C" {
 #include "../psxmem.h"
 #include "../r3000a.h"
 #include "../mem2_manager.h"
+#include "perf_prof.h"   /* perf_log_open */
 	extern volatile int stop;
 	extern u32 frame_counter;
 	extern unsigned chain_stop_vbl;
@@ -121,13 +122,13 @@ static void snap_take2(void)
 static void log_line(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 static void log_line(const char *fmt, ...)
 {
-	FILE *f = fopen("sd:/wiistation/perf.log", "a");
+	FILE *f = perf_log_open();   /* perf_prof.h: the play build queues it for play.log */
 	va_list ap;
 	if (!f) return;
 	va_start(ap, fmt);
 	vfprintf(f, fmt, ap);
 	va_end(ap);
-	fclose(f);
+	perf_log_close(f);
 }
 
 void statetool_reset(void)

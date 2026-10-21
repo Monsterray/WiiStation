@@ -1,0 +1,5 @@
+CHAIN
+# Tiger Temple: the sampling profiler over the two short slow spots only (Dolphin: instructions)
+14100 sd:/wiistation/tiger_temple_spots_play.txt PadAutoAssign=1 ControllerType=0 PadType2=1 gpuPlugin=2
+sd:/wiistation/isos/Crash Team Racing
+Crash Team Racing [U] [SCUS-94426].cue

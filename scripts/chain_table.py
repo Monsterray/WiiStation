@@ -206,6 +206,9 @@ def main():
     need(sys.argv, 2, "chain_table.py RUN_DIR [--csv OUT.csv] [--detail GROUP]")
     run = sys.argv[1]
     log = os.path.join(run, 'perf.log')
+    play = os.path.join(run, 'debuglogs', 'play.log')   # the play build (Docs/DEBUG_PLAY.md) writes there
+    if os.path.isfile(play):
+        log = play
     if not os.path.isfile(log):
         sys.exit('%s: no perf.log -- the run collected nothing (guest died '
                  'before its first report, or collection failed)' % log)

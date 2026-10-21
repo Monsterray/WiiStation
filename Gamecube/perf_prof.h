@@ -27,6 +27,32 @@ extern "C" {
 /* "YYYY-MM-DD HH:MM:SS" wall clock, in every build (perf_prof.c) */
 void perf_datetime(char *buf, int size);
 
+/* The play build (scripts/build.sh PROBES=play, WiiSXRX_play.dol; Docs/DEBUG_PLAY.md): a debug
+ * build for long sessions on a real console. No on-screen debug text, and no SD write from
+ * the emulator thread: perf.log lines go to a RAM queue that the heartbeat thread appends to
+ * sd:/wiistation/debuglogs/play.log (Gamecube/play_log.c). Every other build writes perf.log
+ * directly, as before. */
+#ifndef PERF_PLAY
+#define PERF_PLAY 0
+#endif
+#if PERF_PLAY
+#include <stdio.h>
+FILE *perf_log_open(void);        /* a memory stream; NULL while another is open */
+void perf_log_close(FILE *f);     /* queues what was written for play.log */
+void play_vtl_put(const void *rec, unsigned n);   /* one vblank for the session's vtl file */
+void play_drain(void);            /* write what is queued (heartbeat thread, safe points) */
+void play_boot(void);             /* hb_start(): the folder, the boot line, a kept crash report */
+void play_session_begin(const char *game_id, const char *file);   /* loadISO() */
+void play_session_end(const char *why);   /* SysClose(), the chain's end */
+#define PERF_DIR "sd:/wiistation/debuglogs/"   /* the other debug files it can write */
+#else
+#define PERF_DIR "sd:/wiistation/"
+#define perf_log_open() fopen("sd:/wiistation/perf.log", "a")
+#define perf_log_close(f) fclose(f)
+#define play_session_begin(id, file) ((void)0)
+#define play_session_end(why) ((void)0)
+#endif
+
 /* Size of the per-event histogram below. Must be >= PSXINT_COUNT (r3000a.h);
  * checked at compile time in lightrec.c so this header needs no emulator
  * includes. */
@@ -299,6 +325,8 @@ typedef struct {
 	uint32_t ogx_skip_b2;        /* blended pass 2: no TEX_TYPE_2 texels */
 	uint32_t ogx_skip_op_empty;  /* opaque draw: mask 0, nothing to draw (benign) */
 	uint32_t ogx_skip_op_semi;   /* opaque draw: mask == TEX_TYPE_1 only (a hole) */
+	uint32_t ogx_mask_2pass;     /* GxMask exact: opaque textured draws that took both passes */
+	uint32_t efb_zcap;           /* GxMask exact: Z8 copies beside the EFB snapshots (efbSync.inc) */
 	/* Upload-time blend state vs the primitive's DrawSemiTrans, the value its
 	 * cache key is built from. The texel split must follow the key. First
 	 * eight disagreements are kept in detail. */
@@ -592,6 +620,20 @@ typedef struct {
 	uint32_t pres_uploads;
 	uint64_t pres_sync_ticks, efb_cap_ticks;   /* UploadScreen's efb_sync; efb_sync's live captures */
 	uint32_t efb_cap_calls;
+	uint32_t efb_mini_calls;   /* partial captures (efbSync.inc efb_capture_rect) */
+	uint32_t efb_cap_by[8];   /* live captures by efb_sync caller (efbSync.inc efb_sync_from) */
+	/* efblive: the last live geometry x y w h, the drawing area's y0 y1 then, and live switches */
+	uint32_t efb_live_changes;
+	int efb_live_geom[6];
+	uint32_t efb_mini_by[8];     /* partial captures by efb_sync caller (as efb_cap_by) */
+	uint32_t efb_mini_area[6];   /* their read areas: <=4, <=16, <=64, <=256, <=4096, more pixels */
+	uint32_t efb_mini_mode[4];   /* texture reads among them by mode: 4-bit, 8-bit, 15-bit, 3 */
+	unsigned long long efb_mini_ticks[4];   /* partial captures: whole, waiting for a full copy, queueing, the DrawDone */
+	unsigned long long ogx_sel_ticks[3];   /* SelectSubTextureS: cache search, compress when full, load a new one */
+	uint32_t ogx_sel_n[3];                 /* -, compresses, loads */
+	unsigned long long ogx_scan[4];        /* CheckTextureInSubSCache: hit-search entries, free-slot entries, textures visited, free rects compared */
+	uint32_t ogx_scan_reset;               /* no free space in any cache texture: the whole cache reset */	uint32_t efb_texrd[4];       /* those reads: semi-transparent prims; texels read, with bit 15, 0x0000 */
+	uint32_t efb_exact[3];       /* reads needing live: nothing drawn over them since sync, drawn over, ring too short */
 	/* The primitive time again, by class of GP0 command: index is the top three bits
 	 * of the command byte, so 1 is the polygons, 2 the lines, 3 the sprites, and 7 the
 	 * drawing-state commands (E1..E6). */

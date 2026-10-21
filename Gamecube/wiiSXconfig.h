@@ -163,6 +163,9 @@ enum cpuTiming
 	CPU_TIMING_FAST=0,      /* as before: every instruction costs the same */
 	CPU_TIMING_ACCURATE     /* plus the cycles a PS1 waits for its GTE and its mult/div unit */
 };
+extern char jitDelay;            /* deps/lightrec jitq: visits before compiled code runs, 0 = compile at once */
+extern char jitQueueAt;
+extern char jitThreadTest;       /* test only: the jitq thread sleeps this many ms before each compile */          /* deps/lightrec jitq: interpreted visits before the compile is queued */
 extern char limiterWait;         /* how the frame limiter waits (SoftGPU/oldGpuFps.c FrameCap) */
 enum limiterWait
 {
@@ -535,8 +538,9 @@ enum deflickerLevel
 	DEFLICKERLEVEL_STRONG
 };
 
-/* Filter Tour: while a game runs, step through the filters (texture filter, deflicker, trap)
- * and their combinations every few seconds, the current ones written under the FPS counter.
+/* Filter Tour: while a game runs, step through the picture settings that apply to the renderer
+ * (texture filter, Soft Mode, GPU Timing, Far Textures, GX Color) alone and in a few
+ * combinations every few seconds, the current ones written under the FPS counter.
  * The player's own values come back when the game stops (GraphicsGX.cpp filterTour*). */
 extern char filterTour;
 

@@ -1,0 +1,32 @@
+CHAIN
+# Bit-15 pictures (Docs/STP_BIT15.md): CTR's intro blur, Ape Escape's pause and a fade, Spyro's
+# pause, each under Soft Fast in SoftGpuMode Accurate (the reference), OpenGX GxMask=0 (exact) and
+# GxMask=1 (the 5.14.0 tile guess): 3 xfb pictures a line, 27 in all. Run with --env XFB_RAM=1;
+# xfb_NN.bin in line order (scripts/xfb2png.py). The end-of-line VRAM dumps feed bit15_cmp.py.
+9320 sd:/wiistation/bit15_ctr.txt gpuPlugin=0 SoftGpuMode=0 ChainDump=1
+sd:/wiistation/isos/Crash Team Racing
+Crash Team Racing [U] [SCUS-94426].cue
+9320 sd:/wiistation/bit15_ctr.txt gpuPlugin=2 GxMask=0 ChainDump=1
+sd:/wiistation/isos/Crash Team Racing
+Crash Team Racing [U] [SCUS-94426].cue
+9320 sd:/wiistation/bit15_ctr.txt gpuPlugin=2 GxMask=1 ChainDump=1
+sd:/wiistation/isos/Crash Team Racing
+Crash Team Racing [U] [SCUS-94426].cue
+4000 sd:/wiistation/bit15_ape.txt PadAutoAssign=1 ControllerType=1 gpuPlugin=0 SoftGpuMode=0 ChainDump=1
+sd:/wiistation/isos/Ape Escape
+Ape Escape [U] [SCUS-94423].cue
+4000 sd:/wiistation/bit15_ape.txt PadAutoAssign=1 ControllerType=1 gpuPlugin=2 GxMask=0 ChainDump=1
+sd:/wiistation/isos/Ape Escape
+Ape Escape [U] [SCUS-94423].cue
+4000 sd:/wiistation/bit15_ape.txt PadAutoAssign=1 ControllerType=1 gpuPlugin=2 GxMask=1 ChainDump=1
+sd:/wiistation/isos/Ape Escape
+Ape Escape [U] [SCUS-94423].cue
+3400 sd:/wiistation/bit15_spyro.txt PadAutoAssign=1 ControllerType=0 PadType2=1 gpuPlugin=0 SoftGpuMode=0 ChainDump=1
+sd:/wiistation/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue
+3400 sd:/wiistation/bit15_spyro.txt PadAutoAssign=1 ControllerType=0 PadType2=1 gpuPlugin=2 GxMask=0 ChainDump=1
+sd:/wiistation/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue
+3400 sd:/wiistation/bit15_spyro.txt PadAutoAssign=1 ControllerType=0 PadType2=1 gpuPlugin=2 GxMask=1 ChainDump=1
+sd:/wiistation/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue

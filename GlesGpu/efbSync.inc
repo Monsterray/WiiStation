@@ -58,7 +58,9 @@ typedef struct {
 
 typedef struct {
     void *pixels;            /* RGB565 texture of the whole EFB, MEM2 */
-    int size, texW, texH;
+    unsigned char *z;        /* Z8 copy beside it (top 8 bits of depth: bit 15, GxMask exact), or NULL */
+    int size, zsize, texW, texH;
+    int zok;                 /* z holds this snapshot's depth */
     EfbGeom g;
     uint64_t seq;            /* stamp at capture: holds every GX write stamped before it */
     int valid;               /* complete and readable */
@@ -70,12 +72,40 @@ enum { EFB_MODE_AUTO = 0, EFB_MODE_ON = 1, EFB_MODE_OFF = 2 };
 static uint64_t efb_seq;
 static uint64_t efb_cpu[EFB_TY][EFB_TX];
 static uint64_t efb_gx[EFB_TY][EFB_TX];
-/* Bit 15 (STP / mask) a PS1 would have written there, per tile, from the last GX primitive:
- * the E6 set-mask bit, or for a textured primitive the texel's STP, which GX does not keep
- * (RGB8 EFB, RGB565 snapshots): taken as set. A game that draws one of its frames back as a
- * semi-transparent texture blends only the texels with bit 15 (CTR's intro blur: 92% set in
- * Soft's VRAM); the bit kept from stale psxVuw (0) made the blur opaque and it fed back. */
+#ifdef PERF_PROF
+/* probe: the last EFB_DRAWRING GX draw rects (VRAM, x1/y1 exclusive) and their seq */
+#define EFB_DRAWRING 1024
+typedef struct { int x0, y0, x1, y1; uint64_t seq; } EfbDrawRec;
+static EfbDrawRec efb_drawring[EFB_DRAWRING];
+static unsigned efb_drawring_n;
+/* 1 = no GX draw since the oldest stale tile's last sync touches the rect (a pixel-exact
+ * check would skip the capture), 0 = one does, -1 = the ring no longer reaches back */
+static int efb_drawring_clear(int x, int y, int w, int h, uint64_t since)
+{
+    unsigned n = efb_drawring_n < EFB_DRAWRING ? efb_drawring_n : EFB_DRAWRING, i;
+    int reached = efb_drawring_n < EFB_DRAWRING;
+    for (i = 0; i < n; i++)
+    {
+        const EfbDrawRec *r = &efb_drawring[(efb_drawring_n - 1 - i) & (EFB_DRAWRING - 1)];
+        if (r->seq <= since) { reached = 1; break; }   /* seqs only grow: older ones too */
+        if (r->x0 < x + w && x < r->x1 && r->y0 < y + h && y < r->y1)
+            return 0;
+    }
+    return reached ? 1 : -1;
+}
+#endif
+/* Bit 15 (STP / mask) of synced pixels. GxMask 0 (exact, Docs/STP_BIT15.md): per pixel, from
+ * the EFB depth that opengx writes per pass (gc_gl.c OGX_ZC_SET), copied as Z8 with each
+ * snapshot. GxMask 1 (the 5.14.0 heuristic): per tile, from the last GX primitive: the E6
+ * set-mask bit, or for a textured primitive the texel's STP taken as set. A game that draws
+ * one of its frames back as a semi-transparent texture blends only the texels with bit 15
+ * (CTR's intro blur: 92% set in Soft's VRAM); the stale bit 0 made the blur opaque. */
 static unsigned char efb_stp[EFB_TY][EFB_TX];
+#define EFB_Z_SET(z) ((z) < 0x40)   /* Z8 of OGX_ZC_SET is 0x19; clear 0x7F, cleared 0xFF */
+static inline unsigned char efb_snap_z(const unsigned char *z, int texW, int x, int y)
+{   /* Z8 texels in 8x4 blocks of 32 bytes */
+    return z[(((y >> 2) * ((texW + 7) >> 3) + (x >> 3)) << 5) + ((y & 3) << 3) + (x & 7)];
+}
 static EfbGeom  efb_live;
 static int      efb_live_set;
 static uint64_t efb_live_gx;          /* newest GX stamp inside live */
@@ -174,6 +204,8 @@ static void efb_publish(int wait)
         PERF_INC(gx_drawdone);
     }
     DCInvalidateRange(s->pixels, s->size);
+    if (s->z && s->zok)
+        DCInvalidateRange(s->z, s->zsize);
     s->pending = 0;
     s->valid = 1;
     efb_inflight = NULL;
@@ -208,6 +240,7 @@ static int efb_capture_live(int wait)
      * full with 4-bit colour, and this EFB's alpha varies per pixel: frames read back
      * came out speckled in the wrong hues (Ape Escape's pause) */
     int size = GX_GetTexBufferSize(copyW, copyH, GX_TF_RGB565, 0, GX_FALSE);
+    int zsize = ogx_mask_exact ? GX_GetTexBufferSize(copyW, copyH, GX_TF_Z8, 0, GX_FALSE) : 0;
     EfbSnap *s;
 
     if (!efb_live_set || !efb_geom_ok(&efb_live))
@@ -226,6 +259,13 @@ static int efb_capture_live(int wait)
             _mem2_free(s->pixels);
         s->pixels = buf;
         s->size = size;
+    }
+    if (zsize > s->zsize)
+    {
+        if (s->z)
+            _mem2_free(s->z);
+        s->z = _mem2_malloc(zsize);
+        s->zsize = s->z ? zsize : 0;
     }
     s->valid = 0;
     s->pending = 1;
@@ -250,6 +290,14 @@ static int efb_capture_live(int wait)
     GX_SetTexCopySrc(0, 0, iResX, iResY);
     GX_SetTexCopyDst(copyW, copyH, GX_TF_RGB565, GX_FALSE);
     GX_CopyTex(MEM_K0_TO_K1(s->pixels), GX_FALSE);
+    s->zok = 0;
+    if (zsize && s->z)
+    {   /* bit 15 per pixel: the depth's top byte (gc_gl.c OGX_ZC_SET) */
+        GX_SetTexCopyDst(copyW, copyH, GX_TF_Z8, GX_FALSE);
+        GX_CopyTex(MEM_K0_TO_K1(s->z), GX_FALSE);
+        s->zok = 1;
+        PERF_INC(efb_zcap);
+    }
     GX_PixModeSync();
     GX_SetDrawSyncCallback(efb_copy_done);
     GX_SetDrawSync(efb_token);
@@ -258,26 +306,6 @@ static int efb_capture_live(int wait)
 
     if (wait)
         efb_publish(1);
-    return 1;
-}
-
-/* One PSX pixel from a snapshot; 0 if outside it */
-static int efb_snap_pixel(const EfbSnap *s, int px, int py, uint16_t *out)
-{
-    int nx = px - s->g.x, ny = py - s->g.y, tx, ty;
-
-    if (nx < 0 || ny < 0 || nx >= s->g.w || ny >= s->g.h)
-        return 0;
-    tx = s->g.vx + (nx * s->g.vw) / s->g.w;
-    ty = s->g.vy + (ny * s->g.vh) / s->g.h;
-    if (tx < 0 || tx >= s->texW || ty < 0 || ty >= s->texH)
-        return 0;
-    {
-        /* 16-bit texels in 4x4 blocks, as RGB5A3; RGB565 is RRRRRGGGGGGBBBBB and the PSX
-         * pixel is BBBBBGGGGGRRRRR (red in the low bits) */
-        unsigned short c = ReadGXRGB5A3PixelRaw(s->pixels, s->texW, tx, ty);
-        *out = (uint16_t)((c >> 11) | (((c >> 6) & 0x1F) << 5) | ((c & 0x1F) << 10));
-    }
     return 1;
 }
 
@@ -351,6 +379,12 @@ static void efb_gx_draw(int x0, int y0, int x1, int y1, int stp)
         efb_save_live_if_needed();
         efb_live = g;
         efb_live_set = 1;
+#ifdef PERF_PROF
+        g_perf.efb_live_geom[0] = g.x; g_perf.efb_live_geom[1] = g.y;
+        g_perf.efb_live_geom[2] = g.w; g_perf.efb_live_geom[3] = g.h;
+        g_perf.efb_live_geom[4] = PSXDisplay.DrawArea.y0; g_perf.efb_live_geom[5] = PSXDisplay.DrawArea.y1;
+        g_perf.efb_live_changes++;
+#endif
         efb_live_gx = 0;
         efb_live_saved = 0;
     }
@@ -370,6 +404,12 @@ static void efb_gx_draw(int x0, int y0, int x1, int y1, int stp)
         ++efb_seq;
         efb_seq_is_gx = 1;
     }
+#ifdef PERF_PROF
+    {   /* probe: the rects GX drew, for efb_sync's "would a pixel-exact check skip this" */
+        EfbDrawRec *r = &efb_drawring[efb_drawring_n++ & (EFB_DRAWRING - 1)];
+        r->x0 = x0; r->y0 = y0; r->x1 = x1; r->y1 = y1; r->seq = efb_seq;
+    }
+#endif
     efb_tiles(x0, y0, x1, y1, &tx0, &ty0, &tx1, &ty1);
     for (ty = ty0; ty < ty1; ty++)
         for (tx = tx0; tx < tx1; tx++)
@@ -402,10 +442,140 @@ static void efb_before_geometry_change(void)
 
 /* Before a read of VRAM rect (x,y,w,h): put the GX-drawn pixels there into psxVuw.
  * Returns the pixels written. */
+/* A capture of part of live: the EFB under VRAM rect [rx0,rx1) x [ry0,ry1) only, into a small
+ * buffer of its own, finished before returning. efb_sync merges from it for the tiles it holds.
+ * A full capture copies the whole EFB (640x480, plus its depth with GxMask exact): about 1 ms
+ * of GP time on a Wii, and CTR's Tiger Temple read 8x32 strips it had just drawn ~50 times a
+ * frame, 1-3 pixels each (62,000 full copies in 7000 vblanks, 61 s of a 143 s run). Any scale:
+ * the copy keeps live's mapping, moved to where it starts. Only for a rect under a quarter of
+ * live; efb_live_saved is not advanced, so what this did not copy is still captured when it is
+ * read. efb_mini_cov: the VRAM tiles it serves. 0 = not done (use a full one). */
+static EfbSnap efb_mini;
+static int efb_mini_cov[4];   /* x0, y0, x1, y1 */
+
+static int efb_capture_rect(int rx0, int ry0, int rx1, int ry1)
+{
+    const EfbGeom *g = &efb_live;
+    int ex0, ey0, ex1, ey1, ax0, ay0, cw, ch, size, zsize;
+    int cx0 = rx0, cy0 = ry0, cx1 = rx1, cy1 = ry1;   /* the tiles asked for, before clipping */
+
+    if (!efb_live_set || !efb_geom_ok(g) || g->w <= 0 || g->h <= 0)
+        return 0;
+    if (STATUSREG & GPUSTATUS_RGB24)
+        return 0;
+    if (rx0 < g->x) rx0 = g->x;
+    if (ry0 < g->y) ry0 = g->y;
+    if (rx1 > g->x + g->w) rx1 = g->x + g->w;
+    if (ry1 > g->y + g->h) ry1 = g->y + g->h;
+    if (rx1 <= rx0 || ry1 <= ry0)
+        return 0;
+    if ((rx1 - rx0) * (ry1 - ry0) * 4 > g->w * g->h)
+        return 0;                          /* a big read: a full capture serves it as well */
+    /* the snapshot mapping (tx = vx + nx * vw / w), and one texel more at the far side */
+    ex0 = g->vx + ((rx0 - g->x) * g->vw) / g->w;
+    ey0 = g->vy + ((ry0 - g->y) * g->vh) / g->h;
+    ex1 = g->vx + ((rx1 - g->x) * g->vw + g->w - 1) / g->w + 1;
+    ey1 = g->vy + ((ry1 - g->y) * g->vh + g->h - 1) / g->h + 1;
+    if (ex0 < 0) ex0 = 0;
+    if (ey0 < 0) ey0 = 0;
+    if (ex1 > iResX) ex1 = iResX;
+    if (ey1 > iResY) ey1 = iResY;
+    if (ex1 <= ex0 || ey1 <= ey0)
+        return 0;
+    ax0 = ex0 & ~7;                        /* Z8 blocks are 8x4, RGB565 4x4; copies start even */
+    ay0 = ey0 & ~3;
+    cw = ((ex1 - ax0) + 7) & ~7;
+    ch = ((ey1 - ay0) + 3) & ~3;
+    if (ax0 + cw > iResX) cw = ((iResX - ax0) + 1) & ~1;
+    if (ay0 + ch > iResY) ch = ((iResY - ay0) + 1) & ~1;
+    if (cw <= 0 || ch <= 0)
+        return 0;
+    size = GX_GetTexBufferSize(cw, ch, GX_TF_RGB565, 0, GX_FALSE);
+    zsize = ogx_mask_exact ? GX_GetTexBufferSize(cw, ch, GX_TF_Z8, 0, GX_FALSE) : 0;
+    if (efb_mini.size < size)
+    {
+        void *buf = _mem2_malloc(size);
+        if (!buf)
+            return 0;
+        if (efb_mini.pixels)
+            _mem2_free(efb_mini.pixels);
+        efb_mini.pixels = buf;
+        efb_mini.size = size;
+    }
+    if (efb_mini.zsize < zsize)
+    {
+        if (efb_mini.z)
+            _mem2_free(efb_mini.z);
+        efb_mini.z = _mem2_malloc(zsize);
+        efb_mini.zsize = efb_mini.z ? zsize : 0;
+    }
+#if PERF_PROF_GPUSPLIT
+    unsigned long long mt0_ = perf_now_ticks(), mt1_;
+#endif
+    efb_publish(1);                        /* a full copy in flight first (one at a time) */
+#if PERF_PROF_GPUSPLIT
+    mt1_ = perf_now_ticks();
+    g_perf.efb_mini_ticks[1] += mt1_ - mt0_;   /* waiting for a full copy in flight */
+#endif
+    {
+        extern GXRModeObj *g_tv_mode;
+        GXRModeObj *m = g_tv_mode ? g_tv_mode : vmode;
+        GX_SetCopyFilter(m ? m->aa : GX_FALSE, (m && m->aa) ? m->sample_pattern : NULL, GX_FALSE, NULL);
+    }
+    GX_SetTexCopySrc(ax0, ay0, cw, ch);
+    GX_SetTexCopyDst(cw, ch, GX_TF_RGB565, GX_FALSE);
+    GX_CopyTex(MEM_K0_TO_K1(efb_mini.pixels), GX_FALSE);
+    efb_mini.zok = 0;
+    if (zsize && efb_mini.z)
+    {
+        GX_SetTexCopyDst(cw, ch, GX_TF_Z8, GX_FALSE);
+        GX_CopyTex(MEM_K0_TO_K1(efb_mini.z), GX_FALSE);
+        efb_mini.zok = 1;
+        PERF_INC(efb_zcap);
+    }
+#if PERF_PROF_GPUSPLIT
+    g_perf.efb_mini_ticks[2] += perf_now_ticks() - mt1_;   /* setting up and queueing the copies */
+    mt1_ = perf_now_ticks();
+#endif
+    GX_PixModeSync();
+    GX_DrawDone();
+    PERF_INC(gx_drawdone);
+#if PERF_PROF_GPUSPLIT
+    g_perf.efb_mini_ticks[3] += perf_now_ticks() - mt1_;   /* the stall: the GPU drains */
+#endif
+    RestoreDispCopyInfo();
+    DCInvalidateRange(efb_mini.pixels, size);
+    if (efb_mini.zok)
+        DCInvalidateRange(efb_mini.z, zsize);
+    /* live's geometry, its EFB origin moved to the copy's corner */
+    efb_mini.g = *g;
+    efb_mini.g.vx = g->vx - ax0;
+    efb_mini.g.vy = g->vy - ay0;
+    efb_mini_cov[0] = cx0;
+    efb_mini_cov[1] = cy0;
+    efb_mini_cov[2] = cx1;
+    efb_mini_cov[3] = cy1;
+    efb_mini.texW = cw;
+    efb_mini.texH = ch;
+    efb_mini.seq = ++efb_seq;
+    efb_seq_is_gx = 0;
+    efb_mini.valid = 1;
+    efb_mini.pending = 0;
+    PERF_INC(efb_mini_calls);
+#if PERF_PROF_GPUSPLIT
+    g_perf.efb_mini_ticks[0] += perf_now_ticks() - mt0_;   /* the whole partial capture */
+#endif
+    return 1;
+}
+
+/* who called efb_sync, for the capture counts: 1 texture read (CheckVRamRead), 2 off-screen
+ * soft draw, 3 outside the plugin, 4 present upload, 5 GP0 C0, 6 GP0 80 move; 0 other */
+static int efb_sync_from;
 static int efb_sync(int x, int y, int w, int h)
 {
     int tx0, ty0, tx1, ty1, tx, ty, merged = 0, stale = 0, need_live = 0, missed = 0;
     int ix0 = 1024, iy0 = 512, ix1 = 0, iy1 = 0;   /* what was merged, for the texture cache */
+    int nx0 = 64, ny0 = 32, nx1 = 0, ny1 = 0;      /* the tiles that need live (efb_capture_rect) */
 
     efb_last_merged = 0;
     if (w <= 0 || h <= 0 || efb_mode() == EFB_MODE_OFF)
@@ -429,17 +599,55 @@ static int efb_sync(int x, int y, int w, int h)
             if (efb_gx[ty][tx] > efb_cpu[ty][tx])
             {
                 stale++;
+                /* live only for pixels this read asks for that live can hold: GX draws are
+                 * clipped to live, so a tile on live's edge (CTR's 216-line picture shares tile
+                 * row 208-223 with strips at 216+ that it reads as textures) needs no copy of
+                 * live for the part outside it. That edge cost a full EFB copy per read: ~50 a
+                 * frame, 61 s of a 143 s Tiger Temple run on the bench Wii. */
                 if (efb_live_set && efb_gx[ty][tx] > efb_live_saved &&
-                    tx * EFB_TILE < efb_live.x + efb_live.w && (tx + 1) * EFB_TILE > efb_live.x &&
-                    ty * EFB_TILE < efb_live.y + efb_live.h && (ty + 1) * EFB_TILE > efb_live.y)
+                    max(tx * EFB_TILE, max(x, efb_live.x)) < min((tx + 1) * EFB_TILE, min(x + w, efb_live.x + efb_live.w)) &&
+                    max(ty * EFB_TILE, max(y, efb_live.y)) < min((ty + 1) * EFB_TILE, min(y + h, efb_live.y + efb_live.h)))
+                {
                     need_live = 1;
+                    if (tx < nx0) nx0 = tx;
+                    if (ty < ny0) ny0 = ty;
+                    if (tx + 1 > nx1) nx1 = tx + 1;
+                    if (ty + 1 > ny1) ny1 = ty + 1;
+                }
             }
     if (!stale)
         return 0;
+#ifdef PERF_PROF
     if (need_live)
+    {   /* probe: would a pixel-exact check (the draw rects since the oldest stale tile's last
+         * sync) have found nothing drawn over this read? (efbexact:) */
+        uint64_t since = ~(uint64_t)0;
+        int r;
+        for (ty = ty0; ty < ty1; ty++)
+            for (tx = tx0; tx < tx1; tx++)
+                if (efb_gx[ty][tx] > efb_cpu[ty][tx] && efb_cpu[ty][tx] < since)
+                    since = efb_cpu[ty][tx];
+        r = efb_drawring_clear(x, y, w, h, since);
+        g_perf.efb_exact[r < 0 ? 2 : r]++;
+    }
+#endif
+    efb_mini.valid = 0;
+    if (need_live && efb_capture_rect(nx0 * EFB_TILE, ny0 * EFB_TILE, nx1 * EFB_TILE, ny1 * EFB_TILE))
+    {
+#ifdef PERF_PROF
+        /* probe: who asked for each partial capture, and how big the read was (efbmini:) */
+        int a = w * h;
+        g_perf.efb_mini_by[efb_sync_from & 7]++;
+        g_perf.efb_mini_area[a <= 4 ? 0 : a <= 16 ? 1 : a <= 64 ? 2 : a <= 256 ? 3 : a <= 4096 ? 4 : 5]++;
+#endif
+    }
+    else if (need_live)
     {
         PERF_TIME(efb_cap_ticks, efb_capture_live(1));
         PERF_INC(efb_cap_calls);
+#ifdef PERF_PROF
+        g_perf.efb_cap_by[efb_sync_from & 7]++;
+#endif
     }
     else
         efb_publish(1);
@@ -453,6 +661,11 @@ static int efb_sync(int x, int y, int w, int h)
 
             if (efb_gx[ty][tx] <= efb_cpu[ty][tx])
                 continue;
+            if (efb_mini.valid && efb_mini.seq >= efb_gx[ty][tx] &&
+                tx * EFB_TILE >= efb_mini_cov[0] && (tx + 1) * EFB_TILE <= efb_mini_cov[2] &&
+                ty * EFB_TILE >= efb_mini_cov[1] && (ty + 1) * EFB_TILE <= efb_mini_cov[3])
+                best = &efb_mini;
+            else
             for (i = 0; i < EFB_SNAPS; i++)
                 if (efb_snap[i].valid && efb_snap[i].seq >= efb_gx[ty][tx] &&
                     (!best || efb_snap[i].seq > best->seq) &&
@@ -474,7 +687,7 @@ static int efb_sync(int x, int y, int w, int h)
             {
                 /* A snapshot at VRAM's own scale (the usual case): texel = pixel + offset, so
                  * the tile is clipped to the snapshot once and read row by row. The same pixels
-                 * as efb_snap_pixel() below, without its two divides and bounds checks per
+                 * as the scaled path below, without its two divides and bounds checks per
                  * pixel: FF7's logos merge 58,000 pixels a frame, 9 ms on a Wii. */
                 int ox = best->g.vx - best->g.x, oy = best->g.vy - best->g.y;
                 int qx0 = max(px0, max(best->g.x, -ox)), qx1 = min(px1, min(best->g.x + best->g.w, best->texW - ox));
@@ -482,11 +695,22 @@ static int efb_sync(int x, int y, int w, int h)
                 for (py = qy0; py < qy1; py++)
                 {
                     unsigned short *d = &psxVuw[(py << 10) + qx0];
+                    /* this line's rows: RGB565 in 4x4 blocks, Z8 in 8x4 blocks, 32 bytes a block
+                     * (ReadGXRGB5A3PixelRaw, efb_snap_z with the row worked out once) */
+                    const unsigned char *cr = (const unsigned char *)best->pixels +
+                        ((((py + oy) >> 2) * (best->texW >> 2)) << 5) + (((py + oy) & 3) << 3);
+                    const unsigned char *zr = best->zok ? best->z + ((((py + oy) >> 2) * ((best->texW + 7) >> 3)) << 5)
+                                                          + (((py + oy) & 3) << 3) : NULL;
                     for (px = qx0; px < qx1; px++, d++)
                     {
-                        unsigned short c = ReadGXRGB5A3PixelRaw(best->pixels, best->texW, px + ox, py + oy);
+                        int tx = px + ox;
+                        unsigned short c = *(const unsigned short *)(cr + ((tx >> 2) << 5) + ((tx & 3) << 1));
                         c = (unsigned short)((c >> 11) | (((c >> 6) & 0x1F) << 5) | ((c & 0x1F) << 10));
-                        PUTLE16(d, (unsigned short)((c & 0x7FFF) | stp));
+                        if (zr)
+                            c |= EFB_Z_SET(zr[((tx >> 3) << 5) + (tx & 7)]) ? 0x8000 : 0;
+                        else
+                            c |= stp;
+                        PUTLE16(d, c);
                     }
                 }
                 if (qx1 > qx0 && qy1 > qy0)
@@ -497,19 +721,60 @@ static int efb_sync(int x, int y, int w, int h)
                 }
             }
             else
-            for (py = py0; py < py1; py++)
-                for (px = px0; px < px1; px++)
+            {
+                /* A snapshot at another scale (CTR: 512 VRAM pixels on 640 EFB pixels): the
+                 * snapshot's mapping (tx = vx + nx * vw / w), worked out once per column and
+                 * row of the tile (32 divides) instead of twice per pixel (512); the same
+                 * pixels. Tiger Temple's two short slow spots read ~23,500 frame pixels a
+                 * vblank; this loop was the unexplained ~5 ms of their 8.8 ms extra on the
+                 * bench Wii (2026-10-20). sx/sy: -1 = outside the snapshot. */
+                int colx[EFB_TILE], rowy[EFB_TILE], i;
+                for (i = 0; i < EFB_TILE; i++)
                 {
-                    uint16_t c;
-                    unsigned short *d = &psxVuw[(py << 10) + px];
-                    if (!efb_snap_pixel(best, px, py, &c))
-                        continue;
-                    /* psxVuw is in PlayStation byte order (little-endian) on this big-endian
-                     * CPU; bit 15 as the primitive would have written it (efb_stp) */
-                    PUTLE16(d, (unsigned short)((c & 0x7FFF) | stp));
-                    if (px >= x && px < x + w && py >= y && py < y + h)
-                        merged++;
+                    int nx = px0 + i - best->g.x, ny = py0 + i - best->g.y, t;
+                    colx[i] = rowy[i] = -1;
+                    if (nx >= 0 && nx < best->g.w)
+                    {
+                        t = best->g.vx + (nx * best->g.vw) / best->g.w;
+                        if (t >= 0 && t < best->texW)
+                            colx[i] = t;
+                    }
+                    if (ny >= 0 && ny < best->g.h)
+                    {
+                        t = best->g.vy + (ny * best->g.vh) / best->g.h;
+                        if (t >= 0 && t < best->texH)
+                            rowy[i] = t;
+                    }
                 }
+                for (py = py0; py < py1; py++)
+                {
+                    int sy = rowy[py - py0];
+                    const unsigned char *cr, *zr;
+                    if (sy < 0)
+                        continue;
+                    /* RGB565 in 4x4 blocks, Z8 in 8x4 blocks, 32 bytes a block (as above) */
+                    cr = (const unsigned char *)best->pixels + ((((sy >> 2) * (best->texW >> 2)) << 5) + ((sy & 3) << 3));
+                    zr = best->zok ? best->z + ((((sy >> 2) * ((best->texW + 7) >> 3)) << 5) + ((sy & 3) << 3)) : NULL;
+                    for (px = px0; px < px1; px++)
+                    {
+                        int sx = colx[px - px0];
+                        unsigned short c;
+                        if (sx < 0)
+                            continue;
+                        c = *(const unsigned short *)(cr + ((sx >> 2) << 5) + ((sx & 3) << 1));
+                        c = (unsigned short)((c >> 11) | (((c >> 6) & 0x1F) << 5) | ((c & 0x1F) << 10));
+                        /* psxVuw is in PlayStation byte order (little-endian) on this big-endian
+                         * CPU; bit 15 from the depth, or from the tile's primitive (efb_stp) */
+                        if (zr)
+                            c |= EFB_Z_SET(zr[((sx >> 3) << 5) + (sx & 7)]) ? 0x8000 : 0;
+                        else
+                            c |= stp;
+                        PUTLE16(&psxVuw[(py << 10) + px], c);
+                        if (px >= x && px < x + w && py >= y && py < y + h)
+                            merged++;
+                    }
+                }
+            }
             efb_cpu[ty][tx] = efb_gx[ty][tx];
             if (px0 < ix0) ix0 = px0;
             if (py0 < iy0) iy0 = py0;
@@ -573,7 +838,32 @@ static void efb_sync_texture(void)
         x0 += u0 >> shift;
         y0 += v0;
     }
+    efb_sync_from = 7;
+#ifdef PERF_PROF
+    {   /* probe: the texture mode of the reads that needed a partial capture (efbmini: mode) */
+        uint32_t before = g_perf.efb_mini_by[7];
+        efb_sync(x0, y0, x1 - x0, y1 - y0);
+        if (g_perf.efb_mini_by[7] != before)
+        {
+            int qx, qy;
+            g_perf.efb_mini_mode[GlobalTextTP & 3]++;
+            if (DrawSemiTrans)
+                g_perf.efb_texrd[0]++;
+            /* the texels it then samples: bit 15 set, and 0x0000 (a transparent texel) */
+            for (qy = y0; qy < y1 && qy < 512; qy++)
+                for (qx = x0; qx < x1 && qx < 1024; qx++)
+                {
+                    unsigned short t = GETLE16(&psxVuw[(qy << 10) + qx]);
+                    g_perf.efb_texrd[1]++;
+                    if (t & 0x8000) g_perf.efb_texrd[2]++;
+                    if (!t) g_perf.efb_texrd[3]++;
+                }
+        }
+    }
+#else
     efb_sync(x0, y0, x1 - x0, y1 - y0);
+#endif
+    efb_sync_from = 0;
 }
 
 static void efb_reset(void)

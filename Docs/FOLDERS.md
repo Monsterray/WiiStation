@@ -17,6 +17,7 @@ page says what goes where, for players and for anyone running the test tools.
 | Button layouts | `wiistation/control*.cfg` | `wiisxrx/control*.cfg` | Same format (version 1): copy them across. |
 | Games | `wiistation/isos/` | `wiisxrx/isos/` | Or leave them where they are and list the folder in `RomDirSD` / `RomDirUSB` (below). |
 | Fonts, languages, default button maps | `wiistation/fonts`, `lang`, `controllers` | `wiisxrx/fonts` | Come with the release zip; do not copy old ones. |
+| Debug logs | `wiistation/debuglogs/` | - | Only the debug app, WiiStation (debug), writes here (60 MB at most): [DEBUG_PLAY.md](DEBUG_PLAY.md). |
 
 The app itself stays in `apps/WiiStation/`.
 

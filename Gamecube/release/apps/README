@@ -1,5 +1,5 @@
 README : WiiStation
-Version 5.15.0
+Version 5.16.0
 
 LICENSE:
     This software is licensed under the GNU General Public License v2
@@ -155,6 +155,66 @@ LATER UPDATES BY:
  * Monty Perrotti (WiiStation)
 
 WiiStation CHANGE LOG:
+Unreleased:
+* OpenGX texture cache: a freed texture's space is reused again (since September 2026 it
+  was given back smaller than it took, so the cache filled with unusable
+  slivers that every new texture searched). Crash Team Racing's Tiger Temple,
+  whose rain makes thousands of tiny textures, runs at full speed in the rain:
+  0.88x -> 0.98x over a whole race on the bench Wii (debug build).
+* Lightrec compiles new code on a background thread while the game runs it in
+  the interpreter, so a level that loads a lot of new code stutters less
+  (Spyro's whirlwind elevator: 107 ms lost on the bench Wii before, 7 ms now;
+  the time the emulator spends compiling: 1.41 s before, 0.53 s now). The switch
+  to compiled code happens at a fixed point in the game's own run, so a game
+  and a recording replay exactly the same every time. Recordings made with
+  earlier versions can drift in some games (Crash Bandicoot 3); hidden setting
+  JitDelay=0 restores the old timing.
+
+Ver 5.16.0 (2026-10-20):
+* USB controllers: every button, hat and axis can be used. A USB gamepad with
+  no controller ini now works: WiiStation reads its HID report descriptor and
+  lays it out as a standard pad (buttons 1-4 Square Cross Circle Triangle, 5-8
+  L1 R1 L2 R2, 9 Select, 10 Start, 11 L3, 12 R3, the hat as the D-pad, X/Y and
+  Z/Rz or Rx/Ry as the sticks). Old controller inis work as before.
+* Controller inis can name any input: KeyL3=Button11, KeyUp=HatUp,
+  KeyL2=AxisZ+, StickX=AxisRz, or the old byte,mask (Docs/CONTROLLER_TESTING.md
+  section 7). New keys KeyL3 and KeyR3; the DualShock 3/4 and Logitech Dual
+  Action / RumblePad 2 inis now have L3 and R3.
+* Configure Buttons for a USB pad offers L3, R3 and every input of the pad by
+  name (Btn 13, Hat Up, Axis Z+), for any PlayStation button and for the menu,
+  fast-forward, screenshot and ANALOG combinations (a Home button can open the
+  menu alone). Analog sticks can come from any axis pair. The A-/C- stick
+  direction entries now work.
+* Test USB Pad shows which HID input each press moved and writes a complete
+  suggested controller ini into usbpad.log (scripts/usbpad_read.py --ini).
+* Soft Mode (Settings > Video > Advanced, SoftGpuMode): the soft
+  renderers (Soft Fast, Soft Timed) draw in one of three ways. Accurate, the
+  default, draws as a PS1 GPU: its dither pattern, semi-transparency, the mask
+  bit on every write (polygons, rectangles, lines, image loads, VRAM copies),
+  the palette and texture caches. Every ps1-tests GPU test with a real-PS1
+  result passes with it (gpu/bandwidth also with GPU Timing Accurate). Hi-Fi
+  draws the same pixels without the dither, with finer colour blends. Fast is
+  the old code (5.15.0 and before), the cheapest on the Wii.
+* GPU Timing Accurate: with Soft Mode Accurate or Hi-Fi, the GPU stays busy as
+  long as each draw takes on a PS1, and image transfers by DMA take PS1 time.
+  GPUSTAT bit 28 (ready for a DMA block) is clear while the GPU is busy.
+* Filter Tour: no more Deflicker and Trap steps. It now steps through the
+  texture filter, Soft Mode and GPU Timing on the soft renderers, and the
+  texture filter, GPU Timing, Far Textures and GX Color on OpenGX, each alone
+  and then in a few combinations (7 or 10 steps, 4 s each; in 240p no
+  Bilinear steps, and OpenGX adds AA). Far Textures and GX Color change at
+  once during the tour instead of at the next game start.
+* GX Mask Bit (Settings > General > Advanced > GPU, GxMask): OpenGX keeps
+  the PS1's mask bit (bit 15) per pixel, in the Wii's depth buffer. Games that
+  read their picture back, blend their last frame or use the mask check get it
+  as on a PS1; the picture itself is unchanged. ps1-tests gpu/mask-bit now
+  passes under OpenGX. Fast is the 5.14.0 guess per 16x16 block.
+* OpenGX: image loads (GP0 A0) obey the mask bits (E6), VRAM copies the
+  mask check; a full-VRAM clear no longer leaves the next draw with the
+  clear's matrices.
+* Test runs: a chain runs up to 64 games (was 24), and its VRAM dumps are
+  taken in the game (ChainDump picks the moment; OpenGX syncs first).
+
 Ver 5.15.0 (2026-10-19):
 * Save Settings > This Game now saves only the settings that differ from
   settings.ini. When the game starts, WiiStation reads settings.ini first and

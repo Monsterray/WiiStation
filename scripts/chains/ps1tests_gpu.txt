@@ -1,0 +1,141 @@
+CHAIN
+# JaCzekanski ps1-tests GPU tests that have a real-PS1 result (C:/tools/ps1-tests/bin/gpu/<t>/):
+# psx.log (console text: bandwidth, gp0-e1, mask-bit) or vram.png (VRAM at the end: the rest).
+# Each test under Soft Fast (0), Soft Timed (1) and OpenGX (2); HLE BIOS (its printf reaches
+# tty.log). Check: python scripts/ps1tests_gpu_check.py .runs/NAME (PASS/FAIL per test and
+# renderer). Library folders C:/wiistation-lib/games/ps1t_<t>. ChainDump=1: the VRAM dump (vram_NN.bin)
+# is taken before the first fill after the last vblank (a whole frame of a test that redraws
+# every frame, gpu/lines), with OpenGX's EFB synced into VRAM first.
+600 gpuPlugin=0 ChainDump=1
+sd:/wiistation/isos/ps1t_mask-bit
+mask-bit.exe
+600 gpuPlugin=1 ChainDump=1
+sd:/wiistation/isos/ps1t_mask-bit
+mask-bit.exe
+600 gpuPlugin=2 ChainDump=1
+sd:/wiistation/isos/ps1t_mask-bit
+mask-bit.exe
+600 gpuPlugin=0 ChainDump=1
+sd:/wiistation/isos/ps1t_gp0-e1
+gp0-e1.exe
+600 gpuPlugin=1 ChainDump=1
+sd:/wiistation/isos/ps1t_gp0-e1
+gp0-e1.exe
+600 gpuPlugin=2 ChainDump=1
+sd:/wiistation/isos/ps1t_gp0-e1
+gp0-e1.exe
+600 gpuPlugin=0 ChainDump=1
+sd:/wiistation/isos/ps1t_clipping
+clipping.exe
+600 gpuPlugin=1 ChainDump=1
+sd:/wiistation/isos/ps1t_clipping
+clipping.exe
+600 gpuPlugin=2 ChainDump=1
+sd:/wiistation/isos/ps1t_clipping
+clipping.exe
+600 gpuPlugin=0 ChainDump=1
+sd:/wiistation/isos/ps1t_clut-cache
+clut-cache.exe
+600 gpuPlugin=1 ChainDump=1
+sd:/wiistation/isos/ps1t_clut-cache
+clut-cache.exe
+600 gpuPlugin=2 ChainDump=1
+sd:/wiistation/isos/ps1t_clut-cache
+clut-cache.exe
+600 gpuPlugin=0 ChainDump=1
+sd:/wiistation/isos/ps1t_lines
+lines.exe
+600 gpuPlugin=1 ChainDump=1
+sd:/wiistation/isos/ps1t_lines
+lines.exe
+600 gpuPlugin=2 ChainDump=1
+sd:/wiistation/isos/ps1t_lines
+lines.exe
+600 gpuPlugin=0 ChainDump=1
+sd:/wiistation/isos/ps1t_quad
+quad.exe
+600 gpuPlugin=1 ChainDump=1
+sd:/wiistation/isos/ps1t_quad
+quad.exe
+600 gpuPlugin=2 ChainDump=1
+sd:/wiistation/isos/ps1t_quad
+quad.exe
+600 gpuPlugin=0 ChainDump=1
+sd:/wiistation/isos/ps1t_rectangles
+rectangles.exe
+600 gpuPlugin=1 ChainDump=1
+sd:/wiistation/isos/ps1t_rectangles
+rectangles.exe
+600 gpuPlugin=2 ChainDump=1
+sd:/wiistation/isos/ps1t_rectangles
+rectangles.exe
+600 gpuPlugin=0 ChainDump=1
+sd:/wiistation/isos/ps1t_texture-flip
+texture-flip.exe
+600 gpuPlugin=1 ChainDump=1
+sd:/wiistation/isos/ps1t_texture-flip
+texture-flip.exe
+600 gpuPlugin=2 ChainDump=1
+sd:/wiistation/isos/ps1t_texture-flip
+texture-flip.exe
+600 gpuPlugin=0 ChainDump=1
+sd:/wiistation/isos/ps1t_texture-overflow
+texture-overflow.exe
+600 gpuPlugin=1 ChainDump=1
+sd:/wiistation/isos/ps1t_texture-overflow
+texture-overflow.exe
+600 gpuPlugin=2 ChainDump=1
+sd:/wiistation/isos/ps1t_texture-overflow
+texture-overflow.exe
+600 gpuPlugin=0 ChainDump=1
+sd:/wiistation/isos/ps1t_transparency
+transparency.exe
+600 gpuPlugin=1 ChainDump=1
+sd:/wiistation/isos/ps1t_transparency
+transparency.exe
+600 gpuPlugin=2 ChainDump=1
+sd:/wiistation/isos/ps1t_transparency
+transparency.exe
+600 gpuPlugin=0 ChainDump=1
+sd:/wiistation/isos/ps1t_triangle
+triangle.exe
+600 gpuPlugin=1 ChainDump=1
+sd:/wiistation/isos/ps1t_triangle
+triangle.exe
+600 gpuPlugin=2 ChainDump=1
+sd:/wiistation/isos/ps1t_triangle
+triangle.exe
+600 gpuPlugin=0 ChainDump=1
+sd:/wiistation/isos/ps1t_uv-interpolation
+uv-interpolation.exe
+600 gpuPlugin=1 ChainDump=1
+sd:/wiistation/isos/ps1t_uv-interpolation
+uv-interpolation.exe
+600 gpuPlugin=2 ChainDump=1
+sd:/wiistation/isos/ps1t_uv-interpolation
+uv-interpolation.exe
+600 gpuPlugin=0 ChainDump=1
+sd:/wiistation/isos/ps1t_vram-to-vram-overlap
+vram-to-vram-overlap.exe
+600 gpuPlugin=1 ChainDump=1
+sd:/wiistation/isos/ps1t_vram-to-vram-overlap
+vram-to-vram-overlap.exe
+600 gpuPlugin=2 ChainDump=1
+sd:/wiistation/isos/ps1t_vram-to-vram-overlap
+vram-to-vram-overlap.exe
+2400 gpuPlugin=0 ChainDump=1
+sd:/wiistation/isos/ps1t_bandwidth
+bandwidth.exe
+2400 gpuPlugin=1 ChainDump=1
+sd:/wiistation/isos/ps1t_bandwidth
+bandwidth.exe
+2400 gpuPlugin=2 ChainDump=1
+sd:/wiistation/isos/ps1t_bandwidth
+bandwidth.exe
+# gpu/bandwidth measures GPU and DMA speed: it needs GpuTiming=1 (Accurate) as well
+2400 gpuPlugin=0 GpuTiming=1 ChainDump=1
+sd:/wiistation/isos/ps1t_bandwidth
+bandwidth.exe
+2400 gpuPlugin=1 GpuTiming=1 ChainDump=1
+sd:/wiistation/isos/ps1t_bandwidth
+bandwidth.exe
