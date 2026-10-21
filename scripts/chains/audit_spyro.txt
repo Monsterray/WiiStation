@@ -1,0 +1,5 @@
+CHAIN
+# branch audit 2026-10-20: Spyro, the first 3200 vblanks of the user session (through the elevator)
+3200 sd:/wiistation/spyro_tornado_play.txt PadAutoAssign=1 ControllerType=0 PadType2=1
+sd:/wiistation/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue

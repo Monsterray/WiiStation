@@ -986,5 +986,6 @@ p2 111 0000
 # alive 14400
 # alive 14700
 # hprof windows: the two short slow spots (bench vtl after cb5c672f), 2026-10-20
-hprof 11717 11764
-hprof 14037 14097
+hprof 14039 14085
+hprof 13434 13437
+hprof 3714 3722

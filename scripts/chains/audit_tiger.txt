@@ -1,0 +1,5 @@
+CHAIN
+# branch audit 2026-10-20: Tiger Temple to the end of the first rain stretch (4869-5486)
+5600 sd:/wiistation/tiger_temple_play.txt PadAutoAssign=1 ControllerType=0 PadType2=1 gpuPlugin=2
+sd:/wiistation/isos/Crash Team Racing
+Crash Team Racing [U] [SCUS-94426].cue

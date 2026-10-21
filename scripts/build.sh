@@ -123,6 +123,7 @@ v_x=$(sed -n 's/.*<version>\(.*\)<\/version>.*/\1/p' Gamecube/release/apps/WiiSt
 #   PROBES=all    everything (the default, same as before)
 #   PROBES=light  no primitive tracing, no GX sample rings -- keeps every counter
 #   PROBES=min    also drops the per-slice CPU timing
+#   PROBES=speed  light without the vsig RAM hash: bench speed/load numbers (vsig is 23.5% on a Wii)
 #   PROBES=deep   light plus the GPU, GTE and SPU splits (chain_table.py --detail)
 #   PROBES=pmc    light plus Broadway's performance counters (hardware sessions)
 #   PROBES=hprof  light plus the sampling profiler (where the Wii's CPU is, per function)
@@ -131,6 +132,10 @@ v_x=$(sed -n 's/.*<version>\(.*\)<\/version>.*/\1/p' Gamecube/release/apps/WiiSt
 case "${PROBES:-all}" in
 	all)   PROBE_DEFINES="" ;;
 	light) PROBE_DEFINES="-DPERF_PROF_TRACE=0 -DPERF_PROF_GPU=0" ;;
+	# speed: light without the per-vblank RAM hash (vsig, 23.5% of wall on the Wii), for bench
+	# speed and load numbers. Every other preset keeps vsig for determinism checks; a speed
+	# figure from them is low (Tiger Temple: 0.98x deep, 1.00x speed, 2026-10-21).
+	speed) PROBE_DEFINES="-DPERF_PROF_TRACE=0 -DPERF_PROF_GPU=0 -DPERF_PROF_VSIG=0" ;;
 	min)   PROBE_DEFINES="-DPERF_PROF_TRACE=0 -DPERF_PROF_GPU=0 -DPERF_PROF_CPU=0" ;;
 	# deep: every split used to rank the subsystems (Docs/GPU_CPU_PLAN.md) -- the GPU, the GTE
 	# and the SPU split on top of light. What chain_table.py --detail reads. Costs ~1% of wall.
