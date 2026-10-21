@@ -1,0 +1,5 @@
+CHAIN
+# Spyro 3 Rev 1 Universal logo screen under OpenGX, traced (autoinput s3_universal_trace.txt)
+460 sd:/wiistation/s3_universal_trace.txt PadAutoAssign=1 ControllerType=1 gpuPlugin=2
+sd:/wiistation/isos/Spyro the Dragon 3 - Year of the Dragon (USA) (Rev 1)
+Spyro - Year of the Dragon (USA) (Rev 1).cue

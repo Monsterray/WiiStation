@@ -1,0 +1,3 @@
+# Spyro 3 Universal logo (loaded, never shown under OpenGX): trace from just before the logo loads; the second line flushes it
+trace 315
+trace 445

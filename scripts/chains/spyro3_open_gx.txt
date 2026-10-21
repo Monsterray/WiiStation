@@ -1,0 +1,5 @@
+CHAIN
+# Spyro 3 v1.1 opening: OpenGX vs Soft, every frame (the user saw broken screens at the start)
+700 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1 gpuPlugin=2
+sd:/wiistation/isos/Spyro the Dragon 3 - Year of the Dragon (USA) (Rev 1)
+Spyro - Year of the Dragon (USA) (Rev 1).cue

@@ -1238,19 +1238,33 @@ else if(usFirstPos==1)                                // initial updates (after 
       * presenting those made Frogger's and MediEvil's movies black). A movie flips
       * every 2-4 vblanks and never gets here: a vblank present between its frames showed
       * black (Frogger, MediEvil -- the EFB is cleared after a 24-bit present). */
-     static int rgb24_still;
+     static int still_vbl;
      static PSXPoint_t rgb24_pos;
      if (PSXDisplay.DisplayPosition.x != rgb24_pos.x || PSXDisplay.DisplayPosition.y != rgb24_pos.y)
-      { rgb24_pos = PSXDisplay.DisplayPosition; rgb24_still = 0; }
-     else if (rgb24_still < 1000)
-      rgb24_still++;
-     if (PSXDisplay.RGB24 && (RGB24Uploaded & 0x3) && !PSXDisplay.Disabled && rgb24_still >= 8)
+      { rgb24_pos = PSXDisplay.DisplayPosition; still_vbl = 0; }
+     else if (still_vbl < 1000)
+      still_vbl++;
+     if (PSXDisplay.RGB24 && (RGB24Uploaded & 0x3) && !PSXDisplay.Disabled && still_vbl >= 8)
       updateDisplayGl();
      /* Frame Skip: a game that stops flipping (it draws where it displays, or shows a still)
       * gets its drawing back within a few vblanks */
      if (bSkipNextFrame && (bDrawFrontBuffer || ++skipVbl > 8))
       { bSkipNextFrame = FALSE; PERF_INC(fskip_guard); }
-     int fullUp = CheckFullScreenUpload() ? 1 : 0;
+     /* The 15-bit still: a load into the displayed buffer waits for the next swap
+      * (bNeedUploadAfter), and a game that shows a still without drawing or flipping never
+      * swaps (Spyro 3's Universal logo: loaded into both buffers at each fade step, then
+      * 160 vblanks with no draw and no flip -- black under OpenGX). Once the display has
+      * not moved for 8 vblanks, upload the displayed buffer and present it, as a CRT
+      * shows VRAM. */
+     int stillUp = 0;
+     if (!PSXDisplay.RGB24 && bNeedUploadAfter && !PSXDisplay.Disabled && !bDrawFrontBuffer && still_vbl >= 8)
+      {
+       bNeedUploadAfter = FALSE;
+       PrepareFullScreenUpload(TRUE);
+       UploadScreen(TRUE);
+       stillUp = 1;
+      }
+     int fullUp = (CheckFullScreenUpload() ? 1 : 0) | stillUp;
      /* vramio F1, one per vblank: x,y display, w,h draw offset, a = iDrawnSomething,
       * b = 1 full-screen upload, 2 a present was pending, 4 presented here, 8 drawing into
       * the displayed buffer */
