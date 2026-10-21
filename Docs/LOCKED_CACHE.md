@@ -20,10 +20,16 @@ The 16 KB is divided into **regions**. Each region is one use, one line in the t
 |---|---|---|---|---|
 | 1 | `spu-gauss` | 2 KB | `dfsound/dfspu.c` | the SPU's interpolation table: 4 reads per sample per voice; the SPU is 1.8-10.9% of wall |
 | 2 | `tex-tile` | 8 KB | `deps/opengx/gc_gl.c` | texture tiling output, sent out by DMA with no flush; the tiling pass is 4.0% of wall in Crash Bash |
-| 4 | `mdec` | 2.25 KB | `mdec.c` | the MDEC's IDCT tables (zscan, iq_y, iq_uv) and its 6x64-int macroblock: MDEC decode is 4.4-6% of wall while an FMV plays (MediEvil's intro). No fixed contents -- the tables are game-uploaded and state-restored, so the masters stay where they are and `psxDma1_body` syncs them in once per DMA with plain stores (`sync=` on the `lc:` line) |
-| | (free) | 3.75 KB | | |
+| | (free) | 6 KB | | |
 
-The three regions together take 12.25 KB of the 16 KB; 3.75 KB is left.
+The two regions together take 10 KB of the 16 KB.
+
+**Removed: `mdec` (try/lc-step34, merged 2026-10-20, taken out 2026-10-21).** A 2.25 KB region
+for the MDEC's IDCT tables and macroblock, synced from the masters once per DMA. Bench Wii,
+FF7's first 7200 vblanks (opening FMV), `scripts/chains/lc_mdec_ab.txt`, LockedCache 0 vs 4:
+`rl_us` 1601306 -> 1586131 (-0.9%), `yuv_us` 2911149 -> 2912338, `mdec_us` 4559201 -> 4583523
+(+0.5%: the per-DMA table copy eats the gain), load 30.9% both. The tables are small enough
+to stay in the ordinary L1 during a decode; the region bought nothing.
 
 At every game start (`go()`) `lc_configure()` packs the regions whose bits are set, copies in
 any fixed contents, and locks the cache -- or unlocks it when none is set, so an unused locked
@@ -32,7 +38,7 @@ user runs its ordinary code. **Every user keeps that ordinary path.** It is what
 safe to turn off, and what makes on-against-off comparisons possible.
 
 `LockedCache` is a settings-file key (`settings.ini` (was settingsRX2022.cfg)), not a menu item: `0` all off
-(the default), `1` spu-gauss, `2` tex-tile, `4` mdec, `3` the first two, `7` all three. Every
+(the default), `1` spu-gauss, `2` tex-tile, `3` both. Every
 region stays off by default until a hardware run has shown it helps.
 
 **First hardware run (2026-09-28, `baselines/hw_chain_lc_ab_20260928`):** `LockedCache=3`

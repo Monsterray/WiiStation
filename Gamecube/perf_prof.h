@@ -593,10 +593,8 @@ typedef struct {
 	uint32_t softcall_runs, softcall_steps, softcall_escapes, softcall_run_escapes;
 	uint32_t softcall_hle_exits;  /* left through the HLE's ReturnFromException: safe */
 
-	/* The locked cache's DMA (Gamecube/lc.c). `lc_mdec_syncs` is the mdec region's own
-	 * traffic (mdec.c, LC_MDEC): it moves by plain stores, not by DMA, so without it
-	 * the region would look idle on the lc: line. */
-	uint32_t lc_stores, lc_loads, lc_mdec_syncs;
+	/* The locked cache's DMA (Gamecube/lc.c). */
+	uint32_t lc_stores, lc_loads;
 	uint64_t lc_store_bytes, lc_load_bytes, lc_wait_ticks;
 
 	/* The GPU command loop, split (PERF_PROF_GPUSPLIT). Ticks, converted at report

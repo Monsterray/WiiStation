@@ -21,7 +21,6 @@
 #include "mdec.h"
 #include "Gamecube/perf_prof.h"
 #include "Gamecube/wiiSXconfig.h"   /* mdecChroma */
-#include "Gamecube/lc.h"
 
 /* memory speed is 1 byte per MDEC_BIAS psx clock
  * That mean (PSXCLK / MDEC_BIAS) B/s
@@ -242,24 +241,6 @@ static struct {
 	struct _pending_dma1 pending_dma1;
 } mdec;
 
-/* The locked-cache form of the MDEC working set (Gamecube/lc.c, LC_MDEC). The tables are
- * mutable (a game uploads new quantization tables through DMA0, and savestates restore
- * them), so the region has no fixed contents in lc.c: the masters below stay the source
- * of truth, and psxDma1_body syncs them into the locked region once per DMA with plain
- * stores -- a store to an LC address writes the locked memory itself, so no DMA and no
- * cache maintenance is involved on either side. When the region is off, mdec_lc is NULL
- * and the decode runs on the masters and a stack block, exactly as before. */
-typedef struct {
-	int zscan[DSIZE2];
-	int iq_y[DSIZE2];
-	int iq_uv[DSIZE2];
-	int blk[DSIZE2 * 6];
-} lc_mdec_t;
-
-_Static_assert(sizeof(lc_mdec_t) == LC_MDEC_BYTES, "lc_mdec_t outgrew its locked-cache region");
-
-static lc_mdec_t *mdec_lc;   /* set once per psxDma1_body, before any decode */
-
 static int iq_y[DSIZE2], iq_uv[DSIZE2];
 
 static int zscan[DSIZE2] = {
@@ -297,16 +278,12 @@ static void iqtab_init(int *iqtab, const unsigned char *iq_y) {
 static const unsigned short *rl2blk(int *blk, const unsigned short *mdec_rl) {
 	int i, k, q_scale, rl, used_col;
  	int *iqtab;
-	/* the tables: the locked-cache copies when the region is on, the masters otherwise */
-	const int *gscan   = mdec_lc ? mdec_lc->zscan : zscan;
-	int *iq_y_l        = mdec_lc ? mdec_lc->iq_y   : iq_y;
-	int *iq_uv_l       = mdec_lc ? mdec_lc->iq_uv  : iq_uv;
 
 	memset(blk, 0, 6 * DSIZE2 * sizeof(int));
-	iqtab = iq_uv_l;
+	iqtab = iq_uv;
 	for (i = 0; i < 6; i++) {
 		// decode blocks (Cr,Cb,Y1,Y2,Y3,Y4)
-		if (i == 2) iqtab = iq_y_l;
+		if (i == 2) iqtab = iq_y;
 
 		rl = SWAP16(*mdec_rl); mdec_rl++;
 		q_scale = RLE_RUN(rl);
@@ -322,9 +299,9 @@ static const unsigned short *rl2blk(int *blk, const unsigned short *mdec_rl) {
 			}
 
 			// zigzag transformation
-			blk[gscan[k]] = SCALER(RLE_VAL(rl) * iqtab[k] * q_scale, AAN_EXTRA);
+			blk[zscan[k]] = SCALER(RLE_VAL(rl) * iqtab[k] * q_scale, AAN_EXTRA);
 			// keep track of used columns to speed up the idtc
-			used_col |= (gscan[k] > 7) ? 1 << (gscan[k] & 7) : 0;
+			used_col |= (zscan[k] > 7) ? 1 << (zscan[k] & 7) : 0;
 		}
 
 		if (k == 0) used_col = -1;
@@ -715,27 +692,9 @@ void psxDma1(u32 adr, u32 bcr, u32 chcr) {
 
 static void psxDma1_body(u32 adr, u32 bcr, u32 chcr) {
 	u32 words, words_max = 0;
-	int blk_main[DSIZE2 * 6];
-	int *blk = blk_main;
+	int blk[DSIZE2 * 6];
 	u8 * image;
 	int size;
-
-	/* One sync per DMA, before any decode: the masters carry this DMA's tables INTO the
-	 * locked region (plain stores write the locked cache directly; no DMA, no queue, no
-	 * maintenance on either side), and mdec_lc points the decode at it. The sync covers
-	 * the mutable paths too: every quant-table upload (psxDma0 -> iqtab_init), savestate
-	 * restore (mdecFreeze) and mdecInit lands on the masters before the next psxDma1,
-	 * so the copies cannot go stale without the masters going stale first. The side
-	 * effect on early returns (bad chcr, a pending DMA) is a wasted sync, not a changed
-	 * answer: nothing below may run before it. */
-	mdec_lc = lc_get(LC_MDEC);
-	if (mdec_lc) {
-		memcpy(mdec_lc->zscan, zscan, sizeof zscan);
-		memcpy(mdec_lc->iq_y, iq_y, sizeof iq_y);
-		memcpy(mdec_lc->iq_uv, iq_uv, sizeof iq_uv);
-		PERF_INC(lc_mdec_syncs);
-		blk = mdec_lc->blk;
-	}
 
 	if (chcr != 0x01000200) {
 		log_unhandled("mdec1: invalid dma %08x\n", chcr);
