@@ -51,12 +51,16 @@ fetch_pinned() {
 apply_patch() {
     local dir="$1" patch="$2"
     [ -f "$patch" ] || return 0
-    if git -C "$dir" apply --check --reverse "$patch" >/dev/null 2>&1; then
+    # A worktree made before .gitattributes said `*.patch text eol=lf` (2026-10-18) has
+    # a CRLF copy of the patch, which git apply rejects. Without its CRs it applies either
+    # way: checked 2026-10-20 on a fresh libwupc clone (wupc.c is itself CRLF) -- the
+    # committed patch and the stripped one apply, an all-CRLF copy does not.
+    if tr -d '\r' < "$patch" | git -C "$dir" apply --check --reverse - >/dev/null 2>&1; then
         echo "[fetch_deps] patch already applied: $(basename "$patch")"
         return 0
     fi
     echo "[fetch_deps] applying $(basename "$patch")"
-    git -C "$dir" apply "$patch"
+    tr -d '\r' < "$patch" | git -C "$dir" apply -
 }
 
 fetch_wupc() {
