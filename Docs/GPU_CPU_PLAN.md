@@ -109,6 +109,17 @@ The GPU split probes (`PERF_PROF_GPUSPLIT`: perf.log `gpusplit:`, `gpuprim:`, `g
      the Wii: tiling 473 -> 74 ms a minute, XFB identical. What is left is per texel (MediEvil,
      ~39 ns: whole 35k-texel pages converted 4084 times a minute because VRAM writes invalidate
      them); step 3 or finer invalidation is the lever there.
+     **PARKED (2026-10-19).** The 128 KB/RGBA8 premise is stale: the GX texture is already
+     `GX_TF_RGB5A3` at 2 bytes a texel (`glInitRGBATextures` allocates w*h*2), and the tiler
+     writes 16-bit tiles. The only 4-byte copy left is the CPU-side `texturepart` staging. A
+     16-bit staging variant was implemented exactly (low halfword of `LTCOL`, `GL_UNSIGNED_SHORT`,
+     2-byte tiler path and LC variant) and frame-diffed clean: Spyro+CTR 279 frames, FF7 489,
+     MediEvil 1592, 0 differing pixels. It does not show in the counters: Spyro 600 vb
+     `conv_us` 17474 -> 17750 and `tile_us` 13056 -> 13373 (noise), wall 10.1 s both,
+     `tex_hit`/`miss`/`resets` unchanged. A 1800-vb survey puts `tile` at 0.12% of wall in Spyro,
+     0.09% Crash 3, 0.05% CTR, 0.01% Crash Bash, 0% Dino Crisis 2 and RE3, below G1's 1% gate.
+     Reverted; the diff is at `.runs/ci4_staging16.patch` (local, not committed). CI4/CI8+TLUT was
+     not attempted: the gate is not met and it needs palette/TLUT handling of its own.
 - **Fix (hardware-only).** Every sub-upload starts with `GX_DrawDone()` (`perf_drawdone()`),
   so the CPU waits until the GPU has drawn everything queued: 415 times a second in Crash
   Bash. It is there for correctness (the GPU may still read the texture). Wait only when the
