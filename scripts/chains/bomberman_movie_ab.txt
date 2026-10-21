@@ -1,0 +1,8 @@
+CHAIN
+# Bomberman: texture tearing on vertical explosions (user 2026-10-21): the movie under OpenGX, then Soft as the reference
+14160 sd:/wiistation/bomberman_party_edition_usa_play.txt PadAutoAssign=1 ControllerType=0 PadType2=1 gpuPlugin=2
+sd:/wiistation/isos/Bomberman - Party Edition (USA)
+Bomberman - Party Edition (USA).cue
+14160 sd:/wiistation/bomberman_party_edition_usa_play.txt PadAutoAssign=1 ControllerType=0 PadType2=1 gpuPlugin=0
+sd:/wiistation/isos/Bomberman - Party Edition (USA)
+Bomberman - Party Edition (USA).cue

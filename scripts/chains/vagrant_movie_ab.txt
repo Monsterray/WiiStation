@@ -1,0 +1,8 @@
+CHAIN
+# Vagrant Story: start-game screen black, garbage in loading transitions (user 2026-10-21): the movie under OpenGX, then Soft as the reference
+14400 sd:/wiistation/vagrant_story_usa_play.txt PadAutoAssign=1 ControllerType=0 PadType2=1 gpuPlugin=2
+sd:/wiistation/isos/Vagrant Story (USA)
+Vagrant Story (USA).cue
+14400 sd:/wiistation/vagrant_story_usa_play.txt PadAutoAssign=1 ControllerType=0 PadType2=1 gpuPlugin=0
+sd:/wiistation/isos/Vagrant Story (USA)
+Vagrant Story (USA).cue
