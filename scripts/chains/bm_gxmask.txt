@@ -1,0 +1,8 @@
+CHAIN
+# Bomberman vertical-flame tearing: GxMask Accurate (0) vs Fast (1), the user movie to the first big explosion
+7100 sd:/wiistation/bomberman_party_edition_usa_play.txt PadAutoAssign=1 ControllerType=0 PadType2=1 gpuPlugin=2 GxMask=0
+sd:/wiistation/isos/Bomberman - Party Edition (USA)
+Bomberman - Party Edition (USA).cue
+7100 sd:/wiistation/bomberman_party_edition_usa_play.txt PadAutoAssign=1 ControllerType=0 PadType2=1 gpuPlugin=2 GxMask=1
+sd:/wiistation/isos/Bomberman - Party Edition (USA)
+Bomberman - Party Edition (USA).cue

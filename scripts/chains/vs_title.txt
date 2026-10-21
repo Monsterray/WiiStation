@@ -1,0 +1,5 @@
+CHAIN
+# Vagrant Story title screen under OpenGX, traced (vs_title_trace.txt = the user movie + trace/dump lines)
+3700 sd:/wiistation/vs_title_trace.txt PadAutoAssign=1 ControllerType=0 PadType2=1 gpuPlugin=2
+sd:/wiistation/isos/Vagrant Story (USA)
+Vagrant Story (USA).cue

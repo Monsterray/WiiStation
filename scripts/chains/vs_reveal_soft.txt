@@ -1,0 +1,5 @@
+CHAIN
+# Vagrant Story title screen under Soft (reference) (vs_reveal_trace.txt = the user movie + trace/dump lines)
+12380 sd:/wiistation/vs_reveal_trace.txt PadAutoAssign=1 ControllerType=0 PadType2=1 gpuPlugin=0
+sd:/wiistation/isos/Vagrant Story (USA)
+Vagrant Story (USA).cue

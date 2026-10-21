@@ -158,7 +158,9 @@ WiiStation CHANGE LOG:
 Unreleased:
 * OpenGX: a still picture the game loads straight into the screen without
   drawing or flipping shows again (Spyro: Year of the Dragon's Universal logo
-  was black). FF7's opening green frame is gone again (back since 5.12.2).
+  was black). A picture loaded long before the game shows it appears too
+  (Vagrant Story's title logo was missing behind the menu). FF7's opening
+  green frame is gone again (back since 5.12.2).
 * OpenGX texture cache: a freed texture's space is reused again (since September 2026 it
   was given back smaller than it took, so the cache filled with unusable
   slivers that every new texture searched). Crash Team Racing's Tiger Temple,

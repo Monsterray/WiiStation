@@ -1,0 +1,5 @@
+CHAIN
+# Bomberman explosions under OpenGX, traced (bm_trace.txt = the user movie + trace lines)
+7200 sd:/wiistation/bm_trace.txt PadAutoAssign=1 ControllerType=0 PadType2=1 gpuPlugin=2
+sd:/wiistation/isos/Bomberman - Party Edition (USA)
+Bomberman - Party Edition (USA).cue

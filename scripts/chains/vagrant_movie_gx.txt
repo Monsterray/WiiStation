@@ -1,0 +1,5 @@
+CHAIN
+# Vagrant Story: the movie under OpenGX only
+14400 sd:/wiistation/vagrant_story_usa_play.txt PadAutoAssign=1 ControllerType=0 PadType2=1 gpuPlugin=2
+sd:/wiistation/isos/Vagrant Story (USA)
+Vagrant Story (USA).cue

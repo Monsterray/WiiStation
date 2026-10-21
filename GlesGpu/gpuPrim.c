@@ -2676,10 +2676,71 @@ static void CheckWriteUpdateRect(void);
  * (CheckWriteUpdateRect, bDrawFrontBuffer): VRAM rect, uploaded at the next flip */
 static struct { short x0, y0, x1, y1; int pending; } hiddenLoad;
 
+/* CPU loads that touched neither the displayed nor the previous display's buffer reached
+ * psxVuw only (right: nothing showed them). When the display later moves onto one, the EFB
+ * still holds the old buffer and the picture never appears -- Vagrant Story's title, loaded
+ * at vblank 1083 and shown from 3424: only the menu text drawn over it was seen. VRAM in
+ * 64x32 tiles, bit x of row y. */
+static unsigned short unseenLoad[16];
+
+static void UnseenLoadTiles(int x0, int y0, int x1, int y1, int set)
+{
+    int tx, ty;
+    if (x0 < 0) x0 = 0;
+    if (y0 < 0) y0 = 0;
+    if (x1 > 1024) x1 = 1024;
+    if (y1 > 512) y1 = 512;
+    for (ty = y0 >> 5; ty <= ((y1 - 1) >> 5) && x1 > x0 && y1 > y0; ty++)
+        for (tx = x0 >> 6; tx <= ((x1 - 1) >> 6); tx++)
+        {
+            if (set) unseenLoad[ty] |= 1 << tx;
+            else unseenLoad[ty] &= ~(1 << tx);
+        }
+}
+
+static int RectsMeet(int ax0, int ay0, int ax1, int ay1, int bx0, int by0, int bx1, int by1)
+{
+    return ax0 < bx1 && bx0 < ax1 && ay0 < by1 && by0 < ay1;
+}
+
+/* CheckWriteUpdateRect: a 15-bit load that misses both buffers */
+static void UnseenLoadMark(int x, int y, int w, int h)
+{
+    if (RectsMeet(x, y, x + w, y + h, PSXDisplay.DisplayPosition.x, PSXDisplay.DisplayPosition.y,
+                  PSXDisplay.DisplayEnd.x, PSXDisplay.DisplayEnd.y) ||
+        RectsMeet(x, y, x + w, y + h, PreviousPSXDisplay.DisplayPosition.x, PreviousPSXDisplay.DisplayPosition.y,
+                  PreviousPSXDisplay.DisplayEnd.x, PreviousPSXDisplay.DisplayEnd.y))
+        return;
+    UnseenLoadTiles(x, y, x + w, y + h, 1);
+}
+
+/* updateDisplayGl, before the present: the display is on such a load -> upload it whole
+ * (UploadScreen syncs any GX pixels there into psxVuw first) */
+static void UnseenLoadShow(void)
+{
+    int x0 = PSXDisplay.DisplayPosition.x, y0 = PSXDisplay.DisplayPosition.y;
+    int x1 = PSXDisplay.DisplayEnd.x, y1 = PSXDisplay.DisplayEnd.y, ty, hit = 0;
+    unsigned short cols;
+    if (PSXDisplay.RGB24 || PSXDisplay.Disabled || x1 <= x0 || y1 <= y0)
+        return;
+    cols = (unsigned short)(((1u << (((min(x1, 1024) - 1) >> 6) + 1)) - 1) & ~((1u << (x0 >> 6)) - 1));
+    for (ty = y0 >> 5; ty <= ((min(y1, 512) - 1) >> 5); ty++)
+        hit |= unseenLoad[ty] & cols;
+    if (!hit)
+        return;
+    UnseenLoadTiles(x0, y0, x1, y1, 0);
+    PERF_INC(upl_unseen);
+    PrepareFullScreenUpload(TRUE);
+    bUploadOpaque = 1;
+    UploadScreen(TRUE);
+    bUploadOpaque = 0;
+}
+
 /* the plugin reset at a game load: a load the last game left pending is not this game's */
 static void FrontModeHiddenLoadReset(void)
 {
     hiddenLoad.pending = 0;
+    memset(unseenLoad, 0, sizeof(unseenLoad));
 }
 
 /* updateDisplayGl at a GP1 05 flip, before the present: if the display flipped to the
@@ -2812,6 +2873,7 @@ static void CheckWriteUpdateRect(void)
     perf_prim_trace(0xA0, 0, 0, 0, VRAMWrite.x, VRAMWrite.y,
                     VRAMWrite.x + VRAMWrite.Width, VRAMWrite.y + VRAMWrite.Height);
     perf_vram_event(0xA0, VRAMWrite.x, VRAMWrite.y, VRAMWrite.Width, VRAMWrite.Height, 0, 0);
+    UnseenLoadMark(VRAMWrite.x, VRAMWrite.y, VRAMWrite.Width, VRAMWrite.Height);
 
     int uploaded = 0;
     #if defined(DISP_DEBUG)

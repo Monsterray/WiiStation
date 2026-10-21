@@ -537,6 +537,7 @@ if (flip05Pending)
   skipPreviousDisplayCheckOnce = TRUE;
   FrontModeHiddenLoadFlip();          /* gpuPrim.c: a load into the buffer flipped to */
  }
+UnseenLoadShow();                     /* gpuPrim.c: the display moved onto a load no screen showed */
 
 
 bFakeFrontBuffer=FALSE;
