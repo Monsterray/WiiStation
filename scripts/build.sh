@@ -149,7 +149,9 @@ case "${PROBES:-all}" in
 	# texcheck: deep plus the texture-cache staleness oracle (gpuTexture.c, "texcheck:" in
 	# perf.log): every cache hit is checked against VRAM. Slow; for correctness runs only.
 	# Its own test: add -DTEXCHECK_SELFTEST=1 (a custom PROBES list); 1 hit in 64 then gets a
-	# changed texel, and texcheck: stale must equal hits/64 (MediEvil: 6668 of 426764).
+	# changed texel, and texcheck: stale must equal hits/64 (MediEvil, 3600 vblanks: 7834 of
+	# 501390). The normal build reads stale=0 there and on bm_trace.txt in both GxMask modes
+	# (2026-10-21); the expected split follows upload_semi_flag(), so keep the two in step.
 	texcheck) PROBE_DEFINES="-DPERF_PROF_TRACE=0 -DPERF_PROF_GPU=0 -DPERF_PROF_GPUSPLIT=1 -DPERF_PROF_GTE=1 -DPERF_PROF_SPU=1 -DPERF_PROF_TEXCHECK=1" ;;
 	# play: a debug build to play with on a real console (Docs/DEBUG_PLAY.md). light without the
 	# per-vblank RAM hash (vsig), no on-screen debug text (the -U come after the Makefile's -D),
