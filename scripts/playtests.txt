@@ -10,3 +10,15 @@ Spyro the Dragon | Pause once during play, then resume | a bit-15 scene: the pau
 Point Blank (USA) | Real BIOS on, Justifier (Light Gun), FPS on: boot, point the Wiimote at the screen through the BIOS logo | 0.3 FPS slowdown that Dolphin cannot reproduce (no pointer there) | wii
 Frogger (USA) [CHD] | Real BIOS on: load the game | "would not load"; loads on the dev Wii with 5.14.0: what does it do for you? | wii
 Medievil | PSX Pad Type Analog: press the ANALOG combo, walk with the stick, take a hit | analog mode and rumble strength on a real pad | wii
+# New games (Docs/TEST_REGIMEN.md, 2026-10-21): fixed routes from power-on, new game, no card
+Rayman (USA) | Skip the intro, new game, play the first Dream Forest level to the first cage; open the pause menu once | CD-DA music (the only CD-DA game), 2D sprites | rayman --mins 5
+PaRappa the Rapper (USA) (En,Fr,De,Es,It) | Start, play stage 1 (Chop Chop Master Onion) to the end of the song | audio/video sync is the gameplay | parappa --mins 4
+Silent Hill (USA) | New game: the opening FMV, the alley chase until Harry falls, then the first cafe scene | fog, noise, dithering, semi-transparency, reverb, FMV | silent_hill --mins 6
+Vagrant Story (USA) | New game: the opening cutscene (skip nothing), the first battle using the targeting sphere, open the menu once | heavy 3D, the sphere overlay, timing | vagrant_story --mins 6
+Legacy of Kain - Soul Reaver [U] | New game: the opening, then the first area including one shift to the spectral realm and back | seamless CD streaming, the realm-shift warp | soul_reaver --mins 6 --ct 1
+Gran Turismo 2 (Simulation Mode) (v1.2) | Open a few Simulation menus (the hi-res screens), license test B-1, one Arcade race | hi-res interlaced menus, analog, rumble | gran_turismo_2 --mins 6 --ct 1
+Tobal 2 (Japan) (Rev 1) | 1P versus, any fighter, two rounds | 640x480 interlaced 3D at 60 fps | tobal_2 --mins 3
+Spyro the Dragon 2 - Ripto's Rage | New game: the intro, then Glimmer -- run, glide, collect gems, talk to one character | the Spyro engine, subchannel image (CCD) | spyro_2 --mins 5 --ct 1
+Bomberman - Party Edition (USA) | Battle mode against CPU players (as many as it allows), two rounds | many sprites, multitap if you have one | bomberman --mins 4
+Spyro the Dragon 3 - Year of the Dragon (USA) (Rev 1) | New game: the intro, Sunrise Spring, into the first level (v1.0 replays it as a second chain line) | anti-piracy checks on a clean disc | spyro_3 --mins 5 --ct 1
+# after its boot fix: Final Fantasy VIII/Final Fantasy VIII [NTSC-U] [Disc1of4] [SLUS-00892] | the opening FMV, then from the infirmary to the classroom | FMV with 3D over it | ff8_disc1 --mins 8

@@ -97,7 +97,9 @@ if [ -n "$play" ]; then
 	fi
 else
 	[ -n "$game" ] || { echo "usage: movie_capture.sh GAME [NAME] [--mins M]   games:"; games | sed 's/^/  /'; exit 2; }
-	hit=$(games | grep -i -F -- "$game")
+	# a whole key wins (playtests.py passes them: "Spyro the Dragon" is also part of four other keys)
+	hit=$(games | grep -i -x -F -- "$game")
+	[ -n "$hit" ] || hit=$(games | grep -i -F -- "$game")
 	if [ "$(printf '%s' "$hit" | grep -c .)" != 1 ]; then
 		echo "\"$game\" matches $(printf '%s' "$hit" | grep -c .) games in the library; one of:"; games | sed 's/^/  /'; exit 2
 	fi
