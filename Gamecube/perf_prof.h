@@ -769,7 +769,6 @@ typedef struct {
 	uint32_t menu_strings;        /* drawString calls */
 	uint32_t menu_glyphs;         /* glyphs rastered */
 	uint32_t menu_texloads;       /* font texture loads */
-	uint64_t menu_init_us;        /* MenuContext construction (start-up) */
 } perf_counters_t;
 
 extern perf_counters_t g_perf;

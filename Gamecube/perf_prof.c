@@ -1058,9 +1058,13 @@ void perf_menu_tick(void)
 		perf_report();
 }
 
+/* Kept outside g_perf: perf_reset() clears that at every game start, and this happens once,
+ * at boot (a chained run printed 0) */
+static unsigned long long menu_init_us;
+
 void perf_menu_init_us(unsigned long long us)
 {
-	g_perf.menu_init_us = us;
+	menu_init_us = us;
 }
 
 
@@ -1868,7 +1872,7 @@ void perf_report(void)
 			(unsigned long)g_perf.menu_frames, g_perf.menu_us, g_perf.menu_draw_us,
 			(unsigned long)g_perf.menu_strings, (unsigned long)g_perf.menu_glyphs,
 			(unsigned long)g_perf.menu_texloads);
-		fprintf(f, "menuinit: ctor_us=%llu\n", (unsigned long long)g_perf.menu_init_us);
+		fprintf(f, "menuinit: ctor_us=%llu\n", menu_init_us);
 		perf_ramwatch_report(f);
 		perf_log_close(f);
 	}
