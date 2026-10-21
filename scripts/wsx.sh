@@ -195,7 +195,7 @@ run)
 	DOL="$dir/boot.dol" bash "$REPO/scripts/dolphin_run.sh" "$dir" "$secs" "$dir/autoinput.txt" "$dir/settings.cfg" ${ab:+"$ab"} > "$dir/run.log" 2>&1   # quoted: a checkout path with spaces
 	rc=$?
 	echo "$rc" > "$dir/dolphin.rc"
-	grep -E "refusing|no such|faults in dolphin.log: [1-9]|PANIC|Unknown instruction" "$dir/run.log" | head -5
+	grep -E "refusing|no such|STOPPED: dolphin.log|faults in dolphin.log: [1-9]|PANIC|Unknown instruction" "$dir/run.log" | head -5
 	[ $rc -ne 0 ] && echo "dolphin_run.sh exit $rc (see $dir/run.log)"
 	"$PYTHON" "$REPO/scripts/run_summary.py" "$dir"
 	st=$?
