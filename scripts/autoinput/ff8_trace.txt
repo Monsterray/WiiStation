@@ -1,0 +1,2 @@
+# FF8 opening credits: trace one frame
+trace 1500

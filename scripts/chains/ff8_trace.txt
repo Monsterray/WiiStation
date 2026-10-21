@@ -1,0 +1,5 @@
+CHAIN
+# FF8 disc 1 opening under OpenGX: a primitive trace at vblank 1500 (credits on black)
+1600 sd:/wiistation/ff8_trace.txt PadAutoAssign=1 ControllerType=0 gpuPlugin=2
+sd:/wiistation/isos/Final Fantasy VIII/Final Fantasy VIII [NTSC-U] [Disc1of4] [SLUS-00892]
+Final Fantasy VIII [NTSC-U] [Disc1of4] [SLUS-00892].ccd
