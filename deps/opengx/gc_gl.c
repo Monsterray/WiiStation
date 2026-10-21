@@ -1152,6 +1152,20 @@ static void checkLoadTextureObj( int textureType )
     }
 }
 
+/* Called once per present by GlesGpu's flipEGL. The TMEM slot tags survive the
+ * present so textures that did not change stay resident: every upload drops its
+ * own tags (ogx_drop_tex_tags), and the only plain-GX TMEM loads during a present
+ * are the FPS overlay (IPLFont, texCacheRegionS[0]) and OverlayRestoreEfb
+ * (GX_TEXMAP0 = region 0). evicted0 = region 0 was overwritten this present: its
+ * tag dies so the next bind reloads instead of trusting the overwritten slot.
+ * go() (Gamecube/GamecubeMain.cpp) resets all eight tags at every entry into the
+ * emulator loop (menu return, plugin switch, boot). */
+void ogx_on_frame_present(int evicted0)
+{
+    if (evicted0)
+        texCacheUsedInfo[0] = -1;
+}
+
 void glDeleteTextures(GLsizei n, const GLuint *textures)
 {
     const GLuint *texlist = textures;
