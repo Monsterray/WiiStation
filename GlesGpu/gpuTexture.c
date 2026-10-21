@@ -2594,8 +2594,10 @@ static unsigned int SubTexReserve(unsigned int r, unsigned char *adj)
 #if PERF_PROF_TEXCHECK
 /* The staleness oracle: does the cached GX texture still hold what VRAM holds? The
  * expected texel is the converter's own rule: the palette colour (or the 15-bit texel)
- * through TCF[semi], then the tiler's split -- 0 transparent, a semi-transparent draw's
- * texel without bit 15 in the semi copy, the rest in the opaque data with bit 15 set.
+ * through TCF[semi], then the tiler's split (upload_semi_flag, gc_gl.c) -- 0 transparent,
+ * a texel without bit 15 in the semi copy when the upload is split, the rest in the opaque
+ * data with bit 15 set. GxMask Accurate (ogx_mask_exact) splits every upload by STP;
+ * GxMask Fast only a semi-transparent draw's.
  * 64 texels per hit on a grid that moves each hit, so a kept stale entry is found. */
 extern int glGetTexture16(unsigned int name, const unsigned short **data,
                           const unsigned short **semi, int *w, int *h);
@@ -2609,6 +2611,7 @@ static void texcheck_hit(const textureSubCacheEntryS *e, int mode, uint64_t key)
  unsigned id = (unsigned)(key & CLUT_KEY_ADDRESS_MASK);
  int ccx = (id << 4) & 0x3F0, ccy = (id >> 6) & CLUTYMASK;
  int st = ClutKeyDrawSemiTrans(key);
+ int split = ogx_mask_exact || st;
  int ex = e->pos.c.x1 - e->posTX, ey = e->pos.c.y1 - e->posTY;
  int W = e->pos.c.x2 - e->pos.c.x1 + 1, H = e->pos.c.y2 - e->pos.c.y1 + 1;
  if (GlobalTextIL || W <= 0 || H <= 0) return;
@@ -2632,7 +2635,7 @@ static void texcheck_hit(const textureSubCacheEntryS *e, int mode, uint64_t key)
     c = (unsigned short)(TCF[st](c) & 0xffff);
     if (c) g_perf.tc_nonzero++;
     want_o = want_s = 0;
-    if (c && st && !(c & 0x8000)) want_s = c | 0x8000;
+    if (c && split && !(c & 0x8000)) want_s = c | 0x8000;
     else if (c)                   want_o = c | 0x8000;
     off = ((gy >> 2) * ((w + 3) >> 2) + (gx >> 2)) * 16 + (gy & 3) * 4 + (gx & 3);
     got_o = data[off];
