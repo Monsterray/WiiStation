@@ -1054,10 +1054,6 @@ void perf_menu_init_us(unsigned long long us)
 	g_perf.menu_init_us = us;
 }
 
-void perf_menu_screen_us(unsigned long long us)
-{
-	g_perf.menu_screen_us += us;
-}
 
 /* Labels for the irq_fires[] histogram, in PSXINT_* order (r3000a.h). Kept as
  * a local table rather than including r3000a.h here, which would drag the
@@ -1801,9 +1797,7 @@ void perf_report(void)
 			(unsigned long)g_perf.menu_frames, g_perf.menu_us, g_perf.menu_draw_us,
 			(unsigned long)g_perf.menu_strings, (unsigned long)g_perf.menu_glyphs,
 			(unsigned long)g_perf.menu_texloads);
-		fprintf(f, "menuinit: ctor_us=%llu screens_us=%llu\n",
-			(unsigned long long)g_perf.menu_init_us,
-			(unsigned long long)g_perf.menu_screen_us);
+		fprintf(f, "menuinit: ctor_us=%llu\n", (unsigned long long)g_perf.menu_init_us);
 		perf_ramwatch_report(f);
 		perf_log_close(f);
 	}

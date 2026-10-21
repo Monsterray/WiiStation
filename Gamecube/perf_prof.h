@@ -752,7 +752,6 @@ typedef struct {
 	uint32_t menu_glyphs;         /* glyphs rastered */
 	uint32_t menu_texloads;       /* font texture loads */
 	uint64_t menu_init_us;        /* MenuContext construction (start-up) */
-	uint64_t menu_screen_us;      /* lazily constructed screens, on first entry */
 } perf_counters_t;
 
 extern perf_counters_t g_perf;
@@ -810,9 +809,8 @@ void perf_vblank_tick(void);
 /* The menu has no presented game frame, so it reports on its own draw count: call once per
  * Gui::draw, and the counters are appended to perf.log every PERF_REPORT_EVERY_FRAMES. */
 void perf_menu_tick(void);
-/* Start-up and lazy-screen construction, us (GamecubeMain / MenuContext). */
+/* MenuContext construction at start-up, us (GamecubeMain). */
 void perf_menu_init_us(unsigned long long us);
-void perf_menu_screen_us(unsigned long long us);
 #if PERF_PROF_TRACE
 void perf_prim_trace(unsigned cmd, unsigned flags, unsigned abr, unsigned color, int x0, int y0, int x1, int y1);
 #else
@@ -877,7 +875,6 @@ static inline void perf_present_tick(unsigned long long present_us) { (void)pres
 static inline void perf_vblank_tick(void) {}
 static inline void perf_menu_tick(void) {}
 static inline void perf_menu_init_us(unsigned long long us) { (void)us; }
-static inline void perf_menu_screen_us(unsigned long long us) { (void)us; }
 static inline void perf_prim_trace(unsigned cmd, unsigned flags, unsigned abr, unsigned color, int x0, int y0, int x1, int y1)
 { (void)cmd; (void)flags; (void)abr; (void)color; (void)x0; (void)y0; (void)x1; (void)y1; }
 static inline void perf_autoinput_event(unsigned vblank, unsigned mask) { (void)vblank; (void)mask; }
