@@ -1401,8 +1401,7 @@ void perf_report(void)
 			(unsigned long)g_perf.fskip_guard, (unsigned long)g_perf.pres_total);
 		fprintf(f, "lod: mag=%llu l0=%llu l1=%llu l2=%llu aniso2=%llu\n",
 			g_perf.lod_px[0], g_perf.lod_px[1], g_perf.lod_px[2], g_perf.lod_px[3], g_perf.lod_px[4]);
-		fprintf(f, "uplret: dis=%lu skip=%lu rgb24=%lu px1=%lu unseen=%lu il_early=%lu
-",
+		fprintf(f, "uplret: dis=%lu skip=%lu rgb24=%lu px1=%lu unseen=%lu il_early=%lu\n",
 			(unsigned long)g_perf.upl_r_dis, (unsigned long)g_perf.upl_r_skip,
 			(unsigned long)g_perf.upl_r_rgb24, (unsigned long)g_perf.upl_r_1px,
 			(unsigned long)g_perf.upl_unseen, (unsigned long)g_perf.upl_il_early);
