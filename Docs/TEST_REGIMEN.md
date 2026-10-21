@@ -144,6 +144,27 @@ CHD 225 ms (0.45%, 68 ms of it decompressing, 5028 hunk hits / 717 misses, worst
 read brings 8 sectors from the card at once; the plain image takes many small reads through the
 read-ahead thread. Both are small; CHD is the cheaper of the two on a Wii.
 
+**PBP and maximum compression (2026-10-21).** PBPs are made with PSXPackager v1.6.3 built from
+source (`C:/tools/psxpackager-src`, `dotnet build PSXPackager/PSXPackager-windows.csproj`, run with
+`DOTNET_ROLL_FORWARD=Major` and Windows paths; local patch: the console-cursor calls guarded, it
+crashed with its output redirected). The release zip is not used: 0/19 AV engines and ClamAV clean,
+but MetaDefender's sandbox said "Likely Malicious" with 0 indicators. Inputs are staged in
+`C:/wiistation-lib/work/pbp_stage` (hard links, a .cue for FF8 discs 2-3, an .m3u for multi-disc).
+- Guest identical to the original (vsig_cmp, every vblank): Frogger PBP level 0/5/9, Rayman (51
+  tracks), Spyro 2, Spyro 3 Rev 1, MediEvil, and the 2.2 GB 4-disc FF8 PBP at `Disc=1..4`
+  (`scripts/chains/pbp_study_a.txt`, `pbp_study_ff8.txt`). Frames identical outside the overlay.
+- Fixed on the way (8ea05e11): discs 2+ of a PBP were unreachable (Swap CD on the same PBP now
+  moves to the next disc; chain lines take `Disc=N`); level-0 PBPs (stored blocks) never booted.
+- Open: CD-DA from PBP, CHD and CBN starts 24 ms (1152 samples at 48 kHz) later than from the CUE
+  in Dolphin, the same data (`pbp_frogger_*.txt`); check on hardware (a click at music start?).
+- Size (MB) -- BIN / PBP level 5 / CHD default / CHD `-c cdlz,cdzl,cdfl,cdzs` 8 frames a hunk /
+  the same at 32 frames (`-hs 78336`): Frogger 254 / 160 / 151 / 150 / 139; Rayman 617 / 509 /
+  323 / 323 / 320; MediEvil 562 / 363 / 334 / 333 / 323. PBP is poor on CD audio (deflate);
+  CHD's FLAC is not. All CHDs decode to the identical guest (`chd_max.txt`).
+- Cost on the bench Wii (speed preset, Rayman 3000 vblanks, `format_cost_rayman_pbp.txt`): CD time
+  CUE 764 ms, CHD 224 ms, PBP 152 ms. In Dolphin, 32-frame hunks cost 2.7 s of CD time in 30 s of
+  Frogger against 25 ms at 8 frames (about 21 ms a miss): the smallest files may stutter.
+
 Earlier result (Frogger, 9 formats, and MediEvil, 5): the loaders all boot the same game; this
 adds audio, subchannel and cost.
 

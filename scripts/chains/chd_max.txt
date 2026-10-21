@@ -1,0 +1,26 @@
+CHAIN
+# Max-compression CHDs (chdman 0.289: default; cdlz,cdzl,cdfl,cdzs at 8 and 32 frames a hunk) against the original image; vsig_cmp pairs
+1800 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Frogger (USA)
+Frogger (USA).cue
+1800 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Formats/Frogger (USA) [CHDDEF]
+Frogger (USA).chd
+1800 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Formats/Frogger (USA) [CHDMAX8]
+Frogger (USA).chd
+1800 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Formats/Frogger (USA) [CHDMAX32]
+Frogger (USA).chd
+2400 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Medievil
+Medievil [U] [SCUS-94227].cue
+2400 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Formats/Medievil [CHDMAX32]
+Medievil.chd
+2400 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Rayman (USA)
+Rayman (USA).cue
+2400 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Formats/Rayman (USA) [CHDMAX32]
+Rayman (USA).chd
