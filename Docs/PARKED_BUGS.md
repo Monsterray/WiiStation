@@ -47,6 +47,12 @@ the early upload takes the vblank's place (FF8 596 vs 601 calls, FF7 394 vs 394)
 - `stills_check.txt`, `audit_tiger.txt`, `audit_spyro.txt`, Tobal 2 (640x480i,
   `tobal2_boot.txt`): `il_early=0`, `wsx.sh frames` 0 differing of 581 / 2423 / 1633 / 855.
 
+**Bench Wii (deep debug, `scripts/chains/ff8il_hw.txt`: FF8 then FF7, runs .runs/ff8il_hw_main / _fix1).**
+The same signature on hardware: main syncs `C1 0,39 640x402 1000` before every FF8 upload; the fix
+never does. FF8: speed 0.88x -> 0.98x (wall 45.3 -> 40.9 s for 2400 vblanks), upload 8.63 -> 3.74 s,
+sync 5.69 -> 0.02 s, EFB captures 590 -> 0, `il_early=591`. FF7: 1.00x both, 394 uploads both,
+upload 0.95 -> 0.43 s, sync 0.56 -> 0.005 s, `il_early=253`. Both runs back to HBC, no crash.
+
 **Reproduce.** `wsx.sh chain NAME scripts/chains/ff8_boot.txt --dol <deep DOL> --fast --secs 900
 --env FRAMES_DUMP=True --env KEEP=100000` (OpenGX then Soft, 2400 vblanks each).
 
