@@ -1,0 +1,22 @@
+CHAIN
+# The mdec region (LockedCache bit 4) on and off, same game, same boot, in Dolphin.
+# Gex's intro and MediEvil idling through its title FMV are the mdec-heavy halves
+# (24-bit MDEC FMVs). The last row runs every region at once (spu-gauss + tex-tile +
+# mdec) to prove no conflict in the packing. SoundRateControl=0 SoundTempo=0 so the
+# audio dump is also comparable. Hardware A/B for a Wii: scripts/chains/lc_ab.txt.
+# bash scripts/wsx.sh chain lc34 lc34.txt
+900 SoundRateControl=0 SoundTempo=0 LockedCache=0
+sd:/wiistation/isos/Gex (USA)
+Gex (USA).cue
+900 SoundRateControl=0 SoundTempo=0 LockedCache=4
+sd:/wiistation/isos/Gex (USA)
+Gex (USA).cue
+1800 SoundRateControl=0 SoundTempo=0 LockedCache=0
+sd:/wiistation/isos/Medievil
+Medievil [U] [SCUS-94227].cue
+1800 SoundRateControl=0 SoundTempo=0 LockedCache=4
+sd:/wiistation/isos/Medievil
+Medievil [U] [SCUS-94227].cue
+1800 SoundRateControl=0 SoundTempo=0 LockedCache=7
+sd:/wiistation/isos/Medievil
+Medievil [U] [SCUS-94227].cue

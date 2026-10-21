@@ -133,7 +133,7 @@ DETAIL = {
             ('bios', 'bios', 'us', '%'), ('exc#', 'bios', 'exc', '#'), ('gte', 'gte', 'us', '%')],
     'lc':  [('mask#', 'lc', 'mask', '#'), ('stores#', 'lc', 'stores', '#'),
             ('storekb#', 'lc', 'store_kb', '#'), ('loads#', 'lc', 'loads', '#'),
-            ('waitus#', 'lc', 'wait_us', '#')],
+            ('waitus#', 'lc', 'wait_us', '#'), ('sync#', 'lc', 'sync', '#')],
     'pmc': [('pmc1#', 'pmc', 'pmc1', '#'), ('pmc2#', 'pmc', 'pmc2', '#'),
             ('pmc3#', 'pmc', 'pmc3', '#'), ('pmc4#', 'pmc', 'pmc4', '#')],
     # screen re-uploads (UploadScreen) asked for, done, and each early return that skipped one

@@ -235,7 +235,9 @@ printf '%s\n' "${CFGARGS[@]}" > "$OUT/dolphin-options.txt"
 if [ "${WSX_SHOW:-0}" = 1 ]; then SHOW=; else SHOW=//min; fi
 cmd //c start "" $SHOW "$(cygpath -w "$D/Dolphin.exe")" -b -e "$DOL" -u "$PROFILE_WIN" "${CFGARGS[@]}"
 # The Windows PID: the only instance on our profile is the one just started.
-WPID=; for _ in 1 2 3 4 5 6 7 8 9 10; do WPID=$(same_userdir_pids | head -1); [ -n "$WPID" ] && break; sleep 1; done
+# 30 tries: busy humans/agents on this PC slow a cold CIM enumeration past 10 s and a
+# missed pid orphans the Dolphin, which locks the profile's WiiSD.raw and fails collect.
+WPID=; for _ in $(seq 30); do WPID=$(same_userdir_pids | head -1); [ -n "$WPID" ] && break; sleep 1; done
 echo "dolphin windows pid: ${WPID:-unknown}"
 # Alive check: the tasklist line must name Dolphin.exe, not just any recycled pid.
 # Process enumeration flaked repeatedly (2026-10-10: live pids missed by tasklist AND

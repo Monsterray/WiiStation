@@ -158,7 +158,7 @@ Expected: on hardware, the upload cost falls by the 128 KB flush, the 256 KB sta
 trip and the second pass; in Spyro gameplay that is a fraction of 0.9%; in a texture-streaming
 game it is the whole upload cost. Do not expect a frame-rate change in Spyro from this step.
 
-### Step 3. MDEC: tables and block in the locked cache
+### Step 3. MDEC: tables and block in the locked cache -- IMPLEMENTED 2026-10-19
 `psxDma1` -> `rl2blk` -> `idct` -> `yuv2rgb15/24` per 16x16 macroblock. Working set: `iq_y`,
 `iq_uv`, `zscan`, `aanscales` (64 ints each, 1 KB), the `blk[DSIZE2*6]` block (1.5 KB), the
 16x16 output (512/768 B). `LCAlloc` the tables and `blk` into the LC so the streaming output
@@ -166,6 +166,19 @@ cannot evict them; keep writing the output through the normal cache (the game DM
 GPU next, and the GPU plugin reads it with the CPU, so it must stay coherent -- no LC DMA out).
 Measure with `mdec_us` on hardware. If the IDCT arithmetic dominates (likely), the follow-up is
 a paired-single IDCT, which is a different plan.
+
+**Implemented (branch `try/lc-step34`):** `LC_MDEC`, 2.25 KB = `zscan` + `iq_y` + `iq_uv`
+(3x256 B) + `blk` (1.5 KB), packed after the other two regions (12.25 of 16 KB used). The
+tables are mutable (game quant-table uploads, savestate restore), so the masters stay
+authoritative and `psxDma1_body` copies them in once per DMA with plain stores -- no DMA, no
+cache maintenance, `sync=` on the `lc:` line. `aanscales` is a read-only constant and stayed
+outside the region; the output stays on the normal path as the plan asks.
+
+Dolphin A/B daily run `lc34` (Gex intro, MediEvil title FMV; masks 0 vs 4 vs 7, all three
+regions pack and run together): VRAM dumps and per-game-end state hashes are bit-identical,
+`sync=` equals the DMA count (2480 / 9404), and `mdec_us` is neutral (2403.6 ms off vs
+2415.2 ms on over 1800 vblanks). Neutral is the expected Dolphin result -- it does not model
+the stall the region removes -- so the hardware `mdec_us` is the number still open.
 
 ### Step 4. SoftGPU frame conversion (soft plugins only)
 `gx_convert_us` in SoftGPU/drawGX.c converts the whole PSX framebuffer to a GX texture every

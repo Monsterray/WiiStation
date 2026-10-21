@@ -25,7 +25,6 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-
 # pwd -P: a checkout reached by an 8.3 name (C:/Users/MONTYP~1/...) has no space in pwd, but
 # make's CURDIR is the physical path, which MSYS maps to /home/<user name with a space>/...
 if [[ "$(cd "$REPO_ROOT" && pwd -P)" == *" "* ]]; then
