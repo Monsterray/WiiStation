@@ -83,11 +83,27 @@ origin/master -- Source/Core` for anything newer). 2026-10-20.
   input lines (up to 8) restrict it to those vblanks, so one stretch can be profiled alone
   (`scripts/chains/tiger_temple_spots.txt`). Keep the ELF: `cp Gamecube/WiiSXRX_debug.elf` next
   to the DOL copy; `hprof_view.py hprof_01.bin --elf X.elf`.
-  **Broken in libogc v3 builds (2026-10-20):** ~21 s into a `--fast` run the HBC agent's
-  `lastlog_write` runs and its checksum loop runs away (PC 0x8016bb20, reads from 0x14000000
-  upward): 100 million MMU warnings, dolphin.log 28.5 GB in 25 min, no hprof file. Open task
-  "Fix hprof (libogc v3) runaway under Dolphin". Until it is fixed, do not run hprof builds,
-  and check `stat -c %s .runs/NAME/dolphin.log` after any run that took far longer than usual.
+  **Fixed 2026-10-20 (try/hprof-dolphin):** in libogc v3 builds the sampler went through
+  tuxedo's `PPCExcptDefaultHandler`. Its FP spill reset the FPU owner on every sample and
+  rolled back the interrupted thread's FP registers. `GX_GetYScaleFactor`'s float loop then
+  never ended, the HBC agent's hang watchdog fired 60 guest seconds later, and its
+  `__reload()` (no HBC stub in Dolphin) ran into the lastlog checksum loop at 0x8016bb20 with a
+  garbage CTR: 100 million MMU warnings, dolphin.log 28.5 GB in 25 min. Now `hprof_pm_entry`
+  (hprof.c) handles 0xF00 without touching the FPU. Tiger Temple `--fast`: 12300 and 14100
+  vblanks clean, 1.9 KB logs (measuring.md, hprof).
+- **A runaway guest can fill the disk through dolphin.log.** Every unmapped read is one MASTER
+  warning line (`MMU.cpp:312 Unable to resolve read address` for an address past MEM2,
+  `MMU.cpp:1228 Invalid read from` for one with no BAT), so a loop that walks memory writes
+  millions of lines a minute. `dolphin_run.sh` stops the run when dolphin.log passes
+  `DOLPHIN_LOG_MAX_MB` (default 1024). It prints `STOPPED: dolphin.log passed ...` and keeps only
+  the first 20000 and last 2000 lines; the first warning lines say where the loop began.
+  `Unable to resolve` lines count as faults in the run's summary.
+- **Make the guest tell Dolphin a value: a deliberate invalid read.** When the guest cannot
+  write to the SD card any more (a hang, a crash path), a read of `0xB0000000 | tag << 20 |
+  half << 18 | value16 << 2` shows up in dolphin.log as `Invalid read from 0xB..., PC = ...`
+  with the value in the address (two reads per word). This is how the hprof hang was traced:
+  the watchdog's lastlog_write `why`, the hung thread's PC and LR, the exception id and PC
+  that reached the panic hook. Remove these reads afterwards.
 - **JIT block profiling: not unattended.** Dolphin can record per guest block run counts and
   estimated cycles (`[Interface] DebugModeEnabled` + `[Debug] JitEnableProfiling`), but the
   only way to write them out is the debugger's menu item "Write JIT Block Log Dump"

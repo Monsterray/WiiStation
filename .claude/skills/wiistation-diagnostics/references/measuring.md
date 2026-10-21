@@ -43,8 +43,25 @@ python scripts/hprof_view.py .runs/NAME/hprof_01.bin --elf DOL.elf --callers
   divided a u64 per call; both now multiply by 2^24/60.75.
 - Samples land only with MSR[EE] on. Time in exception handlers shows at the next instruction.
 - `hprof <from> <to>` input lines (up to 8) sample only those vblanks (a slow stretch alone).
-- **libogc v3 builds: broken under Dolphin for now** (runaway in the HBC agent's lastlog
-  checksum, tens of GB of dolphin.log; dolphin-pitfalls.md, "Getting more out of Dolphin").
+- **libogc v3: the 0xF00 handler is `hprof_pm_entry` (hprof.c), never tuxedo's
+  `PPCExcptDefaultHandler`.** The default handler is the crash path: its "FP spill" `stfiwx`
+  takes a nested FPU exception that sets the FPU owner (SPRG3) to NULL, so after every sample
+  the interrupted thread's FP registers were reloaded from the sample-time copy at its next
+  FP use after an IRQ (lost FP writes, 10000 times a second). Under Dolphin (2026-10-20) the
+  float loop in libogc's `GX_GetYScaleFactor` (from `RestoreDispCopyInfo`) never ended. 60 guest
+  seconds later the HBC agent's hang watchdog fired (`lastlog_write(HBC_LASTLOG_HANG)` from
+  `watchdog`, MSR EE off), and its `__reload()` found no HBC stub. After that, execution ran
+  wild (one run: ISI at 0x00860140 with RI clear, LR = ASCII; the others: the lastlog checksum
+  loop at 0x8016bb20 with a garbage CTR) and wrote 100 million MMU warnings (28.5 GB). Any new
+  exception that must return to the thread it interrupted needs its own entry like
+  `hprof_pm_entry`.
+- The `hprof:` line's `nested=` (v3) counts PM samples taken with MSR[RI] clear: those still go
+  through the default handler (FPU owner reset). It has been 0. If it is not 0, find the code
+  that enables EE with RI clear.
+- Under Dolphin about 13% of a Tiger Temple profile lands in `__PPCContextPrepareToJump`. Its
+  32-byte bucket also holds `__PPCContextJump` and `KThreadIdleMain`. Dolphin counts PMC1
+  whatever MSR[PM] and MMCR0 FCM0 say, so read that bucket as thread switching and idle, not
+  as work.
 - Dolphin emulates the exception, so the profiler runs there. There it counts instructions
   (no cache misses), and its cycle estimate gives about 1.9x the samples of a Wii.
 - On a Wii the idle thread dozes and PMC1 stops, so there are no idle samples: the shares

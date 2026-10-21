@@ -72,7 +72,8 @@ static u32 hp_total, hp_jit, hp_other, watch_lo, watch_hi;
 
 extern unsigned int frame_counter;
 
-void hprof_sample(u32 pc, u32 lr)
+/* Called from assembly only (hprof_entry.s, hprof_pm_entry), which LTO cannot see. */
+__attribute__((used, externally_visible)) void hprof_sample(u32 pc, u32 lr)
 {
 	u32 o = pc - HPROF_BASE;
 	if (hprof_win_n) {
@@ -108,10 +109,21 @@ rearm:
 #if WS_LIBOGC3
 /* libogc v3 (tuxedo) has no frame_context, no table of assembly entries for EX_PERF, and no
  * lwp object table, so the sampling is wired differently here (hprof_entry.s is libogc2 only):
- *  - The 0xF00 vector runs PPCExcptDefaultHandler, which saves the interrupted context and
- *    calls PPCExcptCurPanicFn(exid, ctx) before its rfi (tuxedo/exception_asm.S). hprof_panic
- *    takes PPC_EXCPT_PM there, samples ctx->pc and ctx->lr, and returns without chaining; any
- *    other exception chains to the previous hook (the HBC agent's, or vm.c's).
+ *  - The 0xF00 vector's handler is hprof_pm_entry below, not PPCExcptDefaultHandler. The
+ *    default handler is for crashes: its "force spilling FP regs" stfiwx takes a nested FPU
+ *    exception that saves the FPU and sets the FPU owner (SPRG3) to NULL. The interrupted
+ *    thread then runs on with live FP registers that no one owns; at its next IRQ return
+ *    MSR[FP] goes, and its next FP instruction reloads the copy from the sample time. At
+ *    10000 samples a second every thread's FP registers kept rolling back: under Dolphin the
+ *    float loop in GX_GetYScaleFactor (RestoreDispCopyInfo) never ended, the HBC agent's hang
+ *    watchdog fired 60 guest seconds later, and its __reload() found no HBC stub to return to
+ *    (a 28 GB dolphin.log of MMU warnings, 2026-10-20). hprof_pm_entry saves the volatile
+ *    GPRs and the special registers on the exception stack, calls hprof_sample(pc, lr) and
+ *    returns; it touches no FP register and no FPU owner. hprof_sample is integer code.
+ *  - A PM exception taken with MSR[RI] clear (a nested one) still goes to the default
+ *    handler, which calls PPCExcptCurPanicFn: hprof_panic samples it there (counted as
+ *    "nested" in the hprof: line) and chains every other exception to the previous hook (the
+ *    HBC agent's, or vm.c's).
  *  - MSR[PM] goes into each thread's saved context. tuxedo keeps its thread list through
  *    KThread::next from s_firstThread (thread.c) and exposes no listing, so this reads that
  *    libogc-private symbol. The idle thread is the one at KTHR_MIN_PRIO+1, above every app
@@ -119,11 +131,96 @@ rearm:
  * The hook is installed once: a second install would make it chain to itself. */
 static PPCExcptPanicFn hp_prev_panic;
 static int hp_hooked;
+static u32 hp_nested;
 extern KThread *s_firstThread;              /* tuxedo/thread.c */
+void hprof_pm_entry(void);
+
+/* PPCExcptEntryGeneral comes here with translation on, EE and RI off, r11 and r12 in SPRG0 and
+ * SPRG1, and the interrupted PC, MSR and CR in __ppc_excpt_buf. Only its non-nested path comes
+ * here, so the exception stack is free (everything else on it runs with EE off). The frame
+ * keeps all it restores, so a fault inside hprof_sample (nested: the panic hook) cannot leave
+ * the buffer or the SPRGs wrong for the rfi. r2 and r13 are reloaded: Lightrec's code may
+ * hold anything in them. */
+#define HP_STR_(x) #x
+#define HP_STR(x) HP_STR_(x)
+__asm__(
+	"	.section .text.hprof_pm_entry,\"ax\",@progbits\n"
+	"	.globl hprof_pm_entry\n"
+	"	.type hprof_pm_entry,@function\n"
+	"hprof_pm_entry:\n"
+	"	mr      12,1\n"
+	"	lis     1,__ppc_excpt_sp@ha\n"
+	"	lwz     1,__ppc_excpt_sp@l(1)\n"
+	"	stwu    12,-96(1)\n"               /* 0(1): back chain = the interrupted sp */
+	"	stw     0,8(1)\n"
+	"	stw     2,12(1)\n"
+	"	stw     3,16(1)\n"
+	"	stw     4,20(1)\n"
+	"	stw     5,24(1)\n"
+	"	stw     6,28(1)\n"
+	"	stw     7,32(1)\n"
+	"	stw     8,36(1)\n"
+	"	stw     9,40(1)\n"
+	"	stw     10,44(1)\n"
+	"	stw     13,48(1)\n"
+	"	mflr    3\n"
+	"	stw     3,52(1)\n"
+	"	mfctr   3\n"
+	"	stw     3,56(1)\n"
+	"	mfxer   3\n"
+	"	stw     3,60(1)\n"
+	"	lis     10,__ppc_excpt_buf@ha\n"
+	"	addi    10,10,__ppc_excpt_buf@l\n"
+	"	lwz     3," HP_STR(PPC_CONTEXT_MSR) "(10)\n"
+	"	stw     3,68(1)\n"
+	"	lwz     3," HP_STR(PPC_CONTEXT_CR) "(10)\n"
+	"	stw     3,72(1)\n"
+	"	mfsprg0 3\n"
+	"	stw     3,76(1)\n"
+	"	mfsprg1 3\n"
+	"	stw     3,80(1)\n"
+	"	lwz     3," HP_STR(PPC_CONTEXT_PC) "(10)\n"
+	"	stw     3,64(1)\n"
+	"	lwz     4,52(1)\n"                 /* hprof_sample(pc, lr) */
+	"	lis     2,_SDA2_BASE_@h\n"
+	"	ori     2,2,_SDA2_BASE_@l\n"
+	"	lis     13,_SDA_BASE_@h\n"
+	"	ori     13,13,_SDA_BASE_@l\n"
+	"	bl      hprof_sample\n"
+	"	lwz     3,52(1)\n"
+	"	mtlr    3\n"
+	"	lwz     3,56(1)\n"
+	"	mtctr   3\n"
+	"	lwz     3,60(1)\n"
+	"	mtxer   3\n"
+	"	lwz     3,72(1)\n"
+	"	mtcr    3\n"
+	"	lwz     3,64(1)\n"
+	"	mtsrr0  3\n"
+	"	lwz     3,68(1)\n"
+	"	mtsrr1  3\n"
+	"	lwz     0,8(1)\n"
+	"	lwz     2,12(1)\n"
+	"	lwz     3,16(1)\n"
+	"	lwz     4,20(1)\n"
+	"	lwz     5,24(1)\n"
+	"	lwz     6,28(1)\n"
+	"	lwz     7,32(1)\n"
+	"	lwz     8,36(1)\n"
+	"	lwz     9,40(1)\n"
+	"	lwz     10,44(1)\n"
+	"	lwz     13,48(1)\n"
+	"	lwz     11,76(1)\n"
+	"	lwz     12,80(1)\n"
+	"	lwz     1,0(1)\n"
+	"	rfi\n"
+	"	.size hprof_pm_entry,.-hprof_pm_entry\n"
+	"	.previous\n");
 
 static void hprof_panic(unsigned exid, PPCContext *ctx)
 {
 	if (exid == PPC_EXCPT_PM) {
+		hp_nested++;
 		hprof_sample(ctx->pc, ctx->lr);
 		return;
 	}
@@ -140,7 +237,7 @@ static void hprof_arm_v3(void)
 		PPCExcptCurPanicFn = hprof_panic;
 		hp_hooked = 1;
 	}
-	PPCExcptSetHandler(PPC_EXCPT_PM, PPCExcptDefaultHandler);
+	PPCExcptSetHandler(PPC_EXCPT_PM, hprof_pm_entry);
 	for (t = s_firstThread; t; t = t->next)
 		if (t != self && t->prio != KTHR_MIN_PRIO + 1)
 			t->ctx.msr |= MSR_PM;
@@ -190,8 +287,12 @@ void hprof_start(void)
 /* the perf.log "hprof:" line */
 void hprof_report(FILE *f)
 {
-	fprintf(f, "hprof: samples=%u text=%u jit=%u other=%u period=%u\n", hp_total,
+	fprintf(f, "hprof: samples=%u text=%u jit=%u other=%u period=%u", hp_total,
 		hp_total - hp_jit - hp_other, hp_jit, hp_other, HPROF_PERIOD);
+#if WS_LIBOGC3
+	fprintf(f, " nested=%u", hp_nested);   /* through the default handler, which resets the FPU owner */
+#endif
+	fputc('\n', f);
 }
 
 /* A chained game's end: header "HPR2", base, shift, bucket count, period, total, jit, other;

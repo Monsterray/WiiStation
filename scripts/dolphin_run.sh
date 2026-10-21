@@ -250,10 +250,21 @@ dolphin_alive() {
 # so this is three strikes: a miss waits 10 s and misses again twice before the
 # exit is declared. A hit resets the count, and a genuine quick exit just collects
 # ~20 s later, which is noise next to run lengths.
+# A runaway guest loop can make Dolphin log a warning per instruction (the hprof runs of
+# 2026-10-20: 28.5 GB in 25 min, MMU "Invalid read" lines). Past DOLPHIN_LOG_MAX_MB (default
+# 1024) the run is stopped, and the log kept is only its start and its end.
+LOG_MAX=$(( ${DOLPHIN_LOG_MAX_MB:-1024} * 1024 * 1024 ))
+LOG_FLOOD=
 T0=$(date +%s)
 misses=0
 while [ $(( $(date +%s) - T0 )) -lt "$SECS" ]; do
   sleep 5
+  LSZ=$(stat -c %s "$PROFILE/Logs/dolphin.log" 2>/dev/null || echo 0)
+  if [ "$LSZ" -gt "$LOG_MAX" ]; then
+    LOG_FLOOD="$(( LSZ / 1048576 )) MB after $(( $(date +%s) - T0 )) s"
+    echo "STOPPED: dolphin.log passed ${DOLPHIN_LOG_MAX_MB:-1024} MB ($LOG_FLOOD): the guest is flooding the log, most likely a runaway loop; the log's start says where it began"
+    break
+  fi
   if [ -n "$WPID" ] && ! dolphin_alive "$WPID"; then
     misses=$((misses + 1))
     if [ "$misses" -ge 3 ]; then
@@ -292,7 +303,14 @@ for c in $CARDFILES; do rm -rf "$S/$c"; done   # a folder too (card/settings/<ID
 N=$(ls "$PROFILE/Dump/Frames" 2>/dev/null | wc -l); echo "frames dumped: $N"
 ls "$PROFILE/Dump/Frames"/framedump_*.png 2>/dev/null | sed -E 's/.*framedump_([0-9]+)\.png/\1/' | sort -n | tail -${KEEP:-120} | while read i; do mv "$PROFILE/Dump/Frames/framedump_$i.png" "$OUT/frames/"; done
 rm -rf "$PROFILE/Dump/Frames"
-cp "$PROFILE/Logs/dolphin.log" "$OUT/dolphin.log" 2>/dev/null || true
+if [ -n "$LOG_FLOOD" ]; then
+  { head -n 20000 "$PROFILE/Logs/dolphin.log"
+    echo "=== dolphin_run.sh: log cut here ($LOG_FLOOD); the last 2000 lines follow ==="
+    tail -n 2000 "$PROFILE/Logs/dolphin.log"; } > "$OUT/dolphin.log" 2>/dev/null
+  rm -f "$PROFILE/Logs/dolphin.log"
+else
+  cp "$PROFILE/Logs/dolphin.log" "$OUT/dolphin.log" 2>/dev/null || true
+fi
 # save states the guest wrote: promoted to the library, which outlives this run's profile
 if [ -d "$S/states" ]; then cp -ru "$S/states/." "$LIB/states/" 2>/dev/null || true; fi
 if [ "${AUDIO_DUMP:-0}" != 0 ]; then
@@ -373,7 +391,8 @@ if [ -n "$FIRST" ]; then "$PYTHON" "$SP/sheet.py" "$OUT/sheet.png" "$OUT/frames"
 grep -a -E "^--- perf|^sio|offsoft|ogxoff" "$OUT/perf.log" 2>/dev/null | tail -4
 # Guest-side faults and emulator complaints worth seeing without opening the log. The log was
 # rotated before the run, so anything here happened during it.
-F=$(grep -a -c -E "Unknown instruction|Invalid (read|write)|PANIC|Exception" "$OUT/dolphin.log" 2>/dev/null || echo 0)
+F=$(grep -a -c -E "Unknown instruction|Invalid (read|write)|Unable to resolve|PANIC|Exception" "$OUT/dolphin.log" 2>/dev/null || echo 0)
 echo "faults in dolphin.log: $F"
-[ "$F" != "0" ] && grep -a -E "Unknown instruction|Invalid (read|write)|PANIC|Exception" "$OUT/dolphin.log" | head -5
+[ -n "$LOG_FLOOD" ] && echo "dolphin.log flood: run stopped at $LOG_FLOOD (kept: first 20000 + last 2000 lines)"
+[ "$F" != "0" ] && grep -a -E "Unknown instruction|Invalid (read|write)|Unable to resolve|PANIC|Exception" "$OUT/dolphin.log" | head -5
 exit 0
