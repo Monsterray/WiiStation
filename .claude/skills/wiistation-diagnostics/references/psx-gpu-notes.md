@@ -41,6 +41,16 @@
   with two fills, rows 0-255 and 256-511) that left the old top half on the TV until the next
   present ~60 vblanks later. Such a fill is now drawn when the game does not flip. (2026-10-13)
 
+- The EFB sync's tile model (efbSync.inc) assumes the EFB held psxVuw's pixels wherever GX
+  then draws: a tile stamped GX-newer is taken from the EFB. A CPU load into live that is
+  waiting for its upload breaks that. Interlaced displays defer loads to the vblank
+  (`xrUploadAreaIL`), so `EfbBeforeGxCommand` uploads an overlapping pending rect before the
+  primitive. Without it FF8's opening and FF7's SCEA screen (loads, then one rectangle over
+  them a frame) had every upload copy the black EFB back over the new lines. Signature in
+  vramio: `C1 <the upload rect> <hundreds of tiles> 0` before every upload of a picture that
+  is only loaded, never drawn. Any other deferred upload (`bNeedUploadAfter`, `hiddenLoad`)
+  carries the same risk. (2026-10-21)
+
 ## VRAM readback (GlesGpu/gpuVramReadback.inc)
 
 Gated per game by `dwActFixes & AUTO_FIX_VRAM_READBACK` (`database.c`

@@ -2192,13 +2192,31 @@ static void EfbBeforeGxCommand(unsigned char cmd, unsigned long *data, int n)
 
     if (cmd < 0x20 || cmd > 0x7F)
         return;
-    if (bDisplayNotSet)
-        SetOGLDisplaySettings(1);
     if (!OffscreenPrimBounds(cmd, data, n, &x0, &y0, &x1, &y1))
     {
         x0 = PSXDisplay.DrawArea.x0; y0 = PSXDisplay.DrawArea.y0;
         x1 = PSXDisplay.DrawArea.x1 + 1; y1 = PSXDisplay.DrawArea.y1 + 1;
     }
+    /* An interlaced display's CPU loads wait in psxVuw for the vblank's upload
+     * (bNeedInterlaceUpdate, gpuPrim.c CheckWriteUpdateRect). A primitive over them now
+     * would draw on an EFB without them and stamp their tiles GX's (below), so that upload's
+     * EFB sync would copy the EFB back over the loaded lines. FF8's opening loads its
+     * pictures line by line and draws one rectangle (62h) over them each frame: every
+     * upload put back the black it started from, black from the publisher screen to the
+     * FMV. The pending rect goes into the EFB first, as a non-interlaced load does at once. */
+    if (bNeedInterlaceUpdate && !PSXDisplay.RGB24 &&
+        x0 < xrUploadAreaIL.x1 && x1 > xrUploadAreaIL.x0 &&
+        y0 < xrUploadAreaIL.y1 && y1 > xrUploadAreaIL.y0)
+    {
+        PSXRect_t keep = xrUploadArea;
+        bNeedInterlaceUpdate = FALSE;
+        xrUploadArea = xrUploadAreaIL;
+        UploadScreen(TRUE);
+        xrUploadArea = keep;
+        PERF_INC(upl_il_early);
+    }
+    if (bDisplayNotSet)
+        SetOGLDisplaySettings(1);
     /* bit 15 a PS1 writes: set-mask, or a texel's STP (polygons and rectangles +04) */
     efb_gx_draw(x0, y0, x1, y1, sSetMask != 0 || ((cmd < 0x40 || cmd >= 0x60) && (cmd & 0x04)));
     mirror_gx_draw(x0, y0, x1, y1);

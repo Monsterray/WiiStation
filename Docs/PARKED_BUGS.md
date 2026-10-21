@@ -6,6 +6,52 @@ without doing the investigation a second time.
 
 ---
 
+## FF8 opening and FF7's SCEA screen black: interlaced loads lost to the EFB sync (OpenGX) -- FIXED 2026-10-21
+
+**Symptom.** Final Fantasy VIII disc 1 under OpenGX: "Published by Square Electronic Arts"
+showed only faintly during its fades, then black for the Squaresoft logo, the staff credits and
+the opening FMV's first frames; Soft showed them all. Found with it: FF7's "Sony Computer
+Entertainment America Presents" (the screen before the logos) was black on main too, unnoticed
+because `ff7_green` only counts green frames.
+
+**Numbers that pointed at it.** The display is 640x480 interlaced (`uplst1` InterlacedTest 2),
+the GPU gets image loads only (single-line `primLoadImage16 0 438 640 1`), 601 uploads asked
+and done, VRAM correct at the end of the run (vram_01.png = Soft's) -- yet every upload was
+preceded by `vramio C1 0,39 640x402 1000 0` / `C2 ... 97 1`: the EFB sync found 1000 tiles
+GX-newer and copied 97% of the rect from the EFB into psxVuw. With no primitive in the trace,
+`offsoft: inside=468` (one 20h-7Fh command a present reached the dispatcher) and Soft's
+`gpucmd: 62=.../596` named it: one semi-transparent rectangle (62h) a frame over the picture.
+
+**Cause.** Under an interlaced display a CPU load over the screen is not put into the EFB at
+once: `CheckWriteUpdateRect` (gpuPrim.c) only widens `xrUploadAreaIL`, and `updateDisplayGl`
+uploads it at the vblank. FF8 loads its lines and then draws the 62h rectangle over them.
+`EfbBeforeGxCommand` stamps the rectangle's tiles GX-newer than the load (efbSync.inc), but GX
+drew it on an EFB that never got the load. The vblank's `UploadScreen` syncs first: the tiles
+are GX's, so the EFB (black from the start) is copied over the freshly loaded lines, and the
+black is uploaded and presented. Every frame repeated it; the picture never reached the EFB.
+Only lines loaded after the rectangle survived, which is why fades showed a little of it.
+Soft blends the rectangle with VRAM and has no second copy to go stale.
+
+**Fix.** `EfbBeforeGxCommand` (gpuPlugin.c): before a GX primitive whose bounds overlap a
+pending interlaced upload (`bNeedInterlaceUpdate`, not 24-bit), that upload is done first
+(`UploadScreen(TRUE)` of `xrUploadAreaIL`, `xrUploadArea` kept), as a non-interlaced load is
+uploaded at once. Counter `uplret: il_early=` (deep builds). The upload count does not grow:
+the early upload takes the vblank's place (FF8 596 vs 601 calls, FF7 394 vs 394).
+
+**Proof (Dolphin, deep debug DOLs, main e10175af vs try/ff8-interlace-upload).**
+- FF8 (`scripts/chains/ff8_boot.txt`, run .runs/ff8il_fix1): publisher, Squaresoft, credits and
+  FMV shown; C1/C2 gone from vramio; `il_early=591`; OpenGX frames match their best Soft frame
+  outside the overlay (mean abs diff 0.11-0.48 a channel, the rest fade levels on other presents).
+- FF7 (`ff7_green.txt`): 0 green frames on both; frames 109-355 differ (the SCEA screen, now
+  shown, matching Soft run .runs/ff8il_ff7_soft), every other frame identical; `il_early=253`.
+- `stills_check.txt`, `audit_tiger.txt`, `audit_spyro.txt`, Tobal 2 (640x480i,
+  `tobal2_boot.txt`): `il_early=0`, `wsx.sh frames` 0 differing of 581 / 2423 / 1633 / 855.
+
+**Reproduce.** `wsx.sh chain NAME scripts/chains/ff8_boot.txt --dol <deep DOL> --fast --secs 900
+--env FRAMES_DUMP=True --env KEEP=100000` (OpenGX then Soft, 2400 vblanks each).
+
+---
+
 ## CTR Tiger Temple rain: every drop reads the frame back through the CPU (OpenGX) -- PARKED 2026-10-20
 
 **What it is.** The rain drops are opaque 15-bit textured primitives whose texture lies in the

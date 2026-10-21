@@ -401,3 +401,22 @@ tempting wrong turns.
 - Lesson: before adding a buffer channel, look for an existing per-pixel channel the console
   never uses (here depth); and build the per-pixel oracle before the fix -- it found the clear bug
   in one run that pictures (identical!) would never have shown.
+
+## 18. FF8's opening black under OpenGX -- a deferred interlaced load, then a rectangle (2026-10-21)
+
+- Symptom: publisher screen faint, then black through the Squaresoft logo, credits and FMV;
+  Soft fine. Earlier session: no primitives in the trace, 601/601 uploads, so "the pixels go up".
+- First look at the frames, not the code: the picture showed in ~10-frame bursts (the fades)
+  at the right size and place, so neither scale nor offset was wrong; VRAM at the end equal to
+  Soft's. The loss was between psxVuw and the EFB.
+- The counter that settled it: `offsoft: inside=468` -- one drawing command a present the trace
+  had not shown -- and Soft's `gpucmd: 62=.../596`. With vramio's `C1 ... 1000 0` before every
+  upload, the chain was clear: load (deferred, interlaced) -> rectangle on an EFB without the
+  load -> tiles GX-newer -> upload's sync copies the black EFB over the load.
+- Fix: upload the pending interlaced rect before a primitive over it. The regression runs found
+  FF7's SCEA "Presents" screen was black on main for the same reason (ff7_green only counts
+  green frames); now as Soft.
+- Lesson: a sync that reports most of a rect "GX drew" in a scene with no visible drawing is
+  the model's invariant breaking, not a cost to optimize. And `wsx.sh frames` against main on
+  every regression chain finds fixes nobody asked for: look at the frames that differ before
+  calling them a regression.
