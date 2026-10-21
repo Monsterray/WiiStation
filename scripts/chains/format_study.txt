@@ -1,0 +1,20 @@
+CHAIN
+# format study (2026-10-21): the same game in two formats, guest compared with vsig_cmp.py
+3000 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=0
+sd:/wiistation/isos/Rayman (USA)
+Rayman (USA).cue
+3000 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=0
+sd:/wiistation/isos/Formats/Rayman (USA) [CHD]
+Rayman (USA).chd
+3000 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=0
+sd:/wiistation/isos/Spyro the Dragon 2 - Ripto's Rage
+Spyro the Dragon 2 - Ripto's Rage [NTSC-U] [SCUS-94425].ccd
+3000 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=0
+sd:/wiistation/isos/Formats/Spyro the Dragon 2 - Ripto's Rage [CUE]
+Spyro the Dragon 2 - Ripto's Rage [CUE].cue
+2400 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=0
+sd:/wiistation/isos/Final Fantasy VIII/Final Fantasy VIII [NTSC-U] [Disc1of4] [SLUS-00892]
+Final Fantasy VIII [NTSC-U] [Disc1of4] [SLUS-00892].ccd
+2400 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=0
+sd:/wiistation/isos/Final Fantasy VIII/Final Fantasy VIII [NTSC-U] [Disc1of4] [SLUS-00892]
+Final Fantasy VIII [NTSC-U] [Disc1of4] [SLUS-00892].cue

@@ -153,12 +153,21 @@ else
 fi
 
 rm -f "$SYNC/autoinput_rec.txt"
-bash "$REPO/scripts/wsx.sh" run "$run" --dol "$dol" --autoboot "$dir/chain.txt" --input "$dir/none.txt" \
+# The DOL, copied now: an agent rebuilding Gamecube/WiiSXRX_debug.dol (it is deleted while the
+# link runs) left a recording with no DOL at all (2026-10-21). Wait for one being built.
+case "$dol" in debug) dolp="$REPO/Gamecube/WiiSXRX_debug.dol" ;; release) dolp="$REPO/Gamecube/WiiSXRX_Release.dol" ;; *) dolp="$dol" ;; esac
+for _ in $(seq 60); do [ -s "$dolp" ] && break; [ "$_" = 1 ] && echo "waiting for $dolp (a build is running?) ..."; sleep 5; done
+[ -s "$dolp" ] || { echo "no DOL at $dolp after 5 minutes: build it (scripts/wsx.sh build debug) and run this again"; exit 1; }
+sleep 2; cp "$dolp" "$dir/boot.dol" || exit 1
+bash "$REPO/scripts/wsx.sh" run "$run" --dol "$dir/boot.dol" --autoboot "$dir/chain.txt" --input "$dir/none.txt" \
 	--nodump --env FRAMES_DUMP=$frames --env "DOLPHIN_ARGS=-C Dolphin.Core.SIDevice1=6" \
 	--card "$src" --secs $((vbl / 30 + 180)) | grep -E "refusing|no such|fault|exit"
 [ -f "$PAD_TEST.capture-bak" ] && mv "$PAD_TEST.capture-bak" "$PAD_TEST"
 [ -n "$play" ] && { echo "done: .runs/$run"; exit 0; }
 
+# No run, no recording: the card image still holds the last session's autoinput_rec.txt, and a
+# run that never started saved that one under the new name (2026-10-21)
+[ -f "$REPO/.runs/$run/run.info" ] || { echo "the game did not start (see the lines above): nothing was recorded or saved"; exit 1; }
 rec="$REPO/.runs/$run/autoinput_rec.txt"
 "$PYTHON" "$REPO/scripts/sdimage_read.py" "$CARD" wiistation/autoinput_rec.txt "$rec" >/dev/null 2>&1
 rm -f "$SYNC/autoinput_rec.txt"
