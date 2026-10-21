@@ -135,6 +135,9 @@ cp "$PAD_TEST" "$PAD_TEST.capture-bak" 2>/dev/null
 # the trap restores them on ANY exit (the explicit mv below then no-ops).
 trap '[ -f "$PAD_TEST.capture-bak" ] && mv "$PAD_TEST.capture-bak" "$PAD_TEST"' EXIT INT TERM
 "$PYTHON" "$REPO/scripts/pad_layout.py" "$PAD_USER" --fill-pad2 "$PAD_TEST" > "$dir/pads.txt"
+# port 1 follows the USB pad plugged in now (a RumblePad 2 instead of the Dual Action the user's
+# setup names), with its rumble motor mapped; in the profile's copy only (scripts/pad_detect.py)
+"$PYTHON" "$REPO/scripts/pad_detect.py" "$PAD_TEST" >> "$dir/pads.txt"
 if [ -z "$play" ]; then
 	echo "Recording $(basename "$folder"): $mins emulated minutes ($vbl vblanks), then the window closes."
 	echo "Click the game window first. Both pads are recorded; port 2 can stay unused."
