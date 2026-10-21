@@ -1,0 +1,8 @@
+CHAIN
+# logos and still pictures under OpenGX: Spyro (Sony/Universal logos), Gex 3 (LOADING) -- 900 vblanks each, every frame
+900 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=0
+sd:/wiistation/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue
+900 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=0
+sd:/wiistation/isos/Gex 3 - Deep Cover Gecko
+Gex 3 - Deep Cover Gecko [NTSC-U] [SLUS-00806].ccd

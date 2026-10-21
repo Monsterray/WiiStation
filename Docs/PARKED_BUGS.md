@@ -76,6 +76,14 @@ the sweep covers the new path.
 
 Parked 2026-09-23, fixed 2026-09-29. The reproduction below now shows no green frame.
 
+**Came back in 5.12.2 (d9af5fa4, found 2026-10-21 by `git bisect --first-parent` with
+`scripts/green_frames.py`), fixed again the same day.** 5.12.2 presented a skipped 24-bit
+picture at the next vblank (`iSkipTwo`, for Spyro's logos); in this opening that put out the
+half-switched first video frame. Removed: Spyro's logos come through the GP1 03 path, now
+deferred like a GP1 05 flip (`displayOnPending`), and Gex 3's LOADING screen through
+`bDrawFrontBuffer`. Check: `scripts/chains/ff7_green.txt` (green_frames.py: 0) and
+`scripts/chains/stills_check.txt` (Spyro and Gex 3, frames identical to the build before).
+
 **Cause.** Two OpenGX present bugs. The game timing was not the cause.
 1. `UploadWentToDisplay` (gpuPrim.c) took FF7's two video buffers for one buffer: they
    start at y 0 and y 232 and are 240 lines high, so they share 8 rows. At vblanks 1989-1990

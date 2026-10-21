@@ -460,10 +460,18 @@ updateDisplayGl();
  * So 05 only marks it; the next GPU access other than GP1 06-08 presents it, or any present
  * that comes first takes its place. */
 static int flip05Pending;
+/* The same rule for GP1 03 turning the display back on after an upload was skipped while it
+ * was off (5.12.2, Spyro's logos): presented at the 03, a game that turns the display on
+ * before its GP1 08 = 24-bit had the hidden 24-bit picture uploaded and presented as 15-bit
+ * -- FF7's opening, green again from 5.12.2 until 2026-10-21 (bisected to d9af5fa4). So 03
+ * only marks it, and the mode is read when it is presented. */
+static int displayOnPending;
+static void displayOnPresent(void);
 void updateDisplayGl(void);
 static void flip05Flush(void)
 {
- if (flip05Pending) updateDisplayGl();
+ if (displayOnPending) displayOnPresent();   /* uploads the buffer, then presents */
+ else if (flip05Pending) updateDisplayGl();
 }
 
 /* The CPU stopped (menu, chained game, reset): the menu or the next game takes the screen,
@@ -471,6 +479,7 @@ static void flip05Flush(void)
 void GL_flip05Drop(void)
 {
  flip05Pending = 0;
+ displayOnPending = 0;
 }
 
 /* Frame Skip (setting SkipFrames -> UseFrameSkip), at each frame boundary: every
@@ -595,11 +604,11 @@ if(PSXDisplay.Disabled)                               // display disabled?
 if(iSkipTwo)                                          // we are in skipping mood?
  {
   iSkipTwo--;
-  /* a 24-bit still (Spyro's logos, Gex 3's loading screen) is uploaded once and never
-   * flipped again: the skipped present was its only one, and the screen stayed black.
-   * Present it at the next vblank instead (a movie's frames keep coming anyway). */
-  if (PSXDisplay.RGB24 && (iDrawnSomething & 0x2))
-   needFlipEGL = TRUE;
+  /* No present of the skipped picture here. 5.12.2 presented a skipped 24-bit picture at
+   * the next vblank (for Spyro's logos); in FF7's opening that put out the half-switched
+   * first video frame, the green frame again (bisected to d9af5fa4, 2026-10-21). Spyro's
+   * logos come through GP1 03 (displayOnPending) and Gex 3's loading screen through
+   * bDrawFrontBuffer, so they do not need it. */
   iDrawnSomething=0;                                  // -> simply lie about something drawn
  }
 
@@ -1319,6 +1328,20 @@ static void updateDisplayGl_t(void)
 { PERF_TIME(flip_present_ticks, updateDisplayGl()); g_perf.flip_presents++; }
 #define updateDisplayGl updateDisplayGl_t
 #endif
+/* The display came back on after a skipped upload (GP1 03, displayOnPending): upload the
+ * displayed buffer in the mode it has now, and present it. */
+static void displayOnPresent(void)
+{
+ displayOnPending = 0;
+ if (PSXDisplay.RGB24)
+  RGB24Uploaded |= 0x1;                               /* updateDisplayGl uploads a 24-bit display */
+ else
+  {
+   PrepareFullScreenUpload(TRUE);
+   UploadScreen(TRUE);
+  }
+ updateDisplayGl();
+}
 void CALLBACK GL_GPUwriteStatus(unsigned long gdata)
 {
 #if PERF_PROF_GPUSPLIT
@@ -1384,18 +1407,12 @@ switch(lCommand)
     * loaded with the display off (Spyro's Sony and Universal logos, Gex 3's loading screen:
     * display off, image load, 24-bit mode, display on, then no flip and nothing drawn) never
     * reached the EFB and nothing presented it -- black until the game drew again. Upload the
-    * displayed buffer from VRAM and present it. */
+    * displayed buffer from VRAM and present it -- once the mode that comes with it is in
+    * (displayOnPending, see flip05Pending). */
    if (PreviousPSXDisplay.Disabled && !PSXDisplay.Disabled && uploadSkippedWhileOff)
     {
      uploadSkippedWhileOff = 0;
-     if (PSXDisplay.RGB24)
-      RGB24Uploaded |= 0x1;                           /* updateDisplayGl uploads a 24-bit display */
-     else
-      {
-       PrepareFullScreenUpload(TRUE);
-       UploadScreen(TRUE);
-      }
-     updateDisplayGl();
+     displayOnPending = 1;
     }
    else if (iOffscreenDrawing==4 &&
         PreviousPSXDisplay.Disabled &&
