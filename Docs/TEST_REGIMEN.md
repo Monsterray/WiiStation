@@ -132,6 +132,18 @@ The runs, one game per question:
 - Final Fantasy VIII disc 1 CCD against its CUE (both are in its folder).
 - One game as PBP (`psxpackager`) against its CUE: decompression cost.
 - ECM: add a reader or decompress the two discs to .img; then ECM against IMG.
+**Result in Dolphin (2026-10-21, `scripts/chains/format_study.txt`):** guest RAM, CPU cycles and PC
+identical on every vblank for Rayman CUE (51 tracks) vs CHD, Spyro 2 CCD+SUB vs plain CUE, and
+FF8 disc 1 CCD vs CUE. Spyro 2 does not read the subchannel in its first 50 s. With a .ccd and a
+.cue in one folder the loader takes the CCD (+sub) even when the .cue is named, so a CUE-only
+comparison needs its own folder (`Formats/... [CUE]`, a hard link to the same .img). The `cd`
+and `jitb` lines of vsig_cmp count across a chain, so they differ between chained games anyway.
+The cost on the Wii (bench, `scripts/chains/format_cost_rayman.txt`, speed preset, 3000 vblanks,
+5745 sector reads each): CUE 761 ms of CD time on the emulator thread (1.5%, worst read 16.8 ms),
+CHD 225 ms (0.45%, 68 ms of it decompressing, 5028 hunk hits / 717 misses, worst 17.0 ms). A CHD
+read brings 8 sectors from the card at once; the plain image takes many small reads through the
+read-ahead thread. Both are small; CHD is the cheaper of the two on a Wii.
+
 Earlier result (Frogger, 9 formats, and MediEvil, 5): the loaders all boot the same game; this
 adds audio, subchannel and cost.
 
