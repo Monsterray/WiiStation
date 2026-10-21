@@ -12,25 +12,25 @@ CHAIN
 sd:/wiistation/isos/Medievil
 Medievil [U] [SCUS-94227].cue
 3500 sd:/wiistation/decode_state.txt CdPrefetch=0
-sd:/wiistation/isos/Medievil [CHD]
+sd:/wiistation/isos/Formats/Medievil [CHD]
 Medievil [U] [SCUS-94227].chd
 3500 sd:/wiistation/decode_state.txt CdPrefetch=0
-sd:/wiistation/isos/Medievil [PBP]
+sd:/wiistation/isos/Formats/Medievil [PBP]
 Medievil [U] [SCUS-94227].pbp
 3500 sd:/wiistation/decode_state.txt CdPrefetch=0
-sd:/wiistation/isos/Medievil [CBN]
+sd:/wiistation/isos/Formats/Medievil [CBN]
 Medievil [U] [SCUS-94227].cbn
 3500 sd:/wiistation/decode_state.txt CdPrefetch=0
-sd:/wiistation/isos/Medievil [CHDLZ]
+sd:/wiistation/isos/Formats/Medievil [CHDLZ]
 Medievil [U] [SCUS-94227].chd
 900 sd:/wiistation/decode_statefp.txt CdPrefetch=0 State=decode_mv
-sd:/wiistation/isos/Medievil [CHD]
+sd:/wiistation/isos/Formats/Medievil [CHD]
 Medievil [U] [SCUS-94227].chd
 900 sd:/wiistation/decode_statefp.txt CdPrefetch=0 State=decode_mv
-sd:/wiistation/isos/Medievil [PBP]
+sd:/wiistation/isos/Formats/Medievil [PBP]
 Medievil [U] [SCUS-94227].pbp
 900 sd:/wiistation/decode_statefp.txt CdPrefetch=0 State=decode_mv
-sd:/wiistation/isos/Medievil [CBN]
+sd:/wiistation/isos/Formats/Medievil [CBN]
 Medievil [U] [SCUS-94227].cbn
 900 sd:/wiistation/decode_statefp.txt CdPrefetch=0 State=decode_mv
 sd:/wiistation/isos/Medievil

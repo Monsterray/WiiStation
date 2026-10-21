@@ -4,11 +4,11 @@ CHAIN
 # smallest hunk cache and no read-ahead. bios_formats.txt has every format.
 # bash scripts/wsx.sh chain NAME scripts/chains/bios_chd.txt --set BiosDevice=1,BootThruBios=1 --secs 600
 1800
-sd:/wiistation/isos/Frogger (USA) [CHD]
+sd:/wiistation/isos/Formats/Frogger (USA) [CHD]
 Frogger (USA).chd
 1800 BootThruBios=0
-sd:/wiistation/isos/Frogger (USA) [CHD]
+sd:/wiistation/isos/Formats/Frogger (USA) [CHD]
 Frogger (USA).chd
 1800 CdChdHunks=0 CdPrefetch=0
-sd:/wiistation/isos/Frogger (USA) [CHD]
+sd:/wiistation/isos/Formats/Frogger (USA) [CHD]
 Frogger (USA).chd

@@ -7,135 +7,135 @@ CHAIN
 # is taken before the first fill after the last vblank (a whole frame of a test that redraws
 # every frame, gpu/lines), with OpenGX's EFB synced into VRAM first.
 600 gpuPlugin=0 ChainDump=1
-sd:/wiistation/isos/ps1t_mask-bit
+sd:/wiistation/isos/Tests/ps1t_mask-bit
 mask-bit.exe
 600 gpuPlugin=1 ChainDump=1
-sd:/wiistation/isos/ps1t_mask-bit
+sd:/wiistation/isos/Tests/ps1t_mask-bit
 mask-bit.exe
 600 gpuPlugin=2 ChainDump=1
-sd:/wiistation/isos/ps1t_mask-bit
+sd:/wiistation/isos/Tests/ps1t_mask-bit
 mask-bit.exe
 600 gpuPlugin=0 ChainDump=1
-sd:/wiistation/isos/ps1t_gp0-e1
+sd:/wiistation/isos/Tests/ps1t_gp0-e1
 gp0-e1.exe
 600 gpuPlugin=1 ChainDump=1
-sd:/wiistation/isos/ps1t_gp0-e1
+sd:/wiistation/isos/Tests/ps1t_gp0-e1
 gp0-e1.exe
 600 gpuPlugin=2 ChainDump=1
-sd:/wiistation/isos/ps1t_gp0-e1
+sd:/wiistation/isos/Tests/ps1t_gp0-e1
 gp0-e1.exe
 600 gpuPlugin=0 ChainDump=1
-sd:/wiistation/isos/ps1t_clipping
+sd:/wiistation/isos/Tests/ps1t_clipping
 clipping.exe
 600 gpuPlugin=1 ChainDump=1
-sd:/wiistation/isos/ps1t_clipping
+sd:/wiistation/isos/Tests/ps1t_clipping
 clipping.exe
 600 gpuPlugin=2 ChainDump=1
-sd:/wiistation/isos/ps1t_clipping
+sd:/wiistation/isos/Tests/ps1t_clipping
 clipping.exe
 600 gpuPlugin=0 ChainDump=1
-sd:/wiistation/isos/ps1t_clut-cache
+sd:/wiistation/isos/Tests/ps1t_clut-cache
 clut-cache.exe
 600 gpuPlugin=1 ChainDump=1
-sd:/wiistation/isos/ps1t_clut-cache
+sd:/wiistation/isos/Tests/ps1t_clut-cache
 clut-cache.exe
 600 gpuPlugin=2 ChainDump=1
-sd:/wiistation/isos/ps1t_clut-cache
+sd:/wiistation/isos/Tests/ps1t_clut-cache
 clut-cache.exe
 600 gpuPlugin=0 ChainDump=1
-sd:/wiistation/isos/ps1t_lines
+sd:/wiistation/isos/Tests/ps1t_lines
 lines.exe
 600 gpuPlugin=1 ChainDump=1
-sd:/wiistation/isos/ps1t_lines
+sd:/wiistation/isos/Tests/ps1t_lines
 lines.exe
 600 gpuPlugin=2 ChainDump=1
-sd:/wiistation/isos/ps1t_lines
+sd:/wiistation/isos/Tests/ps1t_lines
 lines.exe
 600 gpuPlugin=0 ChainDump=1
-sd:/wiistation/isos/ps1t_quad
+sd:/wiistation/isos/Tests/ps1t_quad
 quad.exe
 600 gpuPlugin=1 ChainDump=1
-sd:/wiistation/isos/ps1t_quad
+sd:/wiistation/isos/Tests/ps1t_quad
 quad.exe
 600 gpuPlugin=2 ChainDump=1
-sd:/wiistation/isos/ps1t_quad
+sd:/wiistation/isos/Tests/ps1t_quad
 quad.exe
 600 gpuPlugin=0 ChainDump=1
-sd:/wiistation/isos/ps1t_rectangles
+sd:/wiistation/isos/Tests/ps1t_rectangles
 rectangles.exe
 600 gpuPlugin=1 ChainDump=1
-sd:/wiistation/isos/ps1t_rectangles
+sd:/wiistation/isos/Tests/ps1t_rectangles
 rectangles.exe
 600 gpuPlugin=2 ChainDump=1
-sd:/wiistation/isos/ps1t_rectangles
+sd:/wiistation/isos/Tests/ps1t_rectangles
 rectangles.exe
 600 gpuPlugin=0 ChainDump=1
-sd:/wiistation/isos/ps1t_texture-flip
+sd:/wiistation/isos/Tests/ps1t_texture-flip
 texture-flip.exe
 600 gpuPlugin=1 ChainDump=1
-sd:/wiistation/isos/ps1t_texture-flip
+sd:/wiistation/isos/Tests/ps1t_texture-flip
 texture-flip.exe
 600 gpuPlugin=2 ChainDump=1
-sd:/wiistation/isos/ps1t_texture-flip
+sd:/wiistation/isos/Tests/ps1t_texture-flip
 texture-flip.exe
 600 gpuPlugin=0 ChainDump=1
-sd:/wiistation/isos/ps1t_texture-overflow
+sd:/wiistation/isos/Tests/ps1t_texture-overflow
 texture-overflow.exe
 600 gpuPlugin=1 ChainDump=1
-sd:/wiistation/isos/ps1t_texture-overflow
+sd:/wiistation/isos/Tests/ps1t_texture-overflow
 texture-overflow.exe
 600 gpuPlugin=2 ChainDump=1
-sd:/wiistation/isos/ps1t_texture-overflow
+sd:/wiistation/isos/Tests/ps1t_texture-overflow
 texture-overflow.exe
 600 gpuPlugin=0 ChainDump=1
-sd:/wiistation/isos/ps1t_transparency
+sd:/wiistation/isos/Tests/ps1t_transparency
 transparency.exe
 600 gpuPlugin=1 ChainDump=1
-sd:/wiistation/isos/ps1t_transparency
+sd:/wiistation/isos/Tests/ps1t_transparency
 transparency.exe
 600 gpuPlugin=2 ChainDump=1
-sd:/wiistation/isos/ps1t_transparency
+sd:/wiistation/isos/Tests/ps1t_transparency
 transparency.exe
 600 gpuPlugin=0 ChainDump=1
-sd:/wiistation/isos/ps1t_triangle
+sd:/wiistation/isos/Tests/ps1t_triangle
 triangle.exe
 600 gpuPlugin=1 ChainDump=1
-sd:/wiistation/isos/ps1t_triangle
+sd:/wiistation/isos/Tests/ps1t_triangle
 triangle.exe
 600 gpuPlugin=2 ChainDump=1
-sd:/wiistation/isos/ps1t_triangle
+sd:/wiistation/isos/Tests/ps1t_triangle
 triangle.exe
 600 gpuPlugin=0 ChainDump=1
-sd:/wiistation/isos/ps1t_uv-interpolation
+sd:/wiistation/isos/Tests/ps1t_uv-interpolation
 uv-interpolation.exe
 600 gpuPlugin=1 ChainDump=1
-sd:/wiistation/isos/ps1t_uv-interpolation
+sd:/wiistation/isos/Tests/ps1t_uv-interpolation
 uv-interpolation.exe
 600 gpuPlugin=2 ChainDump=1
-sd:/wiistation/isos/ps1t_uv-interpolation
+sd:/wiistation/isos/Tests/ps1t_uv-interpolation
 uv-interpolation.exe
 600 gpuPlugin=0 ChainDump=1
-sd:/wiistation/isos/ps1t_vram-to-vram-overlap
+sd:/wiistation/isos/Tests/ps1t_vram-to-vram-overlap
 vram-to-vram-overlap.exe
 600 gpuPlugin=1 ChainDump=1
-sd:/wiistation/isos/ps1t_vram-to-vram-overlap
+sd:/wiistation/isos/Tests/ps1t_vram-to-vram-overlap
 vram-to-vram-overlap.exe
 600 gpuPlugin=2 ChainDump=1
-sd:/wiistation/isos/ps1t_vram-to-vram-overlap
+sd:/wiistation/isos/Tests/ps1t_vram-to-vram-overlap
 vram-to-vram-overlap.exe
 2400 gpuPlugin=0 ChainDump=1
-sd:/wiistation/isos/ps1t_bandwidth
+sd:/wiistation/isos/Tests/ps1t_bandwidth
 bandwidth.exe
 2400 gpuPlugin=1 ChainDump=1
-sd:/wiistation/isos/ps1t_bandwidth
+sd:/wiistation/isos/Tests/ps1t_bandwidth
 bandwidth.exe
 2400 gpuPlugin=2 ChainDump=1
-sd:/wiistation/isos/ps1t_bandwidth
+sd:/wiistation/isos/Tests/ps1t_bandwidth
 bandwidth.exe
 # gpu/bandwidth measures GPU and DMA speed: it needs GpuTiming=1 (Accurate) as well
 2400 gpuPlugin=0 GpuTiming=1 ChainDump=1
-sd:/wiistation/isos/ps1t_bandwidth
+sd:/wiistation/isos/Tests/ps1t_bandwidth
 bandwidth.exe
 2400 gpuPlugin=1 GpuTiming=1 ChainDump=1
-sd:/wiistation/isos/ps1t_bandwidth
+sd:/wiistation/isos/Tests/ps1t_bandwidth
 bandwidth.exe

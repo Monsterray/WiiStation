@@ -1,0 +1,5 @@
+CHAIN
+# Spyro 3 (CCD+SUB) boot: HLE BIOS against the real SCPH1001, 50 s each
+3000 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1 BiosDevice=0 gpuPlugin=0
+sd:/wiistation/isos/Spyro the Dragon 3 - Year of the Dragon
+Spyro the Dragon 3 - Year of the Dragon [NTSC-U] [SCUS-94467].ccd

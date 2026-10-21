@@ -37,10 +37,10 @@ Medievil [U] [SCUS-94227].cue
 sd:/wiistation/isos/Micro Machines V3 (USA)
 Micro Machines V3 (USA).cue
 1200
-sd:/wiistation/isos/PadTest
+sd:/wiistation/isos/Tests/PadTest
 padtest.cue
 1200
-sd:/wiistation/isos/PadTestDX
+sd:/wiistation/isos/Tests/PadTestDX
 padtest.cue
 1200
 sd:/wiistation/isos/Point Blank (USA)

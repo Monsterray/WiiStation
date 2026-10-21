@@ -35,8 +35,8 @@ name=padtest_dx
 [ -f "$rom/padtest.bin" ] || { echo "padtest_dx.sh: no such ROM $rom/padtest.bin (--rom DIR)" >&2; exit 2; }
 [ -f "$rom/padtest.cue" ] || { echo "padtest_dx.sh: no such ROM $rom/padtest.cue (--rom DIR)" >&2; exit 2; }
 # This build of the ROM is the PadTestDX game for the run: WSX_EXTRA_ISOS wins over the library's copy.
-mkdir -p "$RUNS" "$RUNS/$name.rom/PadTestDX"
-cp "$rom/padtest.bin" "$rom/padtest.cue" "$RUNS/$name.rom/PadTestDX/"
+mkdir -p "$RUNS" "$RUNS/$name.rom/Tests/PadTestDX"
+cp "$rom/padtest.bin" "$rom/padtest.cue" "$RUNS/$name.rom/Tests/PadTestDX/"
 export WSX_EXTRA_ISOS="$RUNS/$name.rom"
 chain="$RUNS/$name.chain.txt"
 "$PYTHON" "$REPO/scripts/padtest_dx.py" chain "$chain" "$cells"

@@ -5,14 +5,14 @@ CHAIN
 # Each under Soft Fast (gpuPlugin=0, the reference) and OpenGX (gpuPlugin=2). HLE BIOS (its
 # printf reaches tty.log). Docs/STP_BIT15.md.
 600 gpuPlugin=0
-sd:/wiistation/isos/ps1t_mask-bit
+sd:/wiistation/isos/Tests/ps1t_mask-bit
 mask-bit.exe
 600 gpuPlugin=2
-sd:/wiistation/isos/ps1t_mask-bit
+sd:/wiistation/isos/Tests/ps1t_mask-bit
 mask-bit.exe
 600 gpuPlugin=0
-sd:/wiistation/isos/ps1t_transparency
+sd:/wiistation/isos/Tests/ps1t_transparency
 transparency.exe
 600 gpuPlugin=2
-sd:/wiistation/isos/ps1t_transparency
+sd:/wiistation/isos/Tests/ps1t_transparency
 transparency.exe

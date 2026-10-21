@@ -45,6 +45,13 @@ Everything in this repo uses the new paths. If you have your own setup, check th
 - **Chain files** (`scripts/chains/*.txt`, your own): the game folder line is
   `sd:/wiistation/isos/<Game>` (or `usb:/wiistation/isos/<Game>`); input scripts named on a chain
   line are `sd:/wiistation/<name>.txt`.
+- **The test layout (library, Dolphin profiles and the bench Wii's card, since 2026-10-21):**
+  `isos/<Game>/` for each real game (multi-disc games hold one folder per disc),
+  `isos/Formats/<Game> [FORMAT]/` for the format-test copies (Frogger, MediEvil), and
+  `isos/Tests/` for test programs (PadTest, PadTestDX, gtetest, ps1t_*). The library
+  (`C:/wiistation-lib/games`) is the master: `scripts/card_sync.py D:/ [--apply]` makes a
+  mounted bench card match it (it copies, never deletes). Big games go on the card that way:
+  the HBC agent's network put stops at 512 MB a file.
 - **Single-game autoboot files**: `wsx.sh run --autoboot spyro|bios` stages
   `autoboot_*.txt` from **`C:/tools/Dolphin-x64/User/Load/WiiSDSync_paused_by_claude/`** -- a
   folder outside the repo, so a search of the repo does not find old paths in it. They were
