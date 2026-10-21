@@ -1348,7 +1348,9 @@ int main(int argc, char *argv[])
 	LoadLanguage();
 	ChangeLanguage();
 
+	unsigned long long menuT0 = perf_now_us();
 	MenuContext *menu = new MenuContext(vmode);
+	perf_menu_init_us(perf_now_us() - menuT0);
 	perf_stack_log("menu");
 	VIDEO_SetPostRetraceCallback (ScanPADSandReset);
 

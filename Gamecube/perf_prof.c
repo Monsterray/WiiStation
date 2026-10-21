@@ -1049,6 +1049,21 @@ void perf_present_tick(unsigned long long present_us)
 		perf_report();
 }
 
+/* The idle menu presents nothing through a GPU backend, so perf_present_tick() never runs
+ * and the menu counters would only reach the log when a game starts. Report on the menu's
+ * own frame count instead, once per PERF_REPORT_EVERY_FRAMES draws. */
+void perf_menu_tick(void)
+{
+	if (g_perf.menu_frames && (g_perf.menu_frames % PERF_REPORT_EVERY_FRAMES) == 0)
+		perf_report();
+}
+
+void perf_menu_init_us(unsigned long long us)
+{
+	g_perf.menu_init_us = us;
+}
+
+
 /* Labels for the irq_fires[] histogram, in PSXINT_* order (r3000a.h). Kept as
  * a local table rather than including r3000a.h here, which would drag the
  * emulator core into every file that profiles. lightrec.c static-asserts that
@@ -1849,10 +1864,11 @@ void perf_report(void)
 			(unsigned long long)g_perf.pmc[2], (unsigned long long)g_perf.pmc[3]);
 		#endif
 		lc_report(f);
-		fprintf(f, "menu: frames=%lu menu_us=%llu strings=%lu glyphs=%lu texloads=%lu\n",
-			(unsigned long)g_perf.menu_frames, g_perf.menu_us,
+		fprintf(f, "menu: frames=%lu menu_us=%llu draw_us=%llu strings=%lu glyphs=%lu texloads=%lu\n",
+			(unsigned long)g_perf.menu_frames, g_perf.menu_us, g_perf.menu_draw_us,
 			(unsigned long)g_perf.menu_strings, (unsigned long)g_perf.menu_glyphs,
 			(unsigned long)g_perf.menu_texloads);
+		fprintf(f, "menuinit: ctor_us=%llu\n", (unsigned long long)g_perf.menu_init_us);
 		perf_ramwatch_report(f);
 		perf_log_close(f);
 	}
