@@ -156,6 +156,10 @@ LATER UPDATES BY:
 
 WiiStation CHANGE LOG:
 Unreleased:
+* PBP: every disc of a multi-disc PBP can be played. Swap CD and pick the same
+  PBP again to move to its next disc (the message says which). Before, only
+  disc 1 was reachable. PBPs made with compression level 0 (stored, as
+  PSX2PSP's fastest setting makes them) boot; they never did.
 * OpenGX: a still picture the game loads straight into the screen without
   drawing or flipping shows again (Spyro: Year of the Dragon's Universal logo
   was black). A picture loaded long before the game shows it appears too

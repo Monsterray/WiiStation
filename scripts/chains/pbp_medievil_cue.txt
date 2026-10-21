@@ -1,0 +1,5 @@
+CHAIN
+# PBP study: MediEvil CUE, idle 90 s (demo/FMV), against its other format
+5400 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Medievil
+Medievil [U] [SCUS-94227].cue

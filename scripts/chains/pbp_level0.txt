@@ -1,0 +1,10 @@
+CHAIN
+# PBP level 0 (every block stored): Frogger CUE, then its level-0 PBP, then the level-9 one; guest compare 01/02, 01/03 (cdriso.c stored blocks)
+1800 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Frogger (USA)
+Frogger (USA).cue
+1800 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Formats/Frogger (USA) [PBP0]
+Frogger (USA).pbp
+1800 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Frogger (USA)

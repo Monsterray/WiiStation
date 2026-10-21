@@ -1,0 +1,5 @@
+CHAIN
+# PBP study: MediEvil PBP, idle 90 s (demo/FMV), against its other format
+5400 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Formats/Medievil [PBP]
+Medievil [U] [SCUS-94227].pbp

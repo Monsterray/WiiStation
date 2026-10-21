@@ -1,0 +1,5 @@
+CHAIN
+# PBP study: Frogger CUE (CD-DA track 2), idle 90 s (demo/FMV), against its other format
+5400 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Frogger (USA)
+Frogger (USA).cue

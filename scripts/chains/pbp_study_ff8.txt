@@ -1,0 +1,29 @@
+CHAIN
+# PBP study: the 4-disc FF8 PBP (2.2 GB) booted at each disc (Disc=N), each right after that disc's own image
+1500 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Final Fantasy VIII/Final Fantasy VIII [NTSC-U] [Disc1of4] [SLUS-00892]
+Final Fantasy VIII [NTSC-U] [Disc1of4] [SLUS-00892].ccd
+1500 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1 Disc=1
+sd:/wiistation/isos/Formats/Final Fantasy VIII [PBP]
+Final Fantasy VIII.pbp
+1500 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Final Fantasy VIII/Final Fantasy VIII [NTSC-U] [Disc2of4] [SLUS-00908]
+Final Fantasy VIII [NTSC-U] [Disc2of4] [SLUS-00908].ccd
+1500 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1 Disc=2
+sd:/wiistation/isos/Formats/Final Fantasy VIII [PBP]
+Final Fantasy VIII.pbp
+1500 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Final Fantasy VIII/Final Fantasy VIII [NTSC-U] [Disc3of4] [SLUS-00909]
+Final Fantasy VIII [NTSC-U] [Disc3of4] [SLUS-00909].ccd
+1500 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1 Disc=3
+sd:/wiistation/isos/Formats/Final Fantasy VIII [PBP]
+Final Fantasy VIII.pbp
+1500 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Final Fantasy VIII/Final Fantasy VIII (USA) (Disc 4)
+Final Fantasy VIII (USA) (Disc 4).cue
+1500 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1 Disc=4
+sd:/wiistation/isos/Formats/Final Fantasy VIII [PBP]
+Final Fantasy VIII.pbp
+600 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1 Disc=9
+sd:/wiistation/isos/Formats/Final Fantasy VIII [PBP]
+Final Fantasy VIII.pbp

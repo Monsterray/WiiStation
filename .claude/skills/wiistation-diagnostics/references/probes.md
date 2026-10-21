@@ -93,6 +93,17 @@ file only when the NEXT trace fires: schedule a second `trace` line after the on
 (3) A stale ptrace.log from an earlier run stays on the card, so check the header's
 `vblank=` before believing an episode.
 
+**Measured 2026-10-21 (Spyro 3, Bomberman, Vagrant Story):** (2) is now wrong: the run's end
+also flushes, so with `trace A` + `trace B` the file holds B's episode, not A's. Use ONE
+`trace` line at the vblank you want. A `trace` arms at the first traced command after that
+vblank, and an episode closes after 16 presents, so a still screen (no presents) records
+everything until the next present. Once the ring is a quarter full, small opaque primitives
+are dropped: add `tracebox x0 y0 x1 y1` (screen coordinates) to keep every primitive in an
+area. To trace a moment from a user's movie, copy the movie into a new input file with the
+`trace`/`tracebox`/`dump` lines on top (never edit the movie), and map a frame to its vblank
+with `vtl_view.load()` (field 5 = presents per vblank; frames = presents + the menu frames
+before the game). `C8` entries = off-screen primitives the plugin rasterised in software.
+
 `perf_prim_trace(cmd, flags, abr, color, x0, y0, x1, y1)` appends to a 2600-entry ring;
 an episode is 16 presents, armed by `trace <vblank>` lines in autoinput.txt (or the legacy
 automatic trigger), flushed to `ptrace.log` (rewritten per episode — the file holds the LAST

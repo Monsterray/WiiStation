@@ -185,6 +185,9 @@ extern "C" { char gxMask = 0; }
 extern "C" { char softGpuMode = 0; }
 /* ChainDump: when a chained game's VRAM is dumped (chain_end_vram_sync, chain lines only) */
 extern "C" { char chainDump = 0; int chain_fill_wait = 0; }
+/* Disc: which disc of a multi-disc PBP a game boots (1-8; chain lines only). Swap CD on the
+ * same PBP moves to its next disc (loadISOSwap). */
+char chainDisc = 1;
 char loadButtonSlot;
 char controllerType;
 char numMultitaps;
@@ -330,6 +333,8 @@ static SettingOption OPTIONS[] =
   { "LockedCache", &lockedCache, 0, 127 },
   /* When a chained game's VRAM is dumped (chain_end_vram_sync): for chain lines only */
   { "ChainDump", &chainDump, 0, 1 },
+  /* The disc a multi-disc PBP boots: for chain lines only */
+  { "Disc", &chainDisc, 1, 8 },
   { "Saves", NULL, 0, 0, "Memory cards and save states." },
   { "NativeDevice", &nativeSaveDevice, NATIVESAVEDEVICE_SD, NATIVESAVEDEVICE_CARDB, NULL, "Memcard Save Device", OPT_SAVE_DEVICE, "Where the memory card files are saved." },
   { "StatesDevice", &saveStateDevice, SAVESTATEDEVICE_SD, SAVESTATEDEVICE_USB, NULL, "Save States Device", OPT_STATES_DEVICE, "Where the save state files are saved." },
@@ -1655,6 +1660,11 @@ static void loadSeparatelySetting()
 int loadISOSwap(fileBrowser_file* file) {
 	achievements_close(); /* local sets cannot establish same-game media association yet */
 
+	/* A multi-disc PBP holds every disc in one file: picking the file that is in the drive
+	 * moves to its next disc (handlepbp wraps past the last to disc 1); another file starts
+	 * at its disc 1. Before, every PBP opened disc 1, so discs 2+ were unreachable. */
+	cdrIsoMultidiskSelect = !strcmp(isoFile.name, file->name) ? cdrIsoMultidiskSelect + 1 : 0;
+
   // Refresh file pointers
 	memset(&isoFile, 0, sizeof(fileBrowser_file));
 	memset(&cddaFile, 0, sizeof(fileBrowser_file));
@@ -1697,6 +1707,7 @@ int loadISO(fileBrowser_file* file)
 		hasLoadedISO = FALSE;
 	}
 	needInitCpu = false;
+	cdrIsoMultidiskSelect = chainDisc > 1 ? chainDisc - 1 : 0;   /* a multi-disc PBP boots disc 1 unless a chain line says Disc= */
 	hb_phase("load: SysInit (opens the image)", isoFile.name);
 	if(SysInit() < 0)
 		return -1;

@@ -1,0 +1,11 @@
+CHAIN
+# Rayman CUE (51 tracks) vs CHD vs PBP (PSXPackager level 5, built from source) on the bench Wii (speed preset): the cost of reading each format
+3000 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=0
+sd:/wiistation/isos/Rayman (USA)
+Rayman (USA).cue
+3000 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=0
+sd:/wiistation/isos/Formats/Rayman (USA) [CHD]
+Rayman (USA).chd
+3000 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=0
+sd:/wiistation/isos/Formats/Rayman (USA) [PBP]
+Rayman (USA).pbp

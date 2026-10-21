@@ -1,0 +1,32 @@
+CHAIN
+# PBP study (2026-10-21): each PBP made from source-built PSXPackager right after its original; guest compare with vsig_cmp (pairs 01/02, 03/04, ...)
+1800 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Frogger (USA)
+Frogger (USA).cue
+1800 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Formats/Frogger (USA) [PBP0]
+Frogger (USA).pbp
+1800 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Frogger (USA)
+Frogger (USA).cue
+1800 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Formats/Frogger (USA) [PBP9]
+Frogger (USA).pbp
+3000 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Rayman (USA)
+Rayman (USA).cue
+3000 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Formats/Rayman (USA) [PBP]
+Rayman (USA).pbp
+3000 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Spyro the Dragon 2 - Ripto's Rage
+Spyro the Dragon 2 - Ripto's Rage [NTSC-U] [SCUS-94425].ccd
+3000 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Formats/Spyro 2 [PBP]
+Spyro the Dragon 2 - Ripto's Rage [NTSC-U] [SCUS-94425].pbp
+3000 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Spyro the Dragon 3 - Year of the Dragon (USA) (Rev 1)
+Spyro - Year of the Dragon (USA) (Rev 1).cue
+3000 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Formats/Spyro 3 Rev 1 [PBP]
+Spyro - Year of the Dragon (USA) (Rev 1).pbp

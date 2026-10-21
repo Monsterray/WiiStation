@@ -1434,6 +1434,11 @@ static int handlepbp(const char *isofile) {
 			break;
 
 		compr_img->index_table[i] = cdimg_base + index_entry_offset;
+		/* A block that did not shrink is stored as it is, a whole 16 sectors (PSXPackager's
+		 * PbpWriter; every block at compression level 0): read it plain. Inflating it failed
+		 * and a level-0 PBP never booted (2026-10-21). */
+		if (index_entry_size == 16 * CD_FRAMESIZE_RAW)
+			compr_img->index_table[i] |= OFF_T_MSB;
 	}
 	compr_img->index_table[i] = cdimg_base + index_entry_offset + index_entry_size;
 

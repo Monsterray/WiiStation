@@ -465,6 +465,7 @@ static void fileBrowserItem(void *, int index, eng::ListItem &out)
 
 int loadISO(fileBrowser_file*);
 int loadISOSwap(fileBrowser_file*);
+extern "C" unsigned int cdrIsoMultidiskCount, cdrIsoMultidiskSelect;   /* cdriso.c: the discs of a PBP */
 
 static int dir_comparator(const void* _x, const void* _y){
 	const fileBrowser_file* x = (const fileBrowser_file*)_x;
@@ -840,6 +841,11 @@ void fileBrowserFrame_LoadFile(int i)
 		//TODO: Properly implement this
 		int ret = loadISOSwap( &dir_entries[i] );
 		if(!ret) {
+		  if (cdrIsoMultidiskCount > 1) {   /* a multi-disc PBP: say which disc is in */
+		    static char msg[48];
+		    snprintf(msg, sizeof msg, "Swapped CD: disc %u of %u", cdrIsoMultidiskSelect + 1, cdrIsoMultidiskCount);
+		    menu::MessageBox::getInstance().setMessage(msg);
+		  } else
 		  menu::MessageBox::getInstance().setMessage("Swapped CD");
 	  } else {
   	  menu::MessageBox::getInstance().setMessage("Error swapping CD");
