@@ -91,7 +91,9 @@ Boot test: `scripts/chains/newgames_boot.txt`, 40 s each, no input, Dolphin, HLE
 | Rayman | CUE + 51 tracks | ok | **CD-DA music** (the only CD-DA game in the library) | audio, formats |
 | Silent Hill | CUE/BIN | ok (warning screen, FMV) | fog, noise, dithering, semi-transparency, reverb | gpu, fmv |
 | Spyro 2 | CCD/IMG/SUB | ok (title) | the Spyro engine, subchannel | replay |
-| Spyro 3 | CCD/IMG/SUB | **broken**: runs (ResetGraph), draws, presents nothing for 40 s, no CD reads after the boot | anti-piracy checks, subchannel | replay |
+| Spyro 3 (CCD/IMG/SUB copy) | CCD/IMG/SUB | runs but presents nothing: **a modified image**, not a WiiStation bug -- same size as v1.0, 388,031 bytes differ from sector 4 (the licence area) on | what the protection does with an altered disc | none (keep as a negative case only) |
+| Spyro 3 v1.0 (USA) | CUE/BIN | ok: intro, title, demo mode | anti-piracy checks on a clean disc | replay, protection |
+| Spyro 3 v1.1 (USA, Rev 1) | CUE/BIN | ok: intro, title, demo mode | the revision (different code and size: 664.8 MB) | replay, protection |
 | Tobal 2 (Japan) | CUE/BIN | ok | 640x480 interlaced 3D at 60 fps | gpu |
 | Vagrant Story | CUE/BIN | ok (opening FMV) | heavy 3D, battle-sphere overlay, timing | gpu, fmv |
 
@@ -112,7 +114,7 @@ New game, no memory card unless the route says so. Keep the route and the length
 | Spyro 2 | new game, the intro, Glimmer: run, glide, collect gems, talk to one character | 5 min | analog |
 | Bomberman: Party Edition | battle mode, you against CPU players (as many as it allows), two rounds | 4 min | multitap if you have one |
 | Final Fantasy VIII disc 1 | after the boot bug is fixed: the opening FMV, then walk from the infirmary to the classroom (FMV backgrounds with 3D) | 8 min | digital pad |
-| Spyro 3 | after the boot bug is fixed: new game, the intro, Sunrise Spring to the first level | 5 min | analog |
+| Spyro 3 v1.1 | new game, the intro, Sunrise Spring to the first level (v1.0 replays it as a second line: the two differ) | 5 min | analog |
 
 ## Do disc formats change anything? (the study)
 
@@ -138,3 +140,26 @@ adds audio, subchannel and cost.
 Every new game except Rayman is over the HBC agent's 512 MB put limit, so they go onto the bench
 Wii's card by hand: `sd:/wiistation/isos/<the folder name above>/`, the same folder names as
 the library. Rayman can also go over the network. FF8 discs 2 and 3 need converting first.
+
+## The plan for the new games
+
+1. **Boot (done, Dolphin):** 14 discs. Two left broken: FF8 (the opening goes black after the
+   publisher text: a WiiStation bug, next to investigate) and the modified Spyro 3 copy (the
+   image, not WiiStation; v1.0 and v1.1 boot).
+2. **Movies (you, about an hour):** the routes above with `scripts/movie_capture.sh`. Each becomes
+   `scripts/autoinput/NAME_play.txt`; FF8 after its fix.
+3. **Chains, by what each game tests** (one line per recording, the settings it was recorded with):
+   - `replay_new.txt`: every recording, for determinism (`vsig_cmp.py`) and the tier 2 sweep;
+   - audio: Rayman (CD-DA), PaRappa (sync), Silent Hill (reverb) -- `wsx.sh audio` with
+     SoundRateControl=0 SoundTempo=0 on both sides;
+   - GPU/effects: Silent Hill, Vagrant Story, Soul Reaver (realm shift), Tobal 2 (640x480i), GT2
+     menus -- frames 0-different outside the overlay;
+   - FMV/MDEC and CD streaming: FF8, Silent Hill, Vagrant Story, Soul Reaver, Bomberman;
+   - input: GT2 (analog, rumble), Bomberman (multitap), PaRappa (timing);
+   - protection: Spyro 3 v1.0 and v1.1 (the modified copy as the negative case);
+   - formats: Rayman CUE vs CHD, Spyro 2 CCD with and without .sub, FF8 disc 1 CCD vs CUE, one
+     game as PBP -- guest identical (`vsig_cmp.py`), the read cost from the bench Wii.
+4. **Tiers:** tier 1 (every build) gains Spyro 3 v1.1, Rayman and Silent Hill; tier 2 (every
+   release) takes all of them.
+5. **Hardware baselines:** one `speed`-preset chain of every recording on the bench Wii, filed
+   with `scripts/baseline_add.py`, so a later regression is a diff of two rows.
