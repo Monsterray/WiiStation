@@ -163,7 +163,11 @@ but MetaDefender's sandbox said "Likely Malicious" with 0 indicators. Inputs are
   CHD's FLAC is not. All CHDs decode to the identical guest (`chd_max.txt`).
 - Cost on the bench Wii (speed preset, Rayman 3000 vblanks, `format_cost_rayman_pbp.txt`): CD time
   CUE 764 ms, CHD 224 ms, PBP 152 ms. In Dolphin, 32-frame hunks cost 2.7 s of CD time in 30 s of
-  Frogger against 25 ms at 8 frames (about 21 ms a miss): the smallest files may stutter.
+  Frogger against 25 ms at 8 frames (about 21 ms a miss). Bench Wii (`chd_max.txt`, run chdmax_hw):
+  the CD share of the frame is 0.7% for default and 8-frame 4-codec CHDs (as the CUE, 0.9%), but
+  11.1% (Frogger), 11.0% (MediEvil), 7.3% (Rayman) at 32 frames, worst read 39 ms (two frames):
+  recommend `-c cdlz,cdzl,cdfl,cdzs` at the default hunk size; 32-frame hunks only once the
+  decode-ahead thread takes CHD misses off the emulator thread.
 
 Earlier result (Frogger, 9 formats, and MediEvil, 5): the loaders all boot the same game; this
 adds audio, subchannel and cost.
