@@ -207,8 +207,12 @@ grep -q '^p2 ' "$rec" && p2set=" PadType2=1"
 	echo "# settings: $settings"
 	echo "# pad: ControllerType=$ct ($padname); Dolphin: port 1 keyboard GameCube pad, port 2 GameCube pad (SIDevice1=6)"
 	echo "# chain line: $vbl sd:/wiistation/${name}_play.txt PadAutoAssign=1 ControllerType=$ct${p2set:-}"
+	# Marks: each in-game screenshot (the Shot button combo) is a moment the player pointed at;
+	# scripts/marks.py makes a page to draw a box on each, then traces that box.
+	sed -n 's/^screenshot: saved \([^ ]*\) \([0-9]*x[0-9]*\) .* vbl=\([0-9]*\).*/# mark: \3 \2 \1/p' "$REPO/.runs/$run/perf.log" 2>/dev/null | tr -d '\r'
 	tr -d '\r' < "$rec"
 } > "$out"
-echo "saved scripts/autoinput/${name}_play.txt: $presses changes, the last at vblank ${last:-none}"
+nmarks=$(grep -c '^# mark: ' "$out")
+echo "saved scripts/autoinput/${name}_play.txt: $presses changes, the last at vblank ${last:-none}, $nmarks marks (screenshots)"
 echo "check it plays back:  bash scripts/movie_capture.sh --play $name"
 echo "use it in a chain:    $vbl sd:/wiistation/${name}_play.txt PadAutoAssign=1 ControllerType=$ct${p2set:-}"

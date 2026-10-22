@@ -6,6 +6,60 @@ without doing the investigation a second time.
 
 ---
 
+## CD audio from PBP, CHD and CBN starts 24 ms late (audio output) -- PARKED 2026-10-21, to fix
+
+**Symptom.** Frogger's CD-DA music (track 2, from 6.17 s into a 90 s idle run) plays 1152 output
+samples (24.0 ms at 48 kHz) later from a .pbp, .chd or .cbn than from the .cue. The user wants it
+fixed. It is not audible as a gap (see the mechanism), only as music 24 ms late against the picture.
+
+**Reproduce (Dolphin, debug build, `--fast`, so SoundRateControl=0 SoundTempo=0).**
+`scripts/chains/pbp_frogger_cue.txt`, `pbp_frogger_pbp.txt`, `pbp_frogger_chd.txt`,
+`pbp_frogger_cbn.txt` (5400 vblanks, `none.txt` input, `--env AUDIO_DUMP=1`), each as its own run;
+`wsx.sh audio pbp_frogger_cue pbp_frogger_pbp` -> "first difference at frame 295945 (6.166 s)".
+Runs kept: `.runs/pbp_frogger_cue`, `_cue2`, `_pbp`, `_pbp2`, `_chd`, `_cbn`.
+
+**What is measured.**
+- Deterministic: PBP twice gives the same 7,463,227 differing samples; CUE twice is identical.
+  CHD and CBN differ too (other counts: their shift is similar, not measured exactly).
+- The data is not the cause: the PBP's track 2 bytes, read the way ISOreadCDDA reads them
+  (image sector 94444 = INDEX 01, start_offset = index0 x 2352 with the PBP's absolute MSF), are
+  byte-identical to the CUE's `Track 2.bin` from INDEX 01 (offset 150 x 2352). Every PBP/CHD sector
+  decodes to the original (Docs/TEST_REGIMEN.md, lossless).
+- The guest is identical: vsig ram/cycle/pc every vblank, and since 29bb8fd0 the CD hash too.
+- The SPU side is identical: `atrace.log` without the wall-clock field differs only in the S
+  heartbeats' `f` (output driver busy) bit at 5 points (c=23592971, 30971037, 32440326, 41287695,
+  78899987).
+- The PBP output is the CUE output shifted: B[t + 1152] == A[t] with zero error at 6.3, 12, 19, 30,
+  45, 57, 70 and 85 s, and the whole shift is extra silence before the music: both dumps are silent
+  from 3.0 s, the CUE for 151,945 samples, the PBP for 153,097 (+1152). Nothing after the music
+  starts is cut or doubled.
+- `rate:` lines: ppm=0 (rate control off in --fast), prefill 5760 for CUE/PBP/CHD, 6912 for CBN.
+  `limitwait:` and `limit: debt_max` are the same within noise.
+
+**Mechanism (most likely; confirm first).** The compressed formats cost Wii CPU time on the
+emulator thread when the CD audio starts (the first CD-DA reads decode a block/hunk the decode-ahead
+did not have: a new zone of the disc). With rate control off the output stage cannot pull latency
+back, so a moment when the output found nothing to play (an underrun during the silent load) adds
+silence once and every later sample is that much later. With SoundRateControl=1 (the default for
+players) the rate control should pull most of it back over a few seconds, so in normal play the
+offset may already shrink: measure that too (two normal-speed runs disagree sample by sample,
+so compare the music onset only).
+
+**Next steps.**
+1. Prove the underrun: a probe counting output-driver underruns (samples of silence the driver
+   inserted) and when, per run; it should read 1152 more for the PBP, at ~6.1 s.
+2. Find which read stalls: `cd:`/`chd:` per-read times around vblank 360-370 (6.1 s); `vtl_view.py
+   --around 365` on both runs; is it the first CD-DA read (ISOreadCDDA -> cdread_compressed /
+   cdread_chd on the emulator thread, a decode-ahead miss on a new zone)?
+3. Fixes to weigh: kick the decode-ahead at the CD-DA start position when the game issues CdlPlay
+   (the seek target is known before the first read); or decode CD-DA blocks on the thread with the
+   play position as the want; or have the output stage not insert silence for an underrun while
+   the SPU has produced nothing (pure silence period).
+4. Proof bar: `wsx.sh audio` bit-identical between the CUE and the PBP/CHD/CBN runs (with
+   SoundRateControl=0 SoundTempo=0), and the same on the bench Wii's music onset.
+
+---
+
 ## FF8 opening and FF7's SCEA screen black: interlaced loads lost to the EFB sync (OpenGX) -- FIXED 2026-10-21
 
 **Symptom.** Final Fantasy VIII disc 1 under OpenGX: "Published by Square Electronic Arts"

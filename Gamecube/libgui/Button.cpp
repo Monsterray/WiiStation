@@ -330,10 +330,21 @@ void Button::drawComponent(Graphics& gfx)
 		switch (labelMode)
 		{
 			case LABEL_CENTER:
-				/* centred in the box the padding leaves; the same place when it is even */
+			{
+				/* centred in the box the padding leaves; the same place when it is even. A label
+				 * wider than that box shrinks to fit: a fixed-size button whose text the page
+				 * changes (Configure Buttons' ANALOG combo, 110 px: "L2+R2+Start" was cut at both
+				 * ends, 2026-10-21) had only fitToLabel for auto-sized buttons, and other languages
+				 * run longer than English. Measured here because the text changes at any time. */
+				float scale = fontSize*labelScale;
+				float room = width - 8.0f;   /* the whole button, not the padding: labels drew past it before */
+				float text = (float)IplFont::getInstance().getStringWidth(*buttonText, scale);
+				if (room > 0.0f && text > room)
+					scale *= room / text;
 				IplFont::getInstance().drawString((int) (x+padLeft+(width-padLeft-padRight)/2),
-					(int) (y+padTop+(height-padTop-padBottom)/2), *buttonText, fontSize*labelScale, true);
+					(int) (y+padTop+(height-padTop-padBottom)/2), *buttonText, scale, true);
 				break;
+			}
 			case LABEL_LEFT:
 				//strWidth = IplFont::getInstance().getStringWidth(*buttonText, fontSize);
 				strHeight = IplFont::getInstance().getStringHeight(*buttonText, fontSize);

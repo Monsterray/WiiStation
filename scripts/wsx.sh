@@ -46,7 +46,7 @@
 #                                   run/chain/wii_lab/wii_crash_job do this by themselves when a run
 #                                   looks wrong (a "triage:" block); WSX_NO_LLM=1 turns that off
 #   scripts/wsx.sh frames A B [--crop OUT.png]            two runs' frame dumps, pixel by pixel (frame_compare.py)
-#   scripts/wsx.sh menu NAME --dol A.dol [--dol2 B.dol] (--page N | --input FILE) [--secs S]
+#   scripts/wsx.sh menu NAME --dol A.dol [--dol2 B.dol] (--page N | --input FILE) [--secs S] [--set K=V,...]
 #                                   guarded menu comparison (menu_compare.py): one or two builds,
 #                                   every frame kept; Wiimote Source=0 during the run and restored
 #                                   byte for byte after. --page compares the first settled frame;
@@ -342,10 +342,11 @@ menu)
 	# (Source=0) for the whole comparison, because menukeys is ignored while an IR pointer is
 	# valid, and their WiimoteNew.ini is put back byte for byte however the script ends.
 	name="${1:-}"; shift || true
-	[ -n "$name" ] || { echo "menu NAME --dol A.dol [--dol2 B.dol] (--page N | --input FILE) [--secs S]"; exit 2; }
-	dolA=""; dolB=""; page=""; input=""; secs=20
+	[ -n "$name" ] || { echo "menu NAME --dol A.dol [--dol2 B.dol] (--page N | --input FILE) [--secs S] [--set K=V,...]"; exit 2; }
+	dolA=""; dolB=""; page=""; input=""; secs=20; msets=""
 	while [ $# -gt 0 ]; do
 		case "$1" in
+			--set) msets="${msets:+$msets,}$2"; shift 2 ;;   # settings for the run, e.g. a pad on port 1
 			--dol) dolA="$2"; shift 2 ;;
 			--dol2) dolB="$2"; shift 2 ;;
 			--page) page="$2"; shift 2 ;;
@@ -392,7 +393,7 @@ menu)
 	fi
 	inp="$out/input.txt"
 	menu_run() {   # menu_run RUN DOL: every frame kept (KEEP), no audio dump
-		bash "$0" run "$1" --dol "$2" --autoboot none --input "$inp" --secs "$secs" --nodump --env KEEP=100000 > "$out/$1.log" 2>&1
+		bash "$0" run "$1" --dol "$2" --autoboot none --input "$inp" --secs "$secs" --nodump --env KEEP=100000 ${msets:+--set "$msets"} > "$out/$1.log" 2>&1
 		echo "run $1: exit $? (log $out/$1.log)"
 	}
 	menu_run "menu_${name}_a" "$dolA"

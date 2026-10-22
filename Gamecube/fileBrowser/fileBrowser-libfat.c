@@ -288,14 +288,42 @@ static bool hasExt(const char *name, const char *ext) {
     return strcasecmp(name + (nameLen - extLen), ext) == 0;
 }
 
+/* The files the disc loader opens (cdriso.c; README "Disc images"). Everything else -- .sub,
+ * .sbi, notes, covers, archives -- is not listed: the browser used to list every file, and
+ * picking one of those did nothing. Suffix match, not substring: a file named e.g.
+ * "readme.cue.txt" is not a .cue. */
+static const char *const discExts[] = {
+    ".cue", ".ccd", ".toc", ".mds", ".iso", ".pbp", ".cbn", ".chd", ".exe",
+    ".bin", ".img", ".mdf",        /* data files: hidden again below when their sheet is there */
+};
+
 static bool isFileOk(const char *filePath, const char *fileName) {
-    // Suffix match, not substring: previously used strstr(), so a file
-    // named e.g. "readme.cue.txt" was incorrectly treated as a playable
-    // .cue image just for containing that substring anywhere in its name.
+    size_t k;
     (void)filePath;
-    if (hasExt(fileName, ".sub"))
-        return false;
-    return true;
+    for (k = 0; k < sizeof(discExts) / sizeof(discExts[0]); k++)
+        if (hasExt(fileName, discExts[k]))
+            return true;
+    return false;
+}
+
+/* A multi-track rip's "<name> (Track N).bin" beside "<name>.cue": one entry per game, not one
+ * per track (Rayman listed 52 files). */
+static bool isTrackOfSheet(const fileBrowser_file *entries, int count, int idx)
+{
+    const char *bin = strrchr(entries[idx].name, '/');
+    int j;
+    bin = bin ? bin + 1 : entries[idx].name;
+    for (j = 0; j < count; j++) {
+        const char *cue = strrchr(entries[j].name, '/');
+        size_t base;
+        cue = cue ? cue + 1 : entries[j].name;
+        if (j == idx || (entries[j].attr & FILE_BROWSER_ATTR_DIR) || !hasExt(cue, ".cue"))
+            continue;
+        base = strlen(cue) - 4;
+        if (strlen(bin) > base + 8 && strncasecmp(bin, cue, base) == 0 && strncasecmp(bin + base, " (Track ", 8) == 0)
+            return true;
+    }
+    return false;
 }
 
 // A .bin/.img is hidden when its .cue/.ccd is in the same listing, so the
@@ -345,7 +373,7 @@ int fileBrowser_libfat_readDir(fileBrowser_file* file, fileBrowser_file** dir){
 	}
 	// Read each entry of the directory
 	while( (temp = readdir(dp)) && (temp != NULL) ){
-        if (!isFileOk(file->name, temp->d_name)) {
+        if (!(temp->d_type & DT_DIR) && !isFileOk(file->name, temp->d_name)) {
             continue;
 		}
 		// Make sure we have room for this one -- double capacity instead of
@@ -373,16 +401,20 @@ int fileBrowser_libfat_readDir(fileBrowser_file* file, fileBrowser_file** dir){
 
 	closedir(dp);
 
-	// Second pass over the listing in memory: drop each .bin/.img whose
-	// .cue/.ccd is present (see hasPairedSheet).
+	// Second pass over the listing in memory: drop each data file whose sheet is present
+	// (.bin with its .cue or .toc, .img with its .ccd, .mdf with its .mds, a track of a .cue).
 	{
 		int k, kept = 0;
 		for (k = 0; k < i; k++) {
 			const char *nm = strrchr(entries[k].name, '/');
 			nm = nm ? nm + 1 : entries[k].name;
 			if (!(entries[k].attr & FILE_BROWSER_ATTR_DIR) &&
-			    ((hasExt(nm, ".bin") && hasPairedSheet(entries, i, k, ".cue")) ||
-			     (hasExt(nm, ".img") && hasPairedSheet(entries, i, k, ".ccd"))))
+			    ((hasExt(nm, ".bin") && (hasPairedSheet(entries, i, k, ".cue") ||
+			                             hasPairedSheet(entries, i, k, ".toc") ||
+			                             isTrackOfSheet(entries, i, k))) ||
+			     (hasExt(nm, ".img") && (hasPairedSheet(entries, i, k, ".ccd") ||
+			                             hasPairedSheet(entries, i, k, ".cue"))) ||
+			     (hasExt(nm, ".mdf") && hasPairedSheet(entries, i, k, ".mds"))))
 				continue;
 			if (kept != k)
 				entries[kept] = entries[k];

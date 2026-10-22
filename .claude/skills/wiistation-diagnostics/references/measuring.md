@@ -113,6 +113,16 @@ with nothing bound gets a keyboard layout (numpad D-pad) in the test profile's c
 (commit, DOL SHA-1), settings and pad type, and its chain line sets ControllerType: replay it
 with that line, alone -- 4th in a chain with the wrong pad type it went its own way.
 
+**The player points at a problem (marks, 2026-10-22).** While recording, the Shot button combo
+saves a screenshot and perf.log gets `screenshot: saved FILE WxH ... vbl=N`; movie_capture copies
+each into the recording's header as `# mark: VBLANK WxH FILE`. `python scripts/marks.py page NAME`
+replays to the marks and writes `.runs/marks_NAME/marks.html` (the frame at each mark; the player
+drags boxes and copies the JSON into `marks.json` or the chat); `marks.py trace NAME --dol X`
+(a `build debug all` DOL) replays once per box with `trace VBLANK` + `tracebox` in PS1 screen
+coordinates and writes `mark_VBLANK_N.txt`: every primitive drawn in the box, in draw order. For
+draw-order bugs compare that against Soft (`gpuPlugin=0`) and DuckStation (test-roms.md) before
+blaming the plugin: Spyro's mouths were the game's own sorting.
+
 **Does a replay follow the session?** `python scripts/replay_check.py
 .runs/capture_<name>_<date>/perf.log <replay>/perf.log --game N` compares only guest-side
 counters (interrupts, CD reads, SIO/pad traffic, BIOS calls, GTE calls) at reports with the

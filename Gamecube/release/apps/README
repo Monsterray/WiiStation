@@ -156,6 +156,11 @@ LATER UPDATES BY:
 
 WiiStation CHANGE LOG:
 Unreleased:
+* The game list shows only what WiiStation can load: disc images and PS-X .exe,
+  one entry per game (a .cue's track files, an .img beside its .ccd, an .mdf
+  beside its .mds are not listed). Covers, notes, .sub and .sbi files are gone.
+* Menu buttons fit their text: a label longer than its button is drawn
+  smaller (the ANALOG combo on Configure Buttons, 240p and Interlaced on Video).
 * Disc images: picking the .mds of an Alcohol 120% image (.mds + .mdf) starts
   the game; it silently did nothing (only the .mdf worked). Images with the
   subchannel stored after each sector (cdrdao .toc RW, .mds with subchannel)

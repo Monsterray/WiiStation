@@ -33,6 +33,7 @@ static const unsigned short SHOT_HRES[8] = { 256, 368, 320, 368, 512, 368, 640, 
 
 extern unsigned short *psxVuw;   /* the VRAM, 1024 x 512 16-bit pixels */
 extern char CdromId[10];
+extern unsigned int frame_counter;   /* psxcounters.c: +1 per vblank -- the screenshot's place in a recording */
 extern char gpuPlugin;           /* GamecubeMain.cpp: the renderer the settings chose */
 int gpu_screenshot_sync(int x, int y, int w, int h);   /* GlesGpu/gpuPlugin.c */
 void PSX_display_rect(int *x, int *y, int *w, int *h, int *rgb24);   /* gpulib/oldGpu.c */
@@ -210,9 +211,11 @@ done:
 		FILE *lf = perf_log_open();
 
 		if (lf) {
-			fprintf(lf, "screenshot: %s %s %ux%u at %u,%u %llu ms\n", ok ? "saved" : "FAILED",
+			/* vbl=: a screenshot taken while a movie is recorded marks a moment to look at
+			 * (scripts/marks.py: the frame, a box drawn on it, a trace of that box) */
+			fprintf(lf, "screenshot: %s %s %ux%u at %u,%u %llu ms vbl=%u\n", ok ? "saved" : "FAILED",
 			        ok ? file : "-", w, h, sx, sy,
-			        (unsigned long long)ticks_to_millisecs(diff_ticks(t0, gettime())));
+			        (unsigned long long)ticks_to_millisecs(diff_ticks(t0, gettime())), frame_counter);
 			perf_log_close(lf);
 		}
 	}
