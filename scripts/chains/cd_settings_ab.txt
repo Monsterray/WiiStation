@@ -1,0 +1,26 @@
+CHAIN
+# CD settings A/B (2026-10-21): CdBuffer 16/64/256 KB and CdPrefetch off on the CUE; CdChdHunks 2/4/8 on the 32-frame CHD; fastLoad on. Each must change what it claims and keep the guest (except fastLoad, which changes CD timing by design)
+1500 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1 CdBuffer=0
+sd:/wiistation/isos/Frogger (USA)
+Frogger (USA).cue
+1500 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1 CdBuffer=1
+sd:/wiistation/isos/Frogger (USA)
+Frogger (USA).cue
+1500 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1 CdBuffer=2
+sd:/wiistation/isos/Frogger (USA)
+Frogger (USA).cue
+1500 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1 CdPrefetch=0
+sd:/wiistation/isos/Frogger (USA)
+Frogger (USA).cue
+1500 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1 CdChdHunks=0
+sd:/wiistation/isos/Formats/Frogger (USA) [CHDMAX32]
+Frogger (USA).chd
+1500 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1 CdChdHunks=1
+sd:/wiistation/isos/Formats/Frogger (USA) [CHDMAX32]
+Frogger (USA).chd
+1500 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1 CdChdHunks=2
+sd:/wiistation/isos/Formats/Frogger (USA) [CHDMAX32]
+Frogger (USA).chd
+1500 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1 fastLoad=1
+sd:/wiistation/isos/Frogger (USA)
+Frogger (USA).cue

@@ -1,0 +1,20 @@
+CHAIN
+# CD fixes: Spyro 2 CCD (reference) vs the same disc as a cdrdao .toc with interleaved subchannel (read-ahead on, off), and Frogger picked by its .mds and its .mdf
+3000 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Spyro the Dragon 2 - Ripto's Rage
+Spyro the Dragon 2 - Ripto's Rage [NTSC-U] [SCUS-94425].ccd
+3000 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Formats/Spyro 2 [TOCRW]
+Spyro 2.toc
+3000 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1 CdPrefetch=0
+sd:/wiistation/isos/Formats/Spyro 2 [TOCRW]
+Spyro 2.toc
+1500 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Frogger (USA)
+Frogger (USA).cue
+1500 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Formats/Frogger (USA) [MDS]
+Frogger (USA).mds
+1500 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Formats/Frogger (USA) [MDS]
+Frogger (USA).mdf

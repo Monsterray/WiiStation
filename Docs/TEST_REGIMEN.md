@@ -174,6 +174,22 @@ but MetaDefender's sandbox said "Likely Malicious" with 0 indicators. Inputs are
   = zopfli and zlib 9 per block, the smaller, every core. Frogger 159.3 -> 156.1 MB (2.0%) in 264 s
   on 32 cores; every block decodes to the level-9 data; guest identical (`pbp_level10.txt`).
 
+**Lossless and the CD audit (2026-10-21).** Decoded back and compared byte for byte: CHD (`chdman
+extractcd`; Frogger 32-frame and zstd, MediEvil, Rayman 51 tracks) and PBP (every block; Frogger
+level 0 and 10, MediEvil, Rayman, FF8 discs 1 and 4) equal the original sectors (PBP adds zero padding
+to its last 16-sector block). At run time the vsig CD hash (every sector the game read) is identical
+for CUE, PBP, CHD and CBN, run alone (`cdh_*.txt`; the hash counts across a chain). It used to differ:
+it hashed cdbuffer, which the compressed readers never fill (fixed: CDR_getBuffer). What a conversion
+can lose is outside the sectors: a .sub (PBP and chdman from a .cue keep none; LibCrypt games need an
+.sbi beside the image) and, for .iso, the audio tracks and raw headers.
+`scripts/chains/cd_audit.txt` (16 Frogger formats): every one boots, read-ahead or decode-ahead
+active, guest identical. Found and fixed: picking the .mds read sectors out of the sheet (never
+booted); images with interleaved subchannel (.toc RW, .mds with sub) had no read-ahead (test image
+`Formats/Spyro 2 [TOCRW]`: 0 -> 5519 hits). Settings A/B (`cd_settings_ab.txt`): CdBuffer 16 KB is
+best (256 KB: 27% more card reads), CdPrefetch off doubles CD time, fastLoad changes CD timing by
+design, CdChdHunks shows no difference on sequential reads. The 24 ms CD-DA offset from compressed
+images is one output underrun during the silent load before the music (rate control off in tests).
+
 Earlier result (Frogger, 9 formats, and MediEvil, 5): the loaders all boot the same game; this
 adds audio, subchannel and cost.
 

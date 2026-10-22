@@ -1781,12 +1781,25 @@ fail_io:
 	return -1;
 }
 
+/* Read-ahead for images with the subchannel after each sector (cdrdao .toc RW, .mds with
+ * subchannel): one slot holds a sector and its subchannel; the subchannel read of the same
+ * sector (cdread_sub_sub_mixed) then comes from here instead of a second card read. Before,
+ * these images had no read-ahead at all (pf_start matched cdread_normal only). */
+static unsigned char pf_mixed[CD_FRAMESIZE_RAW + SUB_FRAMESIZE];
+static long pf_mixed_pos = -1;               /* file position of the sector in pf_mixed */
+
 static int cdread_sub_mixed(FILE *f, unsigned int base, void *dest, int sector)
 {
 	int ret;
 	long pos = base + sector * (CD_FRAMESIZE_RAW + SUB_FRAMESIZE);
 	unsigned long long t0 = perf_now_us();
 
+	if (pf_active && f == cdHandle && pf_take(pos, pf_mixed)) {
+		pf_mixed_pos = pos;
+		memcpy(dest, pf_mixed, CD_FRAMESIZE_RAW);
+		perf_cd_done(t0, CD_FRAMESIZE_RAW);
+		return CD_FRAMESIZE_RAW;
+	}
 	if (cdimg_seek(f, pos))
 		goto fail_io;
 	ret = fread(dest, 1, CD_FRAMESIZE_RAW, f);
@@ -1806,6 +1819,11 @@ static int cdread_sub_sub_mixed(FILE *f, int sector)
 {
 	int ret;
 	long pos = sector * (CD_FRAMESIZE_RAW + SUB_FRAMESIZE) + CD_FRAMESIZE_RAW;
+
+	if (pf_mixed_pos >= 0 && pf_mixed_pos + CD_FRAMESIZE_RAW == pos) {
+		memcpy(subbuffer, pf_mixed + CD_FRAMESIZE_RAW, SUB_FRAMESIZE);   /* came with the sector */
+		return SUB_FRAMESIZE;
+	}
 
 	// Interleaved with cdread_sub_mixed on the same FILE*: must go through
 	// cdimg_seek/cdimg_seek_advance too, or its seek would move the real
@@ -2173,7 +2191,9 @@ static long CALLBACK ISOopen(void) {
 	// maybe user selected metadata file instead of main .bin ..
 	bin_filename = GetIsoFile();
 	if (ftello(cdHandle) < 2352 * 0x10) {
-		static const char *exts[] = { ".bin", ".BIN", ".img", ".IMG" };
+		/* .mdf: the .mds is only the sheet (the browser lists both); picking it read sectors out of
+		 * the 550-byte sheet and the game never started, with no message (cd_audit.txt, 2026-10-21) */
+		static const char *exts[] = { ".bin", ".BIN", ".img", ".IMG", ".mdf", ".MDF" };
 		FILE *tmpf = NULL;
 		size_t i;
 		char *p;
@@ -2256,6 +2276,11 @@ static long CALLBACK ISOopen(void) {
 		pf_start(cd_main_path, CD_FRAMESIZE_RAW, CD_FRAMESIZE_RAW, PF_SLOTS, pf_read_at);
 	else if (cdimg_read_func == cdread_2048)
 		pf_start(cd_main_path, 2048, 2048, PF_SLOTS, pf_read_at);
+	else if (cdimg_read_func == cdread_sub_mixed) {
+		pf_mixed_pos = -1;
+		pf_start(cd_main_path, CD_FRAMESIZE_RAW + SUB_FRAMESIZE, CD_FRAMESIZE_RAW + SUB_FRAMESIZE,
+			PF_SLOTS, pf_read_at);
+	}
 	else if (cdimg_read_func == cdread_compressed)
 		pf_start(cd_main_path, 1, CD_FRAMESIZE_RAW << compr_img->block_shift,
 			DA_BYTES / (CD_FRAMESIZE_RAW << compr_img->block_shift), pf_compr_fetch);
@@ -2414,12 +2439,16 @@ static long CALLBACK ISOreadTrack(unsigned char *time) {
 		extern void perf_cd_reader(void *ra, int sector);
 		perf_cd_reader(__builtin_return_address(0), sector);
 	}
-	{	/* the per-vblank signature's CD part (perf_prof.c vsig): every sector the game got */
+	{	/* the per-vblank signature's CD part (perf_prof.c vsig): every sector the game got --
+		 * from CDR_getBuffer (sector + 12), not cdbuffer: the compressed readers leave cdbuffer
+		 * alone and hand out their decoded block, so PBP/CBN/CHD hashed stale bytes and never
+		 * matched the same disc as a CUE (2026-10-21; the sectors were always identical) */
 		extern u32 vsig_cd, vsig_cdn;
+		const unsigned char *sec = CDR_getBuffer() - 12;
 		u32 h = vsig_cd ^ (u32)sector;
 		int k;
 		for (k = 0; k < CD_FRAMESIZE_RAW; k++)
-			h = (h ^ cdbuffer[k]) * 16777619u;
+			h = (h ^ sec[k]) * 16777619u;
 		vsig_cd = h;
 		vsig_cdn++;
 	}

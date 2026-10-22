@@ -1,0 +1,5 @@
+CHAIN
+# Frogger MDS only, read-ahead off (cd_audit: it stopped booting)
+600 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1 CdPrefetch=0
+sd:/wiistation/isos/Formats/Frogger (USA) [MDS]
+Frogger (USA).mds

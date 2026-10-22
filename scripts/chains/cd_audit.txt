@@ -1,0 +1,50 @@
+CHAIN
+# CD audit (2026-10-21): every Frogger format, 1500 vblanks each; per game the cdpf: line must show the read/decode-ahead working (reads>0, hits >> misses), and vsig the same guest as the CUE (01)
+1500 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Frogger (USA)
+Frogger (USA).cue
+1500 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Formats/Frogger (USA) [CBN]
+Frogger (USA).cbn
+1500 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Formats/Frogger (USA) [CCD]
+Frogger (USA).ccd
+1500 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Formats/Frogger (USA) [CHDDEF]
+Frogger (USA).chd
+1500 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Formats/Frogger (USA) [CHDMAX32]
+Frogger (USA).chd
+1500 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Formats/Frogger (USA) [CHDMAX8]
+Frogger (USA).chd
+1500 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Formats/Frogger (USA) [CHDZS]
+Frogger (USA).chd
+1500 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Formats/Frogger (USA) [CHD]
+Frogger (USA).chd
+1500 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Formats/Frogger (USA) [CUE1]
+Frogger (USA).cue
+1500 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Formats/Frogger (USA) [ISO]
+Frogger (USA).iso
+1500 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Formats/Frogger (USA) [MDS]
+Frogger (USA).mds
+1500 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Formats/Frogger (USA) [PBP0]
+Frogger (USA).pbp
+1500 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Formats/Frogger (USA) [PBP10]
+Frogger (USA).pbp
+1500 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Formats/Frogger (USA) [PBP9]
+Frogger (USA).pbp
+1500 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Formats/Frogger (USA) [PBP]
+Frogger (USA).pbp
+1500 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Formats/Frogger (USA) [TOC]
+Frogger (USA).toc

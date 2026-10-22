@@ -1,0 +1,17 @@
+CHAIN
+# CD hash check: the same disc as CUE, PBP (level 10), 32-frame CHD, CBN and MDS; vsig cd/cdn must now match too
+1500 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Frogger (USA)
+Frogger (USA).cue
+1500 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Formats/Frogger (USA) [PBP10]
+Frogger (USA).pbp
+1500 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Formats/Frogger (USA) [CHDMAX32]
+Frogger (USA).chd
+1500 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Formats/Frogger (USA) [CBN]
+Frogger (USA).cbn
+1500 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Formats/Frogger (USA) [MDS]
+Frogger (USA).mds

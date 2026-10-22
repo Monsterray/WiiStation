@@ -1,0 +1,5 @@
+CHAIN
+# CD hash, one format per run (the hash counts across a chain)
+1500 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
+sd:/wiistation/isos/Formats/Frogger (USA) [CHDMAX32]
+Frogger (USA).chd
