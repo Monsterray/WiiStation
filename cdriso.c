@@ -380,6 +380,17 @@ static void cdimg_seek_advance(FILE *f, long pos, int nread)
 #define PF_MAX_SLOTS 64
 #define DA_PRIO  48
 #define DA_BYTES (16 * CD_FRAMESIZE_RAW * 4)   /* the decode-ahead ring: 4 PBP blocks, 64 CBN, 4 CHD hunks */
+/* Slots for a CHD's hunks: DA_BYTES worth, but never fewer than 4 while they fit in 512 KB
+ * (else 2). A CHD made with big hunks (chdman -hs 78336, 32 frames: the smallest files) got
+ * DA_BYTES / 78336 = 1 slot, pf_start refuses fewer than 2, and every hunk was decoded on the
+ * emulator thread: 11% of each frame and 39 ms reads on the bench Wii (2026-10-21). */
+static int da_slots(unsigned int blockbytes)
+{
+	int n = DA_BYTES / blockbytes;
+	if (n >= 4)
+		return n;
+	return 4 * blockbytes <= 512 * 1024 ? 4 : 2;
+}
 static volatile long pf_tag[PF_MAX_SLOTS];   /* per slot: its position (bytes, or block number), -1 = empty/being written */
 static unsigned char *pf_data;               /* pf_nslots slots of pf_slotbytes, MEM2 */
 static int pf_nslots, pf_slotbytes;
@@ -2251,7 +2262,7 @@ static long CALLBACK ISOopen(void) {
 #ifdef USE_LIBCHDR
 	else if (cdimg_read_func == cdread_chd)
 		pf_start(cd_main_path, 1, chd_img->header->hunkbytes,
-			DA_BYTES / chd_img->header->hunkbytes, pf_chd_fetch);
+			da_slots(chd_img->header->hunkbytes), pf_chd_fetch);
 #endif
 
 	return 0;

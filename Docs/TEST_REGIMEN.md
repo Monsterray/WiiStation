@@ -166,8 +166,13 @@ but MetaDefender's sandbox said "Likely Malicious" with 0 indicators. Inputs are
   Frogger against 25 ms at 8 frames (about 21 ms a miss). Bench Wii (`chd_max.txt`, run chdmax_hw):
   the CD share of the frame is 0.7% for default and 8-frame 4-codec CHDs (as the CUE, 0.9%), but
   11.1% (Frogger), 11.0% (MediEvil), 7.3% (Rayman) at 32 frames, worst read 39 ms (two frames):
-  recommend `-c cdlz,cdzl,cdfl,cdzs` at the default hunk size; 32-frame hunks only once the
-  decode-ahead thread takes CHD misses off the emulator thread.
+  the decode-ahead ring had 1 slot for them and never started. Fixed (da_slots, cdriso.c): bench
+  (`chdra_hw`) 0.9% / 1.0% / 0.5%, total CD time Frogger 3359 -> 270 ms (CUE 273); a read right
+  after a seek still decodes a whole hunk, 37 ms at 32 frames against 19 ms, ~7 times in 30 s.
+  Recommended for the smallest CHD: `chdman createcd -c cdlz,cdzl,cdfl,cdzs -hs 78336`.
+- Maximum-compression PBP: PSXPackager fork `C:/projects/PSXPackager` (branch `wiistation`), level 10
+  = zopfli and zlib 9 per block, the smaller, every core. Frogger 159.3 -> 156.1 MB (2.0%) in 264 s
+  on 32 cores; every block decodes to the level-9 data; guest identical (`pbp_level10.txt`).
 
 Earlier result (Frogger, 9 formats, and MediEvil, 5): the loaders all boot the same game; this
 adds audio, subchannel and cost.
