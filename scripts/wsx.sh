@@ -46,7 +46,7 @@
 #                                   run/chain/wii_lab/wii_crash_job do this by themselves when a run
 #                                   looks wrong (a "triage:" block); WSX_NO_LLM=1 turns that off
 #   scripts/wsx.sh frames A B [--crop OUT.png]            two runs' frame dumps, pixel by pixel (frame_compare.py)
-#   scripts/wsx.sh menu NAME --dol A.dol [--dol2 B.dol] (--page N | --input FILE) [--secs S] [--set K=V,...]
+#   scripts/wsx.sh menu NAME --dol A.dol [--dol2 B.dol] (--page N | --input FILE) [--secs S] [--set K=V,...] [--pad]
 #                                   guarded menu comparison (menu_compare.py): one or two builds,
 #                                   every frame kept; Wiimote Source=0 during the run and restored
 #                                   byte for byte after. --page compares the first settled frame;
@@ -342,11 +342,12 @@ menu)
 	# (Source=0) for the whole comparison, because menukeys is ignored while an IR pointer is
 	# valid, and their WiimoteNew.ini is put back byte for byte however the script ends.
 	name="${1:-}"; shift || true
-	[ -n "$name" ] || { echo "menu NAME --dol A.dol [--dol2 B.dol] (--page N | --input FILE) [--secs S] [--set K=V,...]"; exit 2; }
-	dolA=""; dolB=""; page=""; input=""; secs=20; msets=""
+	[ -n "$name" ] || { echo "menu NAME --dol A.dol [--dol2 B.dol] (--page N | --input FILE) [--secs S] [--set K=V,...] [--pad]"; exit 2; }
+	dolA=""; dolB=""; page=""; input=""; secs=20; msets=""; mpad=""
 	while [ $# -gt 0 ]; do
 		case "$1" in
-			--set) msets="${msets:+$msets,}$2"; shift 2 ;;   # settings for the run, e.g. a pad on port 1
+			--set) msets="${msets:+$msets,}$2"; shift 2 ;;   # settings for the run
+			--pad) mpad=1; shift ;;   # a GameCube pad on port 1 (scripts/dsu_pad.py): pages that need a controller
 			--dol) dolA="$2"; shift 2 ;;
 			--dol2) dolB="$2"; shift 2 ;;
 			--page) page="$2"; shift 2 ;;
@@ -377,7 +378,17 @@ menu)
 	[ -f "$MENU_INI" ] || { echo "no $MENU_INI in the template"; exit 2; }
 	MENU_SHA=$(sha256sum "$MENU_INI" | cut -d' ' -f1)
 	cp -f "$MENU_INI" "$MENU_BAK" || { echo "cannot write $MENU_BAK"; exit 2; }
+	if [ -n "$mpad" ]; then
+		# Wii64's way to give Dolphin a pad with no keyboard or focus: a DSU (cemuhook) server
+		# feeding GC pad 1. Configure Buttons was only ever photographed with no controller,
+		# so its labels were empty and the ANALOG combo's overflow went unseen (2026-10-22).
+		"$PYTHON" "$REPO/scripts/dsu_pad.py" profile "$prof" >/dev/null || exit 2
+		"$PYTHON" "$REPO/scripts/dsu_pad.py" serve >/dev/null 2>&1 &
+		DSU_PID=$!
+		msets="${msets:+$msets,}PadAutoAssign=1"
+	fi
 	menu_cleanup() {
+		[ -n "${DSU_PID:-}" ] && kill "$DSU_PID" 2>/dev/null
 		menu_restore_ini
 		bash "$REPO/scripts/profile.sh" unlock "$mname" $$ >/dev/null 2>&1
 		[ -n "${KEEP_PROFILE:-}" ] || rm -rf "$prof"

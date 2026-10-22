@@ -487,6 +487,13 @@ hashes in UploadScreen, OpenGX texel checks). The pattern to grep for is a loop 
 
 ## Menu comparisons: wsx.sh menu (2026-10-11)
 
+**`--pad` (2026-10-22): a GameCube pad on port 1**, the way Wii64 does it (`scripts/dsu_pad.py`, copied
+from Wii64: a DSU/cemuhook UDP server Dolphin reads as pad 1; no keyboard, mouse or focus). Without
+it the menu has no controller and Configure Buttons (`--page 40..65`) shows only empty buttons --
+which is how the ANALOG combo's cut-off label shipped. `--set K=V,...` passes settings to the runs.
+Game folders for a browser walk: `WSX_EXTRA_ISOS=DIR WSX_ISOS=FOLDER` (page 70 lists them; the
+cursor starts on the first folder, so `menukeys 90 A` opens it).
+
 - `wsx.sh menu NAME --dol A.dol [--dol2 B.dol] --page N` opens menu page N (`menupage N`) in
   each build and compares the still picture. `--input FILE` walks the menu frame by frame (a
   file of `menupage` and `menukeys` lines) and compares frame N of A with frame N of B.
