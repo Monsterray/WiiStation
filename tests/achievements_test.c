@@ -185,6 +185,41 @@ int main(int argc, char **argv)
         assert(achievements_load("TEST12345") == -1 && !achievements_count());
         achievementLog[0] = 0;
     }
+    /* A power loss can cut the journal's last record short. "<digest> 1" (cut from
+     * "<digest> 12 Twelve") must not restore achievement 1, and the next unlock must
+     * still be recorded on a line of its own, not glued to the fragment. */
+    {
+        char cut[256], line[256];
+        assert(snprintf(cut, sizeof cut, "%s/cut_unlocks", argv[1]) < 256);
+        strcpy(achievementLog, cut);
+        remove(cut);
+        set_file("Game=TEST12345\n1|One|0xH000030=1\n12|Twelve|0xH000031=1\n");
+        ram[0x30] = 0; ram[0x31] = 0;
+        assert(achievements_load("TEST12345") == 2);
+        achievements_frame();
+        ram[0x31] = 1;
+        achievements_frame();
+        assert(achievements_earned() == 1);
+        achievements_close();
+        f = fopen(cut, "rb"); assert(f);
+        assert(fgets(line, sizeof line, f) && line[32] == ' ' && !strncmp(line + 33, "12 ", 3));
+        fclose(f);
+        line[34] = 0;                         /* "<digest> 1", no newline */
+        f = fopen(cut, "wb"); assert(f); assert(fputs(line, f) >= 0); fclose(f);
+        ram[0x31] = 0;
+        assert(achievements_load("TEST12345") == 2);
+        assert(achievements_earned() == 0);   /* the fragment restored nothing */
+        achievements_frame();
+        ram[0x30] = 1;                        /* now earn 1 for real */
+        achievements_frame();
+        assert(achievements_earned() == 1);
+        achievements_close();
+        ram[0x30] = 0;
+        assert(achievements_load("TEST12345") == 2);
+        assert(achievements_earned() == 1);   /* its record survived on its own line */
+        achievements_close();
+        achievementLog[0] = 0;
+    }
     free(state); free(old_state);
     puts("achievements: memory, evaluation, state identity, journal, and malformed sets ok");
     return 0;

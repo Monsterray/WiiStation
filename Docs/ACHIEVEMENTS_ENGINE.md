@@ -1,6 +1,6 @@
 # Achievement engine: first implementation
 
-Branch: `codex/achievement-engine`. The engine uses the pinned upstream rcheevos
+Merged into main from `codex/achievement-engine` (c29cafd9, 2026-10-12). The engine uses the pinned upstream rcheevos
 C runtime with settings-file controls. This slice evaluates **local definitions**;
 it has no RetroAchievements login, service submissions, hardcore mode, or menu UI.
 Online client integration still needs canonical disc hashing and verified Wii HTTPS.
@@ -49,17 +49,20 @@ conditions. BIOS, VRAM, and card contents are not part of this map.
 ## Lifecycle and persistence
 
 - Evaluation runs at the shared emulated frame end, independently of display frameskip.
-  No file reads/writes, allocation by this wrapper, or network calls occur in that hook.
+  No allocation by this wrapper or network calls occur in that hook. The one file write
+  is the journal append when an achievement triggers (rare: one short line).
 - Reset suspends evaluation during BIOS execution, resets hit/progress state afterward,
   and preserves earned local achievements. Shutdown flushes and destroys the runtime.
 - A disc swap closes the local set until the game is fully loaded again. The serial
   binding is a local safeguard, **not canonical RA content identification**; associated
   multi-disc sessions are deferred to the future rc_client integration.
-- Unlocks accumulate in memory and append to a text journal when CPU execution stops,
-  including menu entry and scripted state operations. Each line contains the exact
-  definition-file MD5, local ID, and title. Reload restores matching local unlocks.
-  Write failure keeps pending entries for the next stopped boundary. Power loss before
-  flush can lose pending unlocks; this is not a durable official award outbox.
+- An unlock is appended to a text journal when it triggers (f9ca407b); one that could not
+  be written is retried when CPU execution stops (menu entry, state operations) and at
+  shutdown. Each line contains the exact definition-file MD5, local ID, and title. Reload
+  restores matching local unlocks. Only whole lines count: a record cut short by a power
+  loss (no newline) restores nothing, and the next append starts on a fresh line, so a
+  fragment can neither grant a wrong unlock nor swallow the next one (2026-10-23). This is
+  not a durable official award outbox.
 - Any definition-file edit, including comments, changes its identity and starts a new
   local unlock namespace. The digest is a consistency check, not authentication.
 - The optional bounded `ACH1` WSXE state section holds a version marker, definition
@@ -69,7 +72,10 @@ conditions. BIOS, VRAM, and card contents are not part of this map.
 
 ## Validation
 
-Run `bash scripts/test-achievements.sh` and `python3 scripts/settings_check.py`.
+Run `bash scripts/test-achievements.sh` and `python3 scripts/settings_check.py`. The test
+needs a Linux C toolchain with ASan/UBSan: on this Windows machine run it in WSL
+(`wsl.exe -e bash -lc "cd /mnt/c/projects/WiiStation && bash scripts/test-achievements.sh"`);
+Git Bash's cc has no C headers and clang on Windows lacks POSIX `mkdir`.
 
 The release also passed the shared bench Wii menu/HOME/HBC smoke test. See
 [bench testing](BENCH_TESTING.md) for the frozen queue workflow, retained

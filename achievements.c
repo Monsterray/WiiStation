@@ -10,6 +10,9 @@
 #include <errno.h>
 #include <limits.h>
 
+/* The guest memory the conditions address: PS1 RAM, then the scratchpad after it */
+#define PSX_RAM_BYTES 0x200000u
+#define PSX_MAP_END (PSX_RAM_BYTES + 0x400u)   /* + the 1 KiB scratchpad */
 #define MAX_ACHIEVEMENTS 128
 #define MAX_SET_SIZE (64 * 1024)
 #define JOURNAL_MAX (1024 * 1024) /* unlock log cap; load and append both fail closed past it */
@@ -35,19 +38,19 @@ uint32_t achievements_read_memory(uint32_t address, uint8_t *buffer, uint32_t si
 {
     uint32_t n, done = 0;
     (void)unused;
-    if (!buffer || !psxM || !psxH || address >= 0x200400)
+    if (!buffer || !psxM || !psxH || address >= PSX_MAP_END)
         return 0;
-    if (size > 0x200400 - address)
-        size = 0x200400 - address;
-    if (address < 0x200000) {
-        n = 0x200000 - address;
+    if (size > PSX_MAP_END - address)
+        size = PSX_MAP_END - address;
+    if (address < PSX_RAM_BYTES) {
+        n = PSX_RAM_BYTES - address;
         if (n > size) n = size;
         memcpy(buffer, psxM + address, n);
         address += n;
         done = n;
     }
     if (done < size)
-        memcpy(buffer + done, psxH + address - 0x200000, size - done);
+        memcpy(buffer + done, psxH + address - PSX_RAM_BYTES, size - done);
     return size;
 }
 
@@ -70,17 +73,24 @@ static int journal_append(unsigned index)
                        (unsigned)entries[index].id, entries[index].title);
     int ok;
     if (len < 0 || len >= (int)sizeof line) return 0;
-    f = fopen(log_path, "a");
+    f = fopen(log_path, "a+b");
     if (!f) {
         SysPrintf("Local achievements: cannot append unlock log %s\n", log_path);
         return 0;
     }
-    if (fseek(f, 0, SEEK_END) || (size = ftell(f)) < 0 || size + len > JOURNAL_MAX) {
+    if (fseek(f, 0, SEEK_END) || (size = ftell(f)) < 0 || size + len + 1 > JOURNAL_MAX) {
         fclose(f);
         SysPrintf("Local achievements: unlock log full or unreadable, not appending %s\n", log_path);
         return 0;
     }
-    ok = fwrite(line, 1, (size_t)len, f) == (size_t)len;
+    /* A power loss can leave the last record cut short, with no newline. Start on a fresh
+     * line, or this record would be glued to the fragment and lost with it. */
+    ok = 1;
+    if (size > 0 && (fseek(f, -1, SEEK_END) || fgetc(f) != '\n'))
+        ok = fseek(f, 0, SEEK_END) == 0 && fputc('\n', f) == '\n';
+    else
+        fseek(f, 0, SEEK_END);   /* "a" writes at the end anyway; a seek between a read and a write is required */
+    ok = ok && fwrite(line, 1, (size_t)len, f) == (size_t)len;
     if (fclose(f) != 0) ok = 0;
     if (!ok) SysPrintf("Local achievements: unlock log write failed\n");
     return ok;
@@ -107,7 +117,7 @@ void achievements_close(void)
     memset(entries, 0, sizeof(entries));
 }
 
-static int valid_address(uint32_t address) { return address < 0x200400; }
+static int valid_address(uint32_t address) { return address < PSX_MAP_END; }
 static void event(const rc_runtime_event_t *e)
 {
     unsigned i;
@@ -246,7 +256,13 @@ int achievements_load(const char *game_id)
             return -1;
         }
         while (fgets(record, sizeof(record), f)) {
-            if (sscanf(record, "%32s %u", hash, &saved_id) != 2 || strcmp(hash, digest_text)) continue;
+            /* Only a whole record counts: "<digest> <id> <title>\n". A line cut short by a
+             * power loss ("<digest> 1" of "<digest> 12 Twelve") must not restore id 1. */
+            size_t len = strlen(record);
+            int end = 0;
+            if (!len || record[len - 1] != '\n') continue;
+            if (sscanf(record, "%32s %u%n", hash, &saved_id, &end) != 2 || record[end] != ' ' ||
+                strcmp(hash, digest_text)) continue;
             for (i = 0; i < count; ++i)
                 if (entries[i].id == saved_id) entries[i].earned = entries[i].written = 1;
         }
