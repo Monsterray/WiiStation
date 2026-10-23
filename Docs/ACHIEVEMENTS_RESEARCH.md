@@ -250,7 +250,8 @@ More sources:
 - With this backend, the auxiliary verification field stays zero after a failed verification.
   A rejection shows as curl error 60, HTTP status 0 and the diagnostic text.
 - The probe pins a 2024 CA snapshot for reproducibility. It is not a production update policy.
-- `tests/https_wii_compat.c` supplies newlib symbols that r41 lacks, for the probe only.
+- The probe is now built from source on libogc v3 (no prebuilt packages). See the notes,
+  "libogc v3 rebuild, 2026-10-23".
 - Existing SMB networking does not prove TLS.
 - RetroArch Wii transport is reference code only. Build configuration alone does not prove
   that an endpoint works.

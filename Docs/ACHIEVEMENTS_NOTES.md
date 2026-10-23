@@ -242,8 +242,8 @@ power-loss durability or owner exclusion on the Wii.
   headers and the pinned r41-2 SDK. It does not apply the port's fake-entropy patch. Curl's
   configure turns off `realpath` and `fnmatch` correctly, so the old stubs are not needed. The
   builder keeps matching headers, libraries and a public build-info manifest.
-- The only prebuilt part left is the checked wiisocket adapter. A private copy has the three
-  duplicate libogc inet helpers removed.
+- On r41-2 the only prebuilt part was the checked wiisocket adapter. libogc v3 does not need
+  it (see below).
 
 | Job | Result |
 |---|---|
@@ -264,6 +264,32 @@ Collector changes after these runs:
   were empty after a forced exit.
 - Three host regression tests cover this and the exclusion of seed-like files from failure
   collection. The temporary trace markers are removed.
+
+### libogc v3 rebuild, 2026-10-23
+
+Both builders now use libogc v3 and devkitPPC r50 (GCC 16). The r41-2 versions are these
+scripts at commit 775ae73a. libogc v3 has BSD sockets. The probe calls `if_configex()` after
+the HBC agent has started the network. This registers the `soc` devoptab; `net_init()` alone
+does not. Three gaps in v3 need handling in the probe:
+
+| Gap in libogc v3 | Handling | Job that showed it |
+|---|---|---|
+| `getsockopt()` always fails (`net_getsockopt` returns -EINVAL) | The probe answers SO_ERROR with 0. A connect error that `poll()` reports still fails. | `20261023-132939-bef4f9`: curl 7 on all five |
+| IOS rejects `send()` with `MSG_NOSIGNAL` (EOPNOTSUPP) | curl is configured with `curl_cv_msg_nosignal=no` | `20261023-134229-629714`: curl 35 on all five |
+| No `select()` | curl uses `poll()`. The probe supplies a `select()` that only sleeps. | - |
+
+`__SYS_GetSystemTime()` is `SYS_Time()` in v3. The CA bundle was devkitPro MSYS2's
+`ca-bundle.crt` (`WII_NETWORK_CA`), not the pinned 2024 snapshot.
+
+Job `20261023-135603-294ade` passed in 28 seconds. RA gave HTTP 403 and the control gave HTTP
+200, both after verified TLS. Wrong host, untrusted root and expired certificates were rejected
+with curl 60. The clock checks passed (raw RTC + 420 minutes was inside the host window). This
+is the same result as 2026-10-11. Evidence: `.runs/bench/20261023-ogc3-https{,-2,-3}/`.
+
+The fixes are for the probe only. A product transport needs a real v3 socket layer:
+- Only `poll()` catches a connect error. An error that it misses shows at the TLS handshake.
+- v3's `fcntl()` gives flags to IOS without translation, so `O_NONBLOCK` probably has no
+  effect. Then curl's timeouts may not stop a read that stalls.
 
 ### UTC (job `20261011-040024-514221`)
 
@@ -600,9 +626,10 @@ offline support.
 
 In order:
 
-1. Rebuild the HTTPS stack (Mbed TLS 3.6.4 with the NV seed configuration, curl 8.16.0, the
-   wiisocket adapter) for libogc v3 and devkitPPC r50. Run the five-case HTTPS probe, the seed
-   storage test and the UTC test again on the bench Wii. Move the Wii test builders off r41-2.
+1. The HTTPS probe passes on libogc v3 (job `20261023-135603-294ade`). Still to do: run the
+   seed storage test on the bench Wii (its v3 DOL builds), write a v3 socket layer for the
+   product (nonblocking, connect errors, send flags), and move the other Wii test builders off
+   r41-2. The manual UTC offset changes from 420 to 480 when daylight time ends (2026-11-01).
 2. Provide confidential seed provisioning for each Wii and a reviewed UTC source. Test real
    power-cut durability.
 3. Connect `rc_client` to the emulator: the account file login
@@ -620,6 +647,5 @@ In order:
    final checkpoint.
 8. Add the Achievements menu panel and notifications.
 9. Hardcore, only after RetroAchievements approves WiiStation.
-10. Clean up: `Gamecube/release/example_settings.ini` still has two comment lines for the
-    removed `AchievementUTCOffsetMinutes` key, and says that unlocks are written only when
-    gameplay stops. `SETTINGS.md` names a menu entry for `Achievements` that no menu page shows.
+10. Clean up: `SETTINGS.md` names a menu entry for `Achievements` that no menu page shows
+    until the menu work on `try/achievement-ui` is merged.

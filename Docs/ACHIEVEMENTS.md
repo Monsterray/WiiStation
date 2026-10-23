@@ -193,9 +193,10 @@ All Wii runs go through the bench queue (`C:/tools/wii-bench/wiibench.py`). Read
 Do not make lease environment variables yourself. Each run freezes its DOL, matching ELF,
 collector and HBC client, with SHA-256 hashes, and keeps raw evidence under `.runs/bench/`.
 
-The standalone Wii test builders (`build-achievements-wii-test.sh`,
-`build-achievements-client-test.sh`, `build-achievements-hash-wii-test.sh`,
-`build-achievements-https-test.sh`, `build-achievements-native-https-test.sh`) require
+The HTTPS and seed builders (`build-achievements-native-https-test.sh`,
+`test-achievements-entropy.sh --wii`) use libogc v3 and devkitPPC r50, as `scripts/build.sh`.
+The other standalone Wii test builders (`build-achievements-wii-test.sh`,
+`build-achievements-client-test.sh`, `build-achievements-hash-wii-test.sh`) still require
 libogc2 and devkitPPC r41-2. `build-achievements-wii-test.sh` stops if the compiler is not
 release 41. The commands below use the toolchain path of the 2026-10-10 setup.
 
