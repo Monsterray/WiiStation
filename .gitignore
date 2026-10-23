@@ -68,3 +68,6 @@ Gamecube/build*_ogc3/
 Gamecube/build*_ogc2/
 deps/libsmb2/lib/wii/
 deps/wiidrc/lib/
+
+# RetroAchievements account files hold a password or token: never commit one
+ra_account.ini
