@@ -16,7 +16,7 @@ today, how to set it up, how to test it and what is planned.
 | Modes Off, Local, Test, Official | In the product (775ae73a, 2026-10-23). Official loads nothing yet. |
 | Unlock journal | In the product. An unlock is written when it triggers (f9ca407b). Records cut short by a power loss are ignored (2026-10-23). |
 | Save-state progress (`ACH1` section) | In the product. |
-| Menu controls | None in main yet. The settings file sets the mode. A General-tab button and a Current ISO list are in progress on `try/achievement-ui`. |
+| Menu controls | General tab, Cheevos: Mode, the set file and the account user name (ab58936a). Current ISO, Achievements: the set's list, 10 per page, with N of M earned. No unlock notification yet. |
 | RetroAchievements login, awards, leaderboards, Rich Presence, Hardcore | Not implemented. |
 | `rc_client`, API and PS1 hash code | Vendored in `deps/rcheevos` and tested in standalone host and Wii programs. Not connected to the emulator. |
 | HTTPS (Mbed TLS 3.6.4 + curl 8.16.0) | Test probes only. Proven on the bench Wii on 2026-10-11 with libogc2 and devkitPPC r41-2. Not in the product. |
