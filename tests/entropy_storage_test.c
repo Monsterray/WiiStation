@@ -17,7 +17,7 @@
 #include "../deps/hbc_agent/sdk/hbc_agent.h"
 mbedtls_ms_time_t mbedtls_ms_time(void)
 {
-    return (mbedtls_ms_time_t)ticks_to_millisecs(__SYS_GetSystemTime());
+    return (mbedtls_ms_time_t)ticks_to_millisecs(SYS_Time());
 }
 #endif
 

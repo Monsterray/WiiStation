@@ -1,10 +1,13 @@
-/* Credential-free HTTPS probe. The default binary port uses fake entropy; the
- * source-built NV variant uses public dummy seeds. Neither accepts credentials. */
+/* Credential-free HTTPS probe, built from source by build-achievements-native-https-test.sh
+ * (libogc v3). It uses public dummy NV seeds and accepts no credentials. */
 #include <gccore.h>
 #include <fat.h>
-#include <wiisocket.h>
+#include <network.h>
 #include <curl/curl.h>
 #include <ogc/lwp_watchdog.h>
+#include <errno.h>
+#include <sys/select.h>
+#include <sys/socket.h>
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
@@ -17,7 +20,7 @@
 #include <mbedtls/platform.h>
 #include <mbedtls/platform_time.h>
 static uint64_t system_milliseconds(void) {
-    s64 ticks = __SYS_GetSystemTime();
+    s64 ticks = SYS_Time();
     return ticks < 0 ? UINT64_MAX : ticks_to_millisecs(ticks);
 }
 mbedtls_ms_time_t mbedtls_ms_time(void) {
@@ -25,6 +28,24 @@ mbedtls_ms_time_t mbedtls_ms_time(void) {
 }
 #endif
 static void checkpoint(FILE *f) { fflush(f); fsync(fileno(f)); }
+/* libogc v3 has poll() but no select(). curl, built with poll, calls select()
+ * only to sleep (curlx_wait_ms); anything else fails closed. */
+int select(int n, fd_set *r, fd_set *w, fd_set *e, struct timeval *tv) {
+    if (n || r || w || e || !tv || tv->tv_sec < 0 || tv->tv_usec < 0) { errno = ENOSYS; return -1; }
+    if (tv->tv_sec) sleep(tv->tv_sec);
+    usleep(tv->tv_usec);
+    return 0;
+}
+/* libogc v3's getsockopt() always fails (net_getsockopt is an EINVAL stub). curl asks only
+ * SO_ERROR, after poll() reported the socket writable without POLLERR/POLLHUP: report no
+ * error. ponytail: a connect failure poll misses surfaces at the TLS handshake instead. */
+int getsockopt(int s, int level, int name, void *value, socklen_t *size) {
+    (void)s;
+    if (level != SOL_SOCKET || name != SO_ERROR || !value || !size || *size < sizeof(int)) { errno = ENOPROTOOPT; return -1; }
+    *(int *)value = 0;
+    *size = sizeof(int);
+    return 0;
+}
 static size_t bounded_body(char *p, size_t size, size_t count, void *data) {
     size_t *used = data, n = size * count;
     (void)p;
@@ -119,7 +140,8 @@ int main(int argc, char **argv) {
     fprintf(f, "clock=%lld entropy=fake-public-probe-only\n", (long long)time(NULL));
 #endif
     checkpoint(f);
-    if (wiisocket_init() < 0) return 1;
+    /* libogc v3 sockets: the agent started the network; this registers the "soc" devoptab. */
+    if (if_configex(NULL, NULL, NULL, true, 20) < 0) return 1;
     if (curl_global_init(CURL_GLOBAL_DEFAULT) != CURLE_OK) return 1;
 #ifdef ACHIEVEMENTS_NV_PROBE
     if (clock_ready) {
@@ -141,8 +163,6 @@ int main(int argc, char **argv) {
     snprintf(path, sizeof path, "%s/result.json", argv[1]);
     f = fopen(path, "w"); if (!f) return 1;
     fprintf(f, "{\"pass\":%s,\"suite\":\"https-public\",\"authenticated_transport_ready\":false}\n", pass ? "true" : "false"); fclose(f);
-    /* Finish seed and result I/O before removing the adapter's devoptab entry. */
-    wiisocket_deinit();
     fatUnmount("sd");
     return 0;
 }

@@ -9,7 +9,7 @@ if [ "$target" != host ] && [ "$target" != --wii ]; then
 fi
 if [ "$target" = --wii ]; then
   : "${DEVKITPRO:?Set the pinned WiiStation toolchain}"
-  : "${DEVKITPPC:=$DEVKITPRO/devkitPPC-r41-2}"
+  : "${DEVKITPPC:=$DEVKITPRO/devkitPPC}"  # libogc v3 + devkitPPC r50, as scripts/build.sh
   output=${2:?Choose an output directory}
   mkdir -p "$output"
   output=$(cd "$output" && pwd)
@@ -52,7 +52,7 @@ if [ "$target" = host ]; then
 else
   cc="$DEVKITPPC/bin/powerpc-eabi-gcc"
   flags=(-DGEKKO -mrvl -mcpu=750 -meabi -mhard-float -O2 -g -fno-lto
-         -I"$DEVKITPRO/libogc2/include")
+         -I"$DEVKITPRO/libogc/include")
   make_args=(CC="$cc" AR="$DEVKITPPC/bin/powerpc-eabi-ar" APPLE_BUILD=0)
 fi
 libraries=(libmbedcrypto.a libmbedx509.a)
@@ -78,7 +78,7 @@ else
   "$cc" -std=c99 "${flags[@]}" -Wall -Wextra -Werror -I"$task_build/include" \
     tests/achievement_seed.c tests/achievement_clock.c tests/achievement_clock_test.c tests/entropy_storage_test.c \
     "$task_build/library/libmbedx509.a" "$task_build/library/libmbedcrypto.a" \
-    -L"$task_build/agent/lib" -L"$DEVKITPRO/libogc2/lib/wii" -L"$DEVKITPRO/portlibs/ppc/lib" \
+    -L"$task_build/agent/lib" -L"$DEVKITPRO/libogc/lib/wii" -L"$DEVKITPRO/portlibs/ppc/lib" \
     -lhbcagent -lfat -lwiiuse -lbte -logc -lz -lm -o "$output/boot.elf"
   "$DEVKITPRO/tools/bin/elf2dol" "$output/boot.elf" "$output/boot.dol"
   # Matched headers and libraries for the curl source build. Never combine these
