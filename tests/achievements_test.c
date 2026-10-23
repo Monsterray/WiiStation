@@ -220,7 +220,36 @@ int main(int argc, char **argv)
         achievements_close();
         achievementLog[0] = 0;
     }
+    /* Modes: Test evaluates but never reads or writes the journal; Official loads nothing
+     * until it is built. achievements_get feeds the menu's list. */
+    {
+        char tj[256];
+        const char *title = NULL;
+        assert(snprintf(tj, sizeof tj, "%s/test_unlocks", argv[1]) < 256);
+        strcpy(achievementLog, tj);
+        f = fopen(tj, "wb"); assert(f);   /* a journal that already says id 1 is earned */
+        assert(fputs("0123456789abcdef0123456789abcdef 1 One\n", f) >= 0); fclose(f);
+        set_file("Game=TEST12345\n1|One|0xH000040=1\n2|Two|0xH000041=1\n");
+        achievementsEnabled = ACH_TEST;
+        ram[0x40] = 0; ram[0x41] = 0;
+        assert(achievements_load("TEST12345") == 2);
+        assert(achievements_earned() == 0);
+        achievements_frame();
+        ram[0x41] = 1;
+        achievements_frame();
+        assert(achievements_get(1, &title) == 1 && !strcmp(title, "Two"));
+        assert(achievements_get(0, &title) == 0 && !strcmp(title, "One"));
+        assert(achievements_get(2, &title) == -1);
+        achievements_close();
+        f = fopen(tj, "rb"); assert(f);   /* untouched: still the one fake line */
+        { char l[128]; int n = 0; while (fgets(l, sizeof l, f)) ++n; assert(n == 1); }
+        fclose(f);
+        achievementsEnabled = ACH_OFFICIAL;
+        assert(achievements_load("TEST12345") == 0 && !achievements_count());
+        achievementsEnabled = ACH_LOCAL;
+        achievementLog[0] = 0;
+    }
     free(state); free(old_state);
-    puts("achievements: memory, evaluation, state identity, journal, and malformed sets ok");
+    puts("achievements: memory, evaluation, state identity, journal, modes and malformed sets ok");
     return 0;
 }

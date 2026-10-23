@@ -229,6 +229,7 @@ bool needInitCpu = true;
 /* The button texts of the settings in OPTIONS, as the menus show them: choices[value - min]. */
 static const char* const OPT_NO_YES[]        = { "No", "Yes" };
 static const char* const OPT_OFF_ON[]        = { "Off", "On" };
+static const char* const OPT_ACH_MODE[]      = { "Off", "Local", "Test", "Official" };   /* achievements.h ACH_OFF..ACH_OFFICIAL (0-3) */
 static const char* const OPT_ON_OFF[]        = { "On", "Off" };
 static const char* const OPT_FAST_ACCURATE[] = { "Fast", "Accurate" };
 static const char* const OPT_MIX[]           = { "Legacy", "Hi-Fi" };
@@ -449,8 +450,8 @@ static SettingOption OPTIONS[] =
   { "Coop2Assign8", &coopAssign[1][7], 0, 3 },
   { "Coop2Layout8", &coopLayout[1][7], COOP_LAYOUT_FULL, COOP_LAYOUT_COUNT - 1 },
   { "Coop2Buttons8", coopButtons[1][7], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
-  { "Achievements", NULL, 0, 0, "Local achievement engine. It reads a local definition file; no online awards." },
-  { "Achievements", &achievementsEnabled, 0, 1, NULL, "Achievements", OPT_OFF_ON, "Turns the local achievement engine on or off. Load the game again after a change." },
+  { "Achievements", NULL, 0, 0, "Achievements. Local: your own definition file, unlocks kept. Test: the same, nothing kept. Official: RetroAchievements (not available yet)." },
+  { "Achievements", &achievementsEnabled, 0, 3, NULL, "Achievements", OPT_ACH_MODE, "Off, Local (your definition file; unlocks are kept), Test (try a set; nothing is kept) or Official (RetroAchievements, not available yet). Load the game again after a change." },
   { "AchievementFile", achievementFile, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "AchievementLog", achievementLog, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
 #ifdef ACHIEVEMENTS_BENCH
