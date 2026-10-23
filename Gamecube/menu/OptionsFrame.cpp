@@ -8,6 +8,7 @@
  *               -> "CD"        : how disc images are read, and Fast Load
  *  Video tab    -> "Advanced Graphics" : dithering, the video decoder, the TV picture
  *               -> "Memory"    : what the machine's memory is doing right now
+ *  General tab  -> "Cheevos"   : the achievement mode, the set file and the account
  *
  * HOW TO ADD A ROW
  *   A setting row (ROW_CYCLE or ROW_RADIO) needs: its OPTIONS[] line in Gamecube/GamecubeMain.cpp
@@ -71,6 +72,7 @@
 #include "../libgui/CursorManager.h"
 #include "../wiiSXconfig.h"
 #include "../MEM2.h"
+#include "../../achievements.h"
 
 extern "C" {
 #include "../../mem2_manager.h"
@@ -209,6 +211,47 @@ static void infoFixedBuffers(char *buf, int len)
 static void infoPsxBuffers(char *buf, int len)
 {
 	snprintf(buf, len, "%u + %lu KB", 2048u, (unsigned long)globalVramSize >> 10);
+}
+
+/*  Readouts (Achievements page)  */
+
+/* The AchievementFile setting; the tail of it when it is longer than the readout. */
+static void infoAchFile(char *buf, int len)
+{
+	size_t n = strlen(achievementFile);
+	if (!n)
+		snprintf(buf, len, "None");
+	else if (n >= (size_t)len)
+		snprintf(buf, len, "...%s", achievementFile + n - (len - 4));
+	else
+		snprintf(buf, len, "%s", achievementFile);
+}
+
+/* The account file's User= line, and nothing else from it: the file also holds Password= and
+ * Token=, which are never shown, logged or kept. Only a line's start can be User= (a long line
+ * comes in pieces). */
+#define RA_ACCOUNT_FILE "sd:/wiistation/achievements/ra_account.ini"
+static void infoAchAccount(char *buf, int len)
+{
+	char line[128];
+	bool atStart = true;
+	FILE *f = fopen(RA_ACCOUNT_FILE, "r");
+	if (!f) {
+		snprintf(buf, len, "No account file");
+		return;
+	}
+	snprintf(buf, len, "No User= line");
+	while (fgets(line, sizeof line, f)) {
+		bool lineStart = atStart;
+		atStart = strchr(line, '\n') != NULL;
+		if (lineStart && !strncmp(line, "User=", 5)) {
+			line[strcspn(line, "\r\n")] = '\0';
+			snprintf(buf, len, "User: %s", line + 5);
+			break;
+		}
+	}
+	memset(line, 0, sizeof line);
+	fclose(f);
 }
 
 /*  Pages  */
@@ -368,6 +411,24 @@ static const OptRow MEMORY_ROWS[] =
 	ROW_INFO("SPU + BIOS buffers",  infoFixedBuffers),
 };
 
+/* The mode is a cycle: its four values do not fit a radio row (OPT_MAX_CHOICES). A change
+ * applies at the next game load (achievements_load), so there is no apply function. */
+static const OptRow ACH_ROWS[] =
+{
+	ROW_CYCLE("Achievements", NULL),
+	ROW_INFO("Set file", infoAchFile),
+	ROW_INFO("Account",  infoAchAccount),
+};
+
+static const OptHelp ACH_HELP[] =
+{
+	{ "Mode:",     "Local keeps your unlocks. Test keeps nothing." },
+	{ NULL,        "Load the game again after a change." },
+	{ "Set file:", "AchievementFile in settings.ini." },
+	{ "Account:",  "The User= line of achievements/ra_account.ini." },
+	{ "Official:", "Not available yet." },
+};
+
 struct OptPage
 {
 	const char*			title;			// shown at the top; a tabbed page shows its tabs instead
@@ -395,6 +456,7 @@ static const OptPage PAGES[] =
 	{ "Advanced", "GPU",  GPU_ROWS,     COUNT(GPU_ROWS),     GPU_HELP,    COUNT(GPU_HELP),    SettingsFrame::SUBMENU_GENERAL, pluginsEnter, pluginsLeave, 54.0f },
 	{ "Advanced", "Input", INPUT_ROWS,  COUNT(INPUT_ROWS),   INPUT_HELP,  COUNT(INPUT_HELP),  SettingsFrame::SUBMENU_GENERAL, pluginsEnter, pluginsLeave },
 	{ "Advanced", "SPU",  SPU_ROWS,     COUNT(SPU_ROWS),     SPU_HELP,    COUNT(SPU_HELP),    SettingsFrame::SUBMENU_GENERAL, pluginsEnter, pluginsLeave },
+	{ "Achievements", NULL, ACH_ROWS,   COUNT(ACH_ROWS),     ACH_HELP,    COUNT(ACH_HELP),    SettingsFrame::SUBMENU_GENERAL, NULL,         NULL         },
 };
 
 /* The Advanced pages, in the order their tabs run across the top. A tab switch stays inside
@@ -509,6 +571,8 @@ typedef char opt_input_help_fits[OPT_HELP_FITS(INPUT_HELP) ? 1 : -1];
 typedef char opt_memory_fits [OPT_PAGE_FITS(MEMORY_ROWS)  ? 1 : -1];
 typedef char opt_plugin_help_fits [OPT_HELP_FITS(PLUGIN_HELP)  ? 1 : -1];
 typedef char opt_cd_help_fits[OPT_HELP_FITS(CD_HELP) ? 1 : -1];
+typedef char opt_ach_fits[OPT_PAGE_FITS(ACH_ROWS) ? 1 : -1];
+typedef char opt_ach_help_fits[OPT_HELP_FITS(ACH_HELP) ? 1 : -1];
 
 static const OptRow* pageRow(int row)
 {

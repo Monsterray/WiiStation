@@ -2,7 +2,7 @@
  * WiiStation - OptionsFrame.h
  *
  * The sub-pages reached from the Settings tabs: the Advanced pages (tabs CPU, GPU, SPU,
- * CD, Input), Advanced Graphics and Memory.
+ * CD, Input), Advanced Graphics, Memory and Achievements.
  * One frame class serves all of them; see the .cpp for how to add a page or a row.
  *
  * This program is free software; you can redistribute it and/
@@ -42,7 +42,8 @@ public:
 		PAGE_MEMORY,
 		PAGE_ADV_GPU,		// Advanced: GPU tab
 		PAGE_ADV_INPUT,		// Advanced: Input tab
-		PAGE_ADV_SPU		// Advanced: SPU tab
+		PAGE_ADV_SPU,		// Advanced: SPU tab
+		PAGE_ACHIEVEMENTS	// the General tab's Cheevos button
 	};
 	void showTab(int tab);	// a tab of the Advanced pages was pressed
 

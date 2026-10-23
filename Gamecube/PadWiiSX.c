@@ -159,8 +159,12 @@ int autoinput_padsweep_fast = 0;   /* "padsweep <vblank> fast": controller-GC.c'
 /* "menupage <n>": open one Settings tab or Options page a few frames after the menu comes
  * up, so an unattended run can photograph it. Nothing else can -- the menu reads the pads
  * directly rather than through the controller drivers, so padsweep cannot drive it.
- * 1..5 are the Settings tabs in order, 6..10 the Options pages in the order of
- * OptionsFrame::OptionsPages: Advanced Sound, Advanced Graphics, Plugins, CD, Memory.
+ * 1..5 are the Settings tabs in order, 6..14 the Options pages in the order of
+ * OptionsFrame::OptionsPages: Advanced Sound, Advanced Graphics, Plugins, CD, Memory, then
+ * 11 Advanced GPU, 12 Advanced Input, 13 Advanced SPU, 14 Achievements (General, Cheevos).
+ * 15 is Current ISO > Achievements, the list of the loaded game's set (with no game: its
+ * "No achievement set" line). 20 Configure Input, 21..36 Customize Co-Op, 40..65 Configure
+ * Buttons, 70 Load from SD, 71 Load from SMB, 72 Load from DVD, 90 Quit (MenuContext.cpp).
  * 0 leaves the menu alone.
  *
  * "menuclick <button> <times> [frame]": press one button of the Settings tabs, that many

@@ -21,6 +21,7 @@
 #include "MenuContext.h"
 #include "MenuEngine.h"	/* before Button.h: its include guard is BUTTON_H, a name the engine uses */
 #include "CurrentRomFrame.h"
+#include "AchievementsFrame.h"
 #include "../libgui/Button.h"
 #include "../libgui/IPLFont.h"
 #include "../libgui/resources.h"
@@ -53,10 +54,10 @@ void Func_StateCycle();
 void Func_Screenshot();
 void Func_ReturnFromCurrentRomFrame();
 
-static const int NUM_FRAME_BUTTONS = 9;
+static const int NUM_FRAME_BUTTONS = 10;
 static const int CUR_ROWS_N = 6;
 
-static char currentRomStrings[9][15] =
+static char currentRomStrings[10][15] =
 	{ "Restart Game",
 	  "Swap CD",
 	  "Load MemCards",
@@ -65,7 +66,8 @@ static char currentRomStrings[9][15] =
 	  "Load State",
 	  "Save State",
 	  "Slot 0",
-	  "Screenshot"};
+	  "Screenshot",
+	  "Achievements"};
 
 struct CurrentRomButtonInfo
 {
@@ -85,11 +87,12 @@ static CurrentRomButtonInfo currentRomButtons[NUM_FRAME_BUTTONS] =
 	{	NULL,	BTN_A_NRM,	currentRomStrings[1],	Func_SwapCD,		Func_ReturnFromCurrentRomFrame,	0, 1, 230.0f,  0.0f },
 	{	NULL,	BTN_A_NRM,	currentRomStrings[2],	Func_LoadSave,		Func_ReturnFromCurrentRomFrame,	1, 0, 230.0f,  0.0f },
 	{	NULL,	BTN_A_NRM,	currentRomStrings[3],	Func_SaveGame,		Func_ReturnFromCurrentRomFrame,	1, 1, 230.0f,  0.0f },
-	{	NULL,	BTN_A_NRM,	currentRomStrings[4],	Func_ShowRomInfo,	Func_ReturnFromCurrentRomFrame,	2, 0, 340.0f,  0.0f },
+	{	NULL,	BTN_A_NRM,	currentRomStrings[4],	Func_ShowRomInfo,	Func_ReturnFromCurrentRomFrame,	2, 0, 230.0f,  0.0f },
 	{	NULL,	BTN_A_NRM,	currentRomStrings[5],	Func_LoadState,		Func_ReturnFromCurrentRomFrame,	3, 0, 220.0f,  0.0f },
 	{	NULL,	BTN_A_NRM,	currentRomStrings[6],	Func_SaveState,		Func_ReturnFromCurrentRomFrame,	4, 0, 220.0f,  0.0f },
 	{	NULL,	BTN_A_NRM,	currentRomStrings[7],	Func_StateCycle,	Func_ReturnFromCurrentRomFrame,	3, 1, 120.0f, 30.0f },
 	{	NULL,	BTN_A_NRM,	currentRomStrings[8],	Func_Screenshot,	Func_ReturnFromCurrentRomFrame,	5, 0, 220.0f,  0.0f },
+	{	NULL,	BTN_A_NRM,	currentRomStrings[9],	Func_AchievementsList,	Func_ReturnFromCurrentRomFrame,	2, 1, 230.0f,  0.0f },
 };
 
 /* The Current ROM page is set by the engine. The logo is at the bottom right.
@@ -107,9 +110,9 @@ static const eng::LinkOverride CUR_LINKS[] = {
 };
 
 /* Each row has a button count, the x of its first button, and the gap between its buttons. */
-static const int   CUR_ROW_COUNT[CUR_ROWS_N] = { 2, 2, 1, 2, 1, 1 };
-static const float CUR_ROW_X0[CUR_ROWS_N]    = { 100.0f, 100.0f, 150.0f, 150.0f, 150.0f, 150.0f };
-static const float CUR_ROW_GAP[CUR_ROWS_N]   = { 20.0f, 20.0f, 0.0f, 20.0f, 0.0f, 0.0f };
+static const int   CUR_ROW_COUNT[CUR_ROWS_N] = { 2, 2, 2, 2, 1, 1 };
+static const float CUR_ROW_X0[CUR_ROWS_N]    = { 100.0f, 100.0f, 100.0f, 150.0f, 150.0f, 150.0f };
+static const float CUR_ROW_GAP[CUR_ROWS_N]   = { 20.0f, 20.0f, 20.0f, 20.0f, 0.0f, 0.0f };
 
 /* The buttons of each row, by slot: a row's actions must be consecutive, so they are kept by place. */
 static eng::ActionButton CUR_ACTIONS[CUR_ROWS_N][2];

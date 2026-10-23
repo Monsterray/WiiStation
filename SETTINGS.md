@@ -306,8 +306,8 @@ for the definition format, state handling, persistence boundaries, and tests.
 
 | Key | Values | Default | Menu | Effect |
 |---|---|---|---|---|
-| `Achievements` | 0 = Off, 1 = Local, 2 = Test, 3 = Official | 0 | Achievements | Local: your own definition file, unlocks kept in the journal. Test: the same, nothing read from or written to the journal. Official: RetroAchievements (not available yet; loads nothing). |
-| `AchievementFile` | `"Path"` | empty | none, settings file only | The rcheevos definition file for a game, for example `sd:/wiistation/achievements/<game>.txt`. |
+| `Achievements` | 0 = Off, 1 = Local, 2 = Test, 3 = Official | 0 | General, Cheevos, "Mode" | Local: your own definition file, unlocks kept in the journal. Test: the same, nothing read from or written to the journal. Official: RetroAchievements (not available yet; loads nothing). |
+| `AchievementFile` | `"Path"` | empty | none, settings file only (General, Cheevos shows it) | The rcheevos definition file for a game, for example `sd:/wiistation/achievements/<game>.txt`. |
 | `AchievementLog` | `"Path"` | empty | none, settings file only | Stores earned unlocks. Empty puts them beside the definition file, with `.unlocks` appended. A quoted full path overrides it. |
 
 ## 7. Network settings

@@ -55,11 +55,12 @@ MenuContext::MenuContext(GXRModeObj *vmode)
 		  optionsFrame(0),
 		  customizeCoopFrame(0),
 		  usbPadTestFrame(0),
+		  achievementsFrame(0),
 		  activeIndex(0),
 		  activeSubmenu(0)
 {
 	pMenuContext = this;
-	for (int i = 0; i <= FRAME_USBPADTEST; i++)
+	for (int i = 0; i <= FRAME_ACHIEVEMENTS; i++)
 	{
 		focusMemory[i].button = NULL;
 		focusMemory[i].submenu = 0;
@@ -77,6 +78,7 @@ MenuContext::MenuContext(GXRModeObj *vmode)
 	optionsFrame = new OptionsFrame();
 	customizeCoopFrame = new CustomizeCoopFrame();
 	usbPadTestFrame = new UsbPadTestFrame();
+	achievementsFrame = new AchievementsFrame();
 
 	menu::Gui::getInstance().addFrame(mainFrame);
 	menu::Gui::getInstance().addFrame(loadRomFrame);
@@ -88,6 +90,7 @@ MenuContext::MenuContext(GXRModeObj *vmode)
 	menu::Gui::getInstance().addFrame(optionsFrame);
 	menu::Gui::getInstance().addFrame(customizeCoopFrame);
 	menu::Gui::getInstance().addFrame(usbPadTestFrame);
+	menu::Gui::getInstance().addFrame(achievementsFrame);
 
 	menu::Focus::getInstance().setFocusActive(true);
 
@@ -98,6 +101,7 @@ MenuContext::MenuContext(GXRModeObj *vmode)
 
 MenuContext::~MenuContext()
 {
+	delete achievementsFrame;
 	delete usbPadTestFrame;
 	delete customizeCoopFrame;
 	delete optionsFrame;
@@ -169,9 +173,11 @@ bool MenuContext::isRunning()
 			if (autoinput_menupage >= 1 && autoinput_menupage <= 5)
 				setActiveFrame(FRAME_SETTINGS,
 					SettingsFrame::SUBMENU_GENERAL + (int)autoinput_menupage - 1);
-			else if (autoinput_menupage >= 6 && autoinput_menupage <= 13)   /* 11 GPU, 12 Input, 13 SPU (Advanced tabs) */
+			else if (autoinput_menupage >= 6 && autoinput_menupage <= 14)   /* 11 GPU, 12 Input, 13 SPU (Advanced tabs), 14 Achievements */
 				setActiveFrame(FRAME_OPTIONS,
 					OptionsFrame::PAGE_SOUND + (int)autoinput_menupage - 6);
+			else if (autoinput_menupage == 15)   /* Current ISO > Achievements: the list */
+				setActiveFrame(FRAME_ACHIEVEMENTS, 0);
 			else if (autoinput_menupage == 20)   /* Configure Input */
 				setActiveFrame(FRAME_CONFIGUREINPUT, ConfigureInputFrame::SUBMENU_REINIT);
 			else if (autoinput_menupage >= 21 && autoinput_menupage <= 36)   /* Customize Co-Op */
@@ -236,7 +242,7 @@ void MenuContext::enterFrame(int frameIndex, int submenu)
 	}
 
 	/* A Back takes what the screen remembers, but only for the tab it was left from. */
-	if (back && frameIndex >= FRAME_MAIN && frameIndex <= FRAME_USBPADTEST)
+	if (back && frameIndex >= FRAME_MAIN && frameIndex <= FRAME_ACHIEVEMENTS)
 	{
 		if (focusMemory[frameIndex].submenu == submenu)
 			returnTo = focusMemory[frameIndex].button;
@@ -276,6 +282,9 @@ void MenuContext::enterFrame(int frameIndex, int submenu)
 		break;
 	case FRAME_USBPADTEST:
 		currentActiveFrame = usbPadTestFrame;
+		break;
+	case FRAME_ACHIEVEMENTS:
+		currentActiveFrame = achievementsFrame;
 		break;
 	}
 
@@ -344,6 +353,9 @@ menu::Frame* MenuContext::getFrame(int frameIndex)
 		break;
 	case FRAME_USBPADTEST:
 		pFrame = usbPadTestFrame;
+		break;
+	case FRAME_ACHIEVEMENTS:
+		pFrame = achievementsFrame;
 		break;
 	}
 

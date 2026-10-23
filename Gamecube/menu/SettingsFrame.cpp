@@ -121,6 +121,7 @@ void Func_PluginsPage();
 void Func_CDPage();
 void Func_AdvGfxPage();
 void Func_MemoryPage();
+void Func_AchievementsPage();
 void Func_SoundHwAccelYes();
 void Func_SoundHwAccelNo();
 void Func_SoundSyncOff();
@@ -180,7 +181,7 @@ void setSpuInterpolation(int spuInterpolation);
 void setSpuTempo(int soundTempo);
 }
 
-#define NUM_FRAME_BUTTONS 84
+#define NUM_FRAME_BUTTONS 85
 #define NUM_TAB_BUTTONS 5
 #define FRAME_BUTTONS settingsFrameButtons
 #define FRAME_STRINGS settingsFrameStrings
@@ -191,7 +192,7 @@ void setSpuTempo(int soundTempo);
 The tabs. Each one is a page for the menu engine: its rows are in the tables below, and the
 engine places every button and label. What each row holds:
 
-General:  Advanced, Memory; Select BIOS; Boot Through BIOS (and Execute BIOS); Select Language;
+General:  Advanced, Cheevos, Memory; Select BIOS; Boot Through BIOS (and Execute BIOS); Select Language;
           Save Settings; Load Settings. The CPU core, GPU plugin and Fast Load are on the Advanced pages.
 Video:    Show FPS; FPS Limit; Frame Skip; Screen Mode; Filters; Advanced (Advanced Graphics).
 Input:    Configure Input and Button Mappings; PSX Pad Type; Light Gun; Enable Rumble;
@@ -205,7 +206,7 @@ Never remove or move an entry of FRAME_BUTTONS. Its index is what a script's "me
 /* The words of the Settings screens that are not a setting's: tab names, action buttons,
  * group labels and the card numbers. A setting's words come from the settings table, by
  * refreshButton. Indexes are FRAME_STRINGS[n] in FRAME_BUTTONS and the rows below. */
-static char FRAME_STRINGS[36][24] =
+static char FRAME_STRINGS[37][24] =
 	{ "General",
 	  "Video",
 	  "Input",
@@ -241,7 +242,8 @@ static char FRAME_STRINGS[36][24] =
 	  "1",				// saves tab: which card the first Memcard Type button is
 	  "2",				// saves tab: which card the second button is
 	  "Advanced",		// video tab: the Advanced Graphics page
-	  "Load Settings"
+	  "Load Settings",
+	  "Cheevos"			// general tab: the Achievements page
 	  };
 
 
@@ -385,6 +387,8 @@ struct ButtonInfo
 	//Test USB Pad (button 83): on no tab since the page moved to Advanced > Input (OptionsFrame.cpp);
 	//kept so that "menuclick 83 1" still opens it and no later index moves
 	{	NULL,	BTN_A_NRM,	(char*)"Test USB Pad",	Func_UsbPadTest,	Func_ReturnFromSettingsFrame },
+	//General tab: Cheevos (button 84), between Advanced and Memory: the Achievements page
+	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[36],	Func_AchievementsPage,	Func_ReturnFromSettingsFrame },
 };
 
 /*  The tabs, on the menu engine  */
@@ -570,7 +574,7 @@ static void prepSaves(void)
 
 static const SetRow GEN_ROWS[] =
 {
-	{ eng::ROW_BUTTONS, NULL,            NULL,               { 73, 75, -1, -1 }, { 130, 130,   0, 0 }, 0.0f,   30.0f, 0 },	/* Advanced, Memory: every Advanced button is 130 wide and centred */
+	{ eng::ROW_BUTTONS, NULL,            NULL,               { 73, 84, 75, -1 }, { 130, 130, 130, 0 }, 0.0f,   30.0f, 0 },	/* Advanced, Cheevos, Memory: every Advanced button is 130 wide and centred */
 	{ eng::ROW_CHOICE,  "BiosDevice",    NULL,               {  7,  8,  9, 10 }, {  70,  55,  70, 70 }, 295.0f, 0.0f,  0 },	/* Select BIOS: HLE, SD, USB, DVD */
 	{ eng::ROW_CHOICE,  "BootThruBios",  NULL,               { 11, 12, 13, -1 }, {  75,  75, 171,  0 }, 295.0f, 0.0f,  1 },	/* Boot Through BIOS: Yes, No, Execute BIOS */
 	{ eng::ROW_BUTTONS, "lang",          NULL,               { 54, -1, -1, -1 }, {  90,   0,   0,  0 }, 295.0f, 0.0f,  0 },	/* Select Language */
@@ -1393,6 +1397,11 @@ void Func_AdvGfxPage()
 void Func_MemoryPage()
 {
 	pMenuContext->setActiveFrame(MenuContext::FRAME_OPTIONS, OptionsFrame::PAGE_MEMORY);
+}
+
+void Func_AchievementsPage()
+{
+	pMenuContext->setActiveFrame(MenuContext::FRAME_OPTIONS, OptionsFrame::PAGE_ACHIEVEMENTS);
 }
 
 /* Called once when the Plugins page is left, with the pair the user settled on. Switching

@@ -451,7 +451,7 @@ static SettingOption OPTIONS[] =
   { "Coop2Layout8", &coopLayout[1][7], COOP_LAYOUT_FULL, COOP_LAYOUT_COUNT - 1 },
   { "Coop2Buttons8", coopButtons[1][7], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "Achievements", NULL, 0, 0, "Achievements. Local: your own definition file, unlocks kept. Test: the same, nothing kept. Official: RetroAchievements (not available yet)." },
-  { "Achievements", &achievementsEnabled, 0, 3, NULL, "Achievements", OPT_ACH_MODE, "Off, Local (your definition file; unlocks are kept), Test (try a set; nothing is kept) or Official (RetroAchievements, not available yet). Load the game again after a change." },
+  { "Achievements", &achievementsEnabled, 0, 3, NULL, "Mode", OPT_ACH_MODE, "Off, Local (your definition file; unlocks are kept), Test (try a set; nothing is kept) or Official (RetroAchievements, not available yet). Load the game again after a change." },
   { "AchievementFile", achievementFile, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "AchievementLog", achievementLog, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
 #ifdef ACHIEVEMENTS_BENCH
