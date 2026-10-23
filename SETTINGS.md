@@ -301,7 +301,7 @@ Configure Buttons keeps the combination apart from the others: it refuses an ANA
 
 The engine evaluates a local rcheevos definition file for each game. It is off by
 default. There is no account login, online award, or hardcore mode yet. Load the
-game again after you change a set. See [the engine guide](Docs/ACHIEVEMENTS_ENGINE.md)
+game again after you change a set. See [the achievements reference](Docs/ACHIEVEMENTS.md)
 for the definition format, state handling, persistence boundaries, and tests.
 
 | Key | Values | Default | Menu | Effect |
