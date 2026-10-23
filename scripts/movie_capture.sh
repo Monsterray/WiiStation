@@ -1,60 +1,74 @@
 #!/bin/bash
 # movie_capture.sh GAME [NAME] [--mins M] [--ct 0|1] [--dol debug|release|PATH]
-# movie_capture.sh --play NAME [--frames] [--dol ...]
+# movie_capture.sh --play NAME [--frames] [--dol debug|release|PATH]
 #
-# Record how a game is to be played -- once, by a person -- as an input script that a
-# chained run (scripts/chains/) plays back exactly.
+# Record a person who plays a game one time. The result is an input script that a
+# chained run (scripts/chains/) replays exactly.
 #
-#   GAME    part of the game's folder name in the game library (scripts/profile.sh keys) ("spyro", "ff7" does
-#           not work, "final fantasy" does); run with no GAME to list them
-#   NAME    the script's name (default: from the folder); saved as
-#           scripts/autoinput/NAME_play.txt, the previous one kept as .prev
-#   --mins  how long to record, in emulated minutes (default 4; decimals work: 1.5)
-#   --ct    PlayStation pad: 0 = digital pad (default), 1 = DualShock (Ape Escape needs it)
-#   --play  boot a saved recording in a window and watch it play itself, to check it. It
-#           uses the recording's pad type, and says whether the build is the one it was made on
-#   --frames  with --play: keep the last 120 frames in .runs/<run>/frames, to compare endings
+# Arguments:
+#   GAME      Part of the game's folder name in the game library (scripts/profile.sh keys).
+#             "spyro" and "final fantasy" are examples. "ff7" does not match. Give no GAME
+#             to see the list.
+#   NAME      The name of the script (default: made from the folder name). The script is
+#             scripts/autoinput/NAME_play.txt. The previous script stays as NAME_play.txt.prev.
+#   --mins M  The recording time in emulated minutes (default 4). Decimals are permitted (1.5).
+#   --ct 0|1  The PlayStation pad: 0 = digital pad (default), 1 = DualShock.
+#             Ape Escape needs 1.
+#   --dol D   The build: debug (default), release, or the path of a DOL.
+#   --play NAME  Start a saved recording in a minimized window and let it play itself.
+#             Use this to check a recording. It uses the pad type of the recording, and it
+#             tells you if the build is not the build that made the recording.
+#   --frames  With --play: keep the last 120 frames in .runs/<run>/frames.
 #
-# How it works: the game boots as a one-game chain, the way every measured run boots, with
-# the same settings and fresh memory cards. Its input script is the single line "record",
-# and WiiStation writes every change of the real pads on ports 1 and 2 to the card, counted in
-# emulated vblanks (Gamecube/PadWiiSX.c). That is the clock playback uses, so the recording
-# replays exactly, however fast Dolphin ran while it was made. A Dolphin input movie (.dtm)
-# counts host frames instead, which drift from the game's whenever the emulation runs
-# below full speed; scripts/dtm2autoinput.py stays for old movies only.
+# Environment:
+#   DOLPHIN_MOVIE  The dolphin-movie checkout (default /c/projects/dolphin-movie).
+#                  This script uses its dolphin_movie.py for the pads and to read the card.
+#   PYTHON         The Python program (default: python, else C:/Python312/python.exe).
 #
-# A recording replays exactly with the setup that made it: the same pad type, booted alone,
-# and a build whose emulated timing matches (a change that moves a load by a frame shifts
-# every later press). So the header names the build (commit, DOL date, SHA-1), the settings,
-# the pad type and the Dolphin pad setup, and its chain line sets the pad type. If an old
-# recording drifts on a new build, build its commit and pass that DOL with --dol.
+# Exit status: 0 when the recording (or the playback) is complete, 1 when it failed,
+# 2 for a usage error.
 #
-# While recording: click the game window first (Dolphin reads the keyboard only when its
-# window has focus). The pad is a digital PlayStation pad: move with the D-pad keys, not the
-# arrow keys (those are the GameCube stick, which a digital pad does not have). Do not press
-# Start+X, which opens WiiStation's menu and ends the game early. Start+Y (fast forward) is
-# safe: the recording counts emulated time. The window closes by itself when the time is up;
-# closing it early keeps what was recorded until then. The script draws both pads with their
-# keys (scripts/pad_layout.py); a port 2 with nothing bound in Dolphin gets a keyboard layout
-# for the run, so a second player can join.
+# How it works:
+#   1. The game starts as a one-game chain, with the same settings and fresh memory cards
+#      as each measured run.
+#   2. Its input script is the single line "record". WiiStation writes each change of the
+#      real pads on ports 1 and 2 to the card (sd:/wiistation/autoinput_rec.txt). The
+#      clock is the emulated vblank (Gamecube/PadWiiSX.c). Playback uses the same clock,
+#      so the recording replays exactly at all Dolphin speeds. (A Dolphin .dtm movie
+#      counts host frames. These go out of step when the emulation is slower than full
+#      speed. scripts/dtm2autoinput.py is for old movies only.)
+#   3. dolphin_movie.py reads the recording from the card. This script adds a header
+#      and saves it.
+#
+# The header records what an exact replay needs: the build (commit, DOL date, SHA-1),
+# the settings, the pad type, the Dolphin pad setup, and the chain line. A change that
+# moves a load by one frame moves all the presses after it. If an old recording goes
+# out of step on a new build, build its commit and give that DOL with --dol.
+#
+# During the recording:
+#   - Click the game window first. Dolphin reads the keyboard only when its window has focus.
+#   - Use the D-pad keys to move. The arrow keys are the GameCube stick, and the digital
+#     pad has no stick.
+#   - Do not push Start+X. It opens WiiStation's menu and stops the game.
+#     Start+Y (fast forward) is safe, because the recording counts emulated time.
+#   - The window closes when the time is complete. If you close it before, the script
+#     keeps the presses until that point.
+#   - The script shows the keys of both pads (scripts/pad_layout.py). If port 2 has no
+#     buttons in Dolphin, it gets a keyboard layout for this run, so a second player can
+#     use the numpad.
 set -u
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 TSV="${WSX_LIBRARY:-/c/wiistation-lib}/games.tsv"   # every library game and the file it boots (scripts/library_check.py)
-PAD_USER="/c/tools/Dolphin-x64/User/Config/GCPadNew.ini"   # the user's own controller setup
-# Recordings run on one named profile, kept between them (scripts/profile.sh), so the card the
-# recording is read back from still exists when the run is over.
-MOVIE_PROFILE="$(bash "$REPO/scripts/profile.sh" path movie_capture 2>/dev/null || bash "$REPO/scripts/profile.sh" new movie_capture)" || exit 2
-export WSX_PROFILE=movie_capture
-PAD_TEST="$MOVIE_PROFILE/Config/GCPadNew.ini"      # the profile's pads: backed up and restored around the run
-CARD="$MOVIE_PROFILE/Load/WiiSD.raw"
-SYNC="$MOVIE_PROFILE/Load/WiiSDSync/wiistation"
+MOVIE="${DOLPHIN_MOVIE:-/c/projects/dolphin-movie}/dolphin_movie.py"
+REC_CARD="wiistation/autoinput_rec.txt"            # where WiiStation writes the recording (Gamecube/PadWiiSX.c)
+REC_PRESS='^(?:p2 )?(\d+) [0-9a-f]{4}'             # a press line: "VBL BTNS" for port 1, "p2 VBL BTNS" for port 2
 
-if [ -n "${PYTHON:-}" ]; then :;
-elif command -v python >/dev/null 2>&1; then PYTHON=python;
-elif [ -x /c/Python312/python.exe ]; then PYTHON=/c/Python312/python.exe;
-else PYTHON=python3; fi
 game=""; name=""; mins=4; dol=debug; play=""; frames=False; ct=0
+usage() { echo "usage: movie_capture.sh GAME [NAME] [--mins M] [--ct 0|1] [--dol D]   or   --play NAME [--frames]   (--help for more)"; exit 2; }
 while [ $# -gt 0 ]; do
+	case "$1" in
+		--mins|--dol|--ct|--play) [ $# -ge 2 ] || { echo "$1 needs a value"; usage; } ;;
+	esac
 	case "$1" in
 		--mins) mins="$2"; shift 2 ;;
 		--dol)  dol="$2"; shift 2 ;;
@@ -62,10 +76,24 @@ while [ $# -gt 0 ]; do
 		--play) play="$2"; shift 2 ;;
 		--frames) frames=True; shift ;;
 		-h|--help) sed -n '2,/^set -u/p' "$0" | sed -e '/^set -u/d' -e 's/^# \{0,1\}//'; exit 0 ;;
-		-*) echo "unknown option $1"; exit 2 ;;
-		*) if [ -z "$game" ]; then game="$1"; elif [ -z "$name" ]; then name="$1"; else echo "unexpected: $1"; exit 2; fi; shift ;;
+		-*) echo "unknown option $1"; usage ;;
+		*) if [ -z "$game" ]; then game="$1"; elif [ -z "$name" ]; then name="$1"; else echo "unexpected: $1"; usage; fi; shift ;;
 	esac
 done
+case "$ct" in 0|1) ;; *) echo "--ct is 0 (digital pad) or 1 (DualShock), not \"$ct\""; exit 2 ;; esac
+
+if [ -n "${PYTHON:-}" ]; then :;
+elif command -v python >/dev/null 2>&1; then PYTHON=python;
+elif [ -x /c/Python312/python.exe ]; then PYTHON=/c/Python312/python.exe;
+else PYTHON=python3; fi
+[ -f "$MOVIE" ] || { echo "no dolphin-movie at ${MOVIE%/*}: clone it there, or set DOLPHIN_MOVIE to its folder"; exit 2; }
+"$PYTHON" "$MOVIE" selftest >/dev/null || { echo "$MOVIE selftest failed: see its output above"; exit 2; }
+
+# Recordings use one named profile, kept between runs (scripts/profile.sh), so the card the
+# recording is read from still exists after the run.
+MOVIE_PROFILE="$(bash "$REPO/scripts/profile.sh" path movie_capture 2>/dev/null || bash "$REPO/scripts/profile.sh" new movie_capture)" || exit 2
+export WSX_PROFILE=movie_capture
+SYNC="$MOVIE_PROFILE/Load/WiiSDSync/wiistation"
 
 # Every bootable library game, one per line: its key (the folder under games/).
 games() { tr -d '\r' < "$TSV" | awk -F '\t' 'NR > 1 && $4 == "ok" { print $1 }'; }
@@ -125,21 +153,16 @@ printf 'CHAIN\n# scripts/movie_capture.sh %s\n%s sd:/wiistation/%s PadAutoAssign
 	"$name" "$vbl" "$input" "$ct" "${p2set:-}" "$folder" "$cue" > "$dir/chain.txt"
 : > "$dir/none.txt"
 
-# The test profile gets the user's controller setup for this run, and its own back after.
-# A port 2 with no buttons bound (Dolphin's default) gets a keyboard layout in that copy, so
-# two players can share the keyboard (scripts/pad_layout.py); the user's own file is not
-# written. Dolphin connects no pad to port 2 unless told: SIDevice1=6 is a GameCube pad.
-# SIGKILL skips the trap, so a backup left by such a run is put back first: copying over it
-# would keep the modified pads as the "backup".
-[ -f "$PAD_TEST.capture-bak" ] && mv -f "$PAD_TEST.capture-bak" "$PAD_TEST"
-cp "$PAD_TEST" "$PAD_TEST.capture-bak" 2>/dev/null
-# An abort (Ctrl-C, wsx failure) used to leave the user's pads in the test profile;
-# the trap restores them on ANY exit (the explicit mv below then no-ops).
-trap '[ -f "$PAD_TEST.capture-bak" ] && mv "$PAD_TEST.capture-bak" "$PAD_TEST"' EXIT INT TERM
-"$PYTHON" "$REPO/scripts/pad_layout.py" "$PAD_USER" --fill-pad2 "$PAD_TEST" > "$dir/pads.txt"
-# port 1 follows the USB pad plugged in now (a RumblePad 2 instead of the Dual Action the user's
-# setup names), with its rumble motor mapped; in the profile's copy only (scripts/pad_detect.py)
-"$PYTHON" "$REPO/scripts/pad_detect.py" "$PAD_TEST" >> "$dir/pads.txt"
+# The movie profile gets a fresh copy of the user's pad setup for each run (dolphin_movie.py
+# pads). The user's own file is only read. That copy:
+#   - gives port 2 a keyboard layout when it has no buttons, so two players share the keyboard;
+#   - points port 1 at the USB pad connected now (a RumblePad 2 where the setup names a Dual
+#     Action), with rumble;
+#   - turns the emulated Wii Remotes off.
+# The profile is used only by this script, so nothing is put back after the run.
+# Dolphin connects no pad to port 2 unless told: SIDevice1=6 (below) is a GameCube pad.
+"$PYTHON" "$MOVIE" pads "$MOVIE_PROFILE" --fill-pad2 --detect > "$dir/pads.txt" || { cat "$dir/pads.txt"; exit 1; }
+"$PYTHON" "$REPO/scripts/pad_layout.py" "$MOVIE_PROFILE/Config/GCPadNew.ini" >> "$dir/pads.txt"
 if [ -z "$play" ]; then
 	echo "Recording $(basename "$folder"): $mins emulated minutes ($vbl vblanks), then the window closes."
 	echo "Click the game window first. Both pads are recorded; port 2 can stay unused."
@@ -162,23 +185,26 @@ sleep 2; cp "$dolp" "$dir/boot.dol" || exit 1
 bash "$REPO/scripts/wsx.sh" run "$run" --dol "$dir/boot.dol" --autoboot "$dir/chain.txt" --input "$dir/none.txt" \
 	--nodump --env FRAMES_DUMP=$frames --env "DOLPHIN_ARGS=-C Dolphin.Core.SIDevice1=6" \
 	--card "$src" --secs $((vbl / 30 + 180)) | grep -E "refusing|no such|fault|exit"
-[ -f "$PAD_TEST.capture-bak" ] && mv "$PAD_TEST.capture-bak" "$PAD_TEST"
 [ -n "$play" ] && { echo "done: .runs/$run"; exit 0; }
 
 # No run, no recording: the card image still holds the last session's autoinput_rec.txt, and a
 # run that never started saved that one under the new name (2026-10-21)
 [ -f "$REPO/.runs/$run/run.info" ] || { echo "the game did not start (see the lines above): nothing was recorded or saved"; exit 1; }
 rec="$REPO/.runs/$run/autoinput_rec.txt"
-"$PYTHON" "$REPO/scripts/sdimage_read.py" "$CARD" wiistation/autoinput_rec.txt "$rec" >/dev/null 2>&1
+summary=$("$PYTHON" "$MOVIE" collect "$MOVIE_PROFILE" --card "$REC_CARD" --out "$rec" --press "$REC_PRESS")
 rm -f "$SYNC/autoinput_rec.txt"
-[ -s "$rec" ] || { echo "nothing was recorded (no autoinput_rec.txt on the card): see .runs/$run/run.log"; exit 1; }
+printf '%s\n' "$summary" > "$REPO/.runs/$run/movie_summary.json"
+# found presses last_press reached error, from dolphin_movie.py's JSON summary
+read -r found presses last reached err <<< "$("$PYTHON" -c 'import json, sys
+d = json.loads(sys.argv[1] or "{}")
+print(int(d.get("found", False)), d.get("presses", 0), "none" if d.get("last_press") is None else d["last_press"], d.get("reached", 0), d.get("error", "-").replace(" ", "_"))' "$summary")"
+[ "${err:--}" = - ] || { echo "the card could not be read: ${err//_/ }"; exit 1; }
+[ "${found:-0}" = 1 ] && [ -s "$rec" ] || { echo "nothing was recorded (no $REC_CARD on the card): see .runs/$run/run.log"; exit 1; }
 grep -q "port 1 has NO controller" "$rec" && echo "WARNING: port 1 had no controller, so the recording holds no presses"
 grep -q "port 2 has a controller" "$rec" || echo "note: port 2 had no controller; the recording plays it unplugged"
-presses=$(grep -c -E '^(p2 )?[0-9]+ [0-9a-f]{4}' "$rec"); last=$(grep -E '^(p2 )?[0-9]+ ' "$rec" | tail -1 | sed 's/^p2 //' | cut -d' ' -f1)
 # Closed early: the recording ends where it stopped, not at the planned length. WiiStation
-# writes "# alive <vblank>" every 5 seconds; the last one, or the last press if later, is
-# where the run got to, and a second on top keeps the last press's release.
-reached=$( { grep '^# alive ' "$rec" | sed 's/^# alive //'; echo "${last:-0}"; } | tr -d '\r' | sort -n | tail -1)
+# writes "# alive <vblank>" every 5 seconds. "reached" is the last one, or the last press if
+# later. One second more keeps the last press's release.
 if [ -n "$reached" ] && [ "$reached" -gt 0 ] && [ $((reached + 60)) -lt "$vbl" ]; then
 	echo "the window was closed at about vblank $reached of $vbl: the recording ends there"
 	vbl=$((reached + 60))

@@ -33,10 +33,22 @@ FIELDS = {
 }
 
 def reports(path, game):
+    """GAME's report blocks. A block ends at the next '--- perf' header, chain marker or EOF
+    (it used to end at 'gpupres:', a line only some probe builds print: no reports at all)."""
     out, cur, g = [], {}, 1
+
+    def close():
+        if g == game and 'vbl' in cur:
+            out.append(dict(cur))
+        cur.clear()
+
     for line in open(path, errors='replace'):
         if line.startswith('=== chain'):
+            close()
             g += 1
+            continue
+        if line.startswith('--- perf'):
+            close()
             continue
         if g != game:
             continue
@@ -47,9 +59,7 @@ def reports(path, game):
             m = re.match(rx, line)
             if m:
                 cur[k] = ' '.join(m.groups()).strip()
-        if line.startswith('gpupres:') and 'vbl' in cur:   # the last line of a report block
-            out.append(cur)
-            cur = {}
+    close()
     return out
 
 def main():

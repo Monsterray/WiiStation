@@ -108,7 +108,18 @@ Dolphin movie: a `.dtm` counts host frames, which drift from the game's vblanks 
 emulation runs below full speed (`dtm2autoinput.py` is for old movies only). Both ports are
 recorded: port 2 lines read `p2 <vblank> <mask>`, and a script with any stands in for a pad
 on port 2. The script draws both pads with their keys (`scripts/pad_layout.py`); a port 2
-with nothing bound gets a keyboard layout (numpad D-pad) in the test profile's copy only.
+with nothing bound gets a keyboard layout (numpad D-pad) in the movie profile's copy only.
+
+**The Dolphin side is shared with Wii64 (2026-10-23):** `C:/projects/dolphin-movie`
+(`DOLPHIN_MOVIE` overrides). movie_capture.sh calls its `dolphin_movie.py pads PROFILE
+--fill-pad2 --detect` (the user's GCPadNew.ini copied into the movie profile, port 2 keyboard
+fill, port 1 pointed at the USB pad connected now, emulated Wiimotes off) and, after its own
+`wsx.sh run`, `dolphin_movie.py collect PROFILE --card wiistation/autoinput_rec.txt --press
+'^(?:p2 )?(\d+) [0-9a-f]{4}'` (JSON summary; also `.runs/<run>/movie_summary.json`). The
+recording format stays WiiStation's: dolphin-movie reads only press lines and `# alive N` /
+`# end N`. Its README lists what every adapter must do. Switch verified: `spyro_tornado`
+replayed through the new script with its capture DOL, `replay_check.py --all` identical at all
+four reports (14399 vblanks).
 `--ct 1` records with a DualShock (analog games). The recording's header names its build
 (commit, DOL SHA-1), settings and pad type, and its chain line sets ControllerType: replay it
 with that line, alone -- 4th in a chain with the wrong pad type it went its own way.
@@ -128,6 +139,8 @@ blaming the plugin: Spyro's mouths were the game's own sorting.
 counters (interrupts, CD reads, SIO/pad traffic, BIOS calls, GTE calls) at reports with the
 SAME vblank -- reports come every 1800 presents, which depend on the host, so compare by
 vblank, never by report number (2026-09-30: a "drift" that was a cut-short run's last report).
+A report ends at the next `--- perf` header (before 2026-10-23 it ended at `gpupres:`, which only
+some probe builds print, so plain debug runs gave "no report at a common vblank").
 Host microseconds and OpenGX's drawn-primitive counts always differ and mean nothing here.
 The `cd` field is `reads`/`bytes` only: `seq`/`rand` say how the host read the image (CdPrefetch
 changes them). `--all` goes past the first difference: an offset that stays fixed is timing,

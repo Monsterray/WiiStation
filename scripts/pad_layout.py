@@ -1,30 +1,23 @@
 #!/usr/bin/env python3
-"""pad_layout.py GCPadNew.ini [--fill-pad2 OUT.ini]
+"""pad_layout.py GCPADNEW.INI
 
-Draw ports 1 and 2 as PlayStation pads, each button showing the Dolphin key (or pad
-input) bound to it, through WiiStation's default GameCube mapping
-(Gamecube/gc_input/controller-GC.c): A Cross, B Square, X Circle, Y Triangle, Start Start,
-Z+Start Select, L L1, R R1, Z+L L2, Z+R R2, D-pad D-pad. The pad is digital, so the
-GameCube sticks do nothing.
+Draw ports 1 and 2 of a Dolphin GCPadNew.ini as PlayStation pads. Each button shows the
+Dolphin key or pad input that operates it, through WiiStation's default GameCube mapping
+(Gamecube/gc_input/controller-GC.c):
+  A Cross, B Square, X Circle, Y Triangle, Start Start, Z+Start Select,
+  L L1, R R1, Z+L L2, Z+R R2, D-pad D-pad.
+The PlayStation pad is digital, so the GameCube sticks have no function.
 
---fill-pad2 OUT.ini writes the file to OUT.ini with a keyboard layout for port 2 when its
-[GCPad2] section binds no button (Dolphin's default), so two players can share the
-keyboard: D-pad on the numpad (8 4 5 6), the face buttons on the Home/End/Delete/PgDn
-block, Start on numpad Enter. scripts/movie_capture.sh uses it on the test profile's copy;
-the user's own file is never written.
+scripts/movie_capture.sh uses it after "dolphin_movie.py pads" (the dolphin-movie repo)
+has prepared the profile's copy. The keyboard layout for an empty port 2 is in
+dolphin-movie now ("pads --fill-pad2").
 """
 import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from cliutil import flag, need, req_file  # noqa: E402
+from cliutil import need, req_file  # noqa: E402
 
-PAD2 = {  # the fill-in for an empty [GCPad2]: numpad + the six-key block above the arrows
-    'Buttons/A': 'END', 'Buttons/B': 'DELETE', 'Buttons/X': 'NEXT', 'Buttons/Y': 'HOME',
-    'Buttons/Z': 'NUMPAD0', 'Buttons/Start': 'NUMPADENTER',
-    'Triggers/L': 'INSERT', 'Triggers/R': 'PRIOR',
-    'D-Pad/Up': 'NUMPAD8', 'D-Pad/Down': 'NUMPAD5', 'D-Pad/Left': 'NUMPAD4', 'D-Pad/Right': 'NUMPAD6',
-}
 EXACT = {'NUMPADENTER': 'NumEnter', 'RETURN': 'Enter', 'PRIOR': 'PgUp', 'NEXT': 'PgDn',
          'DELETE': 'Del', 'INSERT': 'Ins', 'HOME': 'Home', 'END': 'End'}
 
@@ -84,29 +77,9 @@ def draw(title, s):
 
 
 def main():
-    need(sys.argv, 2, "pad_layout.py GCPADNEW.INI [--fill-pad2 OUT.INI]")
-    a = sys.argv[1:]
-    text = open(req_file(a[0], 'ini'), encoding='utf-8', errors='replace').read()
+    need(sys.argv, 2, "pad_layout.py GCPADNEW.INI")
+    text = open(req_file(sys.argv[1], 'ini'), encoding='utf-8', errors='replace').read()
     sec = sections(text)
-    out = flag(sys.argv, '--fill-pad2')
-    if out is not None:
-        p2 = sec.get('GCPad2', {})
-        if not any(k.startswith(('Buttons/', 'D-Pad/', 'Triggers/')) for k in p2):
-            lines, skip = [], False
-            for ln in text.splitlines():
-                if ln.strip().startswith('['):
-                    skip = ln.strip() == '[GCPad2]'
-                    if skip:
-                        lines += ['[GCPad2]', 'Device = DInput/0/Keyboard Mouse']
-                        lines += ['%s = `%s`' % kv for kv in PAD2.items()]
-                        continue
-                if not skip:
-                    lines.append(ln)
-            if '[GCPad2]' not in text:
-                lines += ['[GCPad2]', 'Device = DInput/0/Keyboard Mouse'] + ['%s = `%s`' % kv for kv in PAD2.items()]
-            text = '\n'.join(lines) + '\n'
-            sec = sections(text)
-        open(out, 'w', encoding='utf-8', newline='\r\n').write(text)
     print(draw('PORT 1', sec.get('GCPad1', {})))
     print()
     print(draw('PORT 2', sec.get('GCPad2', {})))
