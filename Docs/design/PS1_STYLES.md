@@ -79,7 +79,7 @@ from points when rarity is not known (Local sets, before login).
 | Silver | under 5 % | 25 | burst of rays from the icon |
 | Gold | under 2 % | 50 | flash and rays |
 | Crystal (see-through) | under 1 % | 100 | rays and a white core that fills the card |
-| Beaten (game) | every Progression + a Win | - | the Win card flashes into Gold (G1) |
+| Beaten (game) | every Progression + a Win | - | the Win card flashes (G1) into Finish Line: black lacquer bands, a two-row chequered strip on the top edge, gold trim, white text |
 | Mastered (game) | every achievement | - | the last card bursts into Platinum (G2), crown icon |
 
 - Every type takes the tier of its rarity, Progression too.
@@ -88,4 +88,4 @@ from points when rarity is not known (Local sets, before login).
   Bottom right: the share of players (`8.1% have it`).
 - Icons (16 x 16): Standard trophy (3 frames), Progression key, Missable hourglass (3 frames of
   sand), Win chequered flag (2 frames). Chips: `Progress` (teal), `Missable` (red), `Win`.
-- Mockup: https://claude.ai/artifact/89LDeEztjrySZwdLPPZiLX (version 7).
+- Mockup: https://claude.ai/artifact/89LDeEztjrySZwdLPPZiLX (version 8).
