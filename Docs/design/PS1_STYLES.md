@@ -65,3 +65,27 @@ It stays inside the title-safe width (32 px from each side).
   low-poly trophy is drawn one flat triangle at a time (45 ms each), turns in 16 steps and jitters
   by 1 px. Banded gold letters drop in one at a time. It closes like an old TV turning off.
 - **Completion animations:** Roll-up, Gold Card, Gold Disc, COMPLETE!
+
+## Achievement tiers (decided 2026-10-23)
+
+Unlock toasts use the Save Block II card. The card colour is the tier. The tier comes from
+rarity (the share of players who have the achievement, `rc_client_achievement_t.rarity`), or
+from points when rarity is not known (Local sets, before login).
+
+| Tier | Rarity | Points (no rarity) | Effect as it lands |
+|---|---|---|---|
+| Blue | 10 % or more | under 10 | slide in, sheen |
+| Bronze | under 10 % | 10 | one white flash |
+| Silver | under 5 % | 25 | burst of rays from the icon |
+| Gold | under 2 % | 50 | flash and rays |
+| Crystal (see-through) | under 1 % | 100 | rays and a white core that fills the card |
+| Beaten (game) | every Progression + a Win | - | the Win card flashes into Gold (G1) |
+| Mastered (game) | every achievement | - | the last card bursts into Platinum (G2), crown icon |
+
+- Every type takes the tier of its rarity, Progression too.
+- Platinum is brushed metal (bright and dark bands, two specular bands), no rainbow.
+- The card has no heading text. Top right: the points it gave. Bottom left: `BLOCK x/y`.
+  Bottom right: the share of players (`8.1% have it`).
+- Icons (16 x 16): Standard trophy (3 frames), Progression key, Missable hourglass (3 frames of
+  sand), Win chequered flag (2 frames). Chips: `Progress` (teal), `Missable` (red), `Win`.
+- Mockup: https://claude.ai/artifact/89LDeEztjrySZwdLPPZiLX (version 7).
