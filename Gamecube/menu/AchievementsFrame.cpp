@@ -111,7 +111,7 @@ void AchievementsFrame::drawChildren(menu::Graphics &gfx)
 	font.drawInit(text);
 	if (!count)
 	{
-		snprintf(line, sizeof line, "No achievement set is loaded for this game.");
+		snprintf(line, sizeof line, "%s", achievements_status());   /* why: off, a .exe, no set, Official ... */
 		font.drawString(320, 150, line, 1.0f, true);	/* below the logo, above Prev and Next */
 		return;
 	}

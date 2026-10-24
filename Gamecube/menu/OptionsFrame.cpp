@@ -63,6 +63,7 @@
 #include "MenuContext.h"
 #include "SettingsFrame.h"
 #include "OptionsFrame.h"
+#include "RomInfo.h"
 #include "MenuEngine.h"
 #include "../libgui/Button.h"
 #include "../libgui/TextBox.h"
@@ -71,6 +72,7 @@
 #include "../libgui/FocusManager.h"
 #include "../libgui/CursorManager.h"
 #include "../wiiSXconfig.h"
+#include "../../psxcommon.h"   /* Config: the ISO Info page */
 #include "../MEM2.h"
 #include "../../achievements.h"
 
@@ -411,6 +413,18 @@ static const OptRow MEMORY_ROWS[] =
 	ROW_INFO("SPU + BIOS buffers",  infoFixedBuffers),
 };
 
+/*  The ISO Info page: the loaded game's rows, as RomInfo.h lists them  */
+
+#define ISOINFO_ROW(label, fn) ROW_INFO(label, fn),
+static const OptRow ISOINFO_ROWS[] = { ROM_INFO_ROWS(ISOINFO_ROW) };
+#undef ISOINFO_ROW
+
+static const OptHelp ISOINFO_HELP[] =
+{
+	{ "Achievements:", "Only for a PS1 disc image. A .exe has" },
+	{ NULL,            "no disc to identify, so it gets none." },
+};
+
 /* The mode is a cycle: its four values do not fit a radio row (OPT_MAX_CHOICES). A change
  * applies at the next game load (achievements_load), so there is no apply function. */
 static const OptRow ACH_ROWS[] =
@@ -426,7 +440,8 @@ static const OptHelp ACH_HELP[] =
 	{ NULL,        "Load the game again after a change." },
 	{ "Set file:", "AchievementFile in settings.ini." },
 	{ "Account:",  "The User= line of achievements/ra_account.ini." },
-	{ "Official:", "Not available yet." },
+	{ "Official:", "RetroAchievements, Casual." },
+	{ NULL,        "Needs ra_account.ini and tls_seed.bin." },
 };
 
 struct OptPage
@@ -437,7 +452,7 @@ struct OptPage
 	int					nrows;
 	const OptHelp*		help;			// explanation under the rows; NULL for none
 	int					nhelp;
-	int					returnSubmenu;	// the Settings tab B goes back to
+	int					returnSubmenu;	// the Settings tab B goes back to; RETURN_CURRENT_ISO: Current ISO
 	void				(*onEnter)(void);
 	void				(*onLeave)(void);
 	float				rowDy;			// the row pitch, or 0 for the default (60)
@@ -445,6 +460,7 @@ struct OptPage
 };
 
 #define COUNT(a)	((int)(sizeof(a) / sizeof((a)[0])))
+#define RETURN_CURRENT_ISO	(-1)
 
 static const OptPage PAGES[] =
 {
@@ -457,6 +473,7 @@ static const OptPage PAGES[] =
 	{ "Advanced", "Input", INPUT_ROWS,  COUNT(INPUT_ROWS),   INPUT_HELP,  COUNT(INPUT_HELP),  SettingsFrame::SUBMENU_GENERAL, pluginsEnter, pluginsLeave },
 	{ "Advanced", "SPU",  SPU_ROWS,     COUNT(SPU_ROWS),     SPU_HELP,    COUNT(SPU_HELP),    SettingsFrame::SUBMENU_GENERAL, pluginsEnter, pluginsLeave },
 	{ "Achievements", NULL, ACH_ROWS,   COUNT(ACH_ROWS),     ACH_HELP,    COUNT(ACH_HELP),    SettingsFrame::SUBMENU_GENERAL, NULL,         NULL         },
+	{ "ISO Info", NULL,   ISOINFO_ROWS, COUNT(ISOINFO_ROWS), ISOINFO_HELP, COUNT(ISOINFO_HELP), RETURN_CURRENT_ISO,           NULL,         NULL,         40.0f },
 };
 
 /* The Advanced pages, in the order their tabs run across the top. A tab switch stays inside
@@ -573,6 +590,8 @@ typedef char opt_plugin_help_fits [OPT_HELP_FITS(PLUGIN_HELP)  ? 1 : -1];
 typedef char opt_cd_help_fits[OPT_HELP_FITS(CD_HELP) ? 1 : -1];
 typedef char opt_ach_fits[OPT_PAGE_FITS(ACH_ROWS) ? 1 : -1];
 typedef char opt_ach_help_fits[OPT_HELP_FITS(ACH_HELP) ? 1 : -1];
+typedef char opt_isoinfo_fits[OPT_PAGE_FITS(ISOINFO_ROWS) ? 1 : -1];
+typedef char opt_isoinfo_help_fits[OPT_HELP_FITS(ISOINFO_HELP) ? 1 : -1];
 
 static const OptRow* pageRow(int row)
 {
@@ -1062,6 +1081,9 @@ void Func_ReturnFromOptionsFrame()
 	/* Go back to the tab first: a plugin change with a game loaded restarts the emulator
 	 * and ends in Func_SetPlayGame(), which puts the game on screen. Switching frames
 	 * afterwards would undo that, so the hook runs last. */
-	pMenuContext->setActiveFrame(MenuContext::FRAME_SETTINGS, returnSubmenu);
+	if (returnSubmenu == RETURN_CURRENT_ISO)
+		pMenuContext->setActiveFrame(MenuContext::FRAME_CURRENTROM);
+	else
+		pMenuContext->setActiveFrame(MenuContext::FRAME_SETTINGS, returnSubmenu);
 	if (onLeave) onLeave();
 }

@@ -28,6 +28,7 @@
 #include "MenuContext.h"
 #include "MenuEngine.h"	/* before Button.h: its include guard is BUTTON_H, a name the engine uses */
 #include "FileBrowserFrame.h"
+#include "RomInfo.h"
 #include "../libgui/Button.h"
 #include "../libgui/IPLFont.h"
 #include "../libgui/resources.h"
@@ -741,71 +742,19 @@ void fileBrowserFrame_LoadFile(int i)
 
 			snprintf(feedback_string, sizeof(feedback_string), "Loaded %s", filenameFromAbsPath(dir_entries[i].name));
 
+			// Switches for painting textured quads as 2 triangles (small glitches, but better shading!)
+			// This function has been automatically started in soft.c and dwActFixes have been determined in gpu code, so need to set it here
+			Config.hacks.dwActFixes |= AUTO_FIX_QUADS_AS_2TRIANGLES;
+			// auto recJR => psxJR for some game
+			CheckGameR3000AutoFix();
+
+			/* "Loaded <file>", a warning when one applies, then the game's rows (RomInfo.h) */
 			char RomInfo[512] = "";
-			char buffer [50];
-			menu::glue::appendBounded(RomInfo, sizeof(RomInfo), feedback_string);
-			sprintf(buffer,"\nCD-ROM Label: %s\n",CdromLabel);
-			menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
-			sprintf(buffer,"CD-ROM ID: %s\n", CdromId);
-			menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
-            if (check_unsatisfied_libcrypt())
-            {
-                sprintf(buffer, "LibCrypt protected game with missing SBI\n");
-                menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
-            }
-            if (Config.hacks.gpu_slow_list_walking)
-            {
-                sprintf(buffer, "GpuSlowListWalking auto fixed\n");
-                menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
-            }
-            if (Config.cycle_multiplier_override)
-            {
-                sprintf(buffer, "CycleMultiplierOverride fixed\n");
-                menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
-            }
-            if (Config.hacks.gpu_busy_hack)
-            {
-                sprintf(buffer, "GPU 'Fake Busy States' hacked\n");
-                menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
-            }
-            if (Config.hacks.dwActFixes)
-            {
-                sprintf(buffer, "Special game auto fixed %08lx\n", Config.hacks.dwActFixes);
-                menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
-            }
-            if (Config.hacks.lightrec_hacks)
-            {
-                sprintf(buffer, "Applied Lightrec hacks\n");
-                menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
-            }
-            // Switches for painting textured quads as 2 triangles (small glitches, but better shading!)
-            // This function has been automatically started in soft.c and dwActFixes have been determined in gpu code, so need to set it here
-            Config.hacks.dwActFixes |= AUTO_FIX_QUADS_AS_2TRIANGLES;
-
-            // auto recJR => psxJR for some game
-            CheckGameR3000AutoFix();
-            if (Config.pR3000Fix)
-            {
-                sprintf(buffer, "pR3000 auto fixed\n");
-                menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
-            }
-
-			/* Under 1 MB in KB (rounded up), so a small image does not read "0 MB" */
-			if (isoFile.size < 1024 * 1024)
-				sprintf(buffer, "ISO Size: %u KB\n", (isoFile.size + 1023) / 1024);
-			else
-				sprintf(buffer, "ISO Size: %u MB\n", isoFile.size / 1024 / 1024);
-			menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
-			sprintf(buffer,"Country: %s\n",forceNTSC == FORCENTSC_ENABLE ? "FORCE NTSC" : ((!Config.PsxType) ? "NTSC":"PAL"));
-			menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
-			sprintf(buffer,"BIOS: %s\n",(Config.HLE==BIOS_USER_DEFINED) ? "PSX":"HLE");
-			menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
-			sprintf(buffer, "BIOS Name: %s\n", biosFileName);
-			menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
-			unsigned char tracks[2];
-            ISOgetTN(&tracks[0]);
-            sprintf(buffer,"Number of tracks %u\n", tracks[1]);
-			menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
+			menu::glue::appendBounded(RomInfo, sizeof(RomInfo), "Game loaded");   /* the File row names it */
+			menu::glue::appendBounded(RomInfo, sizeof(RomInfo), "\n");
+			if (check_unsatisfied_libcrypt())
+				menu::glue::appendBounded(RomInfo, sizeof(RomInfo), "Warning: LibCrypt protected game with missing SBI\n");
+			romInfoText(RomInfo, sizeof(RomInfo));
 
 			switch (autoSaveLoaded)
 			{

@@ -22,6 +22,7 @@
 #include "MenuEngine.h"	/* before Button.h: its include guard is BUTTON_H, a name the engine uses */
 #include "CurrentRomFrame.h"
 #include "AchievementsFrame.h"
+#include "OptionsFrame.h"
 #include "../libgui/Button.h"
 #include "../libgui/IPLFont.h"
 #include "../libgui/resources.h"
@@ -32,6 +33,7 @@
 #include "../../psxcommon.h"
 #include "../screenshot.h"
 #include "MenuGlue.h"
+#include "../../achievements.h"
 
 extern "C" {
 #include "../fileBrowser/fileBrowser.h"
@@ -54,46 +56,46 @@ void Func_StateCycle();
 void Func_Screenshot();
 void Func_ReturnFromCurrentRomFrame();
 
-static const int NUM_FRAME_BUTTONS = 10;
-static const int CUR_ROWS_N = 6;
-
-static char currentRomStrings[10][15] =
-	{ "Restart Game",
-	  "Swap CD",
-	  "Load MemCards",
-	  "Save MemCards",
-	  "Show ISO Info",
-	  "Load State",
-	  "Save State",
-	  "Slot 0",
-	  "Screenshot",
-	  "Achievements"};
-
-struct CurrentRomButtonInfo
+/* The Current ISO page, one line per button: its label, what A does, and its place: the row
+ * and the slot (column) in it, the width, and how far below the row's top (0 = the top).
+ * Add, move or rename a button here; the rows, the focus links and the cursor follow. */
+struct CurrentRomButton
 {
-	menu::Button	*button;
-	int				buttonStyle;
-	char*			buttonString;
-	ButtonFunc		clickedFunc;
-	ButtonFunc		returnFunc;
-	int				row, slot;	/* the place on the page */
-	float			width;		/* the engine's action button */
-	float			dy;			/* below its row's top; 0 = the row's top */
+	const char	*label;
+	ButtonFunc	clicked;
+	int			row, slot;
+	float		width, dy;
 };
 
-static CurrentRomButtonInfo currentRomButtons[NUM_FRAME_BUTTONS] =
-{	//	button	style		string					clickFunc			returnFunc						row slot width   dy
-	{	NULL,	BTN_A_NRM,	currentRomStrings[0],	Func_ResetROM,		Func_ReturnFromCurrentRomFrame,	0, 0, 230.0f,  0.0f },
-	{	NULL,	BTN_A_NRM,	currentRomStrings[1],	Func_SwapCD,		Func_ReturnFromCurrentRomFrame,	0, 1, 230.0f,  0.0f },
-	{	NULL,	BTN_A_NRM,	currentRomStrings[2],	Func_LoadSave,		Func_ReturnFromCurrentRomFrame,	1, 0, 230.0f,  0.0f },
-	{	NULL,	BTN_A_NRM,	currentRomStrings[3],	Func_SaveGame,		Func_ReturnFromCurrentRomFrame,	1, 1, 230.0f,  0.0f },
-	{	NULL,	BTN_A_NRM,	currentRomStrings[4],	Func_ShowRomInfo,	Func_ReturnFromCurrentRomFrame,	2, 0, 230.0f,  0.0f },
-	{	NULL,	BTN_A_NRM,	currentRomStrings[5],	Func_LoadState,		Func_ReturnFromCurrentRomFrame,	3, 0, 220.0f,  0.0f },
-	{	NULL,	BTN_A_NRM,	currentRomStrings[6],	Func_SaveState,		Func_ReturnFromCurrentRomFrame,	4, 0, 220.0f,  0.0f },
-	{	NULL,	BTN_A_NRM,	currentRomStrings[7],	Func_StateCycle,	Func_ReturnFromCurrentRomFrame,	3, 1, 120.0f, 30.0f },
-	{	NULL,	BTN_A_NRM,	currentRomStrings[8],	Func_Screenshot,	Func_ReturnFromCurrentRomFrame,	5, 0, 220.0f,  0.0f },
-	{	NULL,	BTN_A_NRM,	currentRomStrings[9],	Func_AchievementsList,	Func_ReturnFromCurrentRomFrame,	2, 1, 230.0f,  0.0f },
+static const CurrentRomButton CUR_BUTTONS[] =
+{	//	label				A does					row slot width   dy
+	{	"Restart Game",		Func_ResetROM,			0, 0, 230.0f,  0.0f },
+	{	"Swap CD",			Func_SwapCD,			0, 1, 230.0f,  0.0f },
+	{	"Load MemCards",	Func_LoadSave,			1, 0, 230.0f,  0.0f },
+	{	"Save MemCards",	Func_SaveGame,			1, 1, 230.0f,  0.0f },
+	{	"Show ISO Info",	Func_ShowRomInfo,		2, 0, 230.0f,  0.0f },
+	{	"Achievements",		Func_AchievementsList,	2, 1, 230.0f,  0.0f },
+	{	"Load State",		Func_LoadState,			3, 0, 220.0f,  0.0f },
+	{	"Slot 0",			Func_StateCycle,		3, 1, 120.0f, 30.0f },
+	{	"Save State",		Func_SaveState,			4, 0, 220.0f,  0.0f },
+	{	"Screenshot",		Func_Screenshot,		5, 0, 220.0f,  0.0f },
 };
+static const int NUM_FRAME_BUTTONS = sizeof CUR_BUTTONS / sizeof CUR_BUTTONS[0];
+static const int SLOT_BUTTON = 7;		/* "Slot N": its label follows the slot */
+static const int CUR_SLOTS_MAX = 2;		/* buttons a row can hold */
+
+/* Each row: the x of its first button, and the gap between its buttons */
+struct CurrentRomRow { float x0, gap; };
+static const CurrentRomRow CUR_ROW_PLACE[] =
+{
+	{ 100.0f, 20.0f }, { 100.0f, 20.0f }, { 100.0f, 20.0f }, { 150.0f, 20.0f }, { 150.0f, 0.0f }, { 150.0f, 0.0f },
+};
+static const int CUR_ROWS_N = sizeof CUR_ROW_PLACE / sizeof CUR_ROW_PLACE[0];
+
+/* The buttons drawn, and their labels: a Button keeps a pointer to its label */
+static menu::Button *curButton[NUM_FRAME_BUTTONS];
+static char curLabel[NUM_FRAME_BUTTONS][24];
+static char *curLabelPtr[NUM_FRAME_BUTTONS];
 
 /* The Current ROM page is set by the engine. The logo is at the bottom right.
  * Up and Down keep the column. The links in CUR_LINKS keep Save State and Cycle State together. */
@@ -109,46 +111,46 @@ static const eng::LinkOverride CUR_LINKS[] = {
 	{ 4, 0, eng::DIR_RIGHT, 3, 1 },		/* Save State right: Cycle State */
 };
 
-/* Each row has a button count, the x of its first button, and the gap between its buttons. */
-static const int   CUR_ROW_COUNT[CUR_ROWS_N] = { 2, 2, 2, 2, 1, 1 };
-static const float CUR_ROW_X0[CUR_ROWS_N]    = { 100.0f, 100.0f, 100.0f, 150.0f, 150.0f, 150.0f };
-static const float CUR_ROW_GAP[CUR_ROWS_N]   = { 20.0f, 20.0f, 20.0f, 20.0f, 0.0f, 0.0f };
-
 /* The buttons of each row, by slot: a row's actions must be consecutive, so they are kept by place. */
-static eng::ActionButton CUR_ACTIONS[CUR_ROWS_N][2];
+static eng::ActionButton CUR_ACTIONS[CUR_ROWS_N][CUR_SLOTS_MAX];
 static eng::Row CUR_ROWS[CUR_ROWS_N];
 static eng::Page CUR_PAGE;
 static eng::Layout CUR_LAYOUT;
 
-/* The currentRomButtons entry at a row and slot of the layout, or -1. */
+/* The CUR_BUTTONS entry at a row and slot of the layout, or -1. */
 static int curButtonAt(int row, int slot)
 {
 	for (int k = 0; k < NUM_FRAME_BUTTONS; k++)
-		if (currentRomButtons[k].row == row && currentRomButtons[k].slot == slot)
+		if (CUR_BUTTONS[k].row == row && CUR_BUTTONS[k].slot == slot)
 			return k;
 	return -1;
 }
 
 static void layoutCurrentRom(void)
 {
+	int rowCount[CUR_ROWS_N] = { 0 };
 	for (int k = 0; k < NUM_FRAME_BUTTONS; k++)
 	{
-		const CurrentRomButtonInfo &b = currentRomButtons[k];
+		const CurrentRomButton &b = CUR_BUTTONS[k];
 		eng::ActionButton &a = CUR_ACTIONS[b.row][b.slot];
-		a.text  = b.buttonString;	/* Slot N changes this text in place */
+		snprintf(curLabel[k], sizeof curLabel[k], "%s", b.label);
+		curLabelPtr[k] = curLabel[k];
+		a.text  = curLabel[k];	/* Slot N changes this text in place */
 		a.lit   = false;
 		a.width = b.width;
 		a.dy    = b.dy;
+		if (b.slot + 1 > rowCount[b.row])
+			rowCount[b.row] = b.slot + 1;	/* a row holds slots 0 .. its last one */
 	}
 	for (int r = 0; r < CUR_ROWS_N; r++)
 	{
 		eng::Row &row = CUR_ROWS[r];
 		memset(&row, 0, sizeof row);
 		row.kind    = eng::ROW_BUTTONS;
-		row.count   = CUR_ROW_COUNT[r];
+		row.count   = rowCount[r];
 		row.actions = CUR_ACTIONS[r];
-		row.x0      = CUR_ROW_X0[r];
-		row.gap     = CUR_ROW_GAP[r];
+		row.x0      = CUR_ROW_PLACE[r].x0;
+		row.gap     = CUR_ROW_PLACE[r].gap;
 	}
 	memset(&CUR_PAGE, 0, sizeof CUR_PAGE);
 	CUR_PAGE.rows       = CUR_ROWS;
@@ -188,7 +190,7 @@ static void layoutCurrentRom(void)
 /* The button drawn for a layout control. */
 static menu::Button *curButtonOf(const eng::Control &c)
 {
-	return currentRomButtons[curButtonAt(c.row, c.slot)].button;
+	return curButton[curButtonAt(c.row, c.slot)];
 }
 
 CurrentRomFrame::CurrentRomFrame()
@@ -198,27 +200,26 @@ CurrentRomFrame::CurrentRomFrame()
 	/* Each button's box, and so its Cursor range, is the engine's rectangle for its place. */
 	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
 	{
-		CurrentRomButtonInfo &b = currentRomButtons[i];
+		const CurrentRomButton &b = CUR_BUTTONS[i];
 		const eng::Control &c = CUR_LAYOUT.c[CUR_LAYOUT.slot[b.row][b.slot]];
-		b.button = new menu::Button(b.buttonStyle, &b.buttonString,
-										c.rect.x, c.rect.y, c.rect.w, c.rect.h);
+		curButton[i] = new menu::Button(BTN_A_NRM, &curLabelPtr[i], c.rect.x, c.rect.y, c.rect.w, c.rect.h);
 	}
 
 	/* The engine's links, handed to the buttons. */
 	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
 	{
-		CurrentRomButtonInfo &b = currentRomButtons[i];
+		const CurrentRomButton &b = CUR_BUTTONS[i];
 		const eng::Control &c = CUR_LAYOUT.c[CUR_LAYOUT.slot[b.row][b.slot]];
-		menu::glue::linkFocus(b.button, CUR_LAYOUT, c, curButtonOf);
-		b.button->setActive(true);
-		if (b.clickedFunc) b.button->setClicked(b.clickedFunc);
-		if (b.returnFunc) b.button->setReturn(b.returnFunc);
-		add(b.button);
-		menu::Cursor::getInstance().addComponent(this, b.button, c.rect.x,
+		menu::glue::linkFocus(curButton[i], CUR_LAYOUT, c, curButtonOf);
+		curButton[i]->setActive(true);
+		curButton[i]->setClicked(b.clicked);
+		curButton[i]->setReturn(Func_ReturnFromCurrentRomFrame);
+		add(curButton[i]);
+		menu::Cursor::getInstance().addComponent(this, curButton[i], c.rect.x,
 												c.rect.x+c.rect.w, c.rect.y,
 												c.rect.y+c.rect.h);
 	}
-	setDefaultFocus(currentRomButtons[0].button);
+	setDefaultFocus(curButton[0]);
 	setBackFunc(Func_ReturnFromCurrentRomFrame);
 	setEnabled(true);
 }
@@ -227,8 +228,8 @@ CurrentRomFrame::~CurrentRomFrame()
 {
 	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
 	{
-		menu::Cursor::getInstance().removeComponent(this, currentRomButtons[i].button);
-		delete currentRomButtons[i].button;
+		menu::Cursor::getInstance().removeComponent(this, curButton[i]);
+		delete curButton[i];
 	}
 }
 
@@ -237,63 +238,10 @@ extern char CdromId[10];
 extern char CdromLabel[33];
 extern char debugInfo[256];
 
+/* Show ISO Info: the ISO Info page (OptionsFrame.cpp ISOINFO_ROWS, an engine page of readouts) */
 void Func_ShowRomInfo()
 {
-	char RomInfo[256] = "";
-	char buffer [50];
-
-	sprintf(buffer,"CD-ROM Label: %s\n",CdromLabel);
-  menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
-  sprintf(buffer,"CD-ROM ID: %s\n", CdromId);
-
-	menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
-  if (Config.hacks.gpu_slow_list_walking)
-  {
-  	sprintf(buffer, "GpuSlowListWalking auto fixed\n");
-  	menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
-  }
-  if (Config.cycle_multiplier_override)
-  {
-  	sprintf(buffer, "CycleMultiplierOverride fixed\n");
-  	menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
-  }
-  if (Config.hacks.gpu_busy_hack)
-  {
-  	sprintf(buffer, "GPU 'Fake Busy States' hacked\n");
-  	menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
-  }
-  if (Config.hacks.dwActFixes)
-  {
-  	sprintf(buffer, "Special game auto fixed %08lx\n", Config.hacks.dwActFixes);
-  	menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
-  }
-  if (Config.hacks.lightrec_hacks)
-  {
-  	sprintf(buffer, "Applied Lightrec hacks\n");
-  	menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
-  }
-  if (Config.pR3000Fix)
-  {
-  	sprintf(buffer, "pR3000 auto fixed\n");
-  	menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
-  }
-
-  /* Under 1 MB in KB (rounded up), so a small image does not read "0 MB" */
-  if (isoFile.size < 1024 * 1024)
-    sprintf(buffer, "ISO Size: %u KB\n", (isoFile.size + 1023) / 1024);
-  else
-    sprintf(buffer, "ISO Size: %u MB\n", isoFile.size / 1024 / 1024);
-  menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
-  sprintf(buffer,"Country: %s\n",(!Config.PsxType) ? "NTSC":"PAL");
-  menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
-  sprintf(buffer,"BIOS: %s\n",(Config.HLE==BIOS_USER_DEFINED) ? "PSX":"HLE");
-  menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
-  unsigned char tracks[2];
-  ISOgetTN(&tracks[0]);
-  sprintf(buffer,"Number of tracks %u\n", tracks[1]);
-	menu::glue::appendBounded(RomInfo, sizeof(RomInfo), buffer);
-
-	menu::MessageBox::getInstance().setMessage(RomInfo);
+	pMenuContext->setActiveFrame(MenuContext::FRAME_OPTIONS, OptionsFrame::PAGE_ISOINFO);
 }
 
 extern BOOL hasLoadedISO;
@@ -449,7 +397,7 @@ void Func_SaveState()
 /* "Slot 3", or "Slot 3 *" when that slot holds a state this build can read. */
 static void refreshStateSlot()
 {
-	sprintf(currentRomStrings[7], "Slot %u%s", which_slot, StateExists(which_slot) ? "*" : "");
+	snprintf(curLabel[SLOT_BUTTON], sizeof curLabel[SLOT_BUTTON], "Slot %u%s", which_slot, StateExists(which_slot) ? "*" : "");
 	slotLabelStale = false;
 }
 

@@ -388,7 +388,7 @@ FRAME_FILE = {
 }
 
 
-CUR_BUTTON_RE = re.compile(r'\{\s*NULL,[^\n]*?(\d+),\s*(\d+),\s*([0-9.]+)f,\s*([0-9.]+)f\s*\}')
+CUR_BUTTON_RE = re.compile(r'\{\s*"[^"]*",[^\n]*?(\d+),\s*(\d+),\s*([0-9.]+)f,\s*([0-9.]+)f\s*\}')   # CUR_BUTTONS: label, A does, row, slot, width, dy
 
 
 def current_rom_boxes(d):
@@ -396,9 +396,11 @@ def current_rom_boxes(d):
     buttons starts at its x0, with its gap between buttons; each button is BUTTON_H high, at
     its row's top plus its own dy. Rows are rowY0 and the default pitch."""
     src = open(os.path.join(os.path.dirname(OPTS), 'CurrentRomFrame.cpp'), encoding='utf-8').read()
-    table = re.search(r'currentRomButtons\[NUM_FRAME_BUTTONS\] =\s*\{(.*?)\n\};', src, re.S).group(1)
-    x0 = [float(v) for v in re.search(r'CUR_ROW_X0\[CUR_ROWS_N\]\s*=\s*\{([^}]*)\}', src).group(1).replace('f', '').split(',')]
-    gap = [float(v) for v in re.search(r'CUR_ROW_GAP\[CUR_ROWS_N\]\s*=\s*\{([^}]*)\}', src).group(1).replace('f', '').split(',')]
+    table = re.search(r'CUR_BUTTONS\[\] =\s*\{(.*?)\n\};', src, re.S).group(1)
+    rows = re.search(r'CUR_ROW_PLACE\[\] =\s*\{(.*?)\n\};', src, re.S).group(1)
+    places = [(float(a), float(b)) for a, b in re.findall(r'\{\s*([0-9.]+)f,\s*([0-9.]+)f\s*\}', rows)]
+    x0 = [a for a, _ in places]
+    gap = [b for _, b in places]
     top0 = float(re.search(r'CUR_PAGE\.rowY0\s*=\s*([0-9.]+)f', src).group(1))
     buttons = sorted((int(r), int(s), float(w), float(dy)) for r, s, w, dy in CUR_BUTTON_RE.findall(table))
     boxes = []

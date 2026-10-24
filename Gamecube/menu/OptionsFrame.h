@@ -43,7 +43,8 @@ public:
 		PAGE_ADV_GPU,		// Advanced: GPU tab
 		PAGE_ADV_INPUT,		// Advanced: Input tab
 		PAGE_ADV_SPU,		// Advanced: SPU tab
-		PAGE_ACHIEVEMENTS	// the General tab's Cheevos button
+		PAGE_ACHIEVEMENTS,	// the General tab's Cheevos button
+		PAGE_ISOINFO		// Current ISO > Show ISO Info (B goes back to Current ISO)
 	};
 	void showTab(int tab);	// a tab of the Advanced pages was pressed
 

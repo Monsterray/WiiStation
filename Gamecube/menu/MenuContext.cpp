@@ -181,6 +181,10 @@ bool MenuContext::isRunning()
 					OptionsFrame::PAGE_SOUND + (int)autoinput_menupage - 6);
 			else if (autoinput_menupage == 15)   /* Current ISO > Achievements: the list */
 				setActiveFrame(FRAME_ACHIEVEMENTS, 0);
+			else if (autoinput_menupage == 16)   /* Current ISO */
+				setActiveFrame(FRAME_CURRENTROM);
+			else if (autoinput_menupage == 17)   /* Current ISO > Show ISO Info */
+				setActiveFrame(FRAME_OPTIONS, OptionsFrame::PAGE_ISOINFO);
 			else if (autoinput_menupage == 20)   /* Configure Input */
 				setActiveFrame(FRAME_CONFIGUREINPUT, ConfigureInputFrame::SUBMENU_REINIT);
 			else if (autoinput_menupage >= 21 && autoinput_menupage <= 36)   /* Customize Co-Op */
