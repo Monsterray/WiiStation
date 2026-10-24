@@ -18,10 +18,14 @@
 #include "libgui/IPLFontC.h"
 #include "ach_toast.h"
 #include "ach_icons.h"
+#include "perf_prof.h"
 
 extern u32 frame_counter;          /* psxcounters.c: +1 per vblank */
 extern char menuActive;
 extern GXRModeObj *vmode, *g_tv_mode;
+/* Gamecube/libgui/GraphicsGX.cpp: IPLFont's TMEM region. The overlay already loads the font
+ * there during a present (OpenGX forgets region 0's tag after it: flipEGL's font_drew). */
+extern GXTexRegion texCacheRegionS[8];
 int IplFont_getStringWidth(char *string, float scale);
 
 /* ---- the queue: a second unlock waits until the first has gone ---- */
@@ -239,6 +243,50 @@ static void clip_off(void)
 	GX_SetScissor(0, 0, m->fbWidth, m->efbHeight);
 }
 
+/* The PS1 dither: 15-bit colour shows a gradient as bands with a 2 x 2 checker on top. One
+ * 4 x 4 IA8 texture (black, 14 % alpha on alternate pixels), repeated over the card one texel
+ * per EFB pixel: a single quad, where drawing the dots would take thousands. */
+static u8 dither_texels[32] __attribute__((aligned(32)));
+static GXTexObj dither_obj;
+
+static void draw_dither(float x0, float y0, float x1, float y1)
+{
+	static int ready;
+	GXRModeObj *m = g_tv_mode ? g_tv_mode : vmode;
+	float sx = m->fbWidth / (ortho_r - ortho_l) / 4, sy = m->efbHeight / 479.0f / 4;
+	float s0 = (x0 - ortho_l) * sx, s1 = (x1 - ortho_l) * sx, t0 = y0 * sy, t1 = y1 * sy;
+	if (!ready) {
+		int i;
+		for (i = 0; i < 16; i++) {   /* IA8: alpha byte, then intensity */
+			dither_texels[i * 2] = ((i & 3) + (i >> 2)) & 1 ? 0x24 : 0;
+			dither_texels[i * 2 + 1] = 0;
+		}
+		DCFlushRange(dither_texels, sizeof dither_texels);
+		GX_InitTexObj(&dither_obj, dither_texels, 4, 4, GX_TF_IA8, GX_REPEAT, GX_REPEAT, GX_FALSE);
+		GX_InitTexObjFilterMode(&dither_obj, GX_NEAR, GX_NEAR);
+		ready = 1;
+	}
+	GX_InvalidateTexRegion(&texCacheRegionS[0]);
+	GX_LoadTexObjPreloaded(&dither_obj, &texCacheRegionS[0], GX_TEXMAP0);   /* outside Begin/End */
+	GX_ClearVtxDesc();
+	GX_SetVtxDesc(GX_VA_POS, GX_DIRECT);
+	GX_SetVtxDesc(GX_VA_TEX0, GX_DIRECT);
+	GX_SetVtxAttrFmt(GX_VTXFMT7, GX_VA_POS, GX_POS_XY, GX_F32, 0);
+	GX_SetVtxAttrFmt(GX_VTXFMT7, GX_VA_TEX0, GX_TEX_ST, GX_F32, 0);
+	GX_SetNumChans(0);
+	GX_SetNumTexGens(1);
+	GX_SetTexCoordGen(GX_TEXCOORD0, GX_TG_MTX2x4, GX_TG_TEX0, GX_IDENTITY);
+	GX_SetTevOrder(GX_TEVSTAGE0, GX_TEXCOORD0, GX_TEXMAP0, GX_COLORNULL);
+	GX_SetTevOp(GX_TEVSTAGE0, GX_REPLACE);
+	GX_Begin(GX_QUADS, GX_VTXFMT7, 4);
+	GX_Position2f32(x0, y0); GX_TexCoord2f32(s0, t0);
+	GX_Position2f32(x1, y0); GX_TexCoord2f32(s1, t0);
+	GX_Position2f32(x1, y1); GX_TexCoord2f32(s1, t1);
+	GX_Position2f32(x0, y1); GX_TexCoord2f32(s0, t1);
+	GX_End();
+	shapes_begin();
+}
+
 /* ---- text: the menu font, with a hard shadow, bold by drawing twice ---- */
 
 static void text(int x, int y, const char *s, float scale, u32 c, u32 shadow, int bold)
@@ -340,6 +388,7 @@ static void draw_material(int tier, float x, float y)
 	float yy;
 	for (i = 0; i < 5; i++)
 		rect(x, y + CARD_H * i / 5.0f, x + CARD_W, y + CARD_H * (i + 1) / 5.0f, k->band[i]);
+	draw_dither(x, y, x + CARD_W, y + CARD_H);
 	switch (tier) {
 	case T_SILVER:
 	case T_PLAT:   /* brushed metal: a light line every 3 pixels */
@@ -514,7 +563,7 @@ static void rays_at(float t, float t0, float tp, float te, float peak, float end
 
 /* ---- one frame of the toast at the head of the queue ---- */
 
-void ach_toast_draw(void)
+static void toast_frame(void)
 {
 	GXRModeObj *m = g_tv_mode ? g_tv_mode : vmode;
 	Toast *q;
@@ -612,4 +661,20 @@ void ach_toast_draw(void)
 		clip_off();
 	}
 	draw_rays(TIERS[set ? q->f2.tier : q->f1.tier].ray, x + ICON_CX, y + ICON_CY, rs, rr, ra);
+}
+
+void ach_toast_draw(void)
+{
+#if defined(PERF_PROF) && PERF_PROF_ACHIEVEMENTS
+	unsigned long long t0;
+	if (!ach_toast_wanted()) return;
+	t0 = perf_now_ticks();
+	toast_frame();
+	t0 = perf_now_ticks() - t0;
+	PERF_ADD(toast_ticks, t0);
+	PERF_MAX(toast_max_ticks, t0);
+	PERF_INC(toast_draws);
+#else
+	toast_frame();
+#endif
 }

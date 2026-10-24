@@ -237,6 +237,8 @@ void hprof_flush(int game);
 typedef struct {
 	unsigned long long achievement_ticks, achievement_max_ticks;
 	uint32_t achievement_frames;
+	unsigned long long toast_ticks, toast_max_ticks;   /* ach_toast_draw: CPU time to issue the card */
+	uint32_t toast_draws;
 	/* CPU / JIT (Wii adapter level, lightrec.c) */
 	uint32_t jit_slices;          /* lightrec execute slices run */
 	uint32_t jit_resets_full;     /* invalidate_all (cache flush) */

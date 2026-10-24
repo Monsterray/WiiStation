@@ -1099,10 +1099,13 @@ void perf_report(void)
 
 		fprintf(f, "--- perf frames=%lu ---\n", (unsigned long)g_perf.present_frames);
 #if PERF_PROF_ACHIEVEMENTS
-		fprintf(f, "achperf: calls=%u total_us=%llu max_us=%llu vsig=%u\n",
+		fprintf(f, "achperf: calls=%u total_us=%llu max_us=%llu vsig=%u toast_draws=%u toast_us=%llu toast_max_us=%llu\n",
 			(unsigned)g_perf.achievement_frames,
 			(unsigned long long)ticks_to_microsecs(g_perf.achievement_ticks),
-			(unsigned long long)ticks_to_microsecs(g_perf.achievement_max_ticks), PERF_PROF_VSIG);
+			(unsigned long long)ticks_to_microsecs(g_perf.achievement_max_ticks), PERF_PROF_VSIG,
+			(unsigned)g_perf.toast_draws,
+			(unsigned long long)ticks_to_microsecs(g_perf.toast_ticks),
+			(unsigned long long)ticks_to_microsecs(g_perf.toast_max_ticks));
 #endif
 		{
 			char when[32];
