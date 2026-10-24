@@ -21,11 +21,13 @@ jitq's pending jobs (up to 565) and Lightning's compile state all grew in MEM1 w
 - Lightrec's own part is capped at 3 MB (`LIGHTREC_DYN_MAX`, `lightrec_bound_memory()`: frees
   outdated blocks by age, as a full code buffer does).
 - rcheevos, curl, Mbed TLS and the badges allocate in MEM2 (3cf3dcf6, a5846dda); the XA ring
-  (375 KB) and the chain list (75 KB) moved there too.
+  (375 KB), the chain list (75 KB) and the overlay's EFB save buffer (1.4 MB) moved there too.
+  The overlay buffer in MEM2 costs nothing measurable (Tiger Temple GPU 22.2% vs 22.3% in MEM1).
 **Check:** perf.log `gameclose:` after every game; `chain_table.py` prints a `memory:` line and
 warns when malloc grows between games, Lightrec keeps memory after a close, or MEM1 goes under
-512 KB. Bench Wii: the Official Spyro -> CTR chain finishes (lowest MEM1 1160 KB); the six-game
-`chain_memory.txt` closes every game at malloc 5904 KB with Lightrec at 0 (lowest MEM1 1196 KB).
+512 KB. Bench Wii: the Official Spyro -> CTR chain finishes at 0.98x (lowest MEM1 1600 KB,
+`final2_official`); the six-game `chain_memory.txt` closes every game at malloc 5904 KB with
+Lightrec at 0 (lowest MEM1 1600 KB, `final_chainmem`).
 Dolphin: a game run twice in one chain matches itself in every vsig field at every vblank.
 The record of the hunt:
 

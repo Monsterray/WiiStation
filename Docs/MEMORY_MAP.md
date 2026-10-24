@@ -97,10 +97,12 @@ allocations. Since then nothing that grows with a game allocates in MEM1:
 - Lightrec's blocks/IR/MIPS copies and Lightning's compile state: a 4 MB TLSF pool in MEM2,
   Lightrec's part capped at 3 MB (Docs/BACKENDS.md).
 - rcheevos, curl, Mbed TLS, achievement badges: MEM2.
-- The XA ring (`XABuf`, 375 KB) and the chain list (75 KB): MEM2, taken once.
+- The XA ring (`XABuf`, 375 KB), the chain list (75 KB) and the overlay's EFB save buffer
+  (1.4 MB, `OverlaySaveEfb`): MEM2, taken once.
 What stays in MEM1 is fixed: the state and code LUT (2.5 MB), the code buffer (2 MB), PS1 RAM,
 VRAM, the memory LUTs, `GXtexture`, the menu's XFBs. perf.log `gameclose:` after every game
-(`chain_table.py` checks it): in Dolphin malloc 5185 KB and 2368 KB of MEM1 free after every close.
+(`chain_table.py` checks it): in Dolphin malloc 5185 KB and 2368 KB of MEM1 free after every close;
+on the bench Wii malloc 5904 KB, lowest MEM1 free 1600 KB (Official achievements and CTR included).
 
 ### MEM2
 

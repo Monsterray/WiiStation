@@ -213,10 +213,13 @@ def memory_check(log):
     if not closes and not mins:
         return
     low = min(mins) if mins else None
-    print('memory: %d closes, MEM1 free after them %s KB, malloc %s KB, Lightrec left %s KB; lowest MEM1 free %s KB'
-          % (len(closes), '/'.join(c['mem1_free_kb'] for c in closes) or '-',
-             '/'.join(c['malloc_used_kb'] for c in closes) or '-',
-             '/'.join(c['lr_dyn_kb'] for c in closes) or '-', low if low is not None else '-'))
+    if not closes:
+        print('memory: lowest MEM1 free %d KB' % low)
+    else:
+        print('memory: %d closes, MEM1 free after them %s KB, malloc %s KB, Lightrec left %s KB; lowest MEM1 free %s KB'
+              % (len(closes), '/'.join(c['mem1_free_kb'] for c in closes),
+                 '/'.join(c['malloc_used_kb'] for c in closes),
+                 '/'.join(c['lr_dyn_kb'] for c in closes), low if low is not None else '-'))
     warn = []
     if len(closes) > 2:
         base = closes[1]   # the first close still includes one-time start-up allocations
