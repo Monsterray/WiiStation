@@ -15,6 +15,8 @@
 #include "deps/rcheevos/include/rc_client.h"
 #include "deps/rcheevos/include/rc_consoles.h"
 #include "deps/rcheevos/include/rc_hash.h"
+/* the pinned rc_client's own record of which game a disc hash belongs to (disc swaps) */
+#include "deps/rcheevos/src/client/rc_client_internal.h"
 #include "psxcommon.h"
 #include "plugins.h"
 #include "Gamecube/ra_transport.h"
@@ -30,6 +32,21 @@
 
 static rc_client_t *client;
 static int logged_in, login_busy, game_loaded, beaten_seen, mastered_seen;
+static int media_pending;   /* a swapped disc is being checked: nothing is evaluated until then */
+static char state[96] = "Not started";   /* what the menus show when no set is loaded */
+
+const char *achievements_official_status(void)
+{
+	static char line[96];
+	const rc_client_game_t *g;
+	rc_client_user_game_summary_t s;
+	if (!client || !game_loaded || media_pending || !(g = rc_client_get_game_info(client)))
+		return state;
+	rc_client_get_user_game_summary(client, &s);
+	snprintf(line, sizeof line, "%u of %u earned (Official)",
+	         (unsigned)s.num_unlocked_achievements, (unsigned)s.num_promoted_achievements);
+	return line;
+}
 static char game_hash[33];   /* the loaded disc's PS1 hash, to load once the login is done */
 
 /* ---- the account file ---- */
@@ -227,6 +244,7 @@ static void game_loaded_cb(int result, const char *error, rc_client_t *c, void *
 	(void)c; (void)data;
 	if (result != RC_OK) {
 		SysPrintf("Achievements: no RetroAchievements set for this disc (%s)\n", error ? error : "unknown");
+		snprintf(state, sizeof state, "No set for this disc");
 		return;
 	}
 	game_loaded = 1;
@@ -253,6 +271,7 @@ static void login_cb(int result, const char *error, rc_client_t *c, void *used_p
 	if (result != RC_OK) {
 		SysPrintf("Achievements: login failed: %s\n",
 		          ra_transport_available() ? (error ? error : "unknown") : "this build has no secure connection yet");
+		snprintf(state, sizeof state, "%s", ra_transport_available() ? "Login failed" : "No secure connection");
 		game_hash[0] = 0;
 		return;
 	}
@@ -270,6 +289,7 @@ static void login(void)
 	int is_token;
 	if (!read_account(user, sizeof user, secret, sizeof secret, &is_token)) {
 		SysPrintf("Achievements: no account; put User= and Password= in %s\n", ACCOUNT_FILE);
+		snprintf(state, sizeof state, "No account (ra_account.ini)");
 		game_hash[0] = 0;
 		return;
 	}
@@ -295,11 +315,18 @@ int achievements_official_load(const char *image)
 		rc_client_set_hardcore_enabled(client, 0);   /* Casual only: Hardcore needs RA's approval */
 		rc_client_set_allow_background_memory_reads(client, 0);
 	}
+	if (image && strlen(image) > 4 && !strcasecmp(image + strlen(image) - 4, ".exe")) {
+		SysPrintf("Achievements: a .exe has no disc to identify; no achievements for it\n");
+		snprintf(state, sizeof state, "None: a .exe has no disc");
+		return 0;
+	}
 	/* the hash now, while nothing else reads the disc; the set loads after the login */
 	if (!image || !hash_disc(image)) {
 		SysPrintf("Achievements: no PS1 boot executable on this disc; no RetroAchievements set\n");
+		snprintf(state, sizeof state, "No PS1 boot file to identify");
 		return 0;
 	}
+	snprintf(state, sizeof state, "Connecting...");
 	if (logged_in)
 		load_set();
 	else if (!login_busy)
@@ -312,8 +339,51 @@ void achievements_official_frame(void)
 	if (!client) return;
 	ra_transport_poll();
 	/* every frame, loaded or not: with background memory reads off, rc_client finishes a game
-	 * load (it validates addresses through read_memory) in its next do_frame */
-	rc_client_do_frame(client);
+	 * load (it validates addresses through read_memory) in its next do_frame. While a swapped
+	 * disc is being checked, only idle: no award against a disc that may not be the game's. */
+	if (media_pending)
+		rc_client_idle(client);
+	else
+		rc_client_do_frame(client);
+}
+
+/* The check of a swapped disc: rc_client looked its hash up. The same game's disc goes on;
+ * a disc of another game, or one RetroAchievements does not know, stops the set until the
+ * next game load (Docs/ACHIEVEMENTS.md, "Multi-disc games"). */
+static void media_changed_cb(int result, const char *error, rc_client_t *c, void *data)
+{
+	const rc_client_game_t *g = rc_client_get_game_info(client);
+	rc_client_game_hash_t *h = g && g->hash ? rc_client_find_game_hash(client, g->hash) : NULL;
+	(void)c; (void)data;
+	media_pending = 0;
+	if (result == RC_OK && g && h && h->game_id == g->id) {
+		SysPrintf("Achievements: disc changed; %s goes on\n", g->title ? g->title : "the game");
+		return;
+	}
+	snprintf(state, sizeof state, "Off: not this game's disc");
+	SysPrintf("Achievements: this disc is not part of %s (%s); achievements are off until the next game load\n",
+	          g && g->title ? g->title : "the game", result == RC_OK ? "another or an unknown disc" : (error ? error : "no answer"));
+	rc_client_unload_game(client);
+	game_loaded = 0;
+}
+
+/* A disc swap (loadISOSwap), the new disc already open: hash it now, from the menu, before
+ * the game reads it */
+void achievements_official_change_media(const char *image)
+{
+	if (!client) return;
+	if (!image || !hash_disc(image)) {
+		SysPrintf("Achievements: the new disc has no PS1 boot executable; achievements are off until the next game load\n");
+		snprintf(state, sizeof state, "Off: no PS1 boot file");
+		if (game_loaded) rc_client_unload_game(client);
+		game_loaded = 0;
+		return;
+	}
+	if (!game_loaded)   /* the set has not loaded yet (the login is still going): it loads from this disc */
+		return;
+	media_pending = 1;
+	rc_client_begin_change_media(client, game_hash, media_changed_cb, NULL);
+	game_hash[0] = 0;
 }
 
 void achievements_official_idle(void)
@@ -328,7 +398,7 @@ void achievements_official_close(void)
 	if (!client) return;
 	game_hash[0] = 0;
 	if (game_loaded) rc_client_unload_game(client);
-	game_loaded = 0;
+	game_loaded = media_pending = 0;
 }
 
 #endif /* HW_RVL */

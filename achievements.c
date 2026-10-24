@@ -43,6 +43,8 @@ int achievements_official_load(const char *image) __attribute__((weak));
 void achievements_official_frame(void) __attribute__((weak));
 void achievements_official_idle(void) __attribute__((weak));
 void achievements_official_close(void) __attribute__((weak));
+void achievements_official_change_media(const char *image) __attribute__((weak));
+const char *achievements_official_status(void) __attribute__((weak));
 
 static rc_runtime_t runtime;
 static struct {
@@ -274,6 +276,39 @@ void achievements_frame(void)
 void achievements_idle(void)
 {
     if (achievementsEnabled == ACH_OFFICIAL && achievements_official_idle) achievements_official_idle();
+}
+
+/* What achievements do for the loaded game, for the menus (ISO Info, the list): at most 31
+ * characters, the width of a readout (OptionsFrame VALUE_LEN) */
+const char *achievements_status(void)
+{
+    static char line[96];
+    size_t n = strlen(achievementImage);
+    if (n > 4 && !strcasecmp(achievementImage + n - 4, ".exe"))
+        return "None: a .exe has no disc";
+    switch (achievementsEnabled) {
+    case ACH_OFF:
+        return "Off (Cheevos)";
+    case ACH_OFFICIAL:
+        return achievements_official_status ? achievements_official_status() : "Official: not in this build";
+    default:
+        if (!active)
+            return "No set (AchievementFile)";
+        snprintf(line, sizeof line, "%u of %u earned (%s)", achievements_earned(), count,
+                 achievementsEnabled == ACH_TEST ? "Test" : "Local");
+        return line;
+    }
+}
+
+/* A disc swap, the new disc open: Official mode checks it belongs to the loaded game and goes
+ * on; a Local set names one disc, so it closes until the next full game load. */
+void achievements_change_media(const char *image)
+{
+    snprintf(achievementImage, sizeof achievementImage, "%s", image ? image : "");
+    if (achievementsEnabled == ACH_OFFICIAL && achievements_official_change_media)
+        achievements_official_change_media(image);
+    else
+        achievements_close();
 }
 
 void achievements_close(void)

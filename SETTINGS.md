@@ -306,7 +306,7 @@ for the definition format, state handling, persistence boundaries, and tests.
 
 | Key | Values | Default | Menu | Effect |
 |---|---|---|---|---|
-| `Achievements` | 0 = Off, 1 = Local, 2 = Test, 3 = Official | 0 | General, Cheevos, "Mode" | Local: your own definition file, unlocks kept in the journal. Test: the same, nothing read from or written to the journal. Official: RetroAchievements (not available yet; loads nothing). |
+| `Achievements` | 0 = Off, 1 = Local, 2 = Test, 3 = Official | 0 | General, Cheevos, "Mode" | Local: your own definition file, unlocks kept in the journal. Test: the same, nothing read from or written to the journal. Official: RetroAchievements, Casual; needs `achievements/ra_account.ini`, `tls_seed.bin` and `cacert.pem` on the card (Docs/ACHIEVEMENTS.md). |
 | `AchievementFile` | `"Path"` | empty | none, settings file only (General, Cheevos shows it) | The rcheevos definition file for a game, for example `sd:/wiistation/achievements/<game>.txt`. |
 | `AchievementLog` | `"Path"` | empty | none, settings file only | Stores earned unlocks. Empty puts them beside the definition file, with `.unlocks` appended. A quoted full path overrides it. |
 | `AchievementUTCOffset` | `"Minutes"` | empty | none, settings file only | Official mode: minutes to add to the Wii's clock (local time) to get UTC, for certificate dates: `"+420"` for US Pacific summer time, `"+480"` in winter, up to 840 either way. Empty uses the clock as it is. |

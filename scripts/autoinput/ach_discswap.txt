@@ -1,0 +1,4 @@
+# Official mode's disc swap (scripts/chains/ach_discswap.txt): at 900 Frogger's CHD (the same disc:
+# its set goes on), at 1500 Rayman's CHD (another game: the set stops until the next game load)
+discswap 900 sd:/wiistation/isos/Formats/Frogger (USA) [CHD]/Frogger (USA).chd
+discswap 1500 sd:/wiistation/isos/Formats/Rayman (USA) [CHD]/Rayman (USA).chd

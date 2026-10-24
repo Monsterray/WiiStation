@@ -163,7 +163,7 @@ int autoinput_padsweep_fast = 0;   /* "padsweep <vblank> fast": controller-GC.c'
  * OptionsFrame::OptionsPages: Advanced Sound, Advanced Graphics, Plugins, CD, Memory, then
  * 11 Advanced GPU, 12 Advanced Input, 13 Advanced SPU, 14 Achievements (General, Cheevos).
  * 15 is Current ISO > Achievements, the list of the loaded game's set (with no game: its
- * "No achievement set" line). 20 Configure Input, 21..36 Customize Co-Op, 40..65 Configure
+ * "No achievement set" line). 16 Current ISO, 17 its ISO Info page. 20 Configure Input, 21..36 Customize Co-Op, 40..65 Configure
  * Buttons, 70 Load from SD, 71 Load from SMB, 72 Load from DVD, 90 Quit (MenuContext.cpp).
  * 0 leaves the menu alone.
  *
@@ -324,6 +324,15 @@ void autoinput_load(void)
 				if (sscanf(line, "statecheck %u %u", &v, &n2) == 2) { statetool_request(3, "", v, n2); continue; }
 				if (sscanf(line, "statetest %u", &v) == 1) { statetool_request(3, "", v, 120); continue; }
 				if (sscanf(line, "statefp %u", &v) == 1) { statetool_request(4, "", v, strstr(line, "dump") != NULL); continue; }
+				{	/* "discswap <vblank> <path>": Swap CD to that image at that vblank (the path may hold spaces) */
+					int at = 0;
+					if (sscanf(line, "discswap %u %n", &v, &at) == 1 && at) {
+						char *path = line + at;
+						path[strcspn(path, "\r\n")] = 0;
+						statetool_request(5, path, v, 0);
+						continue;
+					}
+				}
 			}
 			if (sscanf(line, "atrace %u", &v) == 1) { autoinput_atrace_vbl = v; continue; }
 			if (sscanf(line, "filtertour %u", &v) == 1) {   /* the Filter Tour, v seconds a step (GraphicsGX.cpp) */

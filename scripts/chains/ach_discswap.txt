@@ -1,0 +1,6 @@
+CHAIN
+# Official mode through a disc swap: Frogger (CUE), swapped to Frogger as CHD (the set goes on), then to
+# Rayman as CHD (another game: the set stops). scripts/autoinput/ach_discswap.txt has the swaps.
+2100 sd:/wiistation/ach_discswap.txt Achievements=3 FPS=0
+sd:/wiistation/isos/Frogger (USA)
+Frogger (USA).cue

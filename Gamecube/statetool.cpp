@@ -30,6 +30,7 @@ extern "C" {
 #include "../misc.h"
 #include "../psxmem.h"
 #include "../r3000a.h"
+#include "fileBrowser/fileBrowser.h"   /* isoFile: discswap */
 #include "../mem2_manager.h"
 #include "perf_prof.h"   /* perf_log_open */
 	extern volatile int stop;
@@ -48,14 +49,14 @@ extern char AutobootPath[1024];
 void writeConfig(FILE *f);
 void writeConfigCopy(FILE *f);   /* GamecubeMain.cpp: a copy for a state, not a save */
 
-enum { ST_SAVE = 1, ST_LOAD, ST_CHECK, ST_FP };
+enum { ST_SAVE = 1, ST_LOAD, ST_CHECK, ST_FP, ST_SWAP };
 #define ST_MAX 8
 #define ST_DIR "sd:/wiistation/states/"
 #define ST_CHECK_FILE ST_DIR "_statecheck.st"
 
 static struct {
 	int op;
-	char name[48];
+	char name[160];   /* a state name, or a disc path (ST_SWAP) */
 	unsigned vbl, n;
 	int step;          /* statecheck: 0 save, 1 first fingerprint + load, 2 second fingerprint */
 	bool done;
@@ -258,6 +259,15 @@ int statetool_service(void)
 			"FAILED (another build or damaged)", (unsigned)frame_counter);
 		req[i].done = true;
 		break;
+	case ST_SWAP: {   /* "discswap <vblank> <path>": the menu's Swap CD, at a vblank (loadISOSwap) */
+		extern int loadISOSwap(fileBrowser_file *file);
+		fileBrowser_file disc = isoFile;
+		snprintf(disc.name, sizeof disc.name, "%s", req[i].name);
+		r = loadISOSwap(&disc);
+		log_line("discswap: %s at vblank %u %s\n", req[i].name, (unsigned)frame_counter, r == 0 ? "ok" : "FAILED");
+		req[i].done = true;
+		break;
+	}
 	case ST_FP:
 		state_fingerprint(fp);
 		if (req[i].n) {   /* "statefp V dump": RAM to sd:/wiistation/fpram_<k>.bin, for two boots to diff */

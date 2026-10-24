@@ -179,6 +179,11 @@ saved game did -- checked on seven games, and across boots -- because of four fi
 this way (timers, events, SPU mixer, GPU draw state; see the doc). Run `statecheck` again
 after changing anything a state holds.
 
+`discswap V PATH` (the path may hold spaces) is the menu's Swap CD at vblank V, done where the
+state lines are done (Gamecube/statetool.cpp, the CPU stopped): perf.log says
+`discswap: PATH at vblank V ok`. The disc must be on the run's card (`WSX_ISOS` for wsx.sh).
+Example: `scripts/autoinput/ach_discswap.txt` with `scripts/chains/ach_discswap.txt`.
+
 ## Reading and comparing
 
 | command | answers |

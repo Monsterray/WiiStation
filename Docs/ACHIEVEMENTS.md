@@ -316,7 +316,7 @@ Decisions of the project owner, 2026-10-23.
 | Official | RetroAchievements sets | Casual only. Hardcore needs RetroAchievements to approve WiiStation as a client. |
 
 The mode switch is in the product (setting `Achievements`, 775ae73a). Test and Local work.
-Official logs "not available yet" and loads nothing until the items below are done.
+Official works in Casual (2026-10-23): login, the PS1 hash in every format, disc swaps.
 
 ### Official login
 
@@ -336,13 +336,18 @@ Official logs "not available yet" and loads nothing until the items below are do
 
 ### Multi-disc games
 
-Today a disc swap closes the set, and a definition file names one disc serial.
-
-- Official mode must keep the session through a disc swap. Use rc_client's media-change API
-  (`rc_client_begin_identify_and_change_media`, or `rc_client_begin_change_media` with a hash).
-  Hash the new disc first. Then let rc_client decide if the disc belongs to the loaded game.
-  Stop awards for an unknown or unrelated disc until identification is done.
-- Local mode needs a set that names every disc of a game.
+- Official mode keeps the set through a disc swap (2026-10-23). `loadISOSwap` calls
+  `achievements_change_media` once the new disc is open: the disc is hashed then, from the
+  menu, and `rc_client_begin_change_media` checks it. Until rc_client answers, nothing is
+  evaluated (`rc_client_idle` only). The same game's disc goes on. A disc of another game, or
+  one RetroAchievements does not know, unloads the set until the next game load (the pinned
+  rc_client's `rc_client_find_game_hash` gives the disc's game).
+- A swap before the login is done needs no check: the set then loads from the new disc.
+- Test: `scripts/chains/ach_discswap.txt` (the `discswap` script line).
+- Local mode still closes the set at a swap: a definition file names one disc serial. A set
+  that names every disc of a game is future work.
+- A `.exe` gets no achievements in any mode: it has no disc to identify. The ISO Info page and
+  the message after a load say so (`achievements_status`).
 
 ### Prerequisites for Official mode
 
