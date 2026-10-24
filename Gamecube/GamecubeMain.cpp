@@ -37,6 +37,7 @@
 #endif
 
 #include "lab_net.h"
+#include "boot_guard.h"   /* start-up's watchdog, until the HBC agent's */
 #include "hbc_home.h"
 #include <network.h>
 extern "C" void __exception_setreload(int t);
@@ -1235,6 +1236,7 @@ int main(int argc, char *argv[])
 {
 	/* INITIALIZE */
 #ifdef HW_RVL
+	boot_guard_start();   /* a hang from here to the menu goes back to HBC by itself, with its stage */
 	/* a game is "FOLDER ROM"; KEY=VALUE arguments alone are settings (loadSettings) */
 	if(argc > 2 && argv[1] != NULL && argv[2] != NULL && !strchr(argv[1], '=') && !strchr(argv[2], '='))
 	{
@@ -1249,8 +1251,10 @@ int main(int argc, char *argv[])
 		memset(AutobootROM, 0, sizeof(AutobootROM));
 	}
 
+		boot_guard_stage("L2Enhance");
 		L2Enhance();
 
+		boot_guard_stage("IOS reload");
         u32 ios = IOS_GetVersion();
 
         if(!SupportedIOS(ios))
@@ -1260,6 +1264,9 @@ int main(int argc, char *argv[])
 
 	#endif
 
+#ifdef HW_RVL
+	boot_guard_stage("MEM2 and controllers");
+#endif
 	gx_init_mem2();
 #ifdef POISON_HEAP
 	heap_poison(0xA5C3E1F7);   /* a debug test: no read of memory WiiStation never wrote (mem2_manager.c) */
@@ -1276,10 +1283,15 @@ int main(int argc, char *argv[])
 	 * failed with -4 and no USB pad was ever read (bench Wii, 5.14.0, libogc 2 and 3 alike).
 	 * libogc carries on without its HID handle; USB storage is on /dev/usb/ven. The IOS is
 	 * the one now running, after the reload above. */
+	boot_guard_stage("HIDInit");
 	HIDInit(IOS_GetVersion());
+	boot_guard_stage("settings (SD/USB mount)");
 #endif
 	loadSettings(argc, argv);
 	perf_stack_log("settings");
+#ifdef HW_RVL
+	boot_guard_stage("lab");
+#endif
 
 	/* A Wii on the bench (scripts/wii_lab.py): "lab=HOST:PORT" from wiiload fetches this
 	 * run's files -- autoboot.txt among them -- before it is read, and a crash goes back
@@ -1357,6 +1369,9 @@ int main(int argc, char *argv[])
 	VM_Init(1024*1024, 256*1024); // whatever for now, we're not really using this for anything other than mmap on Wii.
 	#endif // HW_RVL
 
+#ifdef HW_RVL
+	boot_guard_stage("language and menu");
+#endif
 	LoadLanguage();
 	ChangeLanguage();
 
@@ -1370,7 +1385,13 @@ int main(int argc, char *argv[])
 	 * itself, and before the SMB thread below, which waits for the agent's start-up. And
 	 * after the menu's VIDEO_Init() (GraphicsGX.cpp), which clears the post-retrace callback:
 	 * the agent's frame pacing (`hbc.py status`) wraps the callback set just above. */
+#ifdef HW_RVL
+	boot_guard_stage("HBC agent");
+#endif
 	hbc_home_start();
+#ifdef HW_RVL
+	boot_guard_done();   /* the agent's hang watchdog from here (armed at the menu's first frame) */
+#endif
 	perf_stack_log("agent");
 	hb_start();
 	hb_phase("menu", "start-up");

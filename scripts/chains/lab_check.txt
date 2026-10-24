@@ -1,0 +1,5 @@
+CHAIN
+# lab connection check
+300 sd:/wiistation/none.txt FPS=0
+sd:/wiistation/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue

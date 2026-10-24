@@ -28,6 +28,7 @@
 #include "lab_net.h"
 #include "ws_crash.h"
 #include "ogc_compat.h"   /* POLL*, ws_if_config() on libogc v3 */
+#include "boot_guard.h"
 
 #define LAB_ROOT "sd:/wiistation/"
 
@@ -331,6 +332,7 @@ int lab_fetch(void)
 					fwrite(lab_buf, 1, k, f);
 				left -= k;
 				ws_alive();   /* a transfer is progress (the agent's hang watchdog) */
+				boot_guard_stage("lab: a file from the PC");   /* and the boot guard's */
 			}
 			if (f)
 				fclose(f);
