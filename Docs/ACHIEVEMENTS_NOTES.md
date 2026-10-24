@@ -308,6 +308,27 @@ The fixes are for the probe only. A product transport needs a real v3 socket lay
   configuration, library and source hashes, `results/probe.log` and `host-clock-window.json`.
 - The pinned r41-2 release build and the settings check also passed.
 
+## Official mode cost on the bench Wii
+
+2026-10-23, jobs `20261023-200046-90c477` and `20261023-200750-327614` (`.runs/ach_cost_official_hw/`).
+Chain `scripts/chains/ach_cost_official.txt`: Spyro's attract demo, 3300 vblanks, achievements off,
+then Official mode (login with the stored token, PS1 hash, the 89-achievement Spyro set,
+Casual), twice. DOL: the speed probes plus `-DPERF_PROF_ACHIEVEMENTS=1`.
+
+| | Off | Official |
+|---|---|---|
+| Speed | 1.00, 1.00 | 1.00, 1.00 |
+| Load | 32.6, 31.5 | 36.6, 36.6 |
+| Emulator thread (`achperf:`) | - | 2.66 s over 3299 frames: about 0.75 ms a frame (4.4 % of a frame), and one spike of 180-193 ms when the set arrives (once a game load) |
+| Requests (worker, frame's spare time) | - | login 930 ms (TLS 620 ms), game data 119 KB 630 ms, session 300 ms, ping 270 ms |
+
+- The worker runs at priority 48, under the emulator (64). It gets the time the frame limiter
+  sleeps (`LimiterWait` = 1, the default). Speed stays 1.00.
+- One curl handle is kept for all requests, so only the first one of a session pays the TLS
+  handshake. Before that each request paid 0.55-2.2 s of it.
+- Open: the 180 ms spike (rc_client builds the set on the emulator thread when the data
+  arrives), and the per-frame evaluation of a real set (compare the Spyro capacity pilot below).
+
 ## Unlock toast cost on the bench Wii
 
 2026-10-23, job `20261023-190548-7fe554`, `.runs/ach_cost_hw/`. Chain `scripts/chains/ach_cost.txt`:

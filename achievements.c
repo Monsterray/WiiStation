@@ -253,15 +253,15 @@ void achievements_reset(void)
 
 void achievements_frame(void)
 {
-    if (achievementsEnabled == ACH_OFFICIAL) {
-        if (achievements_official_frame) achievements_official_frame();
-        return;
-    }
-    if (!active || !running || !achievementsEnabled) return;
+    int official = achievementsEnabled == ACH_OFFICIAL;
+    if (official ? !achievements_official_frame : (!active || !running || !achievementsEnabled)) return;
 #if defined(PERF_PROF) && PERF_PROF_ACHIEVEMENTS
     unsigned long long started = perf_now_ticks();
 #endif
-    rc_runtime_do_frame(&runtime, event, achievements_read_memory, NULL, NULL);
+    if (official)
+        achievements_official_frame();   /* rc_client: completions, then evaluation */
+    else
+        rc_runtime_do_frame(&runtime, event, achievements_read_memory, NULL, NULL);
 #if defined(PERF_PROF) && PERF_PROF_ACHIEVEMENTS
     unsigned long long elapsed = perf_now_ticks() - started;
     PERF_ADD(achievement_ticks, elapsed);

@@ -1,0 +1,16 @@
+CHAIN
+# Achievement costs on the bench Wii: Spyro's attract demo with achievements off, then with the
+# Official mode (login, PS1 hash, the 89-achievement Spyro set, Casual), twice
+# each. Build: the speed probes plus -DPERF_PROF_ACHIEVEMENTS=1 (achperf: line in perf.log).
+3300 sd:/wiistation/none.txt Achievements=0 FPS=0
+sd:/wiistation/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue
+3300 sd:/wiistation/none.txt Achievements=3 FPS=0
+sd:/wiistation/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue
+3300 sd:/wiistation/none.txt Achievements=0 FPS=0
+sd:/wiistation/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue
+3300 sd:/wiistation/none.txt Achievements=3 FPS=0
+sd:/wiistation/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue

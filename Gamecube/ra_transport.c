@@ -233,10 +233,15 @@ static int curl_note(CURL *c, curl_infotype type, char *text, size_t len, void *
 
 static void perform(Request *r)
 {
-	CURL *c = curl_easy_init();
+	/* One handle for every request, reset each time: its connection to the server stays open
+	 * between requests, so only the first one pays the TLS handshake (0.55-2.2 s on the bench
+	 * Wii, 2026-10-23); a closed connection is opened again by curl. */
+	static CURL *c;
 	CURLcode res;
 	long http = 0;
 	struct curl_slist *headers = NULL;
+	if (!c) c = curl_easy_init();
+	else curl_easy_reset(c);
 	if (!c) { r->status = RC_API_SERVER_RESPONSE_RETRYABLE_CLIENT_ERROR; return; }
 	curl_easy_setopt(c, CURLOPT_URL, r->url);
 	curl_easy_setopt(c, CURLOPT_CAINFO, CA_FILE);
@@ -276,8 +281,16 @@ static void perform(Request *r)
 		r->status = RC_API_SERVER_RESPONSE_CLIENT_ERROR;
 	if (res != CURLE_OK)   /* the operation and the code only: never the URL or the body */
 		SysPrintf("Achievements: HTTPS request failed (curl %d)\n", (int)res);
+#ifdef PERF_PROF
+	{	/* the cost of a request: wall time, of which the TLS handshake; bytes back */
+		double total = 0, tls = 0;
+		curl_easy_getinfo(c, CURLINFO_TOTAL_TIME, &total);
+		curl_easy_getinfo(c, CURLINFO_APPCONNECT_TIME, &tls);
+		SysPrintf("Achievements: request http=%d total_ms=%d tls_ms=%d bytes=%u\n", r->status,
+		          (int)(total * 1000), (int)(tls * 1000), (unsigned)r->len);
+	}
+#endif
 	curl_slist_free_all(headers);
-	curl_easy_cleanup(c);
 }
 
 static void *work(void *arg)

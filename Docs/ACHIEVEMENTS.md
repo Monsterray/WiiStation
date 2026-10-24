@@ -19,8 +19,8 @@ today, how to set it up, how to test it and what is planned.
 | Menu controls | General tab, Cheevos: Mode, the set file and the account user name (ab58936a). Current ISO, Achievements: the set's list, 10 per page, with N of M earned. |
 | Unlock toast | In the product (2026-10-23): the tier card slides in at the top right on each unlock, in both GPU plugins. See [Unlock toast](#unlock-toast). |
 | RetroAchievements login, awards, leaderboards, Rich Presence, Hardcore | Not implemented. |
-| `rc_client`, API and PS1 hash code | Built into the Wii DOL (2026-10-23): `achievements_official.c` logs in from `ra_account.ini`, identifies BIN/CUE and ISO images by the PS1 hash, evaluates each frame and sends unlocks to the toast with their rarity. The transport (`Gamecube/ra_transport.c`) has no HTTPS stack yet, so every request fails and the game runs on. |
-| HTTPS (Mbed TLS 3.6.4 + curl 8.16.0) | Test probes only. Proven on the bench Wii on 2026-10-11 with libogc2 and devkitPPC r41-2. Not in the product. |
+| `rc_client`, API and PS1 hash code | Built into the Wii DOL (2026-10-23): `achievements_official.c` logs in from `ra_account.ini`, identifies BIN/CUE and ISO images by the PS1 hash, evaluates each frame and sends unlocks to the toast with their rarity. Working on the bench Wii (2026-10-23): logged in, Spyro identified, its 89-achievement set loaded in Casual. No unlock has been earned yet. |
+| HTTPS (Mbed TLS 3.6.4 + curl 8.16.0) | In the Wii build when `scripts/build-ra-https.sh` has installed it (`Gamecube/ra_transport.c`, a worker thread, one kept-open connection). Needs, on the card in `sd:/wiistation/achievements/`: `tls_seed.bin` (64 secret random bytes for this Wii), `cacert.pem` and `ra_account.ini`. Costs: [the notes](ACHIEVEMENTS_NOTES.md#official-mode-cost-on-the-bench-wii). |
 
 The engine uses the upstream rcheevos C runtime at commit
 `683197d8dc92555a51e8280a4123d071ed66bff3`. The unlocks are local. They are not official
