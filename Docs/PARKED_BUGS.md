@@ -6,7 +6,7 @@ without doing the investigation a second time.
 
 ---
 
-## 5.17.0 debug build: start-up stalls in the first SD init on the bench Wii -- OPEN 2026-10-24
+## 5.17.0 debug build: start-up stalls in the first SD init on the bench Wii -- FIXED 2026-10-24
 
 **Symptom.** The debug build of eb50ad7a and later never reaches its first log line on the
 bench Wii; Dolphin (also MMU=1 CACHE=1) starts it fine. The boot guard (ac0fdbdc) caught it:
@@ -28,9 +28,13 @@ the Wii to HBC itself every time (code 0x85).
 None of the clock code runs at start-up; the libogc SD/IPC buffers have the same alignment in
 good and bad builds; no global symbol is replaced. With LTO the change recompiles about 20
 unrelated functions differently (VI I2C, wiiuse LEDs, DSP callbacks, DVD start-up, zstd).
-**Lead:** a start-up race or an unset value in code before the SD mount (HID thread, Bluetooth
-and VI init) that LTO's code changes expose; not the clock code itself. Next: a build without
-LTO, and SD mounted before HIDInit (the USB mount must still follow HIDInit).
+**Cause: LTO and -Wl,--wrap.** Two more guarded runs: main built without LTO starts; main with
+the SD card mounted before HIDInit still stalls (at that earlier mount, no HID thread), so HID is
+not it. Main with LTO but the four files that define `__wrap_` functions (hb_probe.c: every
+IOS_* call; wpad_leds.c: wiiuse_set_leds; ogc_compat.c: VIDEO_*; ws_crash.c) compiled
+`-fno-lto` starts, as does the clean build with that rule in both Makefile_Wii files
+(lab_check_fixed). GCC's LTO does not handle --wrap reliably; which builds broke depended on how
+LTO partitioned unrelated code. Keep any new `__wrap_` definition in a file on that -fno-lto list.
 
 ## CD audio from PBP, CHD and CBN starts 24 ms late (audio output) -- PARKED 2026-10-21, to fix
 

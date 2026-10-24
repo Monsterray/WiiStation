@@ -254,6 +254,11 @@ else
 $(filter rc_%.o md5.o achievements.o,$(OFILES)): CFLAGS += -fno-fast-math -fno-lto
 # rc_client with the PS1 disc hash only (no cartridge ROMs, zips or encrypted images)
 ra_transport.o: CFLAGS += $(RA_HTTPS_FLAGS)
+# The files that define -Wl,--wrap functions (__wrap_IOS_*, __wrap_wiiuse_set_leds, the VIDEO
+# and exception wraps) are kept out of LTO: GCC's LTO and --wrap do not mix reliably. With them
+# in, a few KB of unrelated code (5.17.0's clock learning) made the bench Wii's first SD ioctl
+# never return at start-up, every time; Dolphin never showed it (2026-10-24, Docs/PARKED_BUGS.md).
+$(filter hb_probe.o ogc_compat.o wpad_leds.o ws_crash.o,$(OFILES)): CFLAGS += -fno-lto
 $(filter rc_%.o aes.o achievements_official.o ra_transport.o,$(OFILES)): CFLAGS += -DRC_CLIENT_SUPPORTS_HASH 	-DRC_HASH_NO_ROM -DRC_HASH_NO_ZIP -DRC_HASH_NO_ENCRYPTED
 
 DEPENDS	:=	$(OFILES:.o=.d)
