@@ -30,6 +30,7 @@ extern "C" {
 #include "../misc.h"
 #include "../psxmem.h"
 #include "../r3000a.h"
+#include "../achievements.h"   /* achdump */
 #include "fileBrowser/fileBrowser.h"   /* isoFile: discswap */
 #include "../mem2_manager.h"
 #include "perf_prof.h"   /* perf_log_open */
@@ -39,6 +40,8 @@ extern "C" {
 	extern int state_quiet;
 	void state_fingerprint(unsigned out[6]);
 	void statetool_vblank(void);
+	int autoinput_menuopen_due(void);   /* PadWiiSX.c: "menuopen" */
+	void statetool_achdump(unsigned vbl);
 	int statetool_service(void);
 	void statetool_reset(void);
 	void statetool_request(int op, const char *name, unsigned vbl, unsigned n);
@@ -132,11 +135,67 @@ static void log_line(const char *fmt, ...)
 	perf_log_close(f);
 }
 
+/* "achdump <vblank>": the achievement set as the menus would show it, into perf.log, at that
+ * vblank -- the list (state, progress, points, rarity), the rich presence and the leaderboards,
+ * then the first leaderboard's scores once the server has answered. For a scripted run on the
+ * bench Wii, where no menu can be photographed. Nothing stops: it is read between vblanks. */
+#define ACHDUMP_MAX 8
+static unsigned achdump_vbl[ACHDUMP_MAX], achdump_n;
+static int scores_wait = -1;   /* vblanks left for the scores; -1 none asked */
+
+void statetool_achdump(unsigned vbl)
+{
+	if (achdump_n < ACHDUMP_MAX) achdump_vbl[achdump_n++] = vbl;
+}
+
+static void achdump_now(void)
+{
+	achievement_entry_t e;
+	const char *title, *desc;
+	unsigned i, boards = achievements_board_count();
+	log_line("achdump: vblank=%u status=\"%s\" presence=\"%s\" count=%u earned=%u boards=%u\n",
+		(unsigned)frame_counter, achievements_status(), achievements_presence(),
+		achievements_count(), achievements_earned(), boards);
+	for (i = 0; achievements_entry(i, &e) == 0; i++)
+		log_line("achdump: %u id=%u %s pts=%u rarity=%d type=%u%s \"%s\"\n", i, e.id,
+			e.earned ? "earned" : e.progress[0] ? e.progress : "-", e.points, e.rarity_x100, e.type,
+			e.unofficial ? " unofficial" : "", e.title);
+	for (i = 0; i < boards && i < 64; i++)
+		if (achievements_board(i, &title, &desc) == 0)
+			log_line("achdump: board %u \"%s\" \"%s\"\n", i, title, desc);
+	if (boards) scores_wait = 60 * 30;
+}
+
+static void achdump_vblank(void)
+{
+	unsigned i;
+	for (i = 0; i < achdump_n; i++)
+		if (achdump_vbl[i] && frame_counter >= achdump_vbl[i]) {
+			achdump_vbl[i] = 0;
+			achievements_list_refresh();
+			achdump_now();
+		}
+	if (scores_wait >= 0) {
+		achievement_score_t top[10], mine;
+		unsigned n = 10, k;
+		int r = achievements_board_scores(0, top, &n, &mine);
+		if (r != 0 || scores_wait-- == 0) {
+			log_line("achdump: board 0 scores %s n=%u you=%u %s\n",
+				r > 0 ? "ok" : r < 0 ? "FAILED" : "TIMEOUT", r > 0 ? n : 0, r > 0 ? mine.rank : 0, r > 0 ? mine.score : "");
+			for (k = 0; r > 0 && k < n; k++)
+				log_line("achdump:   #%u %s %s\n", top[k].rank, top[k].user, top[k].score);
+			scores_wait = -1;
+		}
+	}
+}
+
 void statetool_reset(void)
 {
 	nreq = 0;
 	due = -1;
 	snap_free();
+	achdump_n = 0;
+	scores_wait = -1;
 }
 
 void statetool_request(int op, const char *name, unsigned vbl, unsigned n)
@@ -160,7 +219,12 @@ static unsigned when(int i)
 void statetool_vblank(void)
 {
 	int i;
+	if (achdump_n || scores_wait >= 0) achdump_vblank();
 	if (due >= 0) return;
+	if (autoinput_menuopen_due()) {   /* "menuopen": no request is due, so the menu comes up */
+		stop = 1;
+		return;
+	}
 	for (i = 0; i < nreq; i++)
 		if (!req[i].done && frame_counter >= when(i)) {
 			due = i;

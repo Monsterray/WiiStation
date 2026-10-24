@@ -135,7 +135,7 @@ RA_HTTPS_LIBS := -lcurl -lwssocpoll -lmbedtls -lmbedx509 -lmbedcrypto
 RA_HTTPS_PATH := -L$(RA_HTTPS_DIR)/lib
 RA_HTTPS_FLAGS := -DRA_HTTPS -I$(RA_HTTPS_DIR)/include
 endif
-LIBS	:=	$(if $(filter 3,$(LIBOGC)),-lopengx) -lhbcagent $(RA_HTTPS_LIBS) -lsmb2 -ldi -lm -laesnd -lSDL -lfat -ldb -lwiiuse -lwupc -lwiidrc -lbte -logc -lz -lwiikeyboard -llightrecNoLog -llightning -llzma -lzstd -lzlibstatic -lchdr -lopengx
+LIBS	:=	$(if $(filter 3,$(LIBOGC)),-lopengx) -lhbcagent $(RA_HTTPS_LIBS) -lsmb2 -ldi -lm -laesnd -lSDL -lfat -ldb -lwiiuse -lwupc -lwiidrc -lbte -logc -lpng16 -lz -lwiikeyboard -llightrecNoLog -llightning -llzma -lzstd -lzlibstatic -lchdr -lopengx
 
 #---------------------------------------------------------------------------------
 # list of directories containing libraries, this must be the top level containing

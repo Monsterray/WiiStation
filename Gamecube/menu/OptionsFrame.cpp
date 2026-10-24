@@ -430,6 +430,8 @@ static const OptHelp ISOINFO_HELP[] =
 static const OptRow ACH_ROWS[] =
 {
 	ROW_CYCLE("Achievements", NULL),
+	ROW_RADIO("AchievementUnofficial", NULL),
+	ROW_RADIO("AchievementEncore", NULL),
 	ROW_INFO("Set file", infoAchFile),
 	ROW_INFO("Account",  infoAchAccount),
 };
@@ -442,6 +444,8 @@ static const OptHelp ACH_HELP[] =
 	{ "Account:",  "The User= line of achievements/ra_account.ini." },
 	{ "Official:", "RetroAchievements, Casual." },
 	{ NULL,        "Needs ra_account.ini and tls_seed.bin." },
+	{ "Unofficial:", "Official mode: not yet approved ones too." },
+	{ "Encore:",   "Official mode: earn your unlocks again." },
 };
 
 struct OptPage

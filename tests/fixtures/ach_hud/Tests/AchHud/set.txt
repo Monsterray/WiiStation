@@ -1,0 +1,13 @@
+# The achievement indicators over Spyro's attract demo (scripts/chains/ach_hud.txt). Hit counts
+# on an always-true condition, so each moment comes a fixed number of evaluated frames after the
+# load whatever the game does: the game card at load; #3 unlocks at 400; #2 is primed from 700
+# to 1300 hits (the challenge icon), then unlocks; #1 counts to 2500 (the progress panel), so the
+# list shows it part done when the menu opens at vblank 1700. #4 and #5 are never earned (the
+# Win keeps the game from being beaten).
+Game=SCUS94228
+Title=Spyro
+1|Gem Counter|M:0xH000000=0xH000000.2500.|10||Count to 2500
+2|Hold On|0xH000000=0xH000000.700._T:0xH000000=0xH000000.1300.|25|missable|A challenge: primed, then earned
+3|Sunny Villa|0xH000000=0xH000000.400.|5|progression|The first world
+4|Never|0xH000001=0xH000001.9999.|5||Not earned in this run
+5|The End|0xH000001=0xH000001.9999.|50|win|Beat the game

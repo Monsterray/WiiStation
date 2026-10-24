@@ -13,6 +13,9 @@ extern char achievementsEnabled; /* an ACH_* mode */
 extern char achievementFile[256];
 extern char achievementLog[256];
 extern char achievementImage[256];   /* the loaded image's path: Official mode hashes it */
+extern char achievementUnofficial;    /* Official: the set's unpromoted achievements too (0/1) */
+extern char achievementEncore;        /* Official: earned ones can be earned again this session (0/1) */
+extern char achievementSpectator;     /* Official, hidden (test runs): evaluate, but send no unlock (0/1) */
 
 #define ACHIEVEMENTS_STATE_MAX (256 * 1024)
 int achievements_load(const char *game_id);   /* the set count, 0 = none, -1 = refused */
@@ -25,17 +28,55 @@ void achievements_idle(void);  /* menu and pause, once per frame (Official mode)
 void achievements_change_media(const char *image, const char *game_id);   /* a disc swap: the new disc open, its serial */
 const char *achievements_status(void);   /* one line for the menus: what achievements do for this game */
 uint32_t achievements_read_memory(uint32_t address, uint8_t *buffer, uint32_t size, void *unused);
-unsigned achievements_count(void);
+unsigned achievements_count(void);    /* the loaded set's achievements, in either mode */
 unsigned achievements_earned(void);
-int achievements_get(unsigned i, const char **title); /* 1 earned, 0 not, -1 no such entry */
+void achievements_list_refresh(void); /* the menu opens the list: Official mode reads it again */
 int achievements_state_save(void *data, unsigned size); /* NULL queries required size */
 int achievements_state_load(const void *data, unsigned size); /* NULL resets progress */
 
 /* An achievement's type: the values RetroAchievements uses (rc_client.h) */
 enum { ACH_TYPE_STANDARD = 0, ACH_TYPE_MISSABLE = 1, ACH_TYPE_PROGRESSION = 2, ACH_TYPE_WIN = 3 };
 
-/* One unlock, for the toast (Gamecube/ach_toast.c). Strings live until the set is closed. */
+/* One achievement as the menus list it (achievements_entry). Strings live until the next
+ * achievements_list_refresh or the set closes. */
 typedef struct {
+    const char *title, *desc;
+    const char *badge;                 /* RetroAchievements badge name; "" in a local set */
+    unsigned id, points;
+    int rarity_x100;                   /* share of players x 100; -1 = unknown (Local) */
+    unsigned char earned, type;        /* type: ACH_TYPE_* */
+    unsigned char unofficial;          /* an unpromoted (Unofficial) achievement */
+    unsigned char percent;             /* measured progress 0-100; 0 = none */
+    char progress[24];                 /* measured progress as text ("12/40"); "" = none */
+} achievement_entry_t;
+int achievements_entry(unsigned i, achievement_entry_t *e);   /* 0, or -1: no such entry */
+const char *achievements_presence(void);   /* rich presence (Official): what the player is doing; "" = none */
+
+/* Leaderboards (Official mode; a local set has none). The scores of one board at a time are
+ * fetched from the server when asked for. */
+typedef struct { unsigned rank; char user[32], score[24]; } achievement_score_t;
+unsigned achievements_board_count(void);
+int achievements_board(unsigned i, const char **title, const char **desc);   /* 0, or -1: none */
+/* Board i's best `*n` scores (in: room, out: how many) and the player's own (rank 0: none).
+ * 1 ready, 0 being fetched (ask again), -1 failed. */
+int achievements_board_scores(unsigned i, achievement_score_t *top, unsigned *n, achievement_score_t *mine);
+
+/* What a notice is (achievement_notice_t.kind) */
+enum {
+    ACH_NOTICE_UNLOCK = 0,      /* an achievement unlocked: every field */
+    ACH_NOTICE_GAME,            /* a set loaded: game, earned, count, points (earned), total_points, desc (the mode) */
+    ACH_NOTICE_PROGRESS,        /* measured progress moved on: title, badge, progress, percent */
+    ACH_NOTICE_CHALLENGE_ON,    /* an achievement is one step away (primed): id, title, badge */
+    ACH_NOTICE_CHALLENGE_OFF    /* that is over: id */
+};
+
+/* One notice for the toast (Gamecube/ach_toast.c). Strings live until the set is closed. */
+typedef struct {
+    unsigned char kind;                /* ACH_NOTICE_* */
+    unsigned id;
+    const char *badge;                 /* RetroAchievements badge name, or "" */
+    const char *progress;              /* ACH_NOTICE_PROGRESS: "12/40" */
+    unsigned char percent;
     const char *title, *desc, *game;   /* game: the set's Title= line, or "" */
     unsigned points, total_points;     /* 0 = the set gives none */
     int rarity_x100;                   /* share of players x 100 (812 = 8.12 %); -1 = unknown (Local) */

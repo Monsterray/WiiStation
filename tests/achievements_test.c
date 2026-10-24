@@ -228,10 +228,10 @@ int main(int argc, char **argv)
         achievementLog[0] = 0;
     }
     /* Modes: Test evaluates but never reads or writes the journal; Official loads nothing
-     * until it is built. achievements_get feeds the menu's list. */
+     * until it is built. achievements_entry feeds the menu's list. */
     {
         char tj[256];
-        const char *title = NULL;
+        achievement_entry_t e;
         assert(snprintf(tj, sizeof tj, "%s/test_unlocks", argv[1]) < 256);
         strcpy(achievementLog, tj);
         f = fopen(tj, "wb"); assert(f);   /* a journal that already says id 1 is earned */
@@ -244,9 +244,9 @@ int main(int argc, char **argv)
         achievements_frame();
         ram[0x41] = 1;
         achievements_frame();
-        assert(achievements_get(1, &title) == 1 && !strcmp(title, "Two"));
-        assert(achievements_get(0, &title) == 0 && !strcmp(title, "One"));
-        assert(achievements_get(2, &title) == -1);
+        assert(achievements_entry(1, &e) == 0 && e.earned && !strcmp(e.title, "Two") && e.rarity_x100 == -1);
+        assert(achievements_entry(0, &e) == 0 && !e.earned && !strcmp(e.title, "One") && !e.progress[0]);
+        assert(achievements_entry(2, &e) == -1);
         achievements_close();
         f = fopen(tj, "rb"); assert(f);   /* untouched: still the one fake line */
         { char l[128]; int n = 0; while (fgets(l, sizeof l, f)) ++n; assert(n == 1); }
@@ -267,6 +267,8 @@ int main(int argc, char **argv)
                  "3|Extra|0xH000052=1|100||The rest of the line | keeps its bar\n");
         ram[0x50] = ram[0x51] = ram[0x52] = 0;
         assert(achievements_load("TEST12345") == 3);
+        assert(notice_count == 1 && notices[0].kind == ACH_NOTICE_GAME);
+        notice_count = 0;
         achievements_frame();
         ram[0x50] = 1; achievements_frame();
         assert(notice_count == 1 && notices[0].points == 5 && notices[0].type == ACH_TYPE_PROGRESSION);
@@ -285,6 +287,45 @@ int main(int argc, char **argv)
         assert(achievements_load("TEST12345") == -1);
         set_file("Game=TEST12345\n1|Unknown type|0xH000050=1|5|boss\n");
         assert(achievements_load("TEST12345") == -1);
+        achievements_notify = NULL;
+        achievementsEnabled = ACH_LOCAL;
+    }
+    /* The game card at load, measured progress (only when it grows), a challenge (primed) */
+    {
+        achievement_entry_t e;
+        achievementsEnabled = ACH_TEST;
+        achievements_notify = on_notice;
+        notice_count = 0;
+        set_file("Game=TEST12345\nTitle=Fixture\n"
+                 "1|Count to ten|M:0xH000070=10|5\n"
+                 "2|Two steps|0xH000071=1_0xH000072=1|10\n");
+        ram[0x70] = ram[0x71] = ram[0x72] = 0;
+        assert(achievements_load("TEST12345") == 2);
+        assert(notice_count == 1 && notices[0].kind == ACH_NOTICE_GAME && !strcmp(notices[0].game, "Fixture"));
+        assert(notices[0].count == 2 && notices[0].earned == 0 && notices[0].total_points == 15 && !strcmp(notices[0].desc, "Test"));
+        achievements_frame();
+        ram[0x70] = 3; achievements_frame();
+        assert(notice_count == 2 && notices[1].kind == ACH_NOTICE_PROGRESS && notices[1].id == 1 && notices[1].percent == 30);
+        assert(achievements_entry(0, &e) == 0 && !strcmp(e.progress, "3/10") && e.percent == 30);
+        ram[0x70] = 2; achievements_frame();
+        ram[0x70] = 3; achievements_frame();
+        assert(notice_count == 2);   /* back to 3 is not news */
+        ram[0x70] = 4; achievements_frame();
+        assert(notice_count == 3 && notices[2].percent == 40);
+        achievements_close();
+        notice_count = 0;
+        set_file("Game=TEST12345\n1|Primed|0xH000073=1_T:0xH000074=1|10\n");
+        ram[0x73] = ram[0x74] = 0;
+        assert(achievements_load("TEST12345") == 1 && notice_count == 1);
+        achievements_frame();
+        ram[0x73] = 1; achievements_frame();
+        assert(notice_count == 2 && notices[1].kind == ACH_NOTICE_CHALLENGE_ON && notices[1].id == 1);
+        ram[0x73] = 0; achievements_frame();
+        assert(notice_count == 3 && notices[2].kind == ACH_NOTICE_CHALLENGE_OFF);
+        ram[0x73] = 1; achievements_frame();
+        ram[0x74] = 1; achievements_frame();
+        assert(notices[notice_count - 1].kind == ACH_NOTICE_UNLOCK && achievements_earned() == 1);
+        achievements_close();
         achievements_notify = NULL;
         achievementsEnabled = ACH_LOCAL;
     }

@@ -185,10 +185,26 @@ char autoinput_menukeys[64];
 /*
  * Read in MenuContext.cpp. */
 unsigned autoinput_menupage = 0;
+/* "menuopen <vblank> <page>": stop the game at that vblank, as the menu combination does, and
+ * open that menupage (above) in the menu that comes up: e.g. 15, the achievements list of the
+ * game being played. */
+unsigned autoinput_menuopen_vblank = 0, autoinput_menuopen_page = 0;
+static unsigned menuopen_page;
+
+/* statetool_vblank, once per vblank: 1 when the game should stop for the menu now */
+int autoinput_menuopen_due(void)
+{
+	if (!autoinput_menuopen_vblank || frame_counter < autoinput_menuopen_vblank)
+		return 0;
+	autoinput_menuopen_vblank = 0;
+	autoinput_menuopen_page = menuopen_page;
+	return 1;
+}
 /* "state save NAME <vblank>", "state load NAME <vblank>", "statecheck <vblank> <n>" (and the
  * old "statetest <vblank>", now statecheck with n = 120): Gamecube/statetool.cpp. */
 void statetool_request(int op, const char *name, unsigned vbl, unsigned n);
 void statetool_reset(void);
+void statetool_achdump(unsigned vbl);
 unsigned autoinput_atrace_vbl = 0; /* "atrace <vblank>": debug build starts the audio timeline (perf_prof.c) */
 /* A script port's name: p1 (or p1a), p2 (or p2a), p1b..p1d, p2b..p2d. -1 if it is none. */
 static int script_port_name(const char *q)
@@ -309,6 +325,8 @@ void autoinput_load(void)
 				continue;
 			}
 			if (sscanf(line, "menupage %u", &v) == 1) { autoinput_menupage = v; continue; }
+			if (sscanf(line, "menuopen %u %u", &v, &k) == 2) { autoinput_menuopen_vblank = v; menuopen_page = k; continue; }
+			if (sscanf(line, "achdump %u", &v) == 1) { statetool_achdump(v); continue; }
 			if (sscanf(line, "menukeys %u %63[^\r\n]", &v, autoinput_menukeys) == 2)
 				{ autoinput_menukeys_frame = v; continue; }
 			{
@@ -394,6 +412,7 @@ void autoinput_reset(const char *path)
 	autoinput_padsweep_vbl = 0;
 	autoinput_padsweep_fast = 0;
 	autoinput_menupage = 0;
+	autoinput_menuopen_vblank = menuopen_page = 0;
 	autoinput_menuclick = autoinput_menuclicks = autoinput_menuclick_frame = 0;
 	autoinput_menukeys_frame = 0;
 	autoinput_menukeys[0] = 0;

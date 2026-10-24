@@ -15,3 +15,7 @@ done
   -Ideps/rcheevos/include achievements.c tests/achievements_test.c \
   "$task_dir"/*.o -lm -o "$task_dir/test"
 UBSAN_OPTIONS=halt_on_error=1 "$task_dir/test" "$task_dir"
+# badge pictures: the name check and the RGBA8 -> RGB5A3 tiling (Gamecube/ach_badge_conv.h)
+"${CC:-cc}" -std=c99 -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined \
+  tests/ach_badge_test.c -o "$task_dir/badge_test"
+UBSAN_OPTIONS=halt_on_error=1 "$task_dir/badge_test"

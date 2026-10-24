@@ -1,0 +1,9 @@
+CHAIN
+# The achievement indicators (Gamecube/ach_toast.c) and the list page: the game card, the
+# progress panel, a challenge icon, two unlocks, then the menu's achievements list at 1700.
+#   WSX_EXTRA_ISOS=tests/fixtures/ach_hud WSX_ISOS="Tests/AchHud,Spyro the Dragon" scripts/wsx.sh chain NAME \
+#     scripts/chains/ach_hud.txt --set 'Achievements=2,AchievementFile="sd:/wiistation/isos/Tests/AchHud/set.txt"' \
+#     --env FRAMES_DUMP=True --env KEEP=100000
+1800 sd:/wiistation/ach_hud.txt FPS=0
+sd:/wiistation/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue

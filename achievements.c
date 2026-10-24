@@ -35,6 +35,7 @@ extern void SysPrintf(const char *fmt, ...);
 char achievementsEnabled;   /* an ACH_* mode */
 char achievementFile[256], achievementLog[256];
 char achievementImage[256];
+char achievementUnofficial, achievementEncore, achievementSpectator;
 void (*achievements_notify)(const achievement_notice_t *notice);
 
 /* Official mode lives in achievements_official.c (Wii builds). Weak, so a build without it
@@ -45,6 +46,20 @@ void achievements_official_idle(void) __attribute__((weak));
 void achievements_official_close(void) __attribute__((weak));
 void achievements_official_change_media(const char *image) __attribute__((weak));
 const char *achievements_official_status(void) __attribute__((weak));
+unsigned achievements_official_count(void) __attribute__((weak));
+unsigned achievements_official_earned(void) __attribute__((weak));
+int achievements_official_entry(unsigned i, achievement_entry_t *e) __attribute__((weak));
+void achievements_official_list_refresh(void) __attribute__((weak));
+const char *achievements_official_presence(void) __attribute__((weak));
+void achievements_official_reset(void) __attribute__((weak));
+int achievements_official_state_save(void *data, unsigned size) __attribute__((weak));
+int achievements_official_state_load(const void *data, unsigned size) __attribute__((weak));
+unsigned achievements_official_board_count(void) __attribute__((weak));
+int achievements_official_board(unsigned i, const char **title, const char **desc) __attribute__((weak));
+int achievements_official_board_scores(unsigned i, achievement_score_t *top, unsigned *n, achievement_score_t *mine)
+    __attribute__((weak));
+/* Official mode is on and this build has its hook `fn` */
+#define OFFICIAL(fn) (achievementsEnabled == ACH_OFFICIAL && achievements_official_##fn)
 
 static rc_runtime_t runtime;
 static struct {
@@ -55,6 +70,7 @@ static struct {
     unsigned char type;      /* ACH_TYPE_*, optional */
     unsigned char earned;    /* triggered this session, or restored from the journal/state */
     unsigned char written;   /* already in the journal */
+    unsigned char measured;  /* the highest measured percent shown so far: a toast only when it grows */
 } entries[MAX_ACHIEVEMENTS];
 static unsigned count;
 static char set_title[48];              /* the set's Title= line: the game's name for the toast */
@@ -87,20 +103,70 @@ uint32_t achievements_read_memory(uint32_t address, uint8_t *buffer, uint32_t si
     return size;
 }
 
-unsigned achievements_count(void) { return active ? count : 0; }
-unsigned achievements_earned(void)
+static unsigned local_earned(void)
 {
     unsigned i, n = 0;
     for (i = 0; i < count; ++i) n += entries[i].earned != 0;
     return n;
 }
 
-/* For the menu's list: the i-th achievement's title, and whether it is earned */
-int achievements_get(unsigned i, const char **title)
+unsigned achievements_count(void)
 {
+    if (OFFICIAL(count)) return achievements_official_count();
+    return active ? count : 0;
+}
+
+unsigned achievements_earned(void)
+{
+    if (OFFICIAL(earned)) return achievements_official_earned();
+    return local_earned();
+}
+
+void achievements_list_refresh(void)
+{
+    if (OFFICIAL(list_refresh)) achievements_official_list_refresh();
+}
+
+/* For the menu's list: the i-th achievement, with its measured progress ("12/40") */
+int achievements_entry(unsigned i, achievement_entry_t *e)
+{
+    unsigned value = 0, target = 0;
+    if (OFFICIAL(entry)) return achievements_official_entry(i, e);
     if (!active || i >= count) return -1;
-    if (title) *title = entries[i].title;
-    return entries[i].earned != 0;
+    memset(e, 0, sizeof *e);
+    e->title = entries[i].title;
+    e->desc = entries[i].desc;
+    e->badge = "";
+    e->id = entries[i].id;
+    e->points = entries[i].points;
+    e->rarity_x100 = -1;
+    e->earned = entries[i].earned;
+    e->type = entries[i].type;
+    if (!e->earned && rc_runtime_get_achievement_measured(&runtime, e->id, &value, &target) && target) {
+        rc_runtime_format_achievement_measured(&runtime, e->id, e->progress, sizeof e->progress);
+        e->percent = value >= target ? 100 : (unsigned char)((unsigned long long)value * 100 / target);
+    }
+    return 0;
+}
+
+const char *achievements_presence(void)
+{
+    return OFFICIAL(presence) ? achievements_official_presence() : "";
+}
+
+unsigned achievements_board_count(void)
+{
+    return OFFICIAL(board_count) ? achievements_official_board_count() : 0;
+}
+
+int achievements_board(unsigned i, const char **title, const char **desc)
+{
+    return OFFICIAL(board) ? achievements_official_board(i, title, desc) : -1;
+}
+
+int achievements_board_scores(unsigned i, achievement_score_t *top, unsigned *n, achievement_score_t *mine)
+{
+    return OFFICIAL(board_scores) ? achievements_official_board_scores(i, top, n, mine) : -1;
 }
 
 /* ---- the unlock journal: one "<set digest> <id> <title>" line per unlock ---- */
@@ -201,7 +267,7 @@ static int is_beaten(void)
     return typed && (!wins || won);
 }
 
-static int is_mastered(void) { return count && achievements_earned() == count; }
+static int is_mastered(void) { return count && local_earned() == count; }
 
 /* Tell the toast about a new unlock, and whether it beat the game or completed the set */
 static void notify(unsigned i)
@@ -220,15 +286,49 @@ static void notify(unsigned i)
     n.points = entries[i].points;
     for (k = 0; k < count; ++k) n.total_points += entries[k].points;
     n.rarity_x100 = -1;   /* a Local set has no player counts */
-    n.earned = achievements_earned();
+    n.earned = local_earned();
     n.count = count;
     n.type = entries[i].type;
+    achievements_notify(&n);
+}
+
+/* A challenge (primed) or measured progress, for the small indicators */
+static void indicator(unsigned char kind, unsigned i)
+{
+    achievement_notice_t n;
+    char progress[24] = "";
+    unsigned value = 0, target = 0;
+    if (!achievements_notify) return;
+    memset(&n, 0, sizeof n);
+    n.kind = kind;
+    n.id = entries[i].id;
+    n.title = entries[i].title;
+    n.badge = "";
+    n.rarity_x100 = -1;
+    if (kind == ACH_NOTICE_PROGRESS) {
+        if (!rc_runtime_get_achievement_measured(&runtime, n.id, &value, &target) || !target || value >= target)
+            return;   /* none, or done: the unlock says it */
+        n.percent = (unsigned char)((unsigned long long)value * 100 / target);
+        if (n.percent <= entries[i].measured)
+            return;   /* only a whole percent more; a value that falls back and climbs again is not news */
+        entries[i].measured = n.percent;
+        rc_runtime_format_achievement_measured(&runtime, n.id, progress, sizeof progress);
+        n.progress = progress;
+    }
     achievements_notify(&n);
 }
 
 static void event(const rc_runtime_event_t *e)
 {
     unsigned i;
+    if (e->type == RC_RUNTIME_EVENT_ACHIEVEMENT_PRIMED || e->type == RC_RUNTIME_EVENT_ACHIEVEMENT_UNPRIMED ||
+        e->type == RC_RUNTIME_EVENT_ACHIEVEMENT_PROGRESS_UPDATED) {
+        for (i = 0; i < count; ++i)
+            if (entries[i].id == e->id && !entries[i].earned)
+                indicator(e->type == RC_RUNTIME_EVENT_ACHIEVEMENT_PRIMED ? ACH_NOTICE_CHALLENGE_ON :
+                          e->type == RC_RUNTIME_EVENT_ACHIEVEMENT_UNPRIMED ? ACH_NOTICE_CHALLENGE_OFF : ACH_NOTICE_PROGRESS, i);
+        return;
+    }
     if (e->type != RC_RUNTIME_EVENT_ACHIEVEMENT_TRIGGERED) return;
     for (i = 0; i < count; ++i)
         if (entries[i].id == e->id && !entries[i].earned) {
@@ -249,8 +349,13 @@ static void keep_earned(void)
 void achievements_pause(void) { running = 0; }
 void achievements_reset(void)
 {
+    if (OFFICIAL(reset)) {
+        achievements_official_reset();
+        return;
+    }
     if (!active) return;
     rc_runtime_reset(&runtime);
+    for (unsigned i = 0; i < count; ++i) entries[i].measured = 0;   /* progress starts again */
     keep_earned();
     rc_runtime_validate_addresses(&runtime, event, valid_address); /* address validity: once per reset */
     running = 1;
@@ -527,7 +632,23 @@ int achievements_load(const char *game_id)
     mastered_seen = is_mastered();
     rc_runtime_validate_addresses(&runtime, event, valid_address); /* address validity: once per load */
     running = 1;
-    SysPrintf("Achievements: loaded %u for %s (%u earned)\n", count, game_id, achievements_earned());
+    SysPrintf("Achievements: loaded %u for %s (%u earned)\n", count, game_id, local_earned());
+    if (achievements_notify) {   /* the game card: the set is on */
+        achievement_notice_t n;
+        unsigned i;
+        memset(&n, 0, sizeof n);
+        n.kind = ACH_NOTICE_GAME;
+        n.game = set_title[0] ? set_title : game_id;
+        n.desc = achievementsEnabled == ACH_TEST ? "Test" : "Local";
+        n.rarity_x100 = -1;
+        n.earned = local_earned();
+        n.count = count;
+        for (i = 0; i < count; ++i) {
+            n.total_points += entries[i].points;
+            if (entries[i].earned) n.points += entries[i].points;
+        }
+        achievements_notify(&n);
+    }
     return (int)count;
 }
 
@@ -538,6 +659,7 @@ int achievements_state_save(void *data, unsigned size)
     unsigned i;
     uint32_t n;
     unsigned char *out = data;
+    if (OFFICIAL(state_save)) return achievements_official_state_save(data, size);
     if (!active) return 0;
     n = rc_runtime_progress_size(&runtime, NULL);
     if (n > ACHIEVEMENTS_STATE_MAX - STATE_HEADER) return 0;
@@ -557,6 +679,7 @@ int achievements_state_load(const void *data, unsigned size)
     const unsigned char *in = data;
     unsigned i;
     int ok = 0;
+    if (OFFICIAL(state_load)) return achievements_official_state_load(data, size);
     if (!active) return 0;
     /* only a state made with this exact set restores its progress and earned bits */
     if (in && size >= STATE_HEADER && size <= ACHIEVEMENTS_STATE_MAX &&
@@ -567,6 +690,7 @@ int achievements_state_load(const void *data, unsigned size)
                 if (in[20 + i / 8] & (1u << (i % 8))) entries[i].earned = 1;
     }
     if (!ok) rc_runtime_reset(&runtime);
+    for (i = 0; i < count; ++i) entries[i].measured = 0;   /* the state's progress is the new start */
     keep_earned(); /* loading an older state never revokes an earned achievement */
     beaten_seen |= is_beaten();
     mastered_seen |= is_mastered();

@@ -1,0 +1,2 @@
+# scripts/chains/ach_hud.txt: the achievements list of the game being played, at vblank 1700
+menuopen 1700 15

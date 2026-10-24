@@ -142,6 +142,7 @@ extern "C" {
 	void autoinput_load(void);
 	void autoinput_reset(const char *path);
 	extern unsigned autoinput_menupage;
+	extern unsigned autoinput_menuopen_page;
 	extern unsigned autoinput_menuclick, autoinput_menuclicks, autoinput_menuclick_frame;
 	void SettingsFrame_ScriptClick(int button);
 }
@@ -166,13 +167,24 @@ bool MenuContext::isRunning()
 	/* A few frames in, so that the menu has drawn itself once and the video mode has
 	 * settled, open the page the script asked for -- then never again. */
 	{
-		static int framesUntilMenuPage = 30;
+		static int framesUntilMenuPage = 30, framesUntilOpenPage = 10;
+		unsigned page = 0;
 		if (framesUntilMenuPage > 0 && --framesUntilMenuPage == 0) {
 			perf_stack_log("menu frame 30");
 			/* read the script anew: a read before the SD card was mounted (the controller
 			 * assignment at power-on asks for scripted ports) found nothing, and kept that */
 			autoinput_reset("sd:/wiistation/autoinput.txt");
 			autoinput_load();
+			page = autoinput_menupage;
+		}
+		/* "menuopen <vblank> <page>": the game stopped there for it; the page ten frames on */
+		if (autoinput_menuopen_page && --framesUntilOpenPage <= 0) {
+			page = autoinput_menuopen_page;
+			autoinput_menuopen_page = 0;
+			framesUntilOpenPage = 10;
+		}
+		if (page) {
+			autoinput_menupage = page;
 			if (autoinput_menupage >= 1 && autoinput_menupage <= 5)
 				setActiveFrame(FRAME_SETTINGS,
 					SettingsFrame::SUBMENU_GENERAL + (int)autoinput_menupage - 1);

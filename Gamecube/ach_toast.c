@@ -1,5 +1,8 @@
 /* The achievement toast (Docs/design/PS1_STYLES.md): the Save Block card that slides in at
- * the top right when an achievement unlocks.
+ * the top right when an achievement unlocks, or when a set loads (the game card, with the
+ * Disc Read style's spinning disc). Two small indicators sit at the bottom right: measured
+ * progress ("12/40", for a few seconds after it grows) and one icon per challenge (an
+ * achievement one step away, for as long as it is).
  *
  * Its material is the tier. A single unlock is Blue, Bronze, Silver, Gold or Crystal by
  * rarity (a Local set has no rarity, so its points decide). The unlock that beats the game
@@ -19,6 +22,9 @@
 #include "ach_toast.h"
 #include "ach_icons.h"
 #include "perf_prof.h"
+#ifdef HW_RVL
+#include "ach_badge.h"   /* RetroAchievements badge pictures (Official mode) */
+#endif
 
 extern u32 frame_counter;          /* psxcounters.c: +1 per vblank */
 extern char menuActive;
@@ -30,12 +36,13 @@ int IplFont_getStringWidth(char *string, float scale);
 
 /* ---- the queue: a second unlock waits until the first has gone ---- */
 
-enum { KIND_UNLOCK, KIND_BEATEN, KIND_MASTERED };
+enum { KIND_UNLOCK, KIND_BEATEN, KIND_MASTERED, KIND_GAME };
 enum { T_BLUE, T_BRONZE, T_SILVER, T_GOLD, T_CRYSTAL, T_FINISH, T_PLAT };
-enum { ICON_TROPHY, ICON_KEY, ICON_HOURGLASS, ICON_FLAG, ICON_CROWN };
+enum { ICON_TROPHY, ICON_KEY, ICON_HOURGLASS, ICON_FLAG, ICON_CROWN, ICON_DISC };
 
 typedef struct {
 	char title[80], desc[96], pts[16], left[24], right[24];   /* fitted to the card at push time */
+	char badge[24];                                           /* the RetroAchievements picture, or "" */
 	unsigned char tier, icon, chip;                           /* chip: an ACH_TYPE_*, or STANDARD for none */
 	float fill;                                               /* the set's progress, 0..1 */
 	unsigned blocks;                                          /* 0: a plain bar */
@@ -71,16 +78,105 @@ static unsigned tier_of(const achievement_notice_t *n)
 
 static const unsigned char ICON_OF_TYPE[4] = { ICON_TROPHY, ICON_HOURGLASS, ICON_KEY, ICON_FLAG };
 
+/* ---- the indicators: progress and challenges ---- */
+
+#define CHALLENGES 4
+static struct {
+	int on;
+	char title[64], value[24], badge[24];
+	unsigned id;
+	float fill;
+	u32 shown;   /* vblanks since it last grew */
+} progress;
+static struct { unsigned id; u32 shown; char badge[24]; } challenge[CHALLENGES];
+static int challenges;
+static u32 hud_last;
+
+static void challenge_off(unsigned id)
+{
+	int i;
+	for (i = 0; i < challenges; i++)
+		if (challenge[i].id == id) {
+			challenge[i] = challenge[--challenges];
+			return;
+		}
+}
+
+/* Ask for the picture now, when the notice comes: by the time it is drawn it is in memory (a
+ * card read or a download at draw time would hold up the present). */
+static void badge_want(char *dst, size_t size, const char *badge)
+{
+	snprintf(dst, size, "%s", badge ? badge : "");
+#ifdef HW_RVL
+	if (dst[0]) {
+		GXTexObj obj;
+		ach_badge_get(dst, 0, &obj);
+	}
+#endif
+}
+
+static void indicator_push(const achievement_notice_t *n)
+{
+	switch (n->kind) {
+	case ACH_NOTICE_PROGRESS:
+		if (!progress.on || progress.id != n->id) progress.shown = 0;   /* a new one slides in */
+		else if (progress.shown > 20) progress.shown = 20;               /* the same one stays in and waits again */
+		progress.on = 1;
+		progress.id = n->id;
+		snprintf(progress.title, sizeof progress.title, "%s", n->title ? n->title : "");
+		snprintf(progress.value, sizeof progress.value, "%s", n->progress ? n->progress : "");
+		badge_want(progress.badge, sizeof progress.badge, n->badge);
+		progress.fill = n->percent / 100.0f;
+		break;
+	case ACH_NOTICE_CHALLENGE_ON:
+		challenge_off(n->id);
+		if (challenges < CHALLENGES) {
+			challenge[challenges].id = n->id;
+			badge_want(challenge[challenges].badge, sizeof challenge[challenges].badge, n->badge);
+			challenge[challenges++].shown = 0;
+		}
+		break;
+	case ACH_NOTICE_CHALLENGE_OFF:
+		challenge_off(n->id);
+		break;
+	}
+}
+
 void ach_toast_push(const achievement_notice_t *n)
 {
 	Toast *t;
 	Face *f;
+	if (n->kind != ACH_NOTICE_UNLOCK && n->kind != ACH_NOTICE_GAME) {
+		indicator_push(n);
+		return;
+	}
+	if (n->kind == ACH_NOTICE_UNLOCK) {   /* it is earned: its indicators are done */
+		challenge_off(n->id);
+		if (progress.on && progress.id == n->id) progress.on = 0;
+	}
 	if (q_len == QUEUE) return;   /* more unlocks at once than fit: the journal still has them */
 	t = &queue[(q_head + q_len++) % QUEUE];
 	memset(t, 0, sizeof *t);
+	if (n->kind == ACH_NOTICE_GAME) {   /* the game card: the set is on */
+		t->kind = KIND_GAME;
+		f = &t->f1;
+		snprintf(f->title, sizeof f->title, "%s", n->game && n->game[0] ? n->game : "Achievements");
+		if (n->total_points)
+			snprintf(f->desc, sizeof f->desc, "%u of %u earned, %u of %u points", n->earned, n->count, n->points, n->total_points);
+		else
+			snprintf(f->desc, sizeof f->desc, "%u of %u earned", n->earned, n->count);
+		snprintf(f->left, sizeof f->left, "BLOCK %u/%u", n->earned, n->count);
+		snprintf(f->right, sizeof f->right, "%s", n->desc ? n->desc : "");
+		f->tier = T_BLUE;
+		f->icon = ICON_DISC;
+		f->fill = n->count ? (float)n->earned / n->count : 0;
+		f->blocks = n->count <= 60 ? n->count : 0;
+		return;
+	}
 	t->kind = n->mastered ? KIND_MASTERED : n->beaten ? KIND_BEATEN : KIND_UNLOCK;
 
 	f = &t->f1;
+	badge_want(f->badge, sizeof f->badge, n->badge);
 	snprintf(f->title, sizeof f->title, "%s", n->title ? n->title : "");
 	snprintf(f->desc, sizeof f->desc, "%s", n->desc ? n->desc : "");
 	if (n->points) snprintf(f->pts, sizeof f->pts, "+%u", n->points);
@@ -97,6 +193,7 @@ void ach_toast_push(const achievement_notice_t *n)
 		const char *game = n->game && n->game[0] ? n->game : "Game";
 		t->f2 = *f;
 		f = &t->f2;
+		f->badge[0] = 0;   /* the flag or the crown, not the last unlock's picture */
 		f->chip = ACH_TYPE_STANDARD;
 		f->right[0] = 0;
 		if (t->kind == KIND_BEATEN) {
@@ -115,9 +212,17 @@ void ach_toast_push(const achievement_notice_t *n)
 	}
 }
 
-void ach_toast_clear(void) { q_head = q_len = 0; }
+void ach_toast_clear(void)
+{
+#ifdef HW_RVL
+	ach_badge_flush();   /* a new game: its own pictures */
+#endif
+	q_head = q_len = 0;
+	progress.on = 0;
+	challenges = 0;
+}
 
-int ach_toast_wanted(void) { return q_len > 0 && !menuActive; }
+int ach_toast_wanted(void) { return (q_len > 0 || progress.on || challenges) && !menuActive; }
 
 /* ---- tiers: the card's colours, as in the mockup (0xRRGGBBAA) ---- */
 
@@ -287,6 +392,39 @@ static void draw_dither(float x0, float y0, float x1, float y1)
 	shapes_begin();
 }
 
+/* A badge picture over (x, y), size square, nearest filtered: its 15-bit colour is the PS1's.
+ * 0 when it is not in memory (yet): the caller draws the pixel icon instead. */
+static int draw_badge(const char *badge, float x, float y, float size)
+{
+#ifdef HW_RVL
+	GXTexObj obj;
+	if (!badge[0] || ach_badge_get(badge, 0, &obj) != 1) return 0;
+	GX_InvalidateTexRegion(&texCacheRegionS[0]);   /* the dither's and the font's region: other texels */
+	GX_LoadTexObjPreloaded(&obj, &texCacheRegionS[0], GX_TEXMAP0);   /* outside Begin/End */
+	GX_ClearVtxDesc();
+	GX_SetVtxDesc(GX_VA_POS, GX_DIRECT);
+	GX_SetVtxDesc(GX_VA_TEX0, GX_DIRECT);
+	GX_SetVtxAttrFmt(GX_VTXFMT7, GX_VA_POS, GX_POS_XY, GX_F32, 0);
+	GX_SetVtxAttrFmt(GX_VTXFMT7, GX_VA_TEX0, GX_TEX_ST, GX_F32, 0);
+	GX_SetNumChans(0);
+	GX_SetNumTexGens(1);
+	GX_SetTexCoordGen(GX_TEXCOORD0, GX_TG_MTX2x4, GX_TG_TEX0, GX_IDENTITY);
+	GX_SetTevOrder(GX_TEVSTAGE0, GX_TEXCOORD0, GX_TEXMAP0, GX_COLORNULL);
+	GX_SetTevOp(GX_TEVSTAGE0, GX_REPLACE);
+	GX_Begin(GX_QUADS, GX_VTXFMT7, 4);
+	GX_Position2f32(x, y);               GX_TexCoord2f32(0, 0);
+	GX_Position2f32(x + size, y);        GX_TexCoord2f32(1, 0);
+	GX_Position2f32(x + size, y + size); GX_TexCoord2f32(1, 1);
+	GX_Position2f32(x, y + size);        GX_TexCoord2f32(0, 1);
+	GX_End();
+	shapes_begin();
+	return 1;
+#else
+	(void)badge; (void)x; (void)y; (void)size;
+	return 0;
+#endif
+}
+
 /* ---- text: the menu font, with a hard shadow, bold by drawing twice ---- */
 
 static void text(int x, int y, const char *s, float scale, u32 c, u32 shadow, int bold)
@@ -359,14 +497,52 @@ static void icon_pixels(const char map[16][17], float x, float y, float px)
 		}
 }
 
+/* The Disc Read style's disc (PS1_STYLES.md 2): it spins up at a constant acceleration for
+ * 1.2 s to 900 degrees a second, then keeps that speed. Rainbow sectors, one dark mark that
+ * shows the turn, a black hub with a white ring. */
+static void draw_disc(float cx, float cy, float r, float t)
+{
+	static const u32 RAINBOW[6] = { 0xff8a8aff, 0xffd27aff, 0xfaff8aff, 0x8affb0ff, 0x8ad8ffff, 0xc49cffff };
+	const float spin = 900, up = 1.2f;
+	float turn = t < up ? spin / up * t * t / 2 : spin * up / 2 + spin * (t - up);
+	int i;
+	const int n = 24;
+	for (i = 0; i < n; i++) {
+		float a0 = (i * 360.0f / n + turn) * (float)M_PI / 180, a1 = ((i + 1) * 360.0f / n + turn) * (float)M_PI / 180;
+		u32 c = i == 0 ? 0x30364aff : RAINBOW[i % 6];
+		GX_Begin(GX_QUADS, GX_VTXFMT7, 4);
+		vtx(cx + cosf(a0) * r * 0.34f, cy + sinf(a0) * r * 0.34f, c); vtx(cx + cosf(a0) * r, cy + sinf(a0) * r, c);
+		vtx(cx + cosf(a1) * r, cy + sinf(a1) * r, c); vtx(cx + cosf(a1) * r * 0.34f, cy + sinf(a1) * r * 0.34f, c);
+		GX_End();
+		GX_Begin(GX_QUADS, GX_VTXFMT7, 4);   /* the hub: a white ring, then black */
+		vtx(cx + cosf(a0) * r * 0.26f, cy + sinf(a0) * r * 0.26f, 0x000000ff); vtx(cx + cosf(a0) * r * 0.34f, cy + sinf(a0) * r * 0.34f, 0xffffffff);
+		vtx(cx + cosf(a1) * r * 0.34f, cy + sinf(a1) * r * 0.34f, 0xffffffff); vtx(cx + cosf(a1) * r * 0.26f, cy + sinf(a1) * r * 0.26f, 0x000000ff);
+		GX_End();
+		GX_Begin(GX_TRIANGLES, GX_VTXFMT7, 3);
+		vtx(cx, cy, 0x000000ff); vtx(cx + cosf(a0) * r * 0.26f, cy + sinf(a0) * r * 0.26f, 0x000000ff);
+		vtx(cx + cosf(a1) * r * 0.26f, cy + sinf(a1) * r * 0.26f, 0x000000ff);
+		GX_End();
+	}
+	if (t >= up)   /* at speed: the pale smear ring over the surface */
+		for (i = 0; i < n; i++) {
+			float a0 = i * 2 * (float)M_PI / n, a1 = (i + 1) * 2 * (float)M_PI / n;
+			GX_Begin(GX_QUADS, GX_VTXFMT7, 4);
+			vtx(cx + cosf(a0) * r * 0.55f, cy + sinf(a0) * r * 0.55f, 0xffffff00); vtx(cx + cosf(a0) * r * 0.8f, cy + sinf(a0) * r * 0.8f, 0xffffff59);
+			vtx(cx + cosf(a1) * r * 0.8f, cy + sinf(a1) * r * 0.8f, 0xffffff59); vtx(cx + cosf(a1) * r * 0.55f, cy + sinf(a1) * r * 0.55f, 0xffffff00);
+			GX_End();
+		}
+}
+
 /* the icon's frame at time t: the trophy turns (front, turned, side, turned), the sand runs,
  * the flag waves; the key and the crown sparkle */
-static void draw_icon(int icon, float x, float y, float t)
+static void draw_icon_px(int icon, float x, float y, float t, float px);
+static void draw_icon(int icon, float x, float y, float t) { draw_icon_px(icon, x, y, t, 3); }
+static void draw_icon_px(int icon, float x, float y, float t, float px)
 {
 	static const char (*const TROPHY[4])[17] = { ACH_ICON_TROPHY_A, ACH_ICON_TROPHY_B, ACH_ICON_TROPHY_C, ACH_ICON_TROPHY_B };
 	static const char (*const SAND[3])[17] = { ACH_ICON_HOURGLASS_A, ACH_ICON_HOURGLASS_B, ACH_ICON_HOURGLASS_C };
-	const float px = 3;
 	switch (icon) {
+	case ICON_DISC: draw_disc(x + 8 * px, y + 8 * px, 8 * px - 1, t); return;
 	case ICON_TROPHY: icon_pixels(TROPHY[(int)(t / 0.3f) & 3], x, y, px); break;
 	case ICON_HOURGLASS: icon_pixels(SAND[(int)(t / 0.6f) % 3], x, y, px); break;
 	case ICON_FLAG: icon_pixels((int)(t / 0.35f) & 1 ? ACH_ICON_FLAG_B : ACH_ICON_FLAG_A, x, y, px); break;
@@ -454,7 +630,8 @@ static void draw_face(const Face *f, float x, float y, float t, int block_flash)
 	/* the icon box */
 	rect(x + 10, y + 12, x + 66, y + 68, k->iboxb);
 	rect(x + 12, y + 14, x + 64, y + 66, k->ibox);
-	draw_icon(f->icon, x + 14, y + 16, t);
+	if (!draw_badge(f->badge, x + 14, y + 16, 48))
+		draw_icon(f->icon, x + 14, y + 16, t);
 	draw_meter(f, x + 10 + wl + 8, x + CARD_W - 10 - (wr ? wr + 8 : 0), y + 79, block_flash);
 	if (f->chip) {
 		rect(cx, y + 13, cx + wc, y + 27, CHIP_INK[f->chip]);   /* the WIN chip's dark edge; covered by the others */
@@ -565,15 +742,14 @@ static void rays_at(float t, float t0, float tp, float te, float peak, float end
 
 static void toast_frame(void)
 {
-	GXRModeObj *m = g_tv_mode ? g_tv_mode : vmode;
 	Toast *q;
 	const Face *face;
 	float rate = Config.PsxType ? 50.0f : 60.0f;
 	float t, dur, tin, tout, off = 0, x, y = CARD_Y;
 	float flash = 0, glow = 0, sheen = 0, rs = 0, rr = 0, ra = 0, core_r = 0, core_a = 0;
-	int set, block, switched = 0;
+	int set, block = 0, switched = 0;
 
-	if (!ach_toast_wanted()) return;
+	if (!q_len) return;
 	q = &queue[q_head];
 	/* Its clock runs only while it is drawn: a still screen that presents no frames (OpenGX
 	 * presents only what the game draws) holds the toast where it is, so it is never missed.
@@ -585,8 +761,8 @@ static void toast_frame(void)
 	q->shown += frame_counter - q->last > 4 ? 4 : frame_counter - q->last;
 	q->last = frame_counter;
 	t = q->shown / rate;
-	set = q->kind != KIND_UNLOCK;
-	dur = set ? 6.0f : 5.0f;
+	set = q->kind == KIND_BEATEN || q->kind == KIND_MASTERED;
+	dur = set ? 6.0f : q->kind == KIND_GAME ? 4.0f : 5.0f;
 	if (t >= dur) {   /* done: the next one starts on the next present */
 		q_head = (q_head + 1) % QUEUE;
 		q_len--;
@@ -605,7 +781,9 @@ static void toast_frame(void)
 	else if (t > dur - tout) { float u = (t - (dur - tout)) / tout; off = 400 * u * u * u; }
 	x = CARD_X + off;
 
-	if (!set) {
+	if (q->kind == KIND_GAME) {
+		sheen = between(t, 1.3f, 1.85f);   /* the disc is at speed by then */
+	} else if (!set) {
 		const int tier = q->f1.tier;
 		block = (t >= 0.6f && t < 0.8f) || (t >= 0.95f && t < 1.15f);
 		sheen = between(t, 0.75f, 1.3f);
@@ -643,13 +821,6 @@ static void toast_frame(void)
 	}
 	face = switched ? &q->f2 : &q->f1;
 
-	/* the whole picture, in the same coordinates as IPLFont (16:9 pillarbox: 4:3 in the middle) */
-	ortho_l = screenMode == SCREENMODE_16x9_PILLARBOX ? -104 : 0;
-	ortho_r = screenMode == SCREENMODE_16x9_PILLARBOX ? 743 : 639;
-	GX_SetViewport(0, 0, m->fbWidth, m->efbHeight, 0.0f, 1.0f);
-	clip_off();
-	shapes_begin();
-
 	draw_glow(TIERS[face->tier].glow, x, y, glow);
 	rect(x, y + 4, x + CARD_W, y + CARD_H + 4, 0x00000059);   /* the drop shadow */
 	draw_face(face, x, y, t, block && !switched);
@@ -663,18 +834,112 @@ static void toast_frame(void)
 	draw_rays(TIERS[set ? q->f2.tier : q->f1.tier].ray, x + ICON_CX, y + ICON_CY, rs, rr, ra);
 }
 
+/* ---- the indicators, at the bottom right ---- */
+
+#define PROG_W 236
+#define PROG_H 44
+#define PROG_X (640 - 40 - PROG_W)
+#define PROG_Y (480 - 34 - PROG_H)
+#define PROG_SHOW 2.5f   /* seconds after it last grew */
+#define CHAL_S 40        /* a challenge's icon box */
+
+/* a small Save Block panel: four bands, the dither, the border */
+static void small_panel(float x, float y, float w, float h)
+{
+	const Tier *k = &TIERS[T_BLUE];
+	int i;
+	rect(x, y + 3, x + w, y + h + 3, 0x00000059);   /* the drop shadow */
+	for (i = 0; i < 4; i++)
+		rect(x, y + h * i / 4.0f, x + w, y + h * (i + 1) / 4.0f, k->band[i + 1]);
+	draw_dither(x, y, x + w, y + h);
+	rect(x, y, x + w, y + 2, k->border);
+	rect(x, y + h - 2, x + w, y + h, k->border);
+	rect(x, y + 2, x + 2, y + h - 2, k->border);
+	rect(x + w - 2, y + 2, x + w, y + h - 2, k->border);
+}
+
+static void hud_frame(float rate, u32 dt)
+{
+	const Tier *k = &TIERS[T_BLUE];
+	float prog_top = PROG_Y;
+	int i;
+
+	if (progress.on) {
+		float t = (progress.shown += dt) / rate, off = 0, x;
+		char title[64];
+		int wv;
+		if (t >= PROG_SHOW) {
+			progress.on = 0;
+		} else {
+			if (t < 0.2f) { float u = 1 - t / 0.2f; off = (PROG_W + 50) * u * u * u; }   /* slide in from the right */
+			else if (t > PROG_SHOW - 0.25f) { float u = (t - (PROG_SHOW - 0.25f)) / 0.25f; off = (PROG_W + 50) * u * u * u; }
+			x = PROG_X + off;
+			small_panel(x, PROG_Y, PROG_W, PROG_H);
+			rect(x + 6, PROG_Y + 6, x + 38, PROG_Y + 38, k->iboxb);
+			rect(x + 7, PROG_Y + 7, x + 37, PROG_Y + 37, k->ibox);
+			if (!draw_badge(progress.badge, x + 8, PROG_Y + 8, 28))
+				draw_icon_px(ICON_TROPHY, x + 10, PROG_Y + 10, t, 1.5f);
+			rect(x + 46, PROG_Y + 33, x + PROG_W - 8, PROG_Y + 37, k->trk);   /* the meter */
+			rect(x + 46, PROG_Y + 33, x + 46 + (PROG_W - 54) * progress.fill, PROG_Y + 37, k->fill);
+			wv = text_w(progress.value, 0.6f);
+			snprintf(title, sizeof title, "%s", progress.title);
+			fit(title, sizeof title, 0.48f, PROG_W - 54 - wv - 8);
+			text(x + 46, PROG_Y + 9, title, 0.48f, k->ink, k->shadow, 0);
+			text(x + PROG_W - 8 - wv, PROG_Y + 7, progress.value, 0.6f, k->pts, k->shadow, 1);
+			shapes_begin();
+			prog_top = PROG_Y - 8;
+		}
+	} else {
+		prog_top = PROG_Y + PROG_H;   /* the challenges take the corner */
+	}
+
+	/* one box per challenge, right to left; each wipes in from its left edge over 0.15 s */
+	for (i = 0; i < challenges; i++) {
+		float t = (challenge[i].shown += dt) / rate, w = CHAL_S * between(t, 0, 0.15f);
+		float x = 640 - 40 - (i + 1) * (CHAL_S + 6) + 6, y = prog_top - CHAL_S;
+		if (w < 1) continue;
+		clip_to(x, y - 1, x + w, y + CHAL_S + 4);
+		small_panel(x, y, CHAL_S, CHAL_S);
+		rect(x + 4, y + 4, x + CHAL_S - 4, y + CHAL_S - 4, k->ibox);
+		if (!draw_badge(challenge[i].badge, x + 4, y + 4, CHAL_S - 8))
+			draw_icon_px(ICON_TROPHY, x + 8, y + 8, t, 1.5f);
+		if ((int)(t / 0.5f) & 1)   /* it is on: a blinking white corner */
+			rect(x + CHAL_S - 8, y + 3, x + CHAL_S - 3, y + 8, 0xffffffff);
+		clip_off();
+	}
+}
+
+static void draw_all(void)
+{
+	GXRModeObj *m = g_tv_mode ? g_tv_mode : vmode;
+	float rate = Config.PsxType ? 50.0f : 60.0f;
+	u32 dt;
+	if (!ach_toast_wanted()) return;
+	/* the indicators' clock runs only while drawn, as the toast's (at most 4 vblanks a draw) */
+	dt = hud_last && frame_counter - hud_last < 4 ? frame_counter - hud_last : hud_last ? 4 : 0;
+	hud_last = frame_counter;
+	/* the whole picture, in the same coordinates as IPLFont (16:9 pillarbox: 4:3 in the middle) */
+	ortho_l = screenMode == SCREENMODE_16x9_PILLARBOX ? -104 : 0;
+	ortho_r = screenMode == SCREENMODE_16x9_PILLARBOX ? 743 : 639;
+	GX_SetViewport(0, 0, m->fbWidth, m->efbHeight, 0.0f, 1.0f);
+	clip_off();
+	shapes_begin();
+	toast_frame();
+	hud_frame(rate, dt);
+}
+
 void ach_toast_draw(void)
 {
 #if defined(PERF_PROF) && PERF_PROF_ACHIEVEMENTS
 	unsigned long long t0;
 	if (!ach_toast_wanted()) return;
 	t0 = perf_now_ticks();
-	toast_frame();
+	draw_all();
 	t0 = perf_now_ticks() - t0;
 	PERF_ADD(toast_ticks, t0);
 	PERF_MAX(toast_max_ticks, t0);
 	PERF_INC(toast_draws);
 #else
-	toast_frame();
+	draw_all();
 #endif
 }
