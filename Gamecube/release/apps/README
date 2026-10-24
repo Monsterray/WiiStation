@@ -1,5 +1,5 @@
 README : WiiStation
-Version 5.16.0
+Version 5.17.0
 
 LICENSE:
     This software is licensed under the GNU General Public License v2
@@ -155,7 +155,25 @@ LATER UPDATES BY:
  * Monty Perrotti (WiiStation)
 
 WiiStation CHANGE LOG:
-Unreleased:
+Ver 5.17.0 (2026-10-24):
+* Achievements, Official mode (Settings > General > Cheevos): RetroAchievements
+  sets, earned online with your RetroAchievements account (Casual; Hardcore
+  needs RetroAchievements' approval first). The disc is identified the way
+  RetroAchievements does it, from every format WiiStation boots (CUE/BIN, ISO,
+  CCD, MDS, TOC, CBN, CHD, PBP). Setup: Docs/ACHIEVEMENTS.md, "Official login"
+  (an account file, a certificate bundle and a random seed on the SD card).
+  Unlocks made offline wait and are sent when the connection is back.
+* Achievements: an unlock shows a PlayStation-style card for 5 s with the
+  title, points, how rare it is, and the set's progress. Its colour is the
+  tier: Blue, Bronze, Silver, Gold, Crystal (by rarity, or by points in a local
+  set). Beating a game and mastering a set get their own cards.
+* Achievements and disc swaps: a multi-disc game keeps its set when you swap
+  to another of its discs (Official: RetroAchievements checks the disc; local
+  sets: Game=SLUS00892,SLUS00908 names every disc). Another game's disc turns
+  achievements off until the next game load.
+* ISO Info is a page of its own (Current ISO > ISO Info): file, label, ID,
+  size, tracks, system, automatic fixes and achievements. A PS-X .exe says it
+  gets no achievements (it has no disc to identify).
 * The game list shows only what WiiStation can load: disc images and PS-X .exe,
   one entry per game (a .cue's track files, an .img beside its .ccd, an .mdf
   beside its .mds are not listed). Covers, notes, .sub and .sbi files are gone.

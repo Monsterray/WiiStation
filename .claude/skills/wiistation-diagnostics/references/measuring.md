@@ -183,6 +183,10 @@ after changing anything a state holds.
 state lines are done (Gamecube/statetool.cpp, the CPU stopped): perf.log says
 `discswap: PATH at vblank V ok`. The disc must be on the run's card (`WSX_ISOS` for wsx.sh).
 Example: `scripts/autoinput/ach_discswap.txt` with `scripts/chains/ach_discswap.txt`.
+An input script line is read whole up to 319 characters (was 127 before 2026-10-24: a longer
+discswap path was cut, the swap "ok"ed onto a missing file, which the CD plugin opens as an
+empty drive). A swap to a different disc while the game reads its own can crash the game; swap
+where the game waits for it, or read only what happens before the crash.
 
 ## Reading and comparing
 
