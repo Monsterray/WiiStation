@@ -167,6 +167,21 @@ Ver 5.17.0 (2026-10-24):
   title, points, how rare it is, and the set's progress. Its colour is the
   tier: Blue, Bronze, Silver, Gold, Crystal (by rarity, or by points in a local
   set). Beating a game and mastering a set get their own cards.
+* Achievements: a card with a spinning PlayStation disc when a game's set
+  loads (N of M earned, points); a small panel at the bottom right when a
+  counted achievement moves on ("12/40"); a box for each achievement that is
+  one step away. RetroAchievements badges show in the card, the panel and the
+  boxes (saved on the card in achievements/badges).
+* Current ISO > Achievements lists each achievement with Earned or how far
+  along it is, its points and how rare it is, and what you are doing in the
+  game (rich presence). Leaderboards: the ten best scores and yours, for
+  each of the game's boards (reading only: RetroAchievements takes scores in
+  Hardcore only).
+* Cheevos settings Unofficial (the set's not yet approved achievements too)
+  and Encore (earn your achievements again this session). Save states keep
+  achievement progress in Official mode too.
+* Official mode needs no clock setting any more: the Wii learns its time zone
+  from RetroAchievements' answers. The certificate list comes with the install.
 * Achievements and disc swaps: a multi-disc game keeps its set when you swap
   to another of its discs (Official: RetroAchievements checks the disc; local
   sets: Game=SLUS00892,SLUS00908 names every disc). Another game's disc turns
