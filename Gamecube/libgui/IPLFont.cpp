@@ -701,6 +701,11 @@ void IplFont_drawString(int x, int y, char *string, float scale, bool centered)
     menu::IplFont::getInstance().drawString(x, y, string, scale, centered);
 }
 
+int IplFont_getStringWidth(char *string, float scale)
+{
+    return menu::IplFont::getInstance().getStringWidth(string, scale);
+}
+
 void IplFont_loadFontFile(FILE* fontFile)
 {
     menu::IplFont::getInstance().loadFontFile(fontFile);

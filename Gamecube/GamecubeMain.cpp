@@ -44,6 +44,7 @@ extern "C" void __exception_setreload(int t);
 #include "wiiSXconfig.h"
 #include "config_parse.h"   /* the two scans in the settings parser */
 #include "../achievements.h"
+#include "ach_toast.h"
 #include "achievements_bench.h"   /* test-only; no-ops in product builds */
 #include "menu/MenuContext.h"
 #include "libgui/IPLFont.h"
@@ -1748,6 +1749,8 @@ int loadISO(fileBrowser_file* file)
 	else
 		LoadCdrom();
 	hb_phase("load: memory cards and state", isoFile.name);
+	ach_toast_clear();          /* a toast still queued from the last game */
+	achievements_notify = ach_toast_push;
 	achievements_load(CdromId); /* after settings and boot; a wrong/absent game ID rejects the set */
 	achievements_bench_isolate_cards();
 

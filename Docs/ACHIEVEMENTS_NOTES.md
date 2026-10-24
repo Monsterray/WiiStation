@@ -645,7 +645,7 @@ In order:
    more scenes, with balanced repetitions, a capped pass, real set conditions, other cores and
    renderers, PAL, SD, USB and SMB, and vWii. Check full per-frame scene equality, not only the
    final checkpoint.
-8. Add the unlock notification. The menu panel and the list are done (ab58936a); the user chose
-   from the toast mockups (round 2, 2026-10-23).
+8. Done: the menu panel and the list (ab58936a) and the unlock toast (2026-10-23, the tiers
+   in design/PS1_STYLES.md). Open: the toast's 2 x 2 dither; rarity tiers need Official mode.
 9. Hardcore, only after RetroAchievements approves WiiStation.
 10. Clean up: nothing open.

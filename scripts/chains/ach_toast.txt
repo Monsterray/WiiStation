@@ -1,0 +1,11 @@
+CHAIN
+# Achievement toast (Gamecube/ach_toast.c): every tier in one boot, over Spyro's attract demo.
+# The set (scripts/ach_toast_fixture.sh, which has the full command) unlocks Blue, Bronze,
+# Silver, Gold and Crystal, then a Win (Beaten) and the last one (Mastered), 6.5 s apart;
+# first on OpenGX, then on the Soft plugin.
+3300 sd:/wiistation/none.txt FPS=0
+sd:/wiistation/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue
+3300 sd:/wiistation/none.txt FPS=0 gpuPlugin=0
+sd:/wiistation/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue

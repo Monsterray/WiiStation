@@ -27,6 +27,20 @@ int achievements_get(unsigned i, const char **title); /* 1 earned, 0 not, -1 no 
 int achievements_state_save(void *data, unsigned size); /* NULL queries required size */
 int achievements_state_load(const void *data, unsigned size); /* NULL resets progress */
 
+/* An achievement's type: the values RetroAchievements uses (rc_client.h) */
+enum { ACH_TYPE_STANDARD = 0, ACH_TYPE_MISSABLE = 1, ACH_TYPE_PROGRESSION = 2, ACH_TYPE_WIN = 3 };
+
+/* One unlock, for the toast (Gamecube/ach_toast.c). Strings live until the set is closed. */
+typedef struct {
+    const char *title, *desc, *game;   /* game: the set's Title= line, or "" */
+    unsigned points, total_points;     /* 0 = the set gives none */
+    int rarity_x100;                   /* share of players x 100 (812 = 8.12 %); -1 = unknown (Local) */
+    unsigned earned, count;            /* the set's progress after this unlock */
+    unsigned char type;                /* ACH_TYPE_* */
+    unsigned char beaten, mastered;    /* this unlock beat the game / completed the set */
+} achievement_notice_t;
+extern void (*achievements_notify)(const achievement_notice_t *notice);   /* NULL: nobody listens */
+
 #ifdef __cplusplus
 }
 #endif

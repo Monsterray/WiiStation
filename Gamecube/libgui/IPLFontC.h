@@ -7,6 +7,7 @@ extern "C" {
 
 void IplFont_drawInit(GXColor fontColor);
 void IplFont_drawString(int x, int y, char *string, float scale, bool centered);
+int IplFont_getStringWidth(char *string, float scale);
 
 #ifdef __cplusplus
 }

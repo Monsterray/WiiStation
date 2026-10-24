@@ -11,6 +11,13 @@ static unsigned char ram[0x200000], scratch[0x400];
 unsigned char *psxM = ram, *psxH = scratch;
 void SysPrintf(const char *fmt, ...) { (void)fmt; }
 
+static achievement_notice_t notices[8];
+static int notice_count;
+static void on_notice(const achievement_notice_t *n)
+{
+    if (notice_count < 8) notices[notice_count++] = *n;
+}
+
 static void set_file(const char *text)
 {
     FILE *f = fopen(achievementFile, "wb");
@@ -249,7 +256,39 @@ int main(int argc, char **argv)
         achievementsEnabled = ACH_LOCAL;
         achievementLog[0] = 0;
     }
+    /* Optional points|type|description, the Title= line, and the notice the toast draws:
+     * Beaten once every Progression and a Win are earned, Mastered with the last one. */
+    {
+        achievementsEnabled = ACH_TEST;
+        achievements_notify = on_notice;
+        set_file("Game=TEST12345\nTitle=Fixture\n"
+                 "1|Story|0xH000050=1|5|progression|Reach the end\n"
+                 "2|Finale|0xH000051=1|10|Win\n"
+                 "3|Extra|0xH000052=1|100||The rest of the line | keeps its bar\n");
+        ram[0x50] = ram[0x51] = ram[0x52] = 0;
+        assert(achievements_load("TEST12345") == 3);
+        achievements_frame();
+        ram[0x50] = 1; achievements_frame();
+        assert(notice_count == 1 && notices[0].points == 5 && notices[0].type == ACH_TYPE_PROGRESSION);
+        assert(!notices[0].beaten && !notices[0].mastered && notices[0].earned == 1 && notices[0].count == 3);
+        assert(notices[0].total_points == 115 && notices[0].rarity_x100 == -1);
+        assert(!strcmp(notices[0].game, "Fixture") && !strcmp(notices[0].desc, "Reach the end"));
+        ram[0x51] = 1; achievements_frame();
+        assert(notice_count == 2 && notices[1].type == ACH_TYPE_WIN && notices[1].beaten && !notices[1].mastered);
+        ram[0x52] = 1; achievements_frame();
+        assert(notice_count == 3 && notices[2].mastered && !notices[2].beaten && notices[2].points == 100);
+        assert(notices[2].type == ACH_TYPE_STANDARD && !strcmp(notices[2].desc, "The rest of the line | keeps its bar"));
+        achievements_frame();
+        assert(notice_count == 3);   /* an earned one never notifies again */
+        achievements_close();
+        set_file("Game=TEST12345\n1|Too many points|0xH000050=1|1001\n");
+        assert(achievements_load("TEST12345") == -1);
+        set_file("Game=TEST12345\n1|Unknown type|0xH000050=1|5|boss\n");
+        assert(achievements_load("TEST12345") == -1);
+        achievements_notify = NULL;
+        achievementsEnabled = ACH_LOCAL;
+    }
     free(state); free(old_state);
-    puts("achievements: memory, evaluation, state identity, journal, modes and malformed sets ok");
+    puts("achievements: memory, evaluation, state identity, journal, modes, notices and malformed sets ok");
     return 0;
 }

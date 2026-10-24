@@ -16,7 +16,8 @@ today, how to set it up, how to test it and what is planned.
 | Modes Off, Local, Test, Official | In the product (775ae73a, 2026-10-23). Official loads nothing yet. |
 | Unlock journal | In the product. An unlock is written when it triggers (f9ca407b). Records cut short by a power loss are ignored (2026-10-23). |
 | Save-state progress (`ACH1` section) | In the product. |
-| Menu controls | General tab, Cheevos: Mode, the set file and the account user name (ab58936a). Current ISO, Achievements: the set's list, 10 per page, with N of M earned. No unlock notification yet. |
+| Menu controls | General tab, Cheevos: Mode, the set file and the account user name (ab58936a). Current ISO, Achievements: the set's list, 10 per page, with N of M earned. |
+| Unlock toast | In the product (2026-10-23): the tier card slides in at the top right on each unlock, in both GPU plugins. See [Unlock toast](#unlock-toast). |
 | RetroAchievements login, awards, leaderboards, Rich Presence, Hardcore | Not implemented. |
 | `rc_client`, API and PS1 hash code | Vendored in `deps/rcheevos` and tested in standalone host and Wii programs. Not connected to the emulator. |
 | HTTPS (Mbed TLS 3.6.4 + curl 8.16.0) | Test probes only. Proven on the bench Wii on 2026-10-11 with libogc2 and devkitPPC r41-2. Not in the product. |
@@ -58,15 +59,24 @@ AchievementLog = ""
 ```text
 # Synthetic fixture only; these addresses are not achievements for a real game.
 Game=TEST12345
+Title=Fixture
 1|Three consecutive hits|0xH000010=1.3.
-2|Little-endian 16-bit word|0x 000020=4660
-3|Scratchpad byte|0xH200001=9
+2|Little-endian 16-bit word|0x 000020=4660|25|progression|Reach the second area
+3|Scratchpad byte|0xH200001=9|50|win
 ```
 
 1. The first line that is not a comment must be `Game=<CdromId>`. The ID must match the loaded
    disc. If it does not match, the engine rejects the set.
-2. Each line after it is `id|title|condition`. The condition uses the upstream rcheevos format.
-3. The engine ignores blank lines and lines that start with `#` or `;`.
+2. An optional `Title=<game name>` line names the game for the Beaten and Mastered toasts
+   ("Spyro beaten"). Without it, the toast says "Game".
+3. Each achievement line is `id|title|condition`, with three optional fields after it:
+   `|points|type|description`. Each optional field can be empty.
+   - `points`: 0 to 1000. Without rarity (all Local sets), the points give the toast's tier.
+   - `type`: `standard` (the default), `missable`, `progression` or `win`, as RetroAchievements
+     uses them. Progression and Win decide when the game is beaten.
+   - `description`: the rest of the line (it can contain `|`), up to 95 bytes.
+4. The condition uses the upstream rcheevos format.
+5. The engine ignores blank lines and lines that start with `#` or `;`.
 
 | Limit | Value |
 |---|---|
@@ -75,6 +85,8 @@ Game=TEST12345
 | ID | Decimal, 1 to 4294967295, unique in the file |
 | Title | 79 bytes |
 | Condition | 2048 bytes |
+| Points | 0 to 1000 |
+| Description | 95 bytes |
 
 - One bad line rejects the whole set: a bad ID, a duplicate ID, a bad condition, an empty
   title or condition, or a value past a limit. An edited file thus cannot silently change scope.
@@ -85,6 +97,36 @@ Game=TEST12345
 - A condition that is true at the start does not award at once. The runtime stays in its
   WAITING state until the condition becomes false.
 - Conditions on little-endian values, 32-bit values with the high bit set and IEEE floats work.
+
+## Unlock toast
+
+`Gamecube/ach_toast.c` draws a card at the top right of the picture when an achievement unlocks.
+The design, the tiers and the mockups are in [design/PS1_STYLES.md](design/PS1_STYLES.md).
+
+| Tier | When | Effect |
+|---|---|---|
+| Blue | 10 % of players or more, or under 10 points | slides in |
+| Bronze | under 10 %, or 10 points or more | one white flash |
+| Silver | under 5 %, or 25 points or more | rays from the icon |
+| Gold | under 2 %, or 50 points or more | flash and rays |
+| Crystal | under 1 %, or 100 points | rays and a white core |
+| Finish Line | the unlock that beats the game | the card flashes into black, chequered, gold trim |
+| Platinum | the unlock that completes the set | the card bursts into brushed platinum |
+
+- A Local set has no rarity, so the points give the tier. Official mode will give rarity.
+- The card shows the title, the points (top right), the description, `BLOCK x/y` and the set
+  meter. The icon and the chip come from the type: trophy (standard), key and `PROGRESS`,
+  hourglass and `MISSABLE`, flag and `WIN`.
+- The engine calls `achievements_notify` once per new unlock (`achievement_notice_t`, in
+  `achievements.h`), with the Beaten and Mastered flags. `loadISO` points it at `ach_toast_push`.
+  Earned achievements restored from the journal or a state do not notify.
+- Up to 4 toasts wait in a queue. Each one shows for 5 s (6 s for Beaten and Mastered).
+- It is drawn in the present's overlay, on the picture sent to the TV, never in the game's frame:
+  OpenGX in `flipEGL` (`OverlayAchToast`), the Soft plugins in `GX_Flip`.
+- Its clock runs only while it is drawn. A still screen that presents no frames holds it.
+- The test is `scripts/chains/ach_toast.txt` with the set from `scripts/ach_toast_fixture.sh`:
+  every tier over Spyro's attract demo, on OpenGX and then on the Soft plugin, in one boot.
+- Not done: the 2 x 2 dither of the mockups.
 
 ## Memory map
 
@@ -160,6 +202,7 @@ layout does not change.
 | File | Content |
 |---|---|
 | `achievements.c`, `achievements.h` | The engine. All calls belong to the emulator thread. |
+| `Gamecube/ach_toast.c`, `ach_toast.h`, `ach_icons.h` | The unlock toast and its 16 x 16 icons |
 | `deps/rcheevos/` | Pinned rcheevos `include/`, `src/runtime/`, `src/util/`, `src/client/`, `src/api/`, `src/hash/`. The emulator compiles only the runtime and util sources. |
 | `Gamecube/achievements_bench.cpp` | Bench-only hooks (`ACHIEVEMENTS_BENCH`): stop-boundary counts, reset and disc-swap checks, card isolation, return to HBC after a chain. Product builds omit it. |
 | `misc.c` | The `ACH1` state section |

@@ -19,6 +19,7 @@
 #include <string.h>
 #include <errno.h>
 #include <limits.h>
+#include <strings.h>
 
 /* The guest memory the conditions address: PS1 RAM, then the scratchpad after it */
 #define PSX_RAM_BYTES 0x200000u
@@ -33,15 +34,21 @@ extern unsigned char *psxM, *psxH;
 extern void SysPrintf(const char *fmt, ...);
 char achievementsEnabled;   /* an ACH_* mode */
 char achievementFile[256], achievementLog[256];
+void (*achievements_notify)(const achievement_notice_t *notice);
 
 static rc_runtime_t runtime;
 static struct {
     uint32_t id;
     char title[80];
+    char desc[96];           /* optional */
+    unsigned short points;   /* optional; 0 = none */
+    unsigned char type;      /* ACH_TYPE_*, optional */
     unsigned char earned;    /* triggered this session, or restored from the journal/state */
     unsigned char written;   /* already in the journal */
 } entries[MAX_ACHIEVEMENTS];
 static unsigned count;
+static char set_title[48];              /* the set's Title= line: the game's name for the toast */
+static int beaten_seen, mastered_seen;  /* already true, so no second Beaten or Mastered toast */
 static int active, running;   /* a set is loaded; evaluation is allowed (not during BIOS boot) */
 static unsigned char digest[16];   /* MD5 of the definition file: the set's identity */
 static char digest_text[33], log_path[256];
@@ -163,12 +170,58 @@ void achievements_flush(void)
 
 static int valid_address(uint32_t address) { return address < PSX_MAP_END; }
 
+/* Beaten, as RetroAchievements counts it: every Progression achievement earned, and a Win
+ * earned if the set has any. A set with neither type cannot be beaten. */
+static int is_beaten(void)
+{
+    unsigned i;
+    int typed = 0, wins = 0, won = 0;
+    for (i = 0; i < count; ++i) {
+        if (entries[i].type == ACH_TYPE_PROGRESSION) {
+            typed = 1;
+            if (!entries[i].earned) return 0;
+        } else if (entries[i].type == ACH_TYPE_WIN) {
+            typed = wins = 1;
+            won |= entries[i].earned;
+        }
+    }
+    return typed && (!wins || won);
+}
+
+static int is_mastered(void) { return count && achievements_earned() == count; }
+
+/* Tell the toast about a new unlock, and whether it beat the game or completed the set */
+static void notify(unsigned i)
+{
+    achievement_notice_t n;
+    unsigned k;
+    memset(&n, 0, sizeof n);
+    n.beaten = !beaten_seen && is_beaten();
+    n.mastered = !mastered_seen && is_mastered();
+    beaten_seen |= n.beaten;
+    mastered_seen |= n.mastered;
+    if (!achievements_notify) return;
+    n.title = entries[i].title;
+    n.desc = entries[i].desc;
+    n.game = set_title;
+    n.points = entries[i].points;
+    for (k = 0; k < count; ++k) n.total_points += entries[k].points;
+    n.rarity_x100 = -1;   /* a Local set has no player counts */
+    n.earned = achievements_earned();
+    n.count = count;
+    n.type = entries[i].type;
+    achievements_notify(&n);
+}
+
 static void event(const rc_runtime_event_t *e)
 {
     unsigned i;
     if (e->type != RC_RUNTIME_EVENT_ACHIEVEMENT_TRIGGERED) return;
     for (i = 0; i < count; ++i)
-        if (entries[i].id == e->id) entries[i].earned = 1;
+        if (entries[i].id == e->id && !entries[i].earned) {
+            entries[i].earned = 1;
+            notify(i);
+        }
     achievements_flush(); /* a trigger is rare: one short journal line, written at once */
 }
 
@@ -212,6 +265,7 @@ void achievements_close(void)
     active = running = 0;
     count = 0;
     memset(entries, 0, sizeof(entries));
+    set_title[0] = 0;
 }
 
 /* ---- loading a set ---- */
@@ -264,13 +318,46 @@ static char *read_set(void)
     return data;
 }
 
-/* "Game=<serial>" (the loaded disc's CdromId), then one "id|title|condition" line per
- * achievement; blank lines and lines starting with # or ; are skipped. Each achievement is
- * activated in rcheevos as it is read. Returns 0, or the number of the first bad line: any
- * bad line rejects the whole set, so an edited file cannot silently change what it covers. */
+/* The optional fields after the condition: "|points|type|description", each may be empty.
+ * points 0..1000; type standard, missable, progression or win. 0 on a bad field. */
+static int parse_extras(char *extras, unsigned index)
+{
+    static const char *const TYPES[] = { "standard", "missable", "progression", "win" };
+    char *type = NULL, *desc = NULL, *end;
+    unsigned long points;
+    unsigned t;
+    if ((type = strchr(extras, '|'))) {
+        *type++ = 0;
+        if ((desc = strchr(type, '|'))) *desc++ = 0;   /* the description is the rest of the line */
+    }
+    extras = trim(extras);
+    if (*extras) {
+        errno = 0;
+        points = strtoul(extras, &end, 10);
+        if (errno || *trim(end) || points > 1000 || *extras == '-') return 0;
+        entries[index].points = (unsigned short)points;
+    }
+    if (type && *(type = trim(type))) {
+        for (t = 0; t < 4 && strcasecmp(type, TYPES[t]); ++t) ;
+        if (t == 4) return 0;
+        entries[index].type = (unsigned char)t;
+    }
+    if (desc) {
+        desc = trim(desc);
+        if (strlen(desc) >= sizeof(entries[0].desc)) return 0;
+        strcpy(entries[index].desc, desc);
+    }
+    return 1;
+}
+
+/* "Game=<serial>" (the loaded disc's CdromId), an optional "Title=<game name>", then one
+ * "id|title|condition[|points|type|description]" line per achievement; blank lines and lines
+ * starting with # or ; are skipped. Each achievement is activated in rcheevos as it is read.
+ * Returns 0, or the number of the first bad line: any bad line rejects the whole set, so an
+ * edited file cannot silently change what it covers. */
 static unsigned parse_set(char *data, const char *game_id)
 {
-    char *line, *next, *title, *condition, *end;
+    char *line, *next, *title, *condition, *extras, *end;
     unsigned long id;
     unsigned i, line_no = 0;
     int identified = 0;
@@ -285,9 +372,14 @@ static unsigned parse_set(char *data, const char *game_id)
             identified = 1;
             continue;
         }
+        if (!strncmp(line, "Title=", 6)) {
+            snprintf(set_title, sizeof set_title, "%s", trim(line + 6));
+            continue;
+        }
         if (!(title = strchr(line, '|')) || !(condition = strchr(title + 1, '|'))) return line_no;
         *title++ = 0;
         *condition++ = 0;
+        if ((extras = strchr(condition, '|'))) *extras++ = 0;
         title = trim(title);
         condition = trim(condition);
         errno = 0;
@@ -302,6 +394,7 @@ static unsigned parse_set(char *data, const char *game_id)
             SysPrintf("Achievements: line %u: rcheevos cannot read the condition\n", line_no);
             return line_no;
         }
+        if (extras && !parse_extras(extras, count)) return line_no;
         entries[count].id = (uint32_t)id;
         strcpy(entries[count++].title, title);
     }
@@ -340,6 +433,8 @@ int achievements_load(const char *game_id)
         return -1;
     }
     keep_earned();
+    beaten_seen = is_beaten();     /* earned before this session: no toast for it */
+    mastered_seen = is_mastered();
     rc_runtime_validate_addresses(&runtime, event, valid_address); /* address validity: once per load */
     running = 1;
     SysPrintf("Achievements: loaded %u for %s (%u earned)\n", count, game_id, achievements_earned());
@@ -383,5 +478,7 @@ int achievements_state_load(const void *data, unsigned size)
     }
     if (!ok) rc_runtime_reset(&runtime);
     keep_earned(); /* loading an older state never revokes an earned achievement */
+    beaten_seen |= is_beaten();
+    mastered_seen |= is_mastered();
     return ok;
 }

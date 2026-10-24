@@ -3077,6 +3077,20 @@ static void OverlayGunReticles(void)
     bSetClip = TRUE;
 }
 
+/* The achievement toast (Gamecube/ach_toast.c) over the whole picture: it sets its own
+ * viewport, and the plugin's is put back after it as OverlayGunReticles does */
+extern int ach_toast_wanted(void);
+extern void ach_toast_draw(void);
+static void OverlayAchToast(void)
+{
+    if (!ach_toast_wanted())
+        return;
+    ach_toast_draw();
+    glViewport(rRatioRect.left, iResY - (rRatioRect.top + rRatioRect.bottom),
+               rRatioRect.right, rRatioRect.bottom);
+    bSetClip = TRUE;
+}
+
 static void flipEGL(void)
 {
     int presentSubmitted;
@@ -3093,7 +3107,7 @@ static void flipEGL(void)
     efb_present();   /* efbSync.inc: keep the frame the copy to the XFB may clear */
 
     /* a frame that will not reach the TV gets no text */
-    if ((showFPSonScreen == 1 || gunReticleWanted() || pad_note(NULL)) && !gx_vout_busy())
+    if ((showFPSonScreen == 1 || gunReticleWanted() || pad_note(NULL) || ach_toast_wanted()) && !gx_vout_busy())
     {
         /* a copy that clears the EFB takes the text with it; otherwise keep what it covers */
         if (!canClearFrameBuf)
@@ -3103,6 +3117,7 @@ static void flipEGL(void)
             font_drew = 1;
             showFpsAndDebugInfo();
             OverlayGunReticles();
+            OverlayAchToast();
         }
     }
 

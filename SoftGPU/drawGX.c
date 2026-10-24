@@ -86,6 +86,7 @@ static void GX_Flip(const void *buffer, int pitch, u8 fmt,
 void drawLine(float x1, float y1, float x2, float y2, char r, char g, char b);
 void drawCircle(int x, int y, int radius, int numSegments, char r, char g, char b);
 void drawGunReticles(void);
+void ach_toast_draw(void);   /* Gamecube/ach_toast.c */
 
 void switchToTVMode(short dWidth, short dHeight, bool retMenu);
 void pl_chg_psxtype(int is_pal_); // defined below; used earlier in this file
@@ -481,6 +482,7 @@ static void GX_Flip(const void *buffer, int pitch, u8 fmt,
 
 	//Write menu/debug text on screen
 	showFpsAndDebugInfo();
+	ach_toast_draw();   /* Gamecube/ach_toast.c: an achievement just unlocked */
 
 	gc_vout_render();
 }
