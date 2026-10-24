@@ -2,7 +2,7 @@
 # wsx.sh -- the short way round the build / run / read loop, for people and for models
 # working with a small context: one command per step, one screen of output per step.
 #
-#   scripts/wsx.sh build debug|release [all|light|speed|min|deep|pmc|hprof|play]  build through the devkitPro shell;
+#   scripts/wsx.sh build debug|release [all|light|ach|speed|min|deep|pmc|hprof|play]  build through the devkitPro shell;
 #                                                         prints the DOL and its time, or the errors
 #                                                         (play: WiiSXRX_play.dol, Docs/DEBUG_PLAY.md)
 #   scripts/wsx.sh run NAME [options]                     one unattended Dolphin run, then its summary

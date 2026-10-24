@@ -1,0 +1,5 @@
+CHAIN
+# Official mode, Spyro only (spectator): the set, presence, boards, board 0's scores and the first badge (achdump)
+2400 sd:/wiistation/ach_official_spyro.txt Achievements=3 AchievementSpectator=1 FPS=0
+sd:/wiistation/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue

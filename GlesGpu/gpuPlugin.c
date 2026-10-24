@@ -2978,12 +2978,18 @@ static int OverlaySaveEfb(void)
 
     if (size > ovl_cap)
     {
-        free(ovl_buf);
-        ovl_buf = memalign(32, size);
-        ovl_cap = ovl_buf ? size : 0;
+        /* Once, for the largest picture (640 x 576, PAL), in MEM2: a MEM1 buffer was given back
+         * and asked for again at each EFB size change, and with MEM1 nearly full while a game
+         * runs the larger one failed -- from then on no overlay was ever drawn (bench Wii,
+         * 2026-10-24: the achievement toast drawn 25 times in 1600 vblanks, then never). */
+        int most = GX_GetTexBufferSize(640, 576, GX_TF_RGBA8, 0, GX_FALSE);
+        if (ovl_buf || size > most)
+            return 0;
+        ovl_buf = _mem2_memalign(32, most);
+        ovl_cap = ovl_buf ? most : 0;
         if (!ovl_buf) return 0;
         /* only the GP touches it from here on: no CPU line may be written back over it */
-        DCInvalidateRange(ovl_buf, size);
+        DCInvalidateRange(ovl_buf, most);
     }
     ovl_w = m->fbWidth;
     ovl_h = m->efbHeight;

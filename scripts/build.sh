@@ -133,6 +133,7 @@ v_x=$(sed -n 's/.*<version>\(.*\)<\/version>.*/\1/p' Gamecube/release/apps/WiiSt
 case "${PROBES:-all}" in
 	all)   PROBE_DEFINES="" ;;
 	light) PROBE_DEFINES="-DPERF_PROF_TRACE=0 -DPERF_PROF_GPU=0" ;;
+	ach)   PROBE_DEFINES="-DPERF_PROF_TRACE=0 -DPERF_PROF_GPU=0 -DPERF_PROF_ACHIEVEMENTS=1" ;;   # light + achperf: (evaluation, toast draws)
 	# speed: light without the per-vblank RAM hash (vsig, 23.5% of wall on the Wii), for bench
 	# speed and load numbers. Every other preset keeps vsig for determinism checks; a speed
 	# figure from them is low (Tiger Temple: 0.98x deep, 1.00x speed, 2026-10-21).
