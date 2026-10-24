@@ -79,7 +79,6 @@ items:
 | `globalVram` | 2.00 MB | emulated PSX video RAM, shared by every GPU plugin |
 | `GXtexture` | 2.00 MB | the GX texture pages the OpenGX plugin draws from |
 | `psxMemRLUT` + `psxMemWLUT` | 0.50 MB | the 64K-entry read and write address lookup tables |
-| `XABuf` | 0.38 MB | decoded XA audio |
 | `texturepart` | 0.25 MB | the staging buffer the CLUT expansion writes into |
 | `memb_mem_pool_pbufs` | 0.20 MB | lwIP network buffers |
 | `semiTransBuf` | 0.13 MB | opengx's semi-transparent texture scratch |
@@ -91,7 +90,17 @@ an instruction-cache miss in compiled code is served faster from MEM1, and on th
 eleven games ran 0.4-1.4 load points lower (mean 38.2 -> 37.5%). The code peaked at 1.0 MB in the
 five recordings; a full buffer makes Lightrec interpret a block (`jit_full`), never crash. Since
 then the lowest MEM1 free seen on the Wii is 1.67 MB in the debug build (perf.log `mem2map:`).
-There is no MEM1 pressure today.
+
+**MEM1 ran out in October 2026** (CTR after Spyro in one Official chain, PARKED_BUGS.md). libogc
+v3's malloc never spills into MEM2: a full MEM1 is a NULL, and GNU Lightning does not check its
+allocations. Since then nothing that grows with a game allocates in MEM1:
+- Lightrec's blocks/IR/MIPS copies and Lightning's compile state: a 4 MB TLSF pool in MEM2,
+  Lightrec's part capped at 3 MB (Docs/BACKENDS.md).
+- rcheevos, curl, Mbed TLS, achievement badges: MEM2.
+- The XA ring (`XABuf`, 375 KB) and the chain list (75 KB): MEM2, taken once.
+What stays in MEM1 is fixed: the state and code LUT (2.5 MB), the code buffer (2 MB), PS1 RAM,
+VRAM, the memory LUTs, `GXtexture`, the menu's XFBs. perf.log `gameclose:` after every game
+(`chain_table.py` checks it): in Dolphin malloc 5185 KB and 2368 KB of MEM1 free after every close.
 
 ### MEM2
 

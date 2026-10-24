@@ -202,6 +202,37 @@ def vram_pictures(run, n):
                            capture_output=True)
 
 
+def memory_check(log):
+    """The memory between chained games (debug builds): perf.log "gameclose:" after each game is
+    closed, and the lowest MEM1 seen ("mem2map: ... mem1_min_kb"). Every close after the first
+    must be back at the same MEM1 and malloc (nothing left behind) with Lightrec's own memory at
+    0, and MEM1 must never run out (libogc's malloc does not spill into MEM2: a NULL follows)."""
+    text = open(log, encoding='utf-8', errors='replace').read()
+    closes = [dict(kv.split('=') for kv in m.split()) for m in re.findall(r'^gameclose: (.*)$', text, re.M)]
+    mins = [int(v) for v in re.findall(r'mem1_min_kb=(\d+)', text)]
+    if not closes and not mins:
+        return
+    low = min(mins) if mins else None
+    print('memory: %d closes, MEM1 free after them %s KB, malloc %s KB, Lightrec left %s KB; lowest MEM1 free %s KB'
+          % (len(closes), '/'.join(c['mem1_free_kb'] for c in closes) or '-',
+             '/'.join(c['malloc_used_kb'] for c in closes) or '-',
+             '/'.join(c['lr_dyn_kb'] for c in closes) or '-', low if low is not None else '-'))
+    warn = []
+    if len(closes) > 2:
+        base = closes[1]   # the first close still includes one-time start-up allocations
+        for c in closes[2:]:
+            if int(c['malloc_used_kb']) > int(base['malloc_used_kb']) + 64:
+                warn.append('malloc grew from %s KB to %s KB between games (close %s): something is not freed'
+                            % (base['malloc_used_kb'], c['malloc_used_kb'], c['n']))
+                break
+    if any(c['lr_dyn_kb'] != '0' for c in closes):
+        warn.append('Lightrec kept memory after a game closed (lr_dyn_kb not 0)')
+    if low is not None and low < 512:
+        warn.append('MEM1 went down to %d KB free: under 512 KB, a game may hit a failed malloc' % low)
+    for w in warn:
+        print('MEMORY WARNING: ' + w)
+
+
 def main():
     need(sys.argv, 2, "chain_table.py RUN_DIR [--csv OUT.csv] [--detail GROUP]")
     run = sys.argv[1]
@@ -251,6 +282,7 @@ def main():
         m = {c: sum(r[c] * r['wall_s'] for _, _, r in rows) / wsum for c in COLS}
         print('%-46s %6s %6s ' % ('mean of %d' % len(rows), '', '')
               + ' '.join('%6.1f' % m[c] if c != 'speed' else '%6.2f' % m[c] for c in COLS))
+    memory_check(log)
     csv = flag(sys.argv, "--csv")
     if csv is not None:
         with open(csv, 'w') as f:

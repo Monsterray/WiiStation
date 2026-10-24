@@ -90,6 +90,12 @@ The core is synced to a7464cc since 5.2.0 (merge 87d77c4). WiiStation's own chan
   adapter resets `current_cycle` (1/1024 cycles) every slice, so the old 1<<27 test freed
   blocks at random. A recompile clears the block's LUT range before freeing the old code.
   Counters: perf.log `jitcode: cleans= fails= reruns=` and the per-vblank signature (VSG2).
+- Bounded memory (2026-10-24): `memmanager.c` allocates through the adapter's
+  `lightrec_host_malloc/calloc/free` (a 4 MB TLSF pool in MEM2, `lightrec.c`) and counts
+  atomically (jitq's thread allocates too); Lightning gets the same pool through
+  `jit_set_memory_functions`. `lightrec_bound_memory()` keeps IR + MIPS + Lightrec allocations
+  (state excluded) under `LIGHTREC_DYN_MAX` (3 MB), freeing outdated blocks by age; it runs
+  before each block lookup in `get_next_block_func` and in `jq_make_room`. perf.log `lrmem:`.
 - The background compiler, "jitq" (try/jit-thread, 2026-10-19; `lightrec.c`, all marked
   `jitq`). A block is interpreted on its first `JitQueueAt` (2) visits; the second queues
   its compile on a thread at priority 20 (the emulator is 64), which compiles a copy of the

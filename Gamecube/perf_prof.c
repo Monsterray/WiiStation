@@ -7,6 +7,7 @@
  *  - SysPrintf (USB gecko) when PRINTGECKO is on.
  */
 #include <stdio.h>
+#include <malloc.h>
 #include <string.h>
 #include <gccore.h>
 #include <ogc/lwp_watchdog.h>
@@ -581,6 +582,7 @@ typedef struct { u32 ram, cycle, pc, cd, cdn, jitb, cleans; } vsig_t;
 static vsig_t *vsig;
 u32 vsig_cd, vsig_cdn;
 extern unsigned int lightrec_jit_blocks, lightrec_code_cleans;   /* deps/lightrec */
+static unsigned int vsig_jit0, vsig_cleans0;   /* their values when this game began (perf_mem_closed) */
 
 static void vsig_take(vsig_t *g)
 {
@@ -594,8 +596,8 @@ static void vsig_take(vsig_t *g)
 	g->pc = psxRegs.pc;
 	g->cd = vsig_cd;
 	g->cdn = vsig_cdn;
-	g->jitb = lightrec_jit_blocks;
-	g->cleans = lightrec_code_cleans;
+	g->jitb = lightrec_jit_blocks - vsig_jit0;   /* this game's, so a game run twice in a chain compares */
+	g->cleans = lightrec_code_cleans - vsig_cleans0;
 }
 
 static void vtl_fill(vtl_t *v, uint64_t now)
@@ -761,6 +763,26 @@ void perf_stack_log(const char *where)
 			sp >= lo && sp < hi ? (unsigned)(hi - sp) : 0, (unsigned)(hi - lo), (unsigned)lo);
 		perf_log_close(f);
 	}
+}
+
+/* After SysClose(), before the next game opens: what is still in use. In a chain every line
+ * should be the same (scripts/chain_table.py checks it): a game that leaves memory behind,
+ * or a plugin that is not shut down, shows as a line that grows (Docs/MEMORY_MAP.md). */
+void perf_mem_closed(void)
+{
+	extern unsigned int lightrec_dyn_usage(void);
+	static unsigned n;
+	struct mallinfo mi = mallinfo();
+	FILE *f = perf_log_open();
+	if (!f) return;
+	fprintf(f, "gameclose: n=%u mem1_free_kb=%u malloc_used_kb=%u mem2_used_kb=%u lr_dyn_kb=%u\n", ++n,
+		(unsigned)(SYS_GetArena1Size() >> 10), (unsigned)(mi.uordblks >> 10),
+		(unsigned)(gx_mem2_used() >> 10), lightrec_dyn_usage() >> 10);
+	perf_log_close(f);
+	/* the per-vblank signature's host-side counters start again with the next game */
+	vsig_cd = vsig_cdn = 0;
+	vsig_jit0 = lightrec_jit_blocks;
+	vsig_cleans0 = lightrec_code_cleans;
 }
 
 void perf_state_log(int game)
@@ -1352,11 +1374,22 @@ void perf_report(void)
 			unsigned base = (unsigned)NEW_MEM2_LO;
 			if (code_kb > code_peak_kb) code_peak_kb = code_kb;
 			if (mem1_kb < mem1_min_kb) mem1_min_kb = mem1_kb;
-			fprintf(f, "mem2map: arena2_used_kb=%u of %u ios_hi=%08x heap_end_gap_kb=%u ipc=%08x-%08x | lightrec_code_kb=%u peak=%u of %u | mem1_min_kb=%u\n",
+			/* Lightrec's own heap use by kind (memmanager.h: 1 the MIPS copies, 2 the IR, 3 its
+			 * structures and jitq jobs) and newlib's malloc in use: MEM1's consumers in a game */
+			struct mallinfo mi = mallinfo();
+			fprintf(f, "mem2map: arena2_used_kb=%u of %u ios_hi=%08x heap_end_gap_kb=%u ipc=%08x-%08x | lightrec_code_kb=%u peak=%u of %u | mem1_min_kb=%u"
+				" | lr_mips_kb=%u lr_ir_kb=%u lr_state_kb=%u malloc_used_kb=%u malloc_arena_kb=%u\n",
 				(a2lo - base) >> 10, (a2hi - base) >> 10, (unsigned)gx_mem2_ios_hi,
 				(unsigned)((gx_mem2_ios_hi - (a2hi + gx_mem2_total())) >> 10),
 				*(unsigned *)0x80003130, *(unsigned *)0x80003134,
-				code_kb, code_peak_kb, (unsigned)(LIGHTREC_CODE_SIZE >> 10), mem1_min_kb);
+				code_kb, code_peak_kb, (unsigned)(LIGHTREC_CODE_SIZE >> 10), mem1_min_kb,
+				lightrec_get_mem_usage(1) >> 10, lightrec_get_mem_usage(2) >> 10, lightrec_get_mem_usage(3) >> 10,
+				(unsigned)(mi.uordblks >> 10), (unsigned)(mi.arena >> 10));
+			{	/* Lightrec's bounded memory (deps/lightrec/lightrec.c LIGHTREC_DYN_MAX, in MEM2) */
+				extern unsigned int lightrec_mem_cleans, lightrec_dyn_peak, lightrec_dyn_usage(void), lr_pool_fallbacks;
+				fprintf(f, "lrmem: dyn_kb=%u peak_kb=%u of %u cleans=%u fallbacks=%u\n", lightrec_dyn_usage() >> 10,
+					lightrec_dyn_peak >> 10, 3072u, lightrec_mem_cleans, lr_pool_fallbacks);
+			}
 		}
 		{
 			extern void ogx_tex_mem(unsigned *n, unsigned *data_kb, unsigned *semi_kb);

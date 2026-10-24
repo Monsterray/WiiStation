@@ -2978,14 +2978,18 @@ static int OverlaySaveEfb(void)
 
     if (size > ovl_cap)
     {
-        /* Once, for the largest picture (640 x 576, PAL), in MEM2: a MEM1 buffer was given back
+        /* Once, for the largest picture (640 x 576, PAL), and kept: the buffer was given back
          * and asked for again at each EFB size change, and with MEM1 nearly full while a game
-         * runs the larger one failed -- from then on no overlay was ever drawn (bench Wii,
-         * 2026-10-24: the achievement toast drawn 25 times in 1600 vblanks, then never). */
+         * ran the larger one failed -- from then on no overlay was ever drawn (bench Wii,
+         * 2026-10-24: the achievement toast drawn 25 times in 1600 vblanks, then never). MEM1,
+         * where the GP copies fast: in MEM2 the copy and the restore each frame took Tiger
+         * Temple's GPU share from 20.9% to 34.6% (FPS text on). MEM2 only when MEM1 has no room. */
         int most = GX_GetTexBufferSize(640, 576, GX_TF_RGBA8, 0, GX_FALSE);
         if (ovl_buf || size > most)
             return 0;
-        ovl_buf = _mem2_memalign(32, most);
+        ovl_buf = memalign(32, most);
+        if (!ovl_buf)
+            ovl_buf = _mem2_memalign(32, most);
         ovl_cap = ovl_buf ? most : 0;
         if (!ovl_buf) return 0;
         /* only the GP touches it from here on: no CPU line may be written back over it */

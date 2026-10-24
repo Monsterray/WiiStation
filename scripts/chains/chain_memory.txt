@@ -1,0 +1,20 @@
+CHAIN
+# Memory between games: each game closes back to the same memory (perf.log gameclose:), the same game twice included
+1200 sd:/wiistation/none.txt FPS=0
+sd:/wiistation/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue
+1200 sd:/wiistation/none.txt FPS=0
+sd:/wiistation/isos/Crash Team Racing
+Crash Team Racing [U] [SCUS-94426].cue
+1200 sd:/wiistation/none.txt FPS=0
+sd:/wiistation/isos/Frogger (USA)
+Frogger (USA).cue
+1200 sd:/wiistation/none.txt FPS=0
+sd:/wiistation/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue
+1200 sd:/wiistation/none.txt FPS=0
+sd:/wiistation/isos/Crash Team Racing
+Crash Team Racing [U] [SCUS-94426].cue
+1200 sd:/wiistation/none.txt FPS=0
+sd:/wiistation/isos/Frogger (USA)
+Frogger (USA).cue

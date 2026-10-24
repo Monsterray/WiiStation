@@ -31,6 +31,8 @@
 #include "../coredebug.h"
 #include "../psxcommon.h"
 #include "../Gamecube/MEM2.h"
+#include "../mem2_manager.h"
+#include <malloc.h>
 #include "../Gamecube/lc.h"
 #include "../Gamecube/perf_prof.h"
 
@@ -1362,7 +1364,8 @@ extern char rvb[sizeof(REVERBInfo)];
 extern char pSpuBuffer[WII_SPU_FREQ];
 extern char SSumLR[NSSIZE * 2 * sizeof(spu.SSumLR[0])];
 
-extern char XABuf[WII_SPU_FREQ * sizeof(uint32_t) * 2];
+extern char *XABuf;
+#define XABUF_SIZE (WII_SPU_FREQ * sizeof(uint32_t) * 2)
 extern char CDDABuf[CDDA_BUFFER_SIZE];
 
 // SETUPSTREAMS: init most of the spu buffers
@@ -1376,6 +1379,8 @@ static void SetupStreams(void)
 
 // spu.XAStart =                                         // alloc xa buffer
 //  (uint32_t *)malloc(WII_SPU_FREQ * sizeof(uint32_t) * 2);
+  if (!XABuf && !(XABuf = _mem2_memalign(32, XABUF_SIZE)))
+   XABuf = memalign(32, XABUF_SIZE);
   spu.XAStart = (uint32_t *)XABuf;
  spu.XAEnd   = spu.XAStart + WII_SPU_FREQ;
  spu.XAPlay  = spu.XAStart;

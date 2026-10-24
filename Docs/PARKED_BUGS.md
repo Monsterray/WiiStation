@@ -6,7 +6,28 @@ without doing the investigation a second time.
 
 ---
 
-## CTR after Spyro in one Official chain: Lightrec hangs or crashes in the race -- OPEN 2026-10-24
+## CTR after Spyro in one Official chain: Lightrec hangs or crashes in the race -- FIXED 2026-10-24
+
+**Cause: MEM1 ran out.** libogc v3's malloc does not spill into MEM2 (arena2 stays at 0), so a
+full MEM1 returns NULL, and GNU Lightning writes through what `jit_alloc` returns without a check:
+the hang in `_jit_optimize` and the DSI were Lightning working in memory it never got. On the Wii,
+CTR after Spyro had malloc at 6.9 MB of a ~7.25 MB heap. Lightrec's blocks, IR and MIPS copies,
+jitq's pending jobs (up to 565) and Lightning's compile state all grew in MEM1 with the game.
+**Fix (bounded memory):**
+- Lightrec and Lightning allocate from a 4 MB TLSF pool in MEM2 taken once (`lightrec.c`,
+  `lr_pool_*`; a full pool falls back to the MEM2 heap, counted in perf.log `lrmem: fallbacks=`).
+  Not the general MEM2 heap: it is a first-fit list, and Lightrec's thousands of small blocks
+  slowed every texture allocation (Tiger Temple GPU 20.9% -> 34.6%; with the pool 22.3%, 0.98x).
+- Lightrec's own part is capped at 3 MB (`LIGHTREC_DYN_MAX`, `lightrec_bound_memory()`: frees
+  outdated blocks by age, as a full code buffer does).
+- rcheevos, curl, Mbed TLS and the badges allocate in MEM2 (3cf3dcf6, a5846dda); the XA ring
+  (375 KB) and the chain list (75 KB) moved there too.
+**Check:** perf.log `gameclose:` after every game; `chain_table.py` prints a `memory:` line and
+warns when malloc grows between games, Lightrec keeps memory after a close, or MEM1 goes under
+512 KB. Bench Wii: the Official Spyro -> CTR chain finishes (lowest MEM1 1160 KB); the six-game
+`chain_memory.txt` closes every game at malloc 5904 KB with Lightrec at 0 (lowest MEM1 1196 KB).
+Dolphin: a game run twice in one chain matches itself in every vsig field at every vblank.
+The record of the hunt:
 
 `scripts/chains/ach_official_bench.txt` (Spyro 2400 vblanks, then CTR's recorded Tiger Temple race,
 Achievements=3, spectator) on the bench Wii. Spyro is fine and CTR's set loads (117 achievements,

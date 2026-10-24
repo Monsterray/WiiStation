@@ -75,6 +75,39 @@ unsigned int lightrec_jitq_queued, lightrec_jitq_installed, lightrec_jitq_stalls
 	     lightrec_jitq_pend_peak, lightrec_jitq_realfull, lightrec_code_fits;
 unsigned long long lightrec_jitq_stall_ticks, lightrec_jitq_thread_ticks;
 
+/* WiiStation: the most memory Lightrec may hold beyond its state and code LUT (the blocks,
+ * the IR, the MIPS copies, the jitq jobs, all in MEM2 by memmanager.c). Past it the oldest
+ * blocks go, as for the code buffer (lightrec_bound_memory). CTR's race peaks near 1.1 MB. */
+#define LIGHTREC_DYN_MAX	(3u << 20)
+unsigned int lightrec_mem_cleans, lightrec_dyn_peak;	/* perf.log "lrmem:" */
+static unsigned int lightrec_state_bytes;		/* the state and its LUT: not in the budget */
+
+static unsigned int lightrec_dyn_bytes(void)
+{
+	return lightrec_get_mem_usage(MEM_FOR_MIPS_CODE) + lightrec_get_mem_usage(MEM_FOR_IR) +
+	       lightrec_get_mem_usage(MEM_FOR_LIGHTREC) - lightrec_state_bytes;
+}
+
+unsigned int lightrec_dyn_usage(void) { return lightrec_dyn_bytes(); }
+
+/* Emulator thread only, between blocks: the budget before a new block or a compile. `keep`
+ * is the block being installed or compiled (NULL: none). */
+static void lightrec_bound_memory(struct lightrec_state *state, const struct block *keep)
+{
+	static const u32 ages[] = { LIGHTREC_AGE_4S, LIGHTREC_AGE_1S, LIGHTREC_AGE_250MS };
+	unsigned int i, used = lightrec_dyn_bytes();
+
+	if (used > lightrec_dyn_peak)
+		lightrec_dyn_peak = used;
+	if (likely(used <= LIGHTREC_DYN_MAX))
+		return;
+	lightrec_mem_cleans++;
+	for (i = 0; i < ARRAY_SIZE(ages) && lightrec_dyn_bytes() > LIGHTREC_DYN_MAX; i++)
+		lightrec_remove_outdated_blocks(state->block_cache, keep, ages[i]);
+	if (lightrec_dyn_bytes() > LIGHTREC_DYN_MAX)
+		lightrec_free_all_blocks_except(state->block_cache, keep);
+}
+
 #define JQ_PRIO		20	/* below every other thread: the emulator is 64 */
 #define JQ_STACK	(64 * 1024)
 /* At most this many compiles waiting for their install; past it a block compiles on the
@@ -920,6 +953,7 @@ static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 		if (func && func != state->get_next_block)
 			break;
 
+		lightrec_bound_memory(state, NULL);	/* WiiStation: before a new block */
 		block = lightrec_get_block(state, pc);
 
 		if (unlikely(!block))
@@ -2203,6 +2237,7 @@ static void jq_make_room(struct lightrec_state *state, const struct block *block
 	};
 	unsigned int i;
 
+	lightrec_bound_memory(state, block);
 	for (i = 0; i < ARRAY_SIZE(ages); i++) {
 		if (lightrec_get_mem_usage(MEM_FOR_CODE) + size <= JQ_CODE_MAX)
 			return;
@@ -2557,6 +2592,7 @@ struct lightrec_state * lightrec_init(char *argv0,
 		goto err_finish_jit;
 
 	lightrec_register(MEM_FOR_LIGHTREC, sizeof(*state) + lut_size);
+	lightrec_state_bytes = sizeof(*state) + lut_size;
 
 	state->tlsf = tlsf;
 	state->with_32bit_lut = with_32bit_lut;
@@ -2673,6 +2709,7 @@ void lightrec_destroy(struct lightrec_state *state)
 
 	lightrec_unregister(MEM_FOR_LIGHTREC, sizeof(*state) +
 			    lut_elm_size(state) * CODE_LUT_SIZE);
+	lightrec_state_bytes = 0;	/* WiiStation: lightrec_dyn_usage() is now what was not given back (0) */
 	/* WiiStation: not freed; lightrec_alloc_state() hands it to the next init */
 }
 

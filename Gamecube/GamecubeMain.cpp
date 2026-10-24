@@ -982,10 +982,11 @@ char AutobootPath[1024];
  * game. */
 #define CHAIN_MAX 64   /* entries past it are dropped: ps1tests_gpu.txt has 42 */
 #define CHAIN_SETS 16   /* a PadTest DX matrix cell sets 13: PadType1..10, PadAutoAssign, ... */
-static struct {
+struct chainEntry {
 	unsigned vbl; char input[128]; char path[256]; char rom[256]; char state[48];
 	char set[CHAIN_SETS][32]; int nset;
-} chainList[CHAIN_MAX];
+};
+static chainEntry *chainList;   /* CHAIN_MAX of them (75 KB) in MEM2, taken by chainLoad */
 
 /* The settings a chain entry changed, with the values to put back. */
 static struct { char *value; char orig; } chainSaved[CHAIN_SETS * CHAIN_MAX];
@@ -1067,6 +1068,8 @@ static bool chainLine(FILE *f, char *buf, int n)
 static int chainLoad(FILE *f)
 {
 	char line[CONFIG_LINE_MAX];
+	if (!chainList && !(chainList = (chainEntry *)_mem2_calloc(CHAIN_MAX, sizeof *chainList)))
+		return 0;
 	while (chainN < CHAIN_MAX && chainLine(f, line, sizeof line)) {
 		auto *e = &chainList[chainN];
 		char *tok = strtok(line, " \t");
@@ -1735,6 +1738,7 @@ int loadISO(fileBrowser_file* file)
 	if(hasLoadedISO || executedBios) {
 		SysClose();
 		hasLoadedISO = FALSE;
+		perf_mem_closed();   /* debug builds: perf.log "gameclose:", the same after every game */
 	}
 	needInitCpu = false;
 	cdrIsoMultidiskSelect = chainDisc > 1 ? chainDisc - 1 : 0;   /* a multi-disc PBP boots disc 1 unless a chain line says Disc= */

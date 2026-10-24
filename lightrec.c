@@ -19,6 +19,103 @@
 #include "psxinterpreter.h"
 #include "psxhle.h"
 #include "Gamecube/MEM2.h"
+#include "mem2_manager.h"
+
+/* Lightrec's own memory (deps/lightrec/memmanager.c: the blocks, the IR, the MIPS copies, the
+ * jitq jobs) and Lightning's compile state live in a pool of their own: LR_POOL bytes of MEM2,
+ * taken once and kept, with a TLSF allocator (O(1), deps/lightrec/tlsf). The state with its
+ * code LUT and the code buffer stay in MEM1, where every block jump reads them.
+ * - In MEM1 they grew with the game until malloc failed (CTR after Spyro in one boot: 0 bytes
+ *   of MEM1 left, bench Wii 2026-10-24), and Lightning writes through what it is given.
+ * - In the general MEM2 heap (a first-fit list) their thousands of small blocks made every
+ *   other MEM2 allocation slow: OpenGX's textures, Tiger Temple's GPU share 20.9% -> 34.6%.
+ * lightrec_bound_memory() keeps Lightrec's part under LIGHTREC_DYN_MAX (3 MB); the rest of the
+ * pool is Lightning's compile state. Should the pool still be full, an allocation falls back
+ * to the MEM2 heap (counted: perf.log lrmem: fallbacks=) rather than returning NULL. jitq's
+ * thread allocates too: each pool operation runs with interrupts off (O(1), short). */
+#include "deps/lightrec/tlsf/tlsf.h"
+#include <string.h>
+#include <ogc/machine/processor.h>   /* _CPU_ISR_Disable */
+#define LR_POOL (4u << 20)
+static tlsf_t lr_pool;
+static char *lr_pool_mem;
+unsigned int lr_pool_fallbacks;
+
+static int lr_in_pool(const void *p)
+{
+	return lr_pool_mem && (const char *)p >= lr_pool_mem && (const char *)p < lr_pool_mem + LR_POOL;
+}
+
+static void *lr_pool_alloc(size_t len)
+{
+	void *p = NULL;
+	u32 level;
+	_CPU_ISR_Disable(level);
+	if (lr_pool)
+		p = tlsf_malloc(lr_pool, len);
+	_CPU_ISR_Restore(level);
+	if (!p && (p = _mem2_malloc(len)))
+		lr_pool_fallbacks++;
+	return p;
+}
+
+void lightrec_host_free(void *ptr)
+{
+	u32 level;
+	if (!ptr)
+		return;
+	if (!lr_in_pool(ptr)) {
+		_mem2_free(ptr);
+		return;
+	}
+	_CPU_ISR_Disable(level);
+	tlsf_free(lr_pool, ptr);
+	_CPU_ISR_Restore(level);
+}
+
+void *lightrec_host_malloc(size_t len) { return lr_pool_alloc(len); }
+
+void *lightrec_host_calloc(size_t len)
+{
+	void *p = lr_pool_alloc(len);
+	if (p)
+		memset(p, 0, len);
+	return p;
+}
+
+static void *lightning_alloc(size_t len) { return lr_pool_alloc(len); }
+
+static void *lightning_realloc(void *ptr, size_t len)
+{
+	size_t old;
+	void *p;
+	u32 level;
+	if (!ptr)
+		return lr_pool_alloc(len);
+	if (!lr_in_pool(ptr))
+		return _mem2_realloc(ptr, len);
+	_CPU_ISR_Disable(level);
+	p = tlsf_realloc(lr_pool, ptr, len);
+	old = tlsf_block_size(ptr);
+	_CPU_ISR_Restore(level);
+	if (p || !len)
+		return p;
+	if (!(p = lr_pool_alloc(len)))   /* the pool is full: move it out */
+		return NULL;
+	memcpy(p, ptr, old < len ? old : len);
+	lightrec_host_free(ptr);
+	return p;
+}
+
+static void lr_pool_init(void)
+{
+	if (lr_pool)
+		return;
+	lr_pool_mem = _mem2_memalign(32, LR_POOL);
+	if (lr_pool_mem)
+		lr_pool = tlsf_create_with_pool(lr_pool_mem, LR_POOL);
+}
+extern void jit_set_memory_functions(void *(*)(size_t), void *(*)(void *, size_t), void (*)(void *));
 #include "Gamecube/PadSSSPSX.h"
 #include "Gamecube/perf_prof.h"
 #include "Gamecube/wiiSXconfig.h"
@@ -570,6 +667,8 @@ static int lightrec_plugin_init(void)
 		lightrec_jitq_queue_at = jitQueueAt;
 		lightrec_jitq_test_sleep_us = jitThreadTest * 1000;
 	}
+	lr_pool_init();
+	jit_set_memory_functions(lightning_alloc, lightning_realloc, lightrec_host_free);
 	lightrec_state = lightrec_init(name,
 			lightrec_map, ARRAY_SIZE(lightrec_map),
 			&lightrec_ops);

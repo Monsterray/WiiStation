@@ -31,7 +31,9 @@ char rvb[sizeof(REVERBInfo)] __attribute__((aligned(32)));
 char pSpuBuffer[WII_SPU_FREQ] __attribute__((aligned(32)));
 char SSumLR[NSSIZE * 2 * sizeof(spu.SSumLR[0])] __attribute__((aligned(32)));
 
-char XABuf[WII_SPU_FREQ * sizeof(uint32_t) * 2] __attribute__((aligned(32)));
+/* The XA ring (375 KB) is in MEM2, taken once by SetupStreams (dfsound/dfspu.c) and kept: the
+ * CPU streams through it, which cached MEM2 does as well as MEM1, and MEM1 is what runs out. */
+char *XABuf;
 char CDDABuf[CDDA_BUFFER_SIZE] __attribute__((aligned(32)));
 
 

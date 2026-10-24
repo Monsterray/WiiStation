@@ -31,23 +31,34 @@ unsigned int lightrec_get_mem_usage(enum mem_type type)
 
 #else /* ENABLE_THREADED_COMPILER */
 
+/* WiiStation: atomic, as with the threaded compiler -- jitq's thread allocates too */
 static unsigned int lightrec_bytes[MEM_TYPE_END];
 
 void lightrec_register(enum mem_type type, unsigned int len)
 {
-	lightrec_bytes[type] += len;
+	__atomic_fetch_add(&lightrec_bytes[type], len, __ATOMIC_RELAXED);
 }
 
 void lightrec_unregister(enum mem_type type, unsigned int len)
 {
-	lightrec_bytes[type] -= len;
+	__atomic_fetch_sub(&lightrec_bytes[type], len, __ATOMIC_RELAXED);
 }
 
 unsigned int lightrec_get_mem_usage(enum mem_type type)
 {
-	return lightrec_bytes[type];
+	return __atomic_load_n(&lightrec_bytes[type], __ATOMIC_RELAXED);
 }
 #endif /* ENABLE_THREADED_COMPILER */
+
+/* WiiStation: where Lightrec's own memory comes from (the blocks, the IR, the MIPS copies,
+ * the jitq jobs): the host's allocator (WiiStation's lightrec.c: MEM2, which locks itself).
+ * Only the state with its code LUT (lightrec_alloc_state) stays on malloc, in MEM1. With all
+ * of it in MEM1, CTR after another game in one boot took MEM1 to 0 bytes and Lightning wrote
+ * through a NULL allocation (bench Wii, 2026-10-24). lightrec_bound_memory() keeps the total
+ * under LIGHTREC_DYN_MAX. */
+void *lightrec_host_malloc(size_t len);
+void *lightrec_host_calloc(size_t len);
+void lightrec_host_free(void *ptr);
 
 unsigned int lightrec_get_total_mem_usage(void)
 {
@@ -64,7 +75,7 @@ void * lightrec_malloc(struct lightrec_state *state,
 {
 	void *ptr;
 
-	ptr = malloc(len);
+	ptr = lightrec_host_malloc(len);
 	if (!ptr)
 		return NULL;
 
@@ -78,7 +89,7 @@ void * lightrec_calloc(struct lightrec_state *state,
 {
 	void *ptr;
 
-	ptr = calloc(1, len);
+	ptr = lightrec_host_calloc(len);
 	if (!ptr)
 		return NULL;
 
@@ -91,7 +102,7 @@ void lightrec_free(struct lightrec_state *state,
 		   enum mem_type type, unsigned int len, void *ptr)
 {
 	lightrec_unregister(type, len);
-	free(ptr);
+	lightrec_host_free(ptr);
 }
 
 float lightrec_get_average_ipi(void)

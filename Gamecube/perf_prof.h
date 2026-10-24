@@ -843,6 +843,7 @@ void perf_vram_event(unsigned kind, int x, int y, int w, int h, int a, int b);
 void perf_tty(const char *s);   /* the run's console text, for sd:/wiistation/tty.log */
 void perf_vtl_flush(int game);  /* the per-vblank timeline, to sd:/wiistation/vtl_NN.bin */
 void perf_state_log(int game);  /* guest RAM/VRAM hashes at a chained game's end: perf.log "state:" */
+void perf_mem_closed(void);     /* the memory in use once a game is closed: perf.log "gameclose:" */
 /* One record per output-driver request (sdl.c callback, cube.c feed): where the mixer was
  * when the Wii asked, to aq_NN.bin at a chained game's end (scripts/aq_cmp.py). */
 void perf_aq_log(unsigned queued, int ppm);
@@ -901,6 +902,7 @@ static inline void perf_pc_sample(unsigned pc) { (void)pc; }
 static inline void perf_tty(const char *s) { (void)s; }
 static inline void perf_vtl_flush(int game) { (void)game; }
 static inline void perf_state_log(int game) { (void)game; }
+static inline void perf_mem_closed(void) {}
 static inline void perf_stack_log(const char *where) { (void)where; }
 static inline void perf_fatal_log(unsigned code, const char *reason) { (void)code; (void)reason; }
 static inline void perf_ram_write(char who, unsigned madr, unsigned bytes) { (void)who; (void)madr; (void)bytes; }
