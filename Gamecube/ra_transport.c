@@ -17,6 +17,8 @@
 #include <string.h>
 #include <strings.h>
 #include "ra_transport.h"
+#include <stdbool.h>
+#include "../mem2_manager.h"   /* the requests, curl and Mbed TLS live in MEM2: MEM1 is the emulator's */
 
 extern void SysPrintf(const char *fmt, ...);
 char achievementUTCOffset[256];  /* the setting (CONFIG_STRING_SIZE): minutes to add to the Wii's clock for UTC, "+420" */
@@ -45,7 +47,7 @@ static void finish(Request *r)
 	resp.body_length = r->body ? r->len : 0;
 	resp.http_status_code = r->status;
 	done(&resp, data);
-	free(r->url); free(r->post); free(r->ctype); free(r->body);
+	_mem2_free(r->url); _mem2_free(r->post); _mem2_free(r->ctype); _mem2_free(r->body);
 	memset(r, 0, sizeof *r);   /* state 0: free again */
 }
 
@@ -223,6 +225,17 @@ static void learn_zone(int64_t server_utc)
 	}
 }
 
+/* Memory: MEM1 is nearly full while a game runs (32 KB free in CTR, 2026-10-24), and Mbed TLS
+ * failed to parse the CA bundle for a second host there ("PK - Memory allocation failed", curl
+ * 77: no badge). curl takes these through curl_global_init_mem; Mbed TLS's calloc and free are
+ * renamed to ws_tls_calloc/ws_tls_free in its archives (scripts/build-ra-https.sh). The MEM2
+ * heap locks itself, so the worker thread may use it. */
+static void *curl_m_malloc(size_t n) { return _mem2_malloc(n); }
+static void *curl_m_realloc(void *p, size_t n) { return _mem2_realloc(p, n); }
+static void *curl_m_calloc(size_t n, size_t size) { return _mem2_calloc(n, size); }
+void *ws_tls_calloc(size_t n, size_t size) { return _mem2_calloc(n, size); }
+void ws_tls_free(void *p) { _mem2_free(p); }
+
 static int start(void)
 {
 	char ip[16];
@@ -247,7 +260,8 @@ static int start(void)
 		SysPrintf("Achievements: no network\n");
 		return 0;
 	}
-	if (curl_global_init(CURL_GLOBAL_DEFAULT) != CURLE_OK) return 0;
+	if (curl_global_init_mem(CURL_GLOBAL_DEFAULT, curl_m_malloc, _mem2_free, curl_m_realloc, _mem2_strdup,
+	                         curl_m_calloc) != CURLE_OK) return 0;
 	return 1;
 }
 
@@ -273,7 +287,7 @@ static size_t take_body(char *p, size_t size, size_t count, void *data)
 	char *grown;
 	if (size && n / size != count) return 0;
 	if (n > MAX_BODY - r->len) return 0;   /* too big: the transfer fails */
-	grown = realloc(r->body, r->len + n + 1);
+	grown = _mem2_realloc(r->body, r->len + n + 1);
 	if (!grown) return 0;
 	r->body = grown;
 	memcpy(r->body + r->len, p, n);
@@ -385,7 +399,7 @@ static void *work(void *arg)
 	return NULL;
 }
 
-static char *copy(const char *s) { return s ? strdup(s) : NULL; }
+static char *copy(const char *s) { return s ? _mem2_strdup(s) : NULL; }
 
 void ra_transport_post(const char *url, const char *post, const char *content_type,
                        rc_client_server_callback_t done, void *done_data)

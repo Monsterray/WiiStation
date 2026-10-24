@@ -31,6 +31,8 @@
 #include "ach_badge.h"
 #include "ach_badge_conv.h"
 #include "ra_transport.h"
+#include <stdbool.h>
+#include "../mem2_manager.h"   /* the pool and the decode buffers: MEM2 (MEM1 is the emulator's) */
 
 extern void SysPrintf(const char *fmt, ...);
 
@@ -126,7 +128,7 @@ static Entry *take_slot(void)
 	unsigned i, best = CACHE_N;
 	u32 now = now_ms(), best_age = 0;
 	if (!pool) {
-		pool = memalign(32, (size_t)CACHE_N * ACH_BADGE_BYTES);
+		pool = _mem2_memalign(32, (size_t)CACHE_N * ACH_BADGE_BYTES);
 		if (!pool) return NULL;
 	}
 	for (i = 0; i < CACHE_N; i++) {
@@ -161,19 +163,19 @@ static int decode_into(const Key *k, const u8 *png_data, size_t len, Entry **mad
 		return 0;
 	}
 	im.format = PNG_FORMAT_RGBA;
-	rgba = malloc(PNG_IMAGE_SIZE(im));
+	rgba = _mem2_malloc(PNG_IMAGE_SIZE(im));
 	if (!rgba) { png_image_free(&im); return 0; }
 	if (!png_image_finish_read(&im, NULL, rgba, 0, NULL)) {
 		png_image_free(&im);
-		free(rgba);
+		_mem2_free(rgba);
 		return 0;
 	}
 	png_image_free(&im);
 	e = take_slot();
-	if (!e) { free(rgba); return 1; }
+	if (!e) { _mem2_free(rgba); return 1; }
 	tex = pool + (size_t)(e - cache) * ACH_BADGE_BYTES;
 	ach_badge_rgba_to_rgb5a3(rgba, im.width, im.height, (uint16_t *)tex);
-	free(rgba);
+	_mem2_free(rgba);
 	DCFlushRange(tex, ACH_BADGE_BYTES);
 	GX_InitTexObj(&e->obj, tex, ACH_BADGE_DIM, ACH_BADGE_DIM, GX_TF_RGB5A3, GX_CLAMP, GX_CLAMP, GX_FALSE);
 	GX_InitTexObjFilterMode(&e->obj, GX_NEAR, GX_NEAR);
@@ -193,11 +195,11 @@ static u8 *read_file(const char *path, size_t *len)
 	u8 *buf = NULL;
 	if (!f) return NULL;
 	if (fseek(f, 0, SEEK_END) == 0 && (n = ftell(f)) > 0 && n <= MAX_PNG && fseek(f, 0, SEEK_SET) == 0 &&
-	    (buf = malloc((size_t)n))) {
+	    (buf = _mem2_malloc((size_t)n))) {
 		if (fread(buf, 1, (size_t)n, f) == (size_t)n) {
 			*len = (size_t)n;
 		} else {
-			free(buf);
+			_mem2_free(buf);
 			buf = NULL;
 		}
 	}
@@ -326,7 +328,7 @@ int ach_badge_get(const char *badge_name, int locked, GXTexObj *out)
 		int ok = png_ok(file, len);
 		Entry *made = NULL;
 		if (ok) ok = decode_into(&k, file, len, &made);
-		free(file);
+		_mem2_free(file);
 		if (made) {
 			*out = made->obj;
 			return 1;

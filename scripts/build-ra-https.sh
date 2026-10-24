@@ -29,6 +29,12 @@ cp "$src/cacert.pem" "$dst/cacert.pem"   # the CA bundle the build was tested wi
 DEVKITPRO=/c/devkitPro   # set outright: the ambient environment may hold a stale /opt/devkitpro
 bin="$DEVKITPRO/devkitPPC/bin"
 "$bin/powerpc-eabi-objcopy" --redefine-sym poll=ws_soc_poll "$dst/lib/libcurl.a"
+# Mbed TLS allocates with libc calloc/free (MBEDTLS_PLATFORM_MEMORY is off): pointed at
+# ra_transport.c's ws_tls_calloc/ws_tls_free, which use MEM2. In MEM1 a game left it too little
+# to parse the CA bundle a second time (curl 77, bench Wii 2026-10-24).
+for a in "$dst"/lib/libmbed*.a; do
+	"$bin/powerpc-eabi-objcopy" --redefine-sym calloc=ws_tls_calloc --redefine-sym free=ws_tls_free "$a"
+done
 tmp=$(mktemp -d)
 ( cd "$tmp" && "$bin/powerpc-eabi-ar" x "$DEVKITPRO/libogc/lib/wii/libogc.a" soc_poll.o )
 "$bin/powerpc-eabi-objcopy" --redefine-sym poll=ws_soc_poll "$tmp/soc_poll.o"

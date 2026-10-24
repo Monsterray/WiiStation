@@ -53,6 +53,10 @@ static char game_hash[33];   /* the loaded disc's PS1 hash, to load once the log
 /* ---- what the menus list: the achievements and the leaderboards of the loaded set ---- */
 
 #define MAX_LISTED 512
+/* rc_client.c's RC_CLIENT_ACHIEVEMENT_WARNING_ID: a made-up "Warning: Unknown Emulator" entry,
+ * always earned, that the server's answer adds while RetroAchievements does not know the
+ * client. It is no achievement of the set: the list and its counts leave it out. */
+#define ACHIEVEMENT_WARNING_ID 101000001
 static rc_client_achievement_list_t *list;
 static const rc_client_achievement_t *listed[MAX_LISTED];
 static unsigned listed_n;
@@ -105,7 +109,8 @@ static void list_build(void)
 	if (!list) return;
 	for (b = 0; b < list->num_buckets; b++)   /* rc_client's order: challenges, recent, almost there, locked, earned */
 		for (i = 0; i < list->buckets[b].num_achievements && listed_n < MAX_LISTED; i++)
-			listed[listed_n++] = list->buckets[b].achievements[i];
+			if (list->buckets[b].achievements[i]->id != ACHIEVEMENT_WARNING_ID)
+				listed[listed_n++] = list->buckets[b].achievements[i];
 }
 
 static void boards_build(void)
@@ -166,6 +171,16 @@ const char *achievements_official_presence(void)
 	static char line[128];
 	if (!set_ready() || !rc_client_has_rich_presence(client)) return "";
 	rc_client_get_rich_presence_message(client, line, sizeof line);
+	{	/* the menu font has ASCII only: an emoji (Spyro's set opens with a flag, "[🇺🇸] ...")
+		 * is dropped, with the brackets it leaves empty and the space after them */
+		char *r = line, *w = line;
+		for (; *r; r++)
+			if ((unsigned char)*r < 0x80) *w++ = *r;
+		*w = 0;
+		while ((r = strstr(line, "[]")) || (r = strstr(line, "()"))) memmove(r, r + 2, strlen(r + 2) + 1);
+		for (r = line; *r == ' '; r++) ;
+		memmove(line, r, strlen(r) + 1);
+	}
 	return line;
 }
 
