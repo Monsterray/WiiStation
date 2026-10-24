@@ -45,6 +45,7 @@ extern "C" void __exception_setreload(int t);
 #include "config_parse.h"   /* the two scans in the settings parser */
 #include "../achievements.h"
 #include "ach_toast.h"
+extern "C" char achievementUTCOffset[256];   /* ra_transport.c: Official mode's clock */
 #include "achievements_bench.h"   /* test-only; no-ops in product builds */
 #include "menu/MenuContext.h"
 #include "libgui/IPLFont.h"
@@ -455,6 +456,7 @@ static SettingOption OPTIONS[] =
   { "Achievements", &achievementsEnabled, 0, 3, NULL, "Mode", OPT_ACH_MODE, "Off, Local (your definition file; unlocks are kept), Test (try a set; nothing is kept) or Official (RetroAchievements, not available yet). Load the game again after a change." },
   { "AchievementFile", achievementFile, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "AchievementLog", achievementLog, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
+  { "AchievementUTCOffset", achievementUTCOffset, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
 #ifdef ACHIEVEMENTS_BENCH
   { "AchievementBenchRoot", achievementBenchRoot, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
 #endif
@@ -538,7 +540,7 @@ void biosFileInit();
 static const char* const UNSTORED_KEYS[] = { "FilterTour" };
 static const char* const GLOBAL_ONLY_KEYS[] = {
 	"lang", "MenuFont", "FileSortMode", "TabWrap", "RomDirSD", "RomDirUSB",
-	"NativeDevice", "StatesDevice", "AchievementFile", "AchievementLog", "AchievementBenchRoot",
+	"NativeDevice", "StatesDevice", "AchievementFile", "AchievementLog", "AchievementUTCOffset", "AchievementBenchRoot",
 	"smbipaddr", "smbsharename", "smbusername", "smbpassword", "RomDirSMB" };
 
 static bool keyIn(const char* key, const char* const* list, int n)

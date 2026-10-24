@@ -190,6 +190,8 @@ CFGARGS=(
 [ "${MMU:-0}" != 0 ]     && CFGARGS+=(-C Dolphin.Core.MMU=True)
 [ "${XFB_RAM:-0}" != 0 ] && CFGARGS+=(-C Graphics.Hacks.XFBToTextureEnable=False)
 [ "${DSP_LLE:-0}" != 0 ] && CFGARGS+=(-C Dolphin.Core.DSPHLE=False -C Logger.Logs.DSPLLE=True)
+# NET_LOG=1: Dolphin's IOS network and SSL log (each socket call: connect, poll, send, recv)
+[ "${NET_LOG:-0}" != 0 ] && CFGARGS+=(-C Logger.Logs.IOS_NET=True -C Logger.Logs.IOS_SSL=True)
 # FAST=1: no speed limit (Dolphin runs the Wii as fast as the PC can; guest time is unchanged)
 [ "${FAST:-0}" != 0 ]    && CFGARGS+=(-C Dolphin.Core.EmulationSpeed=0)
 [ "${AUDIO_DUMP:-0}" != 0 ] && CFGARGS+=(-C Dolphin.DSP.DumpAudio=True)

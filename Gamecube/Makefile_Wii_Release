@@ -123,7 +123,19 @@ LDFLAGS	=	-g $(MACHDEP) -Wl,-Map,$(notdir $@).map,-wrap,$(WRAP_WIIUSE),-wrap,c_d
 #---------------------------------------------------------------------------------
 # v3: -lopengx goes ahead of -lSDL. gpuPlugin.o's ogx_initialize would otherwise be satisfied by
 # SDL_ogc_video.o's weak stub, pulling that member in and clashing with ours on vmode/xfb.
-LIBS	:=	$(if $(filter 3,$(LIBOGC)),-lopengx) -lhbcagent -lsmb2 -ldi -lm -laesnd -lSDL -lfat -ldb -lwiiuse -lwupc -lwiidrc -lbte -logc -lz -lwiikeyboard -llightrecNoLog -llightning -llzma -lzstd -lzlibstatic -lchdr -lopengx
+# Official mode's HTTPS stack (Mbed TLS + curl, scripts/build-ra-https.sh): linked when it is in
+# build_ogc3/deps/ra_https, and Gamecube/ra_transport.c is built with RA_HTTPS; without it the
+# transport fails every request and the game runs on. Exported: the inner make runs elsewhere.
+ifeq ($(LIBOGC),3)
+RA_HTTPS_DIR ?= $(CURDIR)/../build_ogc3/deps/ra_https
+export RA_HTTPS_DIR
+endif
+ifneq ($(wildcard $(RA_HTTPS_DIR)/lib/libcurl.a),)
+RA_HTTPS_LIBS := -lcurl -lwssocpoll -lmbedtls -lmbedx509 -lmbedcrypto
+RA_HTTPS_PATH := -L$(RA_HTTPS_DIR)/lib
+RA_HTTPS_FLAGS := -DRA_HTTPS -I$(RA_HTTPS_DIR)/include
+endif
+LIBS	:=	$(if $(filter 3,$(LIBOGC)),-lopengx) -lhbcagent $(RA_HTTPS_LIBS) -lsmb2 -ldi -lm -laesnd -lSDL -lfat -ldb -lwiiuse -lwupc -lwiidrc -lbte -logc -lz -lwiikeyboard -llightrecNoLog -llightning -llzma -lzstd -lzlibstatic -lchdr -lopengx
 
 #---------------------------------------------------------------------------------
 # list of directories containing libraries, this must be the top level containing
@@ -197,7 +209,7 @@ export INCLUDE	:=	$(foreach dir,$(INCLUDES),-I$(CURDIR)/$(dir)) \
 # v3: our OpenGX (build_ogc3/deps/opengx) goes first. -lopengx resolves to the first
 # libopengx.a on the path, and portlibs/wii's stock one has none of the glXxx/ogx_* extensions
 # gc_gl.c defines, so the link left them undefined. libogc2 has no such archive on its path.
-export LIBPATHS	:=	$(if $(filter 3,$(LIBOGC)),-L$(DEPS_FROM_BUILD)/opengx/lib) \
+export LIBPATHS	:=	$(RA_HTTPS_PATH) $(if $(filter 3,$(LIBOGC)),-L$(DEPS_FROM_BUILD)/opengx/lib) \
 					$(foreach dir,$(LIBDIRS),-L$(dir)/lib) \
 					-L$(LIBOGC_LIB) \
 					-L$(DEVKITPRO)/libogc/lib/wii, -L$(DEVKITPRO)/libfat/libogc/lib/wii \
@@ -233,6 +245,7 @@ else
 # though the emulator uses -Ofast. Keep LTO from inheriting the core's fast-math.
 $(filter rc_%.o md5.o achievements.o,$(OFILES)): CFLAGS += -fno-fast-math -fno-lto
 # rc_client with the PS1 disc hash only (no cartridge ROMs, zips or encrypted images)
+ra_transport.o: CFLAGS += $(RA_HTTPS_FLAGS)
 $(filter rc_%.o aes.o achievements_official.o ra_transport.o,$(OFILES)): CFLAGS += -DRC_CLIENT_SUPPORTS_HASH -DRC_HASH_NO_ROM -DRC_HASH_NO_ZIP -DRC_HASH_NO_ENCRYPTED
 
 DEPENDS	:=	$(OFILES:.o=.d)

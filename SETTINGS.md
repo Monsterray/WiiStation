@@ -58,7 +58,7 @@ To write the game's file, load the game, open the Settings menu, and select **Sa
 
 **Load Settings > This Game** sets the settings in the same order (1, 2, 3) now. It does nothing when the game has no file.
 
-These keys are never in a game's file: `lang`, `MenuFont`, `FileSortMode`, `TabWrap` (the menu), `RomDirSD`, `RomDirUSB`, `RomDirSMB`, `NativeDevice`, `StatesDevice`, `AchievementFile`, `AchievementLog` (folders and devices), and `smbipaddr`, `smbsharename`, `smbusername`, `smbpassword` (the network share and its login). They belong to the Wii, not to the game. **This Game** does not write them, and WiiStation ignores them in a game's file. A game file from 5.14.0 or earlier holds every key: WiiStation still reads it, and its other keys still replace the common file's values. The next **This Game** save writes only the differences. `FilterTour` is in no settings file (section 3).
+These keys are never in a game's file: `lang`, `MenuFont`, `FileSortMode`, `TabWrap` (the menu), `RomDirSD`, `RomDirUSB`, `RomDirSMB`, `NativeDevice`, `StatesDevice`, `AchievementFile`, `AchievementLog`, `AchievementUTCOffset` (folders, devices and the clock), and `smbipaddr`, `smbsharename`, `smbusername`, `smbpassword` (the network share and its login). They belong to the Wii, not to the game. **This Game** does not write them, and WiiStation ignores them in a game's file. A game file from 5.14.0 or earlier holds every key: WiiStation still reads it, and its other keys still replace the common file's values. The next **This Game** save writes only the differences. `FilterTour` is in no settings file (section 3).
 
 Versions 5.6.1 to 5.13.1 wrote the game's file as `<serial>.cfg`, and no version read it. WiiStation reads `<serial>.cfg` on a device when that device has no `<serial>.ini`. The next **This Game** save writes `<serial>.ini`. You can then delete the `.cfg` file.
 
@@ -309,6 +309,7 @@ for the definition format, state handling, persistence boundaries, and tests.
 | `Achievements` | 0 = Off, 1 = Local, 2 = Test, 3 = Official | 0 | General, Cheevos, "Mode" | Local: your own definition file, unlocks kept in the journal. Test: the same, nothing read from or written to the journal. Official: RetroAchievements (not available yet; loads nothing). |
 | `AchievementFile` | `"Path"` | empty | none, settings file only (General, Cheevos shows it) | The rcheevos definition file for a game, for example `sd:/wiistation/achievements/<game>.txt`. |
 | `AchievementLog` | `"Path"` | empty | none, settings file only | Stores earned unlocks. Empty puts them beside the definition file, with `.unlocks` appended. A quoted full path overrides it. |
+| `AchievementUTCOffset` | `"Minutes"` | empty | none, settings file only | Official mode: minutes to add to the Wii's clock (local time) to get UTC, for certificate dates: `"+420"` for US Pacific summer time, `"+480"` in winter, up to 840 either way. Empty uses the clock as it is. |
 
 ## 7. Network settings
 

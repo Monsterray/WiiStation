@@ -269,7 +269,9 @@ void achievements_official_frame(void)
 {
 	if (!client) return;
 	ra_transport_poll();
-	if (game_loaded) rc_client_do_frame(client);
+	/* every frame, loaded or not: with background memory reads off, rc_client finishes a game
+	 * load (it validates addresses through read_memory) in its next do_frame */
+	rc_client_do_frame(client);
 }
 
 void achievements_official_idle(void)
