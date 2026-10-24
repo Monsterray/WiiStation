@@ -309,7 +309,10 @@ for the definition format, state handling, persistence boundaries, and tests.
 | `Achievements` | 0 = Off, 1 = Local, 2 = Test, 3 = Official | 0 | General, Cheevos, "Mode" | Local: your own definition file, unlocks kept in the journal. Test: the same, nothing read from or written to the journal. Official: RetroAchievements, Casual; needs `achievements/ra_account.ini`, `tls_seed.bin` and `cacert.pem` on the card (Docs/ACHIEVEMENTS.md). |
 | `AchievementFile` | `"Path"` | empty | none, settings file only (General, Cheevos shows it) | The rcheevos definition file for a game, for example `sd:/wiistation/achievements/<game>.txt`. |
 | `AchievementLog` | `"Path"` | empty | none, settings file only | Stores earned unlocks. Empty puts them beside the definition file, with `.unlocks` appended. A quoted full path overrides it. |
-| `AchievementUTCOffset` | `"Minutes"` | empty | none, settings file only | Official mode: minutes to add to the Wii's clock (local time) to get UTC, for certificate dates: `"+420"` for US Pacific summer time, `"+480"` in winter, up to 840 either way. Empty uses the clock as it is. |
+| `AchievementUnofficial` | 0 = Off, 1 = On | 0 | General, Cheevos, "Unofficial" | Official mode: the set's Unofficial (not yet approved) achievements too; RetroAchievements does not keep their unlocks. Load the game again after a change. |
+| `AchievementEncore` | 0 = Off, 1 = On | 0 | General, Cheevos, "Encore" | Official mode: achievements already earned can be earned again this session (the card shows again; nothing new is sent). |
+| `AchievementSpectator` | 0, 1 | 0 | none, settings file only (hidden) | Official mode for scripted test runs on a real account: everything is evaluated and shown, no unlock is sent. |
+| `AchievementUTCOffset` | `"Minutes"` | empty | none, settings file only | Official mode: minutes to add to the Wii's clock (local time) to get UTC, for certificate dates, e.g. `"+420"`, up to 840 either way. Empty (the default): the Wii learns it from the server's answers and keeps it in `achievements/utc_offset.txt`, summer time included. Set, it wins and nothing is learnt. |
 
 ## 7. Network settings
 

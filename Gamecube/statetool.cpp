@@ -31,6 +31,9 @@ extern "C" {
 #include "../psxmem.h"
 #include "../r3000a.h"
 #include "../achievements.h"   /* achdump */
+#ifdef HW_RVL
+#include "ach_badge.h"
+#endif
 #include "fileBrowser/fileBrowser.h"   /* isoFile: discswap */
 #include "../mem2_manager.h"
 #include "perf_prof.h"   /* perf_log_open */
@@ -142,6 +145,8 @@ static void log_line(const char *fmt, ...)
 #define ACHDUMP_MAX 8
 static unsigned achdump_vbl[ACHDUMP_MAX], achdump_n;
 static int scores_wait = -1;   /* vblanks left for the scores; -1 none asked */
+static char badge_name[24];    /* the first achievement's picture: is it fetched and decoded */
+static int badge_wait = -1;
 
 void statetool_achdump(unsigned vbl)
 {
@@ -156,6 +161,10 @@ static void achdump_now(void)
 	log_line("achdump: vblank=%u status=\"%s\" presence=\"%s\" count=%u earned=%u boards=%u\n",
 		(unsigned)frame_counter, achievements_status(), achievements_presence(),
 		achievements_count(), achievements_earned(), boards);
+	if (achievements_entry(0, &e) == 0 && e.badge[0]) {
+		snprintf(badge_name, sizeof badge_name, "%s", e.badge);
+		badge_wait = 60 * 30;
+	}
 	for (i = 0; achievements_entry(i, &e) == 0; i++)
 		log_line("achdump: %u id=%u %s pts=%u rarity=%d type=%u%s \"%s\"\n", i, e.id,
 			e.earned ? "earned" : e.progress[0] ? e.progress : "-", e.points, e.rarity_x100, e.type,
@@ -175,6 +184,16 @@ static void achdump_vblank(void)
 			achievements_list_refresh();
 			achdump_now();
 		}
+#ifdef HW_RVL
+	if (badge_wait >= 0) {
+		GXTexObj obj;
+		int r = ach_badge_get(badge_name, 0, &obj);
+		if (r != 0 || badge_wait == 0)
+			log_line("achdump: badge %s %s, %d vblanks\n", badge_name, r > 0 ? "ready" : r < 0 ? "FAILED" : "TIMEOUT",
+				60 * 30 - badge_wait);
+		badge_wait = r != 0 ? -1 : badge_wait - 1;
+	}
+#endif
 	if (scores_wait >= 0) {
 		achievement_score_t top[10], mine;
 		unsigned n = 10, k;
@@ -195,7 +214,7 @@ void statetool_reset(void)
 	due = -1;
 	snap_free();
 	achdump_n = 0;
-	scores_wait = -1;
+	scores_wait = badge_wait = -1;
 }
 
 void statetool_request(int op, const char *name, unsigned vbl, unsigned n)
@@ -219,7 +238,7 @@ static unsigned when(int i)
 void statetool_vblank(void)
 {
 	int i;
-	if (achdump_n || scores_wait >= 0) achdump_vblank();
+	if (achdump_n || scores_wait >= 0 || badge_wait >= 0) achdump_vblank();
 	if (due >= 0) return;
 	if (autoinput_menuopen_due()) {   /* "menuopen": no request is due, so the menu comes up */
 		stop = 1;

@@ -10,17 +10,21 @@ today, how to set it up, how to test it and what is planned.
 
 ## Status
 
-| Part | Status on 2026-10-23 |
+| Part | Status on 2026-10-24 |
 |---|---|
 | Local evaluation of a definition file | In the product. Off by default. Merged into main from `codex/achievement-engine` (c29cafd9, 2026-10-12). |
-| Modes Off, Local, Test, Official | In the product (775ae73a, 2026-10-23). Official loads nothing yet. |
+| Modes Off, Local, Test, Official | In the product (775ae73a, 2026-10-23). Official: RetroAchievements in Casual. |
 | Unlock journal | In the product. An unlock is written when it triggers (f9ca407b). Records cut short by a power loss are ignored (2026-10-23). |
-| Save-state progress (`ACH1` section) | In the product. |
-| Menu controls | General tab, Cheevos: Mode, the set file and the account user name (ab58936a). Current ISO, Achievements: the set's list, 10 per page, with N of M earned. |
+| Save-state progress (`ACH1` section) | In the product. Local: `WAC1`; Official: `WAO1` (rc_client's progress). A game reset resets the progress in both. |
+| Menu controls | General tab, Cheevos: Mode, Unofficial, Encore, the set file and the account user name. Current ISO, Achievements: the set's list, 10 per page: Earned or the measured progress (`1699/2500`), the points and the share of players; the rich presence under the header; a Leaderboards button. ISO Info: the achievement status line. |
 | Unlock toast | In the product (2026-10-23): the tier card slides in at the top right on each unlock, in both GPU plugins. See [Unlock toast](#unlock-toast). |
-| RetroAchievements login, awards, leaderboards, Rich Presence, Hardcore | Not implemented. |
+| Indicators | In the product (2026-10-24, `ach_toast.c`): the game card when a set loads (the Disc Read disc spins up; N of M earned, points), a progress panel at the bottom right when measured progress grows (Local: a whole percent more), one box per primed challenge for as long as it is primed. Local sets get them from rc_runtime's events. |
+| Badges | In the product (2026-10-24, `Gamecube/ach_badge.c`): RetroAchievements pictures, 64 x 64 RGB5A3 (15-bit, the PS1's colour), in the card, the panel and the boxes. Cached on the card (`achievements/badges/`) and in a 256 KB pool; asked for when the notice comes. |
+| RetroAchievements login, awards, Rich Presence | In the product (Official, Casual). Rich presence is shown on the list page and sent with rc_client's pings. |
+| Leaderboards | Read only: the list and each board's ten best scores and the player's own (Achievements > Leaderboards). RetroAchievements takes leaderboard entries in Hardcore only, so a Casual client submits none. |
+| Hardcore | Not implemented: needs RetroAchievements to approve WiiStation as a client. |
 | `rc_client`, API and PS1 hash code | Built into the Wii DOL (2026-10-23): `achievements_official.c` logs in from `ra_account.ini`, identifies the disc by the upstream PS1 hash in every format WiiStation boots (BIN/CUE, ISO, IMG/CCD, MDF/MDS, TOC, CBN, CHD, PBP), read at game load through WiiStation's own CD plugin; the same hash as upstream rcheevos' hasher (Frogger in 16 formats, Spyro 2 in 3: `scripts/chains/ach_hash_formats.txt`). On the bench Wii with the account, every format copy on its card finds its set: Frogger in 16 formats (31 achievements), MediEvil and Rayman as CHD and PBP (50, 58): `scripts/chains/ach_official_formats.txt`, job 20261023-212834-b319a4, evaluates each frame and sends unlocks to the toast with their rarity. Working on the bench Wii (2026-10-23): logged in, Spyro identified, its 89-achievement set loaded in Casual. No unlock has been earned yet. |
-| HTTPS (Mbed TLS 3.6.4 + curl 8.16.0) | In the Wii build when `scripts/build-ra-https.sh` has installed it (`Gamecube/ra_transport.c`, a worker thread, one kept-open connection). Needs, on the card in `sd:/wiistation/achievements/`: `tls_seed.bin` (64 secret random bytes for this Wii), `cacert.pem` and `ra_account.ini`. Costs: [the notes](ACHIEVEMENTS_NOTES.md#official-mode-cost-on-the-bench-wii). |
+| HTTPS (Mbed TLS 3.6.4 + curl 8.16.0) | In the Wii build when `scripts/build-ra-https.sh` has installed it (`Gamecube/ra_transport.c`, a worker thread, one kept-open connection). Needs, on the card in `sd:/wiistation/achievements/`: `tls_seed.bin` (64 secret random bytes for this Wii) and `ra_account.ini` (both put by `scripts/ra_setup.py`), and `cacert.pem` (shipped with every install, pinned). The clock learns its time zone from the server. See [Official setup](#official-setup). Costs: [the notes](ACHIEVEMENTS_NOTES.md#official-mode-cost-on-the-bench-wii). |
 
 The engine uses the upstream rcheevos C runtime at commit
 `683197d8dc92555a51e8280a4123d071ed66bff3`. The unlocks are local. They are not official
@@ -40,7 +44,11 @@ AchievementLog = ""
 
 | Key | Values | Default | Effect |
 |---|---|---|---|
-| `Achievements` | 0 = Off, 1 = Local, 2 = Test, 3 = Official | 0 | Local evaluates the set and keeps unlocks in the journal. Test evaluates the set, but does not read or write the journal. Official loads nothing yet. Off stops all frame evaluation. A value 1 from before the modes is Local. |
+| `Achievements` | 0 = Off, 1 = Local, 2 = Test, 3 = Official | 0 | Local evaluates the set and keeps unlocks in the journal. Test evaluates the set, but does not read or write the journal. Official: RetroAchievements, Casual. Off stops all frame evaluation. A value 1 from before the modes is Local. |
+| `AchievementUnofficial` | 0, 1 | 0 | Official: the set's Unofficial (unpromoted) achievements too. RetroAchievements does not keep their unlocks. |
+| `AchievementEncore` | 0, 1 | 0 | Official: achievements already earned can be earned again this session (the card shows again; nothing new is sent). |
+| `AchievementSpectator` | 0, 1 | 0 | Hidden, for scripted runs on a real account: everything is evaluated and shown, no unlock is sent. Once on for a loaded set, rc_client keeps it on. |
+| `AchievementUTCOffset` | `"+420"` | empty | Optional: the minutes to add to the Wii's clock for UTC. Empty: the Wii learns it from the server (`utc_offset.txt`). Set, it wins and nothing is learnt. |
 | `AchievementFile` | `"path"` | empty | The definition file. One of its `Game=` serials must match the loaded disc. |
 | `AchievementLog` | `"path"` | empty | The unlock journal. Empty uses the `AchievementFile` path with `.unlocks` added. The journal path must not be the definition path. |
 | `AchievementBenchRoot` | `"path"` | empty | Bench builds only (`ACHIEVEMENTS_BENCH`). It sends card reads, writes and deletes, and chain cleanup, to a fresh private directory. Product builds do not read it. |
@@ -51,8 +59,8 @@ AchievementLog = ""
   page shows them. The settings table gives `Achievements` a label and a help line, but no
   menu row uses it.
 - There is no password key and no account key.
-- The key `AchievementUTCOffsetMinutes` is removed. The UTC clock is test-only. No product code
-  reads or links it. See [UTC clock](ACHIEVEMENTS_RESEARCH.md#utc-clock).
+- The key `AchievementUTCOffsetMinutes` is removed; `AchievementUTCOffset` replaced it and is
+  now optional (the clock learns its time zone, see [Official setup](#official-setup)).
 
 ## Definition file
 
@@ -161,7 +169,7 @@ The engine exposes the published rcheevos PS1 map, and nothing more:
 | Each emulated frame | `psxcounters.c` calls `achievements_frame()` at the frame end (`hSyncCount` reaches `HSyncTotal`) | Evaluates once per emulated frame, also on frames that the display skips |
 | Reset | `r3000a.c` calls `achievements_pause()` before the BIOS runs, then `achievements_reset()` | No evaluation during BIOS code. Hit and progress state reset. Earned achievements stay earned. |
 | CPU stop (menu, state operation) | `achievements_flush()` after each `psxCpu->Execute()` | Writes unlocks that are not yet in the journal |
-| Disc swap | `loadISOSwap` calls `achievements_close()` | Closes the set until the next full game load |
+| Disc swap | `loadISOSwap` reads the new disc's serial (`CdromReadId`) and calls `achievements_change_media(image, serial)` | Official: rc_client checks the disc. Local/Test: the set goes on when a `Game=` line names the disc, else it closes until the next full game load |
 | Shutdown | `r3000a.c` calls `achievements_close()` | Writes pending unlocks and destroys the runtime |
 
 - The frame hook does no allocation and no network calls. Its only file write is the journal
@@ -211,7 +219,12 @@ layout does not change.
 | `deps/rcheevos/` | Pinned rcheevos `include/`, `src/runtime/`, `src/util/`, `src/client/`, `src/api/`, `src/hash/`. The emulator compiles only the runtime and util sources. |
 | `Gamecube/achievements_bench.cpp` | Bench-only hooks (`ACHIEVEMENTS_BENCH`): stop-boundary counts, reset and disc-swap checks, card isolation, return to HBC after a chain. Product builds omit it. |
 | `misc.c` | The `ACH1` state section |
-| `tests/achievement_seed.c`, `tests/achievement_clock.c` | Test-only TLS seed storage and UTC clock. Not in the product. |
+| `tests/achievement_seed.c`, `tests/achievement_clock.c` | TLS seed storage and the UTC clock (with the Date-header time zone): built into the product by `Gamecube/ra_transport.c`, tested on the host. |
+| `achievements_official.c` | Official mode: rc_client, the PS1 hash through the CD plugin, the list, leaderboards, rich presence, states |
+| `Gamecube/ra_transport.c` | HTTPS worker; the clock's time zone learnt from verified responses |
+| `Gamecube/ach_badge.c`, `ach_badge.h`, `ach_badge_conv.h` | Badge pictures: download, card cache, PNG decode (libpng), RGB5A3 |
+| `Gamecube/menu/AchievementsFrame.cpp` | The list page and the leaderboards |
+| `scripts/ra_setup.py`, `scripts/ra_ca_bundle.py` | The per-Wii files (seed, account); the pinned CA bundle and its checks |
 
 The runtime objects are compiled without fast-math and LTO. This keeps the floating-point
 semantics of conditions under the core's `-Ofast` flags.
@@ -319,6 +332,24 @@ Decisions of the project owner, 2026-10-23.
 
 The mode switch is in the product (setting `Achievements`, 775ae73a). Test and Local work.
 Official works in Casual (2026-10-23): login, the PS1 hash in every format, disc swaps.
+
+### Official setup
+
+What a Wii needs on its card, in `sd:/wiistation/achievements/`, and where each comes from. Nothing
+here is typed by hand, and no secret passes through a log or a person's screen.
+
+| File | Comes from | Safety |
+|---|---|---|
+| `cacert.pem` | Every install (`wii_install.py`): `Gamecube/release/achievements/cacert.pem` | Pinned: `cacert.pem.source` holds its SHA-256 and origin (MSYS2 `ca-certificates-20241223-1`, Mozilla NSS); the install refuses another file. `scripts/ra_ca_bundle.py` checks the pin, lists expired and expiring roots, and connects to retroachievements.org and media.retroachievements.org trusting only this bundle. `ra_ca_bundle.py update SRC --source TEXT` replaces it only after every check passes; the script never downloads a bundle. |
+| `tls_seed.bin` | `scripts/ra_setup.py --seed` | 64 bytes of `os.urandom`, made in a private temp folder, sent through HBC, zeroed and deleted; never printed. Never replaces a seed that is there. |
+| `ra_account.ini` | `scripts/ra_setup.py --account FILE` | Sent unopened (only its size is checked). Never replaces a file that is there (it holds the token after the first login). |
+| `utc_offset.txt` | The Wii itself | The time zone, learnt from the `Date` header of a response that came over verified TLS: rounded to the quarter hour, bounded to 14 hours (a lying server moves the clock by hours, never a certificate's validity by years), written through a temp file. Summer time is learnt the same way. A clock more than 14 hours from the server's is reported, not learnt: set the Wii's date. |
+
+`ra_setup.py` runs on the bench Wii as a queue job; on a production-style Wii (`--production`,
+`--lrwii`) only when asked, directly, after the HBC-idle check, and it writes only those two
+files. Until the Wii has learnt its time zone (its first answer), its clock is taken as UTC (or
+`AchievementUTCOffset`): only a certificate issued in the last few hours could look not yet
+valid then.
 
 ### Official login
 

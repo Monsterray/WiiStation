@@ -181,6 +181,8 @@ def main():
                     help="a settings.ini with the SMB share login: its smb* and RomDir* lines go to the "
                          "Wii's settings, unread and unprinted (not into run.info)")
     ap.add_argument("--send-isos", action="store_true", help="send the chain's game folders from the library")
+    ap.add_argument("--put", action="append", default=[], metavar="LOCAL=PATH",
+                    help="a small file (under 1 MB) for sd:/wiistation/PATH, e.g. a fixture achievement set; repeatable")
     ap.add_argument("--timeout", type=int, default=1800, help="seconds for the whole chain")
     a = ap.parse_args()
     dol = {"debug": REPO / "Gamecube/WiiSXRX_debug.dol",
@@ -221,6 +223,14 @@ def main():
     wants += [f"vsig_{i:02d}.bin" for i in range(1, games + 1)]   # per-vblank guest signatures (scripts/vsig_cmp.py)
     wants += [f"hprof_{i:02d}.bin" for i in range(1, games + 1)]   # PROBES=hprof (scripts/hprof_view.py); empty otherwise
     wants += [f"xfb_{i:02d}.bin" for i in range(1, 33)]   # "xfb <vblank>" TV pictures, numbered across the chain (scripts/xfb2png.py); empty otherwise
+    for spec in a.put:   # --put: fixture files (an achievement set the chain's settings name)
+        local, _, path = spec.partition("=")
+        if not path or ".." in path.split("/") or path.startswith("/") or ":" in path:
+            sys.exit(f"--put {spec}: give LOCAL=PATH, PATH under sd:/wiistation/ (no .., no device)")
+        lp = pathlib.Path(local)
+        if not lp.is_file() or lp.stat().st_size > (1 << 20):
+            sys.exit(f"--put {spec}: {local} is not a file under 1 MB")
+        puts.append((path, lp.read_bytes()))
     puts += [(w, b"") for w in wants if w != "lab.log"]   # no stale result from an earlier run (lab.log: WiiStation restarts it, and is writing it now)
     isos = []
     if a.send_isos:

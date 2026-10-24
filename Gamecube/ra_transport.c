@@ -15,6 +15,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include "ra_transport.h"
 
 extern void SysPrintf(const char *fmt, ...);
@@ -27,6 +28,7 @@ typedef struct {
 	char *body;                            /* the response, filled by the worker */
 	size_t len;
 	int status;                            /* HTTP status, or RC_API_SERVER_RESPONSE_* */
+	long long server_utc;                  /* the response's Date header, UTC seconds; -1 none */
 	volatile int state;                    /* 0 free, 1 queued, 2 done */
 } Request;
 
@@ -103,6 +105,7 @@ int ra_transport_available(void) { return 0; }
 #define ACH_DIR "sd:/wiistation/achievements/"
 #define SEED_FILE ACH_DIR "tls_seed.bin"
 #define CA_FILE ACH_DIR "cacert.pem"
+#define ZONE_FILE ACH_DIR "utc_offset.txt"   /* the learnt correction: this Wii's clock to UTC */
 #define MAX_BODY (2 * 1024 * 1024)
 
 static lwp_t worker = LWP_THREAD_NULL;
@@ -176,6 +179,50 @@ static int seed_open(void)
 	return achievement_seed_begin(SEED_FILE);
 }
 
+/* The correction the clock starts with: the setting AchievementUTCOffset when it is set (it
+ * wins, and nothing is learnt), else the one learnt last time (utc_offset.txt), else 0. A
+ * wrong guess costs nothing but the hours just after a certificate is issued: certificate
+ * dates are checked to the second, and a clock some hours slow sees a new one as not valid yet.
+ * The first verified answer puts it right (learn_zone). */
+static char zone[8];
+static int zone_fixed;
+
+static void zone_load(void)
+{
+	FILE *f;
+	zone_fixed = achievementUTCOffset[0] != 0;
+	snprintf(zone, sizeof zone, "%s", zone_fixed ? achievementUTCOffset : "0");
+	if (zone_fixed || !(f = fopen(ZONE_FILE, "r"))) return;
+	if (fgets(zone, sizeof zone, f)) zone[strcspn(zone, "\r\n")] = 0;
+	fclose(f);
+	if (!zone[0]) snprintf(zone, sizeof zone, "0");
+}
+
+/* A Date header that came over a verified TLS connection: the server's UTC. The Wii's clock
+ * keeps local time, so the difference is the time zone (summer time included): learnt to the
+ * quarter hour, bounded to 14 hours, kept on the card for the next start. A server that lies
+ * moves the clock by at most that, never a certificate's validity by years. */
+static void learn_zone(int64_t server_utc)
+{
+	char got[8];
+	FILE *f;
+	if (zone_fixed || server_utc < 0) return;
+	if (achievement_clock_learn(server_utc, (int64_t)time(NULL), got) != 0) {
+		SysPrintf("Achievements: the Wii's clock is more than 14 hours from the server's; set the date\n");
+		return;
+	}
+	if (!strcmp(got, zone)) return;
+	if (achievement_clock_start(got, (int64_t)time(NULL), system_ms()) != 0) return;
+	SysPrintf("Achievements: the Wii's clock is UTC%s minutes (learnt from the server)\n", got);
+	snprintf(zone, sizeof zone, "%s", got);
+	if ((f = fopen(ZONE_FILE ".new", "w"))) {
+		int ok = fprintf(f, "%s\n", zone) > 0;
+		ok = fclose(f) == 0 && ok;
+		remove(ok ? ZONE_FILE : ZONE_FILE ".new");
+		if (ok) rename(ZONE_FILE ".new", ZONE_FILE);
+	}
+}
+
 static int start(void)
 {
 	char ip[16];
@@ -189,8 +236,9 @@ static int start(void)
 		SysPrintf("Achievements: the TLS seed was left half written; put a fresh one there\n");
 		return 0;
 	}
+	zone_load();
 	if (mbedtls_platform_set_time(tls_time) ||
-	    achievement_clock_start(achievementUTCOffset[0] ? achievementUTCOffset : "0", (int64_t)time(NULL), system_ms())) {
+	    achievement_clock_start(zone, (int64_t)time(NULL), system_ms())) {
 		SysPrintf("Achievements: the clock or AchievementUTCOffset is out of range\n");
 		return 0;
 	}
@@ -201,6 +249,21 @@ static int start(void)
 	}
 	if (curl_global_init(CURL_GLOBAL_DEFAULT) != CURLE_OK) return 0;
 	return 1;
+}
+
+/* The response's Date header (case-insensitive name), for learn_zone */
+static size_t take_header(char *p, size_t size, size_t count, void *data)
+{
+	Request *r = data;
+	size_t n = size * count;
+	char value[40];
+	if (n > 5 && n < 5 + sizeof value && !strncasecmp(p, "date:", 5)) {
+		memcpy(value, p + 5, n - 5);
+		value[n - 5] = 0;
+		value[strcspn(value, "\r\n")] = 0;
+		r->server_utc = achievement_clock_http_date(value);
+	}
+	return n;
 }
 
 static size_t take_body(char *p, size_t size, size_t count, void *data)
@@ -257,6 +320,9 @@ static void perform(Request *r)
 	curl_easy_setopt(c, CURLOPT_NOSIGNAL, 1L);
 	curl_easy_setopt(c, CURLOPT_WRITEFUNCTION, take_body);
 	curl_easy_setopt(c, CURLOPT_WRITEDATA, r);
+	curl_easy_setopt(c, CURLOPT_HEADERFUNCTION, take_header);
+	curl_easy_setopt(c, CURLOPT_HEADERDATA, r);
+	r->server_utc = -1;
 #ifdef PERF_PROF
 	curl_easy_setopt(c, CURLOPT_DEBUGFUNCTION, curl_note);
 	curl_easy_setopt(c, CURLOPT_VERBOSE, 1L);
@@ -272,8 +338,10 @@ static void perform(Request *r)
 	}
 	res = curl_easy_perform(c);
 	curl_easy_getinfo(c, CURLINFO_RESPONSE_CODE, &http);
-	if (res == CURLE_OK)
+	if (res == CURLE_OK) {
 		r->status = (int)http;
+		learn_zone(r->server_utc);   /* verified TLS: the peer and its Date are the server's */
+	}
 	else if (res == CURLE_COULDNT_RESOLVE_HOST || res == CURLE_COULDNT_CONNECT || res == CURLE_OPERATION_TIMEDOUT ||
 	         res == CURLE_SEND_ERROR || res == CURLE_RECV_ERROR || res == CURLE_GOT_NOTHING)
 		r->status = RC_API_SERVER_RESPONSE_RETRYABLE_CLIENT_ERROR;   /* rc_client tries again */

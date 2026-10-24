@@ -1,0 +1,6 @@
+# scripts/chains/ach_hud_bench.txt: the indicators on the TV of the bench Wii
+xfb 150
+xfb 330
+xfb 600
+xfb 1000
+xfb 1450

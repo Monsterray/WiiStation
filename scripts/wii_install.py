@@ -15,6 +15,8 @@ deleted, so the user's settings, saves and games stay):
   sd:/wiistation/fonts/        En.dat, the menu fonts (fonts/menu) and the language fonts (fonts/*.zip)
   sd:/wiistation/lang/         the menu languages (lang/)
   sd:/wiistation/example_settings.ini  every setting, with its default and what it does
+  sd:/wiistation/achievements/cacert.pem  the CA bundle Official mode trusts, pinned
+                            (scripts/ra_ca_bundle.py: a bundle that is not the pinned one is refused)
 --remove-autoboot deletes sd:/wiistation/autoboot.txt, which a lab run (wii_lab.py) left before
 2026-10-01 and which makes an HBC start run that chain instead of the menu.
 The fonts go last (Chs.dat is 8 MB). The Wii's address is $WII_BENCH_IP (the queue sets it); run
@@ -178,6 +180,13 @@ def main():
         r = hbc_run("put", str(example), "sd:/wiistation/" + example.name, timeout=300)
         if r.returncode:
             sys.exit(f"upload of {example.name} failed (exit {r.returncode})")
+    if shipped:   # the CA bundle, only the pinned one; the folder's secrets are never touched
+        from ra_ca_bundle import BUNDLE, verify_pin
+        print(f"{BUNDLE.name} -> sd:/wiistation/achievements/{BUNDLE.name} ({verify_pin()})", flush=True)
+        if not o.dry_run:
+            r = hbc_run("put", str(BUNDLE), "sd:/wiistation/achievements/" + BUNDLE.name, timeout=300)
+            if r.returncode:
+                sys.exit(f"upload of {BUNDLE.name} failed (exit {r.returncode})")
     if prod_wii and o.setup_folders and not o.dry_run:
         # the folders a player fills, made only when missing (hbc.py put makes the folder);
         # nothing that is there is read, replaced or listed beyond its name

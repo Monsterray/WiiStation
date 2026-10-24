@@ -1,0 +1,9 @@
+CHAIN
+# The achievement indicators on the bench Wii (the set: tests/fixtures/ach_hud, sent with --put),
+# Test mode, TV pictures at 150 (game card), 330, 600, 1000 (challenge), 1450 (unlock):
+#   wii_lab.py ach_hud_bench scripts/chains/ach_hud_bench.txt --dol debug \
+#     --put tests/fixtures/ach_hud/Tests/AchHud/set.txt=isos/Tests/AchHud/set.txt \
+#     --set 'Achievements=2,AchievementFile="sd:/wiistation/isos/Tests/AchHud/set.txt"'
+1600 sd:/wiistation/ach_hud_bench.txt FPS=0
+sd:/wiistation/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue

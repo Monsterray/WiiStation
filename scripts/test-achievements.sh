@@ -19,3 +19,7 @@ UBSAN_OPTIONS=halt_on_error=1 "$task_dir/test" "$task_dir"
 "${CC:-cc}" -std=c99 -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined \
   tests/ach_badge_test.c -o "$task_dir/badge_test"
 UBSAN_OPTIONS=halt_on_error=1 "$task_dir/badge_test"
+# the clock: an HTTP Date header and the time zone learnt from it (tests/achievement_clock.c)
+"${CC:-cc}" -std=c99 -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined \
+  tests/achievement_clock.c tests/achievement_clock_learn_test.c -o "$task_dir/clock_test"
+UBSAN_OPTIONS=halt_on_error=1 "$task_dir/clock_test"

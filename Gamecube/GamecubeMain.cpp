@@ -456,7 +456,7 @@ static SettingOption OPTIONS[] =
   { "Achievements", &achievementsEnabled, 0, 3, NULL, "Mode", OPT_ACH_MODE, "Off, Local (your definition file; unlocks are kept), Test (try a set; nothing is kept) or Official (RetroAchievements, Casual: needs the account file and the TLS seed). Load the game again after a change." },
   { "AchievementUnofficial", &achievementUnofficial, 0, 1, NULL, "Unofficial", OPT_OFF_ON, "Official mode: also the set's Unofficial achievements (not yet approved by RetroAchievements; their unlocks are not kept on the site). Load the game again after a change." },
   { "AchievementEncore", &achievementEncore, 0, 1, NULL, "Encore", OPT_OFF_ON, "Official mode: achievements you already have can be earned again this session (the card shows again; nothing new is sent to the site). Load the game again after a change." },
-  { "AchievementSpectator", &achievementSpectator, 0, 1 },   /* hidden: test runs on a real account award nothing */
+  { "AchievementSpectator", &achievementSpectator, 0, 1 },
   { "AchievementFile", achievementFile, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "AchievementLog", achievementLog, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "AchievementUTCOffset", achievementUTCOffset, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },

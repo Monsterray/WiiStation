@@ -183,6 +183,16 @@ after changing anything a state holds.
 state lines are done (Gamecube/statetool.cpp, the CPU stopped): perf.log says
 `discswap: PATH at vblank V ok`. The disc must be on the run's card (`WSX_ISOS` for wsx.sh).
 Example: `scripts/autoinput/ach_discswap.txt` with `scripts/chains/ach_discswap.txt`.
+`menuopen V PAGE` stops the game at vblank V as the menu combination does and opens menupage
+PAGE in the menu that comes up (15 = the achievements list of the game being played): a picture
+of a menu page with a game loaded, which `menupage` (boot only) cannot give. Not in a chain: a
+stopped chained game ends (chainNext), so use `wsx.sh run --autoboot spyro --input FILE`
+(`scripts/autoinput/ach_hud.txt`). `achdump V` writes the achievement set as the menus see it
+into perf.log at vblank V (list, presence, boards, board 0's scores, the first badge fetched):
+the menu's data on the bench Wii, where chains run and no menu is photographed
+(`scripts/chains/ach_official_bench.txt`). `wii_lab.py --put LOCAL=PATH` (repeatable) puts a small
+file at sd:/wiistation/PATH for the run, e.g. a fixture achievement set the `--set` names.
+
 An input script line is read whole up to 319 characters (was 127 before 2026-10-24: a longer
 discswap path was cut, the swap "ok"ed onto a missing file, which the CD plugin opens as an
 empty drive). A swap to a different disc while the game reads its own can crash the game; swap

@@ -1,0 +1,12 @@
+CHAIN
+# Official mode on the bench Wii, everything the menus show, read into perf.log by achdump
+# (spectator: nothing reaches the account). Spyro's attract demo, then CTR's recorded Tiger
+# Temple race (CTR's set has leaderboards). achdump: the list (state, progress, points, rarity),
+# the rich presence, the leaderboards, board 0's scores, the first badge fetched and decoded.
+#   wii_lab.py ach_official_bench scripts/chains/ach_official_bench.txt --dol debug
+2400 sd:/wiistation/ach_official_spyro.txt Achievements=3 AchievementSpectator=1 FPS=0
+sd:/wiistation/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue
+14760 sd:/wiistation/ach_official_ctr.txt Achievements=3 AchievementSpectator=1 PadAutoAssign=1 ControllerType=0 PadType2=1 gpuPlugin=2
+sd:/wiistation/isos/Crash Team Racing
+Crash Team Racing [U] [SCUS-94426].cue

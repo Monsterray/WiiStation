@@ -8,3 +8,6 @@
 # Patches applied by scripts/build.sh: CRLF in a Windows checkout makes `patch` reject them
 # (libwupc-libogc3.patch failed in every fresh worktree, 2026-10-18).
 *.patch text eol=lf
+
+# The CA bundle is pinned by its SHA-256 (cacert.pem.source): byte for byte, never line-ending converted.
+Gamecube/release/achievements/cacert.pem -text
