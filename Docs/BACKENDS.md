@@ -73,6 +73,9 @@ The core is synced to a7464cc since 5.2.0 (merge 87d77c4). WiiStation's own chan
   `disassembler.h` flags, `stall_cycles` in `lightrec-private.h`, `lightrec.h`).
 - `emitter.c`: each opcode's code is named (`_jit_name`) with its source line, for the
   profiler.
+- `lightrec_invalidate`: the clear stops at the end of RAM's part of the code LUT (it had no
+  bound: a clear near the top of RAM or a long one zeroed past the LUT into the heap);
+  `lightrec_inv_clamped` counts the cut ones (perf.log `cpu: inv_clamped=`, 2026-10-24).
 - `lightrec_init`/`lightrec_destroy`: the state (2.5 MB with its code LUT) is allocated once
   and kept (`lightrec_alloc_state`). Freed and asked for again at every game switch, it found
   the heap too fragmented for one 2.5 MB block (5.7.1). The adapter stops with

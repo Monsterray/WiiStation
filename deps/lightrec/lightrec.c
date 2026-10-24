@@ -2676,10 +2676,14 @@ void lightrec_destroy(struct lightrec_state *state)
 	/* WiiStation: not freed; lightrec_alloc_state() hands it to the next init */
 }
 
+/* WiiStation: how often a clear ran past the end of RAM, and the last one (perf.log cpu:) */
+u32 lightrec_inv_clamped, lightrec_inv_clamp_addr, lightrec_inv_clamp_len;
+
 void lightrec_invalidate(struct lightrec_state *state, u32 addr, u32 len)
 {
 	u32 kaddr = kunseg(addr & ~0x3);
 	enum psx_map idx = lightrec_get_map_idx(state, kaddr);
+	u32 first, n;
 
 	switch (idx) {
 	case PSX_MAP_MIRROR1:
@@ -2694,8 +2698,19 @@ void lightrec_invalidate(struct lightrec_state *state, u32 addr, u32 len)
 		return;
 	}
 
-	memset(lut_address(state, lut_offset(kaddr)), 0,
-	       ((len + 3) / 4) * lut_elm_size(state));
+	/* WiiStation: the clear stops at the end of RAM's part of the code LUT. Unbounded, a clear
+	 * that starts near the top of RAM (or a mirror) or a long one zeroed past the LUT into
+	 * whatever the heap had after the state: CTR's BIOS bzero clears (5,566 in a chained run)
+	 * wrote zeros into other allocations, and wild memsets followed (Dolphin, 2026-10-24). */
+	first = lut_offset(kaddr);
+	n = (len + 3) / 4;
+	if (n > (RAM_SIZE >> 2) - first) {
+		lightrec_inv_clamped++;
+		lightrec_inv_clamp_addr = addr;
+		lightrec_inv_clamp_len = len;
+		n = (RAM_SIZE >> 2) - first;
+	}
+	memset(lut_address(state, first), 0, n * lut_elm_size(state));
 }
 
 void lightrec_invalidate_all(struct lightrec_state *state)

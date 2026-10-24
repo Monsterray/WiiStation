@@ -1120,13 +1120,18 @@ void perf_report(void)
 					(unsigned long)g_perf.hack_dc2_x, (unsigned long)g_perf.hack_dc2_y);
 			fprintf(f, "\n");
 		}
-		fprintf(f, "cpu: slices=%lu int=%lu cpu_us=%llu jit_full=%lu jit_part=%lu interp_fb=%lu hle=%lu exc=%lu\n",
-			(unsigned long)g_perf.jit_slices, (unsigned long)g_perf.int_slices,
-			(unsigned long long)ticks_to_microsecs(g_perf.cpu_ticks),
-			(unsigned long)g_perf.jit_resets_full,
-			(unsigned long)g_perf.jit_resets_partial,
-			(unsigned long)g_perf.jit_interp_fallbacks,
-			(unsigned long)g_perf.jit_hle, (unsigned long)g_perf.jit_exceptions);
+		{
+			extern u32 lightrec_inv_clamped, lightrec_inv_clamp_addr, lightrec_inv_clamp_len;   /* deps/lightrec */
+			fprintf(f, "cpu: slices=%lu int=%lu cpu_us=%llu jit_full=%lu jit_part=%lu interp_fb=%lu hle=%lu exc=%lu inv_clamped=%lu last=%08lx+%lu\n",
+				(unsigned long)g_perf.jit_slices, (unsigned long)g_perf.int_slices,
+				(unsigned long long)ticks_to_microsecs(g_perf.cpu_ticks),
+				(unsigned long)g_perf.jit_resets_full,
+				(unsigned long)g_perf.jit_resets_partial,
+				(unsigned long)g_perf.jit_interp_fallbacks,
+				(unsigned long)g_perf.jit_hle, (unsigned long)g_perf.jit_exceptions,
+				(unsigned long)lightrec_inv_clamped, (unsigned long)lightrec_inv_clamp_addr,
+				(unsigned long)lightrec_inv_clamp_len);
+		}
 		/* The live LWP threads (libogc2 allows LWP_MAX_THREADS, 16): their count and, for
 		 * each, its entry function, priority and state -- a count that grows from one chained
 		 * game to the next is a leak (the CD read-ahead failed to start late in a 16-game

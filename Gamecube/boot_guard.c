@@ -2,7 +2,7 @@
  * after the menu, hbc_home_start()), so a hang there left the Wii frozen until someone at it
  * pulled the power (bench Wii, 2026-10-24, twice). This one starts on main()'s first line: a
  * thread at the highest priority that, when one start-up stage lasts more than GUARD_S
- * seconds, reports "boot hang at <stage>" as a crash (`hbc.py crash`, code 0x84) and goes
+ * seconds, reports "boot hang at <stage>" as a crash (`hbc.py crash`, code 0x85) and goes
  * back to HBC through the reload stub (hbc_agent_fatal_now works before hbc_agent_init).
  * Each boot_guard_stage() call starts the stage's clock again; boot_guard_done() ends it once
  * the agent's watchdog is there. A hang with interrupts off, or IOS itself stuck, stops it
@@ -29,7 +29,7 @@ static void *guard(void *arg)
 	while (!done) {
 		usleep(250 * 1000);
 		if (!done && diff_sec(stage_at, gettime()) > GUARD_S)
-			hbc_agent_fatal_now(0x84, "boot hang at %s (%u s)", (const char *)stage, (unsigned)GUARD_S);
+			hbc_agent_fatal_now(0x85, "boot hang at %s (%u s)", (const char *)stage, (unsigned)GUARD_S);
 	}
 	return NULL;
 }
