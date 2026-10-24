@@ -308,6 +308,25 @@ The fixes are for the probe only. A product transport needs a real v3 socket lay
   configuration, library and source hashes, `results/probe.log` and `host-clock-window.json`.
 - The pinned r41-2 release build and the settings check also passed.
 
+## Unlock toast cost on the bench Wii
+
+2026-10-23, job `20261023-190548-7fe554`, `.runs/ach_cost_hw/`. Chain `scripts/chains/ach_cost.txt`:
+Spyro's attract demo, 3300 vblanks, achievements off, then on with the toast set
+(`scripts/ach_toast_fixture.sh`: 7 unlocks, every tier, Beaten and Mastered), twice. DOL: the
+speed probes plus `-DPERF_PROF_ACHIEVEMENTS=1` (perf.log `achperf:` line).
+
+| | Off | On |
+|---|---|---|
+| Speed | 0.99, 1.00 | 1.00, 1.00 |
+| Evaluation (7 achievements) | - | 22.0 ms over 3299 frames: 6.7 us a frame, worst 69 us |
+| Toast, CPU to issue it | - | 151 ms over 1115 frames: 136 us a frame, worst 249 us |
+| `present_us`, whole run | 12.4, 12.0 ms | 172, 175 ms: about +145 us per toast frame |
+| `drawdone_us`, whole run | 27, 38 ms | 106, 106 ms: about +60 us per toast frame |
+
+- A toast costs about 0.2 ms of a 16.7 ms frame while it shows, and nothing otherwise.
+- The CPU part is mostly one `GX_Begin` per small quad (icon pixels, meter gaps, brushed lines).
+  Batching them is the first step if it ever matters.
+
 ## Spyro capacity pilot
 
 `scripts/bench_gameplay.py` freezes a real-game profile, the recording, the CUE, the DOL and ELF,

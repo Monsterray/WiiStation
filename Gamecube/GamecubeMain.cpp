@@ -1750,6 +1750,7 @@ int loadISO(fileBrowser_file* file)
 		LoadCdrom();
 	hb_phase("load: memory cards and state", isoFile.name);
 	ach_toast_clear();          /* a toast still queued from the last game */
+	snprintf(achievementImage, sizeof achievementImage, "%s", isoFile.name);   /* Official mode hashes it */
 	achievements_notify = ach_toast_push;
 	achievements_load(CdromId); /* after settings and boot; a wrong/absent game ID rejects the set */
 	achievements_bench_isolate_cards();

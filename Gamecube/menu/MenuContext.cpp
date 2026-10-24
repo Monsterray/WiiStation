@@ -37,6 +37,7 @@ extern "C" void glResetCacheRegion(void);
 extern int backFromMenu;
 extern char originalMode;
 #include "../hbc_home.h"
+#include "../../achievements.h"
 extern BOOL hasLoadedISO;      /* GamecubeMain.cpp */
 extern volatile char ws_shutdown;          /* GamecubeMain.cpp: 2 = back to the loader, through Gui.cpp's fade */
 extern "C" void SysClose();
@@ -150,6 +151,8 @@ static int smbPageWait;   /* menupage 71: frames left to wait for the share */
 bool MenuContext::isRunning()
 {
 	bool isRunning = true;
+
+	achievements_idle();   /* Official mode: network completions while the menu is open */
 
 	/* The Homebrew Channel's agent (hbc_home.c): HOME opens its overlay; an exit asked for
 	 * from the PC leaves as Exit to Loader does, the game closed first. */

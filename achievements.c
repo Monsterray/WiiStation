@@ -34,7 +34,15 @@ extern unsigned char *psxM, *psxH;
 extern void SysPrintf(const char *fmt, ...);
 char achievementsEnabled;   /* an ACH_* mode */
 char achievementFile[256], achievementLog[256];
+char achievementImage[256];
 void (*achievements_notify)(const achievement_notice_t *notice);
+
+/* Official mode lives in achievements_official.c (Wii builds). Weak, so a build without it
+ * (the GameCube, the host tests) links and Official mode loads nothing. */
+int achievements_official_load(const char *image) __attribute__((weak));
+void achievements_official_frame(void) __attribute__((weak));
+void achievements_official_idle(void) __attribute__((weak));
+void achievements_official_close(void) __attribute__((weak));
 
 static rc_runtime_t runtime;
 static struct {
@@ -245,6 +253,10 @@ void achievements_reset(void)
 
 void achievements_frame(void)
 {
+    if (achievementsEnabled == ACH_OFFICIAL) {
+        if (achievements_official_frame) achievements_official_frame();
+        return;
+    }
     if (!active || !running || !achievementsEnabled) return;
 #if defined(PERF_PROF) && PERF_PROF_ACHIEVEMENTS
     unsigned long long started = perf_now_ticks();
@@ -258,8 +270,15 @@ void achievements_frame(void)
 #endif
 }
 
+/* The menu and the pause, once per frame: Official mode's completions and rc_client_idle */
+void achievements_idle(void)
+{
+    if (achievementsEnabled == ACH_OFFICIAL && achievements_official_idle) achievements_official_idle();
+}
+
 void achievements_close(void)
 {
+    if (achievements_official_close) achievements_official_close();
     achievements_flush();
     if (active) rc_runtime_destroy(&runtime);
     active = running = 0;
@@ -407,7 +426,8 @@ int achievements_load(const char *game_id)
     unsigned bad_line;
     achievements_close();
     if (achievementsEnabled == ACH_OFFICIAL) {
-        SysPrintf("Achievements: Official (RetroAchievements) mode is not available yet\n");
+        if (achievements_official_load) return achievements_official_load(achievementImage);
+        SysPrintf("Achievements: Official (RetroAchievements) mode is not in this build\n");
         return 0;
     }
     if (!achievementsEnabled || !achievementFile[0]) return 0;

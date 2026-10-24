@@ -19,7 +19,7 @@ today, how to set it up, how to test it and what is planned.
 | Menu controls | General tab, Cheevos: Mode, the set file and the account user name (ab58936a). Current ISO, Achievements: the set's list, 10 per page, with N of M earned. |
 | Unlock toast | In the product (2026-10-23): the tier card slides in at the top right on each unlock, in both GPU plugins. See [Unlock toast](#unlock-toast). |
 | RetroAchievements login, awards, leaderboards, Rich Presence, Hardcore | Not implemented. |
-| `rc_client`, API and PS1 hash code | Vendored in `deps/rcheevos` and tested in standalone host and Wii programs. Not connected to the emulator. |
+| `rc_client`, API and PS1 hash code | Built into the Wii DOL (2026-10-23): `achievements_official.c` logs in from `ra_account.ini`, identifies BIN/CUE and ISO images by the PS1 hash, evaluates each frame and sends unlocks to the toast with their rarity. The transport (`Gamecube/ra_transport.c`) has no HTTPS stack yet, so every request fails and the game runs on. |
 | HTTPS (Mbed TLS 3.6.4 + curl 8.16.0) | Test probes only. Proven on the bench Wii on 2026-10-11 with libogc2 and devkitPPC r41-2. Not in the product. |
 
 The engine uses the upstream rcheevos C runtime at commit
@@ -126,7 +126,10 @@ The design, the tiers and the mockups are in [design/PS1_STYLES.md](design/PS1_S
 - Its clock runs only while it is drawn. A still screen that presents no frames holds it.
 - The test is `scripts/chains/ach_toast.txt` with the set from `scripts/ach_toast_fixture.sh`:
   every tier over Spyro's attract demo, on OpenGX and then on the Soft plugin, in one boot.
-- Not done: the 2 x 2 dither of the mockups.
+- The 2 x 2 PS1 dither is one repeated 4 x 4 IA8 texture over the card (one quad).
+- Cost on the bench Wii (2026-10-23, Spyro, 3300 vblanks, off/on twice): about 0.2 ms per
+  frame while a toast shows (136 us to issue it, +60 us of GPU wait), nothing otherwise; speed
+  1.00 either way. Details in [the notes](ACHIEVEMENTS_NOTES.md#unlock-toast-cost-on-the-bench-wii).
 
 ## Memory map
 
