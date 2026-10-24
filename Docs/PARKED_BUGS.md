@@ -6,6 +6,32 @@ without doing the investigation a second time.
 
 ---
 
+## 5.17.0 debug build: start-up stalls in the first SD init on the bench Wii -- OPEN 2026-10-24
+
+**Symptom.** The debug build of eb50ad7a and later never reaches its first log line on the
+bench Wii; Dolphin (also MMU=1 CACHE=1) starts it fine. The boot guard (ac0fdbdc) caught it:
+`hbc.py crash` -- "boot hang at settings (SD/USB mount)", main thread blocked in
+`__ipc_syncrequest` <- `IOS_Ioctlv` <- `__sd0_initio` (libogc wiisd.c): IOS never answers the
+first /dev/sdio ioctl. HID's thread (prio 70) sleeps in HIDRun beside it. The guard returned
+the Wii to HBC itself every time (code 0x85).
+**Bisect (all guarded, `scripts/chains/lab_check.txt`, 2026-10-24):**
+
+| build | start-up |
+|---|---|
+| ef64c4bd + guard, no HTTPS (worktree path with a space drops it) | passes |
+| the same + 1.3 MB of unused read-only data | passes |
+| main (afc07c50) without the HTTPS stack | passes |
+| main with HTTPS, the clock-learning change (ra_transport.c, tests/achievement_clock.c/.h) put back to ef64c4bd | passes |
+| the same + 4 KB of never-run code (.text end past the bad builds') | passes |
+| main with HTTPS and the clock change (5 builds, 7 runs) | stalls in SD init |
+
+None of the clock code runs at start-up; the libogc SD/IPC buffers have the same alignment in
+good and bad builds; no global symbol is replaced. With LTO the change recompiles about 20
+unrelated functions differently (VI I2C, wiiuse LEDs, DSP callbacks, DVD start-up, zstd).
+**Lead:** a start-up race or an unset value in code before the SD mount (HID thread, Bluetooth
+and VI init) that LTO's code changes expose; not the clock code itself. Next: a build without
+LTO, and SD mounted before HIDInit (the USB mount must still follow HIDInit).
+
 ## CD audio from PBP, CHD and CBN starts 24 ms late (audio output) -- PARKED 2026-10-21, to fix
 
 **Symptom.** Frogger's CD-DA music (track 2, from 6.17 s into a 90 s idle run) plays 1152 output
