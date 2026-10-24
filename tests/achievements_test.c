@@ -288,7 +288,35 @@ int main(int argc, char **argv)
         achievements_notify = NULL;
         achievementsEnabled = ACH_LOCAL;
     }
+    /* A multi-disc set: every Game= serial loads it, and a swap to a listed disc keeps it running */
+    {
+        achievementsEnabled = ACH_TEST;
+        set_file("Game=DISC00001, DISC00002\nGame=DISC00003\n1|Disc three|0xH000060=1\n");
+        ram[0x60] = 0;
+        assert(achievements_load("DISC00002") == 1 && achievements_load("DISC00003") == 1);
+        assert(achievements_load("DISC00004") == -1);
+        assert(achievements_load("DISC00001") == 1);
+        achievements_frame();
+        achievements_change_media("disc3.cue", "DISC00003");
+        assert(achievements_count() == 1);
+        ram[0x60] = 1; achievements_frame();
+        assert(achievements_earned() == 1);
+        achievements_change_media("other.cue", "SLUS00001");
+        assert(!achievements_count());
+        assert(achievements_load("DISC00001") == 1);
+        achievements_change_media("bad.cue", "");   /* no PS1 boot file on the new disc */
+        assert(!achievements_count());
+        set_file("Game=DISC00001\n1|A|0xH000060=1\nGame=DISC00002\n");   /* Game= after an achievement */
+        assert(achievements_load("DISC00001") == -1);
+        set_file("Game=DISC00001,,DISC00002\n1|A|0xH000060=1\n");
+        assert(achievements_load("DISC00001") == -1);
+        set_file("Game=DISC000010\n1|A|0xH000060=1\n");             /* a serial is at most 9 characters */
+        assert(achievements_load("DISC000010") == -1);
+        set_file("Game=A,B,C,D,E,F,G,H,I\n1|A|0xH000060=1\n");      /* at most 8 discs */
+        assert(achievements_load("A") == -1);
+        achievementsEnabled = ACH_LOCAL;
+    }
     free(state); free(old_state);
-    puts("achievements: memory, evaluation, state identity, journal, modes, notices and malformed sets ok");
+    puts("achievements: memory, evaluation, state identity, journal, modes, notices, multi-disc sets and malformed sets ok");
     return 0;
 }

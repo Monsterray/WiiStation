@@ -1,0 +1,9 @@
+# A Local set for Final Fantasy VIII's discs 1-3 (scripts/chains/ach_discswap_local.txt). Hit
+# counts on an always-true condition: each fires a fixed number of evaluated frames after the
+# load, whatever the game does, so the run shows which ones the set lived to award.
+Game=SLUS00892,SLUS00908
+Game=SLUS00909
+Title=FF8 discs
+1|On disc 1|0xH000000=0xH000000.300.|5
+2|After the swap to disc 2|0xH000000=0xH000000.1000.|10
+3|After the swap to Frogger|0xH000000=0xH000000.1200.|25

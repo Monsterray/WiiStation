@@ -1686,7 +1686,9 @@ int loadISOSwap(fileBrowser_file* file) {
 	}
 	/* Official mode keeps the set through the swap if the disc is the same game's; a Local set
 	 * names one disc and closes. Before the game reads the new disc. */
-	achievements_change_media(isoFile.name);
+	if (CdromReadId() != 0)   /* the new disc's serial now (ISO Info, a Local set); the lid close reads it again */
+		CdromId[0] = '\0';
+	achievements_change_media(isoFile.name, CdromId);
 
 	SetCdOpenCaseTime(time(NULL) + 2);
 	LidInterrupt();

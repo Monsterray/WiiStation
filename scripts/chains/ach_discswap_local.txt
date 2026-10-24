@@ -1,0 +1,9 @@
+CHAIN
+# A Local multi-disc set through two swaps: FF8 disc 1 (CUE), at 900 disc 2 (CCD, named by the
+# set: it goes on and awards #2), at 1100 Frogger (not named: the set closes, #3 never fires).
+#   WSX_EXTRA_ISOS=tests/fixtures/ach_multidisc WSX_ISOS="Tests/AchMultiDisc,Final Fantasy VIII/Final Fantasy VIII [NTSC-U] [Disc2of4] [SLUS-00908],Frogger (USA)" \
+#     scripts/wsx.sh chain NAME scripts/chains/ach_discswap_local.txt --fast \
+#     --set 'Achievements=2,AchievementFile="sd:/wiistation/isos/Tests/AchMultiDisc/set.txt"'
+1400 sd:/wiistation/ach_discswap_local.txt FPS=0
+sd:/wiistation/isos/Final Fantasy VIII/Final Fantasy VIII [NTSC-U] [Disc1of4] [SLUS-00892]
+Final Fantasy VIII [NTSC-U] [Disc1of4] [SLUS-00892].cue

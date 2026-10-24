@@ -1,0 +1,4 @@
+# The Local multi-disc swap (scripts/chains/ach_discswap_local.txt): at 900 FF8 disc 2 (in the
+# set: it goes on), at 1100 Frogger (not in the set: it closes)
+discswap 900 sd:/wiistation/isos/Final Fantasy VIII/Final Fantasy VIII [NTSC-U] [Disc2of4] [SLUS-00908]/Final Fantasy VIII [NTSC-U] [Disc2of4] [SLUS-00908].ccd
+discswap 1100 sd:/wiistation/isos/Frogger (USA)/Frogger (USA).cue

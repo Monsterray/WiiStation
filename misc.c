@@ -368,15 +368,15 @@ void CheckPsxType()
 	else Config.PsxType = PSX_TYPE_NTSC; // ntsc
 }
 
-int CheckCdrom() {
+/* The disc's label and serial (CdromLabel, CdromId) from SYSTEM.CNF, and nothing else: no
+ * region, hacks or PPF, so a disc swap may call it mid-game. 0, or -1 for no PS1 boot file. */
+int CdromReadId(void) {
 	struct iso_directory_record *dir;
 	unsigned char time[4];
 	char *buf;
 	unsigned char mdir[4096];
 	char exename[256];
 	int i, len, c;
-
-	FreePPFCache();
 
 	time[0] = itob(0);
 	time[1] = itob(2);
@@ -449,13 +449,6 @@ int CheckCdrom() {
 	if (CdromId[0] == '\0')
 		strcpy(CdromId, "SLUS99999");
 
-	if (forceNTSC){
-		Config.PsxType = PSX_TYPE_NTSC;
-	}
-	else if (Config.PsxAuto) { // autodetect system (pal or ntsc)
-		CheckPsxType();
-	}
-
 	if (CdromLabel[0] == ' ') {
 		memcpy(CdromLabel, CdromId, 9);
 	}
@@ -475,6 +468,20 @@ int CheckCdrom() {
         CdromId[i] = toupper((unsigned char)CdromId[i]);
     }
   }
+	return 0;
+}
+
+int CheckCdrom() {
+	FreePPFCache();
+	if (CdromReadId() != 0)
+		return -1;
+
+	if (forceNTSC){
+		Config.PsxType = PSX_TYPE_NTSC;
+	}
+	else if (Config.PsxAuto) { // autodetect system (pal or ntsc)
+		CheckPsxType();
+	}
 
 	Apply_Hacks_Cdrom();
 

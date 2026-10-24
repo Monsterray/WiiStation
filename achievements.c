@@ -58,6 +58,9 @@ static struct {
 } entries[MAX_ACHIEVEMENTS];
 static unsigned count;
 static char set_title[48];              /* the set's Title= line: the game's name for the toast */
+#define MAX_SET_DISCS 8
+static char set_games[MAX_SET_DISCS][10]; /* the set's Game= serials: every disc of the game */
+static unsigned set_game_count;
 static int beaten_seen, mastered_seen;  /* already true, so no second Beaten or Mastered toast */
 static int active, running;   /* a set is loaded; evaluation is allowed (not during BIOS boot) */
 static unsigned char digest[16];   /* MD5 of the definition file: the set's identity */
@@ -300,15 +303,29 @@ const char *achievements_status(void)
     }
 }
 
-/* A disc swap, the new disc open: Official mode checks it belongs to the loaded game and goes
- * on; a Local set names one disc, so it closes until the next full game load. */
-void achievements_change_media(const char *image)
+/* A disc serial the set's Game= lines name */
+static int set_has_game(const char *game_id)
+{
+    unsigned i;
+    for (i = 0; game_id && i < set_game_count; ++i)
+        if (!strcasecmp(set_games[i], game_id)) return 1;
+    return 0;
+}
+
+/* A disc swap, the new disc open (game_id: its serial). Official mode checks the disc belongs
+ * to the loaded game and goes on; a Local or Test set goes on when one of its Game= lines names
+ * the disc, and otherwise closes until the next full game load. */
+void achievements_change_media(const char *image, const char *game_id)
 {
     snprintf(achievementImage, sizeof achievementImage, "%s", image ? image : "");
     if (achievementsEnabled == ACH_OFFICIAL && achievements_official_change_media)
         achievements_official_change_media(image);
-    else
+    else if (active && set_has_game(game_id))
+        SysPrintf("Achievements: disc %s is in the set, it goes on\n", game_id);
+    else {
+        if (active) SysPrintf("Achievements: disc %s is not in the set, it closes\n", game_id ? game_id : "?");
         achievements_close();
+    }
 }
 
 void achievements_close(void)
@@ -320,6 +337,7 @@ void achievements_close(void)
     count = 0;
     memset(entries, 0, sizeof(entries));
     set_title[0] = 0;
+    set_game_count = 0;
 }
 
 /* ---- loading a set ---- */
@@ -404,28 +422,44 @@ static int parse_extras(char *extras, unsigned index)
     return 1;
 }
 
-/* "Game=<serial>" (the loaded disc's CdromId), an optional "Title=<game name>", then one
+/* "Game=A,B,..." (the game's disc serials, one of them the loaded disc's CdromId) */
+static int parse_games(char *list)
+{
+    char *serial, *comma;
+    for (serial = list; serial; serial = comma) {
+        if ((comma = strchr(serial, ','))) *comma++ = 0;
+        serial = trim(serial);
+        if (!*serial || strlen(serial) >= sizeof(set_games[0]) || set_game_count == MAX_SET_DISCS) return 0;
+        strcpy(set_games[set_game_count++], serial);
+    }
+    return 1;
+}
+
+/* "Game=<serials>" first (more Game= lines may follow, all before the achievements: together they
+ * name every disc of the game, see parse_games), an optional "Title=<game name>", then one
  * "id|title|condition[|points|type|description]" line per achievement; blank lines and lines
  * starting with # or ; are skipped. Each achievement is activated in rcheevos as it is read.
  * Returns 0, or the number of the first bad line: any bad line rejects the whole set, so an
- * edited file cannot silently change what it covers. */
+ * edited file cannot silently change what it covers. A set that does not name the loaded disc
+ * is refused at its first Game= line. */
 static unsigned parse_set(char *data, const char *game_id)
 {
     char *line, *next, *title, *condition, *extras, *end;
     unsigned long id;
-    unsigned i, line_no = 0;
-    int identified = 0;
+    unsigned i, line_no = 0, game_line = 0;
     for (line = data; line; line = next) {
         next = strchr(line, '\n');
         if (next) *next++ = 0;
         ++line_no;
         line = trim(line);
         if (!*line || *line == '#' || *line == ';') continue;
-        if (!identified) {   /* the first line names the disc */
-            if (strncmp(line, "Game=", 5) || strcmp(trim(line + 5), game_id)) return line_no;
-            identified = 1;
+        if (!game_line && strncmp(line, "Game=", 5)) return line_no;   /* the first line names the discs */
+        if (!strncmp(line, "Game=", 5)) {
+            if (!game_line) game_line = line_no;
+            if (count || !parse_games(line + 5)) return line_no;
             continue;
         }
+        if (!set_has_game(game_id)) return game_line;
         if (!strncmp(line, "Title=", 6)) {
             snprintf(set_title, sizeof set_title, "%s", trim(line + 6));
             continue;
@@ -452,7 +486,8 @@ static unsigned parse_set(char *data, const char *game_id)
         entries[count].id = (uint32_t)id;
         strcpy(entries[count++].title, title);
     }
-    return identified && count ? 0 : line_no + 1;   /* no Game= line, or no achievements */
+    if (game_line && !set_has_game(game_id)) return game_line;
+    return count ? 0 : line_no + 1;   /* no Game= line, or no achievements */
 }
 
 int achievements_load(const char *game_id)

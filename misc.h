@@ -61,6 +61,7 @@ extern char CdromLabel[33];
 int LoadCdrom();
 int LoadCdromFile(const char *filename, EXE_HEADER *head, u8 *time_bcd_out);
 int CheckCdrom();
+int CdromReadId(void);   /* CdromLabel + CdromId only: safe at a disc swap */
 int Load(fileBrowser_file *exe);
 
 int SaveState();

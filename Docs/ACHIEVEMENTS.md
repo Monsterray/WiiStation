@@ -41,7 +41,7 @@ AchievementLog = ""
 | Key | Values | Default | Effect |
 |---|---|---|---|
 | `Achievements` | 0 = Off, 1 = Local, 2 = Test, 3 = Official | 0 | Local evaluates the set and keeps unlocks in the journal. Test evaluates the set, but does not read or write the journal. Official loads nothing yet. Off stops all frame evaluation. A value 1 from before the modes is Local. |
-| `AchievementFile` | `"path"` | empty | The definition file. Its `Game=` line must match the loaded disc. |
+| `AchievementFile` | `"path"` | empty | The definition file. One of its `Game=` serials must match the loaded disc. |
 | `AchievementLog` | `"path"` | empty | The unlock journal. Empty uses the `AchievementFile` path with `.unlocks` added. The journal path must not be the definition path. |
 | `AchievementBenchRoot` | `"path"` | empty | Bench builds only (`ACHIEVEMENTS_BENCH`). It sends card reads, writes and deletes, and chain cleanup, to a fresh private directory. Product builds do not read it. |
 
@@ -66,7 +66,9 @@ Title=Fixture
 ```
 
 1. The first line that is not a comment must be `Game=<CdromId>`. The ID must match the loaded
-   disc. If it does not match, the engine rejects the set.
+   disc. If it does not match, the engine rejects the set. A multi-disc game names every disc:
+   `Game=SLUS00892,SLUS00908` (comma-separated), more `Game=` lines, or both, all before the
+   first achievement. At most 8 serials, each at most 9 characters.
 2. An optional `Title=<game name>` line names the game for the Beaten and Mastered toasts
    ("Spyro beaten"). Without it, the toast says "Game".
 3. Each achievement line is `id|title|condition`, with three optional fields after it:
@@ -344,8 +346,15 @@ Official works in Casual (2026-10-23): login, the PS1 hash in every format, disc
   rc_client's `rc_client_find_game_hash` gives the disc's game).
 - A swap before the login is done needs no check: the set then loads from the new disc.
 - Test: `scripts/chains/ach_discswap.txt` (the `discswap` script line).
-- Local mode still closes the set at a swap: a definition file names one disc serial. A set
-  that names every disc of a game is future work.
+- Local and Test mode keep the set through a swap to a disc its `Game=` lines name
+  (2026-10-24). `loadISOSwap` reads the new disc's serial with `CdromReadId()` (misc.c: the
+  label and serial only, none of `CheckCdrom`'s region, hack or PPF changes) and passes it
+  to `achievements_change_media`. A disc the set does not name, or one with no PS1 boot file,
+  closes the set until the next game load. Unlocks, journal and toasts carry on unchanged.
+- Test: `scripts/chains/ach_discswap_local.txt` (FF8 disc 1 -> disc 2 goes on -> Frogger
+  closes; the set is `tests/fixtures/ach_multidisc`). A swap in the middle of a game that is
+  reading its disc can crash the game: FF8's intro hit Lightrec fault 1 at vblank 1270 after
+  the swap at 900. That is the game reading another disc's data, not the set.
 - A `.exe` gets no achievements in any mode: it has no disc to identify. The ISO Info page and
   the message after a load say so (`achievements_status`).
 

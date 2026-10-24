@@ -212,7 +212,7 @@ static int script_port_name(const char *q)
 void autoinput_load(void)
 {
 	FILE *f;
-	char line[128];
+	char line[320];   /* a discswap line holds a whole path (FILE_BROWSER_MAX_PATH_LEN 256) */
 	if (autoin_n >= 0) return;
 	autoin_n = 0;
 	autoin_ports = 0;

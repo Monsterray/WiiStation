@@ -56,7 +56,7 @@ enum { ST_SAVE = 1, ST_LOAD, ST_CHECK, ST_FP, ST_SWAP };
 
 static struct {
 	int op;
-	char name[160];   /* a state name, or a disc path (ST_SWAP) */
+	char name[FILE_BROWSER_MAX_PATH_LEN];   /* a state name, or a disc path (ST_SWAP) */
 	unsigned vbl, n;
 	int step;          /* statecheck: 0 save, 1 first fingerprint + load, 2 second fingerprint */
 	bool done;

@@ -22,7 +22,7 @@ void achievements_reset(void);
 void achievements_frame(void);
 void achievements_flush(void); /* outside Execute(): pending unlocks to the journal */
 void achievements_idle(void);  /* menu and pause, once per frame (Official mode) */
-void achievements_change_media(const char *image);   /* a disc swap, the new disc open */
+void achievements_change_media(const char *image, const char *game_id);   /* a disc swap: the new disc open, its serial */
 const char *achievements_status(void);   /* one line for the menus: what achievements do for this game */
 uint32_t achievements_read_memory(uint32_t address, uint8_t *buffer, uint32_t size, void *unused);
 unsigned achievements_count(void);
