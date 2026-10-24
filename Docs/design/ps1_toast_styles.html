@@ -1,0 +1,635 @@
+<title>WiiStation Unlock Toasts</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Semi+Condensed:wght@500;700&family=Open+Sans:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one column of "TV" stages (640x480, the Wii's picture), each with its notes beside it */
+:root {
+  --bg: #eef0f4; --panel: #ffffff; --ink: #1b1f2a; --muted: #5b6273; --line: #d5d9e2;
+  --accent: #2f6fe0; --gold: #e8b23a; --tv: #0b0d12;
+  --display: "Saira Semi Condensed", "Arial Narrow", sans-serif;
+  --body: "Open Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #12151c; --panel: #1a1e28; --ink: #e7eaf1; --muted: #9aa2b4; --line: #2a3040;
+  --accent: #6d9cff; --gold: #f0c35a; --tv: #05060a; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #12151c; --panel: #1a1e28; --ink: #e7eaf1; --muted: #9aa2b4; --line: #2a3040;
+  --accent: #6d9cff; --gold: #f0c35a; --tv: #05060a; color-scheme: dark }
+
+@property --p { syntax: "<integer>"; inherits: false; initial-value: 0; }
+@property --e { syntax: "<integer>"; inherits: false; initial-value: 0; }
+
+body { background: var(--bg); color: var(--ink); font: 15px/1.55 var(--body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 28px 48px; }
+.wrap { max-width: 1120px; margin: 0 auto; display: grid; gap: 28px; }
+header h1 { font: 700 2.1rem/1.1 var(--display); margin: 0 0 6px; text-wrap: balance; }
+header p { margin: 0 0 6px; color: var(--muted); max-width: 72ch; }
+.group { font: 700 1.5rem/1.2 var(--display); margin: 12px 0 -10px; }
+.group small { font: 400 .95rem var(--body); color: var(--muted); margin-left: 8px; }
+.bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 12px; }
+button { font: 600 .9rem var(--body); color: #fff; background: var(--accent); border: 0; border-radius: 6px; padding: 8px 14px; cursor: pointer; }
+button.ghost { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+.mock { display: grid; grid-template-columns: minmax(0, 640px) minmax(0, 1fr); gap: 22px; align-items: start;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; }
+.mock.ps { border-left: 4px solid #d9363e; }
+@media (max-width: 900px) { .mock { grid-template-columns: minmax(0, 1fr); } }
+.notes { min-width: 0; display: grid; gap: 8px; }
+.notes h2 { font: 700 1.35rem/1.2 var(--display); margin: 0; }
+.notes .tag { font: 500 .78rem var(--mono); color: var(--muted); letter-spacing: .04em; text-transform: uppercase; }
+.notes p, .notes ul { margin: 0; }
+.notes ul { padding-left: 1.1em; }
+.notes dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 4px 0 0; font-size: .9rem; }
+.notes dt { color: var(--muted); }
+.notes dd { margin: 0; font-variant-numeric: tabular-nums; }
+footer { color: var(--muted); font-size: .9rem; max-width: 80ch; }
+
+/* ---- The TV: a fixed 640x480 picture scaled to fit; everything inside is in Wii pixels ---- */
+.tv { width: 100%; max-width: 640px; aspect-ratio: 4 / 3; background: var(--tv); border-radius: 8px; overflow: hidden; position: relative; container-type: inline-size; }
+.screen { position: absolute; inset: 0; width: 640px; height: 480px; transform-origin: 0 0; transform: scale(calc(100cqw / 640px)); }
+@supports not (width: 1cqw) { .screen { transform: scale(var(--s, 1)); } }
+.scene { position: absolute; inset: 0; }
+.safe { position: absolute; inset: 24px 32px; border: 1px dashed rgba(255,255,255,.18); pointer-events: none; }
+.safe::after { content: "title-safe area"; position: absolute; right: 6px; bottom: 4px; font: 400 10px var(--mono); color: rgba(255,255,255,.35); }
+.scene.sky { background: linear-gradient(#3b2a6b 0%, #c9568c 55%, #f2a65a 72%, #2d5e3a 72%, #1d3d27 100%); }
+.scene.night { background: linear-gradient(#070a1f 0%, #18275a 58%, #2a4a7a 70%, #10343a 70%, #08201f 100%); }
+.scene .hill { position: absolute; left: 0; right: 0; bottom: 120px; height: 120px; background: #6b3a7a; clip-path: polygon(0 100%, 12% 30%, 27% 70%, 44% 10%, 61% 62%, 78% 22%, 100% 80%, 100% 100%); opacity: .8; }
+.scene.night .hill { background: #1e2f5e; }
+.scene .tower { position: absolute; left: 420px; bottom: 138px; width: 46px; height: 150px; background: #3a2350; clip-path: polygon(50% 0, 100% 22%, 86% 100%, 14% 100%, 0 22%); }
+.scene.night .tower { background: #0f1838; }
+.scene .hero { position: absolute; left: 270px; bottom: 70px; width: 70px; height: 52px; background: #7d3ac4; clip-path: polygon(0 60%, 30% 20%, 70% 0, 100% 40%, 80% 100%, 20% 100%); }
+.scene .gem { position: absolute; width: 14px; height: 18px; background: #5ff0d2; clip-path: polygon(50% 0, 100% 40%, 50% 100%, 0 40%); }
+.scene .star { position: absolute; width: 2px; height: 2px; background: #cfe0ff; }
+
+/* ---- shared text and parts ---- */
+.t-title { font: 700 19px/1.15 var(--body); color: #fff; }
+.t-desc { font: 400 13px/1.3 var(--body); color: rgba(255,255,255,.86); }
+.t-kicker { font: 700 11px/1 var(--body); letter-spacing: .12em; text-transform: uppercase; }
+.t-mono { font: 500 11px/1 var(--mono); letter-spacing: .06em; }
+.t-pts { font: 700 13px/1 var(--body); color: var(--gold); }
+.cnt-e { counter-reset: e var(--e); } .cnt-e::before { content: counter(e); }
+.cnt-p { counter-reset: p var(--p); } .cnt-p::before { content: "+" counter(p); }
+.cnt-t { counter-reset: p var(--p); } .cnt-t::before { content: counter(p) " pts"; }
+/* PS1 look: 15-bit colour has no smooth gradient, so gradients are bands with a 2x2 dither on top */
+.dither { position: relative; }
+.dither::before { content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 0;
+  background-image: repeating-conic-gradient(rgba(0,0,0,.16) 0 25%, transparent 0 50%); background-size: 2px 2px; }
+.pixel { shape-rendering: crispEdges; image-rendering: pixelated; }
+/* the 40-block set meter */
+.seg { position: relative; height: 6px; background: rgba(255,255,255,.16); }
+.seg > i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--gold); }
+.seg::after { content: ""; position: absolute; inset: 0;
+  background: repeating-linear-gradient(90deg, transparent 0 calc(2.5% - 1px), rgba(8,10,18,.95) calc(2.5% - 1px) 2.5%); }
+.seg > b, .seg > u { position: absolute; top: -2px; bottom: -2px; width: 2.5%; background: #fff; opacity: 0; }
+/* 3-frame save icon, like a PS1 memory-card icon: front, turned, side, turned */
+.fB, .fC { opacity: 0; }
+.play .fA { animation: fA 1.2s infinite; } .play .fB { animation: fB 1.2s infinite; } .play .fC { animation: fC 1.2s infinite; }
+@keyframes fA { 0%,24.9% { opacity: 1; } 25%,100% { opacity: 0; } }
+@keyframes fB { 0%,24.9% { opacity: 0; } 25%,49.9% { opacity: 1; } 50%,74.9% { opacity: 0; } 75%,100% { opacity: 1; } }
+@keyframes fC { 0%,49.9% { opacity: 0; } 50%,74.9% { opacity: 1; } 75%,100% { opacity: 0; } }
+.s2, .s3 { opacity: 0; }
+.play .s1, .play .s2, .play .s3 { animation: blink .9s infinite; }
+.play .s2 { animation-delay: .3s; } .play .s3 { animation-delay: .6s; }
+@keyframes blink { 0%,32% { opacity: 1; } 33%,100% { opacity: 0; } }
+
+/* ============ Save Block (6) and its completion: shared card ============ */
+.sb { position: absolute; top: 34px; right: 40px; width: 330px; overflow: hidden; border: 2px solid #a7c2ff; border-radius: 2px;
+  background: linear-gradient(180deg, #2b50a8 0 20%, #27499e 20% 40%, #234394 40% 60%, #1f3c89 60% 80%, #1a347c 80%);
+  box-shadow: inset 0 0 0 1px #0d1d45, 0 4px 0 rgba(0,0,0,.35); }
+.sb .face { position: relative; z-index: 1; padding: 10px 12px 10px 10px; display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 6px 12px; }
+.sb .pix { width: 56px; height: 56px; background: #0a1638; box-shadow: inset 0 0 0 2px #6f8fd8, inset 0 0 0 3px #0a1638, inset 3px 3px 0 3px rgba(255,255,255,.08); display: grid; place-items: center; }
+.sb .pix svg { width: 48px; height: 48px; position: relative; z-index: 1; }
+.sb .head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.sb .t-kicker { color: #b9ccff; }
+.sb .t-title { text-shadow: 1px 1px 0 #0a1638; }
+.sb .foot { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; color: #c9d1e2; }
+.sb .foot .seg { flex: 1; }
+.sb .sheen { position: absolute; inset: 0; z-index: 2; pointer-events: none; transform: translateX(130%);
+  background: linear-gradient(105deg, transparent 40%, rgba(255,255,255,.26) 50%, transparent 60%); }
+@keyframes sbIn { 0% { transform: translateX(390px); animation-timing-function: cubic-bezier(.1,.7,.2,1); } 7% { transform: translateX(0); }
+  89% { transform: translateX(0); animation-timing-function: cubic-bezier(.6,0,.9,.4); } 100% { transform: translateX(390px); } }
+@keyframes sheen { 0%,11% { transform: translateX(-130%); } 22%,100% { transform: translateX(130%); } }
+
+.u6 .seg > i { width: 30%; }
+.u6 .cnt-t { --p: 120; }
+.play .u6 { animation: sbIn 5s both; }
+.play .u6 .sheen { animation: sheen 5s linear both; }
+.play .u6 .seg > i { animation: u6bar 5s both; }
+.play .u6 .seg > b { animation: u6new 5s both; }
+.play .u6 .cnt-e { animation: u6cnt 5s both; }
+.play .u6 .cnt-t { animation: u6pts 5s steps(10, end) both; }
+@keyframes u6bar { 0%,23% { width: 27.5%; } 24%,100% { width: 30%; } }
+@keyframes u6new { 0%,23% { opacity: 0; left: 27.5%; } 24%,28% { opacity: 1; left: 27.5%; } 29%,32% { opacity: 0; left: 27.5%; } 33%,37% { opacity: 1; left: 27.5%; } 38%,100% { opacity: 0; left: 27.5%; } }
+@keyframes u6cnt { 0%,23% { --e: 11; } 24%,100% { --e: 12; } }
+@keyframes u6pts { 0%,24% { --p: 110; } 34%,100% { --p: 120; } }
+
+/* ============ Disc Read (7) and its completion: PS1 spin-up, then the laser, then out at speed ============ */
+.dr { position: absolute; left: 40px; bottom: 34px; height: 70px; display: flex; align-items: center; }
+.disc { width: 70px; height: 70px; border-radius: 50%; flex: none; position: relative; z-index: 1;
+  background: conic-gradient(from 0deg, #c7d2e6, #ffffff, #8fd3ff, #ffb5e8, #fff3a8, #c7d2e6); box-shadow: 0 0 0 3px #0b0d12; }
+.disc::before { content: ""; position: absolute; inset: 0; border-radius: 50%; opacity: 0;   /* motion smear at speed */
+  background: radial-gradient(circle, transparent 0 36%, #e3e9f4 37% 95%, transparent 96%); }
+.disc::after { content: ""; position: absolute; inset: 25px; border-radius: 50%; background: #0b0d12; box-shadow: 0 0 0 5px rgba(255,255,255,.75); z-index: 2; }
+.disc .mark { position: absolute; left: 50%; top: 4px; width: 3px; height: 12px; margin-left: -1px; background: #0b0d12; opacity: .55; }
+.dr .spd { position: absolute; left: 82px; top: 50%; margin-top: -8px; font: 500 12px/16px var(--mono); color: #bfe6ff; letter-spacing: .08em; opacity: 0; }
+.dr .panel { margin-left: -35px; padding: 6px 20px 6px 48px; height: 62px; min-width: 330px; display: flex; flex-direction: column; justify-content: center;
+  background: rgba(10,12,20,.9); border: 1px solid rgba(143,211,255,.45); border-radius: 0 31px 31px 0; }
+.dr .readwrap { position: relative; }
+.dr .row { display: flex; justify-content: space-between; align-items: baseline; gap: 14px; }
+.dr .t-mono { color: #8fd3ff; }
+.dr .laser { position: absolute; top: -5px; bottom: -5px; left: 100%; width: 2px; background: #ffd0d0; box-shadow: 0 0 6px 2px rgba(255,80,80,.9); opacity: 0; }
+.play .dr { animation: drMove 5.4s both; }
+.play .dr .disc { animation: drSpin 5.4s linear both; }
+.play .dr .disc::before { animation: drSmear 5.4s linear both; }
+.play .dr .spd { animation: drSpd 5.4s both; }
+.play .dr .spd i { animation: blink .4s infinite; }
+.play .dr .panel { animation: drPanel 5.4s both; }
+.play .dr .read { animation: drRead 5.4s linear both; }
+.play .dr .laser { animation: drLaser 5.4s linear both; }
+/* 0.35 s slide in; 1.2 s spin-up with constant acceleration (angle = a t^2 / 2), reaching 900 deg/s;
+   then constant 900 deg/s to the end, including the slide out */
+@keyframes drMove { 0% { transform: translateX(-180px); animation-timing-function: cubic-bezier(.1,.7,.3,1); } 6.48% { transform: translateX(0); }
+  87% { transform: translateX(0); animation-timing-function: cubic-bezier(.55,0,.85,.45); } 100% { transform: translateX(-640px); } }
+@keyframes drSpin { 0%,6.48% { transform: rotate(0); } 10.19% { transform: rotate(15deg); } 13.89% { transform: rotate(60deg); } 17.59% { transform: rotate(135deg); }
+  21.3% { transform: rotate(240deg); } 25% { transform: rotate(375deg); } 28.7% { transform: rotate(540deg); } 100% { transform: rotate(4005deg); } }
+@keyframes drSmear { 0%,13% { opacity: 0; } 28.7%,100% { opacity: .7; } }
+@keyframes drSpd { 0%,6.4% { opacity: 0; } 6.5%,28.6% { opacity: 1; } 28.7%,100% { opacity: 0; } }
+@keyframes drPanel { 0%,28.7% { clip-path: inset(0 100% 0 0); } 33%,100% { clip-path: inset(0 0 0 0); } }
+@keyframes drRead { 0%,33% { clip-path: inset(0 100% 0 0); } 45%,100% { clip-path: inset(0 0 0 0); } }
+@keyframes drLaser { 0%,32.9% { left: 0; opacity: 0; } 33% { left: 0; opacity: 1; } 45% { left: 100%; opacity: 1; } 46%,100% { left: 100%; opacity: 0; } }
+.u7 .cnt-p { --p: 25; }
+.play .u7 .cnt-p { animation: u7pts 5.4s both; }
+@keyframes u7pts { 0%,45% { --p: 0; } 54%,100% { --p: 25; } }
+
+/* ============ Broadcast (8): two tiers, built in steps ============ */
+.u8 { position: absolute; left: 32px; right: 32px; bottom: 40px; height: 80px; }
+.u8 .top { position: absolute; left: 108px; top: 0; height: 22px; padding: 0 12px; display: flex; align-items: center; gap: 10px;
+  background: #0d1222; color: #c9d1e2; border-top: 2px solid var(--gold); }
+.u8 .top b { color: var(--gold); font-weight: 500; }
+.u8 .main { position: absolute; left: 0; right: 0; bottom: 0; height: 58px; display: flex; }
+.u8 .lead { position: relative; z-index: 1; width: 108px; flex: none; background: var(--gold); color: #1b1300; display: grid; place-items: center; align-content: center; gap: 4px;
+  font: 700 11px/1 var(--body); letter-spacing: .12em; text-transform: uppercase; }
+.u8 .lead svg { width: 24px; height: 24px; }
+.u8 .body { position: relative; flex: 1; min-width: 0; display: flex; align-items: center; gap: 16px; padding: 0 18px; background: rgba(8,10,18,.92); border-bottom: 2px solid var(--gold); overflow: hidden; }
+.u8 .grow { flex: 1; min-width: 0; }
+.u8 .ptbox { flex: none; padding: 6px 8px; border: 1px solid rgba(232,178,58,.6); font: 700 16px/1 var(--body); color: var(--gold); min-width: 44px; text-align: center; }
+.u8 .ptbox .cnt-p { --p: 15; }
+.u8 .tally { width: 150px; flex: none; color: #c9d1e2; display: grid; gap: 6px; }
+.u8 .tally .t-mono { display: flex; justify-content: space-between; }
+.u8 .seg > i { width: 30%; }
+.u8 .glint { position: absolute; bottom: -2px; left: 0; width: 60px; height: 2px; background: linear-gradient(90deg, transparent, #fff, transparent); opacity: 0; }
+.play .u8 .lead { animation: u8lead 5.4s both; }
+.play .u8 .body { animation: u8body 5.4s both; }
+.play .u8 .top { animation: u8top 5.4s both; }
+.play .u8 .cnt-p { animation: u8pts 5.4s steps(15, end) both; }
+.play .u8 .glint { animation: u8glint 5.4s linear both; }
+.play .u8 .seg > i { animation: u8bar 5.4s both; }
+.play .u8 .seg > b { animation: u8new 5.4s both; }
+.play .u8 .cnt-e { animation: u8cnt 5.4s both; }
+@keyframes u8lead { 0% { transform: translateX(-160px); opacity: 0; animation-timing-function: cubic-bezier(.1,.7,.2,1); } 6% { transform: translateX(0); opacity: 1; }
+  92% { transform: translateX(0); opacity: 1; animation-timing-function: cubic-bezier(.6,0,.9,.4); } 100% { transform: translateX(-160px); opacity: 0; } }
+@keyframes u8body { 0%,6% { clip-path: inset(0 100% 0 0); animation-timing-function: cubic-bezier(.2,.7,.2,1); } 15%,83% { clip-path: inset(0 0 0 0); animation-timing-function: cubic-bezier(.6,0,.9,.4); } 91%,100% { clip-path: inset(0 100% 0 0); } }
+@keyframes u8top { 0%,14% { clip-path: inset(100% 0 0 0); } 19%,79% { clip-path: inset(0 0 0 0); } 83%,100% { clip-path: inset(100% 0 0 0); } }
+@keyframes u8pts { 0%,17% { --p: 0; } 26%,100% { --p: 15; } }
+@keyframes u8glint { 0%,19% { left: 0; opacity: 0; } 20% { left: 0; opacity: 1; } 32% { left: calc(100% - 60px); opacity: 1; } 33%,100% { left: calc(100% - 60px); opacity: 0; } }
+@keyframes u8bar { 0%,27% { width: 27.5%; } 28%,100% { width: 30%; } }
+@keyframes u8new { 0%,27% { opacity: 0; left: 27.5%; } 28%,32% { opacity: 1; left: 27.5%; } 33%,36% { opacity: 0; left: 27.5%; } 37%,41% { opacity: 1; left: 27.5%; } 42%,100% { opacity: 0; left: 27.5%; } }
+@keyframes u8cnt { 0%,27% { --e: 11; } 28%,100% { --e: 12; } }
+
+/* ============ PS1 (P): a low-poly trophy built polygon by polygon, PS1 menu lettering, CRT-off exit ============ */
+.psx { position: absolute; display: flex; gap: 14px; padding: 8px 14px 8px 8px; transform-origin: 50% 50%;
+  background: linear-gradient(180deg, #1c2340 0 25%, #171d36 25% 50%, #12172c 50% 75%, #0d1122 75%);
+  border: 2px solid #c8d0e0; box-shadow: inset 0 0 0 2px #000, inset 0 0 0 3px #59647e, 4px 4px 0 rgba(0,0,0,.55); }
+.psx::after { content: ""; position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }   /* the white flash */
+.psx .vp { width: 96px; height: 96px; flex: none; background: #000; box-shadow: inset 0 0 0 1px #59647e; perspective: 260px; display: grid; place-items: center; overflow: hidden; }
+.psx .poly { width: 86px; height: 86px; transform-style: preserve-3d; }
+.psx .poly svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.psx .txt { position: relative; z-index: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 4px; }
+.psx .big { font: 800 22px/1 var(--body); letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; filter: drop-shadow(2px 2px 0 #000); }
+.psx .big span { display: inline-block; color: transparent; -webkit-background-clip: text; background-clip: text;
+  background-image: linear-gradient(180deg, #fff6c8 0 30%, #ffd34d 30% 55%, #f29b1c 55% 80%, #c25e0a 80%); }
+.psx .t-title { font-size: 18px; filter: drop-shadow(2px 2px 0 #000); }
+.psx .t-desc { color: #c8d0e0; filter: drop-shadow(1px 1px 0 #000); }
+.psx .bot { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.psx .tri { color: #ffd34d; font: 700 12px/1 var(--mono); }
+.play .psx { animation: psxBox var(--d) both; }
+.play .psx::after { animation: psxFlash var(--d) both; }
+.play .psx .pt { animation: pop .01s calc(.32s + var(--i) * .045s) both; }
+.play .psx .big span { animation: drop .15s steps(3, end) calc(.45s + var(--i) * .05s) both; }
+.play .psx .poly { animation: psxSpin 1.6s steps(16, end) 1.15s infinite; }
+.play .psx .poly svg { animation: jitter .26s steps(2, end) 1.15s infinite; }
+.play .psx .tri { animation: blink .8s 1.4s infinite; }
+@keyframes psxBox { 0% { transform: scale(0, .04); animation-timing-function: steps(3, end); } 2% { transform: scale(1, .04); animation-timing-function: steps(4, end); }
+  6% { transform: scale(1, 1); } 87% { transform: scale(1, 1); animation-timing-function: steps(4, end); } 92% { transform: scale(1, .04); animation-timing-function: steps(3, end); }
+  96%,100% { transform: scale(0, .04); } }
+@keyframes psxFlash { 0%,5% { opacity: 1; } 6% { opacity: .66; } 7% { opacity: .33; } 8%,100% { opacity: 0; } }
+@keyframes pop { from { opacity: 0; } to { opacity: 1; } }
+@keyframes drop { from { transform: translateY(-16px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes psxSpin { from { transform: rotateY(0); } to { transform: rotateY(360deg); } }
+@keyframes jitter { 0% { transform: translate(1px, 0); } 100% { transform: translate(0, 1px); } }
+.pP { --d: 5.2s; top: 34px; left: 106px; width: 428px; }
+
+/* ============ Completion: C1 Roll-up (Broadcast) ============ */
+.c1 { position: absolute; left: 0; right: 0; bottom: 40px; height: 62px; display: flex; }
+.c1 .lead { width: 128px; flex: none; background: var(--gold); color: #1b1300; overflow: hidden; position: relative; }
+.c1 .roll { position: absolute; left: 0; right: 0; top: 0; transform: translateY(-62px); }
+.c1 .lead .roll > div { height: 62px; display: grid; place-items: center; text-align: center; padding: 0 8px; font: 700 12px/1.1 var(--body); letter-spacing: .1em; text-transform: uppercase; }
+.c1 .body { flex: 1; min-width: 0; display: flex; align-items: center; gap: 18px; padding: 0 40px 0 18px; background: rgba(8,10,18,.92); border-top: 2px solid var(--gold); }
+.c1 .lines { flex: 1; min-width: 0; height: 62px; overflow: hidden; position: relative; }
+.c1 .lines .roll > div { height: 62px; display: flex; flex-direction: column; justify-content: center; }
+.c1 .lines .t-title, .c1 .lines .t-desc { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.c1 .tally { width: 170px; flex: none; color: #c9d1e2; display: grid; gap: 6px; }
+.c1 .tally .t-mono { display: flex; justify-content: space-between; }
+.c1 .seg { height: 8px; }
+.c1 .seg > i { width: 100%; }
+.c1 .cnt-t { --p: 400; }
+.play .c1 { animation: strip 5.8s cubic-bezier(.3,.7,.2,1) both; }
+.play .c1 .roll { animation: c1roll 5.8s both; }
+.play .c1 .seg > i { animation: c1bar 5.8s both; }
+.play .c1 .seg > u { animation: c1sweep 5.8s steps(39, end) both; }
+.play .c1 .seg { animation: c1flash 5.8s both; }
+.play .c1 .cnt-e { animation: c1cnt 5.8s both; }
+.play .c1 .cnt-t { animation: c1pts 5.8s steps(20, end) both; }
+@keyframes strip { 0% { transform: translateX(-100%); } 11% { transform: translateX(0); } 89% { transform: translateX(0); } 100% { transform: translateX(100%); } }
+@keyframes c1bar { 0%,19% { width: 97.5%; } 20%,100% { width: 100%; } }
+@keyframes c1sweep { 0%,23.9% { left: 0; opacity: 0; } 24% { left: 0; opacity: 1; } 36% { left: 97.5%; opacity: 1; } 36.1%,100% { left: 97.5%; opacity: 0; } }
+@keyframes c1flash { 0%,37% { background: rgba(255,255,255,.16); box-shadow: none; } 38%,40% { background: #fff; box-shadow: 0 0 10px 2px rgba(255,230,160,.8); } 41%,42% { background: rgba(255,255,255,.16); box-shadow: none; }
+  43%,45% { background: #fff; box-shadow: 0 0 10px 2px rgba(255,230,160,.8); } 46%,100% { background: rgba(255,255,255,.16); box-shadow: 0 0 0 1px var(--gold); } }
+@keyframes c1roll { 0%,46% { transform: translateY(0); animation-timing-function: cubic-bezier(.5,0,.2,1); } 52%,100% { transform: translateY(-62px); } }
+@keyframes c1cnt { 0%,19% { --e: 39; } 20%,100% { --e: 40; } }
+@keyframes c1pts { 0%,52% { --p: 0; } 64%,100% { --p: 400; } }
+
+/* ============ Completion: C2 Gold Card (Save Block) ============ */
+.c2 { border-color: #fff3c9; }
+.c2 .gold { position: absolute; inset: 0; z-index: 0;
+  background: linear-gradient(180deg, #ffe7a0 0 20%, #f6d27a 20% 40%, #eec064 40% 60%, #e3ad4c 60% 80%, #d39936 80%); }
+.c2 .face.f1 { position: absolute; inset: 0; opacity: 0; }
+.c2 .f1 .seg > i { width: 100%; }
+.c2 .f2 .t-kicker { color: #5a3a00; }
+.c2 .f2 .t-title { color: #2a1a00; text-shadow: 1px 1px 0 #fff1b8; }
+.c2 .f2 .t-desc { color: #4a3205; }
+.c2 .f2 .foot { color: #4a3205; }
+.c2 .f2 .seg { background: rgba(90,58,0,.25); }
+.c2 .f2 .seg > i { width: 100%; background: #fff6d0; }
+.c2 .f2 .seg::after { background: repeating-linear-gradient(90deg, transparent 0 calc(2.5% - 1px), #c98a1c calc(2.5% - 1px) 2.5%); }
+.c2 .f2 .pix { background: #3a2500; box-shadow: inset 0 0 0 2px #fff1b8, inset 0 0 0 3px #3a2500; }
+.c2 .cnt-t { --p: 400; }
+.play .c2 { animation: c2card 5.8s both; }
+.play .c2 .gold { animation: c2gold 5.8s both; }
+.play .c2 .f1 { animation: c2f1 5.8s both; }
+.play .c2 .f2 { animation: c2f2 5.8s both; }
+.play .c2 .f1 .seg > i { animation: c2bar 5.8s both; }
+.play .c2 .f1 .seg > b { animation: c2new 5.8s both; }
+.play .c2 .f1 .cnt-e { animation: c2cnt 5.8s both; }
+.play .c2 .sheen { animation: c2sheen 5.8s linear both; }
+.play .c2 .f2 .cnt-t { animation: c2pts 5.8s steps(20, end) both; }
+@keyframes c2card { 0% { transform: translateX(390px); border-color: #a7c2ff; animation-timing-function: cubic-bezier(.1,.7,.2,1); } 6% { transform: translateX(0); border-color: #a7c2ff; }
+  47.9% { border-color: #a7c2ff; } 48% { border-color: #fff3c9; } 90% { transform: translateX(0); border-color: #fff3c9; animation-timing-function: cubic-bezier(.6,0,.9,.4); }
+  100% { transform: translateX(390px); border-color: #fff3c9; } }
+@keyframes c2gold { 0%,36% { clip-path: inset(0 0 100% 0); animation-timing-function: steps(8, end); } 48%,100% { clip-path: inset(0 0 0 0); } }
+@keyframes c2f1 { 0%,47.9% { opacity: 1; } 48%,100% { opacity: 0; } }
+@keyframes c2f2 { 0%,47.9% { opacity: 0; } 48%,100% { opacity: 1; } }
+@keyframes c2bar { 0%,19% { width: 97.5%; } 20%,100% { width: 100%; } }
+@keyframes c2new { 0%,19% { opacity: 0; left: 97.5%; } 20%,24% { opacity: 1; left: 97.5%; } 25%,28% { opacity: 0; left: 97.5%; } 29%,33% { opacity: 1; left: 97.5%; } 34%,100% { opacity: 0; left: 97.5%; } }
+@keyframes c2cnt { 0%,19% { --e: 39; } 20%,100% { --e: 40; } }
+@keyframes c2sheen { 0%,49% { transform: translateX(-130%); } 60%,100% { transform: translateX(130%); } }
+@keyframes c2pts { 0%,50% { --p: 0; } 62%,100% { --p: 400; } }
+
+/* ============ Completion: C3 Gold Disc (Disc Read) ============ */
+.c3 .disc .goldface { position: absolute; inset: 0; border-radius: 50%; z-index: 1;
+  background: conic-gradient(from 0deg, #e8b23a, #fff1b8, #f6c24a, #fff8d8, #d99a26, #e8b23a); }
+.c3 .panel { border-color: rgba(232,178,58,.7); }
+.c3 .t-mono { color: var(--gold); }
+.c3 .cnt-p { --p: 400; }
+.play .c3 .disc .goldface { animation: c3gold 5.4s both; }
+.play .c3 .cnt-p { animation: c3pts 5.4s steps(20, end) both; }
+@keyframes c3gold { 0%,33% { opacity: 0; } 36% { opacity: .25; } 39% { opacity: .5; } 42% { opacity: .75; } 45%,100% { opacity: 1; } }
+@keyframes c3pts { 0%,45% { --p: 0; } 56%,100% { --p: 400; } }
+
+/* ============ Completion: C4 PS1 "COMPLETE!" ============ */
+.pC { --d: 5.8s; top: 150px; left: 92px; width: 456px; padding: 10px 16px 10px 10px; }
+.pC .vp { width: 120px; height: 120px; position: relative; overflow: visible; }
+.pC .poly { width: 104px; height: 104px; }
+.pC .big { font-size: 40px; letter-spacing: .04em; }
+.pC .sp { position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px; background: #ffd34d; box-shadow: 0 0 0 1px #000; opacity: 0; z-index: 3; }
+.pC .sp:nth-child(even) { background: #fff6c8; width: 4px; height: 4px; margin: -2px 0 0 -2px; }
+.play .pC .sp { animation: burst .6s steps(6, end) 1.0s forwards; }
+@keyframes burst { 0% { transform: translate(0, 0); opacity: 1; } 80% { opacity: 1; } 100% { transform: translate(var(--dx), var(--dy)); opacity: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .play *, .play *::before, .play *::after { animation: none !important; }
+}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <!-- 16x16 save-icon trophy, three frames -->
+    <g id="trA" class="pixel">
+      <rect x="1" y="3" width="2" height="1" fill="#c98a1c"/><rect x="1" y="3" width="1" height="4" fill="#c98a1c"/><rect x="2" y="6" width="1" height="1" fill="#c98a1c"/>
+      <rect x="13" y="3" width="2" height="1" fill="#a8710f"/><rect x="14" y="3" width="1" height="4" fill="#a8710f"/><rect x="13" y="6" width="1" height="1" fill="#a8710f"/>
+      <rect x="3" y="2" width="10" height="6" fill="#e8b23a"/><rect x="3" y="2" width="10" height="1" fill="#ffd66b"/>
+      <rect x="4" y="3" width="2" height="4" fill="#fff1b8"/><rect x="11" y="3" width="2" height="5" fill="#c98a1c"/>
+      <rect x="4" y="8" width="8" height="1" fill="#c98a1c"/><rect x="5" y="9" width="6" height="1" fill="#b07812"/>
+      <rect x="7" y="10" width="2" height="2" fill="#9c6a10"/><rect x="5" y="12" width="6" height="1" fill="#9c6a10"/><rect x="4" y="13" width="8" height="2" fill="#7a520b"/>
+    </g>
+    <g id="trB" class="pixel">
+      <rect x="3" y="3" width="1" height="4" fill="#c98a1c"/>
+      <rect x="12" y="3" width="2" height="1" fill="#a8710f"/><rect x="13" y="3" width="1" height="4" fill="#a8710f"/><rect x="12" y="6" width="1" height="1" fill="#a8710f"/>
+      <rect x="4" y="2" width="8" height="6" fill="#e8b23a"/><rect x="4" y="2" width="8" height="1" fill="#ffd66b"/>
+      <rect x="5" y="3" width="1" height="4" fill="#fff1b8"/><rect x="10" y="3" width="2" height="5" fill="#c98a1c"/>
+      <rect x="5" y="8" width="6" height="1" fill="#c98a1c"/><rect x="6" y="9" width="4" height="1" fill="#b07812"/>
+      <rect x="7" y="10" width="2" height="2" fill="#9c6a10"/><rect x="5" y="12" width="6" height="1" fill="#9c6a10"/><rect x="5" y="13" width="7" height="2" fill="#7a520b"/>
+    </g>
+    <g id="trC" class="pixel">
+      <rect x="10" y="3" width="2" height="1" fill="#a8710f"/><rect x="11" y="3" width="1" height="4" fill="#a8710f"/><rect x="10" y="6" width="1" height="1" fill="#a8710f"/>
+      <rect x="6" y="2" width="4" height="6" fill="#e8b23a"/><rect x="6" y="2" width="4" height="1" fill="#ffd66b"/>
+      <rect x="6" y="3" width="1" height="4" fill="#fff1b8"/><rect x="9" y="3" width="1" height="5" fill="#c98a1c"/>
+      <rect x="6" y="8" width="4" height="1" fill="#c98a1c"/><rect x="7" y="9" width="2" height="1" fill="#b07812"/>
+      <rect x="7" y="10" width="2" height="2" fill="#9c6a10"/><rect x="6" y="12" width="4" height="1" fill="#9c6a10"/><rect x="6" y="13" width="4" height="2" fill="#7a520b"/>
+    </g>
+    <!-- 16x16 crown -->
+    <g id="crown" class="pixel">
+      <rect x="2" y="4" width="2" height="2" fill="#fff1b8"/><rect x="7" y="2" width="2" height="2" fill="#fff1b8"/><rect x="12" y="4" width="2" height="2" fill="#fff1b8"/>
+      <rect x="2" y="6" width="2" height="5" fill="#e8b23a"/><rect x="7" y="4" width="2" height="7" fill="#ffd66b"/><rect x="12" y="6" width="2" height="5" fill="#c98a1c"/>
+      <rect x="4" y="8" width="3" height="3" fill="#e8b23a"/><rect x="9" y="8" width="3" height="3" fill="#c98a1c"/>
+      <rect x="2" y="11" width="12" height="3" fill="#e8b23a"/><rect x="2" y="11" width="12" height="1" fill="#ffd66b"/><rect x="2" y="13" width="12" height="1" fill="#9c6a10"/>
+      <rect x="7" y="12" width="2" height="1" fill="#d9363e"/><rect x="4" y="12" width="1" height="1" fill="#3fa7ff"/><rect x="11" y="12" width="1" height="1" fill="#3fa7ff"/>
+    </g>
+  </defs>
+</svg>
+
+<div class="wrap">
+  <header>
+    <h1>Achievement unlock toasts, round 3</h1>
+    <p>This round upgrades your picks: Save Block (6), Disc Read (7) and Broadcast (8). It adds a heavily PS1-styled unlock and four set-complete animations, one in each style. Round 1 and round 2 are in this page's version history.</p>
+    <p>All of them play over a 640 × 480 game picture (the size WiiStation draws on the TV), with the title-safe area dashed. They slide, wipe and step. Nothing bounces or squashes. The names are examples.</p>
+    <div class="bar"><button id="playAll" type="button">Play all</button></div>
+  </header>
+
+  <h2 class="group">Unlock <small>one per achievement</small></h2>
+
+  <!-- 6+ Save Block -->
+  <section class="mock" aria-labelledby="h6">
+    <div class="tv" id="tv6" data-dur="5000"><div class="screen rest">
+      <div class="scene sky"><div class="hill"></div><div class="tower"></div><div class="hero"></div><i class="gem" style="left:180px;bottom:96px"></i><i class="gem" style="left:520px;bottom:110px"></i></div>
+      <div class="sb u6" role="status">
+        <div class="face">
+          <div class="pix dither"><svg viewBox="0 0 16 16" aria-hidden="true"><use class="fA" href="#trA"/><use class="fB" href="#trB"/><use class="fC" href="#trC"/>
+            <rect class="s1 pixel" x="15" y="0" width="1" height="1" fill="#fff"/><rect class="s2 pixel" x="0" y="1" width="1" height="1" fill="#fff"/><rect class="s3 pixel" x="9" y="4" width="1" height="1" fill="#fff"/></svg></div>
+          <div>
+            <div class="head"><span class="t-kicker">Achievement unlocked</span><span class="t-pts">+10</span></div>
+            <div class="t-title">Egg Hunter</div><div class="t-desc">Find 10 dragon eggs</div>
+          </div>
+          <div class="foot"><span class="t-mono">BLOCK <span class="cnt-e" style="--e:12"></span>/40</span><div class="seg"><i></i><b></b></div><span class="t-mono cnt-t"></span></div>
+        </div>
+        <div class="sheen"></div>
+      </div>
+      <div class="safe"></div>
+    </div></div>
+    <div class="notes">
+      <span class="tag">6 · upgraded</span><h2 id="h6">Save Block II</h2>
+      <p>It plays like a PS1 save:</p>
+      <ul>
+        <li>The icon is a 16 × 16 save icon with three frames (front, turned, side). It turns the way PS1 memory-card icons do.</li>
+        <li>The blue is made of bands with a 2 × 2 dither on top, the way 15-bit PS1 colour shows a gradient.</li>
+        <li>The count reads like a card block ("BLOCK 12/40"). The new block flashes twice and the total points step up.</li>
+      </ul>
+      <dl><dt>Where</dt><dd>Top right</dd><dt>Timing</dt><dd>0.35 s in, 4.1 s hold, 0.55 s out</dd><dt>On the Wii</dt><dd>Three 16 × 16 textures drawn with nearest-neighbor filtering; the dither is one repeating 2 × 2 texture.</dd></dl>
+      <div class="bar"><button class="ghost" type="button" data-play="tv6">Play</button></div>
+    </div>
+  </section>
+
+  <!-- 7+ Disc Read -->
+  <section class="mock" aria-labelledby="h7">
+    <div class="tv" id="tv7" data-dur="5400"><div class="screen rest">
+      <div class="scene night"><div class="hill"></div><div class="tower"></div><div class="hero"></div><i class="gem" style="left:520px;bottom:110px"></i>
+        <i class="star" style="left:90px;top:60px"></i><i class="star" style="left:210px;top:110px"></i><i class="star" style="left:350px;top:40px"></i><i class="star" style="left:560px;top:90px"></i></div>
+      <div class="dr u7" role="status"><div class="disc"><i class="mark"></i></div><span class="spd"><i>SPIN UP</i></span>
+        <div class="panel"><div class="readwrap"><div class="read">
+          <div class="row"><span class="t-mono">ACH 08 / 40 · 2X</span><span class="t-pts cnt-p"></span></div>
+          <div class="t-title">Skate Champion</div><div class="t-desc">Beat Hunter’s best score</div>
+        </div><i class="laser"></i></div></div>
+      </div>
+      <div class="safe"></div>
+    </div></div>
+    <div class="notes">
+      <span class="tag">7 · upgraded</span><h2 id="h7">Disc Read II</h2>
+      <p>The disc slides in at rest, then spins up the way a PS1 drive does: slow at first, faster and faster, with "SPIN UP" blinking beside it. At full speed the motion blurs, the panel opens and the red laser reads the text in. To leave, it keeps the same speed and slides off the screen.</p>
+      <dl><dt>Where</dt><dd>Bottom left</dd><dt>Timing</dt><dd>0.35 s in, 1.2 s spin-up (constant acceleration), 0.65 s read, 2.5 s hold, 0.7 s out at full speed</dd><dt>On the Wii</dt><dd>The disc's angle is ½·a·t² during spin-up, then a constant step per frame; the blur is a second ring quad whose alpha rises with the speed.</dd></dl>
+      <div class="bar"><button class="ghost" type="button" data-play="tv7">Play</button></div>
+    </div>
+  </section>
+
+  <!-- 8+ Broadcast -->
+  <section class="mock" aria-labelledby="h8">
+    <div class="tv" id="tv8" data-dur="5400"><div class="screen rest">
+      <div class="scene sky"><div class="hill"></div><div class="tower"></div><div class="hero"></div><i class="gem" style="left:180px;bottom:96px"></i></div>
+      <div class="u8" role="status">
+        <div class="top t-mono"><span>SPYRO: YEAR OF THE DRAGON</span><b>ACHIEVEMENTS</b></div>
+        <div class="main">
+          <div class="lead"><svg viewBox="0 0 16 16" aria-hidden="true"><use href="#trA"/></svg>Unlocked</div>
+          <div class="body"><div class="grow"><div class="t-title">Bentley’s Debut</div><div class="t-desc">Win the first boxing match</div></div>
+            <div class="ptbox"><span class="cnt-p"></span></div>
+            <div class="tally"><div class="t-mono"><span><span class="cnt-e" style="--e:12"></span> / 40 earned</span><span>30%</span></div><div class="seg"><i></i><b></b></div></div>
+            <i class="glint"></i></div>
+        </div>
+      </div>
+      <div class="safe"></div>
+    </div></div>
+    <div class="notes">
+      <span class="tag">8 · upgraded</span><h2 id="h8">Broadcast II</h2>
+      <p>It now has two tiers, like a sports graphic. The steps are:</p>
+      <ul>
+        <li>The gold tab arrives first, with the same save icon as 6. Then the strip wipes out from behind it.</li>
+        <li>A thin top tier wipes up with the game's name.</li>
+        <li>The points box counts up, and a glint runs along the gold line.</li>
+        <li>The earned count goes up and the new block flashes.</li>
+      </ul>
+      <p>It leaves in the reverse order.</p>
+      <dl><dt>Where</dt><dd>Bottom, title-safe width</dd><dt>Timing</dt><dd>0.3 s tab, 0.5 s wipe, 0.25 s top tier, 3.5 s hold, 0.9 s out in steps</dd><dt>On the Wii</dt><dd>Flat quads, one icon texture and text; each step is its own scissor rectangle.</dd></dl>
+      <div class="bar"><button class="ghost" type="button" data-play="tv8">Play</button></div>
+    </div>
+  </section>
+
+  <!-- P PS1 -->
+  <section class="mock ps" aria-labelledby="hP">
+    <div class="tv" id="tvP" data-dur="5200"><div class="screen rest">
+      <div class="scene night"><div class="hill"></div><div class="tower"></div><div class="hero"></div><i class="gem" style="left:180px;bottom:96px"></i>
+        <i class="star" style="left:130px;top:200px"></i><i class="star" style="left:300px;top:180px"></i><i class="star" style="left:570px;top:160px"></i></div>
+      <div class="psx pP" role="status">
+        <div class="vp dither"><div class="poly"><svg viewBox="0 0 100 100" aria-hidden="true">
+          <polygon class="pt" style="--i:0" points="24,14 76,14 26,18" fill="#fff1b8"/><polygon class="pt" style="--i:1" points="76,14 74,18 26,18" fill="#e8b23a"/>
+          <polygon class="pt" style="--i:2" points="26,18 38,18 38,56" fill="#b97f14"/><polygon class="pt" style="--i:3" points="38,18 44,56 38,56" fill="#a8710f"/>
+          <polygon class="pt" style="--i:4" points="38,18 50,18 44,56" fill="#f2c14e"/><polygon class="pt" style="--i:5" points="50,18 50,56 44,56" fill="#e8b23a"/>
+          <polygon class="pt" style="--i:6" points="50,18 62,18 50,56" fill="#ffe08a"/><polygon class="pt" style="--i:7" points="62,18 56,56 50,56" fill="#f7d36a"/>
+          <polygon class="pt" style="--i:8" points="62,18 74,18 62,56" fill="#c98a1c"/><polygon class="pt" style="--i:9" points="62,18 62,56 56,56" fill="#b07812"/>
+          <polygon class="pt" style="--i:10" points="26,22 10,26 30,42" fill="#c98a1c"/><polygon class="pt" style="--i:11" points="74,22 90,26 70,42" fill="#a8710f"/>
+          <polygon class="pt" style="--i:12" points="46,56 54,56 46,72" fill="#b97f14"/><polygon class="pt" style="--i:13" points="54,56 54,72 46,72" fill="#e8b23a"/>
+          <polygon class="pt" style="--i:14" points="32,72 68,72 28,86" fill="#9c6a10"/><polygon class="pt" style="--i:15" points="68,72 72,86 28,86" fill="#7a520b"/>
+        </svg></div></div>
+        <div class="txt">
+          <div class="big" aria-label="Achievement get!"><span style="--i:0">A</span><span style="--i:1">c</span><span style="--i:2">h</span><span style="--i:3">i</span><span style="--i:4">e</span><span style="--i:5">v</span><span style="--i:6">e</span><span style="--i:7">m</span><span style="--i:8">e</span><span style="--i:9">n</span><span style="--i:10">t</span>&nbsp;<span style="--i:11">g</span><span style="--i:12">e</span><span style="--i:13">t</span><span style="--i:14">!</span></div>
+          <div class="t-title">Year of the Dragon</div>
+          <div class="t-desc">Defeat the Sorceress</div>
+          <div class="bot"><span class="t-pts">50 PTS</span><span class="tri">▶</span></div>
+        </div>
+      </div>
+      <div class="safe"></div>
+    </div></div>
+    <div class="notes">
+      <span class="tag">P · new, heavily PS1</span><h2 id="hP">Polygon</h2>
+      <p>A PS1 game's "item get" screen:</p>
+      <ul>
+        <li>The box opens from a line in four chunky steps and flashes white, like a BIOS screen.</li>
+        <li>A low-poly trophy is drawn one flat-shaded triangle at a time, like geometry popping in. It then turns in coarse steps, and its vertices jitter by a pixel (no sub-pixel precision).</li>
+        <li>The banded gold letters drop in one at a time, with hard black shadows, and a ▶ prompt blinks.</li>
+        <li>It leaves like an old TV turning off: it collapses to a line, then to nothing.</li>
+      </ul>
+      <dl><dt>Where</dt><dd>Top centre</dd><dt>Timing</dt><dd>0.3 s open, 0.7 s build, 3.5 s hold, 0.5 s TV-off</dd><dt>On the Wii</dt><dd>16 flat triangles through GX with a rotation matrix rounded to whole steps; the letters are the menu font with a gradient texture. It is the biggest of the four, so use it for rare unlocks only, or as a "PS1" theme choice.</dd></dl>
+      <div class="bar"><button class="ghost" type="button" data-play="tvP">Play</button></div>
+    </div>
+  </section>
+
+  <h2 class="group">Set complete <small>once per game, after the last unlock</small></h2>
+
+  <!-- C1 Roll-up -->
+  <section class="mock" aria-labelledby="hC1">
+    <div class="tv" id="tvC1" data-dur="5800"><div class="screen rest">
+      <div class="scene sky"><div class="hill"></div><div class="tower"></div><div class="hero"></div><i class="gem" style="left:520px;bottom:110px"></i></div>
+      <div class="c1" role="status">
+        <div class="lead"><div class="roll"><div>Final achieve&shy;ment</div><div>Set complete</div></div></div>
+        <div class="body">
+          <div class="lines"><div class="roll">
+            <div><div class="t-title">Year of the Dragon</div><div class="t-desc">Defeat the Sorceress · <span class="t-pts">50 pts</span></div></div>
+            <div><div class="t-title">Spyro 3 mastered</div><div class="t-desc">All 40 achievements · <span class="t-pts cnt-t"></span></div></div>
+          </div></div>
+          <div class="tally"><div class="t-mono"><span><span class="cnt-e" style="--e:40"></span> / 40 earned</span><span>100%</span></div><div class="seg"><i></i><u></u></div></div>
+        </div>
+      </div>
+      <div class="safe"></div>
+    </div></div>
+    <div class="notes">
+      <span class="tag">C1 · Broadcast style · 10 upgraded</span><h2 id="hC1">Roll-up</h2>
+      <p>The round-2 completion you liked, with more build-up before the roll:</p>
+      <ul>
+        <li>The last block fills.</li>
+        <li>A light runs along all 40 blocks, one block at a time.</li>
+        <li>The full bar flashes gold twice.</li>
+        <li>The tab and the text roll up to the mastery line, and the set's points total counts up.</li>
+      </ul>
+      <dl><dt>Where</dt><dd>Full width, bottom</dd><dt>Timing</dt><dd>0.65 s in, 1.4 s unlock, 0.7 s sweep, 0.5 s flash, 0.35 s roll, 2.1 s mastery, 0.65 s out</dd></dl>
+      <div class="bar"><button class="ghost" type="button" data-play="tvC1">Play</button></div>
+    </div>
+  </section>
+
+  <!-- C2 Gold Card -->
+  <section class="mock" aria-labelledby="hC2">
+    <div class="tv" id="tvC2" data-dur="5800"><div class="screen rest">
+      <div class="scene sky"><div class="hill"></div><div class="tower"></div><div class="hero"></div><i class="gem" style="left:180px;bottom:96px"></i><i class="gem" style="left:520px;bottom:110px"></i></div>
+      <div class="sb c2" role="status">
+        <div class="gold dither"></div>
+        <div class="face f1">
+          <div class="pix dither"><svg viewBox="0 0 16 16" aria-hidden="true"><use class="fA" href="#trA"/><use class="fB" href="#trB"/><use class="fC" href="#trC"/></svg></div>
+          <div><div class="head"><span class="t-kicker">Achievement unlocked</span><span class="t-pts">+50</span></div>
+            <div class="t-title">Year of the Dragon</div><div class="t-desc">Defeat the Sorceress</div></div>
+          <div class="foot"><span class="t-mono">BLOCK <span class="cnt-e" style="--e:40"></span>/40</span><div class="seg"><i></i><b></b></div><span class="t-mono">350 pts</span></div>
+        </div>
+        <div class="face f2">
+          <div class="pix"><svg viewBox="0 0 16 16" aria-hidden="true"><use href="#crown"/>
+            <rect class="s1 pixel" x="15" y="0" width="1" height="1" fill="#fff"/><rect class="s2 pixel" x="0" y="2" width="1" height="1" fill="#fff"/><rect class="s3 pixel" x="10" y="1" width="1" height="1" fill="#fff"/></svg></div>
+          <div><div class="head"><span class="t-kicker">Set complete</span><span class="t-mono">40/40</span></div>
+            <div class="t-title">Spyro 3 mastered</div><div class="t-desc">Every achievement earned</div></div>
+          <div class="foot"><span class="t-mono">MEMORY CARD FULL</span><div class="seg"><i></i></div><span class="t-mono cnt-t"></span></div>
+        </div>
+        <div class="sheen"></div>
+      </div>
+      <div class="safe"></div>
+    </div></div>
+    <div class="notes">
+      <span class="tag">C2 · Save Block style</span><h2 id="hC2">Gold Card</h2>
+      <p>The Save Block arrives with the last unlock and its 40th block flashes. Then the card changes palette from blue to gold in eight bands, top to bottom, like a PS1 colour-table swap. The trophy becomes a pixel crown and the text changes to "Set complete". The foot reads "MEMORY CARD FULL", and a sheen crosses the gold.</p>
+      <dl><dt>Where</dt><dd>Top right</dd><dt>Timing</dt><dd>0.35 s in, 1.7 s unlock, 0.7 s gold swap, 2.4 s hold, 0.6 s out</dd></dl>
+      <div class="bar"><button class="ghost" type="button" data-play="tvC2">Play</button></div>
+    </div>
+  </section>
+
+  <!-- C3 Gold Disc -->
+  <section class="mock" aria-labelledby="hC3">
+    <div class="tv" id="tvC3" data-dur="5400"><div class="screen rest">
+      <div class="scene night"><div class="hill"></div><div class="tower"></div><div class="hero"></div><i class="gem" style="left:520px;bottom:110px"></i>
+        <i class="star" style="left:90px;top:60px"></i><i class="star" style="left:350px;top:40px"></i><i class="star" style="left:560px;top:90px"></i></div>
+      <div class="dr c3" role="status"><div class="disc"><i class="goldface"></i><i class="mark"></i></div><span class="spd"><i>SPIN UP</i></span>
+        <div class="panel"><div class="readwrap"><div class="read">
+          <div class="row"><span class="t-mono">SET COMPLETE · 40 / 40</span><span class="t-pts cnt-p"></span></div>
+          <div class="t-title">Spyro 3 mastered</div><div class="t-desc">Every achievement earned</div>
+        </div><i class="laser"></i></div></div>
+      </div>
+      <div class="safe"></div>
+    </div></div>
+    <div class="notes">
+      <span class="tag">C3 · Disc Read style</span><h2 id="hC3">Gold Disc</h2>
+      <p>This is Disc Read II, but as the laser reads "Spyro 3 mastered", the disc changes to gold in four steps. The set's total counts up to +400, and the gold disc leaves at full speed.</p>
+      <dl><dt>Where</dt><dd>Bottom left</dd><dt>Timing</dt><dd>The same as Disc Read II</dd></dl>
+      <div class="bar"><button class="ghost" type="button" data-play="tvC3">Play</button></div>
+    </div>
+  </section>
+
+  <!-- C4 PS1 COMPLETE -->
+  <section class="mock ps" aria-labelledby="hC4">
+    <div class="tv" id="tvC4" data-dur="5800"><div class="screen rest">
+      <div class="scene sky"><div class="hill"></div><div class="tower"></div><div class="hero"></div><i class="gem" style="left:180px;bottom:96px"></i></div>
+      <div class="psx pC" role="status">
+        <div class="vp dither">
+          <div class="poly"><svg viewBox="0 0 100 100" aria-hidden="true">
+            <polygon class="pt" style="--i:0" points="22,62 78,62 22,78" fill="#e8b23a"/><polygon class="pt" style="--i:1" points="78,62 78,78 22,78" fill="#c98a1c"/>
+            <polygon class="pt" style="--i:2" points="20,30 40,62 22,62" fill="#ffd66b"/><polygon class="pt" style="--i:3" points="20,30 40,62 30,62" fill="#e8b23a"/>
+            <polygon class="pt" style="--i:4" points="50,20 36,62 50,62" fill="#fff1b8"/><polygon class="pt" style="--i:5" points="50,20 64,62 50,62" fill="#f2c14e"/>
+            <polygon class="pt" style="--i:6" points="80,30 60,62 78,62" fill="#c98a1c"/><polygon class="pt" style="--i:7" points="80,30 60,62 70,62" fill="#b07812"/>
+            <polygon class="pt" style="--i:8" points="50,64 57,70 43,70" fill="#ff5a6a"/><polygon class="pt" style="--i:9" points="43,70 57,70 50,76" fill="#c22a3a"/>
+            <polygon class="pt" style="--i:10" points="30,66 34,70 26,70" fill="#5fb8ff"/><polygon class="pt" style="--i:11" points="70,66 74,70 66,70" fill="#5fb8ff"/>
+          </svg></div>
+          <i class="sp" style="--dx:-70px;--dy:-60px"></i><i class="sp" style="--dx:-10px;--dy:-80px"></i><i class="sp" style="--dx:60px;--dy:-64px"></i><i class="sp" style="--dx:84px;--dy:-6px"></i>
+          <i class="sp" style="--dx:62px;--dy:58px"></i><i class="sp" style="--dx:4px;--dy:80px"></i><i class="sp" style="--dx:-62px;--dy:60px"></i><i class="sp" style="--dx:-86px;--dy:4px"></i>
+        </div>
+        <div class="txt">
+          <div class="big" aria-label="Complete!"><span style="--i:0">C</span><span style="--i:1">O</span><span style="--i:2">M</span><span style="--i:3">P</span><span style="--i:4">L</span><span style="--i:5">E</span><span style="--i:6">T</span><span style="--i:7">E</span><span style="--i:8">!</span></div>
+          <div class="t-title">Spyro: Year of the Dragon</div>
+          <div class="t-desc">All 40 achievements</div>
+          <div class="bot"><span class="t-pts">400 PTS</span><span class="tri">▶</span></div>
+        </div>
+      </div>
+      <div class="safe"></div>
+    </div></div>
+    <div class="notes">
+      <span class="tag">C4 · Polygon style, heavily PS1</span><h2 id="hC4">COMPLETE!</h2>
+      <p>The Polygon unlock, made bigger. A low-poly crown is built triangle by triangle. Square sprites burst out of it in six steps, with no smooth motion, like a PS1 particle effect. Large banded letters drop in one at a time. It leaves like an old TV turning off.</p>
+      <dl><dt>Where</dt><dd>Centre (once per game, so it may cover the action)</dd><dt>Timing</dt><dd>0.35 s open, 0.6 s build, 0.6 s burst, 3.6 s hold, 0.5 s TV-off</dd></dl>
+      <div class="bar"><button class="ghost" type="button" data-play="tvC4">Play</button></div>
+    </div>
+  </section>
+
+  <footer>
+    <p>They can be mixed. One unlock style and one completion style could be chosen separately in the Cheevos page, for example Save Block II for unlocks and Gold Card for completion. All of them are drawn with WiiStation's own GX code after the game's picture. A second unlock waits until the first has finished.</p>
+  </footer>
+</div>
+
+<script>
+(function () {
+  function fit(tv) { tv.querySelector('.screen').style.setProperty('--s', tv.clientWidth / 640); }
+  function play(id) {
+    var tv = document.getElementById(id), screen = tv.querySelector('.screen');
+    screen.classList.remove('rest', 'play');
+    void screen.offsetWidth;            // restart the animations
+    screen.classList.add('play');
+    clearTimeout(screen._t);
+    screen._t = setTimeout(function () { screen.classList.remove('play'); screen.classList.add('rest'); }, (+tv.dataset.dur || 5000) + 400);
+  }
+  var tvs = Array.prototype.slice.call(document.querySelectorAll('.tv'));
+  tvs.forEach(fit);
+  window.addEventListener('resize', function () { tvs.forEach(fit); });
+  document.querySelectorAll('[data-play]').forEach(function (b) { b.addEventListener('click', function () { play(b.getAttribute('data-play')); }); });
+  document.getElementById('playAll').addEventListener('click', function () { tvs.forEach(function (tv, i) { setTimeout(function () { play(tv.id); }, i * 250); }); });
+})();
+</script>
