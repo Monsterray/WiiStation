@@ -65,8 +65,10 @@ SOURCES		:=	../lang ../fonts \
                 ../GlesGpu/ ../gpulib/ ../SoftGPU/ \
 				./libgui/gui2 ../dfsound/ ./vm ../ppc
 
-# Pinned rcheevos C runtime; no client/network stack in the local engine.
+# Pinned rcheevos: the runtime for the local engine; the client, its API and the PS1 hash for
+# Official mode (achievements_official.c; the HTTPS transport is Gamecube/ra_transport.c).
 SOURCES += ../deps/rcheevos/src/runtime ../deps/rcheevos/src/util
+SOURCES += ../deps/rcheevos/src/client ../deps/rcheevos/src/api ../deps/rcheevos/src/hash
 
 DATA		:=	data
 
@@ -230,6 +232,8 @@ else
 # rcheevos supports floating-point operands: preserve NaN/Inf semantics even
 # though the emulator uses -Ofast. Keep LTO from inheriting the core's fast-math.
 $(filter rc_%.o md5.o achievements.o,$(OFILES)): CFLAGS += -fno-fast-math -fno-lto
+# rc_client with the PS1 disc hash only (no cartridge ROMs, zips or encrypted images)
+$(filter rc_%.o aes.o achievements_official.o ra_transport.o,$(OFILES)): CFLAGS += -DRC_CLIENT_SUPPORTS_HASH -DRC_HASH_NO_ROM -DRC_HASH_NO_ZIP -DRC_HASH_NO_ENCRYPTED
 
 DEPENDS	:=	$(OFILES:.o=.d)
 
