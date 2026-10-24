@@ -6,6 +6,21 @@ without doing the investigation a second time.
 
 ---
 
+## CTR after Spyro in one Official chain: Lightrec hangs or crashes in the race -- OPEN 2026-10-24
+
+`scripts/chains/ach_official_bench.txt` (Spyro 2400 vblanks, then CTR's recorded Tiger Temple race,
+Achievements=3, spectator) on the bench Wii. Spyro is fine and CTR's set loads (117 achievements,
+58 boards, achdump at CTR vblank 1500), then:
+- 30d2dd2c: hang, main thread in GNU Lightning's `_jit_optimize` (from `jq_compile_now`) at CTR
+  vblank 3717; an earlier build hung at 1265 with the compile thread in `_jit_realize`.
+- 3cf3dcf6 (rcheevos and TLS in MEM2; MEM1 free after Spyro 416 -> 772 KB): DSI in Lightrec
+  code (pc 80b01690, dar 0844c780, lr in lightrec_execute) at CTR vblank 4204.
+CTR alone finishes the same race (tt_spots_with/without, 2026-10-24), and a 3000-vblank CTR after
+Spyro passes. In Dolphin the same chain shows wild memsets (pointers holding text) while CTR loads,
+in some builds only. Suspects: what the chain carries from Spyro to CTR in Lightrec (the kept state,
+jitq), and MEM1 left for Lightning. Next: the same chain with Achievements=0 on the Wii (separates
+Official from the chain), then JitDelay=0 / no jitq.
+
 ## 5.17.0 debug build: start-up stalls in the first SD init on the bench Wii -- FIXED 2026-10-24
 
 **Symptom.** The debug build of eb50ad7a and later never reaches its first log line on the
