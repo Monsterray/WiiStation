@@ -123,6 +123,12 @@ found something drawn over the read pixels since the last sync in all but 2.
 rain stretches run at 17.2 ms a vblank on the bench Wii (debug build, budget 16.7): the rain
 adds ~2 ms of render-mode time and ~3 ms of GPU work a vblank, most of it out of limiter slack.
 Captures cost 3.5 s a race, of which DrawDone 2.8 s (`efbminitime:`).
+**The scaled-merge rewrite (99e58363), measured 2026-10-24** on the bench Wii: one race each,
+`debug deep`, main with and without the commit (`.runs/tt_spots_with`, `tt_spots_without`,
+chain `tiger_temple_diag.txt`, `perf_windows.py --slow 11717-11764,14037-14097`). Vblanks
+14037-14097: 31.9 -> 27.3 ms a vblank (render mode 11.2 -> 7.4 ms); 11717-11764: 20.6 -> 20.5
+(no change: that spot is not the merge). Whole race: load 72.5% -> 70.5%, GPU 23.4% -> 20.9%,
+speed 0.98x both. Both spots are still over 16.7 ms.
 **Plan (needs the bench Wii to measure; Dolphin does not model DrawDone or copy cost).** A
 GPU-only path for a 15-bit read wholly inside live: `GX_CopyTex` the rect to a small texture,
 `GX_PixModeSync()` (libogc gx.h: "after using GX_CopyTex() and before a primitive that uses
