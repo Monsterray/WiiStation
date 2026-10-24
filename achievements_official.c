@@ -2,8 +2,8 @@
  * and "Design rules for Official mode"). Wii only; Casual only.
  *
  * The flow, all on the emulator thread (rule 3):
- *   achievements_official_load()  -- game load: log in once (ra_account.ini), then identify
- *                                    the disc by its PS1 hash and load its set
+ *   achievements_official_load()  -- game load: the disc's PS1 hash (read now, through the CD
+ *                                    plugin), log in once (ra_account.ini), then load the set
  *   achievements_official_frame() -- every emulated frame: rc_client evaluates, completions run
  *   achievements_official_idle()  -- menu and pause: completions, rc_client_idle
  *   event()                       -- an unlock: the toast, with the server's rarity
@@ -14,20 +14,23 @@
 #include "achievements.h"
 #include "deps/rcheevos/include/rc_client.h"
 #include "deps/rcheevos/include/rc_consoles.h"
+#include "deps/rcheevos/include/rc_hash.h"
+#include "psxcommon.h"
+#include "plugins.h"
 #include "Gamecube/ra_transport.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
 
-extern void SysPrintf(const char *fmt, ...);
+/* SysPrintf: psxcommon.h */
 
 #define ACCOUNT_FILE "sd:/wiistation/achievements/ra_account.ini"
 #define ACCOUNT_TEMP ACCOUNT_FILE ".new"
 
 static rc_client_t *client;
 static int logged_in, login_busy, game_loaded, beaten_seen, mastered_seen;
-static char pending_image[256];   /* the image to identify once the login is done */
+static char game_hash[33];   /* the loaded disc's PS1 hash, to load once the login is done */
 
 /* ---- the account file ---- */
 
@@ -166,7 +169,56 @@ static void event(const rc_client_event_t *e, rc_client_t *c)
 	}
 }
 
-/* ---- identification and login ---- */
+/* ---- the disc reader for the PS1 hash ----
+ *
+ * rc_hash reads ISO9660 sectors of the first data track. They come from WiiStation's own CD
+ * plugin, as the HLE fast boot reads them (misc.c), so every format WiiStation boots hashes the
+ * same way: BIN/CUE, ISO, IMG/CCD, MDF/MDS, TOC, CBN, CHD and PBP (the disc chosen in it).
+ * At game load only, before the game runs: the reads move the plugin's position as
+ * LoadCdrom's did, and the game seeks before it reads (Docs/ACHIEVEMENTS.md rule 2 asks for a
+ * separate handle for a hash made while the game runs: a disc swap). */
+
+static void *hash_open_track(const char *path, uint32_t track)
+{
+	(void)path;   /* always the loaded image */
+	return track == 1 || track == RC_HASH_CDTRACK_FIRST_DATA ? (void *)1 : NULL;
+}
+
+static size_t hash_read_sector(void *track, uint32_t sector, void *buffer, size_t size)
+{
+	unsigned char time[3], *buf;
+	uint32_t lba = sector + 150;   /* sector 0 is 00:02:00 */
+	(void)track;
+	time[0] = (unsigned char)(((lba / 4500) / 10) << 4 | (lba / 4500) % 10);   /* BCD, as CDR_readTrack takes */
+	time[1] = (unsigned char)(((lba / 75 % 60) / 10) << 4 | (lba / 75 % 60) % 10);
+	time[2] = (unsigned char)(((lba % 75) / 10) << 4 | (lba % 75) % 10);
+	if (CDR_readTrack(time) == 0 || !(buf = CDR_getBuffer()))
+		return 0;
+	if (size > 2048) size = 2048;
+	memcpy(buffer, buf + 12, size);   /* the user data of a mode 2 form 1 sector */
+	return size;
+}
+
+static void hash_close_track(void *track) { (void)track; }
+static uint32_t hash_first_sector(void *track) { (void)track; return 0; }
+static void hash_error(const char *message) { SysPrintf("Achievements: hash: %s\n", message); }
+
+/* The PS1 hash of the loaded disc, into game_hash. 0 when it has no PS1 boot executable. */
+static int hash_disc(const char *image)
+{
+	static rc_hash_cdreader_t reader = { hash_open_track, hash_read_sector, hash_close_track, hash_first_sector, NULL };
+	rc_hash_init_custom_cdreader(&reader);
+	rc_hash_init_error_message_callback(hash_error);
+	game_hash[0] = 0;
+	if (!rc_hash_generate_from_file(game_hash, RC_CONSOLE_PLAYSTATION, image)) {
+		game_hash[0] = 0;
+		return 0;
+	}
+	SysPrintf("Achievements: disc hash %s\n", game_hash);   /* public: the set's identity */
+	return 1;
+}
+
+/* ---- loading the set, and the login ---- */
 
 static void game_loaded_cb(int result, const char *error, rc_client_t *c, void *data)
 {
@@ -186,11 +238,11 @@ static void game_loaded_cb(int result, const char *error, rc_client_t *c, void *
 	          (unsigned)s.num_unlocked_achievements, (unsigned)s.num_promoted_achievements);
 }
 
-static void identify(void)
+static void load_set(void)
 {
-	if (!pending_image[0]) return;
-	rc_client_begin_identify_and_load_game(client, RC_CONSOLE_PLAYSTATION, pending_image, NULL, 0, game_loaded_cb, NULL);
-	pending_image[0] = 0;
+	if (!game_hash[0]) return;
+	rc_client_begin_load_game(client, game_hash, game_loaded_cb, NULL);
+	game_hash[0] = 0;
 }
 
 static void login_cb(int result, const char *error, rc_client_t *c, void *used_password)
@@ -201,7 +253,7 @@ static void login_cb(int result, const char *error, rc_client_t *c, void *used_p
 	if (result != RC_OK) {
 		SysPrintf("Achievements: login failed: %s\n",
 		          ra_transport_available() ? (error ? error : "unknown") : "this build has no secure connection yet");
-		pending_image[0] = 0;
+		game_hash[0] = 0;
 		return;
 	}
 	logged_in = 1;
@@ -209,7 +261,7 @@ static void login_cb(int result, const char *error, rc_client_t *c, void *used_p
 	SysPrintf("Achievements: logged in as %s\n", u && u->display_name ? u->display_name : "?");
 	if (used_password && u && u->username && u->token)
 		store_token(u->username, u->token);
-	identify();
+	load_set();
 }
 
 static void login(void)
@@ -218,7 +270,7 @@ static void login(void)
 	int is_token;
 	if (!read_account(user, sizeof user, secret, sizeof secret, &is_token)) {
 		SysPrintf("Achievements: no account; put User= and Password= in %s\n", ACCOUNT_FILE);
-		pending_image[0] = 0;
+		game_hash[0] = 0;
 		return;
 	}
 	login_busy = 1;
@@ -227,15 +279,6 @@ static void login(void)
 	else
 		rc_client_begin_login_with_password(client, user, secret, login_cb, (void *)1);
 	memset(secret, 0, sizeof secret);   /* rc_client keeps its own copy for the request */
-}
-
-/* The image formats the upstream PS1 hash reads by itself (rule 2): CHD and PBP need
- * WiiStation's own reader first */
-static int supported_image(const char *path)
-{
-	const char *ext = strrchr(path, '.');
-	return ext && (!strcasecmp(ext, ".cue") || !strcasecmp(ext, ".bin") || !strcasecmp(ext, ".iso") ||
-	               !strcasecmp(ext, ".img"));
 }
 
 /* ---- the engine's entry points (achievements.c) ---- */
@@ -252,14 +295,13 @@ int achievements_official_load(const char *image)
 		rc_client_set_hardcore_enabled(client, 0);   /* Casual only: Hardcore needs RA's approval */
 		rc_client_set_allow_background_memory_reads(client, 0);
 	}
-	if (!image || !supported_image(image)) {
-		SysPrintf("Achievements: Official mode reads BIN/CUE and ISO images so far, not %s\n",
-		          image && strrchr(image, '.') ? strrchr(image, '.') : "this image");
+	/* the hash now, while nothing else reads the disc; the set loads after the login */
+	if (!image || !hash_disc(image)) {
+		SysPrintf("Achievements: no PS1 boot executable on this disc; no RetroAchievements set\n");
 		return 0;
 	}
-	snprintf(pending_image, sizeof pending_image, "%s", image);
 	if (logged_in)
-		identify();
+		load_set();
 	else if (!login_busy)
 		login();
 	return 0;   /* the set arrives later, asynchronously */
@@ -284,7 +326,7 @@ void achievements_official_idle(void)
 void achievements_official_close(void)
 {
 	if (!client) return;
-	pending_image[0] = 0;
+	game_hash[0] = 0;
 	if (game_loaded) rc_client_unload_game(client);
 	game_loaded = 0;
 }

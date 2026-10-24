@@ -1,0 +1,62 @@
+CHAIN
+# Official mode on the bench Wii in every format on its card: hash, then the RetroAchievements set (Casual)
+600 sd:/wiistation/none.txt Achievements=3 FPS=0
+sd:/wiistation/isos/Frogger (USA)
+Frogger (USA).cue
+600 sd:/wiistation/none.txt Achievements=3 FPS=0
+sd:/wiistation/isos/Formats/Frogger (USA) [CBN]
+Frogger (USA).cbn
+600 sd:/wiistation/none.txt Achievements=3 FPS=0
+sd:/wiistation/isos/Formats/Frogger (USA) [CCD]
+Frogger (USA).ccd
+600 sd:/wiistation/none.txt Achievements=3 FPS=0
+sd:/wiistation/isos/Formats/Frogger (USA) [CHDDEF]
+Frogger (USA).chd
+600 sd:/wiistation/none.txt Achievements=3 FPS=0
+sd:/wiistation/isos/Formats/Frogger (USA) [CHDMAX32]
+Frogger (USA).chd
+600 sd:/wiistation/none.txt Achievements=3 FPS=0
+sd:/wiistation/isos/Formats/Frogger (USA) [CHDMAX8]
+Frogger (USA).chd
+600 sd:/wiistation/none.txt Achievements=3 FPS=0
+sd:/wiistation/isos/Formats/Frogger (USA) [CHDZS]
+Frogger (USA).chd
+600 sd:/wiistation/none.txt Achievements=3 FPS=0
+sd:/wiistation/isos/Formats/Frogger (USA) [CHD]
+Frogger (USA).chd
+600 sd:/wiistation/none.txt Achievements=3 FPS=0
+sd:/wiistation/isos/Formats/Frogger (USA) [CUE1]
+Frogger (USA).cue
+600 sd:/wiistation/none.txt Achievements=3 FPS=0
+sd:/wiistation/isos/Formats/Frogger (USA) [ISO]
+Frogger (USA).iso
+600 sd:/wiistation/none.txt Achievements=3 FPS=0
+sd:/wiistation/isos/Formats/Frogger (USA) [MDS]
+Frogger (USA).mds
+600 sd:/wiistation/none.txt Achievements=3 FPS=0
+sd:/wiistation/isos/Formats/Frogger (USA) [PBP0]
+Frogger (USA).pbp
+600 sd:/wiistation/none.txt Achievements=3 FPS=0
+sd:/wiistation/isos/Formats/Frogger (USA) [PBP10]
+Frogger (USA).pbp
+600 sd:/wiistation/none.txt Achievements=3 FPS=0
+sd:/wiistation/isos/Formats/Frogger (USA) [PBP9]
+Frogger (USA).pbp
+600 sd:/wiistation/none.txt Achievements=3 FPS=0
+sd:/wiistation/isos/Formats/Frogger (USA) [PBP]
+Frogger (USA).pbp
+600 sd:/wiistation/none.txt Achievements=3 FPS=0
+sd:/wiistation/isos/Formats/Frogger (USA) [TOC]
+Frogger (USA).toc
+600 sd:/wiistation/none.txt Achievements=3 FPS=0
+sd:/wiistation/isos/Formats/Medievil [CHD]
+Medievil [U] [SCUS-94227].chd
+600 sd:/wiistation/none.txt Achievements=3 FPS=0
+sd:/wiistation/isos/Formats/Medievil [PBP]
+Medievil [U] [SCUS-94227].pbp
+600 sd:/wiistation/none.txt Achievements=3 FPS=0
+sd:/wiistation/isos/Formats/Rayman (USA) [CHD]
+Rayman (USA).chd
+600 sd:/wiistation/none.txt Achievements=3 FPS=0
+sd:/wiistation/isos/Formats/Rayman (USA) [PBP]
+Rayman (USA).pbp

@@ -1,0 +1,62 @@
+CHAIN
+# Official mode's PS1 hash in every format WiiStation boots (scripts/chains/cd_audit.txt's 16 Frogger copies, Spyro 2 as CUE/PBP/TOC+RW, FF8's multi-disc PBP): one hash per game, the same for each copy. No account: nothing is sent.
+300 sd:/wiistation/none.txt Achievements=3 FPS=0
+sd:/wiistation/isos/Frogger (USA)
+Frogger (USA).cue
+300 sd:/wiistation/none.txt Achievements=3 FPS=0
+sd:/wiistation/isos/Formats/Frogger (USA) [CBN]
+Frogger (USA).cbn
+300 sd:/wiistation/none.txt Achievements=3 FPS=0
+sd:/wiistation/isos/Formats/Frogger (USA) [CCD]
+Frogger (USA).ccd
+300 sd:/wiistation/none.txt Achievements=3 FPS=0
+sd:/wiistation/isos/Formats/Frogger (USA) [CHDDEF]
+Frogger (USA).chd
+300 sd:/wiistation/none.txt Achievements=3 FPS=0
+sd:/wiistation/isos/Formats/Frogger (USA) [CHDMAX32]
+Frogger (USA).chd
+300 sd:/wiistation/none.txt Achievements=3 FPS=0
+sd:/wiistation/isos/Formats/Frogger (USA) [CHDMAX8]
+Frogger (USA).chd
+300 sd:/wiistation/none.txt Achievements=3 FPS=0
+sd:/wiistation/isos/Formats/Frogger (USA) [CHDZS]
+Frogger (USA).chd
+300 sd:/wiistation/none.txt Achievements=3 FPS=0
+sd:/wiistation/isos/Formats/Frogger (USA) [CHD]
+Frogger (USA).chd
+300 sd:/wiistation/none.txt Achievements=3 FPS=0
+sd:/wiistation/isos/Formats/Frogger (USA) [CUE1]
+Frogger (USA).cue
+300 sd:/wiistation/none.txt Achievements=3 FPS=0
+sd:/wiistation/isos/Formats/Frogger (USA) [ISO]
+Frogger (USA).iso
+300 sd:/wiistation/none.txt Achievements=3 FPS=0
+sd:/wiistation/isos/Formats/Frogger (USA) [MDS]
+Frogger (USA).mds
+300 sd:/wiistation/none.txt Achievements=3 FPS=0
+sd:/wiistation/isos/Formats/Frogger (USA) [PBP0]
+Frogger (USA).pbp
+300 sd:/wiistation/none.txt Achievements=3 FPS=0
+sd:/wiistation/isos/Formats/Frogger (USA) [PBP10]
+Frogger (USA).pbp
+300 sd:/wiistation/none.txt Achievements=3 FPS=0
+sd:/wiistation/isos/Formats/Frogger (USA) [PBP9]
+Frogger (USA).pbp
+300 sd:/wiistation/none.txt Achievements=3 FPS=0
+sd:/wiistation/isos/Formats/Frogger (USA) [PBP]
+Frogger (USA).pbp
+300 sd:/wiistation/none.txt Achievements=3 FPS=0
+sd:/wiistation/isos/Formats/Frogger (USA) [TOC]
+Frogger (USA).toc
+300 sd:/wiistation/none.txt Achievements=3 FPS=0
+sd:/wiistation/isos/Formats/Spyro the Dragon 2 - Ripto's Rage [CUE]
+Spyro the Dragon 2 - Ripto's Rage [CUE].cue
+300 sd:/wiistation/none.txt Achievements=3 FPS=0
+sd:/wiistation/isos/Formats/Spyro 2 [PBP]
+Spyro the Dragon 2 - Ripto's Rage [NTSC-U] [SCUS-94425].pbp
+300 sd:/wiistation/none.txt Achievements=3 FPS=0
+sd:/wiistation/isos/Formats/Spyro 2 [TOCRW]
+Spyro 2.toc
+300 sd:/wiistation/none.txt Achievements=3 FPS=0
+sd:/wiistation/isos/Formats/Final Fantasy VIII [PBP]
+Final Fantasy VIII.pbp
