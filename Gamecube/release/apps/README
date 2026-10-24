@@ -186,6 +186,11 @@ Ver 5.17.0 (2026-10-24):
   to another of its discs (Official: RetroAchievements checks the disc; local
   sets: Game=SLUS00892,SLUS00908 names every disc). Another game's disc turns
   achievements off until the next game load.
+* Start-up: if WiiStation ever hangs before its menu appears (a card that
+  does not answer, for one), it goes back to the Homebrew Channel by itself
+  after 90 s and leaves a report there, instead of freezing the Wii.
+* Lightrec: a code-cache clear near the top of PS1 RAM no longer writes past
+  its table.
 * ISO Info is a page of its own (Current ISO > ISO Info): file, label, ID,
   size, tracks, system, automatic fixes and achievements. A PS-X .exe says it
   gets no achievements (it has no disc to identify).
