@@ -24,7 +24,9 @@ void achievements_pause(void);
 void achievements_reset(void);
 void achievements_frame(void);
 void achievements_flush(void); /* outside Execute(): pending unlocks to the journal */
-void achievements_idle(void);  /* menu and pause, once per frame (Official mode) */
+void achievements_idle(void);
+int achievements_loading(void);               /* Official: the set is still on its way */
+void achievements_wait_loaded(unsigned ms);   /* poll until it is in, at most ms */  /* menu and pause, once per frame (Official mode) */
 void achievements_change_media(const char *image, const char *game_id);   /* a disc swap: the new disc open, its serial */
 const char *achievements_status(void);   /* one line for the menus: what achievements do for this game */
 uint32_t achievements_read_memory(uint32_t address, uint8_t *buffer, uint32_t size, void *unused);
@@ -67,7 +69,8 @@ enum {
     ACH_NOTICE_GAME,            /* a set loaded: game, earned, count, points (earned), total_points, desc (the mode) */
     ACH_NOTICE_PROGRESS,        /* measured progress moved on: title, badge, progress, percent */
     ACH_NOTICE_CHALLENGE_ON,    /* an achievement is one step away (primed): id, title, badge */
-    ACH_NOTICE_CHALLENGE_OFF    /* that is over: id */
+    ACH_NOTICE_CHALLENGE_OFF,   /* that is over: id */
+    ACH_NOTICE_WARNING          /* a notice about the set, not an achievement: title, desc (a black banner) */
 };
 
 /* One notice for the toast (Gamecube/ach_toast.c). Strings live until the set is closed. */

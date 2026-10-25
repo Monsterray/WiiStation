@@ -44,6 +44,8 @@ int achievements_official_load(const char *image) __attribute__((weak));
 void achievements_official_frame(void) __attribute__((weak));
 void achievements_official_idle(void) __attribute__((weak));
 void achievements_official_close(void) __attribute__((weak));
+int achievements_official_loading(void) __attribute__((weak));
+void achievements_official_wait(unsigned ms) __attribute__((weak));
 void achievements_official_change_media(const char *image) __attribute__((weak));
 const char *achievements_official_status(void) __attribute__((weak));
 unsigned achievements_official_count(void) __attribute__((weak));
@@ -378,6 +380,17 @@ void achievements_frame(void)
     PERF_MAX(achievement_max_ticks, elapsed);
     PERF_INC(achievement_frames);
 #endif
+}
+
+/* Official mode: the set is still loading (the menu waits for it before a game starts) */
+int achievements_loading(void)
+{
+    return achievementsEnabled == ACH_OFFICIAL && achievements_official_loading && achievements_official_loading();
+}
+
+void achievements_wait_loaded(unsigned ms)
+{
+    if (achievementsEnabled == ACH_OFFICIAL && achievements_official_wait) achievements_official_wait(ms);
 }
 
 /* The menu and the pause, once per frame: Official mode's completions and rc_client_idle */

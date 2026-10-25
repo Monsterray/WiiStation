@@ -1,0 +1,5 @@
+# the Hardcore warning's black banner, after the game card (Official mode)
+xfb 500
+xfb 650
+xfb 800
+xfb 1000

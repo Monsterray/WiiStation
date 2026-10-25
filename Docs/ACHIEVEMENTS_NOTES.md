@@ -308,6 +308,27 @@ The fixes are for the probe only. A product transport needs a real v3 socket lay
   configuration, library and source hashes, `results/probe.log` and `host-clock-window.json`.
 - The pinned r41-2 release build and the settings check also passed.
 
+## Official mode cost, 2026-10-24: the set loads before the game; rcheevos in MEM1
+
+Chain `scripts/chains/ach_cost_517.txt` (Spyro's attract demo twice, CTR's once, 3300 vblanks, off
+vs Official spectator), DOL: speed probes + `-DPERF_PROF_ACHIEVEMENTS=1`, bench Wii.
+
+| Build | Spyro load off -> Official | CTR | `achperf:` Spyro a frame (worst) | CTR a frame |
+|---|---|---|---|---|
+| set parsed in the game (`.runs/ach_cost517`, vsig on) | 53.5/52.6 -> 60.5/60.4 | 48.1 -> 52.5 | 1.23 ms (181 ms) | 0.65 ms (25 ms) |
+| set loaded before `go()`, rcheevos in MEM2 (`ach_pre_mem2`) | 32.7/31.8 -> 40.4/39.9 | 27.0 -> 31.8 | 1.14 ms (1.7 ms) | 0.59 ms (1.1 ms) |
+| set loaded before `go()`, rcheevos in MEM1 (`ach_pre_mem1`) | 32.7/31.7 -> 37.5/37.4 | 27.0 -> 30.4 | 0.74 ms (1.0 ms) | 0.34 ms (0.7 ms) |
+
+- **The start-up stall** was the set's JSON parse and build (181 ms), run by `ra_transport_poll()`
+  on the emulator thread when the answer came during the game. Now the menu logs in when it
+  opens, Load ISO hashes and asks for the set, Play Game waits for it ("Loading achievements...",
+  at most 8 s), and `go()` waits the same way for autoboot and chains (before `perf_reset()`).
+- **MEM2 made the per-frame walk of the set 1.5-1.7x slower.** rcheevos now allocates in MEM1 up
+  to 1 MB (`Gamecube/ws_rc_mem.c`), then MEM2; CTR's set takes about 350 KB of MEM1 (lowest MEM1
+  free 3056 vs 3400 KB).
+- RetroAchievements' "Warning: Unknown Emulator" (id 101000001) is triggered at once; it is
+  shown as a black card (`ACH_NOTICE_WARNING`, tier `T_BLACK`, no flash), not as an unlock.
+
 ## Official mode cost on the bench Wii
 
 2026-10-23, jobs `20261023-200046-90c477` and `20261023-200750-327614` (`.runs/ach_cost_official_hw/`).

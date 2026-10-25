@@ -94,6 +94,25 @@ static const char ACH_ICON_CROWN[16][17] = {
 	"................",
 	"................",
 };
+/* a notice that is not an achievement (the Hardcore warning): "!" in a ring, light grey */
+static const char ACH_ICON_WARN[16][17] = {
+	"................",
+	".....mmmmmm.....",
+	"...mm......mm...",
+	"..m....mm....m..",
+	".m.....mm.....m.",
+	".m.....mm.....m.",
+	"m......mm......m",
+	"m......mm......m",
+	"m......mm......m",
+	"m......mm......m",
+	".m.............m",
+	".m.....mm.....m.",
+	"..m....mm....m..",
+	"...mm......mm...",
+	".....mmmmmm.....",
+	"................",
+};
 static const char ACH_ICON_KEY[16][17] = {
 	"................",
 	"................",

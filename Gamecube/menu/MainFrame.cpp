@@ -31,6 +31,8 @@
 #include "../libgui/FocusManager.h"
 #include "../libgui/CursorManager.h"
 #include "../libgui/MessageBox.h"
+#include "../../achievements.h"
+#include <ogc/lwp_watchdog.h>
 #include "MenuGlue.h"
 #ifdef DEBUGON
 # include <debug.h>
@@ -336,6 +338,14 @@ void Func_PlayGame()
 	pause_netinit_thread();
 	pauseRemovalThread();
 #endif
+	if (achievements_loading()) {   /* Official: the set's parse, here and not in the game's first seconds */
+		u64 end = gettime() + millisecs_to_ticks(8000);
+		menu::MessageBox::getInstance().fadeMessage("Loading achievements...");
+		while (achievements_loading() && gettime() < end) {
+			achievements_idle();
+			menu::Gui::getInstance().draw();
+		}
+	}
 	resumeAudio();
 	resumeInput();
 	menuActive = 0;

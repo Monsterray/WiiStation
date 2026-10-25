@@ -1,0 +1,9 @@
+CHAIN
+# Official mode's two notices at a game's start: the game card, then the Hardcore warning as a black banner
+#   wii_lab.py ach_banner scripts/chains/ach_banner.txt --dol debug
+1200 sd:/wiistation/ach_banner_late.txt Achievements=3 AchievementSpectator=1 FPS=0
+sd:/wiistation/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue
+1200 sd:/wiistation/ach_banner_late.txt Achievements=3 AchievementSpectator=1 FPS=0
+sd:/wiistation/isos/Crash Team Racing
+Crash Team Racing [U] [SCUS-94426].cue

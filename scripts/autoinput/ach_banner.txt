@@ -1,0 +1,4 @@
+# Official mode: the game card, then the Hardcore warning's black banner (ach_cost_517.txt)
+xfb 60
+xfb 300
+xfb 420

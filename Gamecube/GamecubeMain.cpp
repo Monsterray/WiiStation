@@ -2010,6 +2010,7 @@ void filterTourStop(void);
 void go(void) {
 	Config.PsxOut = 0;
 	stop = 0;
+	achievements_wait_loaded(8000);   /* Official: the set parses here, not in the game (the menu waited already) */
 	perf_reset();
 	lc_configure((unsigned char)lockedCache);   /* the regions this game runs with */
 

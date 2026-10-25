@@ -36,9 +36,9 @@ int IplFont_getStringWidth(char *string, float scale);
 
 /* ---- the queue: a second unlock waits until the first has gone ---- */
 
-enum { KIND_UNLOCK, KIND_BEATEN, KIND_MASTERED, KIND_GAME };
-enum { T_BLUE, T_BRONZE, T_SILVER, T_GOLD, T_CRYSTAL, T_FINISH, T_PLAT };
-enum { ICON_TROPHY, ICON_KEY, ICON_HOURGLASS, ICON_FLAG, ICON_CROWN, ICON_DISC };
+enum { KIND_UNLOCK, KIND_BEATEN, KIND_MASTERED, KIND_GAME, KIND_WARNING };
+enum { T_BLUE, T_BRONZE, T_SILVER, T_GOLD, T_CRYSTAL, T_FINISH, T_PLAT, T_BLACK };
+enum { ICON_TROPHY, ICON_KEY, ICON_HOURGLASS, ICON_FLAG, ICON_CROWN, ICON_DISC, ICON_WARN };
 
 typedef struct {
 	char title[80], desc[96], pts[16], left[24], right[24];   /* fitted to the card at push time */
@@ -146,7 +146,7 @@ void ach_toast_push(const achievement_notice_t *n)
 {
 	Toast *t;
 	Face *f;
-	if (n->kind != ACH_NOTICE_UNLOCK && n->kind != ACH_NOTICE_GAME) {
+	if (n->kind != ACH_NOTICE_UNLOCK && n->kind != ACH_NOTICE_GAME && n->kind != ACH_NOTICE_WARNING) {
 		indicator_push(n);
 		return;
 	}
@@ -157,6 +157,17 @@ void ach_toast_push(const achievement_notice_t *n)
 	if (q_len == QUEUE) return;   /* more unlocks at once than fit: the journal still has them */
 	t = &queue[(q_head + q_len++) % QUEUE];
 	memset(t, 0, sizeof *t);
+	if (n->kind == ACH_NOTICE_WARNING) {   /* an achievement card in black, without the flash */
+		t->kind = KIND_WARNING;
+		f = &t->f1;
+		snprintf(f->title, sizeof f->title, "%s", n->title ? n->title : "");
+		snprintf(f->desc, sizeof f->desc, "%s", n->desc ? n->desc : "");
+		snprintf(f->left, sizeof f->left, "NOTICE");
+		snprintf(f->right, sizeof f->right, "Casual");
+		f->tier = T_BLACK;
+		f->icon = ICON_WARN;
+		return;
+	}
 	if (n->kind == ACH_NOTICE_GAME) {   /* the game card: the set is on */
 		t->kind = KIND_GAME;
 		f = &t->f1;
@@ -245,6 +256,9 @@ static const Tier TIERS[] = {
 	                0x000000ff, 0x0b0c10ff, 0xe8b23aff, 0xc9cfdbff, 0xffffff24, 0xffffffff, 0x16181eff, 0xffd66b8c, 0xfff0bef2, 0xe8b23aff },
 	[T_PLAT]    = { { 0xffffffff, 0xe3e7eeff, 0xbfc6d1ff, 0xeef1f5ff, 0xaab2bfff }, 0xffffffff, 0x151a26ff, 0x323a4cff,
 	                0xffffffff, 0x232836ff, 0xf2f4f8ff, 0x323a4cff, 0x151a2633, 0xffffffff, 0x8d95a5ff, 0xe1e8f5e6, 0xfafbfff2, 0x151a26ff },
+	/* a notice, not an achievement (the Hardcore warning): black, white text, no glow or rays */
+	[T_BLACK]   = { { 0x141414ff, 0x101010ff, 0x0c0c0cff, 0x080808ff, 0x040404ff }, 0x5a5a5aff, 0xffffffff, 0xd2d2d2ff,
+	                0x000000ff, 0x000000ff, 0x3c3c3cff, 0xa0a0a0ff, 0xffffff1f, 0x5a5a5aff, 0x000000ff, 0x00000000, 0x00000000, 0xffffffff },
 };
 
 /* ---- card geometry, in picture pixels ---- */
@@ -547,6 +561,7 @@ static void draw_icon_px(int icon, float x, float y, float t, float px)
 	case ICON_HOURGLASS: icon_pixels(SAND[(int)(t / 0.6f) % 3], x, y, px); break;
 	case ICON_FLAG: icon_pixels((int)(t / 0.35f) & 1 ? ACH_ICON_FLAG_B : ACH_ICON_FLAG_A, x, y, px); break;
 	case ICON_KEY: icon_pixels(ACH_ICON_KEY, x, y, px); break;
+	case ICON_WARN: icon_pixels(ACH_ICON_WARN, x, y, px); return;
 	default: icon_pixels(ACH_ICON_CROWN, x, y, px); break;
 	}
 	if (icon == ICON_KEY || icon == ICON_CROWN) {
@@ -762,7 +777,7 @@ static void toast_frame(void)
 	q->last = frame_counter;
 	t = q->shown / rate;
 	set = q->kind == KIND_BEATEN || q->kind == KIND_MASTERED;
-	dur = set ? 6.0f : q->kind == KIND_GAME ? 4.0f : 5.0f;
+	dur = set ? 6.0f : q->kind == KIND_GAME || q->kind == KIND_WARNING ? 4.0f : 5.0f;
 	if (t >= dur) {   /* done: the next one starts on the next present */
 		q_head = (q_head + 1) % QUEUE;
 		q_len--;
@@ -783,6 +798,8 @@ static void toast_frame(void)
 
 	if (q->kind == KIND_GAME) {
 		sheen = between(t, 1.3f, 1.85f);   /* the disc is at speed by then */
+	} else if (q->kind == KIND_WARNING) {
+		/* the card slides in and out like the others: no flicker, flash, glow, sheen or rays */
 	} else if (!set) {
 		const int tier = q->f1.tier;
 		block = (t >= 0.6f && t < 0.8f) || (t >= 0.95f && t < 1.15f);

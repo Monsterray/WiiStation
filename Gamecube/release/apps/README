@@ -186,6 +186,17 @@ Ver 5.17.0 (2026-10-24):
   to another of its discs (Official: RetroAchievements checks the disc; local
   sets: Game=SLUS00892,SLUS00908 names every disc). Another game's disc turns
   achievements off until the next game load.
+* Achievements, Official mode: the set loads in the menu, before the game
+  starts. The login happens when the menu opens, and Play Game waits (with
+  "Loading achievements...", at most 8 s) until the set is in, so the game no
+  longer stutters in its first seconds while the set is read.
+* Achievements: RetroAchievements' Hardcore notice ("Unknown Emulator") is a
+  black card of its own, not an unlock.
+* Achievements cost less: Official mode now takes about 5 % of a frame in
+  Spyro (was 7 %).
+* Several games in one session no longer run the Wii out of memory (Crash
+  Team Racing after Spyro the Dragon could freeze in a race): the emulator's
+  growing memory and the screen buffers moved to the Wii's larger memory.
 * Start-up: if WiiStation ever hangs before its menu appears (a card that
   does not answer, for one), it goes back to the Homebrew Channel by itself
   after 90 s and leaves a report there, instead of freezing the Wii.

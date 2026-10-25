@@ -25,6 +25,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <unistd.h>
+#include <ogc/lwp_watchdog.h>
 
 /* SysPrintf: psxcommon.h */
 
@@ -33,6 +35,8 @@
 
 static rc_client_t *client;
 static int logged_in, login_busy, game_loaded, beaten_seen, mastered_seen;
+static int load_busy;    /* the set was asked for; its answer (and the parse) is not in yet */
+static int login_tried;  /* the menu's early login ran once */
 static int media_pending;   /* a swapped disc is being checked: nothing is evaluated until then */
 static char state[96] = "Not started";   /* what the menus show when no set is loaded */
 
@@ -415,6 +419,15 @@ static void event(const rc_client_event_t *e, rc_client_t *c)
 		const rc_client_game_t *g = rc_client_get_game_info(client);
 		rc_client_user_game_summary_t s;
 		achievement_notice_t n;
+		if (a->id >= ACHIEVEMENT_WARNING_ID) {   /* "Warning: Unknown Emulator" (Hardcore): a banner, not an unlock */
+			memset(&n, 0, sizeof n);
+			n.kind = ACH_NOTICE_WARNING;
+			n.title = "Unknown Emulator";   /* RA's own words are cut on the card ("Warning: Unknown Emu...") */
+			n.desc = "Hardcore is off; Casual only";
+			SysPrintf("Achievements: %s\n", a->title);
+			if (achievements_notify) achievements_notify(&n);
+			break;
+		}
 		rc_client_get_user_game_summary(client, &s);
 		list_stale = 1;   /* the menu's list moves it to Earned */
 		memset(&n, 0, sizeof n);
@@ -510,6 +523,7 @@ static void game_loaded_cb(int result, const char *error, rc_client_t *c, void *
 	const rc_client_game_t *g;
 	rc_client_user_game_summary_t s;
 	(void)c; (void)data;
+	load_busy = 0;
 	if (result != RC_OK) {
 		SysPrintf("Achievements: no RetroAchievements set for this disc (%s)\n", error ? error : "unknown");
 		snprintf(state, sizeof state, "No set for this disc");
@@ -544,6 +558,7 @@ static void game_loaded_cb(int result, const char *error, rc_client_t *c, void *
 static void load_set(void)
 {
 	if (!game_hash[0]) return;
+	load_busy = 1;
 	rc_client_begin_load_game(client, game_hash, game_loaded_cb, NULL);
 	game_hash[0] = 0;
 }
@@ -588,18 +603,47 @@ static void login(void)
 
 /* ---- the engine's entry points (achievements.c) ---- */
 
+static int client_up(void)
+{
+	if (client) return 1;
+	client = rc_client_create(read_memory, server_call);
+	if (!client) {
+		SysPrintf("Achievements: out of memory for RetroAchievements\n");
+		return 0;
+	}
+	rc_client_set_event_handler(client, event);
+	rc_client_set_hardcore_enabled(client, 0);   /* Casual only: Hardcore needs RA's approval */
+	rc_client_set_allow_background_memory_reads(client, 0);
+	return 1;
+}
+
+/* The set is still on its way (the login, the game data, the parse): the game should not
+ * start yet, or the 120-180 ms parse lands in its first seconds (bench Wii, 2026-10-24). */
+void achievements_official_idle(void);
+
+int achievements_official_loading(void)
+{
+	return client && (login_busy || load_busy);
+}
+
+/* Wait for it, polling, up to ms milliseconds: the start of a game (go()). The menu shows a
+ * message meanwhile (MainFrame); an autoboot or a chain waits here. */
+void achievements_official_wait(unsigned ms)
+{
+	u64 end = gettime() + millisecs_to_ticks(ms);
+	if (!achievements_official_loading()) return;
+	SysPrintf("Achievements: waiting for the set before the game starts\n");
+	while (achievements_official_loading() && gettime() < end) {
+		achievements_official_idle();
+		usleep(10000);
+	}
+	if (achievements_official_loading())
+		SysPrintf("Achievements: the set is late; the game starts and it arrives in play\n");
+}
+
 int achievements_official_load(const char *image)
 {
-	if (!client) {
-		client = rc_client_create(read_memory, server_call);
-		if (!client) {
-			SysPrintf("Achievements: out of memory for RetroAchievements\n");
-			return 0;
-		}
-		rc_client_set_event_handler(client, event);
-		rc_client_set_hardcore_enabled(client, 0);   /* Casual only: Hardcore needs RA's approval */
-		rc_client_set_allow_background_memory_reads(client, 0);
-	}
+	if (!client_up()) return 0;
 	/* before the set loads: rc_client reads both when it activates the achievements */
 	rc_client_set_unpromoted_enabled(client, achievementUnofficial != 0);
 	rc_client_set_encore_mode_enabled(client, achievementEncore != 0);
@@ -680,7 +724,12 @@ void achievements_official_change_media(const char *image)
 
 void achievements_official_idle(void)
 {
-	if (!client) return;
+	/* the menu is up: log in now, once, so a game load only fetches its set */
+	if (!client && !client_up()) return;
+	if (!logged_in && !login_busy && !login_tried) {
+		login_tried = 1;
+		login();
+	}
 	ra_transport_poll();
 	rc_client_idle(client);
 }

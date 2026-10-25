@@ -1,0 +1,22 @@
+CHAIN
+# What the achievement system costs, 5.17.0 (2026-10-24): Spyro's attract demo and CTR's
+# attract mode, off vs Official (spectator, Casual), twice for Spyro. Build: debug ach preset.
+#   wii_lab.py ach_cost517 scripts/chains/ach_cost_517.txt --dol .runs/v517_ach.dol
+3300 sd:/wiistation/none.txt Achievements=0 FPS=0
+sd:/wiistation/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue
+3300 sd:/wiistation/ach_banner.txt Achievements=3 AchievementSpectator=1 FPS=0
+sd:/wiistation/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue
+3300 sd:/wiistation/none.txt Achievements=0 FPS=0
+sd:/wiistation/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue
+3300 sd:/wiistation/ach_banner.txt Achievements=3 AchievementSpectator=1 FPS=0
+sd:/wiistation/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue
+3300 sd:/wiistation/none.txt Achievements=0 FPS=0
+sd:/wiistation/isos/Crash Team Racing
+Crash Team Racing [U] [SCUS-94426].cue
+3300 sd:/wiistation/ach_banner.txt Achievements=3 AchievementSpectator=1 FPS=0
+sd:/wiistation/isos/Crash Team Racing
+Crash Team Racing [U] [SCUS-94426].cue
