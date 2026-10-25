@@ -73,4 +73,6 @@ What follows from them:
 Their tooling worth borrowing: a debug-only memory benchmark that runs on request
 (`source/Diagnostics/MemoryBench.cpp`), CSV rows checkpointed with `fsync` so a crash keeps
 completed work, and HDMI capture of the real Wii's TV output (a UGREEN 15389 dongle on the
-macOS workstation, `scripts/build-wii-capture.py`) -- this Windows PC has no capture device.
+macOS workstation, `scripts/build-wii-capture.py`). Since 2026-10-19 the card is on this Windows PC,
+on the bench Wii's HDMI: `C:/tools/wii-capture/wiicap.py`, guide in wii-homebrew-kit `docs/capture.md`;
+`scripts/wii_check.py agent --screen X.png --card Y.png` takes both pictures in one queue job.

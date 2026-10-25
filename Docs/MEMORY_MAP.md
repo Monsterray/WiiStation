@@ -108,7 +108,8 @@ retrace, one on the TV), so a present never waits for the retrace. The VI reads 
 `__setFbbRegs` sets the extended-address bit for any address over 16 MB (bench Wii perf.log
 `vireg: cur=130cb140`, TFBL `1098 658a`). Measured: Dolphin frames (XFB read from RAM) and
 menu pages identical; bench Wii `library20.txt` speed identical, mean load 30.8 -> 30.7%,
-lowest MEM1 free 1600 -> 3400 KB.
+lowest MEM1 free 1600 -> 3400 KB. The TV picture, from the HDMI capture card (`wii_check.py agent
+--card`, `.runs/xfb_tv`): the menu matches the XFB (SSIM 0.86), 60 fps, 0 late frames.
 
 perf.log `gameclose:` after every game
 (`chain_table.py` checks it): in Dolphin malloc 5185 KB and 2368 KB of MEM1 free after every close;
