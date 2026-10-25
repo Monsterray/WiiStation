@@ -20,6 +20,7 @@
 #endif
 
 #include "perf_prof.h"
+#include "version.h"
 #include "lc.h"
 #include "gc_input/controller.h"   /* the ports report below */
 #include "../mem2_manager.h"
@@ -152,6 +153,12 @@ void perf_log_begin(void)
 			char when[32];
 			perf_datetime(when, sizeof when);
 			fprintf(f, "# run started %s, build %s %s\n", when, __DATE__, __TIME__);
+			/* what the build is, for scripts/benchdb.py: the version and the probe gates
+			 * (scripts/build.sh presets; vsig alone costs 23.5% of a Wii frame) */
+			fprintf(f, "# version %s probes trace=%d gpu=%d cpu=%d vsig=%d gpusplit=%d gte=%d spu=%d pmc=%d hprof=%d texcheck=%d ach=%d play=%d\n",
+				WIISTATION_VERSION, PERF_PROF_TRACE, PERF_PROF_GPU, PERF_PROF_CPU, PERF_PROF_VSIG,
+				PERF_PROF_GPUSPLIT, PERF_PROF_GTE, PERF_PROF_SPU, PERF_PROF_PMC, PERF_PROF_HPROF,
+				PERF_PROF_TEXCHECK, PERF_PROF_ACHIEVEMENTS, PERF_PLAY);
 			fclose(f);
 		}
 		fresh = 1;

@@ -218,6 +218,7 @@ chain)
 	WSX_TRIAGE_DEFER=1 bash "$0" run "$name" --autoboot "$cf" --input "$P/autoinput_none.txt" --nodump --env FRAMES_DUMP=False ${cardargs[@]+"${cardargs[@]}"} "$@" | grep -v "^  "
 	"$PYTHON" "$REPO/scripts/chain_table.py" "$RUNS/$name"
 	st=$?
+	"$PYTHON" "$REPO/scripts/benchdb.py" ingest "$RUNS/$name" >/dev/null 2>&1   # baselines/bench.sqlite
 	auto_triage "$RUNS/$name"
 	exit $st
 	;;

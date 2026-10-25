@@ -47,7 +47,19 @@ import zlib
 BENCH_WII = "192.168.8.213"
 PRODUCTION_WII = "192.168.8.200"
 LRWII = "192.168.8.243"      # the living-room Wii: production-style, real data (2026-10-20)
-PROTECTED_WIIS = (PRODUCTION_WII, LRWII)
+# More protected Wiis can be added on a workstation ($WII_PROTECTED, comma-separated, or
+# .dev/wiis.json {"protected": [...]}, the wii-homebrew-kit convention); never removed: a missing
+# or empty config must not leave the production Wiis unguarded.
+def _extra_protected(repo):
+    try:
+        data = json.loads((repo / ".dev" / "wiis.json").read_text())
+    except (OSError, ValueError):
+        data = {}
+    env = [p.strip() for p in os.environ.get("WII_PROTECTED", "").split(",") if p.strip()]
+    return tuple(env) + tuple(data.get("protected", []))
+
+
+PROTECTED_WIIS = (PRODUCTION_WII, LRWII) + _extra_protected(pathlib.Path(__file__).resolve().parents[1])
 HBC_TOOL = "C:/projects/hbc-reborn/tools/hbc.py"
 QUEUE = "C:/tools/wii-bench/wiibench.py"
 PY = "C:/Python312/python.exe"   # the queue's shell has no python of its own: always the full path
@@ -68,22 +80,26 @@ def _canon(ip):
     return s.split("/")[0].split(":")[0].rstrip(".")
 
 
-def is_production(ip):
-    """A production-style Wii (PROTECTED_WIIS: the everyday one and the living-room one)."""
-    c = _canon(ip)
-    if c in PROTECTED_WIIS:
+def _same(a, b):
+    """One Wii in two spellings (wii-homebrew-kit)."""
+    a, b = _canon(a), _canon(b)
+    if a == b:
         return True
-    for p in PROTECTED_WIIS:
-        if c.isdigit():                  # one decimal number: 3232236744
-            if int(c) == int.from_bytes(socket.inet_aton(p), "big"):
-                return True
-            continue
-        try:                             # other numeric forms: 0xC0A808C8, 192.168.2248
-            if socket.inet_aton(c) == socket.inet_aton(p):
-                return True
-        except OSError:
-            return False
-    return False
+    try:
+        nb = socket.inet_aton(b)
+    except OSError:
+        return False
+    if a.isdigit():                      # one decimal number: 3232236744
+        return int(a) == int.from_bytes(nb, "big")
+    try:                                 # other numeric forms: 0xC0A808C8, 192.168.2248
+        return socket.inet_aton(a) == nb
+    except OSError:
+        return False
+
+
+def is_production(ip, protected=None):
+    """A production-style Wii (PROTECTED_WIIS: the everyday one and the living-room one)."""
+    return any(_same(ip, p) for p in (PROTECTED_WIIS if protected is None else protected))
 
 
 def refuse_production(ip, what):
@@ -166,7 +182,8 @@ def hbc(wii, *args, timeout=120, show=False, env=None):
     rc 124, never a hang of the queue lease nor a traceback. show=True prints a one-line record."""
     try:
         r = subprocess.run([sys.executable, HBC_TOOL, "--wii", wii, *map(str, args)],
-                           capture_output=True, text=True, timeout=timeout, env=env)
+                           capture_output=True, text=True, errors="replace",
+                           timeout=timeout, env=env)
         res = Result(r.returncode, r.stdout, r.stderr)
     except subprocess.TimeoutExpired:
         res = Result(124, "", f"timed out after {timeout} s")
@@ -244,8 +261,10 @@ def local_ip_towards(wii):
 
 
 if __name__ == "__main__":   # self-check: python scripts/wii_targets.py (touches no Wii)
-    for ip in ("192.168.8.200", "http://192.168.8.200:4299", "3232237768", "0xC0A808C8", "192.168.8.200."):
+    for ip in ("192.168.8.200", "http://192.168.8.200:4299", "3232237768", "0xC0A808C8", "192.168.8.200.",
+               "user@192.168.8.200", "::ffff:192.168.8.200", "192.168.8.243", "HTTP://192.168.8.243/"):
         assert is_production(ip), ip
+    assert not is_production("not-an-address")
     assert not is_production(BENCH_WII)
     os.environ.pop("WII_BENCH_JOB_START", None)
     try:

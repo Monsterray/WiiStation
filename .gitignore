@@ -20,7 +20,6 @@ LLM_STRATEGY.md
 Work To Be Done.md
 
 # Agent-facing notes, not project source
-AGENTS.md
 SOUND_SYSTEM.md
 
 # Local MCP server registration -- contains a workstation-specific absolute
@@ -71,3 +70,5 @@ deps/wiidrc/lib/
 
 # RetroAchievements account files hold a password or token: never commit one
 ra_account.ini
+# the benchmark database (scripts/benchdb.py): rebuilt from .runs/ with "benchdb.py backfill"
+baselines/bench.sqlite

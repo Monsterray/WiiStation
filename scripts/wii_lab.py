@@ -311,6 +311,8 @@ def main():
     if incomplete:
         sys.exit(1)
     subprocess.run([sys.executable, str(REPO / "scripts/chain_table.py"), str(run)])
+    subprocess.run([sys.executable, str(REPO / "scripts/benchdb.py"), "ingest", str(run)],
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)   # baselines/bench.sqlite
     print("HBC ready for the next test" if hbc_ready(a.wii, 90) else "HBC did not come back within 90 s")
 
 
