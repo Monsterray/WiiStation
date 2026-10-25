@@ -72,3 +72,13 @@ deps/wiidrc/lib/
 ra_account.ini
 # the benchmark database (scripts/benchdb.py): rebuilt from .runs/ with "benchdb.py backfill"
 baselines/bench.sqlite
+
+# Wii keys and console data: never commit them (wii-homebrew-kit)
+/keys/*
+!/keys/.gitkeep
+*keys.bin
+otp.bin
+common-key
+sd-key
+# workstation-local settings (.dev/wiis.json: more protected Wiis for scripts/wii_targets.py)
+.dev/

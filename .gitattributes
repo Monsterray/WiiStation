@@ -1,5 +1,21 @@
-# Auto detect text files and perform LF normalization
-* text=auto
+# Line endings (wii-homebrew-kit): text is LF in the repository and in every checkout, on
+# every platform, whatever core.autocrlf says. Merge a branch from before this rule (2026-10-24)
+# with `git merge -X renormalize`; fix an old checkout with `python tools/fix_line_endings.py`.
+* text=auto eol=lf
+
+# Windows batch files: CRLF in the checkout, which cmd.exe needs.
+*.bat text eol=crlf
+
+# Binary data.
+*.png binary
+*.jpg binary
+*.bin binary
+*.wad binary
+*.dol binary
+*.elf binary
+*.ttf binary
+*.wav binary
+*.dat binary
 
 # Shell scripts must keep LF endings even on Windows checkouts, or Git Bash
 # fails to parse them (CRLF breaks the shebang line and here-docs).
@@ -9,5 +25,5 @@
 # (libwupc-libogc3.patch failed in every fresh worktree, 2026-10-18).
 *.patch text eol=lf
 
-# The CA bundle is pinned by its SHA-256 (cacert.pem.source): byte for byte, never line-ending converted.
-Gamecube/release/achievements/cacert.pem -text
+# The CA bundle is pinned by its SHA-256 (cacert.pem.source). It is LF, like every text file, so
+# eol=lf keeps it byte for byte; it was -text while autocrlf could still convert it.

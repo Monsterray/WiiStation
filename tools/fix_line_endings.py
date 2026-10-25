@@ -37,7 +37,9 @@ def main():
             continue
         if "eol=crlf" in attr:     # batch files: CRLF in the checkout
             continue
-        if attr.startswith("attr/text"):
+        # text=auto leaves a file Git detected as binary (i/-text) alone: rewriting it changed
+        # the bytes of .zip, .a and .pdf files (WiiStation, 2026-10-24)
+        if attr.startswith("attr/text") and not meta.startswith("i/-text"):
             file.write_bytes(raw.replace(b"\r\n", b"\n"))
             fixed += 1
             continue
