@@ -138,6 +138,11 @@ def ingest(db, run, note=None, quiet=False):
         version, src = m.group(1), 'log'
         gates = {k: int(v) for k, v in re.findall(r'(\w+)=(\d+)', m.group(2))}
     sha = info.get('commit')
+    dol = os.path.join(run, 'boot.dol')
+    if not version and os.path.isfile(dol):   # older builds: the version string compiled into the DOL
+        m = re.search(rb'WiiStation (\d+\.\d+\.\d+)', open(dol, 'rb').read())
+        if m:
+            version, src = m.group(1).decode(), 'dol'
     if not version and sha:
         version, src = version_at(sha.split('+')[0]), 'commit'
     if not version and build:   # older logs: the last commit before the build's date
@@ -146,7 +151,7 @@ def ingest(db, run, note=None, quiet=False):
             version, src, sha = version_at(guess), 'date', sha or 'date:' + guess[:8]
     vsig = gates.get('vsig')
     if vsig is None:
-        vsig = 1 if glob.glob(os.path.join(run, 'vsig_*.bin')) else None
+        vsig = 1 if any(os.path.getsize(f) for f in glob.glob(os.path.join(run, 'vsig_*.bin'))) else None   # wii_lab gets empty ones back
     dol = os.path.join(run, 'boot.dol')
     if not os.path.isfile(dol):
         d = info.get('dol', '')

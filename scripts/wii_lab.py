@@ -3,7 +3,7 @@
 
     C:/Python312/python.exe C:/tools/wii-bench/wiibench.py add --cwd C:/projects/WiiStation \\
         --timeout 2400 -- C:/Python312/python.exe scripts/wii_lab.py NAME CHAINFILE
-        [--dol debug|release|PATH] [--set K=V,K=V] [--send-isos] [--timeout SECS]
+        [--dol debug|release|PATH] [--set K=V,K=V] [--send-isos] [--timeout SECS] [--max-wants N]
 
 A wii-bench queue job only (it refuses to run directly, and refuses the production Wii);
 the queue gives it the bench Wii ($WII_BENCH_IP). The queue's --timeout must exceed this
@@ -35,7 +35,7 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from wii_targets import (bench_wii, existing_file, hbc, hbc_ready, card_ls, local_ip_towards,  # noqa: E402
-                        parser, wiiload)
+                        in_hbc, parser, wiiload)
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
 # --send-isos sends game folders from the library (scripts/profile.sh, WSX_LIBRARY), as the Dolphin
@@ -184,6 +184,9 @@ def main():
     ap.add_argument("--put", action="append", default=[], metavar="LOCAL=PATH",
                     help="a small file (under 1 MB) for sd:/wiistation/PATH, e.g. a fixture achievement set; repeatable")
     ap.add_argument("--timeout", type=int, default=1800, help="seconds for the whole chain")
+    ap.add_argument("--max-wants", type=int, default=0, metavar="N",
+                    help="ask for at most N result files (64 for builds before e6723dd3, 2026-10-13: "
+                         "their 65th WANT ended the exchange and the run never started)")
     a = ap.parse_args()
     dol = {"debug": REPO / "Gamecube/WiiSXRX_debug.dol",
            "release": REPO / "Gamecube/WiiSXRX_Release.dol"}.get(a.dol, pathlib.Path(a.dol))
@@ -264,7 +267,7 @@ def main():
             c.sendall(f"PUT {p.stat().st_size} {path}\n".encode())
             with open(p, "rb") as f, c.makefile("wb") as w:
                 shutil.copyfileobj(f, w, 1 << 16)
-        for w in wants:
+        for w in wants[:a.max_wants] if a.max_wants else wants:   # RESULTS (perf.log first) come first
             c.sendall(f"WANT {w}\n".encode())
         c.sendall(b"GO\n")
         reply = recv_line(c)
@@ -272,15 +275,26 @@ def main():
             sys.exit(f"{hello}: the Wii answered {reply!r} to the files; it goes back to HBC in 5 s")
         print(f"{hello}: {len(puts)} files staged, {games} games; running (up to {a.timeout} s)")
 
-    srv.settimeout(a.timeout)
     t0 = time.monotonic()
     started = time.strftime("%Y-%m-%d %H:%M:%S")
-    try:
-        c, _ = srv.accept()
-    except socket.timeout:
-        print(f"no results after {a.timeout} s: the chain hung or crashed", flush=True)
-        collect_after_failure(a.wii, run)
-        sys.exit(2)
+    # Wait for the results, but not for nothing: a build that leaves for HBC without sending
+    # them (it crashed back, or an old build's lab mode) used to hold the Wii for the whole
+    # timeout. Every 30 s, HBC itself answering (not the app's agent) ends the wait.
+    srv.settimeout(30)
+    while True:
+        try:
+            c, _ = srv.accept()
+            break
+        except socket.timeout:
+            waited = time.monotonic() - t0
+            if waited >= a.timeout:
+                print(f"no results after {a.timeout} s: the chain hung or crashed", flush=True)
+                collect_after_failure(a.wii, run)
+                sys.exit(2)
+            if waited >= 60 and in_hbc(a.wii):
+                print(f"the Wii is back in HBC after {int(waited)} s without sending results", flush=True)
+                collect_after_failure(a.wii, run)
+                sys.exit(2)
     got, incomplete = [], ""
     with c:
         c.settimeout(120)
