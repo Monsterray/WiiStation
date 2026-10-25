@@ -19,7 +19,9 @@ OPTIMIZATION_PLAN.md
 LLM_STRATEGY.md
 Work To Be Done.md
 
-# Agent-facing notes, not project source
+# Agent-facing notes, not project source (AGENTS.md names machines, addresses and paths)
+AGENTS.md
+CLAUDE.md
 SOUND_SYSTEM.md
 
 # Local MCP server registration -- contains a workstation-specific absolute

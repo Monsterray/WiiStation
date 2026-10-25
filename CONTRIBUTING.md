@@ -9,7 +9,7 @@
   `LIBOGC=2` for one release.
 - **A POSIX shell:** devkitPro's MSYS2 bash (`C:\devkitPro\msys2\usr\bin\bash.exe`) or Git Bash.
   Never PowerShell with hand-set `DEVKITPRO`: Windows-style paths silently drop OpenGX
-  functions (AGENTS.md, "Building").
+  functions, with no build error.
 - **Python 3.10+:** `C:/Python312/python.exe` on the dev machine. The devkitPro bash has no
   `python` of its own.
 - **Dolphin** for unattended runs: `C:/tools/Dolphin-x64`. The game library is `C:/wiistation-lib`
@@ -53,4 +53,5 @@ it is reported as `known` and doesn't fail the run. When you fix the bug, remove
   refuses the protected Wiis). Never a test on a protected Wii.
 - **No keys, console data or credentials.** `keys/` and `examples/ra_account.ini` are ignored;
   check `git status` before you commit.
-- **AI agents** read `AGENTS.md` and `.agents/skills/wiistation-build-and-test/SKILL.md`.
+- **AI agents** read `.agents/skills/wiistation-build-and-test/SKILL.md`, and on the dev
+  workstation its local `AGENTS.md` (not in the repository: it names machines and paths).

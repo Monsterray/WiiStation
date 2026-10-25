@@ -7,7 +7,8 @@ description: Build, test, review and hardware-check WiiStation (PS1 emulator for
 
 This is the kit's entry point. The full method lives in two places; read them, don't copy them:
 
-- `AGENTS.md`: building, the Wiis and their rules, the measuring tools, the benchmark database.
+- `AGENTS.md` (dev workstation only, gitignored): building, the Wiis and their rules, the
+  measuring tools, the benchmark database.
 - `.claude/skills/wiistation-diagnostics/SKILL.md` and its `references/`: the hypothesis -> probe
   -> unattended run -> measured answer loop, the probes, Dolphin's pitfalls, the bench Wii.
 
@@ -18,7 +19,7 @@ bash scripts/wsx.sh build release
 bash scripts/wsx.sh build debug [light|speed|deep|pmc|hprof|play|all|min]
 ```
 
-devkitPPC r50 + libogc v3.1.0, through a POSIX shell only (AGENTS.md "Building"). `speed` for any
+devkitPPC r50 + libogc v3.1.0, through a POSIX shell only (`scripts/build.sh` pins the paths). `speed` for any
 speed or load number: every other preset carries the vsig RAM hash (23.5% of a Wii frame).
 
 ## Host tests
