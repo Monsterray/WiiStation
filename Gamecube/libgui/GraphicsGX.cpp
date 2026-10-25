@@ -22,6 +22,9 @@
 #include <stdio.h>
 #include <string.h>
 #include "GraphicsGX.h"
+extern "C" {
+#include "../../mem2_manager.h"
+}
 #include "../wiiSXconfig.h"
 extern "C" {
     #include "../../gpu.h"
@@ -536,9 +539,14 @@ Graphics::Graphics(GXRModeObj *rmode)
 
 	VIDEO_Configure(vmode);
 
-	xfb[0] = MEM_K0_TO_K1(SYS_AllocateFramebuffer(vmode));
-	xfb[1] = MEM_K0_TO_K1(SYS_AllocateFramebuffer(vmode));
-	xfb[2] = MEM_K0_TO_K1(SYS_AllocateFramebuffer(vmode));
+	/* Three XFBs: the menu flips two, a game uses all three (SoftGPU/drawGX.c: one being copied
+	 * to, one finished and waiting for the retrace, one on the TV), so a present never waits
+	 * for the retrace. In MEM2: 1.8 MB (PAL 2.1 MB) of MEM1 back, and the VI reads MEM2
+	 * addresses (libogc's __setFbbRegs shifts any address over 16 MB). */
+	for (int i = 0; i < 3; i++) {
+		void *fb = _mem2_memalign(32, VIDEO_GetFrameBufferSize(vmode));
+		xfb[i] = (u32 *)MEM_K0_TO_K1(fb ? fb : SYS_AllocateFramebuffer(vmode));
+	}
 
 	console_init (xfb[0], 20, 64, vmode->fbWidth, vmode->xfbHeight, vmode->fbWidth * 2);
 

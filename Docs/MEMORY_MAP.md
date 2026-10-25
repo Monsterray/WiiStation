@@ -100,7 +100,17 @@ allocations. Since then nothing that grows with a game allocates in MEM1:
 - The XA ring (`XABuf`, 375 KB), the chain list (75 KB) and the overlay's EFB save buffer
   (1.4 MB, `OverlaySaveEfb`): MEM2, taken once.
 What stays in MEM1 is fixed: the state and code LUT (2.5 MB), the code buffer (2 MB), PS1 RAM,
-VRAM, the memory LUTs, `GXtexture`, the menu's XFBs. perf.log `gameclose:` after every game
+VRAM, the memory LUTs, `GXtexture`.
+
+**The three XFBs are in MEM2** (`GraphicsGX.cpp`, 1.8 MB, PAL 2.1 MB). The menu flips two; a game
+uses all three (`SoftGPU/drawGX.c`: one being copied to, one finished and waiting for the
+retrace, one on the TV), so a present never waits for the retrace. The VI reads MEM2: libogc's
+`__setFbbRegs` sets the extended-address bit for any address over 16 MB (bench Wii perf.log
+`vireg: cur=130cb140`, TFBL `1098 658a`). Measured: Dolphin frames (XFB read from RAM) and
+menu pages identical; bench Wii `library20.txt` speed identical, mean load 30.8 -> 30.7%,
+lowest MEM1 free 1600 -> 3400 KB.
+
+perf.log `gameclose:` after every game
 (`chain_table.py` checks it): in Dolphin malloc 5185 KB and 2368 KB of MEM1 free after every close;
 on the bench Wii malloc 5904 KB, lowest MEM1 free 1600 KB (Official achievements and CTR included).
 

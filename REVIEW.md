@@ -28,7 +28,14 @@ Each finding records its trigger, its effect, the smallest safe fix, and the che
 | Kind | Change | Check |
 | --- | --- | --- |
 | Fix | CTR after Spyro in one chain ran MEM1 out (libogc v3 malloc has no MEM2 fallback; Lightning uses a NULL `jit_alloc`): Lightrec/Lightning in a 4 MB MEM2 TLSF pool, capped; XA ring, chain list, overlay buffer in MEM2 (dbf0054a, b5d837a6) | bench Wii: malloc 5904 KB after every game, lowest MEM1 1600 KB |
+| Optimization | The three XFBs in MEM2 (1.8 MB of MEM1 back) | Dolphin frames/menus identical; bench Wii library20 speed identical, load 30.8 -> 30.7%, lowest MEM1 1600 -> 3400 KB |
+
+### 5.17.0: benchmark
+
+| Kind | Change | Check |
+| --- | --- | --- |
+| Measurement | First clean speed-preset baseline: `library20.txt` on the bench Wii, 17 games at 0.98-0.99x, mean load 30.8% (Gex 2 50.6%, Gex 3 46.4%, FF7 37.9%) | `.runs/bench517_lib20`, `benchdb.py latest --platform wii --preset speed` |
 
 ### Next
 
-- The three XFBs in MEM2 (+1.8 MB MEM1): Dolphin frames and menus identical; bench A/B on `library20.txt` decides.
+- Gex 2 / Gex 3 carry the most load (psx 24%, hle 5.6%): the first games to profile (`build debug hprof`).

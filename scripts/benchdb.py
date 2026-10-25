@@ -257,9 +257,12 @@ def main():
     elif cmd == 'compare':
         ra, rb = a[1].rstrip('/'), a[2].rstrip('/')
         ra, rb = [x if x.startswith('.runs/') or x.startswith('baselines/') else '.runs/' + x for x in (ra, rb)]
+        # a game twice in one chain pairs first with first, second with second (k)
+        one = ('SELECT *, row_number() OVER (PARTITION BY game, coalesce(sets, "") ORDER BY n) k '
+               'FROM results WHERE run_id=?')
         q = ('SELECT a.game, a.sets, a.speed sa, b.speed sb, a.load la, b.load lb, a.gpu ga, b.gpu gb, '
-             'a.psx pa, b.psx pb FROM results a JOIN results b ON a.game=b.game AND '
-             'coalesce(a.sets,"")=coalesce(b.sets,"") WHERE a.run_id=? AND b.run_id=? ORDER BY a.n')
+             'a.psx pa, b.psx pb FROM (%s) a JOIN (%s) b ON a.game=b.game AND a.k=b.k AND '
+             'coalesce(a.sets,"")=coalesce(b.sets,"") ORDER BY a.n' % (one, one))
         rows = []
         for r in db.execute(q, (ra, rb)):
             r = dict(r)
