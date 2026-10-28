@@ -1,60 +1,112 @@
 # Miis as players: plan
 
-Goal: each Mii on the console is a player. The menu shows who is playing; **Local** achievements
-(the unlock journal) are kept per Mii. Official mode (one RetroAchievements account per card) is
-not changed. Status: plan, 2026-10-24. Research: the facts below, with sources, came from WiiBrew,
-Dolphin's source and libmii; anything unconfirmed is marked.
+Goal: each Mii on the console is a player. A Players menu seats Miis on the PS1 pad ports;
+**Local** achievements (the unlock journal) are kept per Mii. Status: plan, 2026-10-28 (owner's
+decisions below); the menu is at the mock-up stage.
 
-## What the Wii gives us
+## The Mii SDK (hbc-reborn `sdk/mii`)
 
-| Item | Fact |
-| --- | --- |
-| File | NAND `/shared2/menu/FaceLib/RFL_DB.dat`, 0x1F1E0 bytes (Dolphin `Common/NandPaths.cpp:86`) |
-| Layout | `RNOD` magic, then 100 records of 0x4A bytes from offset 4; an all-zero record is an empty slot; the Parade area (`RNHD`, 0x1D00) is undocumented; CRC-16/CCITT (poly 0x1021, init 0) over 0..0x1F1DD, big-endian at 0x1F1DE |
-| Record | 0x00 flags (girl, birthday, favourite colour 0-11, favourite), 0x02 name (10 UTF-16BE chars), 0x16/0x17 height/weight, 0x18 Mii ID (bit 31 normal, bit 30 foreign, bits 28-0 creation time in 4 s ticks), 0x1C System ID (from the console's MAC), 0x20 face/hair/... bit fields, 0x36 creator name |
-| Identity | (Mii ID, System ID), 8 bytes at 0x18. Slot index and name are not stable. Whether an edit keeps the Mii ID is **unconfirmed** |
-| Access | Read-only through ISFS, as libogc's `conf.c` reads `/shared2/sys/SYSCONF`. Never write it: the Wii shows a Mii error after any change |
-| Dolphin | Ships no RFL_DB.dat; it exists only after the Mii Channel or a game made one. Tests stage a fixture |
-| Wii Remote Miis | Up to 10 on the remote (address 0x0FCA, `RNCD`), readable with `wiiuse_read_data` (**untested**). Not needed for this plan |
-| Drawing a Mii | No homebrew renderer exists (Nintendo's RFL is not available; the WiiBrew 2D compositor has no licence). Name plus a favourite-colour chip is what is safe to draw |
+WiiStation uses hbc-reborn's Mii SDK, vendored as `deps/mii` from the same commit as the HBC
+agent (`deps/hbc_agent`, HBC 1.12.1, bdf44d2). It is public domain: `mii.c`/`mii.h` (data and
+the database), `miidraw.c`/`miidraw.h`/`miibody.c` (drawing with GX). Its README is the reference;
+what this plan uses:
+
+| Need | SDK call | Notes |
+| --- | --- | --- |
+| Read the Miis | `mii_db_load`, `mii_db_get` for slots 0-99, `mii_db_free` | About 0.7 s: once, on a thread, never in the frame loop. **WiiStation never saves** (`mii_db_save`, `_put`, `_add`, `_remove` are not called anywhere). `MII_E_NO_FILE`: the Mii Channel was never opened, so no Miis |
+| Identity | `mii.id` (the creation ID) | The key is its 16 hex characters. Slot and name are not stable |
+| Name, colour | `mii_get_name`, `mii.fav_color` (0-11, `mii_color_name`) | The coin's colour is the favourite colour, as HBC's picker draws it |
+| Coin faces | `mii_res_load`, `mii_model_build` (32-64 px face, normal expression only), `mii_icon`, `mii_model_free` | Needs `sd:/mii/RFL_Res.dat`, which the user saves with HBC's HOME > HBC > Save Mii faces (Nintendo's file: never shipped, never copied by us). Without it a coin shows the name's initial on the favourite colour |
+
+Rules the SDK sets that touch WiiStation:
+
+- `mii_icon` draws in the EFB's corner between frames: call it after the menu's last copy and
+  before the next frame, then set the menu's GX state again (pixel format, viewport, scissor,
+  projection, vertex format, TEV). The menu mixes raw GX and OpenGX, so the icons are made in
+  one place (`Gamecube/menu/mii_coins.c`, new) right after `Gui::draw()`'s copy.
+- Icons are textures kept in MEM2 (64x64 RGB5A3 = 8 KB, 100 Miis = 800 KB) and made lazily, the
+  visible page first. The models are freed as soon as the icon exists; nothing of the SDK stays
+  in memory once a game starts (MEM1 is what chains run out of).
+- The GX FIFO should stay in MEM1 (SDK README: a FIFO in MEM2 stalled at random on a real
+  Wii). WiiStation's is `memalign`ed at start-up, before anything could push the heap into MEM2;
+  making it a static array is a one-line safety if that ever changes.
+- Dolphin ships no `RFL_DB.dat` or `RFL_Res.dat`. Tests stage a database made by
+  `mii_random` + `mii_db_add` on the PC side (`-DMII_NO_OGC`), into the run profile's NAND
+  (`Wii/shared2/menu/FaceLib/`); without faces the coins show initials, which is a test case too.
+
+## Owner's decisions (2026-10-28)
+
+1. **A Players menu** (not a prompt at game load): a grid of Mii coins with pages, and the PS1
+   pad ports along the bottom.
+   - Wii Remote: point at a coin, hold **A+B** to grab it, drop it on a port.
+   - Any other pad (Classic, GameCube, Wii U Pro, USB): **A** on a coin picks it up and the focus
+     jumps down to the ports; Left/Right chooses a port, **A** drops it there, **B** puts it back.
+   - Mock-ups first, to get the menu right (below).
+2. **Every seated Mii earns.** An unlock goes to each Mii seated on a port whose pad is
+   connected, not only player 1's.
+3. **Existing unlocks stay with Guest.** Journal lines written before this feature have no
+   player key and belong to Guest.
+4. **Official mode per Mii: later,** and only with a design that is elegant. Open questions are at
+   the end.
 
 ## Design
 
-- **`mii.c`** (new, pure C, no libogc in the parser): `mii_parse(buf, len, out[], max)` checks
-  size, magic and CRC and returns the Miis (key = 16 hex chars of Mii ID + System ID, name as
-  UTF-8, favourite colour, favourite flag). The Wii side reads the file once at start-up with
-  `ISFS_Open(..., ISFS_OPEN_READ)`; a missing file, size 0, bad magic or bad CRC means "no Miis".
-- **Player setting** `Player` (settings.ini, `[General]`): a Mii key, or empty for Guest. A
-  Mii that is no longer on the console falls back to Guest with a notice, and its unlocks stay
-  in the journal (keyed by the Mii's key; nothing is deleted).
-- **Menu**: a Player row on the main menu panel (name and colour chip, the PS1 Save Block style
-  of `Docs/design/PS1_STYLES.md`), and a picker listing the Miis in Plaza order plus Guest.
-  Changing the player while a game runs reloads the achievement state (below).
-- **Journal per Mii**: one file, as now, with the player key as a new column:
+- **Seats**: settings.ini `[Players]`, one line per port (`Port1=`, `Port2=`, with multitap
+  `Port1A=` ... `Port2D=`), each a Mii key or empty for Guest. A Mii can sit on one port only;
+  dropping it on another moves it, dropping it on a taken port swaps the two. Seats are kept
+  across sessions. A key no longer on the console reads as Guest, with a notice; its unlocks
+  stay in the journal (nothing is deleted).
+- **Who earns**: at an unlock, every port that has a Mii and a connected pad (the same test the
+  Co-Op pad mapping uses). Guest earns when no seated Mii does (a game with only Guest pads still
+  unlocks, as today). One journal line per Mii that earned it.
+- **Journal**: one file, as now, with the player key as a new column:
   `<set digest> <id> <player key> <title>`. A line without a key (every journal written so far)
-  belongs to Guest. `restore_journal()` marks earned only the current player's lines. One file
-  keeps the 1 MB cap and the fail-closed rules of `achievements.c` as they are.
-- **Save states**: the WAO1 achievement section records the player key. Loading a state made by
-  another player keeps the game state but takes the earned flags from the journal of the player
-  now playing, so a state never moves one Mii's unlocks to another.
-- **Unlock toast and list**: "Mii-name unlocked ..." on the toast; the Achievements page shows
-  the current player's progress, with the player's name in its header.
-- **Privacy**: Mii names and creator names are personal. Logs, perf.log and crash reports print
-  only the first 8 hex characters of the key; the creator name is never read into memory.
+  is Guest's. Each achievement is earned once per Mii. The 1 MB cap and the fail-closed rules
+  of `achievements.c` stay.
+- **"Earned" in the game**: the game's achievement state is the union of the seated Miis'
+  unlocks, so an achievement one Mii has keeps firing for the others who do not have it yet.
+  rcheevos sees an achievement as active while any seated Mii lacks it; when it triggers, only
+  the Miis without it get the line and the toast names them.
+- **Save states**: the WAO1 achievement section records the seat keys. Loading a state made by
+  other players keeps the game state, but earned flags come from the journals of the Miis seated
+  now, so a state never moves one Mii's unlocks to another.
+- **Toast and Achievements page**: "Kat unlocked ..." (two or more: "Kat and Ollie
+  unlocked ...", four or more: "4 players unlocked ..."); the page shows one seated Mii at a time
+  with L/R to switch, its coin in the header.
+- **Privacy**: Mii names are personal. Logs, perf.log and crash reports print only the first 8
+  hex characters of a key. The creator name is never read out of `mii`.
+
+## The Players menu (mock-up stage)
+
+Mock-up 1 (2026-10-28, an interactive HTML page in the chat): 640x480, the menu's grey and
+red-focus style.
+
+- Header "Players", page `1 / N` with < > (also + / -, or Q / W on a keyboard).
+- 15 coins a page (5 x 3), 76 px, each the Mii's head on its favourite colour with a white ring.
+  The focused coin has the red focus ring and a tip with its name and "4 of 31 here" (its
+  unlocks in the loaded game's set). A seated coin is dimmed and wears its port badge.
+- A line, then the ports: two wide sockets (Port 1, Port 2), or eight narrow ones with multitap
+  (1A-1D, 2A-2D). An empty socket shows a dashed "Guest" ring.
+- One hint line at the bottom that changes with the state (browsing, holding a coin, on a port).
+
+To settle on the next mock-ups: where the menu is reached from (a main-menu button, or a
+Players row that shows the seated coins), whether the ports show the pad type connected there,
+what a coin looks like while grabbed (lifted, a shadow, or plain), and motion (the owner dislikes
+bouncy motion: a grabbed coin follows the pointer 1:1, a drop is a short linear move).
 
 ## Phases and checks
 
 | Phase | Work | Check |
 | --- | --- | --- |
-| 0 | Read-only probe on the **bench** Wii: open RFL_DB.dat, print size, magic, CRC result, Mii count and key prefixes (no names) to perf.log | One bench job; never on a protected Wii |
-| 1 | `mii.c` parser + host test (`tests/mii_test.c`, `tests/host/hostcheck.h`) on a fixture made by `scripts/mii_fixture.py` (fictional Miis, real CRC): empty slots, bad CRC, short file, foreign bit, 10-character names, non-ASCII names | Host test |
-| 2 | ISFS read at start-up, `Player` setting, menu row and picker | Dolphin with the fixture staged in the profile's NAND (`Wii/shared2/menu/FaceLib/`); `wsx.sh menu` pictures; bench Wii with its own Miis |
-| 3 | Journal column, restore per player, WAO1 player key, toast/list name | Host test for the journal (old lines = Guest, two players, cap); Dolphin chain: Local set, player A unlocks, switch to B (none earned), back to A (restored), state from A loaded as B |
-| 4 (optional) | Icons: a PC script renders each Mii once into `sd:/wiistation/miis/<key>.png` | Only if the colour chip is not enough; needs a Wii-to-Studio conversion and a network service, so it is opt-in |
+| 0 | Vendor `deps/mii`; a read-only probe on the **bench** Wii: `mii_db_load`, print the count and key prefixes (no names) to perf.log, time the load | One bench job; never on a protected Wii |
+| 1 | Host side: a fixture maker (`scripts/mii_fixture` from `mii.c` with `-DMII_NO_OGC`: fictional Miis, real CRC) and the seat/journal logic in plain C with a host test (`tests/host/hostcheck.h`): old lines = Guest, two Miis, a swap, a missing Mii, the cap | Host test |
+| 2 | The Players menu: coins (initials first, then `mii_icon` faces), pages, both input paths, seats in settings.ini | `wsx.sh menu` pictures in Dolphin with the fixture; bench Wii with its own Miis and saved faces; capture card for the TV picture |
+| 3 | Journal column, union of earned, per-Mii toast and page, WAO1 seat keys | Dolphin chain: Local set, Mii A unlocks, seat B (not earned), A + B seated (only B gets it), a state from A loaded with B seated |
 
-## Decisions for the owner
+## Open questions for Official mode per Mii (decision 4, later)
 
-1. Who picks the player: a Player setting in the menu (default, proposed), or a prompt at every game load?
-2. Co-Op and multitap: only player 1's Mii earns (proposed), or every connected player's Mii?
-3. Existing unlocks: stay with Guest (proposed), or move once to a chosen Mii?
-4. Official mode later: one RetroAchievements account per Mii (a token file per key), or one per console as now?
+- Where an account is linked: on the Mii's coin (a long press, or a "link account" item on the
+  focused coin's tip), so the Players menu stays the one place a player is set up.
+- Which seated Mii's account plays Official: player 1's only (RetroAchievements sessions are one
+  user per game), with the others earning Local as now.
+- Token storage: one token file per key in `sd:/wiistation/ra/`, never the password, as today.
