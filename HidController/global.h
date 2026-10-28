@@ -59,7 +59,6 @@ enum AHBDEV {
 
 void fatal(const char *format, ...);
 
-void udelay(int us);
 
 typedef unsigned char u8;
 typedef unsigned char uint8_t;

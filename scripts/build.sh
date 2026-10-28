@@ -177,6 +177,21 @@ if [ "${1:-debug}" != "${1#debug}" ] && [ -d "Gamecube/build_${DEBUG_NAME}${OGC_
 	echo "probe gates changed since the last build -- cleaning so the change takes effect"
 	make -C Gamecube -f Makefile_Wii $DEBUG_DIRS clean >/dev/null 2>&1 || true
 fi
+# Objects are LTO bytecode, and a newer GCC of the same major version links an older one's without
+# a word but misreads its per-function target options: devkitPPC r51 (GCC 16.2) linking r50's
+# objects emitted dlmzb, a PPC440 instruction Broadway lacks, and the build hung the bench Wii at
+# start-up (2026-10-28). Remember the compiler and libogc each object tree was built with; on a
+# change, drop the objects (rm, not make clean: the DOL stays until the relink replaces it).
+TOOL_ID="$("$DEVKITPPC/bin/powerpc-eabi-gcc" --version | head -n 1) $(grep -h '_V_STRING' "$DEVKITPRO/libogc/include/ogc/libversion.h" 2>/dev/null)"
+case "${1:-debug}" in
+	debug*) OBJ_DIR="Gamecube/build_${DEBUG_NAME}${OGC_SUFFIX}" ;;
+	release*) OBJ_DIR="Gamecube/build_release${OGC_SUFFIX}" ;;
+	*) OBJ_DIR= ;;
+esac
+if [ -n "$OBJ_DIR" ] && [ -d "$OBJ_DIR" ] && [ "$(cat "$OBJ_DIR/.toolchain" 2>/dev/null)" != "$TOOL_ID" ]; then
+	echo "toolchain changed since $OBJ_DIR was built -- rebuilding its objects"
+	find "$OBJ_DIR" -name '*.o' -delete
+fi
 # The profiling OpenGX takes the same gates, and the debug and play builds share it: its own
 # stamp, so switching between them rebuilds it.
 OGX_STAMP="$DEPS_ROOT/opengx/obj_prof.defines"
@@ -244,3 +259,5 @@ case "${1:-debug}" in
 		exit 1
 		;;
 esac
+# Reached only when the build succeeded (set -e): the objects now match this toolchain.
+if [ -n "$OBJ_DIR" ]; then mkdir -p "$OBJ_DIR"; printf '%s' "$TOOL_ID" > "$OBJ_DIR/.toolchain"; fi

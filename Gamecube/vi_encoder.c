@@ -43,6 +43,7 @@
 #include <gccore.h>
 #include <ogcsys.h>
 #include <ogc/machine/processor.h>
+#include <ogc/lwp_watchdog.h>
 
 #include "vi_encoder.h"
 
@@ -56,7 +57,12 @@
 #define _SHIFTR(v, s, w)	\
     ((u32)(((u32)(v) >> (s)) & ((0x01 << (w)) - 1)))
 
-extern void udelay(int us);
+/* libogc 3.2 made udelay() an inline of lwp_watchdog.h and libogc2 never declared it: our own. */
+static void vi_udelay(u32 us)
+{
+	u64 end = gettime() + microsecs_to_ticks(us);
+	while (gettime() < end);
+}
 
 static u32 i2cIdentFirst = 0;
 static u32 i2cIdentFlag = 1;
@@ -93,7 +99,7 @@ static inline u32 __viGetSDA()
 static inline void __viCheckI2C()
 {
 	__viOpenI2C(0);
-	udelay(4);
+	vi_udelay(4);
 
 	i2cIdentFlag = 0;
 	if(__viGetSDA()!=0) i2cIdentFlag = 1;
@@ -104,26 +110,26 @@ static u32 __sendSlaveAddress(u8 addr)
 	u32 i;
 
 	__viSetSDA(i2cIdentFlag^1);
-	udelay(2);
+	vi_udelay(2);
 
 	__viSetSCL(0);
 	for(i=0;i<8;i++) {
 		if(addr&0x80) __viSetSDA(i2cIdentFlag);
 		else __viSetSDA(i2cIdentFlag^1);
-		udelay(2);
+		vi_udelay(2);
 
 		__viSetSCL(1);
-		udelay(2);
+		vi_udelay(2);
 
 		__viSetSCL(0);
 		addr <<= 1;
 	}
 
 	__viOpenI2C(0);
-	udelay(2);
+	vi_udelay(2);
 
 	__viSetSCL(1);
-	udelay(2);
+	vi_udelay(2);
 
 	if(i2cIdentFlag==1 && __viGetSDA()!=0) return 0;
 
@@ -151,7 +157,7 @@ static u32 __VISendI2CData(u8 addr,void *val,u32 len)
 	__viSetSCL(1);
 
 	__viSetSDA(i2cIdentFlag);
-	udelay(4);
+	vi_udelay(4);
 
 	ret = __sendSlaveAddress(addr);
 	if(ret==0) {
@@ -165,18 +171,18 @@ static u32 __VISendI2CData(u8 addr,void *val,u32 len)
 		for(j=0;j<8;j++) {
 			if(c&0x80) __viSetSDA(i2cIdentFlag);
 			else __viSetSDA(i2cIdentFlag^1);
-			udelay(2);
+			vi_udelay(2);
 
 			__viSetSCL(1);
-			udelay(2);
+			vi_udelay(2);
 			__viSetSCL(0);
 
 			c <<= 1;
 		}
 		__viOpenI2C(0);
-		udelay(2);
+		vi_udelay(2);
 		__viSetSCL(1);
-		udelay(2);
+		vi_udelay(2);
 
 		if(i2cIdentFlag==1 && __viGetSDA()!=0) {
 			_CPU_ISR_Restore(level);
@@ -190,7 +196,7 @@ static u32 __VISendI2CData(u8 addr,void *val,u32 len)
 
 	__viOpenI2C(1);
 	__viSetSDA(i2cIdentFlag^1);
-	udelay(2);
+	vi_udelay(2);
 	__viSetSDA(i2cIdentFlag);
 
 	_CPU_ISR_Restore(level);
@@ -203,7 +209,7 @@ static void __VIWriteI2CRegister8(u8 reg, u8 data)
 	buf[0] = reg;
 	buf[1] = data;
 	__VISendI2CData(0xe0,buf,2);
-	udelay(2);
+	vi_udelay(2);
 }
 
 static void __VIWriteI2CRegister16(u8 reg, u16 data)
@@ -213,7 +219,7 @@ static void __VIWriteI2CRegister16(u8 reg, u16 data)
 	buf[1] = data >> 8;
 	buf[2] = data & 0xFF;
 	__VISendI2CData(0xe0,buf,3);
-	udelay(2);
+	vi_udelay(2);
 }
 
 static void __VIWriteI2CRegister32(u8 reg, u32 data)
@@ -225,7 +231,7 @@ static void __VIWriteI2CRegister32(u8 reg, u32 data)
 	buf[3] = (data >> 8) & 0xFF;
 	buf[4] = data & 0xFF;
 	__VISendI2CData(0xe0,buf,5);
-	udelay(2);
+	vi_udelay(2);
 }
 
 static void __VIWriteI2CRegisterBuf(u8 reg, int size, u8 *data)
@@ -234,7 +240,7 @@ static void __VIWriteI2CRegisterBuf(u8 reg, int size, u8 *data)
 	buf[0] = reg;
 	memcpy(&buf[1], data, size);
 	__VISendI2CData(0xe0,buf,size+1);
-	udelay(2);
+	vi_udelay(2);
 }
 
 /****************************************************************************
