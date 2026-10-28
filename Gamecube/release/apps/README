@@ -1,5 +1,5 @@
 README : WiiStation
-Version 5.17.0
+Version 5.18.0
 
 LICENSE:
     This software is licensed under the GNU General Public License v2
@@ -155,6 +155,17 @@ LATER UPDATES BY:
  * Monty Perrotti (WiiStation)
 
 WiiStation CHANGE LOG:
+Ver 5.18.0 (2026-10-28):
+* Players (Main menu): the Miis on your Wii as players. Each PlayStation port
+  is a card (four per port with a multitap); seat a Mii on it by holding A+B
+  on its coin with the Wii Remote and dropping it on the card, or with a pad:
+  A on a coin, choose the card, A. A favourite Mii's coin has a gold rim.
+  Faces need HBC's HOME > HBC > Save Mii faces once; without it the coins show
+  initials. The Mii Channel's database is only read, never written. Save the
+  settings to keep the seats. Per-player achievements come next.
+* Built with devkitPPC r51 (GCC 16.2) and libogc 3.2.1, and the Homebrew
+  Channel agent 1.12.1.
+
 Ver 5.17.0 (2026-10-24):
 * Achievements, Official mode (Settings > General > Cheevos): RetroAchievements
   sets, earned online with your RetroAchievements account (Casual; Hardcore

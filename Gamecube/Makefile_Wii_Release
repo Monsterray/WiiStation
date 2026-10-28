@@ -69,6 +69,8 @@ SOURCES		:=	../lang ../fonts \
 # Official mode (achievements_official.c; the HTTPS transport is Gamecube/ra_transport.c).
 SOURCES += ../deps/rcheevos/src/runtime ../deps/rcheevos/src/util
 SOURCES += ../deps/rcheevos/src/client ../deps/rcheevos/src/api ../deps/rcheevos/src/hash
+# hbc-reborn's Mii SDK (public domain, HBC 1.12.1 bdf44d2): the Miis as players (Gamecube/players.c)
+SOURCES += ../deps/mii
 
 DATA		:=	data
 

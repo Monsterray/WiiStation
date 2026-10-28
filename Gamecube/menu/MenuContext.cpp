@@ -57,11 +57,12 @@ MenuContext::MenuContext(GXRModeObj *vmode)
 		  customizeCoopFrame(0),
 		  usbPadTestFrame(0),
 		  achievementsFrame(0),
+		  playersFrame(0),
 		  activeIndex(0),
 		  activeSubmenu(0)
 {
 	pMenuContext = this;
-	for (int i = 0; i <= FRAME_ACHIEVEMENTS; i++)
+	for (int i = 0; i <= FRAME_PLAYERS; i++)
 	{
 		focusMemory[i].button = NULL;
 		focusMemory[i].submenu = 0;
@@ -80,6 +81,7 @@ MenuContext::MenuContext(GXRModeObj *vmode)
 	customizeCoopFrame = new CustomizeCoopFrame();
 	usbPadTestFrame = new UsbPadTestFrame();
 	achievementsFrame = new AchievementsFrame();
+	playersFrame = new PlayersFrame();
 
 	menu::Gui::getInstance().addFrame(mainFrame);
 	menu::Gui::getInstance().addFrame(loadRomFrame);
@@ -92,6 +94,7 @@ MenuContext::MenuContext(GXRModeObj *vmode)
 	menu::Gui::getInstance().addFrame(customizeCoopFrame);
 	menu::Gui::getInstance().addFrame(usbPadTestFrame);
 	menu::Gui::getInstance().addFrame(achievementsFrame);
+	menu::Gui::getInstance().addFrame(playersFrame);
 
 	menu::Focus::getInstance().setFocusActive(true);
 
@@ -102,6 +105,7 @@ MenuContext::MenuContext(GXRModeObj *vmode)
 
 MenuContext::~MenuContext()
 {
+	delete playersFrame;
 	delete achievementsFrame;
 	delete usbPadTestFrame;
 	delete customizeCoopFrame;
@@ -135,6 +139,7 @@ static const int LOGO_HIDDEN_FRAMES[] = {
 	MenuContext::FRAME_CUSTOMIZECOOP,
 	MenuContext::FRAME_CONFIGUREBUTTONS,
 	MenuContext::FRAME_USBPADTEST,
+	MenuContext::FRAME_PLAYERS,           /* the port band runs edge to edge */
 };
 
 /* sd:/wiistation/autoinput.txt's "menupage <n>": see PadWiiSX.c, where it is parsed. */
@@ -193,6 +198,8 @@ bool MenuContext::isRunning()
 					OptionsFrame::PAGE_SOUND + (int)autoinput_menupage - 6);
 			else if (autoinput_menupage == 15)   /* Current ISO > Achievements: the list */
 				setActiveFrame(FRAME_ACHIEVEMENTS, 0);
+			else if (autoinput_menupage == 18)   /* Players */
+				setActiveFrame(FRAME_PLAYERS, 0);
 			else if (autoinput_menupage == 16)   /* Current ISO */
 				setActiveFrame(FRAME_CURRENTROM);
 			else if (autoinput_menupage == 17)   /* Current ISO > Show ISO Info */
@@ -261,7 +268,7 @@ void MenuContext::enterFrame(int frameIndex, int submenu)
 	}
 
 	/* A Back takes what the screen remembers, but only for the tab it was left from. */
-	if (back && frameIndex >= FRAME_MAIN && frameIndex <= FRAME_ACHIEVEMENTS)
+	if (back && frameIndex >= FRAME_MAIN && frameIndex <= FRAME_PLAYERS)
 	{
 		if (focusMemory[frameIndex].submenu == submenu)
 			returnTo = focusMemory[frameIndex].button;
@@ -304,6 +311,9 @@ void MenuContext::enterFrame(int frameIndex, int submenu)
 		break;
 	case FRAME_ACHIEVEMENTS:
 		currentActiveFrame = achievementsFrame;
+		break;
+	case FRAME_PLAYERS:
+		currentActiveFrame = playersFrame;
 		break;
 	}
 
@@ -375,6 +385,9 @@ menu::Frame* MenuContext::getFrame(int frameIndex)
 		break;
 	case FRAME_ACHIEVEMENTS:
 		pFrame = achievementsFrame;
+		break;
+	case FRAME_PLAYERS:
+		pFrame = playersFrame;
 		break;
 	}
 

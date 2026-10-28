@@ -58,7 +58,7 @@ To write the game's file, load the game, open the Settings menu, and select **Sa
 
 **Load Settings > This Game** sets the settings in the same order (1, 2, 3) now. It does nothing when the game has no file.
 
-These keys are never in a game's file: `lang`, `MenuFont`, `FileSortMode`, `TabWrap` (the menu), `RomDirSD`, `RomDirUSB`, `RomDirSMB`, `NativeDevice`, `StatesDevice`, `AchievementFile`, `AchievementLog`, `AchievementUTCOffset` (folders, devices and the clock), and `smbipaddr`, `smbsharename`, `smbusername`, `smbpassword` (the network share and its login). They belong to the Wii, not to the game. **This Game** does not write them, and WiiStation ignores them in a game's file. A game file from 5.14.0 or earlier holds every key: WiiStation still reads it, and its other keys still replace the common file's values. The next **This Game** save writes only the differences. `FilterTour` is in no settings file (section 3).
+These keys are never in a game's file: `lang`, `MenuFont`, `FileSortMode`, `TabWrap` (the menu), `RomDirSD`, `RomDirUSB`, `RomDirSMB`, `NativeDevice`, `StatesDevice`, `AchievementFile`, `AchievementLog`, `AchievementUTCOffset` (folders, devices and the clock), the Players seats `Player1` ... `Player2D`, and `smbipaddr`, `smbsharename`, `smbusername`, `smbpassword` (the network share and its login). They belong to the Wii, not to the game. **This Game** does not write them, and WiiStation ignores them in a game's file. A game file from 5.14.0 or earlier holds every key: WiiStation still reads it, and its other keys still replace the common file's values. The next **This Game** save writes only the differences. `FilterTour` is in no settings file (section 3).
 
 Versions 5.6.1 to 5.13.1 wrote the game's file as `<serial>.cfg`, and no version read it. WiiStation reads `<serial>.cfg` on a device when that device has no `<serial>.ini`. The next **This Game** save writes `<serial>.ini`. You can then delete the `.cfg` file.
 
@@ -313,6 +313,25 @@ for the definition format, state handling, persistence boundaries, and tests.
 | `AchievementEncore` | 0 = Off, 1 = On | 0 | General, Cheevos, "Encore" | Official mode: achievements already earned can be earned again this session (the card shows again; nothing new is sent). |
 | `AchievementSpectator` | 0, 1 | 0 | none, settings file only (hidden) | Official mode for scripted test runs on a real account: everything is evaluated and shown, no unlock is sent. |
 | `AchievementUTCOffset` | `"Minutes"` | empty | none, settings file only | Official mode: minutes to add to the Wii's clock (local time) to get UTC, for certificate dates, e.g. `"+420"`, up to 840 either way. Empty (the default): the Wii learns it from the server's answers and keeps it in `achievements/utc_offset.txt`, summer time included. Set, it wins and nothing is learnt. |
+
+## Players
+
+Who plays on each PlayStation port, set in the Players menu (Main, Players): a Mii from the
+Mii Channel's database, read only, never written (Docs/MII_PLAN.md). The keys are per Wii: a
+game's file never holds them. Save the settings to keep the seats.
+
+| Key | Values | Default | Menu | Effect |
+|---|---|---|---|---|
+| `Player1` | `"Key"` | empty | none, settings file only (Main, Players sets it) | The Mii seated on port 1: its creation ID, 16 hex characters. Empty is Guest. |
+| `Player2` | `"Key"` | empty | none, settings file only (Main, Players sets it) | The Mii seated on port 2: its creation ID, 16 hex characters. Empty is Guest. |
+| `Player1A` | `"Key"` | empty | none, settings file only (Main, Players sets it) | The Mii seated on port 1A: its creation ID, 16 hex characters. Empty is Guest. |
+| `Player1B` | `"Key"` | empty | none, settings file only (Main, Players sets it) | The Mii seated on port 1B: its creation ID, 16 hex characters. Empty is Guest. |
+| `Player1C` | `"Key"` | empty | none, settings file only (Main, Players sets it) | The Mii seated on port 1C: its creation ID, 16 hex characters. Empty is Guest. |
+| `Player1D` | `"Key"` | empty | none, settings file only (Main, Players sets it) | The Mii seated on port 1D: its creation ID, 16 hex characters. Empty is Guest. |
+| `Player2A` | `"Key"` | empty | none, settings file only (Main, Players sets it) | The Mii seated on port 2A: its creation ID, 16 hex characters. Empty is Guest. |
+| `Player2B` | `"Key"` | empty | none, settings file only (Main, Players sets it) | The Mii seated on port 2B: its creation ID, 16 hex characters. Empty is Guest. |
+| `Player2C` | `"Key"` | empty | none, settings file only (Main, Players sets it) | The Mii seated on port 2C: its creation ID, 16 hex characters. Empty is Guest. |
+| `Player2D` | `"Key"` | empty | none, settings file only (Main, Players sets it) | The Mii seated on port 2D: its creation ID, 16 hex characters. Empty is Guest. |
 
 ## 7. Network settings
 

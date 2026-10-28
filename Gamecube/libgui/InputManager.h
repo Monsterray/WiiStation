@@ -57,8 +57,6 @@ private:
 
 } //namespace menu
 
-#endif
-
 extern bool isWiiVC;
 static inline bool IsWiiU(void)
 {
@@ -68,3 +66,5 @@ static inline bool IsWiiUFastCPU(void)
 {
 	return ((*(vu16*)0xCD8005A0 == 0xCAFE) && ((*(vu32*)0xCD8005B0 & 0x20) == 0));
 }
+
+#endif

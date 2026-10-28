@@ -34,6 +34,9 @@
 #include "GuiResources.h"
 #include "../menu/MenuLayout.h"   /* where the logo sits; shared with the frames */
 #include "../perf_prof.h"
+#include "../players.h"
+extern "C" void gxApplyEfbFormat(int game);
+extern "C" void applyCopyFilter(void);
 
 extern "C" {
 #include "../gc_input/controller.h"
@@ -248,6 +251,18 @@ void Gui::draw()
 
 	PERF_ADD(menu_draw_us, perf_now_us() - menu_t0);
 	gfx->swapBuffers();
+	/* Between this copy and the next frame: a Mii head into the EFB's corner (players.c,
+	 * mii_icon). It leaves its own pixel format, copy filter, lighting, texture coordinates and
+	 * indirect stages; drawInit sets the rest each frame. The menu's go back (GX_Init's values). */
+	if (players_between_frames()) {
+		gxApplyEfbFormat(0);
+		applyCopyFilter();
+		GX_SetChanCtrl(GX_COLOR0A0, GX_DISABLE, GX_SRC_REG, GX_SRC_VTX, GX_LIGHTNULL, GX_DF_NONE, GX_AF_NONE);
+		GX_SetTexCoordGen(GX_TEXCOORD0, GX_TG_MTX2x4, GX_TG_TEX0, GX_IDENTITY);
+		GX_SetNumIndStages(0);
+		GX_SetTevDirect(GX_TEVSTAGE0);
+		GX_InvalidateTexAll();
+	}
 	PERF_ADD(menu_us, perf_now_us() - menu_t0);
 	perf_menu_tick();
 }

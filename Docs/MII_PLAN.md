@@ -76,23 +76,25 @@ Rules the SDK sets that touch WiiStation:
 - **Privacy**: Mii names are personal. Logs, perf.log and crash reports print only the first 8
   hex characters of a key. The creator name is never read out of `mii`.
 
-## The Players menu (mock-up stage)
+## The Players menu (layout D, chosen 2026-10-28)
 
-Mock-up 1 (2026-10-28, an interactive HTML page in the chat): 640x480, the menu's grey and
-red-focus style.
+Mock-ups A-E were shown in the chat; the owner chose **D**, with subtle PS1 port theming.
 
-- Header "Players", page `1 / N` with < > (also + / -, or Q / W on a keyboard).
-- 15 coins a page (5 x 3), 76 px, each the Mii's head on its favourite colour with a white ring.
-  The focused coin has the red focus ring and a tip with its name and "4 of 31 here" (its
-  unlocks in the loaded game's set). A seated coin is dimmed and wears its port badge.
-- A line, then the ports: two wide sockets (Port 1, Port 2), or eight narrow ones with multitap
-  (1A-1D, 2A-2D). An empty socket shows a dashed "Guest" ring.
-- One hint line at the bottom that changes with the state (browsing, holding a coin, on a port).
-
-To settle on the next mock-ups: where the menu is reached from (a main-menu button, or a
-Players row that shows the seated coins), whether the ports show the pad type connected there,
-what a coin looks like while grabbed (lifted, a shadow, or plain), and motion (the owner dislikes
-bouncy motion: a grabbed coin follows the pointer 1:1, a drop is a short linear move).
+- **Ports first**, on a band the grey of the PS1's plastic: one card per port (two, or eight
+  in two rows with multitap). A card reads like the console's label: the port number large,
+  "CONTROLLER" small, the pad connected there, the seated Mii's coin in a round recess, its
+  name and, with a game loaded that has a set, "4 / 31 achievements" (that Mii's unlocks in
+  this set). A small PS1 controller socket sits in the card's corner; its pins light when a
+  Mii is seated on a port with a pad. A port without a pad is a shade darker.
+- **The coins** below: a strip of 16 a page (8 x 2), paged with + / - (no arrows at the top).
+  A coin is the Mii's head on a disc in its favourite colour; **a favourite Mii's coin has a
+  gold rim**. Without the face models a coin shows the name's initial. A seated coin is dimmed
+  and wears its port. The focused coin's name and progress show on one line under the strip.
+- **Input**: Wii Remote pointer, hold A+B on a coin, drop it on a card (on a taken card the
+  two swap; back on the strip unseats). A pad: A on a coin picks it up and the focus goes to
+  the cards (arrows choose), A seats it, B puts it back; on a card A picks its Mii up, B
+  makes the seat Guest. Up from the strip's top row goes to the cards.
+- No plugs: a plug-and-cable mock-up was fun but too silly.
 
 ## Phases and checks
 

@@ -39,6 +39,7 @@
 #include "lab_net.h"
 #include "boot_guard.h"   /* start-up's watchdog, until the HBC agent's */
 #include "hbc_home.h"
+#include "players.h"       /* playerSeat: settings.ini [Players] */
 #include <network.h>
 extern "C" void __exception_setreload(int t);
 #include "../psxcommon.h"
@@ -464,6 +465,17 @@ static SettingOption OPTIONS[] =
 #ifdef ACHIEVEMENTS_BENCH
   { "AchievementBenchRoot", achievementBenchRoot, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
 #endif
+  { "Players", NULL, 0, 0, "Who plays on each port: the key of a Mii seated in the Players menu, empty for Guest." },
+  { "Player1", playerSeat[0], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
+  { "Player2", playerSeat[1], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
+  { "Player1A", playerSeat[2], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
+  { "Player1B", playerSeat[3], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
+  { "Player1C", playerSeat[4], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
+  { "Player1D", playerSeat[5], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
+  { "Player2A", playerSeat[6], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
+  { "Player2B", playerSeat[7], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
+  { "Player2C", playerSeat[8], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
+  { "Player2D", playerSeat[9], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "Network", NULL, 0, 0, "Games from a network share (SMB)." },
   { "smbipaddr", smbIpAddr, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "smbsharename", smbShareName, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
@@ -545,7 +557,8 @@ static const char* const UNSTORED_KEYS[] = { "FilterTour" };
 static const char* const GLOBAL_ONLY_KEYS[] = {
 	"lang", "MenuFont", "FileSortMode", "TabWrap", "RomDirSD", "RomDirUSB",
 	"NativeDevice", "StatesDevice", "AchievementFile", "AchievementLog", "AchievementUTCOffset", "AchievementBenchRoot",
-	"smbipaddr", "smbsharename", "smbusername", "smbpassword", "RomDirSMB" };
+	"smbipaddr", "smbsharename", "smbusername", "smbpassword", "RomDirSMB",
+	"Player1", "Player2", "Player1A", "Player1B", "Player1C", "Player1D", "Player2A", "Player2B", "Player2C", "Player2D" };
 
 static bool keyIn(const char* key, const char* const* list, int n)
 {
@@ -2011,6 +2024,7 @@ void go(void) {
 	Config.PsxOut = 0;
 	stop = 0;
 	achievements_wait_loaded(8000);   /* Official: the set parses here, not in the game (the menu waited already) */
+	players_idle();   /* the Mii faces thread and its models: menu only */
 	perf_reset();
 	lc_configure((unsigned char)lockedCache);   /* the regions this game runs with */
 

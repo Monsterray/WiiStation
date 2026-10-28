@@ -1957,10 +1957,11 @@ static void testInactiveNeverFocus(void)
  * focus are checked against the numbers the frames had before the port: the boxes as their tables
  * gave them, the links as their FRAME_BUTTONS tables gave them. */
 
-/* Main: six rows of one button, 200 wide at x 315, the first at y 60 and then 60 apart. */
+/* Main: seven rows of one button, 200 wide at x 315, the first at y 36 and then 60 apart. */
 static const ActionButton MAIN_ACTIONS[] = {
 	{ "Load ISO", 200.0f, false }, { "Current ISO", 200.0f, false }, { "Settings", 200.0f, false },
-	{ "Credits", 200.0f, false },  { "Quit", 200.0f, false },        { "Play Game", 200.0f, false },
+	{ "Players", 200.0f, false },  { "Credits", 200.0f, false },     { "Quit", 200.0f, false },
+	{ "Play Game", 200.0f, false },
 };
 static Row MAIN_ROWS[] = {
 	{ ROW_BUTTONS, NULL, NULL, 0, 1, 0, NULL, false, &MAIN_ACTIONS[0], 315.0f, 0.0f, NULL, 0 },
@@ -1969,6 +1970,7 @@ static Row MAIN_ROWS[] = {
 	{ ROW_BUTTONS, NULL, NULL, 0, 1, 0, NULL, false, &MAIN_ACTIONS[3], 315.0f, 0.0f, NULL, 0 },
 	{ ROW_BUTTONS, NULL, NULL, 0, 1, 0, NULL, false, &MAIN_ACTIONS[4], 315.0f, 0.0f, NULL, 0 },
 	{ ROW_BUTTONS, NULL, NULL, 0, 1, 0, NULL, false, &MAIN_ACTIONS[5], 315.0f, 0.0f, NULL, 0 },
+	{ ROW_BUTTONS, NULL, NULL, 0, 1, 0, NULL, false, &MAIN_ACTIONS[6], 315.0f, 0.0f, NULL, 0 },
 };
 
 /* Load ROM: four rows of one button, 340 wide, centred (x 150), the rows 80 apart from y 100. */
@@ -2027,13 +2029,10 @@ static int boxIdxAt(const ScreenBox *b, unsigned n, int row, int slot)
 }
 
 static const ScreenBox MAIN_BOXES[] = {
-	{ 0, 0, 0, 315.0f,  60.0f, 200.0f, 56.0f }, { 1, 1, 0, 315.0f, 120.0f, 200.0f, 56.0f },
-	{ 2, 2, 0, 315.0f, 180.0f, 200.0f, 56.0f }, { 3, 3, 0, 315.0f, 240.0f, 200.0f, 56.0f },
-	{ 4, 4, 0, 315.0f, 300.0f, 200.0f, 56.0f }, { 5, 5, 0, 315.0f, 360.0f, 200.0f, 56.0f },
+	{ 0, 0, 0, 315.0f,  36.0f, 200.0f, 56.0f }, { 1, 1, 0, 315.0f,  96.0f, 200.0f, 56.0f }, { 2, 2, 0, 315.0f, 156.0f, 200.0f, 56.0f }, { 3, 3, 0, 315.0f, 216.0f, 200.0f, 56.0f }, { 4, 4, 0, 315.0f, 276.0f, 200.0f, 56.0f }, { 5, 5, 0, 315.0f, 336.0f, 200.0f, 56.0f }, { 6, 6, 0, 315.0f, 396.0f, 200.0f, 56.0f },
 };
 static const ScreenLink MAIN_LINKS[] = {
-	{ 0, 5, 1, -1, -1 }, { 1, 0, 2, -1, -1 }, { 2, 1, 3, -1, -1 },
-	{ 3, 2, 4, -1, -1 }, { 4, 3, 5, -1, -1 }, { 5, 4, 0, -1, -1 },
+	{ 0, 6, 1, -1, -1 }, { 1, 0, 2, -1, -1 }, { 2, 1, 3, -1, -1 }, { 3, 2, 4, -1, -1 }, { 4, 3, 5, -1, -1 }, { 5, 4, 6, -1, -1 }, { 6, 5, 0, -1, -1 },
 };
 static const ScreenBox LOADROM_BOXES[] = {
 	{ 0, 0, 0, 150.0f, 100.0f, 340.0f, 56.0f }, { 1, 1, 0, 150.0f, 180.0f, 340.0f, 56.0f },
@@ -2302,7 +2301,7 @@ static void testLinkOverrides(void)
 static int checkButtonRowScreens(void)
 {
 	int bad = 0;
-	const Page main    = screenPage(MAIN_ROWS, (int)COUNT(MAIN_ROWS), LOGO_SPOT_TOP, 60.0f, 0.0f);
+	const Page main    = screenPage(MAIN_ROWS, (int)COUNT(MAIN_ROWS), LOGO_SPOT_TOP, 36.0f, 0.0f);
 	const Page loadrom = screenPage(LOADROM_ROWS, (int)COUNT(LOADROM_ROWS), LOGO_SPOT_TOP, 0.0f, 80.0f);
 	Page current = screenPage(CURRENT_ROWS, (int)COUNT(CURRENT_ROWS), LOGO_SPOT_BOTTOM, 60.0f, 0.0f);
 	current.overrides = CURRENT_OVERRIDES;

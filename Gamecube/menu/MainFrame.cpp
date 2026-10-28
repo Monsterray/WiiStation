@@ -56,16 +56,18 @@ extern "C" {
 void Func_LoadROM();
 void Func_CurrentROM();
 void Func_Settings();
+void Func_Players();
 void Func_Credits();
 void Func_ExitToLoader();
 void Func_PlayGame();
 
-static const int NUM_MAIN_BUTTONS = 6;
+static const int NUM_MAIN_BUTTONS = 7;
 
-static char mainStrings[7][20] =
+static char mainStrings[8][20] =
 	{ "Load ISO",
 	  "Current ISO",
 	  "Settings",
+	  "Players",
 	  "Credits",
 	  "Quit",
 	  "Play Game",
@@ -87,12 +89,13 @@ static MainButtonInfo mainButtons[NUM_MAIN_BUTTONS] =
 	{	NULL,	BTN_A_NRM,	mainStrings[0],	Func_LoadROM,		NULL },
 	{	NULL,	BTN_A_NRM,	mainStrings[1],	Func_CurrentROM,	NULL },
 	{	NULL,	BTN_A_NRM,	mainStrings[2],	Func_Settings,		NULL },
-	{	NULL,	BTN_A_NRM,	mainStrings[3],	Func_Credits,		NULL },
-	{	NULL,	BTN_A_NRM,	mainStrings[4],	Func_ExitToLoader,	NULL },
-	{	NULL,	BTN_A_NRM,	mainStrings[5],	Func_PlayGame,		NULL },
+	{	NULL,	BTN_A_NRM,	mainStrings[3],	Func_Players,		NULL },
+	{	NULL,	BTN_A_NRM,	mainStrings[4],	Func_Credits,		NULL },
+	{	NULL,	BTN_A_NRM,	mainStrings[5],	Func_ExitToLoader,	NULL },
+	{	NULL,	BTN_A_NRM,	mainStrings[6],	Func_PlayGame,		NULL },
 };
 
-/* The Main menu page: six rows, one action button each. */
+/* The Main menu page: seven rows, one action button each. */
 static eng::ActionButton MAIN_ACTIONS[NUM_MAIN_BUTTONS];
 static eng::Row MAIN_ROWS[NUM_MAIN_BUTTONS];
 static eng::Page MAIN_PAGE;
@@ -119,7 +122,7 @@ static void layoutMain(void)
 	MAIN_PAGE.nRows = NUM_MAIN_BUTTONS;
 	MAIN_PAGE.logo  = eng::LOGO_SPOT_TOP;
 	MAIN_PAGE.focus = eng::FOCUS_ROWS;
-	MAIN_PAGE.rowY0 = 60.0f;
+	MAIN_PAGE.rowY0 = 36.0f;	/* seven rows of 60 from y 36: the last ends at 452 */
 
 	eng::layoutPage(MAIN_PAGE, menu::glue::METRICS, MAIN_LAYOUT);
 	eng::linkFocus(MAIN_PAGE, MAIN_LAYOUT);
@@ -197,6 +200,11 @@ void Func_Settings()
 {
 	menu::Gui::getInstance().menuLogo->setLocation(580.0, 410.0, -50.0);
 	pMenuContext->setActiveFrame(MenuContext::FRAME_SETTINGS,SettingsFrame::SUBMENU_GENERAL);
+}
+
+void Func_Players()
+{
+	pMenuContext->setActiveFrame(MenuContext::FRAME_PLAYERS, 0);   /* the two-argument form runs activateSubmenu: it starts the Mii reader */
 }
 
 void Func_Credits()
@@ -409,16 +417,16 @@ void Func_PlayGame()
   continueRemovalThread();
   resume_netinit_thread();
 #endif
-	mainButtons[5].buttonString = mainStrings[6];
+	mainButtons[6].buttonString = mainStrings[7];
 	menu::Cursor::getInstance().clearCursorFocus();
 }
 
 void Func_SetPlayGame()
 {
-	mainButtons[5].buttonString = mainStrings[5];
+	mainButtons[6].buttonString = mainStrings[6];
 }
 
 void Func_SetResumeGame()
 {
-	mainButtons[5].buttonString = mainStrings[6];
+	mainButtons[6].buttonString = mainStrings[7];
 }

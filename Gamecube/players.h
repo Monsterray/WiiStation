@@ -1,0 +1,57 @@
+/* players.h -- the Miis on this Wii as players (Docs/MII_PLAN.md), for the Players menu.
+ *
+ * The Miis come from the Mii Channel's database through hbc-reborn's Mii SDK (deps/mii),
+ * read only: WiiStation never writes it. A Mii's key is its creation ID as 16 hex
+ * characters. Each Mii has a coin: a disc in its favourite colour (a gold rim for a
+ * favourite), with its head on it once sd:/mii/RFL_Res.dat is there (HBC's HOME > HBC >
+ * Save Mii faces), its initial before that and without it. */
+#ifndef PLAYERS_H
+#define PLAYERS_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#define PLAYERS_MAX 100
+#define PLAYERS_COIN 80          /* a coin's side in pixels: GX_TF_RGBA8, PLAYERS_COIN^2 * 4 bytes */
+#define PLAYERS_KEY 17           /* 16 hex characters and the NUL */
+#define PLAYERS_SEATS 10         /* virtualControllers 0-9: ports 1, 2; multitap 1A-1D, 2A-2D */
+
+typedef struct {
+	char key[PLAYERS_KEY];
+	char name[32];               /* UTF-8 */
+	unsigned char fav_color;     /* 0-11, RFL's order (MII_RED ...) */
+	unsigned char favorite;      /* starred in the Mii Channel: the coin's rim is gold */
+	unsigned char face;          /* the coin shows the head (else the initial) */
+	unsigned coin_serial;        /* changes whenever the coin's pixels change */
+	void *coin;                  /* PLAYERS_COIN x PLAYERS_COIN GX_TF_RGBA8, MEM2, flushed */
+} player_mii;
+
+/* Starts reading the Miis on a thread (once; about 0.7 s, then the faces one by one). */
+void players_start(void);
+/* -1 while the database is being read, else how many Miis (0: none, or no database). */
+int players_count(void);
+const player_mii *players_get(int i);
+/* The face models: 0 not known yet, 1 loaded, negative: the MII_E_* code (MII_E_NO_FILE:
+ * no sd:/mii/RFL_Res.dat, HBC's HOME > HBC > Save Mii faces makes it). */
+int players_faces(void);
+int players_find(const char *key);       /* the index of a key, or -1 */
+/* Call after the menu's last copy to the screen, before the next frame is drawn: puts one
+ * finished head on its coin (mii_icon draws in the EFB's corner). Returns 1 when it did, so
+ * the caller sets its GX state again. */
+int players_between_frames(void);
+/* Before a game starts: frees the face models and the coins' work (the coins stay). */
+void players_idle(void);
+
+/* The seats, indexed as virtualControllers 0-9 (ports 1 and 2, then multitap 1A-1D and
+ * 2A-2D): the key of the Mii on each, "" for Guest. settings.ini [Players] Player1 ...
+ * Player2D (GamecubeMain.cpp), saved with the other settings. */
+extern char playerSeat[PLAYERS_SEATS][256];
+extern const char *const PLAYERS_SEAT_NAMES[PLAYERS_SEATS];   /* "1", "2", "1A" ... "2D" */
+void players_seat_mii(int seat, const char *key);   /* seats a Mii (leaving its other seat), or Guest for NULL */
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif

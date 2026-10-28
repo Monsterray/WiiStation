@@ -35,6 +35,7 @@
 #include "OptionsFrame.h"
 #include "UsbPadTestFrame.h"
 #include "AchievementsFrame.h"
+#include "PlayersFrame.h"
 
 #include "MenuTypes.h"
 
@@ -60,7 +61,8 @@ public:
 		FRAME_OPTIONS,
 		FRAME_CUSTOMIZECOOP,
 		FRAME_USBPADTEST,
-		FRAME_ACHIEVEMENTS
+		FRAME_ACHIEVEMENTS,
+		FRAME_PLAYERS
 	};
 
 private:
@@ -78,6 +80,7 @@ private:
 	CustomizeCoopFrame *customizeCoopFrame;
 	UsbPadTestFrame *usbPadTestFrame;
 	AchievementsFrame *achievementsFrame;
+	PlayersFrame *playersFrame;
 
 	/* Where focus goes on a Back: the button a screen was left by, and the submenu (tab) it
 	 * was left from. Set when the screen is left by a press; see enterFrame().
@@ -88,7 +91,7 @@ private:
 		menu::Component *button;
 		int submenu;
 	};
-	FocusMemory focusMemory[FRAME_ACHIEVEMENTS + 1];
+	FocusMemory focusMemory[FRAME_PLAYERS + 1];
 	int activeIndex, activeSubmenu;
 
 };
