@@ -44,12 +44,24 @@ void agent_lastlog(u32 why);
 void agent_request_exit(void) __attribute__((noreturn));
 void agent_power_off(void) __attribute__((noreturn));
 extern void __reload(void) __attribute__((noreturn));
+/* way_out.c: leaves for HBC once the crash block and kept log are written,
+ * checking IOS answers first (../hbc_agent.h, "The way out"). */
+void agent_leave(void) __attribute__((noreturn));
+/* agent.c: a way out into the log, the crash block and the kept log; and
+ * whether the last agent chose a reset under 10 minutes ago. */
+void agent_way_out_note(u32 way, const char *text);
+bool agent_reset_recently(void);
 /* The overlay is open, or the app holds the hang watchdog (a load). */
 bool agent_paused(void);
 /* The 1 s monitor thread (the hang watchdog's): starts it if it is not
  * running and returns the bytes that took (its stack), else 0. */
 u32 agent_monitor_start(void);
 bool agent_monitor_running(void);
+/* The agent's lasting memory, from the top of the MEM2 arena (agent.c):
+ * one slice per user, kept for the app's whole run. */
+enum { AGENT_MEM_STACK, AGENT_MEM_WATCHDOG, AGENT_MEM_STUB, AGENT_MEM_SLOTS };
+#define AGENT_STUB_COPY 0x1800   /* safety.c's copy of the reload stub */
+void *agent_lasting(int slot);
 /* hbc_agent_stop() ran (and no hbc_agent_init() since). */
 bool agent_stopped(void);
 /* overlay.c, if linked: its speaker, threads and sounds, for the stop. */

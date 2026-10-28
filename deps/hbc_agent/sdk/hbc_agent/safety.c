@@ -112,6 +112,7 @@ static u32 fps, fps_flips, fps_retraces;
 
 #define STUB_ADDR 0x80001800
 #define STUB_SIZE 0x1800
+_Static_assert(STUB_SIZE == AGENT_STUB_COPY, "agent_lasting()'s slice for the stub copy");
 static u32 *stub_copy;
 static u32 stub_sum, stub_changed_ms;
 static bool stub_restored;
@@ -367,7 +368,7 @@ static void __attribute__((noreturn)) stop(u32 kind, u32 why, const char *reason
 	agent_stop_record(kind, 0, reason, from, from, current_sp());
 	safety_on_death();
 	agent_lastlog(why);
-	__reload();
+	agent_leave();
 }
 
 // newlib's assert() calls this. Weak, so an app's own still wins.
@@ -534,7 +535,7 @@ static void __attribute__((noreturn)) marks_broken(void) {
 	agent_stop_record(HBC_CRASH_STACK, 0, "main thread stack overflow (marker)", pc, lr, sp);
 	safety_on_death();
 	agent_lastlog(HBC_LASTLOG_STACK);
-	__reload();
+	agent_leave();
 }
 
 static u32 sum_words(const u32 *p, u32 n) {
@@ -649,7 +650,7 @@ void safety_init(const hbc_agent_config *config) {
 	}
 	if (cfg->guard_reload_stub && *(u32 *) (STUB_ADDR + 4) == 0x53545542 &&
 			*(u32 *) (STUB_ADDR + 8) == 0x48415858) {   // "STUBHAXX"
-		stub_copy = memalign(32, STUB_SIZE);
+		stub_copy = agent_lasting(AGENT_MEM_STUB);   // lasting: not freed
 		if (stub_copy) {
 			memcpy(stub_copy, (void *) STUB_ADDR, STUB_SIZE);
 			stub_sum = sum_words(stub_copy, STUB_SIZE / 4);
@@ -691,8 +692,7 @@ void safety_stop(void) {
 	took_reset = took_power = false;
 	button = 0;
 	SYS_UnregisterResetFunc(&reset_info);
-	free(stub_copy);
-	stub_copy = NULL;
+	stub_copy = NULL;   // agent_lasting()'s, kept for a new init
 	stub_changed_ms = 0;
 	mem_on = false;
 	bytes_held = 0;
@@ -709,6 +709,11 @@ s32 safety_json(char *buf, size_t size) {
 	n += snprintf(buf + n, size - n, ",\"reset\":%s,\"power\":%s,\"flush_at_exit\":%s",
 				  took_reset ? "true" : "false", took_power ? "true" : "false",
 				  off & HBC_AGENT_NO_FLUSH || !UNMOUNT ? "false" : "true");
+	// The way out (way_out.c): checked, and whether a system reset is open
+	// to it now (AHBPROT, which the app's IOS reloads may have changed).
+	n += snprintf(buf + n, size - n, ",\"way_out\":{\"ios_check\":%s,\"hw_reset\":%s}",
+				  off & HBC_AGENT_NO_IOS_CHECK ? "false" : "true",
+				  read32(0x0d800064) == 0xffffffff ? "true" : "false");
 	if (frames_on) {
 		u32 r = retraces, f = flips;
 

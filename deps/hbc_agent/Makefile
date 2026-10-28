@@ -1,5 +1,5 @@
 # libhbcagent.a for WiiStation: the Homebrew Channel's in-app agent (sdk/hbc_agent.h), from
-# hbc-reborn commit 6ee1c07 (HBC 1.10.6), built against the same libogc as the rest of WiiStation
+# hbc-reborn commit bdf44d2 (HBC 1.12.1), built against the same libogc as the rest of WiiStation
 # (libogc v3 by default since 5.13.0, libogc2 with LIBOGC=2). The files are hbc-reborn's, unchanged: since HBC 1.8.3 the agent knows
 # libogc2 itself (sdk/hbc_agent/ogc_flavor.h), and its crash hook is an assembly entry
 # (ogc_exc.S) as libogc2's exception table needs -- tested on the bench Wii in HBC 1.8.5.
@@ -40,7 +40,7 @@ CFLAGS = -DGEKKO -mrvl -mcpu=750 -meabi -mhard-float -O2 -Wall \
 	-I$(HBC_SRC) -Isdk -I$(AGENT) \
 	-I$(OGC_INC)$(if $(filter 3,$(LIBOGC)), -DAGENT_TUXEDO=1) -I$(DEVKITPRO)/portlibs/ppc/include
 
-SRC = $(AGENT)/agent.c $(AGENT)/safety.c $(AGENT)/alloc_wrap.c $(AGENT)/info.c $(AGENT)/ogc_exc.S $(AGENT)/overlay.c $(AGENT)/ov_ui.c $(AGENT)/ov_draw.c \
+SRC = $(AGENT)/agent.c $(AGENT)/safety.c $(AGENT)/way_out.c $(AGENT)/alloc_wrap.c $(AGENT)/info.c $(AGENT)/ogc_exc.S $(AGENT)/overlay.c $(AGENT)/ov_ui.c $(AGENT)/ov_draw.c \
 	sdk/wiispk/wiispk.c \
 	$(HBC_SRC)/devfile.c $(HBC_SRC)/devstream.c $(HBC_SRC)/tcp.c $(HBC_SRC)/zmem.c
 OBJ = $(addprefix $(BUILD)/,$(notdir $(patsubst %.S,%.o,$(SRC:.c=.o))))

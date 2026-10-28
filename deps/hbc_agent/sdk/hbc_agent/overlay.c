@@ -73,6 +73,44 @@ static wiimote *remote(int chan) {
 }
 
 static struct cmd_blk_t **head_of(wiimote *wm);
+
+// ---- MotionPlus, for Test and Calibrate -------------------------------------
+// libogc reports a MotionPlus (fitted or built into a Wii Remote Plus) only
+// once it is switched on: WPAD_SetMotionPlus(chan, 1) probes for it and, if
+// it is there, makes it the expansion (WPADData's exp.mp: the gyro). An app
+// that never uses it would show no gyro on Test and measure none on
+// Calibrate. So those pages switch it on for the remote they show, and the
+// agent switches it back off afterwards, for the remotes it switched on
+// itself: the app gets each remote back as it left it. On a remote without
+// one the probe finds nothing and changes nothing.
+#define MPLUS_PRESENT 0x100000u   // wiiuse's WIIMOTE_STATE_MPLUS_PRESENT
+
+static bool mp_ours[4];
+
+static void mp_want(int chan) {
+	WPADData *d;
+
+	if (chan < 0 || chan > 3 || mp_ours[chan] || WPAD_Probe(chan, NULL) != WPAD_ERR_NONE)
+		return;
+	d = WPAD_Data(chan);
+	if (d && d->exp.type == EXP_MOTION_PLUS)
+		return;                    // the app has it on already
+	WPAD_SetMotionPlus(chan, 1);
+	mp_ours[chan] = true;
+}
+
+static void mp_release(int chan) {
+	WPADData *d;
+
+	if (chan < 0 || chan > 3 || !mp_ours[chan])
+		return;
+	mp_ours[chan] = false;
+	d = WPAD_Data(chan);
+	// Only where one was found: switching off a remote without one would
+	// probe it again.
+	if (WPAD_Probe(chan, NULL) == WPAD_ERR_NONE && d && d->exp.type == EXP_MOTION_PLUS)
+		WPAD_SetMotionPlus(chan, 0);
+}
 static void toast(const char *msg);
 static bool app_toasted;                // the app set this action's message
 
@@ -410,10 +448,25 @@ int agent_remote_diag(char *buf, int size) {
 		// most, sniff]
 		n += snprintf(buf + n, size - n, "%s{\"chan\":%d,\"state\":\"%06x\",\"leds\":\"%02x\","
 				"\"exp\":%d,\"queued\":%d,\"head\":%s,\"head_sent\":%s,\"resent\":%u,"
-				"\"dropped\":%u,\"spk\":[%u,%u,%u,%u,%u,%u,%d]}", n > 1 ? "," : "", chan, wm->state,
+				"\"dropped\":%u,\"spk\":[%u,%u,%u,%u,%u,%u,%d]", n > 1 ? "," : "", chan, wm->state,
 				wm->leds, wm->exp.type, queued(wm), rpt, head && head->state == CMD_SENT ? "true" : "false",
 				q[chan].resent, q[chan].dropped, st.sent, st.skipped, st.wrapped, st.gap_max_us,
 				st.free_min, st.free_max, st.sniff);
+		// MotionPlus: "none" until a probe finds one ("present"), "active" while
+		// it is the expansion, with its gyro (rx pitch, ry roll, rz yaw; about
+		// 8000 at rest); "ours" when the overlay switched it on.
+		{
+			WPADData *d = WPAD_Data(chan);
+			int active = d && d->exp.type == EXP_MOTION_PLUS;
+
+			n += snprintf(buf + n, size - n, ",\"mplus\":\"%s\",\"mplus_ours\":%s",
+						  active ? "active" : wm->state & MPLUS_PRESENT ? "present" : "none",
+						  mp_ours[chan] ? "true" : "false");
+			if (active)
+				n += snprintf(buf + n, size - n, ",\"gyro\":[%d,%d,%d]", d->exp.mp.rx, d->exp.mp.ry,
+							  d->exp.mp.rz);
+			n += snprintf(buf + n, size - n, "}");
+		}
 	}
 	n += snprintf(buf + n, size - n, "]");
 	return n;
@@ -1050,6 +1103,29 @@ static void button_names(u32 b, char *out, size_t size) {
 		snprintf(out, size, "none held");
 }
 
+// WiiMote > Settings > Reconnect, as the Wii Menu's: WPAD_Search() drops
+// every remote and forgets which player each was, then each remote joins in
+// the next free slot as 1 and 2 (or, if paired, any button) are pressed on
+// it. It stops at Done, with four remotes in, or as the overlay closes.
+static bool reconnecting, reconnect_emptied;
+
+static void reconnect(bool on) {
+#if AGENT_TUXEDO
+	if (on == reconnecting)
+		return;
+	reconnecting = on;
+	reconnect_emptied = false;
+	if (on) {
+		WPAD_Search();
+		toast("Press 1 and 2 on each remote, player 1 first");
+	} else {
+		WPAD_StopSearch();
+	}
+#else
+	(void) on;   // libogc2's and libogc 1.x's WPAD have no search call
+#endif
+}
+
 static void poll(ov_run *r) {
 	ov_ext *e = &r->ext;
 	const hbc_agent_config *cfg = agent_cfg();
@@ -1106,6 +1182,16 @@ static void poll(ov_run *r) {
 	e->has_save = cfg->on_save != NULL;
 	e->has_restart = cfg->on_restart != NULL;
 	e->can_leds = have_handles();
+	e->can_reconnect = AGENT_TUXEDO;
+	// All four back in: nothing left to wait for. The drop is not instant,
+	// so first wait until a slot is seen empty.
+	for (chan = 0; chan < OV_REMOTES && e->remote[chan].connected; ++chan)
+		;
+	if (chan < OV_REMOTES)
+		reconnect_emptied = reconnecting;
+	else if (reconnect_emptied)
+		reconnect(false);
+	e->reconnecting = reconnecting;
 	e->sensor_above = ses.sensor_above < 0 ?
 		CONF_GetSensorBarPosition() == CONF_SENSORBAR_TOP : ses.sensor_above;
 	e->ir_sens = ses.ir_sens ? ses.ir_sens : CONF_GetIRSensitivity();
@@ -1275,11 +1361,14 @@ static void act(int action, int arg, void *user) {
 		break;
 	case OVA_TEST_START:
 		run->test_chan = arg;
+		mp_want(arg);
 		break;
 	case OVA_TEST_STOP:
+		mp_release(run->test_chan);
 		run->test_chan = -1;
 		break;
 	case OVA_CAL_START:
+		mp_want(arg);
 		memset(&cal_run, 0, sizeof(cal_run));
 		cal_run.chan = arg;
 		cal_run.wait = CAL_WAIT_FRAMES;
@@ -1296,6 +1385,9 @@ static void act(int action, int arg, void *user) {
 		break;
 	case OVA_DISCONNECT_ALL:
 		set_all(disconnect);
+		break;
+	case OVA_RECONNECT:
+		reconnect(arg);
 		break;
 	case OVA_SENSOR_ABOVE:
 		ses.sensor_above = arg;
@@ -1629,6 +1721,9 @@ static s32 home(const GXRModeObj *rmode, void *fb0, void *fb1) {
 	VIDEO_SetNextFramebuffer(app_fb);
 	VIDEO_Flush();
 	VIDEO_WaitVSync();
+	reconnect(false);
+	for (i = 0; i < 4; ++i)
+		mp_release(i);
 	fx_stop_all();
 	ir_restore();
 	if (sd != LWP_THREAD_NULL)
