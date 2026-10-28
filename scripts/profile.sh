@@ -92,6 +92,9 @@ stage_into() {   # DIR GAME...
 		[ -d "$LIB/$x" ] && { mkdir -p "$w/$x"; cp -ru "$LIB/$x/." "$w/$x/"; }
 	done
 	[ -d "$LIB/states" ] && { mkdir -p "$w/states"; cp -ru "$LIB/states/." "$w/states/"; }
+	# sd:/mii: the Mii faces and bodies (RFL_Res.dat, *Body.brres) the Players menu draws with.
+	# Nintendo's files, copied once from the bench Wii's card (HBC Save Mii faces); never in git.
+	[ -d "$LIB/mii" ] && { mkdir -p "$dir/Load/WiiSDSync/mii"; cp -ru "$LIB/mii/." "$dir/Load/WiiSDSync/mii/"; }
 	for g in "$@"; do
 		src="${WSX_EXTRA_ISOS:-/nonexistent}/$g"
 		[ -d "$src" ] || src="$LIB/games/$g"

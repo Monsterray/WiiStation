@@ -180,6 +180,15 @@ CFGARGS=(
   -C Logger.Logs.MEMMAP=True
   -C Logger.Logs.OSREPORT=True
   -C Logger.Logs.FRAMEDUMP=True
+  # What the app asks IOS (NAND files, title/ES, network, power): one line per call, so a
+  # thread stuck on IOS or a file the profile lacks shows by name. IOS_SD and IOS_USB are
+  # the disc image's stream, millions of lines in a game: IOSLOG=1 adds them.
+  -C Logger.Logs.IOS=True
+  -C Logger.Logs.IOS_FS=True
+  -C Logger.Logs.IOS_ES=True
+  -C Logger.Logs.IOS_NET=True
+  -C Logger.Logs.IOS_STM=True
+  -C Logger.Logs.WII_IPC=True
   # Host-side speed, next to WiiStation's own FPS counter. The guest's counter measures
   # EMULATED time (it reads the PPC time base), so it happily reports 40 fps while Dolphin
   # crawls in wall-clock; only these tell you what the host is actually managing.
@@ -187,6 +196,7 @@ CFGARGS=(
   -C Graphics.Settings.ShowVPS=True
 )
 [ "${CACHE:-0}" != 0 ]   && CFGARGS+=(-C Dolphin.Core.AccurateCPUCache=True)
+[ "${IOSLOG:-0}" != 0 ]  && CFGARGS+=(-C Logger.Logs.IOS_SD=True -C Logger.Logs.IOS_USB=True)
 [ "${MMU:-0}" != 0 ]     && CFGARGS+=(-C Dolphin.Core.MMU=True)
 [ "${XFB_RAM:-0}" != 0 ] && CFGARGS+=(-C Graphics.Hacks.XFBToTextureEnable=False)
 [ "${DSP_LLE:-0}" != 0 ] && CFGARGS+=(-C Dolphin.Core.DSPHLE=False -C Logger.Logs.DSPLLE=True)
