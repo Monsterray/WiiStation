@@ -1128,11 +1128,11 @@ void perf_report(void)
 
 		fprintf(f, "--- perf frames=%lu ---\n", (unsigned long)g_perf.present_frames);
 #if PERF_PROF_ACHIEVEMENTS
-		fprintf(f, "achperf: calls=%u total_us=%llu max_us=%llu vsig=%u toast_draws=%u toast_us=%llu toast_max_us=%llu\n",
+		fprintf(f, "achperf: calls=%u total_us=%llu max_us=%llu vsig=%u toast_draws=%u toast_idle=%u toast_us=%llu toast_max_us=%llu\n",
 			(unsigned)g_perf.achievement_frames,
 			(unsigned long long)ticks_to_microsecs(g_perf.achievement_ticks),
 			(unsigned long long)ticks_to_microsecs(g_perf.achievement_max_ticks), PERF_PROF_VSIG,
-			(unsigned)g_perf.toast_draws,
+			(unsigned)g_perf.toast_draws, (unsigned)g_perf.toast_idle,
 			(unsigned long long)ticks_to_microsecs(g_perf.toast_ticks),
 			(unsigned long long)ticks_to_microsecs(g_perf.toast_max_ticks));
 #endif
@@ -1921,6 +1921,7 @@ void perf_report(void)
 			(unsigned long)g_perf.menu_frames, g_perf.menu_us, g_perf.menu_draw_us,
 			(unsigned long)g_perf.menu_strings, (unsigned long)g_perf.menu_glyphs,
 			(unsigned long)g_perf.menu_texloads);
+		fprintf(f, "menusmall: drawn=%lu refused=%lu\n", (unsigned long)g_perf.menu_small, (unsigned long)g_perf.menu_small_no);
 		fprintf(f, "menuinit: ctor_us=%llu\n", menu_init_us);
 		perf_ramwatch_report(f);
 		perf_log_close(f);

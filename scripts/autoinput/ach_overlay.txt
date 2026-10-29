@@ -1,0 +1,17 @@
+# the overlay run (scripts/chains/ach_overlay.txt): TV pictures (--env XFB_RAM=1)
+xfb 20
+xfb 30
+xfb 40
+xfb 50
+xfb 60
+xfb 70
+xfb 80
+xfb 90
+xfb 100
+xfb 130
+xfb 160
+xfb 200
+xfb 230
+xfb 260
+xfb 300
+xfb 450

@@ -37,6 +37,10 @@ extern "C" {
 }
 
 extern GXTexRegion texCacheRegionS[8];
+extern "C" GXRModeObj *g_tv_mode;   /* GraphicsGX.cpp: the video mode on the TV (NULL before the first mode switch) */
+extern GXRModeObj *vmode;           /* GamecubeMain.cpp: the menu's mode (the class's own vmode is never set) */
+/* the ortho drawInit loaded: the picture's left and right edge in the menu's 640-wide units */
+static float pjL = 0, pjR = 639;
 
 namespace menu {
 
@@ -215,6 +219,7 @@ void IplFont::buildAtlas(void)
 
 void IplFont::releaseFontMem(void)
 {
+    freeSmall();
     if (atlas != NULL)
     {
         __lwp_heap_free(GXtexCache, atlas);
@@ -342,12 +347,15 @@ void IplFont::drawInit(GXColor fontColor)
     GX_LoadTexMtxImm(GXmodelView2D,GX_TEXMTX0,GX_MTX2x4);
 //    guMtxTransApply (GXmodelView2D, GXmodelView2D, 0.0F, 0.0F, -5.0F);
     GX_LoadPosMtxImm(GXmodelView2D,GX_PNMTX0);
-    if(screenMode && menuActive)
-        guOrtho(GXprojection2D, 0, 479, -104, 743, 0, 700);
-    else if(screenMode == SCREENMODE_16x9_PILLARBOX)
-        guOrtho(GXprojection2D, 0, 479, -104, 743, 0, 700);
+    if((screenMode && menuActive) || screenMode == SCREENMODE_16x9_PILLARBOX)
+    {
+        pjL = -104; pjR = 743;
+    }
     else
-        guOrtho(GXprojection2D, 0, 479, 0, 639, 0, 700);
+    {
+        pjL = 0; pjR = 639;
+    }
+    guOrtho(GXprojection2D, 0, 479, pjL, pjR, 0, 700);
     GX_LoadProjectionMtx(GXprojection2D, GX_ORTHOGRAPHIC);
 //    GX_SetViewport (0, 0, vmode->fbWidth, vmode->efbHeight, 0, 1);
 
@@ -463,6 +471,178 @@ __inline int IplFont::getCharCode(const wchar_t wChar) {
     }
 }
 
+/* ---- small text ----
+ *
+ * The 24 px glyphs drawn at 0.4 to 0.8 of their size and sampled bilinearly from the 24 px atlas
+ * take every second or third texel and skip the rest: strokes break into dots and gaps (it looks
+ * dithered). And where a vertex lands between pixels, as most do in the 640 x 479 ortho (a unit
+ * is 640/639 of a pixel), the rest blurs. So a string below scale 1.0 is drawn from glyphs
+ * reduced once, by area, to the pixels it will cover (the EFB's: Force 16:9 squeezes them to 3/4
+ * of the width, the 240p modes halve their height), one texel for one pixel, each at a whole
+ * pixel and sampled nearest. The reduced sets are kept per size, up to SMALL_SETS. */
+#define SMALL_SETS 8
+#define SMALL_MAX 30     /* the reduced glyph's largest side: the cell stays within the 32 of the full atlas */
+
+struct IplFont::SmallAtlas
+{
+    int pw, ph, cell;
+    u32 used;
+    u8 *tex;
+    GXTexObj obj;
+};
+static IplFont::SmallAtlas smallSets[SMALL_SETS];
+static u32 smallTick;
+
+IplFont::SmallAtlas* IplFont::smallAtlas(int pw, int ph)
+{
+    SmallAtlas *a = NULL;
+    int i, c, x, y;
+    const int cell = ((pw > ph ? pw : ph) + 2 + 3) & ~3;   /* a pixel of margin; whole 4 x 4 texel blocks */
+    const int w = ATLAS_COLS * cell, h = ((ATLAS_LAST - ATLAS_FIRST) / ATLAS_COLS + 1) * cell;
+
+    for (i = 0; i < SMALL_SETS; i++)
+        if (smallSets[i].tex && smallSets[i].pw == pw && smallSets[i].ph == ph)
+        {
+            smallSets[i].used = ++smallTick;
+            return &smallSets[i];
+        }
+    for (i = 0; i < SMALL_SETS; i++)   /* a free slot, else the one used longest ago */
+    {
+        if (!smallSets[i].tex) { a = &smallSets[i]; break; }
+        if (!a || smallSets[i].used < a->used) a = &smallSets[i];
+    }
+    if (a->tex)
+    {
+        _mem2_free(a->tex);
+        a->tex = NULL;
+    }
+    a->tex = (u8*)_mem2_memalign(32, w * h * 2);
+    if (!a->tex)
+        return NULL;
+    memset(a->tex, 0, w * h * 2);
+    for (c = ATLAS_FIRST; c <= ATLAS_LAST; c++)
+    {
+        const u8 *glyph = getCharPngBuf((wchar_t)c);
+        const int slot = c - ATLAS_FIRST, x0 = (slot % ATLAS_COLS) * cell + 1, y0 = (slot / ATLAS_COLS) * cell + 1;
+        for (y = 0; y < ph; y++)
+            for (x = 0; x < pw; x++)
+            {
+                /* this pixel's source rectangle in 1/4096 of a source texel; each texel counts by its overlap */
+                const int sx0 = x * CH_FONT_WIDTH * 4096 / pw, sx1 = (x + 1) * CH_FONT_WIDTH * 4096 / pw;
+                const int sy0 = y * CH_FONT_HEIGHT * 4096 / ph, sy1 = (y + 1) * CH_FONT_HEIGHT * 4096 / ph;
+                unsigned long long sum[2] = { 0, 0 }, area = 0;
+                int tx, ty;
+                for (ty = sy0 >> 12; ty < CH_FONT_HEIGHT && ty * 4096 < sy1; ty++)
+                {
+                    const int oy = (sy1 < ty * 4096 + 4096 ? sy1 : ty * 4096 + 4096) - (sy0 > ty * 4096 ? sy0 : ty * 4096);
+                    for (tx = sx0 >> 12; tx < CH_FONT_WIDTH && tx * 4096 < sx1; tx++)
+                    {
+                        const int ox = (sx1 < tx * 4096 + 4096 ? sx1 : tx * 4096 + 4096) - (sx0 > tx * 4096 ? sx0 : tx * 4096);
+                        const u8 *t = glyph + ia8_offset(CH_FONT_WIDTH, tx, ty);
+                        const unsigned long long wgt = (unsigned long long)ox * oy;
+                        sum[0] += t[0] * wgt;
+                        sum[1] += t[1] * wgt;
+                        area += wgt;
+                    }
+                }
+                if (area)
+                {
+                    u8 *d = a->tex + ia8_offset(w, x0 + x, y0 + y);
+                    const int cov = (int)((sum[0] + area / 2) / area);
+                    /* a stroke two texels wide is one pixel or less here, and a pixel half covered
+                     * shows as a pale one: coverage c becomes 1 - (1 - c)^2 (0.5 -> 0.75) so the
+                     * strokes read solid, the edges still soft */
+                    d[0] = (u8)(cov + (255 - cov) * cov / 255);
+                    d[1] = (u8)((sum[1] + area / 2) / area);
+                }
+            }
+    }
+    DCFlushRange(a->tex, w * h * 2);
+    a->pw = pw;
+    a->ph = ph;
+    a->cell = cell;
+    a->used = ++smallTick;
+    GX_InitTexObj(&a->obj, a->tex, w, h, GX_TF_IA8, GX_CLAMP, GX_CLAMP, GX_FALSE);
+    GX_InitTexObjFilterMode(&a->obj, GX_NEAR, GX_NEAR);
+    return a;
+}
+
+void IplFont::freeSmall(void)
+{
+    for (int i = 0; i < SMALL_SETS; i++)
+        if (smallSets[i].tex)
+        {
+            _mem2_free(smallSets[i].tex);
+            smallSets[i].tex = NULL;
+        }
+}
+
+/* The n printable characters of txt at (x, y), laid out as drawString does, from glyphs made
+ * for the pixels. False when the size does not suit (no atlas, a glyph past SMALL_MAX): the
+ * caller draws as before. */
+bool IplFont::drawSmall(int x, int y, const wchar_t *txt, int n, float scale)
+{
+    GXRModeObj *m = g_tv_mode ? g_tv_mode : ::vmode;
+    int pw, ph, k;
+    float kx, ky;
+    SmallAtlas *a;
+
+    if (!m || n <= 0 || !(scale > 0.0f) || scale >= 1.0f)
+        return false;
+    kx = m->fbWidth / (pjR - pjL);          /* EFB pixels per unit across, and down (y is 0..479) */
+    ky = m->efbHeight / 479.0f;
+    pw = (int)(CH_FONT_WIDTH * scale * kx + 0.5f);
+    ph = (int)(CH_FONT_HEIGHT * scale * ky + 0.5f);
+    if (pw < 3 || ph < 3 || pw > SMALL_MAX || ph > SMALL_MAX)
+        return false;
+    a = smallAtlas(pw, ph);
+    if (!a)
+        return false;
+
+    const int cell = a->cell, aw = ATLAS_COLS * cell, ah = ((ATLAS_LAST - ATLAS_FIRST) / ATLAS_COLS + 1) * cell;
+    const float pxTop = (float)(int)(y * ky + 0.5f);
+    const float py = pxTop / ky, py1 = (pxTop + ph) / ky;
+
+    float pen = (float)x;   /* the pen runs in fractions: the full path's whole-unit steps drop up to a unit a glyph */
+    PERF_ADD(menu_glyphs, n);
+    PERF_INC(menu_texloads);
+    GX_LoadTexObjPreloaded(&a->obj, &texCacheRegionS[0], GX_TEXMAP0);   /* outside Begin/End */
+    /* the vertex format the achievement toast's shapes use: float positions, so a vertex can sit
+     * on a pixel */
+    GX_SetVtxAttrFmt(GX_VTXFMT7, GX_VA_POS, GX_POS_XY, GX_F32, 0);
+    GX_SetVtxAttrFmt(GX_VTXFMT7, GX_VA_CLR0, GX_CLR_RGBA, GX_RGBA8, 0);
+    GX_SetVtxAttrFmt(GX_VTXFMT7, GX_VA_TEX0, GX_TEX_ST, GX_F32, 0);
+    GX_Begin(GX_QUADS, GX_VTXFMT7, 4 * n);
+    for (k = 0; k < n; k++)
+    {
+        const int slot = txt[k] < ATLAS_FIRST ? 0 : txt[k] - ATLAS_FIRST;
+        const float pxLeft = (float)(int)((pen - pjL) * kx + 0.5f);
+        const float vx0 = pxLeft / kx + pjL, vx1 = (pxLeft + pw) / kx + pjL;
+        const float u0 = (float)((slot % ATLAS_COLS) * cell + 1) / aw, u1 = u0 + (float)pw / aw;
+        const float v0 = (float)((slot / ATLAS_COLS) * cell + 1) / ah, v1 = v0 + (float)ph / ah;
+
+        GX_Position2f32(vx0, py);
+        GX_Color4u8(fontColor.r, fontColor.g, fontColor.b, fontColor.a);
+        GX_TexCoord2f32(u0, v0);
+
+        GX_Position2f32(vx1, py);
+        GX_Color4u8(fontColor.r, fontColor.g, fontColor.b, fontColor.a);
+        GX_TexCoord2f32(u1, v0);
+
+        GX_Position2f32(vx1, py1);
+        GX_Color4u8(fontColor.r, fontColor.g, fontColor.b, fontColor.a);
+        GX_TexCoord2f32(u1, v1);
+
+        GX_Position2f32(vx0, py1);
+        GX_Color4u8(fontColor.r, fontColor.g, fontColor.b, fontColor.a);
+        GX_TexCoord2f32(u0, v1);
+
+        pen += (this->getCharCode(txt[k]) + 1) * scale;
+    }
+    GX_End();
+    return true;
+}
+
 void IplFont::drawString(int x, int y, char *string, float scale, bool centered)
 {
     if(centered)
@@ -499,6 +679,14 @@ void IplFont::drawString(int x, int y, char *string, float scale, bool centered)
         n++;
     if (atlas != NULL && utf8Txt[n] == 0)
     {
+        if (n > 0 && drawSmall(x, y, utf8Txt, n, scale))
+        {
+            PERF_INC(menu_small);
+            delete[] tmpPtr;
+            return;
+        }
+        if (n > 0 && scale < 1.0f)
+            PERF_INC(menu_small_no);
         if (n > 0)
         {
             PERF_ADD(menu_glyphs, n);

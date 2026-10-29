@@ -1161,6 +1161,12 @@ if(iFrameLimit==2) SetAutoFrameCap();                 // set new fps limit vals 
 extern void CALLBACK GPUsetframelimit(unsigned long option);
 static unsigned short usFirstPos=2;
 
+/* OverlayToastIdle (below): the pop-up's drawing while the game does not present */
+#define IDLE_VBL 5
+extern int ach_toast_animating(void);
+static u32 lastPresentVbl;
+static void OverlayToastIdle(void);
+
 void CALLBACK GL_GPUupdateLace(void)
 {
 #if PERF_PROF_GPUSPLIT
@@ -1291,6 +1297,8 @@ else if(usFirstPos==1)                                // initial updates (after 
 #if PERF_PROF_GPUSPLIT
     PERF_ADD(rcu_lace_flip_ticks, perf_now_ticks() - rcu_lf0_);
 #endif
+    if (frame_counter - lastPresentVbl >= IDLE_VBL && ach_toast_animating())
+        OverlayToastIdle();
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -2969,6 +2977,23 @@ void CALLBACK GL_GPUrearmedCallbacks(const struct rearmed_cbs *_cbs)
  * and only on such presents: one EFB-sized copy and one full-screen textured quad. */
 static void *ovl_buf;
 static int ovl_cap, ovl_w, ovl_h;
+static int ovl_valid;          /* ovl_buf holds the last frame presented with the overlay saved (OverlayToastIdle) */
+static void *ovl_tmp;          /* OverlayToastIdle: the EFB as the game left it, while the last frame is shown again */
+
+/* the whole EFB into buf (ovl_w x ovl_h, RGBA8), by the GP */
+static void OverlayCopyEfb(void *buf)
+{
+    extern GXRModeObj *g_tv_mode;
+    GXRModeObj *m = g_tv_mode ? g_tv_mode : vmode;
+
+    /* no vertical filter or deflicker: they would soften the frame each time it is kept */
+    GX_SetCopyFilter(m->aa, m->aa ? m->sample_pattern : NULL, GX_FALSE, NULL);
+    GX_SetTexCopySrc(0, 0, ovl_w, ovl_h);
+    GX_SetTexCopyDst(ovl_w, ovl_h, GX_TF_RGBA8, GX_FALSE);
+    GX_CopyTex(buf, GX_FALSE);
+    GX_PixModeSync();
+    RestoreDispCopyInfo();
+}
 
 static int OverlaySaveEfb(void)
 {
@@ -2994,17 +3019,12 @@ static int OverlaySaveEfb(void)
     }
     ovl_w = m->fbWidth;
     ovl_h = m->efbHeight;
-    /* no vertical filter or deflicker: they would soften the frame each time it is kept */
-    GX_SetCopyFilter(m->aa, m->aa ? m->sample_pattern : NULL, GX_FALSE, NULL);
-    GX_SetTexCopySrc(0, 0, ovl_w, ovl_h);
-    GX_SetTexCopyDst(ovl_w, ovl_h, GX_TF_RGBA8, GX_FALSE);
-    GX_CopyTex(ovl_buf, GX_FALSE);
-    GX_PixModeSync();
-    RestoreDispCopyInfo();
+    OverlayCopyEfb(ovl_buf);
+    ovl_valid = 1;
     return 1;
 }
 
-static void OverlayRestoreEfb(void)
+static void OverlayRestoreEfb(void *buf)
 {
     extern GXRModeObj *g_tv_mode;
     GXRModeObj *m = g_tv_mode ? g_tv_mode : vmode;
@@ -3017,7 +3037,7 @@ static void OverlayRestoreEfb(void)
         return;
 
     GX_InvalidateTexAll();   /* the texture cache may hold last present's copy at this address */
-    GX_InitTexObj(&tex, ovl_buf, ovl_w, ovl_h, GX_TF_RGBA8, GX_CLAMP, GX_CLAMP, GX_FALSE);
+    GX_InitTexObj(&tex, buf, ovl_w, ovl_h, GX_TF_RGBA8, GX_CLAMP, GX_CLAMP, GX_FALSE);
     GX_InitTexObjFilterMode(&tex, GX_NEAR, GX_NEAR);
     GX_LoadTexObj(&tex, GX_TEXMAP0);
 
@@ -3092,10 +3112,52 @@ static void OverlayAchToast(void)
 {
     if (!ach_toast_wanted())
         return;
+    /* GX dither (GxColor 1/2, GxDitherPrim) may be left on by the game's last primitive: not for
+     * the pop-up's text and flat shapes, whose pixels it would speckle in a 6 or 5 bit EFB */
+    GX_SetDither(GX_FALSE);
+    gx_dither_on = -1;
     ach_toast_draw();
     glViewport(rRatioRect.left, iResY - (rRatioRect.top + rRatioRect.bottom),
                rRatioRect.right, rRatioRect.bottom);
     bSetClip = TRUE;
+}
+
+/* A pop-up that is moving while the game does not present (loading: the console runs on, its
+ * vblanks come, the picture does not change) would freeze: its clock and its drawing are the
+ * present's. Once the game has not presented for IDLE_VBL vblanks, each vblank shows the last
+ * frame it presented again, with the pop-up (and the FPS text) over it, as a present would.
+ * The frame is the copy OverlaySaveEfb made before the overlay, kept while a pop-up animates
+ * (flipEGL saves it for a clearing present too); the EFB the game was drawing meanwhile is
+ * put aside and back, so nothing the game draws is touched. A present that is still on its way
+ * to the XFB, or a mode change since the copy, skips the vblank. No cost while the game
+ * presents: the vblank path adds one compare. */
+static void OverlayToastIdle(void)
+{
+    extern GXRModeObj *g_tv_mode;
+    GXRModeObj *m = g_tv_mode ? g_tv_mode : vmode;
+
+    if (!ovl_valid || m->fbWidth != ovl_w || m->efbHeight != ovl_h || gx_vout_busy())
+        return;
+    if (!ovl_tmp)
+    {
+        ovl_tmp = _mem2_memalign(32, ovl_cap);
+        if (!ovl_tmp)
+            return;
+        DCInvalidateRange(ovl_tmp, ovl_cap);
+    }
+    OverlayCopyEfb(ovl_tmp);
+    OverlayRestoreEfb(ovl_buf);
+    showFpsAndDebugInfo();
+    OverlayAchToast();
+    gx_vout_render(FALSE);
+    OverlayRestoreEfb(ovl_tmp);
+    {
+        extern void ogx_on_frame_present(int evicted0);   /* deps/opengx/gc_gl.c */
+        ogx_on_frame_present(1);
+    }
+    ogx_state_invalidate();
+    glSetLoadMtxFlg();
+    PERF_INC(toast_idle);
 }
 
 static void flipEGL(void)
@@ -3117,7 +3179,7 @@ static void flipEGL(void)
     if ((showFPSonScreen == 1 || gunReticleWanted() || pad_note(NULL) || ach_toast_wanted()) && !gx_vout_busy())
     {
         /* a copy that clears the EFB takes the text with it; otherwise keep what it covers */
-        if (!canClearFrameBuf)
+        if (!canClearFrameBuf || ach_toast_animating())
             overlaySaved = OverlaySaveEfb();
         if (overlaySaved || canClearFrameBuf)
         {
@@ -3150,7 +3212,9 @@ static void flipEGL(void)
     /* the text is in the XFB copy (or the copy was skipped): take it out of the game's frame */
     overlayRestored = overlaySaved && (!presentSubmitted || !canClearFrameBuf);
     if (overlayRestored)
-        OverlayRestoreEfb();
+        OverlayRestoreEfb(ovl_buf);
+    if (presentSubmitted)
+        lastPresentVbl = frame_counter;
 
 #ifdef PERF_PROF
     /* EC = one entry per present: what the present did (flags), how much had been

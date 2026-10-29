@@ -248,6 +248,8 @@ void ach_toast_clear(void)
 }
 
 int ach_toast_wanted(void) { return (q_len > 0 || progress.on || (challenges && achievementChallenge)) && !menuActive; }
+/* a pop-up that moves: the card or the progress panel (not the challenge icons, which keep to their corner) */
+int ach_toast_animating(void) { return (q_len > 0 || progress.on) && !menuActive; }
 
 /* ---- the book: the menu opens it on the achievement of a pop-up that was on screen ---- */
 
@@ -298,8 +300,7 @@ static const Tier TIERS[] = {
 
 #define CARD_W 330
 #define CARD_H 98
-#define EDGE 16               /* the pop-ups' margin from the picture's right edge */
-#define CARD_X (640 - EDGE - CARD_W)
+#define EDGE 16               /* the pop-ups' margin from the screen's right edge, in 640-wide picture pixels */
 #define CARD_Y 34             /* inside the title-safe area */
 #define TEXT_X 78             /* after the 56 px icon box */
 #define ICON_CX 38            /* the icon's centre: the rays and the light core start there */
@@ -313,6 +314,8 @@ static const Tier TIERS[] = {
 /* ---- raw GX: flat shapes in vertex format 7 (as the light gun reticle) ---- */
 
 static float ortho_l, ortho_r;
+static float right_x;         /* where the pop-ups end: EDGE short of the right edge of the picture on the TV (draw_all) */
+#define CARD_X (right_x - CARD_W)
 
 static void shapes_begin(void)
 {
@@ -898,7 +901,7 @@ static void toast_frame(void)
 
 #define PROG_W 236
 #define PROG_H 44
-#define PROG_X (640 - EDGE - PROG_W)
+#define PROG_X (right_x - PROG_W)
 #define PROG_Y (480 - 34 - PROG_H)
 #define PROG_SHOW 2.5f   /* seconds after it last grew */
 #define CHAL_S 40        /* a challenge's icon box */
@@ -956,7 +959,7 @@ static void hud_frame(float rate, u32 dt)
 	/* one box per challenge, right to left; each wipes in from its left edge over 0.15 s */
 	for (i = 0; i < challenges && achievementChallenge; i++) {
 		float t = (challenge[i].shown += dt) / rate, w = CHAL_S * between(t, 0, 0.15f);
-		float x = 640 - EDGE - (i + 1) * (CHAL_S + 6) + 6, y = prog_top - CHAL_S;
+		float x = right_x - (i + 1) * (CHAL_S + 6) + 6, y = prog_top - CHAL_S;
 		if (w < 1) continue;
 		clip_to(x, y - 1, x + w, y + CHAL_S + 4);
 		small_panel(x, y, CHAL_S, CHAL_S);
@@ -981,6 +984,12 @@ static void draw_all(void)
 	/* the whole picture, in the same coordinates as IPLFont (16:9 pillarbox: 4:3 in the middle) */
 	ortho_l = screenMode == SCREENMODE_16x9_PILLARBOX ? -104 : 0;
 	ortho_r = screenMode == SCREENMODE_16x9_PILLARBOX ? 743 : 639;
+	/* The ortho spans the whole EFB, so ortho_r + 1 is the right edge of what the TV shows: the
+	 * game fills it in every mode but the soft plugins' 16:9 pillarbox (and its bars are black
+	 * too). The margin is the same share of the width as 16 px of a 640 wide picture; counted
+	 * from the 4:3 picture's edge (640) it left OpenGX's Force 16:9 pop-ups 14 % of the screen
+	 * short of the edge (user, real Wii, 2026-10-29). */
+	right_x = ortho_r + 1 - EDGE * (ortho_r + 1 - ortho_l) / 640.0f;
 	GX_SetViewport(0, 0, m->fbWidth, m->efbHeight, 0.0f, 1.0f);
 	clip_off();
 	shapes_begin();

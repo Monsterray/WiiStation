@@ -28,6 +28,7 @@ namespace menu {
 class IplFont
 {
 public:
+	struct SmallAtlas;   /* IPLFont.cpp: reduced glyph sets for small text */
 	void setVmode(GXRModeObj *rmode);
 	void drawInit(GXColor fontColor);
 	void setColor(GXColor fontColor);
@@ -66,6 +67,10 @@ private:
 	u8* atlas;
 	GXTexObj atlasTexObj;
 	void buildAtlas(void);
+	/* text below scale 1.0, drawn from glyphs reduced to the size the pixels need (IPLFont.cpp) */
+	SmallAtlas* smallAtlas(int pw, int ph);
+	bool drawSmall(int x, int y, const wchar_t *txt, int n, float scale);
+	void freeSmall(void);
 };
 
 } //namespace menu

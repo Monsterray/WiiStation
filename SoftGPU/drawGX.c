@@ -674,6 +674,7 @@ static void gc_vout_flip(const void *vram, int stride, int bgr24,
 			}
 			#endif // SHOW_DEBUG
 		}
+		ach_toast_draw();   /* a blanked display (a game loading) is black, and the pop-up still moves on it */
 
 		gc_vout_render();
 		return;

@@ -1,0 +1,8 @@
+CHAIN
+# Overlay placement and animation on the bench Wii: Spyro, the HUD set, TV pictures from the input script ("xfb <vblank>", a debug build:
+# the XFB the VI scans, fetched by wii_lab.py as xfb_NN.bin; the HBC agent does not answer hbc.py screen during a chain).
+#   wiibench.py add --wii dev --cwd <worktree> --timeout 900 -- python scripts/wii_lab.py NAME scripts/chains/ach_overlay_bench.txt --dol X.dol \
+#     --put tests/fixtures/ach_hud/Tests/AchHud/set.txt=isos/Tests/AchHud/set.txt --set 'Achievements=2,AchievementFile="sd:/wiistation/isos/Tests/AchHud/set.txt",ScreenMode=2,DeflickerFilter=1,TrapFilter=1,BilinearFilter=1,FrameRate=1'
+900 sd:/wiistation/ach_overlay_bench.txt FPS=0
+sd:/wiistation/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue

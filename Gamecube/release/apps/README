@@ -183,7 +183,17 @@ Ver 5.19.0 (2026-10-28):
   first reading after loading a game, a disc swap, a reset or a state load,
   and not in the first 3 seconds (the game's memory is not set up yet).
 * The unlock card, the progress panel and the challenge icons sit 16 pixels
-  from the right edge of the picture (were 40).
+  from the right edge of the picture (were 40). With Screen Mode Force 16:9 on
+  OpenGX they sat 14% of the screen short of it (the game fills the whole
+  screen there, but the pop-ups counted from a 4:3 picture's edge); now they
+  end at the screen's edge, 16 pixels of a 640 wide picture short of it.
+* Small text (the pop-ups, the FPS lines, the menu below full size) is drawn
+  from glyphs reduced to the pixels they cover, each on a whole pixel, and no
+  longer breaks into dots and gaps. The pop-ups' flat shapes and text are never
+  dithered by the GX Color setting.
+* The unlock card and the progress panel keep moving while the game shows a
+  still picture or a black screen (loading): they used to freeze until the game
+  drew again, and the game card at a game's start froze half slid in.
 * New setting AchievementChallenge (General, Cheevos, Challenge icons): Off
   hides the flashing icons of achievements that are one step away.
 * Save states made by other players keep the game, but the unlocks come from
