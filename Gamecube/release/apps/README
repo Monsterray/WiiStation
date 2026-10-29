@@ -176,7 +176,23 @@ Ver 5.19.0 (2026-10-28):
   coin wears an "RA" tag.
 * Players: a linked Mii's card has an Official button. The lit one plays
   Official; pressing another moves it there. Port 1's Mii by default. The
-  choice is saved; logging in per Mii comes in a later version.
+  choice is saved.
+* Official mode logs in with the account of the Mii that plays Official: its
+  file in wiistation/achievements/ra/, or this Wii's ra_account.ini (the
+  default, and for a Mii that is not linked). A game load with another account
+  than the last one logs out and in again; nothing changes in the middle of a
+  game. If that account does not work (no file, a failed login), this Wii's
+  account loads the set only to look (nothing is sent to it) and that Mii earns
+  Local, with the reason on its Achievements page.
+* Official mode with several Miis: the Official Mii's unlocks go to
+  RetroAchievements; the other seated Miis earn the same set Local, in
+  wiistation/achievements/ra_local/<game id>.unlocks. An achievement the
+  Official account already has stays earnable for them (encore mode is on while
+  a Local Mii is seated), and nothing is sent twice. The toast has two tags
+  over its names: "RetroAchievements" and "Local". The Achievements page lists
+  the Official Mii first, then each Local Mii.
+* scripts/ra_setup.py: --ra-name NAME with --account FILE puts the file in
+  achievements/ra/NAME.ini for a Mii to link.
 Ver 5.18.2 (2026-10-28):
 * Players: the seats are in their own file, wiistation/players.ini, written
   when the Players menu closes (no Save Settings needed). Seats saved in

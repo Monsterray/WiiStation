@@ -310,7 +310,7 @@ for the definition format, state handling, persistence boundaries, and tests.
 | `AchievementFile` | `"Path"` | empty | none, settings file only (General, Cheevos shows it) | The rcheevos definition file for a game, for example `sd:/wiistation/achievements/<game>.txt`. |
 | `AchievementLog` | `"Path"` | empty | none, settings file only | Stores earned unlocks. Empty puts them beside the definition file, with `.unlocks` appended. A quoted full path overrides it. |
 | `AchievementUnofficial` | 0 = Off, 1 = On | 0 | General, Cheevos, "Unofficial" | Official mode: the set's Unofficial (not yet approved) achievements too; RetroAchievements does not keep their unlocks. Load the game again after a change. |
-| `AchievementEncore` | 0 = Off, 1 = On | 0 | General, Cheevos, "Encore" | Official mode: achievements already earned can be earned again this session (the card shows again; nothing new is sent). |
+| `AchievementEncore` | 0 = Off, 1 = On | 0 | General, Cheevos, "Encore" | Official mode: achievements already earned can be earned again this session (the card shows again; nothing new is sent). It is also on, whatever this says, while a Local Mii is seated next to the Official one (it earns what the account already has). |
 | `AchievementSpectator` | 0, 1 | 0 | none, settings file only (hidden) | Official mode for scripted test runs on a real account: everything is evaluated and shown, no unlock is sent. |
 | `AchievementUTCOffset` | `"Minutes"` | empty | none, settings file only | Official mode: minutes to add to the Wii's clock (local time) to get UTC, for certificate dates, e.g. `"+420"`, up to 840 either way. Empty (the default): the Wii learns it from the server's answers and keeps it in `achievements/utc_offset.txt`, summer time included. Set, it wins and nothing is learned. |
 
@@ -355,13 +355,16 @@ unlock journal gets a line per Mii, with its key; lines from before are Guest's.
 | `Player2P7` | `"Key"` | empty | none, players.ini only (Main, Players sets it) | The Mii seated as Co-Op player 7 of port 2: its creation ID, 16 hex characters. Empty is Guest. |
 | `Player2P8` | `"Key"` | empty | none, players.ini only (Main, Players sets it) | The Mii seated as Co-Op player 8 of port 2: its creation ID, 16 hex characters. Empty is Guest. |
 | `PlayersRecent` | `"Keys"` | empty | none, players.ini only (Main, Players sets it) | The Miis last seated, most recent first: up to 15 keys, comma-separated. The Players menu lists them first, then the others in the Mii Channel's order. |
-| `PlayersOfficial` | `"Key"` | empty | none, players.ini only (Main, Players: a card's Official button, or a Mii's Edit page) | The Mii that plays Official (RetroAchievements), one per game, when it is seated on a port that plays and linked to an account. Empty, or that Mii not seated: port 1's Mii (1A with a multitap, 1 P1 with Co-Op) if it is linked. 5.19.0 saves the choice; achievements still log in with `ra_account.ini` until the per-Mii login comes. |
+| `PlayersOfficial` | `"Key"` | empty | none, players.ini only (Main, Players: a card's Official button, or a Mii's Edit page) | The Mii that plays Official (RetroAchievements), one per game, when it is seated on a port that plays and linked to an account. Empty, or that Mii not seated: port 1's Mii (1A with a multitap, 1 P1 with Co-Op) if it is linked. Official mode logs in with that Mii's account file at the next game load (`achievements/ra/<name>.ini`, or `ra_account.ini` for "*" and for no Mii); the other seated Miis earn Local. |
 
 `players.ini` also has an `[Accounts]` section: one `<Mii key> = "<name>"` line per Mii linked to
 a RetroAchievements account (a Mii's Edit page, Account). `<name>` is an account file,
 `achievements/ra/<name>.ini`, with the same lines as `ra_account.ini`; `"*"` is `ra_account.ini`
 itself (This Wii's account). The menu lists the files by name and never opens them. A Mii with no
 line earns Local.
+
+A chain line (`scripts/chains/`, unattended runs) may seat a Mii as `Player1="#2"`: the console's second Mii,
+in the Mii database's own order. For a run on a Wii whose Miis are not known beforehand.
 
 ## 7. Network settings
 

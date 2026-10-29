@@ -1,0 +1,6 @@
+# scripts/chains/ach_official_ra.txt (bench Wii, Official mode with Local players): script pads on
+# ports 1 and 2 (a seat counts only with a pad), then the list and the page's players, twice
+1 0000
+p2 1 0000
+achdump 900
+achdump 1450

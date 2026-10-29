@@ -41,7 +41,7 @@ enum { T_BLUE, T_BRONZE, T_SILVER, T_GOLD, T_CRYSTAL, T_FINISH, T_PLAT, T_BLACK 
 enum { ICON_TROPHY, ICON_KEY, ICON_HOURGLASS, ICON_FLAG, ICON_CROWN, ICON_DISC, ICON_WARN };
 
 typedef struct {
-	char title[80], desc[96], pts[16], left[24], right[40];   /* fitted to the card at push time */
+	char title[80], desc[96], pts[16], left[24], right[40], side[24];   /* fitted to the card at push time */
 	char badge[24];                                           /* the RetroAchievements picture, or "" */
 	unsigned char tier, icon, chip;                           /* chip: an ACH_TYPE_*, or STANDARD for none */
 	float fill;                                               /* the set's progress, 0..1 */
@@ -192,7 +192,11 @@ void ach_toast_push(const achievement_notice_t *n)
 	snprintf(f->desc, sizeof f->desc, "%s", n->desc ? n->desc : "");
 	if (n->points) snprintf(f->pts, sizeof f->pts, "+%u", n->points);
 	snprintf(f->left, sizeof f->left, "BLOCK %u/%u", n->earned, n->count);
-	if (n->rarity_x100 >= 0)
+	if (n->side && n->side[0])   /* Official mode with Local players: which side it went to, over the line of names */
+		snprintf(f->side, sizeof f->side, "%s", n->side);
+	if (n->rarity_x100 >= 0 && n->who && n->who[0])   /* RetroAchievements: "Kat, 8.1% have it" */
+		snprintf(f->right, sizeof f->right, "%s, %d.%d%% have it", n->who, n->rarity_x100 / 100, n->rarity_x100 % 100 / 10);
+	else if (n->rarity_x100 >= 0)
 		snprintf(f->right, sizeof f->right, "%d.%d%% have it", n->rarity_x100 / 100, n->rarity_x100 % 100 / 10);
 	else if (n->who && n->who[0])   /* Local, a Mii earned it: "Kat unlocked", "Kat and Ollie unlocked", "4 players unlocked" */
 		snprintf(f->right, sizeof f->right, "%s unlocked", n->who);
@@ -208,7 +212,7 @@ void ach_toast_push(const achievement_notice_t *n)
 		f = &t->f2;
 		f->badge[0] = 0;   /* the flag or the crown, not the last unlock's picture */
 		f->chip = ACH_TYPE_STANDARD;
-		f->right[0] = 0;
+		f->right[0] = f->side[0] = 0;
 		if (t->kind == KIND_BEATEN) {
 			f->tier = T_FINISH;
 			f->icon = ICON_FLAG;
@@ -496,7 +500,8 @@ static void fit_face(Face *f)
 	/* the names leave the meter some room: "Kat and Ollie unlocked", else the names alone, cut */
 	if (text_w(f->right, FOOT_SCALE) > CARD_W * 45 / 100) {
 		char *u = strstr(f->right, " unlocked");
-		if (u && !u[9]) *u = 0;
+		if (!u) u = strstr(f->right, " have it");   /* "Kat, 8.1% have it" -> "Kat, 8.1%" */
+		if (u && (!strcmp(u, " unlocked") || !strcmp(u, " have it"))) *u = 0;
 	}
 	fit(f->right, sizeof f->right, FOOT_SCALE, CARD_W * 45 / 100);
 }
@@ -665,6 +670,8 @@ static void draw_face(const Face *f, float x, float y, float t, int block_flash)
 	text(x + TEXT_X, y + 36, f->desc, DESC_SCALE, k->ink2, 0, 0);
 	text(x + 10, y + 75, f->left, FOOT_SCALE, k->mtx, 0, 0);
 	text(x + CARD_W - 10 - wr, y + 75, f->right, FOOT_SCALE, k->mtx, 0, 0);
+	if (f->side[0])   /* above the names: RetroAchievements or Local */
+		text(x + CARD_W - 10 - text_w(f->side, FOOT_SCALE), y + 59, f->side, FOOT_SCALE, k->mtx, 0, 0);
 	text(px, y + 13, f->pts, PTS_SCALE, k->pts, f->tier == T_BLUE || f->tier == T_FINISH ? 0 : k->shadow, 1);
 	if (f->chip) text(cx + 3, y + 16, CHIP_TEXT[f->chip], CHIP_SCALE, CHIP_INK[f->chip], 0, 0);
 	shapes_begin();

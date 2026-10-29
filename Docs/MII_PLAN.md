@@ -144,12 +144,15 @@ on/off button instead of a check box, and an Edit slot that opens a Mii's player
   to ("RetroAchievements" over the Official Mii's line, "Local" over the others').
 - **Failures**: a link to a missing file, or a failed login, makes that Mii earn Local for the
   game, with the reason on the Achievements page (as today's login errors). Nothing retries a
-  password by itself.
+  password by itself. (Built 5.19.0, a decision where the plan was open: a Local set needs the
+  set's definitions, and those only come from a session. So this Wii's `ra_account.ini`, when
+  there is one, loads the set in spectator mode, nothing sent to it, and every seated Mii, that
+  one too, earns Local. With no `ra_account.ini` there is no set to earn: the page says why.)
 - **Never**: a token or password on screen, in a log or in players.ini; the browser lists file
   names only.
 
 | Step | Work | Check |
 | --- | --- | --- |
-| 4a | `ra/` accounts read by name; login with a chosen file; `ra_setup.py --ra-name` | Host test of the account-file choice; bench Wii login with the dev account file |
+| 4a | `ra/` accounts read by name; login with a chosen file; `ra_setup.py --ra-name` | **Built 5.19.0, hardware check open**: `tests/ach_account_test.c` (link to path, bad names, the digest and journal names); Dolphin: a Mii linked to a name with no file (`scripts/chains/ach_official_acct.txt`) says so in the log and on the page; bench Wii: `ra_setup.py --ra-name dev` put `ra/dev.ini` (job 20261028-204440-0db05c); `ach_official_ra.txt` (job 20261028-205349-f2c8c7) read it for a linked seat and tried the login, but that DOL had no HTTPS stack, so the login itself is not yet proven on hardware: rerun with `scripts/bench_ra_mii.py` |
 | 4b | The Edit slot and page, the account browser, `[Accounts]` and `PlayersOfficial` in players.ini, RA tag, Official button | **Done 5.19.0**: `wsx.sh menu ... --sd tests/fixtures/players_accounts` walks (link a file, link This Wii's account, Official moved to port 2's Mii; players.ini read back) |
-| 4c | Official session for the chosen Mii, Local for the others; toasts | Bench Wii: a game with Kat linked and Official, Ollie Local: Kat's unlock reaches the server, Ollie's goes to the journal |
+| 4c | Official session for the chosen Mii, Local for the others; toasts | **Built 5.19.0, hardware check open**: `tests/achievements_ra_test.c` (who gets what, the journal, restore, the page, a failed account, the cap); Dolphin: `ach_players.txt` unchanged (Local mode), `ach_official_acct.txt`; hardware: the same bench job, not yet with a login, so no Local player has earned on a real set. The design, the rc_client facts it rests on and what was not tested: `Docs/ACHIEVEMENTS.md`, "Official mode with Local players" |

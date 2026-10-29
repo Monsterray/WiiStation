@@ -9,7 +9,16 @@
  *   event()                       -- an unlock: the toast, with the server's rarity
  *
  * The account file holds User= and Password= until the first login; after it, User= and
- * Token=, and the password is gone. No password or token ever reaches a log. */
+ * Token=, and the password is gone. No password or token ever reaches a log.
+ *
+ * Which account file (Docs/MII_PLAN.md steps 4a and 4c): the Mii that plays Official
+ * (players_official) gives it by its link: achievements/ra/<name>.ini, or this Wii's
+ * ra_account.ini ("*"; also when no Mii is linked). A game load that wants another account than
+ * the logged-in one logs out and in again. When that account does not work, this Wii's account
+ * loads the set in spectator mode (nothing is sent) and that Mii earns Local with the others.
+ * The Miis seated besides the Official one earn the same set Local (achievements_ra_*), with
+ * encore mode on so what the account already has stays active for them; can_submit keeps an
+ * unlock the account already has from going to the server again. */
 #ifdef HW_RVL
 #include "achievements.h"
 #include "deps/rcheevos/include/rc_client.h"
@@ -20,6 +29,9 @@
 #include "psxcommon.h"
 #include "plugins.h"
 #include "Gamecube/ra_transport.h"
+#include "Gamecube/ach_account.h"
+#include "Gamecube/players.h"
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -30,8 +42,8 @@
 
 /* SysPrintf: psxcommon.h */
 
-#define ACCOUNT_FILE "sd:/wiistation/achievements/ra_account.ini"
-#define ACCOUNT_TEMP ACCOUNT_FILE ".new"
+#define ACCOUNT_PATH 96   /* an account file's path: ach_account.h's longest, with room */
+#define ACCOUNT_TEMP_SUFFIX ".new"
 
 static rc_client_t *client;
 static int logged_in, login_busy, game_loaded, beaten_seen, mastered_seen;
@@ -40,6 +52,29 @@ static int login_tried;  /* the menu's early login ran once */
 static int media_pending;   /* a swapped disc is being checked: nothing is evaluated until then */
 static char state[96] = "Not started";   /* what the menus show when no set is loaded */
 
+/* The account of the game load (choose_account), the one logged in, the one a login in flight
+ * is for. A login's answer for an older attempt (generation) is ignored. */
+static char want_path[ACCOUNT_PATH], want_key[PLAYERS_KEY];   /* the Official Mii's key: "" none */
+static char session_path[ACCOUNT_PATH], login_path[ACCOUNT_PATH];
+static unsigned login_gen;
+static int demoted;        /* the Official Mii's account failed: it earns Local, this Wii's account loads the set */
+static char demote_reason[48];
+static unsigned local_planned;   /* Miis that earn Local next to the Official side, planned at the game load */
+
+/* The unlocks the account had when the set loaded, and those it got since: encore mode lets them
+ * trigger again for the Local players; none goes to the server a second time (can_submit) */
+#define MAX_HAD 512
+static uint32_t had[MAX_HAD];
+static unsigned had_n;
+static int had_has(uint32_t id)
+{
+	unsigned i;
+	for (i = 0; i < had_n; i++)
+		if (had[i] == id) return 1;
+	return 0;
+}
+static void had_add(uint32_t id) { if (!had_has(id) && had_n < MAX_HAD) had[had_n++] = id; }
+
 const char *achievements_official_status(void)
 {
 	static char line[96];
@@ -47,6 +82,8 @@ const char *achievements_official_status(void)
 	rc_client_user_game_summary_t s;
 	if (!client || !game_loaded || media_pending || !(g = rc_client_get_game_info(client)))
 		return state;
+	if (demoted)
+		return "Local (account failed)";
 	rc_client_get_user_game_summary(client, &s);
 	snprintf(line, sizeof line, "%u of %u earned (Official)",
 	         (unsigned)s.num_unlocked_achievements, (unsigned)s.num_promoted_achievements);
@@ -131,11 +168,18 @@ static void boards_build(void)
 
 unsigned achievements_official_count(void) { list_build(); return listed_n; }
 
+/* The account has it: unlocked on the server, or earned now. In encore mode an earned one stays
+ * active (its state), so the state alone does not tell. */
+static int has_it(const rc_client_achievement_t *a)
+{
+	return a->unlocked || a->state == RC_CLIENT_ACHIEVEMENT_STATE_UNLOCKED;
+}
+
 unsigned achievements_official_earned(void)
 {
 	unsigned i, n = 0;
 	list_build();
-	for (i = 0; i < listed_n; i++) n += listed[i]->state == RC_CLIENT_ACHIEVEMENT_STATE_UNLOCKED;
+	for (i = 0; i < listed_n; i++) n += has_it(listed[i]);
 	return n;
 }
 
@@ -158,7 +202,7 @@ int achievements_official_entry(unsigned i, achievement_entry_t *e)
 	e->id = a->id;
 	e->points = a->points;
 	e->rarity_x100 = (int)(a->rarity * 100 + 0.5f);
-	e->earned = a->state == RC_CLIENT_ACHIEVEMENT_STATE_UNLOCKED;
+	e->earned = has_it(a);
 	e->type = a->type <= RC_CLIENT_ACHIEVEMENT_TYPE_WIN ? a->type : ACH_TYPE_STANDARD;
 	e->unofficial = a->category == RC_CLIENT_ACHIEVEMENT_CATEGORY_UNPROMOTED;
 	if (!e->earned && a->measured_progress[0]) {
@@ -287,12 +331,19 @@ int achievements_official_state_load(const void *data, unsigned size)
 
 /* ---- the account file ---- */
 
-/* User=, and Token= (preferred) or Password=. 0 when the file or the user is missing. */
-static int read_account(char *user, size_t user_size, char *secret, size_t secret_size, int *is_token)
+/* The temp file next to an account file: path + ".new" */
+static int temp_path(const char *path, char *temp, size_t size)
 {
-	char line[256];
-	FILE *f = fopen(ACCOUNT_FILE, "r");
-	if (!f) f = fopen(ACCOUNT_TEMP, "r");   /* a power cut between the token write and its rename */
+	int n = snprintf(temp, size, "%s" ACCOUNT_TEMP_SUFFIX, path);
+	return n > 0 && (size_t)n < size;
+}
+
+/* User=, and Token= (preferred) or Password=. 0 when the file or the user is missing. */
+static int read_account(const char *path, char *user, size_t user_size, char *secret, size_t secret_size, int *is_token)
+{
+	char line[256], temp[ACCOUNT_PATH + 8];
+	FILE *f = fopen(path, "r");
+	if (!f && temp_path(path, temp, sizeof temp)) f = fopen(temp, "r");   /* a power cut between the token write and its rename */
 	if (!f) return 0;
 	user[0] = secret[0] = 0;
 	*is_token = 0;
@@ -313,24 +364,25 @@ static int read_account(char *user, size_t user_size, char *secret, size_t secre
 
 /* After a password login: User= and Token= only. Written to a new file first, so a power cut
  * leaves either the old file or the new one. */
-static void store_token(const char *user, const char *token)
+static void store_token(const char *path, const char *user, const char *token)
 {
-	FILE *f = fopen(ACCOUNT_TEMP, "w");
+	char temp[ACCOUNT_PATH + 8];
+	FILE *f;
 	int ok;
-	if (!f) {
+	if (!temp_path(path, temp, sizeof temp) || !(f = fopen(temp, "w"))) {
 		SysPrintf("Achievements: cannot write the account file; the password stays in it\n");
 		return;
 	}
 	ok = fprintf(f, "User=%s\nToken=%s\n", user, token) > 0;
 	ok = (fclose(f) == 0) && ok;
 	if (!ok) {
-		remove(ACCOUNT_TEMP);
+		remove(temp);
 		SysPrintf("Achievements: cannot write the account file; the password stays in it\n");
 		return;
 	}
-	remove(ACCOUNT_FILE);
-	if (rename(ACCOUNT_TEMP, ACCOUNT_FILE) != 0)
-		SysPrintf("Achievements: the account file is %s until the next login\n", ACCOUNT_TEMP);
+	remove(path);
+	if (rename(temp, path) != 0)
+		SysPrintf("Achievements: the account file is %s until the next login\n", temp);
 }
 
 /* ---- rc_client's callbacks ---- */
@@ -428,6 +480,9 @@ static void event(const rc_client_event_t *e, rc_client_t *c)
 			if (achievements_notify) achievements_notify(&n);
 			break;
 		}
+		int before = had_has(a->id);   /* the account had it before this trigger */
+		int fresh = !demoted && !before;
+		achievement_notice_t ln;
 		rc_client_get_user_game_summary(client, &s);
 		list_stale = 1;   /* the menu's list moves it to Earned */
 		memset(&n, 0, sizeof n);
@@ -443,12 +498,25 @@ static void event(const rc_client_event_t *e, rc_client_t *c)
 		n.earned = s.num_unlocked_achievements;
 		n.count = s.num_promoted_achievements;
 		n.type = a->type <= RC_CLIENT_ACHIEVEMENT_TYPE_WIN ? a->type : ACH_TYPE_STANDARD;
-		n.beaten = !beaten_seen && is_beaten();
-		n.mastered = !mastered_seen && is_mastered();
-		beaten_seen |= n.beaten;
-		mastered_seen |= n.mastered;
-		SysPrintf("Achievement unlocked (Official, Casual): %u %s\n", (unsigned)a->id, a->title);
-		if (achievements_notify) achievements_notify(&n);
+		ln = n;   /* the Local players' toast starts from the same card */
+		if (fresh || (!demoted && achievementEncore)) {   /* the account's side: new, or shown again by Encore */
+			n.beaten = !beaten_seen && is_beaten();
+			n.mastered = !mastered_seen && is_mastered();
+			beaten_seen |= n.beaten;
+			mastered_seen |= n.mastered;
+			if (achievements_ra_active()) {   /* Local players play too: say which side this is */
+				n.side = "RetroAchievements";
+				n.who = achievements_player_name(0);
+			}
+			SysPrintf(fresh ? "Achievement unlocked (Official, Casual): %u %s\n" : "Achievement earned again (Encore): %u %s\n",
+			          (unsigned)a->id, a->title);
+			if (achievements_notify) achievements_notify(&n);
+		}
+		had_add(a->id);
+		if (achievements_ra_active()) {   /* the Local players without it get it in their journal */
+			ln.side = "Local";
+			if (achievements_ra_trigger(a->id, &ln) && achievements_notify) achievements_notify(&ln);
+		}
 		break;
 	}
 	case RC_CLIENT_EVENT_SERVER_ERROR:
@@ -516,7 +584,103 @@ static int hash_disc(const char *image)
 	return 1;
 }
 
-/* ---- loading the set, and the login ---- */
+/* ---- which account, loading the set, and the login ---- */
+
+static void start_session(void);
+
+/* The account of this game load: the Mii that plays Official gives its link's file; no such
+ * Mii: this Wii's ra_account.ini. ach_account.h turns the link into a path. */
+static void choose_account(void)
+{
+	const char *key = players_official();
+	const char *link = *key ? players_account(key) : "";
+	snprintf(want_key, sizeof want_key, "%s", key);
+	ach_account_path(link, want_path, sizeof want_path);
+}
+
+static void drop_session(void)
+{
+	rc_client_logout(client);   /* also unloads a game: none is loaded when the account changes */
+	logged_in = 0;
+	session_path[0] = 0;
+}
+
+/* The account this game load wants did not work (no file, a failed login). A linked Mii: this
+ * Wii's account loads the set in spectator mode, so nothing is sent to it, and that Mii earns
+ * Local with the others. Else (this Wii's own account, or no such account): no set. Nothing
+ * tries a password again by itself. */
+static void account_failed(const char *why)
+{
+	struct stat st;
+	SysPrintf("Achievements: the Official account did not work: %s\n", why);
+	if (want_key[0] && !demoted && game_hash[0] && ra_transport_available() && want_path[0] &&
+	    strcmp(want_path, ACH_ACCOUNT_WII) && !stat(ACH_ACCOUNT_WII, &st)) {
+		demoted = 1;
+		snprintf(demote_reason, sizeof demote_reason, "%s: earns Local", why);
+		snprintf(want_path, sizeof want_path, "%s", ACH_ACCOUNT_WII);
+		rc_client_set_spectator_mode_enabled(client, 1);
+		local_planned = achievements_ra_plan("");   /* every seated Mii earns Local, that one too */
+		SysPrintf("Achievements: this Wii's account loads the set, spectating; the Mii %.8s earns Local\n", want_key);
+		start_session();
+		return;
+	}
+	snprintf(state, sizeof state, "%s", why);
+	game_hash[0] = 0;
+}
+
+/* The account had these when the set loaded */
+static void had_build(void)
+{
+	rc_client_achievement_list_t *l = rc_client_create_achievement_list(client,
+		RC_CLIENT_ACHIEVEMENT_CATEGORY_PROMOTED_AND_UNPROMOTED, RC_CLIENT_ACHIEVEMENT_LIST_GROUPING_LOCK_STATE);
+	uint32_t b, i;
+	had_n = 0;
+	if (!l) return;
+	for (b = 0; b < l->num_buckets; b++)
+		for (i = 0; i < l->buckets[b].num_achievements; i++)
+			if (l->buckets[b].achievements[i]->unlocked && l->buckets[b].achievements[i]->id < ACHIEVEMENT_WARNING_ID)
+				had_add(l->buckets[b].achievements[i]->id);
+	rc_client_destroy_achievement_list(l);
+}
+
+/* The set is in: the Local side, if Miis other than the Official one are seated. Their journal
+ * is achievements/ra_local/<game id>.unlocks, its digest made from the game id. */
+static void local_begin(const rc_client_game_t *g)
+{
+	char digest[33], journal[96];
+	rc_client_achievement_list_t *l;
+	uint32_t b, i;
+	if (!local_planned || !g || !ach_ra_journal_path(g->id, journal, sizeof journal)) return;
+	ach_ra_digest(g->id, digest);
+	mkdir(ACH_ACCOUNT_DIR "ra_local", 0777);
+	if (!achievements_ra_begin(digest, journal, !demoted, NULL, demoted ? want_key : "", demoted ? demote_reason : ""))
+		return;
+	l = rc_client_create_achievement_list(client,
+		rc_client_get_unpromoted_enabled(client) ? RC_CLIENT_ACHIEVEMENT_CATEGORY_PROMOTED_AND_UNPROMOTED
+		                                          : RC_CLIENT_ACHIEVEMENT_CATEGORY_PROMOTED,
+		RC_CLIENT_ACHIEVEMENT_LIST_GROUPING_LOCK_STATE);
+	if (l) {
+		for (b = 0; b < l->num_buckets; b++)
+			for (i = 0; i < l->buckets[b].num_achievements; i++) {
+				const rc_client_achievement_t *a = l->buckets[b].achievements[i];
+				if (a->id >= ACHIEVEMENT_WARNING_ID) continue;
+				achievements_ra_add(a->id, a->title, a->description, a->badge_name, a->points,
+				                    (int)(a->rarity * 100 + 0.5f),
+				                    a->type <= RC_CLIENT_ACHIEVEMENT_TYPE_WIN ? (unsigned char)a->type : ACH_TYPE_STANDARD,
+				                    a->category == RC_CLIENT_ACHIEVEMENT_CATEGORY_UNPROMOTED);
+			}
+		rc_client_destroy_achievement_list(l);
+	}
+	achievements_ra_end();
+}
+
+/* The server's own check: an unlock the account already had does not go again (encore mode
+ * lets it trigger for the Local players) */
+static int can_submit(uint32_t id, rc_client_t *c)
+{
+	(void)c;
+	return !had_has(id);
+}
 
 static void game_loaded_cb(int result, const char *error, rc_client_t *c, void *data)
 {
@@ -534,18 +698,21 @@ static void game_loaded_cb(int result, const char *error, rc_client_t *c, void *
 	mastered_seen = is_mastered();
 	g = rc_client_get_game_info(client);
 	rc_client_get_user_game_summary(client, &s);
-	SysPrintf("Achievements: %s, %u of %u earned (Official, Casual%s%s)\n", g && g->title ? g->title : "?",
+	SysPrintf("Achievements: %s, %u of %u earned (%s, Casual%s%s)\n", g && g->title ? g->title : "?",
 	          (unsigned)s.num_unlocked_achievements, (unsigned)s.num_promoted_achievements,
+	          demoted ? "Local" : "Official",
 	          rc_client_get_encore_mode_enabled(client) ? ", Encore" : "",
 	          rc_client_get_unpromoted_enabled(client) ? ", Unofficial" : "");
 	list_stale = 1;
+	had_build();
+	local_begin(g);
 	if (achievements_notify) {   /* the game card: the set is on */
 		achievement_notice_t n;
 		memset(&n, 0, sizeof n);
 		n.kind = ACH_NOTICE_GAME;
 		n.game = g && g->title ? g->title : "";
 		n.badge = g && g->badge_name ? g->badge_name : "";
-		n.desc = "Official";
+		n.desc = demoted ? "Local" : "Official";
 		n.rarity_x100 = -1;
 		n.earned = s.num_unlocked_achievements;
 		n.count = s.num_promoted_achievements;
@@ -563,42 +730,71 @@ static void load_set(void)
 	game_hash[0] = 0;
 }
 
-static void login_cb(int result, const char *error, rc_client_t *c, void *used_password)
+/* data: the attempt's generation, and 1 when a password (not a token) was used */
+static void login_cb(int result, const char *error, rc_client_t *c, void *data)
 {
 	const rc_client_user_t *u;
+	uintptr_t d = (uintptr_t)data;
 	(void)c;
+	if ((unsigned)(d >> 1) != login_gen) return;   /* an older attempt's answer */
 	login_busy = 0;
 	if (result != RC_OK) {
 		SysPrintf("Achievements: login failed: %s\n",
 		          ra_transport_available() ? (error ? error : "unknown") : "this build has no secure connection yet");
-		snprintf(state, sizeof state, "%s", ra_transport_available() ? "Login failed" : "No secure connection");
-		game_hash[0] = 0;
+		if (game_hash[0] && strcmp(login_path, want_path))   /* the early login's account is not the one wanted: that one is next */
+			start_session();
+		else
+			account_failed(ra_transport_available() ? "Login failed" : "No secure connection");
 		return;
 	}
 	logged_in = 1;
+	snprintf(session_path, sizeof session_path, "%s", login_path);
 	u = rc_client_get_user_info(client);
 	SysPrintf("Achievements: logged in as %s\n", u && u->display_name ? u->display_name : "?");
-	if (used_password && u && u->username && u->token)
-		store_token(u->username, u->token);
+	if ((d & 1) && u && u->username && u->token)
+		store_token(session_path, u->username, u->token);
+	if (game_hash[0] && strcmp(session_path, want_path)) {   /* the early login (menu) was another account */
+		drop_session();
+		start_session();
+		return;
+	}
 	load_set();
 }
 
-static void login(void)
+static void login(const char *path)
 {
 	char user[64], secret[256];
 	int is_token;
-	if (!read_account(user, sizeof user, secret, sizeof secret, &is_token)) {
-		SysPrintf("Achievements: no account; put User= and Password= in %s\n", ACCOUNT_FILE);
-		snprintf(state, sizeof state, "No account (ra_account.ini)");
-		game_hash[0] = 0;
+	if (!path[0]) {
+		account_failed("Account name not valid");
+		return;
+	}
+	if (!read_account(path, user, sizeof user, secret, sizeof secret, &is_token)) {
+		SysPrintf("Achievements: no account file; put User= and Password= in %s\n", path);
+		account_failed(strcmp(path, ACH_ACCOUNT_WII) ? "Account file missing" : "No account (ra_account.ini)");
 		return;
 	}
 	login_busy = 1;
+	snprintf(login_path, sizeof login_path, "%s", path);
+	login_gen++;
 	if (is_token)
-		rc_client_begin_login_with_token(client, user, secret, login_cb, NULL);
+		rc_client_begin_login_with_token(client, user, secret, login_cb, (void *)(uintptr_t)(login_gen << 1));
 	else
-		rc_client_begin_login_with_password(client, user, secret, login_cb, (void *)1);
+		rc_client_begin_login_with_password(client, user, secret, login_cb, (void *)(uintptr_t)(login_gen << 1 | 1));
 	memset(secret, 0, sizeof secret);   /* rc_client keeps its own copy for the request */
+}
+
+/* Log in as want_path (or stay logged in as it), then load the set. An answer still on its way
+ * (the menu's early login) decides in login_cb. A game load that wants another account than the
+ * one logged in logs the old one out first: never in the middle of a game. */
+static void start_session(void)
+{
+	if (login_busy) return;
+	if (logged_in && strcmp(session_path, want_path)) drop_session();
+	if (logged_in)
+		load_set();
+	else
+		login(want_path);
 }
 
 /* ---- the engine's entry points (achievements.c) ---- */
@@ -612,6 +808,7 @@ static int client_up(void)
 		return 0;
 	}
 	rc_client_set_event_handler(client, event);
+	client->callbacks.can_submit_achievement_unlock = can_submit;   /* rc_client_internal.h: no setter in the pinned API */
 	rc_client_set_hardcore_enabled(client, 0);   /* Casual only: Hardcore needs RA's approval */
 	rc_client_set_allow_background_memory_reads(client, 0);
 	return 1;
@@ -644,9 +841,14 @@ void achievements_official_wait(unsigned ms)
 int achievements_official_load(const char *image)
 {
 	if (!client_up()) return 0;
-	/* before the set loads: rc_client reads both when it activates the achievements */
+	demoted = 0;
+	demote_reason[0] = 0;
+	choose_account();
+	local_planned = achievements_ra_plan(want_key);   /* the other seated Miis earn Local */
+	/* before the set loads: rc_client reads these when it activates the achievements. Encore
+	 * with Local players: the account's earned ones stay active for them. */
 	rc_client_set_unpromoted_enabled(client, achievementUnofficial != 0);
-	rc_client_set_encore_mode_enabled(client, achievementEncore != 0);
+	rc_client_set_encore_mode_enabled(client, achievementEncore != 0 || local_planned > 0);
 	rc_client_set_spectator_mode_enabled(client, achievementSpectator != 0);   /* scripted runs: nothing reaches the account */
 	if (image && strlen(image) > 4 && !strcasecmp(image + strlen(image) - 4, ".exe")) {
 		SysPrintf("Achievements: a .exe has no disc to identify; no achievements for it\n");
@@ -660,10 +862,7 @@ int achievements_official_load(const char *image)
 		return 0;
 	}
 	snprintf(state, sizeof state, "Connecting...");
-	if (logged_in)
-		load_set();
-	else if (!login_busy)
-		login();
+	start_session();
 	return 0;   /* the set arrives later, asynchronously */
 }
 
@@ -728,7 +927,8 @@ void achievements_official_idle(void)
 	if (!client && !client_up()) return;
 	if (!logged_in && !login_busy && !login_tried) {
 		login_tried = 1;
-		login();
+		choose_account();
+		login(want_path);
 	}
 	ra_transport_poll();
 	rc_client_idle(client);
@@ -741,6 +941,7 @@ void achievements_official_close(void)
 	lists_drop();
 	if (game_loaded) rc_client_unload_game(client);
 	game_loaded = media_pending = 0;
+	had_n = 0;
 }
 
 #endif /* HW_RVL */

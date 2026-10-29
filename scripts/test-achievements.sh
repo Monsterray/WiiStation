@@ -21,6 +21,16 @@ UBSAN_OPTIONS=halt_on_error=1 "$task_dir/test" "$task_dir"
   -Ideps/rcheevos/include achievements.c tests/achievements_players_test.c \
   "$task_dir"/*.o -lm -o "$task_dir/players_test"
 UBSAN_OPTIONS=halt_on_error=1 "$task_dir/players_test" "$task_dir"
+# Official mode with Local players: the Miis besides the Official one earn rc_client's set into the Local journal
+"${CC:-cc}" -std=c99 -O1 -g -Wall -Wextra -Werror \
+  -fsanitize=address,undefined -fno-omit-frame-pointer \
+  -Ideps/rcheevos/include achievements.c tests/achievements_ra_test.c \
+  "$task_dir"/*.o -lm -o "$task_dir/ra_test"
+UBSAN_OPTIONS=halt_on_error=1 "$task_dir/ra_test" "$task_dir"
+# which account file a game load logs in with, and the names of the RetroAchievements Local journal
+"${CC:-cc}" -std=c99 -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined \
+  tests/ach_account_test.c -o "$task_dir/account_test"
+UBSAN_OPTIONS=halt_on_error=1 "$task_dir/account_test"
 # badge pictures: the name check and the RGBA8 -> RGB5A3 tiling (Gamecube/ach_badge_conv.h)
 "${CC:-cc}" -std=c99 -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined \
   tests/ach_badge_test.c -o "$task_dir/badge_test"

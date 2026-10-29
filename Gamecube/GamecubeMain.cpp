@@ -1170,6 +1170,11 @@ static void chainOverride(char *kv, bool remember)
 				memcpy(chainSeatSaved, playerSeat, sizeof playerSeat);
 				chainSeatsKept = true;
 			}
+			char seat[PLAYERS_KEY + 2];
+			if (val[0] == '"' && val[1] == '#') {   /* "#2": the console's second Mii, for a run on a Wii whose Miis are not known beforehand */
+				snprintf(seat, sizeof seat, "\"%s\"", players_key_nth((unsigned)atoi(val + 2)));
+				val = seat;
+			}
 			setOption(key, val);
 			return;
 		}
