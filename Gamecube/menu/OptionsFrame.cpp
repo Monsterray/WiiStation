@@ -413,8 +413,8 @@ static const OptHelp ACH_HELP[] =
 {
 	/* Four lines fit under the four rows; the rest is in SETTINGS.md. The accounts are in
 	 * Players (a Mii's Edit page). */
-	{ "Official:", "downloads the RetroAchievements set." },
-	{ "Local, Test:", "only your own set file. Test keeps nothing." },
+	{ "Official:", "Downloads the RetroAchievements set." },
+	{ "Local, Test:", "Only your own set file. Test keeps nothing." },
 	{ "Accounts:", "Players, drop a Mii on Edit." },
 	{ NULL,        "Load the game again after a change." },
 };
