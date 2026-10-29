@@ -438,14 +438,10 @@ static const OptRow ACH_ROWS[] =
 
 static const OptHelp ACH_HELP[] =
 {
+	/* Three lines fit under the five rows; the rest is in SETTINGS.md. */
 	{ "Mode:",     "Local keeps your unlocks. Test keeps nothing." },
 	{ NULL,        "Load the game again after a change." },
-	{ "Set file:", "AchievementFile in settings.ini." },
-	{ "Account:",  "The User= line of achievements/ra_account.ini." },
-	{ "Official:", "RetroAchievements, Casual." },
-	{ NULL,        "Needs ra_account.ini and tls_seed.bin." },
-	{ "Unofficial:", "Official mode: not yet approved ones too." },
-	{ "Encore:",   "Official mode: earn your unlocks again." },
+	{ "Official:", "Needs ra_account.ini and tls_seed.bin." },
 };
 
 struct OptPage

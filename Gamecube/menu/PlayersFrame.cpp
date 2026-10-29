@@ -26,6 +26,8 @@ extern "C" {
 
 extern MenuContext *pMenuContext;
 
+bool writePlayers(void);   /* GamecubeMain.cpp: players.ini */
+
 namespace {
 
 const int PER_PAGE = 16, COLS = 8, COIN = 56, STRIP_X = 66, STRIP_Y = 278, STRIP_DX = 66, STRIP_DY = 74;
@@ -62,7 +64,8 @@ void text(int x, int y, const char *s, float scale, GXColor c, int maxw = 0)
 }
 
 /* Text centered on (x, y), capitals included: measured, a centered string's capitals sit
- * about 6 x scale above the y it is given. */
+ * about 6 x scale above the y it is given, and its ink about 5 x scale left of x (the font's
+ * width counts the spacing after the last letter). */
 void textMid(int x, int y, const char *s, float scale, GXColor c, int maxw = 0)
 {
 	menu::IplFont &font = menu::IplFont::getInstance();
@@ -70,7 +73,7 @@ void textMid(int x, int y, const char *s, float scale, GXColor c, int maxw = 0)
 	if (maxw > 0 && w > maxw)
 		scale = scale * maxw / w;
 	font.drawInit(c);
-	font.drawString(x, y + (int)(6 * scale), (char *)s, scale, true);
+	font.drawString(x + (int)(5 * scale + 0.5f), y + (int)(6 * scale), (char *)s, scale, true);
 }
 
 /* A round well for a coin of radius r: shadowed at the top, lit at the bottom lip. */
@@ -146,6 +149,7 @@ int seatOf(int mii)
 
 void Func_ReturnFromPlayers()
 {
+	writePlayers();
 	pMenuContext->setActiveFrame(MenuContext::FRAME_MAIN);
 }
 

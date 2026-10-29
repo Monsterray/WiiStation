@@ -215,7 +215,7 @@ def main():
 
     # 1. the example file
     ex = ini(REPO / "Gamecube/release/example_settings.ini")
-    want = [(r["section"], r["key"]) for r in rows if r["stored"]]
+    want = [(r["section"], r["key"]) for r in rows if r["stored"] and r["section"] != "Players"]   # players.ini's
     got = [(s, k) for s, k, _ in ex]
     for k in sorted(key_list("UNSTORED_KEYS") | key_list("GLOBAL_ONLY_KEYS")):
         if k not in by_key and k != "AchievementBenchRoot":   # that one is in bench builds only

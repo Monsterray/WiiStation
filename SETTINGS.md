@@ -58,7 +58,7 @@ To write the game's file, load the game, open the Settings menu, and select **Sa
 
 **Load Settings > This Game** sets the settings in the same order (1, 2, 3) now. It does nothing when the game has no file.
 
-These keys are never in a game's file: `lang`, `MenuFont`, `FileSortMode`, `TabWrap` (the menu), `RomDirSD`, `RomDirUSB`, `RomDirSMB`, `NativeDevice`, `StatesDevice`, `AchievementFile`, `AchievementLog`, `AchievementUTCOffset` (folders, devices and the clock), the Players seats `Player1` ... `Player2D` and `Player1P1` ... `Player2P8`, and `smbipaddr`, `smbsharename`, `smbusername`, `smbpassword` (the network share and its login). They belong to the Wii, not to the game. **This Game** does not write them, and WiiStation ignores them in a game's file. A game file from 5.14.0 or earlier holds every key: WiiStation still reads it, and its other keys still replace the common file's values. The next **This Game** save writes only the differences. `FilterTour` is in no settings file (section 3).
+These keys are never in a game's file: `lang`, `MenuFont`, `FileSortMode`, `TabWrap` (the menu), `RomDirSD`, `RomDirUSB`, `RomDirSMB`, `NativeDevice`, `StatesDevice`, `AchievementFile`, `AchievementLog`, `AchievementUTCOffset` (folders, devices and the clock), the Players seats `Player1` ... `Player2D` and `Player1P1` ... `Player2P8` (in `players.ini`), and `smbipaddr`, `smbsharename`, `smbusername`, `smbpassword` (the network share and its login). They belong to the Wii, not to the game. **This Game** does not write them, and WiiStation ignores them in a game's file. A game file from 5.14.0 or earlier holds every key: WiiStation still reads it, and its other keys still replace the common file's values. The next **This Game** save writes only the differences. `FilterTour` is in no settings file (section 3).
 
 Versions 5.6.1 to 5.13.1 wrote the game's file as `<serial>.cfg`, and no version read it. WiiStation reads `<serial>.cfg` on a device when that device has no `<serial>.ini`. The next **This Game** save writes `<serial>.ini`. You can then delete the `.cfg` file.
 
@@ -318,36 +318,38 @@ for the definition format, state handling, persistence boundaries, and tests.
 
 Who plays on each PlayStation port, set in the Players menu (Main, Players): a Mii from the
 Mii Channel's database, read only, never written (Docs/MII_PLAN.md). The keys are per Wii: a
-game's file never holds them. Save the settings to keep the seats.
+game's file never holds them. Since 5.18.2 they are in their own file, `wiistation/players.ini`
+beside `settings.ini`, which the Players menu writes when it closes. Seat keys in a
+`settings.ini` from 5.18.0 or 5.18.1 are still read; `players.ini`, read after it, wins.
 
 | Key | Values | Default | Menu | Effect |
 |---|---|---|---|---|
-| `Player1` | `"Key"` | empty | none, settings file only (Main, Players sets it) | The Mii seated on port 1: its creation ID, 16 hex characters. Empty is Guest. |
-| `Player2` | `"Key"` | empty | none, settings file only (Main, Players sets it) | The Mii seated on port 2: its creation ID, 16 hex characters. Empty is Guest. |
-| `Player1A` | `"Key"` | empty | none, settings file only (Main, Players sets it) | The Mii seated on port 1A: its creation ID, 16 hex characters. Empty is Guest. |
-| `Player1B` | `"Key"` | empty | none, settings file only (Main, Players sets it) | The Mii seated on port 1B: its creation ID, 16 hex characters. Empty is Guest. |
-| `Player1C` | `"Key"` | empty | none, settings file only (Main, Players sets it) | The Mii seated on port 1C: its creation ID, 16 hex characters. Empty is Guest. |
-| `Player1D` | `"Key"` | empty | none, settings file only (Main, Players sets it) | The Mii seated on port 1D: its creation ID, 16 hex characters. Empty is Guest. |
-| `Player2A` | `"Key"` | empty | none, settings file only (Main, Players sets it) | The Mii seated on port 2A: its creation ID, 16 hex characters. Empty is Guest. |
-| `Player2B` | `"Key"` | empty | none, settings file only (Main, Players sets it) | The Mii seated on port 2B: its creation ID, 16 hex characters. Empty is Guest. |
-| `Player2C` | `"Key"` | empty | none, settings file only (Main, Players sets it) | The Mii seated on port 2C: its creation ID, 16 hex characters. Empty is Guest. |
-| `Player2D` | `"Key"` | empty | none, settings file only (Main, Players sets it) | The Mii seated on port 2D: its creation ID, 16 hex characters. Empty is Guest. |
-| `Player1P1` | `"Key"` | empty | none, settings file only (Main, Players sets it) | The Mii seated as Co-Op player 1 of port 1: its creation ID, 16 hex characters. Empty is Guest. |
-| `Player1P2` | `"Key"` | empty | none, settings file only (Main, Players sets it) | The Mii seated as Co-Op player 2 of port 1: its creation ID, 16 hex characters. Empty is Guest. |
-| `Player1P3` | `"Key"` | empty | none, settings file only (Main, Players sets it) | The Mii seated as Co-Op player 3 of port 1: its creation ID, 16 hex characters. Empty is Guest. |
-| `Player1P4` | `"Key"` | empty | none, settings file only (Main, Players sets it) | The Mii seated as Co-Op player 4 of port 1: its creation ID, 16 hex characters. Empty is Guest. |
-| `Player1P5` | `"Key"` | empty | none, settings file only (Main, Players sets it) | The Mii seated as Co-Op player 5 of port 1: its creation ID, 16 hex characters. Empty is Guest. |
-| `Player1P6` | `"Key"` | empty | none, settings file only (Main, Players sets it) | The Mii seated as Co-Op player 6 of port 1: its creation ID, 16 hex characters. Empty is Guest. |
-| `Player1P7` | `"Key"` | empty | none, settings file only (Main, Players sets it) | The Mii seated as Co-Op player 7 of port 1: its creation ID, 16 hex characters. Empty is Guest. |
-| `Player1P8` | `"Key"` | empty | none, settings file only (Main, Players sets it) | The Mii seated as Co-Op player 8 of port 1: its creation ID, 16 hex characters. Empty is Guest. |
-| `Player2P1` | `"Key"` | empty | none, settings file only (Main, Players sets it) | The Mii seated as Co-Op player 1 of port 2: its creation ID, 16 hex characters. Empty is Guest. |
-| `Player2P2` | `"Key"` | empty | none, settings file only (Main, Players sets it) | The Mii seated as Co-Op player 2 of port 2: its creation ID, 16 hex characters. Empty is Guest. |
-| `Player2P3` | `"Key"` | empty | none, settings file only (Main, Players sets it) | The Mii seated as Co-Op player 3 of port 2: its creation ID, 16 hex characters. Empty is Guest. |
-| `Player2P4` | `"Key"` | empty | none, settings file only (Main, Players sets it) | The Mii seated as Co-Op player 4 of port 2: its creation ID, 16 hex characters. Empty is Guest. |
-| `Player2P5` | `"Key"` | empty | none, settings file only (Main, Players sets it) | The Mii seated as Co-Op player 5 of port 2: its creation ID, 16 hex characters. Empty is Guest. |
-| `Player2P6` | `"Key"` | empty | none, settings file only (Main, Players sets it) | The Mii seated as Co-Op player 6 of port 2: its creation ID, 16 hex characters. Empty is Guest. |
-| `Player2P7` | `"Key"` | empty | none, settings file only (Main, Players sets it) | The Mii seated as Co-Op player 7 of port 2: its creation ID, 16 hex characters. Empty is Guest. |
-| `Player2P8` | `"Key"` | empty | none, settings file only (Main, Players sets it) | The Mii seated as Co-Op player 8 of port 2: its creation ID, 16 hex characters. Empty is Guest. |
+| `Player1` | `"Key"` | empty | none, players.ini only (Main, Players sets it) | The Mii seated on port 1: its creation ID, 16 hex characters. Empty is Guest. |
+| `Player2` | `"Key"` | empty | none, players.ini only (Main, Players sets it) | The Mii seated on port 2: its creation ID, 16 hex characters. Empty is Guest. |
+| `Player1A` | `"Key"` | empty | none, players.ini only (Main, Players sets it) | The Mii seated on port 1A: its creation ID, 16 hex characters. Empty is Guest. |
+| `Player1B` | `"Key"` | empty | none, players.ini only (Main, Players sets it) | The Mii seated on port 1B: its creation ID, 16 hex characters. Empty is Guest. |
+| `Player1C` | `"Key"` | empty | none, players.ini only (Main, Players sets it) | The Mii seated on port 1C: its creation ID, 16 hex characters. Empty is Guest. |
+| `Player1D` | `"Key"` | empty | none, players.ini only (Main, Players sets it) | The Mii seated on port 1D: its creation ID, 16 hex characters. Empty is Guest. |
+| `Player2A` | `"Key"` | empty | none, players.ini only (Main, Players sets it) | The Mii seated on port 2A: its creation ID, 16 hex characters. Empty is Guest. |
+| `Player2B` | `"Key"` | empty | none, players.ini only (Main, Players sets it) | The Mii seated on port 2B: its creation ID, 16 hex characters. Empty is Guest. |
+| `Player2C` | `"Key"` | empty | none, players.ini only (Main, Players sets it) | The Mii seated on port 2C: its creation ID, 16 hex characters. Empty is Guest. |
+| `Player2D` | `"Key"` | empty | none, players.ini only (Main, Players sets it) | The Mii seated on port 2D: its creation ID, 16 hex characters. Empty is Guest. |
+| `Player1P1` | `"Key"` | empty | none, players.ini only (Main, Players sets it) | The Mii seated as Co-Op player 1 of port 1: its creation ID, 16 hex characters. Empty is Guest. |
+| `Player1P2` | `"Key"` | empty | none, players.ini only (Main, Players sets it) | The Mii seated as Co-Op player 2 of port 1: its creation ID, 16 hex characters. Empty is Guest. |
+| `Player1P3` | `"Key"` | empty | none, players.ini only (Main, Players sets it) | The Mii seated as Co-Op player 3 of port 1: its creation ID, 16 hex characters. Empty is Guest. |
+| `Player1P4` | `"Key"` | empty | none, players.ini only (Main, Players sets it) | The Mii seated as Co-Op player 4 of port 1: its creation ID, 16 hex characters. Empty is Guest. |
+| `Player1P5` | `"Key"` | empty | none, players.ini only (Main, Players sets it) | The Mii seated as Co-Op player 5 of port 1: its creation ID, 16 hex characters. Empty is Guest. |
+| `Player1P6` | `"Key"` | empty | none, players.ini only (Main, Players sets it) | The Mii seated as Co-Op player 6 of port 1: its creation ID, 16 hex characters. Empty is Guest. |
+| `Player1P7` | `"Key"` | empty | none, players.ini only (Main, Players sets it) | The Mii seated as Co-Op player 7 of port 1: its creation ID, 16 hex characters. Empty is Guest. |
+| `Player1P8` | `"Key"` | empty | none, players.ini only (Main, Players sets it) | The Mii seated as Co-Op player 8 of port 1: its creation ID, 16 hex characters. Empty is Guest. |
+| `Player2P1` | `"Key"` | empty | none, players.ini only (Main, Players sets it) | The Mii seated as Co-Op player 1 of port 2: its creation ID, 16 hex characters. Empty is Guest. |
+| `Player2P2` | `"Key"` | empty | none, players.ini only (Main, Players sets it) | The Mii seated as Co-Op player 2 of port 2: its creation ID, 16 hex characters. Empty is Guest. |
+| `Player2P3` | `"Key"` | empty | none, players.ini only (Main, Players sets it) | The Mii seated as Co-Op player 3 of port 2: its creation ID, 16 hex characters. Empty is Guest. |
+| `Player2P4` | `"Key"` | empty | none, players.ini only (Main, Players sets it) | The Mii seated as Co-Op player 4 of port 2: its creation ID, 16 hex characters. Empty is Guest. |
+| `Player2P5` | `"Key"` | empty | none, players.ini only (Main, Players sets it) | The Mii seated as Co-Op player 5 of port 2: its creation ID, 16 hex characters. Empty is Guest. |
+| `Player2P6` | `"Key"` | empty | none, players.ini only (Main, Players sets it) | The Mii seated as Co-Op player 6 of port 2: its creation ID, 16 hex characters. Empty is Guest. |
+| `Player2P7` | `"Key"` | empty | none, players.ini only (Main, Players sets it) | The Mii seated as Co-Op player 7 of port 2: its creation ID, 16 hex characters. Empty is Guest. |
+| `Player2P8` | `"Key"` | empty | none, players.ini only (Main, Players sets it) | The Mii seated as Co-Op player 8 of port 2: its creation ID, 16 hex characters. Empty is Guest. |
 
 ## 7. Network settings
 
@@ -415,6 +417,7 @@ itself, once, when a read fails.
 | `lang/` | Menu language files. |
 | `fonts/chs.dat` | Font file for the Chinese menu language. |
 | `settings/` | Settings files for one game. See section 1.4. |
+| `players.ini` | The Mii seated on each port, written by the Players menu. See Players. |
 | `saves/` | Memory card files. WiiStation creates this folder when it saves. |
 | `controllers/` | HID controller files. See section 6.4. |
 | `perf.log` | Performance counters. Only the debug build writes this file. |

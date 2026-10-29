@@ -1,5 +1,5 @@
 README : WiiStation
-Version 5.18.1
+Version 5.18.2
 
 LICENSE:
     This software is licensed under the GNU General Public License v2
@@ -155,6 +155,13 @@ LATER UPDATES BY:
  * Monty Perrotti (WiiStation)
 
 WiiStation CHANGE LOG:
+Ver 5.18.2 (2026-10-28):
+* Players: the seats are in their own file, wiistation/players.ini, written
+  when the Players menu closes (no Save Settings needed). Seats saved in
+  settings.ini by 5.18.0/5.18.1 are still read.
+* Players: Guest and the other centered names sit in the middle of their slot.
+* Cheevos page: the notes that ran off the bottom of the screen are gone (the
+  rest is in SETTINGS.md).
 Ver 5.18.1 (2026-10-28):
 * Players: a Co-Op port's card holds all its players (up to 8). Open it with
   A, a click on it or its "..." button, or by dropping a coin on it: the same

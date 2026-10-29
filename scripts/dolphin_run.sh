@@ -336,6 +336,8 @@ CARD="$PROFILE/Load/WiiSD.raw"
 "$PYTHON" "$SP/sdimage_read.py" "$CARD" wiistation/perf.log "$OUT/perf.log" 2>&1 | tail -1
 # 7-Zip handed back a stale ptrace.log after a rewrite; our own FAT reader does not
 "$PYTHON" "$SP/sdimage_read.py" "$CARD" wiistation/ptrace.log "$OUT/ptrace.log" >/dev/null 2>&1
+# the seats the Players menu wrote when it closed (5.18.2)
+"$PYTHON" "$SP/sdimage_read.py" "$CARD" wiistation/players.ini "$OUT/players.ini" >/dev/null 2>&1
 # VRAM transfers of the whole run (C0 reads, A0 loads, 80 moves, readback outcomes), repeats merged
 "$PYTHON" "$SP/sdimage_read.py" "$CARD" wiistation/vramio.log "$OUT/vramio.log" >/dev/null 2>&1 && [ -s "$OUT/vramio.log" ] && echo "vramio: $(sed -n 2p "$OUT/vramio.log" | sed 's/^# //'), $(grep -vc '^#' "$OUT/vramio.log") lines"
 # the USB Pad Test page's log (Settings > Input > Test USB Pad; scripts/usbpad_read.py)

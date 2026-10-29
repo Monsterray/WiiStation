@@ -39,7 +39,7 @@
 #include "lab_net.h"
 #include "boot_guard.h"   /* start-up's watchdog, until the HBC agent's */
 #include "hbc_home.h"
-#include "players.h"       /* playerSeat: settings.ini [Players] */
+#include "players.h"       /* playerSeat: players.ini */
 #include <network.h>
 extern "C" void __exception_setreload(int t);
 #include "../psxcommon.h"
@@ -556,6 +556,8 @@ static void rememberFileSettings(void)
 
 void handleConfigPair(char* kv);
 void readConfig(FILE* f);
+static void readPlayers(void);
+static const char* playersDev = "sd";   /* the boot device: players.ini's */
 void writeConfig(FILE* f);
 int checkBiosExists(int testDevice);
 static void loadSeparatelySetting();
@@ -634,6 +636,7 @@ static void loadGlobalSettings(void)
 	settingsPut(&settingDefaults);
 	if (!loadSeparatelySettingItem("usb:/wiistation/settings.ini"))
 		loadSeparatelySettingItem("sd:/wiistation/settings.ini");
+	readPlayers();
 }
 
 /* This game's own file (Save Settings > This Game), USB before SD. Save -> This Game wrote
@@ -856,6 +859,8 @@ void loadSettings(int argc, char *argv[])
 				readConfig(f);
 				fclose(f);
 			}
+			playersDev = "usb";
+			readPlayers();
 			loadControllerMapping("usb");
 			mappingSlot = loadButtonSlot;
 		}
@@ -874,6 +879,7 @@ void loadSettings(int argc, char *argv[])
 				readConfig(f);
 				fclose(f);
 			}
+			readPlayers();
 
 			loadControllerMapping("sd");
 			mappingSlot = loadButtonSlot;
@@ -1902,11 +1908,58 @@ void readConfig(FILE* f){
 		frameRateMode = FRAMERATE_UNLIMITED;
 }
 
+/* The seats (the [Players] rows) live in players.ini, beside settings.ini on the boot device:
+ * settings.ini was long enough. Seat keys in a settings.ini of 5.18.0/5.18.1 are still read,
+ * and players.ini, read after it, wins. The Players menu writes the file when it closes. */
+static bool isPlayersRow(int i)
+{
+	if (!OPTIONS[i].value)
+		return !strcmp(OPTIONS[i].key, "Players");
+	return OPTIONS[i].value >= playerSeat[0] && OPTIONS[i].value <= playerSeat[PLAYERS_SEATS - 1];
+}
+
+static void readPlayers(void)
+{
+	char path[40];
+	snprintf(path, sizeof path, "%s:/wiistation/players.ini", playersDev);
+	FILE* f = fopen(path, "r");
+	if (f) {
+		readConfig(f);
+		fclose(f);
+	}
+}
+
+/* The seats to players.ini, when one changed since the file was read or written. */
+bool writePlayers(void)
+{
+	char path[40];
+	bool changed = false;
+	for (int i = 0; i < OPTION_COUNT; i++)
+		changed |= isPlayersRow(i) && settingUnsaved(i);
+	if (!changed)
+		return true;
+	snprintf(path, sizeof path, "%s:/wiistation/players.ini", playersDev);
+	FILE* f = fopen(path, "wb");
+	if (!f)
+		return false;
+	fprintf(f, "; WiiStation: the Mii seated on each PlayStation port (its creation ID), empty for Guest.\n"
+	           "; The Players menu writes this file. SETTINGS.md (Players) tells the keys.\n");
+	for (int i = 0; i < OPTION_COUNT; i++)
+		if (isPlayersRow(i) && OPTIONS[i].value) {
+			fprintf(f, "%s = \"%s\"\n", OPTIONS[i].key, OPTIONS[i].value);
+			settingRemember(i);
+		}
+	fclose(f);
+	return true;
+}
+
 static void writeSettingLines(FILE* f){
 	fprintf(f, "; WiiStation settings. Write one \"key = value\" on each line.\n"
 	           "; example_settings.ini and SETTINGS.md tell what each setting does.\n");
 	for(unsigned int i=0; i<sizeof(OPTIONS)/sizeof(OPTIONS[0]); ++i){
-		if(!OPTIONS[i].value)   /* a section: its name and its comment */
+		if(isPlayersRow(i))   /* players.ini's */
+			continue;
+		else if(!OPTIONS[i].value)   /* a section: its name and its comment */
 			fprintf(f, "\n[%s]\n; %s\n", OPTIONS[i].key, OPTIONS[i].note);
 		else if(!settingStored(OPTIONS[i].key, false))
 			continue;
