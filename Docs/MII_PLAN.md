@@ -114,10 +114,36 @@ Mock-ups A-E were shown in the chat; the owner chose **D**, with subtle PS1 port
 | 2 | The Players menu: coins (initials first, then `mii_icon` faces), pages, both input paths, seats in settings.ini | `wsx.sh menu` pictures in Dolphin with the fixture; bench Wii with its own Miis and saved faces; capture card for the TV picture |
 | 3 | Journal column, union of earned, per-Mii toast and page, WAO1 seat keys | Dolphin chain: Local set, Mii A unlocks, seat B (not earned), A + B seated (only B gets it), a state from A loaded with B seated |
 
-## Open questions for Official mode per Mii (decision 4, later)
+## Official mode per Mii (plan, 2026-10-28; mock-ups shown in the session)
 
-- Where an account is linked: on the Mii's coin (a long press, or a "link account" item on the
-  focused coin's tip), so the Players menu stays the one place a player is set up.
-- Which seated Mii's account plays Official: player 1's only (RetroAchievements sessions are one
-  user per game), with the others earning Local as now.
-- Token storage: one token file per key in `sd:/wiistation/ra/`, never the password, as today.
+The owner's answers: accounts are files, linked to a Mii on the Wii; port 1's Mii plays Official
+unless a check box moves it; linking opens the file browser, showing RetroAchievements accounts.
+
+- **Accounts**: one file per RetroAchievements account in `sd:/wiistation/achievements/ra/`,
+  `<name>.ini` with `User=` and `Password=` or `Token=`, exactly like today's `ra_account.ini`
+  (after the first login only `User=` and `Token=` stay). `ra_setup.py --account FILE --ra-name NAME`
+  puts it there; the script still never opens the file. The name is the file's, so the Wii shows
+  a name without reading the file. Today's `ra_account.ini` stays, shown as "This Wii's account".
+- **Link**: in the Players menu, hold B and press A on a coin (the "right click"; on a Wii Remote
+  and on every pad). The file browser opens on `achievements/ra/`, titled "Account for <Mii>",
+  listing the accounts by name, plus "None: earn Local" first and "This Wii's account" last.
+  A links, B goes back. players.ini keeps the links in an `[Accounts]` section, one
+  `<Mii key> = "<name>"` line per linked Mii (written by the same code as the seats).
+- **Who plays Official**: one Mii per game (RetroAchievements sessions are one user). By default
+  port 1's Mii (1A with a multitap, P1 with Co-Op). A linked Mii's card shows an "Official" check
+  box; checking one clears the others (`PlayersOfficial = "<Mii key>"`, empty = port 1). Every
+  other seated Mii earns Local (phase 3). No linked Mii on that seat: today's `ra_account.ini`
+  if there is one, else Local only. A change applies at the next game load.
+- **Seen**: a linked Mii's coin wears a small "RA" tag; the toast says which side an unlock went
+  to ("RetroAchievements" over the Official Mii's line, "Local" over the others').
+- **Failures**: a link to a missing file, or a failed login, makes that Mii earn Local for the
+  game, with the reason on the Achievements page (as today's login errors). Nothing retries a
+  password by itself.
+- **Never**: a token or password on screen, in a log or in players.ini; the browser lists file
+  names only.
+
+| Step | Work | Check |
+| --- | --- | --- |
+| 4a | `ra/` accounts read by name; login with a chosen file; `ra_setup.py --ra-name` | Host test of the account-file choice; bench Wii login with the dev account file |
+| 4b | B+A on a coin, the account browser, `[Accounts]` and `PlayersOfficial` in players.ini, RA tag, check box | `wsx.sh menu` walk in Dolphin with dummy account files (no real login) |
+| 4c | Official session for the chosen Mii, Local for the others; toasts | Bench Wii: a game with Kat linked and Official, Ollie Local: Kat's unlock reaches the server, Ollie's goes to the journal |
