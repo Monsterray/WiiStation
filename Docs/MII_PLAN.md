@@ -117,21 +117,26 @@ Mock-ups A-E were shown in the chat; the owner chose **D**, with subtle PS1 port
 ## Official mode per Mii (plan, 2026-10-28; mock-ups shown in the session)
 
 The owner's answers: accounts are files, linked to a Mii on the Wii; port 1's Mii plays Official
-unless a check box moves it; linking opens the file browser, showing RetroAchievements accounts.
+unless a check box moves it; linking opens the file browser, showing RetroAchievements accounts. Revised the same day: an Official
+on/off button instead of a check box, and an Edit slot that opens a Mii's player settings.
 
 - **Accounts**: one file per RetroAchievements account in `sd:/wiistation/achievements/ra/`,
   `<name>.ini` with `User=` and `Password=` or `Token=`, exactly like today's `ra_account.ini`
   (after the first login only `User=` and `Token=` stay). `ra_setup.py --account FILE --ra-name NAME`
   puts it there; the script still never opens the file. The name is the file's, so the Wii shows
   a name without reading the file. Today's `ra_account.ini` stays, shown as "This Wii's account".
-- **Link**: in the Players menu, hold B and press A on a coin (the "right click"; on a Wii Remote
-  and on every pad). The file browser opens on `achievements/ra/`, titled "Account for <Mii>",
+- **Edit slot** (owner, 2026-10-28): a round "Edit" slot at the end of the coin strip. Drop a
+  coin on it (A+B drag, or A then choose Edit with a pad) and the Mii's player settings open:
+  RetroAchievements account, Plays Official (On/Off), and its unlock counts (read only). B goes
+  back to Players. Later Mii settings go on this page too.
+- **Link**: the account row of the Edit page opens the file browser on `achievements/ra/`, titled "Account for <Mii>",
   listing the accounts by name, plus "None: earn Local" first and "This Wii's account" last.
   A links, B goes back. players.ini keeps the links in an `[Accounts]` section, one
   `<Mii key> = "<name>"` line per linked Mii (written by the same code as the seats).
 - **Who plays Official**: one Mii per game (RetroAchievements sessions are one user). By default
-  port 1's Mii (1A with a multitap, P1 with Co-Op). A linked Mii's card shows an "Official" check
-  box; checking one clears the others (`PlayersOfficial = "<Mii key>"`, empty = port 1). Every
+  port 1's Mii (1A with a multitap, P1 with Co-Op). A linked Mii's card shows a small on/off
+  button, "Official: On" / "Official: Off" (no check boxes in WiiStation, the owner's call); turning
+  one on turns the others off (`PlayersOfficial = "<Mii key>"`, empty = port 1). Every
   other seated Mii earns Local (phase 3). No linked Mii on that seat: today's `ra_account.ini`
   if there is one, else Local only. A change applies at the next game load.
 - **Seen**: a linked Mii's coin wears a small "RA" tag; the toast says which side an unlock went
@@ -145,5 +150,5 @@ unless a check box moves it; linking opens the file browser, showing RetroAchiev
 | Step | Work | Check |
 | --- | --- | --- |
 | 4a | `ra/` accounts read by name; login with a chosen file; `ra_setup.py --ra-name` | Host test of the account-file choice; bench Wii login with the dev account file |
-| 4b | B+A on a coin, the account browser, `[Accounts]` and `PlayersOfficial` in players.ini, RA tag, check box | `wsx.sh menu` walk in Dolphin with dummy account files (no real login) |
+| 4b | The Edit slot and page, the account browser, `[Accounts]` and `PlayersOfficial` in players.ini, RA tag, Official button | `wsx.sh menu` walk in Dolphin with dummy account files (no real login) |
 | 4c | Official session for the chosen Mii, Local for the others; toasts | Bench Wii: a game with Kat linked and Official, Ollie Local: Kat's unlock reaches the server, Ollie's goes to the journal |
