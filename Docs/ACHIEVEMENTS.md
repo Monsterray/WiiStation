@@ -14,6 +14,7 @@ today, how to set it up, how to test it and what is planned.
 |---|---|
 | Local evaluation of a definition file | In the product. Off by default. Merged into main from `codex/achievement-engine` (c29cafd9, 2026-10-12). |
 | Modes Off, Local, Test, Official | In the product (775ae73a, 2026-10-23). Official: RetroAchievements in Casual. |
+| Official mode per Mii | In the product (5.19.0, Docs/MII_PLAN.md steps 4a and 4c): the Mii that plays Official logs in with its own account file; the other seated Miis earn the same set Local, with encore mode on and nothing sent twice. See [Official mode with Local players](#official-mode-with-local-players). |
 | Unlock journal | In the product. An unlock is written when it triggers (f9ca407b). Records cut short by a power loss are ignored (2026-10-23). |
 | Save-state progress (`ACH1` section) | In the product. Local: `WAC1`; Official: `WAO1` (rc_client's progress). A game reset resets the progress in both. |
 | Menu controls | General tab, Cheevos: Mode, Unofficial, Encore, the set file and the account user name. Current ISO, Achievements: the set's list, 10 per page: Earned or the measured progress (`1699/2500`), the points and the share of players; the rich presence under the header; a Leaderboards button. ISO Info: the achievement status line. |
@@ -46,7 +47,7 @@ AchievementLog = ""
 |---|---|---|---|
 | `Achievements` | 0 = Off, 1 = Local, 2 = Test, 3 = Official | 0 | Local evaluates the set and keeps unlocks in the journal. Test evaluates the set, but does not read or write the journal. Official: RetroAchievements, Casual. Off stops all frame evaluation. A value 1 from before the modes is Local. |
 | `AchievementUnofficial` | 0, 1 | 0 | Official: the set's Unofficial (unpromoted) achievements too. RetroAchievements does not keep their unlocks. |
-| `AchievementEncore` | 0, 1 | 0 | Official: achievements already earned can be earned again this session (the card shows again; nothing new is sent). |
+| `AchievementEncore` | 0, 1 | 0 | Official: achievements already earned can be earned again this session (the card shows again; nothing new is sent). Also on, whatever this says, while a Local Mii is seated next to the Official one ([Official mode with Local players](#official-mode-with-local-players)). |
 | `AchievementSpectator` | 0, 1 | 0 | Hidden, for scripted runs on a real account: everything is evaluated and shown, no unlock is sent. Once on for a loaded set, rc_client keeps it on. |
 | `AchievementUTCOffset` | `"+420"` | empty | Optional: the minutes to add to the Wii's clock for UTC. Empty: the Wii learns it from the server (`utc_offset.txt`). Set, it wins and nothing is learnt. |
 | `AchievementFile` | `"path"` | empty | The definition file. One of its `Game=` serials must match the loaded disc. |
@@ -180,7 +181,8 @@ The engine exposes the published rcheevos PS1 map, and nothing more:
 ## Unlock journal
 
 Each line is `<definition MD5> <id> <player key> <title>`. The MD5 is the digest of the exact
-definition file. The player key is the Mii's creation ID as 16 lowercase hex characters
+definition file (Official mode's Local players: the digest of the RetroAchievements game, see
+[Official mode with Local players](#official-mode-with-local-players)). The player key is the Mii's creation ID as 16 lowercase hex characters
 (Players menu, `Docs/MII_PLAN.md`). A line without a key, `<MD5> <id> <title>`, is Guest's: this
 is every line written before 5.19.0, and Guest still writes it (a Guest line whose title starts
 with a word that looks like a key has `-` where the key goes).
@@ -241,9 +243,11 @@ layout does not change.
 | `Gamecube/ra_transport.c` | HTTPS worker; the clock's time zone learnt from verified responses |
 | `Gamecube/ach_badge.c`, `ach_badge.h`, `ach_badge_conv.h` | Badge pictures: download, card cache, PNG decode (libpng), RGB5A3 |
 | `Gamecube/ach_players.h`, `ach_players.c` | Who earns (Local): the seated Miis on connected pads, the engine's hook `achievements_players` |
+| `Gamecube/ach_account.h` | Which account file a link means, the RetroAchievements set's journal digest and path (plain C) |
+| `tests/achievements_ra_test.c`, `tests/ach_account_test.c` | Host tests: the Local side of Official mode (who, journal, restore, the page, a failed account, the cap); the account paths and names |
 | `tests/achievements_players_test.c` | Host test: old lines are Guest's, two Miis, a swap, a missing Mii, the 1 MiB cap, the union, states of other players |
 | `Gamecube/menu/AchievementsFrame.cpp` | The list page (one player at a time) and the leaderboards |
-| `scripts/ra_setup.py`, `scripts/ra_ca_bundle.py` | The per-Wii files (seed, account); the pinned CA bundle and its checks |
+| `scripts/ra_setup.py`, `scripts/ra_ca_bundle.py` | The per-Wii files (seed, account; `--ra-name NAME` puts an account in `achievements/ra/NAME.ini` for a Mii); the pinned CA bundle and its checks |
 
 The runtime objects are compiled without fast-math and LTO. This keeps the floating-point
 semantics of conditions under the core's `-Ofast` flags.
@@ -362,6 +366,7 @@ here is typed by hand, and no secret passes through a log or a person's screen.
 | `cacert.pem` | Every install (`wii_install.py`): `Gamecube/release/achievements/cacert.pem` | Pinned: `cacert.pem.source` holds its SHA-256 and origin (MSYS2 `ca-certificates-20241223-1`, Mozilla NSS); the install refuses another file. `scripts/ra_ca_bundle.py` checks the pin, lists expired and expiring roots, and connects to retroachievements.org and media.retroachievements.org trusting only this bundle. `ra_ca_bundle.py update SRC --source TEXT` replaces it only after every check passes; the script never downloads a bundle. |
 | `tls_seed.bin` | `scripts/ra_setup.py --seed` | 64 bytes of `os.urandom`, made in a private temp folder, sent through HBC, zeroed and deleted; never printed. Never replaces a seed that is there. |
 | `ra_account.ini` | `scripts/ra_setup.py --account FILE` | Sent unopened (only its size is checked). Never replaces a file that is there (it holds the token after the first login). |
+| `ra/<name>.ini` | `scripts/ra_setup.py --account FILE --ra-name NAME` | The same, for an account a Mii links to: NAME is letters, digits, `_` and `-`, under 32 characters. |
 | `utc_offset.txt` | The Wii itself | The time zone, learnt from the `Date` header of a response that came over verified TLS: rounded to the quarter hour, bounded to 14 hours (a lying server moves the clock by hours, never a certificate's validity by years), written through a temp file. Summer time is learnt the same way. A clock more than 14 hours from the server's is reported, not learnt: set the Wii's date. |
 
 `ra_setup.py` runs on the bench Wii as a queue job; on a production-style Wii (`--production`,
@@ -372,11 +377,28 @@ valid then.
 
 ### Official login
 
-- The account file is `sd:/wiistation/achievements/ra_account.ini`, with `User=` and
+- The account file is a Mii's (Docs/MII_PLAN.md, step 4a): the Mii that plays Official
+  (`players_official()`) is linked to `sd:/wiistation/achievements/ra/<name>.ini`, or to this
+  Wii's `sd:/wiistation/achievements/ra_account.ini` (link `*`; also what is used when no Mii
+  is linked to the Official seat). `Gamecube/ach_account.h` turns a link into a path
+  (`ach_account_path`, host-tested in `tests/ach_account_test.c`): a name with a `/`, `\`, `:`
+  or a leading `.` is no file name and counts as a failed account. The files have `User=` and
   `Password=`.
-- WiiStation logs in once, writes `Token=` to the file and deletes the `Password=` line.
+- The menu's early login (once, at the first menu frame) uses the account of the moment. A game
+  load that wants another account than the logged-in one logs out (`rc_client_logout`) and in
+  again; a login still on its way is waited for first (its answer decides, by generation, so an
+  old answer never counts for the new account). An account never changes in the middle of a game.
+- WiiStation logs in once, writes `Token=` to the file in use (a `.new` temp file next to it,
+  then a rename) and deletes the `Password=` line.
   (The research advised to keep a token only when the user opts in. This decision replaces
   that advice.)
+- A linked account that does not work (no file, no `User=`, a failed login): that Mii earns Local
+  for the game. A Local set needs the set's definitions, and those come from a session: this
+  Wii's `ra_account.ini`, if there is one, loads the set in spectator mode (nothing reaches the
+  account), and every seated Mii, that one too, earns Local. The Mii's page says why
+  ("Account file missing: earns Local"). Without `ra_account.ini` there is no set (no session
+  can fetch it): the status line says why. This Wii's own account failing has no fallback: no
+  set, as before. Nothing tries a password again by itself; a new game load is a new attempt.
 - The password never goes in `settings.ini`. The password never goes in a log.
 - Logout deletes the stored token. An account change keeps caches, pending awards and progress
   apart for each account.
@@ -385,6 +407,27 @@ valid then.
 - Keep the token out of frozen manifests, state metadata, crash collection and exported
   configurations. Redact the password, the token, the Web API key, POST bodies and
   authenticated URLs from all logs. Log the operation, the status and the time instead.
+
+### Official mode with Local players
+
+One RetroAchievements session is one user, so one Mii plays Official (Docs/MII_PLAN.md, "Official
+mode per Mii"). The other Miis seated on a port with a connected pad earn the same set Local.
+No Local Mii seated (Guest alone, or the Official Mii alone): nothing here runs, and Official is
+as it was. `achievements_ra_*` (`achievements.c`) is the Local side; `achievements_official.c`
+feeds it.
+
+| Part | What happens |
+|---|---|
+| Who | `achievements_ra_plan(official_key)` at the game load: the Miis the players hook gives (`ach_players_get`: seated, pad connected, still on the console) except the Official Mii. With no Official Mii (this Wii's account), all of them. |
+| The set | When rc_client has loaded the set, its achievements (id, title, description, badge, points, rarity, type) become the Local side's table (a malloc'd table of at most 256; sorted by id). The journal, the bits per Mii and the page are Local mode's. |
+| Journal | `sd:/wiistation/achievements/ra_local/<game id>.unlocks`, one file per game, lines `<digest> <id> <player key> <title>` as in Local mode. The digest is `5241` (ASCII `RA`), 20 zeros and the RetroAchievements game id as 8 hex digits (`ach_ra_digest`): 32 characters, never an MD5. `AchievementLog` does not apply here. A journal past 1 MiB turns the Local side off for that game (logged); the Official side goes on. |
+| Encore | While a Local Mii is seated, encore mode is on: rc_client activates every achievement, also the ones the account has. A trigger of one the account has leaves the Official side with nothing to do. |
+| Server calls | rc_client's `rc_client_award_achievement` marks the achievement earned and calls `can_submit_achievement_unlock` and then, if that says yes, sends the award, whether or not the account had it (the pinned `rc_client.c`, `rc_client_raise_achievement_events`). The server answers a repeat with a success and a message, so nothing breaks, but WiiStation does not send it: `can_submit` (a field of `rc_client_t.callbacks`; the pinned header has no setter) says no for an id the account had when the set loaded or got since. |
+| A trigger | The account gets the server unlock and its toast only if it did not have the achievement. Each Local Mii without it gets a journal line, and the toast names them. Both sides new: two toasts. |
+| Toast | A tag over the names: "RetroAchievements" (the Official Mii's: `Kat, 8.1% have it`) or "Local" (`Ollie and Rina unlocked`). Without Local Miis the card is as before, with no tag. |
+| Page | The Official Mii first (rc_client's list: earned is `unlocked`, so an achievement the account has shows earned in encore mode too), then each Local Mii (their journal). The Local view shows no measured progress and no rich presence. |
+| States | Official's `WAO1` section is as it was. A state does not carry the Local Miis' earned flags: they come from their journals. |
+| Logs | A Mii key shows as its first 8 hex characters, never a name. |
 
 ### Multi-disc games
 

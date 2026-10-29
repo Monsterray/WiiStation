@@ -14,7 +14,11 @@
  * Players (Local mode, Docs/MII_PLAN.md): who is playing is a list of Miis from the hook
  * achievements_players, or Guest alone. Each achievement keeps one bit per player ("has"); the
  * set's earned state is the union, and rcheevos keeps an achievement active while any player
- * lacks it. The journal has a line per player that earned it. */
+ * lacks it. The journal has a line per player that earned it.
+ *
+ * Official mode with Local players (Docs/MII_PLAN.md step 4c): the Miis other than the Official
+ * one earn rc_client's set into the same kind of journal. achievements_official.c hands over the
+ * set's entries (achievements_ra_*); the player table, the bits and the journal are Local mode's. */
 #include "achievements.h"
 #include "Gamecube/perf_prof.h"
 #include "deps/rcheevos/include/rc_runtime.h"
@@ -25,11 +29,13 @@
 #include <errno.h>
 #include <limits.h>
 #include <strings.h>
+#include <ctype.h>
 
 /* The guest memory the conditions address: PS1 RAM, then the scratchpad after it */
 #define PSX_RAM_BYTES 0x200000u
 #define PSX_MAP_END (PSX_RAM_BYTES + 0x400u)   /* + the 1 KiB scratchpad */
 #define MAX_ACHIEVEMENTS 128
+#define MAX_RA_ENTRIES 256         /* a RetroAchievements set's entries for the Local players (malloc'd) */
 #define MAX_SET_SIZE (64 * 1024)
 #define MAX_CONDITION 2048
 #define JOURNAL_MAX (1024 * 1024) /* unlock journal cap; load and append both fail closed past it */
@@ -69,7 +75,7 @@ int achievements_official_board_scores(unsigned i, achievement_score_t *top, uns
 #define OFFICIAL(fn) (achievementsEnabled == ACH_OFFICIAL && achievements_official_##fn)
 
 static rc_runtime_t runtime;
-static struct {
+typedef struct {
     uint32_t id;
     char title[80];
     char desc[96];           /* optional */
@@ -78,7 +84,12 @@ static struct {
     uint32_t has;            /* the players (bit = index in player[]) that earned it: this session, the journal or a state */
     uint32_t written;        /* of those, the ones already in the journal */
     unsigned char measured;  /* the highest measured percent shown so far: a toast only when it grows */
-} entries[MAX_ACHIEVEMENTS];
+    unsigned char unofficial;   /* RetroAchievements: an unpromoted achievement */
+    int rarity_x100;         /* RetroAchievements: the share of players x 100; -1 = unknown */
+    char badge[16];          /* RetroAchievements: the badge name */
+} ach_entry_t;
+static ach_entry_t static_entries[MAX_ACHIEVEMENTS];
+static ach_entry_t *entries = static_entries;   /* a RetroAchievements set's own table while its Local side plays */
 static unsigned count;
 static char set_title[48];              /* the set's Title= line: the game's name for the toast */
 #define MAX_SET_DISCS 8
@@ -90,6 +101,14 @@ static unsigned players;       /* how many of player[] */
 static uint32_t all_players;   /* a bit for each */
 static unsigned view;          /* the player the page shows */
 static char load_game[32];     /* the game id of the loaded set: a new set of players loads it again */
+/* Official mode with Local players: the page's first player is the Official side (ra_first = 1)
+ * unless its login failed (0); ra_local: the set's Local side plays, with entries from rc_client */
+static int ra_local;
+static unsigned ra_first;
+static char ra_off_key[ACH_KEY_LEN + 1], ra_off_name[32];   /* the Official Mii, "" for this Wii's account */
+static achievement_player_t ra_plan_list[ACH_PLAYERS_MAX];  /* the Local players asked for at the game load */
+static unsigned ra_plan_n;
+static char ra_note_key[ACH_KEY_LEN + 1], ra_note[64];
 unsigned (*achievements_players)(achievement_player_t *out);
 static int active, running;   /* a set is loaded; evaluation is allowed (not during BIOS boot) */
 static unsigned char digest[16];   /* MD5 of the definition file: the set's identity */
@@ -178,10 +197,15 @@ static int player_of(const char *key)
     return -1;
 }
 
+/* The page shows rc_client's own list: not for a Local player of the same set */
+static int official_view(void) { return OFFICIAL(count) && !(ra_local && view >= ra_first); }
+/* The shown player's index in player[] (Local mode, or the Local side of Official mode) */
+static unsigned local_view(void) { return view >= ra_first ? view - ra_first : 0; }
+
 unsigned achievements_count(void)
 {
-    if (OFFICIAL(count)) return achievements_official_count();
-    return active ? count : 0;
+    if (official_view()) return achievements_official_count();
+    return active || ra_local ? count : 0;
 }
 
 unsigned achievements_earned(void)
@@ -192,16 +216,34 @@ unsigned achievements_earned(void)
 
 /* ---- the players, for the menus ---- */
 
-unsigned achievements_player_count(void) { return OFFICIAL(count) || !active ? 1 : players; }
-const char *achievements_player_key(unsigned i) { return active && !OFFICIAL(count) && i < players ? player[i].key : ""; }
-const char *achievements_player_name(unsigned i) { return active && !OFFICIAL(count) && i < players ? player[i].name : ""; }
+unsigned achievements_player_count(void)
+{
+    if (ra_local) return ra_first + players;
+    return OFFICIAL(count) || !active ? 1 : players;
+}
+const char *achievements_player_key(unsigned i)
+{
+    if (ra_local) return i < ra_first ? ra_off_key : i - ra_first < players ? player[i - ra_first].key : "";
+    return active && !OFFICIAL(count) && i < players ? player[i].key : "";
+}
+const char *achievements_player_name(unsigned i)
+{
+    if (ra_local) return i < ra_first ? ra_off_name : i - ra_first < players ? player[i - ra_first].name : "";
+    return active && !OFFICIAL(count) && i < players ? player[i].name : "";
+}
 unsigned achievements_player_earned(unsigned i)
 {
+    if (ra_local) return i < ra_first ? (achievements_official_earned ? achievements_official_earned() : 0) : i - ra_first < players ? player_earned(i - ra_first) : 0;
     if (OFFICIAL(earned)) return achievements_official_earned();
     return active && i < players ? player_earned(i) : 0;
 }
-void achievements_view_player(unsigned i) { view = i < players ? i : 0; }
-unsigned achievements_viewed_player(void) { return view < players ? view : 0; }
+void achievements_view_player(unsigned i) { view = i < achievements_player_count() ? i : 0; }
+unsigned achievements_viewed_player(void) { return view < achievements_player_count() ? view : 0; }
+const char *achievements_player_note(unsigned i)
+{
+    return ra_local && i >= ra_first && i - ra_first < players && ra_note[0] && !strcmp(player[i - ra_first].key, ra_note_key)
+               ? ra_note : "";
+}
 
 void achievements_list_refresh(void)
 {
@@ -212,18 +254,19 @@ void achievements_list_refresh(void)
 int achievements_entry(unsigned i, achievement_entry_t *e)
 {
     unsigned value = 0, target = 0;
-    if (OFFICIAL(entry)) return achievements_official_entry(i, e);
-    if (!active || i >= count) return -1;
+    if (official_view() && achievements_official_entry) return achievements_official_entry(i, e);
+    if (!(active || ra_local) || i >= count) return -1;
     memset(e, 0, sizeof *e);
     e->title = entries[i].title;
     e->desc = entries[i].desc;
-    e->badge = "";
+    e->badge = entries[i].badge;
     e->id = entries[i].id;
     e->points = entries[i].points;
-    e->rarity_x100 = -1;
-    e->earned = (entries[i].has >> view) & 1;   /* the shown player's */
+    e->rarity_x100 = ra_local ? entries[i].rarity_x100 : -1;
+    e->earned = (entries[i].has >> local_view()) & 1;   /* the shown player's */
     e->type = entries[i].type;
-    if (!e->earned && rc_runtime_get_achievement_measured(&runtime, e->id, &value, &target) && target) {
+    e->unofficial = entries[i].unofficial;
+    if (active && !e->earned && rc_runtime_get_achievement_measured(&runtime, e->id, &value, &target) && target) {
         rc_runtime_format_achievement_measured(&runtime, e->id, e->progress, sizeof e->progress);
         e->percent = value >= target ? 100 : (unsigned char)((unsigned long long)value * 100 / target);
     }
@@ -369,7 +412,7 @@ int achievements_earned_for(const char *key)
 void achievements_flush(void)
 {
     unsigned i, p;
-    if (!active || achievementsEnabled == ACH_TEST) return;   /* Test mode keeps no record */
+    if (!(active || ra_local) || achievementsEnabled == ACH_TEST) return;   /* Test mode keeps no record */
     for (i = 0; i < count; ++i)
         for (p = 0; p < players; ++p) {
             if (!((entries[i].has & ~entries[i].written) >> p & 1)) continue;
@@ -441,29 +484,37 @@ static const char *who_text(uint32_t mask)
     return text;
 }
 
-/* Tell the toast about a new unlock by the players in mask, and whether it beat the game or
- * completed the set for one of them */
+/* The players in mask earned it: who they are, their progress (the best of them), and whether
+ * it beat the game or completed the set for one of them (once for each) */
+static void who_fields(achievement_notice_t *n, uint32_t mask)
+{
+    unsigned p;
+    uint32_t beaten = beaten_now(), mastered = mastered_now();
+    n->beaten = (beaten & mask & ~beaten_seen) != 0;
+    n->mastered = (mastered & mask & ~mastered_seen) != 0;
+    beaten_seen |= beaten & mask;
+    mastered_seen |= mastered & mask;
+    n->who = who_text(mask);
+    n->earned = 0;
+    for (p = 0; p < players; ++p)
+        if ((mask >> p & 1) && player_earned(p) > n->earned) n->earned = player_earned(p);
+    n->count = count;
+}
+
+/* Tell the toast about a new unlock by the players in mask */
 static void notify(unsigned i, uint32_t mask)
 {
     achievement_notice_t n;
-    unsigned k, p;
-    uint32_t beaten = beaten_now(), mastered = mastered_now();
+    unsigned k;
     memset(&n, 0, sizeof n);
-    n.beaten = (beaten & mask & ~beaten_seen) != 0;
-    n.mastered = (mastered & mask & ~mastered_seen) != 0;
-    beaten_seen |= beaten & mask;
-    mastered_seen |= mastered & mask;
+    who_fields(&n, mask);
     if (!achievements_notify) return;
     n.title = entries[i].title;
     n.desc = entries[i].desc;
     n.game = set_title;
-    n.who = who_text(mask);
     n.points = entries[i].points;
     for (k = 0; k < count; ++k) n.total_points += entries[k].points;
     n.rarity_x100 = -1;   /* a Local set has no player counts */
-    for (p = 0; p < players; ++p)   /* the progress shown is the best of those who earned it */
-        if ((mask >> p & 1) && player_earned(p) > n.earned) n.earned = player_earned(p);
-    n.count = count;
     n.type = entries[i].type;
     achievements_notify(&n);
 }
@@ -621,14 +672,142 @@ void achievements_change_media(const char *image, const char *game_id)
     }
 }
 
+/* ---- Official mode with Local players (Docs/MII_PLAN.md step 4c) ----
+ * The Official side lives in achievements_official.c. Here: the Miis that earn Local next to it,
+ * and rc_client's set as this file's entries (a malloc'd table, sorted by id), so the journal, the
+ * bits, the toast's names and the per-player page are the Local mode's. */
+
+static void ra_drop(void)
+{
+    if (entries != static_entries) free(entries);
+    entries = static_entries;
+    ra_local = ra_first = 0;
+    ra_note[0] = ra_note_key[0] = 0;
+}
+
+unsigned achievements_ra_plan(const char *official_key)
+{
+    achievement_player_t got[ACH_PLAYERS_MAX];
+    unsigned n = 0, i, j;
+    ra_plan_n = 0;
+    snprintf(ra_off_key, sizeof ra_off_key, "%s", official_key ? official_key : "");
+    for (i = 0; ra_off_key[i]; ++i) ra_off_key[i] = (char)tolower((unsigned char)ra_off_key[i]);
+    snprintf(ra_off_name, sizeof ra_off_name, "%s", ra_off_key[0] ? "Mii" : "This Wii");
+    if (achievements_players) n = achievements_players(got);
+    if (n > ACH_PLAYERS_MAX) n = ACH_PLAYERS_MAX;
+    for (i = 0; i < n; ++i) {
+        got[i].key[ACH_KEY_LEN] = 0;
+        got[i].name[sizeof got[i].name - 1] = 0;
+        if (!is_key(got[i].key)) continue;
+        if (!strcmp(got[i].key, ra_off_key)) {   /* the Official Mii: its name is for the page */
+            if (got[i].name[0]) snprintf(ra_off_name, sizeof ra_off_name, "%s", got[i].name);
+            continue;
+        }
+        for (j = 0; j < ra_plan_n && strcmp(ra_plan_list[j].key, got[i].key); ++j) ;
+        if (j < ra_plan_n) continue;
+        ra_plan_list[ra_plan_n++] = got[i];
+    }
+    return ra_plan_n;
+}
+
+unsigned achievements_ra_begin(const char *digest, const char *journal, int official_plays, const char *official_name,
+                               const char *note_key, const char *note)
+{
+    ach_entry_t *table;
+    if (!ra_plan_n || !digest || !journal) return 0;
+    if (!(table = calloc(MAX_RA_ENTRIES, sizeof *table))) {
+        SysPrintf("Achievements: out of memory for the Local players of a RetroAchievements set\n");
+        return 0;
+    }
+    ra_drop();
+    entries = table;
+    count = 0;
+    memcpy(player, ra_plan_list, sizeof(*player) * ra_plan_n);
+    players = ra_plan_n;
+    all_players = (1u << players) - 1;
+    view = 0;
+    ra_first = official_plays ? 1 : 0;
+    if (official_name && *official_name) snprintf(ra_off_name, sizeof ra_off_name, "%s", official_name);
+    snprintf(digest_text, sizeof digest_text, "%s", digest);
+    snprintf(log_path, sizeof log_path, "%s", journal);
+    snprintf(ra_note_key, sizeof ra_note_key, "%s", note_key ? note_key : "");
+    snprintf(ra_note, sizeof ra_note, "%s", note ? note : "");
+    ra_local = 1;
+    return players;
+}
+
+void achievements_ra_add(unsigned id, const char *title, const char *desc, const char *badge, unsigned points,
+                         int rarity_x100, unsigned char type, unsigned char unofficial)
+{
+    ach_entry_t *e;
+    if (!ra_local) return;
+    if (count >= MAX_RA_ENTRIES) {
+        SysPrintf("Achievements: more than %u achievements: the Local players leave out the rest\n", MAX_RA_ENTRIES);
+        return;
+    }
+    e = &entries[count++];
+    e->id = id;
+    snprintf(e->title, sizeof e->title, "%s", title ? title : "");
+    snprintf(e->desc, sizeof e->desc, "%s", desc ? desc : "");
+    snprintf(e->badge, sizeof e->badge, "%s", badge ? badge : "");
+    e->points = (unsigned short)(points > 1000 ? 1000 : points);
+    e->rarity_x100 = rarity_x100;
+    e->type = type <= ACH_TYPE_WIN ? type : ACH_TYPE_STANDARD;
+    e->unofficial = unofficial;
+}
+
+static int cmp_entry(const void *a, const void *b)
+{
+    uint32_t x = ((const ach_entry_t *)a)->id, y = ((const ach_entry_t *)b)->id;
+    return x < y ? -1 : x > y;
+}
+
+int achievements_ra_end(void)
+{
+    unsigned p;
+    if (!ra_local) return 0;
+    qsort(entries, count, sizeof *entries, cmp_entry);
+    if (!restore_journal()) {
+        SysPrintf("Achievements: unlock log too large or unreadable, no Local players for this set: %s\n", log_path);
+        ra_drop();
+        count = 0;
+        players = all_players = 0;
+        return 0;
+    }
+    beaten_seen = beaten_now();     /* earned before this session: no toast for it */
+    mastered_seen = mastered_now();
+    SysPrintf("Achievements: %u Local player%s on the RetroAchievements set (%u achievements)\n", players,
+              players == 1 ? "" : "s", count);
+    for (p = 0; p < players; ++p)   /* a key's first 8 characters, never a name */
+        SysPrintf("Achievements: Local player %u is %.8s (%u earned)\n", p + 1, player[p].key, player_earned(p));
+    return 1;
+}
+
+unsigned achievements_ra_trigger(unsigned id, achievement_notice_t *n)
+{
+    ach_entry_t key, *e;
+    uint32_t lacking;
+    if (!ra_local) return 0;
+    key.id = id;
+    e = bsearch(&key, entries, count, sizeof *entries, cmp_entry);
+    if (!e || !(lacking = all_players & ~e->has)) return 0;
+    e->has |= lacking;
+    who_fields(n, lacking);
+    achievements_flush();   /* one short journal line per Local player, at once */
+    return lacking;
+}
+
+int achievements_ra_active(void) { return ra_local; }
+
 void achievements_close(void)
 {
     if (achievements_official_close) achievements_official_close();
     achievements_flush();
     if (active) rc_runtime_destroy(&runtime);
     active = running = 0;
+    ra_drop();
     count = 0;
-    memset(entries, 0, sizeof(entries));
+    memset(static_entries, 0, sizeof static_entries);
     set_title[0] = 0;
     set_game_count = 0;
     players = all_players = 0;

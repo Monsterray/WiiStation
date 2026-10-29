@@ -46,6 +46,11 @@ if [[ "$(cd "$REPO_ROOT" && pwd -P)" == *" "* ]]; then
 	done | tar -C "$REPO_ROOT" --null -T - -cf - | tar -C "$task_build" -xf -
 	# deps/ext (libwupc, ignored) is built once per checkout; without it the snapshot fetches it
 	[ ! -d "$REPO_ROOT/deps/ext" ] || cp -r "$REPO_ROOT/deps/ext" "$task_build/deps/"
+	# Official mode's HTTPS stack (scripts/build-ra-https.sh, ignored) likewise: without it the snapshot's DOL has no secure connection
+	if [ -d "$REPO_ROOT/build_ogc3/deps/ra_https" ]; then
+		mkdir -p "$task_build/build_ogc3/deps"
+		cp -r "$REPO_ROOT/build_ogc3/deps/ra_https" "$task_build/build_ogc3/deps/"
+	fi
 	bash "$task_build/scripts/build.sh" "$@"
 	for artifact in "$task_build"/Gamecube/*.dol "$task_build"/Gamecube/*.elf; do
 		[ ! -f "$artifact" ] || cp "$artifact" "$REPO_ROOT/Gamecube/"

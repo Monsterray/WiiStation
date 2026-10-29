@@ -61,6 +61,8 @@ void players_used(void);   /* the seated Miis to the front of playersRecent */
  * menu's reader if it is running, else reads the database once. 1 yes, 0 no (a Mii that left
  * the console, or no database), -1 not known (the reader did not finish). */
 int players_lookup(const char *key, char *name, unsigned size);
+/* The key of the n-th Mii (1 first) in the database's order, "" none: a chain's seat "#n". */
+const char *players_key_nth(unsigned n);
 
 /* RetroAchievements accounts linked to Miis: players.ini [Accounts], "<Mii key> = <name>".
  * A name is an account file's: "" none (the Mii earns Local), "*" this Wii's ra_account.ini,

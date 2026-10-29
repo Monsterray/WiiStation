@@ -1,0 +1,5 @@
+# scripts/chains/ach_official_acct.txt: script pads on ports 1 and 2 (a seat counts only with a pad),
+# then the achievements list of the game being played, at vblank 1700
+1 0000
+p2 1 0000
+menuopen 1700 15

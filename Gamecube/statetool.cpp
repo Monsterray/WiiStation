@@ -173,6 +173,21 @@ static void achdump_now(void)
 		if (achievements_board(i, &title, &desc) == 0)
 			log_line("achdump: board %u \"%s\" \"%s\"\n", i, title, desc);
 	if (boards) scores_wait = 60 * 30;
+	/* the page's players (Official mode with Local players, Docs/MII_PLAN.md 4c): the Official Mii
+	 * first, then each Local Mii; a key's first 8 characters, never a name */
+	unsigned players = achievements_player_count();
+	for (unsigned p = 0; players > 1 && p < players; p++) {
+		char ids[200];
+		unsigned n = 0, k;
+		ids[0] = 0;
+		achievements_view_player(p);
+		for (k = 0; p && achievements_entry(k, &e) == 0 && n < sizeof ids - 12; k++)
+			if (e.earned) n += snprintf(ids + n, sizeof ids - n, "%s%u", n ? "," : "", e.id);
+		log_line("achdump: page player %u key=%.8s earned=%u of %u%s%s%s%s\n", p, achievements_player_key(p),
+			achievements_player_earned(p), achievements_count(), p && ids[0] ? " ids=" : "", ids,
+			achievements_player_note(p)[0] ? " note=" : "", achievements_player_note(p));
+	}
+	achievements_view_player(0);
 }
 
 static void achdump_vblank(void)

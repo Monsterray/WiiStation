@@ -36,6 +36,8 @@ void achievements_list_refresh(void); /* the menu opens the list: Official mode 
 int achievements_state_save(void *data, unsigned size); /* NULL queries required size */
 int achievements_state_load(const void *data, unsigned size); /* NULL resets progress */
 
+typedef struct achievement_notice achievement_notice_t;
+
 /* ---- the players (Local mode; Docs/MII_PLAN.md): a Mii earns its own unlocks ----
  *
  * The journal keeps one line per Mii that earned an achievement. Who is playing comes from
@@ -65,6 +67,34 @@ unsigned achievements_viewed_player(void);
 /* A Mii's unlocks in the loaded set (Local mode), also when it is not a player now; -1: no
  * set, or Official mode. For the Players menu. */
 int achievements_earned_for(const char *key);
+/* What the page says about a player, apart from the list: a Mii whose account did not work
+ * ("Account file missing: earns Local"); "" none. */
+const char *achievements_player_note(unsigned i);
+
+/* ---- Official mode with Local players (Docs/MII_PLAN.md step 4c) ----
+ *
+ * One Mii plays Official: rc_client sends its unlocks to RetroAchievements (achievements_official.c).
+ * Every other Mii seated on a connected pad earns the same set into the Local journal, with its
+ * key, as in Local mode. The entries here come from rc_client's list; the journal's set digest
+ * is made from the game's id (Gamecube/ach_account.h). The page then lists the Official Mii
+ * first (rc_client's state), then each Local Mii. All calls on the emulator thread. */
+/* At a game load, before the set: the Miis that earn Local, the hook's players except
+ * official_key ("" none: the Wii's account, or no Official side). How many; more than 0 turns
+ * encore mode on, so the Official account's earned ones stay active for them. */
+unsigned achievements_ra_plan(const char *official_key);
+/* The set is in: opens the Local side for the planned players (0: none, or no memory). digest
+ * and journal: ach_ra_digest, ach_ra_journal_path. official_plays: the Official account plays
+ * (0: its login failed, and every seated Mii, that one too, earns Local); official_name: its
+ * name on the page; note_key, note: a Mii that earns Local for a reason, and the reason. */
+unsigned achievements_ra_begin(const char *digest, const char *journal, int official_plays,
+                               const char *official_name, const char *note_key, const char *note);
+void achievements_ra_add(unsigned id, const char *title, const char *desc, const char *badge, unsigned points,
+                         int rarity_x100, unsigned char type, unsigned char unofficial);
+int achievements_ra_end(void);   /* the set is complete: sorts, restores the journal; 0: Local side off */
+/* An achievement triggered in rc_client: the Local Miis without it get it (journal, who, earned,
+ * beaten, mastered into *n). Returns a mask of them: 0, no toast for them. */
+unsigned achievements_ra_trigger(unsigned id, achievement_notice_t *n);
+int achievements_ra_active(void);
 
 /* An achievement's type: the values RetroAchievements uses (rc_client.h) */
 enum { ACH_TYPE_STANDARD = 0, ACH_TYPE_MISSABLE = 1, ACH_TYPE_PROGRESSION = 2, ACH_TYPE_WIN = 3 };
@@ -104,7 +134,7 @@ enum {
 };
 
 /* One notice for the toast (Gamecube/ach_toast.c). Strings live until the set is closed. */
-typedef struct {
+struct achievement_notice {
     unsigned char kind;                /* ACH_NOTICE_* */
     unsigned id;
     const char *badge;                 /* RetroAchievements badge name, or "" */
@@ -116,8 +146,9 @@ typedef struct {
     unsigned earned, count;            /* the set's progress after this unlock */
     unsigned char type;                /* ACH_TYPE_* */
     unsigned char beaten, mastered;    /* this unlock beat the game / completed the set */
-    const char *who;                   /* Local: the Miis that earned it ("Kat", "Kat and Ollie", "4 players"); NULL or "": Guest */
-} achievement_notice_t;
+    const char *who;                   /* the Miis that earned it ("Kat", "Kat and Ollie", "4 players"); NULL or "": Guest */
+    const char *side;                  /* Official mode with Local players: "RetroAchievements" or "Local"; NULL or "": none */
+};
 extern void (*achievements_notify)(const achievement_notice_t *notice);   /* NULL: nobody listens */
 
 #ifdef __cplusplus

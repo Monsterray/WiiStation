@@ -1,4 +1,4 @@
-"""ra_setup.py [--seed] [--account FILE] [--production | --lrwii] [--dry-run] -- the per-Wii files
+"""ra_setup.py [--seed] [--account FILE [--ra-name NAME]] [--production | --lrwii] [--dry-run] -- the per-Wii files
 Official mode (RetroAchievements) needs, put on the Wii's card through HBC.
 
   --seed          sd:/wiistation/achievements/tls_seed.bin: 64 random bytes (os.urandom), this
@@ -8,6 +8,9 @@ Official mode (RetroAchievements) needs, put on the Wii's card through HBC.
                   User= and Token=). Sent as it is: this script never opens it (only its size is
                   looked at), and nothing of it is printed. After the first login WiiStation keeps
                   User= and Token= there and drops the password.
+  --ra-name NAME  with --account: the file goes to sd:/wiistation/achievements/ra/NAME.ini instead,
+                  an account a Mii can be linked to (Players, Edit, Account). NAME: letters, digits,
+                  _ and -, under 32 characters. Same rules as above: sent unopened, never replaced.
 
 Neither file is ever replaced: if the Wii has one already, it is left as it is and the script
 says so (a seed moves on by itself as it is used; a token file is the login). To start again,
@@ -31,6 +34,7 @@ Which Wii:
 import argparse
 import os
 import pathlib
+import re
 import sys
 import tempfile
 
@@ -40,12 +44,14 @@ from wii_targets import LRWII, PRODUCTION_WII, bench_wii, card_ls, hbc, producti
 FOLDER = "sd:/wiistation/achievements"
 SEED_BYTES = 64
 ACCOUNT_MAX = 4096
+NAME_OK = re.compile(r"[A-Za-z0-9_-]{1,31}")   # an account file's name (Gamecube/ach_account.h accepts more; this makes only these)
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--seed", action="store_true", help="a new TLS seed, when the Wii has none")
     ap.add_argument("--account", type=pathlib.Path, help="the account file to send, when the Wii has none")
+    ap.add_argument("--ra-name", metavar="NAME", help="with --account: put it in achievements/ra/NAME.ini, for a Mii's link")
     ap.add_argument("--production", action="store_true", help="the everyday Wii (on request only)")
     ap.add_argument("--lrwii", action="store_true", help="the living-room Wii (on request only)")
     ap.add_argument("--dry-run", action="store_true")
@@ -54,6 +60,11 @@ def main():
         ap.error("nothing to do: --seed and/or --account FILE")
     if o.production and o.lrwii:
         ap.error("one Wii at a time")
+    if o.ra_name is not None:
+        if not o.account:
+            ap.error("--ra-name goes with --account FILE")
+        if not NAME_OK.fullmatch(o.ra_name):
+            ap.error("--ra-name: letters, digits, _ and -, under 32 characters")
     if o.account:
         try:
             size = o.account.stat().st_size   # the only thing looked at
@@ -73,6 +84,7 @@ def main():
         wii = bench_wii("ra_setup.py")
 
     have = (card_ls(wii, FOLDER) or {}) if wii else {}
+    have_ra = (card_ls(wii, FOLDER + "/ra") or {}) if wii and o.ra_name else {}
     print(f"{FOLDER} on {wii or '(no Wii: dry run)'}: "
           f"{', '.join(sorted(n for n in have if n in ('tls_seed.bin', 'ra_account.ini', 'cacert.pem', 'utc_offset.txt'))) or 'none of the Official files'}")
 
@@ -97,7 +109,13 @@ def main():
                 finally:
                     p.write_bytes(bytes(SEED_BYTES))   # the bytes do not stay on the PC's disk
                     p.unlink()
-    if o.account:
+    if o.account and o.ra_name:
+        name = f"ra/{o.ra_name}.ini"
+        if f"{o.ra_name}.ini" in have_ra or f"{o.ra_name}.ini.new" in have_ra:
+            print(f"{name}: there already (a login or a token); left as it is")
+        else:
+            ok &= put(o.account, name)
+    elif o.account:
         if "ra_account.ini" in have or "ra_account.ini.new" in have:
             print("ra_account.ini: there already (a login or a token); left as it is")
         else:

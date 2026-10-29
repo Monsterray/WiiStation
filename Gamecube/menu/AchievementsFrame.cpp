@@ -238,7 +238,9 @@ static void drawList(menu::Graphics &gfx)
 		font.drawInit(ink);	/* the coin left the GX state as a picture's */
 	}
 	font.drawString(320, 30, line, 0.9f, true);
-	snprintf(line, sizeof line, "%s", achievements_presence());
+	snprintf(line, sizeof line, "%s", achievements_player_note(who));	/* why this Mii earns Local (its account did not work) */
+	if (!line[0] && !who)	/* the Official Mii's list is the server's: its rich presence; the Local Miis' is their own */
+		snprintf(line, sizeof line, "%s", achievements_presence());
 	if (players > 1 && !line[0])
 		snprintf(line, sizeof line, "L / R: the other players (%u of %u)", who + 1, players);
 	cut(line, SMALL_SCALE, 440);

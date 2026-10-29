@@ -1,0 +1,9 @@
+CHAIN
+# Official mode with Local players (Docs/MII_PLAN.md step 4c), Spyro, spectator (nothing reaches an
+# account). Seat 1 is a made-up key, ffffffff00000001, linked to achievements/ra/dev.ini by a
+# players.ini that the bench job puts on the card (and puts the card's own back): the Official
+# Mii needs its seat and its link, no Mii on the console. Seat 2, "#1", is the console's first Mii
+# (a chain seat may be "#n"): it earns Local. achdump: the Official list, then each page player.
+1500 sd:/wiistation/ach_official_ra.txt Achievements=3 AchievementSpectator=1 FPS=0 PadAutoAssign=1 Player1="ffffffff00000001" Player2="#1"
+sd:/wiistation/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue

@@ -1,0 +1,10 @@
+CHAIN
+# Official mode, a Mii linked to an account file that is not on the card (Docs/MII_PLAN.md step 4a):
+# A = 82625a00 is linked to "no_such_account" and plays Official; B = 82626573 is seated on port 2.
+# The game loads, the log says the account did not work, there is no set (no ra_account.ini to load
+# it in spectator mode), and the achievements list at 1700 says why.
+#   scripts/wsx.sh chain NAME scripts/chains/ach_official_acct.txt --card tests/fixtures/ach_official_acct/players.ini \
+#     --set 'Achievements=3' --env FRAMES_DUMP=True --env KEEP=100000
+1800 sd:/wiistation/ach_official_acct.txt FPS=0 PadAutoAssign=1 Player1="82625a00c2123456" Player2="82626573c2123456"
+sd:/wiistation/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue

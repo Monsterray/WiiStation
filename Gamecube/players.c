@@ -396,3 +396,19 @@ int players_lookup(const char *key, char *name, unsigned size)
 		}
 	return 0;
 }
+
+/* The key of the n-th Mii (1 first) of this console, in the database's own order, for a chain's
+ * seat "#n" (GamecubeMain.cpp chainOverride): a scripted run on a Wii whose Miis are not known
+ * beforehand. "" when there is none. */
+const char *players_key_nth(unsigned n)
+{
+	static char key[PLAYERS_KEY];
+	char name[32];
+	key[0] = 0;
+	players_lookup("0", name, sizeof name);   /* makes the Miis readable: waits for the menu's reader, or reads them once */
+	if (n && count >= 0 && n <= (unsigned)count)
+		snprintf(key, sizeof key, "%s", miis[n - 1].p.key);
+	else if (n && count < 0 && looked_n > 0 && n <= (unsigned)looked_n)
+		snprintf(key, sizeof key, "%s", looked[n - 1].key);
+	return key;
+}
