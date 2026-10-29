@@ -1,0 +1,8 @@
+CHAIN
+# Overlay placement and small text (Gamecube/ach_toast.c): Spyro's attract demo with the HUD set, the game card then the first
+# unlocks, in the user's settings (ScreenMode=2 OpenGX). Dolphin recipe:
+#   WSX_EXTRA_ISOS=tests/fixtures/ach_hud WSX_ISOS="Tests/AchHud,Spyro the Dragon" scripts/wsx.sh chain NAME scripts/chains/ach_overlay.txt --dol X \
+#     --set 'Achievements=2,AchievementFile="sd:/wiistation/isos/Tests/AchHud/set.txt",ScreenMode=2,DeflickerFilter=1,TrapFilter=1,BilinearFilter=1,FrameRate=1' --env FRAMES_DUMP=True --env KEEP=100000
+900 sd:/wiistation/ach_overlay.txt FPS=1
+sd:/wiistation/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue

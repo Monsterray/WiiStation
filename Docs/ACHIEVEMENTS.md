@@ -134,7 +134,8 @@ The design, the tiers and the mockups are in [design/PS1_STYLES.md](design/PS1_S
 - The engine calls `achievements_notify` once per new unlock (`achievement_notice_t`, in
   `achievements.h`), with the Beaten and Mastered flags. `loadISO` points it at `ach_toast_push`.
   Earned achievements restored from the journal or a state do not notify.
-- The card, the progress panel and the challenge icons end 16 px (of the 640 wide picture) from the right edge; in the 16:9 pillarbox mode the 4:3 picture's edge, as before.
+- The card, the progress panel and the challenge icons end 16 px (of the 640 wide picture) from the right edge of the picture on the TV. In Force 16:9 (`ScreenMode` 2) the overlay's ortho is -104..743 over the whole EFB, and the margin is 16 x 848 / 640 units of it: the edge is the screen's (OpenGX's game fills it; the soft plugins' 4:3 picture sits in the middle with black bars, and the pop-ups go over the bar). Counted from x = 640, as until 2026-10-29, they ended 14 % of the screen short of the edge on OpenGX (user, real Wii).
+- A pop-up that moves keeps moving when the game does not present: OpenGX `OverlayToastIdle` (GlesGpu/gpuPlugin.c) shows the last presented frame again with the pop-up each vblank after 5 without a present (`flipEGL` keeps that frame in `ovl_buf` while a pop-up animates, also for presents that clear the EFB; the game's own EFB is put aside and back); the Soft plugin presents again in `LIB_GPUupdateLace` (gpulib), and a blanked display shows the pop-up over black (`gc_vout_flip` with no picture).
 - Up to 4 toasts wait in a queue. Each one shows for 5 s (6 s for Beaten and Mastered).
 - It is drawn in the present's overlay, on the picture sent to the TV, never in the game's frame:
   OpenGX in `flipEGL` (`OverlayAchToast`), the Soft plugins in `GX_Flip`.

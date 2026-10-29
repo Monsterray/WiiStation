@@ -961,8 +961,17 @@ long LIB_GPUfreeze(uint32_t type, GPUFreeze_t *freeze)
   return 1;
 }
 
+/* A pop-up that moves (Gamecube/ach_toast.c) while the game shows a still picture and flips
+ * nothing (loading), or blanks the display: after IDLE_LACES such vblanks the picture (or the
+ * black) is presented again at each, so the pop-up goes on animating. Nothing while the game
+ * flips: its dirty frame resets the count. */
+#define IDLE_LACES 5
+extern int ach_toast_animating(void);
+
 void LIB_GPUupdateLace(void)
 {
+  static unsigned idle_laces;
+
   if (gpu.cmd_len > 0)
     flush_cmd_buffer();
   renderer_flush_queues();
@@ -979,13 +988,20 @@ void LIB_GPUupdateLace(void)
       gpu.state.blanked = 1;
       gpu.state.fb_dirty = 1;
     }
+    else if (ach_toast_animating())
+      vout_blank();   /* the black picture again, with the pop-up moved on */
     return;
   }
 
   renderer_notify_update_lace(0);
 
-  if (!gpu.state.fb_dirty)
-    return;
+  if (!gpu.state.fb_dirty) {
+    if (++idle_laces < IDLE_LACES || !ach_toast_animating())
+      return;
+    gpu.state.fb_dirty = 1;   /* and the count stays: the next vblank presents again */
+  }
+  else
+    idle_laces = 0;
 #endif
 
   if (gpu.frameskip.set) {

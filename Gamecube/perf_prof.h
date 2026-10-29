@@ -239,6 +239,7 @@ typedef struct {
 	uint32_t achievement_frames;
 	unsigned long long toast_ticks, toast_max_ticks;   /* ach_toast_draw: CPU time to issue the card */
 	uint32_t toast_draws;
+	uint32_t toast_idle;           /* OverlayToastIdle (GlesGpu/gpuPlugin.c): vblanks the pop-up was drawn with no game present */
 	/* CPU / JIT (Wii adapter level, lightrec.c) */
 	uint32_t jit_slices;          /* lightrec execute slices run */
 	uint32_t jit_resets_full;     /* invalidate_all (cache flush) */
@@ -771,6 +772,7 @@ typedef struct {
 	uint32_t menu_strings;        /* drawString calls */
 	uint32_t menu_glyphs;         /* glyphs rastered */
 	uint32_t menu_texloads;       /* font texture loads */
+	uint32_t menu_small, menu_small_no;   /* strings below scale 1.0 drawn from the reduced glyph sets (IPLFont drawSmall), and not */
 } perf_counters_t;
 
 extern perf_counters_t g_perf;
