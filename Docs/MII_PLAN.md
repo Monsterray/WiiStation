@@ -15,8 +15,8 @@ what this plan uses:
 | --- | --- | --- |
 | Read the Miis | `mii_db_load`, `mii_db_get` for slots 0-99, `mii_db_free` | About 0.7 s: once, on a thread, never in the frame loop. **WiiStation never saves** (`mii_db_save`, `_put`, `_add`, `_remove` are not called anywhere). `MII_E_NO_FILE`: the Mii Channel was never opened, so no Miis |
 | Identity | `mii.id` (the creation ID) | The key is its 16 hex characters. Slot and name are not stable |
-| Name, colour | `mii_get_name`, `mii.fav_color` (0-11, `mii_color_name`) | The coin's colour is the favourite colour, as HBC's picker draws it |
-| Coin faces | `mii_res_load`, `mii_model_build` (32-64 px face, normal expression only), `mii_icon`, `mii_model_free` | Needs `sd:/mii/RFL_Res.dat`, which the user saves with HBC's HOME > HBC > Save Mii faces (Nintendo's file: never shipped, never copied by us). Without it a coin shows the name's initial on the favourite colour |
+| Name, color | `mii_get_name`, `mii.fav_color` (0-11, `mii_color_name`) | The coin's color is the favorite color, as HBC's picker draws it |
+| Coin faces | `mii_res_load`, `mii_model_build` (32-64 px face, normal expression only), `mii_icon`, `mii_model_free` | Needs `sd:/mii/RFL_Res.dat`, which the user saves with HBC's HOME > HBC > Save Mii faces (Nintendo's file: never shipped, never copied by us). Without it a coin shows the name's initial on the favorite color |
 
 Rules the SDK sets that touch WiiStation:
 
@@ -80,21 +80,28 @@ Rules the SDK sets that touch WiiStation:
 
 Mock-ups A-E were shown in the chat; the owner chose **D**, with subtle PS1 port theming.
 
-- **Ports first**, on a band the grey of the PS1's plastic: one card per port (two, or eight
+- **Ports first**, on a band the gray of the PS1's plastic: one card per port (two, or eight
   in two rows with multitap). A card reads like the console's label: the port number large,
   "CONTROLLER" small, the pad connected there, the seated Mii's coin in a round recess, its
   name and, with a game loaded that has a set, "4 / 31 achievements" (that Mii's unlocks in
   this set). A small PS1 controller socket sits in the card's corner; its pins light when a
   Mii is seated on a port with a pad. A port without a pad is a shade darker.
 - **The coins** below: a strip of 16 a page (8 x 2), paged with + / - (no arrows at the top).
-  A coin is the Mii's head on a disc in its favourite colour; **a favourite Mii's coin has a
+  A coin is the Mii's head on a disc in its favorite color; **a favorite Mii's coin has a
   gold rim**. Without the face models a coin shows the name's initial. A seated coin is dimmed
-  and wears its port. The focused coin's name and progress show on one line under the strip.
+  and wears its port in a tag under it. The focused coin's name and progress show on one line under the strip.
 - **Input**: Wii Remote pointer, hold A+B on a coin, drop it on a card (on a taken card the
   two swap; back on the strip unseats). A pad: A on a coin picks it up and the focus goes to
   the cards (arrows choose), A seats it, B puts it back; on a card A picks its Mii up, B
   makes the seat Guest. Up from the strip's top row goes to the cards.
 - No plugs: a plug-and-cable mock-up was fun but too silly.
+- **Co-Op** (5.18.1, the owner's call): a Co-Op port's card is a group, a coin well per
+  player and a "..." button. A, a click or a dropped coin opens the same screen with a card
+  per Co-Op player (seats `Player1P1` ... `Player2P8`, virtual controllers 10-25); B leaves.
+- Details the owner asked for (5.18.1): round coin slots ("Guest" centered in an empty one),
+  a solid focus ring, "Port 1A" in a tag under a seated coin, the socket centered on the two
+  big cards and in the corner on the small ones, names shrunk to fit, the coins' page
+  ("Miis 1 / 2") at the bottom right. US spelling everywhere.
 
 ## Phases and checks
 

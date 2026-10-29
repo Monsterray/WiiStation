@@ -28,7 +28,7 @@ int main(int argc, char **argv)
 		mii_set_name(m.creator, "WiiStation");
 		m.fav_color = i % 12;
 		m.favorite = i % 5 == 1;
-		mii_id_make(m.id, 0x40000000ull + i * 977ull, mac);
+		mii_id_make(m.id, 11505369649262175ull + (40000000ull + i * 977ull) * 4 * 60750000ull, mac);   /* 2006 + 40 Ms + a step: each Mii its own ID */
 		if (mii_check(&m, &why) != MII_OK) {
 			fprintf(stderr, "Mii %d: %s\n", i, why ? why : "?");
 			return 1;

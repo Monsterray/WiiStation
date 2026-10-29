@@ -3,7 +3,7 @@
 Dolphin ships no RFL_DB.dat, so the Players menu (Docs/MII_PLAN.md) has nothing to show there.
 This writes one, made the way hbc-reborn's tests/dolphin_mii.py makes its own (the RNOD block,
 an empty RNHD hidden database, RFL's CRC), with Miis from tests/mii_fixture (the Mii SDK on the
-PC: random faces, names from a list, every favourite colour, every fifth a favourite).
+PC: random faces, names from a list, every favorite color, every fifth a favorite).
 
 Default output: the game library's NAND skeleton, C:/wiistation-lib/wii/shared2/menu/FaceLib/,
 which scripts/profile.sh copies into every run profile. No faces: RFL_Res.dat is Nintendo's

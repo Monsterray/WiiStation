@@ -2,8 +2,8 @@
  *
  * The Miis come from the Mii Channel's database through hbc-reborn's Mii SDK (deps/mii),
  * read only: WiiStation never writes it. A Mii's key is its creation ID as 16 hex
- * characters. Each Mii has a coin: a disc in its favourite colour (a gold rim for a
- * favourite), with its head on it once sd:/mii/RFL_Res.dat is there (HBC's HOME > HBC >
+ * characters. Each Mii has a coin: a disc in its favorite color (a gold rim for a
+ * favorite), with its head on it once sd:/mii/RFL_Res.dat is there (HBC's HOME > HBC >
  * Save Mii faces), its initial before that and without it. */
 #ifndef PLAYERS_H
 #define PLAYERS_H
@@ -15,7 +15,7 @@ extern "C" {
 #define PLAYERS_MAX 100
 #define PLAYERS_COIN 80          /* a coin's side in pixels: GX_TF_RGBA8, PLAYERS_COIN^2 * 4 bytes */
 #define PLAYERS_KEY 17           /* 16 hex characters and the NUL */
-#define PLAYERS_SEATS 10         /* virtualControllers 0-9: ports 1, 2; multitap 1A-1D, 2A-2D */
+#define PLAYERS_SEATS 26         /* virtualControllers 0-25: ports 1, 2; multitap 1A-1D, 2A-2D; Co-Op 1 P1-P8, 2 P1-P8 */
 
 typedef struct {
 	char key[PLAYERS_KEY];
@@ -43,11 +43,12 @@ int players_between_frames(void);
 /* Before a game starts: frees the face models and the coins' work (the coins stay). */
 void players_idle(void);
 
-/* The seats, indexed as virtualControllers 0-9 (ports 1 and 2, then multitap 1A-1D and
- * 2A-2D): the key of the Mii on each, "" for Guest. settings.ini [Players] Player1 ...
- * Player2D (GamecubeMain.cpp), saved with the other settings. */
+/* The seats, indexed as virtualControllers 0-25 (ports 1 and 2, multitap 1A-1D and 2A-2D,
+ * then Co-Op players 1-8 of each port, COOP_VC): the key of the Mii on each, "" for Guest.
+ * settings.ini [Players] Player1 ... Player2D, Player1P1 ... Player2P8 (GamecubeMain.cpp),
+ * saved with the other settings. */
 extern char playerSeat[PLAYERS_SEATS][256];
-extern const char *const PLAYERS_SEAT_NAMES[PLAYERS_SEATS];   /* "1", "2", "1A" ... "2D" */
+extern const char *const PLAYERS_SEAT_NAMES[PLAYERS_SEATS];   /* "1", "2", "1A" ... "2D", "1 P1" ... "2 P8" */
 void players_seat_mii(int seat, const char *key);   /* seats a Mii (leaving its other seat), or Guest for NULL */
 
 #ifdef __cplusplus

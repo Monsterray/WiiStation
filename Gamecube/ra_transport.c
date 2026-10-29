@@ -107,7 +107,7 @@ int ra_transport_available(void) { return 0; }
 #define ACH_DIR "sd:/wiistation/achievements/"
 #define SEED_FILE ACH_DIR "tls_seed.bin"
 #define CA_FILE ACH_DIR "cacert.pem"
-#define ZONE_FILE ACH_DIR "utc_offset.txt"   /* the learnt correction: this Wii's clock to UTC */
+#define ZONE_FILE ACH_DIR "utc_offset.txt"   /* the learned correction: this Wii's clock to UTC */
 #define MAX_BODY (2 * 1024 * 1024)
 
 static lwp_t worker = LWP_THREAD_NULL;
@@ -182,7 +182,7 @@ static int seed_open(void)
 }
 
 /* The correction the clock starts with: the setting AchievementUTCOffset when it is set (it
- * wins, and nothing is learnt), else the one learnt last time (utc_offset.txt), else 0. A
+ * wins, and nothing is learned), else the one learned last time (utc_offset.txt), else 0. A
  * wrong guess costs nothing but the hours just after a certificate is issued: certificate
  * dates are checked to the second, and a clock some hours slow sees a new one as not valid yet.
  * The first verified answer puts it right (learn_zone). */
@@ -201,7 +201,7 @@ static void zone_load(void)
 }
 
 /* A Date header that came over a verified TLS connection: the server's UTC. The Wii's clock
- * keeps local time, so the difference is the time zone (summer time included): learnt to the
+ * keeps local time, so the difference is the time zone (summer time included): learned to the
  * quarter hour, bounded to 14 hours, kept on the card for the next start. A server that lies
  * moves the clock by at most that, never a certificate's validity by years. */
 static void learn_zone(int64_t server_utc)
@@ -215,7 +215,7 @@ static void learn_zone(int64_t server_utc)
 	}
 	if (!strcmp(got, zone)) return;
 	if (achievement_clock_start(got, (int64_t)time(NULL), system_ms()) != 0) return;
-	SysPrintf("Achievements: the Wii's clock is UTC%s minutes (learnt from the server)\n", got);
+	SysPrintf("Achievements: the Wii's clock is UTC%s minutes (learned from the server)\n", got);
 	snprintf(zone, sizeof zone, "%s", got);
 	if ((f = fopen(ZONE_FILE ".new", "w"))) {
 		int ok = fprintf(f, "%s\n", zone) > 0;

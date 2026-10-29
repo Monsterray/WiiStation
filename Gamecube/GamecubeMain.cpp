@@ -476,6 +476,22 @@ static SettingOption OPTIONS[] =
   { "Player2B", playerSeat[7], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "Player2C", playerSeat[8], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "Player2D", playerSeat[9], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
+  { "Player1P1", playerSeat[10], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
+  { "Player1P2", playerSeat[11], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
+  { "Player1P3", playerSeat[12], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
+  { "Player1P4", playerSeat[13], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
+  { "Player1P5", playerSeat[14], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
+  { "Player1P6", playerSeat[15], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
+  { "Player1P7", playerSeat[16], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
+  { "Player1P8", playerSeat[17], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
+  { "Player2P1", playerSeat[18], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
+  { "Player2P2", playerSeat[19], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
+  { "Player2P3", playerSeat[20], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
+  { "Player2P4", playerSeat[21], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
+  { "Player2P5", playerSeat[22], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
+  { "Player2P6", playerSeat[23], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
+  { "Player2P7", playerSeat[24], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
+  { "Player2P8", playerSeat[25], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "Network", NULL, 0, 0, "Games from a network share (SMB)." },
   { "smbipaddr", smbIpAddr, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "smbsharename", smbShareName, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
@@ -558,7 +574,9 @@ static const char* const GLOBAL_ONLY_KEYS[] = {
 	"lang", "MenuFont", "FileSortMode", "TabWrap", "RomDirSD", "RomDirUSB",
 	"NativeDevice", "StatesDevice", "AchievementFile", "AchievementLog", "AchievementUTCOffset", "AchievementBenchRoot",
 	"smbipaddr", "smbsharename", "smbusername", "smbpassword", "RomDirSMB",
-	"Player1", "Player2", "Player1A", "Player1B", "Player1C", "Player1D", "Player2A", "Player2B", "Player2C", "Player2D" };
+	"Player1", "Player2", "Player1A", "Player1B", "Player1C", "Player1D", "Player2A", "Player2B", "Player2C", "Player2D",
+	"Player1P1", "Player1P2", "Player1P3", "Player1P4", "Player1P5", "Player1P6", "Player1P7", "Player1P8",
+	"Player2P1", "Player2P2", "Player2P3", "Player2P4", "Player2P5", "Player2P6", "Player2P7", "Player2P8" };
 
 static bool keyIn(const char* key, const char* const* list, int n)
 {

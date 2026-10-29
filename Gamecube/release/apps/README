@@ -1,5 +1,5 @@
 README : WiiStation
-Version 5.18.0
+Version 5.18.1
 
 LICENSE:
     This software is licensed under the GNU General Public License v2
@@ -155,11 +155,20 @@ LATER UPDATES BY:
  * Monty Perrotti (WiiStation)
 
 WiiStation CHANGE LOG:
+Ver 5.18.1 (2026-10-28):
+* Players: a Co-Op port's card holds all its players (up to 8). Open it with
+  A, a click on it or its "..." button, or by dropping a coin on it: the same
+  screen then shows a card per Co-Op player. B leaves it.
+* Players: round coin slots with Guest centered in them, a solid focus ring,
+  "Port 1A" under a seated Mii's coin, the socket centered on a port's card,
+  names that fit their card, and the page of Miis at the bottom right.
+* US spelling throughout the menus and documents (the FmvColour setting keeps
+  its name, so settings files still work).
 Ver 5.18.0 (2026-10-28):
 * Players (Main menu): the Miis on your Wii as players. Each PlayStation port
   is a card (four per port with a multitap); seat a Mii on it by holding A+B
   on its coin with the Wii Remote and dropping it on the card, or with a pad:
-  A on a coin, choose the card, A. A favourite Mii's coin has a gold rim.
+  A on a coin, choose the card, A. A favorite Mii's coin has a gold rim.
   Faces need HBC's HOME > HBC > Save Mii faces once; without it the coins show
   initials. The Mii Channel's database is only read, never written. Save the
   settings to keep the seats. Per-player achievements come next.
@@ -175,7 +184,7 @@ Ver 5.17.0 (2026-10-24):
   (an account file, a certificate bundle and a random seed on the SD card).
   Unlocks made offline wait and are sent when the connection is back.
 * Achievements: an unlock shows a PlayStation-style card for 5 s with the
-  title, points, how rare it is, and the set's progress. Its colour is the
+  title, points, how rare it is, and the set's progress. Its color is the
   tier: Blue, Bronze, Silver, Gold, Crystal (by rarity, or by points in a local
   set). Beating a game and mastering a set get their own cards.
 * Achievements: a card with a spinning PlayStation disc when a game's set
@@ -272,7 +281,7 @@ Ver 5.16.0 (2026-10-20):
   bit on every write (polygons, rectangles, lines, image loads, VRAM copies),
   the palette and texture caches. Every ps1-tests GPU test with a real-PS1
   result passes with it (gpu/bandwidth also with GPU Timing Accurate). Hi-Fi
-  draws the same pixels without the dither, with finer colour blends. Fast is
+  draws the same pixels without the dither, with finer color blends. Fast is
   the old code (5.15.0 and before), the cheapest on the Wii.
 * GPU Timing Accurate: with Soft Mode Accurate or Hi-Fi, the GPU stays busy as
   long as each draw takes on a PS1, and image transfers by DMA take PS1 time.
@@ -594,7 +603,7 @@ Ver 5.4.3 (2026-10-05):
 Ver 5.4.2 (2026-10-05):
 * Configure Buttons: each mapping button grows to fit its label ("Start+Z",
   "D-Down", "RS-Button" ran past their buttons), without touching its
-  neighbours; the stacked buttons no longer overlap.
+  neighbors; the stacked buttons no longer overlap.
 * Buttons that size themselves to their label leave a few more pixels
   around it.
 
@@ -647,7 +656,7 @@ Ver 5.2.0 (2026-10-01):
 Ver 5.1.0 (2026-10-01):
 * VRAM fills 3-4x faster on the Wii; CPU-to-VRAM transfers copy words
   (FF7 load 65.3 -> 53.9%; mean of 8 games 38.9 -> 35.8%).
-* FMV: 24-bit tiles and MDEC colour clamps faster; output unchanged.
+* FMV: 24-bit tiles and MDEC color clamps faster; output unchanged.
 * XA audio filter 36% cheaper; Lightrec map lookup cached.
 * CD read-ahead on by default. New setting LimiterDebt (125 ms by default).
 * Crash reports for hangs, guest crashes, missing audio and exceptions

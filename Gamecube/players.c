@@ -31,7 +31,7 @@ static mii_model built;
 static volatile int ready = -1;
 static volatile int faces;      /* 0 not known yet, 1 the face models loaded, else the MII_E_* code */
 
-/* The favourite colours as the Mii Channel shows them (MII_RED ...). */
+/* The favorite colors as the Mii Channel shows them (MII_RED ...). */
 static const u8 fav_rgb[12][3] = {
 	{ 0xd2, 0x1e, 0x14 }, { 0xff, 0x6e, 0x19 }, { 0xff, 0xd8, 0x20 }, { 0x78, 0xd2, 0x20 },
 	{ 0x00, 0x78, 0x30 }, { 0x0a, 0x48, 0xb4 }, { 0x3c, 0xaa, 0xde }, { 0xf5, 0x5a, 0x7d },
@@ -49,8 +49,8 @@ static u8 *texel(u8 *t, int w, int x, int y)
 static float clamp01(float v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
 
 /* The coin, in place: the head mii_icon left in t (alpha 0 where there is none; all of it
- * for a plain coin) over a disc in the favourite colour, lighter at the top, inside a rim
- * (pale, or gold for a favourite); clear outside the circle. */
+ * for a plain coin) over a disc in the favorite color, lighter at the top, inside a rim
+ * (pale, or gold for a favorite); clear outside the circle. */
 static void make_coin(u8 *t, int fav, int favorite)
 {
 	const int N = PLAYERS_COIN;
@@ -211,7 +211,9 @@ int players_between_frames(void)
 }
 
 char playerSeat[PLAYERS_SEATS][256];
-const char *const PLAYERS_SEAT_NAMES[PLAYERS_SEATS] = { "1", "2", "1A", "1B", "1C", "1D", "2A", "2B", "2C", "2D" };
+const char *const PLAYERS_SEAT_NAMES[PLAYERS_SEATS] = { "1", "2", "1A", "1B", "1C", "1D", "2A", "2B", "2C", "2D",
+	"1 P1", "1 P2", "1 P3", "1 P4", "1 P5", "1 P6", "1 P7", "1 P8",
+	"2 P1", "2 P2", "2 P3", "2 P4", "2 P5", "2 P6", "2 P7", "2 P8" };
 
 void players_seat_mii(int seat, const char *key)
 {

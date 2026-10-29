@@ -872,6 +872,22 @@ void Graphics::drawCircle(int x, int y, int radius, int numSegments)
 	GX_End();
 }
 
+void Graphics::fillRing(int x, int y, int inner, int outer, int numSegments)
+{
+	GX_Begin(GX_TRIANGLESTRIP, GX_VTXFMT0, 2 * (numSegments + 1));
+	for (int i = 0; i <= numSegments; i++)
+	{
+		float angle = 2*PI * i/numSegments, c = cos(angle), s = sin(angle);
+		GX_Position3f32((float)x + outer * c, (float)y + outer * s, depth);
+		GX_Color4u8(appliedColor[0].r, appliedColor[0].g, appliedColor[0].b, appliedColor[0].a);
+		GX_TexCoord2f32(0.0f, 0.0f);
+		GX_Position3f32((float)x + inner * c, (float)y + inner * s, depth);
+		GX_Color4u8(appliedColor[0].r, appliedColor[0].g, appliedColor[0].b, appliedColor[0].a);
+		GX_TexCoord2f32(0.0f, 0.0f);
+	}
+	GX_End();
+}
+
 void Graphics::drawString(int x, int y, const std::string &str)
 {
 	//todo

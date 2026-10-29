@@ -399,7 +399,7 @@ namespace eng = menu::engine;
  * key names the setting the row shows. It is NULL for a row that shows no one setting.
  * label is the text on the left. With a key, NULL means the table's label. Any other label
  * is an override (see the top of this file). With no key, label is the row's own text, or
- * NULL for no label. x0 is the first button's left edge. 0 centres the row.
+ * NULL for no label. x0 is the first button's left edge. 0 centers the row.
  * gap 0 means TAB_GAP. plain counts the last buttons of a choice row: actions, never lit. */
 struct SetRow
 {
@@ -574,7 +574,7 @@ static void prepSaves(void)
 
 static const SetRow GEN_ROWS[] =
 {
-	{ eng::ROW_BUTTONS, NULL,            NULL,               { 73, 84, 75, -1 }, { 130, 130, 130, 0 }, 0.0f,   30.0f, 0 },	/* Advanced, Cheevos, Memory: every Advanced button is 130 wide and centred */
+	{ eng::ROW_BUTTONS, NULL,            NULL,               { 73, 84, 75, -1 }, { 130, 130, 130, 0 }, 0.0f,   30.0f, 0 },	/* Advanced, Cheevos, Memory: every Advanced button is 130 wide and centered */
 	{ eng::ROW_CHOICE,  "BiosDevice",    NULL,               {  7,  8,  9, 10 }, {  70,  55,  70, 70 }, 295.0f, 0.0f,  0 },	/* Select BIOS: HLE, SD, USB, DVD */
 	{ eng::ROW_CHOICE,  "BootThruBios",  NULL,               { 11, 12, 13, -1 }, {  75,  75, 171,  0 }, 295.0f, 0.0f,  1 },	/* Boot Through BIOS: Yes, No, Execute BIOS */
 	{ eng::ROW_BUTTONS, "lang",          NULL,               { 54, -1, -1, -1 }, {  90,   0,   0,  0 }, 295.0f, 0.0f,  0 },	/* Select Language */
@@ -621,7 +621,7 @@ static const SetRow SAV_ROWS[] =
 
 /* The card numbers "1" and "2": "1" starts at the button column (x 295), then card 1's button after a
  * 10 px gap; "2" follows card 1's button after the same gap, then card 2's button. Widths from the
- * font (menu_text_width.py px): "1" is 18 wide, so its centre is 304; "2" is at 438..456, centre 447. */
+ * font (menu_text_width.py px): "1" is 18 wide, so its center is 304; "2" is at 438..456, center 447. */
 static const eng::FreeText SAV_FREE[NUM_FREE_TEXTS] =
 {
 	{ FRAME_STRINGS[32], 304.0f, 198.0f, 1.0f, true },
@@ -687,7 +687,7 @@ static void layoutTab(SettingsFrame *frame, const SetTab &tab)
 	SET_PAGE.nRows      = tab.nRows;
 	SET_PAGE.logo       = eng::LOGO_SPOT_BOTTOM;	/* MenuContext: FRAME_SETTINGS is in LOGO_BOTTOM_FRAMES */
 	SET_PAGE.focus      = eng::FOCUS_ROWS;
-	SET_PAGE.labelCx    = 150.0f;	/* the Settings labels: centred at x 150 */
+	SET_PAGE.labelCx    = 150.0f;	/* the Settings labels: centered at x 150 */
 	SET_PAGE.labelDy    = 28.0f;	/* on the middle of a 56-high row */
 	SET_PAGE.rowDy      = tab.rowDy;
 	SET_PAGE.freeTexts  = tab.freeTexts;
