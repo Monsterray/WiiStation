@@ -1,0 +1,18 @@
+# The achievements book (Gamecube/menu/AchievementsFrame.cpp) over Spyro's attract demo (scripts/chains/ach_book_bench.txt).
+# Hit counts on an always-true condition, so each moment comes a fixed number of evaluated frames after the load
+# whatever the game does: #4 unlocks at 100, #3 at 400, #2 is primed from 700 to 1300 hits, then unlocks; #1 and #5
+# count (measured: pop-ups at each 10 % step after the settling time); #6 to #12 are never earned in a run.
+Game=SCUS94228
+Title=Spyro the Dragon
+1|Gem Counter|M:0xH000000=0xH000000.2500.|10||Collect 2500 gems in any home world
+2|Hold On|0xH000000=0xH000000.700._T:0xH000000=0xH000000.1300.|25|missable|A challenge: primed, then earned
+3|Sunny Villa|0xH000000=0xH000000.400.|5|progression|The first world: reach the end of Artisans
+4|First Steps|0xH000000=0xH000000.100.|5||Finish the very first level of the game
+5|Dragon Hoarder|M:0xH000000=0xH000000.5000.|50||Hold five thousand of anything at once
+6|Never One|0xH000001=0xH000001.9999.|5||Not earned in this run
+7|The End|0xH000001=0xH000001.9999.|50|win|Beat the game
+8|Flameless Run|0xH000001=0xH000001.9999.|25|missable|Defeat every enemy in Artisans without a flame attack and without taking any damage
+9|The Extraordinarily Long Titled Achievement of Eternal Doom and Glory|0xH000001=0xH000001.9999.|10||A very long name that has to shrink
+10|Speedrunner|0xH000001=0xH000001.9999.|25|progression|Finish a world fast
+11|Night Owl|0xH000001=0xH000001.9999.|5||Play after midnight
+12|Completionist|0xH000001=0xH000001.9999.|100||All of it

@@ -140,6 +140,58 @@ static void shot_geometry(unsigned *sx, unsigned *sy, unsigned *w, unsigned *h, 
 	*sy &= 511;
 }
 
+/* The picture as PNG scanlines for the unlock pictures (ach_shot.c): a MEM2 buffer the caller
+ * frees with _mem2_free, rows of a filter byte and RGB per pixel, *w x *h. NULL: no picture or
+ * no memory. Called from the emulator thread at a vblank, as screenshot_vblank. */
+unsigned char *screenshot_grab(unsigned *w, unsigned *h)
+{
+	unsigned sx, sy;
+	int rgb24;
+	unsigned char *raw;
+
+	if (!psxVuw)
+		return NULL;
+	shot_geometry(&sx, &sy, w, h, &rgb24);
+	raw = _mem2_malloc((unsigned long)*h * (1 + 3 * *w));
+	if (!raw)
+		return NULL;
+	if (gpuPlugin == OPEN_GX)   /* OpenGX keeps its newest pixels in the EFB until a read */
+		gpu_screenshot_sync(sx, sy, rgb24 ? (3 * *w + 1) / 2 + 1 : *w, *h);
+	shot_rows(raw, *w, *h, sx, sy, rgb24);
+	return raw;
+}
+
+/* A PNG file made in one buffer around a deflate stream: buf holds the stream (idat_len bytes)
+ * at buf + SHOT_PNG_HEAD; this writes the signature, IHDR and IDAT's header before it and the
+ * IDAT CRC and IEND after it. Returns the file's length. */
+unsigned long screenshot_png_seal(unsigned char *buf, unsigned long idat_len, unsigned w, unsigned h)
+{
+	static const unsigned char sig[8] = { 137, 80, 78, 71, 13, 10, 26, 10 };
+	unsigned char *p = buf, ihdr[13];
+	uLong crc;
+
+	memcpy(p, sig, 8);
+	be32(ihdr, w);
+	be32(ihdr + 4, h);
+	ihdr[8] = 8;	/* bit depth */
+	ihdr[9] = 2;	/* colour type: RGB */
+	ihdr[10] = ihdr[11] = ihdr[12] = 0;
+	be32(p + 8, 13);
+	memcpy(p + 12, "IHDR", 4);
+	memcpy(p + 16, ihdr, 13);
+	crc = crc32(crc32(0L, p + 12, 4), ihdr, 13);
+	be32(p + 29, crc);
+	be32(p + 33, idat_len);
+	memcpy(p + 37, "IDAT", 4);
+	p = buf + SHOT_PNG_HEAD + idat_len;
+	crc = crc32(crc32(0L, buf + 37, 4), buf + SHOT_PNG_HEAD, (uInt)idat_len);
+	be32(p, crc);
+	be32(p + 4, 0);
+	memcpy(p + 8, "IEND", 4);
+	be32(p + 12, crc32(0L, p + 8, 4));
+	return SHOT_PNG_HEAD + idat_len + 16;
+}
+
 /* Saves the picture now. name (if not NULL) gets the file's name, such as "SCUS94228_2.png".
  * Returns 0 when the file is written, or -1 when it is not. */
 int screenshot_save(char *name, unsigned size)

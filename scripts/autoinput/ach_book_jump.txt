@@ -1,0 +1,9 @@
+# The book opened from a pop-up (the set of tests/fixtures/ach_book): the game stops at vblank 1400, while the unlock card of
+# #2 "Hold On" (unlocked at 1300) is on screen, the way the menu combination stops it; page 99 opens nothing, so the
+# menu has to open the book itself, on that achievement's detail. With "AchievementChallenge=0" the same stop at 1000 shows
+# no challenge icon (#2 is primed 700 to 1300).
+#   WSX_EXTRA_ISOS=tests/fixtures/ach_book WSX_ISOS="Tests/AchBook,Spyro the Dragon" \
+#     scripts/wsx.sh run NAME --autoboot spyro --input scripts/autoinput/ach_book_jump.txt --fast --secs 60 \
+#     --env FRAMES_DUMP=True --env KEEP=100000 --set 'Achievements=1,AchievementFile="sd:/wiistation/isos/Tests/AchBook/set.txt",Player1="82625a00c2123456",PadAutoAssign=1'
+1 0000
+menuopen 1400 99

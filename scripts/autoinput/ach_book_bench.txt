@@ -1,0 +1,1 @@
+# scripts/chains/ach_book_bench.txt: no input, the game runs its attract demo

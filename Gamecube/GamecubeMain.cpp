@@ -48,6 +48,7 @@ extern "C" void __exception_setreload(int t);
 #include "config_parse.h"   /* the two scans in the settings parser */
 #include "../achievements.h"
 #include "ach_toast.h"
+#include "ach_shot.h"
 extern "C" char achievementUTCOffset[256];   /* ra_transport.c: Official mode's clock */
 #include "achievements_bench.h"   /* test-only; no-ops in product builds */
 #include "menu/MenuContext.h"
@@ -459,6 +460,7 @@ static SettingOption OPTIONS[] =
   { "Achievements", &achievementsEnabled, 0, 3, NULL, "Mode", OPT_ACH_MODE, "Off, Local (your own definition file; unlocks are kept; nothing is downloaded), Test (try a set; nothing is kept) or Official (downloads the RetroAchievements set, Casual: needs an account, linked to a Mii in Players or ra_account.ini, and the TLS seed). Load the game again after a change." },
   { "AchievementUnofficial", &achievementUnofficial, 0, 1, NULL, "Unofficial", OPT_OFF_ON, "Official mode: also the set's Unofficial achievements (not yet approved by RetroAchievements; their unlocks are not kept on the site). Load the game again after a change." },
   { "AchievementEncore", &achievementEncore, 0, 1, NULL, "Encore", OPT_OFF_ON, "Official mode: achievements you already have can be earned again this session (the card shows again; nothing new is sent to the site). Load the game again after a change." },
+  { "AchievementChallenge", &achievementChallenge, 0, 1, NULL, "Challenge icons", OPT_OFF_ON, "Show the flashing icons for achievements that are one step away (often missable ones). Off hides them; it applies at once." },
   { "AchievementSpectator", &achievementSpectator, 0, 1 },
   { "AchievementFile", achievementFile, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "AchievementLog", achievementLog, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
@@ -2202,6 +2204,8 @@ void go(void) {
 		psxCpu->Execute();
 		achievements_flush();
 	} while (statetool_service());
+	ach_shot_flush();           /* the unlock pictures of this stretch are files before the book can show them */
+	ach_toast_menu_opened();    /* a pop-up on screen: the menu opens the book on its achievement */
 	hb_phase("menu", "game stopped");
 #if PERF_PLAY
 	perf_report();   /* this stretch's counters: the next start from the menu zeroes them */

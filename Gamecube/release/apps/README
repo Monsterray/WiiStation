@@ -166,6 +166,26 @@ Ver 5.19.0 (2026-10-28):
   earns, as before; every unlock earned until now stays with Guest.
 * The Achievements page shows one Mii at a time, with its coin and count; L
   and R (+ and - on a Wii Remote) switch.
+* The Achievements page is a book: a header with the player's coin and name,
+  the game and the total ("12 / 89 earned", "95 / 610 points", a bar); tabs In
+  progress, Locked and Earned (Left and Right; Leaderboards is a fourth tab
+  in Official mode); big rows with the badge, description, points and, for a
+  measured achievement, a bar with its count. A opens an achievement: a large
+  badge, description, progress, points, rarity, type, when it was earned and
+  the picture taken when it unlocked. B goes back.
+* An unlock saves the game's frame to wiistation/achievements/shots/<game>/
+  <achievement>.png, once per achievement; the card is not in it. The file is
+  made in small slices, so the game does not stop for it. The book shows it in
+  the achievement's detail.
+* Open the menu while an unlock card, the progress panel or a challenge icon is
+  on screen and the book opens on that achievement.
+* The progress panel shows only at each 10% step (10%, 20% ...), never for the
+  first reading after loading a game, a disc swap, a reset or a state load,
+  and not in the first 3 seconds (the game's memory is not set up yet).
+* The unlock card, the progress panel and the challenge icons sit 16 pixels
+  from the right edge of the picture (were 40).
+* New setting AchievementChallenge (General, Cheevos, Challenge icons): Off
+  hides the flashing icons of achievements that are one step away.
 * Save states made by other players keep the game, but the unlocks come from
   the Miis seated now: a state never moves one Mii's unlocks to another.
 * The unlock journal has a player column: "<set digest> <id> <player key>

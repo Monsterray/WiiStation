@@ -1,0 +1,3 @@
+# The challenge icon with AchievementChallenge=0 (scripts/autoinput/ach_book_jump.txt): the game stops at vblank 1000, #2 is primed from 700 to 1300
+1 0000
+menuopen 1000 99

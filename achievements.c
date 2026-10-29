@@ -21,6 +21,7 @@
  * set's entries (achievements_ra_*); the player table, the bits and the journal are Local mode's. */
 #include "achievements.h"
 #include "Gamecube/perf_prof.h"
+#include "Gamecube/ach_progress.h"
 #include "deps/rcheevos/include/rc_runtime.h"
 #include "deps/rcheevos/src/util/md5.h"
 #include <stdio.h>
@@ -47,6 +48,7 @@ char achievementsEnabled;   /* an ACH_* mode */
 char achievementFile[256], achievementLog[256];
 char achievementImage[256];
 char achievementUnofficial, achievementEncore, achievementSpectator;
+char achievementChallenge = 1;   /* the flashing "one step away" icons (Official and Local), default on */
 void (*achievements_notify)(const achievement_notice_t *notice);
 
 /* Official mode lives in achievements_official.c (Wii builds). Weak, so a build without it
@@ -59,6 +61,8 @@ int achievements_official_loading(void) __attribute__((weak));
 void achievements_official_wait(unsigned ms) __attribute__((weak));
 void achievements_official_change_media(const char *image) __attribute__((weak));
 const char *achievements_official_status(void) __attribute__((weak));
+const char *achievements_official_set_id(void) __attribute__((weak));
+const char *achievements_official_title(void) __attribute__((weak));
 unsigned achievements_official_count(void) __attribute__((weak));
 unsigned achievements_official_earned(void) __attribute__((weak));
 int achievements_official_entry(unsigned i, achievement_entry_t *e) __attribute__((weak));
@@ -83,7 +87,7 @@ typedef struct {
     unsigned char type;      /* ACH_TYPE_*, optional */
     uint32_t has;            /* the players (bit = index in player[]) that earned it: this session, the journal or a state */
     uint32_t written;        /* of those, the ones already in the journal */
-    unsigned char measured;  /* the highest measured percent shown so far: a toast only when it grows */
+    unsigned char measured;  /* the measured step (percent / 10) last seen, ACH_STEP_NONE before a reading: the pop-up rule, Gamecube/ach_progress.h */
     unsigned char unofficial;   /* RetroAchievements: an unpromoted achievement */
     int rarity_x100;         /* RetroAchievements: the share of players x 100; -1 = unknown */
     char badge[16];          /* RetroAchievements: the badge name */
@@ -111,6 +115,7 @@ static unsigned ra_plan_n;
 static char ra_note_key[ACH_KEY_LEN + 1], ra_note[64];
 unsigned (*achievements_players)(achievement_player_t *out);
 static int active, running;   /* a set is loaded; evaluation is allowed (not during BIOS boot) */
+static unsigned settle;       /* frames left of the settling time: progress readings only set the baseline (ach_progress.h) */
 static unsigned char digest[16];   /* MD5 of the definition file: the set's identity */
 static char digest_text[33], log_path[256];
 
@@ -243,6 +248,21 @@ const char *achievements_player_note(unsigned i)
 {
     return ra_local && i >= ra_first && i - ra_first < players && ra_note[0] && !strcmp(player[i - ra_first].key, ra_note_key)
                ? ra_note : "";
+}
+
+const char *achievements_title(void)
+{
+    if (OFFICIAL(title)) return achievements_official_title();
+    return active ? set_title : "";
+}
+
+const char *achievements_set_id(void)
+{
+    static char id[ACH_SET_ID_MAX];
+    if (OFFICIAL(set_id)) return achievements_official_set_id();
+    if (!active || achievementsEnabled != ACH_LOCAL) return "";   /* Test mode keeps nothing, so no pictures */
+    snprintf(id, sizeof id, "%.16s", digest_text);
+    return id;
 }
 
 void achievements_list_refresh(void)
@@ -509,6 +529,8 @@ static void notify(unsigned i, uint32_t mask)
     memset(&n, 0, sizeof n);
     who_fields(&n, mask);
     if (!achievements_notify) return;
+    n.id = entries[i].id;
+    n.badge = entries[i].badge;
     n.title = entries[i].title;
     n.desc = entries[i].desc;
     n.game = set_title;
@@ -536,13 +558,22 @@ static void indicator(unsigned char kind, unsigned i)
         if (!rc_runtime_get_achievement_measured(&runtime, n.id, &value, &target) || !target || value >= target)
             return;   /* none, or done: the unlock says it */
         n.percent = (unsigned char)((unsigned long long)value * 100 / target);
-        if (n.percent <= entries[i].measured)
-            return;   /* only a whole percent more; a value that falls back and climbs again is not news */
-        entries[i].measured = n.percent;
+        if (!ach_step_update(&entries[i].measured, n.percent) || settle)
+            return;   /* only a new 10 % step; the first reading after a load, reset or state load is the baseline */
         rc_runtime_format_achievement_measured(&runtime, n.id, progress, sizeof progress);
         n.progress = progress;
     }
     achievements_notify(&n);
+}
+
+/* The settling time is over: every measured achievement's step now is its baseline, so the
+ * first change afterwards counts (rc_runtime sends no event for a first reading) */
+static void progress_seed(void)
+{
+    unsigned i, value, target;
+    for (i = 0; i < count; ++i)
+        if (!done(i) && rc_runtime_get_achievement_measured(&runtime, entries[i].id, &value, &target) && target && value < target)
+            ach_step_update(&entries[i].measured, (unsigned)((unsigned long long)value * 100 / target));
 }
 
 static void event(const rc_runtime_event_t *e)
@@ -583,7 +614,8 @@ void achievements_reset(void)
     }
     if (!active) return;
     rc_runtime_reset(&runtime);
-    for (unsigned i = 0; i < count; ++i) entries[i].measured = 0;   /* progress starts again */
+    for (unsigned i = 0; i < count; ++i) entries[i].measured = ACH_STEP_NONE;   /* progress starts again: the next reading is the baseline */
+    settle = ACH_SETTLE_FRAMES;
     keep_earned();
     rc_runtime_validate_addresses(&runtime, event, valid_address); /* address validity: once per reset */
     running = 1;
@@ -598,8 +630,10 @@ void achievements_frame(void)
 #endif
     if (official)
         achievements_official_frame();   /* rc_client: completions, then evaluation */
-    else
+    else {
         rc_runtime_do_frame(&runtime, event, achievements_read_memory, NULL, NULL);
+        if (settle && --settle == 0) progress_seed();
+    }
 #if defined(PERF_PROF) && PERF_PROF_ACHIEVEMENTS
     unsigned long long elapsed = perf_now_ticks() - started;
     PERF_ADD(achievement_ticks, elapsed);
@@ -664,8 +698,12 @@ void achievements_change_media(const char *image, const char *game_id)
     snprintf(achievementImage, sizeof achievementImage, "%s", image ? image : "");
     if (achievementsEnabled == ACH_OFFICIAL && achievements_official_change_media)
         achievements_official_change_media(image);
-    else if (active && set_has_game(game_id))
+    else if (active && set_has_game(game_id)) {
+        unsigned i;
         SysPrintf("Achievements: disc %s is in the set, it goes on\n", game_id);
+        for (i = 0; i < count; ++i) entries[i].measured = ACH_STEP_NONE;   /* another disc, other memory: a new baseline */
+        settle = ACH_SETTLE_FRAMES;
+    }
     else {
         if (active) SysPrintf("Achievements: disc %s is not in the set, it closes\n", game_id ? game_id : "?");
         achievements_close();
@@ -957,6 +995,7 @@ static unsigned parse_set(char *data, const char *game_id)
         }
         if (extras && !parse_extras(extras, count)) return line_no;
         entries[count].id = (uint32_t)id;
+        entries[count].measured = ACH_STEP_NONE;
         strcpy(entries[count++].title, title);
     }
     if (game_line && !set_has_game(game_id)) return game_line;
@@ -977,6 +1016,7 @@ static int load_set(const char *game_id, int announce)
     }
     rc_runtime_init(&runtime);
     active = 1;
+    settle = ACH_SETTLE_FRAMES;
     bad_line = parse_set(data, game_id);
     free(data);
     if (bad_line) {
@@ -1132,7 +1172,8 @@ int achievements_state_load(const void *data, unsigned size)
                 if (in[20 + i / 8] & (1u << (i % 8))) entries[i].has |= 1;
     }
     if (!ok) rc_runtime_reset(&runtime);
-    for (i = 0; i < count; ++i) entries[i].measured = 0;   /* the state's progress is the new start */
+    for (i = 0; i < count; ++i) entries[i].measured = ACH_STEP_NONE;   /* the state's progress is the new start: the next reading is the baseline */
+    settle = ACH_SETTLE_FRAMES;
     keep_earned(); /* loading an older state never revokes an earned achievement */
     beaten_seen |= beaten_now();
     mastered_seen |= mastered_now();

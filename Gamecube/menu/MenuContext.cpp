@@ -38,6 +38,8 @@ extern int backFromMenu;
 extern char originalMode;
 #include "../hbc_home.h"
 #include "../../achievements.h"
+#include "../ach_toast.h"
+#include "AchievementsFrame.h"
 extern BOOL hasLoadedISO;      /* GamecubeMain.cpp */
 extern volatile char ws_shutdown;          /* GamecubeMain.cpp: 2 = back to the loader, through Gui.cpp's fade */
 extern "C" void SysClose();
@@ -140,6 +142,7 @@ static const int LOGO_HIDDEN_FRAMES[] = {
 	MenuContext::FRAME_CONFIGUREBUTTONS,
 	MenuContext::FRAME_USBPADTEST,
 	MenuContext::FRAME_PLAYERS,           /* the port band runs edge to edge */
+	MenuContext::FRAME_ACHIEVEMENTS,      /* the book: its header and tabs use the top right */
 };
 
 /* sd:/wiistation/autoinput.txt's "menupage <n>": see PadWiiSX.c, where it is parsed. */
@@ -157,6 +160,13 @@ static int smbPageWait;   /* menupage 71: frames left to wait for the share */
 bool MenuContext::isRunning()
 {
 	bool isRunning = true;
+
+	/* The game stopped while an achievement pop-up was on screen: open the book on its detail */
+	{
+		unsigned id = ach_toast_take_jump();
+		if (id && achievements_count())
+			Func_AchievementsOpenOn(id);
+	}
 
 	achievements_idle();   /* Official mode: network completions while the menu is open */
 

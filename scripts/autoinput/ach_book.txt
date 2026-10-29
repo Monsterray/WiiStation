@@ -1,0 +1,10 @@
+# The achievements book (Gamecube/menu/AchievementsFrame.cpp): two Miis, A (82625a00) and B (82625dd1), on pad ports 1 and 2.
+# The game runs to vblank 1700 (unlocks at 100, 400 and 1300, progress pop-ups), the menu opens at the book (page 15), then
+# a walk: Locked tab, down, Earned tab, detail, next, back, the other player.
+#   WSX_EXTRA_ISOS=tests/fixtures/ach_book WSX_ISOS="Tests/AchBook,Spyro the Dragon" \
+#     scripts/wsx.sh run NAME --autoboot spyro --input scripts/autoinput/ach_book.txt --fast --secs 100 \
+#     --env FRAMES_DUMP=True --env KEEP=100000 --set 'Achievements=1,AchievementFile="sd:/wiistation/isos/Tests/AchBook/set.txt",Player1="82625a00c2123456",Player2="82625dd1c2123456",PadAutoAssign=1'
+1 0000
+p2 1 0000
+menuopen 1700 15
+menukeys 90 ......R...DDDD...R...A.........R........B...>...A........B

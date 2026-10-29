@@ -68,6 +68,20 @@ def entries(raw):
         size = struct.unpack_from("<I", e, 28)[0]
         yield short, long, attr, first, size
 
+def extract_tree(f, g, first, prefix, outdir):
+    """Every file under a directory, recursively, into outdir as <subdir>_<name> (a folder PATH is given
+    with an OUT directory: e.g. wiistation/achievements/shots, the unlock pictures of a run)."""
+    os.makedirs(outdir, exist_ok=True)
+    for short, long, attr, fc, size in entries(read_chain(f, g, first)):
+        name = long or short
+        if not name or name in (".", "..") or short in (".", ".."):   # "." and ".." read as an empty short name
+            continue
+        if attr & 0x10:
+            extract_tree(f, g, fc, prefix + name + "_", outdir)
+        elif not attr & 0x08:
+            open(os.path.join(outdir, prefix + name), "wb").write(read_chain(f, g, fc, size))
+            print(f"{prefix + name}: {size} bytes", file=sys.stderr)
+
 def main():
     need(sys.argv, 3, "sdimage_read.py IMAGE PATH/IN/IMAGE [OUT]")
     img, path = req_file(sys.argv[1], 'image'), sys.argv[2].replace("\\", "/").strip("/")
@@ -87,6 +101,8 @@ def main():
             attr, first, size = hit
             if k < len(parts) - 1:
                 cur = first
+            elif attr & 0x10 and out:
+                extract_tree(f, g, first, "", out)
             else:
                 data = read_chain(f, g, first)
                 if len(data) < size:

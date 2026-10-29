@@ -31,6 +31,9 @@ UBSAN_OPTIONS=halt_on_error=1 "$task_dir/ra_test" "$task_dir"
 "${CC:-cc}" -std=c99 -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined \
   tests/ach_account_test.c -o "$task_dir/account_test"
 UBSAN_OPTIONS=halt_on_error=1 "$task_dir/account_test"
+# the progress pop-up rule (only a new 10 % step, the first reading is the baseline) and the unlock pictures' file names
+"${CC:-cc}" -std=c99 -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined   tests/ach_progress_test.c -o "$task_dir/progress_test"
+UBSAN_OPTIONS=halt_on_error=1 "$task_dir/progress_test"
 # badge pictures: the name check and the RGBA8 -> RGB5A3 tiling (Gamecube/ach_badge_conv.h)
 "${CC:-cc}" -std=c99 -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined \
   tests/ach_badge_test.c -o "$task_dir/badge_test"

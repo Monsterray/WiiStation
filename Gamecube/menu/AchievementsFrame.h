@@ -1,7 +1,7 @@
 /**
  * WiiStation - AchievementsFrame.h
  *
- * Current ISO > Achievements: the loaded game's achievement set, ten to a page.
+ * Current ISO > Achievements: the book, the loaded game's achievement set in tabs and a detail page.
  *
  * This program is free software; you can redistribute it and/
  * or modify it under the terms of the GNU General Public Li-
@@ -31,5 +31,6 @@ public:
 };
 
 void Func_AchievementsList();	/* the Current ISO button: opens the list */
+void Func_AchievementsOpenOn(unsigned id);	/* opens the detail of an achievement: the menu after a pop-up was on screen */
 
 #endif
