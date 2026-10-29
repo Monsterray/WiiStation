@@ -1,0 +1,11 @@
+CHAIN
+# The unlock pictures on the bench Wii (Gamecube/ach_shot.c): Spyro's attract demo with the book's set (tests/fixtures/ach_book),
+# Local mode, four unlocks (at 100, 400 and 1300 hits, #2 is primed between). perf.log gets one "ach_shot:" line each: the cost in the
+# emulated frame (grab), the deflate slices (their total and the longest) and the file's write on the worker thread.
+# The set file carries a nonce comment, so each run is a new set for the pictures and the journal:
+#   sed "s/^# nonce.*//; 1i # nonce $(date +%s)" tests/fixtures/ach_book/Tests/AchBook/set.txt > .runs/tmp/set_bench.txt
+#   wii_lab.py ach_book_bench scripts/chains/ach_book_bench.txt --dol release --put .runs/tmp/set_bench.txt=isos/Tests/AchBook/set.txt \
+#     --set 'Achievements=1,AchievementFile="sd:/wiistation/isos/Tests/AchBook/set.txt",AchievementLog="sd:/wiistation/achievements/ach_book_bench.unlocks"'
+1800 sd:/wiistation/ach_book_bench.txt FPS=0
+sd:/wiistation/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue

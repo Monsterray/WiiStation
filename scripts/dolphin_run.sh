@@ -346,6 +346,8 @@ CARD="$PROFILE/Load/WiiSD.raw"
 "$PYTHON" "$SP/sdimage_read.py" "$CARD" wiistation/padtrace.csv "$OUT/padtrace.csv" >/dev/null 2>&1
 # the run's console text (SysPrintf: a PS1 program's printf under the HLE BIOS), debug builds
 "$PYTHON" "$SP/sdimage_read.py" "$CARD" wiistation/tty.log "$OUT/tty.log" >/dev/null 2>&1 && [ -s "$OUT/tty.log" ] && echo "tty: $(wc -l < "$OUT/tty.log") lines"
+# the unlock pictures the run's achievements took (Gamecube/ach_shot.c): PNGs in files/shots/, <set id>_<achievement id>.png
+"$PYTHON" "$SP/sdimage_read.py" "$CARD" wiistation/achievements/shots "$OUT/shots" >/dev/null 2>&1 && echo "shots: $(ls "$OUT/shots" | wc -l) picture(s)"
 # the per-vblank timelines of a chain (debug builds; scripts/vtl_view.py)
 for i in $(seq -w 1 64); do
 	"$PYTHON" "$SP/sdimage_read.py" "$CARD" "wiistation/vtl_$i.bin" "$OUT/vtl_$i.bin" >/dev/null 2>&1 || break

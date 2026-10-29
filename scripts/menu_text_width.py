@@ -323,7 +323,10 @@ def check_help(d, w, verbose, bad):
             continue
         entries = re.findall(r'\{\s*(NULL|"(?:[^"\\]|\\.)*")\s*,\s*"((?:[^"\\]|\\.)*)"\s*\}', body)
         clean = [('' if t == 'NULL' else t[1:-1], x.replace('\\"', '"')) for t, x in entries]
-        y0 = d['ROW_Y0'] + rowcount[page] * d['ROW_DY']
+        # a page's own row pitch is the first float of its PAGES entry (0.0f: the default)
+        m = re.search(r'\b%s_ROWS,[^\n]*?(\d+\.\d+)f' % page, src)
+        dy = float(m.group(1)) if m and float(m.group(1)) > 0 else d['ROW_DY']
+        y0 = d['ROW_Y0'] + rowcount[page] * dy
 
         # Both columns are centred on the screen together, then moved left far enough to
         # clear the logo. OptionsFrame::activateSubmenu does exactly this.

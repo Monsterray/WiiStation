@@ -33,6 +33,7 @@
 /* Scripted save states (Gamecube/statetool.cpp): stops the CPU when one is due. */
 void statetool_vblank(void);
 void screenshot_vblank(void);   /* Gamecube/screenshot.c */
+void ach_shot_tick(void);       /* Gamecube/ach_shot.c: a slice of an unlock picture */
 
 /******************************************************************************/
 
@@ -512,6 +513,7 @@ void psxRcntUpdate()
             ws_alive();   /* progress, for the HBC agent's hang watchdog (Gamecube/ws_crash.h) */
             statetool_vblank();
             screenshot_vblank();
+            ach_shot_tick();
             perf_pc_sample(psxRegs.pc);
             /* A chained autoboot's game is over: back to GamecubeMain.cpp for the next. */
             if (chain_stop_vbl && frame_counter >= chain_stop_vbl && !stop)

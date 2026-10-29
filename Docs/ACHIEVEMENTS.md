@@ -17,9 +17,10 @@ today, how to set it up, how to test it and what is planned.
 | Official mode per Mii | In the product (5.19.0, Docs/MII_PLAN.md steps 4a and 4c): the Mii that plays Official logs in with its own account file; the other seated Miis earn the same set Local, with encore mode on and nothing sent twice. See [Official mode with Local players](#official-mode-with-local-players). |
 | Unlock journal | In the product. An unlock is written when it triggers (f9ca407b). Records cut short by a power loss are ignored (2026-10-23). |
 | Save-state progress (`ACH1` section) | In the product. Local: `WAC1`; Official: `WAO1` (rc_client's progress). A game reset resets the progress in both. |
-| Menu controls | General tab, Cheevos: Mode, Unofficial, Encore, the set file and the account user name. Current ISO, Achievements: the set's list, 10 per page: Earned or the measured progress (`1699/2500`), the points and the share of players; the rich presence under the header; a Leaderboards button. ISO Info: the achievement status line. |
+| Menu controls | General tab, Cheevos: Mode, Unofficial, Encore, Challenge icons, the set file. Current ISO, Achievements: the book (2026-10-29), see [The book](#the-book). ISO Info: the achievement status line. |
 | Unlock toast | In the product (2026-10-23): the tier card slides in at the top right on each unlock, in both GPU plugins. See [Unlock toast](#unlock-toast). |
-| Indicators | In the product (2026-10-24, `ach_toast.c`): the game card when a set loads (the Disc Read disc spins up; N of M earned, points), a progress panel at the bottom right when measured progress grows (Local: a whole percent more), one box per primed challenge for as long as it is primed. Local sets get them from rc_runtime's events. |
+| Indicators | In the product (2026-10-24, `ach_toast.c`): the game card when a set loads (the Disc Read disc spins up; N of M earned, points), a progress panel at the bottom right when measured progress crosses a new 10 % step (2026-10-29, see [Progress pop-ups](#progress-pop-ups)), one box per primed challenge for as long as it is primed (the setting `AchievementChallenge` hides them). The pop-ups sit 16 px from the right edge of the picture. Local sets get them from rc_runtime's events. |
+| Unlock pictures | In the product (2026-10-29, `Gamecube/ach_shot.c`): the game's frame at each unlock, saved to `sd:/wiistation/achievements/shots/`. See [Unlock pictures](#unlock-pictures). |
 | Badges | In the product (2026-10-24, `Gamecube/ach_badge.c`): RetroAchievements pictures, 64 x 64 RGB5A3 (15-bit, the PS1's colour), in the card, the panel and the boxes. Cached on the card (`achievements/badges/`) and in a 256 KB pool; asked for when the notice comes. |
 | RetroAchievements login, awards, Rich Presence | In the product (Official, Casual). Rich presence is shown on the list page and sent with rc_client's pings. |
 | Leaderboards | Read only: the list and each board's ten best scores and the player's own (Achievements > Leaderboards). RetroAchievements takes leaderboard entries in Hardcore only, so a Casual client submits none. |
@@ -48,6 +49,7 @@ AchievementLog = ""
 | `Achievements` | 0 = Off, 1 = Local, 2 = Test, 3 = Official | 0 | Local evaluates the set and keeps unlocks in the journal. Test evaluates the set, but does not read or write the journal. Official: RetroAchievements, Casual. Off stops all frame evaluation. A value 1 from before the modes is Local. |
 | `AchievementUnofficial` | 0, 1 | 0 | Official: the set's Unofficial (unpromoted) achievements too. RetroAchievements does not keep their unlocks. |
 | `AchievementEncore` | 0, 1 | 0 | Official: achievements already earned can be earned again this session (the card shows again; nothing new is sent). Also on, whatever this says, while a Local Mii is seated next to the Official one ([Official mode with Local players](#official-mode-with-local-players)). |
+| `AchievementChallenge` | 0, 1 | 1 | The flashing icons of achievements that are one step away (RetroAchievements' challenge indicator; a Local set's primed ones). 0 hides them, at once. Menu: General, Cheevos, "Challenge icons". |
 | `AchievementSpectator` | 0, 1 | 0 | Hidden, for scripted runs on a real account: everything is evaluated and shown, no unlock is sent. Once on for a loaded set, rc_client keeps it on. |
 | `AchievementUTCOffset` | `"+420"` | empty | Optional: the minutes to add to the Wii's clock for UTC. Empty: the Wii learns it from the server (`utc_offset.txt`). Set, it wins and nothing is learnt. |
 | `AchievementFile` | `"path"` | empty | The definition file. One of its `Game=` serials must match the loaded disc. |
@@ -131,6 +133,7 @@ The design, the tiers and the mockups are in [design/PS1_STYLES.md](design/PS1_S
 - The engine calls `achievements_notify` once per new unlock (`achievement_notice_t`, in
   `achievements.h`), with the Beaten and Mastered flags. `loadISO` points it at `ach_toast_push`.
   Earned achievements restored from the journal or a state do not notify.
+- The card, the progress panel and the challenge icons end 16 px (of the 640 wide picture) from the right edge; in the 16:9 pillarbox mode the 4:3 picture's edge, as before.
 - Up to 4 toasts wait in a queue. Each one shows for 5 s (6 s for Beaten and Mastered).
 - It is drawn in the present's overlay, on the picture sent to the TV, never in the game's frame:
   OpenGX in `flipEGL` (`OverlayAchToast`), the Soft plugins in `GX_Flip`.
@@ -141,6 +144,75 @@ The design, the tiers and the mockups are in [design/PS1_STYLES.md](design/PS1_S
 - Cost on the bench Wii (2026-10-23, Spyro, 3300 vblanks, off/on twice): about 0.2 ms per
   frame while a toast shows (136 us to issue it, +60 us of GPU wait), nothing otherwise; speed
   1.00 either way. Details in [the notes](ACHIEVEMENTS_NOTES.md#unlock-toast-cost-on-the-bench-wii).
+
+### Progress pop-ups
+
+The progress panel (bottom right) shows a measured achievement ("12/40") only when its progress
+crosses a new 10 % step: 10 %, 20 % ... of the target. The rule is `Gamecube/ach_progress.h` (plain C,
+`tests/ach_progress_test.c`); Official mode applies it to rc_client's PROGRESS_INDICATOR events
+(`achievements_official.c` `indicator()`), Local and Test mode to rc_runtime's progress events.
+
+- The first reading after a game load, a disc swap, a reset or a state load is the baseline, not
+  news. At boot the game's memory is not set up yet: its numbers jump while it starts.
+- For the first 180 vblanks (3 s) after those moments every reading only sets the baseline; at the
+  end of that time each measured achievement's step is taken as it is (rc_client and rc_runtime send no
+  event for a first reading), so the first real change after it counts.
+- The step kept is always the latest: progress that falls back and climbs again shows again.
+- Official mode keeps the steps of up to 128 achievements; one forgotten starts at a new baseline (a
+  pop-up may be missed, never shown by mistake).
+
+### Unlock pictures
+
+When an achievement unlocks (Official, or Local for any player; not in Test mode, which keeps
+nothing) the game's frame is saved to `sd:/wiistation/achievements/shots/<set id>/<achievement id>.png`.
+The set id is the game's RetroAchievements id (Official) or the first 16 characters of the set file's
+digest (Local). The first unlock of an achievement on this console keeps its picture: an existing
+file is never replaced. The picture is VRAM's displayed area as the screenshot button takes it, so
+neither the card nor any overlay is in it.
+
+It is made without a visible hitch (`Gamecube/ach_shot.c`):
+
+1. At the unlock (a vblank, emulator thread) the displayed picture is copied out of VRAM as PNG scanlines
+   into MEM2 (`screenshot_grab`; OpenGX reads its EFB first). That is the only cost in the frame.
+2. At each following vblank deflate takes one 24 KB slice of the oldest waiting picture
+   (about a millisecond). No thread is used for this: the frame limiter spins, so a low-priority thread
+   would not run while a game does.
+3. A worker thread above the emulator's priority writes the file (a temp file, then a rename). It only
+   waits on the card, so the emulator runs meanwhile.
+
+Three pictures can wait; more are dropped with a line in the log. Memory is MEM2 only (the picture, its
+PNG and a 400 KB workspace given to zlib), freed when the file is made. When the game stops for the menu
+the waiting pictures are finished first, so the book finds them. perf.log has a line per picture
+(`ach_shot:`) with the cost in the frame (grab), the slices and the write.
+
+Measured so far (2026-10-29, Dolphin, so host time, not the Wii's): a 512 x 240 picture costs 2.6 to 11 ms
+in the frame (grab), 16 slices of at most 1.3 to 4.4 ms (12 to 35 ms in all, spread over 16 vblanks), and
+6 to 11 ms on the worker for the write. **Not measured on the bench Wii yet**: its queue was held by
+another project's jobs all session (job 20261029-030955-d698b0, cancelled; the chain is
+`scripts/chains/ach_book_bench.txt`, the recipe is in its header). The numbers to read there are the grab
+(a hitch of that size in one frame) and the longest slice; if either is over about 4 ms, shrink `SLICE_IN`
+in `ach_shot.c` or grab only the rows a slice needs.
+
+### The book
+
+Current ISO, Achievements (`Gamecube/menu/AchievementsFrame.cpp`). A header with the player's coin and
+name, the game, "12 / 89 earned", "95 / 610 points" and a bar; tabs In progress (not earned, measured
+progress above 0, most progress first), Locked and Earned (newest first when the time is known); a fourth
+tab, Leaderboards, when the set has some. A row: badge (a plain tile in a Local set; dimmed when not
+earned), title, description, points, and for a measured achievement a bar with its count. A opens the
+detail: a large badge, title, description, progress, points, rarity (Official), type (progression, win
+condition, missable), when it was earned (Official: the server's date; Local keeps no time, so the
+picture's date is shown under the picture) and the unlock picture, large (decoded to 256 x 192, 98 KB of
+MEM2, one at a time, freed when the detail closes).
+
+Buttons: Up/Down choose, Left/Right the tabs (in the detail: the previous and next achievement), A opens,
+B goes back (from the list: to Current ISO). The player switch is unchanged: L/R (GameCube), +/- (Wii
+Remote, Classic). The pointer clicks tabs and rows. Text is never below scale 0.5 (the Players menu's
+body text); titles shrink to fit, then are cut with "...".
+
+If the player opens the menu while any pop-up is on screen (the unlock card, the progress panel or a
+challenge icon), the menu opens the book on that achievement's detail (`ach_toast_menu_opened`,
+`ach_toast_take_jump`, `Func_AchievementsOpenOn`).
 
 ## Memory map
 
@@ -246,7 +318,10 @@ layout does not change.
 | `Gamecube/ach_account.h` | Which account file a link means, the RetroAchievements set's journal digest and path (plain C) |
 | `tests/achievements_ra_test.c`, `tests/ach_account_test.c` | Host tests: the Local side of Official mode (who, journal, restore, the page, a failed account, the cap); the account paths and names |
 | `tests/achievements_players_test.c` | Host test: old lines are Guest's, two Miis, a swap, a missing Mii, the 1 MiB cap, the union, states of other players |
-| `Gamecube/menu/AchievementsFrame.cpp` | The list page (one player at a time) and the leaderboards |
+| `Gamecube/menu/AchievementsFrame.cpp` | The book: tabs, rows, the detail with the unlock picture, the leaderboards (one player at a time) |
+| `Gamecube/ach_progress.h` | The 10 % step rule of the progress pop-up (plain C) |
+| `Gamecube/ach_shot.c`, `ach_shot.h` | The unlock pictures: grab, sliced compression, the worker's write; the file names (plain C) |
+| `Gamecube/ach_picture.c`, `ach_picture.h` | One unlock picture as a 256 x 192 RGB5A3 texture for the book |
 | `scripts/ra_setup.py`, `scripts/ra_ca_bundle.py` | The per-Wii files (seed, account; `--ra-name NAME` puts an account in `achievements/ra/NAME.ini` for a Mii); the pinned CA bundle and its checks |
 
 The runtime objects are compiled without fast-math and LTO. This keeps the floating-point
@@ -268,6 +343,7 @@ wsl.exe -e bash -lc "cd /mnt/c/projects/WiiStation && bash scripts/test-achievem
 | `scripts/test-achievements.sh` | The engine with the vendored runtime. Cases: memory boundaries, little-endian and scratchpad conditions, hit-count restore, pause and reset, monotonic unlocks, journal reload, changed-set rejection, corrupt progress, disabled mode, duplicates, malformed definitions, size limits. ASan covers all sources. UBSan covers WiiStation's code only, because upstream parser offset expressions trigger Clang UBSan diagnostics. |
 | `scripts/test-achievements-client.sh` | Gets and checks the pinned upstream test archive. Runs the upstream runtime, API and client suites with ASan. The upstream hash tests are off. |
 | `scripts/test-achievements-entropy.sh` | The Mbed TLS NV-seed contract with a public dummy seed. See [the notes](ACHIEVEMENTS_NOTES.md#tls-seed-and-utc). |
+| `tests/ach_progress_test.c` (in `scripts/test-achievements.sh`) | The 10 % step rule and the unlock pictures' file names. |
 | `scripts/settings_check.py` | Settings consistency. Use `C:/Python312/python.exe` on this machine. |
 
 ### Wii tests

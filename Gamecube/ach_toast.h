@@ -11,6 +11,8 @@ extern "C" {
 
 void ach_toast_push(const achievement_notice_t *notice);   /* achievements_notify points here */
 void ach_toast_clear(void);   /* a new game: drop what is still queued */
+void ach_toast_menu_opened(void);   /* the game stopped for the menu: remember the achievement of the pop-up on screen */
+unsigned ach_toast_take_jump(void); /* its id (once), 0 when no pop-up was on screen: the menu opens the book on it */
 int ach_toast_wanted(void);   /* a toast is on screen (the overlay must be drawn) */
 void ach_toast_draw(void);    /* in the present's overlay; sets the whole-picture viewport */
 

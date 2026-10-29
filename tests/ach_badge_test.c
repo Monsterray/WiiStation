@@ -105,11 +105,43 @@ static void scaling(void)
 #undef PX
 }
 
+/* The unlock pictures' box conversion: any size down to 8 x 8 here, GX's tile order, averaged */
+static void box(void)
+{
+	static uint8_t src[16 * 8 * 4];
+	uint16_t out[8 * 8];
+	unsigned x, y;
+	/* 16 x 8 source, left half red, right half blue: a 2 x 1 box per output pixel, so no mixing in the middle */
+	for (y = 0; y < 8; y++)
+		for (x = 0; x < 16; x++)
+			put(src, 16, x, y, x < 8 ? 248 : 0, 0, x < 8 ? 0 : 248, 255);
+	ach_rgba_to_rgb5a3_box(src, 16, 8, out, 8, 8);
+	CHECK_PX(out, 0, 0x8000 | (31 << 10));                   /* (0, 0): red */
+	CHECK_PX(out, (0 * 2 + 1) * 16 + 0 * 4 + 0, 0x8000 | 31); /* (4, 0): tile 1 starts at x = 4: blue */
+	/* 4 x 4 source of four colours into 4 x 4: a 1 to 1 copy */
+	for (y = 0; y < 4; y++)
+		for (x = 0; x < 4; x++)
+			put(src, 4, x, y, x * 80, y * 80, 0, 255);
+	ach_rgba_to_rgb5a3_box(src, 4, 4, out, 4, 4);
+	CHECK_PX(out, 1 * 4 + 2, 0x8000 | (160 >> 3) << 10 | (80 >> 3) << 5);   /* (x 2, y 1) */
+	/* a 2 x 2 source averaged into one pixel (a 4 x 4 output is the smallest, so make 8 x 8 -> 4 x 4) */
+	{
+		static uint8_t big[8 * 8 * 4];
+		uint16_t o4[16];
+		for (y = 0; y < 8; y++)
+			for (x = 0; x < 8; x++)
+				put(big, 8, x, y, (x + y) & 1 ? 200 : 100, 0, 0, 255);   /* a checker of two reds */
+		ach_rgba_to_rgb5a3_box(big, 8, 8, o4, 4, 4);
+		CHECK_PX(o4, 0, 0x8000 | (150 >> 3) << 10);   /* the mean of 100 and 200 */
+	}
+}
+
 int main(void)
 {
 	names();
 	pixels();
 	scaling();
+	box();
 	if (failures) { printf("ach_badge_test: %d FAILED\n", failures); return 1; }
 	printf("ach_badge_test: ok\n");
 	return 0;

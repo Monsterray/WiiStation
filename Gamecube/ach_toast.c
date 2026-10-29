@@ -21,6 +21,7 @@
 #include "libgui/IPLFontC.h"
 #include "ach_toast.h"
 #include "ach_icons.h"
+#include "ach_shot.h"
 #include "perf_prof.h"
 #ifdef HW_RVL
 #include "ach_badge.h"   /* RetroAchievements badge pictures (Official mode) */
@@ -50,6 +51,7 @@ typedef struct {
 
 typedef struct {
 	Face f1, f2;          /* f2: the Finish Line or Platinum card, for BEATEN / MASTERED */
+	unsigned id;          /* the achievement (0: a game card or a notice): the menu opens the book on it */
 	unsigned char kind;
 	int started, fitted;
 	u32 last;             /* the vblank it was last drawn at */
@@ -130,6 +132,7 @@ static void indicator_push(const achievement_notice_t *n)
 		break;
 	case ACH_NOTICE_CHALLENGE_ON:
 		challenge_off(n->id);
+		if (!achievementChallenge) break;   /* the setting hides the flashing icons */
 		if (challenges < CHALLENGES) {
 			challenge[challenges].id = n->id;
 			badge_want(challenge[challenges].badge, sizeof challenge[challenges].badge, n->badge);
@@ -151,6 +154,7 @@ void ach_toast_push(const achievement_notice_t *n)
 		return;
 	}
 	if (n->kind == ACH_NOTICE_UNLOCK) {   /* it is earned: its indicators are done */
+		ach_shot_request(achievements_set_id(), n->id);   /* the game's frame now (ach_shot.c); the card is not in it */
 		challenge_off(n->id);
 		if (progress.on && progress.id == n->id) progress.on = 0;
 	}
@@ -185,6 +189,7 @@ void ach_toast_push(const achievement_notice_t *n)
 		return;
 	}
 	t->kind = n->mastered ? KIND_MASTERED : n->beaten ? KIND_BEATEN : KIND_UNLOCK;
+	t->id = n->id;
 
 	f = &t->f1;
 	badge_want(f->badge, sizeof f->badge, n->badge);
@@ -229,6 +234,8 @@ void ach_toast_push(const achievement_notice_t *n)
 	}
 }
 
+static unsigned jump_id;   /* ach_toast_menu_opened: the achievement of the pop-up that was on screen */
+
 void ach_toast_clear(void)
 {
 #ifdef HW_RVL
@@ -237,9 +244,29 @@ void ach_toast_clear(void)
 	q_head = q_len = 0;
 	progress.on = 0;
 	challenges = 0;
+	jump_id = 0;
 }
 
-int ach_toast_wanted(void) { return (q_len > 0 || progress.on || challenges) && !menuActive; }
+int ach_toast_wanted(void) { return (q_len > 0 || progress.on || (challenges && achievementChallenge)) && !menuActive; }
+
+/* ---- the book: the menu opens it on the achievement of a pop-up that was on screen ---- */
+
+/* The game stopped for the menu: which pop-up was up (the card at the head of the queue, else
+ * the progress panel, else a challenge icon), by its achievement */
+void ach_toast_menu_opened(void)
+{
+	jump_id = 0;
+	if (q_len > 0 && queue[q_head].id) jump_id = queue[q_head].id;
+	else if (progress.on) jump_id = progress.id;
+	else if (challenges && achievementChallenge) jump_id = challenge[0].id;
+}
+
+unsigned ach_toast_take_jump(void)
+{
+	unsigned id = jump_id;
+	jump_id = 0;
+	return id;
+}
 
 /* ---- tiers: the card's colours, as in the mockup (0xRRGGBBAA) ---- */
 
@@ -271,7 +298,8 @@ static const Tier TIERS[] = {
 
 #define CARD_W 330
 #define CARD_H 98
-#define CARD_X 270            /* 40 px from the right edge */
+#define EDGE 16               /* the pop-ups' margin from the picture's right edge */
+#define CARD_X (640 - EDGE - CARD_W)
 #define CARD_Y 34             /* inside the title-safe area */
 #define TEXT_X 78             /* after the 56 px icon box */
 #define ICON_CX 38            /* the icon's centre: the rays and the light core start there */
@@ -870,7 +898,7 @@ static void toast_frame(void)
 
 #define PROG_W 236
 #define PROG_H 44
-#define PROG_X (640 - 40 - PROG_W)
+#define PROG_X (640 - EDGE - PROG_W)
 #define PROG_Y (480 - 34 - PROG_H)
 #define PROG_SHOW 2.5f   /* seconds after it last grew */
 #define CHAL_S 40        /* a challenge's icon box */
@@ -926,9 +954,9 @@ static void hud_frame(float rate, u32 dt)
 	}
 
 	/* one box per challenge, right to left; each wipes in from its left edge over 0.15 s */
-	for (i = 0; i < challenges; i++) {
+	for (i = 0; i < challenges && achievementChallenge; i++) {
 		float t = (challenge[i].shown += dt) / rate, w = CHAL_S * between(t, 0, 0.15f);
-		float x = 640 - 40 - (i + 1) * (CHAL_S + 6) + 6, y = prog_top - CHAL_S;
+		float x = 640 - EDGE - (i + 1) * (CHAL_S + 6) + 6, y = prog_top - CHAL_S;
 		if (w < 1) continue;
 		clip_to(x, y - 1, x + w, y + CHAL_S + 4);
 		small_panel(x, y, CHAL_S, CHAL_S);

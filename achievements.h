@@ -16,6 +16,7 @@ extern char achievementImage[256];   /* the loaded image's path: Official mode h
 extern char achievementUnofficial;    /* Official: the set's unpromoted achievements too (0/1) */
 extern char achievementEncore;        /* Official: earned ones can be earned again this session (0/1) */
 extern char achievementSpectator;     /* Official, hidden (test runs): evaluate, but send no unlock (0/1) */
+extern char achievementChallenge;     /* the flashing "one step away" icons (0/1, default 1) */
 
 #define ACHIEVEMENTS_STATE_MAX (256 * 1024)
 int achievements_load(const char *game_id);   /* the set count, 0 = none, -1 = refused */
@@ -32,6 +33,11 @@ const char *achievements_status(void);   /* one line for the menus: what achieve
 uint32_t achievements_read_memory(uint32_t address, uint8_t *buffer, uint32_t size, void *unused);
 unsigned achievements_count(void);    /* the loaded set's achievements, in either mode */
 unsigned achievements_earned(void);   /* Local: the union of the players' unlocks (below) */
+/* The folder name of this set's unlock pictures (sd:/wiistation/achievements/shots/<it>/<achievement id>.png):
+ * Official, the game's id; Local, the first 16 characters of the definition's digest; "" in Test mode,
+ * with no set loaded, or before the set is in. */
+const char *achievements_set_id(void);
+const char *achievements_title(void);   /* the game's name for the page: the set's Title= line, or RetroAchievements's; "" none */
 void achievements_list_refresh(void); /* the menu opens the list: Official mode reads it again */
 int achievements_state_save(void *data, unsigned size); /* NULL queries required size */
 int achievements_state_load(const void *data, unsigned size); /* NULL resets progress */
@@ -99,6 +105,8 @@ int achievements_ra_active(void);
 /* An achievement's type: the values RetroAchievements uses (rc_client.h) */
 enum { ACH_TYPE_STANDARD = 0, ACH_TYPE_MISSABLE = 1, ACH_TYPE_PROGRESSION = 2, ACH_TYPE_WIN = 3 };
 
+#define ACH_SET_ID_MAX 24   /* achievements_set_id(): room for it */
+
 /* One achievement as the menus list it (achievements_entry). Strings live until the next
  * achievements_list_refresh or the set closes. */
 typedef struct {
@@ -109,6 +117,7 @@ typedef struct {
     unsigned char earned, type;        /* type: ACH_TYPE_* */
     unsigned char unofficial;          /* an unpromoted (Unofficial) achievement */
     unsigned char percent;             /* measured progress 0-100; 0 = none */
+    unsigned when;                     /* when the account earned it, seconds since 1970 (Official); 0 = not known (Local keeps no time) */
     char progress[24];                 /* measured progress as text ("12/40"); "" = none */
 } achievement_entry_t;
 int achievements_entry(unsigned i, achievement_entry_t *e);   /* 0, or -1: no such entry */

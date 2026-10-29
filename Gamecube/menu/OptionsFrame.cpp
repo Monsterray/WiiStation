@@ -405,6 +405,7 @@ static const OptRow ACH_ROWS[] =
 	ROW_CYCLE("Achievements", NULL),
 	ROW_RADIO("AchievementUnofficial", NULL),
 	ROW_RADIO("AchievementEncore", NULL),
+	ROW_RADIO("AchievementChallenge", NULL),
 	ROW_INFO("Set file", infoAchFile),
 };
 
@@ -446,7 +447,7 @@ static const OptPage PAGES[] =
 	{ "Advanced", "GPU",  GPU_ROWS,     COUNT(GPU_ROWS),     GPU_HELP,    COUNT(GPU_HELP),    SettingsFrame::SUBMENU_GENERAL, pluginsEnter, pluginsLeave, 54.0f },
 	{ "Advanced", "Input", INPUT_ROWS,  COUNT(INPUT_ROWS),   INPUT_HELP,  COUNT(INPUT_HELP),  SettingsFrame::SUBMENU_GENERAL, pluginsEnter, pluginsLeave },
 	{ "Advanced", "SPU",  SPU_ROWS,     COUNT(SPU_ROWS),     SPU_HELP,    COUNT(SPU_HELP),    SettingsFrame::SUBMENU_GENERAL, pluginsEnter, pluginsLeave },
-	{ "Achievements", NULL, ACH_ROWS,   COUNT(ACH_ROWS),     ACH_HELP,    COUNT(ACH_HELP),    SettingsFrame::SUBMENU_GENERAL, NULL,         NULL         },
+	{ "Achievements", NULL, ACH_ROWS,   COUNT(ACH_ROWS),     ACH_HELP,    COUNT(ACH_HELP),    SettingsFrame::SUBMENU_GENERAL, NULL,         NULL,         50.0f },
 	{ "ISO Info", NULL,   ISOINFO_ROWS, COUNT(ISOINFO_ROWS), ISOINFO_HELP, COUNT(ISOINFO_HELP), RETURN_CURRENT_ISO,           NULL,         NULL,         40.0f },
 };
 

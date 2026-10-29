@@ -30,6 +30,7 @@
 #include "plugins.h"
 #include "Gamecube/ra_transport.h"
 #include "Gamecube/ach_account.h"
+#include "Gamecube/ach_progress.h"
 #include "Gamecube/players.h"
 #include <sys/stat.h>
 #include <stdint.h>
@@ -91,6 +92,24 @@ const char *achievements_official_status(void)
 }
 static char game_hash[33];   /* the loaded disc's PS1 hash, to load once the login is done */
 
+const char *achievements_official_title(void)
+{
+	const rc_client_game_t *g;
+	if (!client || !game_loaded || media_pending || !(g = rc_client_get_game_info(client)) || !g->title) return "";
+	return g->title;
+}
+
+/* The folder of this game's unlock pictures: its RetroAchievements id */
+const char *achievements_official_set_id(void)
+{
+	static char id[ACH_SET_ID_MAX];
+	const rc_client_game_t *g;
+	if (!client || !game_loaded || media_pending || !(g = rc_client_get_game_info(client)) || !g->id)
+		return "";
+	snprintf(id, sizeof id, "%u", (unsigned)g->id);
+	return id;
+}
+
 /* ---- what the menus list: the achievements and the leaderboards of the loaded set ---- */
 
 #define MAX_LISTED 512
@@ -133,6 +152,12 @@ static void lists_drop(void)
 }
 
 static int set_ready(void) { return client && game_loaded && !media_pending; }
+
+/* The progress pop-up rule (Gamecube/ach_progress.h): the step each measured achievement was
+ * last at, and the settling time after a load, reset, disc swap or state load */
+static ach_steps_t steps;
+static unsigned settle;
+static void steps_restart(void) { ach_steps_reset(&steps); settle = ACH_SETTLE_FRAMES; }
 
 static void list_build(void)
 {
@@ -183,6 +208,17 @@ unsigned achievements_official_earned(void)
 	return n;
 }
 
+/* The settling time is over: each measured achievement's step now is its baseline, so the first
+ * change after it counts (rc_client sends no event for a first reading) */
+static void steps_seed(void)
+{
+	unsigned i;
+	list_build();
+	for (i = 0; i < listed_n; i++)
+		if (!has_it(listed[i]) && listed[i]->measured_progress[0])
+			ach_steps_update(&steps, listed[i]->id, (unsigned)listed[i]->measured_percent);
+}
+
 void achievements_official_list_refresh(void)
 {
 	list_stale = 1;
@@ -205,6 +241,7 @@ int achievements_official_entry(unsigned i, achievement_entry_t *e)
 	e->earned = has_it(a);
 	e->type = a->type <= RC_CLIENT_ACHIEVEMENT_TYPE_WIN ? a->type : ACH_TYPE_STANDARD;
 	e->unofficial = a->category == RC_CLIENT_ACHIEVEMENT_CATEGORY_UNPROMOTED;
+	if (e->earned && a->unlock_time > 0) e->when = (unsigned)a->unlock_time;
 	if (!e->earned && a->measured_progress[0]) {
 		snprintf(e->progress, sizeof e->progress, "%s", a->measured_progress);
 		e->percent = a->measured_percent >= 100 ? 100 : (unsigned char)(a->measured_percent + 0.5f);
@@ -302,6 +339,7 @@ int achievements_official_board_scores(unsigned i, achievement_score_t *top, uns
 
 void achievements_official_reset(void)
 {
+	steps_restart();
 	if (set_ready()) rc_client_reset(client);
 }
 
@@ -322,6 +360,7 @@ int achievements_official_state_load(const void *data, unsigned size)
 {
 	const uint8_t *in = data;
 	if (!set_ready()) return 0;
+	steps_restart();
 	if (in && size > 4 && !memcmp(in, "WAO1", 4) &&
 	    rc_client_deserialize_progress_sized(client, in + 4, size - 4) == RC_OK)
 		return 1;
@@ -435,6 +474,8 @@ static void indicator(unsigned char kind, const rc_client_achievement_t *a)
 {
 	achievement_notice_t n;
 	if (!achievements_notify || !a) return;
+	/* a progress pop-up only at a new 10 % step, never for the first reading or while settling */
+	if (kind == ACH_NOTICE_PROGRESS && (!ach_steps_update(&steps, a->id, (unsigned)a->measured_percent) || settle)) return;
 	memset(&n, 0, sizeof n);
 	n.kind = kind;
 	n.id = a->id;
@@ -694,6 +735,7 @@ static void game_loaded_cb(int result, const char *error, rc_client_t *c, void *
 		return;
 	}
 	game_loaded = 1;
+	steps_restart();
 	beaten_seen = is_beaten();
 	mastered_seen = is_mastered();
 	g = rc_client_get_game_info(client);
@@ -875,8 +917,10 @@ void achievements_official_frame(void)
 	 * disc is being checked, only idle: no award against a disc that may not be the game's. */
 	if (media_pending)
 		rc_client_idle(client);
-	else
+	else {
 		rc_client_do_frame(client);
+		if (settle && --settle == 0) steps_seed();
+	}
 }
 
 /* The check of a swapped disc: rc_client looked its hash up. The same game's disc goes on;
@@ -890,6 +934,7 @@ static void media_changed_cb(int result, const char *error, rc_client_t *c, void
 	media_pending = 0;
 	if (result == RC_OK && g && h && h->game_id == g->id) {
 		SysPrintf("Achievements: disc changed; %s goes on\n", g->title ? g->title : "the game");
+		steps_restart();   /* another disc, other memory: a new baseline */
 		return;
 	}
 	snprintf(state, sizeof state, "Off: not this game's disc");

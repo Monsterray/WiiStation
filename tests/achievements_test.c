@@ -1,5 +1,6 @@
 /* Run scripts/test-achievements.sh: exercise the real rcheevos integration on the host. */
 #include "../achievements.h"
+#include "../Gamecube/ach_progress.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -303,15 +304,27 @@ int main(int argc, char **argv)
         assert(achievements_load("TEST12345") == 2);
         assert(notice_count == 1 && notices[0].kind == ACH_NOTICE_GAME && !strcmp(notices[0].game, "Fixture"));
         assert(notices[0].count == 2 && notices[0].earned == 0 && notices[0].total_points == 15 && !strcmp(notices[0].desc, "Test"));
+        assert(!strcmp(achievements_title(), "Fixture"));
+        assert(!strcmp(achievements_set_id(), ""));   /* Test mode keeps nothing, so it takes no unlock pictures */
         achievements_frame();
         ram[0x70] = 3; achievements_frame();
-        assert(notice_count == 2 && notices[1].kind == ACH_NOTICE_PROGRESS && notices[1].id == 1 && notices[1].percent == 30);
+        assert(notice_count == 1);   /* the settling time: a reading only sets the baseline (Gamecube/ach_progress.h) */
         assert(achievements_entry(0, &e) == 0 && !strcmp(e.progress, "3/10") && e.percent == 30);
-        ram[0x70] = 2; achievements_frame();
+        { int f; for (f = 0; f < ACH_SETTLE_FRAMES; f++) achievements_frame(); }
         ram[0x70] = 3; achievements_frame();
-        assert(notice_count == 2);   /* back to 3 is not news */
+        assert(notice_count == 1);   /* 30 % was the baseline: no pop-up for it, before or after the settling time */
         ram[0x70] = 4; achievements_frame();
-        assert(notice_count == 3 && notices[2].percent == 40);
+        assert(notice_count == 2 && notices[1].kind == ACH_NOTICE_PROGRESS && notices[1].id == 1 && notices[1].percent == 40);
+        ram[0x70] = 2; achievements_frame();   /* it falls back: nothing, and the step goes down with it */
+        assert(notice_count == 2);
+        ram[0x70] = 3; achievements_frame();
+        assert(notice_count == 3 && notices[2].percent == 30);   /* climbing to a new step shows again */
+        achievements_reset();   /* a reset: a new baseline and a new settling time */
+        ram[0x70] = 6; achievements_frame();
+        { int f; for (f = 0; f < ACH_SETTLE_FRAMES; f++) achievements_frame(); }
+        assert(notice_count == 3);
+        ram[0x70] = 7; achievements_frame();
+        assert(notice_count == 4 && notices[3].percent == 70);
         achievements_close();
         notice_count = 0;
         set_file("Game=TEST12345\n1|Primed|0xH000073=1_T:0xH000074=1|10\n");

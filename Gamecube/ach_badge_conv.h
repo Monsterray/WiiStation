@@ -50,4 +50,29 @@ static inline void ach_badge_rgba_to_rgb5a3(const uint8_t *rgba, unsigned w, uns
 	}
 }
 
+/* A picture of any size (w and h from 1 to 4096) as ow x oh GX_TF_RGB5A3, in GX's order too (ow and
+ * oh multiples of 4): each output pixel is the average of the source pixels its box covers, so a
+ * picture shown smaller keeps its detail (the unlock pictures: 320 x 240 and up -> 256 x 192). */
+static inline void ach_rgba_to_rgb5a3_box(const uint8_t *rgba, unsigned w, unsigned h, uint16_t *out, unsigned ow, unsigned oh)
+{
+	unsigned x, y;
+	for (y = 0; y < oh; y++) {
+		unsigned y0 = (unsigned)((uint32_t)y * h / oh), y1 = (unsigned)((uint32_t)(y + 1) * h / oh);
+		if (y1 <= y0) y1 = y0 + 1;
+		for (x = 0; x < ow; x++) {
+			unsigned x0 = (unsigned)((uint32_t)x * w / ow), x1 = (unsigned)((uint32_t)(x + 1) * w / ow), sx, sy;
+			uint32_t r = 0, g = 0, b = 0, a = 0, n;
+			if (x1 <= x0) x1 = x0 + 1;
+			for (sy = y0; sy < y1; sy++)
+				for (sx = x0; sx < x1; sx++) {
+					const uint8_t *p = rgba + ((size_t)sy * w + sx) * 4;
+					r += p[0]; g += p[1]; b += p[2]; a += p[3];
+				}
+			n = (uint32_t)(y1 - y0) * (x1 - x0);
+			out[((y >> 2) * (ow / 4) + (x >> 2)) * 16 + (y & 3) * 4 + (x & 3)] =
+				ach_badge_px(r / n, g / n, b / n, a / n);
+		}
+	}
+}
+
 #endif
