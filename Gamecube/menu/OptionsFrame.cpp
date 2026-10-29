@@ -229,33 +229,6 @@ static void infoAchFile(char *buf, int len)
 		snprintf(buf, len, "%s", achievementFile);
 }
 
-/* The account file's User= line, and nothing else from it: the file also holds Password= and
- * Token=, which are never shown, logged or kept. Only a line's start can be User= (a long line
- * comes in pieces). */
-#define RA_ACCOUNT_FILE "sd:/wiistation/achievements/ra_account.ini"
-static void infoAchAccount(char *buf, int len)
-{
-	char line[128];
-	bool atStart = true;
-	FILE *f = fopen(RA_ACCOUNT_FILE, "r");
-	if (!f) {
-		snprintf(buf, len, "No account file");
-		return;
-	}
-	snprintf(buf, len, "No User= line");
-	while (fgets(line, sizeof line, f)) {
-		bool lineStart = atStart;
-		atStart = strchr(line, '\n') != NULL;
-		if (lineStart && !strncmp(line, "User=", 5)) {
-			line[strcspn(line, "\r\n")] = '\0';
-			snprintf(buf, len, "User: %s", line + 5);
-			break;
-		}
-	}
-	memset(line, 0, sizeof line);
-	fclose(f);
-}
-
 /*  Pages  */
 
 static const OptRow SOUND_ROWS[] =
@@ -433,15 +406,16 @@ static const OptRow ACH_ROWS[] =
 	ROW_RADIO("AchievementUnofficial", NULL),
 	ROW_RADIO("AchievementEncore", NULL),
 	ROW_INFO("Set file", infoAchFile),
-	ROW_INFO("Account",  infoAchAccount),
 };
 
 static const OptHelp ACH_HELP[] =
 {
-	/* Three lines fit under the five rows; the rest is in SETTINGS.md. */
-	{ "Mode:",     "Local keeps your unlocks. Test keeps nothing." },
+	/* Four lines fit under the four rows; the rest is in SETTINGS.md. The accounts are in
+	 * Players (a Mii's Edit page). */
+	{ "Official:", "downloads the RetroAchievements set." },
+	{ "Local, Test:", "only your own set file. Test keeps nothing." },
+	{ "Accounts:", "Players, drop a Mii on Edit." },
 	{ NULL,        "Load the game again after a change." },
-	{ "Official:", "Needs ra_account.ini and tls_seed.bin." },
 };
 
 struct OptPage

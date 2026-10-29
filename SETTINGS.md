@@ -306,7 +306,7 @@ for the definition format, state handling, persistence boundaries, and tests.
 
 | Key | Values | Default | Menu | Effect |
 |---|---|---|---|---|
-| `Achievements` | 0 = Off, 1 = Local, 2 = Test, 3 = Official | 0 | General, Cheevos, "Mode" | Local: your own definition file, unlocks kept in the journal. Test: the same, nothing read from or written to the journal. Official: RetroAchievements, Casual; needs `achievements/ra_account.ini`, `tls_seed.bin` and `cacert.pem` on the card (Docs/ACHIEVEMENTS.md). |
+| `Achievements` | 0 = Off, 1 = Local, 2 = Test, 3 = Official | 0 | General, Cheevos, "Mode" | Local: your own definition file, unlocks kept in the journal; nothing is downloaded. Test: the same, nothing read from or written to the journal. Official: downloads the RetroAchievements set, Casual; needs an account (a Mii's, linked in Players, or `achievements/ra_account.ini`), `tls_seed.bin` and `cacert.pem` on the card (Docs/ACHIEVEMENTS.md). The Cheevos page has no account row since 5.19.0: the accounts are in Players. |
 | `AchievementFile` | `"Path"` | empty | none, settings file only (General, Cheevos shows it) | The rcheevos definition file for a game, for example `sd:/wiistation/achievements/<game>.txt`. |
 | `AchievementLog` | `"Path"` | empty | none, settings file only | Stores earned unlocks. Empty puts them beside the definition file, with `.unlocks` appended. A quoted full path overrides it. |
 | `AchievementUnofficial` | 0 = Off, 1 = On | 0 | General, Cheevos, "Unofficial" | Official mode: the set's Unofficial (not yet approved) achievements too; RetroAchievements does not keep their unlocks. Load the game again after a change. |

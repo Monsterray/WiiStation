@@ -156,6 +156,9 @@ LATER UPDATES BY:
 
 WiiStation CHANGE LOG:
 Ver 5.19.0 (2026-10-28):
+* Cheevos page: the Account row is gone (accounts are in Players), and the
+  notes say what each mode does: only Official downloads the RetroAchievements
+  set; Local and Test run your own set file.
 * Players: every Mii seated on a port with a connected pad earns its own
   achievements (Local mode). The toast says who: "Kat unlocked", "Kat and
   Ollie unlocked", "4 players unlocked". An achievement one Mii has keeps
