@@ -114,6 +114,7 @@ static achievement_player_t ra_plan_list[ACH_PLAYERS_MAX];  /* the Local players
 static unsigned ra_plan_n;
 static char ra_note_key[ACH_KEY_LEN + 1], ra_note[64];
 unsigned (*achievements_players)(achievement_player_t *out);
+int (*achievements_player_lookup)(const char *key, char *name, unsigned size);
 static int active, running;   /* a set is loaded; evaluation is allowed (not during BIOS boot) */
 static unsigned settle;       /* frames left of the settling time: progress readings only set the baseline (ach_progress.h) */
 static unsigned char digest[16];   /* MD5 of the definition file: the set's identity */
@@ -226,13 +227,18 @@ unsigned achievements_player_count(void)
     if (ra_local) return ra_first + players;
     return OFFICIAL(count) || !active ? 1 : players;
 }
+/* Official mode, no Local player: the page is the Official side alone, and it names who plays it
+ * (the Mii the account is linked to, else this Wii's account), not Guest */
+static int official_alone(void) { return OFFICIAL(count) && !ra_local; }
 const char *achievements_player_key(unsigned i)
 {
+    if (official_alone()) return i == 0 ? ra_off_key : "";
     if (ra_local) return i < ra_first ? ra_off_key : i - ra_first < players ? player[i - ra_first].key : "";
     return active && !OFFICIAL(count) && i < players ? player[i].key : "";
 }
 const char *achievements_player_name(unsigned i)
 {
+    if (official_alone()) return i == 0 ? ra_off_name : "";
     if (ra_local) return i < ra_first ? ra_off_name : i - ra_first < players ? player[i - ra_first].name : "";
     return active && !OFFICIAL(count) && i < players ? player[i].name : "";
 }
@@ -669,7 +675,7 @@ const char *achievements_status(void)
         return "None: a .exe has no disc";
     switch (achievementsEnabled) {
     case ACH_OFF:
-        return "Off (Cheevos)";
+        return "Off (Achievements)";
     case ACH_OFFICIAL:
         return achievements_official_status ? achievements_official_status() : "Official: not in this build";
     default:
@@ -727,6 +733,7 @@ unsigned achievements_ra_plan(const char *official_key)
 {
     achievement_player_t got[ACH_PLAYERS_MAX];
     unsigned n = 0, i, j;
+    int named = 0;
     ra_plan_n = 0;
     snprintf(ra_off_key, sizeof ra_off_key, "%s", official_key ? official_key : "");
     for (i = 0; ra_off_key[i]; ++i) ra_off_key[i] = (char)tolower((unsigned char)ra_off_key[i]);
@@ -738,12 +745,20 @@ unsigned achievements_ra_plan(const char *official_key)
         got[i].name[sizeof got[i].name - 1] = 0;
         if (!is_key(got[i].key)) continue;
         if (!strcmp(got[i].key, ra_off_key)) {   /* the Official Mii: its name is for the page */
-            if (got[i].name[0]) snprintf(ra_off_name, sizeof ra_off_name, "%s", got[i].name);
+            if (got[i].name[0]) {
+                snprintf(ra_off_name, sizeof ra_off_name, "%s", got[i].name);
+                named = 1;
+            }
             continue;
         }
         for (j = 0; j < ra_plan_n && strcmp(ra_plan_list[j].key, got[i].key); ++j) ;
         if (j < ra_plan_n) continue;
         ra_plan_list[ra_plan_n++] = got[i];
+    }
+    if (ra_off_key[0] && !named && achievements_player_lookup) {   /* seated, but its pad is not on a connected seat: still its name */
+        char name[sizeof ra_off_name];
+        if (achievements_player_lookup(ra_off_key, name, sizeof name) == 1 && name[0])
+            snprintf(ra_off_name, sizeof ra_off_name, "%s", name);
     }
     return ra_plan_n;
 }

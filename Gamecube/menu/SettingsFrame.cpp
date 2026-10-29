@@ -192,7 +192,7 @@ void setSpuTempo(int soundTempo);
 The tabs. Each one is a page for the menu engine: its rows are in the tables below, and the
 engine places every button and label. What each row holds:
 
-General:  Advanced, Cheevos, Memory; Select BIOS; Boot Through BIOS (and Execute BIOS); Select Language;
+General:  Advanced, Achievements, Memory; Select BIOS; Boot Through BIOS (and Execute BIOS); Select Language;
           Save Settings; Load Settings. The CPU core, GPU plugin and Fast Load are on the Advanced pages.
 Video:    Show FPS; FPS Limit; Frame Skip; Screen Mode; Filters; Advanced (Advanced Graphics).
 Input:    Configure Input and Button Mappings; PSX Pad Type; Light Gun; Enable Rumble;
@@ -243,7 +243,7 @@ static char FRAME_STRINGS[37][24] =
 	  "2",				// saves tab: which card the second button is
 	  "Advanced",		// video tab: the Advanced Graphics page
 	  "Load Settings",
-	  "Cheevos"			// general tab: the Achievements page
+	  "Achievements"		// general tab: the Achievements page
 	  };
 
 
@@ -387,7 +387,7 @@ struct ButtonInfo
 	//Test USB Pad (button 83): on no tab since the page moved to Advanced > Input (OptionsFrame.cpp);
 	//kept so that "menuclick 83 1" still opens it and no later index moves
 	{	NULL,	BTN_A_NRM,	(char*)"Test USB Pad",	Func_UsbPadTest,	Func_ReturnFromSettingsFrame },
-	//General tab: Cheevos (button 84), between Advanced and Memory: the Achievements page
+	//General tab: Achievements (button 84), between Advanced and Memory: the Achievements page
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[36],	Func_AchievementsPage,	Func_ReturnFromSettingsFrame },
 };
 
@@ -574,7 +574,7 @@ static void prepSaves(void)
 
 static const SetRow GEN_ROWS[] =
 {
-	{ eng::ROW_BUTTONS, NULL,            NULL,               { 73, 84, 75, -1 }, { 130, 130, 130, 0 }, 0.0f,   30.0f, 0 },	/* Advanced, Cheevos, Memory: every Advanced button is 130 wide and centered */
+	{ eng::ROW_BUTTONS, NULL,            NULL,               { 73, 84, 75, -1 }, { 165, 165, 165, 0 }, 0.0f,   30.0f, 0 },	/* Advanced, Achievements, Memory: the three are 165 wide (Achievements needs 163) and centered */
 	{ eng::ROW_CHOICE,  "BiosDevice",    NULL,               {  7,  8,  9, 10 }, {  70,  55,  70, 70 }, 295.0f, 0.0f,  0 },	/* Select BIOS: HLE, SD, USB, DVD */
 	{ eng::ROW_CHOICE,  "BootThruBios",  NULL,               { 11, 12, 13, -1 }, {  75,  75, 171,  0 }, 295.0f, 0.0f,  1 },	/* Boot Through BIOS: Yes, No, Execute BIOS */
 	{ eng::ROW_BUTTONS, "lang",          NULL,               { 54, -1, -1, -1 }, {  90,   0,   0,  0 }, 295.0f, 0.0f,  0 },	/* Select Language */

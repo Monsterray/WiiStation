@@ -241,6 +241,20 @@ void resumeInput(void){
 	wpad_leds_mode(1);
 }
 
+int pad_probing;
+
+int pad_menu_combo_held(void){
+	BUTTONS keys;
+	int i, held = 0;
+	pad_probing = 1;
+	for(i=0; i<2; ++i)
+		if(virtualControllers[i].inUse && virtualControllers[i].control &&
+		   DO_CONTROL(i, GetKeys, &keys, virtualControllers[i].config) == 1)
+			held = 1;
+	pad_probing = 0;
+	return held;
+}
+
 void init_controller_ts(void){
 	int i, j;
 	for(i=0; i<num_controller_t; ++i){

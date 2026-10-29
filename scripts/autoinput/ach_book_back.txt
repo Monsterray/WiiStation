@@ -1,0 +1,9 @@
+# The menu combination in the achievements book goes straight back into the game (MenuContext.cpp):
+# the game stops at vblank 700 and the book opens; menukeys M (frame 162) is the combination.
+#   WSX_EXTRA_ISOS=tests/fixtures/ach_book WSX_ISOS="Tests/AchBook,Spyro the Dragon" \
+#     scripts/wsx.sh run NAME --autoboot spyro --input scripts/autoinput/ach_book_back.txt --fast --secs 70 \
+#     --env FRAMES_DUMP=True --env KEEP=100000 --set 'Achievements=1,AchievementFile="sd:/wiistation/isos/Tests/AchBook/set.txt",Player1="82625a00c2123456",Player2="82625dd1c2123456",PadAutoAssign=1'
+1 0000
+p2 1 0000
+menuopen 700 15
+menukeys 90 ......M
