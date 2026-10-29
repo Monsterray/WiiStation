@@ -160,7 +160,7 @@ class PlayersBoard : public menu::Component
 public:
 	PlayersBoard() { setType(TYPE_OTHER); memset(img, 0, sizeof img); memset(serial, 0, sizeof serial); reset(); }
 	~PlayersBoard() { for (int i = 0; i < PLAYERS_MAX; i++) delete img[i]; }
-	void reset() { page = 0; focus = 0; onCards = false; card = 0; held = -1; dragging = false; pointer = false; coop = -1; }
+	void reset() { page = 0; focus = 0; onCards = false; card = 0; held = -1; dragging = false; pointer = false; coop = -1; checked = false; }
 	void drawComponent(menu::Graphics &gfx);
 	menu::Component *updateFocus(int direction, int buttonsPressed);
 
@@ -170,6 +170,8 @@ private:
 	int page, focus, card, held;     /* held: the Mii picked up (pad, or a pointer click), -1 none */
 	int coop;                        /* the port whose Co-Op players are shown, -1 the ports */
 	bool onCards, dragging, pointer;
+	bool checked;                    /* the seats were checked against the Miis on this Wii */
+	int gone, goneFrames;            /* seats whose Mii is gone, and how long the notice still shows */
 	int px, py;
 	int seats[COOP_MAX], nSeats;
 	Rect cards[COOP_MAX];
@@ -436,7 +438,25 @@ void PlayersBoard::drawComponent(menu::Graphics &gfx)
 			textMid(x + COIN / 2, y + COIN + 9, line, 0.42f, WHITE);
 		}
 	}
-	if (n > 0 && players_faces() < 0) {
+	if (n > 0 && !checked) {   /* a seated Mii deleted in the Mii Channel: its seat is Guest */
+		checked = true;
+		gone = 0;
+		for (int s = 0; s < PLAYERS_SEATS; s++)
+			if (playerSeat[s][0] && players_find(playerSeat[s]) < 0) {
+				playerSeat[s][0] = 0;
+				gone++;
+			}
+		goneFrames = gone ? 6 * 60 : 0;
+	}
+	if (goneFrames > 0) {   /* its unlocks stay in the journal (Docs/MII_PLAN.md) */
+		goneFrames--;
+		if (gone == 1)
+			snprintf(line, sizeof line, "A seated Mii is no longer on this Wii: its seat is Guest now");
+		else
+			snprintf(line, sizeof line, "%d seated Miis are no longer on this Wii: their seats are Guest now", gone);
+		textMid(320, 418, line, 0.5f, RED, 600);
+	}
+	else if (n > 0 && players_faces() < 0) {
 		snprintf(line, sizeof line, "No Mii faces (%d): in HBC, HOME > HBC > Save Mii faces", players_faces());
 		textMid(320, 418, line, 0.5f, MID);
 	}

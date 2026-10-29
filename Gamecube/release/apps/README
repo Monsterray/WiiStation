@@ -160,6 +160,8 @@ Ver 5.18.2 (2026-10-28):
   when the Players menu closes (no Save Settings needed). Seats saved in
   settings.ini by 5.18.0/5.18.1 are still read.
 * Players: the Miis you seated last come first in the list.
+* Players: a seated Mii deleted in the Mii Channel becomes Guest, with a
+  notice when the Players menu opens; its unlocks are kept.
 * Players: Guest and the other centered names sit in the middle of their slot.
 * Cheevos page: the notes that ran off the bottom of the screen are gone (the
   rest is in SETTINGS.md).
