@@ -134,9 +134,10 @@ on/off button instead of a check box, and an Edit slot that opens a Mii's player
   A links, B goes back. players.ini keeps the links in an `[Accounts]` section, one
   `<Mii key> = "<name>"` line per linked Mii (written by the same code as the seats).
 - **Who plays Official**: one Mii per game (RetroAchievements sessions are one user). By default
-  port 1's Mii (1A with a multitap, P1 with Co-Op). A linked Mii's card shows a small on/off
-  button, "Official: On" / "Official: Off" (no check boxes in WiiStation, the owner's call); turning
-  one on turns the others off (`PlayersOfficial = "<Mii key>"`, empty = port 1). Every
+  port 1's Mii (1A with a multitap, P1 with Co-Op). A linked Mii's card shows a small button
+  labeled "Official" (no check boxes in WiiStation, and no On/Off text: the button's highlight shows
+  it is on; the owner's calls). Every linked Mii's button can be pressed; pressing one turns it on
+  and the others off, so exactly one is on (`PlayersOfficial = "<Mii key>"`, empty = port 1). Every
   other seated Mii earns Local (phase 3). No linked Mii on that seat: today's `ra_account.ini`
   if there is one, else Local only. A change applies at the next game load.
 - **Seen**: a linked Mii's coin wears a small "RA" tag; the toast says which side an unlock went
