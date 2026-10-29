@@ -344,9 +344,19 @@ static unsigned int McdDataOffsetForSize(long size) {
  * own card; shared, it has a fixed name that every game opens. Card 2's shared name stays
  * "slot2.mcd" and card 1's per-game name stays "<CdromId>.mcd", so nobody's existing card
  * is left behind by this setting. */
+static int mcd_track_n = -1;   /* below: a chained autoboot's card files */
+
 static void McdFileName(char *out, int size, int mcd, const char *dir)
 {
 	int perGame = memCardFile[mcd - 1] == MEMCARDFILE_PER_GAME;
+	char chainDir[256];
+	/* A chain's cards live in <saves>/chain/, never in the player's own files: it deletes
+	 * them when it ends (mcd_track_delete), and once took the player's real saves with it */
+	if (mcd_track_n >= 0) {
+		snprintf(chainDir, sizeof chainDir, "%s/chain", dir);
+		mkdir(chainDir, 0777);
+		dir = chainDir;
+	}
 	if (mcd == 1)
 		snprintf(out, size, perGame ? "%s/%s.mcd" : "%s/shared1.mcd", dir, CdromId);
 	else
@@ -356,10 +366,10 @@ static void McdFileName(char *out, int size, int mcd, const char *dir)
 //call me from menu, takes slot and save path as args
 /* A chained autoboot (Gamecube/GamecubeMain.cpp) deletes, when it ends, every memory card
  * file its games loaded or saved: it runs on a development card, and it should leave the
- * next chain the same fresh start it had. Off until mcd_track_begin(). */
+ * next chain the same fresh start it had. Off until mcd_track_begin(). The files are in
+ * <saves>/chain/ (McdFileName), so a player's own cards are never loaded or deleted. */
 #define MCD_TRACK_MAX 16
 static char mcd_track_name[MCD_TRACK_MAX][256];
-static int mcd_track_n = -1;
 
 void mcd_track_begin(void)
 {
