@@ -36,6 +36,9 @@ const player_mii *players_get(int i);
  * no sd:/mii/RFL_Res.dat, HBC's HOME > HBC > Save Mii faces makes it). */
 int players_faces(void);
 int players_find(const char *key);       /* the index of a key, or -1 */
+/* players_get's order: the Miis last seated first (playersRecent), then the database's. The
+ * reader sorts once; the menu sorts again when it opens (never while the menu shows). */
+void players_sort(void);
 /* Call after the menu's last copy to the screen, before the next frame is drawn: puts one
  * finished head on its coin (mii_icon draws in the EFB's corner). Returns 1 when it did, so
  * the caller sets its GX state again. */
@@ -45,11 +48,14 @@ void players_idle(void);
 
 /* The seats, indexed as virtualControllers 0-25 (ports 1 and 2, multitap 1A-1D and 2A-2D,
  * then Co-Op players 1-8 of each port, COOP_VC): the key of the Mii on each, "" for Guest.
- * settings.ini [Players] Player1 ... Player2D, Player1P1 ... Player2P8 (GamecubeMain.cpp),
- * saved with the other settings. */
+ * players.ini Player1 ... Player2D, Player1P1 ... Player2P8 (GamecubeMain.cpp), written when
+ * the Players menu closes. */
 extern char playerSeat[PLAYERS_SEATS][256];
 extern const char *const PLAYERS_SEAT_NAMES[PLAYERS_SEATS];   /* "1", "2", "1A" ... "2D", "1 P1" ... "2 P8" */
 void players_seat_mii(int seat, const char *key);   /* seats a Mii (leaving its other seat), or Guest for NULL */
+/* The Miis last seated, most recent first (players_recent.h): players.ini PlayersRecent. */
+extern char playersRecent[256];
+void players_used(void);   /* the seated Miis to the front of playersRecent */
 
 #ifdef __cplusplus
 }

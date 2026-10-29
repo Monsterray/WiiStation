@@ -10,6 +10,7 @@
 #include <string.h>
 #include <unistd.h>
 #include "players.h"
+#include "players_recent.h"
 #include "../deps/mii/mii.h"
 #include "../deps/mii/miidraw.h"
 #include "../mem2_manager.h"
@@ -20,7 +21,9 @@ typedef struct {
 	int tried;                   /* its model was built, or failed to */
 } entry;
 
-static entry *miis;              /* PLAYERS_MAX, MEM2 */
+static entry *miis;              /* PLAYERS_MAX, MEM2, in the database's order */
+static int order[PLAYERS_MAX];   /* the menu's order: index i is miis[order[i]] (players_sort) */
+static void sort_miis(int n);
 static volatile int count = -1;
 static int started;
 static volatile int quit;
@@ -122,6 +125,7 @@ static void *reader(void *arg)
 		}
 		mii_db_free(&db);
 	}
+	sort_miis(n);
 	count = n;
 
 	/* The heads: only with the user's face models. */
@@ -155,6 +159,31 @@ static void *reader(void *arg)
 	return NULL;
 }
 
+/* The Miis last seated first (players.ini PlayersRecent), the rest in the database's order. */
+static void sort_miis(int n)
+{
+	static int rank[PLAYERS_MAX];
+	int i, j;
+	for (i = 0; i < n; i++)
+		rank[i] = players_recent_rank(playersRecent, miis[i].p.key);
+	for (i = 0; i < n; i++) {
+		for (j = i; j > 0 && rank[order[j - 1]] > rank[i]; j--)
+			order[j] = order[j - 1];
+		order[j] = i;
+	}
+}
+
+void players_sort(void)
+{
+	if (count > 0)
+		sort_miis(count);
+}
+
+void players_used(void)
+{
+	players_recent_merge(playersRecent, sizeof playersRecent, (const char (*)[256])playerSeat, PLAYERS_SEATS);
+}
+
 void players_start(void)
 {
 	if (started)
@@ -175,7 +204,7 @@ int players_faces(void) { return faces; }
 
 const player_mii *players_get(int i)
 {
-	return i >= 0 && i < count ? &miis[i].p : NULL;
+	return i >= 0 && i < count ? &miis[order[i]].p : NULL;
 }
 
 int players_find(const char *key)
@@ -184,7 +213,7 @@ int players_find(const char *key)
 	if (!key || !*key)
 		return -1;
 	for (i = 0; i < count; i++)
-		if (!strcmp(miis[i].p.key, key))
+		if (!strcmp(miis[order[i]].p.key, key))
 			return i;
 	return -1;
 }
@@ -211,6 +240,7 @@ int players_between_frames(void)
 }
 
 char playerSeat[PLAYERS_SEATS][256];
+char playersRecent[256];
 const char *const PLAYERS_SEAT_NAMES[PLAYERS_SEATS] = { "1", "2", "1A", "1B", "1C", "1D", "2A", "2B", "2C", "2D",
 	"1 P1", "1 P2", "1 P3", "1 P4", "1 P5", "1 P6", "1 P7", "1 P8",
 	"2 P1", "2 P2", "2 P3", "2 P4", "2 P5", "2 P6", "2 P7", "2 P8" };

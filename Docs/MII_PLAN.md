@@ -53,7 +53,8 @@ Rules the SDK sets that touch WiiStation:
 
 - **Seats**: `wiistation/players.ini` (5.18.2; `[Players]` in settings.ini before), one line per
   seat (`Player1=`, `Player2=`, multitap `Player1A=` ... `Player2D=`, Co-Op `Player1P1=` ...
-  `Player2P8=`), each a Mii key or empty for Guest; the menu writes it when it closes. A Mii can sit on one port only;
+  `Player2P8=`), each a Mii key or empty for Guest; the menu writes it when it closes.
+  `PlayersRecent=` keeps the last 15 seated, most recent first: the menu lists them first. A Mii can sit on one port only;
   dropping it on another moves it, dropping it on a taken port swaps the two. Seats are kept
   across sessions. A key no longer on the console reads as Guest, with a notice; its unlocks
   stay in the journal (nothing is deleted).

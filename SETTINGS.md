@@ -58,7 +58,7 @@ To write the game's file, load the game, open the Settings menu, and select **Sa
 
 **Load Settings > This Game** sets the settings in the same order (1, 2, 3) now. It does nothing when the game has no file.
 
-These keys are never in a game's file: `lang`, `MenuFont`, `FileSortMode`, `TabWrap` (the menu), `RomDirSD`, `RomDirUSB`, `RomDirSMB`, `NativeDevice`, `StatesDevice`, `AchievementFile`, `AchievementLog`, `AchievementUTCOffset` (folders, devices and the clock), the Players seats `Player1` ... `Player2D` and `Player1P1` ... `Player2P8` (in `players.ini`), and `smbipaddr`, `smbsharename`, `smbusername`, `smbpassword` (the network share and its login). They belong to the Wii, not to the game. **This Game** does not write them, and WiiStation ignores them in a game's file. A game file from 5.14.0 or earlier holds every key: WiiStation still reads it, and its other keys still replace the common file's values. The next **This Game** save writes only the differences. `FilterTour` is in no settings file (section 3).
+These keys are never in a game's file: `lang`, `MenuFont`, `FileSortMode`, `TabWrap` (the menu), `RomDirSD`, `RomDirUSB`, `RomDirSMB`, `NativeDevice`, `StatesDevice`, `AchievementFile`, `AchievementLog`, `AchievementUTCOffset` (folders, devices and the clock), the Players seats `Player1` ... `Player2D`, `Player1P1` ... `Player2P8` and `PlayersRecent` (in `players.ini`), and `smbipaddr`, `smbsharename`, `smbusername`, `smbpassword` (the network share and its login). They belong to the Wii, not to the game. **This Game** does not write them, and WiiStation ignores them in a game's file. A game file from 5.14.0 or earlier holds every key: WiiStation still reads it, and its other keys still replace the common file's values. The next **This Game** save writes only the differences. `FilterTour` is in no settings file (section 3).
 
 Versions 5.6.1 to 5.13.1 wrote the game's file as `<serial>.cfg`, and no version read it. WiiStation reads `<serial>.cfg` on a device when that device has no `<serial>.ini`. The next **This Game** save writes `<serial>.ini`. You can then delete the `.cfg` file.
 
@@ -350,6 +350,7 @@ beside `settings.ini`, which the Players menu writes when it closes. Seat keys i
 | `Player2P6` | `"Key"` | empty | none, players.ini only (Main, Players sets it) | The Mii seated as Co-Op player 6 of port 2: its creation ID, 16 hex characters. Empty is Guest. |
 | `Player2P7` | `"Key"` | empty | none, players.ini only (Main, Players sets it) | The Mii seated as Co-Op player 7 of port 2: its creation ID, 16 hex characters. Empty is Guest. |
 | `Player2P8` | `"Key"` | empty | none, players.ini only (Main, Players sets it) | The Mii seated as Co-Op player 8 of port 2: its creation ID, 16 hex characters. Empty is Guest. |
+| `PlayersRecent` | `"Keys"` | empty | none, players.ini only (Main, Players sets it) | The Miis last seated, most recent first: up to 15 keys, comma-separated. The Players menu lists them first, then the others in the Mii Channel's order. |
 
 ## 7. Network settings
 

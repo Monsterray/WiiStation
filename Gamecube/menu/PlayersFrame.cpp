@@ -552,6 +552,7 @@ void PlayersFrame::activateSubmenu(int submenu)
 {
 	(void)submenu;
 	players_start();
+	players_sort();
 	board->reset();
 }
 
