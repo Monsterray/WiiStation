@@ -69,7 +69,7 @@ Rules the SDK sets that touch WiiStation:
   unlocks, so an achievement one Mii has keeps firing for the others who do not have it yet.
   rcheevos sees an achievement as active while any seated Mii lacks it; when it triggers, only
   the Miis without it get the line and the toast names them.
-- **Save states**: the WAO1 achievement section records the seat keys. Loading a state made by
+- **Save states**: the achievement section (Local: `WAC1`, `WAO1` is Official's) records the seat keys, after rcheevos' progress (5.19.0). Loading a state made by
   other players keeps the game state, but earned flags come from the journals of the Miis seated
   now, so a state never moves one Mii's unlocks to another.
 - **Toast and Achievements page**: "Kat unlocked ..." (two or more: "Kat and Ollie

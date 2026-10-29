@@ -1,0 +1,8 @@
+# The achievements page with two Miis, A (82625a00) and B (82625dd1), on pad ports 1 and 2; R shows the other one:
+#   WSX_EXTRA_ISOS=tests/fixtures/ach_players WSX_ISOS="Tests/AchPlayers,Spyro the Dragon" \
+#     scripts/wsx.sh run NAME --autoboot spyro --input scripts/autoinput/ach_players_page.txt --fast --secs 90 \
+#     --env FRAMES_DUMP=True --env KEEP=100000 --set 'Achievements=1,AchievementFile="sd:/wiistation/isos/Tests/AchPlayers/set.txt",Player1="82625a00c2123456",Player2="82625dd1c2123456",PadAutoAssign=1'
+1 0000
+p2 1 0000
+menuopen 520 15
+menukeys 100 ..............>...

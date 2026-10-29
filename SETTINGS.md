@@ -322,6 +322,10 @@ game's file never holds them. Since 5.18.2 they are in their own file, `wiistati
 beside `settings.ini`, which the Players menu writes when it closes. Seat keys in a
 `settings.ini` from 5.18.0 or 5.18.1 are still read; `players.ini`, read after it, wins.
 
+Since 5.19.0 the seats decide who earns achievements in Local mode: every Mii seated on a port
+whose pad is connected, and Guest when none is (`Docs/ACHIEVEMENTS.md`, "Unlock journal"). The
+unlock journal gets a line per Mii, with its key; lines from before are Guest's.
+
 | Key | Values | Default | Menu | Effect |
 |---|---|---|---|---|
 | `Player1` | `"Key"` | empty | none, players.ini only (Main, Players sets it) | The Mii seated on port 1: its creation ID, 16 hex characters. Empty is Guest. |

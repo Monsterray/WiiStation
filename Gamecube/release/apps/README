@@ -155,6 +155,18 @@ LATER UPDATES BY:
  * Monty Perrotti (WiiStation)
 
 WiiStation CHANGE LOG:
+Ver 5.19.0 (2026-10-28):
+* Players: every Mii seated on a port with a connected pad earns its own
+  achievements (Local mode). The toast says who: "Kat unlocked", "Kat and
+  Ollie unlocked", "4 players unlocked". An achievement one Mii has keeps
+  working for the others who do not have it yet. With no Mii seated, Guest
+  earns, as before; every unlock earned until now stays with Guest.
+* The Achievements page shows one Mii at a time, with its coin and count; L
+  and R (+ and - on a Wii Remote) switch.
+* Save states made by other players keep the game, but the unlocks come from
+  the Miis seated now: a state never moves one Mii's unlocks to another.
+* The unlock journal has a player column: "<set digest> <id> <player key>
+  <title>". Lines without a key are Guest's. Official mode is unchanged.
 Ver 5.18.2 (2026-10-28):
 * Players: the seats are in their own file, wiistation/players.ini, written
   when the Players menu closes (no Save Settings needed). Seats saved in

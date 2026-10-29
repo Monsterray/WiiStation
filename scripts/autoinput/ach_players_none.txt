@@ -1,0 +1,2 @@
+# scripts/chains/ach_players.txt, games 2 and 4: a script pad on port 1, no buttons
+1 0000

@@ -56,6 +56,11 @@ void players_seat_mii(int seat, const char *key);   /* seats a Mii (leaving its 
 /* The Miis last seated, most recent first (players_recent.h): players.ini PlayersRecent. */
 extern char playersRecent[256];
 void players_used(void);   /* the seated Miis to the front of playersRecent */
+/* Is the Mii with this key on the console, and what is its name (UTF-8, at most size - 1
+ * bytes)? For a game's achievements, which need the names of the seated Miis: waits for the
+ * menu's reader if it is running, else reads the database once. 1 yes, 0 no (a Mii that left
+ * the console, or no database), -1 not known (the reader did not finish). */
+int players_lookup(const char *key, char *name, unsigned size);
 
 #ifdef __cplusplus
 }

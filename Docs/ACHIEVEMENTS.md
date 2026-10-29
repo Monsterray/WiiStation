@@ -179,8 +179,21 @@ The engine exposes the published rcheevos PS1 map, and nothing more:
 
 ## Unlock journal
 
-Each line is `<definition MD5> <id> <title>`. The MD5 is the digest of the exact definition
-file.
+Each line is `<definition MD5> <id> <player key> <title>`. The MD5 is the digest of the exact
+definition file. The player key is the Mii's creation ID as 16 lowercase hex characters
+(Players menu, `Docs/MII_PLAN.md`). A line without a key, `<MD5> <id> <title>`, is Guest's: this
+is every line written before 5.19.0, and Guest still writes it (a Guest line whose title starts
+with a word that looks like a key has `-` where the key goes).
+
+- Local mode: each seated Mii whose port has a connected pad earns; Guest earns only when no
+  Mii does. One line per Mii that earned it, and each achievement is earned once per Mii.
+- At load, the engine restores, for each Mii now playing, the lines with its key; the lines of
+  Miis not playing stay in the file and are never deleted.
+- The set's earned state is the union of the players' unlocks. rcheevos keeps an achievement
+  active while any player lacks it; when it triggers, only the players without it get the
+  line and the toast names them.
+- A set loads again for the new players when the seats or the pads change between two stretches
+  of play (`achievements_players_changed()`, called as the game goes on after the menu).
 
 - The engine appends a line when an achievement triggers. If the write fails, the engine
   tries again at each CPU stop and at shutdown. It never tries again per frame.
@@ -202,13 +215,17 @@ layout does not change.
 
 | Part | Content |
 |---|---|
-| Header, 36 bytes | `WAC1` version marker, 16-byte definition MD5, 128 earned bits |
+| Header, 36 bytes | `WAC1` version marker, 16-byte definition MD5, 128 earned bits (the union of the players) |
 | Body | Upstream sized runtime progress (`rc_runtime_serialize_progress_sized`) |
+| Players, only when Miis played | Their keys (16 bytes each), their count (1 byte) and `WK`, after the body. A state made by Guest has none: it is byte for byte the state of 5.18. |
 | Size limit | 256 KiB (`ACHIEVEMENTS_STATE_MAX`) |
 
 - A state for a different set, an old state, a state with no section or a corrupt section
   resets the runtime progress.
 - Loading an older state never revokes an earned local achievement.
+- A state never moves one Mii's unlocks to another: the earned bits of a state apply only when
+  the same single player (one Mii, or Guest) plays now. With other players, the game state is
+  loaded and the earned flags come from the journals of the Miis seated now.
 
 ## Source files
 
@@ -223,7 +240,9 @@ layout does not change.
 | `achievements_official.c` | Official mode: rc_client, the PS1 hash through the CD plugin, the list, leaderboards, rich presence, states |
 | `Gamecube/ra_transport.c` | HTTPS worker; the clock's time zone learnt from verified responses |
 | `Gamecube/ach_badge.c`, `ach_badge.h`, `ach_badge_conv.h` | Badge pictures: download, card cache, PNG decode (libpng), RGB5A3 |
-| `Gamecube/menu/AchievementsFrame.cpp` | The list page and the leaderboards |
+| `Gamecube/ach_players.h`, `ach_players.c` | Who earns (Local): the seated Miis on connected pads, the engine's hook `achievements_players` |
+| `tests/achievements_players_test.c` | Host test: old lines are Guest's, two Miis, a swap, a missing Mii, the 1 MiB cap, the union, states of other players |
+| `Gamecube/menu/AchievementsFrame.cpp` | The list page (one player at a time) and the leaderboards |
 | `scripts/ra_setup.py`, `scripts/ra_ca_bundle.py` | The per-Wii files (seed, account); the pinned CA bundle and its checks |
 
 The runtime objects are compiled without fast-math and LTO. This keeps the floating-point
