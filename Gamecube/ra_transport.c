@@ -51,6 +51,37 @@ static void finish(Request *r)
 	memset(r, 0, sizeof *r);   /* state 0: free again */
 }
 
+/* Answers that never went out (Local mode: the card's copy, a refusal): a small queue of its own,
+ * on the emulator thread only, delivered by ra_transport_poll like any response */
+static Request canned[MAX_REQUESTS];
+
+void ra_transport_complete(rc_client_server_callback_t done, void *done_data, int status, const char *body, size_t len)
+{
+	int i;
+	Request r;
+	for (i = 0; i < MAX_REQUESTS && canned[i].state; i++) ;
+	memset(&r, 0, sizeof r);
+	r.done = done; r.data = done_data; r.status = status;
+	if (body && len && (r.body = _mem2_malloc((uint32_t)len + 1))) {
+		memcpy(r.body, body, len);
+		r.body[len] = 0;
+		r.len = len;
+	}
+	r.state = 2;
+	if (i == MAX_REQUESTS) {   /* never dropped: completed now instead */
+		finish(&r);
+		return;
+	}
+	canned[i] = r;
+}
+
+static void poll_canned(void)
+{
+	int i;
+	for (i = 0; i < MAX_REQUESTS; i++)
+		if (canned[i].state == 2) finish(&canned[i]);
+}
+
 #ifndef RA_HTTPS
 
 void ra_transport_post(const char *url, const char *post, const char *content_type,
@@ -75,6 +106,7 @@ void ra_transport_post(const char *url, const char *post, const char *content_ty
 void ra_transport_poll(void)
 {
 	int i;
+	poll_canned();
 	for (i = 0; i < MAX_REQUESTS; i++)
 		if (req[i].state == 2) finish(&req[i]);
 }
@@ -435,6 +467,7 @@ void ra_transport_post(const char *url, const char *post, const char *content_ty
 void ra_transport_poll(void)
 {
 	int i;
+	poll_canned();
 	for (i = 0; i < MAX_REQUESTS; i++)
 		if (req[i].state == 2) finish(&req[i]);
 }

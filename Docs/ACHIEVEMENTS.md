@@ -13,10 +13,11 @@ today, how to set it up, how to test it and what is planned.
 | Part | Status on 2026-10-24 |
 |---|---|
 | Local evaluation of a definition file | In the product. Off by default. Merged into main from `codex/achievement-engine` (c29cafd9, 2026-10-12). |
-| Modes Off, Local, Test, Official | In the product (775ae73a, 2026-10-23). Official: RetroAchievements in Casual. |
+| Modes Off, Custom, Test, Official, Local | In the product (775ae73a, 2026-10-23). Official: RetroAchievements in Casual. **5.19.0 names:** what was called Local (your own definition file, unlocks in a journal) is **Custom**; **Local** is now RetroAchievements' set with nothing ever sent, every player earning into the Local journal. See [Local mode](#local-mode). Below, "Custom" is the old Local; "the Local journal" and "the Local side" are the `ra_local` journals of a RetroAchievements set, which Official mode's other Miis and the Local mode earn into. |
+| Local mode | In the product (5.19.0, branch `try/modes`): the official set, spectator mode, a request filter, the set saved on the card, every player earns Local. Host tests, a Dolphin run and a bench job: [Local mode](#local-mode). |
 | Official mode per Mii | In the product (5.19.0, Docs/MII_PLAN.md steps 4a and 4c): the Mii that plays Official logs in with its own account file; the other seated Miis earn the same set Local, with encore mode on and nothing sent twice. See [Official mode with Local players](#official-mode-with-local-players). |
 | Unlock journal | In the product. An unlock is written when it triggers (f9ca407b). Records cut short by a power loss are ignored (2026-10-23). |
-| Save-state progress (`ACH1` section) | In the product. Local: `WAC1`; Official: `WAO1` (rc_client's progress). A game reset resets the progress in both. |
+| Save-state progress (`ACH1` section) | In the product. Custom: `WAC1`; Official and Local: `WAO1` (rc_client's progress). A game reset resets the progress in each. |
 | Menu controls | General tab, Cheevos: Mode, Unofficial, Encore, Challenge icons, the set file. Current ISO, Achievements: the book (2026-10-29), see [The book](#the-book). ISO Info: the achievement status line. |
 | Unlock toast | In the product (2026-10-23): the tier card slides in at the top right on each unlock, in both GPU plugins. See [Unlock toast](#unlock-toast). |
 | Indicators | In the product (2026-10-24, `ach_toast.c`): the game card when a set loads (the Disc Read disc spins up; N of M earned, points), a progress panel at the bottom right when measured progress crosses a new 10 % step (2026-10-29, see [Progress pop-ups](#progress-pop-ups)), one box per primed challenge for as long as it is primed (the setting `AchievementChallenge` hides them). The pop-ups sit 16 px from the right edge of the picture. Local sets get them from rc_runtime's events. |
@@ -46,7 +47,7 @@ AchievementLog = ""
 
 | Key | Values | Default | Effect |
 |---|---|---|---|
-| `Achievements` | 0 = Off, 1 = Local, 2 = Test, 3 = Official | 0 | Local evaluates the set and keeps unlocks in the journal. Test evaluates the set, but does not read or write the journal. Official: RetroAchievements, Casual. Off stops all frame evaluation. A value 1 from before the modes is Local. |
+| `Achievements` | 0 = Off, 1 = Custom, 2 = Test, 3 = Official, 4 = Local | 0 | Custom evaluates your own set and keeps unlocks in the journal (it was called Local before 5.19.0; the number is the same, so a settings file keeps its meaning). Test evaluates the set, but does not read or write the journal. Official: RetroAchievements, Casual. Local: the RetroAchievements set, nothing sent, every player earns into the Local journal ([Local mode](#local-mode)). Off stops all frame evaluation. The menu cycles Off, Local, Official, Custom, Test. |
 | `AchievementUnofficial` | 0, 1 | 0 | Official: the set's Unofficial (unpromoted) achievements too. RetroAchievements does not keep their unlocks. |
 | `AchievementEncore` | 0, 1 | 0 | Official: achievements already earned can be earned again this session (the card shows again; nothing new is sent). Also on, whatever this says, while a Local Mii is seated next to the Official one ([Official mode with Local players](#official-mode-with-local-players)). |
 | `AchievementChallenge` | 0, 1 | 1 | The flashing icons of achievements that are one step away (RetroAchievements' challenge indicator; a Local set's primed ones). 0 hides them, at once. Menu: General, Cheevos, "Challenge icons". |
@@ -242,7 +243,7 @@ The engine exposes the published rcheevos PS1 map, and nothing more:
 | Each emulated frame | `psxcounters.c` calls `achievements_frame()` at the frame end (`hSyncCount` reaches `HSyncTotal`) | Evaluates once per emulated frame, also on frames that the display skips |
 | Reset | `r3000a.c` calls `achievements_pause()` before the BIOS runs, then `achievements_reset()` | No evaluation during BIOS code. Hit and progress state reset. Earned achievements stay earned. |
 | CPU stop (menu, state operation) | `achievements_flush()` after each `psxCpu->Execute()` | Writes unlocks that are not yet in the journal |
-| Disc swap | `loadISOSwap` reads the new disc's serial (`CdromReadId`) and calls `achievements_change_media(image, serial)` | Official: rc_client checks the disc. Local/Test: the set goes on when a `Game=` line names the disc, else it closes until the next full game load |
+| Disc swap | `loadISOSwap` reads the new disc's serial (`CdromReadId`) and calls `achievements_change_media(image, serial)` | Official and Local: rc_client checks the disc. Custom/Test: the set goes on when a `Game=` line names the disc, else it closes until the next full game load |
 | Shutdown | `r3000a.c` calls `achievements_close()` | Writes pending unlocks and destroys the runtime |
 
 - The frame hook does no allocation and no network calls. Its only file write is the journal
@@ -259,7 +260,7 @@ definition file (Official mode's Local players: the digest of the RetroAchieveme
 is every line written before 5.19.0, and Guest still writes it (a Guest line whose title starts
 with a word that looks like a key has `-` where the key goes).
 
-- Local mode: each seated Mii whose port has a connected pad earns; Guest earns only when no
+- Custom mode (and Local mode: the same rule): each seated Mii whose port has a connected pad earns; Guest earns only when no
   Mii does. One line per Mii that earned it, and each achievement is earned once per Mii.
 - At load, the engine restores, for each Mii now playing, the lines with its key; the lines of
   Miis not playing stay in the file and are never deleted.
@@ -316,6 +317,8 @@ layout does not change.
 | `Gamecube/ach_badge.c`, `ach_badge.h`, `ach_badge_conv.h` | Badge pictures: download, card cache, PNG decode (libpng), RGB5A3 |
 | `Gamecube/ach_players.h`, `ach_players.c` | Who earns (Local): the seated Miis on connected pads, the engine's hook `achievements_players` |
 | `Gamecube/ach_account.h` | Which account file a link means, the RetroAchievements set's journal digest and path (plain C) |
+| `Gamecube/ach_ra_cache.h` | Local mode: which requests may leave the console, the card's copy of the set (file names, what is kept, how old), the login that is made up (plain C) |
+| `tests/achievements_local_test.c`, `tests/ach_ra_cache_test.c` | Host tests: Local mode (Guest and Miis earn, players change in play, the numbers of the modes); the request rules and the cache names |
 | `tests/achievements_ra_test.c`, `tests/ach_account_test.c` | Host tests: the Local side of Official mode (who, journal, restore, the page, a failed account, the cap); the account paths and names |
 | `tests/achievements_players_test.c` | Host test: old lines are Guest's, two Miis, a swap, a missing Mii, the 1 MiB cap, the union, states of other players |
 | `Gamecube/menu/AchievementsFrame.cpp` | The book: tabs, rows, the detail with the unlock picture, the leaderboards (one player at a time) |
@@ -426,10 +429,11 @@ Decisions of the project owner, 2026-10-23.
 | Mode | Definitions | Unlocks |
 |---|---|---|
 | Test | A definition file, to try it out | Not kept. The journal is not read or written. |
-| Local | The user's own definition file | Kept in the journal. Local mode never sends an unlock to RetroAchievements. |
+| Custom | The user's own definition file | Kept in the journal. Custom mode never sends an unlock to RetroAchievements. |
+| Local | The RetroAchievements set of the game, downloaded once and saved | Kept in the Local journal of the game. Local mode never sends anything to RetroAchievements. |
 | Official | RetroAchievements sets | Casual only. Hardcore needs RetroAchievements to approve WiiStation as a client. |
 
-The mode switch is in the product (setting `Achievements`, 775ae73a). Test and Local work.
+The mode switch is in the product (setting `Achievements`, 775ae73a). Test and Custom work, and since 5.19.0 Local.
 Official works in Casual (2026-10-23): login, the PS1 hash in every format, disc swaps.
 
 ### Official setup
@@ -505,6 +509,40 @@ feeds it.
 | States | Official's `WAO1` section is as it was. A state does not carry the Local Miis' earned flags: they come from their journals. |
 | Logs | A Mii key shows as its first 8 hex characters, never a name. |
 
+### Local mode
+
+The owner's request (2026-10-29): Local uses the official achievements, but only locally, and
+another mode uses custom achievements (Custom, the former Local). Setting `Achievements = 4`.
+
+| Part | What happens |
+|---|---|
+| Who earns | Every seated Mii on a connected pad, or Guest when there is none (`achievements_ra_plan_all`). Nobody is the Official Mii: there is no account side. The journal is Official mode's Local side: `achievements/ra_local/<game id>.unlocks`, lines `<digest> <id> <player key> <title>`, the digest made from the game id. So a Mii that earned Spyro's set as a Local Mii of Official mode keeps it in Local mode, and the other way round. Guest's lines have no key. |
+| Rules | Casual; Hardcore is not implemented. `AchievementUnofficial` applies. Encore is on (nothing is the account's). The toast has no side tag (all earn Local) and names the players as in Custom mode. |
+| Never sent | Three locks. (1) rc_client is put in spectator mode before the game loads: it makes no session start, no ping (so no rich presence on the profile), no award, no leaderboard entry. (2) `server_call` (`achievements_official.c`) refuses every request that is not the login, the game id or the set (`ach_req_kind`, `ach_local_may_send` in `Gamecube/ach_ra_cache.h`) with an answer made on the console (`ra_transport_complete`): a refusal shows in the log as "a request of kind X is refused". (3) The test is the log: only "a login download goes to the server", "a gameid ...", "a set ..." lines can appear, or none (a game load served from the card). Leaderboards and rich presence are Official only (the book shows no Leaderboards tab in Local mode). |
+| The download | The patch API needs a login. The account is any one: the Official Mii's linked file if it is there, else `achievements/ra_account.ini`, else the first `*.ini` in `achievements/ra/`. A password login stores the token as in Official mode. Nothing else about the account is used: no unlock list is fetched (spectator mode). |
+| The card's copy | `sd:/wiistation/achievements/ra_cache/`: `gameid-<hash>.json` (the answer to a disc's hash, only when the game is known) and `sets-<hash>.json` (the set), each written only after a successful answer, through a temp file and a rename; never the login (it holds the token), never a request. A game load whose set file is on the card and younger than 30 days (`ACH_CACHE_REFRESH_DAYS`; a wrong clock counts as young) makes no request at all: the login is made up on the console (`ach_synth_login`: the user "Local", the token "offline", never stored), so Local also works with no account and no network. An older copy is asked for again; if the server cannot be reached (no answer or a 5xx) or the login fails, the old copy is used. Badges have their own cache (`achievements/badges/`, as before): a badge not yet cached shows as the title's letter until it can be downloaded. |
+| No network, nothing saved | The status line says "No network, no saved set" and a black banner on the game card says "Local: no network, no set / Go online once to save it". With a network but no account: "Local: no account / Link one in Players". A disc the server does not know says "No set for this disc" as in Official mode. |
+| Seats change | `achievements_players_changed()` (the game goes on after the menu) builds the Local side again for the new players (`achievements_ra_replan`, `achievements_official_players_changed`); the old players' unlocks are written first. Official mode with Local players still plans at the game load only. |
+| Disc swap | rc_client's check as in Official mode. In an offline load the second disc of a game is known only when its hash was downloaded and saved before (a swap while online saves it). |
+| Save states | Official's `WAO1` (rc_client's progress); the unlocks come from the journal, as in Official mode with Local players. |
+| Not here | Hardcore, leaderboards, rich presence, the account's own unlocks. |
+
+Checks (2026-10-29, `try/modes`): host tests `tests/achievements_local_test.c` and `tests/ach_ra_cache_test.c`
+(`scripts/test-achievements.sh`); Dolphin `scripts/chains/ach_local.txt` with the made-up set of
+`scripts/ra_cache_fixture.py` on the card (`--card tests/fixtures/ach_local/achievements`): runs `modes_local_nocache`
+(no saved set, no network: "no network, none saved"), `modes_local_card` (Guest earns Alpha and Beta, comes back
+with 2 earned, two Miis earn their own, no request on the wire) and `modes_local_book` (the book: coin, 2 / 3,
+rarity from the set); bench Wii `scripts/bench_ra_local.py --fixture`, job 20261029-144405-854165 (the same on
+hardware, the DOL without the HTTPS stack). **Not yet run:** a real download with an account (needs a DOL built
+with `build_ogc3/deps/ra_https` and `ra/<name>.ini` on the card): `bench_ra_local.py NAME` without `--fixture`;
+the refusal of a non-download request is host-tested (names) but no real rc_client request was refused, because
+spectator mode makes none.
+
+Decisions, 2026-10-29: Test stays its own mode (it keeps nothing and reads no journal, a different
+promise from Custom; folding it in would need a "keep nothing" switch on Custom for no gain).
+The old numbers keep their meaning, Local is 4. The menu cycles in the owner's order (Off, Local,
+Official, Custom, Test) through a small map in the cycle of `OptionsFrame.cpp` (`optCycle`).
+
 ### Multi-disc games
 
 - Official mode keeps the set through a disc swap (2026-10-23). `loadISOSwap` calls
@@ -515,7 +553,7 @@ feeds it.
   rc_client's `rc_client_find_game_hash` gives the disc's game).
 - A swap before the login is done needs no check: the set then loads from the new disc.
 - Test: `scripts/chains/ach_discswap.txt` (the `discswap` script line).
-- Local and Test mode keep the set through a swap to a disc its `Game=` lines name
+- Custom and Test mode keep the set through a swap to a disc its `Game=` lines name
   (2026-10-24). `loadISOSwap` reads the new disc's serial with `CdromReadId()` (misc.c: the
   label and serial only, none of `CheckCdrom`'s region, hack or PPF changes) and passes it
   to `achievements_change_media`. A disc the set does not name, or one with no PS1 boot file,

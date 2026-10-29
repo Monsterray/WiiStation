@@ -235,7 +235,7 @@ bool needInitCpu = true;
 /* The button texts of the settings in OPTIONS, as the menus show them: choices[value - min]. */
 static const char* const OPT_NO_YES[]        = { "No", "Yes" };
 static const char* const OPT_OFF_ON[]        = { "Off", "On" };
-static const char* const OPT_ACH_MODE[]      = { "Off", "Local", "Test", "Official" };   /* achievements.h ACH_OFF..ACH_OFFICIAL (0-3) */
+static const char* const OPT_ACH_MODE[]      = { "Off", "Custom", "Test", "Official", "Local" };   /* achievements.h ACH_OFF..ACH_LOCAL (0-4); 1-3 are the numbers of the settings files before Local existed */
 static const char* const OPT_ON_OFF[]        = { "On", "Off" };
 static const char* const OPT_FAST_ACCURATE[] = { "Fast", "Accurate" };
 static const char* const OPT_MIX[]           = { "Legacy", "Hi-Fi" };
@@ -456,9 +456,9 @@ static SettingOption OPTIONS[] =
   { "Coop2Assign8", &coopAssign[1][7], 0, 3 },
   { "Coop2Layout8", &coopLayout[1][7], COOP_LAYOUT_FULL, COOP_LAYOUT_COUNT - 1 },
   { "Coop2Buttons8", coopButtons[1][7], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
-  { "Achievements", NULL, 0, 0, "Achievements. Local: your own definition file, unlocks kept. Test: the same, nothing kept. Official: RetroAchievements, Casual (an account linked to a Mii in Players, or ra_account.ini, and a TLS seed on the card)." },
-  { "Achievements", &achievementsEnabled, 0, 3, NULL, "Mode", OPT_ACH_MODE, "Off, Local (your own definition file; unlocks are kept; nothing is downloaded), Test (try a set; nothing is kept) or Official (downloads the RetroAchievements set, Casual: needs an account, linked to a Mii in Players or ra_account.ini, and the TLS seed). Load the game again after a change." },
-  { "AchievementUnofficial", &achievementUnofficial, 0, 1, NULL, "Unofficial", OPT_OFF_ON, "Official mode: also the set's Unofficial achievements (not yet approved by RetroAchievements; their unlocks are not kept on the site). Load the game again after a change." },
+  { "Achievements", NULL, 0, 0, "Achievements. Local: RetroAchievements' set, nothing sent, every player earns into the Local journal (1 = Custom, 2 = Test, 3 = Official, 4 = Local). Custom: your own definition file, unlocks kept. Test: the same, nothing kept. Official: RetroAchievements, Casual (an account linked to a Mii in Players, or ra_account.ini, and a TLS seed on the card)." },
+  { "Achievements", &achievementsEnabled, 0, 4, NULL, "Mode", OPT_ACH_MODE, "Off, Custom (your own definition file; unlocks are kept; nothing is downloaded), Test (try a set; nothing is kept), Official (downloads the RetroAchievements set, Casual: needs an account, linked to a Mii in Players or ra_account.ini, and the TLS seed) or Local (the RetroAchievements set, saved on the card; nothing is ever sent; every player earns into the Local journal; needs one download, so a login the first time). Load the game again after a change." },
+  { "AchievementUnofficial", &achievementUnofficial, 0, 1, NULL, "Unofficial", OPT_OFF_ON, "Official and Local modes: also the set's Unofficial achievements (not yet approved by RetroAchievements; their unlocks are not kept on the site). Load the game again after a change." },
   { "AchievementEncore", &achievementEncore, 0, 1, NULL, "Encore", OPT_OFF_ON, "Official mode: achievements you already have can be earned again this session (the card shows again; nothing new is sent to the site). Load the game again after a change." },
   { "AchievementChallenge", &achievementChallenge, 0, 1, NULL, "Challenge icons", OPT_OFF_ON, "Show the flashing icons for achievements that are one step away (often missable ones). Off hides them; it applies at once." },
   { "AchievementSpectator", &achievementSpectator, 0, 1 },

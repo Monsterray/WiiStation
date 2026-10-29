@@ -1,0 +1,22 @@
+CHAIN
+# Local mode (Achievements = 4, Docs/ACHIEVEMENTS.md "Local mode"): the official set, nothing sent, from the card.
+# Spyro, a set that fires Alpha at 200 frames and Beta at 400 (tests/fixtures/ach_players/Tests/AchPlayers/set.txt, made
+# up as a RetroAchievements set by scripts/ra_cache_fixture.py: the hash is in the log of a first run, 3e9eb765a7b2912e60c30f363f0a3574).
+#   1  Guest alone: earns Alpha and Beta (a journal line with no key)
+#   2  Guest again: both come back from the journal (2 of 3 earned), nothing new
+#   3  A on port 1, B on port 2 (script pads on both): each earns its own Alpha and Beta; Guest's lines are not theirs
+#   scripts/ra_cache_fixture.py tests/fixtures/ach_players/Tests/AchPlayers/set.txt --hash 3e9eb765a7b2912e60c30f363f0a3574 \
+#       --game-id 9000001 --out tests/fixtures/ach_local
+#   scripts/wsx.sh chain NAME scripts/chains/ach_local.txt --fast --set 'Achievements=4' --card tests/fixtures/ach_local/achievements
+# Without --card the card has no saved set and no network: the log says "no network, none saved" and the book says why.
+# Read tty.log: every "Achievements: Local:" line is a request decision; a run from the card has none about the wire, and
+# none may ever name an award, a ping or a session.
+900 sd:/wiistation/ach_players_none.txt FPS=0 PadAutoAssign=1 Player1="" Player2=""
+sd:/wiistation/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue
+300 sd:/wiistation/ach_players_none.txt FPS=0 PadAutoAssign=1 Player1="" Player2=""
+sd:/wiistation/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue
+500 sd:/wiistation/ach_players_p2.txt FPS=0 PadAutoAssign=1 Player1="82625a00c2123456" Player2="82625dd1c2123456"
+sd:/wiistation/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue

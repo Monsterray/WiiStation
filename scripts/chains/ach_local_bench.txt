@@ -1,0 +1,13 @@
+CHAIN
+# Local mode on the bench Wii (scripts/bench_ra_local.py). Spyro, Guest alone, AchievementSpectator=1 as every bench run
+# that could log in (Local forces it anyway). The card has the set saved (the job puts a made-up one for Spyro's hash with
+# --fixture, or the real one was saved by an earlier run with an account): the game loads it with no login and no request,
+#   1  earns Alpha (200 frames) and Beta (400), the Local journal grows two lines
+#   2  loads again: 2 of 3 earned from the journal
+# The log (tty.log) has no "goes to the server" line, and no "refused" line, when the set is on the card.
+650 sd:/wiistation/ach_players_none.txt Achievements=4 AchievementSpectator=1 FPS=0 PadAutoAssign=1 Player1="" Player2=""
+sd:/wiistation/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue
+300 sd:/wiistation/ach_players_none.txt Achievements=4 AchievementSpectator=1 FPS=0 PadAutoAssign=1 Player1="" Player2=""
+sd:/wiistation/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue

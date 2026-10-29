@@ -7,11 +7,13 @@
  *   event()              -- an achievement triggers: mark it earned, write it to the journal
  *   achievements_close() -- at shutdown or disc swap: write what is pending, free the set
  *
- * Modes (setting Achievements): Off, Local (unlocks are saved in a journal file), Test (the
- * same evaluation, but nothing is read from or written to the journal, to try out a set),
- * Official (RetroAchievements; not built yet, so it loads nothing).
+ * Modes (setting Achievements): Off, Custom (the user's own definition file; unlocks are saved in
+ * a journal file; called Local before 5.19.0), Test (the same evaluation, but nothing is read
+ * from or written to the journal, to try out a set), Official (RetroAchievements through
+ * rc_client, achievements_official.c) and Local (RetroAchievements' set, nothing ever sent:
+ * every player earns into the Local journal below).
  *
- * Players (Local mode, Docs/MII_PLAN.md): who is playing is a list of Miis from the hook
+ * Players (Custom and Local mode, Docs/MII_PLAN.md): who is playing is a list of Miis from the hook
  * achievements_players, or Guest alone. Each achievement keeps one bit per player ("has"); the
  * set's earned state is the union, and rcheevos keeps an achievement active while any player
  * lacks it. The journal has a line per player that earned it.
@@ -75,7 +77,12 @@ unsigned achievements_official_board_count(void) __attribute__((weak));
 int achievements_official_board(unsigned i, const char **title, const char **desc) __attribute__((weak));
 int achievements_official_board_scores(unsigned i, achievement_score_t *top, unsigned *n, achievement_score_t *mine)
     __attribute__((weak));
-/* Official mode is on and this build has its hook `fn` */
+void achievements_official_players_changed(void) __attribute__((weak));
+/* A RetroAchievements mode (Official or Local) is on: rc_client plays through achievements_official.c */
+#define RA_MODE() (achievementsEnabled == ACH_OFFICIAL || achievementsEnabled == ACH_LOCAL)
+/* ... and this build has its hook `fn` */
+#define RA(fn) (RA_MODE() && achievements_official_##fn)
+/* Official mode only (the account's own things: rich presence, leaderboards) */
 #define OFFICIAL(fn) (achievementsEnabled == ACH_OFFICIAL && achievements_official_##fn)
 
 static rc_runtime_t runtime;
@@ -172,7 +179,7 @@ static unsigned collect_players(achievement_player_t *out)
 {
     achievement_player_t got[ACH_PLAYERS_MAX];
     unsigned n = 0, i, j, have = 0;
-    if (achievementsEnabled == ACH_LOCAL && achievements_players) n = achievements_players(got);
+    if (achievementsEnabled == ACH_CUSTOM && achievements_players) n = achievements_players(got);
     if (n > ACH_PLAYERS_MAX) n = ACH_PLAYERS_MAX;
     memset(out, 0, sizeof(*out) * ACH_PLAYERS_MAX);
     for (i = 0; i < n; ++i) {
@@ -215,7 +222,7 @@ unsigned achievements_count(void)
 
 unsigned achievements_earned(void)
 {
-    if (OFFICIAL(earned)) return achievements_official_earned();
+    if (OFFICIAL(earned)) return achievements_official_earned();   /* Local mode: the union of its players, as Custom */
     return local_earned();
 }
 
@@ -224,7 +231,7 @@ unsigned achievements_earned(void)
 unsigned achievements_player_count(void)
 {
     if (ra_local) return ra_first + players;
-    return OFFICIAL(count) || !active ? 1 : players;
+    return OFFICIAL(count) || !active ? 1 : players;   /* Local mode's players are ra_local's (above) */
 }
 const char *achievements_player_key(unsigned i)
 {
@@ -252,22 +259,22 @@ const char *achievements_player_note(unsigned i)
 
 const char *achievements_title(void)
 {
-    if (OFFICIAL(title)) return achievements_official_title();
+    if (RA(title)) return achievements_official_title();
     return active ? set_title : "";
 }
 
 const char *achievements_set_id(void)
 {
     static char id[ACH_SET_ID_MAX];
-    if (OFFICIAL(set_id)) return achievements_official_set_id();
-    if (!active || achievementsEnabled != ACH_LOCAL) return "";   /* Test mode keeps nothing, so no pictures */
+    if (RA(set_id)) return achievements_official_set_id();
+    if (!active || achievementsEnabled != ACH_CUSTOM) return "";   /* Test mode keeps nothing, so no pictures */
     snprintf(id, sizeof id, "%.16s", digest_text);
     return id;
 }
 
 void achievements_list_refresh(void)
 {
-    if (OFFICIAL(list_refresh)) achievements_official_list_refresh();
+    if (RA(list_refresh)) achievements_official_list_refresh();
 }
 
 /* For the menu's list: the i-th achievement, with its measured progress ("12/40") */
@@ -420,7 +427,8 @@ int achievements_earned_for(const char *key)
     struct tally t;
     unsigned i, n = 0;
     int p;
-    if (!active || achievementsEnabled != ACH_LOCAL || !key) return -1;
+    if (!(active || (ra_local && achievementsEnabled == ACH_LOCAL)) || (achievementsEnabled != ACH_CUSTOM && achievementsEnabled != ACH_LOCAL) || !key)
+        return -1;
     if ((p = player_of(key)) >= 0) return (int)player_earned((unsigned)p);
     memset(&t, 0, sizeof t);
     t.key = key;
@@ -608,7 +616,7 @@ static void keep_earned(void)
 void achievements_pause(void) { running = 0; }
 void achievements_reset(void)
 {
-    if (OFFICIAL(reset)) {
+    if (RA(reset)) {
         achievements_official_reset();
         return;
     }
@@ -623,7 +631,7 @@ void achievements_reset(void)
 
 void achievements_frame(void)
 {
-    int official = achievementsEnabled == ACH_OFFICIAL;
+    int official = RA_MODE();
     if (official ? !achievements_official_frame : (!active || !running || !achievementsEnabled)) return;
 #if defined(PERF_PROF) && PERF_PROF_ACHIEVEMENTS
     unsigned long long started = perf_now_ticks();
@@ -645,18 +653,18 @@ void achievements_frame(void)
 /* Official mode: the set is still loading (the menu waits for it before a game starts) */
 int achievements_loading(void)
 {
-    return achievementsEnabled == ACH_OFFICIAL && achievements_official_loading && achievements_official_loading();
+    return RA_MODE() && achievements_official_loading && achievements_official_loading();
 }
 
 void achievements_wait_loaded(unsigned ms)
 {
-    if (achievementsEnabled == ACH_OFFICIAL && achievements_official_wait) achievements_official_wait(ms);
+    if (RA_MODE() && achievements_official_wait) achievements_official_wait(ms);
 }
 
 /* The menu and the pause, once per frame: Official mode's completions and rc_client_idle */
 void achievements_idle(void)
 {
-    if (achievementsEnabled == ACH_OFFICIAL && achievements_official_idle) achievements_official_idle();
+    if (RA_MODE() && achievements_official_idle) achievements_official_idle();
 }
 
 /* What achievements do for the loaded game, for the menus (ISO Info, the list): at most 31
@@ -671,12 +679,13 @@ const char *achievements_status(void)
     case ACH_OFF:
         return "Off (Cheevos)";
     case ACH_OFFICIAL:
+    case ACH_LOCAL:
         return achievements_official_status ? achievements_official_status() : "Official: not in this build";
     default:
         if (!active)
             return "No set (AchievementFile)";
         snprintf(line, sizeof line, "%u of %u earned (%s)", achievements_earned(), count,
-                 achievementsEnabled == ACH_TEST ? "Test" : "Local");
+                 achievementsEnabled == ACH_TEST ? "Test" : "Custom");
         return line;
     }
 }
@@ -696,7 +705,7 @@ static int set_has_game(const char *game_id)
 void achievements_change_media(const char *image, const char *game_id)
 {
     snprintf(achievementImage, sizeof achievementImage, "%s", image ? image : "");
-    if (achievementsEnabled == ACH_OFFICIAL && achievements_official_change_media)
+    if (RA_MODE() && achievements_official_change_media)
         achievements_official_change_media(image);
     else if (active && set_has_game(game_id)) {
         unsigned i;
@@ -723,7 +732,8 @@ static void ra_drop(void)
     ra_note[0] = ra_note_key[0] = 0;
 }
 
-unsigned achievements_ra_plan(const char *official_key)
+/* guest: Local mode, no Official side: with no Mii seated, Guest alone is the one player */
+static unsigned ra_plan_build(const char *official_key, int guest)
 {
     achievement_player_t got[ACH_PLAYERS_MAX];
     unsigned n = 0, i, j;
@@ -745,7 +755,32 @@ unsigned achievements_ra_plan(const char *official_key)
         if (j < ra_plan_n) continue;
         ra_plan_list[ra_plan_n++] = got[i];
     }
+    if (guest && !ra_plan_n) {   /* Guest earns when no Mii does: a player with no key (journal lines without one) */
+        memset(&ra_plan_list[0], 0, sizeof ra_plan_list[0]);
+        ra_plan_n = 1;
+    }
     return ra_plan_n;
+}
+
+unsigned achievements_ra_plan(const char *official_key) { return ra_plan_build(official_key, 0); }
+unsigned achievements_ra_plan_all(void) { return ra_plan_build("", 1); }
+
+/* The seats or the pads changed (the menu was open): 1 when the players of the plan now are not
+ * the Local side's. The old players' unlocks are written first. */
+int achievements_ra_replan(const char *official_key, int all)
+{
+    unsigned n, p;
+    int same;
+    if (!ra_local) return 0;
+    n = all ? achievements_ra_plan_all() : achievements_ra_plan(official_key);
+    same = n == players;
+    for (p = 0; same && p < n; ++p) same = !strcmp(ra_plan_list[p].key, player[p].key);
+    if (same) {
+        for (p = 0; p < n; ++p) player[p] = ra_plan_list[p];   /* the same people: their names, perhaps */
+        return 0;
+    }
+    achievements_flush();
+    return 1;
 }
 
 unsigned achievements_ra_begin(const char *digest, const char *journal, int official_plays, const char *official_name,
@@ -817,7 +852,7 @@ int achievements_ra_end(void)
     SysPrintf("Achievements: %u Local player%s on the RetroAchievements set (%u achievements)\n", players,
               players == 1 ? "" : "s", count);
     for (p = 0; p < players; ++p)   /* a key's first 8 characters, never a name */
-        SysPrintf("Achievements: Local player %u is %.8s (%u earned)\n", p + 1, player[p].key, player_earned(p));
+        SysPrintf("Achievements: Local player %u is %s%.8s (%u earned)\n", p + 1, player[p].key[0] ? "" : "Guest", player[p].key, player_earned(p));
     return 1;
 }
 
@@ -836,6 +871,19 @@ unsigned achievements_ra_trigger(unsigned id, achievement_notice_t *n)
 }
 
 int achievements_ra_active(void) { return ra_local; }
+
+void achievements_ra_summary(unsigned *earned, unsigned *total, unsigned *points, unsigned *total_points)
+{
+    unsigned i, pts = 0, all = 0;
+    for (i = 0; ra_local && i < count; ++i) {
+        all += entries[i].points;
+        if (entries[i].has & all_players) pts += entries[i].points;
+    }
+    if (earned) *earned = ra_local ? local_earned() : 0;
+    if (total) *total = ra_local ? count : 0;
+    if (points) *points = pts;
+    if (total_points) *total_points = all;
+}
 
 void achievements_close(void)
 {
@@ -1047,7 +1095,7 @@ static int load_set(const char *game_id, int announce)
         memset(&n, 0, sizeof n);
         n.kind = ACH_NOTICE_GAME;
         n.game = set_title[0] ? set_title : game_id;
-        n.desc = achievementsEnabled == ACH_TEST ? "Test" : "Local";
+        n.desc = achievementsEnabled == ACH_TEST ? "Test" : "Custom";
         n.rarity_x100 = -1;
         n.earned = local_earned();
         n.count = count;
@@ -1063,9 +1111,9 @@ static int load_set(const char *game_id, int announce)
 int achievements_load(const char *game_id)
 {
     achievements_close();
-    if (achievementsEnabled == ACH_OFFICIAL) {
+    if (RA_MODE()) {
         if (achievements_official_load) return achievements_official_load(achievementImage);
-        SysPrintf("Achievements: Official (RetroAchievements) mode is not in this build\n");
+        SysPrintf("Achievements: RetroAchievements (Official, Local) is not in this build\n");
         return 0;
     }
     return load_set(game_id, 1);
@@ -1079,7 +1127,11 @@ void achievements_players_changed(void)
     char game[sizeof load_game];
     unsigned n, p;
     int same;
-    if (!active || achievementsEnabled != ACH_LOCAL) return;
+    if (ra_local && achievementsEnabled == ACH_LOCAL) {   /* RetroAchievements' set: rc_client's entries go in again */
+        if (achievements_official_players_changed) achievements_official_players_changed();
+        return;
+    }
+    if (!active || achievementsEnabled != ACH_CUSTOM) return;
     n = collect_players(now);
     same = n == players;
     for (p = 0; same && p < n; ++p) same = !strcmp(now[p].key, player[p].key);
@@ -1109,7 +1161,7 @@ int achievements_state_save(void *data, unsigned size)
     unsigned i, keys;
     uint32_t n;
     unsigned char *out = data;
-    if (OFFICIAL(state_save)) return achievements_official_state_save(data, size);
+    if (RA(state_save)) return achievements_official_state_save(data, size);
     if (!active) return 0;
     n = rc_runtime_progress_size(&runtime, NULL);
     if (n > ACHIEVEMENTS_STATE_MAX - STATE_HEADER - STATE_KEYS_MAX) return 0;
@@ -1156,7 +1208,7 @@ int achievements_state_load(const void *data, unsigned size)
     const unsigned char *in = data, *keys = NULL;
     unsigned i, saved = 0, end = 0;
     int ok = 0;
-    if (OFFICIAL(state_load)) return achievements_official_state_load(data, size);
+    if (RA(state_load)) return achievements_official_state_load(data, size);
     if (!active) return 0;
     /* only a state made with this exact set restores its progress */
     if (in && size >= STATE_HEADER && size <= ACHIEVEMENTS_STATE_MAX &&

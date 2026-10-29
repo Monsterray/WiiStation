@@ -18,7 +18,13 @@
  * loads the set in spectator mode (nothing is sent) and that Mii earns Local with the others.
  * The Miis seated besides the Official one earn the same set Local (achievements_ra_*), with
  * encore mode on so what the account already has stays active for them; can_submit keeps an
- * unlock the account already has from going to the server again. */
+ * unlock the account already has from going to the server again.
+ *
+ * Local mode (setting Achievements = 4, Docs/ACHIEVEMENTS.md "Local mode") uses the same client
+ * with nothing sent: spectator mode, every seated Mii (or Guest) earns into the Local journal, and
+ * server_call below lets only the downloads through (the login, the game id, the set), keeps
+ * the two downloads on the card, and answers a game load from the card with no network and no
+ * account when the card has the set (Gamecube/ach_ra_cache.h). */
 #ifdef HW_RVL
 #include "achievements.h"
 #include "deps/rcheevos/include/rc_client.h"
@@ -31,7 +37,11 @@
 #include "Gamecube/ra_transport.h"
 #include "Gamecube/ach_account.h"
 #include "Gamecube/ach_progress.h"
+#include "Gamecube/ach_ra_cache.h"
 #include "Gamecube/players.h"
+#include "mem2_manager.h"
+#include <dirent.h>
+#include <time.h>
 #include <sys/stat.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -62,6 +72,13 @@ static int demoted;        /* the Official Mii's account failed: it earns Local,
 static char demote_reason[48];
 static unsigned local_planned;   /* Miis that earn Local next to the Official side, planned at the game load */
 
+/* Local mode (this game load): the set only, nothing sent. offline: the card has the set, so no
+ * login and no network (the login is made up); net_failed: a request got no answer from the
+ * server; local_retry: the set did not load, look at the card's copy (from the frame, not from
+ * inside rc_client's callback). */
+static int local_mode, offline, net_failed, local_retry;
+static char local_hash[33];   /* the disc's hash, to load again from the card */
+
 /* The unlocks the account had when the set loaded, and those it got since: encore mode lets them
  * trigger again for the Local players; none goes to the server a second time (can_submit) */
 #define MAX_HAD 512
@@ -83,6 +100,10 @@ const char *achievements_official_status(void)
 	rc_client_user_game_summary_t s;
 	if (!client || !game_loaded || media_pending || !(g = rc_client_get_game_info(client)))
 		return state;
+	if (local_mode) {   /* the Local side's own count (the union of its players) */
+		snprintf(line, sizeof line, "%u of %u earned (Local)", achievements_earned(), achievements_count());
+		return line;
+	}
 	if (demoted)
 		return "Local (account failed)";
 	rc_client_get_user_game_summary(client, &s);
@@ -432,11 +453,130 @@ static uint32_t read_memory(uint32_t address, uint8_t *buffer, uint32_t size, rc
 	return achievements_read_memory(address, buffer, size, NULL);
 }
 
+/* ---- Local mode: the card's copy of the set, and what may leave the console ---- */
+
+typedef struct { rc_client_server_callback_t done; void *data; int kind; char file[ACH_CACHE_PATH]; } local_call_t;
+
+/* The whole file, in MEM2 (a set can be hundreds of KB); NULL when it is not there */
+static char *cache_read(const char *path, size_t *len)
+{
+	FILE *f = fopen(path, "rb");
+	long size;
+	char *body = NULL;
+	if (!f) return NULL;
+	if (!fseek(f, 0, SEEK_END) && (size = ftell(f)) > 0 && size <= ACH_CACHE_MAX && !fseek(f, 0, SEEK_SET) &&
+	    (body = _mem2_malloc((uint32_t)size + 1))) {
+		if (fread(body, 1, (size_t)size, f) == (size_t)size) {
+			body[size] = 0;
+			*len = (size_t)size;
+		} else {
+			_mem2_free(body);
+			body = NULL;
+		}
+	}
+	fclose(f);
+	return body;
+}
+
+/* Through a temp file and a rename, as the account file: a power cut leaves the old copy or the new */
+static void cache_write(const char *path, const char *body, size_t len)
+{
+	char temp[ACH_CACHE_PATH + 8];
+	FILE *f;
+	int ok;
+	mkdir(ACH_ACCOUNT_DIR "ra_cache", 0777);
+	if (!temp_path(path, temp, sizeof temp) || !(f = fopen(temp, "wb"))) {
+		SysPrintf("Achievements: Local: cannot save the set on the card\n");
+		return;
+	}
+	ok = fwrite(body, 1, len, f) == len;
+	ok = (fclose(f) == 0) && ok;
+	if (!ok) {
+		remove(temp);
+		SysPrintf("Achievements: Local: cannot save the set on the card\n");
+		return;
+	}
+	remove(path);
+	if (rename(temp, path) != 0)
+		SysPrintf("Achievements: Local: the saved set is %s until the next save\n", temp);
+	else
+		SysPrintf("Achievements: Local: the set is saved on the card (%u bytes)\n", (unsigned)len);
+}
+
+static int local_cached(const char *hash)
+{
+	char file[ACH_CACHE_PATH];
+	struct stat st;
+	return ach_cache_hash_path(ACH_REQ_SETS, hash, file, sizeof file) && !stat(file, &st);
+}
+
+/* The server's answer to a download: kept on the card when it is worth keeping; a request that
+ * got no answer (or a server error) is remembered, so the card's older copy can be used */
+static void local_done(const rc_api_server_response_t *resp, void *data)
+{
+	local_call_t *lc = data;
+	if (resp->http_status_code < 0 || resp->http_status_code >= 500)
+		net_failed = 1;
+	else if (lc->file[0] && resp->http_status_code == 200 && ach_cache_keeps(lc->kind, resp->body, resp->body_length))
+		cache_write(lc->file, resp->body, resp->body_length);
+	lc->done(resp, lc->data);
+	free(lc);
+}
+
+/* Local mode, a game load served from the card: the login is made up, the set comes from the file */
+static void local_from_card(int kind, const rc_api_request_t *request, rc_client_server_callback_t done, void *done_data)
+{
+	char file[ACH_CACHE_PATH], body[160], user[40];
+	size_t len = 0;
+	char *text;
+	if (kind == ACH_REQ_LOGIN) {
+		if (!ach_req_param(request->post_data, "u", user, sizeof user)) user[0] = 0;
+		ach_synth_login(user, body, sizeof body);
+		ra_transport_complete(done, done_data, 200, body, strlen(body));
+		return;
+	}
+	if (ach_cache_path(kind, request->post_data, file, sizeof file) && (text = cache_read(file, &len))) {
+		SysPrintf("Achievements: Local: %s from the card\n", ach_req_name(kind));
+		ra_transport_complete(done, done_data, 200, text, len);
+		_mem2_free(text);
+		return;
+	}
+	SysPrintf("Achievements: Local: no saved %s for this disc\n", ach_req_name(kind));
+	ra_transport_complete(done, done_data, RC_API_SERVER_RESPONSE_CLIENT_ERROR, NULL, 0);
+}
+
 static void server_call(const rc_api_request_t *request, rc_client_server_callback_t done, void *done_data,
                         rc_client_t *c)
 {
+	local_call_t *lc;
+	int kind;
 	(void)c;
-	ra_transport_post(request->url, request->post_data, request->content_type, done, done_data);
+	if (!local_mode) {
+		ra_transport_post(request->url, request->post_data, request->content_type, done, done_data);
+		return;
+	}
+	/* Local mode: only a download may leave; an award, a leaderboard entry, a ping or a session
+	 * start never does (spectator mode makes none; this is the second lock) */
+	kind = ach_req_kind(request->post_data);
+	if (!ach_local_may_send(kind)) {
+		SysPrintf("Achievements: Local: a request of kind %s is refused, nothing is sent\n", ach_req_name(kind));
+		ra_transport_complete(done, done_data, 200, ACH_REFUSED_BODY, strlen(ACH_REFUSED_BODY));
+		return;
+	}
+	if (offline) {
+		local_from_card(kind, request, done, done_data);
+		return;
+	}
+	if (!(lc = calloc(1, sizeof *lc))) {
+		ra_transport_complete(done, done_data, RC_API_SERVER_RESPONSE_CLIENT_ERROR, NULL, 0);
+		return;
+	}
+	lc->done = done;
+	lc->data = done_data;
+	lc->kind = kind;
+	if (!ach_cache_path(kind, request->post_data, lc->file, sizeof lc->file)) lc->file[0] = 0;
+	SysPrintf("Achievements: Local: a %s download goes to the server\n", ach_req_name(kind));
+	ra_transport_post(request->url, request->post_data, request->content_type, local_done, lc);
 }
 
 /* Beaten, as RetroAchievements counts it: every Progression earned, and a Win if there is one */
@@ -522,7 +662,8 @@ static void event(const rc_client_event_t *e, rc_client_t *c)
 			break;
 		}
 		int before = had_has(a->id);   /* the account had it before this trigger */
-		int fresh = !demoted && !before;
+		int no_side = demoted || local_mode;   /* no account side: every player earns Local */
+		int fresh = !no_side && !before;
 		achievement_notice_t ln;
 		rc_client_get_user_game_summary(client, &s);
 		list_stale = 1;   /* the menu's list moves it to Earned */
@@ -540,7 +681,7 @@ static void event(const rc_client_event_t *e, rc_client_t *c)
 		n.count = s.num_promoted_achievements;
 		n.type = a->type <= RC_CLIENT_ACHIEVEMENT_TYPE_WIN ? a->type : ACH_TYPE_STANDARD;
 		ln = n;   /* the Local players' toast starts from the same card */
-		if (fresh || (!demoted && achievementEncore)) {   /* the account's side: new, or shown again by Encore */
+		if (fresh || (!no_side && achievementEncore)) {   /* the account's side: new, or shown again by Encore */
 			n.beaten = !beaten_seen && is_beaten();
 			n.mastered = !mastered_seen && is_mastered();
 			beaten_seen |= n.beaten;
@@ -555,7 +696,7 @@ static void event(const rc_client_event_t *e, rc_client_t *c)
 		}
 		had_add(a->id);
 		if (achievements_ra_active()) {   /* the Local players without it get it in their journal */
-			ln.side = "Local";
+			ln.side = local_mode ? NULL : "Local";   /* Local mode has no other side to tell it from */
 			if (achievements_ra_trigger(a->id, &ln) && achievements_notify) achievements_notify(&ln);
 		}
 		break;
@@ -639,6 +780,60 @@ static void choose_account(void)
 	ach_account_path(link, want_path, sizeof want_path);
 }
 
+/* Local mode: any account will do, it only downloads. The Official Mii's own if its file is
+ * there, else this Wii's ra_account.ini, else the first file in achievements/ra/. When there is
+ * none, ra_account.ini, so the failure names it. */
+static void local_account(char *out, size_t size)
+{
+	const char *key = players_official();
+	const char *link = *key ? players_account(key) : "";
+	char path[ACCOUNT_PATH], best[ACH_ACCOUNT_NAME_MAX + 8] = "";
+	struct stat st;
+	DIR *d;
+	struct dirent *e;
+	if (*link && ach_account_path(link, path, sizeof path) != ACH_ACCOUNT_BAD && !stat(path, &st)) {
+		snprintf(out, size, "%s", path);
+		return;
+	}
+	if (!stat(ACH_ACCOUNT_WII, &st)) {
+		snprintf(out, size, "%s", ACH_ACCOUNT_WII);
+		return;
+	}
+	if ((d = opendir(ACH_ACCOUNT_DIR "ra"))) {
+		while ((e = readdir(d))) {
+			size_t n = strlen(e->d_name);
+			char name[ACH_ACCOUNT_NAME_MAX + 8];
+			if (n < 5 || n >= sizeof name || strcasecmp(e->d_name + n - 4, ".ini")) continue;
+			snprintf(name, sizeof name, "%s", e->d_name);
+			name[n - 4] = 0;
+			if (!ach_account_name_ok(name)) continue;
+			if (!best[0] || strcmp(name, best) < 0) snprintf(best, sizeof best, "%s", name);
+		}
+		closedir(d);
+	}
+	if (best[0] && ach_account_path(best, path, sizeof path) == ACH_ACCOUNT_NAMED)
+		snprintf(out, size, "%s", path);
+	else
+		snprintf(out, size, "%s", ACH_ACCOUNT_WII);
+}
+
+/* Local mode, a game load: the card's copy of the set when there is a recent one (no account, no
+ * network), else an account for the download */
+static void local_pick(void)
+{
+	char file[ACH_CACHE_PATH];
+	struct stat st;
+	want_key[0] = 0;
+	local_account(want_path, sizeof want_path);
+	snprintf(local_hash, sizeof local_hash, "%s", game_hash);
+	if (ach_cache_hash_path(ACH_REQ_SETS, game_hash, file, sizeof file) && !stat(file, &st) &&
+	    ach_cache_fresh(st.st_mtime, time(NULL))) {
+		offline = 1;
+		snprintf(want_path, sizeof want_path, "%s", ACH_OFFLINE_LINK);
+		SysPrintf("Achievements: Local: the saved set is used, no network\n");
+	}
+}
+
 static void drop_session(void)
 {
 	rc_client_logout(client);   /* also unloads a game: none is loaded when the account changes */
@@ -650,9 +845,46 @@ static void drop_session(void)
  * Wii's account loads the set in spectator mode, so nothing is sent to it, and that Mii earns
  * Local with the others. Else (this Wii's own account, or no such account): no set. Nothing
  * tries a password again by itself. */
+static void local_fail(const char *why)
+{
+	int net = net_failed || !ra_transport_available();
+	if (!offline && local_hash[0] && local_cached(local_hash)) {   /* the card's copy, however old */
+		offline = 1;
+		snprintf(want_path, sizeof want_path, "%s", ACH_OFFLINE_LINK);
+		snprintf(game_hash, sizeof game_hash, "%s", local_hash);
+		snprintf(state, sizeof state, "Connecting...");
+		SysPrintf("Achievements: Local: %s; the saved set is used\n", why);
+		start_session();
+		return;
+	}
+	SysPrintf("Achievements: Local: no set: %s%s\n", why, net ? " (no network, none saved)" : "");
+	snprintf(state, sizeof state, "%s", net ? "No network, no saved set" : why);
+	game_hash[0] = 0;
+	if (achievements_notify && (net || strstr(why, "ccount"))) {   /* said plainly, on the screen */
+		achievement_notice_t n;
+		memset(&n, 0, sizeof n);
+		n.kind = ACH_NOTICE_WARNING;
+		n.title = net ? "Local: no network, no set" : "Local: no account";
+		n.desc = net ? "Go online once to save it" : "Link one in Players";
+		achievements_notify(&n);
+	}
+}
+
+/* A set that did not load: the next frame, outside rc_client's callback */
+static void local_pending(void)
+{
+	if (!local_retry) return;
+	local_retry = 0;
+	local_fail("No set for this disc");
+}
+
 static void account_failed(const char *why)
 {
 	struct stat st;
+	if (local_mode) {
+		local_fail(why);
+		return;
+	}
 	SysPrintf("Achievements: the Official account did not work: %s\n", why);
 	if (want_key[0] && !demoted && game_hash[0] && ra_transport_available() && want_path[0] &&
 	    strcmp(want_path, ACH_ACCOUNT_WII) && !stat(ACH_ACCOUNT_WII, &st)) {
@@ -694,7 +926,7 @@ static void local_begin(const rc_client_game_t *g)
 	if (!local_planned || !g || !ach_ra_journal_path(g->id, journal, sizeof journal)) return;
 	ach_ra_digest(g->id, digest);
 	mkdir(ACH_ACCOUNT_DIR "ra_local", 0777);
-	if (!achievements_ra_begin(digest, journal, !demoted, NULL, demoted ? want_key : "", demoted ? demote_reason : ""))
+	if (!achievements_ra_begin(digest, journal, !demoted && !local_mode, NULL, demoted ? want_key : "", demoted ? demote_reason : ""))
 		return;
 	l = rc_client_create_achievement_list(client,
 		rc_client_get_unpromoted_enabled(client) ? RC_CLIENT_ACHIEVEMENT_CATEGORY_PROMOTED_AND_UNPROMOTED
@@ -732,6 +964,8 @@ static void game_loaded_cb(int result, const char *error, rc_client_t *c, void *
 	if (result != RC_OK) {
 		SysPrintf("Achievements: no RetroAchievements set for this disc (%s)\n", error ? error : "unknown");
 		snprintf(state, sizeof state, "No set for this disc");
+		if (local_mode && !offline) local_retry = 1;   /* the card's copy, if there is one (local_pending) */
+		else if (local_mode) local_fail("No set for this disc");
 		return;
 	}
 	game_loaded = 1;
@@ -742,24 +976,30 @@ static void game_loaded_cb(int result, const char *error, rc_client_t *c, void *
 	rc_client_get_user_game_summary(client, &s);
 	SysPrintf("Achievements: %s, %u of %u earned (%s, Casual%s%s)\n", g && g->title ? g->title : "?",
 	          (unsigned)s.num_unlocked_achievements, (unsigned)s.num_promoted_achievements,
-	          demoted ? "Local" : "Official",
+	          demoted || local_mode ? "Local" : "Official",
 	          rc_client_get_encore_mode_enabled(client) ? ", Encore" : "",
 	          rc_client_get_unpromoted_enabled(client) ? ", Unofficial" : "");
 	list_stale = 1;
 	had_build();
 	local_begin(g);
+	if (local_mode && !achievements_ra_active()) {   /* the journal could not be read: no player earns */
+		snprintf(state, sizeof state, "Local journal unreadable");
+		return;
+	}
 	if (achievements_notify) {   /* the game card: the set is on */
 		achievement_notice_t n;
 		memset(&n, 0, sizeof n);
 		n.kind = ACH_NOTICE_GAME;
 		n.game = g && g->title ? g->title : "";
 		n.badge = g && g->badge_name ? g->badge_name : "";
-		n.desc = demoted ? "Local" : "Official";
+		n.desc = demoted || local_mode ? "Local" : "Official";
 		n.rarity_x100 = -1;
 		n.earned = s.num_unlocked_achievements;
 		n.count = s.num_promoted_achievements;
 		n.points = s.points_unlocked;
 		n.total_points = s.points_available;
+		if (local_mode)   /* nothing is the account's: the players' own */
+			achievements_ra_summary(&n.earned, &n.count, &n.points, &n.total_points);
 		achievements_notify(&n);
 	}
 }
@@ -809,6 +1049,13 @@ static void login(const char *path)
 	int is_token;
 	if (!path[0]) {
 		account_failed("Account name not valid");
+		return;
+	}
+	if (!strcmp(path, ACH_OFFLINE_LINK)) {   /* Local, from the card: server_call makes the login up; no file, no token stored */
+		login_busy = 1;
+		snprintf(login_path, sizeof login_path, "%s", path);
+		login_gen++;
+		rc_client_begin_login_with_token(client, "Local", "offline", login_cb, (void *)(uintptr_t)(login_gen << 1));
 		return;
 	}
 	if (!read_account(path, user, sizeof user, secret, sizeof secret, &is_token)) {
@@ -862,7 +1109,7 @@ void achievements_official_idle(void);
 
 int achievements_official_loading(void)
 {
-	return client && (login_busy || load_busy);
+	return client && (login_busy || load_busy || local_retry);
 }
 
 /* Wait for it, polling, up to ms milliseconds: the start of a game (go()). The menu shows a
@@ -885,13 +1132,21 @@ int achievements_official_load(const char *image)
 	if (!client_up()) return 0;
 	demoted = 0;
 	demote_reason[0] = 0;
-	choose_account();
-	local_planned = achievements_ra_plan(want_key);   /* the other seated Miis earn Local */
+	local_mode = achievementsEnabled == ACH_LOCAL;
+	offline = net_failed = local_retry = 0;
+	local_hash[0] = 0;
+	if (local_mode) {   /* everyone earns Local: every seated Mii, or Guest */
+		want_key[0] = want_path[0] = 0;
+		local_planned = achievements_ra_plan_all();
+	} else {
+		choose_account();
+		local_planned = achievements_ra_plan(want_key);   /* the other seated Miis earn Local */
+	}
 	/* before the set loads: rc_client reads these when it activates the achievements. Encore
 	 * with Local players: the account's earned ones stay active for them. */
 	rc_client_set_unpromoted_enabled(client, achievementUnofficial != 0);
 	rc_client_set_encore_mode_enabled(client, achievementEncore != 0 || local_planned > 0);
-	rc_client_set_spectator_mode_enabled(client, achievementSpectator != 0);   /* scripted runs: nothing reaches the account */
+	rc_client_set_spectator_mode_enabled(client, achievementSpectator != 0 || local_mode);   /* scripted runs, and Local: nothing reaches the account */
 	if (image && strlen(image) > 4 && !strcasecmp(image + strlen(image) - 4, ".exe")) {
 		SysPrintf("Achievements: a .exe has no disc to identify; no achievements for it\n");
 		snprintf(state, sizeof state, "None: a .exe has no disc");
@@ -904,6 +1159,7 @@ int achievements_official_load(const char *image)
 		return 0;
 	}
 	snprintf(state, sizeof state, "Connecting...");
+	if (local_mode) local_pick();
 	start_session();
 	return 0;   /* the set arrives later, asynchronously */
 }
@@ -912,6 +1168,7 @@ void achievements_official_frame(void)
 {
 	if (!client) return;
 	ra_transport_poll();
+	local_pending();
 	/* every frame, loaded or not: with background memory reads off, rc_client finishes a game
 	 * load (it validates addresses through read_memory) in its next do_frame. While a swapped
 	 * disc is being checked, only idle: no award against a disc that may not be the game's. */
@@ -970,7 +1227,8 @@ void achievements_official_idle(void)
 {
 	/* the menu is up: log in now, once, so a game load only fetches its set */
 	if (!client && !client_up()) return;
-	if (!logged_in && !login_busy && !login_tried) {
+	local_pending();
+	if (!logged_in && !login_busy && !login_tried && !game_loaded && achievementsEnabled != ACH_LOCAL) {   /* Local logs in only to download a set */
 		login_tried = 1;
 		choose_account();
 		login(want_path);
@@ -987,6 +1245,18 @@ void achievements_official_close(void)
 	if (game_loaded) rc_client_unload_game(client);
 	game_loaded = media_pending = 0;
 	had_n = 0;
+	local_retry = 0;
+}
+
+/* The seats or the pads changed: Local mode's players are asked for again, and the set's entries
+ * go in again for the new ones (their journals are read; the old players' unlocks are written) */
+void achievements_official_players_changed(void)
+{
+	const rc_client_game_t *g;
+	if (!local_mode || !game_loaded || !client || !(g = rc_client_get_game_info(client))) return;
+	if (!achievements_ra_replan("", 1)) return;
+	SysPrintf("Achievements: the players changed, the Local side loads again\n");
+	local_begin(g);
 }
 
 #endif /* HW_RVL */

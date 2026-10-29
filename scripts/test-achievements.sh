@@ -42,3 +42,13 @@ UBSAN_OPTIONS=halt_on_error=1 "$task_dir/badge_test"
 "${CC:-cc}" -std=c99 -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined \
   tests/achievement_clock.c tests/achievement_clock_learn_test.c -o "$task_dir/clock_test"
 UBSAN_OPTIONS=halt_on_error=1 "$task_dir/clock_test"
+# Local mode (RetroAchievements' set, nothing sent): Guest and every seated Mii earn into the Local journal, the players change in play
+"${CC:-cc}" -std=c99 -O1 -g -Wall -Wextra -Werror \
+  -fsanitize=address,undefined -fno-omit-frame-pointer \
+  -Ideps/rcheevos/include achievements.c tests/achievements_local_test.c \
+  "$task_dir"/*.o -lm -o "$task_dir/local_test"
+UBSAN_OPTIONS=halt_on_error=1 "$task_dir/local_test" "$task_dir"
+# Local mode's request rules (only downloads may leave) and the card's copy of the set (Gamecube/ach_ra_cache.h)
+"${CC:-cc}" -std=c99 -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined \
+  tests/ach_ra_cache_test.c -o "$task_dir/ra_cache_test"
+UBSAN_OPTIONS=halt_on_error=1 "$task_dir/ra_cache_test"
