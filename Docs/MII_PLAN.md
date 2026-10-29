@@ -151,5 +151,5 @@ on/off button instead of a check box, and an Edit slot that opens a Mii's player
 | Step | Work | Check |
 | --- | --- | --- |
 | 4a | `ra/` accounts read by name; login with a chosen file; `ra_setup.py --ra-name` | Host test of the account-file choice; bench Wii login with the dev account file |
-| 4b | The Edit slot and page, the account browser, `[Accounts]` and `PlayersOfficial` in players.ini, RA tag, Official button | `wsx.sh menu` walk in Dolphin with dummy account files (no real login) |
+| 4b | The Edit slot and page, the account browser, `[Accounts]` and `PlayersOfficial` in players.ini, RA tag, Official button | **Done 5.19.0**: `wsx.sh menu ... --sd tests/fixtures/players_accounts` walks (link a file, link This Wii's account, Official moved to port 2's Mii; players.ini read back) |
 | 4c | Official session for the chosen Mii, Local for the others; toasts | Bench Wii: a game with Kat linked and Official, Ollie Local: Kat's unlock reaches the server, Ollie's goes to the journal |

@@ -57,6 +57,21 @@ void players_seat_mii(int seat, const char *key);   /* seats a Mii (leaving its 
 extern char playersRecent[256];
 void players_used(void);   /* the seated Miis to the front of playersRecent */
 
+/* RetroAchievements accounts linked to Miis: players.ini [Accounts], "<Mii key> = <name>".
+ * A name is an account file's: "" none (the Mii earns Local), "*" this Wii's ra_account.ini,
+ * else achievements/ra/<name>.ini. Only names: nothing here opens an account file. */
+#define PLAYERS_ACCOUNT 32
+const char *players_account(const char *key);              /* its link, "" none */
+void players_link(const char *key, const char *name);      /* "" unlinks */
+const char *players_link_at(int i, const char **name);     /* the i-th link's key, NULL past the end */
+void players_links_clear(void);                            /* before players.ini is read again */
+extern int playersLinksChanged;                            /* a link changed since players.ini */
+/* The Mii that plays Official (one per game): PlayersOfficial when it is linked and seated,
+ * else port 1's Mii (1A, 1 P1) when that one is linked. "" none: today's ra_account.ini. */
+extern char playersOfficial[256];
+const char *players_official(void);
+int players_seat_active(int seat);   /* a seat that plays as the ports are set now */
+
 #ifdef __cplusplus
 }
 #endif

@@ -493,6 +493,7 @@ static SettingOption OPTIONS[] =
   { "Player2P7", playerSeat[24], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "Player2P8", playerSeat[25], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "PlayersRecent", playersRecent, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
+  { "PlayersOfficial", playersOfficial, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "Network", NULL, 0, 0, "Games from a network share (SMB)." },
   { "smbipaddr", smbIpAddr, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "smbsharename", smbShareName, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
@@ -579,7 +580,7 @@ static const char* const GLOBAL_ONLY_KEYS[] = {
 	"smbipaddr", "smbsharename", "smbusername", "smbpassword", "RomDirSMB",
 	"Player1", "Player2", "Player1A", "Player1B", "Player1C", "Player1D", "Player2A", "Player2B", "Player2C", "Player2D",
 	"Player1P1", "Player1P2", "Player1P3", "Player1P4", "Player1P5", "Player1P6", "Player1P7", "Player1P8",
-	"Player2P1", "Player2P2", "Player2P3", "Player2P4", "Player2P5", "Player2P6", "Player2P7", "Player2P8", "PlayersRecent" };
+	"Player2P1", "Player2P2", "Player2P3", "Player2P4", "Player2P5", "Player2P6", "Player2P7", "Player2P8", "PlayersRecent", "PlayersOfficial" };
 
 static bool keyIn(const char* key, const char* const* list, int n)
 {
@@ -1917,7 +1918,7 @@ static bool isPlayersRow(int i)
 	if (!OPTIONS[i].value)
 		return !strcmp(OPTIONS[i].key, "Players");
 	return (OPTIONS[i].value >= playerSeat[0] && OPTIONS[i].value <= playerSeat[PLAYERS_SEATS - 1]) ||
-	       OPTIONS[i].value == playersRecent;
+	       OPTIONS[i].value == playersRecent || OPTIONS[i].value == playersOfficial;
 }
 
 static void readPlayers(void)
@@ -1925,18 +1926,33 @@ static void readPlayers(void)
 	char path[40];
 	snprintf(path, sizeof path, "%s:/wiistation/players.ini", playersDev);
 	FILE* f = fopen(path, "r");
-	if (f) {
-		readConfig(f);
-		fclose(f);
+	if (!f)
+		return;
+	readConfig(f);   /* the seats; the [Accounts] lines match no setting */
+	rewind(f);
+	char line[CONFIG_LINE_MAX];
+	bool accounts = false;
+	players_links_clear();
+	while (config_getline(line, CONFIG_LINE_MAX, f)) {
+		char* l = line + strspn(line, " \t");
+		if (*l == '[')
+			accounts = !strncmp(l, "[Accounts]", 10);
+		else if (accounts && (l = config_line(l))) {
+			char* v = config_split(l);
+			if (v && *v == '"')
+				players_link(l, config_unquote(v));
+		}
 	}
+	playersLinksChanged = 0;
+	fclose(f);
 }
 
-/* The seats and the Miis last seated (players_used) to players.ini, when one changed since
- * the file was read or written. */
+/* The seats, the Miis last seated (players_used), the Official Mii and the account links to
+ * players.ini, when one changed since the file was read or written. */
 bool writePlayers(void)
 {
 	char path[40];
-	bool changed = false;
+	bool changed = playersLinksChanged;
 	players_used();
 	for (int i = 0; i < OPTION_COUNT; i++)
 		changed |= isPlayersRow(i) && settingUnsaved(i);
@@ -1953,6 +1969,11 @@ bool writePlayers(void)
 			fprintf(f, "%s = \"%s\"\n", OPTIONS[i].key, OPTIONS[i].value);
 			settingRemember(i);
 		}
+	const char *key, *name;
+	fprintf(f, "\n[Accounts]\n; A Mii's RetroAchievements account: achievements/ra/<name>.ini, \"*\" ra_account.ini\n");
+	for (int i = 0; (key = players_link_at(i, &name)); i++)
+		fprintf(f, "%s = \"%s\"\n", key, name);
+	playersLinksChanged = 0;
 	fclose(f);
 	return true;
 }

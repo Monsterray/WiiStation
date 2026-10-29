@@ -22,6 +22,7 @@
 #include <cstdlib>
 #include <strings.h>
 #include <sys/stat.h>   /* the RomDir folders */
+#include <dirent.h>     /* the account files */
 #include "../config_parse.h"   /* config_list_next */
 #include "MenuGlue.h"
 #define CONFIG_ITEM_SIZE 256
@@ -48,6 +49,7 @@ extern "C" {
 #include "../fileBrowser/fileBrowser-SMB.h"
 #include "../fileBrowser/smb2dev.h"
 #include "../../database.h"
+#include "../players.h"
 extern long ISOgetTN(unsigned char *buffer);
 extern char debugInfo[256];
 }
@@ -79,6 +81,8 @@ static char fileBrowserStrings[3][5] =
 
 /* The directory listing, owned here: dir_entries holds num_entries entries. */
 static fileBrowser_file* dir_entries;
+enum { ACCOUNT_FILE, ACCOUNT_NONE, ACCOUNT_WII };   /* FILEBROWSER_ACCOUNT: an entry's offset */
+static char accountMii[PLAYERS_KEY], accountTitle[64];
 static bool				romFolderList;   /* dir_entries are the RomDir folders: show whole paths */
 static int				num_entries;
 
@@ -399,6 +403,12 @@ void FileBrowserFrame::drawChildren(menu::Graphics &gfx)
 		{
 			(*iteration)->draw(gfx);
 		}
+		if (fileBrowserMode == FILEBROWSER_ACCOUNT)
+		{
+			menu::IplFont &font = menu::IplFont::getInstance();
+			font.drawInit((GXColor) {255,255,255,255});
+			font.drawString(320, 20, accountTitle, 0.7f, true);   /* above the list */
+		}
 	}
 }
 
@@ -418,7 +428,10 @@ extern MenuContext *pMenuContext;
 
 void Func_ReturnFromFileBrowserFrame()
 {
-	pMenuContext->setActiveFrame(MenuContext::FRAME_MAIN);
+	if (fileBrowserMode == FileBrowserFrame::FILEBROWSER_ACCOUNT)
+		pMenuContext->setActiveFrame(MenuContext::FRAME_PLAYERS, 1);   /* back to the Mii's page */
+	else
+		pMenuContext->setActiveFrame(MenuContext::FRAME_MAIN);
 }
 
 void Func_Select1() { fileBrowserFrame_LoadFile(FB_LIST.top + 0); }
@@ -542,6 +555,41 @@ void fileBrowserFrame_OpenRomFolders(fileBrowser_file* deviceDefault, const char
 	memcpy(dir_entries, found, n * sizeof(fileBrowser_file));
 	num_entries = n;
 	romFolderList = true;
+	FB_LIST.count = num_entries;
+	FB_LIST.top = 0;
+	fileBrowserFrame_FillPage();
+}
+
+/* A Mii's RetroAchievements account, chosen by file name (Docs/MII_PLAN.md): "None: earn
+ * Local", the files of sd:/wiistation/achievements/ra/ without ".ini", and "This Wii's account"
+ * when ra_account.ini is there. No account file is opened. An entry's offset tells which. */
+void fileBrowserFrame_OpenAccounts(const char *key, const char *mii)
+{
+	static const int MAX = 64;
+	struct stat st;
+	if (dir_entries) { free(dir_entries); dir_entries = NULL; }
+	dir_entries = (fileBrowser_file*)calloc(MAX + 2, sizeof(fileBrowser_file));
+	snprintf(accountMii, sizeof accountMii, "%s", key);
+	snprintf(accountTitle, sizeof accountTitle, "Account for %s", mii);
+	romFolderList = true;   /* names as they are */
+	num_entries = 0;
+	strcpy(dir_entries[num_entries++].name, "None: earn Local");
+	dir_entries[0].offset = ACCOUNT_NONE;
+	if (DIR *d = opendir("sd:/wiistation/achievements/ra")) {
+		while (struct dirent *e = readdir(d)) {
+			size_t n = strlen(e->d_name);
+			if (num_entries <= MAX && n > 4 && n - 4 < PLAYERS_ACCOUNT && !strcasecmp(e->d_name + n - 4, ".ini")) {
+				snprintf(dir_entries[num_entries].name, n - 3, "%s", e->d_name);
+				dir_entries[num_entries++].offset = ACCOUNT_FILE;
+			}
+		}
+		closedir(d);
+	}
+	qsort(dir_entries + 1, num_entries - 1, sizeof(fileBrowser_file), dir_comparator);
+	if (!stat("sd:/wiistation/achievements/ra_account.ini", &st)) {
+		strcpy(dir_entries[num_entries].name, "This Wii's account");
+		dir_entries[num_entries++].offset = ACCOUNT_WII;
+	}
 	FB_LIST.count = num_entries;
 	FB_LIST.top = 0;
 	fileBrowserFrame_FillPage();
@@ -710,6 +758,12 @@ static void CheckGameR3000AutoFix(void)
 void fileBrowserFrame_LoadFile(int i)
 {
 	char feedback_string[256] = "Failed to load ISO";
+	if (fileBrowserMode == FileBrowserFrame::FILEBROWSER_ACCOUNT) {
+		players_link(accountMii, dir_entries[i].offset == ACCOUNT_NONE ? "" :
+		                         dir_entries[i].offset == ACCOUNT_WII ? "*" : dir_entries[i].name);
+		pMenuContext->setActiveFrame(MenuContext::FRAME_PLAYERS, 1);
+		return;
+	}
 	if(dir_entries[i].attr & FILE_BROWSER_ATTR_DIR){
 		// Here we are 'recursing' into a subdirectory
 		// We have to do a little dance here to avoid a dangling pointer

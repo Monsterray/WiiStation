@@ -58,7 +58,7 @@ To write the game's file, load the game, open the Settings menu, and select **Sa
 
 **Load Settings > This Game** sets the settings in the same order (1, 2, 3) now. It does nothing when the game has no file.
 
-These keys are never in a game's file: `lang`, `MenuFont`, `FileSortMode`, `TabWrap` (the menu), `RomDirSD`, `RomDirUSB`, `RomDirSMB`, `NativeDevice`, `StatesDevice`, `AchievementFile`, `AchievementLog`, `AchievementUTCOffset` (folders, devices and the clock), the Players seats `Player1` ... `Player2D`, `Player1P1` ... `Player2P8` and `PlayersRecent` (in `players.ini`), and `smbipaddr`, `smbsharename`, `smbusername`, `smbpassword` (the network share and its login). They belong to the Wii, not to the game. **This Game** does not write them, and WiiStation ignores them in a game's file. A game file from 5.14.0 or earlier holds every key: WiiStation still reads it, and its other keys still replace the common file's values. The next **This Game** save writes only the differences. `FilterTour` is in no settings file (section 3).
+These keys are never in a game's file: `lang`, `MenuFont`, `FileSortMode`, `TabWrap` (the menu), `RomDirSD`, `RomDirUSB`, `RomDirSMB`, `NativeDevice`, `StatesDevice`, `AchievementFile`, `AchievementLog`, `AchievementUTCOffset` (folders, devices and the clock), the Players seats `Player1` ... `Player2D`, `Player1P1` ... `Player2P8`, `PlayersRecent` and `PlayersOfficial` (in `players.ini`), and `smbipaddr`, `smbsharename`, `smbusername`, `smbpassword` (the network share and its login). They belong to the Wii, not to the game. **This Game** does not write them, and WiiStation ignores them in a game's file. A game file from 5.14.0 or earlier holds every key: WiiStation still reads it, and its other keys still replace the common file's values. The next **This Game** save writes only the differences. `FilterTour` is in no settings file (section 3).
 
 Versions 5.6.1 to 5.13.1 wrote the game's file as `<serial>.cfg`, and no version read it. WiiStation reads `<serial>.cfg` on a device when that device has no `<serial>.ini`. The next **This Game** save writes `<serial>.ini`. You can then delete the `.cfg` file.
 
@@ -351,6 +351,13 @@ beside `settings.ini`, which the Players menu writes when it closes. Seat keys i
 | `Player2P7` | `"Key"` | empty | none, players.ini only (Main, Players sets it) | The Mii seated as Co-Op player 7 of port 2: its creation ID, 16 hex characters. Empty is Guest. |
 | `Player2P8` | `"Key"` | empty | none, players.ini only (Main, Players sets it) | The Mii seated as Co-Op player 8 of port 2: its creation ID, 16 hex characters. Empty is Guest. |
 | `PlayersRecent` | `"Keys"` | empty | none, players.ini only (Main, Players sets it) | The Miis last seated, most recent first: up to 15 keys, comma-separated. The Players menu lists them first, then the others in the Mii Channel's order. |
+| `PlayersOfficial` | `"Key"` | empty | none, players.ini only (Main, Players: a card's Official button, or a Mii's Edit page) | The Mii that plays Official (RetroAchievements), one per game, when it is seated on a port that plays and linked to an account. Empty, or that Mii not seated: port 1's Mii (1A with a multitap, 1 P1 with Co-Op) if it is linked. 5.19.0 saves the choice; achievements still log in with `ra_account.ini` until the per-Mii login comes. |
+
+`players.ini` also has an `[Accounts]` section: one `<Mii key> = "<name>"` line per Mii linked to
+a RetroAchievements account (a Mii's Edit page, Account). `<name>` is an account file,
+`achievements/ra/<name>.ini`, with the same lines as `ra_account.ini`; `"*"` is `ra_account.ini`
+itself (This Wii's account). The menu lists the files by name and never opens them. A Mii with no
+line earns Local.
 
 ## 7. Network settings
 
@@ -418,7 +425,7 @@ itself, once, when a read fails.
 | `lang/` | Menu language files. |
 | `fonts/chs.dat` | Font file for the Chinese menu language. |
 | `settings/` | Settings files for one game. See section 1.4. |
-| `players.ini` | The Mii seated on each port, written by the Players menu. See Players. |
+| `players.ini` | The Mii seated on each port, the Official Mii and the Miis' account links, written by the Players menu. See Players. |
 | `saves/` | Memory card files. WiiStation creates this folder when it saves. |
 | `controllers/` | HID controller files. See section 6.4. |
 | `perf.log` | Performance counters. Only the debug build writes this file. |

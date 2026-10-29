@@ -1,5 +1,5 @@
 README : WiiStation
-Version 5.18.2
+Version 5.19.0
 
 LICENSE:
     This software is licensed under the GNU General Public License v2
@@ -155,6 +155,17 @@ LATER UPDATES BY:
  * Monty Perrotti (WiiStation)
 
 WiiStation CHANGE LOG:
+Ver 5.19.0 (2026-10-28):
+* Players: an Edit slot right of the coins. Drop a Mii on it (or pick it with
+  A, then Down to Edit) for its player settings: a RetroAchievements account
+  and Official.
+* Players: a Mii's account is a file, wiistation/achievements/ra/<name>.ini
+  (lines as in ra_account.ini). The file browser lists them by name, with
+  "None: earn Local" and "This Wii's account" (ra_account.ini). A linked Mii's
+  coin wears an "RA" tag.
+* Players: a linked Mii's card has an Official button. The lit one plays
+  Official; pressing another moves it there. Port 1's Mii by default. The
+  choice is saved; logging in per Mii comes in a later version.
 Ver 5.18.2 (2026-10-28):
 * Players: the seats are in their own file, wiistation/players.ini, written
   when the Players menu closes (no Save Settings needed). Seats saved in

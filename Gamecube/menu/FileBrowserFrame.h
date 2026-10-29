@@ -36,6 +36,7 @@ public:
 	{
 		FILEBROWSER_LOADISO=1,
 		FILEBROWSER_SWAPCD,
+		FILEBROWSER_ACCOUNT,   /* a Mii's RetroAchievements account (fileBrowserFrame_OpenAccounts) */
 
 	};
 

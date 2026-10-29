@@ -4,7 +4,9 @@
  * gray of the console's plastic, and below it a paged strip of Mii coins (players.c). A Wii
  * Remote holds A+B on a coin and drops it on a card; a pad picks a coin with A, chooses a
  * card and seats it with A. A Co-Op port's card holds all its players: opening it (A, a
- * click, or a coin dropped on it) shows the same screen with a card per Co-Op player. One
+ * click, or a coin dropped on it) shows the same screen with a card per Co-Op player. A coin
+ * dropped on the Edit slot (or chosen, then Edit) opens that Mii's player settings: its
+ * RetroAchievements account (the file browser lists them) and Official. One
  * component, the board, draws all of it and takes all input: the pointer's held buttons are
  * read each frame (the drag), presses come through updateFocus from the pointer and the pads.
 **/
@@ -13,6 +15,7 @@
 #include <string.h>
 #include "MenuContext.h"
 #include "PlayersFrame.h"
+#include "FileBrowserFrame.h"
 #include "../libgui/Image.h"
 #include "../libgui/IPLFont.h"
 #include "../libgui/InputManager.h"
@@ -27,13 +30,15 @@ extern "C" {
 extern MenuContext *pMenuContext;
 
 bool writePlayers(void);   /* GamecubeMain.cpp: players.ini */
+void fileBrowserFrame_OpenAccounts(const char *key, const char *mii);
 
 namespace {
 
-const int PER_PAGE = 16, COLS = 8, COIN = 56, STRIP_X = 66, STRIP_Y = 278, STRIP_DX = 66, STRIP_DY = 74;
+const int PER_PAGE = 16, COLS = 8, COIN = 56, STRIP_X = 22, STRIP_Y = 278, STRIP_DX = 66, STRIP_DY = 74;
+const int EDIT_X = 592, EDIT_Y = STRIP_Y + (STRIP_DY + COIN) / 2, EDIT_R = COIN / 2;   /* the Edit slot, right of the coins */
 const int BAND_Y = 56, BAND_H = 206;
 const GXColor DARK = {62, 62, 62, 255}, MID = {90, 90, 90, 255}, WHITE = {255, 255, 255, 255};
-const GXColor RED = {184, 49, 47, 255};
+const GXColor RED = {184, 49, 47, 255}, GOLD = {255, 210, 58, 255};
 
 struct Rect { int x, y, w, h; bool in(int px, int py) const { return px >= x && px < x + w && py >= y && py < y + h; } };
 
@@ -101,6 +106,15 @@ void socket(menu::Graphics &gfx, int x, int y, int w, int h, bool lit)
 	}
 }
 
+/* The Official button: lit (gold) on the Mii that plays Official, no On/Off text. */
+void officialButton(menu::Graphics &gfx, const Rect &b, bool on, bool enabled, float scale)
+{
+	fill(gfx, b.x - 1, b.y - 1, b.w + 2, b.h + 2, enabled ? (GXColor){96, 96, 96, 255} : (GXColor){150, 150, 150, 255});
+	fill(gfx, b.x, b.y, b.w, b.h, on ? GOLD : enabled ? (GXColor){120, 120, 120, 255} : (GXColor){172, 172, 172, 255});
+	textMid(b.x + b.w / 2, b.y + b.h / 2 - (int)(6 * scale), "Official", scale,
+	        on ? DARK : enabled ? (GXColor){214, 214, 214, 255} : (GXColor){146, 146, 146, 255});
+}
+
 int seatPort(int seat) { return seat < 2 ? seat : seat < 10 ? (seat - 2) / 4 : (seat - 10) / COOP_MAX; }
 bool isGroup(int seat) { return seat < 2 && padType[seat] == PADTYPE_COOP; }
 int coopCount(int port) { int n = coopPlayers[port]; return n < 1 ? 1 : n > COOP_MAX ? COOP_MAX : n; }
@@ -160,7 +174,7 @@ class PlayersBoard : public menu::Component
 public:
 	PlayersBoard() { setType(TYPE_OTHER); memset(img, 0, sizeof img); memset(serial, 0, sizeof serial); reset(); }
 	~PlayersBoard() { for (int i = 0; i < PLAYERS_MAX; i++) delete img[i]; }
-	void reset() { page = 0; focus = 0; onCards = false; card = 0; held = -1; dragging = false; pointer = false; coop = -1; checked = false; }
+	void reset() { page = 0; focus = 0; onCards = false; onEdit = false; card = 0; held = -1; dragging = false; pointer = false; coop = -1; checked = false; editKey[0] = 0; editRow = 0; }
 	void drawComponent(menu::Graphics &gfx);
 	menu::Component *updateFocus(int direction, int buttonsPressed);
 
@@ -169,7 +183,9 @@ private:
 	unsigned serial[PLAYERS_MAX];
 	int page, focus, card, held;     /* held: the Mii picked up (pad, or a pointer click), -1 none */
 	int coop;                        /* the port whose Co-Op players are shown, -1 the ports */
-	bool onCards, dragging, pointer;
+	bool onCards, onEdit, dragging, pointer;
+	char editKey[PLAYERS_KEY];       /* the Mii whose player settings show, "" the board */
+	int editRow;                     /* the settings' focus: 0 the account, 1 Official */
 	bool checked;                    /* the seats were checked against the Miis on this Wii */
 	int gone, goneFrames;            /* seats whose Mii is gone, and how long the notice still shows */
 	int px, py;
@@ -188,7 +204,17 @@ private:
 	void drawCard(menu::Graphics &gfx, int c);
 	void readPointer();
 	void turnPage(int d) { int p = page + d; if (p >= 0 && p < pages()) { page = p; focus = 0; } }
+	bool editAt(int x, int y) const { int dx = x - EDIT_X, dy = y - EDIT_Y; return players_count() > 0 && dx * dx + dy * dy <= (EDIT_R + 4) * (EDIT_R + 4); }
+	void openEdit(int mii);
+	bool linkedOn(int c) const { int seat = seats[c]; return !isGroup(seat) && playerSeat[seat][0] && *players_account(playerSeat[seat]); }
+	Rect officialRect(int c) const;
+	int officialAt(int x, int y) const;
+	void drawEdit(menu::Graphics &gfx);
+	menu::Component *updateEdit(int direction, bool a, bool b);
 };
+
+/* The settings page's two controls: the account, and the Official button. */
+const Rect EDIT_ACCOUNT = { 330, 296, 270, 38 }, EDIT_OFFICIAL = { 330, 358, 120, 38 };
 
 /* The seats shown: a card per port (four for a port with a multitap), or a card per player
  * of the open Co-Op port. */
@@ -222,6 +248,33 @@ int PlayersBoard::coinAt(int x, int y) const
 		if (x >= cx && x < cx + COIN && y >= cy && y < cy + COIN)
 			return k;
 	}
+	return -1;
+}
+
+void PlayersBoard::openEdit(int mii)
+{
+	const player_mii *m = players_get(mii);
+	if (m) {
+		snprintf(editKey, sizeof editKey, "%s", m->key);
+		editRow = 0;
+	}
+	held = -1;
+	dragging = false;
+	onEdit = onCards = false;
+}
+
+/* A linked Mii's card: the button at its top right. */
+Rect PlayersBoard::officialRect(int c) const
+{
+	const Rect &r = cards[c];
+	return r.w > 200 ? (Rect){ r.x + r.w - 86, r.y + 8, 78, 22 } : (Rect){ r.x + r.w - 56, r.y + 5, 50, 15 };
+}
+
+int PlayersBoard::officialAt(int x, int y) const
+{
+	for (int c = 0; c < nSeats; c++)
+		if (linkedOn(c) && officialRect(c).in(x, y))
+			return c;
 	return -1;
 }
 
@@ -307,6 +360,8 @@ void PlayersBoard::drawCard(menu::Graphics &gfx, int c)
 		text(r.x + 8, r.y + 4, PLAYERS_SEAT_NAMES[seat], 0.65f, DARK);
 		socket(gfx, r.x + r.w - 46, r.y + r.h - 18, 38, 12, pad && (group || mii >= 0));
 	}
+	if (linkedOn(c))
+		officialButton(gfx, officialRect(c), !strcmp(players_official(), playerSeat[seat]), true, big ? 0.55f : 0.4f);
 
 	if (group) {   /* a coin well per Co-Op player, and the button that opens them */
 		int n = coopCount(seat), d = big ? 28 : 14, gap = big ? 4 : 7, per = big ? 8 : 4;
@@ -364,6 +419,10 @@ void PlayersBoard::readPointer()
 	}
 	px = screenMode ? (int)(w[chan].ir.x * 848 / 640 - 104) : (int)w[chan].ir.x;
 	py = (int)w[chan].ir.y;
+	if (editKey[0]) {   /* the settings page: no drag */
+		dragging = false;
+		return;
+	}
 	bool ab = (w[chan].btns_h & WPAD_BUTTON_A) && (w[chan].btns_h & WPAD_BUTTON_B);
 	if (!dragging && ab) {
 		int k = coinAt(px, py), c = cardAt(px, py);
@@ -375,6 +434,10 @@ void PlayersBoard::readPointer()
 	} else if (dragging && !ab) {   /* let go: on a card seats it, on a Co-Op card opens it, on the strip unseats it */
 		int c = cardAt(px, py);
 		dragging = false;
+		if (editAt(px, py)) {
+			openEdit(held);
+			return;
+		}
 		if (c >= 0 && isGroup(seats[c])) {
 			openCoop(seats[c]);
 			return;
@@ -392,10 +455,82 @@ void PlayersBoard::readPointer()
 	}
 }
 
+/* A Mii's player settings: its RetroAchievements account and Official. */
+void PlayersBoard::drawEdit(menu::Graphics &gfx)
+{
+	int mii = players_find(editKey), seat = seatOf(mii);
+	const player_mii *m = players_get(mii);
+	if (!m) {
+		editKey[0] = 0;
+		return;
+	}
+	char line[96];
+	text(20, 14, "Players", 1.0f, DARK);
+	text(120, 22, "A Mii's player settings", 0.55f, MID);
+	fill(gfx, 0, BAND_Y, 640, BAND_H, (GXColor){180, 180, 180, 255});
+	fill(gfx, 0, BAND_Y, 640, 3, (GXColor){207, 207, 207, 255});
+	fill(gfx, 0, BAND_Y + BAND_H - 2, 640, 2, (GXColor){154, 154, 154, 255});
+	slot(gfx, 130, 159, 62);
+	drawCoin(gfx, mii, 70, 99, 120, 255);
+	text(222, 104, m->name, 1.1f, DARK, 390);
+	if (seat >= 0)
+		snprintf(line, sizeof line, "Port %s", PLAYERS_SEAT_NAMES[seat]);
+	text(224, 152, seat >= 0 ? line : "Not seated", 0.6f, MID);
+
+	const char *acc = players_account(editKey);
+	bool linked = *acc, on = linked && !strcmp(players_official(), editKey);
+	int row = pointer ? (EDIT_ACCOUNT.in(px, py) ? 0 : EDIT_OFFICIAL.in(px, py) ? 1 : -1) : editRow;
+	const Rect &f = row == 0 ? EDIT_ACCOUNT : EDIT_OFFICIAL;
+	if (row >= 0)
+		fill(gfx, f.x - 3, f.y - 3, f.w + 6, f.h + 6, RED);
+
+	text(40, EDIT_ACCOUNT.y + 9, "RetroAchievements account", 0.65f, DARK, 280);
+	fill(gfx, EDIT_ACCOUNT.x, EDIT_ACCOUNT.y, EDIT_ACCOUNT.w, EDIT_ACCOUNT.h, (GXColor){146, 146, 146, 255});
+	fill(gfx, EDIT_ACCOUNT.x + 1, EDIT_ACCOUNT.y + 1, EDIT_ACCOUNT.w - 2, EDIT_ACCOUNT.h - 2, (GXColor){200, 200, 200, 255});
+	text(EDIT_ACCOUNT.x + 12, EDIT_ACCOUNT.y + 9, !linked ? "None: earns Local" : !strcmp(acc, "*") ? "This Wii's account" : acc,
+	     0.65f, linked ? DARK : MID, EDIT_ACCOUNT.w - 24);
+
+	text(40, EDIT_OFFICIAL.y + 9, "Plays Official", 0.65f, DARK);
+	bool plays = seat >= 0 && players_seat_active(seat);
+	officialButton(gfx, EDIT_OFFICIAL, on, linked && plays, 0.65f);
+	if (!linked || !plays)
+		text(EDIT_OFFICIAL.x + EDIT_OFFICIAL.w + 14, EDIT_OFFICIAL.y + 11, !linked ? "Link an account first" : "Seat this Mii first", 0.5f, MID, 150);
+
+	text(20, 448, pointer ? "Click a setting   B: back to Players" : "A: change   Up/Down: choose   B: back to Players", 0.5f, DARK, 600);
+	gfx.setTEV(GX_PASSCLR);
+}
+
+menu::Component *PlayersBoard::updateEdit(int direction, bool a, bool b)
+{
+	if (b) {
+		editKey[0] = 0;
+		return this;
+	}
+	if (pointer)
+		editRow = EDIT_ACCOUNT.in(px, py) ? 0 : EDIT_OFFICIAL.in(px, py) ? 1 : -1;
+	else if (direction == menu::Focus::DIRECTION_UP)
+		editRow = 0;
+	else if (direction == menu::Focus::DIRECTION_DOWN)
+		editRow = 1;
+	int mii = players_find(editKey);
+	if (!a || mii < 0)
+		return this;
+	if (editRow == 0) {   /* the accounts, in the file browser; it comes back here */
+		pMenuContext->setActiveFrame(MenuContext::FRAME_FILEBROWSER, FileBrowserFrame::FILEBROWSER_ACCOUNT);
+		fileBrowserFrame_OpenAccounts(editKey, players_get(mii)->name);
+	} else if (editRow == 1 && *players_account(editKey) && seatOf(mii) >= 0 && players_seat_active(seatOf(mii)))
+		snprintf(playersOfficial, sizeof playersOfficial, "%s", editKey);
+	return this;
+}
+
 void PlayersBoard::drawComponent(menu::Graphics &gfx)
 {
 	layout();
 	readPointer();
+	if (editKey[0]) {
+		drawEdit(gfx);
+		return;
+	}
 	/* +/- (Wii Remote, Classic) and L/R (GameCube) turn the page */
 	WPADData *w = menu::Input::getInstance().getWpad();
 	for (int i = 0; i < 4; i++) {
@@ -428,15 +563,28 @@ void PlayersBoard::drawComponent(menu::Graphics &gfx)
 		if (dragging && held == i)
 			continue;
 		int seat = seatOf(i);
-		if (!onCards && focus == k && (held < 0 || dragging))
+		if (!onCards && !onEdit && focus == k && (held < 0 || dragging))
 			ring(gfx, x + COIN / 2, y + COIN / 2, COIN / 2 + 1, COIN / 2 + 5, RED);
 		drawCoin(gfx, i, x, y, COIN, seat >= 0 && held != i ? 115 : 255);
+		if (*players_account(players_get(i)->key)) {   /* linked to a RetroAchievements account */
+			fill(gfx, x + COIN - 18, y - 2, 22, 13, DARK);
+			textMid(x + COIN - 7, y + 4, "RA", 0.36f, WHITE);
+		}
 		if (seat >= 0) {   /* where it sits, under the coin */
 			snprintf(line, sizeof line, "Port %s", PLAYERS_SEAT_NAMES[seat]);
 			int tw = menu::IplFont::getInstance().getStringWidth(line, 0.42f) + 10;
 			fill(gfx, x + COIN / 2 - tw / 2, y + COIN + 2, tw, 14, DARK);
 			textMid(x + COIN / 2, y + COIN + 9, line, 0.42f, WHITE);
 		}
+	}
+	if (n > 0) {   /* the Edit slot: a Mii dropped here opens its player settings */
+		if (onEdit || (pointer && held >= 0 && editAt(px, py)))
+			ring(gfx, EDIT_X, EDIT_Y, EDIT_R + 1, EDIT_R + 5, RED);
+		slot(gfx, EDIT_X, EDIT_Y, EDIT_R - 2);
+		if (onEdit && held >= 0)
+			drawCoin(gfx, held, EDIT_X - EDIT_R + 2, EDIT_Y - EDIT_R + 2, 2 * EDIT_R - 4, 140);
+		else
+			textMid(EDIT_X, EDIT_Y, "Edit", 0.6f, DARK);
 	}
 	if (n > 0 && !checked) {   /* a seated Mii deleted in the Mii Channel: its seat is Guest */
 		checked = true;
@@ -461,7 +609,9 @@ void PlayersBoard::drawComponent(menu::Graphics &gfx)
 		textMid(320, 418, line, 0.5f, MID);
 	}
 	const player_mii *fm = players_get(page * PER_PAGE + focus);
-	if (fm && !onCards) {
+	if (onEdit)
+		textMid(320, 434, "Edit: a Mii's player settings", 0.7f, DARK);
+	else if (fm && !onCards) {
 		snprintf(line, sizeof line, "%s%s", fm->name, fm->favorite ? "  (favorite)" : "");
 		textMid(320, 434, line, 0.7f, DARK);
 	}
@@ -469,13 +619,17 @@ void PlayersBoard::drawComponent(menu::Graphics &gfx)
 		drawCoin(gfx, held, px - 30, py - 30, 60, 240);
 
 	const char *hint;
-	if (held >= 0 && !dragging)
-		hint = "Choose a seat, A: seat   B: put back";
+	if (held >= 0 && !dragging && onEdit)
+		hint = "A: its player settings   Up: the seats   B: put back";
+	else if (held >= 0 && !dragging)
+		hint = "Choose a seat or Edit (Down), A: seat   B: put back";
+	else if (onEdit)
+		hint = "A on a Mii, then Edit: its settings   Left: the Miis   B: back";
 	else if (onCards)
 		hint = coop >= 0 ? "A: pick up   B: Guest, then back   Down: the Miis"
 		                 : "A: pick up / open   B: back to Guest   Down: the Miis";
 	else if (pointer)
-		hint = "Hold A+B on a Mii and drop it on a seat   B: back";
+		hint = "Hold A+B on a Mii, drop it on a seat or on Edit   B: back";
 	else
 		hint = "A: pick a Mii   Up: the seats   B: back";
 	text(20, 448, hint, 0.5f, DARK, 470);
@@ -492,6 +646,8 @@ menu::Component *PlayersBoard::updateFocus(int direction, int buttonsPressed)
 {
 	bool a = buttonsPressed & menu::Focus::ACTION_SELECT, b = buttonsPressed & menu::Focus::ACTION_BACK;
 	int n = onPage();
+	if (editKey[0])
+		return updateEdit(direction, a, b);
 
 	if (pointer) {
 		WPADData *w = menu::Input::getInstance().getWpad();
@@ -504,7 +660,10 @@ menu::Component *PlayersBoard::updateFocus(int direction, int buttonsPressed)
 			else if (coop >= 0) { leaveCoop(); onCards = false; }
 			else Func_ReturnFromPlayers();
 		} else if (a && !b) {
-			if (c >= 0 && isGroup(seats[c])) openCoop(seats[c]);
+			int o = officialAt(px, py);
+			if (o >= 0 && held < 0) snprintf(playersOfficial, sizeof playersOfficial, "%s", playerSeat[seats[o]]);   /* one is on */
+			else if (editAt(px, py) && held >= 0) openEdit(held);
+			else if (c >= 0 && isGroup(seats[c])) openCoop(seats[c]);
 			else if (k >= 0 && held < 0) { held = page * PER_PAGE + k; onCards = true; card = 0; }   /* click, then click a seat */
 			else if (c >= 0 && held >= 0) { seatOn(c, held); held = -1; onCards = false; }
 			else if (c >= 0) held = players_find(playerSeat[seats[c]]);
@@ -513,8 +672,21 @@ menu::Component *PlayersBoard::updateFocus(int direction, int buttonsPressed)
 		return this;
 	}
 
+	if (onEdit) {   /* the Edit slot: a Mii in hand opens its settings */
+		if (direction == menu::Focus::DIRECTION_LEFT && held < 0) { onEdit = false; focus = n < COLS ? n - 1 : COLS - 1; }
+		else if (direction == menu::Focus::DIRECTION_RIGHT && held < 0 && page + 1 < pages()) { onEdit = false; turnPage(1); }
+		else if (direction == menu::Focus::DIRECTION_UP) { onEdit = false; onCards = true; card = nSeats - 1; }
+		else if (a && held >= 0) openEdit(held);
+		else if (b) {
+			if (held >= 0) held = -1;
+			else if (coop >= 0) leaveCoop();
+			else Func_ReturnFromPlayers();
+		}
+		return this;
+	}
+
 	if (!onCards) {
-		if (direction == menu::Focus::DIRECTION_RIGHT) { if (focus % COLS == COLS - 1 || focus == n - 1) turnPage(1); else focus++; }
+		if (direction == menu::Focus::DIRECTION_RIGHT) { if (focus % COLS == COLS - 1 || focus == n - 1) onEdit = n > 0; else focus++; }
 		else if (direction == menu::Focus::DIRECTION_LEFT) { if (focus % COLS == 0) { if (page > 0) { turnPage(-1); focus = COLS - 1; } } else focus--; }
 		else if (direction == menu::Focus::DIRECTION_DOWN) { if (focus + COLS < n) focus += COLS; }
 		else if (direction == menu::Focus::DIRECTION_UP) { if (focus >= COLS) focus -= COLS; else { onCards = true; card = 0; } }
@@ -538,7 +710,7 @@ menu::Component *PlayersBoard::updateFocus(int direction, int buttonsPressed)
 	if (direction == menu::Focus::DIRECTION_RIGHT) { if (card + 1 < nSeats) card++; }
 	else if (direction == menu::Focus::DIRECTION_LEFT) { if (card > 0) card--; }
 	else if (direction == menu::Focus::DIRECTION_UP) { if (card >= row) card -= row; }
-	else if (direction == menu::Focus::DIRECTION_DOWN) { if (card + row < nSeats && nSeats > 2) card += row; else if (held < 0) onCards = false; }
+	else if (direction == menu::Focus::DIRECTION_DOWN) { if (card + row < nSeats && nSeats > 2) card += row; else { onCards = false; onEdit = held >= 0; } }
 	else if (a) {
 		if (group) openCoop(seats[card]);
 		else if (held >= 0) { seatOn(card, held); held = -1; onCards = false; }
@@ -570,8 +742,9 @@ PlayersFrame::~PlayersFrame()
 
 void PlayersFrame::activateSubmenu(int submenu)
 {
-	(void)submenu;
 	players_start();
+	if (submenu == 1)   /* back from the account browser: the Mii's settings again */
+		return;
 	players_sort();
 	board->reset();
 }

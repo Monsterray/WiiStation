@@ -14,6 +14,8 @@
 #include "../deps/mii/mii.h"
 #include "../deps/mii/miidraw.h"
 #include "../mem2_manager.h"
+#include "../wiiSXconfig.h"
+#include "../gc_input/controller.h"
 
 typedef struct {
 	player_mii p;
@@ -266,4 +268,81 @@ void players_idle(void)
 		ready = -2;      /* not drawn: the thread frees it */
 	LWP_JoinThread(thread, NULL);
 	thread = LWP_THREAD_NULL;
+}
+
+/* RetroAchievements accounts linked to Miis (players.ini [Accounts]) and the Mii that plays
+ * Official (PlayersOfficial), Docs/MII_PLAN.md. A link names an account file, never its
+ * contents: "" none (earns Local), "*" this Wii's ra_account.ini, else achievements/ra/NAME.ini. */
+#define PLAYERS_LINKS 32
+static struct { char key[PLAYERS_KEY]; char name[PLAYERS_ACCOUNT]; } links[PLAYERS_LINKS];
+static int nlinks;
+int playersLinksChanged;
+char playersOfficial[256];
+
+const char *players_account(const char *key)
+{
+	int i;
+	for (i = 0; *key && i < nlinks; i++)
+		if (!strcmp(links[i].key, key))
+			return links[i].name;
+	return "";
+}
+
+void players_link(const char *key, const char *name)
+{
+	int i;
+	if (strlen(key) != PLAYERS_KEY - 1 || strlen(name) >= PLAYERS_ACCOUNT || !strcmp(players_account(key), name))
+		return;
+	playersLinksChanged = 1;
+	for (i = 0; i < nlinks && strcmp(links[i].key, key); i++)
+		;
+	if (!*name) {   /* unlinked: the last link takes its place */
+		if (i < nlinks)
+			links[i] = links[--nlinks];
+		return;
+	}
+	if (i == nlinks) {
+		if (nlinks == PLAYERS_LINKS)
+			return;
+		nlinks++;
+	}
+	snprintf(links[i].key, sizeof links[i].key, "%s", key);
+	snprintf(links[i].name, sizeof links[i].name, "%s", name);
+}
+
+const char *players_link_at(int i, const char **name)
+{
+	if (i < 0 || i >= nlinks)
+		return NULL;
+	*name = links[i].name;
+	return links[i].key;
+}
+
+void players_links_clear(void)
+{
+	nlinks = 0;
+	playersLinksChanged = 0;
+}
+
+/* A seat a Mii plays on as the ports are set now: a port's own seat unless it has a multitap
+ * or Co-Op, the multitap's 1A-2D with one, the Co-Op players with Co-Op. */
+int players_seat_active(int s)
+{
+	if (s < 2)
+		return padType[s] != PADTYPE_NONE && padType[s] != PADTYPE_MULTITAP && padType[s] != PADTYPE_COOP;
+	if (s < 10)
+		return padType[(s - 2) / 4] == PADTYPE_MULTITAP;
+	s -= 10;
+	return padType[s / COOP_MAX] == PADTYPE_COOP && s % COOP_MAX < (coopPlayers[s / COOP_MAX] < 1 ? 1 : coopPlayers[s / COOP_MAX]);
+}
+
+const char *players_official(void)
+{
+	int s;
+	if (*players_account(playersOfficial))
+		for (s = 0; s < PLAYERS_SEATS; s++)
+			if (players_seat_active(s) && !strcmp(playerSeat[s], playersOfficial))
+				return playersOfficial;
+	s = padType[0] == PADTYPE_MULTITAP ? 2 : padType[0] == PADTYPE_COOP ? COOP_VC(0, 0) : 0;   /* port 1's first */
+	return *players_account(playerSeat[s]) ? playerSeat[s] : "";
 }

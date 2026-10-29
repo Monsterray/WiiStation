@@ -343,11 +343,12 @@ menu)
 	# (Source=0) for the whole comparison, because menukeys is ignored while an IR pointer is
 	# valid, and their WiimoteNew.ini is put back byte for byte however the script ends.
 	name="${1:-}"; shift || true
-	[ -n "$name" ] || { echo "menu NAME --dol A.dol [--dol2 B.dol] (--page N | --input FILE) [--secs S] [--set K=V,...] [--pad]"; exit 2; }
-	dolA=""; dolB=""; page=""; input=""; secs=20; msets=""; mpad=""
+	[ -n "$name" ] || { echo "menu NAME --dol A.dol [--dol2 B.dol] (--page N | --input FILE) [--secs S] [--set K=V,...] [--pad] [--sd DIR]"; exit 2; }
+	dolA=""; dolB=""; page=""; input=""; secs=20; msets=""; mpad=""; msd=""
 	while [ $# -gt 0 ]; do
 		case "$1" in
 			--set) msets="${msets:+$msets,}$2"; shift 2 ;;   # settings for the run
+			--sd) msd="$2"; shift 2 ;;   # files for the card: DIR's contents go to sd:/wiistation/
 			--pad) mpad=1; shift ;;   # a GameCube pad on port 1 (scripts/dsu_pad.py): pages that need a controller
 			--dol) dolA="$2"; shift 2 ;;
 			--dol2) dolB="$2"; shift 2 ;;
@@ -375,6 +376,7 @@ menu)
 	prof=$(bash "$REPO/scripts/profile.sh" new "$mname") || exit 2
 	bash "$REPO/scripts/profile.sh" lock "$mname" "menu:$name" $$ || exit 2
 	export WSX_PROFILE="$mname" WSX_LOCK_HELD=1
+	if [ -n "$msd" ]; then cp -r "$msd"/. "$prof/Load/WiiSDSync/wiistation/" || exit 2; fi
 	MENU_INI="$prof/Config/WiimoteNew.ini"; MENU_BAK="$MENU_INI.menu-backup"
 	[ -f "$MENU_INI" ] || { echo "no $MENU_INI in the template"; exit 2; }
 	MENU_SHA=$(sha256sum "$MENU_INI" | cut -d' ' -f1)

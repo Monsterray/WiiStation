@@ -10,7 +10,8 @@ page says what goes where, for players and for anyone running the test tools.
 | What | New place | Old place | Notes |
 |---|---|---|---|
 | Settings | `wiistation/settings.ini` | `wiisxrx/settingsRX2022.cfg` | New format, in [sections]. Every old key still exists with the same name and values; `wiistation/example_settings.ini` lists them all with their defaults. |
-| Players | `wiistation/players.ini` | (5.18.0, 5.18.1: `[Players]` in `settings.ini`) | The Mii seated on each port; the Players menu writes it when it closes. Old seat keys in `settings.ini` are still read. |
+| Players | `wiistation/players.ini` | (5.18.0, 5.18.1: `[Players]` in `settings.ini`) | The Mii seated on each port, the Official Mii and the account links (`[Accounts]`); the Players menu writes it when it closes. Old seat keys in `settings.ini` are still read. |
+| Mii accounts | `wiistation/achievements/ra/<name>.ini` | (new in 5.19.0) | One RetroAchievements account per file, lines as in `ra_account.ini`; a Mii's Edit page links one by its name. |
 | One game's settings | `wiistation/settings/<serial>.ini` | `wiistation/settings/<serial>.cfg` | Written by Settings > General > Save Settings > **This Game**: only the settings that differ from `settings.ini`, which the game reads first (SETTINGS.md 1.4). 5.6.1 to 5.13.1 wrote `.cfg` (and never read it); the `.cfg` is read when there is no `.ini`. |
 | Memory cards | `wiistation/saves/*.mcd` | `wiisxrx/saves/` | Same file format: copy them across. |
 | Save states | `wiistation/savestates/` | `wiisxrx/savestates/` | States from 5.5 and older may not load in newer versions. |
