@@ -1,0 +1,3 @@
+# scripts/chains/ach_players.txt, game 3: script pads on ports 1 and 2, no buttons
+1 0000
+p2 1 0000

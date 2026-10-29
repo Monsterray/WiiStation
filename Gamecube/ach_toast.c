@@ -41,7 +41,7 @@ enum { T_BLUE, T_BRONZE, T_SILVER, T_GOLD, T_CRYSTAL, T_FINISH, T_PLAT, T_BLACK 
 enum { ICON_TROPHY, ICON_KEY, ICON_HOURGLASS, ICON_FLAG, ICON_CROWN, ICON_DISC, ICON_WARN };
 
 typedef struct {
-	char title[80], desc[96], pts[16], left[24], right[24];   /* fitted to the card at push time */
+	char title[80], desc[96], pts[16], left[24], right[40];   /* fitted to the card at push time */
 	char badge[24];                                           /* the RetroAchievements picture, or "" */
 	unsigned char tier, icon, chip;                           /* chip: an ACH_TYPE_*, or STANDARD for none */
 	float fill;                                               /* the set's progress, 0..1 */
@@ -194,6 +194,8 @@ void ach_toast_push(const achievement_notice_t *n)
 	snprintf(f->left, sizeof f->left, "BLOCK %u/%u", n->earned, n->count);
 	if (n->rarity_x100 >= 0)
 		snprintf(f->right, sizeof f->right, "%d.%d%% have it", n->rarity_x100 / 100, n->rarity_x100 % 100 / 10);
+	else if (n->who && n->who[0])   /* Local, a Mii earned it: "Kat unlocked", "Kat and Ollie unlocked", "4 players unlocked" */
+		snprintf(f->right, sizeof f->right, "%s unlocked", n->who);
 	f->tier = tier_of(n);
 	f->icon = ICON_OF_TYPE[n->type & 3];
 	f->chip = n->type & 3;
@@ -491,6 +493,12 @@ static void fit_face(Face *f)
 	int right = text_w(f->pts, PTS_SCALE) + (f->chip ? chip_w(f) + 6 : 0);
 	fit(f->title, sizeof f->title, TITLE_SCALE, CARD_W - TEXT_X - 12 - right - 6);
 	fit(f->desc, sizeof f->desc, DESC_SCALE, CARD_W - TEXT_X - 12);
+	/* the names leave the meter some room: "Kat and Ollie unlocked", else the names alone, cut */
+	if (text_w(f->right, FOOT_SCALE) > CARD_W * 45 / 100) {
+		char *u = strstr(f->right, " unlocked");
+		if (u && !u[9]) *u = 0;
+	}
+	fit(f->right, sizeof f->right, FOOT_SCALE, CARD_W * 45 / 100);
 }
 
 /* ---- the card ---- */

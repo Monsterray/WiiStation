@@ -9,7 +9,12 @@
  *
  * Modes (setting Achievements): Off, Local (unlocks are saved in a journal file), Test (the
  * same evaluation, but nothing is read from or written to the journal, to try out a set),
- * Official (RetroAchievements; not built yet, so it loads nothing). */
+ * Official (RetroAchievements; not built yet, so it loads nothing).
+ *
+ * Players (Local mode, Docs/MII_PLAN.md): who is playing is a list of Miis from the hook
+ * achievements_players, or Guest alone. Each achievement keeps one bit per player ("has"); the
+ * set's earned state is the union, and rcheevos keeps an achievement active while any player
+ * lacks it. The journal has a line per player that earned it. */
 #include "achievements.h"
 #include "Gamecube/perf_prof.h"
 #include "deps/rcheevos/include/rc_runtime.h"
@@ -70,8 +75,8 @@ static struct {
     char desc[96];           /* optional */
     unsigned short points;   /* optional; 0 = none */
     unsigned char type;      /* ACH_TYPE_*, optional */
-    unsigned char earned;    /* triggered this session, or restored from the journal/state */
-    unsigned char written;   /* already in the journal */
+    uint32_t has;            /* the players (bit = index in player[]) that earned it: this session, the journal or a state */
+    uint32_t written;        /* of those, the ones already in the journal */
     unsigned char measured;  /* the highest measured percent shown so far: a toast only when it grows */
 } entries[MAX_ACHIEVEMENTS];
 static unsigned count;
@@ -79,7 +84,13 @@ static char set_title[48];              /* the set's Title= line: the game's nam
 #define MAX_SET_DISCS 8
 static char set_games[MAX_SET_DISCS][10]; /* the set's Game= serials: every disc of the game */
 static unsigned set_game_count;
-static int beaten_seen, mastered_seen;  /* already true, so no second Beaten or Mastered toast */
+static uint32_t beaten_seen, mastered_seen;  /* per player: already true, so no second Beaten or Mastered toast */
+static achievement_player_t player[ACH_PLAYERS_MAX];   /* who plays: the seated Miis, or Guest alone (key "") */
+static unsigned players;       /* how many of player[] */
+static uint32_t all_players;   /* a bit for each */
+static unsigned view;          /* the player the page shows */
+static char load_game[32];     /* the game id of the loaded set: a new set of players loads it again */
+unsigned (*achievements_players)(achievement_player_t *out);
 static int active, running;   /* a set is loaded; evaluation is allowed (not during BIOS boot) */
 static unsigned char digest[16];   /* MD5 of the definition file: the set's identity */
 static char digest_text[33], log_path[256];
@@ -105,11 +116,66 @@ uint32_t achievements_read_memory(uint32_t address, uint8_t *buffer, uint32_t si
     return size;
 }
 
+/* The union of the players' unlocks: the set's state in the game */
 static unsigned local_earned(void)
 {
     unsigned i, n = 0;
-    for (i = 0; i < count; ++i) n += entries[i].earned != 0;
+    for (i = 0; i < count; ++i) n += (entries[i].has & all_players) != 0;
     return n;
+}
+
+/* Every player has it: rcheevos stops checking it */
+static int done(unsigned i) { return (entries[i].has & all_players) == all_players; }
+
+static unsigned player_earned(unsigned p)
+{
+    unsigned i, n = 0;
+    for (i = 0; i < count; ++i) n += (entries[i].has >> p) & 1;
+    return n;
+}
+
+static int is_key(const char *s)
+{
+    unsigned i;
+    for (i = 0; i < ACH_KEY_LEN; ++i)
+        if (!((s[i] >= '0' && s[i] <= '9') || (s[i] >= 'a' && s[i] <= 'f'))) return 0;
+    return 1;
+}
+
+/* The players now: the hook's Miis (valid, once each), else Guest alone. Test mode has no
+ * players: nothing is kept. Returns how many, in out (room for ACH_PLAYERS_MAX). */
+static unsigned collect_players(achievement_player_t *out)
+{
+    achievement_player_t got[ACH_PLAYERS_MAX];
+    unsigned n = 0, i, j, have = 0;
+    if (achievementsEnabled == ACH_LOCAL && achievements_players) n = achievements_players(got);
+    if (n > ACH_PLAYERS_MAX) n = ACH_PLAYERS_MAX;
+    memset(out, 0, sizeof(*out) * ACH_PLAYERS_MAX);
+    for (i = 0; i < n; ++i) {
+        got[i].key[ACH_KEY_LEN] = 0;
+        got[i].name[sizeof got[i].name - 1] = 0;
+        if (!is_key(got[i].key)) continue;
+        for (j = 0; j < have && strcmp(out[j].key, got[i].key); ++j) ;
+        if (j < have) continue;
+        out[have++] = got[i];
+    }
+    return have ? have : 1;   /* Guest alone: one player with the key "" */
+}
+
+static void pick_players(void)
+{
+    players = collect_players(player);
+    all_players = (1u << players) - 1;
+    if (view >= players) view = 0;
+}
+
+/* The table index of a journal key ("" = Guest), or -1 */
+static int player_of(const char *key)
+{
+    unsigned p;
+    for (p = 0; p < players; ++p)
+        if (!strcmp(player[p].key, key)) return (int)p;
+    return -1;
 }
 
 unsigned achievements_count(void)
@@ -123,6 +189,19 @@ unsigned achievements_earned(void)
     if (OFFICIAL(earned)) return achievements_official_earned();
     return local_earned();
 }
+
+/* ---- the players, for the menus ---- */
+
+unsigned achievements_player_count(void) { return OFFICIAL(count) || !active ? 1 : players; }
+const char *achievements_player_key(unsigned i) { return active && !OFFICIAL(count) && i < players ? player[i].key : ""; }
+const char *achievements_player_name(unsigned i) { return active && !OFFICIAL(count) && i < players ? player[i].name : ""; }
+unsigned achievements_player_earned(unsigned i)
+{
+    if (OFFICIAL(earned)) return achievements_official_earned();
+    return active && i < players ? player_earned(i) : 0;
+}
+void achievements_view_player(unsigned i) { view = i < players ? i : 0; }
+unsigned achievements_viewed_player(void) { return view < players ? view : 0; }
 
 void achievements_list_refresh(void)
 {
@@ -142,7 +221,7 @@ int achievements_entry(unsigned i, achievement_entry_t *e)
     e->id = entries[i].id;
     e->points = entries[i].points;
     e->rarity_x100 = -1;
-    e->earned = entries[i].earned;
+    e->earned = (entries[i].has >> view) & 1;   /* the shown player's */
     e->type = entries[i].type;
     if (!e->earned && rc_runtime_get_achievement_measured(&runtime, e->id, &value, &target) && target) {
         rc_runtime_format_achievement_measured(&runtime, e->id, e->progress, sizeof e->progress);
@@ -171,17 +250,29 @@ int achievements_board_scores(unsigned i, achievement_score_t *top, unsigned *n,
     return OFFICIAL(board_scores) ? achievements_official_board_scores(i, top, n, mine) : -1;
 }
 
-/* ---- the unlock journal: one "<set digest> <id> <title>" line per unlock ---- */
+/* ---- the unlock journal: "<set digest> <id> <player key> <title>" per player that earned it ----
+ * A line without a key ("<set digest> <id> <title>": every journal written before the Players
+ * menu) is Guest's. Guest's new lines have none either, unless the title itself starts like a
+ * key: then "-" stands where the key goes. */
 
-/* Append one unlock record. Past JOURNAL_MAX, the next load would refuse the whole
- * journal, so refuse the append too: fail closed, never grow the file past the cap. */
-static int journal_append(unsigned index)
+/* The title starts with a word that reads as a key */
+static int title_is_key_like(const char *title)
+{
+    return strlen(title) >= ACH_KEY_LEN && is_key(title) && (!title[ACH_KEY_LEN] || title[ACH_KEY_LEN] == ' ');
+}
+
+/* Append one unlock record for player p. Past JOURNAL_MAX, the next load would refuse the
+ * whole journal, so refuse the append too: fail closed, never grow the file past the cap. */
+static int journal_append(unsigned index, unsigned p)
 {
     char line[256];
     FILE *f;
     long size;
-    int len = snprintf(line, sizeof line, "%s %u %s\n", digest_text,
-                       (unsigned)entries[index].id, entries[index].title);
+    const char *key = player[p].key;
+    int len = key[0] ? snprintf(line, sizeof line, "%s %u %s %s\n", digest_text, (unsigned)entries[index].id,
+                                key, entries[index].title)
+                     : snprintf(line, sizeof line, title_is_key_like(entries[index].title) ? "%s %u - %s\n" : "%s %u %s\n",
+                                digest_text, (unsigned)entries[index].id, entries[index].title);
     int ok;
     if (len < 0 || len >= (int)sizeof line) return 0;
     f = fopen(log_path, "a+b");
@@ -207,13 +298,14 @@ static int journal_append(unsigned index)
     return ok;
 }
 
-/* Mark earned every achievement this set's journal records. Only whole records count:
- * a line cut short by a power loss ("<digest> 1" of "<digest> 12 Twelve") must not restore
- * id 1. Returns 0 when the journal is too large: restoring part of it would re-earn the rest
- * and append duplicates, so the caller refuses the whole set. */
-static int restore_journal(void)
+/* Calls fn(ctx, entry, key) for every whole record of this set in the journal: the entry it
+ * names and the player's key ("" = Guest). Only whole records count: a line cut short by a
+ * power loss ("<digest> 1" of "<digest> 12 Twelve") must not restore id 1. Returns 0 when
+ * the journal is too large: reading part of it would earn the rest again and append
+ * duplicates, so the caller refuses the whole set. */
+static int read_journal(void (*fn)(void *ctx, unsigned entry, const char *key), void *ctx)
 {
-    char record[256], hash[33];
+    char record[256], hash[33], key[ACH_KEY_LEN + 1];
     unsigned saved_id, i;
     long size;
     FILE *f = fopen(log_path, "r");
@@ -225,26 +317,67 @@ static int restore_journal(void)
     while (fgets(record, sizeof(record), f)) {
         size_t len = strlen(record);
         int end = 0;
+        const char *rest;
         if (!len || record[len - 1] != '\n') continue;
         if (sscanf(record, "%32s %u%n", hash, &saved_id, &end) != 2 || record[end] != ' ' ||
             strcmp(hash, digest_text)) continue;
+        rest = record + end + 1;
+        key[0] = 0;
+        if (strlen(rest) > ACH_KEY_LEN && is_key(rest) && rest[ACH_KEY_LEN] == ' ') {
+            memcpy(key, rest, ACH_KEY_LEN);
+            key[ACH_KEY_LEN] = 0;
+        }
         for (i = 0; i < count; ++i)
-            if (entries[i].id == saved_id) entries[i].earned = entries[i].written = 1;
+            if (entries[i].id == saved_id) fn(ctx, i, key);
     }
     fclose(f);
     return 1;
 }
 
+static void restore_one(void *ctx, unsigned entry, const char *key)
+{
+    int p = player_of(key);
+    (void)ctx;
+    if (p >= 0) entries[entry].has |= entries[entry].written |= 1u << p;
+}
+
+/* Marks earned, for each player, what the journal records. 0: the journal is too large. */
+static int restore_journal(void) { return read_journal(restore_one, NULL); }
+
+struct tally { const char *key; unsigned char seen[MAX_ACHIEVEMENTS]; };
+static void tally_one(void *ctx, unsigned entry, const char *key)
+{
+    struct tally *t = ctx;
+    if (!strcmp(key, t->key)) t->seen[entry] = 1;
+}
+
+/* A Mii's unlocks in the loaded set, a player or not */
+int achievements_earned_for(const char *key)
+{
+    struct tally t;
+    unsigned i, n = 0;
+    int p;
+    if (!active || achievementsEnabled != ACH_LOCAL || !key) return -1;
+    if ((p = player_of(key)) >= 0) return (int)player_earned((unsigned)p);
+    memset(&t, 0, sizeof t);
+    t.key = key;
+    if (!read_journal(tally_one, &t)) return -1;
+    for (i = 0; i < count; ++i) n += t.seen[i];
+    return (int)n;
+}
+
 void achievements_flush(void)
 {
-    unsigned i;
+    unsigned i, p;
     if (!active || achievementsEnabled == ACH_TEST) return;   /* Test mode keeps no record */
-    for (i = 0; i < count; ++i) {
-        if (!entries[i].earned || entries[i].written) continue;
-        if (!journal_append(i)) return; /* retry at the next menu/state boundary, never per frame */
-        entries[i].written = 1;
-        SysPrintf("Achievement unlocked: %u %s\n", (unsigned)entries[i].id, entries[i].title);
-    }
+    for (i = 0; i < count; ++i)
+        for (p = 0; p < players; ++p) {
+            if (!((entries[i].has & ~entries[i].written) >> p & 1)) continue;
+            if (!journal_append(i, p)) return; /* retry at the next menu/state boundary, never per frame */
+            entries[i].written |= 1u << p;
+            SysPrintf("Achievement unlocked: %u %s%s%.8s\n", (unsigned)entries[i].id, entries[i].title,
+                      player[p].key[0] ? " by " : "", player[p].key);   /* a key's first 8 characters, never a name */
+        }
 }
 
 /* ---- evaluation ---- */
@@ -253,42 +386,83 @@ static int valid_address(uint32_t address) { return address < PSX_MAP_END; }
 
 /* Beaten, as RetroAchievements counts it: every Progression achievement earned, and a Win
  * earned if the set has any. A set with neither type cannot be beaten. */
-static int is_beaten(void)
+static int is_beaten(unsigned p)
 {
     unsigned i;
     int typed = 0, wins = 0, won = 0;
     for (i = 0; i < count; ++i) {
+        int has = (int)((entries[i].has >> p) & 1);
         if (entries[i].type == ACH_TYPE_PROGRESSION) {
             typed = 1;
-            if (!entries[i].earned) return 0;
+            if (!has) return 0;
         } else if (entries[i].type == ACH_TYPE_WIN) {
             typed = wins = 1;
-            won |= entries[i].earned;
+            won |= has;
         }
     }
     return typed && (!wins || won);
 }
 
-static int is_mastered(void) { return count && local_earned() == count; }
+static int is_mastered(unsigned p) { return count && player_earned(p) == count; }
 
-/* Tell the toast about a new unlock, and whether it beat the game or completed the set */
-static void notify(unsigned i)
+/* The players for whom the game is beaten, or the set mastered, now (a bit each) */
+static uint32_t beaten_now(void)
+{
+    uint32_t m = 0;
+    unsigned p;
+    for (p = 0; p < players; ++p) m |= (uint32_t)is_beaten(p) << p;
+    return m;
+}
+
+static uint32_t mastered_now(void)
+{
+    uint32_t m = 0;
+    unsigned p;
+    for (p = 0; p < players; ++p) m |= (uint32_t)is_mastered(p) << p;
+    return m;
+}
+
+/* "Kat", "Kat and Ollie", "Kat, Ollie and Rina", "4 players"; "" for Guest */
+static const char *who_text(uint32_t mask)
+{
+    static char text[96];
+    const char *names[3] = { "", "", "" };
+    unsigned p, n = 0;
+    for (p = 0; p < players; ++p)
+        if ((mask >> p & 1) && player[p].key[0]) {
+            if (n < 3) names[n] = player[p].name[0] ? player[p].name : "Mii";
+            ++n;
+        }
+    if (!n) return "";
+    if (n == 1) snprintf(text, sizeof text, "%s", names[0]);
+    else if (n == 2) snprintf(text, sizeof text, "%s and %s", names[0], names[1]);
+    else if (n == 3) snprintf(text, sizeof text, "%s, %s and %s", names[0], names[1], names[2]);
+    else snprintf(text, sizeof text, "%u players", n);
+    return text;
+}
+
+/* Tell the toast about a new unlock by the players in mask, and whether it beat the game or
+ * completed the set for one of them */
+static void notify(unsigned i, uint32_t mask)
 {
     achievement_notice_t n;
-    unsigned k;
+    unsigned k, p;
+    uint32_t beaten = beaten_now(), mastered = mastered_now();
     memset(&n, 0, sizeof n);
-    n.beaten = !beaten_seen && is_beaten();
-    n.mastered = !mastered_seen && is_mastered();
-    beaten_seen |= n.beaten;
-    mastered_seen |= n.mastered;
+    n.beaten = (beaten & mask & ~beaten_seen) != 0;
+    n.mastered = (mastered & mask & ~mastered_seen) != 0;
+    beaten_seen |= beaten & mask;
+    mastered_seen |= mastered & mask;
     if (!achievements_notify) return;
     n.title = entries[i].title;
     n.desc = entries[i].desc;
     n.game = set_title;
+    n.who = who_text(mask);
     n.points = entries[i].points;
     for (k = 0; k < count; ++k) n.total_points += entries[k].points;
     n.rarity_x100 = -1;   /* a Local set has no player counts */
-    n.earned = local_earned();
+    for (p = 0; p < players; ++p)   /* the progress shown is the best of those who earned it */
+        if ((mask >> p & 1) && player_earned(p) > n.earned) n.earned = player_earned(p);
     n.count = count;
     n.type = entries[i].type;
     achievements_notify(&n);
@@ -326,26 +500,27 @@ static void event(const rc_runtime_event_t *e)
     if (e->type == RC_RUNTIME_EVENT_ACHIEVEMENT_PRIMED || e->type == RC_RUNTIME_EVENT_ACHIEVEMENT_UNPRIMED ||
         e->type == RC_RUNTIME_EVENT_ACHIEVEMENT_PROGRESS_UPDATED) {
         for (i = 0; i < count; ++i)
-            if (entries[i].id == e->id && !entries[i].earned)
+            if (entries[i].id == e->id && !done(i))
                 indicator(e->type == RC_RUNTIME_EVENT_ACHIEVEMENT_PRIMED ? ACH_NOTICE_CHALLENGE_ON :
                           e->type == RC_RUNTIME_EVENT_ACHIEVEMENT_UNPRIMED ? ACH_NOTICE_CHALLENGE_OFF : ACH_NOTICE_PROGRESS, i);
         return;
     }
     if (e->type != RC_RUNTIME_EVENT_ACHIEVEMENT_TRIGGERED) return;
     for (i = 0; i < count; ++i)
-        if (entries[i].id == e->id && !entries[i].earned) {
-            entries[i].earned = 1;
-            notify(i);
+        if (entries[i].id == e->id && !done(i)) {
+            uint32_t lacking = all_players & ~entries[i].has;   /* only they get it */
+            entries[i].has |= lacking;
+            notify(i, lacking);
         }
-    achievements_flush(); /* a trigger is rare: one short journal line, written at once */
+    achievements_flush(); /* a trigger is rare: one short journal line per player, written at once */
 }
 
-/* An earned achievement stays earned: rcheevos stops checking it */
+/* An achievement every player has stays earned: rcheevos stops checking it */
 static void keep_earned(void)
 {
     unsigned i;
     for (i = 0; i < count; ++i)
-        if (entries[i].earned) rc_runtime_deactivate_achievement(&runtime, entries[i].id);
+        if (done(i)) rc_runtime_deactivate_achievement(&runtime, entries[i].id);
 }
 
 void achievements_pause(void) { running = 0; }
@@ -456,6 +631,7 @@ void achievements_close(void)
     memset(entries, 0, sizeof(entries));
     set_title[0] = 0;
     set_game_count = 0;
+    players = all_players = 0;
 }
 
 /* ---- loading a set ---- */
@@ -608,16 +784,11 @@ static unsigned parse_set(char *data, const char *game_id)
     return count ? 0 : line_no + 1;   /* no Game= line, or no achievements */
 }
 
-int achievements_load(const char *game_id)
+/* The set of game_id from achievementFile, for the players now. announce: the game card. */
+static int load_set(const char *game_id, int announce)
 {
     char *data;
-    unsigned bad_line;
-    achievements_close();
-    if (achievementsEnabled == ACH_OFFICIAL) {
-        if (achievements_official_load) return achievements_official_load(achievementImage);
-        SysPrintf("Achievements: Official (RetroAchievements) mode is not in this build\n");
-        return 0;
-    }
+    unsigned bad_line, p;
     if (!achievementsEnabled || !achievementFile[0]) return 0;
     if (!game_id || !*game_id) return -1;
     if (!(data = read_set())) {
@@ -634,19 +805,24 @@ int achievements_load(const char *game_id)
         achievements_close();
         return -1;
     }
-    /* Test mode starts from nothing each time; Local restores this exact set's unlocks */
+    snprintf(load_game, sizeof load_game, "%s", game_id);
+    pick_players();
+    /* Test mode starts from nothing each time; Local restores this exact set's unlocks, each
+     * player its own */
     if (achievementsEnabled != ACH_TEST && !restore_journal()) {
         SysPrintf("Achievements: unlock log too large or unreadable, set refused: %s\n", log_path);
         achievements_close();
         return -1;
     }
     keep_earned();
-    beaten_seen = is_beaten();     /* earned before this session: no toast for it */
-    mastered_seen = is_mastered();
+    beaten_seen = beaten_now();     /* earned before this session: no toast for it */
+    mastered_seen = mastered_now();
     rc_runtime_validate_addresses(&runtime, event, valid_address); /* address validity: once per load */
     running = 1;
     SysPrintf("Achievements: loaded %u for %s (%u earned)\n", count, game_id, local_earned());
-    if (achievements_notify) {   /* the game card: the set is on */
+    for (p = 0; p < players && player[p].key[0]; ++p)   /* a key's first 8 characters, never a name */
+        SysPrintf("Achievements: player %u is %.8s (%u earned)\n", p + 1, player[p].key, player_earned(p));
+    if (announce && achievements_notify) {   /* the game card: the set is on */
         achievement_notice_t n;
         unsigned i;
         memset(&n, 0, sizeof n);
@@ -658,54 +834,134 @@ int achievements_load(const char *game_id)
         n.count = count;
         for (i = 0; i < count; ++i) {
             n.total_points += entries[i].points;
-            if (entries[i].earned) n.points += entries[i].points;
+            if (entries[i].has & all_players) n.points += entries[i].points;
         }
         achievements_notify(&n);
     }
     return (int)count;
 }
 
-/* ---- save states: the WSXE "ACH1" section ---- */
+int achievements_load(const char *game_id)
+{
+    achievements_close();
+    if (achievementsEnabled == ACH_OFFICIAL) {
+        if (achievements_official_load) return achievements_official_load(achievementImage);
+        SysPrintf("Achievements: Official (RetroAchievements) mode is not in this build\n");
+        return 0;
+    }
+    return load_set(game_id, 1);
+}
+
+/* The seats or the pads may have changed: with other players, the set loads again for them
+ * (the unlocks pending for the old players are written first) */
+void achievements_players_changed(void)
+{
+    achievement_player_t now[ACH_PLAYERS_MAX];
+    char game[sizeof load_game];
+    unsigned n, p;
+    int same;
+    if (!active || achievementsEnabled != ACH_LOCAL) return;
+    n = collect_players(now);
+    same = n == players;
+    for (p = 0; same && p < n; ++p) same = !strcmp(now[p].key, player[p].key);
+    if (same) {
+        for (p = 0; p < n; ++p) player[p] = now[p];   /* the same people: their names, perhaps */
+        return;
+    }
+    achievements_flush();
+    snprintf(game, sizeof game, "%s", load_game);
+    achievements_close();
+    SysPrintf("Achievements: the players changed (%u now), the set loads again\n", n);
+    load_set(game, 0);
+}
+
+/* ---- save states: the WSXE "ACH1" section ----
+ * WAC1, the set's digest, 128 earned bits (the union), rcheevos' progress; and, when Miis were
+ * playing, after the progress: their keys (16 bytes each), their count and "WK". A state with no
+ * keys was made by Guest (so is every state from before the Players menu). */
+
+#define STATE_KEYS_MAX (ACH_PLAYERS_MAX * ACH_KEY_LEN + 3)
+
+/* The size of the keys at the end of a state: 0 when Guest played */
+static unsigned state_keys_size(void) { return players && player[0].key[0] ? players * ACH_KEY_LEN + 3 : 0; }
 
 int achievements_state_save(void *data, unsigned size)
 {
-    unsigned i;
+    unsigned i, keys;
     uint32_t n;
     unsigned char *out = data;
     if (OFFICIAL(state_save)) return achievements_official_state_save(data, size);
     if (!active) return 0;
     n = rc_runtime_progress_size(&runtime, NULL);
-    if (n > ACHIEVEMENTS_STATE_MAX - STATE_HEADER) return 0;
-    if (!data) return (int)(n + STATE_HEADER);
-    if (size < n + STATE_HEADER) return 0;
+    if (n > ACHIEVEMENTS_STATE_MAX - STATE_HEADER - STATE_KEYS_MAX) return 0;
+    keys = state_keys_size();
+    if (!data) return (int)(n + STATE_HEADER + keys);
+    if (size < n + STATE_HEADER + keys) return 0;
     memcpy(out, "WAC1", 4);
     memcpy(out + 4, digest, 16);
     memset(out + 20, 0, 16);
     for (i = 0; i < count; ++i)
-        if (entries[i].earned) out[20 + i / 8] |= 1u << (i % 8);
+        if (entries[i].has & all_players) out[20 + i / 8] |= 1u << (i % 8);
     if (rc_runtime_serialize_progress_sized(out + STATE_HEADER, n, &runtime, NULL) != RC_OK) return 0;
-    return (int)(n + STATE_HEADER);
+    if (keys) {
+        unsigned char *tail = out + STATE_HEADER + n;
+        for (i = 0; i < players; ++i) memcpy(tail + i * ACH_KEY_LEN, player[i].key, ACH_KEY_LEN);
+        tail[players * ACH_KEY_LEN] = (unsigned char)players;
+        tail[players * ACH_KEY_LEN + 1] = 'W';
+        tail[players * ACH_KEY_LEN + 2] = 'K';
+    }
+    return (int)(n + STATE_HEADER + keys);
+}
+
+/* The keys a state ends with (saved: how many, 0 = Guest) and where rcheevos' progress ends */
+static unsigned state_keys(const unsigned char *in, unsigned size, unsigned *saved, const unsigned char **keys)
+{
+    unsigned n, i, j;
+    *saved = 0;
+    *keys = NULL;
+    if (size < STATE_HEADER + 3 || in[size - 2] != 'W' || in[size - 1] != 'K') return size;
+    n = in[size - 3];
+    if (!n || n > ACH_PLAYERS_MAX || size < STATE_HEADER + 3 + n * ACH_KEY_LEN) return size;
+    for (i = 0; i < n; ++i)
+        for (j = 0; j < ACH_KEY_LEN; ++j) {
+            unsigned char c = in[size - 3 - n * ACH_KEY_LEN + i * ACH_KEY_LEN + j];
+            if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'))) return size;
+        }
+    *saved = n;
+    *keys = in + size - 3 - n * ACH_KEY_LEN;
+    return size - 3 - n * ACH_KEY_LEN;
 }
 
 int achievements_state_load(const void *data, unsigned size)
 {
-    const unsigned char *in = data;
-    unsigned i;
+    const unsigned char *in = data, *keys = NULL;
+    unsigned i, saved = 0, end = 0;
     int ok = 0;
     if (OFFICIAL(state_load)) return achievements_official_state_load(data, size);
     if (!active) return 0;
-    /* only a state made with this exact set restores its progress and earned bits */
+    /* only a state made with this exact set restores its progress */
     if (in && size >= STATE_HEADER && size <= ACHIEVEMENTS_STATE_MAX &&
         !memcmp(in, "WAC1", 4) && !memcmp(in + 4, digest, 16)) {
-        ok = rc_runtime_deserialize_progress_sized(&runtime, in + STATE_HEADER, size - STATE_HEADER, NULL) == RC_OK;
-        if (ok)
+        end = state_keys(in, size, &saved, &keys);
+        ok = rc_runtime_deserialize_progress_sized(&runtime, in + STATE_HEADER, end - STATE_HEADER, NULL) == RC_OK;
+        /* The earned bits are the union of those who played: whose they are is known only when
+         * one player made the state and one plays now, and it is the same one. A state never
+         * moves one Mii's unlocks to another; the journals are what each Mii has earned. */
+        if (ok && players == 1 && saved <= 1 &&
+            (saved ? !memcmp(keys, player[0].key, ACH_KEY_LEN) : !player[0].key[0]))
             for (i = 0; i < count; ++i)
-                if (in[20 + i / 8] & (1u << (i % 8))) entries[i].earned = 1;
+                if (in[20 + i / 8] & (1u << (i % 8))) entries[i].has |= 1;
     }
     if (!ok) rc_runtime_reset(&runtime);
     for (i = 0; i < count; ++i) entries[i].measured = 0;   /* the state's progress is the new start */
     keep_earned(); /* loading an older state never revokes an earned achievement */
-    beaten_seen |= is_beaten();
-    mastered_seen |= is_mastered();
+    beaten_seen |= beaten_now();
+    mastered_seen |= mastered_now();
+    if (in) {
+        SysPrintf("Achievements: a state loaded (%s, made by %u Mii%s, %u play now)\n",
+                  ok ? "its progress applies" : "no progress", saved, saved == 1 ? "" : "s", players);
+        for (i = 0; i < players && player[i].key[0]; ++i)   /* a key's first 8 characters, never a name */
+            SysPrintf("Achievements: player %u is %.8s (%u earned)\n", i + 1, player[i].key, player_earned(i));
+    }
     return ok;
 }

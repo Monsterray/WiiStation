@@ -9,6 +9,10 @@
  * Prev and Next turn the page, where the file browser has them; B goes back to Current ISO.
  * The rows are text, read from the engine each frame.
  *
+ * Local mode with Miis seated on connected pads (Players menu): the page shows one of them at
+ * a time, its coin and name in the header, with L and R (GameCube) or + and - (Wii Remote,
+ * Classic) to switch; the earned marks and the count are that Mii's.
+ *
  * This program is free software; you can redistribute it and/
  * or modify it under the terms of the GNU General Public Li-
  * cence as published by the Free Software Foundation; either
@@ -29,9 +33,13 @@
 #include "../libgui/IPLFont.h"
 #include "../libgui/FocusManager.h"
 #include "../libgui/CursorManager.h"
+#include "../libgui/Image.h"
+#include "../libgui/InputManager.h"
+#include "../players.h"
 #include "../../achievements.h"
 
 extern MenuContext *pMenuContext;
+namespace menu { extern u16 menu_script_keys; }	/* InputManager.cpp: an input script's "menukeys" */
 
 #define PER_PAGE	10
 #define ROW_Y0		82		/* the first row's top; rows are ROW_DY apart */
@@ -52,6 +60,9 @@ static char prevText[] = "Prev", nextText[] = "Next";
 static char boardsText[] = "Leaderboards", listText[] = "Achievements";
 static char *prevString = prevText, *nextString = nextText, *modeString = boardsText;
 static menu::Button *prevButton, *nextButton, *modeButton;
+static menu::Image *coinImg;	/* the shown player's coin (players.c keeps the pixels) */
+static unsigned coinSerial;
+static int coinMii = -1;
 
 static void Func_AchPrev()
 {
@@ -121,6 +132,9 @@ AchievementsFrame::~AchievementsFrame()
 	delete prevButton;
 	delete nextButton;
 	delete modeButton;
+	delete coinImg;
+	coinImg = NULL;
+	coinMii = -1;
 }
 
 void AchievementsFrame::activateSubmenu(int submenu)
@@ -129,6 +143,9 @@ void AchievementsFrame::activateSubmenu(int submenu)
 	board = 0;
 	boards = false;
 	modeString = boardsText;
+	achievements_view_player(0);
+	if (achievements_player_key(0)[0])
+		players_start();	/* the Miis' coins (players.c; nothing happens when it is running already) */
 	achievements_list_refresh();	/* Official mode: what was earned since it was last open */
 }
 
@@ -146,10 +163,60 @@ static void drawRight(int right, int y, char *s, float scale)
 	font.drawString(right - font.getStringWidth(s, scale), y, s, scale, false);
 }
 
-static void drawList(void)
+/* L and R (GameCube), + and - (Wii Remote, Classic): the next or the previous player */
+static void switchPlayer(void)
+{
+	unsigned n = achievements_player_count(), v = achievements_viewed_player();
+	int step = 0;
+#ifdef HW_RVL
+	WPADData *w = menu::Input::getInstance().getWpad();
+	for (int i = 0; i < 4; i++)
+	{
+		if (w[i].btns_d & (WPAD_BUTTON_PLUS | WPAD_CLASSIC_BUTTON_PLUS | WPAD_CLASSIC_BUTTON_FULL_R)) step = 1;
+		if (w[i].btns_d & (WPAD_BUTTON_MINUS | WPAD_CLASSIC_BUTTON_MINUS | WPAD_CLASSIC_BUTTON_FULL_L)) step = -1;
+	}
+#endif
+	static u16 before[4];	/* an input script's menukeys count as pad 1's (FocusManager.cpp) */
+	for (int i = 0; i < 4; i++)
+	{
+		u16 held = PAD_ButtonsHeld(i) | (i == 0 ? menu::menu_script_keys : 0);
+		u16 gc = held & ~before[i];
+		before[i] = held;
+		if (gc & PAD_TRIGGER_R) step = 1;
+		if (gc & PAD_TRIGGER_L) step = -1;
+	}
+	if (n > 1 && step)
+		achievements_view_player((v + n + step) % n);
+}
+
+/* The shown player's coin, size px square at x, y; nothing if the Mii database is not loaded */
+static void drawCoin(menu::Graphics &gfx, const char *key, int x, int y, int size)
+{
+	int i = key[0] ? players_find(key) : -1;
+	const player_mii *m = players_get(i);
+	if (!m || !m->coin)
+		return;
+	if (!coinImg || coinMii != i || coinSerial != m->coin_serial)
+	{
+		delete coinImg;
+		coinImg = new menu::Image(m->coin, PLAYERS_COIN, PLAYERS_COIN, GX_TF_RGBA8, GX_CLAMP, GX_CLAMP, GX_FALSE);
+		coinMii = i;
+		coinSerial = m->coin_serial;
+		GX_InvalidateTexAll();
+	}
+	gfx.setColor((GXColor){255, 255, 255, 255});
+	coinImg->activateImage(GX_TEXMAP0);
+	gfx.setTEV(GX_MODULATE);
+	gfx.enableBlending(true);
+	gfx.drawImage(0, x, y, size, size, 0, 1, 0, 1);
+}
+
+static void drawList(menu::Graphics &gfx)
 {
 	menu::IplFont &font = menu::IplFont::getInstance();
 	unsigned count = achievements_count();
+	unsigned players = achievements_player_count(), who = achievements_viewed_player();
+	const char *name = achievements_player_name(who);
 	char line[128];
 
 	if (!count)
@@ -158,9 +225,22 @@ static void drawList(void)
 		font.drawString(320, 150, line, 1.0f, true);	/* below the logo, above Prev and Next */
 		return;
 	}
-	snprintf(line, sizeof line, "%u of %u earned", achievements_earned(), count);
+	if (name[0])	/* a Mii: its name, count and coin */
+		snprintf(line, sizeof line, "%s: %u of %u earned", name, achievements_player_earned(who), count);
+	else
+		snprintf(line, sizeof line, "%u of %u earned", achievements_player_earned(who), count);
+	cut(line, 0.9f, 400);
+	if (name[0])
+	{
+		int w = font.getStringWidth(line, 0.9f);
+		drawCoin(gfx, achievements_player_key(who), 320 - w / 2 - 32, 18, 26);
+		GXColor ink = {56, 56, 56, 255};
+		font.drawInit(ink);	/* the coin left the GX state as a picture's */
+	}
 	font.drawString(320, 30, line, 0.9f, true);
 	snprintf(line, sizeof line, "%s", achievements_presence());
+	if (players > 1 && !line[0])
+		snprintf(line, sizeof line, "L / R: the other players (%u of %u)", who + 1, players);
 	cut(line, SMALL_SCALE, 440);
 	if (line[0])
 		font.drawString(320, 56, line, SMALL_SCALE, true);
@@ -255,5 +335,8 @@ void AchievementsFrame::drawChildren(menu::Graphics &gfx)
 	if (boards)
 		drawBoards();
 	else
-		drawList();
+	{
+		switchPlayer();
+		drawList(gfx);
+	}
 }

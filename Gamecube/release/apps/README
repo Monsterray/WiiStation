@@ -156,6 +156,17 @@ LATER UPDATES BY:
 
 WiiStation CHANGE LOG:
 Ver 5.19.0 (2026-10-28):
+* Players: every Mii seated on a port with a connected pad earns its own
+  achievements (Local mode). The toast says who: "Kat unlocked", "Kat and
+  Ollie unlocked", "4 players unlocked". An achievement one Mii has keeps
+  working for the others who do not have it yet. With no Mii seated, Guest
+  earns, as before; every unlock earned until now stays with Guest.
+* The Achievements page shows one Mii at a time, with its coin and count; L
+  and R (+ and - on a Wii Remote) switch.
+* Save states made by other players keep the game, but the unlocks come from
+  the Miis seated now: a state never moves one Mii's unlocks to another.
+* The unlock journal has a player column: "<set digest> <id> <player key>
+  <title>". Lines without a key are Guest's. Official mode is unchanged.
 * Players: an Edit slot right of the coins. Drop a Mii on it (or pick it with
   A, then Down to Edit) for its player settings: a RetroAchievements account
   and Official.

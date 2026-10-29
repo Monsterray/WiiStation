@@ -40,6 +40,7 @@
 #include "boot_guard.h"   /* start-up's watchdog, until the HBC agent's */
 #include "hbc_home.h"
 #include "players.h"       /* playerSeat: players.ini */
+#include "ach_players.h"   /* who plays, for the achievements */
 #include <network.h>
 extern "C" void __exception_setreload(int t);
 #include "../psxcommon.h"
@@ -1138,7 +1139,9 @@ static int chainLoad(FILE *f)
 }
 
 /* Set KEY to VALUE for this game, remembering what it was. Only the settings file's numeric
- * settings: a string setting has no business differing per game. */
+ * settings and the Players seats (Player1="key", Player2="" for Guest; per-Mii achievement
+ * tests, scripts/chains/ach_players.txt): other string settings have no business differing
+ * per game. */
 /* Keys that were renamed: a file or chain line with the old name still sets the setting. In place,
  * so each new name is no longer than its old one. */
 static void renamedKey(char *key)
@@ -1146,6 +1149,9 @@ static void renamedKey(char *key)
 	if (!strcmp(key, "SoundHwAccel"))	/* its name up to 5.13.1 */
 		strcpy(key, "SoundDriver");
 }
+
+static char chainSeatSaved[PLAYERS_SEATS][256];   /* the seats before the chain's first seat setting */
+static bool chainSeatsKept;
 
 static void chainOverride(char *kv, bool remember)
 {
@@ -1158,6 +1164,15 @@ static void chainOverride(char *kv, bool remember)
 	*val++ = 0;
 	renamedKey(key);
 	for (i = 0; i < sizeof(OPTIONS) / sizeof(OPTIONS[0]); i++) {
+		if (OPTIONS[i].value && !strcmp(OPTIONS[i].key, key) && OPTIONS[i].max == CONFIG_STRING_TYPE &&
+		    OPTIONS[i].value >= playerSeat[0] && OPTIONS[i].value <= playerSeat[PLAYERS_SEATS - 1]) {
+			if (!chainSeatsKept) {   /* chainStart puts them back before the next game */
+				memcpy(chainSeatSaved, playerSeat, sizeof playerSeat);
+				chainSeatsKept = true;
+			}
+			setOption(key, val);
+			return;
+		}
 		if (!OPTIONS[i].value || strcmp(OPTIONS[i].key, key) || OPTIONS[i].max == CONFIG_STRING_TYPE)
 			continue;
 		if (remember && chainSavedN < (int)(sizeof chainSaved / sizeof chainSaved[0])) {
@@ -1190,6 +1205,8 @@ static void chainStart(int i)
 		chainSavedN--;
 		*chainSaved[chainSavedN].value = chainSaved[chainSavedN].orig;
 	}
+	if (chainSeatsKept)
+		memcpy(playerSeat, chainSeatSaved, sizeof playerSeat);
 	for (k = 0; k < chainList[i].nset; k++)
 		chainOverride(chainList[i].set[k], true);
 	mcd_track_begin();
@@ -1823,6 +1840,7 @@ int loadISO(fileBrowser_file* file)
 	ach_toast_clear();          /* a toast still queued from the last game */
 	snprintf(achievementImage, sizeof achievementImage, "%s", isoFile.name);   /* Official mode hashes it */
 	achievements_notify = ach_toast_push;
+	achievements_players = ach_players_get;   /* Local mode: the seated Miis on connected pads earn (a Guest if none) */
 	achievements_load(CdromId); /* after settings and boot; a wrong/absent game ID rejects the set */
 	achievements_bench_isolate_cards();
 
@@ -2153,6 +2171,9 @@ void go(void) {
 		auto_assign_controllers();
 	else
 		manual_assign_controllers();
+	/* The seats (the Players menu) or the pads may have changed since the set loaded: the
+	 * achievements go to the Miis on connected pads now */
+	achievements_players_changed();
 
 	if (gpuPtr == &newSoftGpu)
     {

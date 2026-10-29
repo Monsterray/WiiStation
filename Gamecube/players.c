@@ -346,3 +346,53 @@ const char *players_official(void)
 	s = padType[0] == PADTYPE_MULTITAP ? 2 : padType[0] == PADTYPE_COOP ? COOP_VC(0, 0) : 0;   /* port 1's first */
 	return *players_account(playerSeat[s]) ? playerSeat[s] : "";
 }
+
+/* A seated Mii's name for the achievements (ach_players.c), at a game's start. The menu's
+ * reader has the Miis when the Players menu was opened; if it is still reading, wait for it
+ * (it takes about 0.7 s); without it, read the database here once and keep the names. */
+#define LOOKUP_WAIT_MS 3000
+static struct { char key[PLAYERS_KEY]; char name[32]; } looked[PLAYERS_MAX];
+static int looked_n = -1;
+
+int players_lookup(const char *key, char *name, unsigned size)
+{
+	int i, waited;
+
+	if (!key || !*key || !name || !size)
+		return -1;
+	name[0] = 0;
+	for (waited = 0; started && count < 0 && waited < LOOKUP_WAIT_MS; waited += 10)
+		usleep(10000);
+	if (count >= 0) {
+		i = players_find(key);
+		if (i < 0)
+			return 0;
+		snprintf(name, size, "%s", miis[order[i]].p.name);
+		return 1;
+	}
+	if (started)
+		return -1;               /* the reader is stuck: the Mii may be there, its name is not known */
+	if (looked_n < 0) {
+		static mii_db db;
+		looked_n = 0;
+		memset(&db, 0, sizeof db);
+		if (mii_db_load(&db) == MII_OK) {
+			for (i = 0; i < MII_DB_SLOTS && looked_n < PLAYERS_MAX; i++) {
+				mii m;
+				if (mii_db_get(&db, i, &m) != MII_OK)
+					continue;
+				id_hex(m.id, looked[looked_n].key);
+				mii_get_name(m.name, looked[looked_n].name, sizeof looked[looked_n].name);
+				looked_n++;
+			}
+			mii_db_free(&db);
+		} else
+			looked_n = -2;       /* no database: no Mii is there, and no second try */
+	}
+	for (i = 0; i < looked_n; i++)
+		if (!strcmp(looked[i].key, key)) {
+			snprintf(name, size, "%s", looked[i].name);
+			return 1;
+		}
+	return 0;
+}

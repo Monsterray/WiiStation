@@ -31,10 +31,40 @@ void achievements_change_media(const char *image, const char *game_id);   /* a d
 const char *achievements_status(void);   /* one line for the menus: what achievements do for this game */
 uint32_t achievements_read_memory(uint32_t address, uint8_t *buffer, uint32_t size, void *unused);
 unsigned achievements_count(void);    /* the loaded set's achievements, in either mode */
-unsigned achievements_earned(void);
+unsigned achievements_earned(void);   /* Local: the union of the players' unlocks (below) */
 void achievements_list_refresh(void); /* the menu opens the list: Official mode reads it again */
 int achievements_state_save(void *data, unsigned size); /* NULL queries required size */
 int achievements_state_load(const void *data, unsigned size); /* NULL resets progress */
+
+/* ---- the players (Local mode; Docs/MII_PLAN.md): a Mii earns its own unlocks ----
+ *
+ * The journal keeps one line per Mii that earned an achievement. Who is playing comes from
+ * the hook: the Miis seated on a port whose pad is connected (Gamecube/ach_players.c). With
+ * none, the player is Guest (a journal line without a key, as every line written before the
+ * Players menu). The set's earned state is the union of the players' unlocks; an achievement
+ * stays active while any player lacks it, and when it triggers only those get the line. */
+#define ACH_PLAYERS_MAX 26     /* one per seat (PLAYERS_SEATS) */
+#define ACH_KEY_LEN 16         /* a Mii's key: 16 hex characters */
+typedef struct {
+    char key[ACH_KEY_LEN + 1]; /* 16 lowercase hex characters */
+    char name[32];             /* UTF-8; for the toast and the page */
+} achievement_player_t;
+/* Fills out (room for ACH_PLAYERS_MAX) with the players, in seat order; returns how many. NULL
+ * or 0: Guest alone. Called at a game load and by achievements_players_changed(). */
+extern unsigned (*achievements_players)(achievement_player_t *out);
+/* The seats or the pads may have changed (the menu was open): asks the hook again and, when the
+ * players differ, loads the set again for them. Call before the game goes on. */
+void achievements_players_changed(void);
+/* The players the page can show (Guest alone: 1, no name), and which one it shows. */
+unsigned achievements_player_count(void);
+const char *achievements_player_key(unsigned i);    /* "" for Guest */
+const char *achievements_player_name(unsigned i);   /* "" for Guest */
+unsigned achievements_player_earned(unsigned i);    /* that player's unlocks in the loaded set */
+void achievements_view_player(unsigned i);          /* achievements_entry's earned flag is that player's */
+unsigned achievements_viewed_player(void);
+/* A Mii's unlocks in the loaded set (Local mode), also when it is not a player now; -1: no
+ * set, or Official mode. For the Players menu. */
+int achievements_earned_for(const char *key);
 
 /* An achievement's type: the values RetroAchievements uses (rc_client.h) */
 enum { ACH_TYPE_STANDARD = 0, ACH_TYPE_MISSABLE = 1, ACH_TYPE_PROGRESSION = 2, ACH_TYPE_WIN = 3 };
@@ -86,6 +116,7 @@ typedef struct {
     unsigned earned, count;            /* the set's progress after this unlock */
     unsigned char type;                /* ACH_TYPE_* */
     unsigned char beaten, mastered;    /* this unlock beat the game / completed the set */
+    const char *who;                   /* Local: the Miis that earned it ("Kat", "Kat and Ollie", "4 players"); NULL or "": Guest */
 } achievement_notice_t;
 extern void (*achievements_notify)(const achievement_notice_t *notice);   /* NULL: nobody listens */
 

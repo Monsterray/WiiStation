@@ -1,0 +1,28 @@
+CHAIN
+# Per-Mii achievements (Local mode, Docs/MII_PLAN.md phase 3), Spyro with a set whose hit counts fire
+# Alpha at 200 frames and Beta at 400 (Gamma at 1000, never here). A = 82625a00 (Testorb), B = 82625dd1, C = 826261a2 (Ollie).
+#   1  A seated alone: it earns Alpha and Beta; the state ach_pl_a is saved at 500
+#   2  B alone: nothing at load (A's unlocks are not its), earns Alpha only (the game ends at 300)
+#   3  A on port 1, B on port 2 (script pads on both, ach_players_p2.txt; a seat counts only with a pad): Beta fires for B only (A has it), no second line for A
+#   4  C alone loads the state A left: the game goes on, C's earned stays 0 and C earns Alpha and Beta itself
+#   5  Guest alone (no Mii seated): none of the Miis' counts is Guest's
+#   WSX_EXTRA_ISOS=tests/fixtures/ach_players WSX_ISOS="Tests/AchPlayers,Spyro the Dragon" \
+#     scripts/wsx.sh chain NAME scripts/chains/ach_players.txt --fast \
+#     --set 'Achievements=1,AchievementFile="sd:/wiistation/isos/Tests/AchPlayers/set.txt"'
+# Read the unlock lines and the player lines in each game's tty.log (the first 8 characters of a key, never a name).
+# The seats are string settings: a chain line may set them (GamecubeMain.cpp chainOverride).
+600 sd:/wiistation/ach_players_save.txt FPS=0 PadAutoAssign=1 Player1="82625a00c2123456" Player2=""
+sd:/wiistation/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue
+300 sd:/wiistation/ach_players_none.txt FPS=0 PadAutoAssign=1 Player1="82625dd1c2123456" Player2=""
+sd:/wiistation/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue
+500 sd:/wiistation/ach_players_p2.txt FPS=0 PadAutoAssign=1 Player1="82625a00c2123456" Player2="82625dd1c2123456"
+sd:/wiistation/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue
+700 sd:/wiistation/ach_players_none.txt FPS=0 PadAutoAssign=1 Player1="826261a2c2123456" Player2="" State=ach_pl_a
+sd:/wiistation/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue
+500 sd:/wiistation/ach_players_none.txt FPS=0 PadAutoAssign=1 Player1="" Player2=""
+sd:/wiistation/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue
