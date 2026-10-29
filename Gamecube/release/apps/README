@@ -156,9 +156,20 @@ LATER UPDATES BY:
 
 WiiStation CHANGE LOG:
 Ver 5.19.0 (2026-10-28):
-* Cheevos page: the Account row is gone (accounts are in Players), and the
+* Achievements page: the Account row is gone (accounts are in Players), and the
   notes say what each mode does: Local and Official use the RetroAchievements
   set; Custom and Test run your own set file.
+* The General page's Cheevos button is now Achievements, everywhere.
+* The Achievements settings page: the buttons no longer touch each other or
+  the notes under them.
+* In the Achievements book, the menu combination (the one that opens the menu
+  in a game) goes straight back into the game.
+* B on the main menu goes back into the game when one has been started (with
+  no game started it does nothing, as before).
+* The book names the Mii that sits on the seat now: it asks the seats again
+  when it opens (a Mii changed in Players showed the old name until the game
+  went on), and in Official mode with no other Mii it names the Mii that plays
+  Official instead of Guest.
 * Players: every Mii seated on a port with a connected pad earns its own
   achievements (Custom and Local modes). The toast says who: "Kat unlocked", "Kat and
   Ollie unlocked", "4 players unlocked". An achievement one Mii has keeps
@@ -184,7 +195,7 @@ Ver 5.19.0 (2026-10-28):
   and not in the first 3 seconds (the game's memory is not set up yet).
 * The unlock card, the progress panel and the challenge icons sit 16 pixels
   from the right edge of the picture (were 40).
-* New setting AchievementChallenge (General, Cheevos, Challenge icons): Off
+* New setting AchievementChallenge (General, Achievements, Challenge icons): Off
   hides the flashing icons of achievements that are one step away.
 * Save states made by other players keep the game, but the unlocks come from
   the Miis seated now: a state never moves one Mii's unlocks to another.
@@ -237,7 +248,7 @@ Ver 5.18.2 (2026-10-28):
 * Players: a seated Mii deleted in the Mii Channel becomes Guest, with a
   notice when the Players menu opens; its unlocks are kept.
 * Players: Guest and the other centered names sit in the middle of their slot.
-* Cheevos page: the notes that ran off the bottom of the screen are gone (the
+* Achievements page: the notes that ran off the bottom of the screen are gone (the
   rest is in SETTINGS.md).
 Ver 5.18.1 (2026-10-28):
 * Players: a Co-Op port's card holds all its players (up to 8). Open it with
@@ -260,7 +271,7 @@ Ver 5.18.0 (2026-10-28):
   Channel agent 1.12.1.
 
 Ver 5.17.0 (2026-10-24):
-* Achievements, Official mode (Settings > General > Cheevos): RetroAchievements
+* Achievements, Official mode (Settings > General > Achievements): RetroAchievements
   sets, earned online with your RetroAchievements account (Casual; Hardcore
   needs RetroAchievements' approval first). The disc is identified the way
   RetroAchievements does it, from every format WiiStation boots (CUE/BIN, ISO,
@@ -281,7 +292,7 @@ Ver 5.17.0 (2026-10-24):
   game (rich presence). Leaderboards: the ten best scores and yours, for
   each of the game's boards (reading only: RetroAchievements takes scores in
   Hardcore only).
-* Cheevos settings Unofficial (the set's not yet approved achievements too)
+* Achievements settings Unofficial (the set's not yet approved achievements too)
   and Encore (earn your achievements again this session). Save states keep
   achievement progress in Official mode too.
 * Official mode needs no clock setting any more: the Wii learns its time zone

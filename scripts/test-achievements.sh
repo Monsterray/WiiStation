@@ -52,3 +52,9 @@ UBSAN_OPTIONS=halt_on_error=1 "$task_dir/local_test" "$task_dir"
 "${CC:-cc}" -std=c99 -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined \
   tests/ach_ra_cache_test.c -o "$task_dir/ra_cache_test"
 UBSAN_OPTIONS=halt_on_error=1 "$task_dir/ra_cache_test"
+# Official mode with no Local player: the page names the Mii that plays Official (it said Guest)
+"${CC:-cc}" -std=c99 -O1 -g -Wall -Wextra -Werror \
+  -fsanitize=address,undefined -fno-omit-frame-pointer \
+  -Ideps/rcheevos/include achievements.c tests/achievements_official_alone_test.c \
+  "$task_dir"/*.o -lm -o "$task_dir/official_alone_test"
+UBSAN_OPTIONS=halt_on_error=1 "$task_dir/official_alone_test" "$task_dir"

@@ -13,7 +13,8 @@
  * the list; Left and Right in the detail go to the previous and the next achievement.
  *
  * Controls: Up and Down choose, Left and Right turn the tabs, A opens, B goes back (and leaves
- * the book from the list). L and R (GameCube), + and - (Wii Remote, Classic) switch the player
+ * the book from the list). The menu combination, the one that stops a game for the menu, goes
+ * straight back into the game when one has been started (MenuContext.cpp). L and R (GameCube), + and - (Wii Remote, Classic) switch the player
  * when Miis are seated on connected pads (Players menu): the list, the counts and the detail are
  * that Mii's. The Wii Remote's pointer clicks tabs and rows.
  *
@@ -49,6 +50,7 @@
 #include "../libgui/CursorManager.h"
 #include "../libgui/Image.h"
 #include "../libgui/InputManager.h"
+#include "../gc_input/controller.h"
 #include "../players.h"
 #include "../ach_shot.h"
 #include "../ach_picture.h"
@@ -463,6 +465,9 @@ bool switchPlayer(void)
 		if (gc & PAD_TRIGGER_R) step = 1;
 		if (gc & PAD_TRIGGER_L) step = -1;
 	}
+	/* the Wii Remote's menu combination is + and - together: it is not a switch (MenuContext.cpp) */
+	if (step && (pad_menu_combo_held() || (menu::menu_script_keys & MENU_SCRIPT_COMBO)))
+		step = 0;
 	if (n > 1 && step)
 	{
 		achievements_view_player((v + n + step) % n);
@@ -505,6 +510,7 @@ void AchievementsBoard::enter(unsigned jump)
 	board = 0;
 	pointer = false;
 	freeShot();
+	achievements_players_changed();	/* a Mii seated in the Players menu since: the set loads again for it, as it would on resume */
 	achievements_view_player(0);
 	if (achievements_player_key(0)[0])
 		players_start();	/* the Miis' coins (players.c; nothing happens when it is running already) */

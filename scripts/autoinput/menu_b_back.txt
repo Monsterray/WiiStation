@@ -1,0 +1,6 @@
+# B on the main menu goes back into a started game (MainFrame.cpp Func_BackToGame): the game stops at
+# vblank 700 and Current ISO opens (page 16); the first B goes back to the main menu (menu frame 150), the
+# second one (frame 174) resumes the game.
+1 0000
+menuopen 700 16
+menukeys 150 B . B

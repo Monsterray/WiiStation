@@ -1,0 +1,10 @@
+# A Mii seated in the Players menu while the game is stopped is the one the achievements book names:
+# the game stops at vblank 700 with the Players page (18); R R A A seats the third coin on port 1, B
+# leaves (the seats are saved), D A is Current ISO (the main menu starts on Load ISO), D D R A its Achievements button.
+#   WSX_EXTRA_ISOS=tests/fixtures/ach_book WSX_ISOS="Tests/AchBook,Spyro the Dragon" \
+#     scripts/wsx.sh run NAME --autoboot spyro --input scripts/autoinput/ach_book_reseat.txt --fast --secs 70 \
+#     --env FRAMES_DUMP=True --env KEEP=100000 --set 'Achievements=1,AchievementFile="sd:/wiistation/isos/Tests/AchBook/set.txt",Player1="82625a00c2123456",Player2="82625dd1c2123456",PadAutoAssign=1'
+1 0000
+p2 1 0000
+menuopen 700 18
+menukeys 150 R R A A B . D A . D D R A

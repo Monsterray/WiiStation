@@ -18,7 +18,7 @@ today, how to set it up, how to test it and what is planned.
 | Official mode per Mii | In the product (5.19.0, Docs/MII_PLAN.md steps 4a and 4c): the Mii that plays Official logs in with its own account file; the other seated Miis earn the same set Local, with encore mode on and nothing sent twice. See [Official mode with Local players](#official-mode-with-local-players). |
 | Unlock journal | In the product. An unlock is written when it triggers (f9ca407b). Records cut short by a power loss are ignored (2026-10-23). |
 | Save-state progress (`ACH1` section) | In the product. Custom: `WAC1`; Official and Local: `WAO1` (rc_client's progress). A game reset resets the progress in each. |
-| Menu controls | General tab, Cheevos: Mode, Unofficial, Encore, Challenge icons, the set file. Current ISO, Achievements: the book (2026-10-29), see [The book](#the-book). ISO Info: the achievement status line. |
+| Menu controls | General tab, Achievements: Mode, Unofficial, Encore, Challenge icons, the set file. Current ISO, Achievements: the book (2026-10-29), see [The book](#the-book). ISO Info: the achievement status line. |
 | Unlock toast | In the product (2026-10-23): the tier card slides in at the top right on each unlock, in both GPU plugins. See [Unlock toast](#unlock-toast). |
 | Indicators | In the product (2026-10-24, `ach_toast.c`): the game card when a set loads (the Disc Read disc spins up; N of M earned, points), a progress panel at the bottom right when measured progress crosses a new 10 % step (2026-10-29, see [Progress pop-ups](#progress-pop-ups)), one box per primed challenge for as long as it is primed (the setting `AchievementChallenge` hides them). The pop-ups sit 16 px from the right edge of the picture. Local sets get them from rc_runtime's events. |
 | Unlock pictures | In the product (2026-10-29, `Gamecube/ach_shot.c`): the game's frame at each unlock, saved to `sd:/wiistation/achievements/shots/`. See [Unlock pictures](#unlock-pictures). |
@@ -50,7 +50,7 @@ AchievementLog = ""
 | `Achievements` | 0 = Off, 1 = Custom, 2 = Test, 3 = Official, 4 = Local | 0 | Custom evaluates your own set and keeps unlocks in the journal (it was called Local before 5.19.0; the number is the same, so a settings file keeps its meaning). Test evaluates the set, but does not read or write the journal. Official: RetroAchievements, Casual. Local: the RetroAchievements set, nothing sent, every player earns into the Local journal ([Local mode](#local-mode)). Off stops all frame evaluation. The menu cycles Off, Local, Official, Custom, Test. |
 | `AchievementUnofficial` | 0, 1 | 0 | Official: the set's Unofficial (unpromoted) achievements too. RetroAchievements does not keep their unlocks. |
 | `AchievementEncore` | 0, 1 | 0 | Official: achievements already earned can be earned again this session (the card shows again; nothing new is sent). Also on, whatever this says, while a Local Mii is seated next to the Official one ([Official mode with Local players](#official-mode-with-local-players)). |
-| `AchievementChallenge` | 0, 1 | 1 | The flashing icons of achievements that are one step away (RetroAchievements' challenge indicator; a Local set's primed ones). 0 hides them, at once. Menu: General, Cheevos, "Challenge icons". |
+| `AchievementChallenge` | 0, 1 | 1 | The flashing icons of achievements that are one step away (RetroAchievements' challenge indicator; a Local set's primed ones). 0 hides them, at once. Menu: General, Achievements, "Challenge icons". |
 | `AchievementSpectator` | 0, 1 | 0 | Hidden, for scripted runs on a real account: everything is evaluated and shown, no unlock is sent. Once on for a loaded set, rc_client keeps it on. |
 | `AchievementUTCOffset` | `"+420"` | empty | Optional: the minutes to add to the Wii's clock for UTC. Empty: the Wii learns it from the server (`utc_offset.txt`). Set, it wins and nothing is learnt. |
 | `AchievementFile` | `"path"` | empty | The definition file. One of its `Game=` serials must match the loaded disc. |
@@ -209,7 +209,14 @@ MEM2, one at a time, freed when the detail closes).
 Buttons: Up/Down choose, Left/Right the tabs (in the detail: the previous and next achievement), A opens,
 B goes back (from the list: to Current ISO). The player switch is unchanged: L/R (GameCube), +/- (Wii
 Remote, Classic). The pointer clicks tabs and rows. Text is never below scale 0.5 (the Players menu's
-body text); titles shrink to fit, then are cut with "...".
+body text); titles shrink to fit, then are cut with "...". The menu combination (the one that stops a
+game for the menu: Start+X on a GameCube pad, + and - together on a Wii Remote, Home on a Classic
+Controller) goes straight back into a game that has been started (`MenuContext::isRunning`,
+`pad_menu_combo_held` in `PlugPAD.c`); it counts once it was seen released in the book, so the press
+that opened the menu does not send the game back at once. The name and coin in the header are those
+of the Mii on the seat now: the book asks the seats again when it opens (`achievements_players_changed`),
+and in Official mode with no Local Mii it names the Mii that plays Official ("This Wii" for the Wii's
+own account), not Guest.
 
 If the player opens the menu while any pop-up is on screen (the unlock card, the progress panel or a
 challenge icon), the menu opens the book on that achievement's detail (`ach_toast_menu_opened`,

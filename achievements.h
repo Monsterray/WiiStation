@@ -64,6 +64,9 @@ typedef struct {
 /* Fills out (room for ACH_PLAYERS_MAX) with the players, in seat order; returns how many. NULL
  * or 0: Guest alone. Called at a game load and by achievements_players_changed(). */
 extern unsigned (*achievements_players)(achievement_player_t *out);
+/* Optional: the name of a Mii by its key (1 found, name filled; else 0 or -1). For the Official
+ * Mii when no connected seat has it (achievements_ra_plan). */
+extern int (*achievements_player_lookup)(const char *key, char *name, unsigned size);
 /* The seats or the pads may have changed (the menu was open): asks the hook again and, when the
  * players differ, loads the set again for them. Call before the game goes on. */
 void achievements_players_changed(void);

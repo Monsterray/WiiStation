@@ -276,10 +276,15 @@ done:
 
 /* A button combination's state, from a controller driver each time it reads the pad. The
  * request is made when the combination goes down, not for as long as it is held. */
+extern int pad_probing;   /* PlugPAD.c pad_menu_combo_held */
+
 void screenshot_poll(int control, int held)
 {
 	static char was_held[4];
 	int k = control & 3;
+
+	if (pad_probing)   /* the menu asking about its own combination, not a game reading the pad */
+		return;
 
 	if (held && !was_held[k])
 		shot_due = 1;

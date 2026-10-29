@@ -190,6 +190,11 @@ void coop_rumble(int port, int on);
 /* screenshot.c: a driver reports the screenshot combination's state each time it reads a pad.
  * It takes the shot when the combination goes down. */
 void screenshot_poll(int control, int held);
+/* PlugPAD.c: is the menu combination held on port 1 or 2 now? For the menu (the achievements
+ * book goes back into the game on it). It reads through the drivers' GetKeys, with
+ * pad_probing set: screenshot_poll and analog_poll then do nothing, since no game reads. */
+int pad_menu_combo_held(void);
+extern int pad_probing;
 /* PadSSSPSX.c: a driver reports whether the ANALOG combination is held each time it reads a
  * pad; the PlayStation pad being read presses its ANALOG button when it goes down. */
 void analog_poll(int held);

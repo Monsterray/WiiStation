@@ -8,7 +8,7 @@
  *               -> "CD"        : how disc images are read, and Fast Load
  *  Video tab    -> "Advanced Graphics" : dithering, the video decoder, the TV picture
  *               -> "Memory"    : what the machine's memory is doing right now
- *  General tab  -> "Cheevos"   : the achievement mode, the set file and the account
+ *  General tab  -> "Achievements": the achievement mode, the set file and the account
  *
  * HOW TO ADD A ROW
  *   A setting row (ROW_CYCLE or ROW_RADIO) needs: its OPTIONS[] line in Gamecube/GamecubeMain.cpp
@@ -399,7 +399,9 @@ static const OptHelp ISOINFO_HELP[] =
 };
 
 /* The mode is a cycle: its five values do not fit a radio row (OPT_MAX_CHOICES). A change
- * applies at the next game load (achievements_load), so there is no apply function. */
+ * applies at the next game load (achievements_load), so there is no apply function. The 56 px
+ * buttons of the five rows keep a gap at a 58 px pitch starting at y 78 (PAGES); the four help
+ * lines still end above the bottom edge. */
 static const OptRow ACH_ROWS[] =
 {
 	ROW_CYCLE("Achievements", NULL),
@@ -432,6 +434,7 @@ struct OptPage
 	void				(*onLeave)(void);
 	float				rowDy;			// the row pitch, or 0 for the default (60)
 	int					columns;		// 2: cycle rows in two label + button columns (eng::Page::columns)
+	float				rowY0;			// the first row's top, or 0 for the default (100)
 };
 
 #define COUNT(a)	((int)(sizeof(a) / sizeof((a)[0])))
@@ -447,7 +450,7 @@ static const OptPage PAGES[] =
 	{ "Advanced", "GPU",  GPU_ROWS,     COUNT(GPU_ROWS),     GPU_HELP,    COUNT(GPU_HELP),    SettingsFrame::SUBMENU_GENERAL, pluginsEnter, pluginsLeave, 54.0f },
 	{ "Advanced", "Input", INPUT_ROWS,  COUNT(INPUT_ROWS),   INPUT_HELP,  COUNT(INPUT_HELP),  SettingsFrame::SUBMENU_GENERAL, pluginsEnter, pluginsLeave },
 	{ "Advanced", "SPU",  SPU_ROWS,     COUNT(SPU_ROWS),     SPU_HELP,    COUNT(SPU_HELP),    SettingsFrame::SUBMENU_GENERAL, pluginsEnter, pluginsLeave },
-	{ "Achievements", NULL, ACH_ROWS,   COUNT(ACH_ROWS),     ACH_HELP,    COUNT(ACH_HELP),    SettingsFrame::SUBMENU_GENERAL, NULL,         NULL,         50.0f },
+	{ "Achievements", NULL, ACH_ROWS,   COUNT(ACH_ROWS),     ACH_HELP,    COUNT(ACH_HELP),    SettingsFrame::SUBMENU_GENERAL, NULL,         NULL,         58.0f, 0, 78.0f },
 	{ "ISO Info", NULL,   ISOINFO_ROWS, COUNT(ISOINFO_ROWS), ISOINFO_HELP, COUNT(ISOINFO_HELP), RETURN_CURRENT_ISO,           NULL,         NULL,         40.0f },
 };
 
@@ -709,6 +712,7 @@ static void buildEnginePage(int page, int curTab)
 	ENG_PAGE.focus  = eng::FOCUS_ROWS;
 	ENG_PAGE.rowDy  = p.rowDy;
 	ENG_PAGE.columns = p.columns;
+	ENG_PAGE.rowY0  = p.rowY0;
 }
 
 /* The widget a control of the engine's layout is drawn with. */

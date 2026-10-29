@@ -23,6 +23,9 @@
 
 #include "GuiTypes.h"
 
+/* A scripted menu press with no pad button of its own: the in-game menu combination (menukeys M) */
+#define MENU_SCRIPT_COMBO	0x8000
+
 namespace menu {
 
 class Input

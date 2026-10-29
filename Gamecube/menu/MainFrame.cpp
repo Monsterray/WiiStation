@@ -60,6 +60,8 @@ void Func_Players();
 void Func_Credits();
 void Func_ExitToLoader();
 void Func_PlayGame();
+static void Func_BackToGame();
+extern BOOL hasLoadedISO;
 
 static const int NUM_MAIN_BUTTONS = 7;
 
@@ -86,13 +88,13 @@ struct MainButtonInfo
 
 static MainButtonInfo mainButtons[NUM_MAIN_BUTTONS] =
 {	//	button	buttonStyle	buttonString		clickFunc			returnFunc
-	{	NULL,	BTN_A_NRM,	mainStrings[0],	Func_LoadROM,		NULL },
-	{	NULL,	BTN_A_NRM,	mainStrings[1],	Func_CurrentROM,	NULL },
-	{	NULL,	BTN_A_NRM,	mainStrings[2],	Func_Settings,		NULL },
-	{	NULL,	BTN_A_NRM,	mainStrings[3],	Func_Players,		NULL },
-	{	NULL,	BTN_A_NRM,	mainStrings[4],	Func_Credits,		NULL },
-	{	NULL,	BTN_A_NRM,	mainStrings[5],	Func_ExitToLoader,	NULL },
-	{	NULL,	BTN_A_NRM,	mainStrings[6],	Func_PlayGame,		NULL },
+	{	NULL,	BTN_A_NRM,	mainStrings[0],	Func_LoadROM,		Func_BackToGame },
+	{	NULL,	BTN_A_NRM,	mainStrings[1],	Func_CurrentROM,	Func_BackToGame },
+	{	NULL,	BTN_A_NRM,	mainStrings[2],	Func_Settings,		Func_BackToGame },
+	{	NULL,	BTN_A_NRM,	mainStrings[3],	Func_Players,		Func_BackToGame },
+	{	NULL,	BTN_A_NRM,	mainStrings[4],	Func_Credits,		Func_BackToGame },
+	{	NULL,	BTN_A_NRM,	mainStrings[5],	Func_ExitToLoader,	Func_BackToGame },
+	{	NULL,	BTN_A_NRM,	mainStrings[6],	Func_PlayGame,		Func_BackToGame },
 };
 
 /* The Main menu page: seven rows, one action button each. */
@@ -163,6 +165,7 @@ MainFrame::MainFrame()
 												c.rect.y+c.rect.h);
 	}
 	setDefaultFocus(mainButtons[0].button);
+	setBackFunc(Func_BackToGame);	/* B with the pointer on no button */
 	setEnabled(true);
 }
 
@@ -429,4 +432,19 @@ void Func_SetPlayGame()
 void Func_SetResumeGame()
 {
 	mainButtons[6].buttonString = mainStrings[7];
+}
+
+/* A game is loaded and has been played: the Play button says Resume (Func_PlayGame sets it
+ * once the game stops for the menu, Func_SetPlayGame when another one is loaded). */
+bool MainFrame_gameStarted()
+{
+	return hasLoadedISO && mainButtons[6].buttonString == mainStrings[7];
+}
+
+/* B on the main menu: back into the game, as the Resume button does. With no game started, B
+ * does nothing, as before. */
+static void Func_BackToGame()
+{
+	if (MainFrame_gameStarted())
+		Func_PlayGame();
 }

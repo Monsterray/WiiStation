@@ -25,6 +25,8 @@
 #include "../hb_probe.h"
 #include "../libgui/FocusManager.h"
 #include "../libgui/CursorManager.h"
+#include "../libgui/InputManager.h"
+#include "../gc_input/controller.h"
 
 extern bool AutobootBios;      /* GamecubeMain.cpp: autoboot.txt said "BIOS" */
 void Func_ExecuteBios();       /* SettingsFrame.cpp */
@@ -155,6 +157,10 @@ extern "C" {
 	void SettingsFrame_ScriptClick(int button);
 }
 
+bool MainFrame_gameStarted();   /* MainFrame.cpp */
+void Func_PlayGame();            /* MainFrame.cpp */
+namespace menu { extern u16 menu_script_keys; }   /* InputManager.cpp */
+
 static int smbPageWait;   /* menupage 71: frames left to wait for the share */
 
 bool MenuContext::isRunning()
@@ -246,6 +252,23 @@ bool MenuContext::isRunning()
 		if (++menuFrame == (autoinput_menuclick_frame ? autoinput_menuclick_frame : 40) && autoinput_menuclicks) {
 			for (unsigned i = 0; i < autoinput_menuclicks; i++)
 				SettingsFrame_ScriptClick((int)autoinput_menuclick);
+		}
+	}
+
+	/* The achievements book is open with a game started: the menu combination (the one that
+	 * brought the menu up) goes straight back into the game. It counts as a new press only
+	 * after it was seen released here, so the press that opened the menu does not send the
+	 * game straight back. */
+	{
+		static bool armed;
+		if (activeIndex != FRAME_ACHIEVEMENTS || !MainFrame_gameStarted())
+			armed = false;
+		else if (!(pad_menu_combo_held() || (menu::menu_script_keys & MENU_SCRIPT_COMBO)))
+			armed = true;
+		else if (armed)
+		{
+			armed = false;
+			Func_PlayGame();
 		}
 	}
 

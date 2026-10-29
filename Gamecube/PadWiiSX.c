@@ -161,7 +161,7 @@ int autoinput_padsweep_fast = 0;   /* "padsweep <vblank> fast": controller-GC.c'
  * directly rather than through the controller drivers, so padsweep cannot drive it.
  * 1..5 are the Settings tabs in order, 6..14 the Options pages in the order of
  * OptionsFrame::OptionsPages: Advanced Sound, Advanced Graphics, Plugins, CD, Memory, then
- * 11 Advanced GPU, 12 Advanced Input, 13 Advanced SPU, 14 Achievements (General, Cheevos).
+ * 11 Advanced GPU, 12 Advanced Input, 13 Advanced SPU, 14 Achievements (General, Achievements).
  * 15 is Current ISO > Achievements, the list of the loaded game's set (with no game: its
  * "No achievement set" line). 16 Current ISO, 17 its ISO Info page. 20 Configure Input, 21..36 Customize Co-Op, 40..65 Configure
  * Buttons, 70 Load from SD, 71 Load from SMB, 72 Load from DVD, 90 Quit (MenuContext.cpp).
@@ -177,7 +177,7 @@ unsigned autoinput_menuclick = 0;
 unsigned autoinput_menuclicks = 0;
 unsigned autoinput_menuclick_frame = 0;   /* 0 = 40 */
 /* "menukeys <frame> <keys>": GameCube-pad presses fed to the menu (libgui InputManager.cpp),
- * from that menu frame on: U D L R A B S(tart) Z < > (the L / R tab buttons), each held 6
+ * from that menu frame on: U D L R A B S(tart) Z < > (the L / R tab buttons) M (the menu combination), each held 6
  * frames then released 6, '.' a 12-frame pause. Any screen, any dialog: e.g. "menukeys 60 U U A . . R A" is Main > Quit,
  * then Yes on its question (the HBC agent's `key` presses never reach the menu). */
 unsigned autoinput_menukeys_frame = 0;
@@ -189,13 +189,14 @@ unsigned autoinput_menupage = 0;
  * open that menupage (above) in the menu that comes up: e.g. 15, the achievements list of the
  * game being played. */
 unsigned autoinput_menuopen_vblank = 0, autoinput_menuopen_page = 0;
-static unsigned menuopen_page;
+static unsigned menuopen_page, menuopen_fired;   /* fired: the vblank of the line that stopped the game, which a reload of the script at the resume must not arm again */
 
 /* statetool_vblank, once per vblank: 1 when the game should stop for the menu now */
 int autoinput_menuopen_due(void)
 {
 	if (!autoinput_menuopen_vblank || frame_counter < autoinput_menuopen_vblank)
 		return 0;
+	menuopen_fired = autoinput_menuopen_vblank;
 	autoinput_menuopen_vblank = 0;
 	autoinput_menuopen_page = menuopen_page;
 	return 1;
@@ -325,7 +326,10 @@ void autoinput_load(void)
 				continue;
 			}
 			if (sscanf(line, "menupage %u", &v) == 1) { autoinput_menupage = v; continue; }
-			if (sscanf(line, "menuopen %u %u", &v, &k) == 2) { autoinput_menuopen_vblank = v; menuopen_page = k; continue; }
+			if (sscanf(line, "menuopen %u %u", &v, &k) == 2) {
+				if (!(v == menuopen_fired && frame_counter >= v)) { autoinput_menuopen_vblank = v; menuopen_page = k; }
+				continue;
+			}
 			if (sscanf(line, "achdump %u", &v) == 1) { statetool_achdump(v); continue; }
 			if (sscanf(line, "menukeys %u %63[^\r\n]", &v, autoinput_menukeys) == 2)
 				{ autoinput_menukeys_frame = v; continue; }

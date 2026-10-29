@@ -105,6 +105,7 @@ static u16 scripted_menu_keys(void)
 	case 'A': return PAD_BUTTON_A;     case 'B': return PAD_BUTTON_B;
 	case 'S': return PAD_BUTTON_START; case 'Z': return PAD_TRIGGER_Z;
 	case '<': return PAD_TRIGGER_L;    case '>': return PAD_TRIGGER_R;   /* the tab buttons */
+	case 'M': return MENU_SCRIPT_COMBO;   /* the menu combination, for the book's way back into the game */
 	}
 	return 0;   /* '.', a space: a pause */
 }

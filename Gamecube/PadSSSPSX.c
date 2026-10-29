@@ -245,6 +245,8 @@ const char *pad_note(int *red)
 
 void analog_poll(int held)
 {
+	if (pad_probing)   /* PlugPAD.c pad_menu_combo_held: no game reads this */
+		return;
 	analog_held_now |= held;
 }
 

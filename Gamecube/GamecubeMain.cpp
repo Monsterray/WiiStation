@@ -1848,6 +1848,7 @@ int loadISO(fileBrowser_file* file)
 	snprintf(achievementImage, sizeof achievementImage, "%s", isoFile.name);   /* Official mode hashes it */
 	achievements_notify = ach_toast_push;
 	achievements_players = ach_players_get;   /* Local mode: the seated Miis on connected pads earn (a Guest if none) */
+	achievements_player_lookup = players_lookup;   /* the Official Mii's name, whichever seat it is on */
 	achievements_load(CdromId); /* after settings and boot; a wrong/absent game ID rejects the set */
 	achievements_bench_isolate_cards();
 
