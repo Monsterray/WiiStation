@@ -111,7 +111,7 @@ static void setup(void)
 	memset(seated, 0, sizeof seated);
 	snprintf(achievementFile, sizeof achievementFile, "%s", path(0));
 	snprintf(achievementLog, sizeof achievementLog, "%s", path(1));
-	achievementsEnabled = ACH_LOCAL;
+	achievementsEnabled = ACH_CUSTOM;
 	achievements_notify = on_notice;
 	achievements_players = hook;
 	write_file(path(0), SET, "wb");

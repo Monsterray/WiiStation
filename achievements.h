@@ -7,15 +7,19 @@
 extern "C" {
 #endif
 
-/* Setting Achievements */
-enum { ACH_OFF = 0, ACH_LOCAL = 1, ACH_TEST = 2, ACH_OFFICIAL = 3 };
+/* Setting Achievements. The numbers are the settings files' (a card's 1, 2, 3 keep their meaning):
+ *   ACH_CUSTOM  1  the user's own definition file; unlocks kept in a journal (called Local before 5.19.0)
+ *   ACH_TEST    2  the same, nothing kept
+ *   ACH_OFFICIAL 3 RetroAchievements through rc_client, Casual, one Mii with an account
+ *   ACH_LOCAL   4  RetroAchievements' set, nothing ever sent: every player earns into the Local journal */
+enum { ACH_OFF = 0, ACH_CUSTOM = 1, ACH_TEST = 2, ACH_OFFICIAL = 3, ACH_LOCAL = 4 };
 extern char achievementsEnabled; /* an ACH_* mode */
 extern char achievementFile[256];
 extern char achievementLog[256];
 extern char achievementImage[256];   /* the loaded image's path: Official mode hashes it */
 extern char achievementUnofficial;    /* Official: the set's unpromoted achievements too (0/1) */
 extern char achievementEncore;        /* Official: earned ones can be earned again this session (0/1) */
-extern char achievementSpectator;     /* Official, hidden (test runs): evaluate, but send no unlock (0/1) */
+extern char achievementSpectator;     /* Official, hidden (test runs): evaluate, but send no unlock (0/1); Local is always so */
 extern char achievementChallenge;     /* the flashing "one step away" icons (0/1, default 1) */
 
 #define ACHIEVEMENTS_STATE_MAX (256 * 1024)
@@ -34,7 +38,7 @@ uint32_t achievements_read_memory(uint32_t address, uint8_t *buffer, uint32_t si
 unsigned achievements_count(void);    /* the loaded set's achievements, in either mode */
 unsigned achievements_earned(void);   /* Local: the union of the players' unlocks (below) */
 /* The folder name of this set's unlock pictures (sd:/wiistation/achievements/shots/<it>/<achievement id>.png):
- * Official, the game's id; Local, the first 16 characters of the definition's digest; "" in Test mode,
+ * Official and Local, the game's id; Custom, the first 16 characters of the definition's digest; "" in Test mode,
  * with no set loaded, or before the set is in. */
 const char *achievements_set_id(void);
 const char *achievements_title(void);   /* the game's name for the page: the set's Title= line, or RetroAchievements's; "" none */
@@ -88,6 +92,13 @@ const char *achievements_player_note(unsigned i);
  * official_key ("" none: the Wii's account, or no Official side). How many; more than 0 turns
  * encore mode on, so the Official account's earned ones stay active for them. */
 unsigned achievements_ra_plan(const char *official_key);
+/* The same for Local mode (no Official side): every seated Mii on a connected pad, or Guest alone
+ * (a player with the key ""): always at least 1. */
+unsigned achievements_ra_plan_all(void);
+/* The seats or the pads changed: plans again (as achievements_ra_plan_all when all, else without
+ * official_key) and says whether the players differ from the Local side's now (1: the caller
+ * builds the Local side again with achievements_ra_begin; the old players' unlocks are written). */
+int achievements_ra_replan(const char *official_key, int all);
 /* The set is in: opens the Local side for the planned players (0: none, or no memory). digest
  * and journal: ach_ra_digest, ach_ra_journal_path. official_plays: the Official account plays
  * (0: its login failed, and every seated Mii, that one too, earns Local); official_name: its
@@ -101,6 +112,9 @@ int achievements_ra_end(void);   /* the set is complete: sorts, restores the jou
  * beaten, mastered into *n). Returns a mask of them: 0, no toast for them. */
 unsigned achievements_ra_trigger(unsigned id, achievement_notice_t *n);
 int achievements_ra_active(void);
+/* The Local side's progress for the game card: the union of its players' unlocks, the set's
+ * size and the points of both (all 0 with no Local side). */
+void achievements_ra_summary(unsigned *earned, unsigned *total, unsigned *points, unsigned *total_points);
 
 /* An achievement's type: the values RetroAchievements uses (rc_client.h) */
 enum { ACH_TYPE_STANDARD = 0, ACH_TYPE_MISSABLE = 1, ACH_TYPE_PROGRESSION = 2, ACH_TYPE_WIN = 3 };

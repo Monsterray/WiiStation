@@ -398,7 +398,7 @@ static const OptHelp ISOINFO_HELP[] =
 	{ NULL,            "no disc to identify, so it gets none." },
 };
 
-/* The mode is a cycle: its four values do not fit a radio row (OPT_MAX_CHOICES). A change
+/* The mode is a cycle: its five values do not fit a radio row (OPT_MAX_CHOICES). A change
  * applies at the next game load (achievements_load), so there is no apply function. */
 static const OptRow ACH_ROWS[] =
 {
@@ -413,9 +413,9 @@ static const OptHelp ACH_HELP[] =
 {
 	/* Four lines fit under the four rows; the rest is in SETTINGS.md. The accounts are in
 	 * Players (a Mii's Edit page). */
-	{ "Official:", "Downloads the RetroAchievements set." },
-	{ "Local, Test:", "Only your own set file. Test keeps nothing." },
-	{ "Accounts:", "Players, drop a Mii on Edit." },
+	{ "Local:", "RetroAchievements' set, nothing sent." },
+	{ "Official:", "The same, sent to an account (Players)." },
+	{ "Custom, Test:", "Your own set file. Test keeps nothing." },
 	{ NULL,        "Load the game again after a change." },
 };
 
@@ -625,6 +625,10 @@ static void optCycle(int row)
 		const SettingOption *s = ROW_SET[row];
 		int v = *s->value + 1;
 		if (v > s->max || v < s->min) v = s->min;
+		if (!strcmp(s->key, "Achievements")) {	// display order Off, Local, Official, Custom, Test (the numbers are the settings files')
+			static const char NEXT[5] = { 4, 2, 0, 1, 3 };	// from 0 Off, 1 Custom, 2 Test, 3 Official, 4 Local
+			v = (*s->value >= 0 && *s->value <= 4) ? NEXT[(int)*s->value] : 0;
+		}
 		*s->value = (char)v;
 	}
 	refreshRow(row);

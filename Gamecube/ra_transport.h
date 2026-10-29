@@ -14,6 +14,9 @@ extern "C" {
 /* url, post (NULL: GET) and content_type are copied before this returns */
 void ra_transport_post(const char *url, const char *post, const char *content_type,
                        rc_client_server_callback_t done, void *done_data);
+/* An answer that never goes out (Local mode: the card's copy, or a refusal): delivered by
+ * ra_transport_poll, once, like a response. body is copied (NULL: empty). */
+void ra_transport_complete(rc_client_server_callback_t done, void *done_data, int status, const char *body, size_t len);
 void ra_transport_poll(void);       /* deliver completed responses (emulator thread) */
 int ra_transport_available(void);   /* 0: this build has no HTTPS stack, every request fails */
 

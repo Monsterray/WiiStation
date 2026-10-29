@@ -254,7 +254,7 @@ int main(int argc, char **argv)
         fclose(f);
         achievementsEnabled = ACH_OFFICIAL;
         assert(achievements_load("TEST12345") == 0 && !achievements_count());
-        achievementsEnabled = ACH_LOCAL;
+        achievementsEnabled = ACH_CUSTOM;
         achievementLog[0] = 0;
     }
     /* Optional points|type|description, the Title= line, and the notice the toast draws:
@@ -289,7 +289,7 @@ int main(int argc, char **argv)
         set_file("Game=TEST12345\n1|Unknown type|0xH000050=1|5|boss\n");
         assert(achievements_load("TEST12345") == -1);
         achievements_notify = NULL;
-        achievementsEnabled = ACH_LOCAL;
+        achievementsEnabled = ACH_CUSTOM;
     }
     /* The game card at load, measured progress (only when it grows), a challenge (primed) */
     {
@@ -340,7 +340,7 @@ int main(int argc, char **argv)
         assert(notices[notice_count - 1].kind == ACH_NOTICE_UNLOCK && achievements_earned() == 1);
         achievements_close();
         achievements_notify = NULL;
-        achievementsEnabled = ACH_LOCAL;
+        achievementsEnabled = ACH_CUSTOM;
     }
     /* A multi-disc set: every Game= serial loads it, and a swap to a listed disc keeps it running */
     {
@@ -368,7 +368,7 @@ int main(int argc, char **argv)
         assert(achievements_load("DISC000010") == -1);
         set_file("Game=A,B,C,D,E,F,G,H,I\n1|A|0xH000060=1\n");      /* at most 8 discs */
         assert(achievements_load("A") == -1);
-        achievementsEnabled = ACH_LOCAL;
+        achievementsEnabled = ACH_CUSTOM;
     }
     free(state); free(old_state);
     puts("achievements: memory, evaluation, state identity, journal, modes, notices, multi-disc sets and malformed sets ok");
