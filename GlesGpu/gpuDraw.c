@@ -1319,6 +1319,7 @@ void SetOGLDisplaySettings(BOOL DisplaySet)
   * So when the drawing area starts in the displayed buffer and not in the other one,
   * the EFB goes there, and GL_GPUupdateLace presents each vblank that drew. */
  {
+  static BOOL bFrontWas=FALSE;
   int dx=PSXDisplay.DisplayPosition.x, dy=PSXDisplay.DisplayPosition.y;
   int w=PSXDisplay.DisplayEnd.x-dx, h=PSXDisplay.DisplayEnd.y-dy;
   int px=PreviousPSXDisplay.DisplayPosition.x, py=PreviousPSXDisplay.DisplayPosition.y;
@@ -1328,6 +1329,15 @@ void SetOGLDisplaySettings(BOOL DisplaySet)
   bDrawFrontBuffer = (moved || bDisplayNudged) && w>0 && h>0 &&
                      ax>=dx && ax<dx+w && ay>=dy && ay<dy+h &&
                      !(moved && ax>=px && ax<px+w && ay>=py && ay<py+h);
+  /* the game moves its drawing area into the displayed buffer while the EFB holds a picture it
+   * drew into the other one and has not shown: if a vblank finds it still there, and the CPU read
+   * that picture as a texture (bHiddenRead: source material, not a frame), it must not be presented
+   * (GL_GPUupdateLace, gpuPrim.c FrontModeEnter) */
+  if(bDrawFrontBuffer && !bFrontWas && moved && (iDrawnSomething & 0x11))
+   bFrontEnterPending = TRUE;
+  else if(!bDrawFrontBuffer)
+   bFrontEnterPending = FALSE;
+  bFrontWas = bDrawFrontBuffer;
  }
  /* the EFB is the previous buffer again: an image load made there while it was the
   * displayed one goes in first (gpuPrim.c), then the state is set up anew */

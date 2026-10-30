@@ -117,3 +117,32 @@ vramio `F1` (per vblank) and `F5` (per GP1 05) show the decision: display, draw 
 ## Partial captures (2026-10-19)
 
 A read that needs pixels GX drew since the last capture used to copy the whole EFB (640x480 RGB565, plus a Z8 copy with GxMask exact): about 1 ms of GP time on a Wii. CTR's Tiger Temple samples 1-3 pixel spots of the frame it is drawing as textures, about 50 times a frame: 62,000 full copies in 7000 vblanks, 61 s of a 143 s run, 0.63x on the bench Wii. `efb_capture_rect` now copies only the stale tiles' EFB area (8x4 aligned, any VRAM-to-EFB scale: it keeps live's mapping moved to the copy's corner) into a buffer of its own; the merge takes those tiles from it. `efb_live_saved` is not advanced, so what it did not copy is still captured when read. A read wider than a quarter of live keeps the full capture. Also: live is captured only when the read rect itself meets live in a stale tile (GX draws are clipped to live). Bench Wii, Tiger Temple first 7000 vblanks, deep build: GxMask Accurate 0.63x -> 0.92x (GPU 49% -> 24%), Fast 0.74x -> 0.92x; guest identical (vsig), VRAM differs in 271 px by 1-2 colour steps (pixels taken at the read instead of an earlier copy); bit15_oracle unchanged. Debug perf.log: `efbcapby:` (full captures per caller, `mini=` partial ones).
+
+## Entering front-buffer mode (2026-10-29)
+
+A third hole in the same present logic, found on Ape Escape's CRT turn-on (the lab, the
+"Capture N monkeys" screen): the game draws the new scene into the hidden buffer
+(`vramio F1 0,0 0x256`, display (0,0), draw offset (0,256)), then draws thin textured strips of
+it, 4 lines high and wider every frame, into the DISPLAYED buffer (soft: a line, then the
+picture growing). The strips sample the hidden buffer as a texture (`C1 0,256 193x256`). The EFB
+held the hidden buffer's picture and `iDrawnSomething` (0x15) still said "drawn", so the first
+vblank in front-buffer mode presented the whole scene (`F1 0,0 0x0 21 12`: 4 = presented) before
+the first strip finished its frame.
+
+`FrontModeEnter` (gpuPrim.c) fixes it at that vblank (gpuPlugin.c, before the present test).
+Three conditions, each measured against a game that has the first two and not the third:
+- `SetOGLDisplaySettings` saw `bDrawFrontBuffer` turn on with the display and previous display
+  apart and `iDrawnSomething & 0x11` (`bFrontEnterPending`). Alone: Bomberman, 300 times in 4000
+  vblanks (it draws into the displayed buffer, then flips).
+- A texture a third of the display or more was taken from the hidden buffer since the last
+  present (`bHiddenRead`, `efb_sync_texture`): the picture is source material, not a frame.
+  Without it: Spyro 3's cinematics (a 256x40 strip of the hidden buffer), where Soft is nearer the
+  picture from before the fix than after it.
+- The drawing area is still in the displayed buffer at the vblank (FF7 had moved it back).
+Then it keeps the hidden buffer's GX pixels (`efb_before_geometry_change`), clears
+`iDrawnSomething` and uploads the displayed buffer from VRAM into the EFB. Probes: `uplret:
+front_enter=`, vramio `F9` (x,y display; w,h previous display; a = iDrawnSomething; b = drawing
+area y0). Shown from 5.12 at least (every older DOL tried had the full picture at once).
+Same pictures as before in Spyro, Crash 3, FF7, CTR, Crash Bash, Gex 2, Bomberman, Vagrant Story,
+Spyro 3 and MediEvil (`front_enter=0`; `scripts/chains/ape_front_reg.txt`, `ape_front_reg2.txt`);
+in Ape Escape 4 events: the lab and the briefing turn-ons (10 frames each) and two single frames.

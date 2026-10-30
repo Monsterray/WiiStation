@@ -941,21 +941,26 @@ void glBindTextureBef(GLenum target, GLuint texture)
     glparamstate.glcurtex = texture;
 }
 
-/* GxTexMin (Docs/GX_QUALITY.md): texels seen smaller than a pixel filtered linear, with
- * anisotropic taps at 2/3. The textures have one level only, so the LOD stays at 0: this is
- * the filter, not mipmapping. Magnified texels keep the Bilinear setting's filter. */
+/* GxTexMin (Docs/GX_QUALITY.md): texels seen smaller than a pixel filtered linear. Magnified
+ * texels keep the Bilinear setting's filter. The textures have one level only, so the LOD stays
+ * at 0: this is the filter, not mipmapping.
+ * No anisotropic taps (GX_ANISO_2 / _4, which GxTexMin 2 and 3 set until 5.19.0): the textures are
+ * split by their texels' STP bit into two passes (GxMask), each with transparent texels where
+ * the other pass draws, and the wider footprint takes those in. Ape Escape's hand cursor lost
+ * the white inside it and kept an outline (Dolphin, GxTexMin 2 and 3; reported on a Wii with 3).
+ * Measured in Dolphin: anisotropy 2 or 4 broke it with a linear or a mip filter, edge LOD on
+ * or off, and on either layer's texture object alone; a mip filter with anisotropy 1 did not. */
 extern char gxTexMin;
 static void ogx_texq(GXTexObj *o)
 {
-    static const u8 aniso[4] = { GX_ANISO_1, GX_ANISO_1, GX_ANISO_2, GX_ANISO_4 };
-    if (!gxTexMin) {   /* Off after a Filter Tour step: no anisotropic taps left on a texture */
+    if (!gxTexMin) {   /* Off after a Filter Tour step: no filter left on a texture */
         GX_InitTexObjMaxAniso(o, GX_ANISO_1);
         GX_InitTexObjEdgeLOD(o, GX_FALSE);
         return;
     }
-    GX_InitTexObjLOD(o, gxTexMin > 1 ? GX_LIN_MIP_LIN : GX_LINEAR,
+    GX_InitTexObjLOD(o, GX_LINEAR,
                      (originalMode == ORIGINALMODE_ENABLE || bilinearFilter == BILINEARFILTER_NEAR) ? GX_NEAR : GX_LINEAR,
-                     0, 0, 0, GX_FALSE, gxTexMin > 1 ? GX_TRUE : GX_FALSE, aniso[gxTexMin & 3]);
+                     0, 0, 0, GX_FALSE, GX_FALSE, GX_ANISO_1);
 }
 
 void glChgTextureFilter( unsigned int gTexMovieName )

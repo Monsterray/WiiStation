@@ -838,6 +838,20 @@ static void efb_sync_texture(void)
         x0 += u0 >> shift;
         y0 += v0;
     }
+    /* a texture taken from the buffer not on screen, a third of the display or more: its
+     * picture is source material for the game, not a frame for the TV (Ape Escape's CRT turn-on
+     * draws strips of the new scene, sampled from the buffer it drew it in, into the displayed
+     * buffer: FrontModeEnter). Not a small part of it: Spyro 3's cinematics sample a 256x40
+     * strip of the other buffer (a title bar) and draw into the displayed one, and there the
+     * hidden picture is the one to show. */
+    if (!PSXDisplay.RGB24 &&
+        3 * (x1 - x0) * (y1 - y0) >= (PSXDisplay.DisplayEnd.x - PSXDisplay.DisplayPosition.x) *
+                                      (PSXDisplay.DisplayEnd.y - PSXDisplay.DisplayPosition.y) &&
+        x0 < PreviousPSXDisplay.DisplayEnd.x && x1 > PreviousPSXDisplay.DisplayPosition.x &&
+        y0 < PreviousPSXDisplay.DisplayEnd.y && y1 > PreviousPSXDisplay.DisplayPosition.y &&
+        !(x0 < PSXDisplay.DisplayEnd.x && x1 > PSXDisplay.DisplayPosition.x &&
+          y0 < PSXDisplay.DisplayEnd.y && y1 > PSXDisplay.DisplayPosition.y))
+        bHiddenRead = TRUE;
     efb_sync_from = 7;
 #ifdef PERF_PROF
     {   /* probe: the texture mode of the reads that needed a partial capture (efbmini: mode) */

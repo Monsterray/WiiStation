@@ -313,3 +313,14 @@ stage; the cost is one TEV stage and one texgen on dithered draws.
 4. `Dithering` on OpenGX: either make it do something (GX dither via `GxColor`, or the
    exact TEV dither in 240p) or say in the menu that it applies to the soft renderers only.
 5. Mipmaps only if 3 shows that minified textures still shimmer and the MEM2 pool has room.
+
+## Anisotropy dropped (2026-10-29)
+
+`GxTexMin` 2 and 3 (anisotropic 2x / 4x) are gone. OpenGX splits every texture by its texels' STP
+bit into two passes, each with transparent texels where the other pass draws; with anisotropic
+taps Ape Escape's hand cursor (title screen, pause menus) lost the white inside and kept an
+outline. Dolphin, `scripts/chains/ape_hand_user.txt` against `GxTexMin=0`: anisotropy 2 or 4 broke
+it with a linear or a mip minification filter, with edge LOD on or off, and with the anisotropy on
+only the opaque layer's or only the semi-transparent layer's texture object; a mip filter with
+anisotropy 1 did not. A saved 2 or 3 now reads as 1 (Linear). The Wii showed it with `GxTexMin=3`
+(the user's session, 2026-10-29); not re-run on hardware after the change.

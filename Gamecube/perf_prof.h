@@ -397,6 +397,7 @@ typedef struct {
 	uint32_t upl_r_dis, upl_r_skip, upl_r_rgb24, upl_r_1px;
 	uint32_t upl_unseen;   /* gpuPrim.c UnseenLoadShow: the display moved onto a load no screen showed */
 	uint32_t upl_il_early;   /* gpuPlugin.c EfbBeforeGxCommand: an interlaced load uploaded before a GX draw over it */
+	uint32_t front_enter;   /* gpuPrim.c FrontModeEnter: the game began drawing into the displayed buffer while the EFB held the other */
 	int32_t upl_st[2][22];
 	uint32_t upl_st_n;
 	/* SIO activity (sio.c): data writes, pad-select starts that reached the
