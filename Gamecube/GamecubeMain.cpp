@@ -177,7 +177,7 @@ char rumbleEnabled;
 extern "C" { char efbSyncSetting = 0; }
 /* OpenGX picture trials, off by default, not in the menu (Docs/GX_QUALITY.md):
  * GxTexMin 1 = minified texels filtered linear (magnified ones keep the Bilinear setting),
- * 2/3 = and anisotropic 2x/4x; GxColor 1 = RGBA6 EFB dithered as the game asks, 2 = RGB565
+ * (2 and 3, anisotropic 2x/4x, were dropped in 5.19.0: they broke cut-out sprites); GxColor 1 = RGBA6 EFB dithered as the game asks, 2 = RGB565
  * anti-aliased EFB (240p mode, at most 264 lines; else as 0) dithered as the game asks */
 extern "C" { char gxTexMin = 0, gxColor = 0; }
 /* OpenGX bit 15 (STP / mask bit, Docs/STP_BIT15.md): 0 Accurate = kept per pixel in the EFB
@@ -250,7 +250,7 @@ static const char* const OPT_CHROMA[]        = { "Sharp", "Smooth" };
 static const char* const OPT_COLOUR[]        = { "15-bit", "24-bit" };
 static const char* const OPT_GAMMA[]         = { "1.0", "1.1", "1.2", "1.3", "1.4", "1.5" };
 static const char* const OPT_DEFLICKER[]     = { "Normal", "Light", "Strong" };
-static const char* const OPT_TEXMIN[]        = { "Off", "Linear", "Aniso 2x", "Aniso 4x" };
+static const char* const OPT_TEXMIN[]        = { "Off", "Linear" };
 static const char* const OPT_GXCOLOR[]       = { "24-bit", "6-bit dither", "AA (240p)" };
 static const char* const OPT_SOFTMODE[]      = { "Accurate", "Hi-Fi", "Fast" };
 static const char* const OPT_GXMASK[]        = { "Accurate", "Fast" };
@@ -303,7 +303,7 @@ static SettingOption OPTIONS[] =
   { "SkipFrames", &frameSkip, FRAMESKIP_DISABLE, FRAMESKIP_ENABLE, NULL, "Frame Skip", OPT_OFF_ON, "Skips frames when the Wii is too slow." },
   { "FPS", &showFPSonScreen, FPS_HIDE, FPS_SHOW, NULL, "Show FPS", OPT_OFF_ON, "Shows the frame rate on the screen." },
   { "EfbSync", &efbSyncSetting, 0, 2 },
-  { "GxTexMin", &gxTexMin, 0, 3, NULL, "Far Textures", OPT_TEXMIN, "OpenGX: smooths ground drawn smaller than a pixel. A trial." },
+  { "GxTexMin", &gxTexMin, 0, 1, NULL, "Far Textures", OPT_TEXMIN, "OpenGX: smooths ground drawn smaller than a pixel. A trial." },
   { "GxColor", &gxColor, 0, 2, NULL, "GX Color", OPT_GXCOLOR, "OpenGX: 6-bit dither, or anti-aliased edges in 240p mode. A trial." },
   { "GxMask", &gxMask, 0, 1, NULL, "GX Mask Bit", OPT_GXMASK, "OpenGX: Accurate keeps the PS1 mask bit per pixel. Fast guesses it." },
   { "SoftGpuMode", &softGpuMode, 0, 2, NULL, "Soft Mode", OPT_SOFTMODE, "Soft GPU pixels. Accurate: as a PS1. Hi-Fi: no dither, finer blends. Fast: the old shortcuts." },
@@ -1900,8 +1900,13 @@ void setOption(char* key, char* valuePointer){
 				if(OPTIONS[i].max == CONFIG_STRING_TYPE)
 					strncpy(OPTIONS[i].value, valuePointer,
 					        CONFIG_STRING_SIZE-1);
-			} else if(value >= OPTIONS[i].min && value <= OPTIONS[i].max)
-				*OPTIONS[i].value = value;
+			} else {
+				/* 2 and 3 were anisotropic 2x / 4x until 5.19.0 (they broke cut-out sprites): Linear now */
+				if(!strcmp(key, "GxTexMin") && value > 1 && value <= 3)
+					value = 1;
+				if(value >= OPTIONS[i].min && value <= OPTIONS[i].max)
+					*OPTIONS[i].value = value;
+			}
 			break;
 		}
 	}

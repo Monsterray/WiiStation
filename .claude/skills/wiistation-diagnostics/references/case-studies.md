@@ -420,3 +420,27 @@ tempting wrong turns.
   the model's invariant breaking, not a cost to optimize. And `wsx.sh frames` against main on
   every regression chain finds fixes nobody asked for: look at the frames that differ before
   calling them a regression.
+
+## 12. Ape Escape's hand and its CRT turn-on (OpenGX, 2026-10-29)
+
+- Symptoms (user, Wii 5.19.0): the title screen's hand cursor "broken", a scene showing before
+  its transition. Reproduced only after copying the user's settings from the play log onto the
+  chain line (`GpuTiming=1 GxTexMin=3 ScreenMode=2 ...`); default settings gave a clean hand.
+- Hand: one setting at a time (A/B chains, same recording, crop of the same present) isolated
+  `GxTexMin=3`; then one variant per `GxTexMin` value of a temporary build (filter x edge LOD x
+  anisotropy x which layer) showed anisotropy >= 2 as the cause, whatever the rest. Fix: no
+  anisotropy. Lesson: bisect a setting list by chain lines first (no build), then by variants of
+  one build.
+- Turn-on: `wsx.sh run` + a one-vblank-resolution contact sheet against Soft showed the line and
+  the growing picture missing; `vramio F1` b=4 at the first front-buffer vblank and a trace with
+  `trace V` showed the present of the hidden buffer. Old DOLs (`--dol .runs/X/boot.dol` on the
+  same chain) showed it was never right, not a regression. Lesson: a quick DOL bisect is a chain
+  line with `--dol` per old build; it costs one minute a build.
+- Fix attempts that failed, by counter and picture: an upload at every entry into front-buffer mode
+  (Bomberman: 47 -> 1555 uploads, its picture a vblank off); the same gated on "drawn since the
+  last present" (FF7, Spyro 3 still moved). What separated Ape from them was a texture of a third of
+  the display taken from the hidden buffer (the strips sample the new scene). `uplret: front_enter=`
+  per game in one chain (`wsx.sh table NAME --detail upl`) shows every game a gate catches; exact
+  pictures at fixed vblanks (`xfb V` + XFB_RAM=1, `xfb2png.py`) compare runs whose frame dumps
+  drift in number.
+- Getting to a level exit unattended: `scripts/autoinput/ape_exit.txt` (pause menu, Square, Up, Cross).

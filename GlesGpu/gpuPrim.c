@@ -2781,6 +2781,34 @@ static int FrontModeHiddenLoadToEfb(void)
     return 1;
 }
 
+/* SetOGLDisplaySettings (gpuDraw.c), when the game starts drawing into the displayed buffer
+ * while the EFB held the other one (Ape Escape's CRT turn-on: the new scene is drawn into the
+ * hidden buffer, then thin textured strips of it into the displayed one, widening each frame).
+ * The EFB held the hidden buffer's picture and iDrawnSomething still said "drawn": the vblank
+ * present of front-buffer mode (updateDisplayGl) showed that picture, the whole new scene, one
+ * vblank before the first strip -- the scene before its transition. The hidden buffer's GX
+ * pixels are kept for later reads, what it drew is not for the TV, and the EFB takes the
+ * displayed buffer from VRAM, as a CRT scans it. Returns 1 if it uploaded (the caller then
+ * sets its state up again). */
+static int FrontModeEnter(void)
+{
+    if (PSXDisplay.RGB24 || PSXDisplay.InterlacedTest || PSXDisplay.Disabled)
+        return 0;
+    /* vramio F9: x,y display, wxh previous display, a = iDrawnSomething, b = drawing area y0 */
+    perf_vram_event(0xF9, PSXDisplay.DisplayPosition.x, PSXDisplay.DisplayPosition.y,
+                    PreviousPSXDisplay.DisplayPosition.x, PreviousPSXDisplay.DisplayPosition.y,
+                    iDrawnSomething, PSXDisplay.DrawArea.y0);
+    efb_before_geometry_change();
+    iDrawnSomething = 0;
+    bHiddenRead = FALSE;
+    PrepareFullScreenUpload(TRUE);
+    bUploadOpaque = 1;
+    UploadScreen(TRUE);
+    bUploadOpaque = 0;
+    PERF_INC(front_enter);
+    return 1;
+}
+
 /* A CPU->VRAM transfer is done. What it changed: the copy loop's lowest and highest changed
  * pixel (gpuPlugin.c vw_cmin/vw_cmax) give a one-row transfer's exact columns, a taller one
  * its own columns and the changed rows; a wrapped one counts whole. A texture holds only

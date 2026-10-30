@@ -1,0 +1,16 @@
+CHAIN
+4000 sd:/wiistation/gex2_quest_pointer_play.txt PadAutoAssign=1 ControllerType=0 PadType2=1
+sd:/wiistation/isos/Gex 2 - Enter the Gecko
+Gex 2 - Enter the Gecko [NTSC-U] [SLUS-00598].ccd
+4000 sd:/wiistation/bomberman_party_edition_usa_play.txt PadAutoAssign=1 ControllerType=0 PadType2=1
+sd:/wiistation/isos/Bomberman - Party Edition (USA)
+Bomberman - Party Edition (USA).cue
+4000 sd:/wiistation/vagrant_story_usa_play.txt PadAutoAssign=1 ControllerType=0 PadType2=1
+sd:/wiistation/isos/Vagrant Story (USA)
+Vagrant Story (USA).cue
+4000 sd:/wiistation/spyro_the_dragon_3_year_of_the_dragon_usa_rev_1_play.txt PadAutoAssign=1 ControllerType=0 PadType2=1
+sd:/wiistation/isos/Spyro the Dragon 3 - Year of the Dragon (USA) (Rev 1)
+Spyro - Year of the Dragon (USA) (Rev 1).cue
+3000
+sd:/wiistation/isos/Medievil
+Medievil [U] [SCUS-94227].cue

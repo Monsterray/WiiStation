@@ -198,6 +198,9 @@ static short   texChgType = 0;
 
 static void efb_reset(void);   /* efbSync.inc, used by gpuDraw.c */
 static int FrontModeHiddenLoadToEfb(void);   /* gpuPrim.c, used by gpuDraw.c */
+static int FrontModeEnter(void);             /* gpuPrim.c, used at the vblank */
+static BOOL bFrontEnterPending = FALSE;      /* gpuDraw.c: the drawing area moved into the displayed buffer over an unshown picture */
+static BOOL bHiddenRead = FALSE;             /* a texture was taken from the hidden buffer since the last present */
 static void FrontModeHiddenLoadReset(void);  /* gpuPrim.c */
 static inline unsigned short ReadGXRGB5A3PixelRaw(
     const unsigned char *buf, int texWidth, int px, int py);
@@ -1269,6 +1272,18 @@ else if(usFirstPos==1)                                // initial updates (after 
      /* vramio F1, one per vblank: x,y display, w,h draw offset, a = iDrawnSomething,
       * b = 1 full-screen upload, 2 a present was pending, 4 presented here, 8 drawing into
       * the displayed buffer */
+     /* Drawing into the displayed buffer began while the EFB held a picture drawn into the other
+      * one and not shown (Ape Escape's CRT turn-on: the new scene, then thin strips of it into
+      * the displayed buffer). No flip came, so this vblank would show that picture whole. */
+     if (bFrontEnterPending)
+      {
+       bFrontEnterPending = FALSE;
+       /* the drawing area as it is now, not as the last primitive's setup saw it */
+       if (bDrawFrontBuffer && bHiddenRead &&
+           PSXDisplay.DrawArea.x0 >= PSXDisplay.DisplayPosition.x && PSXDisplay.DrawArea.x0 < PSXDisplay.DisplayEnd.x &&
+           PSXDisplay.DrawArea.y0 >= PSXDisplay.DisplayPosition.y && PSXDisplay.DrawArea.y0 < PSXDisplay.DisplayEnd.y)
+        FrontModeEnter();
+      }
      int why = fullUp | (needFlipEGL == TRUE ? 2 : 0) | (bDrawFrontBuffer ? 8 : 0);
      int drawn = iDrawnSomething;
      /* drawing into the displayed buffer: no flip will come, so what was drawn is shown
@@ -3105,6 +3120,7 @@ static void flipEGL(void)
     int font_drew = 0;
     int overlayRestored = 0;
     unsigned long long flip_t0 = perf_now_us();
+    bHiddenRead = FALSE;   /* a present: what was taken before it is shown or gone */
     #ifdef DISP_DEBUG
     sprintf(txtbuffer, "flipEGL %d \r\n", canClearFrameBuf);
     DEBUG_print(txtbuffer, DBG_SPU3);
