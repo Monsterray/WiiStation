@@ -1,0 +1,14 @@
+CHAIN
+# AnalogAuto check (Analog pad): Ape Escape (locks analog itself), Spyro (44h itself), MediEvil (never 44h: the new switch), Gex 3 (same).
+5000 sd:/wiistation/ape_escape_play.txt PadAutoAssign=1 ControllerType=1 PadType2=1
+sd:/wiistation/isos/Ape Escape
+Ape Escape [U] [SCUS-94423].cue
+3000 sd:/wiistation/spyro_long_play.txt PadAutoAssign=1 ControllerType=1 PadType2=1
+sd:/wiistation/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue
+3000 sd:/wiistation/medievil_analog.txt PadAutoAssign=1 ControllerType=1 PadType2=1
+sd:/wiistation/isos/Medievil
+Medievil [U] [SCUS-94227].cue
+2000 sd:/wiistation/gex3_stick.txt PadAutoAssign=1 ControllerType=1 PadType2=1
+sd:/wiistation/isos/Gex 3 - Deep Cover Gecko
+Gex 3 - Deep Cover Gecko [NTSC-U] [SLUS-00806].ccd

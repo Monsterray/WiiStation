@@ -1,0 +1,4 @@
+CHAIN
+4000 sd:/wiistation/gex3_stick.txt PadAutoAssign=1 ControllerType=1 PadType2=1
+sd:/wiistation/isos/Gex 3 - Deep Cover Gecko
+Gex 3 - Deep Cover Gecko [NTSC-U] [SLUS-00806].ccd

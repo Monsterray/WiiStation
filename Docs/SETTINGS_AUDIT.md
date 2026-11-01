@@ -116,6 +116,7 @@ Ranges (`PadType<n>`, `Coop<p>Type<n>` ...) are one row each.
 | `Memcard1File` | [Saves] | Saves, Memcard Type | yes | yes | yes | game start |
 | `PadAutoAssign` | [Controllers] | Input, Configure Input, Pad Assignment | yes | yes | yes | go() |
 | `ControllerType` | [Controllers] | Input, PSX Pad Type | yes | yes | yes | live (read where used) |
+| `AnalogAuto` | [Controllers] | none | yes | yes | yes | live (read where used) |
 | `RumbleEnabled` | [Controllers] | Input, Enable Rumble | yes | yes | yes | live (read where used) |
 | `LoadButtonSlot` | [Controllers] | Input, Auto Load Slot | yes | yes | yes | game start (mapping reloaded) |
 | `LightGun` | [Controllers] | Input, Light Gun | yes | yes | yes | live (read where used) |

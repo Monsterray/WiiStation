@@ -118,6 +118,21 @@ static PadDataS padOut[10];
  * layout. */
 static int analog_held_now;
 static u8 analog_was_held[10];
+/* The mode of this pad was chosen by the game (44h) or the player (the ANALOG combination):
+ * AnalogAuto leaves it alone from then on. Not in `global` for the same reason. */
+static u8 analog_chosen[10];
+/* AnalogAuto: armed when a game leaves config mode without having chosen a mode; the switch
+ * comes at the first 42h read after analog_due (a vblank number), if the game and the player
+ * have still chosen nothing. Games that choose by themselves, but not at once (Ape Escape:
+ * 44h at vblank 307, 278 after its first 43h 00h; Spyro: 3 vblanks), so see the SIO traffic
+ * they always saw. 600 vblanks (10 s) is twice Ape Escape's, the slowest measured. */
+#define ANALOG_AUTO_DELAY 600
+static u8 analog_armed[10];
+/* The game sent 44h to some pad: it manages the modes itself, so AnalogAuto leaves every pad
+ * alone (Ape Escape sets port 1 and never port 2, and a recording of it must replay as it
+ * was made) */
+static u8 analog_game_chose;
+static u32 analog_due[10];
 
 extern void SysPrintf(char *fmt, ...);
 extern volatile int stop;
@@ -227,6 +242,15 @@ static void PADsetMode (const int pad, const int mode)	//mode = 0 (digital) or 1
 	RumbleReset(pad);
 }
 
+/* The mode a pad is in when it is a pad again after power-on or a light gun: a DualShock's
+ * digital, unless AnalogAuto "Always" puts a pad of Controller Type Analog in analog mode,
+ * its light red, as DuckStation's "force analog mode on reset" does. A game that has
+ * a use for the sticks then finds them; Standard and Stick D-pad are digital pads. */
+static int power_on_mode (void)
+{
+	return controllerType == CONTROLLERTYPE_ANALOG && analogAuto == ANALOGAUTO_ALWAYS;
+}
+
 /* The note the ANALOG button leaves on screen for 2 s (showFpsAndDebugInfo, SoftGPU/drawGX.c):
  * its text, and whether the light is on (red) */
 extern u32 frame_counter;   /* psxcounters.c: +1 per vblank */
@@ -250,6 +274,29 @@ void analog_poll(int held)
 	analog_held_now |= held;
 }
 
+/* The 2 s note on screen (not for AnalogAuto, whose switch the player did not ask for and
+ * which many games trigger at start-up on both ports), and a line in the debug build's tty.log */
+static void pad_note_show(const int pad, const char *what, const int on_screen)
+{
+	char t[sizeof pad_note_text];
+	if (pad < 2)
+		snprintf(t, sizeof t, "Port %d: %s", pad + 1, what);
+	else
+		snprintf(t, sizeof t, "Port %d%c: %s", (pad - 2) / 4 + 1, 'A' + (pad - 2) % 4, what);
+	if (on_screen) {
+		memcpy(pad_note_text, t, sizeof t);
+		pad_note_red = global.padMode1[pad] && IsDualShock(pad);
+		pad_note_vbl = frame_counter;
+	}
+#ifdef PERF_PROF
+	{
+		char l[80];
+		snprintf(l, sizeof l, "analog vbl=%lu %s\n", (unsigned long)g_perf.vblanks, t);
+		perf_tty(l);
+	}
+#endif
+}
+
 /* The DualShock's ANALOG button, pressed with the controller's ANALOG combination (Configure
  * Buttons), as the real one works (Docs/ANALOG_BUTTON.md): each press switches between digital
  * (41h, light off) and analog (73h, red light), unless the game locked the mode (44h with key 3).
@@ -270,23 +317,12 @@ static void analog_button(const int pad, const int held)
 		what = "ANALOG locked by the game";
 	else {
 		PADsetMode(pad, !global.padMode1[pad]);
+		analog_chosen[pad] = 1;   /* the player's choice: AnalogAuto keeps out of it */
 		if (global.dsNewRumble[pad])
 			global.padModeC[pad] = 1;
 		what = global.padMode1[pad] ? "Analog (red light)" : "Digital (light off)";
 	}
-	if (pad < 2)
-		snprintf(pad_note_text, sizeof pad_note_text, "Port %d: %s", pad + 1, what);
-	else
-		snprintf(pad_note_text, sizeof pad_note_text, "Port %d%c: %s", (pad - 2) / 4 + 1, 'A' + (pad - 2) % 4, what);
-	pad_note_red = global.padMode1[pad] && IsDualShock(pad);
-	pad_note_vbl = frame_counter;
-#ifdef PERF_PROF
-	{
-		char l[80];
-		snprintf(l, sizeof l, "analog vbl=%lu %s\n", (unsigned long)g_perf.vblanks, pad_note_text);
-		perf_tty(l);
-	}
-#endif
+	pad_note_show(pad, what, 1);
 }
 
 /* Which autoinput.txt port drives this pad (PadWiiSX.c): 0 = "p1" (port 1, or multitap 1
@@ -424,12 +460,12 @@ static void UpdateState (const int pad) //Note: pad = 0 or 1
 			}
 		else{
 			if ((global.padID[pad] == 0x31) || (global.padID[pad] == 0x63) || (global.padID[pad] == 0x12))
-			PADsetMode( pad, 0);   /* back from a light gun: a pad, in digital mode */
+			PADsetMode( pad, power_on_mode());   /* back from a light gun: a pad again, as at power-on */
 		}
 	}
 	else{
 		if ((global.padID[pad] == 0x31) || (global.padID[pad] == 0x63) || (global.padID[pad] == 0x12))
-		PADsetMode( pad, 0);
+		PADsetMode( pad, power_on_mode());
 	}
 #endif
 
@@ -696,6 +732,9 @@ long SSS_PADopen (void *p)
 	memset (&global, 0, sizeof (global));
 	memset (&io, 0, sizeof (io));
 	memset (analog_was_held, 0, sizeof (analog_was_held));
+	memset (analog_chosen, 0, sizeof (analog_chosen));
+	memset (analog_armed, 0, sizeof (analog_armed));
+	analog_game_chose = 0;
 	{
 		extern unsigned char pad_unplug[2];   /* PlugPAD.c: a type change before the game is no swap */
 		pad_unplug[0] = pad_unplug[1] = 0;
@@ -703,7 +742,7 @@ long SSS_PADopen (void *p)
 	memset( padOut, 0, sizeof(padOut) ) ;
 	for(i = 0; i < 10; i++){
 		global.padStat[i] = 0xffff;
-		PADsetMode (i, 0);   /* digital at power-on, as a DualShock is: the game switches it */
+		PADsetMode (i, power_on_mode());   /* digital at power-on, as a DualShock is, unless AnalogAuto is Always */
 	}
 	return 0;
 }
@@ -838,6 +877,22 @@ static unsigned char pad_byte (const int pad, const unsigned char value, int *ac
 		switch (x->cmd)
 		{
 		case 0x42:
+			/* AnalogAuto's deferred switch, between transfers, on a pad that has been read */
+			if (analog_armed[pad] && !global.padModeE[pad] && (s32)(frame_counter - analog_due[pad]) >= 0)
+			{
+				analog_armed[pad] = 0;
+				if (!analog_game_chose && !analog_chosen[pad] && !global.padMode1[pad] && !global.padModeF[pad] &&
+				    global.isConnected[pad] && IsDualShock(pad))
+				{
+					/* What the player's press does: analog mode, and the byte after the ID
+					 * reads 00h until the game's next 43h, so the game asks again and
+					 * finds the sticks */
+					PADsetMode (pad, 1);
+					analog_chosen[pad] = 1;
+					global.padModeC[pad] = 1;
+					pad_note_show (pad, "Analog (red light) by AnalogAuto", 0);
+				}
+			}
 			UpdateState(pad);
 			/* fall through */
 		case 0x43:
@@ -935,15 +990,33 @@ static unsigned char pad_byte (const int pad, const unsigned char value, int *ac
 		/* 01h enters config mode, 00h leaves it; other values change nothing */
 		if (cur == 2 && value <= 1)
 		{
+			const int was_config = global.padModeE[pad];
 			global.padModeE[pad] = value;
 			global.padModeC[pad] = 0;
 			if (value) global.dsNewRumble[pad] = 1;
+			/* AnalogAuto: a game that asked what this pad can do (it entered config mode)
+			 * and leaves without choosing a mode knows the DualShock, but the pad is still
+			 * in digital mode, where it reads no sticks (Gex 3 and MediEvil send 43h 01h,
+			 * 45h, 4Ch, 47h, 46h, 43h 00h and never 44h: on the real pad the player
+			 * presses ANALOG). Arm the switch (see analog_due): after ANALOG_AUTO_DELAY
+			 * vblanks without a 44h or a press it goes analog, once. Not at once: Ape
+			 * Escape and Spyro leave config mode too, and choose later. */
+			if (!value && was_config && analogAuto != ANALOGAUTO_OFF && IsDualShock(pad) &&
+			    !analog_armed[pad] && !analog_chosen[pad] && !global.padMode1[pad])
+			{
+				analog_armed[pad] = 1;
+				analog_due[pad] = frame_counter + ANALOG_AUTO_DELAY;
+			}
 		}
 		break;
 	case 0x44:
 		/* LED 00h digital, 01h analog, others ignored. Key: AND 3 = 3 locks the Analog button */
 		if (cur == 2 && value <= 1)
+		{
 			PADsetMode (pad, value);
+			analog_chosen[pad] = 1;   /* the game chose: AnalogAuto keeps out of it */
+			analog_game_chose = 1;
+		}
 		if (cur == 3)
 			global.padModeF[pad] = (value & 3) == 3;
 		break;

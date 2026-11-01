@@ -196,6 +196,7 @@ extern "C" { char chainDump = 0; int chain_fill_wait = 0; }
 char chainDisc = 1;
 char loadButtonSlot;
 char controllerType;
+char analogAuto;
 char numMultitaps;
 char lang = 0;
 char fastLoad = 0;
@@ -353,6 +354,8 @@ static SettingOption OPTIONS[] =
   { "Controllers", NULL, 0, 0, "The PlayStation ports and the controllers on them." },
   { "PadAutoAssign", &padAutoAssign, PADAUTOASSIGN_MANUAL, PADAUTOASSIGN_AUTOMATIC, NULL, "Pad Assignment", OPT_PAD_ASSIGN, "Automatic assigns the controllers to the ports." },
   { "ControllerType", &controllerType, CONTROLLERTYPE_STANDARD, CONTROLLERTYPE_STICKDPAD, NULL, "PSX Pad Type", OPT_CONTROLLER, "Stick D-pad: a digital pad whose D-pad follows the left stick." },
+  /* No menu row: a settings.ini key (SETTINGS.md section 6.6) */
+  { "AnalogAuto", &analogAuto, ANALOGAUTO_OFF, ANALOGAUTO_ALWAYS },
   { "RumbleEnabled", &rumbleEnabled, RUMBLE_DISABLE, RUMBLE_ENABLE, NULL, "Enable Rumble", OPT_NO_YES, "Turns the controller rumble on or off." },
   { "LoadButtonSlot", &loadButtonSlot, LOADBUTTON_SLOT0, LOADBUTTON_AUTO, NULL, "Auto Load Slot", OPT_SLOT, "The button mapping that loads at start: a slot, the default, or Auto (this game's own)." },
   { "LightGun", &lightGun, LIGHTGUN_DISABLE, LIGHTGUN_MOUSE, NULL, "Light Gun", OPT_LIGHTGUN, "Sets the light gun type. Off uses the pad." },
@@ -824,6 +827,7 @@ void loadSettings(int argc, char *argv[])
 	rumbleEnabled	 = RUMBLE_ENABLE;
 	loadButtonSlot	 = LOADBUTTON_AUTO;
 	controllerType	 = CONTROLLERTYPE_STANDARD;
+	analogAuto	 = ANALOGAUTO_CONFIG;
 	numMultitaps	 = MULTITAPS_NONE;
 	menuActive = 1;
 	forceNTSC 		 = FORCENTSC_DISABLE;

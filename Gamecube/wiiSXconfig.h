@@ -457,6 +457,15 @@ enum controllerType
 	CONTROLLERTYPE_STICKDPAD   /* a digital pad whose D-pad also follows the left stick */
 };
 
+/* AnalogAuto: when a pad of Controller Type Analog starts in analog mode (PadSSSPSX.c) */
+extern char analogAuto;
+enum analogAuto
+{
+	ANALOGAUTO_OFF=0,     /* as a DualShock: digital until the game or the ANALOG combination says otherwise */
+	ANALOGAUTO_CONFIG,    /* a game that uses the DualShock's config commands gets analog when it leaves config mode */
+	ANALOGAUTO_ALWAYS     /* every game starts in analog mode (red light) */
+};
+
 extern char numMultitaps;
 enum numMultitaps
 {

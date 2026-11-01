@@ -155,6 +155,16 @@ LATER UPDATES BY:
  * Monty Perrotti (WiiStation)
 
 WiiStation CHANGE LOG:
+Next version (not released yet):
+* PSX Pad Type Analog is ready to play: a game that asks the DualShock about its
+  modes and leaves the choice to the player (Gex 3, MediEvil) now gets analog mode
+  (red light) by itself after 10 seconds, so the left stick works without the ANALOG key
+  combination. Before, the stick did nothing in those games until the combination
+  was pressed. The combination still switches back to digital, a game's own
+  choice still wins, and digital-only games stay digital. New settings.ini key
+  AnalogAuto: 0 = as the real pad, 1 = this (the default), 2 = every game starts
+  in analog mode.
+
 Ver 5.19.0 (2026-10-28):
 * Achievements page: the Account row is gone (accounts are in Players), and the
   notes say what each mode does: Local and Official use the RetroAchievements
