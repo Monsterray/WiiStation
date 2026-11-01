@@ -2829,6 +2829,7 @@ static int FrontModeEnter(void)
     perf_vram_event(0xF9, PSXDisplay.DisplayPosition.x, PSXDisplay.DisplayPosition.y,
                     PreviousPSXDisplay.DisplayPosition.x, PreviousPSXDisplay.DisplayPosition.y,
                     iDrawnSomething, PSXDisplay.DrawArea.y0);
+    efb_front_enter_drop();
     efb_before_geometry_change();
     iDrawnSomething = 0;
     bHiddenRead = FALSE;

@@ -262,7 +262,8 @@ Ver 5.19.0 (2026-10-28):
   4 = Local. The menu cycles Off, Local, Official, Custom, Test.
 * Ape Escape: a scene that turns on like a CRT (the professor's lab, the
   "Capture N monkeys" screen) no longer shows the whole picture for a moment
-  before its line widens (OpenGX).
+  before its line widens, and a small rectangle of the new scene no longer shows
+  through the black just before the line grows (OpenGX).
 * Far Textures (Settings > Advanced > GPU): Anisotropic 2x and 4x stay, and now
   only polygons whose textures are drawn smaller than a pixel (distant ground)
   take the anisotropic taps. Sprites and magnified polygons keep the plain

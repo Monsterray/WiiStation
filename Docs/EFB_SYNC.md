@@ -146,3 +146,20 @@ area y0). Shown from 5.12 at least (every older DOL tried had the full picture a
 Same pictures as before in Spyro, Crash 3, FF7, CTR, Crash Bash, Gex 2, Bomberman, Vagrant Story,
 Spyro 3 and MediEvil (`front_enter=0`; `scripts/chains/ape_front_reg.txt`, `ape_front_reg2.txt`);
 in Ape Escape 4 events: the lab and the briefing turn-ons (10 frames each) and two single frames.
+
+### The rectangle before the line (2026-11-01)
+
+The first strip of the turn-on is a line of no width (Ape's lab: two quads at x 192, 4 lines
+high; the plugin's bounds add one pixel each way, `F6`: 1x5 at (192,382)). It is drawn at the
+vblank BEFORE `FrontModeEnter`, when `SetOGLDisplaySettings` has already moved live to the
+displayed buffer but the EFB still holds the hidden buffer's picture. `efb_gx_draw` stamped the two
+tiles it touches (16x32), and `FrontModeEnter`'s `efb_before_geometry_change` captured the EFB as a
+snapshot filed under the DISPLAYED buffer's rectangle: the upload's `efb_sync` then filled those
+two tiles of VRAM from it (vramio `F7`, probe: tiles (192,368) and (192,384) from slot 1, g.y 256)
+and sent 16x32 pixels of the lab scene to the TV, a 36x60 rectangle in a frame dump, 3 vblanks
+before the line. `efb_live_foreign` (set in `efb_gx_draw` when live changes under
+`bFrontEnterPending`) and `efb_front_enter_drop` (called first in `FrontModeEnter`) drop the stamps
+made since, and live's unsaved mark: VRAM, which the upload sends next, is the truth for the
+displayed buffer. The hidden buffer's own GX pixels were already captured, under their own
+rectangle, when live changed. A strip drawn in that window is lost from the EFB either way (the
+upload replaces it); each strip covers the one before it.
