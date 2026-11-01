@@ -447,3 +447,14 @@ tempting wrong turns.
   pictures at fixed vblanks (`xfb V` + XFB_RAM=1, `xfb2png.py`) compare runs whose frame dumps
   drift in number.
 - Getting to a level exit unattended: `scripts/autoinput/ape_exit.txt` (pause menu, Square, Up, Cross).
+- The rectangle before the line (2026-11-01, user on the Wii, also Dolphin): a 36x60 piece of the lab
+  (x 430-466, y 224-288 of the 824x480 dump) showed through the black three vblanks before the line.
+  Its size is two 16x16 EFB sync tiles (x 192-208, VRAM y 368-400). Soft cannot be the ground truth
+  for a recording made under OpenGX timing (the replay diverged: the Soft run was in another scene
+  at the same vblank), so the mechanism came from vramio probes in `efb_gx_draw` (F6, the rect each
+  GX primitive stamps) and `efb_sync` (F7, which snapshot filled each tile): a zero-width first strip
+  stamped two tiles while the EFB still held the hidden picture, and `FrontModeEnter`'s snapshot of it
+  was filed under the displayed buffer (Docs/EFB_SYNC.md, "The rectangle before the line").
+  `wsx.sh frames` of the same chain before/after: only that rectangle differs (2166 px, 5 frames per
+  turn-on, three turn-ons). Lesson: a rectangle whose size is a multiple of a bookkeeping unit (a
+  tile, a page) is the bookkeeping, not the picture; log what the bookkeeping did with those units.

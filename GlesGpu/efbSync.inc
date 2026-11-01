@@ -111,6 +111,8 @@ static int      efb_live_set;
 static uint64_t efb_live_gx;          /* newest GX stamp inside live */
 static uint64_t efb_live_saved;       /* stamp of the newest snapshot of live */
 static int      efb_seq_is_gx;        /* the current stamp is a GX draw's: the next may share it */
+static int      efb_live_foreign;     /* live was set while the EFB still held the other buffer's picture (front-buffer entry pending) */
+static uint64_t efb_live_since;       /* the stamp counter when live was set: GX stamps above it are foreign when efb_live_foreign */
 static EfbSnap  efb_snap[EFB_SNAPS];
 static EfbSnap *efb_inflight;
 static volatile int efb_inflight_done;
@@ -387,6 +389,16 @@ static void efb_gx_draw(int x0, int y0, int x1, int y1, int stp)
 #endif
         efb_live_gx = 0;
         efb_live_saved = 0;
+        /* The drawing area moved into the displayed buffer over an unshown picture drawn into the
+         * other one (gpuDraw.c bFrontEnterPending): live now maps the displayed buffer, but the EFB
+         * still holds that other picture until FrontModeEnter uploads the displayed buffer. What GX
+         * draws until then stamps tiles whose EFB pixels are the other buffer's. */
+        efb_live_foreign = bFrontEnterPending;
+        if (efb_live_foreign)
+        {
+            efb_live_since = ++efb_seq;
+            efb_seq_is_gx = 0;
+        }
     }
     /* within the drawing area (inclusive end) and within live */
     if (x0 < PSXDisplay.DrawArea.x0) x0 = PSXDisplay.DrawArea.x0;
@@ -427,11 +439,35 @@ static void efb_gx_draw(int x0, int y0, int x1, int y1, int stp)
 static void efb_present(void)
 {
     efb_publish(0);
+    efb_live_foreign = 0;   /* what the EFB holds is what the TV gets */
     if (efb_live_set && efb_live_gx > efb_live_saved && efb_history_on())
         efb_capture_live(0);
     /* vramio C4: a present; a = history kept (snapshots), b = a read has missed pixels */
     perf_vram_event(0xC4, efb_live.x, efb_live.y, efb_live.w, efb_live.h,
                     efb_history_on(), efb_misses != 0);
+}
+
+/* FrontModeEnter (gpuPrim.c), before it uploads the displayed buffer into the EFB. Primitives
+ * drawn since the drawing area moved into the displayed buffer were GX's by the stamps, but the
+ * EFB under them was the other buffer's picture (efb_live_foreign): a snapshot of it would be
+ * filed under the displayed buffer's rectangle and its tiles merged into VRAM, and the upload
+ * would send them to the TV (Ape Escape's CRT turn-on: the first strip is a line of no width,
+ * 1x5 pixels, two tiles, and the lab scene showed through the black as a 16x32 rectangle).
+ * Those stamps are dropped: VRAM, uploaded next, is the truth for the displayed buffer. */
+static void efb_front_enter_drop(void)
+{
+    int tx, ty;
+
+    if (!efb_live_foreign)
+        return;
+    efb_live_foreign = 0;
+    for (ty = 0; ty < EFB_TY; ty++)
+        for (tx = 0; tx < EFB_TX; tx++)
+            if (efb_gx[ty][tx] > efb_live_since && efb_gx[ty][tx] > efb_cpu[ty][tx])
+                efb_gx[ty][tx] = efb_cpu[ty][tx];
+    if (efb_live_gx > efb_live_since)
+        efb_live_gx = efb_live_saved;
+    efb_pages_recheck(0, 0, EFB_TX, EFB_TY);
 }
 
 /* The display's size or position mapping is about to change (GP1 05-08, resolution) */
