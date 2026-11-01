@@ -944,13 +944,20 @@ void glBindTextureBef(GLenum target, GLuint texture)
 /* GxTexMin (Docs/GX_QUALITY.md): texels seen smaller than a pixel filtered linear. Magnified
  * texels keep the Bilinear setting's filter. The textures have one level only, so the LOD stays
  * at 0: this is the filter, not mipmapping.
- * No anisotropic taps (GX_ANISO_2 / _4, which GxTexMin 2 and 3 set until 5.19.0): the textures are
- * split by their texels' STP bit into two passes (GxMask), each with transparent texels where
- * the other pass draws, and the wider footprint takes those in. Ape Escape's hand cursor lost
- * the white inside it and kept an outline (Dolphin, GxTexMin 2 and 3; reported on a Wii with 3).
- * Measured in Dolphin: anisotropy 2 or 4 broke it with a linear or a mip filter, edge LOD on
- * or off, and on either layer's texture object alone; a mip filter with anisotropy 1 did not. */
+ * 2 and 3 add anisotropic taps (GX_ANISO_2 / _4), but only to a draw that can use them: a
+ * polygon with a texel footprint of a pixel or more (ogx_aniso_ok, set per draw by gpuPrim.c).
+ * A sprite or a magnified polygon keeps the plain filter. The textures are split by their
+ * texels' STP bit into two passes (GxMask), each with transparent texels where the other pass
+ * draws, so any filter wider than nearest leaves a seam where the classes meet; anisotropic
+ * taps widen it and Dolphin applies them to every draw (a linear filter even to magnified ones).
+ * Ape Escape's hand cursor (a magnified sprite) turned to a blurred outline with gray seams
+ * (GxTexMin 2 and 3 until 5.19.0). Each texture object is made plain (ogx_texq) and switched
+ * to the anisotropic one (ogx_texq_aniso) only for the draws that take it (ogx_texq_pick). */
 extern char gxTexMin;
+int ogx_aniso_ok = 0;   /* GlesGpu: the draw being issued may use anisotropic taps (gxTexMin 2/3) */
+#define ANI_OP      1   /* gltexture_.aniso: texobj holds the anisotropic filter */
+#define ANI_SEMI    2   /* ... semiTransTexobj */
+#define ANI_MGD     4   /* the texture is filtered by ogx_texq (not the movie texture) */
 static void ogx_texq(GXTexObj *o)
 {
     if (!gxTexMin) {   /* Off after a Filter Tour step: no filter left on a texture */
@@ -961,6 +968,20 @@ static void ogx_texq(GXTexObj *o)
     GX_InitTexObjLOD(o, GX_LINEAR,
                      (originalMode == ORIGINALMODE_ENABLE || bilinearFilter == BILINEARFILTER_NEAR) ? GX_NEAR : GX_LINEAR,
                      0, 0, 0, GX_FALSE, GX_FALSE, GX_ANISO_1);
+}
+
+static void ogx_texq_aniso(GXTexObj *o)
+{
+    GX_InitTexObjLOD(o, GX_LIN_MIP_LIN,
+                     (originalMode == ORIGINALMODE_ENABLE || bilinearFilter == BILINEARFILTER_NEAR) ? GX_NEAR : GX_LINEAR,
+                     0, 0, 0, GX_FALSE, GX_TRUE, gxTexMin > 2 ? GX_ANISO_4 : GX_ANISO_2);
+}
+
+/* A texture object was made or its filter reset: the plain filter, and the texture is ours to switch */
+static void ogx_texq_plain(gltexture_ *t, int semi)
+{
+    ogx_texq(semi ? &t->semiTransTexobj : &t->texobj);
+    t->aniso = (t->aniso | ANI_MGD) & ~(semi ? ANI_SEMI : ANI_OP);
 }
 
 void glChgTextureFilter( unsigned int gTexMovieName )
@@ -995,9 +1016,9 @@ void glChgTextureFilter( unsigned int gTexMovieName )
             if (i != gTexMovieName)
             {
                 if (currtex->data)
-                    ogx_texq(&currtex->texobj);
+                    ogx_texq_plain(currtex, 0);
                 if (currtex->semiTransData)
-                    ogx_texq(&currtex->semiTransTexobj);
+                    ogx_texq_plain(currtex, 1);
             }
         }
         else
@@ -1065,6 +1086,27 @@ void glResetCacheRegion()
     }
 }
 
+/* The draw about to use texture t (its object bound to TEXMAP slot) takes the anisotropic filter
+ * (gxTexMin 2/3 and ogx_aniso_ok) or the plain one: switch the object and write it to the slot
+ * again when it holds the other. The cache's TMEM region is untouched (it fills on demand). */
+static void ogx_texq_pick(gltexture_ *t, int semi, int slot)
+{
+    unsigned bit = semi ? ANI_SEMI : ANI_OP;
+    int want = gxTexMin > 1 && ogx_aniso_ok && (t->aniso & ANI_MGD);
+    GXTexObj *o;
+    if (want == ((t->aniso & bit) != 0))
+        return;
+    o = semi ? &t->semiTransTexobj : &t->texobj;
+    if (want) {
+        ogx_texq_aniso(o);
+        t->aniso |= bit;
+    } else {
+        ogx_texq(o);
+        t->aniso &= ~bit;
+    }
+    GX_LoadTexObjPreloaded(o, &texCacheRegionS[slot], slot);
+}
+
 static void checkLoadTextureObj( int textureType )
 {
     short curTexId = glparamstate.glcurtex;
@@ -1085,6 +1127,7 @@ static void checkLoadTextureObj( int textureType )
                 GX_InvalidateTexRegion(&texCacheRegionS[i]);
                 GX_LoadTexObjPreloaded(&currtex->semiTransTexobj, &texCacheRegionS[i], gxTexMapSemi);
             }
+            ogx_texq_pick(currtex, 1, i);
             return;
         }
         else if (textureType == TEX_TYPE_2 && texCacheUsedInfo[i] == curTexId)
@@ -1097,6 +1140,7 @@ static void checkLoadTextureObj( int textureType )
                 GX_InvalidateTexRegion(&texCacheRegionS[i]);
                 GX_LoadTexObjPreloaded(&currtex->texobj, &texCacheRegionS[i], gxTexMap);
             }
+            ogx_texq_pick(currtex, 0, i);
             return;
         }
     }
@@ -1113,6 +1157,7 @@ static void checkLoadTextureObj( int textureType )
                 GX_InvalidateTexRegion(&texCacheRegionS[i]);
                 GX_LoadTexObjPreloaded(&currtex->semiTransTexobj, &texCacheRegionS[i], gxTexMapSemi);
                 texCacheUsedInfo[i] = curTexId + _MAX_GL_TEX;
+                ogx_texq_pick(currtex, 1, i);
             }
             else
             {
@@ -1120,6 +1165,7 @@ static void checkLoadTextureObj( int textureType )
                 GX_InvalidateTexRegion(&texCacheRegionS[i]);
                 GX_LoadTexObjPreloaded(&currtex->texobj, &texCacheRegionS[i], gxTexMap);
                 texCacheUsedInfo[i] = curTexId;
+                ogx_texq_pick(currtex, 0, i);
             }
             return;
         }
@@ -1146,6 +1192,7 @@ static void checkLoadTextureObj( int textureType )
             GX_InvalidateTexRegion(&texCacheRegionS[slot]);
             GX_LoadTexObjPreloaded(&currtex->semiTransTexobj, &texCacheRegionS[slot], slot);
             texCacheUsedInfo[slot] = curTexId + _MAX_GL_TEX;
+            ogx_texq_pick(currtex, 1, slot);
         }
         else
         {
@@ -1153,6 +1200,7 @@ static void checkLoadTextureObj( int textureType )
             GX_InvalidateTexRegion(&texCacheRegionS[slot]);
             GX_LoadTexObjPreloaded(&currtex->texobj, &texCacheRegionS[slot], slot);
             texCacheUsedInfo[slot] = curTexId;
+            ogx_texq_pick(currtex, 0, slot);
         }
     }
 }
@@ -1207,6 +1255,7 @@ void glGenTextures(GLsizei n, GLuint *textures)
     for (i = 1; i < _MAX_GL_TEX && n > 0; i++) {
         if (texture_list[i].used == 0) {
             texture_list[i].used = 1;
+            texture_list[i].aniso = 0;
             texture_list[i].data = 0;
             texture_list[i].semiTransData = 0;
             texture_list[i].w = 0;
@@ -1998,7 +2047,7 @@ void glInitRGBATextures( GLsizei width, GLsizei height )
     {
         GX_InitTexObjFilterMode(&currtex->texobj, GX_NEAR, GX_NEAR);
     }
-    ogx_texq(&currtex->texobj);
+    ogx_texq_plain(currtex, 0);
 }
 
 #define RESX_MAX 1024   //Vmem width
@@ -2426,6 +2475,7 @@ int glInitMovieTextures( GLsizei width, GLsizei height, void * texData )
         GX_InitTexObj(&currtex->texobj, currtex->data,
                       currtex->w, currtex->h, rgba8 ? GX_TF_RGBA8 : GX_TF_RGB5A3,
                       currtex->wraps, currtex->wrapt, GX_FALSE);
+        currtex->aniso = 0;   /* the movie texture keeps its own filter (ogx_texq_pick leaves it) */
         if (originalMode == ORIGINALMODE_ENABLE || bilinearFilter == BILINEARFILTER_NEAR)
         {
             GX_InitTexObjFilterMode(&currtex->texobj, GX_NEAR, GX_NEAR);
@@ -2438,6 +2488,7 @@ int glInitMovieTextures( GLsizei width, GLsizei height, void * texData )
                                            ogx_vram16_src, ogx_vram16_pitch, ogx_vram16_zero, currtex->semiTransData);
         GX_InitTexObj(&currtex->texobj, currtex->data,
                       currtex->w, currtex->h, GX_TF_RGB5A3, currtex->wraps, currtex->wrapt, GX_FALSE);
+        currtex->aniso = 0;   /* the movie texture keeps its own filter (ogx_texq_pick leaves it) */
         if (originalMode == ORIGINALMODE_ENABLE || bilinearFilter != BILINEARFILTER_ENABLE)
         {
             GX_InitTexObjFilterMode(&currtex->texobj, GX_NEAR, GX_NEAR);
@@ -2713,7 +2764,7 @@ static int glTexSubImage2D_body(GLenum target, GLint level,
             {
                 GX_InitTexObjFilterMode(&currtex->semiTransTexobj, GX_NEAR, GX_NEAR);
             }
-            ogx_texq(&currtex->semiTransTexobj);
+            ogx_texq_plain(currtex, 1);
             if (ogx_mask_exact)
             {   /* the scratch is clean only in this upload's blocks (above) */
                 memset(currtex->semiTransData, 0, ogx_tex16_bytes(currtex->w, currtex->h));
@@ -2801,7 +2852,7 @@ int glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei width
     {
         GX_InitTexObjFilterMode(&currtex->texobj, GX_NEAR, GX_NEAR);
     }
-    ogx_texq(&currtex->texobj);
+    ogx_texq_plain(currtex, 0);
     // For Non transparent colors in transparent mode
     if (textureType & TEX_TYPE_1)
     {
@@ -2816,7 +2867,7 @@ int glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei width
             {
                 GX_InitTexObjFilterMode(&currtex->semiTransTexobj, GX_NEAR, GX_NEAR);
             }
-            ogx_texq(&currtex->semiTransTexobj);
+            ogx_texq_plain(currtex, 1);
         }
         memcpy(currtex->semiTransData, semiTransBuf, ogx_tex16_bytes(currtex->w, currtex->h));
         DCFlushRange(currtex->semiTransData, ogx_tex16_bytes(currtex->w, currtex->h));

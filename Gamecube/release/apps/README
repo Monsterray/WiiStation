@@ -253,9 +253,10 @@ Ver 5.19.0 (2026-10-28):
 * Ape Escape: a scene that turns on like a CRT (the professor's lab, the
   "Capture N monkeys" screen) no longer shows the whole picture for a moment
   before its line widens (OpenGX).
-* Far Textures (Settings > Advanced > GPU): Anisotropic 2x and 4x are gone.
-  They broke sprites with cut-out edges (Ape Escape's hand cursor lost its
-  white inside). Off and Linear stay; a saved 2 or 3 reads as Linear.
+* Far Textures (Settings > Advanced > GPU): Anisotropic 2x and 4x stay, and now
+  only polygons whose textures are drawn smaller than a pixel (distant ground)
+  take the anisotropic taps. Sprites and magnified polygons keep the plain
+  filter, which fixes Ape Escape's hand cursor losing its white inside (OpenGX).
 Ver 5.18.2 (2026-10-28):
 * Players: the seats are in their own file, wiistation/players.ini, written
   when the Players menu closes (no Save Settings needed). Seats saved in

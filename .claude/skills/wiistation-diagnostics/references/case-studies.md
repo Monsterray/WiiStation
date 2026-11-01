@@ -428,8 +428,11 @@ tempting wrong turns.
   chain line (`GpuTiming=1 GxTexMin=3 ScreenMode=2 ...`); default settings gave a clean hand.
 - Hand: one setting at a time (A/B chains, same recording, crop of the same present) isolated
   `GxTexMin=3`; then one variant per `GxTexMin` value of a temporary build (filter x edge LOD x
-  anisotropy x which layer) showed anisotropy >= 2 as the cause, whatever the rest. Fix: no
-  anisotropy. Lesson: bisect a setting list by chain lines first (no build), then by variants of
+  anisotropy x which layer) showed anisotropy >= 2 as the cause, whatever the rest. First fix: no
+  anisotropy (restored 2026-11-01: the real cause was any filter wider than nearest on a
+  magnified sprite across the two STP passes, so anisotropy is now per draw, polygons that
+  minify only; GX_QUALITY.md "Anisotropy only where it helps"; plain bilinear showed it too,
+  and `GxMask=1` with bilinear did not). Lesson: bisect a setting list by chain lines first (no build), then by variants of
   one build.
 - Turn-on: `wsx.sh run` + a one-vblank-resolution contact sheet against Soft showed the line and
   the growing picture missing; `vramio F1` b=4 at the first front-buffer vblank and a trace with

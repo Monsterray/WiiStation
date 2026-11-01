@@ -38,37 +38,59 @@
 #include "../Gamecube/DEBUG.h"
 #include "../database.h"
 
-/* PERF_PROF_GPUSPLIT: every call into an OpenGX draw function and into the texture
- * cache is timed, so a primitive divides into preparation and draw (perf.log
- * "gpudraw:"). The macros below turn each call in this file into the timed form. */
-#if PERF_PROF_GPUSPLIT
-/* Where textures are minified (Docs/GX_QUALITY.md): a textured polygon's affine map gives
- * texels per EFB pixel along x and y (rho, GX's LOD = log2 rho). Its EFB area goes in lod_px[]
- * by LOD: <0 magnified, 0-1, 1-2, >=2; lod_px[4] = area with x/y footprint ratio >= 2
- * (anisotropic). Texture coordinates taken as 256-texel pages (the sub-texture cache's);
- * sprites (2D rectangles) are left out. */
-static void lod_probe(const OGLVertex *v, int quad)
+/* A textured polygon's affine map gives texels per EFB pixel along x and y (rho, GX's
+ * LOD = log2 rho): lx, ly are their squares. Texture coordinates are taken as 256-texel
+ * pages (the sub-texture cache's). 0 for a polygon with no area. */
+static int tex_footprint(const OGLVertex *v, float *plx, float *ply, float *parea)
 {
  float x1 = v[1].x - v[0].x, y1 = v[1].y - v[0].y, x2 = v[2].x - v[0].x, y2 = v[2].y - v[0].y;
  float u1 = (v[1].sow - v[0].sow) * 256.f, w1 = (v[1].tow - v[0].tow) * 256.f;
  float u2 = (v[2].sow - v[0].sow) * 256.f, w2 = (v[2].tow - v[0].tow) * 256.f;
- float det = x1 * y2 - x2 * y1, sx, sy, dudx, dvdx, dudy, dvdy, lx, ly, rho, area;
- if (det > -0.5f && det < 0.5f) return;
+ float det = x1 * y2 - x2 * y1, sx, sy, dudx, dvdx, dudy, dvdy;
+ if (det > -0.5f && det < 0.5f) return 0;
  sx = PSXDisplay.DisplayMode.x ? (float)iResX / PSXDisplay.DisplayMode.x : 1.f;   /* EFB pixels per PS1 pixel */
  sy = PSXDisplay.DisplayMode.y ? (float)iResY / PSXDisplay.DisplayMode.y : 1.f;
  dudx = (u1 * y2 - u2 * y1) / det / sx;  dvdx = (w1 * y2 - w2 * y1) / det / sx;
  dudy = (u2 * x1 - u1 * x2) / det / sy;  dvdy = (w2 * x1 - w1 * x2) / det / sy;
- lx = dudx * dudx + dvdx * dvdx;  ly = dudy * dudy + dvdy * dvdy;   /* squared */
+ *plx = dudx * dudx + dvdx * dvdx;  *ply = dudy * dudy + dvdy * dvdy;   /* squared */
+ *parea = (det < 0 ? -det : det) * 0.5f * sx * sy;
+ return 1;
+}
+
+/* GxTexMin 2/3 (anisotropic 2x/4x, Docs/GX_QUALITY.md): OpenGX gives a draw the anisotropic filter
+ * only when ogx_aniso_ok is set here: a polygon (not a sprite or a tile) with at least one texel
+ * per EFB pixel along an axis. A sprite or a magnified polygon is drawn with the plain filter:
+ * the taps cannot help it, and over the two STP passes' transparent texels (GxMask) they blur
+ * its cut-out edges (Ape Escape's hand). The flag is cleared after the draw. */
+extern int ogx_aniso_ok;
+extern char gxTexMin;
+static void aniso_mark(const OGLVertex *v, int poly)
+{
+ float lx, ly, area;
+ ogx_aniso_ok = gxTexMin > 1 && poly && tex_footprint(v, &lx, &ly, &area) && (lx >= 1.f || ly >= 1.f);
+}
+
+#if PERF_PROF_GPUSPLIT
+/* PERF_PROF_GPUSPLIT: every call into an OpenGX draw function and into the texture
+ * cache is timed, so a primitive divides into preparation and draw (perf.log
+ * "gpudraw:"). The macros below turn each call in this file into the timed form. */
+/* Where textures are minified (Docs/GX_QUALITY.md): a textured polygon's EFB area goes in
+ * lod_px[] by LOD: <0 magnified, 0-1, 1-2, >=2; lod_px[4] = area with x/y footprint ratio >= 2
+ * (anisotropic). Sprites (2D rectangles) are left out. */
+static void lod_probe(const OGLVertex *v, int quad)
+{
+ float lx, ly, rho, area;
+ if (!tex_footprint(v, &lx, &ly, &area)) return;
  rho = lx > ly ? lx : ly;
- area = (det < 0 ? -det : det) * 0.5f * sx * sy * (quad ? 2.f : 1.f);
+ area *= quad ? 2.f : 1.f;
  g_perf.lod_px[rho < 1.f ? 0 : rho < 4.f ? 1 : rho < 16.f ? 2 : 3] += (unsigned long long)area;
  if (rho >= 1.f && (lx > 4.f * ly || ly > 4.f * lx))
   g_perf.lod_px[4] += (unsigned long long)area;
 }
-static void glPRIMdrawTexturedQuad_t(void *v, int c) { if (!c) lod_probe(v, 1); PERF_TIME(ogx_draw_ticks, glPRIMdrawTexturedQuad(v, c)); g_perf.ogx_draw_calls++; }
-static void glPRIMdrawTexturedTri_t(void *v) { lod_probe(v, 0); PERF_TIME(ogx_draw_ticks, glPRIMdrawTexturedTri(v)); g_perf.ogx_draw_calls++; }
-static void glPRIMdrawTexGouraudTriColor_t(void *v) { lod_probe(v, 0); PERF_TIME(ogx_draw_ticks, glPRIMdrawTexGouraudTriColor(v)); g_perf.ogx_draw_calls++; }
-static void glPRIMdrawTexGouraudTriColorQuad_t(void *v) { lod_probe(v, 1); PERF_TIME(ogx_draw_ticks, glPRIMdrawTexGouraudTriColorQuad(v)); g_perf.ogx_draw_calls++; }
+static void glPRIMdrawTexturedQuad_t(void *v, int c) { if (!c) lod_probe(v, 1); aniso_mark(v, !c); PERF_TIME(ogx_draw_ticks, glPRIMdrawTexturedQuad(v, c)); ogx_aniso_ok = 0; g_perf.ogx_draw_calls++; }
+static void glPRIMdrawTexturedTri_t(void *v) { lod_probe(v, 0); aniso_mark(v, 1); PERF_TIME(ogx_draw_ticks, glPRIMdrawTexturedTri(v)); ogx_aniso_ok = 0; g_perf.ogx_draw_calls++; }
+static void glPRIMdrawTexGouraudTriColor_t(void *v) { lod_probe(v, 0); aniso_mark(v, 1); PERF_TIME(ogx_draw_ticks, glPRIMdrawTexGouraudTriColor(v)); ogx_aniso_ok = 0; g_perf.ogx_draw_calls++; }
+static void glPRIMdrawTexGouraudTriColorQuad_t(void *v) { lod_probe(v, 1); aniso_mark(v, 1); PERF_TIME(ogx_draw_ticks, glPRIMdrawTexGouraudTriColorQuad(v)); ogx_aniso_ok = 0; g_perf.ogx_draw_calls++; }
 static void glPRIMdrawTri_t(void *v) { PERF_TIME(ogx_draw_ticks, glPRIMdrawTri(v)); g_perf.ogx_draw_calls++; }
 static void glPRIMdrawTri2_t(void *v) { PERF_TIME(ogx_draw_ticks, glPRIMdrawTri2(v)); g_perf.ogx_draw_calls++; }
 static void glPRIMdrawGouraudTriColor_t(void *v) { PERF_TIME(ogx_draw_ticks, glPRIMdrawGouraudTriColor(v)); g_perf.ogx_draw_calls++; }
@@ -89,6 +111,15 @@ static GLuint SelectSubTextureS_t(int m, unsigned int c) { GLuint r; PERF_TIME(g
 #define glPRIMdrawGouraudLine glPRIMdrawGouraudLine_t
 #define glPRIMdrawQuad glPRIMdrawQuad_t
 #define SelectSubTextureS SelectSubTextureS_t
+#else
+static void glPRIMdrawTexturedQuad_a(void *v, int c) { aniso_mark(v, !c); glPRIMdrawTexturedQuad(v, c); ogx_aniso_ok = 0; }
+static void glPRIMdrawTexturedTri_a(void *v) { aniso_mark(v, 1); glPRIMdrawTexturedTri(v); ogx_aniso_ok = 0; }
+static void glPRIMdrawTexGouraudTriColor_a(void *v) { aniso_mark(v, 1); glPRIMdrawTexGouraudTriColor(v); ogx_aniso_ok = 0; }
+static void glPRIMdrawTexGouraudTriColorQuad_a(void *v) { aniso_mark(v, 1); glPRIMdrawTexGouraudTriColorQuad(v); ogx_aniso_ok = 0; }
+#define glPRIMdrawTexturedQuad glPRIMdrawTexturedQuad_a
+#define glPRIMdrawTexturedTri glPRIMdrawTexturedTri_a
+#define glPRIMdrawTexGouraudTriColor glPRIMdrawTexGouraudTriColor_a
+#define glPRIMdrawTexGouraudTriColorQuad glPRIMdrawTexGouraudTriColorQuad_a
 #endif
 
 ////////////////////////////////////////////////////////////////////////

@@ -60,6 +60,7 @@ typedef struct gltexture_
     char onelevel;
     unsigned char wraps, wrapt;
     unsigned used_epoch;      /* ogx_dd_epoch when a draw last used it (gc_gl.c) */
+    unsigned char aniso;      /* ANI_* bits: which texture objects hold the anisotropic filter (gc_gl.c) */
 } gltexture_;
 
 typedef struct glparams_

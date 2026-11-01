@@ -188,12 +188,14 @@ static const TourStep TOUR[] = {
 	{ B, 1, 0, 0, 0, T_SOFT },
 	{ N, 1, 1, 0, 0, T_SOFT },
 	{ N, 0, 0, 1, 0, T_GX },
+	{ N, 0, 0, 2, 0, T_GX },
+	{ N, 0, 0, 3, 0, T_GX },
 	{ N, 0, 0, 0, 1, T_GX },
 	{ N, 0, 0, 0, 2, T_GX },
-	{ B, 0, 0, 1, 0, T_GX },
-	{ N, 0, 0, 1, 1, T_GX },
-	{ B, 0, 0, 1, 1, T_GX },
-	{ N, 0, 0, 1, 2, T_GX },
+	{ B, 0, 0, 3, 0, T_GX },
+	{ N, 0, 0, 3, 1, T_GX },
+	{ B, 0, 0, 3, 1, T_GX },
+	{ N, 0, 0, 3, 2, T_GX },
 };
 #undef N
 #undef B
@@ -282,7 +284,7 @@ extern "C" void filterTourCopied(u32 *xfbBack, int cleared)
 extern "C" void filterTourDraw(void)
 {
 	static const char *const soft[] = { "Accurate", "Hi-Fi", "Fast" };
-	static const char *const far[] = { "Off", "Linear" };
+	static const char *const far[] = { "Off", "Linear", "Aniso 2x", "Aniso 4x" };
 	static const char *const gxc[] = { "24-bit", "6-bit dither", "AA" };
 	if (!tourOn)
 		return;
