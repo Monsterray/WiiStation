@@ -551,11 +551,22 @@ static void UpdateState (const int pad) //Note: pad = 0 or 1
 		unsigned short m;
 		unsigned char st[4];
 		unsigned short sw = 0;
+		extern void autoinput_record_sticks(int port, const unsigned char st[4]);
+		extern int autoinput_sticks(int port, unsigned char st[4]);
 		autoinput_record(sp, ~((s << 8) | (s >> 8)) & 0xFFFF);   /* the real pad, before the script */
 		m = autoinput_mask(sp);
 		if (autoinput_sweep(sp, &sw, st))
 			m |= sw;
 		global.padStat[pad] &= ~(unsigned short)(((m << 8) | (m >> 8)) & 0xFFFF);   /* active low */
+		/* the sticks the game gets: recorded as they are, or a script's in their place
+		 * ("sticks" lines, after the read count above) */
+		st[0] = PAD_Data.leftStickX; st[1] = PAD_Data.leftStickY;
+		st[2] = PAD_Data.rightStickX; st[3] = PAD_Data.rightStickY;
+		autoinput_record_sticks(sp, st);
+		if (autoinput_sticks(sp, st)) {
+			PAD_Data.leftStickX = st[0]; PAD_Data.leftStickY = st[1];
+			PAD_Data.rightStickX = st[2]; PAD_Data.rightStickY = st[3];
+		}
 	}
 
 

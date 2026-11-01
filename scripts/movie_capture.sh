@@ -12,8 +12,9 @@
 #   NAME      The name of the script (default: made from the folder name). The script is
 #             scripts/autoinput/NAME_play.txt. The previous script stays as NAME_play.txt.prev.
 #   --mins M  The recording time in emulated minutes (default 4). Decimals are permitted (1.5).
-#   --ct 0|1  The PlayStation pad: 0 = digital pad (default), 1 = DualShock.
-#             Ape Escape needs 1.
+#   --ct 0|1  The PlayStation pad: 0 = digital pad (default), 1 = DualShock (analog from the
+#             start). With 1 both sticks are recorded too ("sticks" lines, every change), and
+#             replay exactly. Ape Escape needs 1.
 #   --dol D   The build: debug (default), release, or the path of a DOL.
 #   --play NAME  Start a saved recording in a minimized window and let it play itself.
 #             Use this to check a recording. It uses the pad type of the recording, and it

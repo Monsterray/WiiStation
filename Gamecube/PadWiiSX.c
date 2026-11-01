@@ -105,6 +105,18 @@ static int autoin_sweeps;                      /* bit per script port with a swe
 #define AUTOIN_STICKS 16
 static struct { unsigned vbl; unsigned char lx, ly; } autoin_stick[AUTOIN_STICKS];
 static int autoin_stick_n;
+/* "sticks <port> <vblank> <lx> <ly> <rx> <ry> [<read>]": both sticks of port 1 or 2 (0..255,
+ * 128 at rest) from that read on, exactly what the game got: a recording writes one at each
+ * change (autoinput_record_sticks), so a replay moves as the player did. Stamped with the read
+ * of the vblank like a press. In vblank order; the table (1.5 MB) comes from MEM2 on the first
+ * such line. 131072 changes is about 35 minutes of a stick never still. */
+#define AUTOIN_STKS 131072
+static struct autoin_stk { unsigned vbl; unsigned char port, idx, v[4]; } *autoin_stk;
+static int autoin_stk_n, autoin_stk_drops;
+static int autoin_stk_cur[2];
+static unsigned autoin_stk_fc[2];
+static unsigned char autoin_stk_now[2][4];
+static int autoin_stk_on[2];
 static FILE *autoin_rec;            /* "record": the recording, or NULL */
 static char autoin_path[128] = "sd:/wiistation/autoinput.txt";
 /* "trace <vblank>" lines: the debug build's primitive trace arms at these
@@ -235,6 +247,9 @@ void autoinput_load(void)
 	autoin_ports = 0;
 	autoin_sweeps = 0;
 	autoin_stick_n = 0;
+	autoin_stk_n = autoin_stk_drops = 0;
+	autoin_stk_cur[0] = autoin_stk_cur[1] = 0;
+	autoin_stk_on[0] = autoin_stk_on[1] = 0;
 	autoin_irfake_n = 0;
 	autoin_gcpress_n = 0;
 	autoin_padtype_n = autoin_padtype_i = 0;
@@ -273,6 +288,24 @@ void autoinput_load(void)
 							autoin_sweep_vbl[sp] = v;
 							autoin_sweeps |= 1 << sp;
 						}
+					continue;
+				}
+			}
+			{
+				unsigned p, a[4], rd = 0;
+				if (sscanf(line, "sticks %u %u %u %u %u %u %u", &p, &v, &a[0], &a[1], &a[2], &a[3], &rd) >= 6) {
+					if (!autoin_stk)
+						autoin_stk = (struct autoin_stk *)_mem2_malloc(AUTOIN_STKS * sizeof(*autoin_stk));
+					if (autoin_stk && autoin_stk_n < AUTOIN_STKS && (p == 1 || p == 2)) {
+						struct autoin_stk *s = &autoin_stk[autoin_stk_n++];
+						int i;
+						s->vbl = v;
+						s->port = (unsigned char)(p - 1);
+						s->idx = (unsigned char)(rd > 255 ? 255 : rd);
+						for (i = 0; i < 4; i++)
+							s->v[i] = (unsigned char)(a[i] > 255 ? 255 : a[i]);
+					} else
+						autoin_stk_drops++;
 					continue;
 				}
 			}
@@ -386,6 +419,8 @@ void autoinput_load(void)
 		}
 		if (autoin_n == AUTOIN_MAX && !feof(f))   /* tty.log: playback would stop pressing here */
 			SysPrintf("autoinput: %s has more than %d lines; the rest is ignored\n", autoin_path, AUTOIN_MAX);
+		if (autoin_stk_drops)
+			SysPrintf("autoinput: %d \"sticks\" lines ignored (more than %d, or no memory)\n", autoin_stk_drops, AUTOIN_STKS);
 		fclose(f);
 	}
 }
@@ -618,6 +653,56 @@ void autoinput_record(int port, unsigned short real)
 		fprintf(autoin_rec, "%s%u %04x %u\n", port ? "p2 " : "", (unsigned)frame_counter, real, rd_n[port]);
 	else
 		fprintf(autoin_rec, "%s%u %04x\n", port ? "p2 " : "", (unsigned)frame_counter, real);
+}
+
+/* "record": the sticks the game gets on a port (LX LY RX RY), after autoinput_record on the
+ * same read (it counts the reads). A line at each change, and one at the first read. */
+void autoinput_record_sticks(int port, const unsigned char st[4])
+{
+	static int have[2];
+	static unsigned char last[2][4];
+	if (port < 0 || port > 1)
+		return;
+	if (!autoin_rec) {
+		have[port] = 0;
+		return;
+	}
+	if (controllerType != CONTROLLERTYPE_ANALOG)   /* a digital pad: the game reads no sticks */
+		return;
+	if ((port == 1 && !virtualControllers[1].inUse) || (have[port] && !memcmp(last[port], st, 4)))
+		return;
+	have[port] = 1;
+	memcpy(last[port], st, 4);
+	if (rd_n[port])
+		fprintf(autoin_rec, "sticks %d %u %u %u %u %u %u\n", port + 1, (unsigned)frame_counter,
+			st[0], st[1], st[2], st[3], rd_n[port]);
+	else
+		fprintf(autoin_rec, "sticks %d %u %u %u %u %u\n", port + 1, (unsigned)frame_counter,
+			st[0], st[1], st[2], st[3]);
+}
+
+/* "sticks" lines: the sticks a script holds on a port now. Returns 0 when it has none for this
+ * port (yet): the controller's own sticks stay. Called after autoinput_mask on the same read. */
+int autoinput_sticks(int port, unsigned char st[4])
+{
+	int i;
+	if (port < 0 || port > 1 || !autoin_stk_n)
+		return 0;
+	if (frame_counter < autoin_stk_fc[port]) {   /* the clock went back: a state load, a new game */
+		autoin_stk_cur[port] = 0;
+		autoin_stk_on[port] = 0;
+	}
+	autoin_stk_fc[port] = frame_counter;
+	for (i = autoin_stk_cur[port]; i < autoin_stk_n && (frame_counter > autoin_stk[i].vbl ||
+	     (frame_counter == autoin_stk[i].vbl && rd_n[port] >= autoin_stk[i].idx)); i++)
+		if (autoin_stk[i].port == port) {
+			memcpy(autoin_stk_now[port], autoin_stk[i].v, 4);
+			autoin_stk_on[port] = 1;   /* from its first line on, the script drives this port's sticks */
+		}
+	autoin_stk_cur[port] = i;
+	if (autoin_stk_on[port])
+		memcpy(st, autoin_stk_now[port], 4);
+	return autoin_stk_on[port];
 }
 
 extern volatile int stop;
