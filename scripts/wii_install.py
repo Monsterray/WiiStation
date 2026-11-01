@@ -86,7 +86,9 @@ def stage(dol, dev=True, folder="WiiStation"):
         meta.write_text(meta.read_text(encoding="utf-8").replace(
             "<name>WiiStation</name>", "<name>WiiStation (debug)</name>").replace(
             "<short_description>PSX Emulator for Wii</short_description>",
-            "<short_description>Debug build: logs to sd:/wiistation/debuglogs</short_description>"), encoding="utf-8")
+            "<short_description>Debug build: see the list of things to try</short_description>"), encoding="utf-8")
+        import wii_asks   # the description: what to try on the Wii (scripts/wii_asks.txt)
+        meta.write_text(wii_asks.meta_xml(meta.read_text(encoding="utf-8")), encoding="utf-8")
     if dev:   # the production Wii keeps the release meta.xml
         v = re.search(r"<version>([^<]*)", stamp_meta(app / "meta.xml", dol)).group(1)
         print(f"meta.xml version: {v}", flush=True)
