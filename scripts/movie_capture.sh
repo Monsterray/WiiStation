@@ -46,7 +46,8 @@
 # out of step on a new build, build its commit and give that DOL with --dol.
 #
 # During the recording:
-#   - Click the game window first. Dolphin reads the keyboard only when its window has focus.
+#   - Click the game window first for the keyboard: Dolphin reads it only when its window has
+#     focus. A USB or Bluetooth pad works without focus (BackgroundInput is on while recording).
 #   - Use the D-pad keys to move. The arrow keys are the GameCube stick, and the digital
 #     pad has no stick.
 #   - Do not push Start+X. It opens WiiStation's menu and stops the game.
@@ -182,8 +183,11 @@ case "$dol" in debug) dolp="$REPO/Gamecube/WiiSXRX_debug.dol" ;; release) dolp="
 for _ in $(seq 60); do [ -s "$dolp" ] && break; [ "$_" = 1 ] && echo "waiting for $dolp (a build is running?) ..."; sleep 5; done
 [ -s "$dolp" ] || { echo "no DOL at $dolp after 5 minutes: build it (scripts/wsx.sh build debug) and run this again"; exit 1; }
 sleep 2; cp "$dolp" "$dir/boot.dol" || exit 1
+# A recording reads the pads even when the game window has no focus (2026-11-01: a run recorded
+# no press at all from a USB pad); a playback never does, so nobody's hands can get in.
+bg=; [ -z "$play" ] && bg=" -C Dolphin.Input.BackgroundInput=True"
 bash "$REPO/scripts/wsx.sh" run "$run" --dol "$dir/boot.dol" --autoboot "$dir/chain.txt" --input "$dir/none.txt" \
-	--nodump --env FRAMES_DUMP=$frames --env "DOLPHIN_ARGS=-C Dolphin.Core.SIDevice1=6" \
+	--nodump --env FRAMES_DUMP=$frames --env "DOLPHIN_ARGS=-C Dolphin.Core.SIDevice1=6$bg" \
 	--card "$src" --secs $((vbl / 30 + 180)) | grep -E "refusing|no such|fault|exit"
 [ -n "$play" ] && { echo "done: .runs/$run"; exit 0; }
 
