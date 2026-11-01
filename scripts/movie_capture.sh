@@ -11,7 +11,9 @@
 #             to see the list.
 #   NAME      The name of the script (default: made from the folder name). The script is
 #             scripts/autoinput/NAME_play.txt. The previous script stays as NAME_play.txt.prev.
-#   --mins M  The recording time in emulated minutes (default 4). Decimals are permitted (1.5).
+#   --mins M  The longest recording, in emulated minutes (default 20). Decimals are permitted (1.5).
+#             Close the game window when you are done: the recording ends there. (The old default
+#             of 4 cut finish_lvl1 off before the level finished, 2026-11-01.)
 #   --ct 0|1  The PlayStation pad: 0 = digital pad (default), 1 = DualShock (analog from the
 #             start). With 1 both sticks are recorded too ("sticks" lines, every change), and
 #             replay exactly. Ape Escape needs 1.
@@ -65,7 +67,7 @@ MOVIE="${DOLPHIN_MOVIE:-/c/projects/dolphin-movie}/dolphin_movie.py"
 REC_CARD="wiistation/autoinput_rec.txt"            # where WiiStation writes the recording (Gamecube/PadWiiSX.c)
 REC_PRESS='^(?:p2 )?(\d+) [0-9a-f]{4}'             # a press line: "VBL BTNS" for port 1, "p2 VBL BTNS" for port 2
 
-game=""; name=""; mins=4; dol=debug; play=""; frames=False; ct=0
+game=""; name=""; mins=20; dol=debug; play=""; frames=False; ct=0
 usage() { echo "usage: movie_capture.sh GAME [NAME] [--mins M] [--ct 0|1] [--dol D]   or   --play NAME [--frames]   (--help for more)"; exit 2; }
 while [ $# -gt 0 ]; do
 	case "$1" in
@@ -169,7 +171,7 @@ printf 'CHAIN\n# scripts/movie_capture.sh %s\n%s sd:/wiistation/%s PadAutoAssign
 "$PYTHON" "$REPO/scripts/pad_stick_clicks.py" "$MOVIE_PROFILE/Config/GCPadNew.ini" >> "$dir/pads.txt"
 "$PYTHON" "$REPO/scripts/pad_layout.py" "$MOVIE_PROFILE/Config/GCPadNew.ini" >> "$dir/pads.txt"
 if [ -z "$play" ]; then
-	echo "Recording $(basename "$folder"): $mins emulated minutes ($vbl vblanks), then the window closes."
+	echo "Recording $(basename "$folder"): at most $mins emulated minutes ($vbl vblanks). Close the game window when you are done."
 	echo "Click the game window first. Both pads are recorded; port 2 can stay unused."
 	echo
 	cat "$dir/pads.txt"
