@@ -81,6 +81,26 @@ controller (SETTINGS.md section 6.6; `analog_button` in `Gamecube/PadSSSPSX.c`):
 - a note on screen for two seconds: "Port 1: Analog (red light)", "Port 1: Digital (light off)",
   "Port 1: ANALOG locked by the game", or "no ANALOG button" for Standard and Stick D-pad.
 
+### AnalogAuto: ready to play (2026-11-01)
+
+A real pad needs the player's press for a game like MediEvil or Gex 3, which ask the pad what it can
+do (43h 01h, 45h, 4Ch, 47h, 46h, 43h 00h) and never send 44h. Gex 3 (measured in Dolphin, run
+`gex3_a`): the sequence runs at vblanks 50 to 59, ID 41h before and after, and the stick is dead in
+the game until the player presses ANALOG. After a press it asks again (43h 01h ... at once) and reads
+the sticks, so it does use them. WiiStation's setting `AnalogAuto` (default 1) presses the button
+for the player 600 vblanks (10 s) after such a game leaves config mode, if no pad has been sent
+44h and the player has not pressed the combination by then: analog (73h), and the byte after the ID
+reads 00h until the game's next 43h, which is how a real press tells the game. The wait is because
+Ape Escape and Spyro also leave config mode (to detect the pad) and send 44h later: Spyro 3 vblanks
+after, Ape Escape 278 (vblank 29, then 307). An immediate switch changed their SIO traffic and broke
+a recorded Ape Escape replay; with the wait their runs are bit-identical to before (vsig_cmp on
+the user's 14399-vblank recording, replay_rest, replay3). Measured: Gex 3 leaves config mode at
+vblank 58 and switches at 658, MediEvil 19 and 619. Only once, only on a connected pad, and never after
+a 44h to any pad or a combination press, so a player's later choice stands. A game that never enters config mode
+is not touched: it is a digital-only game or a Dual Analog era game, and 73h could make a
+digital-only one ignore its buttons. `AnalogAuto = 2` starts every game in analog mode for those
+Dual Analog era games; `0` is the real pad.
+
 Not modelled: the Dual Analog's green mode (53h) and the Analog Joystick, the watchdog reset, and
 the queueing of a press until a transfer ends (WiiStation reads the combination when the game
 reads the pad, between transfers).
