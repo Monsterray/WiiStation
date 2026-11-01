@@ -129,6 +129,7 @@ int autoinput_trace_n = 0;
 int autoinput_tbox[4], autoinput_tbox_on;
 unsigned autoinput_xfb_vbl[32];   /* "xfb <vblank>": save the TV picture then (perf_vblank_tick); a chain adds each game's */
 int autoinput_xfb_n;
+unsigned autoinput_xfbcol[2];   /* "xfbcol <from> <to>": the TV picture's mean colour every vblank in the window (perf_vblank_tick) */
 unsigned autoinput_report_vbl[64];   /* "report <vblank>": a perf report then (counters are cumulative: diff two to get a window) */
 int autoinput_report_n;
 unsigned autoinput_dump_vbl = 0;   /* "dump <vblank>": debug build writes sd:/wiistation/vram.bin then */
@@ -395,6 +396,7 @@ void autoinput_load(void)
 				filterTour = 1; filterTourVbl = v ? v * 60 : 240; filterTourStart(); continue;
 			}
 			if (!strncmp(line, "ogxnomask", 9)) { extern int iUseMask; iUseMask = 0; continue; }   /* test: OpenGX mask-bit emulation off (GlesGpu/gpuDraw.c) */
+			if (sscanf(line, "xfbcol %u %u", &autoinput_xfbcol[0], &autoinput_xfbcol[1]) == 2) continue;
 			if (sscanf(line, "xfb %u", &v) == 1) { if (autoinput_xfb_n < 32) autoinput_xfb_vbl[autoinput_xfb_n++] = v; continue; }
 			if (sscanf(line, "report %u", &v) == 1) { if (autoinput_report_n < 64) autoinput_report_vbl[autoinput_report_n++] = v; continue; }
 			{   /* "hprof <from> <to>": the sampling profiler counts only these vblanks (hprof.c) */

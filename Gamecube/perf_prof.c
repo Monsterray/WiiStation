@@ -1039,6 +1039,41 @@ void perf_vblank_tick(void)
 			perf_xfb_write(path);
 		}
 	}
+	/* "xfbcol <from> <to>": the mean Y, Cb, Cr of the picture on the TV at every vblank of the
+	 * window, read sparsely (every 16th pixel pair of every 16th line) through the uncached XFB,
+	 * then one "xfbcol:" line per vblank in perf.log. Finds a one-frame flash (Ape Escape's blue
+	 * level finish on the Wii) that 32 xfb dumps would miss. Blue: Cb well above 128. */
+	{
+		extern unsigned autoinput_xfbcol[2];
+		extern u32 *xfb[3];
+		extern unsigned g_xfb_w, g_xfb_h;
+		static unsigned char col[2048][3];
+		static unsigned col_n, col_done, col_fc;
+		if (frame_counter < col_fc)   /* the next chained game: its own window */
+			col_n = col_done = 0;
+		col_fc = frame_counter;
+		if (!col_done && autoinput_xfbcol[1] && frame_counter >= autoinput_xfbcol[0]) {
+			if (frame_counter <= autoinput_xfbcol[1] && col_n < 2048 && xfb[2] && g_xfb_w) {
+				const volatile u32 *fb = (const volatile u32 *)xfb[2];
+				unsigned x, y, n = 0, sy = 0, su = 0, sv = 0;
+				for (y = 8; y < g_xfb_h; y += 16)
+					for (x = 8; x < g_xfb_w / 2; x += 8) {
+						u32 p = fb[y * (g_xfb_w / 2) + x];   /* Y1 Cb Y2 Cr */
+						sy += ((p >> 24) + ((p >> 8) & 0xff)) / 2; su += (p >> 16) & 0xff; sv += p & 0xff; n++;
+					}
+				if (n) { col[col_n][0] = sy / n; col[col_n][1] = su / n; col[col_n][2] = sv / n; col_n++; }
+			} else {
+				FILE *f = perf_log_open();
+				unsigned i;
+				col_done = 1;
+				if (f) {
+					for (i = 0; i < col_n; i++)
+						fprintf(f, "xfbcol: vbl=%u y=%u cb=%u cr=%u\n", autoinput_xfbcol[0] + i, col[i][0], col[i][1], col[i][2]);
+					perf_log_close(f);
+				}
+			}
+		}
+	}
 	{
 		extern unsigned autoinput_report_vbl[64];
 		extern int autoinput_report_n;

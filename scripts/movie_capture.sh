@@ -18,6 +18,9 @@
 #             start). With 1 both sticks are recorded too ("sticks" lines, every change), and
 #             replay exactly. Ape Escape needs 1.
 #   --dol D   The build: debug (default), release, or the path of a DOL.
+#   --set K=V[,K=V...]  Settings for the game, as on a chain line (GpuTiming=1,FrameRate=1).
+#             Timing settings change what a recording replays, so they are saved with it and
+#             --play uses them again. Record with the settings of the Wii you test on.
 #   --play NAME  Start a saved recording in a minimized window and let it play itself.
 #             Use this to check a recording. It uses the pad type of the recording, and it
 #             tells you if the build is not the build that made the recording.
@@ -67,16 +70,17 @@ MOVIE="${DOLPHIN_MOVIE:-/c/projects/dolphin-movie}/dolphin_movie.py"
 REC_CARD="wiistation/autoinput_rec.txt"            # where WiiStation writes the recording (Gamecube/PadWiiSX.c)
 REC_PRESS='^(?:p2 )?(\d+) [0-9a-f]{4}'             # a press line: "VBL BTNS" for port 1, "p2 VBL BTNS" for port 2
 
-game=""; name=""; mins=20; dol=debug; play=""; frames=False; ct=0
+game=""; name=""; mins=20; dol=debug; play=""; frames=False; ct=0; sets=""
 usage() { echo "usage: movie_capture.sh GAME [NAME] [--mins M] [--ct 0|1] [--dol D]   or   --play NAME [--frames]   (--help for more)"; exit 2; }
 while [ $# -gt 0 ]; do
 	case "$1" in
-		--mins|--dol|--ct|--play) [ $# -ge 2 ] || { echo "$1 needs a value"; usage; } ;;
+		--mins|--dol|--ct|--play|--set) [ $# -ge 2 ] || { echo "$1 needs a value"; usage; } ;;
 	esac
 	case "$1" in
 		--mins) mins="$2"; shift 2 ;;
 		--dol)  dol="$2"; shift 2 ;;
 		--ct)   ct="$2"; shift 2 ;;
+		--set)  sets="$2"; shift 2 ;;
 		--play) play="$2"; shift 2 ;;
 		--frames) frames=True; shift ;;
 		-h|--help) sed -n '2,/^set -u/p' "$0" | sed -e '/^set -u/d' -e 's/^# \{0,1\}//'; exit 0 ;;
@@ -85,6 +89,11 @@ while [ $# -gt 0 ]; do
 	esac
 done
 case "$ct" in 0|1) ;; *) echo "--ct is 0 (digital pad) or 1 (DualShock), not \"$ct\""; exit 2 ;; esac
+# --set: " K=V K=V" for the chain line
+extra=""
+for kv in $(printf '%s' "$sets" | tr ',' ' '); do
+	case "$kv" in [A-Za-z]*=*) extra="$extra $kv" ;; *) echo "--set takes K=V,K=V (got \"$kv\")"; exit 2 ;; esac
+done
 
 if [ -n "${PYTHON:-}" ]; then :;
 elif command -v python >/dev/null 2>&1; then PYTHON=python;
@@ -115,6 +124,8 @@ if [ -n "$play" ]; then
 	ct=$(sed -n 's/^# chain line: .*ControllerType=\([0-9]\).*/\1/p' "$script" | tr -d '\r'); ct=${ct:-0}
 	# a recording with port 2 needs the port plugged in on playback, as it was when it was made
 	grep -q '^p2 ' "$script" && p2set=" PadType2=1"
+	# the settings it was recorded with (--set), unless given again
+	[ -n "$sets" ] || extra=$(sed -n 's/^# chain line: .*ControllerType=[0-9]\(.*\)$/\1/p' "$script" | tr -d '\r' | sed 's/ PadType2=1//')
 	built=$(sed -n 's/^# build: //p' "$script" | tr -d '\r')
 	case "$dol" in debug) doli="$REPO/Gamecube/WiiSXRX_debug.dol" ;; release) doli="$REPO/Gamecube/WiiSXRX_Release.dol" ;; *) doli="$dol" ;; esac
 	want=$(printf '%s' "$built" | sed -n 's/.*sha1 \([0-9a-f]*\).*/\1/p')
@@ -154,7 +165,7 @@ fi
 # PadAutoAssign=1: the run's base settings assign no controller (unattended runs have none),
 # and a recording needs the keyboard pad on port 1. Playback sets the same, so it boots alike.
 printf 'CHAIN\n# scripts/movie_capture.sh %s\n%s sd:/wiistation/%s PadAutoAssign=1 ControllerType=%s%s\n%s\n%s\n' \
-	"$name" "$vbl" "$input" "$ct" "${p2set:-}" "$folder" "$cue" > "$dir/chain.txt"
+	"$name" "$vbl" "$input" "$ct" "${extra}${p2set:-}" "$folder" "$cue" > "$dir/chain.txt"
 : > "$dir/none.txt"
 
 # The movie profile gets a fresh copy of the user's pad setup for each run (dolphin_movie.py
@@ -242,7 +253,7 @@ grep -q '^p2 ' "$rec" && p2set=" PadType2=1"
 	echo "#   (if it drifts on a later build: build that commit and pass the DOL with --dol)"
 	echo "# settings: $settings"
 	echo "# pad: ControllerType=$ct ($padname); Dolphin: port 1 keyboard GameCube pad, port 2 GameCube pad (SIDevice1=6)"
-	echo "# chain line: $vbl sd:/wiistation/${name}_play.txt PadAutoAssign=1 ControllerType=$ct${p2set:-}"
+	echo "# chain line: $vbl sd:/wiistation/${name}_play.txt PadAutoAssign=1 ControllerType=$ct${extra}${p2set:-}"
 	# Marks: each in-game screenshot (the Shot button combo) is a moment the player pointed at;
 	# scripts/marks.py makes a page to draw a box on each, then traces that box.
 	sed -n 's/^screenshot: saved \([^ ]*\) \([0-9]*x[0-9]*\) .* vbl=\([0-9]*\).*/# mark: \3 \2 \1/p' "$REPO/.runs/$run/perf.log" 2>/dev/null | tr -d '\r'
@@ -251,4 +262,4 @@ grep -q '^p2 ' "$rec" && p2set=" PadType2=1"
 nmarks=$(grep -c '^# mark: ' "$out")
 echo "saved scripts/autoinput/${name}_play.txt: $presses changes, the last at vblank ${last:-none}, $nmarks marks (screenshots)"
 echo "check it plays back:  bash scripts/movie_capture.sh --play $name"
-echo "use it in a chain:    $vbl sd:/wiistation/${name}_play.txt PadAutoAssign=1 ControllerType=$ct${p2set:-}"
+echo "use it in a chain:    $vbl sd:/wiistation/${name}_play.txt PadAutoAssign=1 ControllerType=$ct${extra}${p2set:-}"

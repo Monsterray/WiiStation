@@ -141,7 +141,10 @@ All keys are documented in `SETTINGS.md`.
 **`autoinput.txt`** lines `<vblank> <hex PSX mask>` (Start 0008, Cross 4000, Circle 2000,
 Triangle 1000, Square 8000, Up 0010, Right 0020, Down 0040, Left 0080, Select 0001), plus
 `trace <vblank>` (up to 8; arms a 16-present primitive-trace episode) and `dump <vblank>`
-(one VRAM dump + a perf report at that moment). Parsed when the pad plugin opens
+(one VRAM dump + a perf report at that moment); `xfbcol <from> <to>` (2026-11-01) logs the TV picture's mean
+Y/Cb/Cr at every vblank of the window as `xfbcol:` lines in perf.log, so a one-frame flash shows on the Wii
+without frame dumps (Dolphin needs `--env XFB_RAM=1`; Ape finish_lvl1: Wii and Dolphin agree within one
+present). Parsed when the pad plugin opens
 (`autoinput_load()` in `Gamecube/PadWiiSX.c`); a script with presses also makes port 1 report
 a connected digital pad. Known timelines: Spyro title Start ~1400-1500, level pause ~2100 or
 ~3634 with the recorded movie; BIOS shell menu visible from ~600, X at 1500 opens Memory
