@@ -70,6 +70,13 @@ static button_t buttons[] = {
 	{ 20, ANALOG_L,                          "A-Left" },
 	{ 21, ANALOG_R,                          "A-Right" },
 	{ 22, ANALOG_D,                          "A-Down" },
+	/* The stick buttons: the pad has none, so Z with A or B stands in (as Z with L, R and
+	 * Start makes L2, R2 and Select); A and B alone press Cross and Square only without Z.
+	 * Appended: saved slots hold these indexes. */
+	{ 23, PAD_BUTTON_A|PAD_TRIGGER_Z_UP,     "A-Z" },
+	{ 24, PAD_BUTTON_B|PAD_TRIGGER_Z_UP,     "B-Z" },
+	{ 25, PAD_BUTTON_A|PAD_TRIGGER_Z,        "A+Z" },
+	{ 26, PAD_BUTTON_B|PAD_TRIGGER_Z,        "B+Z" },
 };
 
 static button_t analog_sources[] = {
@@ -124,7 +131,7 @@ typedef struct { unsigned int buttons; s8 sx, sy, cx, cy; } gc_raw_t;
 /* The combinations the default mapping below actually uses, not the bare buttons: Z on
  * its own is not mapped to anything, and L, R and Start each mean one thing alone and
  * another with Z held. These fourteen reach fourteen of the PlayStation's sixteen
- * buttons; L3 and R3 are "None" by default and no press can produce them. */
+ * buttons; L3 and R3 (A+Z, B+Z) are not swept, so the sweep's sequence stays the same. */
 static const unsigned int SWEEP_BUTTONS[] = {
 	PAD_BUTTON_A, PAD_BUTTON_B, PAD_BUTTON_X, PAD_BUTTON_Y,
 	PAD_TRIGGER_L, PAD_TRIGGER_R,
@@ -375,16 +382,16 @@ controller_t controller_GC =
 	  screenshot_combos,
 	  sizeof(analog_combos)/sizeof(analog_combos[0]),
 	  analog_combos,
-	  { .SQU        = &buttons[10], // B
-	    .CRO        = &buttons[9],  // A
+	  { .SQU        = &buttons[24], // B - Z
+	    .CRO        = &buttons[23], // A - Z
 	    .CIR        = &buttons[11], // X
 	    .TRI        = &buttons[12], // Y
 	    .R1         = &buttons[6],  // Right Trigger - Z
 	    .L1         = &buttons[5],  // Left Trigger - Z
 	    .R2         = &buttons[8],  // Right Trigger + Z
 	    .L2         = &buttons[7],  // Left Trigger + Z
-	    .R3         = &buttons[0],  // None
-	    .L3         = &buttons[0],  // None
+	    .R3         = &buttons[26], // B + Z
+	    .L3         = &buttons[25], // A + Z
 	    .DL         = &buttons[2],  // D-Pad Left
 	    .DR         = &buttons[3],  // D-Pad Right
 	    .DU         = &buttons[1],  // D-Pad Up

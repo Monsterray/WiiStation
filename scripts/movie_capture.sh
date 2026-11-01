@@ -164,6 +164,9 @@ printf 'CHAIN\n# scripts/movie_capture.sh %s\n%s sd:/wiistation/%s PadAutoAssign
 # The profile is used only by this script, so nothing is put back after the run.
 # Dolphin connects no pad to port 2 unless told: SIDevice1=6 (below) is a GameCube pad.
 "$PYTHON" "$MOVIE" pads "$MOVIE_PROFILE" --fill-pad2 --detect > "$dir/pads.txt" || { cat "$dir/pads.txt"; exit 1; }
+# The GameCube pad Dolphin emulates has no stick buttons: the real pad's stick clicks press Z+A
+# and Z+B, which WiiStation reads as L3 and R3 (controller-GC.c)
+"$PYTHON" "$REPO/scripts/pad_stick_clicks.py" "$MOVIE_PROFILE/Config/GCPadNew.ini" >> "$dir/pads.txt"
 "$PYTHON" "$REPO/scripts/pad_layout.py" "$MOVIE_PROFILE/Config/GCPadNew.ini" >> "$dir/pads.txt"
 if [ -z "$play" ]; then
 	echo "Recording $(basename "$folder"): $mins emulated minutes ($vbl vblanks), then the window closes."

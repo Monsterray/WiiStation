@@ -492,6 +492,15 @@ static void read_slot(FILE* f, controller_t* controller, controller_config_t* sl
 	fread(&slot->invertedYR, 4, 1, f);
 	fread(&slot->sensitivity, 4, 1, f);
 	slot->fastf = getPointer(controller->menu_combos, controller->num_menu_combos);
+	/* A GameCube pad slot saved before the stick buttons had a default (5.19.0): Cross on A,
+	 * Square on B, no L3 or R3. It takes the new four, so Z+A and Z+B press L3 and R3. */
+	if (controller->identifier == 'G' && slot->L3->index == 0 && slot->R3->index == 0 &&
+	    slot->CRO->index == 9 && slot->SQU->index == 10) {
+		slot->CRO = controller->config_default.CRO;
+		slot->SQU = controller->config_default.SQU;
+		slot->L3 = controller->config_default.L3;
+		slot->R3 = controller->config_default.R3;
+	}
 }
 
 /* An ANALOG combination index, or the controller's default when the file has none: a file from
