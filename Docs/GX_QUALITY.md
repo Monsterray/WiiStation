@@ -101,7 +101,7 @@ acts on the LOD 0-1 bin as well.
 
 | Setting | Values | Where |
 |---|---|---|
-| `GxTexMin` | 0 off; 1 minified texels linear (`GX_LINEAR`), magnified keep the `BilinearFilter` choice; 2 / 3 `GX_LIN_MIP_LIN` + edge LOD + `GX_ANISO_2` / `GX_ANISO_4` | `gc_gl.c ogx_texq()`, on the sub-texture and window textures (not FMV/screen uploads) and in `glChgTextureFilter` |
+| `GxTexMin` | 0 off; 1 minified texels linear (`GX_LINEAR`), magnified keep the `BilinearFilter` choice; 2 / 3 `GX_LIN_MIP_LIN` + edge LOD + `GX_ANISO_2` / `GX_ANISO_4` | `gc_gl.c ogx_texq()` (plain) / `ogx_texq_aniso()` (2, 3, only for polygon draws that minify: `ogx_texq_pick()`), on the sub-texture and window textures (not FMV/screen uploads) and in `glChgTextureFilter` |
 | `GxColor` | 0 RGB8; 1 RGBA6 + GX dither; 2 RGB565 multisampled + GX dither in 240p at <= 264 lines (else as 0) | `GraphicsGX.cpp gxApplyEfbFormat()` and `switchToTVMode` (AA sample pattern of libogc's AA modes, the 240p mode's own no-filter taps = mean of a pixel's 3 samples); `MainFrame.cpp` applies it before a game resumes; `gpuPrim.c GxDitherPrim()` turns GX dither on per primitive where a PS1 dithers (Gouraud or texture-blended polygons and lines, never rectangles) and the `Dithering` setting allows (Default = the game's E1 bit 9) |
 
 Also changed: `efbSync.inc` copies its snapshots with the TV mode's AA state
@@ -116,7 +116,7 @@ Known limits of the prototypes: `GxColor=1` in the 480-line mode is applied at g
 The Filter Tour (Advanced Graphics, `GraphicsGX.cpp filterTour*`) changes both while a game
 runs. `GxTexMin` goes on every OpenGX texture at once through `glChgTextureFilter` (each one
 loaded again at its next bind; Off now also takes the anisotropy and edge LOD back out in
-`ogx_texq`). `GxColor` waits for the next copy to the XFB (`gx_vout_render` calls
+`ogx_texq`; the anisotropic variant is chosen per draw). `GxColor` waits for the next copy to the XFB (`gx_vout_render` calls
 `filterTourCopied`): a copy that kept the EFB is made again with the clear, the EFB mirror ends
 as after a clearing present, then `gxSetAa`, `gxApplyEfbFormat(1)` and `applyCopyFilter`. In
 Dolphin (Spyro, 240p and 480i) no frame around a switch is black or garbled. GX dither's
@@ -314,13 +314,50 @@ stage; the cost is one TEV stage and one texgen on dithered draws.
    exact TEV dither in 240p) or say in the menu that it applies to the soft renderers only.
 5. Mipmaps only if 3 shows that minified textures still shimmer and the MEM2 pool has room.
 
-## Anisotropy dropped (2026-10-29)
+## Anisotropy only where it helps (2026-11-01)
 
-`GxTexMin` 2 and 3 (anisotropic 2x / 4x) are gone. OpenGX splits every texture by its texels' STP
-bit into two passes, each with transparent texels where the other pass draws; with anisotropic
-taps Ape Escape's hand cursor (title screen, pause menus) lost the white inside and kept an
-outline. Dolphin, `scripts/chains/ape_hand_user.txt` against `GxTexMin=0`: anisotropy 2 or 4 broke
-it with a linear or a mip minification filter, with edge LOD on or off, and with the anisotropy on
-only the opaque layer's or only the semi-transparent layer's texture object; a mip filter with
-anisotropy 1 did not. A saved 2 or 3 now reads as 1 (Linear). The Wii showed it with `GxTexMin=3`
-(the user's session, 2026-10-29); not re-run on hardware after the change.
+`GxTexMin` 2 and 3 (anisotropic 2x / 4x) were removed on 2026-10-29 because Ape Escape's hand
+cursor (title screen, pause menus) lost its look: a blurred outline with gray seams where the
+white inside should be. They are back, and the hand is right, because a draw gets the anisotropic
+filter only when it can use it.
+
+Cause, measured in Dolphin (`scripts/chains/ape_hand_aniso.txt`, user's settings, `BilinearFilter`
+Near; the hand is a 32x32 sprite, `cmd=65`, drawn about 2x magnified):
+- OpenGX splits every texture by its texels' STP bit into two passes (`GxMask` Accurate): the
+  hand's white texels (bit 15 clear) are in the semi copy, its blue shading and outline (bit 15
+  set) in the opaque one, each with transparent texels (alpha 0, color 0) where the other class is.
+  Any filter wider than nearest blends across that border: the color is pulled toward black and
+  the two passes' alphas (0.5 and 0.5 at the border) do not add up, so a seam of the background
+  shows. Plain bilinear on the same sprite (`BilinearFilter=2`, `GxTexMin=0` or 1, no anisotropy)
+  gives the same picture; `GxMask=1` (Fast, no split) with bilinear is clean; no Z write in the
+  passes (test) changes nothing; drawing only the semi pass or only the opaque pass shows each
+  half is right on its own.
+- With anisotropy on, Dolphin's host sampler is `D3D12_FILTER_ANISOTROPIC` (linear in every
+  direction), so the sprite is filtered linear even though its mag filter is Near. Anisotropy
+  was also set on every texture, whatever was drawn with it. The earlier measurement (aniso 2 or 4
+  broke it with a linear or mip filter, edge LOD on or off, either layer alone; a mip filter with
+  aniso 1 did not) is the same fact.
+- Anisotropic taps cannot improve a sprite or a magnified polygon (nothing is minified), so
+  there is nothing to lose by keeping them off those draws.
+
+Fix: `GlesGpu/gpuPrim.c aniso_mark()` sets `ogx_aniso_ok` for each textured draw: a polygon (not a
+sprite or tile) whose affine map has one texel or more per EFB pixel along x or y (the footprint
+`lod_probe` already measured, now `tex_footprint()`). `deps/opengx/gc_gl.c`: every texture object
+is made with the plain filter (`ogx_texq`: linear minification, magnified texels as the
+`BilinearFilter` setting); `ogx_texq_pick()`, called from `checkLoadTextureObj` for each draw,
+switches the object to `ogx_texq_aniso` (`GX_LIN_MIP_LIN`, edge LOD, `GX_ANISO_2` / `_4`) and
+writes it to its TMEM slot again when the draw takes it, and back when it does not (about 2% of
+the draws toggle in CTR). The TMEM region is not reloaded. The movie/screen-upload texture is
+left alone (`ANI_MGD`).
+
+Checked in Dolphin (it replaces GX anisotropy with the PC's, so this proves the selection, not the
+Wii's filter): hand box identical to `GxTexMin=1` in every frame of the title screen with
+`GxTexMin` 2 and 3 (was 2700-4200 differing pixels); Ape's 3D intro (magnified polygons) identical
+to Linear (was 22-31 k pixels blurred); the lab scene's minified floor is smoothed as before while
+the magnified coat and shoes stay crisp (Linear: noisy floor; old anisotropy: everything blurred);
+CTR's HUD identical to Linear (old: 19 k pixels changed). Not checked: the Wii (the hand was seen
+broken there with `GxTexMin=3`, 2026-10-29; the fix keeps anisotropy off sprites and magnified
+polygons, which is all the hardware can have disliked, but the hardware's own anisotropy was not
+re-run), and minified cut-out polygons (fences, leaves) still show the class seam when filtered
+anisotropically: a texture that is mostly transparent texels of one class would need the colors
+of the other class in its transparent texels to hide it.

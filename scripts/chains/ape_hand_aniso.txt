@@ -1,0 +1,12 @@
+CHAIN
+# Ape Escape start-screen hand cursor (frames ~229-257 of a dump; vblank ~1800-1860) with the user's settings, GxTexMin 1 (Linear), 2 (Aniso 2x), 3 (Aniso 4x):
+# the hand must look the same in all three (Docs/GX_QUALITY.md, "Anisotropy"). Run with --env FRAMES_DUMP=True --env KEEP=100000.
+2800 sd:/wiistation/ape_escape_play.txt PadAutoAssign=1 ControllerType=1 gpuPlugin=2 GpuTiming=1 GxTexMin=1 ScreenMode=2 FrameRate=1 Dithering=1 BilinearFilter=1 FmvColour=1
+sd:/wiistation/isos/Ape Escape
+Ape Escape [U] [SCUS-94423].cue
+2800 sd:/wiistation/ape_escape_play.txt PadAutoAssign=1 ControllerType=1 gpuPlugin=2 GpuTiming=1 GxTexMin=2 ScreenMode=2 FrameRate=1 Dithering=1 BilinearFilter=1 FmvColour=1
+sd:/wiistation/isos/Ape Escape
+Ape Escape [U] [SCUS-94423].cue
+2800 sd:/wiistation/ape_escape_play.txt PadAutoAssign=1 ControllerType=1 gpuPlugin=2 GpuTiming=1 GxTexMin=3 ScreenMode=2 FrameRate=1 Dithering=1 BilinearFilter=1 FmvColour=1
+sd:/wiistation/isos/Ape Escape
+Ape Escape [U] [SCUS-94423].cue
