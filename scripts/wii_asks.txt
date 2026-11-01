@@ -1,5 +1,2 @@
 # WiiStation (debug): what to try on the Wii. One ask per line: ID | GAME | WHAT TO DO | WHAT TO LOOK FOR (scripts/wii_asks.py)
 #!last 4
-2 | Gex 3 | At the title screen, press the ANALOG combination once and read the note it shows (Analog or Digital; if Digital, press it again). Then in a level turn the stick slowly in a full circle. | Does Gex turn smoothly, or only in 8 directions? Tell me which note appeared.
-3 | Ape Escape | Level 1 with Far Textures on Aniso 4x, then on Linear. Where the grass tears or shows seams, press the Shot combination. | Tearing or seams in the grass, and whether Aniso 4x and Linear differ. The screenshots tell me where.
-4 | Ape Escape | Finish level 1 and watch the lab turn on like an old TV. | No narrow picture strip in the black before the line appears.
