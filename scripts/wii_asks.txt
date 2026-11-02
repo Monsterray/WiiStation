@@ -1,3 +1,4 @@
 # WiiStation (debug): what to try on the Wii. One ask per line: ID | GAME | WHAT TO DO | WHAT TO LOOK FOR (scripts/wii_asks.py)
-#!last 5
+#!last 6
 5 | Ape Escape | Far Textures on Aniso 4x: let the title screen run (Spike chases a monkey) and walk around level 1 where the sky shows. | No colored dashes in the far grass any more.
+6 | Menu | Open Settings > General, Players (seat a Mii, back out, re-enter), and the game list with a long name. | No line in the middle of Advanced/Achievements/Memory; even letter gaps; right Mii face with its name; readable hints at the bottom; clean coin slots; long names start at their beginning, pause, scroll, pause.
