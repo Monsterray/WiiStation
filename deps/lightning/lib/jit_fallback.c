@@ -343,6 +343,7 @@ static void
 _fallback_save_regs(jit_state_t *_jit, jit_int32_t r0)
 {
     jit_int32_t		regno, spec;
+    jit_emit_sync();		/* WiiStation: lazy emit-time liveness */
     for (regno = 0; regno < _jitc->reglen; regno++) {
 	spec =  _rvs[regno].spec;
 	if ((jit_regset_tstbit(&_jitc->regarg, regno) ||
@@ -369,6 +370,7 @@ static void
 _fallback_load_regs(jit_state_t *_jit, jit_int32_t r0)
 {
     jit_int32_t		regno, spec;
+    jit_emit_sync();		/* WiiStation: lazy emit-time liveness */
     for (regno = 0; regno < _jitc->reglen; regno++) {
 	spec =  _rvs[regno].spec;
 	if ((jit_regset_tstbit(&_jitc->regarg, regno) ||

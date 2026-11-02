@@ -1,0 +1,6 @@
+CHAIN
+# finish_lvl1 (user, 2026-11-01) with the user's picture settings. FrameRate=1 (TV) and GpuTiming=1 change the timing: the replay parts from the recording at vblank 1, so they stay at the recording's 0 here
+# Ape Escape finish_lvl1 recording (user, 2026-11-01) with the user's settings: blue flash at the level finish, white pause on skips
+14400 sd:/wiistation/finish_lvl1_play.txt PadAutoAssign=1 ControllerType=1 gpuPlugin=2 GxTexMin=3 ScreenMode=2 DeflickerFilter=1 JitLightning=127
+sd:/wiistation/isos/Ape Escape
+Ape Escape [U] [SCUS-94423].cue

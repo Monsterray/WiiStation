@@ -145,6 +145,46 @@ The core is synced to a7464cc since 5.2.0 (merge 87d77c4). WiiStation's own chan
     `_jit_optimize`, `_jit_reglive` (11% together), and the pool allocator and the kernel's
     interrupt-off sections it samples as (`host_malloc`/`free`/`lightning_alloc` 17%, perf.log
     `lrmem: pool_calls= pool_us=`, debug builds).
+  - Lightning's own passes (try/lightning-cost, 2026-11-02; every change marked `WiiStation:` in
+    `deps/lightning`, switch `JitLightning`, one bit each, default all on): the same code, byte for
+    byte, from less work. (1) Emit-time liveness on demand: `_emit_code` updated `reglive`/`regarg`
+    after every node (`_jit_reglive` + `_jit_update`, a forward scan per node), but only `jit_get_reg`
+    and the fallbacks' register save/load read them. They now replay the updates of the nodes since
+    the last label, in order, when one of those runs (`_jit_emit_sync`); a label, prolog or epilog resets
+    `reglive`, so what came before it is never replayed (about 35% of the nodes are replayed, 13 syncs
+    per block). (2) `jit_setup` takes the gpr/fpr register mask from one table per compile (64 class
+    lookups per block before); the two patch-bit loops of `_jit_optimize` are skipped when there was no
+    `jit_save` (only `jit_save` and `patch_registers` set that bit). (4) A call's effect on `reglive`
+    (`_jit_reglive`, `_jit_follow`, `_jit_update`) is two masks plus the argument registers, not a loop
+    over 64 registers (`jit_call_argp`). (8) `jit_follow` skips its three argument handlers: `jit_setup`
+    already took every register the block names out of `regmask`, so they never fire. (16) `jit_get_reg`
+    finds the free register with masks. (32) Node pools are not cleared (hprof on the Wii: `memset` was
+    4.9% of the burst, 55% of it the 4 KB pool clear in `_new_pool`): `_new_node` takes the next node of the
+    pool and clears only that one with 12 stores; freed nodes are reused first, as before. Also
+    `functions` starts with 2 entries, not 16, and `check_block_again` tests the cheap flag first.
+    Proof: `JitLightning` + 64 makes each compile emit three times (eager, lazy, eager), compares the
+    bytes, and runs the old loop beside each mask (`jit_call_verify`, `free_reg_slow`, the `jit_follow`
+    handlers with a change counter): perf.log `lightning2: bad= control_bad= opt_bad=` were 0 over
+    3904 blocks (Ape title demo), 10030 (replay3: Spyro + Crash 3) and 11478 (finish_lvl1). `vsig_cmp.py`,
+    base DOL against the changed DOL at defaults and with the self-check on: the same for every vblank
+    (Ape 9799; Spyro 10798, Crash 3 10799; finish_lvl1 14399), and `jitq: delay queue_at queued installed
+    cancels errs stale full pend_peak realfull fits cnow` match report by report. (`jitcode: sum=`
+    cannot compare runs at all: it holds heap addresses, and the thread's timing moves them.)
+    Numbers, same boot or same DOL with `JitLightning=0` against the default. Dolphin, Ape title demo
+    9800 vblanks: `lightning: emit_us` 1134 -> 592 ms, `optimize_us` 635 -> 524, `jitq: thread_us` 2468 ->
+    1770 (replay3 3173 -> 2342, finish_lvl1 3585 -> 2624), `stall_us` 232 -> 149; hprof of the burst
+    (14 vblanks from 9626): 8312 -> 7224 samples (-13%). Bench Wii, hprof build, window 8741-8801:
+    7744 -> 6861 samples (-11%), `memset` 303 -> 146, `_jit_update` 374 -> 128, `_jit_reglive` 249 -> under 87
+    (out of the top 12); `jitq: thread_us` 1114 -> 870 ms (-22%), `stall_us` 180 -> 122 ms,
+    `cnow_us` 106 -> 76 ms; `speed` build, `ape_jit_wii_base.txt` (v5): thread_us 1110 -> 887 ms (the
+    run before jitq's later changes had 1115), stall_us 177 -> 123.
+    Tried, not worth it: skipping `jit_follow`'s walk once `regmask` is empty (it never is: the 32 float
+    registers are never named, so they stay unknown); deferring the block liveness (`do_setup`,
+    `do_follow`) to emit time (the first pass sees nodes `simplify` later changes, and `reglive` only
+    grows, so the result would differ from the current one). Left: the optimizer's own walks
+    (`simplify`, `follow`, `check_block_again`, about 9% of the window), `memset` of the state arrays
+    in `jit_new_state` and of `jit_alloc`, `_jit_data`'s 4 KB clear, Lightrec's passes
+    (`lightrec_consts_propagate`, `lightrec_early_unload`, about 5%).
   - Spread, which moves the timing of any run that fills the queue (so a recording made with the
     defaults needs the defaults; replay3 and finish_lvl1 both fill it, `full=` in perf.log):
     `JitPending` (queue size in 64s, 12 = 768), `JitFull` (a block that finds the queue full keeps

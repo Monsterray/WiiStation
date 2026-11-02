@@ -1259,6 +1259,7 @@ _emit_code(jit_state_t *_jit)
     jit_int32_t		 offset;
     jit_bool_t       no_flag = 0;	/* Set if previous instruction is
 					 * *not* a jump target. */
+    jit_bool_t		 lazy;
     struct {
 	jit_node_t	*node;
 	jit_word_t	 word;
@@ -1410,16 +1411,36 @@ _emit_code(jit_state_t *_jit)
 		    patch(word, node);					\
 		}							\
 		break
+    /* WiiStation: reglive/regarg are only read by jit_get_reg and the fallbacks' register
+     * save/load, so their updates wait until one of those runs (jit_emit_sync). A label,
+     * prolog or epilog (which have no register arguments) then resets reglive at once, as
+     * before, and the nodes before it are dropped without being replayed. */
+    lazy = _jitc->lz_force ? (_jitc->lz_force == 1) :
+	(lightning_opts & LIGHTNING_OPT_LAZYLIVE) != 0;
+    _jitc->lz_on = 0;
+    _jitc->lz_pend = NULL;
     for (node = _jitc->head; node; node = node->next) {
-	if (_jit->pc.uc >= _jitc->code.end)
+	if (_jit->pc.uc >= _jitc->code.end) {
+	    _jitc->lz_on = 0;
 	    return (NULL);
+	}
 
 #if DEVEL_DISASSEMBLER
 	node->offset = (jit_uword_t)_jit->pc.w - (jit_uword_t)prevw;
 	prevw = _jit->pc.w;
 #endif
 	value = jit_classify(node->code);
-	jit_regarg_set(node, value);
+	lightning_emit_nodes++;
+	if (lazy) {
+	    if (!_jitc->lz_pend)
+		_jitc->lz_pend = node;
+	    _jitc->lz_cur = node;
+	    _jitc->lz_info = value;
+	    _jitc->lz_args = 0;
+	    _jitc->lz_on = 1;
+	}
+	else
+	    jit_regarg_set(node, value);
 	switch (node->code) {
 	    case jit_code_align:
 		/* Must align to a power of two */
@@ -2264,10 +2285,22 @@ _emit_code(jit_state_t *_jit)
 	    default:
 		abort();
 	}
-	jit_regarg_clr(node, value);
-	assert(_jitc->regarg == 0 && _jitc->synth == 0);
-	/* update register live state */
-	jit_reglive(node);
+	if (lazy) {
+	    if (_jitc->lz_args)
+		jit_regarg_clr(node, value);
+	    _jitc->lz_on = 0;
+	    if (node->code == jit_code_label || node->code == jit_code_prolog ||
+		node->code == jit_code_epilog) {
+		jit_reglive(node);	/* resets reglive: what is pending is dropped */
+		_jitc->lz_pend = NULL;
+	    }
+	}
+	else {
+	    jit_regarg_clr(node, value);
+	    assert(_jitc->regarg == 0 && _jitc->synth == 0);
+	    /* update register live state */
+	    jit_reglive(node);
+	}
 
         no_flag = !(node->flag & jit_flag_patch);
     }

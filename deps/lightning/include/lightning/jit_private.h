@@ -442,6 +442,11 @@ jit_regset_scan1(jit_regset_t*, jit_int32_t);
 	jit_regset_set_ui(&_jitc->reglive, 0);				\
 	jit_regset_set_ui(&_jitc->regmask, 0);				\
     } while (0)
+extern void _jit_notsav(jit_state_t*);	/* WiiStation: fills _jitc->notsav (once per state) */
+extern void _jit_call_argp(jit_state_t*, jit_node_t*, jit_regset_t*);
+#define jit_call_argp(n, a)	_jit_call_argp(_jit, n, a)
+extern void _jit_call_verify(jit_state_t*, jit_node_t*, jit_regset_t, jit_regset_t, jit_regset_t, jit_regset_t);
+#define jit_call_verify(n, m0, l0, m1, l1)	_jit_call_verify(_jit, n, m0, l0, m1, l1)
 
 /*
  * Types
@@ -647,6 +652,20 @@ struct jit_compiler {
     jit_uint32_t	  unld_algorithm : 1;
     jit_uint32_t	  unst_algorithm : 1;
     jit_uint32_t	  has_save : 1;	/* WiiStation: jit_save() was called */
+    jit_uint32_t	  bump : 1;	/* WiiStation: pool_cur/pool_end in use */
+    jit_uint32_t	  lz_on : 1;	/* WiiStation: emit_code is inside a node whose reglive/regarg
+					 * updates are lazy */
+    jit_uint32_t	  lz_args : 1;	/* regarg of lz_cur is set */
+    jit_uint32_t	  lz_force : 2;	/* verify: 0 = lightning_opts, 1 = lazy, 2 = eager */
+    jit_int32_t		  cm_spec[4];	/* WiiStation: class masks of the last specs asked of jit_get_reg */
+    jit_regset_t	  cm_mask[4];
+    jit_uint32_t	  cm_next;
+    jit_node_t		 *pool_cur, *pool_end;	/* WiiStation: bump allocation in the newest pool */
+    jit_regset_t	  notsav;	/* WiiStation: registers a call does not preserve (reglive) */
+    jit_regset_t	  gprfpr;	/* WiiStation: registers of class gpr or fpr (jit_setup) */
+    jit_node_t		 *lz_pend;	/* first node whose reglive update has not run */
+    jit_node_t		 *lz_cur;	/* node being emitted */
+    jit_int32_t		  lz_info;	/* its jit_classify() */
     jit_uint64_t	  simp_kinds;	/* WiiStation: registers whose
 					 * values[].kind may be nonzero */
     jit_int32_t		  framesize;	/* space for callee save registers,
@@ -858,6 +877,25 @@ _jit_regarg_set(jit_state_t*, jit_node_t*, jit_int32_t);
 extern void
 _jit_regarg_clr(jit_state_t*, jit_node_t*, jit_int32_t);
 
+/* WiiStation: lazy emit-time liveness. emit_code used to update reglive/regarg after every
+ * node, though only jit_get_reg (and the fallback save/load of registers) read them. Now the
+ * updates of the nodes since the last label are replayed, in order, the first time one of
+ * those readers runs (jit_emit_sync); a label resets reglive, so the nodes before it are
+ * never replayed. The code is the same, byte for byte. lightning_opts bits: */
+#define LIGHTNING_OPT_LAZYLIVE	0x01
+#define LIGHTNING_OPT_SETUPMASK	0x02	/* jit_setup: the gpr/fpr mask is built once per compile; optimize: no patch-bit clearing loops when there is no jit_save */
+#define LIGHTNING_OPT_CALLMASK	0x04	/* a call updates reglive (and follow, update) with two masks, not a loop over all registers */
+#define LIGHTNING_OPT_FOLLOW	0x08	/* jit_follow: skip the argument handlers (no-ops, see there) */
+#define LIGHTNING_OPT_GETREG	0x10	/* jit_get_reg: the free register by masks */
+#define LIGHTNING_OPT_POOLBUMP	0x20	/* node pools are not cleared; nodes are, as handed out */
+#define LIGHTNING_OPT_ALL	0x3f
+#define LIGHTNING_OPT_VERIFY	0x40	/* test: emit three times (eager, lazy, eager), compare the bytes; checks the masks */
+extern unsigned int lightning_opts, lightning_verify_opt_bad;
+extern void _jit_emit_sync(jit_state_t*);
+extern void _jit_emit_flush(jit_state_t*, jit_node_t*);
+#define jit_emit_flush(upto)	_jit_emit_flush(_jit, upto)
+#define jit_emit_sync()		do { if (_jitc->lz_on) _jit_emit_sync(_jit); } while (0)
+
 #define jit_save(reg)		_jit_save(_jit, reg)
 extern void
 _jit_save(jit_state_t*, jit_int32_t);
@@ -921,6 +959,7 @@ extern void _jit_print_node(jit_state_t*,jit_node_t*);
 extern jit_pointer_t jit_memcpy(jit_pointer_t,const void*,jit_word_t);
 extern jit_pointer_t jit_memmove(jit_pointer_t,const void*,jit_word_t);
 extern void jit_alloc(jit_pointer_t*, jit_word_t);
+extern void jit_alloc_nz(jit_pointer_t*, jit_word_t);	/* WiiStation: not cleared */
 extern void jit_realloc(jit_pointer_t*, jit_word_t, jit_word_t);
 void jit_free(jit_pointer_t*);
 

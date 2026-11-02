@@ -201,12 +201,87 @@ finish_jit(void)
     jit_finish_size();
 }
 
+static inline jit_int32_t simp_ctz(jit_uint64_t);
+
+/* WiiStation: the registers whose class contains spec, kept for the last few specs asked */
+static jit_regset_t
+_class_mask(jit_state_t *_jit, jit_int32_t spec)
+{
+    jit_regset_t	 mask;
+    jit_int32_t		 i, regno;
+
+    for (i = 0; i < 4; i++)
+	if (_jitc->cm_spec[i] == spec && _jitc->cm_mask[i])
+	    return (_jitc->cm_mask[i]);
+    jit_regset_set_ui(&mask, 0);
+    for (regno = 0; regno < _jitc->reglen; regno++)
+	if ((jit_class(_rvs[regno].spec) & spec) == spec)
+	    jit_regset_setbit(&mask, regno);
+    i = _jitc->cm_next++ & 3;
+    _jitc->cm_spec[i] = spec;
+    _jitc->cm_mask[i] = mask;
+    return (mask);
+}
+
+static jit_int32_t
+_free_reg_fast(jit_state_t *_jit, jit_int32_t spec)
+{
+    jit_regset_t	 cand, more;
+    jit_int32_t		 regno;
+
+    cand = _class_mask(_jit, spec) & ~_jitc->regarg & ~_jitc->reglive;
+    if (!cand)
+	return (-1);
+    regno = simp_ctz(cand);
+    if ((_jitc->regmask >> regno) & 1) {
+	/* a truly known free register, not just one in unknown state, above this one */
+	more = cand & ~_jitc->regmask;
+	if (regno < 63)
+	    more &= ~0ULL << (regno + 1);
+	else
+	    more = 0;
+	if (more)
+	    regno = simp_ctz(more);
+    }
+    return (regno);
+}
+
+/* the original loops: -1 when no register matches */
+static jit_int32_t
+_free_reg_slow(jit_state_t *_jit, jit_int32_t spec)
+{
+    jit_int32_t		 regno, regfree;
+
+    for (regno = 0; regno < _jitc->reglen; regno++) {
+	if ((jit_class(_rvs[regno].spec) & spec) == spec &&
+	    !jit_regset_tstbit(&_jitc->regarg, regno) &&
+	    !jit_regset_tstbit(&_jitc->reglive, regno)) {
+	    if (jit_regset_tstbit(&_jitc->regmask, regno)) {
+		for (regfree = regno + 1; regfree < _jitc->reglen; regfree++) {
+		    if ((jit_class(_rvs[regfree].spec) & spec) == spec &&
+			!jit_regset_tstbit(&_jitc->regarg, regfree) &&
+			!jit_regset_tstbit(&_jitc->reglive, regfree) &&
+			!jit_regset_tstbit(&_jitc->regmask, regfree)) {
+			regno = regfree;
+			break;
+		    }
+		}
+	    }
+	    return (regno);
+	}
+    }
+    return (-1);
+}
+#define free_reg_fast(spec)	_free_reg_fast(_jit, spec)
+#define free_reg_slow(spec)	_free_reg_slow(_jit, spec)
+
 jit_int32_t
 _jit_get_reg(jit_state_t *_jit, jit_int32_t regspec)
 {
     jit_int32_t		spec;
     jit_int32_t		regno;
 
+    jit_emit_sync();		/* WiiStation: lazy emit-time liveness */
     spec = regspec & ~(jit_class_chk|jit_class_nospill);
     if (spec & jit_class_named) {
 	regno = jit_regno(spec);
@@ -229,6 +304,19 @@ _jit_get_reg(jit_state_t *_jit, jit_int32_t regspec)
 	assert(jit_class(spec) != 0);
 
     if (_jitc->emit) {
+	/* WiiStation: the search below with masks (the lowest register of the class that
+	 * is neither an argument nor live, then the lowest one above it that is not in
+	 * regmask either); same answer, checked against the loops under VERIFY */
+	if (lightning_opts & LIGHTNING_OPT_GETREG) {
+	    regno = free_reg_fast(spec);
+	    if (lightning_opts & LIGHTNING_OPT_VERIFY) {
+		if (regno != free_reg_slow(spec))
+		    lightning_verify_opt_bad++;
+	    }
+	    if (regno >= 0)
+		goto regarg;
+	}
+	else
 	/* search for a free register matching spec */
 	for (regno = 0; regno < _jitc->reglen; regno++) {
 	    if ((jit_class(_rvs[regno].spec) & spec) == spec &&
@@ -335,6 +423,7 @@ fail:
 void
 _jit_unget_reg(jit_state_t *_jit, jit_int32_t regno)
 {
+    jit_emit_sync();		/* WiiStation: lazy emit-time liveness */
     regno = jit_regno(regno);
     if (jit_regset_tstbit(&_jitc->regsav, regno)) {
 	if (_jitc->emit) {
@@ -803,9 +892,11 @@ _jit_data(jit_state_t *_jit, const void *data,
 #if LIGHTNING_UPSTREAM
 #  define JIT_POOL_NODES	1024
 #  define JIT_PATCHES_FIRST	1024
+#  define JIT_FUNCS_FIRST	16
 #else
 #  define JIT_POOL_NODES	128
 #  define JIT_PATCHES_FIRST	64
+#  define JIT_FUNCS_FIRST	2
 #endif
 
 static void
@@ -828,6 +919,22 @@ _new_pool(jit_state_t *_jit)
 		    length * sizeof(jit_node_t *));
 	_jitc->pool.length = length;
     }
+    if (_jitc->bump) {
+	/* WiiStation: no memset of the pool and no free list through it (hprof, Wii:
+	 * memset 4.9% of a compile burst, 55% of it this): _new_node takes the next
+	 * node of the pool and clears just that one. Freed nodes still go to
+	 * _jitc->list and are reused first, as before. */
+	jit_alloc_nz((jit_pointer_t *)(_jitc->pool.ptr + _jitc->pool.offset),
+		     sizeof(jit_node_t) * JIT_POOL_NODES);
+	_jitc->pool_cur = _jitc->pool.ptr[_jitc->pool.offset];
+	_jitc->pool_end = _jitc->pool_cur + JIT_POOL_NODES;
+	++_jitc->pool.offset;
+#if defined(__powerpc__)
+	lightning_pool_ticks += __builtin_ppc_get_timebase() - t0;
+	lightning_pools++;
+#endif
+	return;
+    }
     jit_alloc((jit_pointer_t *)(_jitc->pool.ptr + _jitc->pool.offset),
 	      sizeof(jit_node_t) * JIT_POOL_NODES);
     list = _jitc->pool.ptr[_jitc->pool.offset];
@@ -842,15 +949,39 @@ _new_pool(jit_state_t *_jit)
 #endif
 }
 
+/* WiiStation: memset(node, 0, 48) is a call into newlib's memset (hprof, Wii); these are
+ * 12 stores, written out so that the compiler does not turn them back into the call */
+typedef char zero_node_size_check[sizeof(jit_node_t) == 48 ? 1 : -1];
+#define ZERO_NODE(n)	((lightning_opts & LIGHTNING_OPT_POOLBUMP) ? zero_node(n) : (void)memset(n, 0, sizeof(jit_node_t)))
+static inline void
+zero_node(jit_node_t *node)
+{
+    volatile jit_uint32_t	*w = (volatile jit_uint32_t *)node;
+
+    w[0] = 0; w[1] = 0; w[2] = 0; w[3] = 0; w[4] = 0; w[5] = 0;
+    w[6] = 0; w[7] = 0; w[8] = 0; w[9] = 0; w[10] = 0; w[11] = 0;
+}
+
 static jit_node_t *
 _new_node(jit_state_t *_jit, jit_code_t code)
 {
     jit_node_t		*node;
 
-    if (_jitc->list == NULL)
+    if (_jitc->list) {
+	node = _jitc->list;
+	_jitc->list = node->next;
+    }
+    else if (_jitc->bump) {
+	if (_jitc->pool_cur == _jitc->pool_end)
+	    new_pool();
+	node = _jitc->pool_cur++;
+	zero_node(node);
+    }
+    else {
 	new_pool();
-    node = _jitc->list;
-    _jitc->list = node->next;
+	node = _jitc->list;
+	_jitc->list = node->next;
+    }
     if (_jitc->synth)
 	node->flag |= jit_flag_synth;
     node->next = NULL;
@@ -878,7 +1009,7 @@ _del_node(jit_state_t *_jit, jit_node_t *prev, jit_node_t *node)
     }
     else
 	prev->next = node->next;
-    memset(node, 0, sizeof(jit_node_t));
+    ZERO_NODE(node);
     node->next = _jitc->list;
     _jitc->list = node;
 }
@@ -886,7 +1017,7 @@ _del_node(jit_state_t *_jit, jit_node_t *prev, jit_node_t *node)
 static inline void
 _free_node(jit_state_t *_jit, jit_node_t *node)
 {
-    memset(node, 0, sizeof(jit_node_t));
+    ZERO_NODE(node);
     node->next = _jitc->list;
     _jitc->list = node;
 }
@@ -925,6 +1056,8 @@ jit_new_state(void)
     jit_regset_new(&_jitc->explive);
 
     jit_init();
+    _jit_notsav(_jit);
+    _jitc->bump = (lightning_opts & LIGHTNING_OPT_POOLBUMP) != 0;
 
     jit_alloc((jit_pointer_t *)&_jitc->spill,
 	      _jitc->reglen * sizeof(jit_node_t*));
@@ -935,8 +1068,10 @@ jit_new_state(void)
 
     jit_alloc((jit_pointer_t *)&_jitc->patches.ptr,
 	      (_jitc->patches.length = JIT_PATCHES_FIRST) * sizeof(jit_patch_t));
+    /* WiiStation: Lightrec's states hold one function; jit_prolog grows the vector by 16
+     * (and clears just the new part) when it needs more */
     jit_alloc((jit_pointer_t *)&_jitc->functions.ptr,
-	      (_jitc->functions.length = 16) * sizeof(jit_function_t));
+	      (_jitc->functions.length = JIT_FUNCS_FIRST) * sizeof(jit_function_t));
     jit_alloc((jit_pointer_t *)&_jitc->pool.ptr,
 	      (_jitc->pool.length = 16) * sizeof(jit_node_t*));
     jit_alloc((jit_pointer_t *)&_jitc->blocks.ptr,
@@ -996,6 +1131,7 @@ void _jit_really_clear_state(jit_state_t *_jit)
     jit_free((jit_pointer_t *)&_jitc->pool.ptr);
     _jitc->pool.offset = _jitc->pool.length = 0;
     _jitc->list = NULL;
+    _jitc->pool_cur = _jitc->pool_end = NULL;
 
     _jitc->note.head = _jitc->note.tail =
 	_jitc->note.name = _jitc->note.note = NULL;
@@ -1973,8 +2109,9 @@ _check_block_again(jit_state_t *_jit)
 	    /* If not the first jmpi */
 	    else if (block) {
 		/* If a jump to dynamic address or if a jump to raw address */
-		if (!(jit_classify(node->code) & jit_cc_a0_jmp) ||
-		    !(node->flag & jit_flag_node))
+		/* WiiStation: the cheap flag test first (both must hold) */
+		if (!(node->flag & jit_flag_node) ||
+		    !(jit_classify(node->code) & jit_cc_a0_jmp))
 		    continue;
 		label = node->u.n;
 		/* Mark predecessor needs updating due to target change */
@@ -2027,6 +2164,7 @@ _jit_optimize(jit_state_t *_jit)
 {
     jit_bool_t		 jump;
     jit_bool_t		 todo;
+    jit_bool_t		 nopatch;
     jit_int32_t		 mask;
     jit_node_t		*node;
     jit_block_t		*block;
@@ -2043,6 +2181,10 @@ _jit_optimize(jit_state_t *_jit)
     OPROF(1);
     split_branches();
     OPROF(2);
+    jit_regset_set_mask(&_jitc->gprfpr, _jitc->reglen);
+    for (offset = 0; offset < _jitc->reglen; ++offset)
+	if (!(jit_class(_rvs[offset].spec) & (jit_class_gpr|jit_class_fpr)))
+	    jit_regset_clrbit(&_jitc->gprfpr, offset);
     do_setup();
     OPROF(3);
     do_follow(1);
@@ -2104,7 +2246,20 @@ _jit_optimize(jit_state_t *_jit)
 	todo = 1;
     OPROF(6);
 
+    /* WiiStation: jit_regno_patch is only ever set by jit_save and patch_registers, so
+     * without a jit_save the loops here do not clear anything */
+    nopatch = !_jitc->has_save && (lightning_opts & LIGHTNING_OPT_SETUPMASK);
+    if (nopatch && (lightning_opts & LIGHTNING_OPT_VERIFY)) {
+	for (node = _jitc->head; node; node = node->next) {
+	    mask = jit_classify(node->code);
+	    if (((mask & jit_cc_a0_reg) && (node->u.w & jit_regno_patch)) ||
+		((mask & jit_cc_a1_reg) && (node->v.w & jit_regno_patch)) ||
+		((mask & jit_cc_a2_reg) && (node->w.w & jit_regno_patch)))
+		lightning_verify_opt_bad++;
+	}
+    }
     for (node = _jitc->head; node; node = node->next) {
+	if (!nopatch) {
 	mask = jit_classify(node->code);
 	if (mask & jit_cc_a0_reg)
 	    node->u.w &= ~jit_regno_patch;
@@ -2112,6 +2267,7 @@ _jit_optimize(jit_state_t *_jit)
 	    node->v.w &= ~jit_regno_patch;
 	if (mask & jit_cc_a2_reg)
 	    node->w.w &= ~jit_regno_patch;
+	}
 	if (node->code == jit_code_beqi) {
 	    if (redundant_store(node, 1)) {
 		block = _jitc->blocks.ptr + ((jit_node_t *)node->u.n)->v.w;
@@ -2147,12 +2303,14 @@ _jit_optimize(jit_state_t *_jit)
 
     for (node = _jitc->head; node; node = node->next) {
 	mask = jit_classify(node->code);
+	if (!nopatch) {
 	if (mask & jit_cc_a0_reg)
 	    node->u.w &= ~jit_regno_patch;
 	if (mask & jit_cc_a1_reg)
 	    node->v.w &= ~jit_regno_patch;
 	if (mask & jit_cc_a2_reg)
 	    node->w.w &= ~jit_regno_patch;
+	}
 	if  (node->code == jit_code_prolog)
 	    _jitc->function = _jitc->functions.ptr + node->w.w;
 	else if(node->code == jit_code_epilog)
@@ -2211,6 +2369,64 @@ _jit_optimize(jit_state_t *_jit)
     OPROF(9);
 }
 
+/* WiiStation: the registers a call does not preserve (no jit_class_sav) */
+void
+_jit_notsav(jit_state_t *_jit)
+{
+    jit_int32_t		 value;
+
+    jit_regset_set_ui(&_jitc->notsav, 0);
+    for (value = 0; value < _jitc->reglen; value++)
+	if (!(jit_class(_rvs[value].spec) & jit_class_sav))
+	    jit_regset_setbit(&_jitc->notsav, value);
+}
+
+/* The registers jit_regarg_p() says are arguments of this call (the argument registers
+ * are numbered downwards from JIT_RA0 and JIT_FA0). */
+void
+_jit_call_argp(jit_state_t *_jit, jit_node_t *node, jit_regset_t *argp)
+{
+    jit_int32_t		 k, n, spec;
+
+    jit_regset_set_ui(argp, 0);
+    n = node->v.w;
+    for (k = 0; k < n && JIT_RA0 - k >= 0; k++) {
+	spec = jit_class(_rvs[JIT_RA0 - k].spec);
+	if ((spec & jit_class_arg) && (spec & jit_class_gpr))
+	    jit_regset_setbit(argp, JIT_RA0 - k);
+    }
+    n = node->w.w;
+    for (k = 0; k < n && JIT_FA0 - k >= 0; k++) {
+	spec = jit_class(_rvs[JIT_FA0 - k].spec);
+	if ((spec & jit_class_arg) && !(spec & jit_class_gpr) &&
+	    (spec & jit_class_fpr))
+	    jit_regset_setbit(argp, JIT_FA0 - k);
+    }
+}
+
+/* LIGHTNING_OPT_VERIFY: the original loop over the set bits of mask0, against the masks */
+void
+_jit_call_verify(jit_state_t *_jit, jit_node_t *node, jit_regset_t mask0,
+		 jit_regset_t live0, jit_regset_t mask1, jit_regset_t live1)
+{
+    jit_int32_t		 value, spec;
+    jit_regset_t	 mask, live;
+
+    jit_regset_set(&mask, &mask0);
+    jit_regset_set(&live, &live0);
+    for (value = 0; value < _jitc->reglen; ++value) {
+	if (!jit_regset_tstbit(&mask0, value))
+	    continue;
+	spec = jit_class(_rvs[value].spec);
+	if (!(spec & jit_class_sav))
+	    jit_regset_clrbit(&mask, value);
+	if ((spec & jit_class_arg) && jit_regarg_p(node, value))
+	    jit_regset_setbit(&live, value);
+    }
+    if (mask != mask1 || live != live1)
+	lightning_verify_opt_bad++;
+}
+
 void
 _jit_reglive(jit_state_t *_jit, jit_node_t *node)
 {
@@ -2233,6 +2449,30 @@ _jit_reglive(jit_state_t *_jit, jit_node_t *node)
 		jit_regset_setbit(&_jitc->reglive, value);
 	    }
 	case jit_code_calli:
+	    if (lightning_opts & LIGHTNING_OPT_CALLMASK) {
+		/* WiiStation: the argument registers of this call are live, the others
+		 * a call does not preserve are not: two masks instead of a loop over
+		 * all registers (jit_regarg_p says which are arguments) */
+		jit_regset_t	 argp, keep, old;
+
+		jit_regset_set(&old, &_jitc->reglive);
+		jit_call_argp(node, &argp);
+		jit_regset_com(&keep, &_jitc->notsav);
+		jit_regset_and(&_jitc->reglive, &_jitc->reglive, &keep);
+		jit_regset_ior(&_jitc->reglive, &_jitc->reglive, &argp);
+		if (lightning_opts & LIGHTNING_OPT_VERIFY) {
+		    for (value = 0; value < _jitc->reglen; value++) {
+			spec = jit_class(_rvs[value].spec);
+			if ((spec & jit_class_arg) && jit_regarg_p(node, value))
+			    jit_regset_setbit(&old, value);
+			else if (!(spec & jit_class_sav))
+			    jit_regset_clrbit(&old, value);
+		    }
+		    if (old != _jitc->reglive)
+			lightning_verify_opt_bad++;
+		}
+		break;
+	    }
 	    for (value = 0; value < _jitc->reglen; value++) {
 		spec = jit_class(_rvs[value].spec);
 		if ((spec & jit_class_arg) && jit_regarg_p(node, value))
@@ -2322,6 +2562,59 @@ _jit_reglive(jit_state_t *_jit, jit_node_t *node)
     }
 }
 
+/* WiiStation: the part of jit_regarg_set that touches reglive/regmask (a jmpi to a label) */
+static inline void
+_jit_regarg_jmpi(jit_state_t *_jit, jit_node_t *node)
+{
+    /* Prevent incorrect detection of running out of registers
+     * if will need to patch jump, and all registers have been
+     * used in the current block. */
+    if (node->code == jit_code_jmpi && (node->flag & jit_flag_node)) {
+	jit_node_t	*label = node->u.n;
+	jit_block_t	*block = _jitc->blocks.ptr + label->v.w;
+	jit_regset_set(&_jitc->reglive, &block->reglive);
+	jit_regset_set(&_jitc->regmask, &block->regmask);
+	if (jit_regset_set_p(&_jitc->explive)) {
+	    jit_regset_ior(&_jitc->reglive, &block->reglive, &_jitc->explive);
+	    jit_regset_xor(&_jitc->regmask, &_jitc->regmask, &_jitc->explive);
+	}
+    }
+}
+#define jit_regarg_jmpi(node)	_jit_regarg_jmpi(_jit, node)
+
+/* WiiStation: test switches (settings JitLightning, bit per optimization; all on by default) */
+unsigned int lightning_opts = LIGHTNING_OPT_ALL;
+unsigned int lightning_lazy_replayed, lightning_emit_nodes, lightning_get_regs, lightning_verify_opt_bad;
+
+/* Run, in order, the reglive updates of the nodes from lz_pend up to (not including) upto. */
+void
+_jit_emit_flush(jit_state_t *_jit, jit_node_t *upto)
+{
+    jit_node_t		*n;
+
+    for (n = _jitc->lz_pend; n && n != upto; n = n->next) {
+	/* what jit_regarg_set did before this node was emitted, minus the regarg bits,
+	 * which jit_regarg_clr cleared again before the next node */
+	jit_regarg_jmpi(n);
+	jit_reglive(n);
+	lightning_lazy_replayed++;
+    }
+    _jitc->lz_pend = upto;
+}
+
+/* Called by the readers of reglive and regarg (jit_get_reg, jit_unget_reg, the fallbacks'
+ * register save and load) while a lazy node is emitted. */
+void
+_jit_emit_sync(jit_state_t *_jit)
+{
+    lightning_get_regs++;
+    _jit_emit_flush(_jit, _jitc->lz_cur);
+    if (!_jitc->lz_args) {
+	_jitc->lz_args = 1;
+	jit_regarg_set(_jitc->lz_cur, _jitc->lz_info);
+    }
+}
+
 void
 _jit_regarg_set(jit_state_t *_jit, jit_node_t *node, jit_int32_t value)
 {
@@ -2352,19 +2645,7 @@ _jit_regarg_set(jit_state_t *_jit, jit_node_t *node, jit_int32_t value)
 	else
 	    jit_regset_setbit(&_jitc->regarg, jit_regno(node->w.w));
     }
-    /* Prevent incorrect detection of running out of registers
-     * if will need to patch jump, and all registers have been
-     * used in the current block. */
-    if (node->code == jit_code_jmpi && (node->flag & jit_flag_node)) {
-	jit_node_t	*label = node->u.n;
-	jit_block_t	*block = _jitc->blocks.ptr + label->v.w;
-	jit_regset_set(&_jitc->reglive, &block->reglive);
-	jit_regset_set(&_jitc->regmask, &block->regmask);
-	if (jit_regset_set_p(&_jitc->explive)) {
-	    jit_regset_ior(&_jitc->reglive, &block->reglive, &_jitc->explive);
-	    jit_regset_xor(&_jitc->regmask, &_jitc->regmask, &_jitc->explive);
-	}
-    }
+    jit_regarg_jmpi(node);
 }
 
 void
@@ -2564,6 +2845,50 @@ _jit_set_data(jit_state_t *_jit, jit_pointer_t ptr,
     _jit->user_data = 1;
 }
 
+/* WiiStation: LIGHTNING_OPT_VERIFY. The code just emitted is emitted again, in the other
+ * liveness mode and then in the first mode again (the control), into the same buffer, and
+ * the bytes are compared. Counters in perf.log "lightning:". Returns the code pointer. */
+unsigned int lightning_verify_blocks, lightning_verify_bad, lightning_verify_control_bad;
+#define emit_verify(code)		_emit_verify(_jit, code)
+static jit_pointer_t
+_emit_verify(jit_state_t *_jit, jit_pointer_t code)
+{
+    jit_node_t		*node;
+    jit_uint8_t		*copy;
+    size_t		 length, pass;
+    jit_pointer_t	 again;
+    jit_uint32_t	 first;
+
+    length = _jit->pc.uc - _jit->code.ptr;
+    first = _jitc->lz_force ? _jitc->lz_force :
+	((lightning_opts & LIGHTNING_OPT_LAZYLIVE) ? 1 : 2);
+    jit_alloc((jit_pointer_t *)&copy, length ? length : 1);
+    memcpy(copy, code, length);
+    lightning_verify_blocks++;
+    for (pass = 0; pass < 2; pass++) {
+	_jitc->patches.offset = 0;
+	for (node = _jitc->head; node; node = node->next) {
+	    if (node->link &&
+		(node->code == jit_code_label ||
+		 node->code == jit_code_epilog))
+		node->flag &= ~jit_flag_patch;
+	}
+	_jit->pc.uc = _jit->code.ptr;
+	_jitc->lz_force = pass == 0 ? 3 - first : first;
+	again = emit_code();
+	if (again == NULL || (size_t)(_jit->pc.uc - _jit->code.ptr) != length ||
+	    memcmp(copy, _jit->code.ptr, length)) {
+	    if (pass == 0)
+		lightning_verify_bad++;
+	    else
+		lightning_verify_control_bad++;
+	}
+    }
+    _jitc->lz_force = first;
+    jit_free((jit_pointer_t *)&copy);
+    return (again ? again : code);
+}
+
 jit_pointer_t
 _jit_emit(jit_state_t *_jit)
 {
@@ -2627,6 +2952,8 @@ _jit_emit(jit_state_t *_jit)
 	    lightning_prof_ticks[2] += LPROF_TB() - lprof_t0;
 	    lightning_prof_emits++;
 	}
+	if (code && (lightning_opts & LIGHTNING_OPT_VERIFY))
+	    code = emit_verify(code);
 	if (code == NULL) {
 	    _jitc->patches.offset = 0;
 	    for (node = _jitc->head; node; node = node->next) {
@@ -2807,10 +3134,25 @@ _jit_setup(jit_state_t *_jit, jit_block_t *block)
     jit_bool_t		 live;
     unsigned long	 value;
 
-    jit_regset_set_mask(&block->regmask, _jitc->reglen);
-    for (value = 0; value < _jitc->reglen; ++value)
-	if (!(jit_class(_rvs[value].spec) & (jit_class_gpr|jit_class_fpr)))
-	    jit_regset_clrbit(&block->regmask, value);
+    if (lightning_opts & LIGHTNING_OPT_SETUPMASK) {
+	/* WiiStation: the same mask for every block of a compile (64 table lookups each) */
+	jit_regset_set(&block->regmask, &_jitc->gprfpr);
+	if (lightning_opts & LIGHTNING_OPT_VERIFY) {
+	    jit_regset_t	 chk;
+	    jit_regset_set_mask(&chk, _jitc->reglen);
+	    for (value = 0; value < _jitc->reglen; ++value)
+		if (!(jit_class(_rvs[value].spec) & (jit_class_gpr|jit_class_fpr)))
+		    jit_regset_clrbit(&chk, value);
+	    if (chk != block->regmask)
+		lightning_verify_opt_bad++;
+	}
+    }
+    else {
+	jit_regset_set_mask(&block->regmask, _jitc->reglen);
+	for (value = 0; value < _jitc->reglen; ++value)
+	    if (!(jit_class(_rvs[value].spec) & (jit_class_gpr|jit_class_fpr)))
+		jit_regset_clrbit(&block->regmask, value);
+    }
 
     for (node = block->label->next; node; node = node->next) {
 	switch (node->code) {
@@ -2944,6 +3286,21 @@ _jit_follow(jit_state_t *_jit, jit_block_t *block)
 		    }
 		}
 	    case jit_code_calli:
+		if (lightning_opts & LIGHTNING_OPT_CALLMASK) {
+		    /* WiiStation: the loop below, with masks (see _jit_call_argp) */
+		    jit_regset_t	 argp, keep, mask0, live0;
+
+		    jit_regset_set(&mask0, &regmask);
+		    jit_regset_set(&live0, &reglive);
+		    jit_call_argp(node, &argp);
+		    jit_regset_and(&keep, &regmask, &argp);
+		    jit_regset_ior(&reglive, &reglive, &keep);
+		    jit_regset_com(&keep, &_jitc->notsav);
+		    jit_regset_and(&regmask, &regmask, &keep);
+		    if (lightning_opts & LIGHTNING_OPT_VERIFY)
+			jit_call_verify(node, mask0, live0, regmask, reglive);
+		    break;
+		}
 		for (value = 0; value < _jitc->reglen; ++value) {
 		    value = jit_regset_scan1(&regmask, value);
 		    if (value >= _jitc->reglen)
@@ -2957,6 +3314,16 @@ _jit_follow(jit_state_t *_jit, jit_block_t *block)
 		break;
 	    default:
 		value = jit_classify(node->code);
+		/* WiiStation: jit_setup took every register this block's nodes name out
+		 * of block->regmask, and this loop only clears bits of its copy, so
+		 * tstbit(regmask, <a register of this node>) is false for all of them and
+		 * the three argument handlers below change nothing. Skip them, unless
+		 * checking (then they run, and a change is counted). */
+		if (!(lightning_opts & LIGHTNING_OPT_FOLLOW) ||
+		    (lightning_opts & LIGHTNING_OPT_VERIFY)) {
+		jit_regset_t	 vmask, vlive;
+		vmask = regmask;
+		vlive = reglive;
 		if (value & jit_cc_a2_reg) {
 		    if (value & jit_cc_a2_rlh) {
 			if (!(node->w.q.l & jit_regno_patch)) {
@@ -3027,6 +3394,10 @@ _jit_follow(jit_state_t *_jit, jit_block_t *block)
 			    }
 			}
 		    }
+		}
+		if ((lightning_opts & LIGHTNING_OPT_FOLLOW) &&
+		    (vmask != regmask || vlive != reglive))
+		    lightning_verify_opt_bad++;
 		}
 		if (value & jit_cc_a0_jmp) {
 		    if (node->flag & jit_flag_node) {
@@ -3121,6 +3492,21 @@ _jit_update(jit_state_t *_jit, jit_node_t *node,
 		    }
 		}
 	    case jit_code_calli:
+		if (lightning_opts & LIGHTNING_OPT_CALLMASK) {
+		    /* WiiStation: the loop below, with masks (see _jit_call_argp) */
+		    jit_regset_t	 argp, keep, mask0, live0;
+
+		    jit_regset_set(&mask0, mask);
+		    jit_regset_set(&live0, live);
+		    jit_call_argp(node, &argp);
+		    jit_regset_and(&keep, mask, &argp);
+		    jit_regset_ior(live, live, &keep);
+		    jit_regset_com(&keep, &_jitc->notsav);
+		    jit_regset_and(mask, mask, &keep);
+		    if (lightning_opts & LIGHTNING_OPT_VERIFY)
+			jit_call_verify(node, mask0, live0, *mask, *live);
+		    break;
+		}
 		for (value = 0; value < _jitc->reglen; ++value) {
 		    value = jit_regset_scan1(mask, value);
 		    if (value >= _jitc->reglen)
