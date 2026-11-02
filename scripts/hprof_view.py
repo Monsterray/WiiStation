@@ -7,7 +7,9 @@ functions with the most samples. One sample is one period (100 us at 729 MHz).
 
 --callers: who called libgcc's 64-bit divide helpers (__udivdi3 and its kin, a libgcc call on
 this 32-bit CPU) in the sampled moments, by function and by source line. They are leaves, so
-LR at such a sample is the caller.
+LR at such a sample is the caller. With an input line "hprofwatch ADDR SIZE" (hex, from
+`powerpc-eabi-nm -S ELF`) the run watches that leaf instead (memset, memcpy) and --callers
+shows its callers.
 
 The ELF must be the one built with the DOL that ran (keep a copy beside the DOL): the
 buckets are addresses.
@@ -84,7 +86,7 @@ def main():
     if a.callers:
         per, _ = by_function(lr)
         n = sum(lr)
-        print(f"{a.profile}: {n} samples in the 64-bit divide helpers, by caller")
+        print(f"{a.profile}: {n} samples in the watched leaf (divide helpers, or the hprofwatch range), by caller")
         for name, c in sorted(per.items(), key=lambda kv: -kv[1])[:a.top]:
             print(f"  {c:8d} {100.0 * c / n:6.2f}%  {name}")
         top = sorted(((c, i) for i, c in enumerate(lr) if c), reverse=True)[:12]

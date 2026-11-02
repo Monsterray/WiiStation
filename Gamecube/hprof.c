@@ -37,6 +37,9 @@
  * profile is of instructions (its cycle estimate), so a window's profile is repeatable.
  * Defined in every build so the input parser links; only an hprof build reads them. */
 unsigned hprof_win_lo[8], hprof_win_hi[8];
+/* "hprofwatch <hex addr> <hex size>" input line: the LR histogram is for a sample in this range
+ * instead of the divide helpers (a leaf function from the ELF: memset, memcpy) */
+unsigned hprof_watch_addr, hprof_watch_size;
 int hprof_win_n;
 
 #if PERF_PROF_HPROF
@@ -262,6 +265,10 @@ void hprof_start(void)
 		if (a[i] > watch_hi) watch_hi = a[i];
 	}
 	watch_hi += 0x400;   /* the last helper's size, about 0x390 */
+	if (hprof_watch_size) {
+		watch_lo = hprof_watch_addr;
+		watch_hi = hprof_watch_addr + hprof_watch_size;
+	}
 #if WS_LIBOGC3
 	hprof_arm_v3();
 #else
