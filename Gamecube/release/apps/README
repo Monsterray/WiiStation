@@ -177,8 +177,9 @@ Next version (not released yet):
 * Screenshots wait a few frames for the whole picture (a first shot could be
   one solid colour), and each shot's log line says how the picture was copied.
 * Fewer hitches when a game runs a lot of new code at once: compiling it is
-  about 13% cheaper on the Wii. New settings.ini keys JitPending, JitFull and JitPick
-  (for testing; the defaults are unchanged).
+  about a third cheaper on the Wii (Ape Escape's scene change: 180 -> 122 ms of
+  waiting), with the same compiled code. New settings.ini keys JitPending, JitFull,
+  JitPick and JitLightning (for testing; the defaults are the fast ones).
 
 Ver 5.19.0 (2026-10-28):
 * Achievements page: the Account row is gone (accounts are in Players), and the

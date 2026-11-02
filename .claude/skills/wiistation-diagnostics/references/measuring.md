@@ -42,7 +42,7 @@ python scripts/hprof_view.py .runs/NAME/hprof_01.bin --elf DOL.elf --callers
   so LR is the caller. Found 2026-10-01: `timeGetTime()` (limiter) and `perf_now_us()` (probes)
   divided a u64 per call; both now multiply by 2^24/60.75.
 - Samples land only with MSR[EE] on. Time in exception handlers shows at the next instruction.
-- `hprof <from> <to>` input lines (up to 8) sample only those vblanks (a slow stretch alone).
+- `hprof <from> <to>` input lines (up to 8) sample only those vblanks (a slow stretch alone). `hprofwatch ADDR SIZE` (hex, `powerpc-eabi-nm -S` of the ELF) makes `hprof_view.py --callers` show the callers of that leaf (memset, memcpy) instead of the divide helpers.
 - **libogc v3: the 0xF00 handler is `hprof_pm_entry` (hprof.c), never tuxedo's
   `PPCExcptDefaultHandler`.** The default handler is the crash path: its "FP spill" `stfiwx`
   takes a nested FPU exception that sets the FPU owner (SPRG3) to NULL, so after every sample
@@ -284,7 +284,9 @@ any number against the table or the log before acting on it.
   frame that first runs it; look at `--around V` before planning to move the compiles.
   Since jitq (the background compiler, `JitDelay`, Docs/BACKENDS.md) the vtl `jit` column is
   the emulator's share only: decoding, compiles it does itself and its waits for the thread
-  (perf.log `jitq: stall_us=`); the thread's work is `thread_us`. Prove that a jitq change
+  (perf.log `jitq: stall_us=`); the thread's work is `thread_us`, and in vtl it shows as
+  `core`. Ape's demo burst on the bench Wii (2026-11-02): vtl said jit 12-18%, `hprof` said
+  compiling was 34% of the CPU. Profile a burst before calling it "not compiling". Prove that a jitq change
   is predictable with two runs of the same build and `--set JitThreadTest=5` on one (the
   thread sleeps 5 ms per compile): `vsig_cmp.py` must say "the same" for every vblank,
   jitb included (replay3 + spyro_tornado, Dolphin 2026-10-19). `JitDelay=0` is the old
