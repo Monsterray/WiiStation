@@ -35,7 +35,7 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from wii_targets import (bench_wii, existing_file, hbc, hbc_ready, card_ls, local_ip_towards,  # noqa: E402
-                        in_hbc, parser, wiiload)
+                        in_hbc, is_production, parser, wiiload, LRWII)
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
 # --send-isos sends game folders from the library (scripts/profile.sh, WSX_LIBRARY), as the Dolphin
@@ -103,9 +103,38 @@ def backup_settings(wii, run):
             sys.exit("could not save the card's settings.ini before the run; not starting")
 
 
+def protect_card(wii, names):
+    """The living-room Wii (a player's card, 2026-11-02): nothing on it is replaced or deleted.
+    The run's settings go in lab_settings.ini (WiiStation reads it instead of settings.ini and
+    the games' own files), every file the run sends must be new, and afterwards only the files
+    the run made are taken off."""
+    sizes = card_ls(wii, "sd:/wiistation")
+    if sizes is None:
+        sys.exit("hbc.py ls sd:/wiistation failed: cannot tell what is the player's; not starting")
+    there = sorted(n for n in names if n in sizes)
+    if there:
+        sys.exit(f"these are already on the card and a run here replaces nothing: {', '.join(there)} "
+                 "(a run that did not finish? look before taking them off by hand)")
+    CARD.update(wii=wii, backup=None, before=set(sizes), ours=set(names))
+
+
 def finish_card():
     """After any run: the user's settings.ini back (or the runner's removed), the run's files off."""
     if not CARD:
+        return
+    if "before" in CARD:   # protect_card: only what the run made goes
+        wii = CARD["wii"]
+        if not hbc_ready(wii, 120):
+            print("the Wii is not in HBC: the run's files are still on the card")
+            return
+        import wii_clean
+        after = card_ls(wii, "sd:/wiistation") or {}
+        new = set(after) - CARD["before"]
+        gone = sorted(n for n in new if n in CARD["ours"] or n in wii_clean.doomed({n: after[n]}))
+        for n in gone:
+            hbc(wii, "rm", f"sd:/wiistation/{n}", timeout=60)
+        left = sorted(new - set(gone))
+        print(f"took off the run's {len(gone)} files" + (f"; new and left alone: {', '.join(left)}" if left else ""))
         return
     wii, backup = CARD["wii"], CARD["backup"]
     if not hbc_ready(wii, 120):
@@ -196,7 +225,16 @@ def main():
     if head.upper() != "CHAIN":
         sys.exit(f"{a.chain}: the first line is {head[:40]!r}, not CHAIN -- "
                  "WiiStation would sit on a blocking message box instead of booting the chain")
-    a.wii = bench_wii("wii_lab.py", a.wii)   # unattended runs and cleanups: the bench Wii, in a queue job
+    a.wii = bench_wii("wii_lab.py", a.wii, allow=(LRWII,))   # the bench Wii, or the living-room one (protect_card)
+    protected = is_production(a.wii)
+    if protected:
+        chain_text = a.chain.read_text(encoding="utf-8", errors="replace")
+        if a.send_isos or a.put or a.smb_from:
+            sys.exit("--send-isos, --put and --smb-from write into a player's card: not on the living-room Wii")
+        if re.search(r"(^|[\s,])Achievement[A-Za-z]*\s*=", chain_text + "," + a.set):
+            sys.exit("achievement settings in a run on the living-room Wii: its Miis have real accounts; refused")
+        if b"lab_settings.ini" not in dol.read_bytes():
+            sys.exit(f"{dol.name} is older than lab_settings.ini (2026-11-02): it would read the player's settings.ini")
 
     global RUN_DIR
     run = REPO / ".runs" / a.name
@@ -214,7 +252,10 @@ def main():
         share = "".join(l if l.endswith("\n") else l + "\n"
                         for l in a.smb_from.read_text(encoding="utf-8").splitlines(True)
                         if re.match(r"\s*(smb[A-Za-z]+|RomDir[A-Za-z]+)\s*=", l))
-    puts = [("autoboot.txt", a.chain.read_bytes()), ("settings.ini", (settings + share).encode()),
+    if protected:   # no achievement can sign in or be sent, whatever the player's Miis are linked to
+        settings += "Achievements = 0\nAchievementSpectator = 1\n"
+    puts = [("autoboot.txt", a.chain.read_bytes()),
+            ("lab_settings.ini" if protected else "settings.ini", (settings + share).encode()),
             ("autoinput.txt", b"")]
     for f in scripts:
         p = REPO / "scripts/autoinput" / f
@@ -243,7 +284,10 @@ def main():
 
     if not hbc_ready(a.wii, 60):
         sys.exit(f"no Homebrew Channel at {a.wii}:4299 (is the Wii on, in HBC, on the network?)")
-    backup_settings(a.wii, run)
+    if protected:
+        protect_card(a.wii, [p for p, _ in puts])
+    else:
+        backup_settings(a.wii, run)
     host = local_ip_towards(a.wii)
     srv = socket.create_server(("0.0.0.0", a.port))
     srv.settimeout(120)

@@ -143,7 +143,7 @@ def queue_cmd(args, timeout=None):
     return f"{PY} {QUEUE} add --cwd {REPO.as_posix()}{t} -- {PY} scripts/{args}"
 
 
-def bench_wii(what, ip=None):
+def bench_wii(what, ip=None, allow=()):
     """The bench Wii's address for a job the wii-bench queue started ($WII_BENCH_IP; an explicit
     ip only for a second bench Wii). Outside a queue job it exits without touching any Wii: the
     queue is what keeps two workstations, or two agents, off the Wii at the same time."""
@@ -152,7 +152,8 @@ def bench_wii(what, ip=None):
                  f"  {queue_cmd(what + ' ...')}\n"
                  f"then: {PY} {QUEUE} wait ID")
     ip = ip or os.environ.get("WII_BENCH_IP") or BENCH_WII
-    refuse_production(ip, what)
+    if not any(_same(ip, p) for p in allow):   # allow: a protected Wii this tool has a safe mode for
+        refuse_production(ip, what)
     return ip
 
 

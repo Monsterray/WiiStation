@@ -641,12 +641,25 @@ static void settingsPut(const SettingValues* v)
 	}
 }
 
+/* A lab run on a Wii someone plays (scripts/wii_lab.py on the living-room Wii) brings its
+ * settings as lab_settings.ini: then that file over the defaults is all there is, and the
+ * player's settings.ini and the games' own files are not read (nor written: the lab never
+ * saves settings). The bench Wii's runs replace settings.ini instead, as before. */
+#define LAB_SETTINGS "sd:/wiistation/lab_settings.ini"
+static bool labSettings(void)
+{
+	struct stat s;
+	return lab_active() && !stat(LAB_SETTINGS, &s);
+}
+
 /* The global layer: the defaults, then settings.ini, USB before SD. A game's own file goes on
  * top of it (loadGameSettings), and This Game saves only what differs from it. */
 static void loadGlobalSettings(void)
 {
 	settingsPut(&settingDefaults);
-	if (!loadSeparatelySettingItem("usb:/wiistation/settings.ini"))
+	if (labSettings())
+		loadSeparatelySettingItem(LAB_SETTINGS);
+	else if (!loadSeparatelySettingItem("usb:/wiistation/settings.ini"))
 		loadSeparatelySettingItem("sd:/wiistation/settings.ini");
 	readPlayers();
 }
@@ -662,6 +675,8 @@ static const char* gameSettingsFile(void)
 		"sd:/wiistation/settings/%s.ini", "sd:/wiistation/settings/%s.cfg" };
 	static char path[64];
 	struct stat s;
+	if (labSettings())
+		return NULL;
 	for (unsigned i = 0; CdromId[0] && i < sizeof where / sizeof *where; i++) {
 		snprintf(path, sizeof path, where[i], CdromId);
 		if (!stat(path, &s))
@@ -1383,8 +1398,11 @@ int main(int argc, char *argv[])
 		}
 		/* loadSettings() above read the last run's settings.ini; this run's came with the
 		 * files. Games read it again when they load, but what is decided before that -- the
-		 * share (init_network_thread below) -- needs it now. */
-		FILE *lf = fopen("sd:/wiistation/settings.ini", "r");
+		 * share (init_network_thread below) -- needs it now. lab_settings.ini replaces
+		 * the player's settings, not adds to them. */
+		FILE *lf = fopen(labSettings() ? LAB_SETTINGS : "sd:/wiistation/settings.ini", "r");
+		if (lf && labSettings())
+			settingsPut(&settingDefaults);
 		if (lf) {
 			readConfig(lf);
 			fclose(lf);
