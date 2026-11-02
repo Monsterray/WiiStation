@@ -143,7 +143,7 @@ char soundXaResampler;      // dfsound/xa.c: real hardware zigzag FIR vs the leg
 char soundRateControl;      // dfsound/ratectl.c: nudge the output rate from the queue's occupancy
 char soundResampler;        // read by dfsound/resample.c on every block it converts
 char gpuTiming, cpuTiming, limiterWait, limiterDebt, sioTiming;
-char jitDelay, jitQueueAt, jitThreadTest, jitPending, jitPick, jitFull;
+char jitDelay, jitQueueAt, jitThreadTest, jitPending, jitPick, jitFull, jitLightning;
 char cpuSpeed;   /* CpuSpeed: r3000a.c psxCycleMult */
 char frameRateMode;   /* FrameRate: 0 Auto, 1 TV, 2 PS1, 3 Unlimited (no frame limit). psxcounters.c, oldGpuFps.c */
 char cdBuffer, cdPrefetch, cdChdHunks;   // read by cdriso.c when an image is opened
@@ -338,6 +338,7 @@ static SettingOption OPTIONS[] =
   { "JitPending", &jitPending, 1, 127 },
   { "JitPick", &jitPick, 0, 1 },
   { "JitFull", &jitFull, 0, 1 },
+  { "JitLightning", &jitLightning, 0, 127 },   /* test only: bit per GNU Lightning speed-up (deps/lightning LIGHTNING_OPT_*), 0x40 = verify */
   { "LimiterDebt", &limiterDebt, LIMITER_DEBT_SHORT, LIMITER_DEBT_LONG },
   /* The locked cache: one bit per region in Gamecube/lc.c's table, 0 = all off. Not in the
    * menu -- it is for measuring, and a chained autoboot can set it per game. */
@@ -774,6 +775,7 @@ void loadSettings(int argc, char *argv[])
 	jitPending       = 12;  /* x64 compiles that may wait for their install (768) */
 	jitPick          = 0;
 	jitFull          = 0;
+	jitLightning     = 63;  /* all of deps/lightning's guest-identical speed-ups */
 	limiterWait      = LIMITER_WAIT_SLEEP; /* bench Wii 2026-09-30: same speed, 54% of the time to other threads */
 	limiterDebt      = LIMITER_DEBT_LONG;  /* chains/limiter_debt_ab.txt: speed 1.000 vs 0.995, sound queue fuller, no rate saturation */
 	cdChdHunks       = CD_CHD_HUNKS_8;

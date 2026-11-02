@@ -1313,6 +1313,14 @@ void perf_report(void)
 				(unsigned long long)ticks_to_microsecs(lightning_prof_ticks[2]),
 				lightning_prof_emits);
 		}
+		{   /* the lazy emit-time liveness and the self-check (deps/lightning/lib/lightning.c) */
+			extern unsigned int lightning_opts, lightning_emit_nodes, lightning_lazy_replayed,
+				lightning_get_regs, lightning_verify_blocks, lightning_verify_bad,
+				lightning_verify_control_bad, lightning_verify_opt_bad;
+			fprintf(f, "lightning2: opts=%u emit_nodes=%u lazy_replayed=%u syncs=%u verify=%u bad=%u control_bad=%u opt_bad=%u\n",
+				lightning_opts, lightning_emit_nodes, lightning_lazy_replayed, lightning_get_regs,
+				lightning_verify_blocks, lightning_verify_bad, lightning_verify_control_bad, lightning_verify_opt_bad);
+		}
 		/* LimiterWait=1 (SoftGPU/oldGpuFps.c): how the sleeping wait behaved */
 		fprintf(f, "limitwait: sleeps=%lu sleep_us=%llu over_max_us=%llu overs=%lu\n",
 			(unsigned long)g_perf.limit_sleeps,

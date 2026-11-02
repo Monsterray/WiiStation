@@ -681,6 +681,8 @@ static int lightrec_plugin_init(void)
 		extern unsigned int lightrec_jitq_delay, lightrec_jitq_queue_at,
 			lightrec_jitq_test_sleep_us, lightrec_jitq_max_pending, lightrec_jitq_pick,
 			lightrec_jitq_defer;
+		extern unsigned int lightning_opts;
+		lightning_opts = (unsigned int)jitLightning;
 		lightrec_jitq_max_pending = jitPending * 64;
 		lightrec_jitq_pick = jitPick;
 		lightrec_jitq_defer = jitFull;

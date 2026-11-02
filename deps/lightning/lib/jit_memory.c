@@ -87,6 +87,12 @@ jit_alloc(jit_pointer_t *ptr, jit_word_t size)
 }
 
 void
+jit_alloc_nz(jit_pointer_t *ptr, jit_word_t size)
+{
+    *ptr = (*jit_alloc_ptr)(size);
+}
+
+void
 jit_realloc(jit_pointer_t *ptr, jit_word_t old_size, jit_word_t new_size)
 {
     *ptr = (*jit_realloc_ptr)(*ptr, new_size);
