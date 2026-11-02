@@ -1,0 +1,4 @@
+# Ape title demo: perf reports around the scene-change compile burst (Dolphin: vblank 9631)
+report 9620
+report 9650
+report 9750

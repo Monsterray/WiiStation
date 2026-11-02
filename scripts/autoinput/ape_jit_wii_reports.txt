@@ -1,0 +1,4 @@
+# Ape title demo on the Wii: perf reports around the scene-change compile burst (vblank 8773)
+report 8740
+report 8800
+report 8950

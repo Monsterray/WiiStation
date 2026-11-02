@@ -1265,16 +1265,17 @@ void perf_report(void)
 			extern unsigned int lightrec_jitq_delay, lightrec_jitq_queue_at;
 			extern unsigned int lightrec_jitq_queued, lightrec_jitq_installed, lightrec_jitq_stalls,
 				lightrec_jitq_cancels, lightrec_jitq_errs, lightrec_jitq_stale, lightrec_jitq_full,
-				lightrec_jitq_pend_peak, lightrec_jitq_realfull, lightrec_code_fits;
-			extern unsigned long long lightrec_jitq_stall_ticks, lightrec_jitq_thread_ticks;
+				lightrec_jitq_pend_peak, lightrec_jitq_realfull, lightrec_code_fits, lightrec_jitq_cnow;
+			extern unsigned long long lightrec_jitq_stall_ticks, lightrec_jitq_thread_ticks, lightrec_jitq_cnow_ticks;
 			fprintf(f, "jitq: delay=%u queue_at=%u queued=%u installed=%u stalls=%u stall_us=%llu "
-				"thread_us=%llu cancels=%u errs=%u stale=%u full=%u pend_peak=%u realfull=%u fits=%u\n",
+				"thread_us=%llu cancels=%u errs=%u stale=%u full=%u pend_peak=%u realfull=%u fits=%u cnow=%u cnow_us=%llu\n",
 				lightrec_jitq_delay, lightrec_jitq_queue_at, lightrec_jitq_queued,
 				lightrec_jitq_installed, lightrec_jitq_stalls,
 				(unsigned long long)ticks_to_microsecs(lightrec_jitq_stall_ticks),
 				(unsigned long long)ticks_to_microsecs(lightrec_jitq_thread_ticks),
 				lightrec_jitq_cancels, lightrec_jitq_errs, lightrec_jitq_stale, lightrec_jitq_full,
-				lightrec_jitq_pend_peak, lightrec_jitq_realfull, lightrec_code_fits);
+				lightrec_jitq_pend_peak, lightrec_jitq_realfull, lightrec_code_fits,
+				lightrec_jitq_cnow, (unsigned long long)ticks_to_microsecs(lightrec_jitq_cnow_ticks));
 		}
 		{   /* the code buffer when the last clean began (deps/lightrec/lightrec.c) */
 			extern unsigned int lightrec_full_free, lightrec_full_pieces, lightrec_full_largest,
@@ -1428,9 +1429,11 @@ void perf_report(void)
 				lightrec_get_mem_usage(1) >> 10, lightrec_get_mem_usage(2) >> 10, lightrec_get_mem_usage(3) >> 10,
 				(unsigned)(mi.uordblks >> 10), (unsigned)(mi.arena >> 10));
 			{	/* Lightrec's bounded memory (deps/lightrec/lightrec.c LIGHTREC_DYN_MAX, in MEM2) */
-				extern unsigned int lightrec_mem_cleans, lightrec_dyn_peak, lightrec_dyn_usage(void), lr_pool_fallbacks;
-				fprintf(f, "lrmem: dyn_kb=%u peak_kb=%u of %u cleans=%u fallbacks=%u\n", lightrec_dyn_usage() >> 10,
-					lightrec_dyn_peak >> 10, 3072u, lightrec_mem_cleans, lr_pool_fallbacks);
+				extern unsigned int lightrec_mem_cleans, lightrec_dyn_peak, lightrec_dyn_usage(void), lr_pool_fallbacks, lr_pool_calls;
+				extern unsigned long long lr_pool_ticks;
+				fprintf(f, "lrmem: dyn_kb=%u peak_kb=%u of %u cleans=%u fallbacks=%u pool_calls=%u pool_us=%llu\n", lightrec_dyn_usage() >> 10,
+					lightrec_dyn_peak >> 10, 3072u, lightrec_mem_cleans, lr_pool_fallbacks, lr_pool_calls,
+					(unsigned long long)ticks_to_microsecs(lr_pool_ticks));
 			}
 		}
 		{

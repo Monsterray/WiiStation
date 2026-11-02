@@ -1736,7 +1736,7 @@ static int lightrec_early_unload(struct lightrec_state *state, struct block *blo
 	u16 i, offset;
 	struct opcode *op;
 	s16 last_r[34], last_w[34], last_sync = 0, next_sync = 0;
-	u64 mask_r, mask_w, dirty = 0, loaded = 0;
+	u64 mask_r, mask_w, mask_rw, dirty = 0, loaded = 0;
 	u8 reg, load_delay_reg = 0;
 
 	memset(last_r, 0xff, sizeof(last_r));
@@ -1795,7 +1795,14 @@ static int lightrec_early_unload(struct lightrec_state *state, struct block *blo
 			mask_w &= ~BIT(op->c.i.rt);
 		}
 
-		for (reg = 0; reg < 34; reg++) {
+		/* WiiStation: only the registers this opcode reads or writes can change
+		 * anything below (every test is on mask_r or mask_w): visit those, in the same
+		 * ascending order, not all 34 with 64-bit shifts (hprof: this was 7% of a compile
+		 * burst on the Wii's CPU). The output is the same. */
+		for (mask_rw = (mask_r | mask_w) & (BIT(34) - 1); mask_rw; mask_rw &= mask_rw - 1) {
+			reg = (u32)mask_rw ? (u8)__builtin_ctz((u32)mask_rw)
+					   : (u8)(32 + __builtin_ctz((u32)(mask_rw >> 32)));
+
 			if (mask_r & BIT(reg)) {
 				if (dirty & BIT(reg) && last_w[reg] < last_sync) {
 					/* The register is dirty, and is read

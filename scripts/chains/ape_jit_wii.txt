@@ -1,0 +1,14 @@
+CHAIN
+# Ape Escape title demo on the bench Wii: A/B of the jitq queue settings across the first-run compile burst at vblank 8773 (2026-11-02). FrameRate=0 would show the cost as speed; here the TV rate shows the hitch
+9000 sd:/wiistation/ape_jit_wii_reports.txt PadAutoAssign=1 ControllerType=1 gpuPlugin=2 GxTexMin=3 ScreenMode=2 DeflickerFilter=1 GpuTiming=1 FrameRate=1 
+sd:/wiistation/isos/Ape Escape
+Ape Escape [U] [SCUS-94423].cue
+9000 sd:/wiistation/ape_jit_wii_reports.txt PadAutoAssign=1 ControllerType=1 gpuPlugin=2 GxTexMin=3 ScreenMode=2 DeflickerFilter=1 GpuTiming=1 FrameRate=1 JitPending=48
+sd:/wiistation/isos/Ape Escape
+Ape Escape [U] [SCUS-94423].cue
+9000 sd:/wiistation/ape_jit_wii_reports.txt PadAutoAssign=1 ControllerType=1 gpuPlugin=2 GxTexMin=3 ScreenMode=2 DeflickerFilter=1 GpuTiming=1 FrameRate=1 JitPending=48 JitFull=1
+sd:/wiistation/isos/Ape Escape
+Ape Escape [U] [SCUS-94423].cue
+9000 sd:/wiistation/ape_jit_wii_reports.txt PadAutoAssign=1 ControllerType=1 gpuPlugin=2 GxTexMin=3 ScreenMode=2 DeflickerFilter=1 GpuTiming=1 FrameRate=1 
+sd:/wiistation/isos/Ape Escape
+Ape Escape [U] [SCUS-94423].cue

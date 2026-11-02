@@ -46,14 +46,27 @@ static int lr_in_pool(const void *p)
 	return lr_pool_mem && (const char *)p >= lr_pool_mem && (const char *)p < lr_pool_mem + LR_POOL;
 }
 
+/* perf.log "lrmem:" alloc=: calls to the pool and the time in them (debug builds) */
+unsigned int lr_pool_calls;
+unsigned long long lr_pool_ticks;
+#ifdef PERF_PROF
+#define LR_POOL_T0()	unsigned long long lr_t0 = __builtin_ppc_get_timebase()
+#define LR_POOL_T1()	(lr_pool_calls++, lr_pool_ticks += __builtin_ppc_get_timebase() - lr_t0)
+#else
+#define LR_POOL_T0()
+#define LR_POOL_T1()
+#endif
+
 static void *lr_pool_alloc(size_t len)
 {
 	void *p = NULL;
 	u32 level;
+	LR_POOL_T0();
 	_CPU_ISR_Disable(level);
 	if (lr_pool)
 		p = tlsf_malloc(lr_pool, len);
 	_CPU_ISR_Restore(level);
+	LR_POOL_T1();
 	if (!p && (p = _mem2_malloc(len)))
 		lr_pool_fallbacks++;
 	return p;
@@ -68,9 +81,13 @@ void lightrec_host_free(void *ptr)
 		_mem2_free(ptr);
 		return;
 	}
-	_CPU_ISR_Disable(level);
-	tlsf_free(lr_pool, ptr);
-	_CPU_ISR_Restore(level);
+	{
+		LR_POOL_T0();
+		_CPU_ISR_Disable(level);
+		tlsf_free(lr_pool, ptr);
+		_CPU_ISR_Restore(level);
+		LR_POOL_T1();
+	}
 }
 
 void *lightrec_host_malloc(size_t len) { return lr_pool_alloc(len); }
@@ -662,7 +679,11 @@ static int lightrec_plugin_init(void)
 
 	{	/* the background compiler (deps/lightrec/lightrec.c jitq), read at init */
 		extern unsigned int lightrec_jitq_delay, lightrec_jitq_queue_at,
-			lightrec_jitq_test_sleep_us;
+			lightrec_jitq_test_sleep_us, lightrec_jitq_max_pending, lightrec_jitq_pick,
+			lightrec_jitq_defer;
+		lightrec_jitq_max_pending = jitPending * 64;
+		lightrec_jitq_pick = jitPick;
+		lightrec_jitq_defer = jitFull;
 		lightrec_jitq_delay = jitDelay;
 		lightrec_jitq_queue_at = jitQueueAt;
 		lightrec_jitq_test_sleep_us = jitThreadTest * 1000;

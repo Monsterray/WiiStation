@@ -165,6 +165,7 @@ enum cpuTiming
 };
 extern char jitDelay;            /* deps/lightrec jitq: visits before compiled code runs, 0 = compile at once */
 extern char jitQueueAt;
+extern char jitPending, jitPick, jitFull;     /* deps/lightrec jitq: compiles allowed to wait, in 64s; the order the thread takes them in */
 extern char jitThreadTest;       /* test only: the jitq thread sleeps this many ms before each compile */          /* deps/lightrec jitq: interpreted visits before the compile is queued */
 extern char limiterWait;         /* how the frame limiter waits (SoftGPU/oldGpuFps.c FrameCap) */
 enum limiterWait
