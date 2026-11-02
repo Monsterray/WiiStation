@@ -164,6 +164,12 @@ Next version (not released yet):
   choice still wins, and digital-only games stay digital. New settings.ini key
   AnalogAuto: 0 = as the real pad, 1 = this (the default), 2 = every game starts
   in analog mode.
+* Far Textures Aniso 2x / 4x no longer draw coloured dashes on far ground on the Wii
+  (Ape Escape's grass at the horizon): the farthest ground keeps the Linear filter.
+* Official achievements: a disc RetroAchievements does not know (another release,
+  or a changed image) now says so on the screen when the game starts, instead of
+  only "No set for this disc" in the menus.
+* Ape Escape: no narrow picture strip in the black before the lab turns on.
 
 Ver 5.19.0 (2026-10-28):
 * Achievements page: the Account row is gone (accounts are in Players), and the

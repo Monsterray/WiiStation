@@ -966,6 +966,17 @@ static void game_loaded_cb(int result, const char *error, rc_client_t *c, void *
 		snprintf(state, sizeof state, "No set for this disc");
 		if (local_mode && !offline) local_retry = 1;   /* the card's copy, if there is one (local_pending) */
 		else if (local_mode) local_fail("No set for this disc");
+		else if (result == RC_NO_GAME_LOADED && achievements_notify) {
+			/* RetroAchievements answered and knows no game by this disc's hash: another release
+			 * or a changed image (Gex 3 SLUS-00806 here: a2812183..., while RA has a set for
+			 * the game). Said on the screen, or the player waits for achievements that never come. */
+			achievement_notice_t n;
+			memset(&n, 0, sizeof n);
+			n.kind = ACH_NOTICE_WARNING;
+			n.title = "No achievements for this disc";
+			n.desc = "RetroAchievements does not know this version";
+			achievements_notify(&n);
+		}
 		return;
 	}
 	game_loaded = 1;
