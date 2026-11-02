@@ -8,7 +8,9 @@
  *  - The Screenshot button on the Current ROM page calls screenshot_save() from the menu.
  *    The emulator is stopped there, and VRAM still holds the last picture drawn.
  *  - A button combination in a game only sets a request (screenshot_poll). The next vblank
- *    serves it (screenshot_vblank), when VRAM holds the picture on screen.
+ *    serves it (screenshot_vblank), when VRAM holds the picture on screen. With OpenGX it
+ *    waits (up to SHOT_WAIT_VBLANKS) while the renderer cannot yet copy all of the picture
+ *    into VRAM: without that the file is the game's fill (one colour).
  *
  * Each save pauses the emulator while it compresses and writes the file. The pixels and the
  * compressed copy share one temporary buffer in MEM2.
@@ -36,16 +38,48 @@ extern char CdromId[10];
 extern unsigned int frame_counter;   /* psxcounters.c: +1 per vblank -- the screenshot's place in a recording */
 extern char gpuPlugin;           /* GamecubeMain.cpp: the renderer the settings chose */
 int gpu_screenshot_sync(int x, int y, int w, int h);   /* GlesGpu/gpuPlugin.c */
+void gpu_screenshot_stats(int out[4]);   /* GlesGpu/gpuPlugin.c: what that sync found */
 void PSX_display_rect(int *x, int *y, int *w, int *h, int *rgb24);   /* gpulib/oldGpu.c */
 
 /* Set by a button combination, cleared when the next vblank saves the picture. */
 static volatile int shot_due;
+static int shot_waited, shot_waited_last;   /* vblanks a request has waited for the picture to be complete */
+static int shot_peeked, shot_peek[4];   /* the sync it made at the first of them (gpu_screenshot_stats) */
+#define SHOT_WAIT_VBLANKS 6
 
 /* A 5-bit colour channel as 8 bits. The top bits fill the bottom, so 31 is 255. */
 static unsigned char c5(unsigned v)
 {
 	v &= 31;
 	return (unsigned char)((v << 3) | (v >> 2));
+}
+
+/* The share, in percent, of the picture that one colour fills (a sample of the pixels): a
+ * picture that is nearly all one colour is what the log line must say, since a screenshot the
+ * renderer could not sync is the game's fill and nothing else. */
+static unsigned shot_flat_share(const unsigned char *raw, unsigned w, unsigned h, unsigned long *color)
+{
+	unsigned long c[8];
+	unsigned n[8], x, y, k, total = 0, best = 0;
+
+	memset(n, 0, sizeof n);
+	memset(c, 0, sizeof c);
+	for (y = 0; y < h; y += 3)
+		for (x = 0; x < w; x += 5) {
+			const unsigned char *p = raw + (unsigned long)y * (1 + 3 * w) + 1 + 3 * x;
+			unsigned long v = ((unsigned long)p[0] << 16) | ((unsigned long)p[1] << 8) | p[2];
+
+			total++;
+			for (k = 0; k < 8; k++)
+				if (n[k] && c[k] == v) { n[k]++; break; }
+			if (k == 8)
+				for (k = 0; k < 8; k++)
+					if (!n[k]) { c[k] = v; n[k] = 1; break; }
+		}
+	for (k = 0; k < 8; k++)
+		if (n[k] > n[best]) best = k;
+	*color = c[best];
+	return total ? 100 * n[best] / total : 0;
 }
 
 /* Writes the displayed picture as PNG scanlines: a filter byte, then RGB per pixel.
@@ -205,7 +239,9 @@ int screenshot_save(char *name, unsigned size)
 	char file[40], path[96];
 	const char *id;
 	FILE *f;
-	int ok = 0;
+	int ok = 0, sync[4] = { 0, 0, 0, 0 };
+	unsigned flat = 0, waited = shot_waited_last;
+	unsigned long flatcol = 0;
 	u64 t0 = gettime();
 
 	if (!psxVuw)
@@ -218,9 +254,16 @@ int screenshot_save(char *name, unsigned size)
 		return -1;
 	raw = buf;
 	out = buf + rawlen;
-	if (gpuPlugin == OPEN_GX)   /* OpenGX keeps its newest pixels in the EFB until a read */
+	if (shot_peeked) {   /* screenshot_vblank synced already: its numbers are the real ones */
+		memcpy(sync, shot_peek, sizeof sync);
+	} else if (gpuPlugin == OPEN_GX) {   /* OpenGX keeps its newest pixels in the EFB until a read */
 		gpu_screenshot_sync(sx, sy, rgb24 ? (3 * w + 1) / 2 + 1 : w, h);
+		gpu_screenshot_stats(sync);
+	}
+	shot_peeked = 0;
+	shot_waited_last = 0;
 	shot_rows(raw, w, h, sx, sy, rgb24);
+	flat = shot_flat_share(raw, w, h, &flatcol);
 	if (compress2(out, &outlen, raw, rawlen, Z_BEST_SPEED) != Z_OK)
 		goto done;
 
@@ -268,6 +311,10 @@ done:
 			fprintf(lf, "screenshot: %s %s %ux%u at %u,%u %llu ms vbl=%u\n", ok ? "saved" : "FAILED",
 			        ok ? file : "-", w, h, sx, sy,
 			        (unsigned long long)ticks_to_millisecs(diff_ticks(t0, gettime())), frame_counter);
+			/* what the picture came from (OpenGX: tiles the renderer had drawn and not yet copied
+			 * into VRAM, tiles it could not copy, whether it keeps snapshots) and how flat it is: a
+			 * screenshot that is one colour with stale=0 or missed>0 was not synced */
+			fprintf(lf, "screenshot: sync tiles=%d stale=%d missed=%d hist=%d waited=%u flat=%u%% color=%06lx\n", sync[0], sync[1], sync[2], sync[3], waited, flat, flatcol);
 			perf_log_close(lf);
 		}
 	}
@@ -296,6 +343,27 @@ void screenshot_vblank(void)
 {
 	if (!shot_due)
 		return;
+	/* OpenGX: if the renderer could not copy some of the picture into VRAM (no snapshot of
+	 * what it drew there), the file would show the game's fill where the picture is. The game
+	 * draws again within a few frames and the renderer then keeps what it draws: wait for that,
+	 * a few vblanks at most. */
+	if (gpuPlugin == OPEN_GX && psxVuw && shot_waited < SHOT_WAIT_VBLANKS) {
+		unsigned sx, sy, w, h;
+		int rgb24, st[4];
+
+		shot_geometry(&sx, &sy, &w, &h, &rgb24);
+		gpu_screenshot_sync(sx, sy, rgb24 ? (3 * w + 1) / 2 + 1 : w, h);
+		gpu_screenshot_stats(st);
+		if (!shot_waited)
+			memcpy(shot_peek, st, sizeof shot_peek);   /* the first look is what the log line shows */
+		shot_peeked = 1;
+		if (st[2] > 0) {
+			shot_waited++;
+			return;
+		}
+	}
+	shot_waited_last = shot_waited;
+	shot_waited = 0;
 	shot_due = 0;
 	screenshot_save(NULL, 0);
 }

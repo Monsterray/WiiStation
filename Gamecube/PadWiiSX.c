@@ -150,8 +150,8 @@ static struct { unsigned vbl; int x, y; } autoin_irfake[AUTOIN_IRFAKES];
 static int autoin_irfake_n;
 /* "gcpress <vblank> <hex>": GameCube pad 1's driver (controller-GC.c) reads these raw buttons
  * (libogc PAD_BUTTON_* / PAD_TRIGGER_*: 1060 = L+R+Start) on top of the pad for 10 vblanks
- * from then, so a run can press a host combination: the ANALOG button, the screenshot. Up to 8. */
-#define AUTOIN_GCPRESSES 8
+ * from then, so a run can press a host combination: the ANALOG button, the screenshot. Up to 64. */
+#define AUTOIN_GCPRESSES 64
 static struct { unsigned vbl, mask; } autoin_gcpress[AUTOIN_GCPRESSES];
 static int autoin_gcpress_n;
 /* "ramwatch LO HI" and "ramcell ADDR" (hex, up to 8 cells): who writes that guest RAM

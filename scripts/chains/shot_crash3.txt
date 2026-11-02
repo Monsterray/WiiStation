@@ -1,0 +1,4 @@
+CHAIN
+5200 sd:/wiistation/shot_crash3.txt PadAutoAssign=1 ControllerType=0 PadType2=1 gpuPlugin=2 GxTexMin=3 ScreenMode=2
+sd:/wiistation/isos/Crash Bandicoot 3 - Warped
+Crash Bandicoot 3 - Warped [U] [SLUS-94244].cue
