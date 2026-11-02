@@ -39,6 +39,9 @@ const int EDIT_X = 592, EDIT_Y = STRIP_Y + (STRIP_DY + COIN) / 2, EDIT_R = COIN 
 const int BAND_Y = 56, BAND_H = 206;
 const GXColor DARK = {62, 62, 62, 255}, MID = {90, 90, 90, 255}, WHITE = {255, 255, 255, 255};
 const GXColor RED = {184, 49, 47, 255}, GOLD = {255, 210, 58, 255};
+/* the bottom of the page is the dark end of the background (63 to 100 of 255 on the left): DARK text there
+ * was as dark as the picture, and the hints vanished along it */
+const GXColor PALE = {236, 236, 236, 255};
 
 struct Rect { int x, y, w, h; bool in(int px, int py) const { return px >= x && px < x + w && py >= y && py < y + h; } };
 
@@ -81,10 +84,15 @@ void textMid(int x, int y, const char *s, float scale, GXColor c, int maxw = 0)
 	font.drawString(x + (int)(5 * scale + 0.5f), y + (int)(6 * scale), (char *)s, scale, true);
 }
 
-/* A round well for a coin of radius r: shadowed at the top, lit at the bottom lip. */
+/* A round well for a coin of radius r: shadowed at the top, lit at the bottom lip. The lip is the
+ * lower part of a disc one step below the well, cut below the well's middle (a lip that thins out to nothing at the sides is a few lone pixels): drawn whole, its
+ * rim came within a pixel of the well's own at the top, and pixels of it showed through there
+ * as specks (the rim of a 48-sided disc is not the same pixels for two discs). */
 void slot(menu::Graphics &gfx, int x, int y, int r)
 {
-	ring(gfx, x, y + 1, 0, r + 3, (GXColor){196, 196, 196, 255});
+	gfx.enableScissor(x - r - 6 > 0 ? x - r - 6 : 0, y + r / 2, 2 * r + 12, r + 8);
+	ring(gfx, x, y + 2, 0, r + 2, (GXColor){196, 196, 196, 255});
+	gfx.disableScissor();
 	ring(gfx, x, y, 0, r + 2, (GXColor){118, 118, 118, 255});
 	ring(gfx, x, y + 1, 0, r, (GXColor){146, 146, 146, 255});
 }
@@ -172,7 +180,7 @@ void Func_ReturnFromPlayers()
 class PlayersBoard : public menu::Component
 {
 public:
-	PlayersBoard() { setType(TYPE_OTHER); memset(img, 0, sizeof img); memset(serial, 0, sizeof serial); reset(); }
+	PlayersBoard() { setType(TYPE_OTHER); memset(img, 0, sizeof img); memset(serial, 0, sizeof serial); memset(imgSrc, 0, sizeof imgSrc); reset(); }
 	~PlayersBoard() { for (int i = 0; i < PLAYERS_MAX; i++) delete img[i]; }
 	void reset() { page = 0; focus = 0; onCards = false; onEdit = false; card = 0; held = -1; dragging = false; pointer = false; coop = -1; checked = false; editKey[0] = 0; editRow = 0; }
 	void drawComponent(menu::Graphics &gfx);
@@ -181,6 +189,7 @@ public:
 private:
 	menu::Image *img[PLAYERS_MAX];
 	unsigned serial[PLAYERS_MAX];
+	const void *imgSrc[PLAYERS_MAX];   /* the coin pixels each img was made from: the Miis' order changes (players_sort) */
 	int page, focus, card, held;     /* held: the Mii picked up (pad, or a pointer click), -1 none */
 	int coop;                        /* the port whose Co-Op players are shown, -1 the ports */
 	bool onCards, onEdit, dragging, pointer;
@@ -320,10 +329,11 @@ void PlayersBoard::drawCoin(menu::Graphics &gfx, int i, int x, int y, int size, 
 	const player_mii *m = players_get(i);
 	if (!m || !m->coin)
 		return;
-	if (!img[i] || serial[i] != m->coin_serial) {
+	if (!img[i] || imgSrc[i] != m->coin || serial[i] != m->coin_serial) {   /* i is a place in the order, not a Mii */
 		delete img[i];
 		img[i] = new menu::Image(m->coin, PLAYERS_COIN, PLAYERS_COIN, GX_TF_RGBA8, GX_CLAMP, GX_CLAMP, GX_FALSE);
 		serial[i] = m->coin_serial;
+		imgSrc[i] = m->coin;
 		GX_InvalidateTexAll();
 	}
 	gfx.setColor((GXColor){255, 255, 255, alpha});
@@ -496,7 +506,7 @@ void PlayersBoard::drawEdit(menu::Graphics &gfx)
 	if (!linked || !plays)
 		text(EDIT_OFFICIAL.x + EDIT_OFFICIAL.w + 14, EDIT_OFFICIAL.y + 11, !linked ? "Link an account first" : "Seat this Mii first", 0.5f, MID, 150);
 
-	text(20, 448, pointer ? "Click a setting   B: back to Players" : "A: change   Up/Down: choose   B: back to Players", 0.5f, DARK, 600);
+	text(20, 448, pointer ? "Click a setting   B: back to Players" : "A: change   Up/Down: choose   B: back to Players", 0.5f, PALE, 600);
 	gfx.setTEV(GX_PASSCLR);
 }
 
@@ -568,13 +578,13 @@ void PlayersBoard::drawComponent(menu::Graphics &gfx)
 		drawCoin(gfx, i, x, y, COIN, seat >= 0 && held != i ? 115 : 255);
 		if (*players_account(players_get(i)->key)) {   /* linked to a RetroAchievements account */
 			fill(gfx, x + COIN - 18, y - 2, 22, 13, DARK);
-			textMid(x + COIN - 7, y + 4, "RA", 0.36f, WHITE);
+			textMid(x + COIN - 7, y + 4, "RA", 0.45f, WHITE);
 		}
 		if (seat >= 0) {   /* where it sits, under the coin */
 			snprintf(line, sizeof line, "Port %s", PLAYERS_SEAT_NAMES[seat]);
-			int tw = menu::IplFont::getInstance().getStringWidth(line, 0.42f) + 10;
+			int tw = menu::IplFont::getInstance().getStringWidth(line, 0.5f) + 10;
 			fill(gfx, x + COIN / 2 - tw / 2, y + COIN + 2, tw, 14, DARK);
-			textMid(x + COIN / 2, y + COIN + 9, line, 0.42f, WHITE);
+			textMid(x + COIN / 2, y + COIN + 9, line, 0.5f, WHITE);
 		}
 	}
 	if (n > 0) {   /* the Edit slot: a Mii dropped here opens its player settings */
@@ -602,18 +612,18 @@ void PlayersBoard::drawComponent(menu::Graphics &gfx)
 			snprintf(line, sizeof line, "A seated Mii is no longer on this Wii: its seat is Guest now");
 		else
 			snprintf(line, sizeof line, "%d seated Miis are no longer on this Wii: their seats are Guest now", gone);
-		textMid(320, 418, line, 0.5f, RED, 600);
+		text(120, 40, line, 0.5f, RED, 500);
 	}
 	else if (n > 0 && players_faces() < 0) {
-		snprintf(line, sizeof line, "No Mii faces (%d): in HBC, HOME > HBC > Save Mii faces", players_faces());
-		textMid(320, 418, line, 0.5f, MID);
+		snprintf(line, sizeof line, "No Mii faces (code %d): in HBC, HOME > HBC > Save Mii faces", players_faces());
+		text(120, 40, line, 0.5f, DARK, 500);
 	}
 	const player_mii *fm = players_get(page * PER_PAGE + focus);
 	if (onEdit)
-		textMid(320, 434, "Edit: a Mii's player settings", 0.7f, DARK);
+		textMid(320, 434, "Edit: a Mii's player settings", 0.7f, PALE);
 	else if (fm && !onCards) {
 		snprintf(line, sizeof line, "%s%s", fm->name, fm->favorite ? "  (favorite)" : "");
-		textMid(320, 434, line, 0.7f, DARK);
+		textMid(320, 434, line, 0.7f, PALE);
 	}
 	if (dragging && held >= 0)
 		drawCoin(gfx, held, px - 30, py - 30, 60, 240);
@@ -632,10 +642,10 @@ void PlayersBoard::drawComponent(menu::Graphics &gfx)
 		hint = "Hold A+B on a Mii, drop it on a seat or on Edit   B: back";
 	else
 		hint = "A: pick a Mii   Up: the seats   B: back";
-	text(20, 448, hint, 0.5f, DARK, 470);
+	text(20, 448, hint, 0.5f, PALE, 470);
 	if (n > 0) {   /* the coins' page, bottom right */
 		snprintf(line, sizeof line, "Miis  %d / %d", page + 1, pages());
-		text(620 - menu::IplFont::getInstance().getStringWidth(line, 0.55f), 447, line, 0.55f, DARK);
+		text(620 - menu::IplFont::getInstance().getStringWidth(line, 0.55f), 447, line, 0.55f, PALE);
 	}
 	gfx.setTEV(GX_PASSCLR);
 }

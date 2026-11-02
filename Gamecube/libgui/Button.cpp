@@ -40,6 +40,8 @@ Button::Button(int style, char** label, float x, float y, float width, float hei
 		  labelMode(LABEL_CENTER),
 		  labelScissor(0),
 		  StartTime(0),
+		  scrollKey(0),
+		  scrollOn(false),
 		  x(x),
 		  y(y),
 		  width(width),
@@ -242,7 +244,63 @@ void Button::setSelectedFocusImage(Image *image)
 	selectedFocusImage = image;
 }
 
-#define SCROLL_PERIOD 4.0f
+#define SCROLL_PAUSE 1.5f   /* seconds the label stays at its beginning, and at its end */
+#define SCROLL_SPEED 45.0f  /* pixels a second (of the 640 wide menu) */
+
+/* A button's picture is its image mirrored into quarters (or halves) that meet at the middle.
+ * Each edge is cut to a whole pixel once and both quads share it: with a float x (a row of
+ * three 165 wide buttons is centered on a half pixel) the quads' own truncations
+ * (int)(x + width / 2) and (int)x + (int)(width / 2) differ by one, which left a column of
+ * the background showing through the middle of the button. */
+static void drawQuarters(Graphics& gfx, float x, float y, float width, float height)
+{
+	const int x0 = (int)x, xm = (int)(x + width / 2), x1 = (int)(x + width);
+	const int y0 = (int)y, ym = (int)(y + height / 2), y1 = (int)(y + height);
+	gfx.drawImage(0, x0, y0, xm - x0, ym - y0, 0.0, width/16.0, 0.0, height/16.0);
+	gfx.drawImage(0, xm, y0, x1 - xm, ym - y0, width/16.0, 0.0, 0.0, height/16.0);
+	gfx.drawImage(0, x0, ym, xm - x0, y1 - ym, 0.0, width/16.0, height/16.0, 0.0);
+	gfx.drawImage(0, xm, ym, x1 - xm, y1 - ym, width/16.0, 0.0, height/16.0, 0.0);
+}
+
+static void drawHalves(Graphics& gfx, float x, float y, float width, float height)
+{
+	const int x0 = (int)x, xm = (int)(x + width / 2), x1 = (int)(x + width);
+	const int y0 = (int)y, y1 = (int)(y + height);
+	gfx.drawImage(0, x0, y0, xm - x0, y1 - y0, 0.0, width/8.0, 0.0, 1.0);
+	gfx.drawImage(0, xm, y0, x1 - xm, y1 - y0, width/8.0, 0.0, 0.0, 1.0);
+}
+
+/* How far a label wider than its button is moved left, in pixels: it shows its beginning for
+ * SCROLL_PAUSE seconds, moves at SCROLL_SPEED until its end shows, stays there SCROLL_PAUSE
+ * seconds and starts over from its beginning. The time starts again when the button is
+ * focused and when its text changes (the file browser reuses its buttons for other names),
+ * so a name always shows its beginning first. A label that fits, or one not scrolling
+ * (scrolling false: focus is the usual reason), is not moved. */
+int Button::scrollShift(bool scrolling, float room)
+{
+	unsigned key = 5381;
+	for (const char *c = *buttonText; c && *c; c++)
+		key = key * 33 + (unsigned char)*c;
+	if (key != scrollKey || scrolling != scrollOn)
+	{
+		scrollKey = key;
+		scrollOn = scrolling;
+		StartTime = ticks_to_microsecs(gettick());
+	}
+	if (!scrolling)
+		return 0;
+	const float over = IplFont::getInstance().getStringWidth(*buttonText, fontSize) - room + 2 * labelScissor;
+	if (over <= 0.0f)
+		return 0;
+	const float travel = over / SCROLL_SPEED;
+	float t = (float)((unsigned long)ticks_to_microsecs(gettick()) - StartTime) / 1000000.0f;
+	t = fmodf(t, SCROLL_PAUSE + travel + SCROLL_PAUSE);
+	if (t < SCROLL_PAUSE)
+		return 0;
+	if (t < SCROLL_PAUSE + travel)
+		return (int)(over * (t - SCROLL_PAUSE) / travel);
+	return (int)over;
+}
 
 void Button::drawComponent(Graphics& gfx)
 {
@@ -280,27 +338,19 @@ void Button::drawComponent(Graphics& gfx)
 	case BUTTON_DEFAULT:
 //	gfx.fillRect(x, y, width, height);
 		normalImage->activateImage(GX_TEXMAP0);
-		gfx.drawImage(0, x, y, width/2, height/2, 0.0, width/16.0, 0.0, height/16.0);
-		gfx.drawImage(0, x+width/2, y, width/2, height/2, width/16.0, 0.0, 0.0, height/16.0);
-		gfx.drawImage(0, x, y+height/2, width/2, height/2, 0.0, width/16.0, height/16.0, 0.0);
-		gfx.drawImage(0, x+width/2, y+height/2, width/2, height/2, width/16.0, 0.0, height/16.0, 0.0);
-//	gfx.drawImage(0, x, y, width, height, 0.0, 1.0, 0.0, 1.0);
+		drawQuarters(gfx, x, y, width, height);
 
 		if (selected)
 		{
 			gfx.setColor(selectedColor);
 			if(selectedImage) selectedImage->activateImage(GX_TEXMAP0);
-			gfx.drawImage(0, x, y, width/2, height/2, 0.0, width/16.0, 0.0, height/16.0);
-			gfx.drawImage(0, x+width/2, y, width/2, height/2, width/16.0, 0.0, 0.0, height/16.0);
-			gfx.drawImage(0, x, y+height/2, width/2, height/2, 0.0, width/16.0, height/16.0, 0.0);
-			gfx.drawImage(0, x+width/2, y+height/2, width/2, height/2, width/16.0, 0.0, height/16.0, 0.0);
+			drawQuarters(gfx, x, y, width, height);
 		}
 		break;
 	case BUTTON_STYLEA_NORMAL:
 		if (getFocus())	focusImage->activateImage(GX_TEXMAP0);
 		else			normalImage->activateImage(GX_TEXMAP0);
-		gfx.drawImage(0, x, y, width/2, height, 0.0, width/8.0, 0.0, 1.0);
-		gfx.drawImage(0, x+width/2, y, width/2, height, width/8.0, 0.0, 0.0, 1.0);
+		drawHalves(gfx, x, y, width, height);
 		break;
 	case BUTTON_STYLEA_SELECT:
 		if (selected)
@@ -313,8 +363,7 @@ void Button::drawComponent(Graphics& gfx)
 			if (getFocus())	focusImage->activateImage(GX_TEXMAP0);
 			else			normalImage->activateImage(GX_TEXMAP0);
 		}
-		gfx.drawImage(0, x, y, width/2, height, 0.0, width/8.0, 0.0, 1.0);
-		gfx.drawImage(0, x+width/2, y, width/2, height, width/8.0, 0.0, 0.0, 1.0);
+		drawHalves(gfx, x, y, width, height);
 		break;
 	}
 
@@ -322,8 +371,6 @@ void Button::drawComponent(Graphics& gfx)
 	{
 		//int strWidth;
 		int strHeight;
-		unsigned long CurrentTime;
-		float scrollWidth, time_sec, scrollOffset;
 		gfx.enableScissor(x + labelScissor, y, width - 2*labelScissor, height);
 		if(active)	IplFont::getInstance().drawInit(labelColor);
 		else		IplFont::getInstance().drawInit(inactiveColor);
@@ -352,32 +399,11 @@ void Button::drawComponent(Graphics& gfx)
 				break;
 			case LABEL_SCROLL:
 				strHeight = IplFont::getInstance().getStringHeight(*buttonText, fontSize);
-				scrollWidth = IplFont::getInstance().getStringWidth(*buttonText, fontSize)-width+2*labelScissor;
-				scrollWidth = scrollWidth < 0.0f ? 0.0 : scrollWidth;
-				CurrentTime = ticks_to_microsecs(gettick());
-				time_sec = (float)(CurrentTime - StartTime)/1000000.0f;
-				if (time_sec > SCROLL_PERIOD) StartTime = ticks_to_microsecs(gettick());
-				scrollOffset = fabsf(fmodf(time_sec,SCROLL_PERIOD)-SCROLL_PERIOD/2)/(SCROLL_PERIOD/2);
-				IplFont::getInstance().drawString((int) (x+labelScissor-(int)(scrollOffset*scrollWidth)), (int) (y+(height-strHeight)/2), *buttonText, fontSize, false);
+				IplFont::getInstance().drawString((int) (x+labelScissor-scrollShift(true, width)), (int) (y+(height-strHeight)/2), *buttonText, fontSize, false);
 				break;
 			case LABEL_SCROLLONFOCUS:
-				if(getFocus())
-				{
-					strHeight = IplFont::getInstance().getStringHeight(*buttonText, fontSize);
-					scrollWidth = IplFont::getInstance().getStringWidth(*buttonText, fontSize)-width+2*labelScissor;
-					scrollWidth = scrollWidth < 0.0f ? 0.0 : scrollWidth;
-					CurrentTime = ticks_to_microsecs(gettick());
-					time_sec = (float)(CurrentTime - StartTime)/1000000.0f;
-					if (time_sec > SCROLL_PERIOD) StartTime = ticks_to_microsecs(gettick());
-					scrollOffset = fabsf(fmodf(time_sec,SCROLL_PERIOD)-SCROLL_PERIOD/2)/(SCROLL_PERIOD/2);
-					IplFont::getInstance().drawString((int) (x+labelScissor-(int)(scrollOffset*scrollWidth)), (int) (y+(height-strHeight)/2), *buttonText, fontSize, false);
-				}
-				else
-				{
-				//strWidth = IplFont::getInstance().getStringWidth(*buttonText, fontSize);
 				strHeight = IplFont::getInstance().getStringHeight(*buttonText, fontSize);
-				IplFont::getInstance().drawString((int) (x+labelScissor), (int) (y+(height-strHeight)/2), *buttonText, fontSize, false);
-				}
+				IplFont::getInstance().drawString((int) (x+labelScissor-scrollShift(getFocus(), width)), (int) (y+(height-strHeight)/2), *buttonText, fontSize, false);
 				break;
 		}
 		gfx.disableScissor();
