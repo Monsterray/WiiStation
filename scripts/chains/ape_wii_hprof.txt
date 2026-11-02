@@ -1,0 +1,5 @@
+CHAIN
+# Ape title demo on the Wii, hprof build: what the core does in the slow stretch (vbl 8741-8801, 72-77% core) and at 8951
+8980 sd:/wiistation/ape_wii_hprof.txt PadAutoAssign=1 ControllerType=1 gpuPlugin=2 GxTexMin=3 ScreenMode=2 DeflickerFilter=1 GpuTiming=1 FrameRate=1
+sd:/wiistation/isos/Ape Escape
+Ape Escape [U] [SCUS-94423].cue

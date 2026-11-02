@@ -148,7 +148,8 @@ struct lightrec_compiled {
 };
 
 struct jitq_job {
-	struct jitq_job *next;		/* the thread's queue */
+	struct jitq_job *next, *prev;	/* the thread's queue (doubly linked: jq_unlink takes a job
+					 * from anywhere in it, up to 768 deep) */
 	struct block *block;		/* the live block: the thread never reads it */
 	struct block shadow;		/* the copy the thread compiles; ops[] is its opcode list */
 	unsigned int visits;
@@ -2116,19 +2117,17 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 
 static void jq_unlink(struct jitq_job *job)	/* jq_mutex held */
 {
-	struct jitq_job *prev = NULL, *j;
-
-	for (j = jq_head; j && j != job; j = j->next)
-		prev = j;
-	if (!j)
-		return;
-	if (prev)
-		prev->next = job->next;
+	if (!job->prev && jq_head != job)
+		return;	/* not in the queue */
+	if (job->prev)
+		job->prev->next = job->next;
 	else
 		jq_head = job->next;
-	if (jq_tail == job)
-		jq_tail = prev;
-	job->next = NULL;
+	if (job->next)
+		job->next->prev = job->prev;
+	else
+		jq_tail = job->prev;
+	job->next = job->prev = NULL;
 }
 
 static void * jq_main(void *arg)
@@ -2302,7 +2301,7 @@ static int jq_queue(struct lightrec_state *state, struct block *block)
 	job->shadow._jit = NULL;
 	job->shadow.function = NULL;
 	job->shadow.job = NULL;
-	job->next = NULL;
+	job->next = job->prev = NULL;
 	job->block = block;
 	job->visits = 0;
 	job->date = lightrec_age_now(state);
@@ -2325,6 +2324,7 @@ static int jq_queue(struct lightrec_state *state, struct block *block)
 	lightrec_jitq_queued++;
 
 	LWP_MutexLock(jq_mutex);
+	job->prev = jq_tail;
 	if (jq_tail)
 		jq_tail->next = job;
 	else

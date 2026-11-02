@@ -1,0 +1,5 @@
+# Ape title demo on the Wii: CPU profile of the slow stretch (vbl 8741-8801) and the 200 ms vblank 8951
+hprof 8741 8801
+report 8740
+report 8800
+report 8950
