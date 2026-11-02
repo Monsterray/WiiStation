@@ -1,0 +1,228 @@
+# Crash Bandicoot 3 - Warped: played by hand, recorded 2026-09-30 19:19:51 with scripts/movie_capture.sh
+# folder: sd:/wiistation/isos/Crash Bandicoot 3 - Warped
+# cue: Crash Bandicoot 3 - Warped [U] [SLUS-94244].cue
+# vblanks: 35835
+# build: commit b845648, debug, WiiSXRX_debug.dol, 2026-09-30 18:39:22, sha1 e47a105404d79828ef875ffe35632c4f8be09f4d
+#   (if it drifts on a later build: build that commit and pass the DOL with --dol)
+# settings: gpuPlugin=2 FPS=1 PadType1=1 PadAutoAssign=0 
+# pad: ControllerType=0 (digital pad); Dolphin: port 1 keyboard GameCube pad, port 2 GameCube pad (SIDevice1=6)
+# chain line: 35835 sd:/wiistation/crash3_long_play.txt PadAutoAssign=1 ControllerType=0 PadType2=1
+# recorded by WiiStation ("record"); port 1 has a controller (automatic assignment on, GameCube pad 1 seen)
+23 0000
+# recorded by WiiStation ("record"); port 2 has a controller (automatic assignment on, GameCube pad 2 seen)
+p2 23 0000
+# alive 300
+469 4000
+478 0000
+# alive 600
+# alive 900
+1186 4000
+1196 0000
+# alive 1200
+1392 4000
+1404 0000
+1485 4000
+1494 0000
+# alive 1500
+1506 4000
+1518 0000
+# alive 1800
+1924 4000
+1932 0000
+# alive 2100
+2242 4000
+2252 0000
+2263 4000
+2270 0000
+2274 4000
+2282 0000
+2302 4000
+2304 c000
+2307 e000
+2311 6000
+2312 7000
+2317 3000
+2320 2000
+2322 0000
+2331 c000
+2332 e000
+2333 f000
+2337 7000
+2340 3000
+2343 0000
+# alive 2400
+# alive 2700
+# alive 3000
+# alive 3300
+# alive 3600
+# alive 3900
+# alive 4200
+# alive 4500
+# alive 4800
+# alive 5100
+# alive 5400
+# alive 5700
+# alive 6000
+# alive 6300
+# alive 6600
+# alive 6900
+# alive 7200
+# alive 7500
+# alive 7800
+# alive 8100
+# alive 8400
+# alive 8700
+# alive 9000
+# alive 9300
+# alive 9600
+# alive 9900
+# alive 10200
+# alive 10500
+# alive 10800
+# alive 11100
+# alive 11400
+# alive 11700
+# alive 12000
+# alive 12300
+# alive 12600
+# alive 12900
+# alive 13200
+# alive 13500
+# alive 13800
+# alive 14100
+# alive 14400
+# alive 14700
+# alive 15000
+# alive 15300
+# alive 15600
+# alive 15900
+# alive 16200
+# alive 16500
+# alive 16800
+# alive 17100
+# alive 17400
+# alive 17700
+# alive 18000
+# alive 18300
+# alive 18600
+# alive 18900
+# alive 19200
+# alive 19500
+# alive 19800
+# alive 20100
+# alive 20400
+# alive 20700
+# alive 21000
+# alive 21300
+# alive 21600
+# alive 21900
+# alive 22200
+# alive 22500
+# alive 22800
+# alive 23100
+# alive 23400
+# alive 23700
+# alive 24000
+# alive 24300
+# alive 24600
+# alive 24900
+# alive 25200
+# alive 25500
+# alive 25800
+# alive 26100
+# alive 26400
+# alive 26700
+# alive 27000
+# alive 27300
+# alive 27600
+# alive 27900
+# alive 28200
+# alive 28500
+# alive 28800
+# alive 29100
+# alive 29400
+# alive 29700
+# alive 30000
+# alive 30300
+# alive 30600
+# alive 30900
+# alive 31200
+# alive 31500
+# alive 31800
+# alive 32100
+# alive 32400
+# alive 32700
+# alive 33000
+# alive 33300
+# alive 33600
+# alive 33900
+# alive 34200
+# alive 34500
+# alive 34800
+# alive 35100
+# alive 35400
+# alive 35700
+gcpress 1500 70
+gcpress 1557 70
+gcpress 1614 70
+gcpress 1671 70
+gcpress 1728 70
+gcpress 1785 70
+gcpress 1842 70
+gcpress 1899 70
+gcpress 1956 70
+gcpress 2013 70
+gcpress 2070 70
+gcpress 2127 70
+gcpress 2184 70
+gcpress 2241 70
+gcpress 2298 70
+gcpress 2355 70
+gcpress 2412 70
+gcpress 2469 70
+gcpress 2526 70
+gcpress 2583 70
+gcpress 2640 70
+gcpress 2697 70
+gcpress 2754 70
+gcpress 2811 70
+gcpress 2868 70
+gcpress 2925 70
+gcpress 2982 70
+gcpress 3039 70
+gcpress 3096 70
+gcpress 3153 70
+gcpress 3210 70
+gcpress 3267 70
+gcpress 3324 70
+gcpress 3381 70
+gcpress 3438 70
+gcpress 3495 70
+gcpress 3552 70
+gcpress 3609 70
+gcpress 3666 70
+gcpress 3723 70
+gcpress 3780 70
+gcpress 3837 70
+gcpress 3894 70
+gcpress 3951 70
+gcpress 4008 70
+gcpress 4065 70
+gcpress 4122 70
+gcpress 4179 70
+gcpress 4236 70
+gcpress 4293 70
+gcpress 4350 70
+gcpress 4407 70
+gcpress 4464 70
+gcpress 4521 70
+gcpress 4578 70
+gcpress 4635 70
+gcpress 4692 70
+gcpress 4749 70
+gcpress 4806 70
+gcpress 4863 70
+gcpress 4920 70
+gcpress 4977 70
+gcpress 5034 70
+gcpress 5091 70

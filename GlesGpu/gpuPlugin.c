@@ -3339,7 +3339,29 @@ gpu_t glesGpu = {
 
 /* Screenshots (Gamecube/screenshot.c): the GX-drawn pixels of a VRAM rect go into psxVuw
  * before the picture is read. This is the copy every VRAM read makes (efb_sync). */
+static int shot_stats[4];   /* the last gpu_screenshot_sync: tiles, tiles GX had drawn, tiles it could not fill, history on */
 int gpu_screenshot_sync(int x, int y, int w, int h)
 {
-    { int r; efb_sync_from = 3; r = efb_sync(x, y, w, h); efb_sync_from = 0; return r; }
+    int r, tx0, ty0, tx1, ty1, tx, ty, stale = 0;
+    unsigned missed0 = efb_misses;
+
+    efb_tiles(x, y, x + w, y + h, &tx0, &ty0, &tx1, &ty1);
+    for (ty = ty0; ty < ty1; ty++)
+        for (tx = tx0; tx < tx1; tx++)
+            if (efb_gx[ty][tx] > efb_cpu[ty][tx])
+                stale++;
+    efb_sync_from = 3;
+    r = efb_sync(x, y, w, h);
+    efb_sync_from = 0;
+    shot_stats[0] = (tx1 - tx0) * (ty1 - ty0);
+    shot_stats[1] = stale;
+    shot_stats[2] = (int)(efb_misses - missed0);
+    shot_stats[3] = efb_history_on();
+    return r;
+}
+
+/* For the screenshot's log line (Gamecube/screenshot.c): what the last sync found */
+void gpu_screenshot_stats(int out[4])
+{
+    memcpy(out, shot_stats, sizeof shot_stats);
 }

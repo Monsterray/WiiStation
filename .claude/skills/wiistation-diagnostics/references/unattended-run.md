@@ -168,6 +168,17 @@ anyone noticing. A script with `padsweep` or `gcpress` lines now makes pad 1 cou
 (`1060` = L+R+Start, the ANALOG combination) for 10 vblanks through the real driver; tty.log has
 an `analog vbl=N Port 1: ...` line per ANALOG press. Recipe: Docs/CONTROLLER_TESTING.md.
 
+**Screenshots in a run (2026-11-02).** `gcpress V 70` (up to 64 lines now) is the Shot combination (L+R+Z):
+the PNGs come back in `.runs/NAME/screenshots/` (dolphin_run.sh reads `wiistation/screenshots`), and perf.log
+has two lines per shot: `screenshot: saved FILE WxH at X,Y .. vbl=N` and `screenshot: sync tiles= stale=
+missed= hist= waited= flat=NN% color=RRGGBB`. A picture that is one colour (`flat=100%`) with `missed>0`
+or `stale=0` is VRAM the renderer did not fill from the EFB (the game's own fill: Ape Escape's sky blue
+0,41,181, 239 rows with the 240th left over; `EfbSync=2` makes every shot that). `scripts/autoinput/
+shot_crash3.txt` + `scripts/chains/shot_crash3.txt`: Crash 3's first shot (a game with snapshots not yet
+on) came out black until the request waited for the renderer (`waited=2`); `shot_lvl1` is 64 shots of
+Ape Escape level 1. About 50k vblanks of Ape (title demo, level 1 recording) and 64-shot sets never gave a
+blue picture under Dolphin with `EfbSync` on, so the Wii's blue shots were not reproduced.
+
 **Movies → scripts:** `scripts/dtm2autoinput.py MOVIE.dtm --offset N [--trace-after-start]`
 decodes a Dolphin `.dtm` (8-byte pad polls interleaved with Wiimote records, 2 polls per VI)
 into autoinput lines; find the offset once from the first Start press.
