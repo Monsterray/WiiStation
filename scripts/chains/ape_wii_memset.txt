@@ -1,0 +1,5 @@
+CHAIN
+# Ape title demo on the Wii, hprof build: who calls memset (6% of the slow stretch)
+8980 sd:/wiistation/ape_wii_memset.txt PadAutoAssign=1 ControllerType=1 gpuPlugin=2 GxTexMin=3 ScreenMode=2 DeflickerFilter=1 GpuTiming=1 FrameRate=1
+sd:/wiistation/isos/Ape Escape
+Ape Escape [U] [SCUS-94423].cue
