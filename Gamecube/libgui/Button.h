@@ -121,6 +121,9 @@ private:
 	char** buttonText;
 	int buttonStyle, labelMode, labelScissor;
 	unsigned long StartTime;
+	unsigned scrollKey;   /* hash of the text the scroll time runs for, and whether it was scrolling */
+	bool scrollOn;
+	int scrollShift(bool scrolling, float room);
 	float x, y, width, height, fontSize;
 	int autoSizeFlags;
 	float padTop, padRight, padBottom, padLeft;

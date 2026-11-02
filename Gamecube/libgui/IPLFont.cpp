@@ -660,8 +660,12 @@ void IplFont::drawString(int x, int y, char *string, float scale, bool centered)
 
     /* The glyph quad and the advance both follow `scale`; at 1.0 this is the 24x24 tile
      * the font file holds, which is what every menu control asks for. */
-    const int gw = (int)(CH_FONT_WIDTH * scale);
-    const int gh = (int)(CH_FONT_HEIGHT * scale);
+    const int gw = (int)(CH_FONT_WIDTH * scale + 0.5f);
+    const int gh = (int)(CH_FONT_HEIGHT * scale + 0.5f);
+    /* The pen runs in fractions and each glyph is placed at the nearest pixel: truncating the
+     * advance of every glyph dropped up to a pixel each (at 1.3 an "a" moved 16 for 16.9), so
+     * the gaps between letters differed from pair to pair and some looked like spaces. */
+    float pen = (float)x;
 
     wchar_t *utf8Txt = charToWideChar(gettext(string));
     wchar_t *tmpPtr = utf8Txt;
@@ -696,6 +700,7 @@ void IplFont::drawString(int x, int y, char *string, float scale, bool centered)
             for (int k = 0; k < n; k++)
             {
                 int slot = utf8Txt[k] < ATLAS_FIRST ? 0 : utf8Txt[k] - ATLAS_FIRST;
+                const int x = (int)(pen + 0.5f);
                 float u0 = (float)((slot % ATLAS_COLS) * ATLAS_CELL + ATLAS_PAD) / ATLAS_W;
                 float v0 = (float)((slot / ATLAS_COLS) * ATLAS_CELL + ATLAS_PAD) / ATLAS_H;
                 float u1 = u0 + (float)CH_FONT_WIDTH / ATLAS_W, v1 = v0 + (float)CH_FONT_HEIGHT / ATLAS_H;
@@ -716,7 +721,7 @@ void IplFont::drawString(int x, int y, char *string, float scale, bool centered)
                 GX_Color4u8(fontColor.r, fontColor.g, fontColor.b, fontColor.a);
                 GX_TexCoord2f32(u0, v1);
 
-                x += (int)((this->getCharCode(utf8Txt[k]) + 1) * scale); // x + charWidth
+                pen += (this->getCharCode(utf8Txt[k]) + 1) * scale; // x + charWidth
             }
             GX_End();
         }
@@ -725,6 +730,7 @@ void IplFont::drawString(int x, int y, char *string, float scale, bool centered)
     }
 
     while (*utf8Txt) {
+        const int x = (int)(pen + 0.5f);
         PERF_INC(menu_glyphs);
         PERF_INC(menu_texloads);
 
@@ -750,7 +756,7 @@ void IplFont::drawString(int x, int y, char *string, float scale, bool centered)
 
         GX_End();
 
-        x += (int)((this->getCharCode(*utf8Txt) + 1) * scale); // x + charWidth
+        pen += (this->getCharCode(*utf8Txt) + 1) * scale; // x + charWidth
         utf8Txt++;
     }
 
