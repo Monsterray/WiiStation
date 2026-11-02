@@ -1,0 +1,5 @@
+CHAIN
+# Ape title demo on any Wii (dev or LRWii): same pad on port 1 everywhere (scripted)
+9000 sd:/wiistation/ape_wii_demo.txt PadAutoAssign=1 ControllerType=1 gpuPlugin=2 GxTexMin=3 ScreenMode=2 DeflickerFilter=1 GpuTiming=1 FrameRate=1
+sd:/wiistation/isos/Ape Escape
+Ape Escape [U] [SCUS-94423].cue

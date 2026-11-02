@@ -203,7 +203,8 @@ def main():
     ap.add_argument("name", help="the run's folder: .runs/NAME")
     ap.add_argument("chain", type=existing_file, help="a chain file (scripts/chains/*.txt)")
     ap.add_argument("--wii", help="another bench Wii than the queue's $WII_BENCH_IP")
-    ap.add_argument("--port", type=int, default=4300, help="the port WiiStation connects back to")
+    ap.add_argument("--port", type=int, default=None,
+                    help="the port WiiStation connects back to (default 4300, the living-room Wii 4301: both can run at once; the firewall allows 4300-4315)")
     ap.add_argument("--dol", default="debug", help="debug, release or a DOL's path (default debug)")
     ap.add_argument("--set", default="", help="extra settings, K=V,K=V")
     ap.add_argument("--smb-from", type=existing_file, default=None,
@@ -227,6 +228,8 @@ def main():
                  "WiiStation would sit on a blocking message box instead of booting the chain")
     a.wii = bench_wii("wii_lab.py", a.wii, allow=(LRWII,))   # the bench Wii, or the living-room one (protect_card)
     protected = is_production(a.wii)
+    if a.port is None:
+        a.port = 4301 if protected else 4300
     if protected:
         chain_text = a.chain.read_text(encoding="utf-8", errors="replace")
         if a.send_isos or a.put or a.smb_from:

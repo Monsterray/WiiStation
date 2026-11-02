@@ -1,0 +1,7 @@
+# Ape title demo on a Wii: perf reports around the compile burst, with a scripted pad on port 1
+# ("10 0000" presses nothing; it makes port 1 answer like a plugged-in pad, so the demo is the same
+# whatever controllers the Wii has: the LRWii had none, the dev Wii one, and they played different demos)
+10 0000
+report 8740
+report 8800
+report 8950
