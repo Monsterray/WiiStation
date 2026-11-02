@@ -71,6 +71,16 @@ static void lightrec_propagate_addi(u32 rs, u32 rd,
 	v[rs].value &= v[rs].known;
 	value = d->value & d->known;
 
+	/* WiiStation: both known in full (lui/addiu chains, r0 + imm): the loop below would set
+	 * every bit from the carry chain, i.e. the sum, all known, no sign bits */
+	if ((v[rs].known & d->known) == 0xffffffffu) {
+		result.value = v[rs].value + value;
+		result.known = 0xffffffffu;
+		result.sign = 0;
+		v[rd] = result;
+		return;
+	}
+
 	mask = ~(lightrec_get_sign_mask(d) & lightrec_get_sign_mask(&v[rs]));
 	end = mask ? 32 - clz32(mask) : 0;
 

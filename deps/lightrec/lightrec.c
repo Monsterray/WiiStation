@@ -69,11 +69,21 @@ unsigned int lightrec_jitq_queue_at = 1;
 /* test only: the thread sleeps this long before each compile, to show that a slow thread
  * changes the stalls and nothing else (Docs/BACKENDS.md) */
 unsigned int lightrec_jitq_test_sleep_us;
+/* settings JitPending / JitPick (plugin, before lightrec_init): the compiles that may wait for
+ * their install, and the order the thread takes them in (0 = queue order, 1 = the one closest
+ * to its install first) */
+unsigned int lightrec_jitq_max_pending = 768;
+unsigned int lightrec_jitq_pick = 0;
+/* setting JitFull: 1 = a block whose compile does not fit in the queue keeps running in the
+ * interpreter and is queued on a later visit, when installs have made room (0 = compile it on
+ * the emulator at once, the old way) */
+unsigned int lightrec_jitq_defer = 0;
 /* perf.log "jitq:" (Gamecube/perf_prof.c) */
 unsigned int lightrec_jitq_queued, lightrec_jitq_installed, lightrec_jitq_stalls,
 	     lightrec_jitq_cancels, lightrec_jitq_errs, lightrec_jitq_stale, lightrec_jitq_full,
-	     lightrec_jitq_pend_peak, lightrec_jitq_realfull, lightrec_code_fits;
-unsigned long long lightrec_jitq_stall_ticks, lightrec_jitq_thread_ticks;
+	     lightrec_jitq_pend_peak, lightrec_jitq_realfull, lightrec_code_fits,
+	     lightrec_jitq_cnow;
+unsigned long long lightrec_jitq_stall_ticks, lightrec_jitq_thread_ticks, lightrec_jitq_cnow_ticks;
 
 /* WiiStation: the most memory Lightrec may hold beyond its state and code LUT (the blocks,
  * the IR, the MIPS copies, the jitq jobs, all in MEM2 by memmanager.c). Past it the oldest
@@ -112,7 +122,7 @@ static void lightrec_bound_memory(struct lightrec_state *state, const struct blo
 #define JQ_STACK	(64 * 1024)
 /* At most this many compiles waiting for their install; past it a block compiles on the
  * emulator as before. Their code is real memory the guest-side count does not see yet. */
-#define JQ_MAX_PENDING	768
+#define JQ_MAX_PENDING	lightrec_jitq_max_pending
 /* The code buffer is cleaned (oldest blocks first) when the code in use would pass this,
  * whether or not an allocation failed: the guest-side count of the 2 MB buffer
  * (LIGHTREC_CODE_SIZE), with room left for the pending compiles and for fragmentation. */
@@ -978,7 +988,7 @@ static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 					jq_install(state, block);
 			} else if (unlikely(should_recompile)) {
 				/* the old code stays in use until the install */
-				if (jq_queue(state, block))
+				if (jq_queue(state, block) < 0)
 					jq_compile_now(state, block);
 			}
 
@@ -992,7 +1002,7 @@ static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 
 				block_set_flags(block, BLOCK_SEEN);
 				pc = lightrec_emulate_block(state, block, pc);
-				if (queue && jq_queue(state, block))
+				if (queue && jq_queue(state, block) < 0)
 					jq_compile_now(state, block);
 			} else {
 				pc = lightrec_emulate_block(state, block, pc);
@@ -2130,8 +2140,29 @@ static void * jq_main(void *arg)
 		LWP_SemWait(jq_work);
 		for (;;) {
 			LWP_MutexLock(jq_mutex);
-			/* the job the emulator waits for first, then in queue order */
+			/* the job the emulator waits for first, then in queue order, or (JitPick 1)
+			 * the one closest to its install: the larger of its share of the visits
+			 * and of the time (JQ_STALE) it has before the install. Which job is
+			 * done first changes when the emulator waits, never what the guest sees. */
 			job = jq_want ? jq_want : jq_head;
+			if (job != jq_want && lightrec_jitq_pick && jq_head && jq_head->next) {
+				u32 now = lightrec_age_now(jq_cstate->state);
+				unsigned long long best = 0, u, v;
+				struct jitq_job *j;
+
+				job = jq_head;
+				for (j = jq_head; j; j = j->next) {
+					u = (unsigned long long)j->visits * JQ_STALE;
+					v = (s32)(now - j->date) > 0 ?
+						(unsigned long long)(now - j->date) * lightrec_jitq_delay : 0;
+					if (v > u)
+						u = v;
+					if (u > best) {
+						best = u;
+						job = j;
+					}
+				}
+			}
 			jq_want = NULL;
 			if (job) {
 				jq_unlink(job);
@@ -2247,6 +2278,7 @@ static void jq_make_room(struct lightrec_state *state, const struct block *block
 		lightrec_free_all_blocks_except(state->block_cache, block);
 }
 
+/* 0 = queued, 1 = no room, try again on a later visit (JitFull), -1 = compile it now */
 static int jq_queue(struct lightrec_state *state, struct block *block)
 {
 	unsigned int n = block->nb_ops;
@@ -2256,7 +2288,7 @@ static int jq_queue(struct lightrec_state *state, struct block *block)
 		return -1;
 	if (jq_npending >= JQ_MAX_PENDING) {
 		lightrec_jitq_full++;
-		return -1;
+		return lightrec_jitq_defer ? 1 : -1;
 	}
 
 	job = lightrec_malloc(state, MEM_FOR_LIGHTREC,
@@ -2312,6 +2344,8 @@ static void jq_compile_now(struct lightrec_state *state, struct block *block)
 	if (lightrec_compile_block(state->cstate, block) && block->function)
 		block_set_flags(block, BLOCK_SHOULD_RECOMPILE);	/* try again later */
 	lightrec_jit_ticks += JIT_TB() - t0;
+	lightrec_jitq_cnow_ticks += JIT_TB() - t0;
+	lightrec_jitq_cnow++;
 	lightrec_jit_blocks++;
 }
 

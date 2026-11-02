@@ -121,6 +121,42 @@ The core is synced to a7464cc since 5.2.0 (merge 87d77c4). WiiStation's own chan
   NULL instead of emitting again into it forever (`HAVE_MMAP=0`). Off: `JitDelay = 0`
   compiles on the emulator after the first pass, as before (guest identical to 5.13).
   Test only: `JitThreadTest = N` sleeps the thread N ms before each compile.
+- jitq: first-run bursts (2026-11-02, Ape Escape title demo, `scripts/chains/ape_jit.txt`). The
+  one visible hitch of a 322 s play session (vblanks 3234-3247, 153 ms lost, jit 58%) and the same
+  event in the bench run (8773-8776, 230 ms of jit) are the demo switching to new code: about 1000
+  blocks that run 16 times within 3-4 frames, queued at their second visit. Dolphin reproduces it at
+  vblank 9631 with the same counts (perf.log `jitq:`, `scripts/autoinput/ape_jit_reports.txt`;
+  `vtl_view.py --around`, and its `jit` column is a fair proxy in Dolphin: the compile's instructions).
+  Where the emulator waits there: 441 install waits (`stall_us` 107 ms) and 576 blocks that found the
+  768-job queue full and compiled on the emulator at their second visit (`cnow_us` 124 ms), then 137
+  more waits. A compile is about 240 us of emulated time (Wii: stall_us / stalls = 275 us), so the
+  work is about 270 ms of CPU, and there is no idle time in those frames for the thread to take it
+  (the thread, priority 20, runs only while the emulator sleeps in the limiter or waits). Whatever
+  keeps the guest the same cannot move it: the install visit is the guest's, a block that is hot
+  by then has to have its code. What it can do is make the compile cheaper, and spread it.
+  - Cheaper, guest-identical (vsig identical, base DOL against changed DOL, on replay3 (Spyro and
+    Crash 3), ape_finish_lvl1 and the title demo; a temporary switch back to the old loops in one
+    DOL gave the same code bytes, Spyro 6500 vblanks; `jitcode: sum=` cannot be compared between
+    builds, it holds function addresses): `lightrec_early_unload` visits only the registers an opcode reads or writes
+    (it looped over 34 registers with 64-bit shifts: 7% of the burst's CPU in hprof, Dolphin),
+    and `lightrec_propagate_addi` takes the sum when both values are fully known (a 32-step
+    bit adder before). Dolphin, title demo, 9800 vblanks: compiling 600 -> 482 ms of emulated time;
+    the burst's frame 137 -> 122 ms. Left in the profile (hprof, same burst): Lightning's `_jit_update`,
+    `_jit_optimize`, `_jit_reglive` (11% together), and the pool allocator and the kernel's
+    interrupt-off sections it samples as (`host_malloc`/`free`/`lightning_alloc` 17%, perf.log
+    `lrmem: pool_calls= pool_us=`, debug builds).
+  - Spread, which moves the timing of any run that fills the queue (so a recording made with the
+    defaults needs the defaults; replay3 and finish_lvl1 both fill it, `full=` in perf.log):
+    `JitPending` (queue size in 64s, 12 = 768), `JitFull` (a block that finds the queue full keeps
+    interpreting and queues later), `JitPick` (the thread takes the job closest to its install: no
+    effect on the burst, since there is no idle time to use). Dolphin, same boot, the burst's worst
+    frame: 122 ms (defaults) -> 88 (`JitPending=48`), 91 (`JitPending=48 JitFull=1`), 94
+    (`JitFull=1`); the same total work lands in two or three frames of 60-90 ms instead of one.
+    perf.log `jitq:` has `cnow= cnow_us=` (compiles the emulator did itself).
+  - Not done: interpreting until the thread is ready would remove the wait, but the interpreter
+    is not cycle-exact with the compiled code (see "Compiling ahead"), so the guest would depend on
+    the thread's speed. Making them exact (one cycle in Crash 3 at vblank 1 now) would change every
+    existing recording's timing once.
 Compiling ahead (try/jit-ahead, 2026-10-19; replaced by jitq above). The Spyro elevator spike
 (`scripts/chains/spyro_tornado.txt`, vblanks 2730-2735) is about 245 ms of compiling code that
 first runs in those same frames (vblank 2731: 136 ms compiling, 10 ms running): there is no
