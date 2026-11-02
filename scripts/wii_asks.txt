@@ -1,2 +1,3 @@
 # WiiStation (debug): what to try on the Wii. One ask per line: ID | GAME | WHAT TO DO | WHAT TO LOOK FOR (scripts/wii_asks.py)
-#!last 4
+#!last 5
+5 | Ape Escape | Far Textures on Aniso 4x: let the title screen run (Spike chases a monkey) and walk around level 1 where the sky shows. | No colored dashes in the far grass any more.
