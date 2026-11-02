@@ -170,6 +170,15 @@ Next version (not released yet):
   or a changed image) now says so on the screen when the game starts, instead of
   only "No set for this disc" in the menus.
 * Ape Escape: no narrow picture strip in the black before the lab turns on.
+* Menu: no line through the middle of the Advanced, Achievements and Memory
+  buttons; even letter spacing; Players shows the right Mii face after a re-seat,
+  readable hints at the bottom and clean coin slots; a long game name shows its
+  beginning first, scrolls, and pauses at its end.
+* Screenshots wait a few frames for the whole picture (a first shot could be
+  one solid colour), and each shot's log line says how the picture was copied.
+* Fewer hitches when a game runs a lot of new code at once: compiling it is
+  about 20% cheaper. New settings.ini keys JitPending, JitFull and JitPick
+  (for testing; the defaults are unchanged).
 
 Ver 5.19.0 (2026-10-28):
 * Achievements page: the Account row is gone (accounts are in Players), and the
