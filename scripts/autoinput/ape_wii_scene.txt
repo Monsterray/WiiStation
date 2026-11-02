@@ -1,0 +1,4 @@
+# Ape title demo on the Wii: CPU profile of the scene change only (vbl 8951: one 200 ms vblank, 95% core)
+hprof 8948 8954
+report 8947
+report 8954

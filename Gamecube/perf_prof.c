@@ -618,6 +618,18 @@ static void vtl_fill(vtl_t *v, uint64_t now)
 	v->jit = vtl_u16(lightrec_jit_ticks - vtl_jit0);
 }
 
+/* An input script's "report"/"dump" writes a perf block to SD inside the core's slice: about
+ * 180 ms on the Wii, which the timeline showed as one 200 ms vblank of "core" (the Ape demo's
+ * "scene-change hitch" at vbl 8951 was report 8950, 2026-11-02). Leave the probe's time out of
+ * the vblank it lands in. */
+static void vtl_skip(uint64_t ticks)
+{
+	if (vtl_t0) {
+		vtl_t0 += ticks;
+		vtl_cpu0 += ticks;
+	}
+}
+
 /* perf_reset(): the next vblank only takes the new starting values */
 static void vtl_restart(void)
 {
@@ -1079,14 +1091,18 @@ void perf_vblank_tick(void)
 		extern int autoinput_report_n;
 		static int report_next;
 		while (report_next < autoinput_report_n && frame_counter >= autoinput_report_vbl[report_next]) {
+			uint64_t t = gettime();
 			report_next++;
 			perf_report();
+			vtl_skip(gettime() - t);
 		}
 	}
 	if (!g_perf.vram_dumped && autoinput_dump_vbl && frame_counter >= autoinput_dump_vbl) {
+		uint64_t t = gettime();
 		g_perf.vram_dumped = 1;
 		perf_vram_dump();
 		perf_report();     /* a scheduled dump marks the moment of interest: report the counters now, not 1800 presents later */
+		vtl_skip(gettime() - t);
 	}
 }
 
