@@ -1,0 +1,9 @@
+# Ape title demo, 8 TV pictures (grass tearing by GxTexMin, Wii)
+xfb 5000
+xfb 5500
+xfb 6000
+xfb 6500
+xfb 7000
+xfb 7500
+xfb 8000
+xfb 8500

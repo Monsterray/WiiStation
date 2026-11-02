@@ -1,0 +1,13 @@
+CHAIN
+8600 sd:/wiistation/ape_attract_xfb8.txt PadAutoAssign=1 ControllerType=1 gpuPlugin=2 GxTexMin=0 ScreenMode=2 DeflickerFilter=1
+sd:/wiistation/isos/Ape Escape
+Ape Escape [U] [SCUS-94423].cue
+8600 sd:/wiistation/ape_attract_xfb8.txt PadAutoAssign=1 ControllerType=1 gpuPlugin=2 GxTexMin=1 ScreenMode=2 DeflickerFilter=1
+sd:/wiistation/isos/Ape Escape
+Ape Escape [U] [SCUS-94423].cue
+8600 sd:/wiistation/ape_attract_xfb8.txt PadAutoAssign=1 ControllerType=1 gpuPlugin=2 GxTexMin=2 ScreenMode=2 DeflickerFilter=1
+sd:/wiistation/isos/Ape Escape
+Ape Escape [U] [SCUS-94423].cue
+8600 sd:/wiistation/ape_attract_xfb8.txt PadAutoAssign=1 ControllerType=1 gpuPlugin=2 GxTexMin=3 ScreenMode=2 DeflickerFilter=1
+sd:/wiistation/isos/Ape Escape
+Ape Escape [U] [SCUS-94423].cue

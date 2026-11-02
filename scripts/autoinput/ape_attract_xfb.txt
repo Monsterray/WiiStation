@@ -1,0 +1,7 @@
+# Ape title-screen demo: TV pictures for the grass tearing (Wii vs Dolphin)
+xfb 5000
+xfb 5600
+xfb 6200
+xfb 6800
+xfb 7400
+xfb 8000

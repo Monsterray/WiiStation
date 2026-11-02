@@ -61,13 +61,20 @@ static int tex_footprint(const OGLVertex *v, float *plx, float *ply, float *pare
  * only when ogx_aniso_ok is set here: a polygon (not a sprite or a tile) with at least one texel
  * per EFB pixel along an axis. A sprite or a magnified polygon is drawn with the plain filter:
  * the taps cannot help it, and over the two STP passes' transparent texels (GxMask) they blur
- * its cut-out edges (Ape Escape's hand). The flag is cleared after the draw. */
+ * its cut-out edges (Ape Escape's hand). The flag is cleared after the draw.
+ * At most 2 (2x) or 4 (4x) texels per pixel along either axis: the Wii spreads its taps over
+ * the footprint, and with no smaller mip level to fall to, far ground (Ape Escape's horizon,
+ * tens of texels per pixel) took them from the textures beside it in the cache: rows of
+ * coloured dashes on the Wii, never in Dolphin, which filters with the PC's own anisotropy.
+ * Farther than that the draw keeps the plain linear filter, clean on the Wii. Mipmaps would
+ * let the far ground have taps too (Docs/GX_QUALITY.md). */
 extern int ogx_aniso_ok;
 extern char gxTexMin;
 static void aniso_mark(const OGLVertex *v, int poly)
 {
- float lx, ly, area;
- ogx_aniso_ok = gxTexMin > 1 && poly && tex_footprint(v, &lx, &ly, &area) && (lx >= 1.f || ly >= 1.f);
+ float lx, ly, area, cap = gxTexMin > 2 ? 16.f : 4.f;   /* squared texels per pixel */
+ ogx_aniso_ok = gxTexMin > 1 && poly && tex_footprint(v, &lx, &ly, &area) && (lx >= 1.f || ly >= 1.f) &&
+                lx <= cap && ly <= cap;
 }
 
 #if PERF_PROF_GPUSPLIT

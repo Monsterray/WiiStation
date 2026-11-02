@@ -361,3 +361,14 @@ polygons, which is all the hardware can have disliked, but the hardware's own an
 re-run), and minified cut-out polygons (fences, leaves) still show the class seam when filtered
 anisotropically: a texture that is mostly transparent texels of one class would need the colors
 of the other class in its transparent texels to hide it.
+
+## The Wii's anisotropy and the texture cache (2026-11-02)
+
+On the bench Wii, Aniso 2x/4x drew rows of coloured dashes on Ape Escape's far grass (title demo,
+`scripts/chains/ape_attract_texmin.txt`, run `ape_texmin_wii`); Off and Linear were clean, Dolphin
+never showed it. The textures share one cache texture and have no smaller mip level, so the
+hardware spreads its taps over the whole footprint, tens of texels at the horizon, into the
+neighbouring textures. `aniso_mark()` (gpuPrim.c) now gives a polygon the taps only up to 2 (2x)
+or 4 (4x) texels per pixel; farther ground keeps the linear filter (`ape_anicap_wii`: clean at
+the horizon and in the middle distance, all three modes). Taps for the far ground need mipmaps
+built per cached texture ("Mipmaps: how they could be built" above): the planned next step.
