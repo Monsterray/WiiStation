@@ -1,0 +1,5 @@
+CHAIN
+# Ape title demo on the Wii, hprof build: the compile burst at vbl 8774-8775 (111 ms, 78% jit); normal speed: compile timing changes at Unlimited
+8980 sd:/wiistation/ape_wii_burst.txt PadAutoAssign=1 ControllerType=1 gpuPlugin=2 GxTexMin=3 ScreenMode=2 DeflickerFilter=1 GpuTiming=1 FrameRate=1
+sd:/wiistation/isos/Ape Escape
+Ape Escape [U] [SCUS-94423].cue

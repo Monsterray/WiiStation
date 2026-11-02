@@ -1,0 +1,3 @@
+# Ape title demo on the Wii: CPU profile of the one real hitch left (vbl 8774-8775, 111 ms, 78% compiling)
+10 0000
+hprof 8770 8778
