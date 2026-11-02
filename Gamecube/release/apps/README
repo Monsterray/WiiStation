@@ -177,7 +177,7 @@ Next version (not released yet):
 * Screenshots wait a few frames for the whole picture (a first shot could be
   one solid colour), and each shot's log line says how the picture was copied.
 * Fewer hitches when a game runs a lot of new code at once: compiling it is
-  about 20% cheaper. New settings.ini keys JitPending, JitFull and JitPick
+  about 13% cheaper on the Wii. New settings.ini keys JitPending, JitFull and JitPick
   (for testing; the defaults are unchanged).
 
 Ver 5.19.0 (2026-10-28):
