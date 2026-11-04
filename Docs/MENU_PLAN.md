@@ -20,7 +20,7 @@ are three label alignments, about 20 hand-typed button widths, 6 row pitches and
 port kept each page's old coordinates. This part is the next decision: one look.
 **Nothing below is built yet. The contact sheets show it before any code changes:**
 - `.runs/menu_today/today_sheet.png`: every screen as it looks today (Dolphin).
-- `.runs/menu_standard/standard_sheet.png`: each screen type on the standard (mock-ups).
+- `.runs/menu_standard/sheet_1..5_*.png`: the standard (mock-ups) beside today, and the layout guides.
 
 ### 1.1 The screen frame (all screens)
 
@@ -28,52 +28,76 @@ port kept each page's old coordinates. This part is the next decision: one look.
 
 | Band | y | What is in it |
 |---|---|---|
-| Header | 16-72 | a **tab strip** (tab pages) or a **title** at the left (other pages); nothing else |
-| Body | 88-392 | the screen type's content (below) |
-| Footer | 400-472 | the **help block** (two columns, term and text) at the left; the **logo box** (72 x 72) at the bottom right; one line of **button hints** (A Select, B Back, L/R Tab, - / + Page) at y 452 |
+| Header | 16-72 | a **tab strip** (equal widths, centered) or a **title, centered** at x 320 (an optional subtitle under it); nothing else |
+| Body | 88-424 | the screen type's content (below) |
+| Footer | 432-472 | **no button hints, no help block.** At most two tiny lines (13 px, x 24-556) of help for the focused row, only when that row has help |
 
-The logo sits in the footer on every screen except Main, where it stays top right. The engine
-owns the logo box; no row can enter it (`MENU_ROW_RIGHT`).
+The **logo box** is 64 x 88 at the bottom right (x 572, y 384; the logo is 61 x 86). The engine owns
+it; no row, list or panel may enter it (the host check). Main keeps its logo top right.
+
+**Screens that keep today's look** (Monty, 2026-11-04): Main, Current ISO, Players and the Quit question.
+They move onto the engine (one adapter, one input step) without changing a pixel.
 
 ### 1.2 One row grid for every form
 
-- **Label column**: right-aligned, ending at x 272. One rule for every page (today: centred at
-  150 or 160, centred at a per-page x, or right-aligned).
-- **Control column**: from x 288 to x 616 (328 px).
-- **Two densities**: Regular rows (button 52 high, pitch 58, 5 rows) and Compact rows (button 40
-  high, pitch 46, 6 rows). A page picks one; a page with more rows than fit becomes two pages or
-  a tab, never a third pitch.
-- **Widths come from the text**: the engine measures the text with the menu font and rounds up to
-  a step of 8 px. No page types a width. A row that does not fit in 328 px is a layout error (the
-  host check fails), not a smaller font.
+- **Label edge**: labels are right-aligned to one edge per page, 24 px plus the page's widest label,
+  between x 184 and x 272 (step 8). One edge per page, not one for the whole menu: the Settings tabs'
+  labels run from 145 px (PSX Pad Type) to 235 px (Memcard Save Device), and one fixed edge leaves
+  the 3-segment rows no room.
+- **Control column**: from the edge + 16 to x 616.
+- **Two densities**: **Regular** (button 50 high, pitch 56, 6 rows; the default) and **Compact** (40
+  high, pitch 46, 7 rows). **Text rows** for readouts: 28 high, pitch 32, 10 rows. A page with more
+  rows becomes two pages or a tab, never a third pitch.
+- **Widths come from the text**: the engine measures the text with the menu font and rounds up to a
+  step of 8 px. No page types a width. A row that does not fit is a layout error (the host check fails),
+  not a smaller font and not a Cycle.
+- **Corners are square** everywhere.
 
 ### 1.3 Row kinds (one look each)
 
-| Kind | Look | Today |
-|---|---|---|
-| Toggle | two segments, Off / On, one lit | a lit Yes/No pair, a single On/Off button, or a cycle button, depending on the page |
-| Choice | 2-4 segments of equal width (the widest text + 32 px), one lit; more than fit becomes a Cycle | typed widths per page |
-| Cycle | one 200 px button, value in the middle, small arrows at both ends; Left/Right step it | the same on Options; Settings draws some as rows of typed buttons |
-| Range | `-` value `+` (48 + 120 + 48) | not built |
-| Buttons | action buttons from the control column (or centred on menu screens), gap 12 | gaps of 0, 10, 12, 15, 20, 30 and 38 |
-| Readout | label and value text, not focusable | as is |
-| List | rows 36 high, pitch 40, a scroll bar, "Page 2/5" in the footer | one list per page, text only |
-| Help | the footer block, from the row's help text | as is |
+| Kind | Look |
+|---|---|
+| Toggle | two touching segments, Off \| On |
+| Choice | 2-4 touching segments: equal widths (widest text + 32) when they fit, else each its own text + 24 |
+| Flags | like Choice, but each segment is on or off by itself (Filters: Near, Trap, Deflicker; Audio: Audio, XA, CDDA) |
+| Cycle | one 200 px button with arrows at both ends. **Only** for values that are stepped through (Language, Interpolation, Light Gun, Auto Load Slot, Output Resampler) and whose text fits |
+| Cycles | two or more small Cycles on one row with a short prefix (Memcard Type 1 / 2) |
+| Range | `-` value `+` (48 + 120 + 48), touching (not built yet) |
+| Buttons | actions. One group of related actions **touches** (Save Settings: SD \| USB \| This Game); unrelated buttons have a gap of 12. From the control column, or **centered on x 320** in a row of its own with no label (Advanced \| Achievements \| Memory; Configure Input, Configure Buttons) |
+| Toggle + action | a Toggle and an action button after a gap of 12 (Boot Through BIOS + Execute BIOS) |
+| Readout | label and value text on text rows, not focusable |
+| List | rows 36 high, pitch 40; a scroll bar; the page number (1/3) tiny under the scroll bar |
+| Warnings | an amber band under a readout, **only when one is in effect** |
+
+Focus is the salmon fill; the current value is the cyan underline (as today).
 
 ### 1.4 The screen types
 
 | Type | Screens | Body |
 |---|---|---|
-| A. Form with tabs | Settings (5 tabs), Advanced (GPU, Input, SPU), Achievements options | rows on the grid |
-| B. Form with a title | the Options pages (Sound, Graphics, Plugins, CD, Memory) | type A with a title instead of tabs |
-| C. Action menu | Main, Load ROM, Current ROM | one column (280 px buttons; centred at x 288 on Main to clear the logo, at x 320 elsewhere) or two columns (240 px, gap 24); pitch 58 |
-| D. List | File browser, account chooser, cheats | the list fills the body |
-| E. List with detail | Achievements (list + badge and text), save-state slots with a picture (Part 3) | list x 24-392, detail panel x 408-616 |
-| F. Detail / readout | ISO Info, achievement detail, USB Pad Test, Memory | Compact readout rows, an optional picture at the right |
-| G. Picture editor | Configure Buttons, Configure Input, Customize Co-Op | the controller picture in the middle; Compact buttons in a left and a right column on an 8 px grid, a line from each to its place on the picture; the controller is picked on the tab strip; focus from geometry |
-| H. Card board | Players (port cards, the Mii coin strip) | 4 port cards in a row (136 x 200, gap 16), the coin strip below |
-| I. Dialog | MessageBox questions and notices | the screen behind dims to 50 %; a box 440 x 220 in the middle, title, text wrapped at 400 px, buttons in a row at the bottom right |
+| A. Form with tabs | Settings (5 tabs), Advanced (CPU, GPU, SPU, CD, Input) | rows on the grid |
+| B. Form with a title | Advanced Sound, Advanced Graphics, Memory, Achievements settings | type A with a centered title |
+| C. Action menu | Main, Current ISO (today's look kept), Load ROM | as today |
+| D. List | ISO list, account chooser, cheats | the list fills the body, x 24-548 (clear of the logo) |
+| E. Book | Achievements: In Progress / Locked / Earned (+ Leaderboards when the set has them), the detail page | a player strip (Mii, game, Player n of m, earned, points), two-line rows (tile, name, description, points, progress); the detail: centered title, text left, unlock picture 296 x 222 right |
+| F. Readout | ISO Info, USB Pad Test | text rows, then warnings only when in effect |
+| G. Picture editor | Configure Buttons, Configure Input, Customize Co-Op | **the body stays as today**; only Configure Buttons' top two lines change (below) |
+| H. Card board | Players | today's look kept |
+| I. Dialog | MessageBox questions and notices | today's look kept (the Quit question) |
 | J. Toast | unlocks, Save Block notices | the PS1 styles in `Docs/design/PS1_STYLES.md`; not a page |
+
+**Settings tabs, most-changed first** (proposal): **Video** (Screen Mode, Filters, Show FPS, Frame Skip,
+Frame Rate, Advanced), **Controls** (Configure Input + Configure Buttons, PSX Pad Type, Rumble, Light Gun,
+Auto Load Slot), **Saves** (Auto Save Memcards, Memcard Save Device, Memcard Type, Save States Device,
+Save Button Configs: moved from Input, it is about where files go), **Audio**, **System** (was General:
+BIOS, Boot Through BIOS + Execute BIOS, Language, Save / Load Settings, then Advanced, Achievements,
+Memory centered). Rows within a tab are ordered by use too.
+
+**Configure Buttons' top** (two options): today's six buttons (Next, Default, Slot 1, Load, Save,
+Gun/Mouse) and the title line become two lines: (G1) the pad as one centered Cycle ("PSX Port 1:
+GameCube Pad 1", replaces Next and the title), then Slot 1-4 | Game as touching segments, Load and Save,
+and Defaults apart at the right; (G2) the pad Cycle at the left with Light Gun Off | On beside it (only
+on a Wiimote, replaces Gun/Mouse), then a Slot Cycle, Load Slot | Save Slot, Defaults.
 
 ### 1.5 What the code does today (inventory, 2026-11-04)
 
@@ -105,7 +129,7 @@ binding from a row to its setting.
 
 **Why the pages differ** (the numbers): label centre 160 (engine), 150 (`TAB_LABEL_CX`, Settings),
 110 moved left by the widest row (choice rows), or right-aligned (two-column pages). Control x
-295, 205, 253, 252, 85, 323, 100, 150, 315 or centred. Widths typed by hand: 55, 70, 75, 90, 95,
+295, 205, 253, 252, 85, 323, 100, 150, 315 or centered. Widths typed by hand: 55, 70, 75, 90, 95,
 100, 105, 110, 117, 125, 130, 135, 140, 152, 160, 165, 170, 171, 220, 235 (Settings), 200 (Main),
 340 (Load ROM), 230/220/120 (Current ROM). Gaps 10 (`TAB_GAP`) and 12 (`CHOICE_GAP`), and 15, 20,
 30, 38 per row. Pitch 60, 70 (Audio, Saves), 46 (Memory), 54 (GPU), 62 (Configure Input). Heights
@@ -128,26 +152,39 @@ FileBrowser, Main, Players, Achievements, USB Pad Test); nested draw loops (`Fun
 MessageBox). Not checked yet: the pointer clicking hidden-but-active buttons (CursorManager), the
 focus loop guard in `Button.cpp:383-420`.
 
-### 1.5b What the mock-ups showed (2026-11-04, open: decide before step 3)
+### 1.5b Review of the mock-ups (2026-11-04)
 
-The mock-ups (`.runs/menu_standard/`, `render.py` holds the numbers) put the standard on real pages.
-Where it does not fit yet:
-1. **Choice rows with 3-4 segments rarely fit** 328 px at "widest text + 32": Screen Mode 432,
-   Filters 384, GPU Plugin 456, Save/Load Settings 432. The mock-ups turned them into Cycles, which
-   hides the choices and is wrong for Save/Load Settings (actions). Options: a wider control column
-   (label edge further left, e.g. x 232), segment padding of + 16, or such rows on a row of their own.
-2. **Tab strip**: 5 tabs at text + 32 need 648 px of 632; the mock-ups used text + 16.
-3. **Settings > General** has 7 rows: one more than Compact holds. It needs a split (or its
-   Advanced / Achievements / Memory buttons, 472 px wide, move to the tab strip or the footer).
-4. **Main**: 7 buttons at pitch 58 run to y 416, into the footer; the No ISO panel had to shrink.
-5. **ISO Info**: 8 readout rows need two pages at Compact pitch; a readout pitch of ~36 would fit one.
-6. **Configure Buttons**: two columns of 6 hold 12 mapping buttons; the page has about 22. The
-   mock-up dropped some: the real page must keep all of them (more rows per column at Compact, a third
-   column under the picture, or pages per group). Not a reason to remove a mapping.
-7. **Dialog**: the 400 px wrap breaks the Quit question badly; size the box to the text (max 560).
-8. **Logo**: today's logo is taller than the 72 px box; the box or the logo has to change.
-Interpretations the mock-ups made: focus = salmon fill (as today), current value = cyan underline;
-help block 3 lines at 16 px; hints at y 452.
+**Monty's rules** (after the first sheet): no button hints or option hints unless they are tiny and
+readable; square corners; related buttons may touch; arrows (Cycle) only for values that are cycled and
+fit; rows of buttons centered on the screen; the most-changed settings in the first tabs; Main, Current
+ISO, Players and the Quit question unchanged; titles centered; the ISO list liked, more options wanted;
+more before/after for Achievements; ISO Info warnings only when in effect, and more useful facts;
+Configure Buttons unchanged except a clearer top; more layout guides. All are in 1.1-1.4 above.
+
+What the first round's problems became: the 3-4-segment rows fit with a per-page label edge and own
+widths (+ 24); the tab strip fits at text + 16; Settings > General's 7 rows became the System tab's 6;
+Main and the Quit dialog are not changed; ISO Info fits one page on text rows; the logo box is 64 x 88;
+Configure Buttons keeps every mapping (its body is not touched).
+
+**Sheets** (`.runs/menu_standard/`, `render.py` holds every number; `sheet_N_*.png`):
+1. Settings, today beside the standard. 2. Achievements (today's book captured in Dolphin with the
+`ach_book` fixture). 3. ISO list options D1-D4 and ISO Info F1/F2. 4. Configure Buttons' top, G1/G2.
+5. Layout guides: the frame, every row kind, guides drawn over a form with tabs, the System tab, a form
+with a title, a list and a readout.
+
+**ISO Info facts** the code knows but does not show (RomInfo.cpp builds today's rows): the image format,
+the PBP disc count, the BIOS file, the memory card mode, the This Game settings file, achievement points
+and earned count. The mock-ups add them; the region comes from the disc serial (SLUS/SCUS = NTSC-U).
+
+**ISO list additions** (options, pick any): D1 folders with an icon, the format tag (CHD/CUE/PBP + disc
+count), the path under the title, long names cut with "..."; D2 the sources (SD, USB, DVD, Network,
+Recent) as tabs instead of the Load ROM step; D3 the focused game's facts on a strip (format, size, region,
+last played, achievements, states); D4 jump by letter. Needs code: SD/USB list sizes are 0 today
+(`fileBrowser-libfat.c:396`), and there is no recent list or last-played record.
+
+**Open, Monty to decide:** the tab order and names (Video, Controls, Saves, Audio, System); one label
+edge per page (tabs differ by up to 88 px) or shorter labels and one fixed edge; which ISO-list options;
+G1 or G2; whether the tiny help line stays.
 
 ### 1.6 The work, in steps that each ship
 
@@ -245,7 +282,7 @@ this and becomes the engine's first user.
 ### 3. One grid, in `MenuLayout.h`
 Every screen uses the same measures (all already the Settings tabs' de-facto values): tab row
 y 20 (positions 25/155/275/395/515), first row y 100, pitch 60, button height 56, label column
-centred at 150-160, controls from x 295, a 10 px gap. **Columns**: a page may split into two
+centered at 150-160, controls from x 295, a 10 px gap. **Columns**: a page may split into two
 control columns (CurrentRom's two button columns) or a full-width row (radio rows with long
 names start further left, as now). The right edge of every row comes from `MENU_ROW_RIGHT(y)`,
 so nothing can enter the logo's box.
