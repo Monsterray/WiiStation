@@ -577,10 +577,10 @@ Official, Custom, Test) through a small map in the cycle of `OptionsFrame.cpp` (
 
 | Prerequisite | State |
 |---|---|
-| HTTPS stack (Mbed TLS 3.6.4 + curl 8.16.0) | Proven on the bench Wii on 2026-10-11. Built for libogc2 and devkitPPC r41-2. It must be rebuilt for libogc v3, the default since WiiStation 5.13.0. |
+| HTTPS stack (Mbed TLS 3.6.4 + curl 8.16.0) | Proven on the bench Wii on 2026-10-11. Built for libogc2 and devkitPPC r41-2. It must be rebuilt for libogc v3, the default since WiiStation 5.13.0. **Status (2026-11-03):** rebuilt for libogc v3 (c03f43e6, c6847e35) and in the product since 5.17.0 (dc3674fc). |
 | Strong TLS entropy | The proven probe uses a public dummy NV seed. A secret seed for each Wii needs confidential provisioning. See [TLS entropy](ACHIEVEMENTS_RESEARCH.md#tls-entropy). |
 | Correct UTC | Needs a reviewed UTC source. See [UTC clock](ACHIEVEMENTS_RESEARCH.md#utc-clock). |
-| `rc_client` connected to the emulator | Not done: login, PS1 hash through WiiStation's own disc reader (also CHD and PBP), frame and idle pump, nonblocking transport. |
+| `rc_client` connected to the emulator | **Done** (Status 2026-11-03). `rc_client` in the Wii build (825df461), HTTPS and login on the bench Wii (54dfd3f4, 2ef5cce3), the PS1 hash through WiiStation's own disc reader in every format incl. CHD and PBP (efe265b4), disc swaps (2b7b6c73); in 5.17.0 (dc3674fc). The frame and idle pump and the nonblocking transport (worker thread, `ra_transport.c`) are in the build; a separate proof of each is unverified. |
 
 ### Design rules for Official mode
 
@@ -668,6 +668,15 @@ These rules come from [the research](ACHIEVEMENTS_RESEARCH.md).
 - Phase 0 is done in part. The runtime cross-builds, and verified TLS works on the bench Wii.
   No login occurred. Phase 1 is done except the hash adapter in the emulator. Phases 2 to 5
   have not started. See [the notes](ACHIEVEMENTS_NOTES.md#what-remains).
+- **Status (2026-11-03), replaces the paragraph above, which is the 2026-10-23 text:**
+  Phases 0 and 1 are done: the hash adapter is in (efe265b4, 825df461). Phase 2 (Casual client:
+  login, set load, events, game list, popups) and phase 3 (progress indicators, badges, the
+  state section, multi-disc) are in the product since 5.17.0 (dc3674fc, ef64c4bd, 34af5057,
+  2b7b6c73). Reconnect and offline policy: unverified. Phase 4 (Hardcore) is **not
+  implemented**: it needs RetroAchievements' approval of WiiStation as a client. Phase 5
+  (Local mode) is built in 5.19.0 (8f06d2d5, merged 07cd4797; the book 8e9a4638; per-Mii
+  932fad3b and 6c4c17f7). Hardware proof of an Official login with a Mii's own account is open
+  (MII_PLAN.md step 4a).
 - Do not add these during phases 0 to 3: a multi-provider layer, an authoring toolkit, a new
   backend server, a libretro rewrite or a mandatory hardware adapter.
 - If native HTTPS fails, write a measured comparison of the ESP32 adapter and a companion

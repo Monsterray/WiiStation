@@ -49,6 +49,43 @@ update must keep them: libsmb2's own Wii port had never run.
 - `Makefile.wii`: the objects depend on `wii_alloc.h` and the makefile too, so a change to
   either rebuilds them (a stale archive links silently).
 
+## Upstream status (2026-11-03)
+
+Read from `gh api` on 2026-11-03. The Lightrec sync text is under "How each choice is made" below.
+
+**Lightrec (pcercuei/lightrec).** Upstream HEAD is 4a428f5; we are at a7464cc, 10 commits behind:
+- 441a540 Move CP2 regs to their own struct
+- 0bcc2e9 Replace the `.cop2_op` callback with `.cop2_hdl`
+- 74ca705 regcache `lightrec_unload_caller_saved_regs()`
+- 853d0c8 Generate faster C calls to GTE handling functions
+- bea9196 Drop the workaround for MIPS in `rec_cop_CP2()`
+- b6c6a57 Handle a load target register write in a load delay
+- 06ba761 Fix JR->J conversion switching memory segments
+- 68af875 COPYING: LGPL 2.1 text
+- 4885d60 Drop useless load delays for local branches
+- 4a428f5 Allocate the state struct at +0x400 bytes above dcache alignment
+
+The CP2 changes (441a540, 0bcc2e9, 853d0c8) touch the adapter contract: our `lightrec.c` adapter
+and the GTE glue would change with them. The WiiStation patches listed below must be kept on an
+update.
+
+**WiiSXRX_2022 (xjsxjs197).** Last merged: b004f87 (2026-09-06). Ported since: the GTE commits
+8c387b8, 8950ac8, 77b4dd3 (our fe798371). Not ported (each is a hand port: our GlesGpu has
+diverged):
+- 4994efe opaque black pixels in MoveImage uploads (may overlap our Gex 2 opaque-upload fix,
+  6cd80628; compare before porting)
+- 3778ed3 GTE opcode propagation in the PPC dynarec (old dynarec, `Core=2`)
+- 5dccaf5 FF7/FF9 menu display pages (`AUTO_FIX_FF7_DISPLAY_PAGE`)
+- 94ebeba Dino Crisis framebuffer feedback
+- 603d4e8 MGS save description feedback (touches opengx)
+- f46e65f Parasite Eve II EFB clear (`AUTO_FIX_PE2_CLEAR_EFB`)
+- bb4296b Dino Crisis 2 readback snapshots halved
+- 1fecb9d + 4fd6a87 AITD4 framebuffer texture feedback (`AUTO_FIX_FRAMEBUFFER_TEXTURE`, 472 lines)
+- 68af8a7 GLES_GPU_FIX_HISTORY.md doc
+
+**PCSX-ReARMed.** We take parts by hand; no sync point is recorded. Upstream HEAD is 7838055
+(2026-11-01).
+
 ## How each choice is made
 
 **CPU core.** `psxCpuSelect()` is the only mapping from the setting to a core; `psxInit()`,

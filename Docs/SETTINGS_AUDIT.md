@@ -2,8 +2,9 @@
 
 Every user-facing setting: where the menu shows it, whether the settings file saves and loads
 it, whether `Gamecube/release/example_settings.ini` and `SETTINGS.md` document it, and when a
-value read from a file at game start takes effect. Key names are those of 84cb091 (the menu
-work renames `SoundHwAccel` to `SoundDriver` separately).
+value read from a file at game start takes effect. Key names are those of 84cb091, except that
+`SoundHwAccel` is now `SoundDriver` (renamed in 5.13.x; `setOption` still reads the old name).
+See "Status (2026-11-03)" below for the keys added since.
 
 ## How it was checked
 
@@ -86,7 +87,7 @@ Ranges (`PadType<n>`, `Coop<p>Type<n>` ...) are one row each.
 | `FPS` | [Video] | Video, Show FPS | yes | yes | yes | live (read where used) |
 | `EfbSync` | [Video] | Not in the menu | yes | yes | yes | live (read where used) |
 | `Audio` | [Audio] | Audio, Enable: Audio | yes | yes | yes | live (read where used) |
-| `SoundHwAccel` | [Audio] | Audio tab, "DSP Sound"; General, Advanced, SPU tab, "Output" | yes | yes | yes | next load (SetupSound at SysInit, before the read) |
+| `SoundDriver` (was `SoundHwAccel`) | [Audio] | Audio tab, "Sound Driver"; General, Advanced, SPU tab, "Output" | yes | yes | yes | next load (SetupSound at SysInit, before the read) |
 | `SoundResampler` | [Audio] | Audio, Advanced, "Output Resampler" | yes | yes | yes | live (read where used) |
 | `SoundRateControl` | [Audio] | Audio, Sync = Rate | yes | yes | yes | live (read where used) |
 | `SoundTempo` | [Audio] | Audio, Sync = Tempo | yes | yes | yes | FIXED: setSpuTempo at game start |
@@ -146,7 +147,7 @@ Ranges (`PadType<n>`, `Coop<p>Type<n>` ...) are one row each.
   (also lost at boot), `Interpolation`, `SoundTempo`, `SoundReverb`, `TrapFilter`, `Gamma`,
   `SkipFrames` (Soft Fast), plus the This Game file itself (never read).
 - 4 keys take effect only at the next game load when they come from a game's file:
-  `SoundHwAccel`, `CdBuffer`, `CdPrefetch`, `CdChdHunks` (used when SysInit opens the disc, and
+  `SoundDriver` (then `SoundHwAccel`), `CdBuffer`, `CdPrefetch`, `CdChdHunks` (used when SysInit opens the disc, and
   the disc ID that names the file is known only after that). 3 are boot-only: `VideoMode`,
   `lang`, `MenuFont`. Both are now written in SETTINGS.md section 1.4. Not fixed.
 
@@ -177,6 +178,46 @@ Ranges (`PadType<n>`, `Coop<p>Type<n>` ...) are one row each.
   the file is missing; game start does not).
 - Legacy `.cfg` files stay on the card; WiiStation never deletes them (SETTINGS.md 1.4 says the
   user may).
+
+## Status (2026-11-03)
+
+Checked against `OPTIONS[]` in `Gamecube/GamecubeMain.cpp` and `Gamecube/release/example_settings.ini`
+on main (e857a9c2). The table above is the 2026-10-18 audit and has not been redone: the code now has
+214 keys (`python scripts/settings_check.py`: "checked 214 keys, 81 ranges"), and the counts above
+(164) are the 10-18 counts.
+
+**Key names fixed in this file:** `SoundHwAccel` is `SoundDriver` (menu label "Sound Driver"). The
+example file and SETTINGS.md say the old name is still read (`GamecubeMain.cpp` maps it).
+
+**Keys added since the audit (not audited: saved/loaded/applied-when not re-proven):**
+| Key | Section | Where shown | Note |
+|---|---|---|---|
+| `TabWrap` | [General] | none | global-only key |
+| `FilterTour` | [Video] | Video, Filter Tour | never stored (`UNSTORED_KEYS`) |
+| `GxTexMin` | [Video] | Advanced > GPU, "Far Textures" | OpenGX trial, see GX_QUALITY.md |
+| `GxColor` | [Video] | Advanced > GPU, "GX Color" | OpenGX trial |
+| `GxMask` | [Video] | Advanced > GPU, "GX Mask Bit" | OpenGX |
+| `SoftGpuMode` | [Video] | "Soft Mode" | soft GPU pixels (Accurate, Hi-Fi, Fast) |
+| `JitDelay`, `JitQueueAt`, `JitThreadTest`, `JitPending`, `JitPick`, `JitFull`, `JitLightning` | [Performance] | not in the menu | Lightrec background compiler / GNU Lightning test keys |
+| `ChainDump`, `Disc` | [Performance] | not in the menu | chain lines only |
+| `GunReticle` | [Controllers] | Input, "Gun Reticle" | |
+| `AchievementUnofficial`, `AchievementEncore`, `AchievementChallenge` | [Achievements] | Achievements menu | |
+| `AchievementSpectator`, `AchievementUTCOffset`, `AchievementBenchRoot` | [Achievements] | none | `AchievementBenchRoot` is global-only |
+| `Player1`..`Player2P8`, `PlayersRecent`, `PlayersOfficial` | [Players] | Players menu | one string key per seat |
+
+`Achievements` is now a 0-4 mode (Off, Custom, Test, Official, Local), not on/off.
+
+**Open items, checked against the code:**
+- Next-load keys: still open (4 keys, same reason: the game's file is read after `SysInit()` opens the
+  disc). Not done.
+- `BiosDevice` check: still open for game start. `loadSettingsNow()` (the Load Settings menu action,
+  1c5e371b) and boot (`GamecubeMain.cpp` near line 929) fall back to HLE when the file is missing;
+  the game-start path (`loadGameSettings` then `biosFileInit()`) has no such check (read from
+  the code, not run).
+- Legacy `.cfg` policy: unchanged. The reader still takes `<ID>.cfg` when a device has no `.ini`;
+  nothing deletes them.
+- `settings_check.py` missed `JitLightning` because its table row ends in a `/* */` comment;
+  fixed 2026-11-03 (the checker strips comments). It now says "settings: ok".
 
 ## Commands
 

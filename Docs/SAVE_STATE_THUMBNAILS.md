@@ -1,5 +1,9 @@
 # Save state thumbnails — what it would take
 
+**Status (2026-11-03): not built.** `GPU__getScreenPic` in `Gamecube/plugins.c` still returns -1 and
+no `getScreenPic` exists in the GPU code (grep). The achievement unlock pictures (`ach_shot.c`) are
+a separate feature and do not fill the state file's picture area.
+
 The slot picker on the Current ROM screen says "Slot 3" and, since the last round, "Slot 3*"
 when that slot holds something. It cannot say *what* it holds. Ten slots per game and no way
 to tell them apart is the complaint this would fix.

@@ -1,6 +1,20 @@
-# A menu framework for WiiStation -- plan (for review, 2026-10-09, updated 2026-10-10)
+# A menu framework for WiiStation -- plan (for review, 2026-10-09, updated 2026-10-10; status 2026-11-03: built, see below)
 
-Nothing here is built yet. The goal (Monty, 2026-10-09): one robust way to build every menu --
+**Status (2026-11-03): steps 1 to 6 are built and merged** (`try/menu-framework`, merge
+50ee0b0b, 2026-10-12); the line below is the 2026-10-09 text. Evidence: step 1 `MenuEngine` core and
+OptionsFrame (b7bb07fe, dba48334); step 2 Settings tabs General, Video, Input, Audio, Saves and
+focus links from the engine only (1f6a32cf, e47cf234, 779d5d6c, dbb34150, cc8b23d3, af511141);
+hidden and inactive buttons never targets (8aa879ee); step 3 Main, Load ROM, Current ROM
+(8288766d, eb764785, f1f31cd2); step 4 List rows and the file browser (ce8218c7); step 5 Customize
+Co-Op, Configure Input, Configure Buttons (231bdde2, aa506cb4, 3a1d5dde); step 6 one settings
+table for label, choices and help (a39ed8f7, 9c15c81a, 2598141d). Later additions: optional edge
+wrap (46e0fde6, b23d8601), two-column pages (11a1a2a2), a compact four-column layout (4b218204,
+268bfb66). `scripts/menu_text_width.py` no longer carries `TAB_ROWS`. Not done or unverified:
+the Range row (not in `MenuEngine.h`), modal dialogs owned by the engine (no sign of it), save-state
+slots as a List (unverified), the Cheats page (nothing built, see CHEATS_PLAN.md).
+`PlayersFrame` and `AchievementsFrame` do not use `MenuEngine` (grep of `Gamecube/menu`).
+
+The original text follows. The goal (Monty, 2026-10-09): one robust way to build every menu --
 tabs, columns, rows, rows that are only buttons, a safe place for the spinning logo, D-pad
 traversal that always works, on/off buttons, cycle buttons, and one-of-several choice buttons --
 instead of hand-placed coordinate tables.

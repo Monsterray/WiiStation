@@ -4,6 +4,15 @@ Goal: each Mii on the console is a player. A Players menu seats Miis on the PS1 
 **Local** achievements (the unlock journal) are kept per Mii. Status: plan, 2026-10-28 (owner's
 decisions below); the menu is at the mock-up stage.
 
+**Status (2026-11-03):** phases 0 to 3 and Official steps 4a, 4b and 4c are built; the line above
+is the 2026-10-28 text. The Players menu shipped in 5.18.0 (2c26d9f7), Co-Op seats in 5.18.1
+(0a91d1c0), `players.ini` and the recent list in 5.18.2 (ead7c5a0, 10bece41), a missing Mii seats
+Guest with a notice (35088774). Per-Mii Local unlocks (phase 3): 932fad3b, merged 9e2ab87a. The
+Edit slot, account links and the Official button (4b): 8c727ea2. Official session per Mii (4a,
+4c): 6c4c17f7, merged b1d68161. Open: hardware proof of an Official login with a Mii's own
+account (4a), a Local player earning on a real set on hardware (4c), and a real Local download
+with an account on the bench Wii (see the check column below and `Docs/ACHIEVEMENTS.md`).
+
 ## The Mii SDK (hbc-reborn `sdk/mii`)
 
 WiiStation uses hbc-reborn's Mii SDK, vendored as `deps/mii` from the same commit as the HBC

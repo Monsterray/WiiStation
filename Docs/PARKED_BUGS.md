@@ -76,6 +76,8 @@ LTO partitioned unrelated code. Keep any new `__wrap_` definition in a file on t
 
 ## CD audio from PBP, CHD and CBN starts 24 ms late (audio output) -- PARKED 2026-10-21, to fix
 
+**Status (2026-11-03): still open.** No commit since the 2026-10-21 park touches the CD-DA start offset (only CD-image work: 29bb8fd0 `.mds` and read-ahead, 46119536 CHD decode-ahead; neither mentions it). Not re-measured today.
+
 **Symptom.** Frogger's CD-DA music (track 2, from 6.17 s into a 90 s idle run) plays 1152 output
 samples (24.0 ms at 48 kHz) later from a .pbp, .chd or .cbn than from the .cue. The user wants it
 fixed. It is not audible as a gap (see the mechanism), only as music 24 ms late against the picture.
@@ -181,6 +183,8 @@ upload 0.95 -> 0.43 s, sync 0.56 -> 0.005 s, `il_early=253`. Both runs back to H
 ---
 
 ## CTR Tiger Temple rain: every drop reads the frame back through the CPU (OpenGX) -- PARKED 2026-10-20
+
+**Status (2026-11-03): still open.** The last rain work is the scaled-merge rewrite 99e58363 (measured 2026-10-24, below); the GPU-only `GX_CopyTex` path in the plan is not built (no commit adds it). Not re-measured today.
 
 **What it is.** The rain drops are opaque 15-bit textured primitives whose texture lies in the
 frame being drawn (1-4 pixels under each drop, drawn back to front). Each read is a partial EFB
@@ -297,6 +301,8 @@ An episode is 16 presents: the run must go on long enough to finish it, or the r
 prints the previous episode (its `vblank` then looks wrong).
 
 ## Old PPC dynarec (Core = 2): jumps to address 0 at the start of a game -- PARKED 2026-09-30
+
+**Status (2026-11-03): still open (as far as the log shows).** No commit since 2026-09-30 names this fault. The only `ppc/` change is 485efc54 (2026-10-10), a stop-flag check in `iJump`/`iBranch` (not a jump-to-0 fix); no `Core=2` chain exists in `scripts/chains/`, so it was not re-run. Unverified.
 
 **Symptom.** A chain with `Core=2` on Crash 3 never reaches its first chain end; Dolphin logs
 `ISI exception at 0x00000000` (a branch to 0). Found while moving the dynarec's 10 MB into the

@@ -9,6 +9,21 @@ Everything here is about the **OpenGX** renderer (`gpuPlugin = 2`). The default 
 Soft Fast (`gpuPlugin = 0`); the soft renderers draw with the CPU at the PS1's resolution and
 already dither exactly like a PS1 (`SoftGPU/soft.c`, `dither5.h`).
 
+## Status (2026-11-03)
+The study text below was written 2026-10-19 and some lines ("not built", "not measured", "nothing
+touched a Wii") predate later work. Since then:
+- AA (`GxColor=2`) ran on the bench Wii on 2026-10-19 (`hw_gx_aa*`, 08c486c7, 14e560c8): right
+  pictures, same presents and wall as plain 240p; selectable again. Not measured on Tiger Temple.
+- Menu entries exist: Far Textures and GX Color on Advanced > GPU (65a53ede), and in the Filter
+  Tour (44011389).
+- Anisotropy: `GxTexMin` 2/3 (Far Textures Aniso 2x/4x) went in a prototype, was removed 2026-10-29
+  (Ape Escape hand, 1a6a593c), restored 2026-11-01 for minified polygons only (1de16535, c12246a7)
+  and capped to 2/4 texels per pixel on 2026-11-02 after coloured dashes on far grass on the Wii
+  (254fcc46). Mipmaps are still not built.
+- Open: run `gx_quality_ab.txt` on the bench Wii; decide `GxTexMin` / `GxColor` as shipped options;
+  the `Dithering` setting does nothing on OpenGX at `GxColor=0` (see step 4 below); mipmaps for far
+  ground (planned later).
+
 ## Verdict
 
 | Feature | Possible? | Cost | Look | Speed | Status |
@@ -304,15 +319,21 @@ stage; the cost is one TEV stage and one texgen on dithered draws.
 
 ## Recommended next steps
 
-1. Run `gx_quality_ab.txt` on the bench Wii (needs the queue; nothing here touched a Wii).
+1. Run `gx_quality_ab.txt` on the bench Wii (needs the queue). Status (2026-11-03): still open as a
+   whole; the Wii has since run only the AA loops (`hw_gx_aa*`, 2026-10-19) and the anisotropy
+   checks (2026-11-02, below), not this chain's GPU-cost rows.
 2. Done (2026-10-19): the 240p XFB height (`switchToTVMode`) and the AA pictures (above).
 3. Decide from the pictures: keep `GxTexMin` if aniso does something on hardware at an
    acceptable GPU cost (a menu entry "Distant Textures"?); keep `GxColor=2` as a 240p
    "Anti-Aliasing" option: edges improve and the CTR intro costs nothing; Tiger Temple is not
-   measured yet.
+   measured yet (status 2026-11-03: still open; decide `GxTexMin` and `GxColor` after step 1).
 4. `Dithering` on OpenGX: either make it do something (GX dither via `GxColor`, or the
    exact TEV dither in 240p) or say in the menu that it applies to the soft renderers only.
-5. Mipmaps only if 3 shows that minified textures still shimmer and the MEM2 pool has room.
+   Status (2026-11-03): at `GxColor` 0 (default) it still does nothing on OpenGX (`bDrawDither` is
+   never assigned; `GL_DITHER` is ignored). At `GxColor` 1 and 2 `GxDitherPrim()` (`GlesGpu/gpuPrim.c`,
+   c49d60be) reads `useDithering` and switches GX dither per primitive. The exact PS1 TEV
+   dither is not built; the menu note is not written.
+5. Status (2026-11-03): open; mipmaps for far ground are planned later (see "The Wii's anisotropy and the texture cache"). Mipmaps only if 3 shows that minified textures still shimmer and the MEM2 pool has room.
 
 ## Anisotropy only where it helps (2026-11-01)
 

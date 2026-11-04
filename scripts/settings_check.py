@@ -131,6 +131,7 @@ def table():
 
     out, sec = [], None
     for line in t.splitlines():
+        line = re.sub(r"/\*.*?\*/", "", line)  # a row may end in a comment (JitLightning)
         m = re.match(r'^\s*\{\s*"([^"]+)",(.*)\}\s*,?\s*$', line)
         if not m:
             continue

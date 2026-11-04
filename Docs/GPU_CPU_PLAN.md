@@ -34,6 +34,13 @@ C2, then the hardware session (the bench Wii and `scripts/wii_lab.py` are ready)
   (8de5fa1/8610af3, after bc014aa) exist. Genuinely missing: a code high-water mark
   (only cumulative `lightrec_code_bytes`) and bytes-flushed (only texture bytes today).
 
+**Status 2026-11-03 (HEAD e857a9c2).** Open: C2 (GTE fast paths; the upstream GTE accuracy port
+went in as fe798371, the fast paths did not), C3 (scratchpad in the locked cache, hardware only)
+and the three section-5 cleanups (checked in the code today). Done since 2026-10-17: G2's fix
+(fcb53905), G4 display-list reading measured with no win and dropped (5559205e, merged with
+7ebdb79a), the hardware session (section 6). Compile time, which this plan did not cover, is in
+`Docs/BACKENDS.md` (Lightning 339dc53b, jitstall ac3681e7, jq_unlink 14a1870b).
+
 The sections below are the plan as written, kept for its reasoning.
 Evidence: the eleven-game chained run `baselines/chain_all_20260922/` (debug build, every
 probe on, Dolphin) and the three-game runs `.runs/three_flip`, `.runs/three_nolog`.
@@ -400,16 +407,18 @@ double count (`101b1cd`); OpenGX's texel probes ran ungated and compared against
 
 Still to do (fix, not delete):
 - `glparamstate.dirty` is cleared and never read. G3 either uses it or removes the pretence.
+  Status 2026-11-03: open (set in many places in `gc_gl.c`, cleared once, read nowhere).
 - `glDrawCommon` sets the vertex format on every draw. G3. **DONE** (b11b30d)
 - OpenGX has `#ifdef DISP_DEBUG` blocks that `sprintf` per draw (`_ogx_apply_state`,
   `chkTex`). They are compiled out today only because the library is built without
   `DISP_DEBUG`. Guard them with `logFileEnabled()` like the plugin's, so a debug OpenGX
-  cannot bring the trap back.
+  cannot bring the trap back. Status 2026-11-03: open (`DISP_DEBUG` still commented out;
+  its `sprintf` blocks are not guarded).
 - The whole-texture `DCFlushRange` per sub-upload (G1.2). **DONE** (only the first
   semi-transparent copy still flushes it all, which is correct)
 - `psxinterpreter.c`'s `psxCP2[]` table holds `psxNULL` (no parameters) in a table of
   `void (*)(psxCP2Regs *)`. Harmless on PowerPC, but undefined behaviour; give it a matching
-  no-op.
+  no-op. Status 2026-11-03: open (`psxNULL` still in `psxCP2[]`).
 
 ## 6. Future work
 
@@ -420,7 +429,10 @@ Still to do (fix, not delete):
 - The hardware session: `scripts/chains/all.txt` as `autoboot.txt`, a build with
   `PERF_PROF_PMC=1`, then `chain_table.py`. One boot, one card transfer. Not run yet; the tools
   are ready: the PMC probes (8214a6d) and the bench-Wii loop (`scripts/wii_lab.py` through the
-  `C:/tools/wii-bench` queue), which needs no card transfer.
+  `C:/tools/wii-bench` queue), which needs no card transfer. **DONE** (status 2026-11-03): run
+  on the bench Wii on 2026-09-28 (`baselines/hw_chain_all_20260928`, `hw_chain_all2_20260928`
+  with the PMC build c48bb7d, and the LC A/B `hw_chain_lc_ab_20260928`); every version since is
+  benchmarked with `library20.txt` (`scripts/benchdb.py`).
 - Why the same game measures differently in two chain files (caution 2). **DONE**: a game
   inherited the previous game's timers, SPU, SIO and pad (372a470) and display state
   (627af35); both fixed.
@@ -430,7 +442,7 @@ Still to do (fix, not delete):
 1. C1 (HLE trap in ROM): up to about 8% of wall, measurable in Dolphin, in every game. **DONE**
 2. G2 split, then its fix: the largest single item (15.1% in Micro Machines), and a 5.6 ms
    present is a frame-time spike a player sees. The split is one probe. **PARTIAL**: the
-   split is done, the fix is open.
+   split is done, the fix is open. **DONE** (fcb53905, 2026-09-28).
 3. G1.1 (block-aligned placement) and G1.2 (flush the written blocks): both small. **DONE**
 4. G3 (state cache), with its invalidation rules. **DONE**
 5. The hardware session, then the LC items in the order the hardware numbers give.

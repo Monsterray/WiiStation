@@ -104,6 +104,18 @@ Four cautions, in order of importance:
 
 ## 3. The order of work
 
+**Status 2026-11-03 (HEAD e857a9c2).**
+- Step 0: partly done. The bench Wii ran the PMC build (`baselines/hw_chain_all2_20260928`, build
+  c48bb7d) and an LC A/B (`baselines/hw_chain_lc_ab_20260928`: `LockedCache=3` vs 0, no wall
+  gain). Whether `PERF_PROF_GPUSPLIT` was on in those runs is unverified.
+- Step 1: **DONE** (b11b30d4).
+- Step 2: in as the `tex-tile` region (`tile_via_lc`, 805659f4), off by default; no gain on the
+  Wii yet.
+- Step 3: merged (187ae768), then **taken out** (3ecfa64d, 2026-10-21): it bought nothing on the
+  bench Wii (measurement in `Docs/LOCKED_CACHE.md`).
+- Step 4: not done; judged not worth it on 2026-10-18 (`Docs/LOCKED_CACHE.md`).
+- Step 5: the gaussian table is in (`spu-gauss` region); the SPU channel state is not.
+
 Hardware numbers for these choices (same bench Wii, measured by WiiXplorer NG, 2026-10):
 `Docs/HARDWARE_RESEARCH.md`. In short: LC DMA MEM1->LC 1349, LC->MEM1/MEM2 ~1465, MEM2->LC
 only 440 MiB/s; a pass past the 256 KiB L2 runs 2-3x slower, which is what step 2 removes.
@@ -158,7 +170,7 @@ Expected: on hardware, the upload cost falls by the 128 KB flush, the 256 KB sta
 trip and the second pass; in Spyro gameplay that is a fraction of 0.9%; in a texture-streaming
 game it is the whole upload cost. Do not expect a frame-rate change in Spyro from this step.
 
-### Step 3. MDEC: tables and block in the locked cache -- IMPLEMENTED 2026-10-19
+### Step 3. MDEC: tables and block in the locked cache -- IMPLEMENTED 2026-10-19, TAKEN OUT 2026-10-21 (3ecfa64d)
 `psxDma1` -> `rl2blk` -> `idct` -> `yuv2rgb15/24` per 16x16 macroblock. Working set: `iq_y`,
 `iq_uv`, `zscan`, `aanscales` (64 ints each, 1 KB), the `blk[DSIZE2*6]` block (1.5 KB), the
 16x16 output (512/768 B). `LCAlloc` the tables and `blk` into the LC so the streaming output

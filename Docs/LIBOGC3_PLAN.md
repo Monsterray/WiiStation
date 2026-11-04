@@ -86,7 +86,7 @@ used (debug perf block); A = libogc2, B = libogc3:
 | Micro Machines V3 | 51.54 | 51.64 | +0.10 | gpu +0.53, cd -0.15 |
 No slowdown beyond noise; the CD (file reading) column is a little lower on libogc3. DOL
 +139 KB (3,564,800 vs 3,426,240 release).
-Still to check (step 4): DSP audio path, SMB/USB reading, save states, Co-Op/HID/Wii U pads,
+Still to check (step 4; superseded by the "Step 5 done" block below, which records what was checked): DSP audio path, SMB/USB reading, save states, Co-Op/HID/Wii U pads,
 DVD, ps1-tests, replay3/replay_rest, statecheck, Quit, Wiimote LEDs (no WPAD_ControlLed in v3).
 **dsp_ab (CPU and DSP audio paths), bench, debug builds:** 8/8 games on both, no crash.
 Load B-A: Ape Escape CPU -0.57, DSP -1.20; FF7 CPU -0.23, DSP -0.55. The AESND (DSP) path works on
@@ -112,3 +112,11 @@ work, slot cycling works, screenshot ("Shot:") placement good (other D-pad/butto
 be tried later).
 **Not checked on v3:** Wii U Pro Controller, Wii U GamePad, USB (HID) pads -- need hands;
 DVD -- the bench Wii's drive is broken (to be run on another Wii).
+
+## Status (2026-11-03)
+All 5 steps are done: step 5's default switch is f59cfd9 (merge) and 26d0aea (default). The step 4
+"still to check" list above is superseded by the Step 5 block.
+**Open:**
+- Remove the libogc2 build (`LIBOGC=2`, `*_ogc2.dol`) after one release on v3 (not done yet).
+- Not checked on v3: Wii U Pro Controller, Wii U GamePad, USB HID pads (need hands).
+- DVD on v3: the bench Wii's drive is broken; needs another Wii.
