@@ -30,43 +30,52 @@ port kept each page's old coordinates. This part is the next decision: one look.
 |---|---|---|
 | Header | 16-72 | a **tab strip** (equal widths, centered) or a **title, centered** at x 320 (an optional subtitle under it); nothing else |
 | Body | 88-424 | the screen type's content (below) |
-| Footer | 432-472 | **no button hints, no help block.** At most two tiny lines (13 px, x 24-556) of help for the focused row, only when that row has help |
+| Footer | 432-472 | **no button hints.** At most two tiny lines (13 px, x 24-556) of help for the focused row, only when that row has help |
 
 The **logo box** is 64 x 88 at the bottom right (x 572, y 384; the logo is 61 x 86). The engine owns
-it; no row, list or panel may enter it (the host check). Main keeps its logo top right.
+it; no row, list or panel may enter it (the host check). On a 6-row page the last row must end before
+x 564, so a short row goes last. Main keeps its logo top right.
+
+**Full-screen pages** have no logo and use all of the screen: the achievements book and the ISO
+explorer (titles, descriptions and file names can be long). The book is the one page with a hint line
+(y 464), because its controls (tabs, players, details) are not obvious.
 
 **Screens that keep today's look** (Monty, 2026-11-04): Main, Current ISO, Players and the Quit question.
 They move onto the engine (one adapter, one input step) without changing a pixel.
 
 ### 1.2 One row grid for every form
 
-- **Label edge**: labels are right-aligned to one edge per page, 24 px plus the page's widest label,
-  between x 184 and x 272 (step 8). One edge per page, not one for the whole menu: the Settings tabs'
-  labels run from 145 px (PSX Pad Type) to 235 px (Memcard Save Device), and one fixed edge leaves
-  the 3-segment rows no room.
-- **Control column**: from the edge + 16 to x 616.
+- **Label edge: x 248 on every form, never moving** (flipping tabs must not shift the labels). Labels
+  are right-aligned to it and at most 224 px wide (the host check). Two Settings labels are shortened
+  for it: Memcard Save Device -> **Save Memcards To**, Auto Save Memcards -> **Memcard Auto Save**.
+- **Control column**: x 264 to x 616 (352).
 - **Two densities**: **Regular** (button 50 high, pitch 56, 6 rows; the default) and **Compact** (40
   high, pitch 46, 7 rows). **Text rows** for readouts: 28 high, pitch 32, 10 rows. A page with more
   rows becomes two pages or a tab, never a third pitch.
 - **Widths come from the text**: the engine measures the text with the menu font and rounds up to a
   step of 8 px. No page types a width. A row that does not fit is a layout error (the host check fails),
   not a smaller font and not a Cycle.
+- **Sub-page buttons** (Advanced, Achievements, Memory; Configure Input, Configure Buttons) are the
+  page's **first row**, centered, with no label: they act like sub-tabs.
 - **Corners are square** everywhere.
 
 ### 1.3 Row kinds (one look each)
 
+**Touching** means one control: the segments of one choice touch. **Buttons that act alone never
+touch** anything (gap 12).
+
 | Kind | Look |
 |---|---|
 | Toggle | two touching segments, Off \| On |
-| Choice | 2-4 touching segments: equal widths (widest text + 32) when they fit, else each its own text + 24 |
-| Flags | like Choice, but each segment is on or off by itself (Filters: Near, Trap, Deflicker; Audio: Audio, XA, CDDA) |
+| Choice | 2-4 touching segments: equal widths (widest text + 32) when they fit, else each its own text + 16 |
+| Flags | separate buttons (gap 12), each on or off by itself (Filters: Near, Trap, Deflicker; Enable: Audio, XA, CDDA) |
 | Cycle | one 200 px button with arrows at both ends. **Only** for values that are stepped through (Language, Interpolation, Light Gun, Auto Load Slot, Output Resampler) and whose text fits |
 | Cycles | two or more small Cycles on one row with a short prefix (Memcard Type 1 / 2) |
-| Range | `-` value `+` (48 + 120 + 48), touching (not built yet) |
-| Buttons | actions. One group of related actions **touches** (Save Settings: SD \| USB \| This Game); unrelated buttons have a gap of 12. From the control column, or **centered on x 320** in a row of its own with no label (Advanced \| Achievements \| Memory; Configure Input, Configure Buttons) |
+| Range | `-`, the value, `+`, apart (not built yet) |
+| Buttons | actions, gap 12, from the control column (Save Settings: SD, USB, This Game) or centered on x 320 in a row of their own (sub-pages) |
 | Toggle + action | a Toggle and an action button after a gap of 12 (Boot Through BIOS + Execute BIOS) |
 | Readout | label and value text on text rows, not focusable |
-| List | rows 36 high, pitch 40; a scroll bar; the page number (1/3) tiny under the scroll bar |
+| List | rows 36 high, pitch 40; a scroll bar; on file lists the **format tag is always rightmost** and the disc count left of it |
 | Warnings | an amber band under a readout, **only when one is in effect** |
 
 Focus is the salmon fill; the current value is the cyan underline (as today).
@@ -77,27 +86,29 @@ Focus is the salmon fill; the current value is the cyan underline (as today).
 |---|---|---|
 | A. Form with tabs | Settings (5 tabs), Advanced (CPU, GPU, SPU, CD, Input) | rows on the grid |
 | B. Form with a title | Advanced Sound, Advanced Graphics, Memory, Achievements settings | type A with a centered title |
-| C. Action menu | Main, Current ISO (today's look kept), Load ROM | as today |
-| D. List | ISO list, account chooser, cheats | the list fills the body, x 24-548 (clear of the logo) |
-| E. Book | Achievements: In Progress / Locked / Earned (+ Leaderboards when the set has them), the detail page | a player strip (Mii, game, Player n of m, earned, points), two-line rows (tile, name, description, points, progress); the detail: centered title, text left, unlock picture 296 x 222 right |
+| C. Action menu | Main, Current ISO (today's look kept), Load ROM (replaced by the explorer's tabs) | as today |
+| D. ISO explorer (full screen) | Load ISO from every source | source tabs (SD, USB, DVD, Network, Recent); the path and a count; a letter strip to jump; the list (7 rows, folders with an icon, ".." up, long names cut with "...", the disc count, the format tag rightmost; Recent shows when it was played); a strip with the focused game's facts (cover, format, size, region, last played, achievements, save states) |
+| E. Achievements book (full screen) | In Progress / Locked / Earned (+ Leaderboards when the set has them), the detail page | today's layout, polished: the player line (Mii, game, Player n of m, earned, points, one bar), small tabs, six two-line rows (tile, name, description, points; progress, date or rarity under the points); the detail: tile and the full title across the top, text left, unlock picture 296 x 222 right; a hint line |
 | F. Readout | ISO Info, USB Pad Test | text rows, then warnings only when in effect |
 | G. Picture editor | Configure Buttons, Configure Input, Customize Co-Op | **the body stays as today**; only Configure Buttons' top two lines change (below) |
 | H. Card board | Players | today's look kept |
 | I. Dialog | MessageBox questions and notices | today's look kept (the Quit question) |
 | J. Toast | unlocks, Save Block notices | the PS1 styles in `Docs/design/PS1_STYLES.md`; not a page |
 
-**Settings tabs, most-changed first** (proposal): **Video** (Screen Mode, Filters, Show FPS, Frame Skip,
-Frame Rate, Advanced), **Controls** (Configure Input + Configure Buttons, PSX Pad Type, Rumble, Light Gun,
-Auto Load Slot), **Saves** (Auto Save Memcards, Memcard Save Device, Memcard Type, Save States Device,
-Save Button Configs: moved from Input, it is about where files go), **Audio**, **System** (was General:
-BIOS, Boot Through BIOS + Execute BIOS, Language, Save / Load Settings, then Advanced, Achievements,
-Memory centered). Rows within a tab are ordered by use too.
+The Achievements-off page has no title: the message, and one centered button to the settings.
 
-**Configure Buttons' top** (two options): today's six buttons (Next, Default, Slot 1, Load, Save,
-Gun/Mouse) and the title line become two lines: (G1) the pad as one centered Cycle ("PSX Port 1:
-GameCube Pad 1", replaces Next and the title), then Slot 1-4 | Game as touching segments, Load and Save,
-and Defaults apart at the right; (G2) the pad Cycle at the left with Light Gun Off | On beside it (only
-on a Wiimote, replaces Gun/Mouse), then a Slot Cycle, Load Slot | Save Slot, Defaults.
+**Settings tabs** (agreed): **Video** (Advanced; Screen Mode, Filters, Frame Rate, Show FPS, Frame Skip),
+**Controls** (Configure Input + Configure Buttons; PSX Pad Type, Rumble, Light Gun, Auto Load Slot, Save
+Button Configs), **Saves** (memory cards and save states only: Memcard Auto Save, Save Memcards To,
+Memcard Type, Save States Device), **Audio** (Advanced; Enable, Sync, Interpolation, Sound Driver),
+**System** (was General: Advanced, Achievements, Memory; Select BIOS, Boot Through BIOS + Execute BIOS,
+Save / Load Settings, Language).
+
+**Configure Buttons' top** (G2, chosen): line 1, the pad as a Cycle at the left ("Port 1: Wiimote +
+Nunchuk"; replaces Next and the title line) and, on a Wiimote only, Light Gun Off | On (replaces
+Gun/Mouse). Line 2, the slot as a Cycle (**Default**, Slot 1-4, Game), then **Load** and **Save** apart:
+Save on Default overwrites the default config. **Built-in** at the right puts back the shipped mapping
+(proposed: once Default can be overwritten, something has to restore it).
 
 ### 1.5 What the code does today (inventory, 2026-11-04)
 
@@ -152,39 +163,30 @@ FileBrowser, Main, Players, Achievements, USB Pad Test); nested draw loops (`Fun
 MessageBox). Not checked yet: the pointer clicking hidden-but-active buttons (CursorManager), the
 focus loop guard in `Button.cpp:383-420`.
 
-### 1.5b Review of the mock-ups (2026-11-04)
+### 1.5b Review of the mock-ups (2026-11-04, three rounds)
 
-**Monty's rules** (after the first sheet): no button hints or option hints unless they are tiny and
-readable; square corners; related buttons may touch; arrows (Cycle) only for values that are cycled and
-fit; rows of buttons centered on the screen; the most-changed settings in the first tabs; Main, Current
-ISO, Players and the Quit question unchanged; titles centered; the ISO list liked, more options wanted;
-more before/after for Achievements; ISO Info warnings only when in effect, and more useful facts;
-Configure Buttons unchanged except a clearer top; more layout guides. All are in 1.1-1.4 above.
+**Monty's rules**, in 1.1-1.4 above. Round 2: no button hints; square corners; arrows only for values
+that are cycled; centered button rows; most-changed settings first; Main, Current ISO, Players and the
+Quit question unchanged; centered titles; ISO Info warnings only when in effect. Round 3: the label edge
+never moves; Save Button Configs stays in Controls (Saves is memory cards and save states only);
+buttons that act alone never touch; sub-page buttons on top; the book keeps today's layout, polished,
+full screen with a hint line; the explorer takes every idea and the whole screen; the format tag
+rightmost with the disc count left of it; G2 with Save/Load and saving over the default config; the tab
+order and the System name are good; the tiny help line stays.
 
-What the first round's problems became: the 3-4-segment rows fit with a per-page label edge and own
-widths (+ 24); the tab strip fits at text + 16; Settings > General's 7 rows became the System tab's 6;
-Main and the Quit dialog are not changed; ISO Info fits one page on text rows; the logo box is 64 x 88;
-Configure Buttons keeps every mapping (its body is not touched).
-
-**Sheets** (`.runs/menu_standard/`, `render.py` holds every number; `sheet_N_*.png`):
-1. Settings, today beside the standard. 2. Achievements (today's book captured in Dolphin with the
-`ach_book` fixture). 3. ISO list options D1-D4 and ISO Info F1/F2. 4. Configure Buttons' top, G1/G2.
-5. Layout guides: the frame, every row kind, guides drawn over a form with tabs, the System tab, a form
-with a title, a list and a readout.
+**Sheets** (`.runs/menu_standard/`, `render.py` holds every number; `sheet_N_*.png`): 1. Settings beside
+today. 2. Achievements (today's book captured in Dolphin with the `ach_book` fixture; ISO Info with
+Spyro). 3. The explorer and ISO Info. 4. Configure Buttons' top. 5. Layout guides: the frame, every row
+kind, guides over a form with tabs, the System tab, a form with a title, the explorer, the book and a
+readout.
 
 **ISO Info facts** the code knows but does not show (RomInfo.cpp builds today's rows): the image format,
-the PBP disc count, the BIOS file, the memory card mode, the This Game settings file, achievement points
-and earned count. The mock-ups add them; the region comes from the disc serial (SLUS/SCUS = NTSC-U).
+the PBP disc count, the BIOS file, the memory card mode, the This Game settings file, achievement points.
 
-**ISO list additions** (options, pick any): D1 folders with an icon, the format tag (CHD/CUE/PBP + disc
-count), the path under the title, long names cut with "..."; D2 the sources (SD, USB, DVD, Network,
-Recent) as tabs instead of the Load ROM step; D3 the focused game's facts on a strip (format, size, region,
-last played, achievements, states); D4 jump by letter. Needs code: SD/USB list sizes are 0 today
-(`fileBrowser-libfat.c:396`), and there is no recent list or last-played record.
+**Explorer: needs code**: SD/USB list sizes are 0 today (`fileBrowser-libfat.c:396`); there is no
+recent list, last-played record or cover picture; the region comes from the name or the serial.
 
-**Open, Monty to decide:** the tab order and names (Video, Controls, Saves, Audio, System); one label
-edge per page (tabs differ by up to 88 px) or shorter labels and one fixed edge; which ISO-list options;
-G1 or G2; whether the tiny help line stays.
+**Open:** the two shortened Saves labels; the Built-in button on Configure Buttons.
 
 ### 1.6 The work, in steps that each ship
 
