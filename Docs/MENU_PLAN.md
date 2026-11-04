@@ -128,6 +128,27 @@ FileBrowser, Main, Players, Achievements, USB Pad Test); nested draw loops (`Fun
 MessageBox). Not checked yet: the pointer clicking hidden-but-active buttons (CursorManager), the
 focus loop guard in `Button.cpp:383-420`.
 
+### 1.5b What the mock-ups showed (2026-11-04, open: decide before step 3)
+
+The mock-ups (`.runs/menu_standard/`, `render.py` holds the numbers) put the standard on real pages.
+Where it does not fit yet:
+1. **Choice rows with 3-4 segments rarely fit** 328 px at "widest text + 32": Screen Mode 432,
+   Filters 384, GPU Plugin 456, Save/Load Settings 432. The mock-ups turned them into Cycles, which
+   hides the choices and is wrong for Save/Load Settings (actions). Options: a wider control column
+   (label edge further left, e.g. x 232), segment padding of + 16, or such rows on a row of their own.
+2. **Tab strip**: 5 tabs at text + 32 need 648 px of 632; the mock-ups used text + 16.
+3. **Settings > General** has 7 rows: one more than Compact holds. It needs a split (or its
+   Advanced / Achievements / Memory buttons, 472 px wide, move to the tab strip or the footer).
+4. **Main**: 7 buttons at pitch 58 run to y 416, into the footer; the No ISO panel had to shrink.
+5. **ISO Info**: 8 readout rows need two pages at Compact pitch; a readout pitch of ~36 would fit one.
+6. **Configure Buttons**: two columns of 6 hold 12 mapping buttons; the page has about 22. The
+   mock-up dropped some: the real page must keep all of them (more rows per column at Compact, a third
+   column under the picture, or pages per group). Not a reason to remove a mapping.
+7. **Dialog**: the 400 px wrap breaks the Quit question badly; size the box to the text (max 560).
+8. **Logo**: today's logo is taller than the 72 px box; the box or the logo has to change.
+Interpretations the mock-ups made: focus = salmon fill (as today), current value = cyan underline;
+help block 3 lines at 16 px; hints at y 452.
+
 ### 1.6 The work, in steps that each ship
 
 1. **Audit** what the inventory did not read (libgui Button, CursorManager, FocusManager,
