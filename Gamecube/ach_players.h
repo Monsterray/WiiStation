@@ -1,4 +1,4 @@
-/* ach_players.h -- who plays, for the achievements (Docs/MII_PLAN.md, phase 3).
+/* ach_players.h -- who plays, for the achievements (Docs/ACHIEVEMENTS.md, Players and Miis, phase 3).
  *
  * ach_players_pick is plain C (tests/achievements_players_test.c): from the seats, the Miis
  * that earn: those on a seat whose pad is connected and that are still on the console. The

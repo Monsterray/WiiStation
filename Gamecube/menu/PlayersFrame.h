@@ -1,6 +1,6 @@
 /**
  * WiiStation - PlayersFrame.h
- * The Players menu: the Miis on this Wii seated on the PlayStation ports (Docs/MII_PLAN.md,
+ * The Players menu: the Miis on this Wii seated on the PlayStation ports (Docs/ACHIEVEMENTS.md, Players and Miis,
  * layout D: port cards first, a paged strip of Mii coins below).
 **/
 

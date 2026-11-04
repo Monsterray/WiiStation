@@ -1,4 +1,4 @@
-/* texInval.h -- which cached texels a VRAM write reaches (Docs/GPU_CPU_PLAN.md G5).
+/* texInval.h -- which cached texels a VRAM write reaches (Docs/PERFORMANCE_PLAN.md Part A, G5).
  *
  * Pure arithmetic, no GPU state: tests/texinval_test.c runs this same code on the host.
  *

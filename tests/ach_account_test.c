@@ -1,5 +1,5 @@
 /* ach_account_test.c -- which account file a game load logs in with, and the names of the
- * RetroAchievements set's Local journal (Gamecube/ach_account.h, Docs/MII_PLAN.md steps 4a and
+ * RetroAchievements set's Local journal (Gamecube/ach_account.h, Docs/ACHIEVEMENTS.md, Players and Miis steps 4a and
  * 4c). Plain C, no file is opened. scripts/test-achievements.sh builds and runs it. */
 #define HOSTCHECK_MAIN
 #include "host/hostcheck.h"

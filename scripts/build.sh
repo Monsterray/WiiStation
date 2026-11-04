@@ -144,7 +144,7 @@ case "${PROBES:-all}" in
 	# figure from them is low (Tiger Temple: 0.98x deep, 1.00x speed, 2026-10-21).
 	speed) PROBE_DEFINES="-DPERF_PROF_TRACE=0 -DPERF_PROF_GPU=0 -DPERF_PROF_VSIG=0" ;;
 	min)   PROBE_DEFINES="-DPERF_PROF_TRACE=0 -DPERF_PROF_GPU=0 -DPERF_PROF_CPU=0" ;;
-	# deep: every split used to rank the subsystems (Docs/GPU_CPU_PLAN.md) -- the GPU, the GTE
+	# deep: every split used to rank the subsystems (Docs/PERFORMANCE_PLAN.md Part A) -- the GPU, the GTE
 	# and the SPU split on top of light. What chain_table.py --detail reads. Costs ~1% of wall.
 	deep)  PROBE_DEFINES="-DPERF_PROF_TRACE=0 -DPERF_PROF_GPU=0 -DPERF_PROF_GPUSPLIT=1 -DPERF_PROF_GTE=1 -DPERF_PROF_SPU=1" ;;
 	# pmc: light plus Broadway's performance counters, for a hardware session.

@@ -1,7 +1,9 @@
-# Achievements
+# Achievements, players and Miis
 
-This is the reference for the WiiStation achievement engine. It tells what the engine does
-today, how to set it up, how to test it and what is planned.
+This is the reference for the WiiStation achievement engine and for the players that earn
+achievements: the Miis seated on the PS1 pad ports. It tells what the engine does today, how
+to set it up, how to test it, how Miis become players ([Players and Miis](#players-and-miis);
+this was `MII_PLAN.md` until 2026-11-04) and what is planned.
 
 - What we learned from outside sources (rcheevos, RetroAchievements rules, PS1 hashing, TLS,
   DuckStation, other systems): [ACHIEVEMENTS_RESEARCH.md](ACHIEVEMENTS_RESEARCH.md).
@@ -15,7 +17,8 @@ today, how to set it up, how to test it and what is planned.
 | Local evaluation of a definition file | In the product. Off by default. Merged into main from `codex/achievement-engine` (c29cafd9, 2026-10-12). |
 | Modes Off, Custom, Test, Official, Local | In the product (775ae73a, 2026-10-23). Official: RetroAchievements in Casual. **5.19.0 names:** what was called Local (your own definition file, unlocks in a journal) is **Custom**; **Local** is now RetroAchievements' set with nothing ever sent, every player earning into the Local journal. See [Local mode](#local-mode). Below, "Custom" is the old Local; "the Local journal" and "the Local side" are the `ra_local` journals of a RetroAchievements set, which Official mode's other Miis and the Local mode earn into. |
 | Local mode | In the product (5.19.0, branch `try/modes`): the official set, spectator mode, a request filter, the set saved on the card, every player earns Local. Host tests, a Dolphin run and a bench job: [Local mode](#local-mode). |
-| Official mode per Mii | In the product (5.19.0, Docs/MII_PLAN.md steps 4a and 4c): the Mii that plays Official logs in with its own account file; the other seated Miis earn the same set Local, with encore mode on and nothing sent twice. See [Official mode with Local players](#official-mode-with-local-players). |
+| Players menu, per-Mii Local unlocks | In the product: the Players menu 5.18.0 (2c26d9f7), Co-Op seats 5.18.1 (0a91d1c0), `players.ini` and the recent list 5.18.2 (ead7c5a0, 10bece41); per-Mii Local unlocks (932fad3b, merged 9e2ab87a); the Edit slot, account links and Official button (8c727ea2). Open: hardware proof of an Official login with a Mii's own account, a Local player earning on a real set on hardware, a real Local download with an account on the bench Wii. See [Players and Miis](#players-and-miis). |
+| Official mode per Mii | In the product (5.19.0, [Players and Miis](#players-and-miis), Official steps 4a and 4c): the Mii that plays Official logs in with its own account file; the other seated Miis earn the same set Local, with encore mode on and nothing sent twice. See [Official mode with Local players](#official-mode-with-local-players). |
 | Unlock journal | In the product. An unlock is written when it triggers (f9ca407b). Records cut short by a power loss are ignored (2026-10-23). |
 | Save-state progress (`ACH1` section) | In the product. Custom: `WAC1`; Official and Local: `WAO1` (rc_client's progress). A game reset resets the progress in each. |
 | Menu controls | General tab, Achievements: Mode, Unofficial, Encore, Challenge icons, the set file. Current ISO, Achievements: the book (2026-10-29), see [The book](#the-book). ISO Info: the achievement status line. |
@@ -264,7 +267,7 @@ The engine exposes the published rcheevos PS1 map, and nothing more:
 Each line is `<definition MD5> <id> <player key> <title>`. The MD5 is the digest of the exact
 definition file (Official mode's Local players: the digest of the RetroAchievements game, see
 [Official mode with Local players](#official-mode-with-local-players)). The player key is the Mii's creation ID as 16 lowercase hex characters
-(Players menu, `Docs/MII_PLAN.md`). A line without a key, `<MD5> <id> <title>`, is Guest's: this
+(Players menu, [Players and Miis](#players-and-miis)). A line without a key, `<MD5> <id> <title>`, is Guest's: this
 is every line written before 5.19.0, and Guest still writes it (a Guest line whose title starts
 with a word that looks like a key has `-` where the key goes).
 
@@ -428,6 +431,176 @@ Collector regression tests: `tests/bench_achievements_test.py`,
 `tests/bench_achievement_games_test.py`, `tests/bench_gameplay_test.py`,
 `tests/gameplay_results_test.py`.
 
+## Players and Miis
+
+Goal: each Mii on the console is a player. A Players menu seats Miis on the PS1 pad ports;
+**Local** achievements (the unlock journal) are kept per Mii. This part was `Docs/MII_PLAN.md`
+until 2026-11-04. It is the plan as written on 2026-10-28 (owner's decisions below), with the
+status as of 2026-11-03; the Status table at the top of this file has the one-line state of each
+piece. Section names that say "Official mode per Mii" here are the plan; the built design is
+[Official mode with Local players](#official-mode-with-local-players), under Planned.
+
+**Status (2026-11-03):** phases 0 to 3 and Official steps 4a, 4b and 4c are built. The Players menu shipped in 5.18.0 (2c26d9f7), Co-Op seats in 5.18.1
+(0a91d1c0), `players.ini` and the recent list in 5.18.2 (ead7c5a0, 10bece41), a missing Mii seats
+Guest with a notice (35088774). Per-Mii Local unlocks (phase 3): 932fad3b, merged 9e2ab87a. The
+Edit slot, account links and the Official button (4b): 8c727ea2. Official session per Mii (4a,
+4c): 6c4c17f7, merged b1d68161. Open: hardware proof of an Official login with a Mii's own
+account (4a), a Local player earning on a real set on hardware (4c), and a real Local download
+with an account on the bench Wii (see the check column below and [Official mode with Local players](#official-mode-with-local-players)).
+
+### The Mii SDK (hbc-reborn `sdk/mii`)
+
+WiiStation uses hbc-reborn's Mii SDK, vendored as `deps/mii` from the same commit as the HBC
+agent (`deps/hbc_agent`, HBC 1.12.1, bdf44d2). It is public domain: `mii.c`/`mii.h` (data and
+the database), `miidraw.c`/`miidraw.h`/`miibody.c` (drawing with GX). Its README is the reference;
+what this plan uses:
+
+| Need | SDK call | Notes |
+| --- | --- | --- |
+| Read the Miis | `mii_db_load`, `mii_db_get` for slots 0-99, `mii_db_free` | About 0.7 s: once, on a thread, never in the frame loop. **WiiStation never saves** (`mii_db_save`, `_put`, `_add`, `_remove` are not called anywhere). `MII_E_NO_FILE`: the Mii Channel was never opened, so no Miis |
+| Identity | `mii.id` (the creation ID) | The key is its 16 hex characters. Slot and name are not stable |
+| Name, color | `mii_get_name`, `mii.fav_color` (0-11, `mii_color_name`) | The coin's color is the favorite color, as HBC's picker draws it |
+| Coin faces | `mii_res_load`, `mii_model_build` (32-64 px face, normal expression only), `mii_icon`, `mii_model_free` | Needs `sd:/mii/RFL_Res.dat`, which the user saves with HBC's HOME > HBC > Save Mii faces (Nintendo's file: never shipped, never copied by us). Without it a coin shows the name's initial on the favorite color |
+
+Rules the SDK sets that touch WiiStation:
+
+- `mii_icon` draws in the EFB's corner between frames: call it after the menu's last copy and
+  before the next frame, then set the menu's GX state again (pixel format, viewport, scissor,
+  projection, vertex format, TEV). The menu mixes raw GX and OpenGX, so the icons are made in
+  one place (`Gamecube/menu/mii_coins.c`, new) right after `Gui::draw()`'s copy.
+- Icons are textures kept in MEM2 (64x64 RGB5A3 = 8 KB, 100 Miis = 800 KB) and made lazily, the
+  visible page first. The models are freed as soon as the icon exists; nothing of the SDK stays
+  in memory once a game starts (MEM1 is what chains run out of).
+- The GX FIFO should stay in MEM1 (SDK README: a FIFO in MEM2 stalled at random on a real
+  Wii). WiiStation's is `memalign`ed at start-up, before anything could push the heap into MEM2;
+  making it a static array is a one-line safety if that ever changes.
+- Dolphin ships no `RFL_DB.dat` or `RFL_Res.dat`. Tests stage a database made by
+  `mii_random` + `mii_db_add` on the PC side (`-DMII_NO_OGC`), into the run profile's NAND
+  (`Wii/shared2/menu/FaceLib/`); without faces the coins show initials, which is a test case too.
+
+### Owner's decisions (2026-10-28)
+
+1. **A Players menu** (not a prompt at game load): a grid of Mii coins with pages, and the PS1
+   pad ports along the bottom.
+   - Wii Remote: point at a coin, hold **A+B** to grab it, drop it on a port.
+   - Any other pad (Classic, GameCube, Wii U Pro, USB): **A** on a coin picks it up and the focus
+     jumps down to the ports; Left/Right chooses a port, **A** drops it there, **B** puts it back.
+   - Mock-ups first, to get the menu right (below).
+2. **Every seated Mii earns.** An unlock goes to each Mii seated on a port whose pad is
+   connected, not only player 1's.
+3. **Existing unlocks stay with Guest.** Journal lines written before this feature have no
+   player key and belong to Guest.
+4. **Official mode per Mii: later,** and only with a design that is elegant. Open questions are at
+   the end.
+
+### Players design
+
+- **Seats**: `wiistation/players.ini` (5.18.2; `[Players]` in settings.ini before), one line per
+  seat (`Player1=`, `Player2=`, multitap `Player1A=` ... `Player2D=`, Co-Op `Player1P1=` ...
+  `Player2P8=`), each a Mii key or empty for Guest; the menu writes it when it closes.
+  `PlayersRecent=` keeps the last 15 seated, most recent first: the menu lists them first. A Mii can sit on one port only;
+  dropping it on another moves it, dropping it on a taken port swaps the two. Seats are kept
+  across sessions. A key no longer on the console reads as Guest, with a notice; its unlocks
+  stay in the journal (nothing is deleted).
+- **Who earns**: at an unlock, every port that has a Mii and a connected pad (the same test the
+  Co-Op pad mapping uses). Guest earns when no seated Mii does (a game with only Guest pads still
+  unlocks, as today). One journal line per Mii that earned it.
+- **Journal**: one file, as now, with the player key as a new column:
+  `<set digest> <id> <player key> <title>`. A line without a key (every journal written so far)
+  is Guest's. Each achievement is earned once per Mii. The 1 MB cap and the fail-closed rules
+  of `achievements.c` stay.
+- **"Earned" in the game**: the game's achievement state is the union of the seated Miis'
+  unlocks, so an achievement one Mii has keeps firing for the others who do not have it yet.
+  rcheevos sees an achievement as active while any seated Mii lacks it; when it triggers, only
+  the Miis without it get the line and the toast names them.
+- **Save states**: the achievement section (Local: `WAC1`, `WAO1` is Official's) records the seat keys, after rcheevos' progress (5.19.0). Loading a state made by
+  other players keeps the game state, but earned flags come from the journals of the Miis seated
+  now, so a state never moves one Mii's unlocks to another.
+- **Toast and Achievements page**: "Kat unlocked ..." (two or more: "Kat and Ollie
+  unlocked ...", four or more: "4 players unlocked ..."); the page shows one seated Mii at a time
+  with L/R to switch, its coin in the header.
+- **Privacy**: Mii names are personal. Logs, perf.log and crash reports print only the first 8
+  hex characters of a key. The creator name is never read out of `mii`.
+
+### The Players menu (layout D, chosen 2026-10-28)
+
+Mock-ups A-E were shown in the chat; the owner chose **D**, with subtle PS1 port theming.
+
+- **Ports first**, on a band the gray of the PS1's plastic: one card per port (two, or eight
+  in two rows with multitap). A card reads like the console's label: the port number large,
+  "CONTROLLER" small, the pad connected there, the seated Mii's coin in a round recess, its
+  name and, with a game loaded that has a set, "4 / 31 achievements" (that Mii's unlocks in
+  this set). A small PS1 controller socket sits in the card's corner; its pins light when a
+  Mii is seated on a port with a pad. A port without a pad is a shade darker.
+- **The coins** below: a strip of 16 a page (8 x 2), paged with + / - (no arrows at the top).
+  A coin is the Mii's head on a disc in its favorite color; **a favorite Mii's coin has a
+  gold rim**. Without the face models a coin shows the name's initial. A seated coin is dimmed
+  and wears its port in a tag under it. The focused coin's name and progress show on one line under the strip.
+- **Input**: Wii Remote pointer, hold A+B on a coin, drop it on a card (on a taken card the
+  two swap; back on the strip unseats). A pad: A on a coin picks it up and the focus goes to
+  the cards (arrows choose), A seats it, B puts it back; on a card A picks its Mii up, B
+  makes the seat Guest. Up from the strip's top row goes to the cards.
+- No plugs: a plug-and-cable mock-up was fun but too silly.
+- **Co-Op** (5.18.1, the owner's call): a Co-Op port's card is a group, a coin well per
+  player and a "..." button. A, a click or a dropped coin opens the same screen with a card
+  per Co-Op player (seats `Player1P1` ... `Player2P8`, virtual controllers 10-25); B leaves.
+- Details the owner asked for (5.18.1): round coin slots ("Guest" centered in an empty one),
+  a solid focus ring, "Port 1A" in a tag under a seated coin, the socket centered on the two
+  big cards and in the corner on the small ones, names shrunk to fit, the coins' page
+  ("Miis 1 / 2") at the bottom right. US spelling everywhere.
+
+### Phases and checks (players)
+
+| Phase | Work | Check |
+| --- | --- | --- |
+| 0 | Vendor `deps/mii`; a read-only probe on the **bench** Wii: `mii_db_load`, print the count and key prefixes (no names) to perf.log, time the load | One bench job; never on a protected Wii |
+| 1 | Host side: a fixture maker (`scripts/mii_fixture` from `mii.c` with `-DMII_NO_OGC`: fictional Miis, real CRC) and the seat/journal logic in plain C with a host test (`tests/host/hostcheck.h`): old lines = Guest, two Miis, a swap, a missing Mii, the cap | Host test |
+| 2 | The Players menu: coins (initials first, then `mii_icon` faces), pages, both input paths, seats in settings.ini | `wsx.sh menu` pictures in Dolphin with the fixture; bench Wii with its own Miis and saved faces; capture card for the TV picture |
+| 3 | Journal column, union of earned, per-Mii toast and page, WAO1 seat keys | Dolphin chain: Local set, Mii A unlocks, seat B (not earned), A + B seated (only B gets it), a state from A loaded with B seated |
+
+### Official mode per Mii: the plan (2026-10-28; mock-ups shown in the session)
+
+The owner's answers: accounts are files, linked to a Mii on the Wii; port 1's Mii plays Official
+unless a check box moves it; linking opens the file browser, showing RetroAchievements accounts. Revised the same day: an Official
+on/off button instead of a check box, and an Edit slot that opens a Mii's player settings.
+
+- **Accounts**: one file per RetroAchievements account in `sd:/wiistation/achievements/ra/`,
+  `<name>.ini` with `User=` and `Password=` or `Token=`, exactly like today's `ra_account.ini`
+  (after the first login only `User=` and `Token=` stay). `ra_setup.py --account FILE --ra-name NAME`
+  puts it there; the script still never opens the file. The name is the file's, so the Wii shows
+  a name without reading the file. Today's `ra_account.ini` stays, shown as "This Wii's account".
+- **Edit slot** (owner, 2026-10-28): a round "Edit" slot at the end of the coin strip. Drop a
+  coin on it (A+B drag, or A then choose Edit with a pad) and the Mii's player settings open:
+  RetroAchievements account, Plays Official (On/Off), and its unlock counts (read only). B goes
+  back to Players. Later Mii settings go on this page too.
+- **Link**: the account row of the Edit page opens the file browser on `achievements/ra/`, titled "Account for <Mii>",
+  listing the accounts by name, plus "None: earn Local" first and "This Wii's account" last.
+  A links, B goes back. players.ini keeps the links in an `[Accounts]` section, one
+  `<Mii key> = "<name>"` line per linked Mii (written by the same code as the seats).
+- **Who plays Official**: one Mii per game (RetroAchievements sessions are one user). By default
+  port 1's Mii (1A with a multitap, P1 with Co-Op). A linked Mii's card shows a small button
+  labeled "Official" (no check boxes in WiiStation, and no On/Off text: the button's highlight shows
+  it is on; the owner's calls). Every linked Mii's button can be pressed; pressing one turns it on
+  and the others off, so exactly one is on (`PlayersOfficial = "<Mii key>"`, empty = port 1). Every
+  other seated Mii earns Local (phase 3). No linked Mii on that seat: today's `ra_account.ini`
+  if there is one, else Local only. A change applies at the next game load.
+- **Seen**: a linked Mii's coin wears a small "RA" tag; the toast says which side an unlock went
+  to ("RetroAchievements" over the Official Mii's line, "Local" over the others').
+- **Failures**: a link to a missing file, or a failed login, makes that Mii earn Local for the
+  game, with the reason on the Achievements page (as today's login errors). Nothing retries a
+  password by itself. (Built 5.19.0, a decision where the plan was open: a Local set needs the
+  set's definitions, and those only come from a session. So this Wii's `ra_account.ini`, when
+  there is one, loads the set in spectator mode, nothing sent to it, and every seated Mii, that
+  one too, earns Local. With no `ra_account.ini` there is no set to earn: the page says why.)
+- **Never**: a token or password on screen, in a log or in players.ini; the browser lists file
+  names only.
+
+| Step | Work | Check |
+| --- | --- | --- |
+| 4a | `ra/` accounts read by name; login with a chosen file; `ra_setup.py --ra-name` | **Built 5.19.0, hardware check open**: `tests/ach_account_test.c` (link to path, bad names, the digest and journal names); Dolphin: a Mii linked to a name with no file (`scripts/chains/ach_official_acct.txt`) says so in the log and on the page; bench Wii: `ra_setup.py --ra-name dev` put `ra/dev.ini` (job 20261028-204440-0db05c); `ach_official_ra.txt` (job 20261028-205349-f2c8c7) read it for a linked seat and tried the login, but that DOL had no HTTPS stack, so the login itself is not yet proven on hardware: rerun with `scripts/bench_ra_mii.py` |
+| 4b | The Edit slot and page, the account browser, `[Accounts]` and `PlayersOfficial` in players.ini, RA tag, Official button | **Done 5.19.0**: `wsx.sh menu ... --sd tests/fixtures/players_accounts` walks (link a file, link This Wii's account, Official moved to port 2's Mii; players.ini read back) |
+| 4c | Official session for the chosen Mii, Local for the others; toasts | **Built 5.19.0, hardware check open**: `tests/achievements_ra_test.c` (who gets what, the journal, restore, the page, a failed account, the cap); Dolphin: `ach_players.txt` unchanged (Local mode), `ach_official_acct.txt`; hardware: the same bench job, not yet with a login, so no Local player has earned on a real set. The design, the rc_client facts it rests on and what was not tested: `Docs/ACHIEVEMENTS.md`, "Official mode with Local players" |
+
 ## Planned
 
 Decisions of the project owner, 2026-10-23.
@@ -465,7 +638,7 @@ valid then.
 
 ### Official login
 
-- The account file is a Mii's (Docs/MII_PLAN.md, step 4a): the Mii that plays Official
+- The account file is a Mii's ([Players and Miis](#players-and-miis), step 4a): the Mii that plays Official
   (`players_official()`) is linked to `sd:/wiistation/achievements/ra/<name>.ini`, or to this
   Wii's `sd:/wiistation/achievements/ra_account.ini` (link `*`; also what is used when no Mii
   is linked to the Official seat). `Gamecube/ach_account.h` turns a link into a path
@@ -498,7 +671,7 @@ valid then.
 
 ### Official mode with Local players
 
-One RetroAchievements session is one user, so one Mii plays Official (Docs/MII_PLAN.md, "Official
+One RetroAchievements session is one user, so one Mii plays Official ([Players and Miis](#players-and-miis), "Official
 mode per Mii"). The other Miis seated on a port with a connected pad earn the same set Local.
 No Local Mii seated (Guest alone, or the Official Mii alone): nothing here runs, and Official is
 as it was. `achievements_ra_*` (`achievements.c`) is the Local side; `achievements_official.c`
@@ -676,7 +849,7 @@ These rules come from [the research](ACHIEVEMENTS_RESEARCH.md).
   implemented**: it needs RetroAchievements' approval of WiiStation as a client. Phase 5
   (Local mode) is built in 5.19.0 (8f06d2d5, merged 07cd4797; the book 8e9a4638; per-Mii
   932fad3b and 6c4c17f7). Hardware proof of an Official login with a Mii's own account is open
-  (MII_PLAN.md step 4a).
+  ([Players and Miis](#players-and-miis), step 4a).
 - Do not add these during phases 0 to 3: a multi-provider layer, an authoring toolkit, a new
   backend server, a libretro rewrite or a mandatory hardware adapter.
 - If native HTTPS fails, write a measured comparison of the ESP32 adapter and a companion

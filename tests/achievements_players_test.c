@@ -1,5 +1,5 @@
 /* achievements_players_test.c -- the Local engine with Miis as players (achievements.c,
- * Docs/MII_PLAN.md phase 3): who earns, the journal's key column, the union of the earned
+ * Docs/ACHIEVEMENTS.md, Players and Miis phase 3): who earns, the journal's key column, the union of the earned
  * state, a state made by other players, the 1 MB cap. scripts/test-achievements.sh builds it
  * with the rcheevos runtime and runs it with a scratch directory as its argument. */
 #define HOSTCHECK_MAIN

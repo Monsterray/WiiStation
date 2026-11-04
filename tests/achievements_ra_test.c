@@ -1,5 +1,5 @@
 /* achievements_ra_test.c -- Official mode with Local players (achievements.c achievements_ra_*,
- * Docs/MII_PLAN.md step 4c): the Miis besides the Official one earn rc_client's set into the
+ * Docs/ACHIEVEMENTS.md, Players and Miis step 4c): the Miis besides the Official one earn rc_client's set into the
  * Local journal with the set's RetroAchievements digest. rc_client itself is not here (its
  * answers come from the Wii build): the test hands over the entries the way
  * achievements_official.c does. scripts/test-achievements.sh builds it with the rcheevos runtime

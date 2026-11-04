@@ -1,6 +1,6 @@
 """mii_fixture.py [N] [--out PATH] -- a Mii database of N fictional Miis for Dolphin runs.
 
-Dolphin ships no RFL_DB.dat, so the Players menu (Docs/MII_PLAN.md) has nothing to show there.
+Dolphin ships no RFL_DB.dat, so the Players menu (Docs/ACHIEVEMENTS.md, Players and Miis) has nothing to show there.
 This writes one, made the way hbc-reborn's tests/dolphin_mii.py makes its own (the RNOD block,
 an empty RNHD hidden database, RFL's CRC), with Miis from tests/mii_fixture (the Mii SDK on the
 PC: random faces, names from a list, every favorite color, every fifth a favorite).

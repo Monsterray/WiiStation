@@ -917,13 +917,13 @@ static bool compareLinks(const char *name, const Layout &lay, const Exp *e, int 
 
 /* Findings the OptionsFrame pages have, on the real font. They are printed and do not fail
  * the test: fixing one changes a page's picture, and the plan keeps pictures until someone has
- * looked at the change on a Wii (Docs/MENU_FRAMEWORK_PLAN.md, "Decided").
+ * looked at the change on a Wii (Docs/MENU_PLAN.md, "Decided").
  * Matched by page, problem, and the text of the control (and of the second one, if any).
  * Any finding not listed here is a failure. Every Advanced page lays out with zero problems.
  * The General and Video tabs' findings are the labels the engine's fit rule (16 px a side, plus the font's
  * own +5) calls wider than their Settings buttons: the Settings buttons are narrower than that
  * rule, and the labels still sit inside them with a few pixels to spare (Execute BIOS, 171 px, has
- * a 161 px label). Listed, not changed (Docs/MENU_FRAMEWORK_PLAN.md, "Decided"). The sentinel
+ * a 161 px label). Listed, not changed (Docs/MENU_PLAN.md, "Decided"). The sentinel
  * (page NULL) matches nothing; it stays, since a zero-length array is not C. */
 struct Known {
 	const char *page;
@@ -1476,7 +1476,7 @@ static int checkGeneralRects(void)
 }
 
 /* Prints the General tab's focus links that differ from the table's. This is not a failure: each
- * one is a finding for the port's report (Docs/MENU_FRAMEWORK_PLAN.md), and the look and the
+ * one is a finding for the port's report (Docs/MENU_PLAN.md), and the look and the
  * focus of the tab stay as they are until someone has decided each. Returns how many differ. */
 static int checkGeneralAgainstTable(void)
 {

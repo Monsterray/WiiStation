@@ -11,7 +11,7 @@
  * The account file holds User= and Password= until the first login; after it, User= and
  * Token=, and the password is gone. No password or token ever reaches a log.
  *
- * Which account file (Docs/MII_PLAN.md steps 4a and 4c): the Mii that plays Official
+ * Which account file (Docs/ACHIEVEMENTS.md, Players and Miis steps 4a and 4c): the Mii that plays Official
  * (players_official) gives it by its link: achievements/ra/<name>.ini, or this Wii's
  * ra_account.ini ("*"; also when no Mii is linked). A game load that wants another account than
  * the logged-in one logs out and in again. When that account does not work, this Wii's account

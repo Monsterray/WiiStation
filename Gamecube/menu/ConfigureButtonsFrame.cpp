@@ -202,7 +202,7 @@ struct TextBoxInfo
 	{	NULL,	FRAME_STRINGS[39],	 570.0,	190.0,	 0.9,	true }, // ANALOG button
 };
 
-/*  The page's places, on the engine (Docs/MENU_FRAMEWORK_PLAN.md, step 5)  */
+/*  The page's places, on the engine (Docs/MENU_PLAN.md, step 5)  */
 
 /* The buttons and labels at the rectangles and places the table gives. The engine lays them out here,
  * once, and the frame takes its rectangles from the layout. Focus is not the engine's: the links change

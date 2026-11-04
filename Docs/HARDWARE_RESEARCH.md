@@ -52,7 +52,7 @@ What follows from them:
 
 ## What to do with it, in order
 
-1. **Fuse the CLUT -> tile texture upload** (`Docs/LOCKED_CACHE_PLAN.md` step 2). Today one
+1. **Fuse the CLUT -> tile texture upload** (`Docs/PERFORMANCE_PLAN.md` Part B, step 2). Today one
    upload runs through `texturepart` (256 KiB staging, MEM1) and a 128 KiB page: ~384 KiB, past
    L2, the regime measured at ~50-90 MiB/s instead of ~150-200. One pass per 4-row band keeps it
    in L1/L2, with or without the locked cache. Measure with `texk:` on the Wii.

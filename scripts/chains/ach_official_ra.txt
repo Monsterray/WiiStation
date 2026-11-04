@@ -1,5 +1,5 @@
 CHAIN
-# Official mode with Local players (Docs/MII_PLAN.md step 4c), Spyro, spectator (nothing reaches an
+# Official mode with Local players (Docs/ACHIEVEMENTS.md, Players and Miis step 4c), Spyro, spectator (nothing reaches an
 # account). Seat 1 is a made-up key, ffffffff00000001, linked to achievements/ra/dev.ini by a
 # players.ini that the bench job puts on the card (and puts the card's own back): the Official
 # Mii needs its seat and its link, no Mii on the console. Seat 2, "#1", is the console's first Mii

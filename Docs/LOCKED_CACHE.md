@@ -1,7 +1,7 @@
 # The locked cache in WiiStation
 
-Code: `Gamecube/lc.h`, `Gamecube/lc.c`. Plan and history: `Docs/LOCKED_CACHE_PLAN.md`,
-`Docs/GPU_CPU_PLAN.md`.
+Code: `Gamecube/lc.h`, `Gamecube/lc.c`. Plan and history: `Docs/PERFORMANCE_PLAN.md`
+(Part B is the locked-cache plan, Part A the GPU and recompiled-code plan).
 
 ## What it is
 
@@ -67,7 +67,7 @@ scratchpad shares with the hardware registers) and the FMV frame conversion (4.2
 Micro Machines; the same band pattern as `tex-tile`).
 
 Also assessed, **no** (2026-10-18, try/lc-step34): the soft plugins' frame conversion
-(SoftGPU/drawGX.c, whose cost is the `gx_convert_us` counter; LOCKED_CACHE_PLAN.md step 4).
+(SoftGPU/drawGX.c, whose cost is the `gx_convert_us` counter; PERFORMANCE_PLAN.md Part B, step 4).
 It streams straight into the GX write-gather pipe (`GX_RedirectWriteGatherPipe`, `stwbrx`
 per word): there is no intermediate buffer to relocate, so an LC form is not a table move
 but a redesign -- an LC band buffer, `lc_store` to a GX texture in MEM1, a second texture

@@ -1,5 +1,5 @@
 CHAIN
-# Official mode, a Mii linked to an account file that is not on the card (Docs/MII_PLAN.md step 4a):
+# Official mode, a Mii linked to an account file that is not on the card (Docs/ACHIEVEMENTS.md, Players and Miis step 4a):
 # A = 82625a00 is linked to "no_such_account" and plays Official; B = 82626573 is seated on port 2.
 # The game loads, the log says the account did not work, there is no set (no ra_account.ini to load
 # it in spectator mode), and the achievements list at 1700 says why.

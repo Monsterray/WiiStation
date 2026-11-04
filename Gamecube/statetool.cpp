@@ -173,7 +173,7 @@ static void achdump_now(void)
 		if (achievements_board(i, &title, &desc) == 0)
 			log_line("achdump: board %u \"%s\" \"%s\"\n", i, title, desc);
 	if (boards) scores_wait = 60 * 30;
-	/* the page's players (Official mode with Local players, Docs/MII_PLAN.md 4c): the Official Mii
+	/* the page's players (Official mode with Local players, Docs/ACHIEVEMENTS.md, Players and Miis 4c): the Official Mii
 	 * first, then each Local Mii; a key's first 8 characters, never a name */
 	unsigned players = achievements_player_count();
 	for (unsigned p = 0; players > 1 && p < players; p++) {

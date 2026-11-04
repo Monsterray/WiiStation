@@ -1,5 +1,7 @@
 # Settings audit (2026-10-18, from main 84cb091)
 
+Finished plan, kept for reference (moved 2026-11-04).
+
 Every user-facing setting: where the menu shows it, whether the settings file saves and loads
 it, whether `Gamecube/release/example_settings.ini` and `SETTINGS.md` document it, and when a
 value read from a file at game start takes effect. Key names are those of 84cb091, except that

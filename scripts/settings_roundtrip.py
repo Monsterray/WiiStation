@@ -13,7 +13,7 @@ WRITTEN, with the value IN gave it (the last line of a key wins, as in readConfi
 holds (FilterTour) must not be. Exit 1 on any difference. A game's own file (settings/<ID>.ini)
 holds only what differs from settings.ini: SETTINGS.md 1.4.
 
-The Dolphin round trip (Docs/SETTINGS_AUDIT.md):
+The Dolphin round trip (Docs/done/SETTINGS_AUDIT.md):
     python scripts/settings_roundtrip.py make .runs/rt_in.ini
     KEEP_PROFILE=1 bash scripts/wsx.sh run rt --autoboot none --secs 25 --nodump \\
         --input scripts/autoinput/menu_save_sd.txt --settings .runs/rt_in.ini

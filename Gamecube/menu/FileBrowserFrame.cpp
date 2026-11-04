@@ -560,7 +560,7 @@ void fileBrowserFrame_OpenRomFolders(fileBrowser_file* deviceDefault, const char
 	fileBrowserFrame_FillPage();
 }
 
-/* A Mii's RetroAchievements account, chosen by file name (Docs/MII_PLAN.md): "None: earn
+/* A Mii's RetroAchievements account, chosen by file name (Docs/ACHIEVEMENTS.md, Players and Miis): "None: earn
  * Local", the files of sd:/wiistation/achievements/ra/ without ".ini", and "This Wii's account"
  * when ra_account.ini is there. No account file is opened. An entry's offset tells which. */
 void fileBrowserFrame_OpenAccounts(const char *key, const char *mii)

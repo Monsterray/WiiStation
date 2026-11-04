@@ -1,4 +1,4 @@
-/* ach_players.c -- who plays, for the achievements (ach_players.h, Docs/MII_PLAN.md phase 3).
+/* ach_players.c -- who plays, for the achievements (ach_players.h, Docs/ACHIEVEMENTS.md, Players and Miis phase 3).
  *
  * The seats are players.ini's (players.h playerSeat); a seat counts when its virtual
  * controller answers, the same test the Co-Op pad mapping uses (coop.c: inUse and control),

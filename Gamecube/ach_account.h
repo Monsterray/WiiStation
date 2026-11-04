@@ -1,4 +1,4 @@
-/* ach_account.h -- which account file a game load logs in with (Docs/MII_PLAN.md step 4a), and
+/* ach_account.h -- which account file a game load logs in with (Docs/ACHIEVEMENTS.md, Players and Miis step 4a), and
  * how the RetroAchievements set's Local journal is named (4c). Plain C, host-tested in
  * tests/ach_account_test.c. Only names: nothing here opens a file. */
 #ifndef ACH_ACCOUNT_H

@@ -48,7 +48,7 @@ int achievements_state_load(const void *data, unsigned size); /* NULL resets pro
 
 typedef struct achievement_notice achievement_notice_t;
 
-/* ---- the players (Local mode; Docs/MII_PLAN.md): a Mii earns its own unlocks ----
+/* ---- the players (Local mode; Docs/ACHIEVEMENTS.md, Players and Miis): a Mii earns its own unlocks ----
  *
  * The journal keeps one line per Mii that earned an achievement. Who is playing comes from
  * the hook: the Miis seated on a port whose pad is connected (Gamecube/ach_players.c). With
@@ -84,7 +84,7 @@ int achievements_earned_for(const char *key);
  * ("Account file missing: earns Local"); "" none. */
 const char *achievements_player_note(unsigned i);
 
-/* ---- Official mode with Local players (Docs/MII_PLAN.md step 4c) ----
+/* ---- Official mode with Local players (Docs/ACHIEVEMENTS.md, Players and Miis step 4c) ----
  *
  * One Mii plays Official: rc_client sends its unlocks to RetroAchievements (achievements_official.c).
  * Every other Mii seated on a connected pad earns the same set into the Local journal, with its

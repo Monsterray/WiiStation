@@ -331,7 +331,7 @@ ConfigureInputFrame::~ConfigureInputFrame()
 
 }
 
-/*  The page, on the engine (Docs/MENU_FRAMEWORK_PLAN.md, step 5)  */
+/*  The page, on the engine (Docs/MENU_PLAN.md, step 5)  */
 
 /* The page changes with the state: which buttons and labels are there, which are active, which lit,
  * and where focus goes. activateSubmenu() works those out, then the engine lays the page out and

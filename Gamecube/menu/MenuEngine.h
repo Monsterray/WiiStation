@@ -1,7 +1,7 @@
 /**
  * WiiStation - MenuEngine.h
  *
- * The menu framework's core (Docs/MENU_FRAMEWORK_PLAN.md, step 1). A page is described as
+ * The menu framework's core (Docs/MENU_PLAN.md, step 1). A page is described as
  * data -- tabs, rows, help lines, where the logo is -- and this code works out where every
  * control goes and where D-pad focus goes. It is plain C++ with no GX or libogc calls, so a
  * host build (tests/menu_engine_test.cpp) lays out the real pages and checks them.

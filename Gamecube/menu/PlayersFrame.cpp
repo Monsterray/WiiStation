@@ -1,6 +1,6 @@
 /**
  * WiiStation - PlayersFrame.cpp
- * The Players menu (Docs/MII_PLAN.md, layout D): a card per PlayStation port on a band the
+ * The Players menu (Docs/ACHIEVEMENTS.md, Players and Miis, layout D): a card per PlayStation port on a band the
  * gray of the console's plastic, and below it a paged strip of Mii coins (players.c). A Wii
  * Remote holds A+B on a coin and drops it on a card; a pad picks a coin with A, chooses a
  * card and seats it with A. A Co-Op port's card holds all its players: opening it (A, a
@@ -606,7 +606,7 @@ void PlayersBoard::drawComponent(menu::Graphics &gfx)
 			}
 		goneFrames = gone ? 6 * 60 : 0;
 	}
-	if (goneFrames > 0) {   /* its unlocks stay in the journal (Docs/MII_PLAN.md) */
+	if (goneFrames > 0) {   /* its unlocks stay in the journal (Docs/ACHIEVEMENTS.md, Players and Miis) */
 		goneFrames--;
 		if (gone == 1)
 			snprintf(line, sizeof line, "A seated Mii is no longer on this Wii: its seat is Guest now");

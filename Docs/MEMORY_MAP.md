@@ -48,7 +48,7 @@ memory at `0xE0000000`, with a DMA engine of its own that moves 32-byte blocks t
 main memory while the CPU works. The pattern it is built for is streaming: start the load
 for block N+1, process block N out of the scratchpad, store block N-1 — a tight kernel over
 a large buffer then runs with no cache misses at all. The cost is that everything else gets
-half the L1. WiiStation does not use it yet; `Docs/LOCKED_CACHE_PLAN.md` has the measured
+half the L1. WiiStation does not use it yet; `Docs/PERFORMANCE_PLAN.md` (Part B) has the measured
 case for where it would pay (parked until the hardware baseline exists).
 
 **TMEM** is the GPU's own texture memory. The CPU never addresses it; textures are uploaded

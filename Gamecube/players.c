@@ -1,4 +1,4 @@
-/* players.c -- the Miis on this Wii as players (players.h, Docs/MII_PLAN.md).
+/* players.c -- the Miis on this Wii as players (players.h, Docs/ACHIEVEMENTS.md, Players and Miis).
  *
  * A thread reads the Mii database (mii_db_load, about 0.7 s on the bench Wii) and makes
  * every coin plain at once; then, with the face models (sd:/mii/RFL_Res.dat), it builds one
@@ -271,7 +271,7 @@ void players_idle(void)
 }
 
 /* RetroAchievements accounts linked to Miis (players.ini [Accounts]) and the Mii that plays
- * Official (PlayersOfficial), Docs/MII_PLAN.md. A link names an account file, never its
+ * Official (PlayersOfficial), Docs/ACHIEVEMENTS.md, Players and Miis. A link names an account file, never its
  * contents: "" none (earns Local), "*" this Wii's ra_account.ini, else achievements/ra/NAME.ini. */
 #define PLAYERS_LINKS 32
 static struct { char key[PLAYERS_KEY]; char name[PLAYERS_ACCOUNT]; } links[PLAYERS_LINKS];

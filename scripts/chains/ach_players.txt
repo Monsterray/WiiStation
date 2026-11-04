@@ -1,5 +1,5 @@
 CHAIN
-# Per-Mii achievements (Local mode, Docs/MII_PLAN.md phase 3), Spyro with a set whose hit counts fire
+# Per-Mii achievements (Local mode, Docs/ACHIEVEMENTS.md, Players and Miis phase 3), Spyro with a set whose hit counts fire
 # Alpha at 200 frames and Beta at 400 (Gamma at 1000, never here). A = 82625a00 (Testorb), B = 82625dd1, C = 826261a2 (Ollie).
 #   1  A seated alone: it earns Alpha and Beta; the state ach_pl_a is saved at 500
 #   2  B alone: nothing at load (A's unlocks are not its), earns Alpha only (the game ends at 300)

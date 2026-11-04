@@ -7,7 +7,7 @@
  * inversion). Each button lights when this player has it; the presets above choose a set,
  * and each button turns on or off by itself (the Custom layout, kept in CoopPButtonsK).
  *
- * The page is on the menu engine (Docs/MENU_FRAMEWORK_PLAN.md, step 5): its 24 buttons are
+ * The page is on the menu engine (Docs/MENU_PLAN.md, step 5): its 24 buttons are
  * free buttons at the rectangles this file gives, and its focus is the engine's geometry rule
  * (the nearest button in each direction). The controller picture and its lines are drawn here.
  *

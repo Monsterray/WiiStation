@@ -1,5 +1,7 @@
 # Moving to devkitPro libogc 3 -- plan (for review, 2026-10-11)
 
+Finished plan, kept for reference (moved 2026-11-04).
+
 Today: Extrems' libogc2 2.1.0 + devkitPPC r41-2 (GCC 12.1, newlib 4.2). Target: devkitPro libogc
 3.1.0 (tuxedo kernel) + devkitPPC r50-1 (GCC 16.1, newlib 4.6), both already installed beside the
 old ones. Order agreed (Monty, 2026-10-11): this first, then the menu framework, then cheats.

@@ -1,4 +1,4 @@
-/* players.h -- the Miis on this Wii as players (Docs/MII_PLAN.md), for the Players menu.
+/* players.h -- the Miis on this Wii as players (Docs/ACHIEVEMENTS.md, Players and Miis), for the Players menu.
  *
  * The Miis come from the Mii Channel's database through hbc-reborn's Mii SDK (deps/mii),
  * read only: WiiStation never writes it. A Mii's key is its creation ID as 16 hex

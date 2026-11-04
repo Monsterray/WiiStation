@@ -2,7 +2,7 @@
 
 **Status (2026-11-03): still nothing built.** No cheat engine or `.cht` reader in `Gamecube/` (grep
 for gameshark and `.cht`; no commit adds one). It waits on the List and
-Range rows of `Docs/MENU_FRAMEWORK_PLAN.md`; List exists (ce8218c7), Range does not.
+Range rows of `Docs/MENU_PLAN.md`; List exists (ce8218c7), Range does not.
 
 Nothing built yet. Monty's brief (2026-10-09): do it like DuckStation, ship no cheats (say where to
 get them), and let the engine take new formats later. Research: `C:\projects\research\cheats\FINDINGS.md`.
@@ -65,7 +65,7 @@ cheat_format { name; probe(path, head) ; scan(file, add_entry) ; load(entry, pro
 A **Cheats** button on the Current ISO / in-game menu opens a list page: groups as folders
 (`\`), each cheat a Toggle row, options as Choice/Cycle (`Option`) or Range (`OptionRange`) rows
 under it, paged with L/R. This is the menu framework's List and Range rows
-(Docs/MENU_FRAMEWORK_PLAN.md): the cheats page should be built on the framework, so the framework's
+(Docs/MENU_PLAN.md): the cheats page should be built on the framework, so the framework's
 List step comes first.
 
 ### 5. Testing

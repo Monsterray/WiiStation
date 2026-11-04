@@ -13,12 +13,12 @@
  * rc_client, achievements_official.c) and Local (RetroAchievements' set, nothing ever sent:
  * every player earns into the Local journal below).
  *
- * Players (Custom and Local mode, Docs/MII_PLAN.md): who is playing is a list of Miis from the hook
+ * Players (Custom and Local mode, Docs/ACHIEVEMENTS.md, Players and Miis): who is playing is a list of Miis from the hook
  * achievements_players, or Guest alone. Each achievement keeps one bit per player ("has"); the
  * set's earned state is the union, and rcheevos keeps an achievement active while any player
  * lacks it. The journal has a line per player that earned it.
  *
- * Official mode with Local players (Docs/MII_PLAN.md step 4c): the Miis other than the Official
+ * Official mode with Local players (Docs/ACHIEVEMENTS.md, Players and Miis step 4c): the Miis other than the Official
  * one earn rc_client's set into the same kind of journal. achievements_official.c hands over the
  * set's entries (achievements_ra_*); the player table, the bits and the journal are Local mode's. */
 #include "achievements.h"
@@ -725,7 +725,7 @@ void achievements_change_media(const char *image, const char *game_id)
     }
 }
 
-/* ---- Official mode with Local players (Docs/MII_PLAN.md step 4c) ----
+/* ---- Official mode with Local players (Docs/ACHIEVEMENTS.md, Players and Miis step 4c) ----
  * The Official side lives in achievements_official.c. Here: the Miis that earn Local next to it,
  * and rc_client's set as this file's entries (a malloc'd table, sorted by id), so the journal, the
  * bits, the toast's names and the per-player page are the Local mode's. */
