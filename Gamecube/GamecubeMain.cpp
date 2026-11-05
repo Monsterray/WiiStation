@@ -687,6 +687,28 @@ static const char* gameSettingsFile(void)
 	return NULL;
 }
 
+/* Built-in per-game defaults: the layer between settings.ini and the game's own file. The menu
+ * shows them like any value, and This Game saves a change from them. One "Key=Value" per row. */
+static const struct { const char* ids[8]; const char* kv; } gameDefaults[] = {
+	/* Crash Team Racing: 4-player races hold the game's 30 fps cap at 150% (25 at 100%);
+	 * LRWii 68% busy, 86% worst second (2026-11-05) */
+	{ { "SCUS94426", "SCUS94459", "SCES02105", "SCPS45470", "SCPS10118", "SCPS91230", "SCPS91328" },
+	  "CpuSpeed=5" },
+};
+
+static void loadGameDefaults(void)
+{
+	char kv[48];
+	readingFile = readingGameFile = true;   /* setOption: a game file's keys, unsaved menu values kept */
+	for (unsigned i = 0; CdromId[0] && i < sizeof gameDefaults / sizeof *gameDefaults; i++)
+		for (unsigned j = 0; j < 8 && gameDefaults[i].ids[j]; j++)
+			if (!strcmp(CdromId, gameDefaults[i].ids[j])) {
+				snprintf(kv, sizeof kv, "%s", gameDefaults[i].kv);
+				handleConfigPair(kv);
+			}
+	readingFile = readingGameFile = false;
+}
+
 /* The game's file over the global layer; its global-only keys are not read. */
 static bool loadGameSettings(const char* path)
 {
@@ -1718,6 +1740,7 @@ static void loadSeparatelySetting()
     // The defaults, settings.ini, then the game's own file (Save Settings -> This Game) on top:
     // it holds only what differs, so a change to settings.ini reaches every game.
     loadGlobalSettings();
+    loadGameDefaults();
     loadGameSettings(gameSettingsFile());
     rememberFileSettings();
     chainReapply();   /* a chained game's own settings win over the file */
@@ -2063,7 +2086,7 @@ void writeConfig(FILE* f){
 }
 
 /* Save Settings > This Game: only the settings whose value differs from the global layer (the
- * defaults, then settings.ini, as a game start reads them), never a global-only one. The game
+ * defaults, then settings.ini, then the built-in game defaults, as a game start reads them), never a global-only one. The game
  * reads this file over that layer. How many settings it wrote; 0 leaves a file with only the
  * header comment, which still hides an old full .cfg of the game. */
 int writeGameConfig(FILE* f){
@@ -2072,6 +2095,7 @@ int writeGameConfig(FILE* f){
 	int n = 0;
 	settingsTake(&now);
 	loadGlobalSettings();
+	loadGameDefaults();   /* a built-in game default is the base too: Auto over CTR's 150% is saved */
 	settingsTake(&global);
 	settingsPut(&now);
 	fprintf(f, "; WiiStation settings for one game: only what differs from settings.ini.\n"
@@ -2122,6 +2146,7 @@ bool loadSettingsNow(const char *dev)
 		ok = game != NULL;
 		if (ok) {
 			loadGlobalSettings();
+			loadGameDefaults();
 			loadGameSettings(game);
 		}
 	} else {
