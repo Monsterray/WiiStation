@@ -1,0 +1,8 @@
+CHAIN
+# CTR 4P race, one boot: CpuSpeed Auto (no CTR underclock since try/ctr-clock = 100%) then 150%. p1-only script, PadMirror; race ~6300-11000.
+11000 sd:/wiistation/ctr_vs4_p1.txt PadAutoAssign=0 ControllerType=0 gpuPlugin=2 PadType1=4 PadType2=0 PadType3=1 PadType4=0 PadType5=0 PadType6=0 PadMirror=1 CpuSpeed=0
+sd:/wiistation/isos/Crash Team Racing
+Crash Team Racing [U] [SCUS-94426].cue
+11000 sd:/wiistation/ctr_vs4_p1.txt PadAutoAssign=0 ControllerType=0 gpuPlugin=2 PadType1=4 PadType2=0 PadType3=1 PadType4=0 PadType5=0 PadType6=0 PadMirror=1 CpuSpeed=5
+sd:/wiistation/isos/Crash Team Racing
+Crash Team Racing [U] [SCUS-94426].cue

@@ -184,6 +184,8 @@ Next version (not released yet):
   each multitap slot without a controller of its own the input of slot A (and
   port 2 the input of port 1 when there is no multitap), so one player can drive
   all four karts in Crash Team Racing's 4-player mode. Best set per game.
+* Crash Team Racing runs its CPU at full speed: an old built-in fix ran it at 87.5%
+  ("sometimes slow"), which cost 4-player races about 4 frames a second.
 
 Ver 5.19.0 (2026-10-28):
 * Achievements page: the Account row is gone (accounts are in Players), and the
