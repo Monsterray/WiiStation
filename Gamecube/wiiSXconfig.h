@@ -461,6 +461,8 @@ enum controllerType
 
 /* AnalogAuto: when a pad of Controller Type Analog starts in analog mode (PadSSSPSX.c) */
 extern char analogAuto;
+/* PadMirror 1: every pad with no controller of its own plays port 1's (SETTINGS.md) */
+extern char padMirror;
 enum analogAuto
 {
 	ANALOGAUTO_OFF=0,     /* as a DualShock: digital until the game or the ANALOG combination says otherwise */

@@ -1,0 +1,5 @@
+CHAIN
+# PadMirror: the 4P VS script with p1 lines only. Mirror on: 4P selectable, all four karts on slot A's input.
+11000 sd:/wiistation/ctr_vs4_p1.txt PadAutoAssign=0 ControllerType=0 gpuPlugin=2 PadType1=4 PadType2=0 PadType3=1 PadType4=0 PadType5=0 PadType6=0 PadMirror=1
+sd:/wiistation/isos/Crash Team Racing
+Crash Team Racing [U] [SCUS-94426].cue

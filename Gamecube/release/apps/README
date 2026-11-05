@@ -180,6 +180,10 @@ Next version (not released yet):
   about a third cheaper on the Wii (Ape Escape's scene change: 180 -> 122 ms of
   waiting), with the same compiled code. New settings.ini keys JitPending, JitFull,
   JitPick and JitLightning (for testing; the defaults are the fast ones).
+* One controller can play every seat: new settings.ini key PadMirror = 1 gives
+  each multitap slot without a controller of its own the input of slot A (and
+  port 2 the input of port 1 when there is no multitap), so one player can drive
+  all four karts in Crash Team Racing's 4-player mode. Best set per game.
 
 Ver 5.19.0 (2026-10-28):
 * Achievements page: the Account row is gone (accounts are in Players), and the

@@ -344,12 +344,36 @@ extern int autoinput_active(int port);   /* PadWiiSX.c: a script has a pad on th
 /* PadWiiSX.c "sweep": generated presses (PSX order, 1 = pressed) and sticks LX LY RX RY */
 extern int autoinput_sweep(int port, unsigned short *press, unsigned char *sticks);
 
+static int script_has(int pad)
+{
+	return script_port(pad) >= 0 && autoinput_active(script_port(pad));
+}
+
+/* PadMirror: the pad (port 2, a multitap slot) with no controller and no script lines of its own
+ * plays port 1's (multitap 1 slot A's): its controller, or its script lines. One player then
+ * drives every player of a split screen. Returns that pad, or -1 (off, a pad with its own
+ * input, a Co-Op port, nothing on port 1). */
+static int mirror_src(int pad)
+{
+	const int src = padType[0] == PADTYPE_MULTITAP ? 2 : 0;
+	if (!padMirror || pad == src || virtualControllers[pad].inUse || script_has(pad) ||
+	    (pad < 2 && padType[pad] == PADTYPE_COOP))
+		return -1;
+	/* A multitap on port 1 holds the players: port 2 stays as set. A mirrored pad there was a
+	 * fifth controller, and CTR's pause menu took every press from it as well (2026-11-05). */
+	if (pad == 1 && src == 2)
+		return -1;
+	return virtualControllers[src].inUse || script_has(src) ? src : -1;
+}
+
 /* Is there a controller in this multitap slot (2..9) to answer its address byte? One the
  * settings put there (a type other than None) that has a host controller, or that an input
  * script plays. A slot whose type is None is empty, whatever was assigned to it before. */
 static int slot_present(int pad)
 {
 	int sp;
+	if (mirror_src(pad) >= 0)
+		return 1;
 	if (padType[pad] == PADTYPE_NONE)
 		return 0;
 	if (virtualControllers[pad].inUse)
@@ -361,6 +385,20 @@ static int slot_present(int pad)
 static void UpdateState (const int pad) //Note: pad = 0 or 1
 {
 	PERF_INC(pad_update);
+	/* PadMirror: this pad hands the PlayStation exactly what port 1 (multitap slot A) got at its
+	 * last read -- in a multitap transfer, this same transfer, as slot A is read first. Reading
+	 * the controller or the script again here put a press on another game frame for the mirrors
+	 * now and then, and a menu that reads every player (CTR's pause) moved two rows for one
+	 * press (2026-11-05). */
+	{
+		const int m = mirror_src(pad);
+		if (m >= 0) {
+			global.isConnected[pad] = 1;
+			global.padStat[pad] = global.padStat[m];
+			padOut[pad] = padOut[m];
+			return;
+		}
+	}
 	int cursorX = 0x1;
 	int cursorY = 0xA;
 	int curMouse;
@@ -524,7 +562,7 @@ static void UpdateState (const int pad) //Note: pad = 0 or 1
 	else
 	{	/* No host controller: a script may play it (SSS_PortStart decides whether anything
 		 * answers at all); otherwise the buttons and sticks rest. */
-		global.isConnected[pad] = script_port(pad) >= 0 && autoinput_active(script_port(pad)) ? 1 : 0;
+		global.isConnected[pad] = script_has(pad);
 		PAD_Data.btns.All = 0xFFFF;
 		PAD_Data.leftStickX = PAD_Data.leftStickY = PAD_Data.rightStickX = PAD_Data.rightStickY = 128;
 	}
@@ -1070,7 +1108,7 @@ static unsigned char pad_byte (const int pad, const unsigned char value, int *ac
 static int port_present (const int port)
 {
 	extern unsigned char pad_unplug[2];   /* PlugPAD.c */
-	return padType[port] != PADTYPE_NONE && !pad_unplug[port];
+	return (padType[port] != PADTYPE_NONE || mirror_src(port) >= 0) && !pad_unplug[port];
 }
 
 /* The first byte of a transfer on PlayStation port `port` (0 or 1), not a memory card's

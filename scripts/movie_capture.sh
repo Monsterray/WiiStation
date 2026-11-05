@@ -94,6 +94,13 @@ extra=""
 for kv in $(printf '%s' "$sets" | tr ',' ' '); do
 	case "$kv" in [A-Za-z]*=*) extra="$extra $kv" ;; *) echo "--set takes K=V,K=V (got \"$kv\")"; exit 2 ;; esac
 done
+# PadMirror=1: one pad plays every player. Dolphin's port 2 pad (SIDevice1=6, below) would take
+# multitap slot B under automatic assignment and not be mirrored (2026-11-05), so the slots are
+# set by hand: slot A (or port 1) is GameCube pad 1, every other slot is empty and mirrors it.
+case " $extra " in *" PadMirror=1 "*)
+	case " $extra " in *" PadType1=4 "*) extra="$extra PadAutoAssign=0 PadType2=0 PadType3=1 PadType4=0 PadType5=0 PadType6=0" ;;
+	*) extra="$extra PadAutoAssign=0 PadType1=1 PadType2=0" ;; esac ;;
+esac
 
 if [ -n "${PYTHON:-}" ]; then :;
 elif command -v python >/dev/null 2>&1; then PYTHON=python;
