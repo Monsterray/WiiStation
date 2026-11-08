@@ -198,6 +198,7 @@ char loadButtonSlot;
 char controllerType;
 char analogAuto;
 char padMirror;
+char explorerOpensOn;
 char numMultitaps;
 char lang = 0;
 char fastLoad = 0;
@@ -243,7 +244,7 @@ static const char* const OPT_FAST_ACCURATE[] = { "Fast", "Accurate" };
 static const char* const OPT_MIX[]           = { "Legacy", "Hi-Fi" };
 static const char* const OPT_LANG[]          = { "En", "Chs", "Kr", "Es", "Pte", "It", "De", "Cht", "Jp", "Fr", "Br", "Ca", "Tu" };
 static const char* const OPT_BIOS[]          = { "HLE", "SD", "USB" };
-static const char* const OPT_CORE[]          = { "Lightrec", "Interpreter", "Dynarec" };
+static const char* const OPT_CORE[]          = { "Lightrec", "Interp.", "Dynarec" };
 static const char* const OPT_GPU[]           = { "Soft Fast", "Soft Timed", "OpenGX" };
 static const char* const OPT_SCREEN[]        = { "4:3", "16:9", "Force 16:9" };
 static const char* const OPT_DITHER[]        = { "None", "Default", "Always" };
@@ -268,7 +269,7 @@ static const char* const OPT_SAVE_DEVICE[]   = { "SD", "USB", "CardA", "CardB" }
 static const char* const OPT_STATES_DEVICE[] = { "SD", "USB" };
 static const char* const OPT_MEMCARD_TYPE[]  = { "Shared", "Game" };
 static const char* const OPT_PAD_ASSIGN[]    = { "Manual", "Automatic" };
-static const char* const OPT_CONTROLLER[]    = { "Standard", "Analog", "Stick D-pad" };
+static const char* const OPT_CONTROLLER[]    = { "Digital", "Analog", "Stick Pad" };
 static const char* const OPT_SLOT[]          = { "Slot 1", "Slot 2", "Slot 3", "Slot 4", "Default", "Auto" };
 static const char* const OPT_LIGHTGUN[]      = { "Off", "GunCon", "Justifier", "Mouse" };
 
@@ -280,17 +281,19 @@ static SettingOption OPTIONS[] =
   { "FileSortMode", &fileSortMode, FILESORT_DIRS_MIXED, FILESORT_DIRS_FIRST },
   { "TabWrap", &tabWrap, 0, 1 },
   { "Core", &dynacore, DYNACORE_DYNAREC, DYNACORE_DYNAREC_OLD, NULL, "CPU Core", OPT_CORE, "The CPU emulation core. A change restarts the game." },
-  { "fastLoad", &fastLoad, 0, 1, NULL, "Fast Load", OPT_NO_YES, "Shortens the CD drive delays. Some games break with it on." },
+  { "fastLoad", &fastLoad, 0, 1, NULL, "Fast Load", OPT_OFF_ON, "Shortens the CD drive delays. Some games break with it on." },
   { "Files", NULL, 0, 0, "Where WiiStation finds the games and the BIOS." },
   { "RomDirSD", romDirSD, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "RomDirUSB", romDirUSB, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
+  /* No menu row: a settings.ini key (SETTINGS.md) */
+  { "ExplorerOpensOn", &explorerOpensOn, EXPLOREROPENS_LAST, EXPLOREROPENS_RECENT },
   { "BiosDevice", &biosDevice, BIOSDEVICE_HLE, BIOSDEVICE_USB, NULL, "Select BIOS", OPT_BIOS, "Where the BIOS file is read from. HLE needs no file." },
-  { "BootThruBios", &LoadCdBios, BOOTTHRUBIOS_NO, BOOTTHRUBIOS_YES, NULL, "Boot Through BIOS", OPT_NO_YES, "Shows the PlayStation start screen before a game." },
+  { "BootThruBios", &LoadCdBios, BOOTTHRUBIOS_NO, BOOTTHRUBIOS_YES, NULL, "Boot Through BIOS", OPT_OFF_ON, "Shows the PlayStation start screen before a game." },
   { "Video", NULL, 0, 0, "The picture: the renderer, the TV signal and the filters." },
   { "gpuPlugin", &gpuPlugin, OLD_SOFT, OPEN_GX, NULL, "GPU Plugin", OPT_GPU, "The graphics renderer. OpenGX uses the Wii GPU." },
   { "VideoMode", &videoMode, VIDEOMODE_AUTO, VIDEOMODE_PROGRESSIVE, NULL, "Video Mode", OPT_VIDEOMODE, "The TV signal. Auto is the Wii setting. Applies at the next start." },
   { "TVMode", &originalMode, ORIGINALMODE_DISABLE, ORIGINALMODE_ENABLE, NULL, "240p", OPT_OFF_ON, "Turns the 240p display mode on or off." },
-  { "ForceNTSC", &forceNTSC, FORCENTSC_DISABLE, FORCENTSC_ENABLE, NULL, "Force NTSC", OPT_OFF_ON, "Treats every game as an NTSC game." },
+  { "ForceNTSC", &forceNTSC, FORCENTSC_DISABLE, FORCENTSC_ENABLE, NULL, "NTSC", OPT_OFF_ON, "Treats every game as an NTSC game." },
   { "ScreenMode", &screenMode, SCREENMODE_4x3, SCREENMODE_16x9_PILLARBOX, NULL, "Screen Mode", OPT_SCREEN, "Sets the shape of the picture." },
   { "Interlaced", &interlacedMode, INTERLACED_DISABLE, INTERLACED_ENABLE, NULL, "Interlaced", OPT_OFF_ON, "Turns the interlaced video mode on or off." },
   { "DeflickerFilter", &deflickerFilter, DEFLICKER_DISABLE, DEFLICKER_ENABLE, NULL, "Deflicker", OPT_OFF_ON, "Turns the deflicker filter on or off." },
@@ -349,20 +352,20 @@ static SettingOption OPTIONS[] =
   /* The disc a multi-disc PBP boots: for chain lines only */
   { "Disc", &chainDisc, 1, 8 },
   { "Saves", NULL, 0, 0, "Memory cards and save states." },
-  { "NativeDevice", &nativeSaveDevice, NATIVESAVEDEVICE_SD, NATIVESAVEDEVICE_CARDB, NULL, "Memcard Save Device", OPT_SAVE_DEVICE, "Where the memory card files are saved." },
+  { "NativeDevice", &nativeSaveDevice, NATIVESAVEDEVICE_SD, NATIVESAVEDEVICE_CARDB, NULL, "Save Memcards To", OPT_SAVE_DEVICE, "Where the memory card files are saved." },
   { "StatesDevice", &saveStateDevice, SAVESTATEDEVICE_SD, SAVESTATEDEVICE_USB, NULL, "Save States Device", OPT_STATES_DEVICE, "Where the save state files are saved." },
-  { "AutoSave", &autoSave, AUTOSAVE_DISABLE, AUTOSAVE_ENABLE, NULL, "Auto Save Memcards", OPT_NO_YES, "Saves the memory cards automatically." },
+  { "AutoSave", &autoSave, AUTOSAVE_DISABLE, AUTOSAVE_ENABLE, NULL, "Memcard Autosave", OPT_OFF_ON, "Saves the memory cards automatically." },
   { "Memcard0", &memCard[0], MEMCARD_DISABLE, MEMCARD_ENABLE, NULL, "Memcard 1", OPT_OFF_ON, "Turns memory card 1 on or off." },
   { "Memcard0File", &memCardFile[0], MEMCARDFILE_SHARED, MEMCARDFILE_PER_GAME, NULL, "Memcard Type", OPT_MEMCARD_TYPE, "Shared: one card file for all games. Game: one per game." },
   { "Memcard1", &memCard[1], MEMCARD_DISABLE, MEMCARD_ENABLE, NULL, "Memcard 2", OPT_OFF_ON, "Turns memory card 2 on or off." },
   { "Memcard1File", &memCardFile[1], MEMCARDFILE_SHARED, MEMCARDFILE_PER_GAME, NULL, "Memcard Type", OPT_MEMCARD_TYPE, "Shared: one card file for all games. Game: one per game." },
   { "Controllers", NULL, 0, 0, "The PlayStation ports and the controllers on them." },
   { "PadAutoAssign", &padAutoAssign, PADAUTOASSIGN_MANUAL, PADAUTOASSIGN_AUTOMATIC, NULL, "Pad Assignment", OPT_PAD_ASSIGN, "Automatic assigns the controllers to the ports." },
-  { "ControllerType", &controllerType, CONTROLLERTYPE_STANDARD, CONTROLLERTYPE_STICKDPAD, NULL, "PSX Pad Type", OPT_CONTROLLER, "Stick D-pad: a digital pad whose D-pad follows the left stick." },
+  { "ControllerType", &controllerType, CONTROLLERTYPE_STANDARD, CONTROLLERTYPE_STICKDPAD, NULL, "PSX Pad Type", OPT_CONTROLLER, "Stick Pad: a digital pad whose D-pad follows the left stick." },
   /* No menu row: a settings.ini key (SETTINGS.md section 6.6) */
   { "AnalogAuto", &analogAuto, ANALOGAUTO_OFF, ANALOGAUTO_ALWAYS },
   { "PadMirror", &padMirror, 0, 1 },
-  { "RumbleEnabled", &rumbleEnabled, RUMBLE_DISABLE, RUMBLE_ENABLE, NULL, "Enable Rumble", OPT_NO_YES, "Turns the controller rumble on or off." },
+  { "RumbleEnabled", &rumbleEnabled, RUMBLE_DISABLE, RUMBLE_ENABLE, NULL, "Enable Rumble", OPT_OFF_ON, "Turns the controller rumble on or off." },
   { "LoadButtonSlot", &loadButtonSlot, LOADBUTTON_SLOT0, LOADBUTTON_AUTO, NULL, "Auto Load Slot", OPT_SLOT, "The button mapping that loads at start: a slot, the default, or Auto (this game's own)." },
   { "LightGun", &lightGun, LIGHTGUN_DISABLE, LIGHTGUN_MOUSE, NULL, "Light Gun", OPT_LIGHTGUN, "Sets the light gun type. Off uses the pad." },
   { "GunReticle", &gunReticle, 0, 1, NULL, "Gun Reticle", OPT_OFF_ON, "Shows where the Wii Remote points while it is a light gun or mouse." },
@@ -587,7 +590,7 @@ void biosFileInit();
  * scripts/settings_check.py reads both lists. */
 static const char* const UNSTORED_KEYS[] = { "FilterTour" };
 static const char* const GLOBAL_ONLY_KEYS[] = {
-	"lang", "MenuFont", "FileSortMode", "TabWrap", "RomDirSD", "RomDirUSB",
+	"lang", "MenuFont", "FileSortMode", "TabWrap", "RomDirSD", "RomDirUSB", "ExplorerOpensOn",
 	"NativeDevice", "StatesDevice", "AchievementFile", "AchievementLog", "AchievementUTCOffset", "AchievementBenchRoot",
 	"smbipaddr", "smbsharename", "smbusername", "smbpassword", "RomDirSMB",
 	"Player1", "Player2", "Player1A", "Player1B", "Player1C", "Player1D", "Player2A", "Player2B", "Player2C", "Player2D",
@@ -686,6 +689,9 @@ static const char* gameSettingsFile(void)
 	}
 	return NULL;
 }
+
+/* For the ISO Info page (RomInfo.cpp): the loaded game's own settings file, or NULL */
+const char *romGameSettingsPath(void) { return gameSettingsFile(); }
 
 /* Built-in per-game defaults: the layer between settings.ini and the game's own file. The menu
  * shows them like any value, and This Game saves a change from them. One "Key=Value" per row. */
@@ -876,6 +882,7 @@ void loadSettings(int argc, char *argv[])
 	controllerType	 = CONTROLLERTYPE_STANDARD;
 	analogAuto	 = ANALOGAUTO_CONFIG;
 	padMirror	 = 0;
+	explorerOpensOn	 = EXPLOREROPENS_LAST;
 	numMultitaps	 = MULTITAPS_NONE;
 	menuActive = 1;
 	forceNTSC 		 = FORCENTSC_DISABLE;

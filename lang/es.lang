@@ -83,7 +83,7 @@ msgstr "Correr Bios"
 msgid "Save settings"
 msgstr "Guardar ajustes"
 
-msgid "Interpreter"
+msgid "Interp."
 msgstr "Interpreter"
 
 msgid "Dynarec"
@@ -152,13 +152,13 @@ msgstr "Control Tipo PSX"
 msgid "Disable Rumble"
 msgstr "Sin Vibración"
 
-msgid "Standard"
-msgstr "Estándar"
+msgid "Digital"
+msgstr "Digital"
 
 msgid "Analog"
 msgstr "Análogo"
 
-msgid "Save Button Configs"
+msgid "Save Configs"
 msgstr "Guardar Config."
 
 msgid "Auto Load Slot:"
@@ -188,10 +188,10 @@ msgstr "Medio"
 msgid "low"
 msgstr "Bajo"
 
-msgid "Memcard Save Device"
+msgid "Save Memcards To"
 msgstr "Ruta de MemoryCard"
 
-msgid "Auto Save Memcards"
+msgid "Memcard Autosave"
 msgstr "Autoguardar MemCards"
 
 msgid "Save States Device"

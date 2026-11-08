@@ -51,7 +51,6 @@ MenuContext *pMenuContext;
 MenuContext::MenuContext(GXRModeObj *vmode)
 		: currentActiveFrame(0),
 		  mainFrame(0),
-		  loadRomFrame(0),
 		  fileBrowserFrame(0),
 		  currentRomFrame(0),
 		  settingsFrame(0),
@@ -62,11 +61,12 @@ MenuContext::MenuContext(GXRModeObj *vmode)
 		  usbPadTestFrame(0),
 		  achievementsFrame(0),
 		  playersFrame(0),
+		  accountFrame(0),
 		  activeIndex(0),
 		  activeSubmenu(0)
 {
 	pMenuContext = this;
-	for (int i = 0; i <= FRAME_PLAYERS; i++)
+	for (int i = 0; i <= FRAME_ACCOUNT; i++)
 	{
 		focusMemory[i].button = NULL;
 		focusMemory[i].submenu = 0;
@@ -75,7 +75,6 @@ MenuContext::MenuContext(GXRModeObj *vmode)
 	menu::Gui::getInstance().setVmode(vmode);
 
 	mainFrame = new MainFrame();
-	loadRomFrame = new LoadRomFrame();
 	fileBrowserFrame = new FileBrowserFrame();
 	currentRomFrame = new CurrentRomFrame();
 	settingsFrame = new SettingsFrame();
@@ -86,9 +85,9 @@ MenuContext::MenuContext(GXRModeObj *vmode)
 	usbPadTestFrame = new UsbPadTestFrame();
 	achievementsFrame = new AchievementsFrame();
 	playersFrame = new PlayersFrame();
+	accountFrame = new AccountFrame();
 
 	menu::Gui::getInstance().addFrame(mainFrame);
-	menu::Gui::getInstance().addFrame(loadRomFrame);
 	menu::Gui::getInstance().addFrame(fileBrowserFrame);
 	menu::Gui::getInstance().addFrame(currentRomFrame);
 	menu::Gui::getInstance().addFrame(settingsFrame);
@@ -99,6 +98,7 @@ MenuContext::MenuContext(GXRModeObj *vmode)
 	menu::Gui::getInstance().addFrame(usbPadTestFrame);
 	menu::Gui::getInstance().addFrame(achievementsFrame);
 	menu::Gui::getInstance().addFrame(playersFrame);
+	menu::Gui::getInstance().addFrame(accountFrame);
 
 	menu::Focus::getInstance().setFocusActive(true);
 
@@ -109,6 +109,7 @@ MenuContext::MenuContext(GXRModeObj *vmode)
 
 MenuContext::~MenuContext()
 {
+	delete accountFrame;
 	delete playersFrame;
 	delete achievementsFrame;
 	delete usbPadTestFrame;
@@ -119,7 +120,6 @@ MenuContext::~MenuContext()
 	delete settingsFrame;
 	delete currentRomFrame;
 	delete fileBrowserFrame;
-	delete loadRomFrame;
 	delete mainFrame;
 	pMenuContext = NULL;
 }
@@ -145,6 +145,8 @@ static const int LOGO_HIDDEN_FRAMES[] = {
 	MenuContext::FRAME_USBPADTEST,
 	MenuContext::FRAME_PLAYERS,           /* the port band runs edge to edge */
 	MenuContext::FRAME_ACHIEVEMENTS,      /* the book: its header and tabs use the top right */
+	MenuContext::FRAME_FILEBROWSER,       /* the explorer: tab strip, count and last row use both corners */
+	MenuContext::FRAME_ACCOUNT,           /* the account list: the title and the last row use both corners */
 };
 
 /* sd:/wiistation/autoinput.txt's "menupage <n>": see PadWiiSX.c, where it is parsed. */
@@ -301,7 +303,7 @@ void MenuContext::enterFrame(int frameIndex, int submenu)
 	}
 
 	/* A Back takes what the screen remembers, but only for the tab it was left from. */
-	if (back && frameIndex >= FRAME_MAIN && frameIndex <= FRAME_PLAYERS)
+	if (back && frameIndex >= FRAME_MAIN && frameIndex <= FRAME_ACCOUNT)
 	{
 		if (focusMemory[frameIndex].submenu == submenu)
 			returnTo = focusMemory[frameIndex].button;
@@ -314,9 +316,6 @@ void MenuContext::enterFrame(int frameIndex, int submenu)
 	switch(frameIndex) {
 	case FRAME_MAIN:
 		currentActiveFrame = mainFrame;
-		break;
-	case FRAME_LOADROM:
-		currentActiveFrame = loadRomFrame;
 		break;
 	case FRAME_FILEBROWSER:
 		currentActiveFrame = fileBrowserFrame;
@@ -347,6 +346,9 @@ void MenuContext::enterFrame(int frameIndex, int submenu)
 		break;
 	case FRAME_PLAYERS:
 		currentActiveFrame = playersFrame;
+		break;
+	case FRAME_ACCOUNT:
+		currentActiveFrame = accountFrame;
 		break;
 	}
 
@@ -389,9 +391,6 @@ menu::Frame* MenuContext::getFrame(int frameIndex)
 	case FRAME_MAIN:
 		pFrame = mainFrame;
 		break;
-	case FRAME_LOADROM:
-		pFrame = loadRomFrame;
-		break;
 	case FRAME_FILEBROWSER:
 		pFrame = fileBrowserFrame;
 		break;
@@ -421,6 +420,9 @@ menu::Frame* MenuContext::getFrame(int frameIndex)
 		break;
 	case FRAME_PLAYERS:
 		pFrame = playersFrame;
+		break;
+	case FRAME_ACCOUNT:
+		pFrame = accountFrame;
 		break;
 	}
 

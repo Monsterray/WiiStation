@@ -79,7 +79,6 @@ namespace eng = menu::engine;
 
 struct MainButtonInfo
 {
-	menu::Button	*button;
 	int				buttonStyle;
 	char*			buttonString;
 	ButtonFunc		clickedFunc;
@@ -87,14 +86,14 @@ struct MainButtonInfo
 };
 
 static MainButtonInfo mainButtons[NUM_MAIN_BUTTONS] =
-{	//	button	buttonStyle	buttonString		clickFunc			returnFunc
-	{	NULL,	BTN_A_NRM,	mainStrings[0],	Func_LoadROM,		Func_BackToGame },
-	{	NULL,	BTN_A_NRM,	mainStrings[1],	Func_CurrentROM,	Func_BackToGame },
-	{	NULL,	BTN_A_NRM,	mainStrings[2],	Func_Settings,		Func_BackToGame },
-	{	NULL,	BTN_A_NRM,	mainStrings[3],	Func_Players,		Func_BackToGame },
-	{	NULL,	BTN_A_NRM,	mainStrings[4],	Func_Credits,		Func_BackToGame },
-	{	NULL,	BTN_A_NRM,	mainStrings[5],	Func_ExitToLoader,	Func_BackToGame },
-	{	NULL,	BTN_A_NRM,	mainStrings[6],	Func_PlayGame,		Func_BackToGame },
+{	//	buttonStyle	buttonString		clickFunc			returnFunc
+	{	BTN_A_NRM,	mainStrings[0],	Func_LoadROM,		Func_BackToGame },
+	{	BTN_A_NRM,	mainStrings[1],	Func_CurrentROM,	Func_BackToGame },
+	{	BTN_A_NRM,	mainStrings[2],	Func_Settings,		Func_BackToGame },
+	{	BTN_A_NRM,	mainStrings[3],	Func_Players,		Func_BackToGame },
+	{	BTN_A_NRM,	mainStrings[4],	Func_Credits,		Func_BackToGame },
+	{	BTN_A_NRM,	mainStrings[5],	Func_ExitToLoader,	Func_BackToGame },
+	{	BTN_A_NRM,	mainStrings[6],	Func_PlayGame,		Func_BackToGame },
 };
 
 /* The Main menu page: seven rows, one action button each. */
@@ -130,12 +129,6 @@ static void layoutMain(void)
 	eng::linkFocus(MAIN_PAGE, MAIN_LAYOUT);
 }
 
-/* The button drawn for a layout control. */
-static menu::Button *mainButtonOf(const eng::Control &c)
-{
-	return mainButtons[c.row].button;
-}
-
 MainFrame::MainFrame()
 {
 	inputStatusBar = new menu::InputStatusBar(450,100);
@@ -144,38 +137,23 @@ MainFrame::MainFrame()
 	layoutMain();
 
 	/* Each button's box, and so its Cursor range, is the engine's rectangle for its row. */
+	pool = new menu::glue::Pool(this, NUM_MAIN_BUTTONS);
 	for (int i = 0; i < NUM_MAIN_BUTTONS; i++)
 	{
 		const eng::Control &c = MAIN_LAYOUT.c[MAIN_LAYOUT.slot[i][0]];
-		mainButtons[i].button = new menu::Button(mainButtons[i].buttonStyle, &mainButtons[i].buttonString,
-										c.rect.x, c.rect.y, c.rect.w, c.rect.h);
+		pool->button(eng::ROLE_BUTTON, i, 0, mainButtons[i].buttonStyle, &mainButtons[i].buttonString,
+		             c.rect.x, c.rect.y, c.rect.w, c.rect.h,
+		             mainButtons[i].clickedFunc, mainButtons[i].returnFunc);
 	}
-
-	/* The engine's links, handed to the buttons. */
-	for (int i = 0; i < NUM_MAIN_BUTTONS; i++)
-	{
-		const eng::Control &c = MAIN_LAYOUT.c[MAIN_LAYOUT.slot[i][0]];
-		menu::glue::linkFocus(mainButtons[i].button, MAIN_LAYOUT, c, mainButtonOf);
-		mainButtons[i].button->setActive(true);
-		if (mainButtons[i].clickedFunc) mainButtons[i].button->setClicked(mainButtons[i].clickedFunc);
-		if (mainButtons[i].returnFunc) mainButtons[i].button->setReturn(mainButtons[i].returnFunc);
-		add(mainButtons[i].button);
-		menu::Cursor::getInstance().addComponent(this, mainButtons[i].button, c.rect.x,
-												c.rect.x+c.rect.w, c.rect.y,
-												c.rect.y+c.rect.h);
-	}
-	setDefaultFocus(mainButtons[0].button);
+	pool->link(MAIN_LAYOUT);	/* the engine's links, handed to the buttons */
+	setDefaultFocus(pool->at(eng::ROLE_BUTTON, 0, 0));
 	setBackFunc(Func_BackToGame);	/* B with the pointer on no button */
 	setEnabled(true);
 }
 
 MainFrame::~MainFrame()
 {
-	for (int i = 0; i < NUM_MAIN_BUTTONS; i++)
-	{
-		menu::Cursor::getInstance().removeComponent(this, mainButtons[i].button);
-		delete mainButtons[i].button;
-	}
+	delete pool;
 	delete inputStatusBar;
 }
 
@@ -183,7 +161,7 @@ extern MenuContext *pMenuContext;
 
 void Func_LoadROM()
 {
-	pMenuContext->setActiveFrame(MenuContext::FRAME_LOADROM,FileBrowserFrame::FILEBROWSER_LOADISO);
+	explorerOpen(FileBrowserFrame::FILEBROWSER_LOADISO);   /* the explorer, on the last source used */
 }
 
 extern BOOL hasLoadedISO;
@@ -202,7 +180,7 @@ void Func_CurrentROM()
 void Func_Settings()
 {
 	menu::Gui::getInstance().menuLogo->setLocation(580.0, 410.0, -50.0);
-	pMenuContext->setActiveFrame(MenuContext::FRAME_SETTINGS,SettingsFrame::SUBMENU_GENERAL);
+	pMenuContext->setActiveFrame(MenuContext::FRAME_SETTINGS,SettingsFrame::SUBMENU_VIDEO);
 }
 
 void Func_Players()

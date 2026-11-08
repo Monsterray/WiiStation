@@ -96,18 +96,12 @@ static int fontHeight(const char *, float scale, void *)
 
 static const Metrics kFont = { fontWidth, fontHeight, NULL };
 
-/*  OptionsFrame's tables, copied from Gamecube/menu/OptionsFrame.cpp  */
+/*  OptionsFrame's tables, copied from Gamecube/menu/OptionsFrame.cpp. The five Advanced tabs (CPU, GPU,
+ *  SPU, CD, Input) are standard pages: their mirror is testStdAdvancedTabs().  */
 
 static const char *const RESAMPLER_NAMES[]    = { "Hold", "Linear", "Cubic" };
 static const char *const ON_OFF_NAMES[]       = { "Off", "On" };
 static const char *const LEGACY_HIFI_NAMES[]  = { "Legacy", "Hi-Fi" };
-static const char *const CD_BUFFER_NAMES[]    = { "16 KB", "64 KB", "256 KB" };
-static const char *const CD_HUNKS_NAMES[]     = { "2", "4", "8" };
-static const char *const CPU_CORE_NAMES[]     = { "Lightrec", "Interpreter", "Dynarec" };
-static const char *const GPU_PLUGIN_NAMES[]   = { "Soft Fast", "Soft Timed", "OpenGX" };
-static const char *const FAST_ACCURATE_NAMES[] = { "Fast", "Accurate" };
-static const char *const CPU_SPEED_NAMES[]    = { "Auto", "50%", "75%", "100%", "125%", "150%", "200%", "300%" };
-static const char *const NO_YES_NAMES[]       = { "No", "Yes" };
 static const char *const DITHER_NAMES[]       = { "None", "Default", "Always" };
 static const char *const CHROMA_NAMES[]       = { "Sharp", "Smooth" };
 static const char *const FMV_COLOUR_NAMES[]   = { "15-bit", "24-bit" };
@@ -126,19 +120,6 @@ static Row SOUND_ROWS[] = {
 	CYC("XA Resampler",     LEGACY_HIFI_NAMES, 1),
 };
 
-static Row PLUGIN_ROWS[] = {
-	RADIO_FIT("CPU Core", CPU_CORE_NAMES,   0),
-	CYC("CPU Timing",   FAST_ACCURATE_NAMES, 0),
-	CYC("CPU Speed",    CPU_SPEED_NAMES,    3),
-};
-
-static Row CD_ROWS[] = {
-	CYC("CD Read Buffer", CD_BUFFER_NAMES, 0),
-	CYC("CD Read-Ahead",  ON_OFF_NAMES,    1),
-	CYC("CHD Hunk Cache", CD_HUNKS_NAMES,  2),
-	CYC("Fast Load",      NO_YES_NAMES,    0),
-};
-
 /* Readouts: the text is whatever the emulator reports, so the longest it can be is used. */
 static Row MEMORY_ROWS[] = {
 	INFO("MEM1 (fast)",        "24576 used, 24576 free KB"),
@@ -151,58 +132,10 @@ static Row MEMORY_ROWS[] = {
 	INFO("SPU + BIOS buffers", "64 + 512 KB"),
 };
 
-static Row GPU_ROWS[] = {
-	RADIO_FIT("GPU Plugin", GPU_PLUGIN_NAMES, 2),
-	CYC("GPU Timing",     FAST_ACCURATE_NAMES, 0),
-};
-
-static Row INPUT_ROWS[] = {
-	CYC("Port Timing", FAST_ACCURATE_NAMES, 1),
-};
-
-static Row SPU_ROWS[] = {
-	INFO("SPU Plugin", "P.E.Op.S. DFSound"),
-};
-
 static Row ADVGFX_ROWS[] = {
 	RADIO_FIT("Dithering",     DITHER_NAMES, 1),
 	CYC("MDEC Chroma",         CHROMA_NAMES, 0),
 	CYC("Video Color",        FMV_COLOUR_NAMES, 1),
-};
-
-static const HelpLine SPU_HELP[] = {
-	{ "SPU Plugin:", "Emulates the PS1 sound chip on the Wii's CPU." },
-	{ NULL,          "The Sound Driver is on the Audio tab." },
-	{ NULL,          "Sound quality is in Audio, Advanced." },
-};
-
-static const HelpLine GPU_HELP[] = {
-	{ "GPU Plugin:", "OpenGX uses the Wii's GPU; Soft avoids its quirks." },
-	{ "GPU Timing:", "Accurate: the GPU is busy as long as on a PS1." },
-};
-
-static const HelpLine INPUT_HELP[] = {
-	{ "Port Timing:", "Accurate: each byte on the controller ports takes" },
-	{ NULL,           "as long as on a PS1. Fast is the default." },
-};
-
-static const HelpLine PLUGIN_HELP[] = {
-	{ "CPU Core:",   "Lightrec runs most games best; Interpreter is" },
-	{ NULL,          "exact but slow. A new core restarts the game." },
-	{ "CPU Timing:", "Accurate: 3D-maths and multiply waits as on a PS1." },
-	{ "CPU Speed:",  "Over 100% eases slowdown in some games, at more" },
-	{ NULL,          "Wii CPU time. Save it for one game: This Game." },
-};
-
-static const HelpLine CD_HELP[] = {
-	{ "CD Read Buffer:", "16 KB is best: the card is read in 32 KB pages anyway," },
-	{ NULL,              "and a larger buffer only reads more than the game uses." },
-	{ "CD Read-Ahead:",  "A thread reads the next sectors early, so the game" },
-	{ NULL,              "waits less for the card. Raw bin/cue and .iso only." },
-	{ "CHD Hunk Cache:", "Decoded CHD hunks kept in memory, about 20 KB each." },
-	{ NULL,              "More never decodes more often: 8 is best." },
-	{ NULL,              "These three apply at the next game load." },
-	{ "Fast Load:",      "Shorter CD waits. Some games break with it." },
 };
 
 /* The Advanced tab row: ADV_TABS order, and the same widths as TAB_WS. */
@@ -238,14 +171,7 @@ static TestPage PAGES[] = {
 	{ "Adv Sound",   "Advanced Sound",    false, 0, SOUND_ROWS,   COUNT(SOUND_ROWS),   NULL,        0 },
 	/* one column here; the real two-column page, with all its rows, is testTwoColumns() */
 	{ "Adv Graphics","Advanced Graphics", false, 0, ADVGFX_ROWS, COUNT(ADVGFX_ROWS), NULL,        0 },
-	{ "CPU",         NULL,                true,  0, PLUGIN_ROWS, COUNT(PLUGIN_ROWS), PLUGIN_HELP, COUNT(PLUGIN_HELP) },
-	{ "CD",          NULL,                true,  3, CD_ROWS,     COUNT(CD_ROWS),     CD_HELP,     COUNT(CD_HELP),
-	  NULL, 0, 0.0f, 0.0f, 0.0f, 2 },
 	{ "Memory",      "Memory",            false, 0, MEMORY_ROWS, COUNT(MEMORY_ROWS), NULL,        0, NULL, 0, 0.0f, 0.0f, 46.0f },
-	{ "GPU",         NULL,                true,  1, GPU_ROWS,    COUNT(GPU_ROWS),    GPU_HELP,    COUNT(GPU_HELP) },
-	{ "Input",       NULL,                true,  4, INPUT_ROWS,  COUNT(INPUT_ROWS),  INPUT_HELP,  COUNT(INPUT_HELP) },
-	{ "SPU",         NULL,                true,  2, SPU_ROWS,    COUNT(SPU_ROWS),    SPU_HELP,    COUNT(SPU_HELP),
-	  NULL, 0, 0.0f, 0.0f },
 };
 #define NPAGES COUNT(PAGES)
 
@@ -279,12 +205,12 @@ static const Tab GEN_TABS[] = {
 };
 
 /*  The Settings Video tab (menupage 2), from SettingsFrame.cpp's FRAME_BUTTONS, FRAME_TEXTBOXES and
- *  layoutVideo(). The lit buttons are one set state: Show FPS On, Frame Rate Auto with Force NTSC on,
+ *  layoutVideo(). The lit buttons are one set state: Show FPS On, Frame Rate Auto with NTSC on,
  *  Frame Skip Off, Interlaced off with 240p on, Trap off with Deflicker on. The button texts are the
  *  state's (Screen Mode 4:3, Bilinear Default). The rows, labels and widths are the table's. */
 static const char *const VID_ON_OFF_NAMES[] = { "On", "Off" };
 static const float        VID_ON_OFF_W[]    = { 75.0f, 75.0f };
-static const ActionButton VID_FRAMERATE_ACTIONS[] = { { "Auto", 130.0f, false }, { "Force NTSC", 160.0f, true } };
+static const ActionButton VID_FRAMERATE_ACTIONS[] = { { "Auto", 130.0f, false }, { "NTSC", 160.0f, true } };
 static const ActionButton VID_SCREEN_ACTIONS[] = { { "4:3", 130.0f, false }, { "Interlaced", 125.0f, false }, { "240p", 66.0f, true } };
 static const ActionButton VID_FILTER_ACTIONS[] = { { "Default", 95.0f, false }, { "Trap", 75.0f, false }, { "Deflicker", 110.0f, true } };
 static const ActionButton VID_ADV_ACTIONS[]    = { { "Advanced", 130.0f, false } };
@@ -302,7 +228,7 @@ static Row VIDEO_ROWS[] = {
 /*  The Settings Input tab (menupage 3), from SettingsFrame.cpp's FRAME_BUTTONS, FRAME_TEXTBOXES and
  *  layoutInput(). The state is the default one: Standard pad, rumble on, Light Gun off, Auto Load
  *  Default. The rows and widths are the table's; the labels are textboxes 10, 29, 11, 12 and 13. */
-static const char *const INP_PSX_NAMES[]    = { "Standard", "Analog", "Stick D-pad" };
+static const char *const INP_PSX_NAMES[]    = { "Digital", "Analog", "Stick Pad" };
 static const float        INP_PSX_W[]       = { 117.0f,  95.0f, 152.0f };
 static const char *const INP_RUMBLE_NAMES[] = { "Yes", "No" };
 static const float        INP_RUMBLE_W[]    = { 75.0f, 75.0f };
@@ -317,7 +243,7 @@ static Row SET_INPUT_ROWS[] = {
 	{ ROW_CHOICE,  "PSX Pad Type", INP_PSX_NAMES,   0, 3, 0, NULL, false, NULL,                252.0f,  0.0f, INP_PSX_W,  0 },
 	{ ROW_BUTTONS, "Light Gun",           NULL,            0, 1, 0, NULL, false, INP_LIGHTGUN_ACTIONS, 295.0f,  0.0f, NULL,       0 },
 	{ ROW_CHOICE,  "Enable Rumble",       INP_RUMBLE_NAMES, 0, 2, 0, NULL, false, NULL,                295.0f,  0.0f, INP_RUMBLE_W, 0 },
-	{ ROW_BUTTONS, "Save Button Configs", NULL,            0, 2, 0, NULL, false, INP_SAVEBTN_ACTIONS,  295.0f,  0.0f, NULL,       0 },
+	{ ROW_BUTTONS, "Save Configs", NULL,            0, 2, 0, NULL, false, INP_SAVEBTN_ACTIONS,  295.0f,  0.0f, NULL,       0 },
 	{ ROW_BUTTONS, "Auto Load Slot",      NULL,            0, 1, 0, NULL, false, INP_AUTOLOAD_ACTIONS, 295.0f,  0.0f, NULL,       0 },
 };
 
@@ -351,9 +277,9 @@ static const ActionButton SAV_CARD_ACTIONS[]   = { { "Off", 105.0f, false }, { "
 
 /* Row fields: kind, label, names, lo, count, value, text, fit, actions, x0, gap, widths, plain. */
 static Row SAVES_ROWS[] = {
-	{ ROW_BUTTONS, "Memcard Save Device", NULL,             0, 4, 0, NULL, false, SAV_DEVICE_ACTIONS, 295.0f,  0.0f, NULL,      0 },
+	{ ROW_BUTTONS, "Save Memcards To", NULL,             0, 4, 0, NULL, false, SAV_DEVICE_ACTIONS, 295.0f,  0.0f, NULL,      0 },
 	{ ROW_BUTTONS, "Memcard Type",        NULL,             0, 2, 0, NULL, false, SAV_CARD_ACTIONS,   323.0f, 38.0f, NULL,      0 },
-	{ ROW_CHOICE,  "Auto Save Memcards",  SAV_YESNO_NAMES,  0, 2, 0, NULL, false, NULL,               295.0f,  0.0f, SAV_YESNO_W, 0 },
+	{ ROW_CHOICE,  "Memcard Autosave",  SAV_YESNO_NAMES,  0, 2, 0, NULL, false, NULL,               295.0f,  0.0f, SAV_YESNO_W, 0 },
 	{ ROW_CHOICE,  "Save States Device",  SAV_STATE_NAMES,  0, 2, 0, NULL, false, NULL,               295.0f,  0.0f, SAV_STATE_W, 0 },
 };
 
@@ -952,7 +878,6 @@ static const Known KNOWN[] = {
 	{ "Video", PROB_TEXT_WIDE, "Saves", NULL },
 	{ "Video", PROB_TEXT_WIDE, "Off", NULL },
 	{ "Video", PROB_TEXT_WIDE, "Auto", NULL },
-	{ "Video", PROB_TEXT_WIDE, "Force NTSC", NULL },
 	{ "Video", PROB_TEXT_WIDE, "Interlaced", NULL },
 	{ "Video", PROB_TEXT_WIDE, "240p", NULL },
 	{ "Video", PROB_TEXT_WIDE, "Default", NULL },
@@ -968,13 +893,13 @@ static const Known KNOWN[] = {
 	{ "Input", PROB_TEXT_WIDE, "Audio", NULL },
 	{ "Input", PROB_TEXT_WIDE, "Saves", NULL },
 	{ "Input", PROB_TEXT_WIDE, "Configure Buttons", NULL },
-	{ "Input", PROB_TEXT_WIDE, "Standard", NULL },
+	{ "Input", PROB_TEXT_WIDE, "Digital", NULL },
 	{ "Input", PROB_TEXT_WIDE, "Analog", NULL },
-	{ "Input", PROB_TEXT_WIDE, "Stick D-pad", NULL },
+	{ "Input", PROB_TEXT_WIDE, "Stick Pad", NULL },
 	{ "Input", PROB_TEXT_WIDE, "Yes", NULL },
 	{ "Input", PROB_TEXT_WIDE, "SD", NULL },
 	{ "Input", PROB_TEXT_WIDE, "USB", NULL },
-	{ "Input", PROB_OVERLAP, "PSX Pad Type", "Standard" },
+	{ "Input", PROB_OVERLAP, "PSX Pad Type", "Digital" },
 	{ "Audio", PROB_TEXT_WIDE, "General", NULL },
 	{ "Audio", PROB_TEXT_WIDE, "Video", NULL },
 	{ "Audio", PROB_TEXT_WIDE, "Audio", NULL },
@@ -3578,13 +3503,16 @@ static void testTwoColumns(void)
 	static const char *const GAMMA_NAMES[] = { "1.0", "1.1", "1.2", "1.3", "1.4", "1.5" };
 	static const char *const DEFLICKER_NAMES[] = { "Normal", "Light", "Strong" };
 	static const char *const VIDEOMODE_NAMES[] = { "Auto", "NTSC", "PAL 50", "PAL 60", "480p" };
+	static const char *const SOFTMODE_NAMES[] = { "Accurate", "Hi-Fi", "Fast" };
 	static Row rows[] = {
 		RADIO_FIT("Dithering",       DITHER_NAMES,      1),
 		CYC("Video Color",          FMV_COLOUR_NAMES,  1),
 		CYC("MDEC Chroma",           CHROMA_NAMES,      0),
 		CYC("Gamma",                 GAMMA_NAMES,       0),
-		CYC("Deflicker Level",       DEFLICKER_NAMES,   0),
 		CYC("Filter Tour",           ON_OFF_NAMES,      0),
+		CYC("Deflicker",             ON_OFF_NAMES,      0),
+		CYC("Deflicker Level",       DEFLICKER_NAMES,   0),
+		CYC("Soft Mode",             SOFTMODE_NAMES,    0),
 		CYC("Video Mode",            VIDEOMODE_NAMES,   0),
 	};
 	Page p;
@@ -3599,24 +3527,28 @@ static void testTwoColumns(void)
 	p.logo = LOGO_SPOT_BOTTOM;
 	p.focus = FOCUS_ROWS;
 	p.columns = 2;
+	p.rowDy = 56.0f;	/* OptionsFrame's Advanced Graphics: nine rows, five lines, clear of the logo */
+	p.rowY0 = 90.0f;
 
 	if (layoutPage(p, kFont, lay) < 0)
 		fail("2 columns", "layoutPage refused the page");
 	linkFocus(p, lay);
-	if (checkLayout(p, kFont, lay, probs, MAX_PROBLEMS) != 0)
+	if (checkLayout(p, kFont, lay, probs, MAX_PROBLEMS) != 0) {
+		auditLayout(p, lay, "2 columns", -1, true);
 		fail("2 columns", "checkLayout finds a problem on the page");
+	}
 
-	/* Lines: Dithering at 100, the three Cycle pairs at 160, 220 and 280. */
+	/* Lines: Dithering at 90, the four Cycle pairs at 146, 202, 258 and 314. */
 	{
-		static const int cells[3][2] = { { 1, 2 }, { 3, 4 }, { 5, 6 } };
-		static const float ys[3] = { 160.0f, 220.0f, 280.0f };
-		checkGrid(lay, rows, cells, ys, 3);
+		static const int cells[4][2] = { { 1, 2 }, { 3, 4 }, { 5, 6 }, { 7, 8 } };
+		static const float ys[4] = { 146.0f, 202.0f, 258.0f, 314.0f };
+		checkGrid(lay, rows, cells, ys, 4);
 	}
 	/* The choice row is where it always was. */
 	{
 		const Key kc = { ROLE_CHOICE, 0, 0 };
 		const int c = findCtrl(lay, kc);
-		if (c < 0 || lay.c[c].rect.y != 100.0f)
+		if (c < 0 || lay.c[c].rect.y != 90.0f)
 			fail("2 columns", "the Dithering row moved");
 	}
 	/* Focus: Down and Up keep the column, Left and Right change it and wrap. */
@@ -3625,7 +3557,8 @@ static void testTwoColumns(void)
 			{ 1, DIR_RIGHT, 2 }, { 2, DIR_LEFT, 1 }, { 2, DIR_RIGHT, 1 }, { 1, DIR_LEFT, 2 },
 			{ 1, DIR_DOWN, 3 },  { 2, DIR_DOWN, 4 }, { 3, DIR_UP, 1 },    { 4, DIR_UP, 2 },
 			{ 3, DIR_DOWN, 5 },  { 4, DIR_DOWN, 6 }, { 6, DIR_RIGHT, 5 },
-			{ 5, DIR_DOWN, 0 },  { 6, DIR_DOWN, 0 },	/* the bottom line wraps to the top line, by column */
+			{ 5, DIR_DOWN, 7 },  { 6, DIR_DOWN, 8 }, { 7, DIR_UP, 5 },    { 8, DIR_UP, 6 },
+			{ 7, DIR_DOWN, 0 },  { 8, DIR_DOWN, 0 },	/* the bottom line wraps to the top line, by column */
 		};
 		for (unsigned k = 0; k < COUNT(F); k++) {
 			const Key kf = { ROLE_BUTTON, F[k].row, 0 };
@@ -3637,6 +3570,9 @@ static void testTwoColumns(void)
 			}
 		}
 	}
+
+	p.rowDy = 0.0f;		/* the rest checks the grid on the default pitch */
+	p.rowY0 = 0.0f;
 
 	/* An odd run leaves the right cell of its last line empty; a wide row splits the runs. */
 	{
@@ -3665,7 +3601,7 @@ static void testTwoColumns(void)
 
 	/* The check still sees a label too long for its cell: it runs over the button beside it. */
 	{
-		Row bad[] = { CYC("A label far too long to fit in its half of the screen", GAMMA_NAMES, 0) };
+		Row bad[] = { CYC("A label far too long to fit in its half of the screen, or even on the whole screen, whatever the font", GAMMA_NAMES, 0) };
 		Page q = p;
 		bool over = false;
 		q.rows = bad;
@@ -3691,6 +3627,1382 @@ static void testTwoColumns(void)
 			fail("2 columns", "columns 0 changed the one-column layout");
 	}
 	printf("two columns: cells, help, focus, checks ... %s\n", failures == before ? "ok" : "FAILED");
+}
+
+/*  The standard (Docs/MENU_PLAN.md): its widths, footer and four checks. Each check has a failing and a passing page.  */
+
+static bool stdHas(const Page &p, const Layout &lay, int kind)
+{
+	Problem probs[MAX_PROBLEMS];
+	const int np = checkLayout(p, kFont, lay, probs, MAX_PROBLEMS);
+	for (int i = 0; i < np && i < MAX_PROBLEMS; i++)
+		if (probs[i].kind == kind)
+			return true;
+	return false;
+}
+
+static Page stdPage(Row *rows, int n, Density d, LogoSpot logo)
+{
+	Page p;
+	memset(&p, 0, sizeof p);
+	p.rows = rows;
+	p.nRows = n;
+	p.standard = d;
+	p.logo = logo;
+	return p;
+}
+
+static void testStandard(void)
+{
+	static const char *const OFF_ON[]  = { "Off", "On" };
+	static const char *const LONG3[]   = { "Interpreter", "Lightrec", "Dynarec with a long name" };
+	static const char *const VIDEO[]   = { "Off", "Near", "Bilinear", "Trap" };
+	static const ActionButton BTN2[]   = { { "Configure Input", 0, false }, { "Configure Buttons", 0, false } };
+	static const ActionButton BTN3[]   = { { "Configure Input", 0, false }, { "Configure Buttons", 0, false }, { "Advanced settings", 0, false } };
+	const char *tag = "standard";
+	const int before = failures;
+	Row rows[8];
+	Layout lay;
+	Page p;
+
+	/* widths: step 8, equal when they fit, else own text + 16 */
+	{
+		int w[4], sum;
+		bool eq = false;
+		const int a = stdStepWidth(kFont, "Off", 32), b = stdButtonWidth(kFont, "Off");
+		if (a != b || a % STD_STEP != 0 || a < kFont.width("Off", 1.0f, NULL) + 32)
+			fail(tag, "stdButtonWidth is not text + 32 in steps of 8");
+		if (stdStepWidth(kFont, "", 32) != 32 || stdStepWidth(kFont, NULL, 16) != 16)
+			fail(tag, "an empty text must measure 0 (width = the padding)");
+		printf("  text widths: Off %d, Near %d, Bilinear %d, Trap %d\n", kFont.width("Off", 1.0f, NULL),
+		       kFont.width("Near", 1.0f, NULL), kFont.width("Bilinear", 1.0f, NULL), kFont.width("Trap", 1.0f, NULL));
+		sum = stdSegmentWidths(kFont, OFF_ON, 2, 352, w, &eq);
+		if (!eq || w[0] != w[1] || sum != w[0] * 2)
+			fail(tag, "two segments that fit in 352 must get equal widths");
+		sum = stdSegmentWidths(kFont, VIDEO, 3, 400, w, &eq);
+		if (!eq || w[0] != w[1] || w[1] != w[2] || sum != w[0] * 3)
+			fail(tag, "three segments that fit in 400 must get equal widths");
+		printf("  segments: Off|Near|Bilinear equal %d each (room 400)", w[0]);
+		sum = stdSegmentWidths(kFont, VIDEO, 3, 260, w, &eq);
+		if (eq || sum != w[0] + w[1] + w[2] || w[0] != stdStepWidth(kFont, "Off", 16) ||
+		    w[2] != stdStepWidth(kFont, "Bilinear", 16) || w[0] == w[2])
+			fail(tag, "segments that do not fit must get their own text + 16");
+		printf(", own %d+%d+%d (room 260)\n", w[0], w[1], w[2]);
+	}
+
+	/* the approved Video row: Filters Off | Near | Bilinear, then the separate button Trap, in 352 */
+	{
+		memset(rows, 0, sizeof rows);
+		rows[0].kind = ROW_CHOICE; rows[0].label = "Filters"; rows[0].names = VIDEO; rows[0].count = 4; rows[0].plain = 1;
+		p = stdPage(rows, 1, DENSITY_REGULAR, LOGO_SPOT_BOTTOM);
+		if (layoutPage(p, kFont, lay) < 0) {
+			fail(tag, "the Video filters row does not lay out");
+		} else {
+			const Control &o = lay.c[lay.slot[0][0]], &nr = lay.c[lay.slot[0][1]], &bl = lay.c[lay.slot[0][2]], &tr = lay.c[lay.slot[0][3]];
+			printf("  Video row: widths %d+%d+%d, Trap at x %d w %d (ends %d)\n", (int)o.rect.w, (int)nr.rect.w, (int)bl.rect.w,
+			       (int)tr.rect.x, (int)tr.rect.w, (int)(tr.rect.x + tr.rect.w));
+				/* the equal rule would not leave room for the button: the segments keep their own widths */
+				if (o.rect.w != stdStepWidth(kFont, "Off", 16) || nr.rect.w != stdStepWidth(kFont, "Near", 16) ||
+				    bl.rect.w != stdStepWidth(kFont, "Bilinear", 16))
+					fail(tag, "Video row: the segments must keep their own text + 16 widths (equal widths leave no room for Trap)");
+				if (tr.role != ROLE_BUTTON || tr.rect.w != stdStepWidth(kFont, "Trap", 16) ||
+				    tr.rect.x != bl.rect.x + bl.rect.w + STD_BTN_GAP)
+					fail(tag, "Video row: Trap must be a separate button, its own text + 16 (the row has no room for equal widths), 12 px after the segments");
+				if (stdHas(p, lay, PROB_BTN_TOUCH))
+					fail(tag, "Video row: the button touches the segments");
+				/* Monty's width rule (2026-11-04): a row that does not fit with equal widths gives every part
+				 * its own width, separate buttons included: 64+80+112, gap 12, Trap 72 = x 604. */
+				if (stdHas(p, lay, PROB_PAST_RIGHT) || (int)(tr.rect.x + tr.rect.w) != 604)
+					fail(tag, "Video row: it must end at x 604, inside 616");
+			}
+		}
+
+		/* The same structure in a row that does fit: Off | Near | Bilinear, then a short button. Equal widths
+		 * (3 x 128) would not leave room for it; own widths do. */
+		{
+			static const char *const NAMES[] = { "Off", "Near", "Bilinear", "Go" };
+			memset(rows, 0, sizeof rows);
+			rows[0].kind = ROW_CHOICE; rows[0].label = "Filters"; rows[0].names = NAMES; rows[0].count = 4; rows[0].plain = 1;
+			p = stdPage(rows, 1, DENSITY_REGULAR, LOGO_SPOT_BOTTOM);
+			if (layoutPage(p, kFont, lay) < 0) {
+				fail(tag, "a choice followed by a button does not lay out");
+			} else {
+				const Control &bl = lay.c[lay.slot[0][2]], &go = lay.c[lay.slot[0][3]];
+				const int room = (int)STD_CTRL_W - stdButtonWidth(kFont, "Go") - (int)STD_BTN_GAP;
+				int w[3];
+				bool eq = true;
+				stdSegmentWidths(kFont, NAMES, 3, room, w, &eq);
+				if (eq || bl.rect.w != (float)stdStepWidth(kFont, "Bilinear", 16))
+					fail(tag, "choice + button: the equal rule must give way to own widths");
+				if (go.rect.x != bl.rect.x + bl.rect.w + STD_BTN_GAP || go.rect.x + go.rect.w > STD_CTRL_X1)
+					fail(tag, "choice + button: the button must sit 12 px after the segments, inside 616");
+				if (stdHas(p, lay, PROB_PAST_RIGHT) || stdHas(p, lay, PROB_BTN_TOUCH) || stdHas(p, lay, PROB_TEXT_WIDE))
+					fail(tag, "choice + button: a fitting row was reported");
+			}
+		}
+
+	/* PROB_LABEL_WIDE */
+	memset(rows, 0, sizeof rows);
+	rows[0].kind = ROW_CYCLE; rows[0].label = "A label that is much too long for the left column"; rows[0].names = OFF_ON; rows[0].count = 2;
+	p = stdPage(rows, 1, DENSITY_REGULAR, LOGO_SPOT_NONE);
+	layoutPage(p, kFont, lay);
+	if (!stdHas(p, lay, PROB_LABEL_WIDE)) fail(tag, "a label wider than 224 px was not reported");
+	rows[0].label = "Short";
+	layoutPage(p, kFont, lay);
+	if (stdHas(p, lay, PROB_LABEL_WIDE)) fail(tag, "a short label was reported as too wide");
+
+	/* PROB_PAST_RIGHT: a row of separate buttons from 264 reaching past 616; and one that stays inside */
+	memset(rows, 0, sizeof rows);
+	rows[0].kind = ROW_BUTTONS; rows[0].label = "Input"; rows[0].actions = BTN3; rows[0].count = 3;
+	p = stdPage(rows, 1, DENSITY_REGULAR, LOGO_SPOT_NONE);
+	layoutPage(p, kFont, lay);
+	if (!stdHas(p, lay, PROB_PAST_RIGHT)) fail(tag, "a row reaching past x 616 was not reported");
+	rows[0].count = 1;
+	layoutPage(p, kFont, lay);
+	if (stdHas(p, lay, PROB_PAST_RIGHT)) fail(tag, "a row inside x 616 was reported as past the right edge");
+
+	/* PROB_IN_STD_LOGO: row 5 of a Regular page is y 368-418; the logo box is 572,384 64x88 */
+	memset(rows, 0, sizeof rows);
+	for (int i = 0; i < 5; i++) { rows[i].kind = ROW_CYCLE; rows[i].label = "Row"; rows[i].names = OFF_ON; rows[i].count = 2; }
+	rows[5].kind = ROW_CHOICE; rows[5].label = "Wide"; rows[5].names = LONG3; rows[5].count = 3;
+	p = stdPage(rows, 6, DENSITY_REGULAR, LOGO_SPOT_BOTTOM);
+	layoutPage(p, kFont, lay);
+	if (!stdHas(p, lay, PROB_IN_STD_LOGO)) fail(tag, "a control in the logo box of the standard was not reported");
+	p.logo = LOGO_SPOT_NONE;
+	if (stdHas(p, lay, PROB_IN_STD_LOGO)) fail(tag, "the logo box was checked on a page with no logo");
+	p.logo = LOGO_SPOT_BOTTOM;
+	rows[5].names = OFF_ON; rows[5].count = 2;
+	layoutPage(p, kFont, lay);
+	if (stdHas(p, lay, PROB_IN_STD_LOGO)) fail(tag, "a short choice left of the logo box was reported in it");
+	if (stdHas(p, lay, PROB_IN_LOGO)) fail(tag, "the legacy logo check ran on a standard page");
+
+	/* PROB_BTN_TOUCH: layoutPage always leaves 12; move one button by hand to touch. */
+	memset(rows, 0, sizeof rows);
+	rows[0].kind = ROW_BUTTONS; rows[0].label = "Input"; rows[0].actions = BTN2; rows[0].count = 2;
+	rows[1].kind = ROW_CHOICE; rows[1].label = "Mode"; rows[1].names = VIDEO; rows[1].count = 4; rows[1].plain = 1;
+	p = stdPage(rows, 2, DENSITY_REGULAR, LOGO_SPOT_NONE);
+	layoutPage(p, kFont, lay);
+	if (stdHas(p, lay, PROB_BTN_TOUCH)) fail(tag, "buttons 12 px apart, and touching segments of one choice, were reported as touching");
+	{
+		Layout t = lay;
+		Control &b = t.c[t.slot[0][1]];
+		const Control &a = t.c[t.slot[0][0]];
+		b.rect.x = a.rect.x + a.rect.w + 4;
+		if (!stdHas(p, t, PROB_BTN_TOUCH)) fail(tag, "two action buttons 4 px apart were not reported");
+		t = lay;
+		t.c[t.slot[1][3]].rect.x = t.c[t.slot[1][2]].rect.x + t.c[t.slot[1][2]].rect.w;
+		if (!stdHas(p, t, PROB_BTN_TOUCH)) fail(tag, "an action button touching a choice segment was not reported");
+	}
+
+	/* the density limits: 6 Regular rows, 7 Compact rows; one more is -1 */
+	memset(rows, 0, sizeof rows);
+	for (int i = 0; i < 8; i++) { rows[i].kind = ROW_CYCLE; rows[i].label = "Row"; rows[i].names = OFF_ON; rows[i].count = 2; }
+	p = stdPage(rows, 6, DENSITY_REGULAR, LOGO_SPOT_NONE);
+	if (layoutPage(p, kFont, lay) < 0) fail(tag, "6 Regular rows must fit");
+	p.nRows = 7;
+	if (layoutPage(p, kFont, lay) != -1) fail(tag, "a 7th Regular row must be refused (-1)");
+	p.standard = DENSITY_COMPACT;
+	if (layoutPage(p, kFont, lay) < 0) fail(tag, "7 Compact rows must fit");
+	p.nRows = 8;
+	if (layoutPage(p, kFont, lay) != -1) fail(tag, "an 8th Compact row must be refused (-1)");
+
+	/* the footer */
+	{
+		static const FooterHelp OK[2] = { { { "One line of help.", NULL } },
+		                                  { { "First line of the help for this row.", "Second line of the help." } } };
+		static const FooterHelp BAD[2] = { { { "Short.", NULL } },
+		                                   { { "A help line that is much too long to fit in the footer, which is 532 pixels wide at 13 px, so it has to be cut or reworded", NULL } } };
+		Control c[STD_HELP_LINES];
+		memset(rows, 0, sizeof rows);
+		for (int i = 0; i < 2; i++) { rows[i].kind = ROW_CYCLE; rows[i].label = "Row"; rows[i].names = OFF_ON; rows[i].count = 2; }
+		p = stdPage(rows, 2, DENSITY_REGULAR, LOGO_SPOT_NONE);
+		if (layoutFooter(p, kFont, 0, c) != 0) fail(tag, "a page with no footer must give 0 lines");
+		p.footer = OK;
+		if (layoutFooter(p, kFont, 0, c) != 1 || strcmp(c[0].text, "One line of help.") != 0) fail(tag, "a 1-line footer");
+		if (layoutFooter(p, kFont, 1, c) != 2) {
+			fail(tag, "a 2-line footer must give 2 lines");
+		} else if (c[0].role != ROLE_FOOTER || c[0].ax != STD_HELP_X0 || c[0].ay != STD_HELP_Y0 ||
+		           c[1].ay != STD_HELP_Y0 + STD_HELP_DY || c[0].align != ALIGN_LEFT_TOP) {
+			fail(tag, "footer lines are not at x 24, y 442 and 459, left-aligned");
+		}
+		if (layoutFooter(p, kFont, 2, c) != 0 || layoutFooter(p, kFont, -1, c) != 0) fail(tag, "a row outside the page must give 0 lines");
+		if (checkFooters(p, kFont) != 0) fail(tag, "checkFooters reported a fitting footer");
+		p.footer = BAD;
+		if (layoutFooter(p, kFont, 1, c) != -1) fail(tag, "a footer line wider than 532 px must give -1");
+		if (layoutFooter(p, kFont, 0, c) != 1) fail(tag, "a short footer line beside a bad one must still lay out");
+		if (checkFooters(p, kFont) != 1) fail(tag, "checkFooters must count the one bad row");
+	}
+
+	printf("standard pages: widths, Video row, four checks, density limits, footer ... %s\n",
+	       failures == before ? "ok" : "FAILED");
+}
+
+/* The Video and Controls tabs as SettingsFrame.cpp builds them (VID_ROWS, INP_ROWS and the words their
+ * buttons show), laid out with the real font and checked the way the Wii draws them: no row may pass x 616,
+ * touch another control or be wider than its button. Each cycle is one 200 px button. Keep these in step
+ * with SettingsFrame.cpp. */
+
+static int stdTabProblems(const char *what, Page &p)
+{
+	Layout lay;
+	Problem probs[MAX_PROBLEMS];
+	int np, bad = 0;
+
+	if (layoutPage(p, kFont, lay) < 0) {
+		fail(what, "the tab does not lay out");
+		return 1;
+	}
+	linkFocus(p, lay);
+	np = checkLayout(p, kFont, lay, probs, MAX_PROBLEMS);
+	for (int i = 0; i < np && i < MAX_PROBLEMS; i++) {
+		char msg[160];
+		snprintf(msg, sizeof msg, "problem %d at control %d (%s): right edge or touch or text width", (int)probs[i].kind,
+		         probs[i].a, probs[i].a >= 0 && probs[i].a < lay.n ? lay.c[probs[i].a].text : "");
+		fail(what, msg);
+		bad++;
+	}
+	if (checkFooters(p, kFont) != 0) {
+		fail(what, "a footer line is too wide");
+		bad++;
+	}
+	return bad;
+}
+
+/* The five Advanced tabs as OptionsFrame.cpp builds them on the standard (PLUGIN_ROWS, GPU_ROWS,
+ * SPU_ROWS, CD_ROWS, INPUT_ROWS and their footers; the names are GamecubeMain.cpp's OPTIONS table).
+ * Every value of every row is laid out with the real font, so a name that does not fit the 352 px
+ * (a segment, or a cycle's button) shows up here. Keep in step with OptionsFrame.cpp. */
+static void testStdAdvancedTabs(void)
+{
+	static const char *const TABS5[]  = { "CPU", "GPU", "SPU", "CD", "Input" };
+	static const char *const CORE[]   = { "Lightrec", "Interp.", "Dynarec" };
+	static const char *const FASTACC[] = { "Fast", "Accurate" };
+	static const char *const SPEED[]  = { "Auto", "50%", "75%", "100%", "125%", "150%", "200%", "300%" };
+	static const char *const GPU[]    = { "Soft Fast", "Soft Timed", "OpenGX" };
+	static const char *const TEXMIN[] = { "Off", "Linear", "Aniso 2x", "Aniso 4x" };
+	static const char *const GXCOLOR[] = { "24-bit", "6-bit dither", "AA (240p)" };
+	static const char *const GXMASK[] = { "Accurate", "Fast" };
+	static const char *const OFF_ON[] = { "Off", "On" };
+	static const char *const CDBUF[]  = { "16 KB", "64 KB", "256 KB" };
+	static const char *const HUNKS[]  = { "2", "4", "8" };
+	static const ActionButton USB[]   = { { "Test", 0, false, 0 } };
+	static const FooterHelp CPU_F[] = {
+		{{ "Lightrec runs most games best; Interpreter is exact but slow.", "A new core restarts the game." }},
+		{{ "Accurate: 3D math and multiply waits as on a PS1.", NULL }},
+		{{ "Over 100% eases slowdown in some games, at more Wii CPU time.", "Save it for one game: This Game." }},
+	};
+	static const FooterHelp GPU_F[] = {
+		{{ "OpenGX draws with the Wii's GPU. Soft Fast and Soft Timed draw with the CPU:", "slower, but exact. A change applies at the next game load." }},
+		{{ "Accurate: the GPU is busy as long as on a PS1.", NULL }},
+		{{ "OpenGX: smooths ground drawn smaller than a pixel. A trial.", NULL }},
+		{{ "OpenGX: 6-bit dither, or anti-aliased edges in 240p mode. A trial.", NULL }},
+		{{ "Accurate: the PS1 mask bit per pixel. Fast guesses it.", NULL }},
+		{{ "On: skips frames when the Wii is too slow.", NULL }},
+	};
+	static const FooterHelp SPU_F[] = {
+		{{ "Emulates the PS1 sound chip on the Wii's CPU.", "The Sound Driver is on the Audio tab; sound quality in Audio, Advanced." }},
+	};
+	static const FooterHelp CD_F[] = {
+		{{ "16 KB is best: the card is read in 32 KB pages, so a larger", "buffer only reads more than the game uses. Next game load." }},
+		{{ "A thread reads the next sectors early, so the game waits less", "for the card. Raw bin/cue and .iso only. Next game load." }},
+		{{ "Decoded CHD hunks, about 20 KB each. 8 is best.", "Applies at the next game load." }},
+		{{ "Shorter CD waits. Some games break with it.", NULL }},
+	};
+	static const FooterHelp IN_F[] = {
+		{{ "Accurate: each byte on the controller ports takes as long as on a PS1.", "Fast is the default." }},
+		{{ "Shows what a USB controller sends, button by button, and logs it to usbpad.log.", NULL }},
+	};
+#define ADV_ROW(r, k, lbl, nm, n) do { memset(&rows[r], 0, sizeof rows[r]); rows[r].kind = (k); rows[r].label = (lbl); rows[r].names = (nm); rows[r].count = (n); } while (0)
+	Tab tabs[5];
+	Row rows[6];
+	Page p;
+	int tws[5];
+
+	for (int i = 0; i < 5; i++) {
+		tabs[i].text = TABS5[i];
+		tabs[i].width = 0;
+	}
+	{
+		const int total = stdTabWidths(kFont, tabs, 5, tws);
+		for (int i = 0; i < 5; i++)
+			tabs[i].width = (float)tws[i];
+		if (((int)MENU_W - total) / 2 < (int)MENU_EDGE)
+			fail("Advanced tabs", "the tab strip passes the screen margin");
+	}
+
+	for (int pg = 0; pg < 5; pg++) {
+		const char *name = TABS5[pg];
+		int n = 0;
+		Density d = DENSITY_REGULAR;
+		const FooterHelp *foot = NULL;
+
+		memset(rows, 0, sizeof rows);
+		switch (pg) {
+		case 0:
+			ADV_ROW(0, ROW_CHOICE, "CPU Core", CORE, 3);
+			ADV_ROW(1, ROW_CHOICE, "CPU Timing", FASTACC, 2);
+			ADV_ROW(2, ROW_CYCLE, "CPU Speed", SPEED, 8);
+			n = 3; foot = CPU_F;
+			break;
+		case 1:
+			ADV_ROW(0, ROW_CYCLE, "GPU Plugin", GPU, 3);
+			ADV_ROW(1, ROW_CHOICE, "GPU Timing", FASTACC, 2);
+			ADV_ROW(2, ROW_CYCLE, "Far Textures", TEXMIN, 4);
+			ADV_ROW(3, ROW_CYCLE, "GX Color", GXCOLOR, 3);
+			ADV_ROW(4, ROW_CHOICE, "GX Mask Bit", GXMASK, 2);
+			ADV_ROW(5, ROW_CHOICE, "Frame Skip", OFF_ON, 2);
+			n = 6; foot = GPU_F;
+			break;
+		case 2:
+			rows[0].kind = ROW_READOUT; rows[0].label = "SPU Plugin"; rows[0].text = "P.E.Op.S. DFSound";
+			n = 1; d = DENSITY_TEXT; foot = SPU_F;
+			break;
+		case 3:
+			ADV_ROW(0, ROW_CHOICE, "CD Read Buffer", CDBUF, 3);
+			ADV_ROW(1, ROW_CHOICE, "CD Read-Ahead", OFF_ON, 2);
+			ADV_ROW(2, ROW_CHOICE, "CHD Hunk Cache", HUNKS, 3);
+			ADV_ROW(3, ROW_CHOICE, "Fast Load", OFF_ON, 2);
+			n = 4; foot = CD_F;
+			break;
+		default:
+			ADV_ROW(0, ROW_CHOICE, "Port Timing", FASTACC, 2);
+			rows[1].kind = ROW_BUTTONS; rows[1].label = "USB Pad"; rows[1].actions = USB; rows[1].count = 1;
+			n = 2; foot = IN_F;
+			break;
+		}
+		p = stdPage(rows, n, d, LOGO_SPOT_BOTTOM);
+		p.tabs = tabs; p.nTabs = 5; p.curTab = pg; p.footer = foot; p.focus = FOCUS_ROWS;
+
+		/* every value of every Choice and Cycle row */
+		for (int r = 0; r < n; r++) {
+			if (rows[r].kind != ROW_CHOICE && rows[r].kind != ROW_CYCLE)
+				continue;
+			for (int v = 0; v < rows[r].count; v++) {
+				char what[48];
+				rows[r].value = v;
+				snprintf(what, sizeof what, "Advanced %s, row %d value %d", name, r, v);
+				stdTabProblems(what, p);
+			}
+			rows[r].value = 0;
+		}
+		stdTabProblems(name, p);
+
+		/* where each Choice row ends: the standard's column is x 264..616 */
+		{
+			Layout lay;
+			if (layoutPage(p, kFont, lay) >= 0)
+				for (int r = 0; r < n; r++) {
+					if (rows[r].kind != ROW_CHOICE)
+						continue;
+					const Control &last = lay.c[lay.slot[r][rows[r].count - 1]];
+					const float end = last.rect.x + last.rect.w;
+					printf("  %-5s %-15s %d segments, segment 0 is %3.0f px, ends at x %3.0f%s\n", name, rows[r].label, rows[r].count,
+					       lay.c[lay.slot[r][0]].rect.w, end, end > 616.0f ? "   DOES NOT FIT (limit 616)" : "");
+				}
+		}
+	}
+#undef ADV_ROW
+}
+
+static void testStdSettingsTabs(void)
+{
+	static const char *const TABS[]   = { "Video", "Input", "Saves", "Audio", "System" };
+	static const char *const SCREEN[] = { "4:3", "16:9", "Force 16:9" };
+	static const char *const FILTER[] = { "Off", "Near", "Bilinear", "Trap" };
+	static const char *const OFF_ON[] = { "Off", "On" };
+	static const char *const PAD[]    = { "Digital", "Analog", "Stick Pad" };
+	static const char *const SDUSB[]  = { "SD", "USB" };
+	static const ActionButton ADV[]   = { { "Advanced", 0, false } };
+	static const ActionButton DISP[]  = { { "Interlaced", 0, true }, { "240p", 0, false } };
+	static const ActionButton RATE[]  = { { "Auto", 200, false }, { "NTSC", 0, false } };
+	static const ActionButton CFG[]   = { { "Configure Input", 0, false }, { "Configure Buttons", 0, false } };
+	static const ActionButton CYC[]   = { { "Off", 200, false } };
+	static const FooterHelp VF[]      = { {{ NULL, NULL }}, {{ NULL, NULL }}, {{ "Interlaced: full height. 240p: half height, no flicker.", NULL }}, {{ NULL, NULL }}, {{ NULL, NULL }}, {{ NULL, NULL }} };
+	static const FooterHelp CF[]      = { {{ NULL, NULL }}, {{ "Analog: a DualShock. Stick Pad: the stick moves the D-pad.", NULL }}, {{ NULL, NULL }}, {{ NULL, NULL }}, {{ NULL, NULL }}, {{ NULL, NULL }} };
+	const int before = failures;
+	Tab tabs[5];
+	Row rows[6];
+	Page p;
+
+	for (int i = 0; i < 5; i++) {
+		tabs[i].text = TABS[i];
+		tabs[i].width = 0;
+	}
+	{
+		int tws[5];
+		const int total = stdTabWidths(kFont, tabs, 5, tws);
+		const int x0 = ((int)MENU_W - total) / 2;
+		for (int i = 0; i < 5; i++)
+			tabs[i].width = (float)tws[i];
+		printf("  tab strip: widths %d %d %d %d %d, total %d, x %d..%d\n", tws[0], tws[1], tws[2], tws[3], tws[4],
+		       total, x0, x0 + total);
+		if (x0 < (int)MENU_EDGE || x0 + total > (int)MENU_W - (int)MENU_EDGE)
+			fail("Settings tabs", "the tab strip passes the screen margin: shorten a tab word");
+	}
+
+	/* Video */
+	memset(rows, 0, sizeof rows);
+	rows[0].kind = ROW_BUTTONS; rows[0].actions = ADV; rows[0].count = 1;
+	rows[1].kind = ROW_CHOICE;  rows[1].label = "Screen Mode"; rows[1].names = SCREEN; rows[1].count = 3;
+	rows[2].kind = ROW_BUTTONS; rows[2].label = "Display"; rows[2].actions = DISP; rows[2].count = 2;
+	rows[3].kind = ROW_BUTTONS; rows[3].label = "Frame Rate"; rows[3].actions = RATE; rows[3].count = 2;
+	rows[4].kind = ROW_CHOICE;  rows[4].label = "Filters"; rows[4].names = FILTER; rows[4].count = 4; rows[4].plain = 1;
+	rows[5].kind = ROW_CHOICE;  rows[5].label = "Show FPS"; rows[5].names = OFF_ON; rows[5].count = 2;
+	p = stdPage(rows, 6, DENSITY_REGULAR, LOGO_SPOT_BOTTOM);
+	p.tabs = tabs; p.nTabs = 5; p.curTab = 0; p.footer = VF; p.focus = FOCUS_ROWS;
+	stdTabProblems("Video tab", p);
+
+	/* Controls */
+	memset(rows, 0, sizeof rows);
+	rows[0].kind = ROW_BUTTONS; rows[0].actions = CFG; rows[0].count = 2;
+	rows[1].kind = ROW_CHOICE;  rows[1].label = "PSX Pad Type"; rows[1].names = PAD; rows[1].count = 3;
+	rows[2].kind = ROW_CHOICE;  rows[2].label = "Enable Rumble"; rows[2].names = OFF_ON; rows[2].count = 2;
+	rows[3].kind = ROW_BUTTONS; rows[3].label = "Light Gun"; rows[3].actions = CYC; rows[3].count = 1;
+	rows[4].kind = ROW_BUTTONS; rows[4].label = "Auto Load Slot"; rows[4].actions = CYC; rows[4].count = 1;
+	rows[5].kind = ROW_CHOICE;  rows[5].label = "Save Configs"; rows[5].names = SDUSB; rows[5].count = 2;
+	p = stdPage(rows, 6, DENSITY_REGULAR, LOGO_SPOT_BOTTOM);
+	p.tabs = tabs; p.nTabs = 5; p.curTab = 1; p.footer = CF; p.focus = FOCUS_ROWS;
+	{
+		Layout pl;
+		if (layoutPage(p, kFont, pl) >= 0) {
+			const Control &a = pl.c[pl.slot[1][0]], &b = pl.c[pl.slot[1][1]], &c = pl.c[pl.slot[1][2]];
+			printf("  PSX Pad Type: text %d %d %d; widths %d+%d+%d = %d, x %d..%d\n",
+			       kFont.width("Digital", 1.0f, NULL), kFont.width("Analog", 1.0f, NULL), kFont.width("Stick Pad", 1.0f, NULL),
+			       (int)a.rect.w, (int)b.rect.w, (int)c.rect.w, (int)(a.rect.w + b.rect.w + c.rect.w),
+			       (int)a.rect.x, (int)(c.rect.x + c.rect.w));
+		}
+	}
+	stdTabProblems("Controls tab", p);
+
+	/* Saves: Memcard Type is two small cycles, each after "1" or "2" (Row::prefix) */
+	{
+		static const char *const AUTO[]   = { "Off", "On" };
+		static const char *const DEVICE[] = { "SD", "USB", "CardA", "CardB" };
+		static const char *const PRE[]    = { "1", "2" };
+		static const char *const CARD[]   = { "Off", "Shared", "Game" };
+		for (int t = 0; t < 3; t++) {
+			ActionButton cyc[2];
+			Layout pl;
+			cyc[0].text = CARD[t]; cyc[0].width = 0; cyc[0].lit = false; cyc[0].dy = 0;
+			cyc[1] = cyc[0];
+			memset(rows, 0, sizeof rows);
+			rows[0].kind = ROW_CHOICE;  rows[0].label = "Memcard Autosave"; rows[0].names = AUTO; rows[0].count = 2;
+			rows[1].kind = ROW_CHOICE;  rows[1].label = "Save Memcards To"; rows[1].names = DEVICE; rows[1].count = 4;
+			rows[2].kind = ROW_BUTTONS; rows[2].label = "Memcard Type"; rows[2].actions = cyc; rows[2].count = 2; rows[2].prefix = PRE;
+			rows[3].kind = ROW_CHOICE;  rows[3].label = "Save States Device"; rows[3].names = SDUSB; rows[3].count = 2;
+			p = stdPage(rows, 4, DENSITY_REGULAR, LOGO_SPOT_BOTTOM);
+			p.tabs = tabs; p.nTabs = 5; p.curTab = 2; p.focus = FOCUS_ROWS;
+			if (t == 0 && layoutPage(p, kFont, pl) >= 0) {
+				const Control &d0 = pl.c[pl.slot[1][0]], &d3 = pl.c[pl.slot[1][3]];
+				const Control &y0 = pl.c[pl.slot[2][0]], &y1 = pl.c[pl.slot[2][1]];
+				printf("  Save Memcards To: text %d %d %d %d; widths %d %d %d %d, x %d..%d\n",
+				       kFont.width("SD", 1.0f, NULL), kFont.width("USB", 1.0f, NULL), kFont.width("CardA", 1.0f, NULL),
+				       kFont.width("CardB", 1.0f, NULL), (int)pl.c[pl.slot[1][0]].rect.w, (int)pl.c[pl.slot[1][1]].rect.w,
+				       (int)pl.c[pl.slot[1][2]].rect.w, (int)d3.rect.w, (int)d0.rect.x, (int)(d3.rect.x + d3.rect.w));
+				printf("  Memcard Type: cycle 1 at x %d..%d, cycle 2 at x %d..%d; labels %d %d %d %d\n",
+				       (int)y0.rect.x, (int)(y0.rect.x + y0.rect.w), (int)y1.rect.x, (int)(y1.rect.x + y1.rect.w),
+				       kFont.width("Memcard Autosave", 1.0f, NULL), kFont.width("Save Memcards To", 1.0f, NULL),
+				       kFont.width("Memcard Type", 1.0f, NULL), kFont.width("Save States Device", 1.0f, NULL));
+			}
+			if (t == 0 && layoutPage(p, kFont, pl) >= 0) {
+				/* a standard page: Down from any Save Memcards To button lands on Memcard Type's first */
+				linkFocus(p, pl);
+				for (int k = 0; k < 4; k++)
+					if (pl.c[pl.slot[1][k]].link[DIR_DOWN] != pl.slot[2][0])
+						fail("Saves tab", "Down from Save Memcards To does not land on the leftmost Memcard Type button");
+			}
+			stdTabProblems("Saves tab", p);
+		}
+	}
+
+	/* Audio: Advanced centered, the Enable flags, Sync, the Interpolation cycle, Sound Driver */
+	{
+		static const char *const SYNC[]   = { "Off", "Tempo", "Rate" };
+		static const char *const DRIVER[] = { "DSP", "CPU" };
+		static const char *const INTERP[] = { "Simple", "Gaussian" };
+		static const ActionButton ENABLE[] = { { "Audio", 0, true }, { "XA", 0, true }, { "CDDA", 0, true } };
+		static const FooterHelp AF[] = { {{ NULL, NULL }}, {{ "Audio: all sound. XA: speech and music streams. CDDA: CD music tracks.", NULL }}, {{ NULL, NULL }}, {{ NULL, NULL }}, {{ NULL, NULL }} };
+		for (int t = 0; t < 2; t++) {
+			ActionButton cyc[1];
+			Layout pl;
+			cyc[0].text = INTERP[t]; cyc[0].width = 200; cyc[0].lit = false; cyc[0].dy = 0;
+			memset(rows, 0, sizeof rows);
+			rows[0].kind = ROW_BUTTONS; rows[0].actions = ADV; rows[0].count = 1;
+			rows[1].kind = ROW_BUTTONS; rows[1].label = "Enable"; rows[1].actions = ENABLE; rows[1].count = 3;
+			rows[2].kind = ROW_CHOICE;  rows[2].label = "Sync"; rows[2].names = SYNC; rows[2].count = 3;
+			rows[3].kind = ROW_BUTTONS; rows[3].label = "Interpolation"; rows[3].actions = cyc; rows[3].count = 1;
+			rows[4].kind = ROW_CHOICE;  rows[4].label = "Sound Driver"; rows[4].names = DRIVER; rows[4].count = 2;
+			p = stdPage(rows, 5, DENSITY_REGULAR, LOGO_SPOT_BOTTOM);
+			p.tabs = tabs; p.nTabs = 5; p.curTab = 3; p.footer = AF; p.focus = FOCUS_ROWS;
+			if (t == 0 && layoutPage(p, kFont, pl) >= 0) {
+				const Control &e0 = pl.c[pl.slot[1][0]], &e2 = pl.c[pl.slot[1][2]];
+				const Control &s0 = pl.c[pl.slot[2][0]], &s2 = pl.c[pl.slot[2][2]];
+				const Control &i0 = pl.c[pl.slot[3][0]], &d1 = pl.c[pl.slot[4][1]];
+				printf("  Audio: Enable x %d..%d, Sync x %d..%d, Interpolation x %d..%d, Sound Driver ends x %d; labels %d %d %d %d\n",
+				       (int)e0.rect.x, (int)(e2.rect.x + e2.rect.w), (int)s0.rect.x, (int)(s2.rect.x + s2.rect.w),
+				       (int)i0.rect.x, (int)(i0.rect.x + i0.rect.w), (int)(d1.rect.x + d1.rect.w),
+				       kFont.width("Enable", 1.0f, NULL), kFont.width("Sync", 1.0f, NULL),
+				       kFont.width("Interpolation", 1.0f, NULL), kFont.width("Sound Driver", 1.0f, NULL));
+			}
+			stdTabProblems("Audio tab", p);
+		}
+	}
+
+	/* System: Advanced, Achievements, Memory; Select BIOS; Boot Through BIOS + Execute BIOS; Save and Load
+	 * Settings (actions); Select Language (a cycle, the last row) */
+	{
+		static const char *const BIOS[]  = { "HLE", "SD", "USB", "DVD" };
+		static const char *const BOOT[]  = { "Off", "On", "Execute BIOS" };
+		static const char *const LANGS[] = { "En", "Chs", "Kr", "Es", "Pte", "It", "De", "Cht", "Jp", "Fr", "Br", "Ca", "Tu" };
+		static const ActionButton TOP[]  = { { "Advanced", 0, false }, { "Achievements", 0, false }, { "Memory", 0, false } };
+		static const ActionButton SAVE[] = { { "SD", 0, false }, { "USB", 0, false }, { "This Game", 0, false } };
+		static const FooterHelp SF[] = { {{ NULL, NULL }}, {{ NULL, NULL }}, {{ "Execute BIOS: start the PS1 BIOS shell (memory cards, CD player).", NULL }}, {{ NULL, NULL }}, {{ NULL, NULL }}, {{ NULL, NULL }} };
+		for (int t = 0; t < 13; t++) {
+			ActionButton cyc[1];
+			ActionButton boot[3];
+			Layout pl;
+			cyc[0].text = LANGS[t]; cyc[0].width = 200; cyc[0].lit = false; cyc[0].dy = 0;
+			boot[0] = boot[1] = boot[2] = cyc[0]; boot[0].width = boot[1].width = boot[2].width = 0;
+			boot[2].text = BOOT[2];
+			memset(rows, 0, sizeof rows);
+			rows[0].kind = ROW_BUTTONS; rows[0].actions = TOP; rows[0].count = 3;
+			rows[1].kind = ROW_CHOICE;  rows[1].label = "Select BIOS"; rows[1].names = BIOS; rows[1].count = 4;
+			rows[2].kind = ROW_CHOICE;  rows[2].label = "Boot Through BIOS"; rows[2].names = BOOT; rows[2].count = 3; rows[2].plain = 1; rows[2].actions = boot;
+			rows[3].kind = ROW_BUTTONS; rows[3].label = "Save Settings"; rows[3].actions = SAVE; rows[3].count = 3;
+			rows[4].kind = ROW_BUTTONS; rows[4].label = "Load Settings"; rows[4].actions = SAVE; rows[4].count = 3;
+			rows[5].kind = ROW_BUTTONS; rows[5].label = "Select Language"; rows[5].actions = cyc; rows[5].count = 1;
+			p = stdPage(rows, 6, DENSITY_REGULAR, LOGO_SPOT_BOTTOM);
+			p.tabs = tabs; p.nTabs = 5; p.curTab = 4; p.footer = SF; p.focus = FOCUS_ROWS;
+			if (t == 0 && layoutPage(p, kFont, pl) >= 0) {
+				const Control &t0 = pl.c[pl.slot[0][0]], &t2 = pl.c[pl.slot[0][2]];
+				const Control &b0 = pl.c[pl.slot[1][0]], &b3 = pl.c[pl.slot[1][3]];
+				const Control &o0 = pl.c[pl.slot[2][0]], &ox = pl.c[pl.slot[2][2]];
+				const Control &s0 = pl.c[pl.slot[3][0]], &s2 = pl.c[pl.slot[3][2]];
+				const Control &l0 = pl.c[pl.slot[5][0]];
+				printf("  System: top x %d..%d; BIOS x %d..%d; Boot x %d..%d (Execute %d..%d); Save x %d..%d; Language x %d..%d y %d..%d;"
+				       " labels %d %d %d %d %d\n",
+				       (int)t0.rect.x, (int)(t2.rect.x + t2.rect.w), (int)b0.rect.x, (int)(b3.rect.x + b3.rect.w),
+				       (int)o0.rect.x, (int)(ox.rect.x + ox.rect.w), (int)ox.rect.x, (int)(ox.rect.x + ox.rect.w),
+				       (int)s0.rect.x, (int)(s2.rect.x + s2.rect.w), (int)l0.rect.x, (int)(l0.rect.x + l0.rect.w),
+				       (int)l0.rect.y, (int)(l0.rect.y + l0.rect.h),
+				       kFont.width("Select BIOS", 1.0f, NULL), kFont.width("Boot Through BIOS", 1.0f, NULL),
+				       kFont.width("Save Settings", 1.0f, NULL), kFont.width("Load Settings", 1.0f, NULL),
+				       kFont.width("Select Language", 1.0f, NULL));
+			}
+			stdTabProblems("System tab", p);
+		}
+	}
+
+	/* the overflow must be caught: the old "Force NTSC" after a 200 px cycle ends at x 644 */
+	memset(rows, 0, sizeof rows);
+	{
+		static const ActionButton OLD[] = { { "Auto", 200, false }, { "Force NTSC", 0, false } };
+		Layout lay;
+		rows[0].kind = ROW_BUTTONS; rows[0].label = "Frame Rate"; rows[0].actions = OLD; rows[0].count = 2;
+		p = stdPage(rows, 1, DENSITY_REGULAR, LOGO_SPOT_BOTTOM);
+		if (layoutPage(p, kFont, lay) < 0 || !stdHas(p, lay, PROB_PAST_RIGHT))
+			fail("Video tab", "the check does not catch Frame Rate + Force NTSC passing x 616");
+	}
+
+	printf("standard Settings tabs: Video, Controls, Saves, Audio and System on the real font, nothing past x 616 ... %s\n",
+	       failures == before ? "ok" : "FAILED");
+}
+
+/*  The explorer (DENSITY_EXPLORER, menu standard step 3p slice 1): the file browser's page  */
+
+struct ExpItem {
+	const char *text;
+	bool        folder;
+	const char *tag;
+	const char *note;
+};
+
+static void expItemFn(void *ctx, int index, ListItem &out)
+{
+	const ExpItem &e = ((const ExpItem *)ctx)[index];
+	out.text = e.text;
+	out.folder = e.folder;
+	out.tag = e.tag;
+	out.note = e.note;
+}
+
+/* The control of a given text role on window slot k, or -1. */
+static int expText(const Layout &lay, CtrlRole role, int k)
+{
+	for (int i = 0; i < lay.n; i++)
+		if (lay.c[i].kind == CTRL_TEXT && lay.c[i].role == role && lay.c[i].slot == k)
+			return i;
+	return -1;
+}
+
+static void expCheckPage(const char *where, const Page &page, const Layout &lay, const ListState &st,
+                         const ExpItem *items, int nTabs)
+{
+	Problem probs[MAX_PROBLEMS];
+	const int np = checkLayout(page, kFont, lay, probs, MAX_PROBLEMS);
+	const int top = st.top;
+
+	if (np != 0) {
+		char buf[96];
+		sprintf(buf, "checkLayout found %d problem(s); first: %s", np, problemName(probs[0].kind));
+		fail(where, buf);
+	}
+
+	for (int i = 0; i < lay.n; i++) {
+		const Rect &r = lay.c[i].rect;
+		if (r.x + r.w > 616.0f + 0.01f)
+			fail(where, "a control reaches past x 616");
+	}
+	/* The explorer carries no logo: its last row and the Next arrow (x to 616, y to 398) and its tab strip
+	 * would meet the standard's logo box (x 572-636, y 384-472) or the top-right one (x 534-606, y 34-106).
+	 * With LOGO_SPOT_NONE no logo is drawn and checkLayout's logo checks have nothing to test. */
+	if (page.logo != LOGO_SPOT_NONE)
+		fail(where, "the explorer page has a logo");
+
+	for (int k = 0; k < st.slots; k++) {
+		const int c = lay.listItem[k];
+		const int index = top + k;
+		if (c < 0) { fail(where, "a window slot has no control"); return; }
+		if (!nearly(lay.c[c].rect.x, (float)STD_LIST_X0) || !nearly(lay.c[c].rect.w, (float)STD_LIST_W) ||
+		    !nearly(lay.c[c].rect.y, (float)STD_LIST_Y0 + (float)STD_LIST_PITCH * (float)k) ||
+		    !nearly(lay.c[c].rect.h, (float)STD_LIST_H))
+			fail(where, "a row's box is not 576 x STD_LIST_H at STD_LIST_PITCH from y 126");
+		if (k + 1 < st.slots && lay.listItem[k + 1] >= 0) {
+			const float gap = lay.c[lay.listItem[k + 1]].rect.y - (lay.c[c].rect.y + lay.c[c].rect.h);
+			if (gap < -0.01f)
+				fail(where, "two list rows overlap");
+			if (gap > 0.01f)
+				fail(where, "two list rows have a gap (the explorer rows touch)");
+		}
+		if (index >= st.count) {
+			if (lay.c[c].focusable)
+				fail(where, "a row past the end of the list is focusable");
+			continue;
+		}
+		{
+			const ExpItem &e = items[index];
+			const Control &it = lay.c[c];
+			const int tg = expText(lay, ROLE_LIST_TAG, k);
+			const int nt = expText(lay, ROLE_LIST_NOTE, k);
+			const float wantX = e.folder ? (float)STD_LIST_FOLDER_X : (float)STD_LIST_NAME_X;
+			const int nameW = fontWidth(it.text, grid::TEXT_SCALE, NULL);
+
+			if (!it.focusable || it.folder != e.folder)
+				fail(where, "a row is not focusable, or its folder flag is wrong");
+			if (!it.full || strcmp(it.full, e.text) != 0)
+				fail(where, "Control::full is not the whole name");
+			if (!nearly(it.textX, wantX))
+				fail(where, "a name does not start at the folder or game x");
+			if ((e.tag != NULL) != (tg >= 0) || (e.note != NULL) != (nt >= 0))
+				fail(where, "a tag or note control is missing, or there is one for nothing");
+			if (nameW > (int)(it.textR - it.textX))
+				fail(where, "a cut name is wider than its room");
+			if (tg >= 0) {
+				const Rect &t = lay.c[tg].rect;
+				if (!nearly(t.x + t.w, (float)STD_LIST_TAG_R))
+					fail(where, "a tag does not end at the tag's right edge");
+				if (it.textR > t.x - (float)STD_LIST_NAME_GAP + 0.01f)
+					fail(where, "a name's room is not 16 px short of its tag");
+			}
+			if (nt >= 0) {
+				const Rect &n = lay.c[nt].rect;
+				const float wantNoteR = tg >= 0 ? lay.c[tg].rect.x - (float)STD_LIST_NOTE_GAP : (float)STD_LIST_NOTE_R;
+				if (!nearly(n.x + n.w, wantNoteR))
+					fail(where, "a note does not end 10 px left of its tag (or at the note edge without a tag)");
+				if (it.textR > n.x - (float)STD_LIST_NAME_GAP + 0.01f)
+					fail(where, "a name's room is not 16 px short of its note");
+				if (tg >= 0 && n.x + n.w > lay.c[tg].rect.x)
+					fail(where, "a note is not left of its tag");
+			}
+			if (strcmp(it.text, e.text) != 0) {
+				const size_t n = strlen(it.text);
+				if (n < 3 || strcmp(it.text + n - 3, "...") != 0 || strncmp(it.text, e.text, n - 3) != 0)
+					fail(where, "a cut name is not a prefix of the name followed by \"...\"");
+			}
+		}
+	}
+	(void)nTabs;
+}
+
+static void expCheckLinks(const char *where, const Page &page, const Layout &lay, const ListState &st)
+{
+	int first = -1, last = -1, nAct = 0;
+	const int prev = lay.slot[0][0], next = lay.slot[0][1];
+	const int def = lay.defaultFocus;
+
+	for (int k = 0; k < st.slots; k++) {
+		const int c = lay.listItem[k];
+		if (c >= 0 && lay.c[c].focusable) {
+			if (first < 0) first = c;
+			last = c;
+			nAct++;
+		}
+	}
+	if (first < 0) { fail(where, "no focusable row"); return; }
+
+	if (def < 0 || lay.c[def].role != ROLE_LIST_ITEM)
+		fail(where, "the default focus is not a row");
+	for (int t = 0; t < page.nTabs; t++) {
+		const int c = lay.tab[t];
+		if (c < 0 || !lay.c[c].focusable) { fail(where, "a tab is not focusable"); continue; }
+		if (lay.c[c].link[DIR_DOWN] != def)
+			fail(where, "Down from a tab does not go to the default row");
+		if (lay.c[c].link[DIR_UP] != -1)
+			fail(where, "a tab has an Up link");
+		if (lay.c[c].link[DIR_RIGHT] != lay.tab[(t + 1) % page.nTabs] ||
+		    lay.c[c].link[DIR_LEFT] != lay.tab[(t + page.nTabs - 1) % page.nTabs])
+			fail(where, "Left or Right on a tab does not go to the next or previous tab");
+	}
+	if (lay.c[first].link[DIR_UP] != lay.tab[page.curTab])
+		fail(where, "Up from the first row does not go to the lit tab");
+	if (lay.c[last].link[DIR_DOWN] != first)
+		fail(where, "Down from the last row does not wrap to the first");
+	for (int k = 0, prevC = -1; k < st.slots; k++) {
+		const int c = lay.listItem[k];
+		if (c < 0 || !lay.c[c].focusable)
+			continue;
+		if (prevC >= 0 && (lay.c[c].link[DIR_UP] != prevC || lay.c[prevC].link[DIR_DOWN] != c))
+			fail(where, "two neighbouring rows are not linked Up and Down");
+		prevC = c;
+		if (prev >= 0 && lay.c[prev].focusable && lay.c[c].link[DIR_LEFT] != prev)
+			fail(where, "Left from a row does not go to the Prev arrow");
+		if (next >= 0 && lay.c[next].focusable && lay.c[c].link[DIR_RIGHT] != next)
+			fail(where, "Right from a row does not go to the Next arrow");
+	}
+	/* the arrows keep their links while inactive (focus stays on one after A turns the page) */
+	if (prev < 0 || next < 0) { fail(where, "an arrow is missing"); return; }
+	if (lay.c[prev].link[DIR_RIGHT] != first || lay.c[prev].link[DIR_LEFT] != first ||
+	    lay.c[prev].link[DIR_DOWN] != first)
+		fail(where, "the Prev arrow does not go back to the first row (Down, Left, Right)");
+	if (lay.c[prev].link[DIR_UP] != lay.tab[page.curTab])
+		fail(where, "Up from the Prev arrow does not go to the lit tab");
+	if (lay.c[next].link[DIR_UP] != last || lay.c[next].link[DIR_LEFT] != last)
+		fail(where, "Up and Left from the Next arrow do not go to the last row");
+	if (lay.c[next].link[DIR_DOWN] != -1 || lay.c[next].link[DIR_RIGHT] != -1)
+		fail(where, "the Next arrow has a Down or Right link");
+	(void)nAct;
+}
+
+static void testStdExplorer(void)
+{
+	static const char *const TABS[] = { "SD", "USB", "DVD", "Network", "Recent" };
+	static const char *const LONG_NAME =
+	    "Final Fantasy VII International (Disc 1) (Rev 2) (Special Limited Edition With A Name Far Too Long For One Row).chd";
+	static const char *const LONG_FOLDER =
+	    "A folder with an absurdly long name that goes on and on and on past every limit the row has, "
+	    "so that the buffer of the cut name is the thing that ends it, long before the text itself does ......";
+	static const char *const UTF8_NAME =
+	    "Caf\xC3\xA9 \xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9"
+	    "\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9"
+	    "\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9 end";
+	static const ExpItem ITEMS[] = {
+		{ "..",                      true,  NULL,  NULL },
+		{ "Games",                   true,  NULL,  NULL },
+		{ "Crash Bandicoot 3",       false, "BIN", NULL },
+		{ "Final Fantasy VII",       false, "CHD", "3 discs" },
+		{ LONG_NAME,                 false, "CHD", "3 discs" },
+		{ LONG_FOLDER,               true,  NULL,  NULL },
+		{ UTF8_NAME,                 false, "PBP", "12 Mar" },
+		{ "Spyro 2",                 false, "ISO", NULL },
+		{ "Tekken 3",                false, NULL,  "2 discs" },
+		{ "Gex",                     false, "CUE", NULL },
+		{ "Vagrant Story",           false, "ECM", NULL },
+	};
+	const int before = failures;
+	Tab tabs[5];
+	Row row;
+	Page page;
+	Layout lay;
+	ListState st;
+	ListSpec spec;
+
+	for (int i = 0; i < 5; i++) { tabs[i].text = TABS[i]; tabs[i].width = 0; }
+
+	memset(&spec, 0, sizeof spec);
+	st.count = (int)COUNT(ITEMS);
+	st.slots = STD_LIST_ROWS;
+	st.top = 0;
+	st.focus = -1;
+	spec.state = &st;
+	spec.mode = LIST_PAGED;
+	spec.item = expItemFn;
+	spec.ctx = (void *)ITEMS;
+	spec.prev.text = "^";
+	spec.next.text = "v";		/* the geometry fields stay 0: the explorer ignores them */
+
+	memset(&row, 0, sizeof row);
+	row.kind = ROW_LIST;
+	row.list = &spec;
+	memset(&page, 0, sizeof page);
+	page.tabs = tabs;
+	page.nTabs = 5;
+	page.curTab = 1;
+	page.rows = &row;
+	page.nRows = 1;
+	page.logo = LOGO_SPOT_NONE;
+	page.focus = FOCUS_ROWS;
+	page.standard = DENSITY_EXPLORER;
+
+	/* page 1 of 2: every item kind, the long names cut, the tag rightmost */
+	if (layoutPage(page, kFont, lay) < 0) {
+		fail("Explorer", "the explorer page does not lay out");
+		return;
+	}
+	linkFocus(page, lay);
+	expCheckPage("Explorer p1", page, lay, st, ITEMS, 5);
+	expCheckLinks("Explorer p1", page, lay, st);
+	{
+		const Control &dd = lay.c[lay.listItem[0]];
+		const Control &gm = lay.c[lay.listItem[2]];
+		const Control &lg = lay.c[lay.listItem[4]];
+		const Control &lf = lay.c[lay.listItem[5]];
+		const Control &u8 = lay.c[lay.listItem[6]];
+		if (!dd.folder || strcmp(dd.text, "..") != 0 || !nearly(dd.textX, (float)STD_LIST_FOLDER_X))
+			fail("Explorer p1", "the \"..\" row is not a folder row with its text whole");
+		if (gm.folder || strcmp(gm.text, "Crash Bandicoot 3") != 0)
+			fail("Explorer p1", "a short game name was changed");
+		if (strcmp(lg.text, LONG_NAME) == 0 || strlen(lg.text) < 4 || strcmp(lg.text + strlen(lg.text) - 3, "...") != 0)
+			fail("Explorer p1", "a long game name was not cut with \"...\"");
+		if (strcmp(lf.text, LONG_FOLDER) == 0 || strcmp(lf.text + strlen(lf.text) - 3, "...") != 0 ||
+		    strlen(lf.text) > (size_t)STD_CUT_LEN - 1)
+			fail("Explorer p1", "a long folder name was not cut with \"...\" inside the buffer");
+		/* the cut never splits a UTF-8 sequence: every 0xC3 is followed by 0xA9 */
+		for (const unsigned char *s = (const unsigned char *)u8.text; *s; s++) {
+			if (*s == 0xC3 && s[1] != 0xA9)
+				fail("Explorer p1", "a cut name splits a UTF-8 character");
+			if (*s >= 0x80 && *s != 0xC3 && *s != 0xA9)
+				fail("Explorer p1", "a cut name has a stray byte");
+		}
+		if (strcmp(u8.text, UTF8_NAME) == 0)
+			fail("Explorer p1", "the UTF-8 name was not cut");
+		/* a row with a tag leaves less room than one without */
+		if (!(lay.c[lay.listItem[3]].textR < lay.c[lay.listItem[1]].textR))
+			fail("Explorer p1", "a row with a tag and a note has no less room than a bare one");
+		/* a row's tag and note sit on its own row */
+		{
+			const int tg = expText(lay, ROLE_LIST_TAG, 3), nt = expText(lay, ROLE_LIST_NOTE, 3);
+			if (tg < 0 || nt < 0 || lay.c[tg].rect.y < lay.c[lay.listItem[3]].rect.y ||
+			    lay.c[tg].rect.y + lay.c[tg].rect.h > lay.c[lay.listItem[3]].rect.y + (float)STD_LIST_H)
+				fail("Explorer p1", "a tag is not inside its row's height");
+		}
+	}
+	/* Page arrows: Prev off at the top, Next on */
+	if (lay.slot[0][0] < 0 || lay.c[lay.slot[0][0]].focusable || lay.slot[0][1] < 0 || !lay.c[lay.slot[0][1]].focusable)
+		fail("Explorer p1", "Prev should be inactive and Next active on the first page");
+	if (!nearly(lay.c[lay.slot[0][0]].rect.x, (float)STD_SCROLL_X) || !nearly(lay.c[lay.slot[0][0]].rect.w, (float)STD_SCROLL_W) ||
+	    !nearly(lay.c[lay.slot[0][0]].rect.y, (float)STD_LIST_Y0) ||
+	    !nearly(lay.c[lay.slot[0][1]].rect.y + lay.c[lay.slot[0][1]].rect.h,
+	            (float)STD_LIST_Y0 + (float)(STD_LIST_ROWS - 1) * (float)STD_LIST_PITCH + (float)STD_LIST_H))
+		fail("Explorer p1", "the arrows are not at the two ends of the scroll column");
+
+	/* the tab strip: five equal tabs do not fit, so each tab has its own width (text + 16), gap 12, centred,
+	 * inside x 24..616 (Monty 2026-11-05) */
+	for (int t = 1; t < 5; t++) {
+		const float gap = lay.c[lay.tab[t]].rect.x - (lay.c[lay.tab[t - 1]].rect.x + lay.c[lay.tab[t - 1]].rect.w);
+		if (!nearly(gap, (float)STD_TAB_GAP))
+			fail("Explorer tabs", "the gap between two tabs is not 12");
+	}
+	if (lay.c[lay.tab[0]].rect.x < 24.0f - 0.01f || lay.c[lay.tab[4]].rect.x + lay.c[lay.tab[4]].rect.w > 616.0f + 0.01f)
+		fail("Explorer tabs", "the tab strip is not inside x 24..616");
+	if (fabsf(lay.c[lay.tab[0]].rect.x - ((float)MENU_W - (lay.c[lay.tab[4]].rect.x + lay.c[lay.tab[4]].rect.w))) > 1.01f)
+		fail("Explorer tabs", "the tab strip is not centred");
+	printf("  explorer tab widths: %d %d %d %d %d (x %d..%d)\n", (int)lay.c[lay.tab[0]].rect.w, (int)lay.c[lay.tab[1]].rect.w,
+	       (int)lay.c[lay.tab[2]].rect.w, (int)lay.c[lay.tab[3]].rect.w, (int)lay.c[lay.tab[4]].rect.w,
+	       (int)lay.c[lay.tab[0]].rect.x, (int)(lay.c[lay.tab[4]].rect.x + lay.c[lay.tab[4]].rect.w));
+
+	/* the state's own focus: Down from a tab goes to that row */
+	st.focus = 3;
+	layoutPage(page, kFont, lay);
+	linkFocus(page, lay);
+	if (lay.defaultFocus != lay.listItem[3] || lay.c[lay.tab[0]].link[DIR_DOWN] != lay.listItem[3])
+		fail("Explorer focus", "Down from a tab does not go to the row the state names");
+	if (lay.c[lay.listItem[0]].link[DIR_UP] != lay.tab[1])
+		fail("Explorer focus", "Up from the first row does not go to the lit tab");
+	st.focus = -1;
+
+	/* page 2 of 2: four rows, Prev on, Next off, the rest of the window inactive */
+	st.top = 7;
+	layoutPage(page, kFont, lay);
+	linkFocus(page, lay);
+	expCheckPage("Explorer p2", page, lay, st, ITEMS, 5);
+	expCheckLinks("Explorer p2", page, lay, st);
+	if (!lay.c[lay.slot[0][0]].focusable || lay.c[lay.slot[0][1]].focusable)
+		fail("Explorer p2", "Prev should be active and Next inactive on the last page");
+	for (int k = 4; k < 7; k++)
+		if (lay.c[lay.listItem[k]].focusable || lay.c[lay.listItem[k]].text[0] != '\0')
+			fail("Explorer p2", "a row past the end is not empty and inactive");
+	st.top = 0;
+
+	/* the last page with fewer items (page 2 above: 4 rows): nothing past them is focusable, no link
+	 * reaches it, and the arrows' links keep going to the shown rows */
+	st.top = 7;
+	layoutPage(page, kFont, lay);
+	linkFocus(page, lay);
+	for (int i = 0; i < lay.n; i++)
+		for (int d = 0; d < DIR_COUNT; d++) {
+			const int to = lay.c[i].link[d];
+			for (int k = 4; k < 7; k++)
+				if (to == lay.listItem[k])
+					fail("Explorer p2", "a link goes to a row past the end of the list");
+		}
+	if (lay.c[lay.slot[0][1]].link[DIR_UP] != lay.listItem[3] || lay.c[lay.slot[0][1]].link[DIR_LEFT] != lay.listItem[3])
+		fail("Explorer p2", "the Next arrow does not go up to the last shown row");
+	st.top = 0;
+
+	/* a list shorter than the window (3 items): both arrows off, the rest of the rows off, links to the 3 */
+	{
+		ListState ss = st;
+		ListSpec ssp = spec;
+		Row srow = row;
+		Page sp = page;
+		ss.count = 3;
+		ssp.state = &ss;
+		srow.list = &ssp;
+		sp.rows = &srow;
+		layoutPage(sp, kFont, lay);
+		linkFocus(sp, lay);
+		expCheckLinks("Explorer short", sp, lay, ss);
+		if (lay.c[lay.slot[0][0]].focusable || lay.c[lay.slot[0][1]].focusable)
+			fail("Explorer short", "an arrow is active on a list that fits the window");
+		for (int k = 0; k < 7; k++)
+			if (lay.c[lay.listItem[k]].focusable != (k < 3))
+				fail("Explorer short", "the rows past the 3 items are not off, or a shown one is");
+	}
+
+	/* the other tab lit: Up from the first row follows it */
+	page.curTab = 4;
+	layoutPage(page, kFont, lay);
+	linkFocus(page, lay);
+	if (lay.c[lay.listItem[0]].link[DIR_UP] != lay.tab[4])
+		fail("Explorer tab 4", "Up from the first row does not follow the lit tab");
+	page.curTab = 1;
+
+	/* an empty list (the Recent tab with nothing in it): still lays out, tabs reachable, no problem */
+	{
+		ListState es = st;
+		ListSpec esp = spec;
+		Row erow = row;
+		Page ep = page;
+		Problem probs[MAX_PROBLEMS];
+		es.count = 0;
+		esp.state = &es;
+		erow.list = &esp;
+		ep.rows = &erow;
+		if (layoutPage(ep, kFont, lay) < 0) {
+			fail("Explorer empty", "an empty list does not lay out");
+		} else {
+			linkFocus(ep, lay);
+			if (checkLayout(ep, kFont, lay, probs, MAX_PROBLEMS) != 0)
+				fail("Explorer empty", "an empty list has layout problems");
+			if (lay.defaultFocus < 0 || lay.c[lay.defaultFocus].role != ROLE_TAB)
+				fail("Explorer empty", "an empty list's default focus is not a tab");
+		}
+	}
+
+	/* no tabs (Accounts mode): a title instead, the rows' first Up has nowhere to go */
+	{
+		Page ap = page;
+		ap.tabs = NULL;
+		ap.nTabs = 0;
+		ap.title = "Accounts";
+		if (layoutPage(ap, kFont, lay) < 0) {
+			fail("Explorer title", "the explorer with a title does not lay out");
+		} else {
+			Problem probs[MAX_PROBLEMS];
+			linkFocus(ap, lay);
+			if (checkLayout(ap, kFont, lay, probs, MAX_PROBLEMS) != 0)
+				fail("Explorer title", "the explorer with a title has layout problems");
+			if (lay.c[lay.listItem[0]].link[DIR_UP] != lay.listItem[STD_LIST_ROWS - 1])
+				fail("Explorer title", "Up from the first row does not wrap to the last");
+		}
+	}
+
+	/* the Players account page (AccountFrame): "Account for <Mii>", a few plain rows, no tags, no tabs */
+	{
+		static const ExpItem ACC[] = {
+			{ "None: earn Local", false, NULL, NULL },
+			{ "Ann", false, NULL, NULL },
+			{ "Bob", false, NULL, NULL },
+			{ "This Wii's account", false, NULL, NULL },
+		};
+		ListState as;
+		ListSpec asp;
+		Row arow;
+		Page ap = page;
+		Problem probs[MAX_PROBLEMS];
+		memset(&asp, 0, sizeof asp);
+		as.count = (int)COUNT(ACC);
+		as.slots = STD_LIST_ROWS;
+		as.top = 0;
+		as.focus = -1;
+		asp.state = &as;
+		asp.mode = LIST_PAGED;
+		asp.item = expItemFn;
+		asp.ctx = (void *)ACC;
+		asp.prev.text = "^";
+		asp.next.text = "v";
+		memset(&arow, 0, sizeof arow);
+		arow.kind = ROW_LIST;
+		arow.list = &asp;
+		ap.rows = &arow;
+		ap.tabs = NULL;
+		ap.nTabs = 0;
+		ap.title = "Account for Player One";
+		if (layoutPage(ap, kFont, lay) < 0) {
+			fail("Account page", "the account page does not lay out");
+		} else {
+			linkFocus(ap, lay);
+			if (checkLayout(ap, kFont, lay, probs, MAX_PROBLEMS) != 0)
+				fail("Account page", "the account page has layout problems");
+			if (lay.defaultFocus != lay.listItem[0])
+				fail("Account page", "the default focus is not the first row");
+			for (int k = 0; k < STD_LIST_ROWS; k++)
+				if (lay.c[lay.listItem[k]].focusable != (k < 4))
+					fail("Account page", "the rows past the 4 accounts are not off, or a shown one is");
+		}
+	}
+
+	/* what the explorer refuses */
+	{
+		Row two[2];
+		Page bad = page;
+		two[0] = row; two[1] = row;
+		bad.rows = two; bad.nRows = 2;
+		if (layoutPage(bad, kFont, lay) >= 0)
+			fail("Explorer refuse", "two list rows were accepted");
+		bad = page;
+		bad.standard = DENSITY_REGULAR;
+		if (layoutPage(bad, kFont, lay) >= 0)
+			fail("Explorer refuse", "a list on a non-explorer density was accepted");
+		bad = page;
+		st.slots = STD_LIST_ROWS + 1;
+		if (layoutPage(bad, kFont, lay) >= 0)
+			fail("Explorer refuse", "STD_LIST_ROWS + 1 rows were accepted");
+		st.slots = STD_LIST_ROWS;
+	}
+
+	printf("standard explorer: every item kind, cut names, tag and note, links, arrows, nothing past x 616 ... %s\n",
+	       failures == before ? "ok" : "FAILED");
+}
+
+/* The explorer's letter strip (stripLetter, stripMask, stripFirst, stripStep, stripCell, stripHit) and
+ * the scroll thumb (scrollThumb, scrollDragPage). */
+static const char *const kStripNames[] = {
+	"..", "Formats", "Tests", "Alpha (USA).cue", "alpine.chd", "Castlevania (USA).chd", "Crash 3.cue",
+	"Zelda.iso", "1942.cue", "[demo].bin", "\xC3\x89t\xC3\xA9.chd", "Final Fantasy VIII (USA).pbp",
+	"Frogger.pbp", "Spyro (USA).chd"
+};
+
+static const char *stripNameAt(void *, int i)
+{
+	return kStripNames[i];
+}
+
+/* The facts strip: the panel under the list, the title line, six fact cells in two columns. */
+/* A list item with dim set (Recent: its device is not there) lays out dim, and no other row does. */
+static const bool DIM_ROWS[4] = { false, true, false, true };
+static void dimItemFn(void *, int index, ListItem &out)
+{
+	static const char *const names[4] = { "Crash 3", "FF8 (usb)", "Gex", "Spyro (smb)" };
+	out.text = names[index];
+	out.folder = false;
+	out.dim = DIM_ROWS[index];
+	out.tag = "BIN";
+	out.note = index == 1 ? "USB, 2026-09-28" : "today";
+}
+
+static void testCountText(void)
+{
+	const int before = failures;
+	char out[64];
+	const float s = (float)STD_PATH_PX / 24.0f;
+	const int room = 440;		/* what FileBrowserFrame gives the count: the path keeps the rest of x 24..616 */
+	struct Case { int folders, games, hint, cell; const char *want; };
+	static const Case cases[] = {
+		{ 0, 42, COUNT_HINT_AZ,      -1, "42 games, A-Z" },
+		{ 0, 1,  COUNT_HINT_AZ,      -1, "1 game, A-Z" },
+		{ 0, 42, COUNT_HINT_FOLDERS, -1, "42 games, folders first" },
+		{ 1, 7,  COUNT_HINT_FOLDERS, -1, "1 folder, 7 games, folders first" },
+		{ 3, 0,  COUNT_HINT_AZ,      -1, "3 folders, A-Z" },
+		{ 0, 9,  COUNT_HINT_NEWEST,  -1, "9 games, newest first" },
+		{ 0, 3,  COUNT_HINT_NEWEST,   3, "3 games, C" },
+		{ 0, 2,  COUNT_HINT_NEWEST,   0, "2 games, #" },
+		{ 0, 5,  COUNT_HINT_NONE,    -1, "5 games" },
+	};
+	for (unsigned i = 0; i < sizeof cases / sizeof cases[0]; i++) {
+		const Case &c = cases[i];
+		countText(kFont, s, room, c.folders, c.games, c.hint, c.cell, out, sizeof out);
+		if (strcmp(out, c.want)) {
+			char msg[160];
+			snprintf(msg, sizeof msg, "case %u: got \"%s\", want \"%s\"", i, out, c.want);
+			fail("countText", msg);
+		}
+	}
+	/* the worst case fits the room, and a tiny room drops the hint, then cuts with ... */
+	countText(kFont, s, room, 20, 100, COUNT_HINT_FOLDERS, -1, out, sizeof out);
+	if (fontWidth(out, s, NULL) > room || strcmp(out, "20 folders, 100 games, folders first"))
+		fail("countText", "the longest count does not fit x 24..616 with the path's share");
+	countText(kFont, s, fontWidth("42 games", s, NULL) + 2, 0, 42, COUNT_HINT_AZ, -1, out, sizeof out);
+	if (strcmp(out, "42 games"))
+		fail("countText", "a hint that does not fit is not dropped");
+	countText(kFont, s, 40, 0, 42, COUNT_HINT_AZ, -1, out, sizeof out);
+	if (fontWidth(out, s, NULL) > 40)
+		fail("countText", "a tiny room is not cut");
+	printf("explorer count text with sort hint, Recent hint, letter filter, fits the room %s\n",
+	       failures == before ? "ok" : "FAILED");
+}
+
+static void testStdDim(void)
+{
+	const int before = failures;
+	static const char *const TABS[] = { "SD", "USB", "DVD", "Network", "Recent" };
+	Tab tabs[5];
+	Row row;
+	Page page;
+	Layout lay;
+	ListState st;
+	ListSpec spec;
+
+	for (int i = 0; i < 5; i++) { tabs[i].text = TABS[i]; tabs[i].width = 0; }
+	memset(&spec, 0, sizeof spec);
+	st.count = 4;
+	st.slots = STD_LIST_ROWS;
+	st.top = 0;
+	st.focus = -1;
+	spec.state = &st;
+	spec.mode = LIST_PAGED;
+	spec.item = dimItemFn;
+	spec.prev.text = "^";
+	spec.next.text = "v";
+	memset(&row, 0, sizeof row);
+	row.kind = ROW_LIST;
+	row.list = &spec;
+	memset(&page, 0, sizeof page);
+	page.tabs = tabs;
+	page.nTabs = 5;
+	page.curTab = 4;
+	page.rows = &row;
+	page.nRows = 1;
+	page.logo = LOGO_SPOT_NONE;
+	page.focus = FOCUS_ROWS;
+	page.standard = DENSITY_EXPLORER;
+
+	if (layoutPage(page, kFont, lay) < 0) {
+		fail("Dim", "the page does not lay out");
+		return;
+	}
+	for (int k = 0; k < st.slots; k++) {
+		const bool want = k < 4 && DIM_ROWS[k];
+		if (lay.c[lay.listItem[k]].dim != want)
+			fail("Dim", "a row's dim flag is not the item's (or an empty slot is dim)");
+	}
+	/* the other lists never dim: the older list layout, with an item that leaves dim unset */
+	if (failures == before)
+		printf("Dim: ok\n");
+}
+
+static void testStdFacts(void)
+{
+	const int before = failures;
+	FactsBox b;
+	factsLayout(b);
+
+	/* the path and count line clears the letter strip (the 2 px move), and the panel clears the list */
+	if ((int)(STD_PATH_Y + STD_PATH_PX) > (int)STD_STRIP_Y)
+		fail("Facts", "the path line (y + size) reaches the letter strip");
+	if (b.y0 < (int)(STD_LIST_Y0 + (STD_LIST_ROWS - 1) * STD_LIST_PITCH + STD_LIST_H) + 10)
+		fail("Facts", "the panel is less than 10 px below the last list row");
+	if (b.y1 > 472 || b.x0 < 24 || b.x1 > 616 || b.y0 >= b.y1 || b.x0 >= b.x1)
+		fail("Facts", "the panel leaves the 24..616 x 472 safe area or is empty");
+
+	/* the title: inside the panel, above the first fact line */
+	if (b.titleY < b.y0 || b.titleY + (int)STD_FACTS_TITLE_PX >= b.cell[0].y)
+		fail("Facts", "the title is outside the panel or touches the first fact line");
+	if (b.titleX < b.x0 || b.titleX + b.titleRoom > b.x1)
+		fail("Facts", "the title's room leaves the panel");
+
+	/* the cells: inside the panel, lines do not overlap, columns do not meet */
+	for (int k = 0; k < STD_FACTS_N; k++) {
+		const FactsCell &c = b.cell[k];
+		if (c.y < b.y0 || c.y + (int)STD_FACTS_PX > b.y1)
+			fail("Facts", "a fact line is outside the panel");
+		if (c.valX + c.valRoom > b.x1)
+			fail("Facts", "a value's room leaves the panel");
+		if (c.keyR >= c.valX || c.keyR - 100 < b.x0)
+			fail("Facts", "a key and its value are not in order or the key leaves the panel");
+		if (k % 3 > 0 && c.y - b.cell[k - 1].y < (int)STD_FACTS_PX)
+			fail("Facts", "two fact lines overlap (pitch below the text size)");
+		if (k % 3 == 0 && c.y != b.cell[0].y)
+			fail("Facts", "the columns' first lines are not level");
+	}
+	{
+		const int keyW = fontWidth("Achievements", (float)STD_FACTS_PX / 24.0f, NULL);
+		const int col1ValueEnd = b.cell[0].valX + b.cell[0].valRoom;
+		const int col2KeyLeft = b.cell[3].keyR - keyW;
+		if (col1ValueEnd >= col2KeyLeft)
+			fail("Facts", "the first column's values reach the second column's keys");
+	}
+
+	/* fitText: a short name as it is, a long one cut with "..." inside the room */
+	{
+		char buf[128];
+		const float s = (float)STD_FACTS_TITLE_PX / 24.0f;
+		const char *shortName = "Spyro 2.chd";
+		const char *longName = "Final Fantasy VII - International Edition (Japan) (Disc 1) (Rev 1) (Alt) (Beta 3) - Final Fantasy VII - International Edition (Japan) (Disc 2) (Rev 2) (Alt 2) (Beta 4).chd";
+		const char *r = fitText(kFont, shortName, s, b.titleRoom, buf, sizeof buf);
+		if (strcmp(r, shortName))
+			fail("Facts fitText", "a name that fits was changed");
+		r = fitText(kFont, longName, s, b.titleRoom, buf, sizeof buf);
+		const int n = (int)strlen(r);
+		if (!strcmp(r, longName) || n < 4 || strcmp(r + n - 3, "...") || fontWidth(r, s, NULL) > b.titleRoom)
+			fail("Facts fitText", "a long name is not cut with ... inside the room");
+	}
+	printf("standard explorer facts strip: panel, title, 2 columns, path clears the strip, fitText ... %s\n",
+	       failures == before ? "ok" : "FAILED");
+}
+
+static void testStdStrip(void)
+{
+	const int before = failures;
+	const int n = (int)COUNT(kStripNames);
+
+	/* the letter of a name */
+	if (stripLetter("Alpha") != 1 || stripLetter("alpha") != 1 || stripLetter("zelda") != 26 ||
+	    stripLetter("Z") != 26)
+		fail("Strip letter", "A, a or Z is on the wrong cell");
+	if (stripLetter("1942") != 0 || stripLetter("[demo]") != 0 || stripLetter("\xC3\x89t\xC3\xA9") != 0 ||
+	    stripLetter(".hidden") != 0)
+		fail("Strip letter", "a digit, a bracket, a UTF-8 name or a dot file is not '#'");
+	if (stripLetter("..") != -1 || stripLetter(".") != -1 || stripLetter("") != -1 || stripLetter(NULL) != -1)
+		fail("Strip letter", "the up row, an empty name or NULL has a cell");
+	if (stripChar(0) != '#' || stripChar(1) != 'A' || stripChar(26) != 'Z' || stripChar(3) != 'C')
+		fail("Strip letter", "stripChar is wrong");
+
+	/* dimmed letters: the mask holds exactly the cells with a name */
+	const unsigned mask = stripMask(n, stripNameAt, NULL);
+	const char *have = "#ACFSTZ";
+	for (int k = 0; k < STRIP_CELLS; k++) {
+		const bool want = strchr(have, stripChar(k)) != NULL;
+		if (((mask >> k) & 1u) != (want ? 1u : 0u)) {
+			char msg[64];
+			snprintf(msg, sizeof msg, "cell %c is %s", stripChar(k), want ? "dimmed" : "lit");
+			fail("Strip mask", msg);
+		}
+	}
+	if (stripMask(0, stripNameAt, NULL) != 0)
+		fail("Strip mask", "an empty list has letters");
+
+	/* jump targets: the first item of the letter, in list order */
+	if (stripFirst(n, stripNameAt, NULL, 1) != 3)
+		fail("Strip jump", "A is not the first A row (Alpha)");
+	if (stripFirst(n, stripNameAt, NULL, 3) != 5)
+		fail("Strip jump", "C is not Castlevania");
+	if (stripFirst(n, stripNameAt, NULL, 6) != 1)
+		fail("Strip jump", "F is not the first F row (the Formats folder)");
+	if (stripFirst(n, stripNameAt, NULL, 0) != 8)
+		fail("Strip jump", "# is not 1942 (the up row is no '#')");
+	if (stripFirst(n, stripNameAt, NULL, 2) != -1 || stripFirst(n, stripNameAt, NULL, 25) != -1)
+		fail("Strip jump", "a letter with no entry has a target");
+	if (stripFirst(n, stripNameAt, NULL, 26) != 7 || stripFirst(n, stripNameAt, NULL, 19) != 13)
+		fail("Strip jump", "Z or S is not at its row");
+
+	/* links: the C stick walks the letters that have entries, both ways, and stops at the ends */
+	int chain[STRIP_CELLS], len = 0, cur = -1;
+	while ((cur = stripStep(mask, cur, 1)) >= 0 && len < STRIP_CELLS)
+		chain[len++] = cur;
+	if (len != 7 || chain[0] != 0 || chain[1] != 1 || chain[2] != 3 || chain[3] != 6 || chain[4] != 19 ||
+	    chain[5] != 20 || chain[6] != 26)
+		fail("Strip links", "the forward chain is not #, A, C, F, S, T, Z");
+	cur = -1; len = 0;
+	while ((cur = stripStep(mask, cur, -1)) >= 0 && len < STRIP_CELLS)
+		chain[len++] = cur;
+	if (len != 7 || chain[0] != 26 || chain[6] != 0)
+		fail("Strip links", "the backward chain is not Z .. #");
+	if (stripStep(mask, 26, 1) != -1 || stripStep(mask, 0, -1) != -1)
+		fail("Strip links", "a step past an end did not stop");
+	if (stripStep(mask, 3, 1) != 6 || stripStep(mask, 6, -1) != 3 || stripStep(mask, 2, 1) != 3 ||
+	    stripStep(mask, 4, -1) != 3)
+		fail("Strip links", "a step from a letter or from a dimmed one skips wrongly");
+	if (stripStep(0, -1, 1) != -1 || stripStep(0, 5, -1) != -1)
+		fail("Strip links", "an empty strip has a step");
+	if (stripStep(mask, 3, 0) != -1)
+		fail("Strip links", "direction 0 moves");
+
+	/* geometry: 27 cells inside x 24..616, y 94-118, in order, never touching */
+	int px = (int)STD_STRIP_X0 - 1;
+	for (int k = 0; k < STRIP_CELLS; k++) {
+		int x, w;
+		stripCell(k, &x, &w);
+		if (w < 16 || x <= px || x + w > (int)STD_STRIP_X1 || x < (int)STD_STRIP_X0) {
+			char msg[64];
+			snprintf(msg, sizeof msg, "cell %c at x %d w %d", stripChar(k), x, w);
+			fail("Strip fit", msg);
+		}
+		if (k > 0 && x - px < STD_STRIP_GAP)
+			fail("Strip fit", "two cells touch");
+		px = x + w;
+		/* the centre and the first pixel hit their own cell; the gap belongs to the cell before it */
+		if (stripHit(x, (int)STD_STRIP_Y) != k || stripHit(x + w / 2, (int)STD_STRIP_Y + 10) != k ||
+		    stripHit(x + w + STD_STRIP_GAP - 1, (int)STD_STRIP_Y) != k)
+			fail("Strip fit", "a point on a cell hits another cell");
+	}
+	if ((int)STD_STRIP_Y != 94 || (int)(STD_STRIP_Y + STD_STRIP_H) != 118)
+		fail("Strip fit", "the strip is not at y 94-118");
+	{
+		int x, w;
+		stripCell(STRIP_CELLS - 1, &x, &w);
+		if (x + w + STD_STRIP_GAP != (int)STD_STRIP_X1)
+			fail("Strip fit", "the cells do not fill x 24..616");
+	}
+	/* outside the strip: above, below, left of it, right of it */
+	if (stripHit(100, 93) != -1 || stripHit(100, 118) != -1 || stripHit(23, 100) != -1 || stripHit(616, 100) != -1)
+		fail("Strip hit", "a point outside the strip hits a cell");
+	/* it is below the tab strip (y 18-70) and above the first row (y 126) */
+	if ((int)STD_STRIP_Y < (int)(STD_TAB_Y + STD_TAB_H) || (int)(STD_STRIP_Y + STD_STRIP_H) > (int)STD_LIST_Y0)
+		fail("Strip fit", "the strip meets the tabs or the first row");
+
+	/* the scroll thumb: by page, and a drag maps back to the page it was drawn for */
+	{
+		const int y0 = 152, y1 = 376;
+		ListState s = { 20, 7, 0, 0 };		/* 3 pages */
+		Thumb t = scrollThumb(s, y0, y1);
+		if (!t.live || t.y != y0 || t.h != (y1 - y0) * 7 / 20)
+			fail("Scroll thumb", "page 1 of 3: not live, not at the top, or the wrong height");
+		for (int page = 0; page < 3; page++) {
+			s.top = page * 7;
+			t = scrollThumb(s, y0, y1);
+			if (t.y < y0 || t.y + t.h > y1)
+				fail("Scroll thumb", "the thumb leaves the track");
+			if (scrollDragPage(s, y0, y1, t.y) != page)
+				fail("Scroll thumb", "a drag to where the thumb is changes the page");
+		}
+		s.top = 14;
+		t = scrollThumb(s, y0, y1);
+		if (t.y + t.h != y1)
+			fail("Scroll thumb", "the last page's thumb is not at the bottom");
+		if (scrollDragPage(s, y0, y1, -50) != 0 || scrollDragPage(s, y0, y1, 9999) != 2)
+			fail("Scroll thumb", "a drag past the track ends does not clamp to the first and last page");
+		s.top = 0;
+		const int mid = y0 + ((y1 - y0) - t.h) / 2;
+		if (scrollDragPage(s, y0, y1, mid) != 1)
+			fail("Scroll thumb", "a drag to the middle is not the middle page");
+		ListState all = { 5, 7, 0, 0 };		/* fits: no thumb to drag */
+		t = scrollThumb(all, y0, y1);
+		if (t.live || t.y != y0 || t.h != y1 - y0 || scrollDragPage(all, y0, y1, 200) != 0)
+			fail("Scroll thumb", "a list that fits has a live thumb");
+		ListState none = { 0, 7, 0, -1 };
+		if (scrollThumb(none, y0, y1).live || scrollDragPage(none, y0, y1, 200) != 0)
+			fail("Scroll thumb", "an empty list has a live thumb");
+		ListState big = { 450, 7, 63 * 7, 0 };	/* 450 stubs: the 16 px floor */
+		t = scrollThumb(big, y0, y1);
+		if (t.h != 16 || t.y < y0 || t.y + t.h > y1)
+			fail("Scroll thumb", "a long list's thumb is not 16 px inside the track");
+		if (scrollDragPage(big, y0, y1, t.y) != 63)
+			fail("Scroll thumb", "a long list: a drag to the thumb is another page");
+	}
+
+	printf("standard explorer letter strip: letters, dim, jump targets, links, fit in 24..616, scroll thumb ... %s\n",
+	       failures == before ? "ok" : "FAILED");
 }
 
 int main(int argc, char **argv)
@@ -3732,6 +5044,14 @@ int main(int argc, char **argv)
 	testListWindow();
 	testListScroll();
 	testListPaging();
+	testStandard();
+	testStdSettingsTabs();
+	testStdAdvancedTabs();
+	testStdExplorer();
+	testStdStrip();
+	testStdFacts();
+	testStdDim();
+	testCountText();
 
 	printf("\n%s: %d check%s failed\n", failures ? "FAILED" : "PASSED", failures, failures == 1 ? "" : "s");
 	return failures > 255 ? 255 : failures;

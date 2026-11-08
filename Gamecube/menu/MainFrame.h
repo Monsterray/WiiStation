@@ -25,6 +25,8 @@
 #include "../libgui/InputStatusBar.h"
 #include "MenuTypes.h"
 
+namespace menu { namespace glue { class Pool; } }
+
 class MainFrame : public menu::Frame
 {
 public:
@@ -33,6 +35,7 @@ public:
 
 private:
 	menu::InputStatusBar *inputStatusBar;
+	menu::glue::Pool *pool;
 };
 
 #endif

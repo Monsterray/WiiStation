@@ -31,6 +31,10 @@ namespace menu {
 Button::Button(int style, char** label, float x, float y, float width, float height)
 		: active(false),
 		  selected(false),
+		  arrows(false),
+		  plain(false),
+		  plainImage(0),
+		  plainFocusImage(0),
 		  normalImage(0),
 		  focusImage(0),
 		  selectedImage(0),
@@ -39,6 +43,9 @@ Button::Button(int style, char** label, float x, float y, float width, float hei
 		  buttonStyle(style),
 		  labelMode(LABEL_CENTER),
 		  labelScissor(0),
+		  labelInsetRight(-1),
+		  labelFocusSet(false),
+		  navFunc(0),
 		  StartTime(0),
 		  scrollKey(0),
 		  scrollOn(false),
@@ -56,7 +63,10 @@ Button::Button(int style, char** label, float x, float y, float width, float hei
 		  height(height),
 		  fontSize(1.0),
 		  clickedFunc(0),
-		  returnFunc(0)
+		  returnFunc(0),
+		  ctxFunc(0),
+		  ctxData(0),
+		  ctxTag(0)
 {
 						//Focus color			Inactive color		  Active color			Selected color		  Label color
 	GXColor colors[5] = {{255, 100, 100, 255}, {255, 255, 255,  70}, {255, 255, 255, 130}, {255, 255, 255, 255}, {255, 255, 255, 255}};
@@ -81,6 +91,15 @@ Button::Button(int style, char** label, float x, float y, float width, float hei
 		setSelectedFocusImage(Resources::getInstance().getImage(Resources::IMAGE_STYLEA_BUTTONSELECTONFOCUS));
 		this->height = 56;
 		break;
+	case BUTTON_STANDARD:
+		/* today's art: the select set, and the normal set for a button that is not a choice */
+		setNormalImage(Resources::getInstance().getImage(Resources::IMAGE_STYLEA_BUTTONSELECTOFF));
+		setFocusImage(Resources::getInstance().getImage(Resources::IMAGE_STYLEA_BUTTONSELECTOFFFOCUS));
+		setSelectedImage(Resources::getInstance().getImage(Resources::IMAGE_STYLEA_BUTTONSELECTON));
+		setSelectedFocusImage(Resources::getInstance().getImage(Resources::IMAGE_STYLEA_BUTTONSELECTONFOCUS));
+		plainImage = Resources::getInstance().getImage(Resources::IMAGE_STYLEA_BUTTON);
+		plainFocusImage = Resources::getInstance().getImage(Resources::IMAGE_STYLEA_BUTTONFOCUS);
+		break;
 	}
 	if (buttonStyle != BUTTON_DEFAULT)
 	{
@@ -94,6 +113,38 @@ Button::Button(int style, char** label, float x, float y, float width, float hei
 
 Button::~Button()
 {
+}
+
+void Button::setStyle(int style)
+{
+	if (style == buttonStyle || style == BUTTON_DEFAULT)
+		return;
+	buttonStyle = style;
+	plain = false;
+	arrows = false;
+	switch (buttonStyle)
+	{
+	case BUTTON_STYLEA_NORMAL:
+		setNormalImage(Resources::getInstance().getImage(Resources::IMAGE_STYLEA_BUTTON));
+		setFocusImage(Resources::getInstance().getImage(Resources::IMAGE_STYLEA_BUTTONFOCUS));
+		this->height = 56;
+		break;
+	case BUTTON_STYLEA_SELECT:
+		setNormalImage(Resources::getInstance().getImage(Resources::IMAGE_STYLEA_BUTTONSELECTOFF));
+		setFocusImage(Resources::getInstance().getImage(Resources::IMAGE_STYLEA_BUTTONSELECTOFFFOCUS));
+		setSelectedImage(Resources::getInstance().getImage(Resources::IMAGE_STYLEA_BUTTONSELECTON));
+		setSelectedFocusImage(Resources::getInstance().getImage(Resources::IMAGE_STYLEA_BUTTONSELECTONFOCUS));
+		this->height = 56;
+		break;
+	case BUTTON_STANDARD:
+		setNormalImage(Resources::getInstance().getImage(Resources::IMAGE_STYLEA_BUTTONSELECTOFF));
+		setFocusImage(Resources::getInstance().getImage(Resources::IMAGE_STYLEA_BUTTONSELECTOFFFOCUS));
+		setSelectedImage(Resources::getInstance().getImage(Resources::IMAGE_STYLEA_BUTTONSELECTON));
+		setSelectedFocusImage(Resources::getInstance().getImage(Resources::IMAGE_STYLEA_BUTTONSELECTONFOCUS));
+		plainImage = Resources::getInstance().getImage(Resources::IMAGE_STYLEA_BUTTON);
+		plainFocusImage = Resources::getInstance().getImage(Resources::IMAGE_STYLEA_BUTTONFOCUS);
+		break;
+	}
 }
 
 void Button::setActive(bool activeBool)
@@ -128,7 +179,8 @@ void Button::setClicked(ButtonFunc newClickedFunc)
 
 void Button::doClicked()
 {
-	if (clickedFunc) clickedFunc();
+	if (ctxFunc) ctxFunc(ctxData, ctxTag);
+	else if (clickedFunc) clickedFunc();
 }
 
 void Button::setAutoSize(int flags)
@@ -224,6 +276,13 @@ void Button::setLabelScissor(int scissor)
 	labelScissor = scissor;
 }
 
+/* The room kept free at the right of the label: the left scissor unless set (-1), so every other
+ * button keeps its symmetric box. The explorer's rows set it to keep a scrolling name left of the tag. */
+void Button::setLabelInsetRight(int inset)
+{
+	labelInsetRight = inset;
+}
+
 void Button::setNormalImage(Image *image)
 {
 	normalImage = image;
@@ -270,6 +329,63 @@ static void drawHalves(Graphics& gfx, float x, float y, float width, float heigh
 	gfx.drawImage(0, xm, y0, x1 - xm, y1 - y0, width/8.0, 0.0, 0.0, 1.0);
 }
 
+/* BUTTON_STANDARD: today's style A picture with square corners. The texture is 8 x 56 and is shown
+ * 4 px to the texture width (drawHalves: s 0..width/8 over half the width), so its left 4 px hold
+ * the glow, the dark border (texel 2) and the light edge (texel 3), and from texel 4 on every
+ * column is the middle of the button. The rounded corners are in the
+ * texture's first and last rows. Here the button is cut into four bands: the corner rows (the
+ * first 8 and rows 45..52 of the 56) take their left and right edge from one straight row of
+ * the texture (30), 2 px wide, with the middle from px 2 on, so the border runs into the corner
+ * square; the other rows are the texture as drawn today. Whole pixels throughout, no overlap
+ * (an overlap would blend the border over the face instead of over the background), so
+ * touching segments meet exactly. */
+static void drawSquare(Graphics& gfx, float x, float y, float width, float height)
+{
+	const int x0 = (int)x, x1 = (int)(x + width), y0 = (int)y, y1 = (int)(y + height);
+	const int w = x1 - x0, h = y1 - y0;
+	if (w < 8 || h < 8)
+	{
+		drawHalves(gfx, x, y, width, height);
+		return;
+	}
+	static const int ROWS[5] = { 0, 8, 45, 53, 56 };   /* band edges, in texture rows */
+	const float tc = 30.5f / 56.0f;                    /* a straight row, for the corner bands */
+	for (int b = 0; b < 4; b++)
+	{
+		const int ya = y0 + (int)(ROWS[b] * (float)h / 56.0f + 0.5f);
+		const int yb = (b == 3) ? y1 : y0 + (int)(ROWS[b + 1] * (float)h / 56.0f + 0.5f);
+		if (yb <= ya)
+			continue;
+		const float ta = (float)(ya - y0) / h, tb = (float)(yb - y0) / h;
+		const bool corner = (b == 0 || b == 2);
+		const int e = corner ? 2 : 4;                   /* the edge strip, in px */
+		const float se = corner ? 0.5f : 1.0f;
+		const float t1 = corner ? tc : ta, t2 = corner ? tc : tb;
+		gfx.drawImage(0, x0, ya, e, yb - ya, 0.0, se, t1, t2);
+		gfx.drawImage(0, x0 + e, ya, w - 2 * e, yb - ya, 1.0, 1.0, ta, tb);
+		gfx.drawImage(0, x1 - e, ya, e, yb - ya, se, 0.0, t1, t2);
+	}
+}
+
+static const GXColor ARROW_COLOR = { 225, 225, 225, 255 };
+
+/* The cycle arrows: a filled triangle at each end pointing outward, as in the mock-ups (render.py): centred
+ * 14 px in from the end, the tip 4 px outward of that centre and the base 3 px inward, 12 px high. Each is
+ * ONE triangle (not 1 px columns: a 1 px column can fall between two pixels when the picture is scaled, as
+ * in 16:9, which left holes in the arrow). The two are exact mirrors: tip and base x are the same distance
+ * from their end. The color is the caller's. */
+static void drawArrows(Graphics& gfx, float x, float y, float width, float height, GXColor color)
+{
+	const int x0 = (int)x, y0 = (int)y, w = (int)(x + width) - x0, h = (int)(y + height) - y0;
+	gfx.setTEV(GX_PASSCLR);
+	gfx.setColor(color);
+	const int cy = y0 + h / 2;
+	const int lt = x0 + 10, lb = x0 + 17;		/* left arrow: tip x, base x */
+	const int rt = x0 + w - 10, rb = x0 + w - 17;	/* right arrow: the same, mirrored */
+	gfx.fillTriangle(lt, cy, lb, cy - 6, lb, cy + 6);
+	gfx.fillTriangle(rt, cy, rb, cy + 6, rb, cy - 6);
+}
+
 /* How far a label wider than its button is moved left, in pixels: it shows its beginning for
  * SCROLL_PAUSE seconds, moves at SCROLL_SPEED until its end shows, stays there SCROLL_PAUSE
  * seconds and starts over from its beginning. The time starts again when the button is
@@ -289,7 +405,7 @@ int Button::scrollShift(bool scrolling, float room)
 	}
 	if (!scrolling)
 		return 0;
-	const float over = IplFont::getInstance().getStringWidth(*buttonText, fontSize) - room + 2 * labelScissor;
+	const float over = IplFont::getInstance().getStringWidth(*buttonText, fontSize) - room + labelScissor + labelInsetR();
 	if (over <= 0.0f)
 		return 0;
 	const float travel = over / SCROLL_SPEED;
@@ -365,14 +481,34 @@ void Button::drawComponent(Graphics& gfx)
 		}
 		drawHalves(gfx, x, y, width, height);
 		break;
+	case BUTTON_STANDARD:
+		if (plain)
+		{
+			if (getFocus())	plainFocusImage->activateImage(GX_TEXMAP0);
+			else			plainImage->activateImage(GX_TEXMAP0);
+		}
+		else if (selected)
+		{
+			if (getFocus())	selectedFocusImage->activateImage(GX_TEXMAP0);
+			else			selectedImage->activateImage(GX_TEXMAP0);
+		}
+		else
+		{
+			if (getFocus())	focusImage->activateImage(GX_TEXMAP0);
+			else			normalImage->activateImage(GX_TEXMAP0);
+		}
+		drawSquare(gfx, x, y, width, height);
+		if (arrows)
+			drawArrows(gfx, x, y, width, height, active ? ARROW_COLOR : inactiveColor);
+		break;
 	}
 
 	if (buttonText)
 	{
 		//int strWidth;
 		int strHeight;
-		gfx.enableScissor(x + labelScissor, y, width - 2*labelScissor, height);
-		if(active)	IplFont::getInstance().drawInit(labelColor);
+		gfx.enableScissor(x + labelScissor, y, width - labelScissor - labelInsetR(), height);
+		if(active)	IplFont::getInstance().drawInit(labelFocusSet && getFocus() ? labelFocusColor : labelColor);
 		else		IplFont::getInstance().drawInit(inactiveColor);
 		switch (labelMode)
 		{
@@ -481,6 +617,10 @@ Component* Button::updateFocus(int direction, int buttonsPressed)
 	{
 		//not a focus target: try to move in the direction, and take the first one that is
 		newFocus = followFocus(direction, buttonsPressed);
+	}
+	else if (navFunc && direction != Focus::DIRECTION_NONE && navFunc(this, direction))
+	{
+		newFocus = this;		/* the hook used the press: focus stays here */
 	}
 	else
 	{

@@ -21,23 +21,13 @@
 #ifndef LOADROMFRAME_H
 #define LOADROMFRAME_H
 
-#include "../libgui/Frame.h"
-#include "MenuTypes.h"
-
-class LoadRomFrame : public menu::Frame
-{
-public:
-	LoadRomFrame();
-	~LoadRomFrame();
-	void activateSubmenu(int submenu);
-
-private:
-	
-};
-
+/* The explorer's device sources (LoadRomFrame.cpp). The Load ROM page is retired. */
 // For autoboot (plugin)
 void Func_LoadFromSD();
 void Func_LoadFromDVD();
 void Func_LoadFromUSB();
+void Func_LoadFromSamba();
+void loadRomUseSource(int src);      /* 0 SD, 1 USB, 2 DVD, 3 network: points isoFile at it and mounts, no browser */
+int  loadRomSourceReady(int src);    /* is that device there now (a probe, mounts nothing) */
 
 #endif

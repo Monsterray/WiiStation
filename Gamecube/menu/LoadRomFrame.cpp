@@ -18,6 +18,7 @@
  *
 **/
 
+#include <sys/stat.h>
 #include "MenuContext.h"
 #include "MenuEngine.h"	/* before Button.h: its include guard is BUTTON_H, a name the engine uses */
 #include "LoadRomFrame.h"
@@ -39,131 +40,23 @@ extern "C" {
 #include "../fileBrowser/fileBrowser-CARD.h"
 }
 
-void Func_LoadFromSD();
-void Func_LoadFromDVD();
-void Func_LoadFromUSB();
-void Func_LoadFromSamba();
-void Func_ReturnFromLoadRomFrame();
-
-static const int NUM_FRAME_BUTTONS = 4;
-
-static char loadRomStrings[4][25] =
-	{ "Load from SD",
-	  "Load from DVD",
-	  "Load from USB",
-	  "Load from Samba"};
-
-struct LoadRomButtonInfo
-{
-	menu::Button	*button;
-	int				buttonStyle;
-	char*			buttonString;
-	ButtonFunc		clickedFunc;
-	ButtonFunc		returnFunc;
-};
-
-static LoadRomButtonInfo loadRomButtons[NUM_FRAME_BUTTONS] =
-{	//	button	buttonStyle	buttonString		clickFunc			returnFunc
-	{	NULL,	BTN_A_NRM,	loadRomStrings[0],	Func_LoadFromSD,	Func_ReturnFromLoadRomFrame },
-	{	NULL,	BTN_A_NRM,	loadRomStrings[1],	Func_LoadFromDVD,	Func_ReturnFromLoadRomFrame },
-	{	NULL,	BTN_A_NRM,	loadRomStrings[2],	Func_LoadFromUSB,	Func_ReturnFromLoadRomFrame },
-	{	NULL,	BTN_A_NRM,	loadRomStrings[3],	Func_LoadFromSamba,	Func_ReturnFromLoadRomFrame },
-};
-
-/* The Load ROM page: four rows, one action button each. */
-namespace eng = menu::engine;
-
-static eng::ActionButton LOADROM_ACTIONS[NUM_FRAME_BUTTONS];
-static eng::Row LOADROM_ROWS[NUM_FRAME_BUTTONS];
-static eng::Page LOADROM_PAGE;
-static eng::Layout LOADROM_LAYOUT;
-
-static void layoutLoadRom(void)
-{
-	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
-	{
-		LOADROM_ACTIONS[i].text  = loadRomButtons[i].buttonString;
-		LOADROM_ACTIONS[i].width = 340.0f;
-		LOADROM_ACTIONS[i].lit   = false;
-		LOADROM_ACTIONS[i].dy    = 0.0f;
-
-		eng::Row &row = LOADROM_ROWS[i];
-		memset(&row, 0, sizeof row);
-		row.kind    = eng::ROW_BUTTONS;
-		row.count   = 1;
-		row.actions = &LOADROM_ACTIONS[i];	/* x0 0: centred */
-	}
-	memset(&LOADROM_PAGE, 0, sizeof LOADROM_PAGE);
-	LOADROM_PAGE.rows  = LOADROM_ROWS;
-	LOADROM_PAGE.nRows = NUM_FRAME_BUTTONS;
-	LOADROM_PAGE.logo  = eng::LOGO_SPOT_TOP;
-	LOADROM_PAGE.focus = eng::FOCUS_ROWS;
-	LOADROM_PAGE.rowDy = 80.0f;
-	LOADROM_PAGE.rowY0 = 100.0f;
-
-	eng::layoutPage(LOADROM_PAGE, menu::glue::METRICS, LOADROM_LAYOUT);
-	eng::linkFocus(LOADROM_PAGE, LOADROM_LAYOUT);
-}
-
-/* The button drawn for a layout control. */
-static menu::Button *loadRomButtonOf(const eng::Control &c)
-{
-	return loadRomButtons[c.row].button;
-}
-
-LoadRomFrame::LoadRomFrame()
-{
-	layoutLoadRom();
-
-	/* Each button's box, and so its Cursor range, is the engine's rectangle for its row. */
-	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
-	{
-		const eng::Control &c = LOADROM_LAYOUT.c[LOADROM_LAYOUT.slot[i][0]];
-		loadRomButtons[i].button = new menu::Button(loadRomButtons[i].buttonStyle, &loadRomButtons[i].buttonString,
-										c.rect.x, c.rect.y, c.rect.w, c.rect.h);
-	}
-
-	/* The engine's links, handed to the buttons. */
-	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
-	{
-		const eng::Control &c = LOADROM_LAYOUT.c[LOADROM_LAYOUT.slot[i][0]];
-		menu::glue::linkFocus(loadRomButtons[i].button, LOADROM_LAYOUT, c, loadRomButtonOf);
-		loadRomButtons[i].button->setActive(true);
-		if (loadRomButtons[i].clickedFunc) loadRomButtons[i].button->setClicked(loadRomButtons[i].clickedFunc);
-		if (loadRomButtons[i].returnFunc) loadRomButtons[i].button->setReturn(loadRomButtons[i].returnFunc);
-		add(loadRomButtons[i].button);
-		menu::Cursor::getInstance().addComponent(this, loadRomButtons[i].button, c.rect.x,
-												c.rect.x+c.rect.w, c.rect.y,
-												c.rect.y+c.rect.h);
-	}
-	setDefaultFocus(loadRomButtons[0].button);
-	setBackFunc(Func_ReturnFromLoadRomFrame);
-	setEnabled(true);
-}
-
-LoadRomFrame::~LoadRomFrame()
-{
-	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
-	{
-		menu::Cursor::getInstance().removeComponent(this, loadRomButtons[i].button);
-		delete loadRomButtons[i].button;
-	}
-}
-
-int loadRomMode = FileBrowserFrame::FILEBROWSER_LOADISO;
-
-void LoadRomFrame::activateSubmenu(int submenu)
-{
-	loadRomMode = submenu;
-}
-
+/* The explorer's four device sources (FileBrowserFrame.cpp): its tabs, the autoboot and the test
+ * hooks call these. The Load ROM page that used to hold them as buttons is gone. */
 
 extern MenuContext *pMenuContext;
+extern int fileBrowserMode;
 extern void fileBrowserFrame_OpenDirectory(fileBrowser_file* dir);
 extern void fileBrowserFrame_OpenRomFolders(fileBrowser_file* deviceDefault, const char *device);
 
-void Func_LoadFromSD()
+/* Points isoFile at a device source and readies it, without opening the browser: the four
+ * Func_LoadFrom* below and the Recent tab (a row on another device) share it. src: 0 SD, 1 USB,
+ * 2 DVD, 3 network. USB, DVD and the share mount here, lazily; check the device afterwards
+ * (loadRomSourceReady). Does not touch explorerSource. */
+void loadRomUseSource(int src)
 {
+	switch (src)
+	{
+	case 0:
 	// Deinit any existing romFile state
 	if(isoFile_deinit) isoFile_deinit( &isoFile );
 	// Change all the romFile pointers
@@ -176,21 +69,8 @@ void Func_LoadFromSD()
 	isoFile_deinit   = fileBrowser_libfatROM_deinit;
 	// Make sure the romFile system is ready before we browse the filesystem
 	isoFile_init( isoFile_topLevel );
-
-	if(Autoboot)
-	{
-		snprintf(isoFile_topLevel->name, sizeof(isoFile_topLevel->name), "%s", AutobootPath);
-		fileBrowserFrame_OpenDirectory(isoFile_topLevel);
-	}
-	else
-	{
-		pMenuContext->setActiveFrame(MenuContext::FRAME_FILEBROWSER,loadRomMode);
-		fileBrowserFrame_OpenRomFolders(isoFile_topLevel, "sd:");   /* RomDirSD */
-	}
-}
-
-void Func_LoadFromDVD()
-{
+		break;
+	case 2:
 	// Deinit any existing romFile state
 	if(isoFile_deinit) isoFile_deinit( &isoFile );
 	// Change all the romFile pointers
@@ -203,20 +83,8 @@ void Func_LoadFromDVD()
 	isoFile_deinit   = fileBrowser_DVD_deinit;
 	// Mount the disc as "dvd:"; a failure is said by the browser, from readDir's code
 	isoFile_init( isoFile_topLevel );
-
-	if(Autoboot)
-	{   /* autoboot.txt / a chain naming dvd:/... */
-		snprintf(isoFile_topLevel->name, sizeof(isoFile_topLevel->name), "%s", AutobootPath);
-		fileBrowserFrame_OpenDirectory(isoFile_topLevel);
-		return;
-	}
-	snprintf(isoFile_topLevel->name, sizeof(isoFile_topLevel->name), "dvd:/");
-	pMenuContext->setActiveFrame(MenuContext::FRAME_FILEBROWSER,loadRomMode);
-	fileBrowserFrame_OpenDirectory(isoFile_topLevel);
-}
-
-void Func_LoadFromUSB()
-{
+		break;
+	case 1:
 #ifdef WII
 	// Deinit any existing romFile state
 	if(isoFile_deinit) isoFile_deinit( &isoFile );
@@ -230,24 +98,9 @@ void Func_LoadFromUSB()
 	isoFile_deinit   = fileBrowser_libfatROM_deinit;
 	// Make sure the romFile system is ready before we browse the filesystem
 	isoFile_init( isoFile_topLevel );
-	
-	if(Autoboot)
-	{
-		snprintf(isoFile_topLevel->name, sizeof(isoFile_topLevel->name), "%s", AutobootPath);
-		fileBrowserFrame_OpenDirectory(isoFile_topLevel);
-	}
-	else
-	{
-		pMenuContext->setActiveFrame(MenuContext::FRAME_FILEBROWSER,loadRomMode);
-		fileBrowserFrame_OpenRomFolders(isoFile_topLevel, "usb:");   /* RomDirUSB */
-	}
-#else
-	menu::MessageBox::getInstance().setMessage("Available only for Wii");
 #endif
-}
-
-void Func_LoadFromSamba()
-{
+		break;
+	case 3:
 #ifdef HW_RVL
 	// Deinit any existing romFile state
 	if(isoFile_deinit) isoFile_deinit( &isoFile );
@@ -261,6 +114,84 @@ void Func_LoadFromSamba()
 	isoFile_deinit   = fileBrowser_SMB_deinit;
 	// Make sure the romFile system is ready before we browse the filesystem
 	isoFile_init( isoFile_topLevel );
+#endif
+		break;
+	}
+}
+
+/* Is the device of source src there now? A probe that mounts nothing. */
+int loadRomSourceReady(int src)
+{
+	struct stat st;
+	switch (src)
+	{
+	case 0: return stat("sd:/", &st) == 0;
+	case 1: return stat("usb:/", &st) == 0;
+	case 2: return stat("dvd:/", &st) == 0;
+#ifdef HW_RVL
+	case 3: return smb2dev_mounted() != 0;
+#endif
+	}
+	return 0;
+}
+
+void Func_LoadFromSD()
+{
+	explorerSource = 0;
+	loadRomUseSource(0);
+	if(Autoboot)
+	{
+		snprintf(isoFile_topLevel->name, sizeof(isoFile_topLevel->name), "%s", AutobootPath);
+		fileBrowserFrame_OpenDirectory(isoFile_topLevel);
+	}
+	else
+	{
+		pMenuContext->setActiveFrame(MenuContext::FRAME_FILEBROWSER,fileBrowserMode);
+		fileBrowserFrame_OpenRomFolders(isoFile_topLevel, "sd:");   /* RomDirSD */
+	}
+}
+
+void Func_LoadFromDVD()
+{
+	explorerSource = 2;
+	loadRomUseSource(2);
+	if(Autoboot)
+	{   /* autoboot.txt / a chain naming dvd:/... */
+		snprintf(isoFile_topLevel->name, sizeof(isoFile_topLevel->name), "%s", AutobootPath);
+		fileBrowserFrame_OpenDirectory(isoFile_topLevel);
+		return;
+	}
+	snprintf(isoFile_topLevel->name, sizeof(isoFile_topLevel->name), "dvd:/");
+	pMenuContext->setActiveFrame(MenuContext::FRAME_FILEBROWSER,fileBrowserMode);
+	fileBrowserFrame_OpenDirectory(isoFile_topLevel);
+}
+
+void Func_LoadFromUSB()
+{
+	explorerSource = 1;
+#ifdef WII
+	loadRomUseSource(1);
+	
+	if(Autoboot)
+	{
+		snprintf(isoFile_topLevel->name, sizeof(isoFile_topLevel->name), "%s", AutobootPath);
+		fileBrowserFrame_OpenDirectory(isoFile_topLevel);
+	}
+	else
+	{
+		pMenuContext->setActiveFrame(MenuContext::FRAME_FILEBROWSER,fileBrowserMode);
+		fileBrowserFrame_OpenRomFolders(isoFile_topLevel, "usb:");   /* RomDirUSB */
+	}
+#else
+	menu::MessageBox::getInstance().setMessage("Available only for Wii");
+#endif
+}
+
+void Func_LoadFromSamba()
+{
+	explorerSource = 3;
+#ifdef HW_RVL
+	loadRomUseSource(3);
 	
 	if(Autoboot)
 	{   /* autoboot.txt / a chain naming smb:/...: MenuContext::Autoboot waited for the share */
@@ -268,7 +199,7 @@ void Func_LoadFromSamba()
 		fileBrowserFrame_OpenDirectory(isoFile_topLevel);
 		return;
 	}
-	pMenuContext->setActiveFrame(MenuContext::FRAME_FILEBROWSER,loadRomMode);
+	pMenuContext->setActiveFrame(MenuContext::FRAME_FILEBROWSER,fileBrowserMode);
 	if (smb2dev_mounted())
 		fileBrowserFrame_OpenRomFolders(isoFile_topLevel, "smb:");   /* RomDirSMB */
 	else
@@ -276,9 +207,4 @@ void Func_LoadFromSamba()
 #else
 	menu::MessageBox::getInstance().setMessage("Available only for Wii");
 #endif
-}
-
-void Func_ReturnFromLoadRomFrame()
-{
-	pMenuContext->setActiveFrame(MenuContext::FRAME_MAIN);
 }

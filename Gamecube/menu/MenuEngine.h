@@ -57,7 +57,7 @@ namespace engine {
 
 /* Fixed sizes: a page is laid out in these arrays and nothing else is allocated. */
 enum {
-	MAX_ROWS     = 8,		/* rows from ROW_Y0 down; a page sets its pitch (Memory: 46, eight rows) */
+	MAX_ROWS     = 9,		/* rows from ROW_Y0 down; a page sets its pitch (Memory: 46, eight rows) */
 	MAX_SLOTS    = 4,		/* focusable buttons in one row: choices, or action buttons */
 	MAX_TABS     = 6,
 	MAX_HELP     = 8,
@@ -146,6 +146,9 @@ enum ListMode {
 struct ListItem {
 	const char *text;
 	bool        folder;
+	bool        dim;		/* a list item shown dimmed (its source is not there now): grey label */
+	const char *tag;	/* DENSITY_EXPLORER: the format tag at the row's right end, or NULL */
+	const char *note;	/* DENSITY_EXPLORER: a short text left of the tag (disc count, date), or NULL */
 };
 
 /* Called by the engine for each shown item, when the window is laid out. index is absolute. */
@@ -200,13 +203,16 @@ struct Row {
 	float               x0;			/* Choice, Buttons: the first button's left edge; 0 = where the row goes */
 	float               gap;		/* Choice with widths, Buttons: between two buttons; 0 = TAB_GAP */
 	const float        *widths;		/* Choice: each button's width (the fixed grid is CHOICE_W); NULL = the default */
-	int                 plain;		/* Choice: the last `plain` buttons are actions, never lit */
+	int                 plain;		/* Choice: the last `plain` buttons are actions (lit only as a flag, like a Buttons row) */
 	/* Bit k set: button k of the row is shown but inactive (This Game with no game loaded).
 	 * It is drawn, but it is never a focus target and no link points at it. A Toggle or Cycle
 	 * has one button, bit 0. Zero, the default, makes every button active. */
 	unsigned            inactive;
 	/* Added for lists (step 4). ROW_LIST only. */
 	const ListSpec     *list;
+	/* Added for the standard (step 3b). Buttons on a standard page: when set, action k is a cycle
+	 * with a text in front of it (Memcard Type: "1" and "2"): prefix[k], then a STD_CYCLES_W button. */
+	const char *const  *prefix;
 };
 
 /*  Free buttons (step 5)  */
@@ -241,6 +247,7 @@ struct FreeText {
 	float       ax, ay;
 	float       scale;
 	bool        centred;
+	bool        right;		/* the anchor is the top-right corner (standard pages; not with centred) */
 };
 
 /* A focus link the caller sets by hand on a free page, after the rule (linkFocus): from free button
@@ -287,8 +294,24 @@ struct LinkOverride {
 	int   toRow, toSlot;
 };
 
+/* How a standard page is laid out (STD_* in MenuLayout.h). */
+enum Density {
+	DENSITY_OFF = 0,	/* not the standard: the page keeps the grid:: layout */
+	DENSITY_REGULAR,	/* buttons 50 high, pitch 56, 6 rows */
+	DENSITY_COMPACT,	/* buttons 40 high, pitch 46, 7 rows */
+	DENSITY_TEXT,		/* text rows: 28 high, pitch 32, 10 rows (readout pages) */
+	DENSITY_EXPLORER	/* one ROW_LIST: STD_LIST_ROWS (8) rows 34 high, pitch 34 (touching), from y 126, tag and note at the row's
+	                     * right end, names cut to fit; the ListSpec's own geometry is ignored, only its
+	                     * state, item function and the page arrows' texts are used (STD_LIST_*) */
+};
+
+/* The help of one row, for the footer: up to two lines. */
+struct FooterHelp {
+	const char *line[2];	/* NULL = none */
+};
+
 struct Page {
-	const char      *title;		/* shown only when there is no tab row */
+	const char      *title;	/* shown only when there is no tab row */
 	const Tab       *tabs;		/* the tab row, or NULL */
 	int              nTabs;
 	int              curTab;	/* the lit tab */
@@ -328,6 +351,15 @@ struct Page {
 	 * FOCUS_ROWS: Left and Right run along a line, Up and Down keep the column.
 	 * Use: columns = 2 in the page (eng::Page, or OptPage::columns in OptionsFrame.cpp); nothing else changes. */
 	int              columns;
+	/* The menu standard (MenuLayout.h STD_*, Docs/MENU_PLAN.md 1.1-1.3). Zero, the default, is every
+	 * page as it was; a non-zero Density opts the page in and layoutPage uses layoutStandard's
+	 * geometry instead of grid:: (the old path is untouched). The grid's own fields (labelCx, labelDy,
+	 * rowDy, rowY0, columns, titleY, tab widths, Row widths and x0) are then ignored: the label edge,
+	 * the rows' y and every width come from the standard and the text. */
+	Density          standard;
+	/* Footer help: footer[i] is the help of row i (0-2 lines, either NULL), shown for the focused row
+	 * only, see layoutFooter. NULL = the page has none. Standard pages only. */
+	const FooterHelp *footer;
 };
 
 /*  Layout output  */
@@ -347,7 +379,10 @@ enum CtrlRole {
 	ROLE_LIST_ITEM,	/* one item of a list's window; inactive past the end of the list */
 	ROLE_LIST_PAGE,	/* a list's Prev or Next button */
 	ROLE_FREE,		/* a free button: at its own rectangle, not on the grid (FreeButton) */
-	ROLE_FREE_TEXT	/* a free text: at its own anchor (FreeText) */
+	ROLE_FREE_TEXT,	/* a free text: at its own anchor (FreeText) */
+	ROLE_LIST_TAG,	/* an explorer row's format tag: right-aligned text, row = list row, slot = window slot */
+	ROLE_LIST_NOTE,	/* an explorer row's note, left of the tag */
+	ROLE_FOOTER		/* a line of footer help (layoutFooter); never part of a Layout */
 };
 
 enum TextAlign {
@@ -373,6 +408,12 @@ struct Control {
 	bool        focusable;		/* a focus target: a shown, active button (or a tab) */
 	bool        selected;		/* lit: the current choice or the current tab */
 	bool        folder;			/* a list item that is a folder: drawn in the folder colour */
+	bool        dim;			/* a list item drawn dimmed (Recent: its device is not there) */
+	/* A DENSITY_EXPLORER list item: text is the name cut to fit (the caller's own text when it fits),
+	 * full the whole name, textX and textR the x range the name is drawn in (a focused row scrolls
+	 * its full name inside it). Zero in every other control. */
+	const char *full;
+	float       textX, textR;
 	int         link[DIR_COUNT];	/* index into Layout::c, or -1 */
 };
 
@@ -388,6 +429,7 @@ struct Layout {
 	int     listItem[MAX_LIST_SLOTS];	/* control index of each window slot, or -1 */
 	int     freeCtl[MAX_FREE];		/* control index of each free button, or -1 */
 	int     defaultFocus;			/* where focus lands when the page is shown, or -1 */
+	char    cut[MAX_LIST_SLOTS][STD_CUT_LEN];	/* the cut names of an explorer list (Control::text points here) */
 };
 
 /* Returns the number of controls, or -1 if the page does not fit the fixed arrays or has a
@@ -407,6 +449,54 @@ void listTurn(ListState &s, int delta, bool wrap);
  * window, the window scrolls by one item to keep it in. Returns true when the window moved. */
 bool listScroll(ListState &s, int delta);
 
+/*  The letter strip and the scroll thumb (DENSITY_EXPLORER)
+ *
+ * Cell 0 is "#" (a name that starts with anything but a letter), cells 1-26 are A-Z. A name's cell
+ * is its first character, upper-cased (ASCII only); "", "." and ".." (the up row) have none (-1). */
+const int STRIP_CELLS = 27;
+typedef const char *(*NameFn)(void *ctx, int index);	/* the name of item index; may return NULL */
+
+int stripLetter(const char *name);				/* the cell of a name, -1 for none */
+char stripChar(int cell);						/* '#', 'A'..'Z' */
+unsigned stripMask(int count, NameFn name, void *ctx);	/* bit k set when some name has cell k */
+/* The first item of cell k in list order (-1 when none). In a list that is sorted by name this is
+ * the letter's first row; a list that puts folders first has a run of folders, then of files. */
+int stripFirst(int count, NameFn name, void *ctx, int cell);
+/* The next cell with items after cur (dir +1) or before it (dir -1); -1 at the end. cur -1 (nothing
+ * lit) starts from the edge. No wrap. */
+int stripStep(unsigned mask, int cur, int dir);
+/* Cell k's box: x, y, w, h (y and h are the strip's). Cells never touch (STD_STRIP_GAP) and lie inside
+ * STD_STRIP_X0..STD_STRIP_X1. The cell under a point, or -1: the gap belongs to the cell before it. */
+void stripCell(int k, int *x, int *w);
+int stripHit(int x, int y);
+
+/* The scroll thumb between track ends y0 and y1: it is drawn by page (top / slots), so a drag maps back
+ * exactly. live is false when everything fits (the thumb then fills the track). */
+struct Thumb { int y, h; bool live; };
+Thumb scrollThumb(const ListState &s, int y0, int y1);
+/* The page whose thumb is nearest to a thumb top at thumbY (a drag: pointer y minus where it grabbed). */
+int scrollDragPage(const ListState &s, int y0, int y1, int thumbY);
+
+/* The facts strip (STD_FACTS_*): the panel, the title line and six fact cells (0-2 the first column,
+ * 3-5 the second). Every y is a text top; keyR is the key's right edge, valX the value's left edge,
+ * valRoom the width the value may take. Pure numbers: the frame draws. */
+struct FactsCell { int keyR, valX, y, valRoom; };
+struct FactsBox {
+	int x0, y0, x1, y1;				/* the panel */
+	int titleX, titleY, titleRoom;	/* the title line's left, top and room */
+	FactsCell cell[STD_FACTS_N];
+};
+void factsLayout(FactsBox &out);
+/* `text` cut with "..." to room px at scale (the text itself when it fits; else buf, bufSize bytes). */
+const char *fitText(const Metrics &m, const char *text, float scale, int room, char *buf, int bufSize);
+
+/* The explorer's count text: "42 games, A-Z", "3 folders, 6 games, folders first", on Recent
+ * "9 games, newest first" and, with a letter filter on (filterCell >= 0), "3 games, C". Too wide
+ * for room: the hint goes, then the text is cut with "...". `hint` is a COUNT_HINT_*. */
+enum { COUNT_HINT_NONE, COUNT_HINT_AZ, COUNT_HINT_FOLDERS, COUNT_HINT_NEWEST };
+void countText(const Metrics &m, float scale, int room, int folders, int games, int hint, int filterCell,
+               char *out, int size);
+
 /* Tabs. The shoulder buttons (menu::glue::tabShoulder) turn the tabs of every tabbed screen:
  * delta -1 or +1 from tab cur of n. wrap: past the last tab is the first (the TabWrap setting);
  * without it the ends stop. Returns the new tab, or cur when there is none to go to. */
@@ -416,13 +506,53 @@ int tabStep(int cur, int n, int delta, bool wrap);
  * even width (Button::fitToLabel). An empty label keeps the choice width. */
 int buttonFitWidth(const Metrics &m, const char *text);
 
+/*  Widths of the standard (Docs/MENU_PLAN.md 1.2: "widths come from the text")
+ *
+ * No page types a width. Each width is the measured text (the menu font, scale 1) plus a padding,
+ * rounded up to a multiple of STD_STEP (8). An empty text measures 0. */
+
+/* text + pad, rounded up to a multiple of 8. */
+int stdStepWidth(const Metrics &m, const char *text, int pad);
+
+/* A separate button (an action, a flag, a sub-page button): text + 32. */
+int stdButtonWidth(const Metrics &m, const char *text);
+
+/* The segments of one choice (they touch). Writes n widths to out and returns their sum.
+ * Equal widths, the widest text + 32, when n of them fit in `room`; otherwise each segment its own
+ * text + 16. The sum may still exceed room: that is a layout error the caller reports (a row that
+ * does not fit is never squeezed). `equal` (may be NULL) is set to whether the equal rule was used. */
+int stdSegmentWidths(const Metrics &m, const char *const *names, int n, int room, int *out, bool *equal);
+
+/* A tab strip's widths (n values to out; returns the strip's total width with the gaps). Equal widths,
+ * the widest text + 16 rounded up to 8 (STD_TAB_PAD), when the strip fits between the screen margins;
+ * otherwise each tab its own text + 16 (STD_TAB_PAD_OWN). The gap between tabs is STD_TAB_GAP. */
+int stdTabWidths(const Metrics &m, const Tab *tabs, int n, int *out);
+
+/*  Footer help
+ *
+ * The help of the focused row (page.footer[row]): up to STD_HELP_LINES lines of STD_HELP_PX px text,
+ * left-aligned at STD_HELP_X0, from STD_HELP_Y0 down, STD_HELP_DY apart. Writes the lines to out
+ * (ROLE_FOOTER texts, ALIGN_LEFT_TOP, not part of any Layout) and returns how many (0 when the page has
+ * no footer or the row no help). -1 when a line is wider than STD_HELP_X1 - STD_HELP_X0. The caller
+ * draws them for the focused row only, and clears them when focus leaves. */
+int layoutFooter(const Page &page, const Metrics &m, int row, Control out[STD_HELP_LINES]);
+
+/* The number of rows of a standard page whose footer help is invalid (too wide); 0 = all fit. */
+int checkFooters(const Page &page, const Metrics &m);
+
 enum ProblemKind {
 	PROB_OVERLAP,		/* two shown controls share a pixel */
 	PROB_IN_LOGO,		/* a control reaches the logo's box */
 	PROB_PAST_EDGE,		/* a control comes within MENU_EDGE of an edge, or is off screen */
 	PROB_TEXT_WIDE,		/* a button's label is wider than the button */
 	PROB_UNREACHABLE,	/* a focusable control cannot be reached from the default focus */
-	PROB_BAD_LINK		/* a link points at a control that is not focusable */
+	PROB_BAD_LINK,		/* a link points at a control that is not focusable */
+	/* Standard pages only (Page::standard != DENSITY_OFF); the old checks above apply to every page,
+	 * except IN_LOGO, which uses the standard's own box there. */
+	PROB_LABEL_WIDE,	/* a label is wider than STD_LABEL_MAX_W (224 px) */
+	PROB_PAST_RIGHT,	/* a body control reaches past x STD_CTRL_X1 (616) */
+	PROB_IN_STD_LOGO,	/* a control enters the standard's logo box (STD_LOGO_*) */
+	PROB_BTN_TOUCH		/* two action buttons, or an action and a segment, closer than STD_BTN_GAP */
 };
 
 struct Problem {

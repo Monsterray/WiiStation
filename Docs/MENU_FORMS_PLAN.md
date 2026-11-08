@@ -1,0 +1,105 @@
+# Menu forms plan: every page from six general forms (draft, 2026-11-07)
+
+Why: the engine (MenuEngine: pure layout, host-tested) is sound, but every frame rebuilds the same 200-300 lines of
+adapter around it by hand (button index maps, widget pools, focus links, footer, pad polling, draw loop), and several
+tables must stay in step with nothing checking them. Pages are made from a handful of general forms; the code
+should say so. Sources: `.runs/notes/MENU_FRAMEWORK_AUDIT.md` (first audit) and the page-by-page audit below
+(both read-only reviews of this worktree, 2026-11-07; line numbers are this worktree's).
+
+## 1. Every page today
+
+| Page | File (lines) | Body | On the engine? | Input |
+|---|---|---|---|---|
+| Main | MainFrame.cpp (428) | 7 action rows, controller status | rows, hand geometry | engine; Play Game has its own draw loop and pad reads (301-310) |
+| Current ISO | CurrentRomFrame.cpp (402) | 10 actions in 2 columns, Slot cycle | declarative table (70-82) | engine |
+| Settings: System, Video, Input, Audio, Saves | SettingsFrame.cpp (1968) | sub-page buttons, choice, flags, cycle, actions; help line | standard; rows name buttons by index (590-683), values written by position (541-583), 91 buttons made at start, 178 `Func_` | engine + shoulder keys |
+| Advanced CPU/GPU/SPU/CD/Input, Adv Sound, Adv Graphics, Memory, Achievements settings, ISO Info | OptionsFrame.cpp (1133) | cycle/radio/readout/action rows | declarative `OptRow` bound to setting keys; 4 pages still on the old grid | engine |
+| Explorer (Load ISO, Swap CD) | FileBrowserFrame.cpp (2137) + LoadRomFrame.cpp (210) | source tabs, path, letter strip, list, facts strip, cover | list on the engine; Func_Select1..8 copies | own polling: Z, L/R, C stick, pointer, thumb (1214-1380) |
+| Account picker | AccountFrame.cpp (263) | titled list | list; acPick0..7 copies | own L/R polling |
+| Achievements book + detail | AchievementsFrame.cpp (965) | custom full-screen drawing | no | libgui focus + own pointer |
+| Players + Mii Edit | PlayersFrame.cpp (769) | card board | no | own L/R/+/-, A+B drag |
+| Configure Input | ConfigureInputFrame.cpp (717) | 2 port columns | free buttons, 46 copied `Func_` | engine geometry |
+| Configure Buttons | ConfigureButtonsFrame.cpp (1171) | pad picture + mapping buttons | free buttons; **layout runs every frame** (652-663) | engine |
+| Customize Co-Op | CustomizeCoopFrame.cpp (295) | presets + picture | free buttons | engine |
+| USB Pad Test | UsbPadTestFrame.cpp (632) | step wizard over a pad picture | no; raw drawing | own |
+| Dialogs (Quit, Credits, notices) | libgui MessageBox | text + Yes/No | no; nested loops, 77 callers | own loop |
+| Toasts | ach_toast.c, fadeMessage | overlay | not a page | - |
+
+## 2. The six forms
+
+| Form | What a page author writes | What the form owns | Pages |
+|---|---|---|---|
+| **Form** (presets: tabbed, titled, readout, action menu) | a table: `FORM("Advanced Sound", DENSITY_REGULAR) { ROW_SET("CpuSpeed"), ROW_INFO("MEM1", infoMem1), ROW_ACTIONS(ACT("Save", saveCfg)) }` | layout once per show, widget pool, labels, help line from the setting's own help text, focus, L/R tabs, B back, drawing | Settings x5, Advanced x5, the 4 titled pages, ISO Info, Memory; Main and Current ISO with fixed geometry (look kept) |
+| **List** | `LIST(tabs or title, items, onPick(index), onBack)` | list window, paging, arrows, scroll thumb, cut names | explorer, Account |
+| **Editor** | a table of free buttons `{id, text, rect}`, `drawPicture()` | focus by geometry, pool, click by id, relayout only on change | Configure Buttons, Configure Input, Co-Op |
+| **Board** | `draw(gfx)`, `onInput(input)` | one input step, hint line, shared fill/text helpers (copied in two frames today) | Achievements book, Players, USB Pad Test |
+| **Dialog** | `dialogAsk(text, onYes)`, `dialogNote(text)` | modal on top of the page, no nested loop | Quit, Credits, every MessageBox |
+| **Toast** | `toastPush(style, text)` | one queue | unlock toasts, Save Block notices |
+
+Escape hatches, kept on purpose: a custom row for two-setting rows (Sync, Memcard Type); page enter/leave hooks
+(the CPU/plugin choice); List hooks for the explorer's letter strip, facts strip and Z sort; Editor pages keep their
+picture drawing; Board pages are custom by design.
+
+## 3. The shared code
+
+| Piece | What it replaces |
+|---|---|
+| `MenuPageView` (glue): pool, labels, help line, focus links, draw loop for any Form or List | the adapter each frame writes by hand |
+| click context: `Button` calls `fn(void *ctx, int tag)` | acPick0..7, Func_Select1..8, the copied CI functions, most of Settings' 178 handlers, button index maps |
+| `glue::input()`: all pads read once per frame into one struct (direction, A, B, shoulders, page keys, pointer, C stick, Z) | 6 frames' own pad polling |
+| page tables in `Gamecube/menu/pages/*.h`, compiled by both the Wii build and the host test | the test's copies of the tables (they can drift) |
+| rows bound by setting key (`ROW_SET("CpuSpeed")`): label, choices and help come from the settings table | index-coupled rows, separate help arrays |
+| `glue::logProblems` | two copied debug logs |
+
+Expected sizes: Account 263 -> ~80, Settings 1968 -> ~600, Options 1133 -> ~450, Configure Input 717 -> ~350,
+explorer 2137 -> ~1700 (data and file reading split out), Main/Current ISO/Book/Players -60..-100 each.
+
+**Performance rules** (the menu already costs +26-31% CPU per frame on a real Wii; this work must not add to it):
+layout once per page show or value change, never per frame (this also fixes Configure Buttons); widgets from a pool
+made once, never new/delete on show; no text formatting per frame (the help line only when the focused row changes);
+pads read once per frame; drawing stays the existing GX path; add a text-width cache (each centered label allocates
+twice per draw today). Each step measures the menu's CPU on the bench Wii before and after.
+
+## 4. Steps (each one ships and is proved by one Dolphin walk + one contact sheet)
+
+"=" means the look must not change: `wsx.sh frames` must show 0 differing frames against the step before.
+
+| # | Step | Deletes | Proof |
+|---|---|---|---|
+| 1 | Baseline: one walk over every page (frame dumps kept), menu CPU per page on the bench Wii, host test run by `wsx.sh build` | - | the baseline sheet |
+| 2 | = Page tables into shared headers; the host test includes them | the test's copies | host test, 0 frames |
+| 3 | = Click context, `MenuPageView`, `glue::input()`; Account first | acPick*, acButtonOf, Account's polling | 0 frames on Account + explorer |
+| 4 | = Options onto the page view, all 10 pages | OptWidget, its footer code, the debug log copy | 0 frames on every Options page |
+| 5 | = Rows bound by setting key; Settings tab by tab; `menuclick` kept working (see question 46) | most `Func_`, index rows, the 91 buttons made at start | 0 frames on the 5 tabs + menuclick scripts |
+| 6 | = Main and Current ISO as fixed-geometry Forms; Play Game's loop out of the menu file | hand geometry | 0 frames |
+| 7 | = Explorer on List with its hooks; LoadRomFrame folded in | the 1214-1380 polling | 0 frames on the explorer walks |
+| 8 | **Look change (approved):** Adv Sound, Adv Graphics, Memory, Achievements settings onto the standard; ISO Info with the disc band (I4) | the old grid fields they use | before/after sheet |
+| 9 | = Configure Buttons lays out on change only; then Editor for the 3 picture pages; then G2's top (look change) | per-frame layout, copied functions | 0 frames, then a sheet for G2 |
+| 10 | = Board helpers + input for the book, Players, USB Pad Test; then the book polish (look change) | copied helpers, own polling | 0 frames, then a sheet |
+| 11 | Engine-owned Dialog (riskiest: nested loops and 77 callers) | MessageBox loops | 0 frames on Quit and notices |
+| 12 | Delete the unused old-grid fields; build pages on first open if memory is worth it | old `grid::` path | host test, 0 frames |
+
+Work method (from the token log): the main session writes the code directly; agents only for long Dolphin runs and
+wide read-only reviews. One step per commit on `try/menu-standard`.
+
+## 5. Monty's answers (2026-11-07)
+- 45: Main and Current ISO get their own form (an action menu with the new disc picture), not a fixed-geometry
+  escape in Form. So seven forms: Form, ActionMenu, List, Editor, Board, Dialog, Toast.
+- 46: `menuclick` by button number goes; scripts move to a new, better method (by setting key and choice, e.g.
+  `menuclick FPS 1`, and by page/action name for actions). Update every script in scripts/autoinput and .runs inputs.
+- 47: USB Pad Test is an Editor (pad picture + its step text), not a Board.
+- 48: Configure Input is an Editor. Rule: base forms exist so no page is forced into a form that does not fit.
+- 49: open (see the session's answer: keep the blocking `askMessage` API, rebuild its inside on the shared input and
+  draw, so the 77 callers do not change).
+- 50: the Range row (- value +) is built when first needed; the first user is the DSP master volume.
+
+## 6. Progress (2026-11-07)
+- Step 1: `wsx.sh build` runs the host tests first (`WSX_NO_HOSTTEST=1` skips); `scripts/menu_pages_walk.sh TAG A.dol [B.dol]` photographs
+  (or compares) every page, frames kept in `.runs/menu_TAG_pN`. Menu CPU per page on the bench Wii: NOT done, no lab mode measures it yet
+  (a new run mode goes to the dev Wii first).
+- Step 2 (Options half): the Options tables live in `Gamecube/menu/pages/OptionsPages.h`, included by OptionsFrame.cpp and by
+  `tests/menu_pages_test.cpp` (hooks stubbed; checks ids, titles, tabs, return targets, row/footer counts, keys). Footer length against
+  rows is a static_assert. The old copies in tests/menu_engine_test.cpp still pin the Settings tabs and three Options pages for layout;
+  the Settings tables move with step 5 (they are index-coupled to FRAME_BUTTONS and cannot be shared before that).
+- Step 3 (Account) and step 4: `glue::ListView` (Account), `glue::PageView` (MenuPageView.h/.cpp: title, tabs, row widgets, help,
+  footer, click context, layout owner). OptionsFrame.cpp 1133 -> ~540 lines with the tables in the header.

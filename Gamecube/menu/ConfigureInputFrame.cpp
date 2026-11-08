@@ -266,13 +266,19 @@ static void layoutTables(void)
 	ciTextBoxes[0].y = CI_ROW_Y(0) + CI_ROW_H / 2;
 }
 
+static menu::glue::Pool *ciPool;	/* the buttons, keyed (ROLE_FREE, -1, ciButtons index) */
+
 ConfigureInputFrame::ConfigureInputFrame()
 {
 	layoutTables();
+	/* made, given their click and return functions, added and put in the Cursor with the table's box */
+	ciPool = new menu::glue::Pool(this, NUM_FRAME_BUTTONS);
 	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
-		ciButtons[i].button = new menu::Button(ciButtons[i].buttonStyle, &ciButtons[i].buttonString,
+		ciButtons[i].button = ciPool->button(menu::engine::ROLE_FREE, -1, i,
+										ciButtons[i].buttonStyle, &ciButtons[i].buttonString,
 										ciButtons[i].x, ciButtons[i].y,
-										ciButtons[i].width, ciButtons[i].height);
+										ciButtons[i].width, ciButtons[i].height,
+										ciButtons[i].clickedFunc, ciButtons[i].returnFunc);
 
 	/* A style-A button makes itself 56 high whatever it is given: every one gets its own
 	 * bounds back. Automatic and Manual take their width from their label, as the Settings
@@ -294,16 +300,11 @@ ConfigureInputFrame::ConfigureInputFrame()
 		}
 	}
 
-	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
-	{
-		ciButtons[i].button->setActive(true);
-		if (ciButtons[i].clickedFunc) ciButtons[i].button->setClicked(ciButtons[i].clickedFunc);
-		if (ciButtons[i].returnFunc) ciButtons[i].button->setReturn(ciButtons[i].returnFunc);
-		add(ciButtons[i].button);
-		menu::Cursor::getInstance().addComponent(this, ciButtons[i].button, ciButtons[i].x,
+	/* the two fitted buttons' Cursor boxes are the fitted rectangles */
+	for (int i = 0; i < 2; i++)
+		menu::Cursor::getInstance().moveComponent(this, ciButtons[i].button, ciButtons[i].x,
 												ciButtons[i].x+ciButtons[i].width, ciButtons[i].y,
 												ciButtons[i].y+ciButtons[i].height);
-	}
 
 	for (int i = 0; i < NUM_FRAME_TEXTBOXES; i++)
 	{
@@ -323,12 +324,8 @@ ConfigureInputFrame::~ConfigureInputFrame()
 {
 	for (int i = 0; i < NUM_FRAME_TEXTBOXES; i++)
 		delete ciTextBoxes[i].textBox;
-	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
-	{
-		menu::Cursor::getInstance().removeComponent(this, ciButtons[i].button);
-		delete ciButtons[i].button;
-	}
-
+	delete ciPool;	/* takes the buttons out of the Cursor and deletes them */
+	ciPool = NULL;
 }
 
 /*  The page, on the engine (Docs/MENU_PLAN.md, step 5)  */
@@ -377,6 +374,8 @@ static eng::Layout     CI_LAYOUT;
 /* The button drawn for a layout control. */
 static menu::Button *ciButtonOf(const eng::Control &c)
 {
+	if (c.role != eng::ROLE_FREE)
+		return NULL;
 	return ciButtons[CI_FREE_ID[c.slot]].button;
 }
 
@@ -460,13 +459,13 @@ static void layoutState(void)
 		{
 			menu::Button *b = ciButtons[CI_FREE_ID[ctl.slot]].button;
 			b->setBounds(ctl.rect.x, ctl.rect.y, ctl.rect.w, ctl.rect.h);
-			menu::glue::linkFocus(b, CI_LAYOUT, ctl, ciButtonOf);
 		}
 		else if (ctl.role == eng::ROLE_FREE_TEXT)
 		{
 			ciTextBoxes[CI_TEXT_ID[ctl.slot]].textBox->setPosition(ctl.ax, ctl.ay);
 		}
 	}
+	ciPool->link(CI_LAYOUT, ciButtonOf, true);	/* the engine's focus links, on every drawn button */
 	for (int t = 0; t < NUM_FRAME_TEXTBOXES; t++)
 		ciTextBoxes[t].textBox->setVisible(ciTextShown[t]);
 }

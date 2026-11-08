@@ -30,7 +30,7 @@ extern "C" {
 extern MenuContext *pMenuContext;
 
 bool writePlayers(void);   /* GamecubeMain.cpp: players.ini */
-void fileBrowserFrame_OpenAccounts(const char *key, const char *mii);
+void accountFrame_Open(const char *key, const char *mii);   /* AccountFrame.cpp */
 
 namespace {
 
@@ -525,9 +525,9 @@ menu::Component *PlayersBoard::updateEdit(int direction, bool a, bool b)
 	int mii = players_find(editKey);
 	if (!a || mii < 0)
 		return this;
-	if (editRow == 0) {   /* the accounts, in the file browser; it comes back here */
-		pMenuContext->setActiveFrame(MenuContext::FRAME_FILEBROWSER, FileBrowserFrame::FILEBROWSER_ACCOUNT);
-		fileBrowserFrame_OpenAccounts(editKey, players_get(mii)->name);
+	if (editRow == 0) {   /* the accounts, on their own list page; it comes back here */
+		pMenuContext->setActiveFrame(MenuContext::FRAME_ACCOUNT, 0);
+		accountFrame_Open(editKey, players_get(mii)->name);
 	} else if (editRow == 1 && *players_account(editKey) && seatOf(mii) >= 0 && players_seat_active(seatOf(mii)))
 		snprintf(playersOfficial, sizeof playersOfficial, "%s", editKey);
 	return this;

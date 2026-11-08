@@ -99,6 +99,12 @@ void Func_DitheringAlways();
 void Func_ScalingNone();
 void Func_Scaling2xSai();
 void Func_ForceNTSC();
+void Func_ScreenMode43();
+void Func_ScreenMode169();
+void Func_ScreenModeForce169();
+void Func_FiltersOff();
+void Func_FiltersNear();
+void Func_FiltersBilinear();
 
 void Func_ConfigureInput();
 void Func_ConfigureButtons();
@@ -181,7 +187,7 @@ void setSpuInterpolation(int spuInterpolation);
 void setSpuTempo(int soundTempo);
 }
 
-#define NUM_FRAME_BUTTONS 85
+#define NUM_FRAME_BUTTONS 91
 #define NUM_TAB_BUTTONS 5
 #define FRAME_BUTTONS settingsFrameButtons
 #define FRAME_STRINGS settingsFrameStrings
@@ -192,8 +198,8 @@ void setSpuTempo(int soundTempo);
 The tabs. Each one is a page for the menu engine: its rows are in the tables below, and the
 engine places every button and label. What each row holds:
 
-General:  Advanced, Achievements, Memory; Select BIOS; Boot Through BIOS (and Execute BIOS); Select Language;
-          Save Settings; Load Settings. The CPU core, GPU plugin and Fast Load are on the Advanced pages.
+System:   Advanced, Achievements, Memory; Select BIOS; Boot Through BIOS (and Execute BIOS);
+          Save Settings; Load Settings; Select Language. The CPU core, GPU plugin and Fast Load are on the Advanced pages.
 Video:    Show FPS; FPS Limit; Frame Skip; Screen Mode; Filters; Advanced (Advanced Graphics).
 Input:    Configure Input and Button Mappings; PSX Pad Type; Light Gun; Enable Rumble;
           Save Button Configs; Auto Load Slot.
@@ -206,8 +212,8 @@ Never remove or move an entry of FRAME_BUTTONS. Its index is what a script's "me
 /* The words of the Settings screens that are not a setting's: tab names, action buttons,
  * group labels and the card numbers. A setting's words come from the settings table, by
  * refreshButton. Indexes are FRAME_STRINGS[n] in FRAME_BUTTONS and the rows below. */
-static char FRAME_STRINGS[37][24] =
-	{ "General",
+static char FRAME_STRINGS[38][24] =
+	{ "System",
 	  "Video",
 	  "Input",
 	  "Audio",
@@ -228,7 +234,7 @@ static char FRAME_STRINGS[37][24] =
 	  "Always",
 	  "Configure Input",
 	  "Configure Buttons",
-	  "Save Button Configs",
+	  "Save Configs",
 	  "Lightrec",
 	  "Memcard 1",
 	  "Memcard 2",
@@ -243,7 +249,8 @@ static char FRAME_STRINGS[37][24] =
 	  "2",				// saves tab: which card the second button is
 	  "Advanced",		// video tab: the Advanced Graphics page
 	  "Load Settings",
-	  "Achievements"		// general tab: the Achievements page
+	  "Achievements",		// general tab: the Achievements page
+	  "Display"			// video tab: the label of the Interlaced and 240p row
 	  };
 
 
@@ -379,7 +386,7 @@ struct ButtonInfo
 	{	NULL,	BTN_A_NRM,	NULL,			Func_CardType2,			Func_ReturnFromSettingsFrame }, // Memcard 2 type: Off/Shared/Game
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[34],	Func_AdvGfxPage,		Func_ReturnFromSettingsFrame }, // Video tab: Advanced Graphics page
 	//Input tab: the third controller type (button 79), appended so no index moves
-	{	NULL,	BTN_A_SEL,	NULL,				Func_PsxTypeStickDpad,	Func_ReturnFromSettingsFrame, "ControllerType", CONTROLLERTYPE_STICKDPAD }, // PSX Pad Type: Stick D-pad
+	{	NULL,	BTN_A_SEL,	NULL,				Func_PsxTypeStickDpad,	Func_ReturnFromSettingsFrame, "ControllerType", CONTROLLERTYPE_STICKDPAD }, // PSX Pad Type: Stick Pad
 	//General tab: Load Settings (buttons 80..82), beside Save Settings, appended so no index moves
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[9],	Func_LoadSettingsSD,	Func_ReturnFromSettingsFrame }, // Load Settings: SD
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[10],	Func_LoadSettingsUSB,	Func_ReturnFromSettingsFrame }, // Load Settings: USB
@@ -389,7 +396,26 @@ struct ButtonInfo
 	{	NULL,	BTN_A_NRM,	(char*)"Test USB Pad",	Func_UsbPadTest,	Func_ReturnFromSettingsFrame },
 	//General tab: Achievements (button 84), between Advanced and Memory: the Achievements page
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[36],	Func_AchievementsPage,	Func_ReturnFromSettingsFrame },
+	//Video tab, the standard's segmented rows (buttons 85..90), appended so no index moves.
+	{	NULL,	BTN_A_SEL,	NULL,				Func_ScreenMode43,		Func_ReturnFromSettingsFrame, "ScreenMode", SCREENMODE_4x3 }, // Screen Mode: 4:3
+	{	NULL,	BTN_A_SEL,	NULL,				Func_ScreenMode169,		Func_ReturnFromSettingsFrame, "ScreenMode", SCREENMODE_16x9 }, // Screen Mode: 16:9
+	{	NULL,	BTN_A_SEL,	NULL,				Func_ScreenModeForce169,	Func_ReturnFromSettingsFrame, "ScreenMode", SCREENMODE_16x9_PILLARBOX }, // Screen Mode: Force 16:9
+	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[15],	Func_FiltersOff,		Func_ReturnFromSettingsFrame }, // Filters: Off
+	{	NULL,	BTN_A_SEL,	NULL,				Func_FiltersNear,		Func_ReturnFromSettingsFrame, "BilinearFilter", BILINEARFILTER_NEAR }, // Filters: Near
+	{	NULL,	BTN_A_SEL,	NULL,				Func_FiltersBilinear,	Func_ReturnFromSettingsFrame, "BilinearFilter", BILINEARFILTER_ENABLE }, // Filters: Bilinear
 };
+
+/* The tab row's order on screen (Video, Controls, Saves, Audio, System). A tab's number is still its
+ * SUBMENU_* (--page 1..5, menuclick, the FRAME_BUTTONS index); only its place in the row moves. */
+static const int TAB_BUTTON_OF_POS[NUM_TAB_BUTTONS] = { 1, 2, 4, 3, 0 };
+
+static int tabPosOf(int submenu)
+{
+	for (int p = 0; p < NUM_TAB_BUTTONS; p++)
+		if (TAB_BUTTON_OF_POS[p] == submenu)
+			return p;
+	return 0;
+}
 
 /*  The tabs, on the menu engine  */
 
@@ -411,6 +437,8 @@ struct SetRow
 	float			x0;
 	float			gap;
 	int				plain;
+	bool			noLit;		/* a choice row whose segments are actions: none is shown as the current value */
+	const char *const *prefix;	/* small cycles, each after its own text (Memcard Type: "1", "2"), or NULL */
 };
 
 /* One tab, as the engine's page. rowDy 0 means the default pitch (60). prepare sets what the
@@ -424,6 +452,8 @@ struct SetTab
 	void					(*prepare)(void);
 	const eng::FreeText		*freeTexts;
 	int						nFreeTexts;
+	bool					standard;	/* laid out by the menu standard (Regular density) */
+	const eng::FooterHelp	*footer;	/* footer[row]: the help of the focused row (standard tabs), or NULL */
 };
 
 static int rowButtons(const SetRow &s)
@@ -448,38 +478,22 @@ static char					*rowLabelString[eng::MAX_ROWS];
 static menu::TextBox		*rowLabel[eng::MAX_ROWS];
 static char					*freeString[NUM_FREE_TEXTS];
 static menu::TextBox		*freeBox[NUM_FREE_TEXTS];
+static int					footerRow = -1;	/* the row whose help shows; -1 = none (see updateFooter) */
+static char					*footerString[STD_HELP_LINES];
+static menu::TextBox		*footerBox[STD_HELP_LINES];
 
 extern "C" void SysPrintf(const char *fmt, ...);
 
 /* The FRAME_BUTTONS entry a control is drawn with. A tab's control is the tab button itself. */
 static menu::Button *buttonOf(const eng::Control &c)
 {
-	return FRAME_BUTTONS[c.role == eng::ROLE_TAB ? c.slot : setRows[c.row].button[c.slot]].button;
+	return FRAME_BUTTONS[c.role == eng::ROLE_TAB ? TAB_BUTTON_OF_POS[c.slot] : setRows[c.row].button[c.slot]].button;
 }
 
-/* A button at the engine's rectangle, shown. Its lit state comes from the engine. A button the
- * engine does not make a focus target (This Game with no game loaded) is drawn, but inactive. */
-static void placeButton(SettingsFrame *frame, menu::Button *b, const eng::Control &c)
-{
-	b->setBounds(c.rect.x, c.rect.y, c.rect.w, c.rect.h);
-	b->setVisible(true);
-	b->setActive(c.focusable);
-	b->setSelected(c.selected);
-	menu::Cursor::getInstance().moveComponent(frame, b,
-		c.rect.x, c.rect.x + c.rect.w, c.rect.y, c.rect.y + c.rect.h);
-}
-
-/* The engine's focus links, on the buttons. A link of -1 is no link. */
-static void linkButtons(const eng::Layout &lay)
-{
-	for (int i = 0; i < lay.n; i++)
-	{
-		const eng::Control &c = lay.c[i];
-		if (!c.focusable)
-			continue;
-		menu::glue::linkFocus(buttonOf(c), lay, c, buttonOf);
-	}
-}
+/* The buttons, kept by FRAME_BUTTONS index (ROLE_FREE, -1, i); buttonOf resolves a control to one.
+ * A button the engine does not make a focus target (This Game with no game loaded) is drawn by
+ * placeButton, but inactive. */
+static menu::glue::Pool *setPool;
 
 /*  What the buttons show, and which are lit: set before the layout  */
 
@@ -527,115 +541,155 @@ static const char *rowLabelText(const SetRow &s)
 static void prepGeneral(void)
 {
 	SET_ROWS[1].value = biosDevice;
-	SET_ROWS[2].value = LoadCdBios == BOOTTHRUBIOS_YES ? 0 : 1;
-	/* This Game (rows 4 and 5, button 2) is drawn always, and inactive with no game loaded. */
-	SET_ROWS[4].inactive = SET_ROWS[5].inactive = hasLoadedISO ? 0 : 1u << 2;
+	SET_ROWS[2].value = LoadCdBios == BOOTTHRUBIOS_YES ? 1 : 0;	/* Off, On */
+	/* This Game (rows 3 and 4, button 2) is drawn always, and inactive with no game loaded. */
+	SET_ROWS[3].inactive = SET_ROWS[4].inactive = hasLoadedISO ? 0 : 1u << 2;
 }
 
 static void prepVideo(void)
 {
-	SET_ROWS[0].value = showFPSonScreen == FPS_SHOW ? 0 : 1;
-	SET_ROWS[2].value = frameSkip == FRAMESKIP_ENABLE ? 0 : 1;
-	SET_ACTIONS[1][1].lit = forceNTSC == FORCENTSC_ENABLE;
-	SET_ACTIONS[3][1].lit = interlacedMode == INTERLACED_ENABLE;
-	SET_ACTIONS[3][2].lit = originalMode == ORIGINALMODE_ENABLE;
-	SET_ACTIONS[4][1].lit = trapFilter == TRAPFILTER_ENABLE;
-	SET_ACTIONS[4][2].lit = deflickerFilter == DEFLICKER_ENABLE;
+	SET_ROWS[1].value = screenMode;
+	SET_ACTIONS[2][0].lit = interlacedMode == INTERLACED_ENABLE;
+	SET_ACTIONS[2][1].lit = originalMode == ORIGINALMODE_ENABLE;
+	SET_ACTIONS[3][1].lit = forceNTSC == FORCENTSC_ENABLE;
+	SET_ROWS[4].value = bilinearFilter;
+	SET_ACTIONS[4][3].lit = trapFilter == TRAPFILTER_ENABLE;
+	SET_ROWS[5].value = showFPSonScreen == FPS_SHOW ? 1 : 0;	/* Off, On */
 }
 
 static void prepInput(void)
 {
 	SET_ROWS[1].value = controllerType;
-	SET_ROWS[3].value = rumbleEnabled == RUMBLE_ENABLE ? 0 : 1;
-	SET_ACTIONS[2][0].lit = lightGun != LIGHTGUN_DISABLE;
+	SET_ROWS[2].value = rumbleEnabled == RUMBLE_ENABLE ? 1 : 0;	/* Off, On: needs RumbleEnabled's choices = OPT_OFF_ON in GamecubeMain.cpp:363 (today OPT_NO_YES) */
 }
 
 static void prepAudio(void)
 {
 	/* Each source toggle is lit when that source plays. The file keeps the inverted "Disable" keys. */
-	SET_ACTIONS[0][0].lit = audioEnabled == AUDIO_ENABLE;
-	SET_ACTIONS[0][1].lit = Config.Xa != XA_DISABLE;
-	SET_ACTIONS[0][2].lit = Config.Cdda != CDDA_DISABLE;
-	SET_ROWS[2].value = soundHwAccel == SOUND_HW_ACCEL_ON ? 0 : 1;
-	SET_ROWS[3].value = soundRateControl ? 2 : (soundTempo ? 1 : 0);
+	SET_ACTIONS[1][0].lit = audioEnabled == AUDIO_ENABLE;
+	SET_ACTIONS[1][1].lit = Config.Xa != XA_DISABLE;
+	SET_ACTIONS[1][2].lit = Config.Cdda != CDDA_DISABLE;
+	SET_ROWS[2].value = soundRateControl ? 2 : (soundTempo ? 1 : 0);	/* Sync: Off, Tempo, Rate */
+	SET_ROWS[4].value = soundHwAccel == SOUND_HW_ACCEL_ON ? 0 : 1;	/* Sound Driver: DSP, CPU */
 }
 
 static void prepSaves(void)
 {
 	for (int i = 76; i <= 77; i++)
 		FRAME_BUTTONS[i].buttonString = (char*)cardText(i - 76);
-	for (int k = 0; k < 4; k++)
-		SET_ACTIONS[0][k].lit = nativeSaveDevice == k;
-	SET_ROWS[2].value = autoSave == AUTOSAVE_ENABLE ? 0 : 1;
+	SET_ROWS[0].value = autoSave == AUTOSAVE_ENABLE ? 1 : 0;	/* Off, On: needs AutoSave's choices = OPT_OFF_ON (stored 0/1 as before) */
+	SET_ROWS[1].value = nativeSaveDevice;
 	SET_ROWS[3].value = saveStateDevice == SAVESTATEDEVICE_SD ? 0 : 1;
 }
 
 /*  The rows of each tab, top to bottom  */
 
+/* The System tab is on the menu standard: the engine takes every position and width from the text,
+ * except the language cycle's. The rows are in the display order: Advanced..Memory, Select BIOS,
+ * Boot Through BIOS (and Execute BIOS), Save Settings, Load Settings, Select Language. */
 static const SetRow GEN_ROWS[] =
 {
-	{ eng::ROW_BUTTONS, NULL,            NULL,               { 73, 84, 75, -1 }, { 165, 165, 165, 0 }, 0.0f,   30.0f, 0 },	/* Advanced, Achievements, Memory: the three are 165 wide (Achievements needs 163) and centered */
-	{ eng::ROW_CHOICE,  "BiosDevice",    NULL,               {  7,  8,  9, 10 }, {  70,  55,  70, 70 }, 295.0f, 0.0f,  0 },	/* Select BIOS: HLE, SD, USB, DVD */
-	{ eng::ROW_CHOICE,  "BootThruBios",  NULL,               { 11, 12, 13, -1 }, {  75,  75, 171,  0 }, 295.0f, 0.0f,  1 },	/* Boot Through BIOS: Yes, No, Execute BIOS */
-	{ eng::ROW_BUTTONS, "lang",          NULL,               { 54, -1, -1, -1 }, {  90,   0,   0,  0 }, 295.0f, 0.0f,  0 },	/* Select Language */
-	{ eng::ROW_BUTTONS, NULL,            FRAME_STRINGS[6],   { 14, 15, 62, -1 }, {  55,  70, 140,  0 }, 253.0f, 0.0f,  0 },	/* Save Settings: SD, USB, This Game */
-	{ eng::ROW_BUTTONS, NULL,            FRAME_STRINGS[35],  { 80, 81, 82, -1 }, {  55,  70, 140,  0 }, 253.0f, 0.0f,  0 },	/* Load Settings: SD, USB, This Game */
+	{ eng::ROW_BUTTONS, NULL,            NULL,               { 73, 84, 75, -1 }, {   0,   0,   0,  0 }, 0.0f, 0.0f, 0 },	/* Advanced, Achievements, Memory: separate buttons, centered */
+	{ eng::ROW_CHOICE,  "BiosDevice",    NULL,               {  7,  8,  9, 10 }, {   0,   0,   0,  0 }, 0.0f, 0.0f, 0 },	/* Select BIOS: HLE, SD, USB, DVD */
+	{ eng::ROW_CHOICE,  "BootThruBios",  NULL,               { 12, 11, 13, -1 }, {   0,   0,   0,  0 }, 0.0f, 0.0f, 1 },	/* Boot Through BIOS: Off, On; Execute BIOS (an action) */
+	{ eng::ROW_BUTTONS, NULL,            FRAME_STRINGS[6],   { 14, 15, 62, -1 }, {   0,   0,   0,  0 }, 0.0f, 0.0f, 0 },	/* Save Settings: SD, USB, This Game (actions) */
+	{ eng::ROW_BUTTONS, NULL,            FRAME_STRINGS[35],  { 80, 81, 82, -1 }, {   0,   0,   0,  0 }, 0.0f, 0.0f, 0 },	/* Load Settings: SD, USB, This Game (actions) */
+	{ eng::ROW_BUTTONS, "lang",          NULL,               { 54, -1, -1, -1 }, { 200,   0,   0,  0 }, 0.0f, 0.0f, 0 },	/* Select Language (a cycle) */
 };
 
+static const eng::FooterHelp SYS_FOOTER[] =
+{
+	{ { NULL, NULL } },
+	{ { NULL, NULL } },
+	{ { "Execute BIOS: start the PS1 BIOS shell (memory cards, CD player).", NULL } },
+	{ { NULL, NULL } },
+	{ { NULL, NULL } },
+	{ { NULL, NULL } },
+};
+
+/* The Video and Controls tabs are on the menu standard: the engine takes every position and width
+ * from the text (x0, gap and widths below are not read), except a cycle's width. */
 static const SetRow VID_ROWS[] =
 {
-	{ eng::ROW_CHOICE,  "FPS",           NULL,               { 16, 17, -1, -1 }, {  75,  75,   0,  0 }, 295.0f, 0.0f, 0 },	/* Show FPS: On, Off */
-	{ eng::ROW_BUTTONS, "FrameRate",     NULL,               { 18, 63, -1, -1 }, { 130, 160,   0,  0 }, 295.0f, 0.0f, 0 },	/* Frame Rate (a cycle). Force NTSC (a toggle) */
-	{ eng::ROW_CHOICE,  "SkipFrames",    NULL,               { 20, 21, -1, -1 }, {  75,  75,   0,  0 }, 295.0f, 0.0f, 0 },	/* Frame Skip: On, Off */
-	{ eng::ROW_BUTTONS, "ScreenMode",    NULL,               { 22, 23, 57, -1 }, { 130, 125,  66,  0 }, 295.0f, 0.0f, 0 },	/* Screen Mode (a cycle). Interlaced, 240p (toggles) */
-	{ eng::ROW_BUTTONS, NULL,            FRAME_STRINGS[14],  { 28, 29, 24, -1 }, {  95,  75, 110,  0 }, 295.0f, 0.0f, 0 },	/* Filters: Bilinear (a cycle). Trap, Deflicker (toggles) */
-	{ eng::ROW_BUTTONS, NULL,            NULL,               { 78, -1, -1, -1 }, { 130,   0,   0,  0 }, 0.0f,   0.0f, 0 },	/* Advanced: the Advanced Graphics page */
+	{ eng::ROW_BUTTONS, NULL,            NULL,               { 78, -1, -1, -1 }, {   0,   0,   0,  0 }, 0.0f, 0.0f, 0 },	/* Advanced: the Advanced Graphics page, centered */
+	{ eng::ROW_CHOICE,  "ScreenMode",    NULL,               { 85, 86, 87, -1 }, {   0,   0,   0,  0 }, 0.0f, 0.0f, 0 },	/* Screen Mode: 4:3, 16:9, Force 16:9 */
+	{ eng::ROW_BUTTONS, NULL,            FRAME_STRINGS[37],  { 23, 57, -1, -1 }, {   0,   0,   0,  0 }, 0.0f, 0.0f, 0 },	/* Display: Interlaced, 240p (flags) */
+	{ eng::ROW_BUTTONS, "FrameRate",     NULL,               { 18, 63, -1, -1 }, { 200,   0,   0,  0 }, 0.0f, 0.0f, 0 },	/* Frame Rate (a cycle), Force NTSC (a flag) */
+	{ eng::ROW_CHOICE,  NULL,            FRAME_STRINGS[14],  { 88, 89, 90, 29 }, {   0,   0,   0,  0 }, 0.0f, 0.0f, 1 },	/* Filters: Off, Near, Bilinear; Trap (a flag) */
+	{ eng::ROW_CHOICE,  "FPS",           NULL,               { 17, 16, -1, -1 }, {   0,   0,   0,  0 }, 0.0f, 0.0f, 0 },	/* Show FPS: Off, On */
 };
 
 static const SetRow INP_ROWS[] =
 {
-	{ eng::ROW_BUTTONS, NULL,            NULL,               { 30, 31, -1, -1 }, { 220, 235,   0, 0 }, 85.0f,  15.0f, 0 },	/* Configure Input, Configure Button Mappings */
-	{ eng::ROW_CHOICE,  "ControllerType", NULL,              { 32, 33, 79, -1 }, { 117,  95, 152, 0 }, 252.0f,  0.0f, 0 },	/* PSX Pad Type: Standard, Analog, Stick D-pad; each its word + 12 (auto width), right-aligned clear of the label */
-	{ eng::ROW_BUTTONS, "LightGun",      NULL,               { 59, -1, -1, -1 }, { 135,   0,   0, 0 }, 295.0f,  0.0f, 0 },	/* Light Gun (a cycle, lit when a gun is on); Test USB Pad is on Advanced > Input */
-	{ eng::ROW_CHOICE,  "RumbleEnabled", NULL,               { 34, 35, -1, -1 }, {  75,  75,   0, 0 }, 295.0f,  0.0f, 0 },	/* Enable Rumble: Yes, No */
-	{ eng::ROW_BUTTONS, NULL,            FRAME_STRINGS[21],  { 36, 37, -1, -1 }, {  55,  70,   0, 0 }, 295.0f,  0.0f, 0 },	/* Save Button Configs: SD, USB */
-	{ eng::ROW_BUTTONS, "LoadButtonSlot", NULL,              { 38, -1, -1, -1 }, { 135,   0,   0, 0 }, 295.0f,  0.0f, 0 },	/* Auto Load Slot (an action) */
+	{ eng::ROW_BUTTONS, NULL,            NULL,               { 30, 31, -1, -1 }, {   0,   0,   0, 0 }, 0.0f, 0.0f, 0 },	/* Configure Input, Configure Buttons, centered */
+	{ eng::ROW_CHOICE,  "ControllerType", NULL,              { 32, 33, 79, -1 }, {   0,   0,   0, 0 }, 0.0f, 0.0f, 0 },	/* PSX Pad Type: Standard, Analog, Stick Pad */
+	{ eng::ROW_CHOICE,  "RumbleEnabled", NULL,               { 35, 34, -1, -1 }, {   0,   0,   0, 0 }, 0.0f, 0.0f, 0 },	/* Enable Rumble: Off, On */
+	{ eng::ROW_BUTTONS, "LightGun",      NULL,               { 59, -1, -1, -1 }, { 200,   0,   0, 0 }, 0.0f, 0.0f, 0 },	/* Light Gun (a cycle); Test USB Pad is on Advanced > Input */
+	{ eng::ROW_BUTTONS, "LoadButtonSlot", NULL,              { 38, -1, -1, -1 }, { 200,   0,   0, 0 }, 0.0f, 0.0f, 0 },	/* Auto Load Slot (a cycle) */
+	{ eng::ROW_CHOICE,  NULL,            FRAME_STRINGS[21],  { 36, 37, -1, -1 }, {   0,   0,   0, 0 }, 0.0f, 0.0f, 0, true },	/* Save Button Configs: SD, USB (two segments that touch; actions, so none is lit) */
 };
 
+/* The help under the rows: the focused row's (or, with a tab focused, the first row that has one). */
+static const eng::FooterHelp VID_FOOTER[] =
+{
+	{ { NULL, NULL } },
+	{ { NULL, NULL } },
+	{ { "Interlaced: full height. 240p: half height, no flicker.", NULL } },
+	{ { NULL, NULL } },
+	{ { NULL, NULL } },
+	{ { NULL, NULL } },
+};
+
+static const eng::FooterHelp INP_FOOTER[] =
+{
+	{ { NULL, NULL } },
+	{ { "Analog: a DualShock. Stick Pad: the stick moves the D-pad.", NULL } },
+	{ { NULL, NULL } },
+	{ { NULL, NULL } },
+	{ { NULL, NULL } },
+	{ { NULL, NULL } },
+};
+
+/* The Audio tab is on the menu standard: the engine takes every position and width from the text,
+ * except the Interpolation cycle's. */
 static const SetRow AUD_ROWS[] =
 {
-	{ eng::ROW_BUTTONS, NULL,            FRAME_STRINGS[31],  { 39, 40, 41, -1 }, { 100,  75, 110, 0 }, 295.0f, 0.0f, 0 },	/* Enable: Audio, XA, CDDA (toggles) */
-	{ eng::ROW_BUTTONS, "Interpolation", NULL,               { 45, -1, -1, -1 }, { 170,   0,   0, 0 }, 295.0f, 0.0f, 0 },	/* Interpolation: Simple/Gaussian (an action) */
-	{ eng::ROW_CHOICE,  "SoundDriver",   NULL,               { 67, 68, -1, -1 }, {  75,  75,   0, 0 }, 295.0f, 0.0f, 0 },	/* Sound Driver: DSP, CPU */
-	{ eng::ROW_CHOICE,  NULL,            FRAME_STRINGS[26],  { 69, 70, 71, -1 }, {  75,  90,  75, 0 }, 295.0f, 0.0f, 0 },	/* Sync: Off, Tempo, Rate (two settings: no key); Off and Rate as wide as Sound Driver's */
-	{ eng::ROW_BUTTONS, NULL,            NULL,               { 72, -1, -1, -1 }, { 130,   0,   0, 0 }, 0.0f,   0.0f, 0 },	/* Advanced: the Advanced Sound page */
+	{ eng::ROW_BUTTONS, NULL,            NULL,               { 72, -1, -1, -1 }, {   0,   0,   0, 0 }, 0.0f, 0.0f, 0 },	/* Advanced: the Advanced Sound page, centered */
+	{ eng::ROW_BUTTONS, NULL,            FRAME_STRINGS[31],  { 39, 40, 41, -1 }, {   0,   0,   0, 0 }, 0.0f, 0.0f, 0 },	/* Enable: Audio, XA, CDDA (flags) */
+	{ eng::ROW_CHOICE,  NULL,            FRAME_STRINGS[26],  { 69, 70, 71, -1 }, {   0,   0,   0, 0 }, 0.0f, 0.0f, 0 },	/* Sync: Off, Tempo, Rate (two settings: no key) */
+	{ eng::ROW_BUTTONS, "Interpolation", NULL,               { 45, -1, -1, -1 }, { 200,   0,   0, 0 }, 0.0f, 0.0f, 0 },	/* Interpolation: Simple/Gaussian (a cycle) */
+	{ eng::ROW_CHOICE,  "SoundDriver",   NULL,               { 67, 68, -1, -1 }, {   0,   0,   0, 0 }, 0.0f, 0.0f, 0 },	/* Sound Driver: DSP, CPU */
 };
+
+static const eng::FooterHelp AUD_FOOTER[] =
+{
+	{ { NULL, NULL } },
+	{ { "Audio: all sound. XA: speech and music streams. CDDA: CD music tracks.", NULL } },
+	{ { NULL, NULL } },
+	{ { NULL, NULL } },
+	{ { NULL, NULL } },
+};
+
+/* The Saves tab is on the menu standard too. Memcard Type is two small cycles, one per card, each
+ * after its card number "1" or "2" (the engine's Row::prefix). */
+static const char *const SAV_PREFIX[2] = { FRAME_STRINGS[32], FRAME_STRINGS[33] };
 
 static const SetRow SAV_ROWS[] =
 {
-	{ eng::ROW_BUTTONS, "NativeDevice",  NULL,               { 46, 47, 48, 49 }, { 55, 70, 90, 90 }, 295.0f, 0.0f,  0 },	/* Memcard Save Device: SD, USB, Card A, Card B */
-	{ eng::ROW_BUTTONS, "Memcard0File",  NULL,               { 76, 77, -1, -1 }, { 105, 105, 0, 0 }, 323.0f, 38.0f, 0 },	/* Memcard Type: card 1, card 2 (their text is the card's type) */
-	{ eng::ROW_CHOICE,  "AutoSave",      NULL,               { 50, 51, -1, -1 }, {  75,  75, 0, 0 }, 295.0f, 0.0f,  0 },	/* Auto Save Memcards: Yes, No */
-	{ eng::ROW_CHOICE,  "StatesDevice",  NULL,               { 52, 53, -1, -1 }, {  55,  70, 0, 0 }, 295.0f, 0.0f,  0 },	/* Save State Device: SD, USB */
+	{ eng::ROW_CHOICE,  "AutoSave",      NULL,               { 51, 50, -1, -1 }, { 0, 0, 0, 0 }, 0.0f, 0.0f, 0 },	/* Memcard Autosave: Off, On */
+	{ eng::ROW_CHOICE,  "NativeDevice",  NULL,               { 46, 47, 48, 49 }, { 0, 0, 0, 0 }, 0.0f, 0.0f, 0 },	/* Save Memcards To: SD, USB, CardA, CardB */
+	{ eng::ROW_BUTTONS, "Memcard0File",  NULL,               { 76, 77, -1, -1 }, { 0, 0, 0, 0 }, 0.0f, 0.0f, 0, false, SAV_PREFIX },	/* Memcard Type: card 1, card 2 (their text is the card's type) */
+	{ eng::ROW_CHOICE,  "StatesDevice",  NULL,               { 52, 53, -1, -1 }, { 0, 0, 0, 0 }, 0.0f, 0.0f, 0 },	/* Save States Device: SD, USB */
 };
 
-/* The card numbers "1" and "2": "1" starts at the button column (x 295), then card 1's button after a
- * 10 px gap; "2" follows card 1's button after the same gap, then card 2's button. Widths from the
- * font (menu_text_width.py px): "1" is 18 wide, so its center is 304; "2" is at 438..456, center 447. */
-static const eng::FreeText SAV_FREE[NUM_FREE_TEXTS] =
-{
-	{ FRAME_STRINGS[32], 304.0f, 198.0f, 1.0f, true },
-	{ FRAME_STRINGS[33], 447.0f, 198.0f, 1.0f, true },
-};
-
-/* The five tabs. The Audio and Saves tabs have rows 70 apart. */
+/* The five tabs. */
 static const SetTab SET_PAGES[NUM_TAB_BUTTONS] =
 {
-	{ SettingsFrame::SUBMENU_GENERAL, GEN_ROWS, COUNT(GEN_ROWS), 0.0f,  prepGeneral, NULL,    0 },
-	{ SettingsFrame::SUBMENU_VIDEO,   VID_ROWS, COUNT(VID_ROWS), 0.0f,  prepVideo,   NULL,    0 },
-	{ SettingsFrame::SUBMENU_INPUT,   INP_ROWS, COUNT(INP_ROWS), 0.0f,  prepInput,   NULL,    0 },
-	{ SettingsFrame::SUBMENU_AUDIO,   AUD_ROWS, COUNT(AUD_ROWS), 70.0f, prepAudio,   NULL,    0 },
-	{ SettingsFrame::SUBMENU_SAVES,   SAV_ROWS, COUNT(SAV_ROWS), 70.0f, prepSaves,   SAV_FREE, COUNT(SAV_FREE) },
+	{ SettingsFrame::SUBMENU_GENERAL, GEN_ROWS, COUNT(GEN_ROWS), 0.0f,  prepGeneral, NULL,    0, true, SYS_FOOTER },
+	{ SettingsFrame::SUBMENU_VIDEO,   VID_ROWS, COUNT(VID_ROWS), 0.0f,  prepVideo,   NULL,    0, true, VID_FOOTER },
+	{ SettingsFrame::SUBMENU_INPUT,   INP_ROWS, COUNT(INP_ROWS), 0.0f,  prepInput,   NULL,    0, true, INP_FOOTER },
+	{ SettingsFrame::SUBMENU_AUDIO,   AUD_ROWS, COUNT(AUD_ROWS), 0.0f,  prepAudio,   NULL,    0, true, AUD_FOOTER },
+	{ SettingsFrame::SUBMENU_SAVES,   SAV_ROWS, COUNT(SAV_ROWS), 0.0f,  prepSaves,   NULL,    0, true, NULL },
 };
 
 /*  Laying a tab out  */
@@ -659,7 +713,8 @@ static void layoutTab(SettingsFrame *frame, const SetTab &tab)
 		row.x0      = s.x0;
 		row.gap     = s.gap;
 		row.plain   = s.plain;
-		row.widths  = s.kind == eng::ROW_CHOICE ? s.width : NULL;
+		row.prefix  = s.prefix;
+		row.widths = s.kind == eng::ROW_CHOICE ? s.width : NULL;
 		for (int c = 0; c < 4; c++)
 			SET_ACTIONS[r][c].width = s.width[c];
 	}
@@ -677,12 +732,12 @@ static void layoutTab(SettingsFrame *frame, const SetTab &tab)
 
 	for (int t = 0; t < NUM_TAB_BUTTONS; t++)
 	{
-		SET_TABS[t].text  = FRAME_BUTTONS[t].buttonString;
-		SET_TABS[t].width = settingsTabWidths[t];
+		SET_TABS[t].text  = FRAME_BUTTONS[TAB_BUTTON_OF_POS[t]].buttonString;
+		SET_TABS[t].width = settingsTabWidths[TAB_BUTTON_OF_POS[t]];
 	}
 	SET_PAGE.tabs       = SET_TABS;
 	SET_PAGE.nTabs      = NUM_TAB_BUTTONS;
-	SET_PAGE.curTab     = tab.curTab;
+	SET_PAGE.curTab     = tabPosOf(tab.curTab);
 	SET_PAGE.rows       = SET_ROWS;
 	SET_PAGE.nRows      = tab.nRows;
 	SET_PAGE.logo       = eng::LOGO_SPOT_BOTTOM;	/* MenuContext: FRAME_SETTINGS is in LOGO_BOTTOM_FRAMES */
@@ -690,6 +745,8 @@ static void layoutTab(SettingsFrame *frame, const SetTab &tab)
 	SET_PAGE.labelCx    = 150.0f;	/* the Settings labels: centered at x 150 */
 	SET_PAGE.labelDy    = 28.0f;	/* on the middle of a 56-high row */
 	SET_PAGE.rowDy      = tab.rowDy;
+	SET_PAGE.standard   = tab.standard ? eng::DENSITY_REGULAR : eng::DENSITY_OFF;
+	SET_PAGE.footer     = tab.standard ? tab.footer : NULL;
 	SET_PAGE.freeTexts  = tab.freeTexts;
 	SET_PAGE.nFreeTexts = tab.nFreeTexts;
 
@@ -709,7 +766,14 @@ static void layoutTab(SettingsFrame *frame, const SetTab &tab)
 		case eng::ROLE_TAB:
 		case eng::ROLE_BUTTON:
 		case eng::ROLE_CHOICE:
-			placeButton(frame, buttonOf(c), c);
+			menu::glue::placeButton(frame, buttonOf(c), c, true);
+			/* a cycle shows an arrow at each end (standard tabs only) */
+			if (c.role != eng::ROLE_TAB)
+				buttonOf(c)->setArrows(tab.standard && c.role == eng::ROLE_BUTTON &&
+				                       (FRAME_BUTTONS[tab.rows[c.row].button[c.slot]].value == SETTING_CURRENT ||
+				                        tab.rows[c.row].prefix != NULL));
+			if (c.role != eng::ROLE_TAB && tab.rows[c.row].noLit)
+				buttonOf(c)->setSelected(false);	/* a row of actions: no segment is the current value */
 			break;
 		case eng::ROLE_LABEL:
 		case eng::ROLE_RLABEL:
@@ -717,6 +781,7 @@ static void layoutTab(SettingsFrame *frame, const SetTab &tab)
 			rowLabel[c.row]->setPosition(c.ax, c.ay);
 			rowLabel[c.row]->setVisible(true);
 			break;
+		case eng::ROLE_VALUE:	/* a small cycle's prefix text (slot = the cycle) */
 		case eng::ROLE_FREE_TEXT:
 			freeString[c.slot] = (char*)c.text;
 			freeBox[c.slot]->setPosition(c.ax, c.ay);
@@ -726,26 +791,25 @@ static void layoutTab(SettingsFrame *frame, const SetTab &tab)
 			break;
 		}
 	}
-	linkButtons(SET_LAYOUT);
+	setPool->link(SET_LAYOUT, buttonOf);	/* the engine's focus links, on the buttons */
 }
 SettingsFrame::SettingsFrame()
-		: activeSubmenu(SUBMENU_GENERAL)
+		: activeSubmenu(SUBMENU_VIDEO)
 {
 	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
 		refreshButton(i);
 	for (int c = 0; c < 2; c++)
 		FRAME_BUTTONS[76 + c].buttonString = (char*)cardText(c);
 
+	setPool = new menu::glue::Pool(this, NUM_FRAME_BUTTONS);
 	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
 	{
 		/* The position is the engine's: layoutTab() sets it on each shown button. */
-		FRAME_BUTTONS[i].button = new menu::Button(FRAME_BUTTONS[i].buttonStyle, &FRAME_BUTTONS[i].buttonString,
-										0.0f, 0.0f, 0.0f, 0.0f);
-		FRAME_BUTTONS[i].button->setActive(true);
-		if (FRAME_BUTTONS[i].clickedFunc) FRAME_BUTTONS[i].button->setClicked(FRAME_BUTTONS[i].clickedFunc);
-		if (FRAME_BUTTONS[i].returnFunc) FRAME_BUTTONS[i].button->setReturn(FRAME_BUTTONS[i].returnFunc);
-		add(FRAME_BUTTONS[i].button);
-		menu::Cursor::getInstance().addComponent(this, FRAME_BUTTONS[i].button, 0.0f, 0.0f, 0.0f, 0.0f);
+		FRAME_BUTTONS[i].button = setPool->button(eng::ROLE_FREE, -1, i, BTN_STD,
+										&FRAME_BUTTONS[i].buttonString, 0.0f, 0.0f, 0.0f, 0.0f,
+										FRAME_BUTTONS[i].clickedFunc, FRAME_BUTTONS[i].returnFunc);
+		/* today's art: a choice segment or tab draws the select set, any other button the normal set */
+		FRAME_BUTTONS[i].button->setPlain(FRAME_BUTTONS[i].buttonStyle != BTN_A_SEL);
 	}
 
 	for (int i = 0; i < eng::MAX_ROWS; i++)
@@ -761,10 +825,20 @@ SettingsFrame::SettingsFrame()
 		add(freeBox[i]);
 	}
 
+	for (int i = 0; i < STD_HELP_LINES; i++)
+	{
+		footerString[i] = (char*)"";
+		footerBox[i] = new menu::TextBox(&footerString[i], 0.0f, 0.0f, (float)STD_HELP_PX / eng::grid::FONT_H, false);
+		GXColor helpColor = STD_HELP_COLOR;
+		footerBox[i]->setColor(&helpColor);
+		footerBox[i]->setVisible(false);
+		add(footerBox[i]);
+	}
+
 	setDefaultFocus(FRAME_BUTTONS[0].button);
 	setBackFunc(Func_ReturnFromSettingsFrame);
 	setEnabled(true);
-	activateSubmenu(SUBMENU_GENERAL);
+	activateSubmenu(SUBMENU_VIDEO);
 }
 
 SettingsFrame::~SettingsFrame()
@@ -773,11 +847,10 @@ SettingsFrame::~SettingsFrame()
 		delete rowLabel[i];
 	for (int i = 0; i < NUM_FREE_TEXTS; i++)
 		delete freeBox[i];
-	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
-	{
-		menu::Cursor::getInstance().removeComponent(this, FRAME_BUTTONS[i].button);
-		delete FRAME_BUTTONS[i].button;
-	}
+	for (int i = 0; i < STD_HELP_LINES; i++)
+		delete footerBox[i];
+	delete setPool;
+	setPool = NULL;
 }
 
 void SettingsFrame::activateSubmenu(int submenu)
@@ -795,14 +868,53 @@ void SettingsFrame::activateSubmenu(int submenu)
 		rowLabel[i]->setVisible(false);
 	for (int i = 0; i < NUM_FREE_TEXTS; i++)
 		freeBox[i]->setVisible(false);
+	for (int i = 0; i < STD_HELP_LINES; i++)
+		footerBox[i]->setVisible(false);
 
 	/* The Auto Load Slot's text is set before the Input tab's layout reads it. */
 	if (submenu == SUBMENU_INPUT)
 		Func_SetButtonLoad();
 	layoutTab(this, SET_PAGES[submenu]);
 
-	/* Focus starts on the tab's own button, as it always has. */
+	/* Focus starts on the tab's own button, as it always has; the help starts blank. */
+	footerRow = -1;
 	setDefaultFocus(FRAME_BUTTONS[submenu].button);
+}
+
+/* Shows the footer help of the row that has focus and keeps showing it while nothing has focus (the
+ * pointer left the row): the last row that had focus. With a tab button focused the help is blank, and
+ * it starts blank on a new tab (Monty, 2026-11-07). footerRow is declared with the footer boxes. */
+void SettingsFrame::updateFooter()
+{
+	int row = -1;
+	for (int i = 0; i < SET_LAYOUT.n && row < 0; i++)
+	{
+		const eng::Control &c = SET_LAYOUT.c[i];
+		if ((c.role == eng::ROLE_BUTTON || c.role == eng::ROLE_CHOICE) && buttonOf(c)->getFocus())
+			row = c.row;
+	}
+	if (row >= 0)
+		footerRow = row;
+	else
+	{
+		for (int p = 0; p < NUM_TAB_BUTTONS; p++)
+			if (FRAME_BUTTONS[TAB_BUTTON_OF_POS[p]].button->getFocus())
+				footerRow = -1;
+	}
+	eng::Control out[STD_HELP_LINES];
+	int n = 0;
+	if (SET_PAGE.footer && footerRow >= 0)
+		n = eng::layoutFooter(SET_PAGE, menu::glue::METRICS, footerRow, out);
+	for (int i = 0; i < STD_HELP_LINES; i++)
+	{
+		const bool on = i < n;
+		if (on)
+		{
+			footerString[i] = (char*)out[i].text;
+			footerBox[i]->setPosition(out[i].ax, out[i].ay);
+		}
+		footerBox[i]->setVisible(on);
+	}
 }
 
 void SettingsFrame::drawChildren(menu::Graphics &gfx)
@@ -812,10 +924,13 @@ void SettingsFrame::drawChildren(menu::Graphics &gfx)
 		/* The tab buttons (L / R, and the others menu::glue::tabShoulder reads) turn the tabs, as a
 		 * press of the tab itself does. */
 		{
-			int tab = menu::glue::tabShoulderStep(activeSubmenu, NUM_TAB_BUTTONS);
-			if (tab != activeSubmenu)
-				FRAME_BUTTONS[tab].clickedFunc();
+			int pos = tabPosOf(activeSubmenu);
+			int tab = menu::glue::tabShoulderStep(pos, NUM_TAB_BUTTONS);
+			if (tab != pos)
+				FRAME_BUTTONS[TAB_BUTTON_OF_POS[tab]].clickedFunc();
 		}
+
+		updateFooter();
 
 		//Draw buttons
 		menu::ComponentList::const_iterator iteration;
@@ -1261,6 +1376,18 @@ void Func_ScreenMode()
     refreshButton(22);
 }
 
+static void setScreenModeSeg(int mode, int button)
+{
+	for (int i = 85; i <= 87; i++)
+		FRAME_BUTTONS[i].button->setSelected(false);
+	FRAME_BUTTONS[button].button->setSelected(true);
+	screenMode = mode;
+}
+
+void Func_ScreenMode43()		{ setScreenModeSeg(SCREENMODE_4x3, 85); }
+void Func_ScreenMode169()		{ setScreenModeSeg(SCREENMODE_16x9, 86); }
+void Func_ScreenModeForce169()	{ setScreenModeSeg(SCREENMODE_16x9_PILLARBOX, 87); }
+
 void Func_Screen240p()
 {
 	if(originalMode == ORIGINALMODE_ENABLE)
@@ -1322,6 +1449,24 @@ void Func_BilinearFilter()
         glChgTextureFilter(gTexMovieName);
     }
 }
+
+static void setFilterSeg(int mode, int button)
+{
+	for (int i = 88; i <= 90; i++)
+		FRAME_BUTTONS[i].button->setSelected(false);
+	FRAME_BUTTONS[button].button->setSelected(true);
+	bilinearFilter = mode;
+
+	if (gpuPlugin == OPEN_GX)
+	{
+		extern unsigned int gTexMovieName;
+		glChgTextureFilter(gTexMovieName);
+	}
+}
+
+void Func_FiltersOff()		{ setFilterSeg(BILINEARFILTER_DISABLE, 88); }
+void Func_FiltersNear()		{ setFilterSeg(BILINEARFILTER_NEAR, 89); }
+void Func_FiltersBilinear()	{ setFilterSeg(BILINEARFILTER_ENABLE, 90); }
 
 void Func_TrapFilter()
 {
@@ -1441,7 +1586,7 @@ void Func_ConfigureButtons()
 	pMenuContext->setActiveFrame(MenuContext::FRAME_CONFIGUREBUTTONS,ConfigureButtonsFrame::SUBMENU_PSX_PADNONE);
 }
 
-/* The Controller Type row: buttons 32 (Standard), 33 (Analog) and 79 (Stick D-pad). */
+/* The Controller Type row: buttons 32 (Standard), 33 (Analog) and 79 (Stick Pad). */
 static void selectPsxType(int button, char type)
 {
 	FRAME_BUTTONS[32].button->setSelected(false);

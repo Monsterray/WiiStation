@@ -93,7 +93,6 @@ static const CurrentRomRow CUR_ROW_PLACE[] =
 static const int CUR_ROWS_N = sizeof CUR_ROW_PLACE / sizeof CUR_ROW_PLACE[0];
 
 /* The buttons drawn, and their labels: a Button keeps a pointer to its label */
-static menu::Button *curButton[NUM_FRAME_BUTTONS];
 static char curLabel[NUM_FRAME_BUTTONS][24];
 static char *curLabelPtr[NUM_FRAME_BUTTONS];
 
@@ -116,15 +115,6 @@ static eng::ActionButton CUR_ACTIONS[CUR_ROWS_N][CUR_SLOTS_MAX];
 static eng::Row CUR_ROWS[CUR_ROWS_N];
 static eng::Page CUR_PAGE;
 static eng::Layout CUR_LAYOUT;
-
-/* The CUR_BUTTONS entry at a row and slot of the layout, or -1. */
-static int curButtonAt(int row, int slot)
-{
-	for (int k = 0; k < NUM_FRAME_BUTTONS; k++)
-		if (CUR_BUTTONS[k].row == row && CUR_BUTTONS[k].slot == slot)
-			return k;
-	return -1;
-}
 
 static void layoutCurrentRom(void)
 {
@@ -187,50 +177,28 @@ static void layoutCurrentRom(void)
 #endif
 }
 
-/* The button drawn for a layout control. */
-static menu::Button *curButtonOf(const eng::Control &c)
-{
-	return curButton[curButtonAt(c.row, c.slot)];
-}
-
 CurrentRomFrame::CurrentRomFrame()
 {
 	layoutCurrentRom();
 
 	/* Each button's box, and so its Cursor range, is the engine's rectangle for its place. */
+	pool = new menu::glue::Pool(this, NUM_FRAME_BUTTONS);
 	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
 	{
 		const CurrentRomButton &b = CUR_BUTTONS[i];
 		const eng::Control &c = CUR_LAYOUT.c[CUR_LAYOUT.slot[b.row][b.slot]];
-		curButton[i] = new menu::Button(BTN_A_NRM, &curLabelPtr[i], c.rect.x, c.rect.y, c.rect.w, c.rect.h);
+		pool->button(eng::ROLE_BUTTON, b.row, b.slot, BTN_A_NRM, &curLabelPtr[i], c.rect.x, c.rect.y, c.rect.w, c.rect.h,
+		             b.clicked, Func_ReturnFromCurrentRomFrame);
 	}
-
-	/* The engine's links, handed to the buttons. */
-	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
-	{
-		const CurrentRomButton &b = CUR_BUTTONS[i];
-		const eng::Control &c = CUR_LAYOUT.c[CUR_LAYOUT.slot[b.row][b.slot]];
-		menu::glue::linkFocus(curButton[i], CUR_LAYOUT, c, curButtonOf);
-		curButton[i]->setActive(true);
-		curButton[i]->setClicked(b.clicked);
-		curButton[i]->setReturn(Func_ReturnFromCurrentRomFrame);
-		add(curButton[i]);
-		menu::Cursor::getInstance().addComponent(this, curButton[i], c.rect.x,
-												c.rect.x+c.rect.w, c.rect.y,
-												c.rect.y+c.rect.h);
-	}
-	setDefaultFocus(curButton[0]);
+	pool->link(CUR_LAYOUT);	/* the engine's links, handed to the buttons */
+	setDefaultFocus(pool->at(eng::ROLE_BUTTON, CUR_BUTTONS[0].row, CUR_BUTTONS[0].slot));
 	setBackFunc(Func_ReturnFromCurrentRomFrame);
 	setEnabled(true);
 }
 
 CurrentRomFrame::~CurrentRomFrame()
 {
-	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
-	{
-		menu::Cursor::getInstance().removeComponent(this, curButton[i]);
-		delete curButton[i];
-	}
+	delete pool;
 }
 
 extern MenuContext *pMenuContext;
@@ -270,7 +238,7 @@ void Func_ResetROM()
 void Func_SwapCD()
 {
 	//Call Filebrowser with "Swap CD"
-	pMenuContext->setActiveFrame(MenuContext::FRAME_LOADROM,FileBrowserFrame::FILEBROWSER_SWAPCD);
+	explorerOpen(FileBrowserFrame::FILEBROWSER_SWAPCD);
 }
 
 extern "C" char mcd1Written;

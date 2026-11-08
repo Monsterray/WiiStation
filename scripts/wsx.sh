@@ -113,6 +113,16 @@ build)
 		release*) out="Gamecube/WiiSXRX_Release$sfx.dol"; env="LIBOGC=${LIBOGC:-3}" ;;
 		*) echo "build debug|release"; exit 2 ;;
 	esac
+	# The menu's host tests (engine layout, page tables, explorer, covers) run before every build; a failure stops it.
+	# WSX_NO_HOSTTEST=1 skips them.
+	if [ -z "${WSX_NO_HOSTTEST:-}" ]; then
+		sh "$REPO/tests/menu_engine/run.sh" > "$RUNS/hosttest.log" 2>&1
+		hrc=$?
+		if [ $hrc -ne 0 ]; then
+			echo "HOST TESTS FAILED (exit $hrc, WSX_NO_HOSTTEST=1 skips): see $RUNS/hosttest.log"; grep -E "FAIL|fail|error" "$RUNS/hosttest.log" | head -10; exit 1
+		fi
+		echo "host tests: $(grep -cE '0 failed|0 checks failed' "$RUNS/hosttest.log") suites passed"
+	fi
 	before=$(stat -c %Y "$REPO/$out" 2>/dev/null || echo 0)
 	"$DKP_BASH" -lc "cd '$REPO' && $env bash scripts/build.sh $mode" > "$log" 2>&1
 	rc=$?
