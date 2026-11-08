@@ -128,30 +128,34 @@ void placeButton(Frame *frame, Button *b, const engine::Control &c, bool engineS
 		c.rect.x, c.rect.x + c.rect.w, c.rect.y, c.rect.y + c.rect.h);
 }
 
-int tabShoulder(void)
+/* The page keys pressed this frame (a press is a new hold): bits PREV, NEXT, SORT. */
+enum { KEY_PREV = 1, KEY_NEXT = 2, KEY_SORT = 4 };
+static int pageKeys(void)
 {
-	enum { PREV = 1, NEXT = 2, SOURCES = 5 };
-	static int last[4][SOURCES];   /* what each controller held last frame: a press is a new hold */
+	enum { SOURCES = 5 };
+	static int last[4][SOURCES];   /* what each controller held last frame */
 	int press = 0;
 
 	for (int i = 0; i < 4; i++)
 	{
 		int held[SOURCES] = { 0 };
 		u16 gc = PAD_ButtonsHeld(i) | (i == 0 ? menu_script_keys : 0);
-		held[0] = (gc & PAD_TRIGGER_L ? PREV : 0) | (gc & PAD_TRIGGER_R ? NEXT : 0);
+		held[0] = (gc & PAD_TRIGGER_L ? KEY_PREV : 0) | (gc & PAD_TRIGGER_R ? KEY_NEXT : 0) | (gc & PAD_TRIGGER_Z ? KEY_SORT : 0);
 #ifdef HW_RVL
 		{
 			u32 w = Input::getInstance().getWpad()[i].btns_h;
 			u32 u = WUPC_ButtonsHeld(i);
 			u16 h = hidControllerConnected ? ((PADStatus*)HID_MEM2_PAD_BUFF)[i].button : 0;
-			held[1] = (w & (WPAD_BUTTON_MINUS | WPAD_CLASSIC_BUTTON_FULL_L) ? PREV : 0) |
-			          (w & (WPAD_BUTTON_PLUS | WPAD_CLASSIC_BUTTON_FULL_R) ? NEXT : 0);
-			held[2] = (u & WPAD_CLASSIC_BUTTON_FULL_L ? PREV : 0) | (u & WPAD_CLASSIC_BUTTON_FULL_R ? NEXT : 0);
-			held[3] = (h & PAD_TRIGGER_L ? PREV : 0) | (h & PAD_TRIGGER_R ? NEXT : 0);
+			held[1] = (w & (WPAD_BUTTON_MINUS | WPAD_CLASSIC_BUTTON_FULL_L) ? KEY_PREV : 0) |
+			          (w & (WPAD_BUTTON_PLUS | WPAD_CLASSIC_BUTTON_FULL_R) ? KEY_NEXT : 0) |
+			          (w & (WPAD_BUTTON_1 | WPAD_CLASSIC_BUTTON_ZR) ? KEY_SORT : 0);
+			held[2] = (u & WPAD_CLASSIC_BUTTON_FULL_L ? KEY_PREV : 0) | (u & WPAD_CLASSIC_BUTTON_FULL_R ? KEY_NEXT : 0) |
+			          (u & WPAD_CLASSIC_BUTTON_ZR ? KEY_SORT : 0);
+			held[3] = (h & PAD_TRIGGER_L ? KEY_PREV : 0) | (h & PAD_TRIGGER_R ? KEY_NEXT : 0) | (h & PAD_TRIGGER_R1 ? KEY_SORT : 0);
 			if (i == 0)
 			{
 				u16 d = WiiDRC_ButtonsHeld();
-				held[4] = (d & WIIDRC_BUTTON_ZL ? PREV : 0) | (d & WIIDRC_BUTTON_ZR ? NEXT : 0);
+				held[4] = (d & WIIDRC_BUTTON_ZL ? KEY_PREV : 0) | (d & WIIDRC_BUTTON_ZR ? KEY_NEXT : 0);
 			}
 		}
 #endif
@@ -161,7 +165,18 @@ int tabShoulder(void)
 			last[i][s] = held[s];
 		}
 	}
-	return press == PREV ? -1 : press == NEXT ? 1 : 0;
+	return press;
+}
+
+static int turnOf(int keys)
+{
+	keys &= KEY_PREV | KEY_NEXT;
+	return keys == KEY_PREV ? -1 : keys == KEY_NEXT ? 1 : 0;
+}
+
+int tabShoulder(void)
+{
+	return turnOf(pageKeys());
 }
 
 int tabShoulderStep(int cur, int n)
@@ -171,8 +186,10 @@ int tabShoulderStep(int cur, int n)
 
 PageInput readInput(void)
 {
+	const int keys = pageKeys();
 	PageInput in;
-	in.turn = tabShoulder();
+	in.turn = turnOf(keys);
+	in.sort = (keys & KEY_SORT) != 0;
 	return in;
 }
 
@@ -181,11 +198,12 @@ PageInput readInput(void)
 static char emptyText[1] = "";
 
 ListView::ListView(Frame *owner, char *title, ItemFn item, PickFn pick, void *userData, ButtonFunc back)
-	: frame(owner), pool(owner, BUTTONS), itemFn(item), pickFn(pick), user(userData)
+	: frame(owner), pool(owner, BUTTONS + MAX_TABS), st(&own), itemFn(item), pickFn(pick), tabFn(NULL),
+	  prepareFn(NULL), turnFn(NULL), user(userData), backFn(back), nTabs(0)
 {
 	memset(&spec, 0, sizeof spec);
-	state.count = 0; state.slots = SLOTS; state.top = 0; state.focus = -1;
-	spec.state = &state;
+	own.count = 0; own.slots = SLOTS; own.top = 0; own.focus = -1;
+	spec.state = st;
 	spec.mode = engine::LIST_PAGED;
 	spec.prev.text = "^";
 	spec.next.text = "v";
@@ -195,10 +213,10 @@ ListView::ListView(Frame *owner, char *title, ItemFn item, PickFn pick, void *us
 	memset(&page, 0, sizeof page);
 	page.rows = &row;
 	page.nRows = 1;
-	page.logo = engine::LOGO_SPOT_NONE;
+	page.logo = engine::LOGO_SPOT_NONE;		/* the rows and the tabs use the logo's corners */
 	page.focus = engine::FOCUS_ROWS;
 	page.standard = engine::DENSITY_EXPLORER;
-	page.title = title;			/* centered, no tabs */
+	page.title = title;			/* centered; NULL with tabs */
 	spec.item = itemFn;
 	spec.ctx = user;
 
@@ -224,6 +242,35 @@ ListView::~ListView()
 {
 }
 
+void ListView::setTabs(const engine::Tab *tabs, int n, TabFn fn)
+{
+	nTabs = n < MAX_TABS ? n : MAX_TABS;
+	tabFn = fn;
+	page.tabs = tabs;
+	page.nTabs = nTabs;
+	for (int t = 0; t < nTabs; t++)
+	{
+		/* BTN_A_SEL, as the Settings tabs: the current one stays lit. A tab acts on A; moving
+		 * across them only moves the focus. The box comes from the layout (apply). */
+		tabText[t] = (char*)tabs[t].text;
+		tabB[t] = pool.button(engine::ROLE_TAB, -1, t, BTN_A_SEL, &tabText[t], 0.0f, 0.0f, 0.0f, 0.0f, 0, backFn);
+		tabB[t]->setClickedCtx(click, this, BUTTONS + t);
+	}
+	relayout();
+}
+
+void ListView::setHooks(PrepareFn prepare, TurnFn turn)
+{
+	prepareFn = prepare;
+	turnFn = turn;
+}
+
+void ListView::useState(engine::ListState *s)
+{
+	st = s;
+	spec.state = s;
+}
+
 int ListView::control(int i) const
 {
 	if (i == 0) return lay.slot[lay.list][0];
@@ -233,6 +280,8 @@ int ListView::control(int i) const
 
 Button *ListView::buttonOf(const engine::Control &c) const
 {
+	if (c.role == engine::ROLE_TAB)
+		return c.slot >= 0 && c.slot < nTabs ? tabB[c.slot] : NULL;
 	const int id = int(&c - lay.c);
 	for (int i = 0; i < BUTTONS; i++)
 		if (ctl[i] == id)
@@ -240,8 +289,18 @@ Button *ListView::buttonOf(const engine::Control &c) const
 	return NULL;
 }
 
+int ListView::itemRow(const Button *b) const
+{
+	for (int k = 0; k < SLOTS; k++)
+		if (button[2 + k] == b)
+			return k;
+	return -1;
+}
+
 void ListView::layout(void)
 {
+	if (prepareFn)
+		prepareFn(user, page);
 	engine::layoutPage(page, METRICS, lay);
 	engine::linkFocus(page, lay);
 }
@@ -252,18 +311,33 @@ void ListView::link(void) const
 		Focus::DIRECTION_UP, Focus::DIRECTION_DOWN,
 		Focus::DIRECTION_LEFT, Focus::DIRECTION_RIGHT
 	};
-	for (int i = 0; i < BUTTONS; i++)
+	/* every button, shown or not, and the tabs */
+	for (int i = 0; i < BUTTONS + nTabs; i++)
 	{
-		const engine::Control &c = lay.c[ctl[i]];
+		Button *b;
+		const engine::Control *c;
+		if (i < BUTTONS)
+		{
+			b = button[i];
+			c = &lay.c[ctl[i]];
+		}
+		else
+		{
+			const int k = lay.tab[i - BUTTONS];
+			if (k < 0)
+				continue;
+			b = tabB[i - BUTTONS];
+			c = &lay.c[k];
+		}
 		for (int d = 0; d < engine::DIR_COUNT; d++)
 		{
-			const int to = c.link[d];	/* a link of -1 is no link */
-			button[i]->setNextFocus(DIRS[d], to >= 0 ? buttonOf(lay.c[to]) : NULL);
+			const int to = c->link[d];	/* a link of -1 is no link */
+			b->setNextFocus(DIRS[d], to >= 0 ? buttonOf(lay.c[to]) : NULL);
 		}
 	}
 }
 
-/* The layout onto the buttons: boxes, text, active and the focus links. */
+/* The layout onto the buttons: boxes, text, label colour and room, active, and the focus links. */
 void ListView::apply(void)
 {
 	for (int i = 0; i < BUTTONS; i++)
@@ -272,54 +346,97 @@ void ListView::apply(void)
 	{
 		const engine::Control &c = lay.c[ctl[i]];
 		Button *b = button[i];
-		placeButton(frame, b, c, true);
+		placeButton(frame, b, c, true);			/* box, active (a shown item or a live arrow) */
 		if (i < 2)
 			continue;							/* the arrows have no text */
 		if (!c.focusable)
 			b->setVisible(false);				/* a row past the end of the list is not drawn at all */
 		text[i] = (char*)c.text;
-		b->setLabelColor((GXColor) {255,255,255,255});
+		b->clearLabelFocusColor();
+		if (c.dim)
+		{
+			b->setLabelColor((GXColor) {160,160,160,255});		/* Recent: its device is not there */
+			b->setLabelFocusColor((GXColor) {235,210,210,255});	/* on the rose focus bar 160 grey did not read */
+		}
+		else if (c.folder)
+			b->setLabelColor((GXColor) {254,213,95,255});
+		else
+			b->setLabelColor((GXColor) {255,255,255,255});
+		/* the name's room: from textX to textR, so a scrolling name stays left of the tag */
 		b->setLabelScissor(c.full ? (int)(c.textX - c.rect.x) : 0);
 		b->setLabelInsetRight(c.full ? (int)(c.rect.x + c.rect.w - c.textR) : -1);
+	}
+	for (int t = 0; t < nTabs; t++)
+	{
+		const int k = lay.tab[t];
+		if (k >= 0)
+			placeButton(frame, tabB[t], lay.c[k], true);
+		else
+		{	/* no tab for this one (the layout always has them: kept for safety) */
+			tabB[t]->setVisible(false);
+			tabB[t]->setActive(false);
+			Cursor::getInstance().moveComponent(frame, tabB[t], 0.0f, 0.0f, 0.0f, 0.0f);
+		}
 	}
 	link();
 }
 
-void ListView::setCount(int n)
+void ListView::relayout(void)
 {
-	state.count = n;
-	state.top = 0;
-	state.focus = state.top;
 	layout();
 	apply();
-	if (lay.defaultFocus >= 0)
-		if (Button *def = buttonOf(lay.c[lay.defaultFocus]))
-			frame->setDefaultFocus(def);
+}
+
+void ListView::refresh(void)
+{
+	relayout();
+	Button *def = lay.defaultFocus >= 0 ? buttonOf(lay.c[lay.defaultFocus]) : NULL;
+	if (!def && nTabs > 0 && page.curTab >= 0 && page.curTab < nTabs && lay.tab[page.curTab] >= 0)
+		def = tabB[page.curTab];		/* an empty list: the lit tab */
+	if (def)
+		frame->setDefaultFocus(def);
+}
+
+void ListView::setCount(int n)
+{
+	st->count = n;
+	st->top = 0;
+	st->focus = st->top;
+	refresh();
+}
+
+void ListView::turn(int dir, bool wrap)
+{
+	if (turnFn)
+		turnFn(user, dir, wrap);
+	else
+	{
+		engine::listTurn(*st, dir, wrap);
+		st->focus = st->top;
+		relayout();
+	}
 }
 
 void ListView::click(void *self, int tag)
 {
 	ListView *v = (ListView*)self;
-	if (tag >= 2)
-		v->pickFn(v->user, v->state.top + tag - 2);
-	else
+	if (tag >= BUTTONS)
 	{
-		engine::listTurn(v->state, tag ? 1 : -1, false);
-		v->state.focus = v->state.top;
-		v->layout();
-		v->apply();
+		if (v->tabFn)
+			v->tabFn(v->user, tag - BUTTONS);
 	}
+	else if (tag >= 2)
+		v->pickFn(v->user, v->st->top + tag - 2);
+	else
+		v->turn(tag ? 1 : -1, false);
 }
 
-void ListView::update(void)
+PageInput ListView::update(void)
 {
 	const PageInput in = readInput();
-	if (in.turn)
+	if (in.turn && !in.sort)
 	{
-		engine::listTurn(state, in.turn, true);
-		state.focus = state.top;
-		layout();
-		apply();
+		turn(in.turn, true);
 		Focus::getInstance().clearPrimaryFocus();
 	}
 	/* the focused row scrolls its whole name, the others show the cut one */
@@ -328,16 +445,12 @@ void ListView::update(void)
 		const engine::Control &c = lay.c[ctl[i]];
 		text[i] = (char*)(c.full && button[i]->getFocus() ? c.full : c.text);
 	}
+	return in;
 }
 
 void ListView::drawOverlay(Graphics &gfx) const
 {
-	drawExplorerOverlay(gfx, lay, state);
-}
-
-Button *ListView::firstItem(void) const
-{
-	return button[2];
+	drawExplorerOverlay(gfx, lay, *st);
 }
 
 void appendBounded(char *dst, size_t dstSize, const char *src)

@@ -38,11 +38,6 @@ public:
 		FILEBROWSER_SWAPCD
 	};
 
-private:
-	u16 previousButtonsGC[4];
-	u32 previousButtonsWii[4];
-	u32 previousButtonsGCHid[4];
-
 };
 
 void fileBrowserFrame_AutoBootFile();

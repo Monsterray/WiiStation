@@ -36,7 +36,7 @@
 #include "MenuContext.h"
 #include "MenuEngine.h"	/* before Button.h: its include guard is BUTTON_H, a name the engine uses */
 #include "FileBrowserFrame.h"
-#include "LoadRomFrame.h"   /* loadRomUseSource: a Recent row on another device */
+#include "ExplorerSources.h"   /* loadRomUseSource: a Recent row on another device */
 #include "RomInfo.h"
 #include "../libgui/Button.h"
 #include "../libgui/IPLFont.h"
@@ -69,18 +69,8 @@ extern char debugInfo[256];
 
 namespace eng = menu::engine;
 
-void Func_PrevPage();
-void Func_NextPage();
 void Func_ReturnFromFileBrowserFrame();
-void Func_Select1();
-void Func_Select2();
-void Func_Select3();
-void Func_Select4();
-void Func_Select5();
-void Func_Select6();
-void Func_Select7();
-void Func_Select8();
-void Func_LoadFromSD();		/* LoadRomFrame.cpp: the tabs load the sources through these */
+void Func_LoadFromSD();		/* ExplorerSources.cpp: the tabs load the sources through these */
 void Func_LoadFromUSB();
 void Func_LoadFromDVD();
 void Func_LoadFromSamba();
@@ -90,20 +80,12 @@ static void Func_TabDVD();
 static void Func_TabNetwork();
 static void Func_TabRecent();
 
-static const int NUM_FILE_SLOTS = STD_LIST_ROWS;	/* the one row count (MenuLayout.h); Func_Select1..8 must match */
-static_assert(STD_LIST_ROWS == 8, "add or remove Func_SelectN and their button rows");
-static const int NUM_FRAME_BUTTONS = 2 + NUM_FILE_SLOTS;	/* 0 Prev, 1 Next, then the file slots */
+static const int NUM_FILE_SLOTS = STD_LIST_ROWS;	/* the one row count (MenuLayout.h) */
 static const int NUM_TABS = 5;
 
-/* The source the explorer shows: 0 SD, 1 USB, 2 DVD, 3 Network, 4 Recent. Set by LoadRomFrame's
+/* The source the explorer shows: 0 SD, 1 USB, 2 DVD, 3 Network, 4 Recent. Set by ExplorerSources.cpp's
  * Func_LoadFrom*, so the lit tab is always the last source loaded. */
 int explorerSource = 0;
-
-/* The arrows are glyphs the frame draws itself (a 12 px button cannot hold a label): no text. */
-static char fileBrowserStrings[3][5] =
-	{ "",
-	  "",
-	  ""};
 
 /* The directory listing, owned here: dir_entries holds num_entries entries. */
 static fileBrowser_file* dir_entries;
@@ -264,51 +246,19 @@ static void fbInfoReset(void)			/* a new dir_entries */
 		fbInfo = (FbInfo*)calloc(num_entries, sizeof(FbInfo));
 }
 
-/* The buttons: 0 Prev, 1 Next, 2.. the file slots. Their boxes, focus links, text and label
- * colour come from the engine's list layout (FB_LAYOUT), made again whenever the page changes. */
-struct FileBrowserButtonInfo
-{
-	menu::Button	*button;
-	int				buttonStyle;
-	char*			buttonString;
-	ButtonFunc		clickedFunc;
-	ButtonFunc		returnFunc;
-	int				ctl;			/* this button's control in FB_LAYOUT */
-};
-
-static FileBrowserButtonInfo fileBrowserButtons[NUM_FRAME_BUTTONS] =
-{ //	button	buttonStyle		buttonString		clickFunc		returnFunc
-	{	NULL,	BTN_A_NRM,	fileBrowserStrings[0],	Func_PrevPage,	Func_ReturnFromFileBrowserFrame }, // Prev
-	{	NULL,	BTN_A_NRM,	fileBrowserStrings[1],	Func_NextPage,	Func_ReturnFromFileBrowserFrame }, // Next
-	{	NULL,	BTN_A_NRM,	fileBrowserStrings[2],	Func_Select1,	Func_ReturnFromFileBrowserFrame }, // File Button 1
-	{	NULL,	BTN_A_NRM,	fileBrowserStrings[2],	Func_Select2,	Func_ReturnFromFileBrowserFrame }, // File Button 2
-	{	NULL,	BTN_A_NRM,	fileBrowserStrings[2],	Func_Select3,	Func_ReturnFromFileBrowserFrame }, // File Button 3
-	{	NULL,	BTN_A_NRM,	fileBrowserStrings[2],	Func_Select4,	Func_ReturnFromFileBrowserFrame }, // File Button 4
-	{	NULL,	BTN_A_NRM,	fileBrowserStrings[2],	Func_Select5,	Func_ReturnFromFileBrowserFrame }, // File Button 5
-	{	NULL,	BTN_A_NRM,	fileBrowserStrings[2],	Func_Select6,	Func_ReturnFromFileBrowserFrame }, // File Button 6
-	{	NULL,	BTN_A_NRM,	fileBrowserStrings[2],	Func_Select7,	Func_ReturnFromFileBrowserFrame }, // File Button 7
-	{	NULL,	BTN_A_NRM,	fileBrowserStrings[2],	Func_Select8,	Func_ReturnFromFileBrowserFrame }, // File Button 8
-};
-
 /*  The list: the engine's ROW_LIST, paged (Gamecube/menu/MenuEngine.h)  */
 
 static void fileBrowserItem(void *ctx, int index, eng::ListItem &out);
 extern int fileBrowserMode;
+void fileBrowserFrame_FillPage();
+void fileBrowserFrame_LoadFile(int i);
 
-/* The explorer page (DENSITY_EXPLORER): the five source tabs, the path and the item count on one
- * line, STD_LIST_ROWS rows from y 126 and a scroll bar at the right whose ends are the Prev and Next
- * arrows. The engine ignores the ListSpec's own boxes (STD_LIST_*); only its state and item
- * function count. L and R turn the page as they always did. */
+/* The explorer page (DENSITY_EXPLORER), a glue::ListView: the five source tabs, the path and the
+ * item count on one line, STD_LIST_ROWS rows from y 126 and a scroll bar at the right whose ends are
+ * the Prev and Next arrows. The list's state is FB_LIST (the view lays out from it); the page's texts
+ * and lit tab are set before each layout (fbPrepare); a page turn goes through fbTurn. */
+static menu::glue::ListView *fbView;
 static eng::ListState FB_LIST = { 0, NUM_FILE_SLOTS, 0, -1 };
-static eng::ListSpec  FB_SPEC = {
-	&FB_LIST, eng::LIST_PAGED, fileBrowserItem, NULL,
-	0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
-	{ "^", 0.0f, 0.0f, 0.0f, 0.0f },
-	{ "v", 0.0f, 0.0f, 0.0f, 0.0f }
-};
-static eng::Row    FB_ROW;
-static eng::Page   FB_PAGE;
-static eng::Layout FB_LAYOUT;
 
 static const eng::Tab FB_TABS[NUM_TABS] = {
 	{ "SD", 0.0f }, { "USB", 0.0f }, { "DVD", 0.0f }, { "Network", 0.0f }, { "Recent", 0.0f }
@@ -336,24 +286,10 @@ static void cutLeft(char *out, size_t size, const char *s, float scale, int room
 	}
 }
 
-/* The engine's text widths: IplFont, as the other frames use it (CurrentRomFrame.cpp). Set again
- * before every layout: the mode (a Mii's account has a title and no tabs), the lit tab and the
- * count change. */
-static void setupFileBrowserPage(void)
+/* Before every layout: the lit tab, and the path and count line (the count changes with the list). */
+static void fbPrepare(void *, eng::Page &page)
 {
-	memset(&FB_ROW, 0, sizeof FB_ROW);
-	FB_ROW.kind = eng::ROW_LIST;
-	FB_ROW.list = &FB_SPEC;
-	memset(&FB_PAGE, 0, sizeof FB_PAGE);
-	FB_PAGE.rows = &FB_ROW;
-	FB_PAGE.nRows = 1;
-	FB_PAGE.logo = eng::LOGO_SPOT_NONE;		/* the rows and the tabs use the logo's corners */
-	FB_PAGE.focus = eng::FOCUS_ROWS;
-	FB_PAGE.standard = eng::DENSITY_EXPLORER;
-
-	FB_PAGE.tabs = FB_TABS;
-	FB_PAGE.nTabs = NUM_TABS;
-	FB_PAGE.curTab = explorerSource;
+	page.curTab = explorerSource;
 
 	const eng::Metrics &m = menu::glue::METRICS;
 	const float scale = (float)STD_PATH_PX / 24.0f;
@@ -379,108 +315,34 @@ static void setupFileBrowserPage(void)
 	FB_TEXTS[1].text = fbCount;
 	FB_TEXTS[1].ax = (float)STD_COUNT_R;	FB_TEXTS[1].ay = (float)STD_PATH_Y;
 	FB_TEXTS[1].scale = scale;				FB_TEXTS[1].centred = false;	FB_TEXTS[1].right = true;
-	FB_PAGE.freeTexts = FB_TEXTS;
-	FB_PAGE.nFreeTexts = 2;
+	page.freeTexts = FB_TEXTS;
+	page.nFreeTexts = 2;
 }
 
-/* Lays the page out for the list as it is now: once per page turn, never per frame. */
-static void layoutFileBrowser(void)
+/* A page turn (an arrow, or L / R): the list moves and the focus goes past "." and "..". */
+static void fbTurn(void *, int dir, bool wrap)
 {
-	setupFileBrowserPage();
-	eng::layoutPage(FB_PAGE, menu::glue::METRICS, FB_LAYOUT);
-	eng::linkFocus(FB_PAGE, FB_LAYOUT);
+	eng::listTurn(FB_LIST, dir, wrap);
+	fileBrowserFrame_FillPage();
 }
 
-/* The control of fileBrowserButtons[i]: Prev, Next, then the window's items, in slot order. */
-static int fileBrowserControl(int i)
+static void fbPick(void *, int index)
 {
-	if (i == 0) return FB_LAYOUT.slot[FB_LAYOUT.list][0];
-	if (i == 1) return FB_LAYOUT.slot[FB_LAYOUT.list][1];
-	return FB_LAYOUT.listItem[i - 2];
+	fileBrowserFrame_LoadFile(index);
 }
 
-static menu::glue::Pool *fbPool;	/* the frame's buttons, by index (ROLE_FREE, -1, i) and the tabs */
-static menu::Button *fbTabs[NUM_TABS];
-static menu::Frame *fbFrame;
-
-/* The button drawn for a control of FB_LAYOUT, or NULL. */
-static menu::Button *fileBrowserButtonAt(int ctl)
-{
-	if (ctl < 0)
-		return NULL;
-	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
-		if (fileBrowserButtons[i].ctl == ctl)
-			return fileBrowserButtons[i].button;
-	return NULL;
-}
-
-/* The button drawn for a layout control. */
-static menu::Button *fileBrowserButtonOf(const eng::Control &c)
-{
-	if (c.role == eng::ROLE_TAB)
-		return c.slot >= 0 && c.slot < NUM_TABS ? fbTabs[c.slot] : NULL;
-	return fileBrowserButtonAt(int(&c - FB_LAYOUT.c));
-}
-
-/* Copies the layout onto the buttons: their boxes, text, label colour and room, active, and every
- * focus link. The control indexes move with the tab row and the texts, so they are found again. */
-static void applyFileBrowserLayout(void)
-{
-	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
-		fileBrowserButtons[i].ctl = fileBrowserControl(i);
-
-	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
-	{
-		const eng::Control &c = FB_LAYOUT.c[fileBrowserButtons[i].ctl];
-		menu::Button *b = fileBrowserButtons[i].button;
-		menu::glue::placeButton(fbFrame, b, c, true);	/* box, active (a shown item or a live arrow) */
-		if (i < 2)
-			continue;							/* the arrows have no text */
-		if (!c.focusable)
-			b->setVisible(false);				/* a row past the end of the list is not drawn at all */
-		fileBrowserButtons[i].buttonString = (char*)c.text;	/* the button reads its text through this */
-		b->clearLabelFocusColor();
-		if (c.dim)
-		{
-			b->setLabelColor((GXColor) {160,160,160,255});	/* Recent: its device is not there */
-			b->setLabelFocusColor((GXColor) {235,210,210,255});	/* on the rose focus bar 160 grey did not read */
-		}
-		else if (c.folder)
-			b->setLabelColor((GXColor) {254,213,95,255});
-		else
-			b->setLabelColor((GXColor) {255,255,255,255});
-		/* the name's room: from textX to textR, so a scrolling name stays left of the tag */
-		b->setLabelScissor(c.full ? (int)(c.textX - c.rect.x) : 0);
-		b->setLabelInsetRight(c.full ? (int)(c.rect.x + c.rect.w - c.textR) : -1);
-	}
-
-	for (int t = 0; t < NUM_TABS; t++)
-	{
-		const int k = FB_LAYOUT.tab[t];
-		if (k >= 0)
-			menu::glue::placeButton(fbFrame, fbTabs[t], FB_LAYOUT.c[k], true);
-		else
-		{	/* no tab for this one (the layout always has them: kept for safety) */
-			fbTabs[t]->setVisible(false);
-			fbTabs[t]->setActive(false);
-			menu::Cursor::getInstance().moveComponent(fbFrame, fbTabs[t], 0.0f, 0.0f, 0.0f, 0.0f);
-		}
-	}
-	fbPool->link(FB_LAYOUT, fileBrowserButtonOf, true);	/* every button, active or not, as before */
-}
-
-static char *fbTabString[NUM_TABS] = { (char*)"SD", (char*)"USB", (char*)"DVD", (char*)"Network", (char*)"Recent" };
 static ButtonFunc fbTabFunc[NUM_TABS] = { Func_TabSD, Func_TabUSB, Func_TabDVD, Func_TabNetwork, Func_TabRecent };
+static void fbTab(void *, int t)
+{
+	fbTabFunc[t]();
+}
 
 /* Down on the last row, or Up on the first, with more items beyond: the list moves by ONE row and
  * the focus stays on the same button (the engine's link would wrap round the window, or go to the
  * tab row). At the true ends nothing is done here, so the wrap and Up-to-tab stay as they were. */
 static bool fbRowNav(menu::Button *self, int direction)
 {
-	int slot = -1;
-	for (int i = 2; i < NUM_FRAME_BUTTONS; i++)
-		if (fileBrowserButtons[i].button == self)
-			slot = i - 2;
+	const int slot = fbView ? fbView->itemRow(self) : -1;
 	if (slot < 0 || !dir_entries || romFolderList)
 		return false;
 	const int dir = direction == menu::Focus::DIRECTION_DOWN ? 1 : direction == menu::Focus::DIRECTION_UP ? -1 : 0;
@@ -489,48 +351,25 @@ static bool fbRowNav(menu::Button *self, int direction)
 		return false;
 	FB_LIST.top = top;
 	FB_LIST.focus = fbLastFocus = top + slot;
-	layoutFileBrowser();
-	applyFileBrowserLayout();
+	fbView->relayout();
 	return true;
 }
 
 FileBrowserFrame::FileBrowserFrame()
 {
-	fbFrame = this;
-	layoutFileBrowser();		/* an empty list: every button is drawn inactive, at its box */
-
-	fbPool = new menu::glue::Pool(this, NUM_FRAME_BUTTONS + NUM_TABS);
-	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
-	{
-		fileBrowserButtons[i].ctl = fileBrowserControl(i);
-		const eng::Control &c = FB_LAYOUT.c[fileBrowserButtons[i].ctl];
-		fileBrowserButtons[i].button = fbPool->button(eng::ROLE_FREE, -1, i, fileBrowserButtons[i].buttonStyle,
-										&fileBrowserButtons[i].buttonString,
-										c.rect.x, c.rect.y, c.rect.w, c.rect.h,
-										fileBrowserButtons[i].clickedFunc, fileBrowserButtons[i].returnFunc);
-	}
-	for (int t = 0; t < NUM_TABS; t++)
-		/* BTN_A_SEL, as the Settings tabs: the current one stays lit. A tab loads on A; moving
-		 * across them only moves the focus. The box comes from the layout (applyFileBrowserLayout). */
-		fbTabs[t] = fbPool->button(eng::ROLE_TAB, -1, t, BTN_A_SEL, &fbTabString[t], 0.0f, 0.0f, 0.0f, 0.0f,
-		                           fbTabFunc[t], Func_ReturnFromFileBrowserFrame);
-	for (int i = 2; i < NUM_FRAME_BUTTONS; i++)
-	{
-		fileBrowserButtons[i].button->setLabelMode(menu::Button::LABEL_SCROLLONFOCUS);
-		fileBrowserButtons[i].button->setNavFunc(fbRowNav);
-	}
-	applyFileBrowserLayout();
-
-	setDefaultFocus(fileBrowserButtons[2].button);
-	setBackFunc(Func_ReturnFromFileBrowserFrame);
-	setEnabled(true);
-
+	fbView = new menu::glue::ListView(this, NULL, fileBrowserItem, fbPick, NULL, Func_ReturnFromFileBrowserFrame);
+	fbView->useState(&FB_LIST);
+	fbView->setHooks(fbPrepare, fbTurn);
+	fbView->setTabs(FB_TABS, NUM_TABS, fbTab);	/* an empty list: every row is drawn inactive, at its box */
+	for (int k = 0; k < NUM_FILE_SLOTS; k++)
+		fbView->item(k)->setNavFunc(fbRowNav);
+	setDefaultFocus(fbView->firstItem());
 }
 
 FileBrowserFrame::~FileBrowserFrame()
 {
-	delete fbPool;
-	fbPool = NULL;
+	delete fbView;
+	fbView = NULL;
 }
 
 int fileBrowserMode = FileBrowserFrame::FILEBROWSER_LOADISO;
@@ -633,10 +472,10 @@ static void fbRecentSetFilter(int cell);
 /* The item under focus (the list's own focus when no row has it, as on a tab); -1 for none. */
 static int fbFocusedIndex(void)
 {
-	for (int i = 2; i < NUM_FRAME_BUTTONS; i++)
-		if (fileBrowserButtons[i].ctl >= 0 && FB_LAYOUT.c[fileBrowserButtons[i].ctl].focusable &&
-		    fileBrowserButtons[i].button->getFocus())
-			return fbLastFocus = FB_LIST.top + i - 2;
+	const eng::Layout &L = fbView->laid();
+	for (int k = 0; k < NUM_FILE_SLOTS; k++)
+		if (L.listItem[k] >= 0 && L.c[L.listItem[k]].focusable && fbView->item(k)->getFocus())
+			return fbLastFocus = FB_LIST.top + k;
 	/* no row has focus: a tab, or a message box (after a load) in front. Keep the last row */
 	if (fbLastFocus >= 0 && fbLastFocus < num_entries)
 		return fbLastFocus;
@@ -676,8 +515,7 @@ static void fbJumpToCell(int cell)
 	        !strcmp(filenameFromAbsPath(dir_entries[FB_LIST.top + first].name), "..")))
 		first++;
 	FB_LIST.focus = FB_LIST.top + first;
-	layoutFileBrowser();
-	applyFileBrowserLayout();
+	fbView->relayout();
 }
 
 static void fbStripStep(int dir)
@@ -725,9 +563,10 @@ static void fbPollCStick(void)
 /* The scroll track's ends (below the Prev arrow, above the Next arrow); false when there is no list. */
 static bool fbTrack(int *y0, int *y1)
 {
-	if (FB_LAYOUT.list < 0 || FB_LAYOUT.slot[FB_LAYOUT.list][0] < 0 || FB_LAYOUT.slot[FB_LAYOUT.list][1] < 0)
+	const eng::Layout &L = fbView->laid();
+	if (L.list < 0 || L.slot[L.list][0] < 0 || L.slot[L.list][1] < 0)
 		return false;
-	const eng::Control &p = FB_LAYOUT.c[FB_LAYOUT.slot[FB_LAYOUT.list][0]], &n = FB_LAYOUT.c[FB_LAYOUT.slot[FB_LAYOUT.list][1]];
+	const eng::Control &p = L.c[L.slot[L.list][0]], &n = L.c[L.slot[L.list][1]];
 	*y0 = (int)(p.rect.y + p.rect.h) + 2;
 	*y1 = (int)n.rect.y - 2;
 	return true;
@@ -1204,8 +1043,7 @@ static void fbPumpInfo(void)
 		}
 		if (fbReadInfo(i))
 		{
-			layoutFileBrowser();
-			applyFileBrowserLayout();
+			fbView->relayout();
 		}
 		return;
 	}
@@ -1215,153 +1053,17 @@ void FileBrowserFrame::drawChildren(menu::Graphics &gfx)
 {
 	if(isVisible())
 	{
-#ifdef HW_RVL
-		WPADData* wiiPad = menu::Input::getInstance().getWpad();
-		PADStatus* hidGcPad = (PADStatus*)(HID_MEM2_PAD_BUFF); //PadBuff
-#endif
 		fbPollCStick();		/* the letter strip: C stick steps, pointer clicks, thumb drag */
 		fbPollPointer();
-		for (int i=0; i<4; i++)
+		/* L / R turn the page (the view, through fbTurn); the sort key changes the order */
+		const menu::glue::PageInput in = fbView->update();
+		if (in.sort)
 		{
-			u16 currentButtonsGC = PAD_ButtonsHeld(i);
-			if (currentButtonsGC ^ previousButtonsGC[i])
-			{
-				u16 currentButtonsDownGC = (currentButtonsGC ^ previousButtonsGC[i]) & currentButtonsGC;
-				previousButtonsGC[i] = currentButtonsGC;
-				if (currentButtonsDownGC & PAD_TRIGGER_Z)
-				{
-					// Change sort method
-					fileSortMode ^= 1;
-					// Resort the list
-					qsort(dir_entries, num_entries, sizeof(fileBrowser_file), dir_comparator); fbInfoClear();
-					FB_LIST.top = 0;
-					fileBrowserFrame_FillPage();
-					menu::Focus::getInstance().clearPrimaryFocus();
-					break;
-				}
-				else if (currentButtonsDownGC & PAD_TRIGGER_R)
-				{
-					//move to next set & return
-					eng::listTurn(FB_LIST, 1, true);
-					fileBrowserFrame_FillPage();
-					menu::Focus::getInstance().clearPrimaryFocus();
-					break;
-				}
-				else if (currentButtonsDownGC & PAD_TRIGGER_L)
-				{
-					//move to the previous set & return
-					eng::listTurn(FB_LIST, -1, true);
-					fileBrowserFrame_FillPage();
-					menu::Focus::getInstance().clearPrimaryFocus();
-					break;
-				}
-			}
-#ifdef HW_RVL
-			else if (wiiPad[i].btns_h ^ previousButtonsWii[i])
-			{
-				u32 currentButtonsDownWii = (wiiPad[i].btns_h ^ previousButtonsWii[i]) & wiiPad[i].btns_h;
-				previousButtonsWii[i] = wiiPad[i].btns_h;
-				if (wiiPad[i].exp.type == WPAD_EXP_CLASSIC)
-				{
-					if (currentButtonsDownWii & WPAD_CLASSIC_BUTTON_ZR)
-					{
-						// Change sort method
-						fileSortMode ^= 1;
-						// Resort the list
-						qsort(dir_entries, num_entries, sizeof(fileBrowser_file), dir_comparator); fbInfoClear();
-						FB_LIST.top = 0;
-						fileBrowserFrame_FillPage();
-						menu::Focus::getInstance().clearPrimaryFocus();
-						break;
-					}
-					else if (currentButtonsDownWii & WPAD_CLASSIC_BUTTON_FULL_R)
-					{
-						//move to next set & return
-						eng::listTurn(FB_LIST, 1, true);
-						fileBrowserFrame_FillPage();
-						menu::Focus::getInstance().clearPrimaryFocus();
-						break;
-					}
-					else if (currentButtonsDownWii & WPAD_CLASSIC_BUTTON_FULL_L)
-					{
-						//move to the previous set & return
-						eng::listTurn(FB_LIST, -1, true);
-						fileBrowserFrame_FillPage();
-						menu::Focus::getInstance().clearPrimaryFocus();
-						break;
-					}
-				}
-				else
-				{
-					if (currentButtonsDownWii & WPAD_BUTTON_1)
-					{
-						// Change sort method
-						fileSortMode ^= 1;
-						// Resort the list
-						qsort(dir_entries, num_entries, sizeof(fileBrowser_file), dir_comparator); fbInfoClear();
-						FB_LIST.top = 0;
-						fileBrowserFrame_FillPage();
-						menu::Focus::getInstance().clearPrimaryFocus();
-						break;
-					}
-					else if (currentButtonsDownWii & WPAD_BUTTON_PLUS)
-					{
-						//move to next set & return
-						eng::listTurn(FB_LIST, 1, true);
-						fileBrowserFrame_FillPage();
-						menu::Focus::getInstance().clearPrimaryFocus();
-						break;
-					}
-					else if (currentButtonsDownWii & WPAD_BUTTON_MINUS)
-					{
-						//move to the previous set & return
-						eng::listTurn(FB_LIST, -1, true);
-						fileBrowserFrame_FillPage();
-						menu::Focus::getInstance().clearPrimaryFocus();
-						break;
-					}
-				}
-			}
-			else if (hidControllerConnected && (hidGcPad[i].button ^ previousButtonsGCHid[i]))
-			{
-				previousButtonsGCHid[i] = hidGcPad[i].button;
-				if (hidGcPad[i].button & PAD_TRIGGER_R1)
-				{
-					// Change sort method
-					fileSortMode ^= 1;
-					// Resort the list
-					qsort(dir_entries, num_entries, sizeof(fileBrowser_file), dir_comparator); fbInfoClear();
-					FB_LIST.top = 0;
-					fileBrowserFrame_FillPage();
-					menu::Focus::getInstance().clearPrimaryFocus();
-					break;
-				}
-				else if (hidGcPad[i].button & PAD_TRIGGER_R)
-				{
-					//move to next set & return
-					eng::listTurn(FB_LIST, 1, true);
-					fileBrowserFrame_FillPage();
-					menu::Focus::getInstance().clearPrimaryFocus();
-					break;
-				}
-				else if (hidGcPad[i].button & PAD_TRIGGER_L)
-				{
-					//move to the previous set & return
-					eng::listTurn(FB_LIST, -1, true);
-					fileBrowserFrame_FillPage();
-					menu::Focus::getInstance().clearPrimaryFocus();
-					break;
-				}
-			}
-#endif //HW_RVL
-		}
-
-		/* the focused row scrolls its whole name, the others show the cut one */
-		for (int i = 2; i < NUM_FRAME_BUTTONS; i++)
-		{
-			const eng::Control &c = FB_LAYOUT.c[fileBrowserButtons[i].ctl];
-			fileBrowserButtons[i].buttonString =
-				(char*)(c.full && fileBrowserButtons[i].button->getFocus() ? c.full : c.text);
+			fileSortMode ^= 1;
+			qsort(dir_entries, num_entries, sizeof(fileBrowser_file), dir_comparator); fbInfoClear();
+			FB_LIST.top = 0;
+			fileBrowserFrame_FillPage();
+			menu::Focus::getInstance().clearPrimaryFocus();
 		}
 
 		//Draw buttons
@@ -1370,23 +1072,11 @@ void FileBrowserFrame::drawChildren(menu::Graphics &gfx)
 		{
 			(*iteration)->draw(gfx);
 		}
-		drawExplorerOverlay(gfx, FB_LAYOUT, FB_LIST);
+		fbView->drawOverlay(gfx);
 		drawLetterStrip(gfx);
 		drawFactsStrip(gfx);
 		fbPumpInfo();		/* after the list is drawn: the next shown row's disc count */
 	}
-}
-
-void Func_PrevPage()
-{
-	eng::listTurn(FB_LIST, -1, false);
-	fileBrowserFrame_FillPage();
-}
-
-void Func_NextPage()
-{
-	eng::listTurn(FB_LIST, 1, false);
-	fileBrowserFrame_FillPage();
 }
 
 extern MenuContext *pMenuContext;
@@ -1458,22 +1148,6 @@ static void Func_TabRecent()
 	fileBrowserFrame_FillPage();
 	menu::Focus::getInstance().clearPrimaryFocus();
 }
-
-void Func_Select1() { fileBrowserFrame_LoadFile(FB_LIST.top + 0); }
-
-void Func_Select2() { fileBrowserFrame_LoadFile(FB_LIST.top + 1); }
-
-void Func_Select3() { fileBrowserFrame_LoadFile(FB_LIST.top + 2); }
-
-void Func_Select4() { fileBrowserFrame_LoadFile(FB_LIST.top + 3); }
-
-void Func_Select5() { fileBrowserFrame_LoadFile(FB_LIST.top + 4); }
-
-void Func_Select6() { fileBrowserFrame_LoadFile(FB_LIST.top + 5); }
-
-void Func_Select7() { fileBrowserFrame_LoadFile(FB_LIST.top + 6); }
-
-void Func_Select8() { fileBrowserFrame_LoadFile(FB_LIST.top + 7); }
 
 
 char* filenameFromAbsPath(char* absPath)
@@ -1867,14 +1541,8 @@ void fileBrowserFrame_FillPage()
 		FB_LIST.focus = fbFocusIdx;
 	fbFocusIdx = -1;
 
-	//the page as the engine lays it out: once per page turn
-	layoutFileBrowser();
-	applyFileBrowserLayout();
-	menu::Button *def = FB_LAYOUT.defaultFocus >= 0 ? fileBrowserButtonOf(FB_LAYOUT.c[FB_LAYOUT.defaultFocus]) : NULL;
-	if (!def && FB_LAYOUT.tab[FB_PAGE.curTab] >= 0)		/* an empty list: the lit tab */
-		def = fbTabs[FB_PAGE.curTab];
-	if (def)
-		pMenuContext->getFrame(MenuContext::FRAME_FILEBROWSER)->setDefaultFocus(def);
+	//the page as the engine lays it out: once per page turn; the focus on the layout's row (or the lit tab)
+	fbView->refresh();
 }
 
 extern BOOL hasLoadedISO;
@@ -1987,12 +1655,10 @@ static bool fbRecentOpenDevice(int i)
 		for (char *c = name; *c; c++) *c = (char)toupper((unsigned char)*c);
 		snprintf(msg, sizeof msg, "%s: device not available", name);
 		menu::MessageBox::getInstance().setMessage(msg);
-		layoutFileBrowser();			/* the rows of a device that has come up are not dim any more */
-		applyFileBrowserLayout();
+		fbView->relayout();			/* the rows of a device that has come up are not dim any more */
 		return false;
 	}
-	layoutFileBrowser();
-	applyFileBrowserLayout();
+	fbView->relayout();
 	return true;
 }
 

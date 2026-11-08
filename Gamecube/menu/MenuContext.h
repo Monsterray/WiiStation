@@ -25,7 +25,7 @@
 #include "../libgui/Frame.h"
 #include "../libgui/InputManager.h"
 #include "MainFrame.h"
-#include "LoadRomFrame.h"
+#include "ExplorerSources.h"
 #include "FileBrowserFrame.h"
 #include "CurrentRomFrame.h"
 #include "SettingsFrame.h"

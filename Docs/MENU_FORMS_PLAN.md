@@ -127,3 +127,17 @@ wide read-only reviews. One step per commit on `try/menu-standard`.
   CurrentRomFrame.cpp 402 -> ~280. The host test checks both tables. Proof: Main's first frame and pages 16 (Current ISO), 17, 1
   against step 5: 0 differing frames. Play Game's loop is still in MainFrame.cpp (it moves out with step 11's Dialog work).
   Not measured: bench-Wii menu CPU; release build; Resume Game label by hand (the code path is the old one, via setPlayLabel).
+- Step 7 (2026-11-08, Explorer on List): the explorer is a `glue::ListView` with source tabs (`setTabs`), its own list state
+  (`useState(&FB_LIST)`), a hook that sets the lit tab and the path/count line before each layout, and one that turns the page
+  its own way (focus past ".."). ListView gained the explorer's label colours (folder gold, dim Recent rows), tab buttons and
+  links, `refresh()` (default focus, or the lit tab on an empty list), `item(k)`/`itemRow()` for the one-row step, and
+  `update()` returns the keys. `glue::readInput()` now reads the sort key (GC Z, Wiimote 1, Classic ZR, HID R1) with the turn,
+  so the explorer's own polling (the three copied pad loops), Func_Select1..8, Func_PrevPage/NextPage, its button table and
+  its layout/apply/lookup code are gone. LoadRomFrame.cpp/.h, which held only the device sources, are
+  `ExplorerSources.cpp/.h` now. FileBrowserFrame.cpp 2137 -> 1803 lines.
+  Proof (forms6 vs forms7): pages 70, 18, 16 and the Account walk 0 differing frames. `scripts/autoinput/explorer_walk.txt`
+  (11 Frogger formats staged with WSX_ISOS, see its header): identical through opening the folder and nine Downs (the
+  one-row step at the page end); from the first scripted shoulder key on they differ by design: the old explorer read L/R/Z
+  from the pads only, so script keys never reached it; the new one turns the page (R, L), sorts (Z twice: A-Z, folders first),
+  climbs to the tabs and opens USB as the keys say (stills checked).
+  Not done: pointer clicks and the thumb drag by hand (code unchanged, fbPollPointer), a real Wii, the release build.

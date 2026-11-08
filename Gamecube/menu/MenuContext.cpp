@@ -30,10 +30,10 @@
 
 extern bool AutobootBios;      /* GamecubeMain.cpp: autoboot.txt said "BIOS" */
 void Func_ExecuteBios();       /* SettingsFrame.cpp */
-void Func_LoadFromSD();        /* LoadRomFrame.cpp */
-void Func_LoadFromDVD();       /* LoadRomFrame.cpp */
+void Func_LoadFromSD();        /* ExplorerSources.cpp */
+void Func_LoadFromDVD();       /* ExplorerSources.cpp */
 void ExitToLoaderNow();       /* MainFrame.cpp: Quit, answered Yes */
-void Func_LoadFromSamba();     /* LoadRomFrame.cpp */
+void Func_LoadFromSamba();     /* ExplorerSources.cpp */
 #include "../fileBrowser/smb2dev.h"
 extern "C" void glResetCacheRegion(void);
 extern int backFromMenu;

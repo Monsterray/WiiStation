@@ -383,7 +383,6 @@ def check_help(d, w, verbose, bad):
 
 FRAME_FILE = {
     'FRAME_MAIN': 'MainFrame.cpp',
-    'FRAME_LOADROM': 'LoadRomFrame.cpp',
     'FRAME_FILEBROWSER': 'FileBrowserFrame.cpp',
     'FRAME_CURRENTROM': 'CurrentRomFrame.cpp',
     'FRAME_SETTINGS': 'SettingsFrame.cpp',

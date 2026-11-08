@@ -1,5 +1,5 @@
 /**
- * WiiSX - LoadRomFrame.cpp
+ * WiiSX - ExplorerSources.cpp (was LoadRomFrame.cpp)
  * Copyright (C) 2009, 2010 sepp256
  *
  * WiiSX homepage: http://www.emulatemii.com
@@ -21,7 +21,7 @@
 #include <sys/stat.h>
 #include "MenuContext.h"
 #include "MenuEngine.h"	/* before Button.h: its include guard is BUTTON_H, a name the engine uses */
-#include "LoadRomFrame.h"
+#include "ExplorerSources.h"
 #include "FileBrowserFrame.h"
 #include "../libgui/Button.h"
 #include "../libgui/IPLFont.h"

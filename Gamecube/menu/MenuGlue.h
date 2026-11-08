@@ -93,34 +93,57 @@ void placeButton(Frame *frame, Button *b, const engine::Control &c, bool engineS
 /* Appends src to dst, which is dstSize bytes long. Text past the end is cut. */
 void appendBounded(char *dst, size_t dstSize, const char *src);
 
-/* One pass over the pads for the page keys of a frame, once per drawn frame. Today: the page turn
- * (tabShoulder's -1 / 0 / +1). The other frames' own pad polling moves in here as they are migrated. */
-struct PageInput { int turn; };
+/* One pass over the pads for the page keys of a frame, once per drawn frame: the page turn (the
+ * shoulders: -1 / 0 / +1, as tabShoulder) and the sort key (GC Z, Wiimote 1, Classic ZR, HID R1).
+ * Shares tabShoulder's edge state: a frame calls one of the two per drawn frame. */
+struct PageInput { int turn; bool sort; };
 PageInput readInput(void);
 
-/* A titled list page (Prev / Next arrows and STD_LIST_ROWS item buttons, explorer density): the
- * engine page, the layout, the buttons, their focus links and the click handlers, written once.
- * The frame supplies the items, what a pick does and what B does; it keeps calling
- * drawOverlay() after its components. Used by AccountFrame; the explorer is the next user. */
+/* A list page (Prev / Next arrows and STD_LIST_ROWS item buttons, explorer density): the engine
+ * page, the layout, the buttons, their focus links and the click handlers, written once. The frame
+ * supplies the items, what a pick does and what B does, and calls update() before its components
+ * draw and drawOverlay() after them. A titled list (Account) needs nothing more; the explorer adds
+ * source tabs (setTabs), its own list state (useState), a hook that sets the page's texts and lit
+ * tab before each layout, and a hook that turns the page its own way (setHooks). */
 class ListView {
 public:
 	typedef void (*ItemFn)(void *user, int index, engine::ListItem &out);
 	typedef void (*PickFn)(void *user, int index);
+	typedef void (*TabFn)(void *user, int tab);
+	typedef void (*PrepareFn)(void *user, engine::Page &page);	/* before every layout */
+	typedef void (*TurnFn)(void *user, int dir, bool wrap);		/* an arrow (wrap false) or a shoulder (true) */
 
 	ListView(Frame *owner, char *title, ItemFn item, PickFn pick, void *user, ButtonFunc back);
 	~ListView();
 
+	enum { SLOTS = STD_LIST_ROWS, BUTTONS = 2 + SLOTS, MAX_TABS = 6 };	/* 0 Prev, 1 Next, then the item rows */
+
+	/* Set up once, after the constructor. Tabs are BTN_A_SEL buttons after the item buttons; the
+	 * page's curTab is lit. useState: the list's top, count and focus live in the frame's state. */
+	void setTabs(const engine::Tab *tabs, int n, TabFn fn);
+	void setHooks(PrepareFn prepare, TurnFn turn);
+	void useState(engine::ListState *s);
+
 	/* New contents: n items, the window back at the top. Lays out and updates the buttons. */
 	void setCount(int n);
-	/* Per drawn frame, before the components draw: L/R page turn, the focused row's full name. */
-	void update(void);
+	/* Lays out the list as its state is now and puts the buttons on it (no focus change). */
+	void relayout(void);
+	/* relayout, then the frame's default focus: the layout's, or with no item the lit tab. */
+	void refresh(void);
+	/* Per drawn frame, before the components draw: the page turn and the focused row's full name.
+	 * Returns the input, so the frame can act on the keys the view does not (sort). */
+	PageInput update(void);
 	/* After the components: folder icons, arrows, scroll thumb, texts. */
 	void drawOverlay(Graphics &gfx) const;
-	/* The first item's button, for the frame's default focus. */
-	Button *firstItem(void) const;
-	int top(void) const { return state.top; }
 
-	enum { SLOTS = STD_LIST_ROWS, BUTTONS = 2 + SLOTS };	/* 0 Prev, 1 Next, then the item rows */
+	engine::ListState &list(void) { return *st; }
+	const engine::Layout &laid(void) const { return lay; }
+	/* Item row k's button (k = 0 .. SLOTS-1), and the row of a button (-1 for none). */
+	Button *item(int k) const { return button[2 + k]; }
+	int itemRow(const Button *b) const;
+	/* The first item's button, for the frame's default focus. */
+	Button *firstItem(void) const { return button[2]; }
+	int top(void) const { return st->top; }
 
 private:
 	void layout(void);
@@ -128,21 +151,29 @@ private:
 	int control(int i) const;
 	Button *buttonOf(const engine::Control &c) const;
 	static void click(void *self, int tag);
+	void turn(int dir, bool wrap);
 	void link(void) const;
 
 	Frame *frame;
 	Pool pool;
-	engine::ListState state;
+	engine::ListState own, *st;
 	engine::ListSpec spec;
 	engine::Row row;
 	engine::Page page;
 	engine::Layout lay;
 	ItemFn itemFn;
 	PickFn pickFn;
+	TabFn tabFn;
+	PrepareFn prepareFn;
+	TurnFn turnFn;
 	void *user;
+	ButtonFunc backFn;
 	Button *button[BUTTONS];
 	int ctl[BUTTONS];
 	char *text[BUTTONS];
+	Button *tabB[MAX_TABS];
+	char *tabText[MAX_TABS];
+	int nTabs;
 };
 
 } /* namespace glue */

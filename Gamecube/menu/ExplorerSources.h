@@ -1,5 +1,5 @@
 /**
- * WiiSX - LoadRomFrame.h
+ * WiiSX - ExplorerSources.h (was LoadRomFrame.h)
  * Copyright (C) 2009, 2010 sepp256
  *
  * WiiSX homepage: http://www.emulatemii.com
@@ -18,10 +18,10 @@
  *
 **/
 
-#ifndef LOADROMFRAME_H
-#define LOADROMFRAME_H
+#ifndef EXPLORERSOURCES_H
+#define EXPLORERSOURCES_H
 
-/* The explorer's device sources (LoadRomFrame.cpp). The Load ROM page is retired. */
+/* The explorer's device sources (ExplorerSources.cpp). The Load ROM page is retired. */
 // For autoboot (plugin)
 void Func_LoadFromSD();
 void Func_LoadFromDVD();

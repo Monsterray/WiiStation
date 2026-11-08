@@ -507,8 +507,9 @@ hashes in UploadScreen, OpenGX texel checks). The pattern to grep for is a loop 
 - After changing a bundled library (deps/*/lib), the DOL now relinks (Makefile_Wii
   BUNDLED_LIBS); before, a rebuilt libsmb2 was silently not linked in.
 
-- `menuclick <button> <times> [frame]` calls a Settings button (SettingsFrame.cpp FRAME_BUTTONS
-  index; 14 Save SD, 15 Save USB, 62 Save This Game) at that menu frame (default 40). A modal
+- `menuclick <name> <n> [frame]` presses a Settings button by name at that menu frame (default 40):
+  a setting by key and value (`menuclick FPS 1`), an action n times (`menuclick SaveSettingsSD 1`);
+  names in Gamecube/menu/pages/SettingsPages.h. One click per script (the last line wins). A modal
   MessageBox stops the menu frames, so a walk must dismiss it first. Save This Game, proven
   2026-10-18: `menupage 70`, `menukeys 60 A . . . . . . D A . . . . . . . . A` (open the Spyro
   folder, load the .cue, OK the info box), `menuclick SaveSettingsGame 1 600`, with `WSX_ISOS="Spyro the Dragon"

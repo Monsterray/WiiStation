@@ -1,0 +1,5 @@
+# Explorer walk (menu step 7): open Formats, rows down past the page end, page turns, sort twice, up to the tabs, USB tab.
+# WSX_ISOS="Formats/Frogger (USA) [CBN],..." (11 Frogger formats) scripts/wsx.sh menu NAME --dol A --dol2 B --input THIS
+1 0000
+menupage 70
+menukeys 60 A . . D D D D D D D D D . > . < . Z . . Z . U U . R A . . B
