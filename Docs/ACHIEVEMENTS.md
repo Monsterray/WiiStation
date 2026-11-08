@@ -349,7 +349,7 @@ The host tests need a Linux C toolchain with ASan and UBSan. On this Windows mac
 in WSL. Git Bash's `cc` has no C headers, and clang on Windows has no POSIX `mkdir`.
 
 ```sh
-wsl.exe -e bash -lc "cd /mnt/c/projects/WiiStation && bash scripts/test-achievements.sh"
+wsl.exe -e bash -lc "cd <repo> && bash scripts/test-achievements.sh"
 ```
 
 | Script | What it tests |
@@ -358,11 +358,11 @@ wsl.exe -e bash -lc "cd /mnt/c/projects/WiiStation && bash scripts/test-achievem
 | `scripts/test-achievements-client.sh` | Gets and checks the pinned upstream test archive. Runs the upstream runtime, API and client suites with ASan. The upstream hash tests are off. |
 | `scripts/test-achievements-entropy.sh` | The Mbed TLS NV-seed contract with a public dummy seed. See [the notes](ACHIEVEMENTS_NOTES.md#tls-seed-and-utc). |
 | `tests/ach_progress_test.c` (in `scripts/test-achievements.sh`) | The 10 % step rule and the unlock pictures' file names. |
-| `scripts/settings_check.py` | Settings consistency. Use `C:/Python312/python.exe` on this machine. |
+| `scripts/settings_check.py` | Settings consistency. Use `python` on this machine. |
 
 ### Wii tests
 
-All Wii runs go through the bench queue (`C:/tools/wii-bench/wiibench.py`). Read
+All Wii runs go through the bench queue (`$WII_BENCH`). Read
 [bench testing](BENCH_TESTING.md) for the queue workflow. Do not start a hardware run directly.
 Do not make lease environment variables yourself. Each run freezes its DOL, matching ELF,
 collector and HBC client, with SHA-256 hashes, and keeps raw evidence under `.runs/bench/`.
@@ -383,7 +383,7 @@ bash scripts/build-achievements-wii-test.sh .runs/bench/unit-build
 python3 scripts/bench_achievements.py prepare \
   --dol .runs/bench/unit-build/boot.dol \
   --client ../hbc-reborn/tools/hbc.py --bundle .runs/bench/unit-frozen
-python3 "C:/tools/wii-bench/wiibench.py" add \
+python "$WII_BENCH" add \
   --name wiistation-achievements-unit --agent wiistation --timeout 240 \
   --cwd "$PWD" -- python3 .runs/bench/unit-frozen/bench_achievements.py run \
   --bundle .runs/bench/unit-frozen
@@ -399,7 +399,7 @@ python3 scripts/achievement_fixture.py .runs/bench/fixture
 python3 scripts/bench_achievement_games.py prepare \
   --dol Gamecube/WiiSXRX_debug.dol --client ../hbc-reborn/tools/hbc.py \
   --fixture .runs/bench/fixture --bundle .runs/bench/games-frozen
-python3 "C:/tools/wii-bench/wiibench.py" add \
+python "$WII_BENCH" add \
   --name wiistation-achievements-games --agent wiistation --timeout 600 \
   --cwd "$PWD" -- python3 .runs/bench/games-frozen/bench_achievement_games.py run \
   --bundle .runs/bench/games-frozen

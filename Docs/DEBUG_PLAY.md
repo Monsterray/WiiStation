@@ -17,8 +17,8 @@ bash scripts/wsx.sh build debug play          # Gamecube/WiiSXRX_play.dol (+ .el
 Bench Wii (always through the queue):
 
 ```bash
-C:/Python312/python.exe C:/tools/wii-bench/wiibench.py add --cwd C:/projects/WiiStation \
-    --name "WiiStation debug install" -- C:/Python312/python.exe scripts/wii_install.py --play-build
+python "$WII_BENCH" add --cwd <repo> \
+    --name "WiiStation debug install" -- python scripts/wii_install.py --play-build
 ```
 
 Monty's own Wii, only when he asks (run directly, not queued). It checks first that HBC is
@@ -26,7 +26,7 @@ idle on the TV, then writes `sd:/apps/WiiStationDebug/` (boot.dol, meta.xml, ico
 nothing else:
 
 ```bash
-C:/Python312/python.exe scripts/wii_install.py --play-build --production
+python scripts/wii_install.py --play-build --production
 ```
 
 `--dry-run` stages the files in `.runs/wii_install/` and talks to no Wii. The meta.xml says

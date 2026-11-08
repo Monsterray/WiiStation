@@ -1,7 +1,7 @@
 """wii_getfiles.py -- fetch named small files from a folder of the bench Wii's card, smallest first.
 
-    C:/Python312/python.exe C:/tools/wii-bench/wiibench.py add --cwd C:/projects/WiiStation \\
-        --timeout 1200 -- C:/Python312/python.exe scripts/wii_getfiles.py OUTDIR NAME [NAME ...]
+    python "$WII_BENCH" add --cwd <repo> \\
+        --timeout 1200 -- python scripts/wii_getfiles.py OUTDIR NAME [NAME ...]
         [--limit BYTES] [--dir sd:/wiistation]
 
 A wii-bench queue job only, and only with the user's go-ahead: large `hbc.py get`s crashed

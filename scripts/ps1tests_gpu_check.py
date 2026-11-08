@@ -1,7 +1,8 @@
 """ps1tests_gpu_check.py RUN [--png DIR] [--detail] -- PASS/FAIL per ps1-tests GPU test and renderer.
 
 RUN is a chain run of scripts/chains/ps1tests_gpu.txt (or any chain of ps1t_* GPU tests).
-Each chained game is matched to its real-PS1 result in C:/tools/ps1-tests/bin/gpu/<test>/:
+Each chained game is matched to its real-PS1 result in $PS1_TESTS/bin/gpu/<test>/ (PS1_TESTS: the ps1-tests folder, no default;
+unset skips the check):
   psx.log  console text: every line must be in the game's part of RUN/tty.log (matched in
            order: the k-th "gpu/<test>" banner is the k-th chain entry of that test).
            bandwidth prints timings: a line passes when its hblank count is within 10%.
@@ -20,7 +21,8 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from cliutil import parse_opts  # noqa: E402
 
-REF = "C:/tools/ps1-tests/bin/gpu"
+PS1_TESTS = os.environ.get("PS1_TESTS", "")
+REF = os.path.join(PS1_TESTS, "bin", "gpu")
 # Where a reference picture holds pixels the test never draws (VRAM the real console had
 # before the test ran), only the test's own area is compared: (x0, y0, x1, y1), end excluded.
 BOX = {"transparency": (0, 0, 320, 240)}
@@ -115,6 +117,9 @@ def main():
     pos, opts = parse_opts(sys.argv, valued=("--png",), bools=("--detail", "-h", "--help"))
     if not pos or "-h" in opts or "--help" in opts:
         sys.exit(__doc__.strip())
+    if not PS1_TESTS:
+        print("ps1tests_gpu_check: PS1_TESTS is not set (the ps1-tests folder with bin/gpu): skipped")
+        return
     run = pos[0]
     ents = entries(run)
     if not ents:

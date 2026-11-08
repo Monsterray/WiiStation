@@ -7,8 +7,8 @@ and stale files (settingsRX2022.cfg, smbtrace.log). settings.ini goes only when 
 runner's own minimal file (the size of wii_lab.BASE_SETTINGS): the card's settings are the
 user's, and are never read here (an SMB password may be in them). Saves, button configs
 (control*.cfg), BIOS, games, fonts and languages stay. Queue it like any bench job:
-  python C:/tools/wii-bench/wiibench.py add --cwd C:/projects/WiiStation -- \\
-      C:/Python312/python.exe scripts/wii_clean.py
+  python $WII_BENCH add --cwd <repo> -- \\
+      python scripts/wii_clean.py
 """
 import fnmatch, os, pathlib, sys
 

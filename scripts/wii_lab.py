@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """wii_lab.py -- run a chain on the Wii on the bench, unattended, and collect its logs.
 
-    C:/Python312/python.exe C:/tools/wii-bench/wiibench.py add --cwd C:/projects/WiiStation \\
-        --timeout 2400 -- C:/Python312/python.exe scripts/wii_lab.py NAME CHAINFILE
+    python "$WII_BENCH" add --cwd <repo> \\
+        --timeout 2400 -- python scripts/wii_lab.py NAME CHAINFILE
         [--dol debug|release|PATH] [--set K=V,K=V] [--send-isos] [--timeout SECS] [--max-wants N]
 
 A wii-bench queue job only (it refuses to run directly, and refuses the production Wii);

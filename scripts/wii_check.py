@@ -1,7 +1,7 @@
 """wii_check.py -- quick checks on the bench Wii, as wii-bench queue jobs.
 
-    C:/Python312/python.exe C:/tools/wii-bench/wiibench.py add --cwd C:/projects/WiiStation -- \\
-        C:/Python312/python.exe scripts/wii_check.py COMMAND ...
+    python "$WII_BENCH" add --cwd <repo> -- \\
+        python scripts/wii_check.py COMMAND ...
 
   agent [DOL] [--settle S] [--screen PNG] [--card PNG]   start the DOL (default the release build), ask its HBC agent for
                              version and status (stack use, frames, clock), exit back to HBC.
@@ -23,6 +23,7 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import wii_paths  # noqa: E402
 from wii_targets import REPO, bench_wii, card_ls, existing_file, hbc, parser, wait_in_hbc  # noqa: E402
 
 LIBRARY = pathlib.Path(os.environ.get("WSX_LIBRARY", "C:/wiistation-lib")) / "games"
@@ -32,11 +33,12 @@ STATUS_KEYS = ("version", "ios", "ios_revision", "app", "agent", "time", "safety
 
 def card_still(png, xfb=None):
     """A still from the capture card on the bench Wii's HDMI (wii-homebrew-kit docs/capture.md),
-    compared with the XFB screenshot when there is one. $WIICAP overrides the tool; without it
+    compared with the XFB screenshot when there is one. $WIICAP names the tool; without it
     the step is skipped, never failed."""
-    tool = os.environ.get("WIICAP", "C:/tools/wii-capture/wiicap.py")
-    if not os.path.isfile(tool):
-        print(f"capture card: {tool} not found, skipped")
+    try:
+        tool = str(wii_paths.wiicap())
+    except wii_paths.NotFound as e:
+        print(f"capture card: skipped ({e})")
         return
     for args in (["still", "--preset", "wii", "--out", png],) + ((["compare", png, xfb],) if xfb else ()):
         r = subprocess.run([sys.executable, tool, *args], capture_output=True, text=True, errors="replace",

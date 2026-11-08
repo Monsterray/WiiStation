@@ -4,8 +4,8 @@ CHAIN
 # use, and replaces GX anisotropy with the PC's. Each game writes two TV pictures (xfb_NN.bin,
 # numbered across the chain: game N = xfb_(2N-1), xfb_(2N)).
 # Build: bash scripts/wsx.sh build debug pmc. Queue (CTR and Spyro already on the card):
-#   C:/Python312/python.exe C:/tools/wii-bench/wiibench.py add --name gx_quality_ab --cwd <repo> -- \
-#     C:/Python312/python.exe scripts/wii_lab.py hw_gx_quality scripts/chains/gx_quality_ab.txt --dol debug --timeout 2400
+#   python "$WII_BENCH" add --name gx_quality_ab --cwd <repo> -- \
+#     python scripts/wii_lab.py hw_gx_quality scripts/chains/gx_quality_ab.txt --dol debug --timeout 2400
 # (about 22 minutes of game: 6 x 6000 + 3 x 5000 vblanks)
 # Read: chain_table.py rows 2-4 and 6 against their base (1, 5; 7 for 8-9): speed, gpu %, presents,
 # pmc cycles -- the GPU cost of each trial, which only the Wii has. Pictures: scripts/xfb2png.py

@@ -125,7 +125,7 @@ Its README says it uses direct SIO access and "may not work on emulators" -- it 
 because that SIO protocol is exactly what `SSS_PADpoll` implements.
 
 **PadTest DX** -- the same program, forked to github.com/Monsterray/padtest and cloned to
-`C:\projects\padtest`, ported to PSn00bSDK (installed at `C:\PSn00bSDK`) and extended for
+`../padtest`, ported to PSn00bSDK (installed at `$PSN00BSDK`) and extended for
 this work. Build it with `bash build.sh` in that folder. Since 2.4.0 (2026-10-02) it reads
 both ports as a game does, multitaps included: per frame and port a request (TAP byte 01h),
 the long read of all four slots, and a single-slot read of each other slot (01h..04h);
@@ -200,7 +200,7 @@ PadTest 1.1 and PSXTEST are third-party binaries and not in this repository. Put
 movie with `-m`. `scripts/padtest.py make` still writes one, and it is well formed -- it
 round-trips through this repo's own `scripts/dtm2autoinput.py`, which parses 2188 polls and
 recognises every button press with the right mapping. The installed Dolphin
-(`C:\tools\Dolphin-x64`) has the `-m` option in its binary and accepts it without
+(`$DOLPHIN`) has the `-m` option in its binary and accepts it without
 complaint, but `Movie::PlayController` never runs: a deliberately corrupt movie does not
 produce the "Invalid recording file" it should, and a 100-frame movie does not produce
 "Premature movie end", with `Logger.Logs.MASTER_LOG=True` and verbosity 5. So the movie is

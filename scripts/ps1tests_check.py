@@ -2,7 +2,7 @@
 
 Compares a run's console output (RUN/tty.log, from scripts/chains/ps1tests.txt) with the
 console output of the same JaCzekanski ps1-tests program on a real PlayStation
-(C:/tools/ps1-tests/ref/<dir>_<test>.psx.log). A line is matched to the real one with the
+($PS1_TESTS/ref/<dir>_<test>.psx.log; PS1_TESTS names the ps1-tests folder, no default: unset skips the check). A line is matched to the real one with the
 same label (the line with its numbers taken out), so a value that is off shows as
 "PS1 ... / emu ...", and a line the program never printed (it hung or gave up) as missing.
 With RUN2, both runs are shown against the PS1, line by line, for an A/B of two cores.
@@ -16,7 +16,8 @@ import pathlib, re, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from cliutil import flag, need  # noqa: E402
 
-REF = pathlib.Path("C:/tools/ps1-tests/ref")
+PS1_TESTS = os.environ.get("PS1_TESTS", "")   # the ps1-tests release folder (bin/, ref/); no default
+REF = pathlib.Path(PS1_TESTS) / "ref"
 
 
 def clean(line):
@@ -58,6 +59,9 @@ def by_label(lines):
 def main():
     need(sys.argv, 2, "ps1tests_check.py RUN [RUN...] [--ref DIR] [--test NAME] [--all]")
     a = sys.argv[1:]
+    if not PS1_TESTS and "--ref" not in a:
+        print("ps1tests_check: PS1_TESTS is not set (the ps1-tests folder with ref/): skipped")
+        return
     ref_dir = pathlib.Path(flag(sys.argv, "--ref", REF))
     only = flag(sys.argv, "--test")
     show_all = "--all" in a
@@ -65,7 +69,7 @@ def main():
         if x.startswith("--") and x not in ("--ref", "--test", "--all"):
             sys.exit(f"unknown option {x}")
     if not os.path.isdir(ref_dir):
-        sys.exit(f"{ref_dir}: no such ref dir (C:/tools/ps1-tests/ref holds the console logs)")
+        sys.exit(f"{ref_dir}: no such ref dir ($PS1_TESTS/ref holds the console logs)")
     runs = [x for i, x in enumerate(a) if not x.startswith("--") and (i == 0 or a[i - 1] not in ("--ref", "--test"))]
     ref = refs(ref_dir)
     if not ref:

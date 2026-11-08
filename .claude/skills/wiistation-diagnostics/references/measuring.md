@@ -110,7 +110,7 @@ recorded: port 2 lines read `p2 <vblank> <mask>`, and a script with any stands i
 on port 2. The script draws both pads with their keys (`scripts/pad_layout.py`); a port 2
 with nothing bound gets a keyboard layout (numpad D-pad) in the movie profile's copy only.
 
-**The Dolphin side is shared with Wii64 (2026-10-23):** `C:/projects/dolphin-movie`
+**The Dolphin side is shared with Wii64 (2026-10-23):** `../dolphin-movie`
 (`DOLPHIN_MOVIE` overrides). movie_capture.sh calls its `dolphin_movie.py pads PROFILE
 --fill-pad2 --detect` (the user's GCPadNew.ini copied into the movie profile, port 2 keyboard
 fill, port 1 pointed at the USB pad connected now, emulated Wiimotes off) and, after its own
@@ -327,7 +327,7 @@ hashes in UploadScreen, OpenGX texel checks). The pattern to grep for is a loop 
 
 - **The controller matrix**: `bash scripts/padtest_dx.sh` (about two minutes, one Dolphin
   boot, ends in `matrix: N/12 cells PASS`, one PASS/FAIL line per cell). It runs PadTest DX
-  2.4.0 (C:\projects\padtest, `bash build.sh` there first) once per setup: ports None / pad /
+  2.4.0 (`../padtest`, `bash build.sh` there first) once per setup: ports None / pad /
   multitap, slots filled or empty, ControllerType 0/1/2, a multitap -> pad -> multitap
   `padtype` switch, and two `SioTiming=1` cells that also judge byte and /ACK times.
   `--cells a,b` for some, `-v` for what each received, `--frames` for pictures;

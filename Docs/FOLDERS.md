@@ -38,7 +38,7 @@ The app itself stays in `apps/WiiStation/`.
 5. Leave `wiisxrx/` until everything works, then delete it if you want the space.
 
 This is what was done for the maintainer's own Wii on 2026-10-09 (backup in
-`C:\tools\wii-backups\production-2026-10-09` on the dev PC): data copied, games left in
+a backup folder outside the repository (`production-2026-10-09`) on the dev PC): data copied, games left in
 `wiisxrx/isos` and listed in `RomDirSD`.
 
 ## Test tools and automation
@@ -56,7 +56,7 @@ Everything in this repo uses the new paths. If you have your own setup, check th
   mounted bench card match it (it copies, never deletes). Big games go on the card that way:
   the HBC agent's network put stops at 512 MB a file.
 - **Single-game autoboot files**: `wsx.sh run --autoboot spyro|bios` stages
-  `autoboot_*.txt` from **`C:/tools/Dolphin-x64/User/Load/WiiSDSync_paused_by_claude/`** -- a
+  `autoboot_*.txt` from **`<Dolphin install>/User/Load/WiiSDSync_paused_by_claude/`** -- a
   folder outside the repo, so a search of the repo does not find old paths in it. They were
   still `sd:/wiisxrx/...` until 2026-10-09 (the run then sat in the menu); fixed.
 - **Dolphin profiles** (`.dolphin`, `.dolphin2`, `.dolphin_*`): test games go in

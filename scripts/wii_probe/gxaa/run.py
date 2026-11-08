@@ -7,8 +7,8 @@ Sends gxaa.dol (build.sh) with one wiiload argument per variant (gxaa.c lists th
   .runs/NAME/sheet.png    all of them, labelled, x1
   .runs/NAME/result.txt   per variant: captures, mean luma, readback texel
 One job, about a minute for 8 variants. A queue job only:
-  C:/Python312/python.exe C:/tools/wii-bench/wiibench.py add --name gxaa --timeout 300 \\
-    --cwd <repo> -- C:/Python312/python.exe scripts/wii_probe/gxaa/run.py NAME [VARIANT ...]
+  python "$WII_BENCH" add --name gxaa --timeout 300 \\
+    --cwd <repo> -- python scripts/wii_probe/gxaa/run.py NAME [VARIANT ...]
 No VARIANT: the default set below. Pictures: the CPU stamps row 0-7 (white, 8-bit variant
 index, white) and rows 8-15 (16-bit RGB565 readback texel of the red square, expect f800)."""
 import pathlib

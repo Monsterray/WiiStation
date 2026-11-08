@@ -55,7 +55,7 @@ disc change. Decode the presses with `scripts/dtm2autoinput.py` and use autoinpu
 - `dolphin.log` timestamps are minutes:seconds:ms; old FRAMEDUMP lines from an earlier session
   stay in the file — filter by frame numbers, not by hour.
 - Dolphin's own source is indexed in the codebase MCP as project `dolphin`
-  (`C:\projects\dolphin-src`, shallow clone). `raw.githubusercontent.com` files fetch fine with
+  (`../dolphin-src`, shallow clone). `raw.githubusercontent.com` files fetch fine with
   `llm_fetch_summarize`; `dolphin-emu.org/docs` returns 403 to server-side fetches.
 
 ## A crashed or exiting guest pops a dialog
@@ -66,8 +66,8 @@ The exception screen itself is invisible under Dolphin's default `XFBToTextureEn
 
 ## Getting more out of Dolphin (what works unattended, what does not)
 
-Checked against the source (`C:/projects/dolphin-src`: tag `2609` = the installed build;
-`origin/master` is fetched too, read it with `git -C C:/projects/dolphin-src grep PATTERN
+Checked against the source (`../dolphin-src`: tag `2609` = the installed build;
+`origin/master` is fetched too, read it with `git -C ../dolphin-src grep PATTERN
 origin/master -- Source/Core` for anything newer). 2026-10-20.
 
 - **Counts: Dolphin; times: the Wii.** Every guest-side counter in `perf.log` is the same in

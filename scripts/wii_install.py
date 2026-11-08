@@ -2,8 +2,8 @@
 
 Run it as a bench-queue job (it talks to HBC on the Wii):
 
-    C:/Python312/python.exe C:/tools/wii-bench/wiibench.py add --cwd C:/projects/WiiStation \\
-        --name "WiiStation install" -- C:/Python312/python.exe scripts/wii_install.py
+    python "$WII_BENCH" add --cwd <repo> \\
+        --name "WiiStation install" -- python scripts/wii_install.py
 
 It stages, in .runs/wii_install/, what a release zip holds, and uploads it with hbc-reborn's
 `hbc.py sync` (only new or changed files go over: size, then CRC-32; nothing on the card is
@@ -43,7 +43,6 @@ import sys
 import zipfile
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
-HBC = pathlib.Path("C:/projects/hbc-reborn/tools/hbc.py")   # = wii_targets.HBC_TOOL
 STAGE = REPO / ".runs" / "wii_install"
 
 
@@ -107,7 +106,8 @@ def stage(dol, dev=True, folder="WiiStation"):
 
 def main():
     sys.path.insert(0, str(REPO / "scripts"))
-    from wii_targets import LRWII, PRODUCTION_WII, bench_wii, card_ls, existing_file, hbc, parser, production_ready
+    from wii_targets import (LRWII, PRODUCTION_WII, bench_wii, card_ls, existing_file, hbc, hbc_tool, parser,
+                             production_ready)
     ap = parser(__doc__)   # unknown or abbreviated flags are errors: "--dry-ru" must not install
     ap.add_argument("--dol", type=existing_file, default=None,
                     help="the DOL to install (default the release build; with --play-build WiiSXRX_play.dol)")
@@ -155,7 +155,7 @@ def main():
         # A wedged agent must fail the job with a readable line, never hang the lease
         # and never a bare traceback.
         try:
-            return subprocess.run([sys.executable, str(HBC), "--wii", wii, *args], timeout=timeout)
+            return subprocess.run([sys.executable, hbc_tool(), "--wii", wii, *args], timeout=timeout)
         except subprocess.TimeoutExpired:
             # a timed-out sync may have left some files on the card: rerunning the install
             # finishes it, since it compares size and CRC-32 and sends only what is missing

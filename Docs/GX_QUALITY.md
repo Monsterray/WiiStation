@@ -170,9 +170,9 @@ variant it is, even a black one.
 
 ```bash
 bash scripts/wii_probe/gxaa/build.sh              # Git Bash; builds deps/hbc_agent too
-C:/Python312/python.exe C:/tools/wii-bench/wiibench.py add --name gxaa --timeout 300 \
-  --cwd <repo> -- C:/Python312/python.exe scripts/wii_probe/gxaa/run.py NAME [VARIANT ...]
-C:/Python312/python.exe C:/tools/wii-bench/wiibench.py wait ID
+python "$WII_BENCH" add --name gxaa --timeout 300 \
+  --cwd <repo> -- python scripts/wii_probe/gxaa/run.py NAME [VARIANT ...]
+python "$WII_BENCH" wait ID
 ```
 
 `run.py` sends the DOL with the variants (none: its default set of 8), takes `hbc.py

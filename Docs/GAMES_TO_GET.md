@@ -165,7 +165,7 @@ test for each). The source is DuckStation's commit messages for its mask-bit wor
 | Ultraman: Fighting Evolution (J) | SLPS-01248 | shadows |
 
 Also needed for bit 15, and free: the ps1-tests `gpu/mask-bit` and `gpu/transparency`
-executables (`C:/tools/ps1-tests/bin/gpu/`). They are not in the library yet.
+executables (`$PS1_TESTS/bin/gpu/`). They are not in the library yet.
 
 ### 1.3 CD
 

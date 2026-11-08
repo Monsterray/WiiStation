@@ -107,7 +107,7 @@ settings) to its vtable, its selector and its traps; start there before adding o
 - **Code structure:** use the codebase MCP (`search_graph`, `trace_path`, `get_code_snippet`,
   project `wiistation`) for callers, callees and globals before grepping. Caveat: it cannot
   parse `GlesGpu/gpuVramReadback.inc` (unity-build include); grep that file. The Dolphin
-  source is indexed too, as project `dolphin` (clone at `C:\projects\dolphin-src`): answer
+  source is indexed too, as project `dolphin` (clone at `../dolphin-src`): answer
   "what does Dolphin do with this GX command" from the source, not from memory. Any other
   source worth asking structural questions about (a vendored dependency, libogc2, another
   emulator) can be added as its own project in minutes -- recipe in

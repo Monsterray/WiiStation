@@ -2,8 +2,8 @@ CHAIN
 # GxMask on the bench Wii (Docs/STP_BIT15.md): each game with GxMask=0 (Accurate: bit 15 in the EFB
 # depth, textures split by STP, Z8 copies beside the EFB snapshots) and GxMask=1 (the 5.14.0 tile
 # guess). Build: bash scripts/wsx.sh build debug pmc. Queue (games already on the card):
-#   C:/Python312/python.exe C:/tools/wii-bench/wiibench.py add --name bit15_hw --timeout 1500 --cwd <repo> -- \
-#     C:/Python312/python.exe scripts/wii_lab.py hw_bit15 scripts/chains/bit15_hw.txt --dol debug --timeout 1200
+#   python "$WII_BENCH" add --name bit15_hw --timeout 1500 --cwd <repo> -- \
+#     python scripts/wii_lab.py hw_bit15 scripts/chains/bit15_hw.txt --dol debug --timeout 1200
 # Read: chain_table.py pairs (speed, gpu %, presents, pmc), perf.log ogxskip mask2/zcap, xfb_NN.bin
 # (2 a line: CTR start line 5600/5900, Spyro 3600/4800). About 6 minutes of game.
 6000 sd:/wiistation/gx_ctr.txt GxMask=0

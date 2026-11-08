@@ -73,7 +73,7 @@ problem, fixed 2026-09-28 (ec16be0, EFB_SYNC.md "When a frame is presented").** 
 
 **Reference:** video b21k8NFfVtk, 17:10-17:13 (fade: the picture folds in on itself, then a
 white rectangle shrinks to a line and a dot) and 17:30-17:37 (pause over the frozen game).
-Frames in `C:\tools\reference\ape_escape\` (`trans_sheet.png`, `pause_sheet.png`).
+Frames in a `reference/ape_escape/` folder of reference frames on the dev PC (`trans_sheet.png`, `pause_sheet.png`).
 
 **Reproduce:** Ape Escape, `ControllerType=1`, input script: Start (0008) then Cross (4000)
 every 150 vblanks from 600 (reaches gameplay and pauses at vblank 3305).

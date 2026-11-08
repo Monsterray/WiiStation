@@ -4,7 +4,7 @@
 
 - Build only with the pinned toolchain through the devkitPro MSYS2 bash:
   ```
-  C:\devkitPro\msys2\usr\bin\bash.exe -lc "cd /c/projects/WiiStation && bash scripts/build.sh debug"
+  "$DEVKITPRO/msys2/usr/bin/bash.exe" -lc "cd <repo as an MSYS path> && bash scripts/build.sh debug"
   ```
   (`release` for the release variant). `build.sh` pins `DEVKITPPC=/c/devkitPro/devkitPPC-r41-2`
   and libogc2. Running `make` in `deps/opengx` from another shell picks the tuxedo libogc
@@ -20,16 +20,16 @@
   DOL then failed with "no such .dol"; keep a copy of the DOL you are measuring in the
   scratchpad if you build anything between runs.
 - Never boot `WiiSXRX_Release.elf` in Dolphin (BSS not zeroed → crash); test with the debug .dol.
-- A worktree under `C:\Users\...` (the opencode temp dir) failed every build with
+- A worktree under the user profile folder (`C:\Users\...`, the agent temp dir) failed every build with
   `GL/gl.h: No such file` in opengx: devkitPro's fstab mounts `C:\Users` on `/home`, so make's
-  CURDIR became `/home/Monty Perrotti/...` (a space) although `pwd` showed the 8.3 name
-  `MONTYP~1`. `build.sh` tested the logical path for a space; it now tests `pwd -P` and builds
+  CURDIR became `/home/<user name>/...` (a space) although `pwd` showed the 8.3 name
+  `<USERNA~1>`. `build.sh` tested the logical path for a space; it now tests `pwd -P` and builds
   a snapshot in the MSYS `/tmp` (2.5 min, deps from scratch), copying the ignored `deps/ext`
   (libwupc) in so the snapshot does not fetch it (2026-10-18).
-- A worktree under `C:\Users\Monty Perrotti\...` (the opencode temp dir): MSYS2 turns the 8.3
-  path `/c/Users/MONTYP~1/...` back into `/home/Monty Perrotti/...`, so make's CURDIR has a space
+- A worktree under the user profile folder (`C:\Users\<user name>\...`, the agent temp dir): MSYS2 turns the 8.3
+  path `/c/Users/<USERNA~1>/...` back into `/home/<user name>/...`, so make's CURDIR has a space
   and `-I$(CURDIR)` breaks (`GL/gl.h: No such file`). Run `wsx.sh build` from the long path
-  (`cd "/c/Users/Monty Perrotti/..."`): `build.sh` then sees the space and builds a snapshot in the
+  (`cd "/c/Users/<user name>/..."`): `build.sh` then sees the space and builds a snapshot in the
   devkitPro MSYS2 `/tmp`. The snapshot left out the ignored `deps/ext` (`wupc/wupc.h: No such
   file`) until 2026-10-18; it is copied in now. Dolphin runs work from either path since
   `wsx.sh run` quotes the autoboot path (a chain file's path used to split at the space).
@@ -83,7 +83,7 @@ believing the symptom.
   first line of that file also decides WHICH game is copied onto this profile's card, so a run
   that browses to a different one needs `WSX_ISOS=<folder name>` as well.
 - **The card is a copy, not the user's.** Games, the BIOS and the fonts are copied from
-  `C:\tools\Dolphin-x64\User\Load\WiiSDSync\wiistation\` with `cp -u` on the first run that
+  the `User\Load\WiiSDSync\wiistation\` folder of the Dolphin install with `cp -u` on the first run that
   needs them. A new game the user drops there appears on the next run; a file the guest writes
   during a run (a memory card, a save state) stays in `.dolphin` and never touches theirs.
   Delete `.dolphin/` to start clean.
@@ -180,9 +180,9 @@ already). Add one when a question about someone else's code would otherwise be a
 memory or a web summary -- a vendored dependency (`deps/lightrec`, `deps/opengx` upstream),
 libogc2 (what a `GX_*` call actually writes), another emulator to compare behaviour with.
 
-1. Get the source on disk: `git clone --depth 1 <url> C:/projects/<name>-src` keeps a large
+1. Get the source on disk: `git clone --depth 1 <url> ../<name>-src` keeps a large
    tree small, and `git -C ... pull --depth 1` refreshes it when the version matters.
-2. Index it: `index_repository(path="C:/projects/<name>-src", name="<name>", mode="fast",
+2. Index it: `index_repository(path="<absolute path of ../<name>-src>", name="<name>", mode="fast",
    persistence=true)`. The `name` is what every later call passes as `project`, and
    `persistence` is what makes it survive a restart. Dolphin's tree (72k nodes) took a few
    minutes this way.
@@ -198,7 +198,7 @@ through the tool search first), but the same server is reachable from the shell 
 away, so indexing never has to wait for a session restart:
 
 ```
-C:/ai/venvs/codebase-memory/Scripts/codebase-memory-mcp.exe cli --quiet index_repository '{"path":"C:/projects/foo-src","name":"foo","mode":"fast","persistence":true}'
+codebase-memory-mcp cli --quiet index_repository '{"path":"/path/to/foo-src","name":"foo","mode":"fast","persistence":true}'
 ```
 
 WiiStation itself is registered project-scoped in the repo's `.mcp.json`; fuller notes on the
@@ -223,10 +223,10 @@ server live in `C:\ai\README.md`.
   the wrong message (2be5ad4, 2026-10-01). Add skill files with `git add -f`, and read
   `git diff --cached --stat` before each commit.
 
-- **A worktree under `C:\Users\Monty Perrotti\...` (space) (2026-10-18).** Build it from the
-  long path (`cd "/c/Users/Monty Perrotti/AppData/Local/Temp/opencode/<wt>"`): from the 8.3
-  path (`MONTYP~1`) build.sh misses the space, devkitPro's MSYS maps the cwd to `/home/Monty
-  Perrotti/...` and opengx's `-I$(CURDIR)` breaks (`GL/gl.h: No such file`). The space path
+- **A worktree under the user profile folder when the user name has a space (`C:\Users\<user name>\...`) (2026-10-18).** Build it from the
+  long path (`cd "/c/Users/<user name>/AppData/Local/Temp/<agent>/<wt>"`): from the 8.3
+  path (`<USERNA~1>`) build.sh misses the space, devkitPro's MSYS maps the cwd to `/home/<user
+  name>/...` and opengx's `-I$(CURDIR)` breaks (`GL/gl.h: No such file`). The space path
   takes build.sh's source-snapshot route, which now carries `deps/ext` (libwupc, gitignored)
   as well; before, `wupc/wupc.h: No such file`. In such a worktree `wsx.sh run` with the
   default `--autoboot spyro` passed `$P/autoboot_spyro.txt` unquoted ("card: 0 game(s)", the

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """ra_cache_fixture.py -- a made-up RetroAchievements set for Local mode's card cache (test runs only).
 
-    C:/Python312/python.exe scripts/ra_cache_fixture.py SETFILE --hash HEX32 --game-id N --out DIR
+    python scripts/ra_cache_fixture.py SETFILE --hash HEX32 --game-id N --out DIR
 
 SETFILE is a Custom-mode definition file (Docs/ACHIEVEMENTS.md, "Definition file"). The script
 writes DIR/achievements/ra_cache/gameid-<hash>.json and sets-<hash>.json, the two answers Local

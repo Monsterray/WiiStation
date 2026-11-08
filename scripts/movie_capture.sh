@@ -27,9 +27,9 @@
 #   --frames  With --play: keep the last 120 frames in .runs/<run>/frames.
 #
 # Environment:
-#   DOLPHIN_MOVIE  The dolphin-movie checkout (default /c/projects/dolphin-movie).
+#   DOLPHIN_MOVIE  The dolphin-movie checkout (default ../dolphin-movie beside the repo).
 #                  This script uses its dolphin_movie.py for the pads and to read the card.
-#   PYTHON         The Python program (default: python, else C:/Python312/python.exe).
+#   PYTHON         The Python program (default: python3, else python).
 #
 # Exit status: 0 when the recording (or the playback) is complete, 1 when it failed,
 # 2 for a usage error.
@@ -66,7 +66,7 @@
 set -u
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 TSV="${WSX_LIBRARY:-/c/wiistation-lib}/games.tsv"   # every library game and the file it boots (scripts/library_check.py)
-MOVIE="${DOLPHIN_MOVIE:-/c/projects/dolphin-movie}/dolphin_movie.py"
+MOVIE="${DOLPHIN_MOVIE:-$REPO/../dolphin-movie}/dolphin_movie.py"
 REC_CARD="wiistation/autoinput_rec.txt"            # where WiiStation writes the recording (Gamecube/PadWiiSX.c)
 REC_PRESS='^(?:p2 )?(\d+) [0-9a-f]{4}'             # a press line: "VBL BTNS" for port 1, "p2 VBL BTNS" for port 2
 

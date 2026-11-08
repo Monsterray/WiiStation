@@ -1,6 +1,6 @@
 # Contributing to WiiStation
 
-<!-- From wii-homebrew-kit (C:/projects/wii-homebrew-kit), adopted 2026-10-24. -->
+<!-- From wii-homebrew-kit (the wii-homebrew-kit repository), adopted 2026-10-24. -->
 
 ## Set up
 
@@ -10,9 +10,9 @@
 - **A POSIX shell:** devkitPro's MSYS2 bash (`C:\devkitPro\msys2\usr\bin\bash.exe`) or Git Bash.
   Never PowerShell with hand-set `DEVKITPRO`: Windows-style paths silently drop OpenGX
   functions, with no build error.
-- **Python 3.10+:** `C:/Python312/python.exe` on the dev machine. The devkitPro bash has no
+- **Python 3.10+:** `python` on the dev machine. The devkitPro bash has no
   `python` of its own.
-- **Dolphin** for unattended runs: `C:/tools/Dolphin-x64`. The game library is `C:/wiistation-lib`
+- **Dolphin** for unattended runs: `$DOLPHIN` (see `python scripts/wii_paths.py dolphin`). The game library is `$WSX_LIBRARY`
   (`scripts/profile.sh`).
 
 ## Build
@@ -34,7 +34,7 @@ bash scripts/wsx.sh build debug [PRESET]   # Gamecube/WiiSXRX_debug.dol; speed f
 | Dolphin chain (many games, one boot) | `bash scripts/wsx.sh chain NAME scripts/chains/smoke.txt --secs 400` | Dolphin |
 | Frames / audio unchanged | `bash scripts/wsx.sh frames A B`, `bash scripts/wsx.sh audio A B` | two runs |
 | PS1 accuracy | `bash scripts/wsx.sh chain NAME scripts/chains/ps1tests.txt` then `python scripts/ps1tests_check.py .runs/NAME` | Dolphin |
-| Bench Wii | `wiibench.py add --cwd . -- python scripts/wii_lab.py NAME scripts/chains/FILE.txt --dol X.dol` | the bench Wii |
+| Bench Wii | `python "$WII_BENCH" add --cwd . -- python scripts/wii_lab.py NAME scripts/chains/FILE.txt --dol X.dol` | the bench Wii |
 | Benchmark | `scripts/chains/library20.txt` on the bench Wii with `build debug speed`, then `python scripts/benchdb.py latest --platform wii --preset speed` | the bench Wii |
 
 A test marked `known_bug` (`tests/host/hostcheck.h`) describes behaviour that is still broken:

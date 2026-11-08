@@ -26,8 +26,8 @@ python3 scripts/bench_smoke.py prepare \
   --client '../hbc-reborn/tools/hbc.py' \
   --bundle .runs/bench/my-release-smoke
 
-python3 "C:/tools/wii-bench/wiibench.py" status
-python3 "C:/tools/wii-bench/wiibench.py" add \
+python "$WII_BENCH" status
+python "$WII_BENCH" add \
   --name wiistation-release-smoke --agent wiistation --timeout 300 \
   --cwd "$PWD" -- \
   python3 .runs/bench/my-release-smoke/bench_smoke.py run \
@@ -35,8 +35,8 @@ python3 "C:/tools/wii-bench/wiibench.py" add \
 
 # Use the job ID returned by add. If the dispatcher is already running,
 # do not start another. Otherwise:
-python3 "C:/tools/wii-bench/wiibench.py" run --idle 5
-python3 "C:/tools/wii-bench/wiibench.py" wait JOB_ID
+python "$WII_BENCH" run --idle 5
+python "$WII_BENCH" wait JOB_ID
 ```
 
 The smoke test checks idle HBC and refuses an existing SD

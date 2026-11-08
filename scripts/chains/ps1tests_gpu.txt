@@ -1,5 +1,5 @@
 CHAIN
-# JaCzekanski ps1-tests GPU tests that have a real-PS1 result (C:/tools/ps1-tests/bin/gpu/<t>/):
+# JaCzekanski ps1-tests GPU tests that have a real-PS1 result ($PS1_TESTS/bin/gpu/<t>/):
 # psx.log (console text: bandwidth, gp0-e1, mask-bit) or vram.png (VRAM at the end: the rest).
 # Each test under Soft Fast (0), Soft Timed (1) and OpenGX (2); HLE BIOS (its printf reaches
 # tty.log). Check: python scripts/ps1tests_gpu_check.py .runs/NAME (PASS/FAIL per test and

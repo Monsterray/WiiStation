@@ -1,6 +1,6 @@
 CHAIN
-# JaCzekanski ps1-tests (C:/tools/ps1-tests, build-158): CPU, timer, DMA, GTE tests whose
-# real-PS1 console output is in C:/tools/ps1-tests/ref/*.psx.log; scripts/ps1tests_check.py diffs tty.log.
+# JaCzekanski ps1-tests ($PS1_TESTS, build-158): CPU, timer, DMA, GTE tests whose
+# real-PS1 console output is in $PS1_TESTS/ref/*.psx.log; scripts/ps1tests_check.py diffs tty.log.
 # EXEs staged in .dolphin/Load/WiiSDSync/wiistation/isos/Tests/ps1t_<name>/.
 2400
 sd:/wiistation/isos/Tests/ps1t_cop

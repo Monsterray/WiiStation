@@ -2,7 +2,7 @@
 
 VRAM.BIN is a 1024x512 dump of 16-bit little-endian PS1 pixels (a run's vram_NN.bin); REF.PNG is
 a 1024x512 picture of real-PS1 VRAM with 5-bit colour shifted up by 3 (ps1-tests' vram.png, e.g.
-C:/tools/ps1-tests/bin/gpu/transparency/vram.png). Bit 15 is not in the picture, so only colour
+$PS1_TESTS/bin/gpu/transparency/vram.png). Bit 15 is not in the picture, so only colour
 is compared. Prints the pixels that differ (in the box, default all of VRAM) and writes OUT.PNG:
 the run's VRAM, with differing pixels in magenta. Exit 1 when any pixel differs.
 """

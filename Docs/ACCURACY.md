@@ -12,9 +12,9 @@ Accurate option.
 
 ## How the gaps were measured
 
-- Test programs: JaCzekanski's ps1-tests, release build-158, in `C:/tools/ps1-tests/bin/`.
+- Test programs: JaCzekanski's ps1-tests, release build-158, in `$PS1_TESTS/bin/`.
   Each test has `psx.log`, its console output on a real PlayStation, in
-  `C:/tools/ps1-tests/ref/`.
+  `$PS1_TESTS/ref/`.
 - Run: `bash scripts/wsx.sh chain NAME scripts/chains/ps1tests.txt --dol <dol>` (10 tests,
   2400 vblanks each, about 8 minutes on Lightrec in Dolphin). Use the HLE BIOS: only its
   printf reaches `tty.log`.

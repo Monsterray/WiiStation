@@ -22,8 +22,8 @@ server's Date header (sd:/wiistation/achievements/utc_offset.txt).
 
 Which Wii:
   (default)       the bench Wii, as a bench-queue job:
-                    C:/Python312/python.exe C:/tools/wii-bench/wiibench.py add --cwd C:/projects/WiiStation \\
-                        -- C:/Python312/python.exe scripts/ra_setup.py --seed --account examples/ra_account.ini
+                    python "$WII_BENCH" add --cwd <repo> \\
+                        -- python scripts/ra_setup.py --seed --account examples/ra_account.ini
   --production    Monty's everyday Wii (192.168.8.200) and
   --lrwii         the living-room Wii (192.168.8.243): only when he asks, run directly (not queued).
                   HBC must be idle on the TV (no app running): checked first, with a screenshot.

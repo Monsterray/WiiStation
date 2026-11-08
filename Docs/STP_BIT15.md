@@ -125,7 +125,7 @@ The commented-out block in `gc_gl.c` `_ogx_apply_state()` says "It appears that 
 GX_SetDstAlpha function is not functioning". The cause is the EFB format: an RGB8_Z24 EFB
 has no alpha to write. Dolphin disables the alpha write for that format (section 6).
 
-## 6. What Dolphin shows (C:/projects/dolphin-src, tag 2609)
+## 6. What Dolphin shows (`../dolphin-src`, tag 2609)
 
 - `Source/Core/VideoCommon/RenderState.cpp` `BlendingState::Generate()`: `target_has_alpha`
   is true only for `RGBA6_Z24`. `alpha_update` and `dst_alpha` (GX_SetDstAlpha) are off for
@@ -303,7 +303,7 @@ d = v[y:y + h, x:x + w]          # the display buffer
 print((d & 0x8000).astype(bool).mean())
 ```
 
-Real-PS1 tests to add to the library (`C:/tools/ps1-tests/bin/gpu/`, not staged yet):
+Real-PS1 tests to add to the library (`$PS1_TESTS/bin/gpu/`, not staged yet):
 
 - `mask-bit/mask-bit.exe`, real-PS1 log `psx.log`: testWriteAndRead, testSetBit,
   testCheckMaskBit, testCheckIsMaskBitStickyManually, testCheckIsMaskBitStickySetBit. Run it

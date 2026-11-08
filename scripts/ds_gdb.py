@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ds_gdb.py -- drive the test DuckStation (C:/tools/DuckStation, settings.ini [Debug]
+"""ds_gdb.py -- drive the test DuckStation ($DUCKSTATION, settings.ini [Debug]
 EnableGDBServer = true, GDBServerPort = 2345) through its GDB server: read and write PS1 RAM,
 find a byte pattern, hold a pad button. Nothing touches the user's keyboard, mouse or focus
 (user rule 2026-10-12); DuckStation runs minimized (`start /min`).

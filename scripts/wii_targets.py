@@ -1,7 +1,7 @@
 """wii_targets.py -- the two Wiis this project talks to, and the guard for the one with real data.
 
   BENCH_WII       192.168.8.213  the dev/test Wii. Shared by every project through the
-                                 wii-bench queue + lease (C:/tools/wii-bench/wiibench.py);
+                                 wii-bench queue + lease ($WII_BENCH, see wii_paths.py);
                                  unattended runs, logs and cleanups happen here.
   PRODUCTION_WII  192.168.8.200  Monty's everyday Wii, with REAL DATA on it: his saves, memory
                                  cards, settings and other apps. Treat it with care:
@@ -44,6 +44,9 @@ import sys
 import time
 import zlib
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import wii_paths  # noqa: E402  (shared tool locations; no workstation paths in this project)
+
 BENCH_WII = "192.168.8.213"
 PRODUCTION_WII = "192.168.8.200"
 LRWII = "192.168.8.243"      # the living-room Wii: production-style, real data (2026-10-20)
@@ -60,9 +63,26 @@ def _extra_protected(repo):
 
 
 PROTECTED_WIIS = (PRODUCTION_WII, LRWII) + _extra_protected(pathlib.Path(__file__).resolve().parents[1])
-HBC_TOOL = "C:/projects/hbc-reborn/tools/hbc.py"
-QUEUE = "C:/tools/wii-bench/wiibench.py"
-PY = "C:/Python312/python.exe"   # the queue's shell has no python of its own: always the full path
+PY = pathlib.Path(sys.executable).as_posix()   # the queue's shell has no python of its own: always the full path
+
+
+def _tool(find):
+    try:
+        return pathlib.Path(find()).as_posix()
+    except wii_paths.NotFound as e:
+        sys.exit(str(e))
+
+
+def hbc_tool():
+    """hbc-reborn's hbc.py ($HBC_PY / $HBC_REBORN, see wii_paths.py)."""
+    return _tool(wii_paths.hbc_py)
+
+
+def queue():
+    """The bench queue's wiibench.py ($WII_BENCH, see wii_paths.py)."""
+    return _tool(wii_paths.wii_bench)
+
+
 REPO = pathlib.Path(__file__).resolve().parents[1]
 
 
@@ -115,7 +135,7 @@ def production_ready(ip):
     running, so nothing of his is closed or replaced. Saves a TV screenshot as a record and
     prints its path. Returns True, or exits saying why not."""
     try:
-        r = subprocess.run([sys.executable, HBC_TOOL, "--wii", ip, "status", "--json"],
+        r = subprocess.run([sys.executable, hbc_tool(), "--wii", ip, "status", "--json"],
                            capture_output=True, text=True, timeout=30)
     except subprocess.TimeoutExpired:
         sys.exit(f"production Wii {ip}: status timed out; not touching it")
@@ -126,8 +146,8 @@ def production_ready(ip):
     if st.get("agent") or st.get("app"):
         sys.exit(f"production Wii {ip}: an app is running ({st.get('app') or 'agent app'}) -- "
                  "Monty may be playing; ask him first")
-    shot = "C:/projects/WiiStation/.runs/prod_last_screen.png"
-    s = subprocess.run([sys.executable, HBC_TOOL, "--wii", ip, "screen", shot],
+    shot = (REPO / ".runs" / "prod_last_screen.png").as_posix()
+    s = subprocess.run([sys.executable, hbc_tool(), "--wii", ip, "screen", shot],
                        capture_output=True, text=True, timeout=60)
     if s.returncode:
         sys.exit(f"production Wii {ip}: could not take TV screen; not touching it")
@@ -140,7 +160,7 @@ def production_ready(ip):
 def queue_cmd(args, timeout=None):
     """The line that queues `scripts/...` ARGS as a bench job (args: 'wii_clean.py --dry-run')."""
     t = f" --timeout {timeout}" if timeout else ""
-    return f"{PY} {QUEUE} add --cwd {REPO.as_posix()}{t} -- {PY} scripts/{args}"
+    return f"{PY} {queue()} add --cwd {REPO.as_posix()}{t} -- {PY} scripts/{args}"
 
 
 def bench_wii(what, ip=None, allow=()):
@@ -150,7 +170,7 @@ def bench_wii(what, ip=None, allow=()):
     if not os.environ.get("WII_BENCH_JOB_START"):
         sys.exit(f"{what}: run it as a wii-bench queue job, not directly (nothing was sent):\n"
                  f"  {queue_cmd(what + ' ...')}\n"
-                 f"then: {PY} {QUEUE} wait ID")
+                 f"then: {PY} {queue()} wait ID")
     ip = ip or os.environ.get("WII_BENCH_IP") or BENCH_WII
     if not any(_same(ip, p) for p in allow):   # allow: a protected Wii this tool has a safe mode for
         refuse_production(ip, what)
@@ -182,7 +202,7 @@ def hbc(wii, *args, timeout=120, show=False, env=None):
     """One hbc.py call. A wedged Wii or agent costs at most `timeout` seconds and comes back as
     rc 124, never a hang of the queue lease nor a traceback. show=True prints a one-line record."""
     try:
-        r = subprocess.run([sys.executable, HBC_TOOL, "--wii", wii, *map(str, args)],
+        r = subprocess.run([sys.executable, hbc_tool(), "--wii", wii, *map(str, args)],
                            capture_output=True, text=True, errors="replace",
                            timeout=timeout, env=env)
         res = Result(r.returncode, r.stdout, r.stderr)

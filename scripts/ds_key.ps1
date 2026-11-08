@@ -1,4 +1,4 @@
-# ds_key.ps1 KEY [HOLD_MS] -- press KEY in the test DuckStation (C:\tools\DuckStation) without
+# ds_key.ps1 KEY [HOLD_MS] -- press KEY in the test DuckStation ($env:DUCKSTATION) without
 # touching the user's keyboard, mouse or focus: WM_KEYDOWN/WM_KEYUP are posted to DuckStation's
 # own windows only (user rule 2026-10-12: never drive the user's input). KEY: Return, F10, K, W ...
 param([Parameter(Mandatory)][string]$Key, [int]$HoldMs = 120, [switch]$Children, [int]$Repeat = 1, [int]$IntervalMs = 300)
@@ -11,8 +11,11 @@ public delegate bool EnumProc(System.IntPtr h, System.IntPtr p);
 [DllImport("user32.dll")] public static extern bool EnumChildWindows(System.IntPtr parent, EnumProc f, System.IntPtr p);
 [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(System.IntPtr h, out uint pid);
 '@
-$proc = Get-Process | Where-Object { $_.Path -like 'C:\tools\DuckStation\*' } | Select-Object -First 1
-if (-not $proc) { Write-Error 'no DuckStation running from C:\tools\DuckStation'; exit 2 }
+# DUCKSTATION: the folder of the portable test DuckStation; no default.
+if (-not $env:DUCKSTATION) { Write-Error 'DUCKSTATION is not set (the test DuckStation folder)'; exit 2 }
+$ds = (Resolve-Path $env:DUCKSTATION).Path.TrimEnd('\')
+$proc = Get-Process | Where-Object { $_.Path -like "$ds\*" } | Select-Object -First 1
+if (-not $proc) { Write-Error "no DuckStation running from $ds"; exit 2 }
 $vk = [uint32][System.Windows.Forms.Keys]::$Key
 $scan = [DS.W]::MapVirtualKey($vk, 0)
 $down = [IntPtr](1 -bor ($scan -shl 16))

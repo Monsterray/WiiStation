@@ -22,7 +22,7 @@
 # MSYS2 make does not pass TMP/TEMP/TMPDIR from the shell to its recipes; gcc
 # then falls back to C:\WINDOWS and fails with "Cannot create temporary file".
 # Export a Windows temp path from here instead (override with make TMPWIN=...).
-TMPWIN  ?= C:\Users\MONTYP~1\AppData\Local\Temp
+TMPWIN  ?= $(or $(shell cygpath -w "$${TMPDIR:-/tmp}" 2>/dev/null),$(TEMP),$(TMP))
 export TMP := $(TMPWIN)
 export TEMP := $(TMPWIN)
 export TMPDIR := $(TMPWIN)

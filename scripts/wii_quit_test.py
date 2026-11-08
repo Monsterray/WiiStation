@@ -1,8 +1,8 @@
 """Bench-Wii queue job: Quit WiiStation and report what happened: whether HBC answers again,
 the crash report, the app's last output, a screen before the quit.
 
-    C:/Python312/python.exe C:/tools/wii-bench/wiibench.py add --cwd C:/projects/WiiStation -- \\
-        C:/Python312/python.exe scripts/wii_quit_test.py NAME [--dol DOL]
+    python "$WII_BENCH" add --cwd <repo> -- \\
+        python scripts/wii_quit_test.py NAME [--dol DOL]
         [--game FOLDER ROM --secs N] [--set K=V ...]
 
 Without --game: the menu's Quit button, pressed by the input script in

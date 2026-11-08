@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """bench_ra_mii.py -- Official mode with Local players on the bench Wii (Docs/ACHIEVEMENTS.md, Players and Miis step 4c).
 
-    C:/Python312/python.exe C:/tools/wii-bench/wiibench.py add --cwd C:/projects/WiiStation --timeout 1500 \\
-        -- C:/Python312/python.exe scripts/bench_ra_mii.py NAME [--account FILE --ra-name dev] [--dol debug|release|PATH]
+    python "$WII_BENCH" add --cwd <repo> --timeout 1500 \\
+        -- python scripts/bench_ra_mii.py NAME [--account FILE --ra-name dev] [--dol debug|release|PATH]
 
 A wii-bench queue job (it refuses to run directly, and refuses the production Wiis). It runs
 scripts/chains/ach_official_ra.txt through wii_lab.py: Spyro in spectator mode (no unlock reaches

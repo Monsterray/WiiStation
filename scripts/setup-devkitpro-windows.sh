@@ -119,7 +119,7 @@ WARNING: this repo is checked out at a path containing a space:
   $REPO_ROOT
 devkitPro's Makefiles pass \$(CURDIR) to the compiler unquoted, so a space
 in the path breaks the build with confusing "file not found" errors.
-Move or clone the repo to a path with no spaces (e.g. C:/projects/WiiStation)
+Move or clone the repo to a path with no spaces (e.g. ~/projects/WiiStation)
 before running scripts/build.sh.
 EOF
 fi

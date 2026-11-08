@@ -477,7 +477,7 @@ Still to do (fix, not delete):
 - The hardware session: `scripts/chains/all.txt` as `autoboot.txt`, a build with
   `PERF_PROF_PMC=1`, then `chain_table.py`. One boot, one card transfer. Not run yet; the tools
   are ready: the PMC probes (8214a6d) and the bench-Wii loop (`scripts/wii_lab.py` through the
-  `C:/tools/wii-bench` queue), which needs no card transfer. **DONE** (status 2026-11-03): run
+  `$WII_BENCH` queue), which needs no card transfer. **DONE** (status 2026-11-03): run
   on the bench Wii on 2026-09-28 (`baselines/hw_chain_all_20260928`, `hw_chain_all2_20260928`
   with the PMC build c48bb7d, and the LC A/B `hw_chain_lc_ab_20260928`); every version since is
   benchmarked with `library20.txt` (`scripts/benchdb.py`).

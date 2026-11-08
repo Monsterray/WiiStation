@@ -35,7 +35,7 @@ exact counts and pictures, never GX times.
 
 ## Wii bench
 
-Queue jobs only (`C:/tools/wii-bench/wiibench.py add ... -- C:/Python312/python.exe scripts/wii_lab.py ...`);
+Queue jobs only (`$WII_BENCH add ... -- python scripts/wii_lab.py ...`);
 `scripts/wii_targets.py` refuses anything outside a job and the protected Wiis. Runs land in
 `.runs/NAME` and in `baselines/bench.sqlite`.
 

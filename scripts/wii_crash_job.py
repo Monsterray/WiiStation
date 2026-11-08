@@ -3,8 +3,8 @@ with wii_lab.py, then asks HBC for the report (a small status request -- never `
 A crash leaves libogc2's crash screen up: someone presses RESET on the Wii, and the loop
 below reads the report once HBC answers again (up to 10 minutes).
 
-    C:/Python312/python.exe C:/tools/wii-bench/wiibench.py add --cwd C:/projects/WiiStation --timeout 1200 -- \\
-        C:/Python312/python.exe scripts/wii_crash_job.py NAME CHAINFILE DOL SECS
+    python "$WII_BENCH" add --cwd <repo> --timeout 1200 -- \\
+        python scripts/wii_crash_job.py NAME CHAINFILE DOL SECS
 
 Queue it with the full python path: the dispatcher's `bash` is WSL's, which has no python.
 One game per job tells which game crashed; results go to .runs/NAME as with wii_lab.py."""

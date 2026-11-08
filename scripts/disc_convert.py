@@ -13,6 +13,7 @@ ISOopen's alt-file list has no .mdf), PBP .pbp, CBN .cbn (its .cue sidecar is wh
 import glob
 import os
 import re
+import shutil
 import struct
 import subprocess
 import sys
@@ -20,7 +21,7 @@ import tempfile
 import zlib
 
 SS = 2352
-CHDMAN = "C:/tools/chdman/chdman.exe"
+CHDMAN = os.environ.get("CHDMAN") or shutil.which("chdman") or "chdman"   # $CHDMAN, else PATH
 FORMATS = ["CUE1", "CCD", "TOC", "MDS", "PBP", "CBN", "ISO", "CHD"]
 BOOT = {"CUE1": ".cue", "CCD": ".ccd", "TOC": ".toc", "MDS": ".mdf", "PBP": ".pbp",
         "CBN": ".cbn", "ISO": ".iso", "CHD": ".chd"}

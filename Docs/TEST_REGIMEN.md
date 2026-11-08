@@ -75,7 +75,7 @@ How a new game enters the regimen: add it to the library only (`scripts/profile.
 (it becomes `scripts/autoinput/NAME_play.txt`), add a chain line, and put the game on the
 bench Wii's card (`wii_check.py card` first; the agent's put limit is 512 MB per file).
 
-## The games added 2026-10-21 (`C:/projects/@Shared/ROMs/PS1`, copied into the library)
+## The games added 2026-10-21 (the shared ROM folder `@Shared/ROMs/PS1` on the dev PC, copied into the library)
 
 Boot test: `scripts/chains/newgames_boot.txt`, 40 s each, no input, Dolphin, HLE BIOS.
 
@@ -145,7 +145,7 @@ read brings 8 sectors from the card at once; the plain image takes many small re
 read-ahead thread. Both are small; CHD is the cheaper of the two on a Wii.
 
 **PBP and maximum compression (2026-10-21).** PBPs are made with PSXPackager v1.6.3 built from
-source (`C:/tools/psxpackager-src`, `dotnet build PSXPackager/PSXPackager-windows.csproj`, run with
+source (`../psxpackager-src`, `dotnet build PSXPackager/PSXPackager-windows.csproj`, run with
 `DOTNET_ROLL_FORWARD=Major` and Windows paths; local patch: the console-cursor calls guarded, it
 crashed with its output redirected). The release zip is not used: 0/19 AV engines and ClamAV clean,
 but MetaDefender's sandbox said "Likely Malicious" with 0 indicators. Inputs are staged in
@@ -170,7 +170,7 @@ but MetaDefender's sandbox said "Likely Malicious" with 0 indicators. Inputs are
   (`chdra_hw`) 0.9% / 1.0% / 0.5%, total CD time Frogger 3359 -> 270 ms (CUE 273); a read right
   after a seek still decodes a whole hunk, 37 ms at 32 frames against 19 ms, ~7 times in 30 s.
   Recommended for the smallest CHD: `chdman createcd -c cdlz,cdzl,cdfl,cdzs -hs 78336`.
-- Maximum-compression PBP: PSXPackager fork `C:/projects/PSXPackager` (branch `wiistation`), level 10
+- Maximum-compression PBP: PSXPackager fork `../PSXPackager` (branch `wiistation`), level 10
   = zopfli and zlib 9 per block, the smaller, every core. Frogger 159.3 -> 156.1 MB (2.0%) in 264 s
   on 32 cores; every block decodes to the level-9 data; guest identical (`pbp_level10.txt`).
 

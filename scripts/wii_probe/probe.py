@@ -2,8 +2,8 @@
 """probe.py -- send argvprobe.dol to the bench Wii with two test arguments and print what
 it reports back over TCP 4300 (argc/argv, net_init, if_config, the connect). Run it through
 the bench queue:
-    C:/Python312/python.exe C:/tools/wii-bench/wiibench.py add --cwd C:/projects/WiiStation -- \\
-        C:/Python312/python.exe scripts/wii_probe/probe.py
+    python "$WII_BENCH" add --cwd <repo> -- \\
+        python scripts/wii_probe/probe.py
 It refuses to run directly, and refuses the production Wii."""
 import pathlib
 import socket

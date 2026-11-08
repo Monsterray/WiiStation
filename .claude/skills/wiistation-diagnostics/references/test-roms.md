@@ -38,7 +38,7 @@ compare two versions of a core file on the PC. Every step below cost a run to fi
 
 ## PadTest DX: the controller test ROM
 
-- github.com/Monsterray/padtest at C:\projects\padtest (PSn00bSDK at C:\PSn00bSDK), `bash
+- github.com/Monsterray/padtest at `../padtest` (PSn00bSDK at `$PSN00BSDK`), `bash
   build.sh`; WiiStation's `scripts/padtest_dx.sh` copies build/padtest.bin+cue to the test
   card and runs the matrix (measuring.md, "Controller and multitap tests"). What it sends
   and why: the fork's docs/PROTOCOL.md; status block layout: include/dx.h (version 4, in
@@ -117,7 +117,7 @@ of cases whose values and FLAG differ, which registers, and ns per command.
 
 ## JaCzekanski ps1-tests: emulator vs a real PS1
 
-`C:/tools/ps1-tests/` (release build-158, scanned 2026-10-01): `bin/` the EXEs, `ref/` each
+`$PS1_TESTS/` (release build-158, scanned 2026-10-01): `bin/` the EXEs, `ref/` each
 test's `psx.log` -- its console output on a real PlayStation. The EXEs are staged as
 `.dolphin/Load/WiiSDSync/wiistation/isos/ps1t_<name>/<name>.exe`.
 - `scripts/wsx.sh chain NAME scripts/chains/ps1tests.txt --dol X` (10 tests x 2400 vblanks,
@@ -131,7 +131,7 @@ test's `psx.log` -- its console output on a real PlayStation. The EXEs are stage
 
 ## ps1-tests GPU tests against a real PS1 (2026-10-19)
 
-`C:/tools/ps1-tests/bin/gpu/<test>/` holds the real-PS1 result of 14 tests: `psx.log`
+`$PS1_TESTS/bin/gpu/<test>/` holds the real-PS1 result of 14 tests: `psx.log`
 (bandwidth, gp0-e1, mask-bit) or `vram.png` (the other 11: VRAM at the end, 5-bit colour,
 no bit 15). Library folders `C:/wiistation-lib/games/ps1t_<test>`.
 - `wsx.sh chain NAME ps1tests_gpu.txt --fast` (each test under gpuPlugin 0, 1, 2; about 10
@@ -179,15 +179,15 @@ no bit 15). Library folders `C:/wiistation-lib/games/ps1t_<test>`.
 
 ## DuckStation as the reference (2026-10-12)
 
-`C:/tools/DuckStation` (portable, 2026-10-11 build, scanned clean): BIOS and games from
+`$DUCKSTATION` (the portable DuckStation folder) (portable, 2026-10-11 build, scanned clean): BIOS and games from
 `C:/wiistation-lib`, software renderer at 1x (closest to a PS1 GPU), GDB server on
 127.0.0.1:2345 (`[Debug] EnableGDBServer`). Use it to ask "does a PS1 do this too?".
 
 - Start it like the test Dolphins, minimized and never activated:
-  `cmd //c start "" //min C:/tools/DuckStation/duckstation-qt-x64-ReleaseLTCG.exe -batch -fastboot GAME.cue`.
+  `cmd //c start "" //min "$DUCKSTATION/duckstation-qt-x64-ReleaseLTCG.exe -batch -fastboot GAME.cue`.
 - Screenshots: `powershell -File scripts/ds_key.ps1 F10 [-Repeat N -IntervalMs M]` posts the
   hotkey to its windows only (no focus, no real keyboard). Files land in
-  `C:/tools/DuckStation/screenshots`. Pad keys posted this way are ignored (Qt sends keys to
+  `$DUCKSTATION/screenshots`. Pad keys posted this way are ignored (Qt sends keys to
   the focused window), so:
 - Buttons: `python scripts/ds_gdb.py press ADDR BYTE N` -- a GDB write watchpoint on the game's
   pad buffer; each time the pad library copies the pad data there, the byte is replaced and

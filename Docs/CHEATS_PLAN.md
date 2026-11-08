@@ -5,7 +5,7 @@ for gameshark and `.cht`; no commit adds one). It waits on the List and
 Range rows of `Docs/MENU_PLAN.md`; List exists (ce8218c7), Range does not.
 
 Nothing built yet. Monty's brief (2026-10-09): do it like DuckStation, ship no cheats (say where to
-get them), and let the engine take new formats later. Research: `C:\projects\research\cheats\FINDINGS.md`.
+get them), and let the engine take new formats later. Research: `research/cheats/FINDINGS.md` in the research folder beside the projects.
 DuckStation's code is CC-BY-NC-ND: read for behaviour only; the engine is written from the public
 spec (`chtdb/cheat-format.txt`).
 

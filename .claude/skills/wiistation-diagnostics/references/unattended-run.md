@@ -20,7 +20,7 @@ profile path exactly (`.dolphin` does not match `.dolphin2`).
 
 | Thing | Where |
 |---|---|
-| Dolphin | `C:\tools\Dolphin-2609\Dolphin.exe` (2609, since 2026-10-01). Its `User\` is a junction to `C:\tools\Dolphin-x64\User` (16 GB, one copy), so paths below that name `Dolphin-x64\User` are the same folder. The old build in `Dolphin-x64` is the fallback: `DOLPHIN_DIR=/c/tools/Dolphin-x64`. |
+| Dolphin | `$DOLPHIN` (found by `python scripts/wii_paths.py dolphin`; build 2609 on the dev PC since 2026-10-01). Its `User\` may be a junction to another Dolphin's `User` (16 GB, one copy), so a path below that names `Dolphin-x64\User` means the `User` folder of the Dolphin install. A second, older build is the fallback: `DOLPHIN_DIR=<its folder>`. |
 | This run's user dir (`-u`) | `<repo>\.profiles\run-<name>-<time>\` (deleted at the end), or the `WSX_PROFILE` named profile |
 | SD sync folder (master; synced INTO the image at launch, never back on a kill) | `<profile>\Load\WiiSDSync\wiistation\` (`isos\` holds the games the run names) |
 | SD image (locked while Dolphin runs) | `<profile>\Load\WiiSD.raw` |
@@ -29,7 +29,7 @@ profile path exactly (`.dolphin` does not match `.dolphin2`).
 | BIOS, fonts, NAND skeleton copied into each profile | `C:\wiistation-lib\bios\`, `fonts\`, `wii\` |
 | Frame dumps | `<profile>\Dump\Frames\framedump_<n>.png` (824x480), moved to the run directory |
 | Dolphin log | `<profile>\Logs\dolphin.log`, timestamps are `MM:SS:mmm`, not hours |
-| Where the USER drops games (the library was copied from it; read only) | `C:\tools\Dolphin-x64\User\Load\WiiSDSync\wiistation\` |
+| Where the USER drops games (the library was copied from it; read only) | `<Dolphin install>\User\Load\WiiSDSync\wiistation\` |
 | Staged test files (autoboot, autoinput, settings presets) | `scripts\runfiles\` in the repo |
 | Builds | `Gamecube\WiiSXRX_debug.dol` (run this), `Gamecube\WiiSXRX_Release.dol` (never boot the release .elf under Dolphin: unzeroed BSS crashes) |
 
@@ -251,15 +251,15 @@ crash, lastlog), `card [FOLDER...] [--fix]` (card game folders vs the library).
 
 Rules and fixes learned on the bench (2026-09-29/30):
 - **Always through the queue**, never wiiload directly:
-  `C:/Python312/python.exe C:/tools/wii-bench/wiibench.py add --cwd C:/projects/WiiStation --name "..." --timeout S -- CMD`,
+  `python "$WII_BENCH" add --cwd <repo> --name "..." --timeout S -- CMD`,
   then `wiibench.py wait ID` (prints the end of the log, exits with the job's code). Other
   workstations share the Wii **through the lease server `http://homeserver.local:4310`**
   (the user's rule, 2026-09-30): the dispatcher takes the lease before each job.
   `status` must show a `lease http://homeserver.local:4310: ...` line; if it does not
-  (no `C:/tools/wii-bench/server`), run
-  `python C:/projects/hbc-reborn/tools/wii-bench/wiibench.py setup --server http://homeserver.local:4310`.
+  (no `server` file in the bench folder, `python scripts/wii_paths.py bench_home`), run
+  `python <wii-bench checkout>/bench/wiibench.py setup --server http://homeserver.local:4310`.
   Never talk to the Wii (wiiload, hbc.py) outside a queue job.
-- **Queue commands with the full python path** (`C:/Python312/python.exe ...`). The
+- **Queue commands with the full python path** (`wii_targets.queue_cmd()` writes `sys.executable`'s full path). The
   dispatcher's `bash` is WSL's `C:\Windows\System32\bash.exe`, which has no python: a
   `bash job.sh` job fails at once with `python: command not found`.
 - **Never queue `hbc.py get` without the user's go-ahead**, and never a large file: it crashed HBC 1.4.1
