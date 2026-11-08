@@ -121,3 +121,9 @@ wide read-only reviews. One step per commit on `try/menu-standard`.
   (`PageView::FLAT` mark, 0 frames). By-name clicks checked on the DOL: `menuclick ScreenMode 1`, `Interlaced 1`, `LightGun 1`,
   `ControllerType 1`, `FPS 1` all change the page as pressed. `autoinput_menuclick` holds ONE click: the last line of a script wins.
   Not measured: menu CPU on the bench Wii; release build.
+- Step 6 (2026-11-08, ActionMenu): Main and Current ISO are tables in `Gamecube/menu/pages/ActionPages.h` (a button = text, click,
+  row, slot, width, dy; a row = x0, gap) built by `glue::ActionMenu` (MenuPageView.h/.cpp: layout once, buttons from the pool,
+  focus links, `setText` for the Play/Resume and Slot labels, layout log under PERF_PROF). MainFrame.cpp 428 -> ~350,
+  CurrentRomFrame.cpp 402 -> ~280. The host test checks both tables. Proof: Main's first frame and pages 16 (Current ISO), 17, 1
+  against step 5: 0 differing frames. Play Game's loop is still in MainFrame.cpp (it moves out with step 11's Dialog work).
+  Not measured: bench-Wii menu CPU; release build; Resume Game label by hand (the code path is the old one, via setPlayLabel).

@@ -24,7 +24,7 @@
 #include "../libgui/Frame.h"
 #include "MenuTypes.h"
 
-namespace menu { namespace glue { class Pool; } }
+namespace menu { namespace glue { class ActionMenu; } }
 
 class CurrentRomFrame : public menu::Frame
 {
@@ -34,7 +34,7 @@ public:
 	void drawChildren(menu::Graphics& gfx);
 
 private:
-	menu::glue::Pool *pool;
+	menu::glue::ActionMenu *actions;
 };
 
 #endif

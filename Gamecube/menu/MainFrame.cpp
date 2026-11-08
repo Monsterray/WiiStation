@@ -22,6 +22,7 @@
 #include "MenuEngine.h"	/* before Button.h: its include guard is BUTTON_H, a name the engine uses */
 #include "../version.h"
 #include "MainFrame.h"
+#include "MenuPageView.h"
 #include "SettingsFrame.h"
 #include "../libgui/Button.h"
 #include "../libgui/IPLFont.h"
@@ -53,80 +54,21 @@ extern "C" {
 #include <ogc/dvd.h>
 #include "../../HidController/KernelHID.h"
 
-void Func_LoadROM();
-void Func_CurrentROM();
-void Func_Settings();
-void Func_Players();
-void Func_Credits();
-void Func_ExitToLoader();
-void Func_PlayGame();
 static void Func_BackToGame();
 extern BOOL hasLoadedISO;
 
-static const int NUM_MAIN_BUTTONS = 7;
-
-static char mainStrings[8][20] =
-	{ "Load ISO",
-	  "Current ISO",
-	  "Settings",
-	  "Players",
-	  "Credits",
-	  "Quit",
-	  "Play Game",
-	  "Resume Game"};
-
 namespace eng = menu::engine;
 
-struct MainButtonInfo
+/* The Play button says Play Game, or Resume Game once a game has been played and the menu was opened
+ * from it. The menu (the page's buttons) exists once the frame is made. */
+static menu::glue::ActionMenu *mainMenu;
+static bool resumeLabel;
+
+static void setPlayLabel(bool resume)
 {
-	int				buttonStyle;
-	char*			buttonString;
-	ButtonFunc		clickedFunc;
-	ButtonFunc		returnFunc;
-};
-
-static MainButtonInfo mainButtons[NUM_MAIN_BUTTONS] =
-{	//	buttonStyle	buttonString		clickFunc			returnFunc
-	{	BTN_A_NRM,	mainStrings[0],	Func_LoadROM,		Func_BackToGame },
-	{	BTN_A_NRM,	mainStrings[1],	Func_CurrentROM,	Func_BackToGame },
-	{	BTN_A_NRM,	mainStrings[2],	Func_Settings,		Func_BackToGame },
-	{	BTN_A_NRM,	mainStrings[3],	Func_Players,		Func_BackToGame },
-	{	BTN_A_NRM,	mainStrings[4],	Func_Credits,		Func_BackToGame },
-	{	BTN_A_NRM,	mainStrings[5],	Func_ExitToLoader,	Func_BackToGame },
-	{	BTN_A_NRM,	mainStrings[6],	Func_PlayGame,		Func_BackToGame },
-};
-
-/* The Main menu page: seven rows, one action button each. */
-static eng::ActionButton MAIN_ACTIONS[NUM_MAIN_BUTTONS];
-static eng::Row MAIN_ROWS[NUM_MAIN_BUTTONS];
-static eng::Page MAIN_PAGE;
-static eng::Layout MAIN_LAYOUT;
-
-static void layoutMain(void)
-{
-	for (int i = 0; i < NUM_MAIN_BUTTONS; i++)
-	{
-		MAIN_ACTIONS[i].text  = mainButtons[i].buttonString;	/* Play/Resume changes this text */
-		MAIN_ACTIONS[i].width = 200.0f;
-		MAIN_ACTIONS[i].lit   = false;
-		MAIN_ACTIONS[i].dy    = 0.0f;
-
-		eng::Row &row = MAIN_ROWS[i];
-		memset(&row, 0, sizeof row);
-		row.kind    = eng::ROW_BUTTONS;
-		row.count   = 1;
-		row.actions = &MAIN_ACTIONS[i];
-		row.x0      = 315.0f;
-	}
-	memset(&MAIN_PAGE, 0, sizeof MAIN_PAGE);
-	MAIN_PAGE.rows  = MAIN_ROWS;
-	MAIN_PAGE.nRows = NUM_MAIN_BUTTONS;
-	MAIN_PAGE.logo  = eng::LOGO_SPOT_TOP;
-	MAIN_PAGE.focus = eng::FOCUS_ROWS;
-	MAIN_PAGE.rowY0 = 36.0f;	/* seven rows of 60 from y 36: the last ends at 452 */
-
-	eng::layoutPage(MAIN_PAGE, menu::glue::METRICS, MAIN_LAYOUT);
-	eng::linkFocus(MAIN_PAGE, MAIN_LAYOUT);
+	resumeLabel = resume;
+	if (mainMenu)
+		mainMenu->setText(MAIN_PLAY, resume ? "Resume Game" : "Play Game");
 }
 
 MainFrame::MainFrame()
@@ -134,26 +76,18 @@ MainFrame::MainFrame()
 	inputStatusBar = new menu::InputStatusBar(450,100);
 	add(inputStatusBar);
 
-	layoutMain();
-
-	/* Each button's box, and so its Cursor range, is the engine's rectangle for its row. */
-	pool = new menu::glue::Pool(this, NUM_MAIN_BUTTONS);
-	for (int i = 0; i < NUM_MAIN_BUTTONS; i++)
-	{
-		const eng::Control &c = MAIN_LAYOUT.c[MAIN_LAYOUT.slot[i][0]];
-		pool->button(eng::ROLE_BUTTON, i, 0, mainButtons[i].buttonStyle, &mainButtons[i].buttonString,
-		             c.rect.x, c.rect.y, c.rect.w, c.rect.h,
-		             mainButtons[i].clickedFunc, mainButtons[i].returnFunc);
-	}
-	pool->link(MAIN_LAYOUT);	/* the engine's links, handed to the buttons */
-	setDefaultFocus(pool->at(eng::ROLE_BUTTON, 0, 0));
+	actions = new menu::glue::ActionMenu(this, MAIN_MENU, Func_BackToGame);
+	mainMenu = actions;
+	setPlayLabel(resumeLabel);
+	setDefaultFocus(actions->button(0));
 	setBackFunc(Func_BackToGame);	/* B with the pointer on no button */
 	setEnabled(true);
 }
 
 MainFrame::~MainFrame()
 {
-	delete pool;
+	mainMenu = NULL;
+	delete actions;
 	delete inputStatusBar;
 }
 
@@ -398,25 +332,25 @@ void Func_PlayGame()
   continueRemovalThread();
   resume_netinit_thread();
 #endif
-	mainButtons[6].buttonString = mainStrings[7];
+	setPlayLabel(true);
 	menu::Cursor::getInstance().clearCursorFocus();
 }
 
 void Func_SetPlayGame()
 {
-	mainButtons[6].buttonString = mainStrings[6];
+	setPlayLabel(false);
 }
 
 void Func_SetResumeGame()
 {
-	mainButtons[6].buttonString = mainStrings[7];
+	setPlayLabel(true);
 }
 
 /* A game is loaded and has been played: the Play button says Resume (Func_PlayGame sets it
  * once the game stops for the menu, Func_SetPlayGame when another one is loaded). */
 bool MainFrame_gameStarted()
 {
-	return hasLoadedISO && mainButtons[6].buttonString == mainStrings[7];
+	return hasLoadedISO && resumeLabel;
 }
 
 /* B on the main menu: back into the game, as the Resume button does. With no game started, B

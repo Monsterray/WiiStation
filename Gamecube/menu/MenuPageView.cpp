@@ -15,6 +15,7 @@
  *
 **/
 
+#include <stdio.h>
 #include <string.h>
 
 #include "MenuPageView.h"
@@ -352,6 +353,74 @@ void PageView::updateFooter(const engine::Page &page)
 		}
 		footerBox[i]->setVisible(on);
 	}
+}
+
+ActionMenu::ActionMenu(Frame *owner, const ActionMenuDef &d, ButtonFunc back)
+	: def(d), pool(NULL)
+{
+	int rowCount[engine::MAX_ROWS] = { 0 };
+	memset(acts, 0, sizeof acts);
+	for (int k = 0; k < def.nActs; k++)
+	{
+		const ActionDef &a = def.acts[k];
+		engine::ActionButton &b = acts[a.row][a.slot];
+		snprintf(label[k], LABEL_LEN, "%s", a.text);
+		labelPtr[k] = label[k];
+		b.text  = label[k];
+		b.lit   = false;
+		b.width = a.width;
+		b.dy    = a.dy;
+		if (a.slot + 1 > rowCount[a.row])
+			rowCount[a.row] = a.slot + 1;	/* a row holds slots 0 .. its last one */
+	}
+	memset(rows, 0, sizeof rows);
+	for (int r = 0; r < def.nRows; r++)
+	{
+		rows[r].kind    = engine::ROW_BUTTONS;
+		rows[r].count   = rowCount[r];
+		rows[r].actions = acts[r];
+		rows[r].x0      = def.rows[r].x0;
+		rows[r].gap     = def.rows[r].gap;
+	}
+	memset(&page, 0, sizeof page);
+	page.rows       = rows;
+	page.nRows      = def.nRows;
+	page.logo       = def.logo;
+	page.focus      = engine::FOCUS_ROWS;
+	page.rowY0      = def.rowY0;
+	page.overrides  = def.links;
+	page.nOverrides = def.nLinks;
+	engine::layoutPage(page, METRICS, lay);
+	engine::linkFocus(page, lay);
+#ifdef PERF_PROF
+	logProblems("ActionMenu", def.name, page, lay);
+#endif
+
+	/* Each button's box, and so its Cursor range, is the engine's rectangle for its place. */
+	pool = new Pool(owner, def.nActs);
+	for (int k = 0; k < def.nActs; k++)
+	{
+		const ActionDef &a = def.acts[k];
+		const engine::Control &c = lay.c[lay.slot[a.row][a.slot]];
+		pool->button(engine::ROLE_BUTTON, a.row, a.slot, BTN_A_NRM, &labelPtr[k],
+		             c.rect.x, c.rect.y, c.rect.w, c.rect.h, a.click, back);
+	}
+	pool->link(lay);	/* the engine's links, handed to the buttons */
+}
+
+ActionMenu::~ActionMenu()
+{
+	delete pool;
+}
+
+void ActionMenu::setText(int i, const char *text)
+{
+	snprintf(label[i], LABEL_LEN, "%s", text);
+}
+
+Button *ActionMenu::button(int i) const
+{
+	return pool->at(engine::ROLE_BUTTON, def.acts[i].row, def.acts[i].slot);
 }
 
 #ifdef PERF_PROF

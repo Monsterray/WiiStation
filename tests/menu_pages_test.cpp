@@ -7,6 +7,26 @@
 #include <string.h>
 #include "../Gamecube/menu/pages/OptionsPages.h"
 #include "../Gamecube/menu/pages/SettingsPages.h"
+#include "../Gamecube/menu/pages/ActionPages.h"
+
+/* the hooks the action menus name */
+void Func_LoadROM() {}
+void Func_CurrentROM() {}
+void Func_Settings() {}
+void Func_Players() {}
+void Func_Credits() {}
+void Func_ExitToLoader() {}
+void Func_PlayGame() {}
+void Func_ShowRomInfo() {}
+void Func_ResetROM() {}
+void Func_SwapCD() {}
+void Func_LoadSave() {}
+void Func_SaveGame() {}
+void Func_LoadState() {}
+void Func_SaveState() {}
+void Func_StateCycle() {}
+void Func_Screenshot() {}
+void Func_AchievementsList() {}
 
 /* the hooks the Settings tables name */
 void Func_PluginsPage(void) {}
@@ -194,6 +214,46 @@ int main()
 							for (int c2 = 0; c2 < setRowSegs(SET_TABS_DEF[t2].rows[r2]); c2++)
 								check(strcmp(g.name, SET_TABS_DEF[t2].rows[r2].seg[c2].name), "a name is on one tab only", g.name);
 				}
+	}
+	/* The action menus: Main and Current ISO */
+	{
+		const ActionMenuDef *defs[] = { &MAIN_MENU, &CUR_MENU };
+		for (int m = 0; m < 2; m++)
+		{
+			const ActionMenuDef &d = *defs[m];
+			check(d.nActs > 0 && d.nActs <= 12, "1..MAX_ACTIONS buttons", d.name);
+			check(d.nRows > 0 && d.nRows <= eng::MAX_ROWS, "row count in 1..MAX_ROWS", d.name);
+			for (int k = 0; k < d.nActs; k++)
+			{
+				const ActionDef &a = d.acts[k];
+				check(a.text && *a.text && strlen(a.text) < 24, "a button has a text that fits its label", d.name);
+				check(a.click != NULL, "a button has a function", a.text);
+				check(a.row >= 0 && a.row < d.nRows && a.slot >= 0 && a.slot < eng::MAX_SLOTS, "a button sits in a row and slot", a.text);
+				check(a.width > 0.0f, "a button has a width", a.text);
+				for (int j = k + 1; j < d.nActs; j++)
+					check(!(d.acts[j].row == a.row && d.acts[j].slot == a.slot), "one button per place", a.text);
+			}
+			/* a row holds slots 0..n-1 with none missing */
+			for (int r = 0; r < d.nRows; r++)
+			{
+				int n = 0, top = -1;
+				for (int k = 0; k < d.nActs; k++)
+					if (d.acts[k].row == r) { n++; if (d.acts[k].slot > top) top = d.acts[k].slot; }
+				check(n > 0 && top == n - 1, "a row's slots are 0..n-1", d.name);
+			}
+			for (int l = 0; l < d.nLinks; l++)
+			{
+				bool from = false, to = false;
+				for (int k = 0; k < d.nActs; k++)
+				{
+					from |= d.acts[k].row == d.links[l].row && d.acts[k].slot == d.links[l].slot;
+					to |= d.acts[k].row == d.links[l].toRow && d.acts[k].slot == d.links[l].toSlot;
+				}
+				check(from && to, "a link joins two buttons", d.name);
+			}
+		}
+		check(!strcmp(MAIN_ACTS[MAIN_PLAY].text, "Play Game"), "MAIN_PLAY is the Play button", "Main");
+		check(!strncmp(CUR_ACTS[CUR_SLOT_BUTTON].text, "Slot", 4), "CUR_SLOT_BUTTON is the Slot button", "Current ISO");
 	}
 	printf("pages: %d checks, %d failed\n", checks, failures);
 	return failures;

@@ -29,6 +29,7 @@
 #define MENUPAGEVIEW_H
 
 #include "MenuGlue.h"
+#include "pages/ActionPages.h"
 #include "../libgui/TextBox.h"
 
 namespace menu {
@@ -104,6 +105,34 @@ private:
 	char **helpTermString, **helpString, **footerString;
 	engine::Layout lay;
 	int footerRow;
+};
+
+/* A page of buttons that each do one thing (Main, Current ISO): the table is an ActionMenuDef
+ * (pages/ActionPages.h). The menu lays itself out once, makes its buttons once (a button's A and B
+ * are the table's click and `back`) and links the focus; the frame adds its other widgets before it,
+ * sets the default focus on button(0) and B (setBackFunc) itself. */
+class ActionMenu {
+public:
+	enum { MAX_ACTIONS = 12, LABEL_LEN = 24 };
+	ActionMenu(Frame *owner, const ActionMenuDef &def, ButtonFunc back);
+	~ActionMenu();
+
+	/* A button's text, copied into the menu's own label (the button keeps pointing at it). */
+	void setText(int i, const char *text);
+	Button *button(int i) const;
+
+private:
+	ActionMenu(const ActionMenu&);
+	ActionMenu &operator=(const ActionMenu&);
+
+	const ActionMenuDef &def;
+	Pool *pool;
+	engine::ActionButton acts[engine::MAX_ROWS][engine::MAX_SLOTS];
+	engine::Row rows[engine::MAX_ROWS];
+	engine::Page page;
+	engine::Layout lay;
+	char label[MAX_ACTIONS][LABEL_LEN];
+	char *labelPtr[MAX_ACTIONS];
 };
 
 #ifdef PERF_PROF
