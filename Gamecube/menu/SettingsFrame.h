@@ -34,7 +34,6 @@ public:
 	~SettingsFrame();
 	void activateSubmenu(int submenu);
 	void drawChildren(menu::Graphics& gfx);
-	void updateFooter();
 
 	enum SettingsSubmenus
 	{

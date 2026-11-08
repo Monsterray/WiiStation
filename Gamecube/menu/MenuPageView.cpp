@@ -32,10 +32,10 @@ static char emptyStr[1] = "";
 /* A button's tag: a row's button or segment is (row + 1) * 256 + slot + 1; a tab is -(tab + 1). */
 static int rowTag(int row, int slot) { return (row + 1) * 256 + slot + 1; }
 
-PageView::PageView(Frame *owner, int rows, int choices, int tabs, int help, ActFn actFn, void *userData,
+PageView::PageView(Frame *owner, int rows, int slots, int texts, int tabs, int help, ActFn actFn, void *userData,
                    ButtonFunc back, const char *title)
-	: frame(owner), pool(new Pool(owner, tabs + rows * (1 + choices))),
-	  nRows(rows), nChoices(choices), nTabs(tabs), nHelp(help), act(actFn), user(userData),
+	: frame(owner), pool(new Pool(owner, tabs + rows * slots)),
+	  nRows(rows), nSlots(slots), nTexts(texts), nTabs(tabs), nHelp(help), act(actFn), user(userData),
 	  titleString((char*)title), footerRow(-1)
 {
 	rowW = new RowW[rows];
@@ -60,27 +60,32 @@ PageView::PageView(Frame *owner, int rows, int choices, int tabs, int help, ActF
 	for (int i = 0; i < rows; i++)
 	{
 		RowW &r = rowW[i];
-		r.choice = new Button*[choices];
-		r.choiceString = new char*[choices];
+		r.btn = new Button*[slots];
+		r.btnString = new char*[slots];
+		r.marks = new unsigned char[slots];
+		r.valueBox = new TextBox*[texts];
+		r.valueString = new char*[texts];
 		r.labelString = emptyStr;
 		r.value[0] = '\0';
-		r.valueString = r.value;
 		/* The label lives in two places depending on the row kind, so it gets two boxes; the page
 		 * makes the one it needs visible. */
 		r.text     = new TextBox(&r.labelString, 0.0f, 0.0f, engine::grid::TEXT_SCALE, true);
 		r.rlabel   = new TextBox(&r.labelString, 0.0f, 0.0f, engine::grid::TEXT_SCALE, true);
-		r.valueBox = new TextBox(&r.valueString, 0.0f, 0.0f, engine::grid::TEXT_SCALE, true);
 		frame->add(r.text);
 		frame->add(r.rlabel);
-		frame->add(r.valueBox);
-		r.button = pool->button(engine::ROLE_BUTTON, i, 0, BTN_A_NRM, &r.valueString, 0.0f, 0.0f, 0.0f, 0.0f, 0, back);
-		r.button->setClickedCtx(click, this, rowTag(i, -1));
-		for (int c = 0; c < choices; c++)
+		for (int c = 0; c < texts; c++)
 		{
-			r.choiceString[c] = emptyStr;
-			/* BTN_A_SEL is the style a one-of-several choice uses: the selected one stays lit. */
-			r.choice[c] = pool->button(engine::ROLE_CHOICE, i, c, BTN_A_SEL, &r.choiceString[c], 0.0f, 0.0f, 0.0f, 0.0f, 0, back);
-			r.choice[c]->setClickedCtx(click, this, rowTag(i, c));
+			r.valueString[c] = r.value;
+			r.valueBox[c] = new TextBox(&r.valueString[c], 0.0f, 0.0f, engine::grid::TEXT_SCALE, true);
+			frame->add(r.valueBox[c]);
+		}
+		for (int c = 0; c < slots; c++)
+		{
+			r.btnString[c] = emptyStr;
+			r.marks[c] = 0;
+			/* The art is set when the page is shown: it follows the button's role there. */
+			r.btn[c] = pool->button(engine::ROLE_BUTTON, i, c, BTN_A_NRM, &r.btnString[c], 0.0f, 0.0f, 0.0f, 0.0f, 0, back);
+			r.btn[c]->setClickedCtx(click, this, rowTag(i, c));
 		}
 	}
 
@@ -117,9 +122,13 @@ PageView::~PageView()
 	{
 		delete rowW[i].text;
 		delete rowW[i].rlabel;
-		delete rowW[i].valueBox;
-		delete[] rowW[i].choice;
-		delete[] rowW[i].choiceString;
+		for (int c = 0; c < nTexts; c++)
+			delete rowW[i].valueBox[c];
+		delete[] rowW[i].valueBox;
+		delete[] rowW[i].valueString;
+		delete[] rowW[i].btn;
+		delete[] rowW[i].btnString;
+		delete[] rowW[i].marks;
 	}
 	for (int i = 0; i < nHelp; i++)
 	{
@@ -149,7 +158,7 @@ void PageView::setTabText(int t, const char *text)
 
 void PageView::setLit(int row, int slot, bool lit)
 {
-	rowW[row].choice[slot]->setSelected(lit);
+	rowW[row].btn[slot]->setSelected(lit);
 }
 
 void PageView::hideAll(void)
@@ -167,14 +176,14 @@ void PageView::hideAll(void)
 		RowW &r = rowW[i];
 		r.text->setVisible(false);
 		r.rlabel->setVisible(false);
-		r.valueBox->setVisible(false);
-		r.button->setVisible(false);
-		r.button->setActive(false);
-		for (int c = 0; c < nChoices; c++)
+		for (int c = 0; c < nTexts; c++)
+			r.valueBox[c]->setVisible(false);
+		for (int c = 0; c < nSlots; c++)
 		{
-			r.choice[c]->setVisible(false);
-			r.choice[c]->setActive(false);
-			r.choice[c]->setSelected(false);
+			r.btn[c]->setVisible(false);
+			r.btn[c]->setActive(false);
+			r.btn[c]->setSelected(false);
+			r.marks[c] = 0;
 		}
 	}
 	for (int i = 0; i < nHelp; i++)
@@ -188,39 +197,20 @@ void PageView::hideAll(void)
 		footerBox[i]->setVisible(false);
 }
 
-void PageView::setStyles(bool standard)
-{
-	for (int t = 0; t < nTabs; t++)
-	{
-		tabW[t]->setStyle(standard ? BTN_STD : BTN_A_SEL);
-		tabW[t]->setPlain(false);
-	}
-	for (int i = 0; i < nRows; i++)
-	{
-		rowW[i].button->setStyle(standard ? BTN_STD : BTN_A_NRM);
-		rowW[i].button->setPlain(standard);
-		rowW[i].button->setArrows(false);
-		for (int c = 0; c < nChoices; c++)
-		{
-			rowW[i].choice[c]->setStyle(standard ? BTN_STD : BTN_A_SEL);
-			rowW[i].choice[c]->setPlain(false);
-		}
-	}
-}
-
 Button *PageView::buttonFor(const engine::Control &c) const
 {
 	switch (c.role)
 	{
 	case engine::ROLE_TAB:    return tabW[c.slot];
-	case engine::ROLE_BUTTON: return rowW[c.row].button;
-	case engine::ROLE_CHOICE: return rowW[c.row].choice[c.slot];
+	case engine::ROLE_BUTTON:
+	case engine::ROLE_CHOICE: return rowW[c.row].btn[c.slot];
 	default:                  return NULL;
 	}
 }
 
-bool PageView::show(const engine::Page &page)
+bool PageView::show(const engine::Page &page, bool engineLit)
 {
+	const bool standard = page.standard != engine::DENSITY_OFF;
 	if (engine::layoutPage(page, METRICS, lay) < 0)
 	{
 		/* The tables are fixed, so this is a programming error. Nothing is shown rather than a half-placed page. */
@@ -238,6 +228,9 @@ bool PageView::show(const engine::Page &page)
 		switch (c.role)
 		{
 		case engine::ROLE_TAB:
+			/* BTN_A_SEL, as the Settings tabs: the current one stays lit. */
+			tabW[c.slot]->setStyle(standard ? BTN_STD : BTN_A_SEL);
+			tabW[c.slot]->setPlain(false);
 			placeButton(frame, tabW[c.slot], c, false);
 			tabW[c.slot]->setSelected(c.selected);
 			break;
@@ -255,18 +248,35 @@ bool PageView::show(const engine::Page &page)
 			box->setVisible(true);
 			break;
 		}
-		case engine::ROLE_VALUE:
-			rowW[c.row].valueBox->setPosition(c.ax, c.ay);
-			rowW[c.row].valueBox->setVisible(true);
+		case engine::ROLE_VALUE:	/* a readout's text, or a small cycle's prefix (slot = the cycle) */
+			rowW[c.row].valueString[c.slot] = (char*)c.text;
+			rowW[c.row].valueBox[c.slot]->setPosition(c.ax, c.ay);
+			rowW[c.row].valueBox[c.slot]->setVisible(true);
 			break;
 		case engine::ROLE_BUTTON:
-			placeButton(frame, rowW[c.row].button, c, false);
-			rowW[c.row].button->setArrows(page.standard && page.rows[c.row].kind == engine::ROW_CYCLE);
+		{
+			/* a toggle or cycle, or an action. On the standard an action is plain art; a flag keeps the
+			 * select art (it is lit when on), and a cycle has an arrow at each end. */
+			Button *b = rowW[c.row].btn[c.slot];
+			const int marks = rowW[c.row].marks[c.slot];
+			rowW[c.row].btnString[c.slot] = (char*)c.text;
+			b->setStyle(standard ? BTN_STD : BTN_A_NRM);
+			b->setPlain(standard && !(marks & TOGGLE));
+			b->setArrows(standard && (page.rows[c.row].kind == engine::ROW_CYCLE || (marks & CYCLE)));
+			placeButton(frame, b, c, engineLit);
 			break;
+		}
 		case engine::ROLE_CHOICE:
-			rowW[c.row].choiceString[c.slot] = (char*)c.text;
-			placeButton(frame, rowW[c.row].choice[c.slot], c, false);
+		{
+			/* BTN_A_SEL is the style a one-of-several choice uses: the selected one stays lit. */
+			Button *b = rowW[c.row].btn[c.slot];
+			rowW[c.row].btnString[c.slot] = (char*)c.text;
+			b->setStyle(standard ? BTN_STD : BTN_A_SEL);
+			b->setPlain(standard && (rowW[c.row].marks[c.slot] & FLAT));
+			b->setArrows(false);
+			placeButton(frame, b, c, engineLit);
 			break;
+		}
 		case engine::ROLE_HELP_TERM:
 			helpTermString[c.slot] = (char*)c.text;
 			helpTermBox[c.slot]->setPosition(c.ax, c.ay);

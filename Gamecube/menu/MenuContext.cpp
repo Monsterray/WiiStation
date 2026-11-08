@@ -155,8 +155,9 @@ extern "C" {
 	void autoinput_reset(const char *path);
 	extern unsigned autoinput_menupage;
 	extern unsigned autoinput_menuopen_page;
-	extern unsigned autoinput_menuclick, autoinput_menuclicks, autoinput_menuclick_frame;
-	void SettingsFrame_ScriptClick(int button);
+	extern char autoinput_menuclick[32];
+	extern unsigned autoinput_menuclicks, autoinput_menuclick_frame;
+	void SettingsFrame_ScriptClick(const char *name, int n);
 }
 
 bool MainFrame_gameStarted();   /* MainFrame.cpp */
@@ -251,10 +252,8 @@ bool MenuContext::isRunning()
 	 * the after. */
 	{
 		static unsigned menuFrame;
-		if (++menuFrame == (autoinput_menuclick_frame ? autoinput_menuclick_frame : 40) && autoinput_menuclicks) {
-			for (unsigned i = 0; i < autoinput_menuclicks; i++)
-				SettingsFrame_ScriptClick((int)autoinput_menuclick);
-		}
+		if (++menuFrame == (autoinput_menuclick_frame ? autoinput_menuclick_frame : 40) && autoinput_menuclicks)
+			SettingsFrame_ScriptClick(autoinput_menuclick, (int)autoinput_menuclicks);
 	}
 
 	/* The achievements book is open with a game started: the menu combination (the one that

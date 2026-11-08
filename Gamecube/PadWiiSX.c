@@ -180,13 +180,15 @@ int autoinput_padsweep_fast = 0;   /* "padsweep <vblank> fast": controller-GC.c'
  * Buttons, 70 Load from SD, 71 Load from SMB, 72 Load from DVD, 90 Quit (MenuContext.cpp).
  * 0 leaves the menu alone.
  *
- * "menuclick <button> <times> [frame]": press one button of the Settings tabs, that many
- * times, at that menu frame (default 40: ten frames after the page opens; a later one lets
- * menukeys load a game first, e.g. for Save Settings > This Game). The menu reads the pads directly rather than through
- * the controller drivers, so nothing else in a scripted run can reach a menu button, and
- * anything that only happens on a press could not be tested at all. The index is into
- * SettingsFrame.cpp's FRAME_BUTTONS. */
-unsigned autoinput_menuclick = 0;
+ * "menuclick <name> <n> [frame]": press one button of the Settings tabs at that menu frame
+ * (default 40: ten frames after the page opens; a later one lets menukeys load a game first,
+ * e.g. for Save Settings > This Game). The name is the setting's key ("FPS") or an action's
+ * own name ("SaveSettingsSD"); both are in Gamecube/menu/pages/SettingsPages.h. A choice
+ * takes its value: "menuclick FPS 1" sets Show FPS to 1. Any other button is pressed n times.
+ * The menu reads the pads directly rather than through the controller drivers, so nothing
+ * else in a scripted run can reach a menu button, and anything that only happens on a press
+ * could not be tested at all. */
+char autoinput_menuclick[32] = "";
 unsigned autoinput_menuclicks = 0;
 unsigned autoinput_menuclick_frame = 0;   /* 0 = 40 */
 /* "menukeys <frame> <keys>": GameCube-pad presses fed to the menu (libgui InputManager.cpp),
@@ -368,9 +370,10 @@ void autoinput_load(void)
 			if (sscanf(line, "menukeys %u %63[^\r\n]", &v, autoinput_menukeys) == 2)
 				{ autoinput_menukeys_frame = v; continue; }
 			{
-				unsigned b, t, fr = 0;
-				if (sscanf(line, "menuclick %u %u %u", &b, &t, &fr) >= 2)
-					{ autoinput_menuclick = b; autoinput_menuclicks = t; autoinput_menuclick_frame = fr; continue; }
+				char name[32];
+				unsigned t, fr = 0;
+				if (sscanf(line, "menuclick %31s %u %u", name, &t, &fr) >= 2)
+					{ strcpy(autoinput_menuclick, name); autoinput_menuclicks = t; autoinput_menuclick_frame = fr; continue; }
 			}
 			{   /* save states (statetool.cpp) */
 				char nm[48];
@@ -456,7 +459,8 @@ void autoinput_reset(const char *path)
 	autoinput_padsweep_fast = 0;
 	autoinput_menupage = 0;
 	autoinput_menuopen_vblank = menuopen_page = 0;
-	autoinput_menuclick = autoinput_menuclicks = autoinput_menuclick_frame = 0;
+	autoinput_menuclick[0] = 0;
+	autoinput_menuclicks = autoinput_menuclick_frame = 0;
 	autoinput_menukeys_frame = 0;
 	autoinput_menukeys[0] = 0;
 	autoinput_atrace_vbl = 0;

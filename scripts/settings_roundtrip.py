@@ -8,7 +8,7 @@ value other than its default (Gamecube/release/example_settings.ini), inside the
 A few keys keep their default because changing them changes the run itself (KEEP below).
 
 check: WRITTEN is the settings.ini that WiiStation wrote after it read IN (a Save from the
-menu: autoinput "menuclick 14 1"). Every table key that a settings file holds must be in
+menu: autoinput "menuclick SaveSettingsSD 1"). Every table key that a settings file holds must be in
 WRITTEN, with the value IN gave it (the last line of a key wins, as in readConfig); a key no file
 holds (FilterTour) must not be. Exit 1 on any difference. A game's own file (settings/<ID>.ini)
 holds only what differs from settings.ini: SETTINGS.md 1.4.

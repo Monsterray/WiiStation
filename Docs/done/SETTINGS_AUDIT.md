@@ -18,7 +18,7 @@ See "Status (2026-11-03)" below for the keys added since.
 - `python scripts/settings_check.py`: table vs example_settings.ini vs SETTINGS.md vs the menu
   tables -- 164 keys, ok.
 - `scripts/settings_roundtrip.py`: every key at a non-default value, a Dolphin boot that reads
-  it and saves (menuclick 14 = Save SD), the written settings.ini read back from the card image:
+  it and saves (menuclick SaveSettingsSD = Save SD; was button 14), the written settings.ini read back from the card image:
   **164 of 164 keys read back the same** (run `rt`, 2026-10-18). The This Game file from the
   menu walk below: 164 of 164 the same as the settings it was saved from.
 - When a value takes effect: the graph's USAGE edges for each global (plus grep where the graph
@@ -48,7 +48,7 @@ Measured in Dolphin (Spyro, speech script, 90 s):
 | `old_dol_ini` | main (before) | `settings/SCUS94228.ini`: DisableXa=1 FPS=0 | (no probe) | 730 (ignored) | -- |
 | `legacy_cfg` | this branch | `settings/SCUS94228.cfg`: DisableXa=1 FPS=0 | `.../settings/SCUS94228.cfg` | 0 | off |
 | `ini_wins` | this branch | that .cfg plus the `.ini` This Game wrote | `.../settings/SCUS94228.ini` | 730 | on |
-| `menu_thisgame_a` | this branch | menu walk: Load from SD, Spyro, menuclick 62 | `sd:/wiistation/settings.ini` | -- | -- |
+| `menu_thisgame_a` | this branch | menu walk: Load from SD, Spyro, menuclick SaveSettingsGame (was button 62) | `sd:/wiistation/settings.ini` | -- | -- |
 
 `menu_thisgame_a` wrote `wiistation/settings/SCUS94228.ini` (3428 bytes, no `.cfg`); that
 file is the `.ini` of `ini_wins`, so one run wrote it and the next read it.

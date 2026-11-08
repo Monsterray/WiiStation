@@ -242,7 +242,7 @@ logs "devices: 0").
    while the page is open is it read at all ("raw"), and a game never gets it.
 2. Settings > General > **Advanced** > **Input** tab > USB Pad: **Test**. B on the page
    goes back there. A scripted run opens the page with the autoinput line
-   `menuclick 83 1` (Settings button 83, kept on no tab for this; B then goes back to
+   `menuclick TestUsbPad 1` (a script-only button of the Settings tabs; B then goes back to
    Settings > Input); `menupage 12` photographs the Advanced > Input tab.
 3. Put the controller down flat and let go: the first second learns what the pad sends at
    rest. Then the page lights one PlayStation button at a time on the pad picture: the

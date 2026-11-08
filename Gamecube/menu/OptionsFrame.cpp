@@ -260,15 +260,16 @@ typedef char opt_tabs_fit_engine[NUM_TABS <= eng::MAX_TABS ? 1 : -1];
 static void optCycle(int row);
 static void optSet(int row, int choice);
 
-/* Every click of the page view: a tab (row -1, slot = the tab), a row's one button (slot -1), a segment. */
+/* Every click of the page view: a tab (row -1, slot = the tab), or a button of a row: a radio row's
+ * segment sets that value; any other row has one button, a cycle or an action. */
 static void optAct(void *, int row, int slot)
 {
 	if (row < 0)
 		optionsFrame->showTab(slot);
-	else if (slot < 0)
-		optCycle(row);
-	else
+	else if (row < PAGES[currentPage].nrows && PAGES[currentPage].rows[row].kind == OPT_RADIO)
 		optSet(row, slot);
+	else
+		optCycle(row);
 }
 
 static const OptRow* pageRow(int row)
@@ -302,7 +303,7 @@ static void refreshRow(int row)
 	if (o->kind == OPT_INFO) {
 		o->info(view->value(row), VALUE_LEN);
 	} else if (o->kind == OPT_ACTION) {
-		snprintf(view->value(row), VALUE_LEN, "%s", o->key);
+		/* its text is the label of the button: o->key, set by the layout */
 	} else if (o->kind == OPT_RADIO) {
 		int n = rowChoices(row), v = *s->value;
 		if (v < s->min || v > s->max) v = s->min;
@@ -312,7 +313,7 @@ static void refreshRow(int row)
 	} else {
 		int v = *s->value;
 		if (v < s->min || v > s->max) v = s->min;	// a value the settings file parser let through
-		snprintf(view->value(row), VALUE_LEN, "%s", s->choices[v - s->min]);
+		view->setText(row, 0, s->choices[v - s->min]);
 	}
 }
 
@@ -426,7 +427,7 @@ static void buildEnginePage(int page, int curTab)
 OptionsFrame::OptionsFrame()
 {
 	optionsFrame = this;
-	view = new menu::glue::PageView(this, OPT_MAX_ROWS, OPT_MAX_CHOICES, NUM_TABS, OPT_MAX_HELP, optAct, NULL,
+	view = new menu::glue::PageView(this, OPT_MAX_ROWS, OPT_MAX_CHOICES, 1, NUM_TABS, OPT_MAX_HELP, optAct, NULL,
 	                                Func_ReturnFromOptionsFrame, PAGES[PAGE_SOUND].title);
 	for (int t = 0; t < NUM_TABS; t++)
 		view->setTabText(t, PAGES[ADV_TABS[t]].tab);
@@ -461,7 +462,6 @@ void OptionsFrame::activateSubmenu(int submenu)
 
 	/* Hidden first; the layout then shows what this page has. The footer help starts blank. */
 	view->hideAll();
-	view->setStyles(PAGES[currentPage].standard != 0);
 	/* The values the rows show. A readout's text is read here, before the engine lays it out. */
 	for (int i = 0; i < PAGES[currentPage].nrows; i++)
 		refreshRow(i);

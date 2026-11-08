@@ -6,9 +6,12 @@
  * on the rectangles the menu engine gives back. A frame that is a table of rows (OptionsFrame; the
  * Settings tabs next) keeps its tables and its settings, builds an engine::Page, and calls show().
  *
- * The frame supplies one callback for every click: (row, slot), where slot is -1 for a row's one
- * button, 0.. for a choice segment, and row is -1 for a tab (slot = the tab). The view owns the
- * layout, so nothing is computed per frame; only the footer help follows the focus (updateFooter).
+ * The frame supplies one callback for every click: (row, slot), where slot is the row's button (a
+ * cycle, an action or a choice segment, counted from 0 as the engine counts them) and row is -1 for a
+ * tab (slot = the tab). A row's buttons are one set of widgets: which art and arrows a button gets
+ * follows its role in the layout (a choice segment, a button) and the marks the frame gave it
+ * (mark()). The view owns the layout, so nothing is computed per frame; only the footer help follows
+ * the focus (updateFooter).
  *
  * This program is free software; you can redistribute it and/
  * or modify it under the terms of the GNU General Public Li-
@@ -36,29 +39,37 @@ public:
 	enum { VALUE_LEN = 32 };
 	typedef void (*ActFn)(void *user, int row, int slot);
 
-	/* rows x (label boxes + one button + `choices` segments), `tabs` tab buttons, `help` help-line
+	/* Marks of a button, given before show(). TOGGLE: a flag that is lit when on (the select art, though the
+	 * engine calls it a button). CYCLE: an arrow at each end. A ROW_CYCLE row's button has the arrows anyway.
+	 * FLAT: a choice segment drawn with the plain art (actions that sit in a choice row, never lit). */
+	enum { TOGGLE = 1, CYCLE = 2, FLAT = 4 };
+
+	/* rows x (label boxes + `texts` text boxes + `slots` buttons), `tabs` tab buttons, `help` help-line
 	 * pairs and the footer lines, added to owner in this order. title is the first title text. */
-	PageView(Frame *owner, int rows, int choices, int tabs, int help, ActFn act, void *user,
+	PageView(Frame *owner, int rows, int slots, int texts, int tabs, int help, ActFn act, void *user,
 	         ButtonFunc back, const char *title);
 	~PageView();
 
 	/* A tab's text; the view keeps the pointer. */
 	void setTabText(int tab, const char *text);
-	/* The text of a row's button or readout: the frame writes it, the button shows it. */
+	/* The text of a readout: the frame writes it, the engine lays it out and the box shows it. */
 	char *value(int row) { return rowW[row].value; }
-	/* A choice segment lit or not. */
+	/* The text of a row's button; the view keeps the pointer. A change shows at once (the button width is the layout's). */
+	void setText(int row, int slot, const char *text) { rowW[row].btnString[slot] = (char*)text; }
+	/* A button lit or not. */
 	void setLit(int row, int slot, bool lit);
+	void mark(int row, int slot, int bits) { rowW[row].marks[slot] = (unsigned char)bits; }
 
 	/* Every widget off and unlit, the help lines blank, the footer reset. First step of a page change. */
 	void hideAll(void);
-	/* The art of the buttons: the standard's square one, or the older rounded one. */
-	void setStyles(bool standard);
-	/* Lays page out (once, here), places every widget, links focus. False when it does not fit: nothing is shown. */
-	bool show(const engine::Page &page);
+	/* Lays page out (once, here), places every widget, links focus. False when it does not fit: nothing is shown.
+	 * engineLit: take each button's lit and inactive state from the layout (the Settings tabs); else the frame
+	 * sets them (setLit). */
+	bool show(const engine::Page &page, bool engineLit = false);
 	/* Where focus starts: the page's default control's button, or NULL. */
 	Button *startButton(void) const;
 	Button *tab(int t) const { return tabW[t]; }
-	Button *rowButton(int row) const { return rowW[row].button; }
+	Button *rowButton(int row) const { return rowW[row].btn[0]; }
 	Button *buttonFor(const engine::Control &c) const;
 	const engine::Layout &layout(void) const { return lay; }
 
@@ -67,11 +78,13 @@ public:
 
 private:
 	struct RowW {
-		Button  *button;
-		Button **choice;
-		TextBox *text, *rlabel, *valueBox;
-		char    *labelString, *valueString;
-		char   **choiceString;
+		Button **btn;
+		char   **btnString;
+		unsigned char *marks;
+		TextBox *text, *rlabel;
+		TextBox **valueBox;
+		char    *labelString;
+		char   **valueString;
 		char     value[VALUE_LEN];
 	};
 	static void click(void *self, int tag);
@@ -79,7 +92,7 @@ private:
 
 	Frame *frame;
 	Pool *pool;
-	int nRows, nChoices, nTabs, nHelp;
+	int nRows, nSlots, nTexts, nTabs, nHelp;
 	ActFn act;
 	void *user;
 	TextBox *titleBox;

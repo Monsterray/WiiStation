@@ -511,7 +511,7 @@ hashes in UploadScreen, OpenGX texel checks). The pattern to grep for is a loop 
   index; 14 Save SD, 15 Save USB, 62 Save This Game) at that menu frame (default 40). A modal
   MessageBox stops the menu frames, so a walk must dismiss it first. Save This Game, proven
   2026-10-18: `menupage 70`, `menukeys 60 A . . . . . . D A . . . . . . . . A` (open the Spyro
-  folder, load the .cue, OK the info box), `menuclick 62 1 600`, with `WSX_ISOS="Spyro the Dragon"
+  folder, load the .cue, OK the info box), `menuclick SaveSettingsGame 1 600`, with `WSX_ISOS="Spyro the Dragon"
   KEEP_PROFILE=1 wsx.sh menu ...`; read the file back with sdimage_read.py from the kept profile.
   The file holds only the keys that differ from the staged settings.ini (or the defaults), never
   a global-only key (GamecubeMain.cpp GLOBAL_ONLY_KEYS); the message says how many it wrote.

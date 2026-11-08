@@ -35,7 +35,7 @@ trap 'rm -f "$bin" "$bin2" "$bin3" "$bin4" "$bin5" "$bin6"; rm -rf "$scratch"' E
 rc=$?
 
 # The shared page tables (Gamecube/menu/pages/*.h), as the Wii build compiles them, with empty hooks.
-"$cxx" -std=c++11 -Wall -Wextra -Wno-unused-parameter -O2 -o "$bin6" \
+"$cxx" -std=c++11 -Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers -O2 -o "$bin6" \
 	"$root/tests/menu_pages_test.cpp" || exit 2
 "$bin6"
 rc=$((rc + $?))

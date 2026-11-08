@@ -103,3 +103,21 @@ wide read-only reviews. One step per commit on `try/menu-standard`.
   the Settings tables move with step 5 (they are index-coupled to FRAME_BUTTONS and cannot be shared before that).
 - Step 3 (Account) and step 4: `glue::ListView` (Account), `glue::PageView` (MenuPageView.h/.cpp: title, tabs, row widgets, help,
   footer, click context, layout owner). OptionsFrame.cpp 1133 -> ~540 lines with the tables in the header.
+- Step 5 (2026-11-07, Settings by setting key): the five tabs are tables in `Gamecube/menu/pages/SettingsPages.h` (shared with the host
+  test). A row is a list of buttons; a button is bound to its setting by key: `SEG_SET(key, value)` (a choice), `SEG_FLAG(key)`,
+  `SEG_CYCLE(key)`, or `SEG_ACT(name, text, fn)` (no setting). Text, lit state and the click (write the setting, then an optional `apply`)
+  come from the key; a button may replace the click (`act`), the lit test (`lit`) or the text (`textFn`) where the setting alone is not
+  enough (BIOS device, language, Frame Rate order, the inverted XA/CDDA keys, Sync's two settings, memory card types).
+  `PageView` now has one widget set per row (cycle, action and choice buttons are the same pool) and can take lit/inactive from the layout.
+  SettingsFrame.cpp 1968 -> ~880 lines: FRAME_BUTTONS (91 buttons made up front), 38 FRAME_STRINGS, ~45 select-and-write handlers and the
+  dead General-tab buttons (CPU, GPU, Dithering, Memcard 1/2, Fast Load) are gone; the page makes 41 widgets (9 rows x 4, 5 tabs).
+  `menuclick` takes a name now: `menuclick FPS 1` (a choice: the button with that value), `menuclick SaveSettingsSD 1` (an action: n
+  presses). scripts/settings_check.py checks all 44 keyed buttons against the OPTIONS table, values included.
+  One visible difference by design: a cycle button is no longer left lit by its own click (the old handler set it selected and nothing
+  cleared it until the tab was shown again).
+  Proof (2026-11-07/08, forms4 against forms5b over the 22 pages): 0 differing frames on 20 pages. Memory differs by its live MEM1
+  readout (expected). Input differs in one strip: Light Gun was the only cycle with the select art (an unused strip under the
+  button); it is plain like Auto Load Slot now (a consistency fix, not carried over). Save Configs SD/USB kept the plain art
+  (`PageView::FLAT` mark, 0 frames). By-name clicks checked on the DOL: `menuclick ScreenMode 1`, `Interlaced 1`, `LightGun 1`,
+  `ControllerType 1`, `FPS 1` all change the page as pressed. `autoinput_menuclick` holds ONE click: the last line of a script wins.
+  Not measured: menu CPU on the bench Wii; release build.
