@@ -73,5 +73,5 @@ Everything in this repo uses the new paths. If you have your own setup, check th
 To find leftovers in your own setup:
 
 ```bash
-grep -rln "wiisxrx" scripts/ .runs/*.txt /c/tools/Dolphin-x64/User/Load/WiiSDSync_paused_by_claude/
+grep -rln "wiisxrx" scripts/ .runs/*.txt <your Dolphin folder>/User/Load/WiiSDSync_paused_by_claude/
 ```

@@ -28,7 +28,6 @@
 # emulation?". Both are command-line settings: Dolphin does not write them back to Dolphin.ini.
 set -u
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
-D="${DOLPHIN_DIR:-/c/tools/Dolphin-2609}/Dolphin.exe"   # see dolphin_run.sh
 CLOSE_WAIT="${CLOSE_WAIT:-15}"
 KILL_IF_STUCK=0
 keep=()
@@ -36,10 +35,9 @@ for a in "$@"; do
 	if [ "$a" = --kill-if-stuck ]; then KILL_IF_STUCK=1; else keep+=("$a"); fi
 done
 set -- ${keep[@]+"${keep[@]}"}
-if [ -n "${PYTHON:-}" ]; then :;
-elif command -v python >/dev/null 2>&1; then PYTHON=python;
-elif [ -x /c/Python312/python.exe ]; then PYTHON=/c/Python312/python.exe;
-else PYTHON=python3; fi
+. "$(dirname "${BASH_SOURCE[0]}")/find_python.sh"   # $PYTHON, else wii_paths.py, else python
+. "$(dirname "${BASH_SOURCE[0]}")/find_dolphin.sh"   # DOLPHIN_DIR (see dolphin_run.sh) and DOLPHIN_BASE
+D="${DOLPHIN_DIR:?no Dolphin: set DOLPHIN_DIR}/Dolphin.exe"
 case "${1:-release}" in
 	release) DOL="$REPO/Gamecube/WiiSXRX_Release.dol" ;;
 	debug)   DOL="$REPO/Gamecube/WiiSXRX_debug.dol" ;;
@@ -81,7 +79,7 @@ done
 # (cards, states, settings) from the image back into the folder, then says whether any of the
 # user's files changed; if none did, this start skips the repack and Dolphin uses the image.
 # Only when no other Dolphin has this profile open (one started by hand would be using the image).
-LOAD="/c/tools/Dolphin-x64/User/Load"
+LOAD="$DOLPHIN_BASE/User/Load"
 SYNC=on
 others=$(powershell.exe -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object { \$_.Name -eq 'Dolphin.exe' -and \$_.CommandLine -notlike '* -u *' } | ForEach-Object { \$_.ProcessId }" 2>/dev/null | tr -d '\r')
 if [ -z "$others" ]; then

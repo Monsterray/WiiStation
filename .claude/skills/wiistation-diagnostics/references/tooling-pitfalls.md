@@ -202,7 +202,7 @@ codebase-memory-mcp cli --quiet index_repository '{"path":"/path/to/foo-src","na
 ```
 
 WiiStation itself is registered project-scoped in the repo's `.mcp.json`; fuller notes on the
-server live in `C:\ai\README.md`.
+server live in the README of its install folder.
 
 ## Working with the user
 

@@ -11,10 +11,7 @@
 set -e
 R=$(cd "$(dirname "$0")/../.." && pwd); T="$R/tests/gte_ab"; O="${TMP:-/tmp}/gte_ab"; mkdir -p "$O"
 CC="${CC:-/c/Program Files/LLVM/bin/clang.exe}"
-if [ -n "${PYTHON:-}" ]; then :;
-elif command -v python >/dev/null 2>&1; then PYTHON=python;
-elif [ -x /c/Python312/python.exe ]; then PYTHON=/c/Python312/python.exe;
-else PYTHON=python3; fi
+. "$(dirname "${BASH_SOURCE[0]}")/../../scripts/find_python.sh"   # $PYTHON, else wii_paths.py, else python
 command -v "$CC" >/dev/null 2>&1 || [ -x "$CC" ] || { echo "run.sh: no C compiler at $CC (set CC=)" >&2; exit 2; }
 A="${1:-}"; [ -n "$A" ] || { git -C "$R" show HEAD:gte.c > "$O/gte_a.c" || { echo "run.sh: no HEAD:gte.c (not a git checkout?)" >&2; exit 2; }; A="$O/gte_a.c"; }
 B="${2:-$R/gte.c}"; N="${3:-30000}"

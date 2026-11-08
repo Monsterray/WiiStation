@@ -29,7 +29,7 @@ LIB="${WSX_LIBRARY:-/c/wiistation-lib}"
 PROFILES="$REPO/.profiles"
 LOCKS="$PROFILES/locks"
 TEMPLATE="$REPO/profiles/template"
-PYTHON="${PYTHON:-/c/Python312/python.exe}"
+. "$(dirname "${BASH_SOURCE[0]}")/find_python.sh"   # $PYTHON, else wii_paths.py, else python
 
 die() { echo "profile.sh: $*" >&2; exit 2; }
 lower() { tr 'A-Z' 'a-z'; }

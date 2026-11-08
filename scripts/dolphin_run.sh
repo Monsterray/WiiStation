@@ -67,9 +67,6 @@
 # Note the system name for GFX.ini is "Graphics" -- "-C GFX.*" is silently ignored.
 set -u
 OUT="$1"; SECS="${2:-170}"; AIN="${3:-}"; SET="${4:-}"; ABOOT="${5:-}"
-# Dolphin 2609 since 2026-10-01. Its User folder is a junction to /c/tools/Dolphin-x64/User (one
-# copy, 16 GB). The old build stays as a fallback: DOLPHIN_DIR=/c/tools/Dolphin-x64.
-D="${DOLPHIN_DIR:-/c/tools/Dolphin-2609}"
 SP="$(cd "$(dirname "$0")" && pwd)"   # sheet.py and sdimage_read.py live next to this script
 REPO="$(cd "$SP/.." && pwd)"
 DOL="${DOL:-$REPO/Gamecube/WiiSXRX_debug.dol}"
@@ -77,10 +74,12 @@ DOL="${DOL:-$REPO/Gamecube/WiiSXRX_debug.dol}"
 # Post-processing below is Python (summaries, sheets, FAT-image reads). Plain `python`
 # does not exist in the devkitPro MSYS2 bash on a stock machine, so without this the
 # whole collect phase silently no-ops and every run collects nothing. See wsx.sh.
-if [ -n "${PYTHON:-}" ]; then :;
-elif command -v python >/dev/null 2>&1; then PYTHON=python;
-elif [ -x /c/Python312/python.exe ]; then PYTHON=/c/Python312/python.exe;
-else PYTHON=python3; fi
+. "$(dirname "${BASH_SOURCE[0]}")/find_python.sh"   # $PYTHON, else wii_paths.py, else python
+# Dolphin 2609 since 2026-10-01: the Dolphin-2609 folder next to the Dolphin that wii_paths.py
+# names, whose User folder is a junction to that Dolphin's (one copy, 16 GB). The older build
+# stays as a fallback: DOLPHIN_DIR=<its folder>. See find_dolphin.sh.
+. "$SP/find_dolphin.sh"
+D="${DOLPHIN_DIR:?no Dolphin: set DOLPHIN_DIR}"
 
 # The library of games, the shared folder (the user's own: read only, for CARDS=1), and the
 # autoboot/input/settings presets (scripts/runfiles).

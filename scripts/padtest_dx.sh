@@ -27,10 +27,7 @@ while [ $# -gt 0 ]; do
 	esac
 	shift
 done
-if [ -n "${PYTHON:-}" ]; then :;
-elif command -v python >/dev/null 2>&1; then PYTHON=python;
-elif [ -x /c/Python312/python.exe ]; then PYTHON=/c/Python312/python.exe;
-else PYTHON=python3; fi
+. "$(dirname "${BASH_SOURCE[0]}")/find_python.sh"   # $PYTHON, else wii_paths.py, else python
 name=padtest_dx
 [ -f "$rom/padtest.bin" ] || { echo "padtest_dx.sh: no such ROM $rom/padtest.bin (--rom DIR)" >&2; exit 2; }
 [ -f "$rom/padtest.cue" ] || { echo "padtest_dx.sh: no such ROM $rom/padtest.cue (--rom DIR)" >&2; exit 2; }

@@ -74,10 +74,7 @@ dolphin_running() { bash "$REPO/scripts/profile.sh" dolphin-busy ANY; }
 # The summarise/compare steps below are Python. Plain `python` does not exist in the
 # devkitPro MSYS2 bash on a stock machine (`python3` there is a dead WindowsApps stub),
 # so without this every post-processing step silently no-ops. An exported PYTHON wins.
-if [ -n "${PYTHON:-}" ]; then :;
-elif command -v python >/dev/null 2>&1; then PYTHON=python;
-elif [ -x /c/Python312/python.exe ]; then PYTHON=/c/Python312/python.exe;
-else PYTHON=python3; fi
+. "$(dirname "${BASH_SOURCE[0]}")/find_python.sh"   # $PYTHON, else wii_paths.py, else python
 
 # The automatic triage after a run (run_triage.py --auto: only when the run looks wrong, a
 # "triage:" block of <= 10 lines). It never changes this script's exit code; WSX_NO_LLM=1 is off.

@@ -102,10 +102,7 @@ case " $extra " in *" PadMirror=1 "*)
 	*) extra="$extra PadAutoAssign=0 PadType1=1 PadType2=0" ;; esac ;;
 esac
 
-if [ -n "${PYTHON:-}" ]; then :;
-elif command -v python >/dev/null 2>&1; then PYTHON=python;
-elif [ -x /c/Python312/python.exe ]; then PYTHON=/c/Python312/python.exe;
-else PYTHON=python3; fi
+. "$(dirname "${BASH_SOURCE[0]}")/find_python.sh"   # $PYTHON, else wii_paths.py, else python
 [ -f "$MOVIE" ] || { echo "no dolphin-movie at ${MOVIE%/*}: clone it there, or set DOLPHIN_MOVIE to its folder"; exit 2; }
 "$PYTHON" "$MOVIE" selftest >/dev/null || { echo "$MOVIE selftest failed: see its output above"; exit 2; }
 

@@ -31,6 +31,7 @@ bash scripts/wsx.sh build debug [PRESET]   # Gamecube/WiiSXRX_debug.dol; speed f
 | Line endings and `.gitattributes` coverage | `python -m unittest tests/test_line_endings.py` | Python |
 | Host tests | the `cc ...` line at the top of each `tests/*_test.c` (e.g. `cc -O2 -o dither_test tests/dither_test.c && ./dither_test`) | a C compiler |
 | Bench script tests | `python -m unittest discover -s tests -p "*_test.py"` | Python |
+| No workstation paths in tracked files | `python -m unittest tests/test_workstation_paths.py` (run as a script, it lists the findings) | Python, git |
 | Dolphin chain (many games, one boot) | `bash scripts/wsx.sh chain NAME scripts/chains/smoke.txt --secs 400` | Dolphin |
 | Frames / audio unchanged | `bash scripts/wsx.sh frames A B`, `bash scripts/wsx.sh audio A B` | two runs |
 | PS1 accuracy | `bash scripts/wsx.sh chain NAME scripts/chains/ps1tests.txt` then `python scripts/ps1tests_check.py .runs/NAME` | Dolphin |

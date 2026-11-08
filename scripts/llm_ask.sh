@@ -15,10 +15,7 @@
 # timeout 900 s. --lines is accepted for old callers and ignored.
 set -u
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
-if [ -n "${PYTHON:-}" ]; then :;
-elif command -v python >/dev/null 2>&1; then PYTHON=python;
-elif [ -x /c/Python312/python.exe ]; then PYTHON=/c/Python312/python.exe;
-else PYTHON=python3; fi
+. "$(dirname "${BASH_SOURCE[0]}")/find_python.sh"   # $PYTHON, else wii_paths.py, else python
 LLM="$PYTHON $REPO/scripts/llm.py"
 
 usage() { sed -n '2,15p' "$0" | sed -e 's/^# \{0,1\}//'; }
