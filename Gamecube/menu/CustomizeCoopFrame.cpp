@@ -33,6 +33,7 @@
 #include "../libgui/FocusManager.h"
 #include "../libgui/CursorManager.h"
 #include "MenuGlue.h"
+#include "MenuPageView.h"
 extern "C" {
 #include "../gc_input/controller.h"
 #include "../wiiSXconfig.h"
@@ -55,12 +56,6 @@ static void setLayout(int layout)
 	coopLayout[coopPort][coopPlayer] = (char)layout;
 	pMenuContext->getFrame(MenuContext::FRAME_CUSTOMIZECOOP)->activateSubmenu(coopPort * COOP_MAX + coopPlayer);
 }
-static void Func_LayoutFull()      { setLayout(COOP_LAYOUT_FULL); }
-static void Func_LayoutLeft()      { setLayout(COOP_LAYOUT_LEFT); }
-static void Func_LayoutRight()     { setLayout(COOP_LAYOUT_RIGHT); }
-static void Func_LayoutDpadStick() { setLayout(COOP_LAYOUT_DPAD_STICKS); }
-static void Func_LayoutAction()    { setLayout(COOP_LAYOUT_ACTION); }
-static void Func_LayoutShoulders() { setLayout(COOP_LAYOUT_SHOULDERS); }
 
 /* The PlayStation buttons, where Configure Buttons puts them (ConfigureButtonsFrame.cpp) */
 enum { IND_L1, IND_L2, IND_SELECT, IND_START, IND_R1, IND_R2, IND_DUP, IND_DLEFT, IND_DRIGHT,
@@ -79,9 +74,6 @@ static const float indicatorRect[NUM_INDICATORS][4] = {
 	{530, 280,  80, 40}, {485, 330,  80, 40}, {160, 345, 100, 40}, {380, 345, 100, 40},
 	{235, 395,  80, 40}, {325, 395,  80, 40} };
 static char presetNames[NUM_PRESETS][16];
-static ButtonFunc presetFuncs[NUM_PRESETS] = {
-	Func_LayoutFull, Func_LayoutLeft, Func_LayoutRight,
-	Func_LayoutDpadStick, Func_LayoutAction, Func_LayoutShoulders };
 
 /* Button i (coop.c coop_button_names' order, which is this page's) on or off for this
  * player. A set that matches a preset becomes that preset; any other is the Custom layout. */
@@ -100,13 +92,14 @@ static void toggleButton(int i)
 	coop_buttons_format(mask, coopButtons[coopPort][coopPlayer], COOP_BUTTONS_SIZE);
 	setLayout(COOP_LAYOUT_CUSTOM);
 }
-#define TOGGLE(n) static void Func_Toggle##n() { toggleButton(n); }
-TOGGLE(0) TOGGLE(1) TOGGLE(2) TOGGLE(3) TOGGLE(4) TOGGLE(5) TOGGLE(6) TOGGLE(7) TOGGLE(8)
-TOGGLE(9) TOGGLE(10) TOGGLE(11) TOGGLE(12) TOGGLE(13) TOGGLE(14) TOGGLE(15) TOGGLE(16) TOGGLE(17)
-static ButtonFunc toggleFuncs[NUM_INDICATORS] = {
-	Func_Toggle0, Func_Toggle1, Func_Toggle2, Func_Toggle3, Func_Toggle4, Func_Toggle5,
-	Func_Toggle6, Func_Toggle7, Func_Toggle8, Func_Toggle9, Func_Toggle10, Func_Toggle11,
-	Func_Toggle12, Func_Toggle13, Func_Toggle14, Func_Toggle15, Func_Toggle16, Func_Toggle17 };
+/* A preset (0..5) chooses a layout; an indicator turns one button on or off */
+static void coopClick(void *, int id)
+{
+	if (id < NUM_PRESETS)
+		setLayout(id);
+	else
+		toggleButton(id - NUM_PRESETS);
+}
 typedef char coop_names_match[NUM_INDICATORS == COOP_NUM_BUTTONS ? 1 : -1];
 
 /* The look of a button the player has (lit) and of one it has not (grey, still pressable):
@@ -116,11 +109,9 @@ static GXColor litColors[5]   = {{255, 100, 100, 255}, {90, 90, 90, 255}, {255, 
 static GXColor unlitColors[5] = {{255, 100, 100, 255}, {90, 90, 90, 255}, {90, 90, 90, 255},
                                  {255, 255, 255, 255}, {120, 120, 120, 255}};
 
-static menu::Button *buttons[NUM_FRAME_BUTTONS];
 static char *buttonStrings[NUM_FRAME_BUTTONS];
 static char titleString[64];
-static char *titlePtr = titleString;
-static menu::TextBox *title;
+static menu::glue::Editor *editor;	/* the 24 buttons and the title: layout, focus, click by id */
 
 /* Presets in two rows of three: 0..2 at y=12, 3..5 at y=50, 34 high, clear of the title */
 static void presetRect(int i, float *x, float *y)
@@ -129,89 +120,40 @@ static void presetRect(int i, float *x, float *y)
 	*y = i < 3 ? 12.0f : 50.0f;
 }
 
-/*  The page, on the engine  */
-
-static eng::FreeButton COOP_FREE[NUM_FRAME_BUTTONS];
-static eng::Page       COOP_PAGE;
-static eng::Layout     COOP_LAYOUT;
-
-/* The engine's text widths: IplFont, as the other frames use it. */
-/* The button a layout control is, or NULL. */
-static menu::Button *buttonAt(int control)
+/* Each button at its rectangle, the title centred at y 112 (no logo). Focus is the engine's geometry rule. */
+CustomizeCoopFrame::CustomizeCoopFrame()
 {
-	for (int k = 0; k < NUM_FRAME_BUTTONS; k++)
-		if (COOP_LAYOUT.freeCtl[k] == control)
-			return buttons[k];
-	return NULL;
-}
-
-/* The page as the engine lays it out: each button at its rectangle, its lit state from COOP_FREE,
- * the title centred at y 112 (no logo). Focus is the engine's geometry rule, which links every
- * button to the nearest one in each direction. Laid out when the page is shown (activateSubmenu),
- * never per frame. */
-static void layoutCoop(void)
-{
+	editor = new menu::glue::Editor(this, NUM_FRAME_BUTTONS, 0, coopClick, NULL, Func_ReturnFromCustomizeCoopFrame);
 	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
 	{
-		eng::FreeButton &b = COOP_FREE[i];
+		float x, y, w, h;
 		if (i < NUM_PRESETS)
 		{
-			presetRect(i, &b.x, &b.y);
-			b.w = 190.0f; b.h = 34.0f;
+			snprintf(presetNames[i], sizeof(presetNames[i]), "%s", coop_layout_names[i]);
+			buttonStrings[i] = presetNames[i];
+			presetRect(i, &x, &y);
+			w = 190.0f; h = 34.0f;
 		}
 		else
 		{
+			buttonStrings[i] = indicatorNames[i - NUM_PRESETS];
 			const float *r = indicatorRect[i - NUM_PRESETS];
-			b.x = r[0]; b.y = r[1]; b.w = r[2]; b.h = r[3];
+			x = r[0]; y = r[1]; w = r[2]; h = r[3];
 		}
-		b.text = buttonStrings[i];
-		b.inactive = false;
+		editor->add(i, BTN_A_SEL, &buttonStrings[i], x, y, w, h);
 	}
-	memset(&COOP_PAGE, 0, sizeof COOP_PAGE);
-	COOP_PAGE.title        = titleString;
-	COOP_PAGE.titleY       = 112.0f;
-	COOP_PAGE.logo         = eng::LOGO_SPOT_NONE;
-	COOP_PAGE.focus        = eng::FOCUS_GEOMETRY;
-	COOP_PAGE.freeButtons  = COOP_FREE;
-	COOP_PAGE.nFreeButtons = NUM_FRAME_BUTTONS;
-	eng::layoutPage(COOP_PAGE, menu::glue::METRICS, COOP_LAYOUT);
-	eng::linkFocus(COOP_PAGE, COOP_LAYOUT);
-}
+	editor->setTitle(titleString, 112.0f);
+	editor->relayout(false);	/* the title's box is made here, after the buttons */
 
-CustomizeCoopFrame::CustomizeCoopFrame()
-{
-	for (int i = 0; i < NUM_PRESETS; i++)
-	{
-		snprintf(presetNames[i], sizeof(presetNames[i]), "%s", coop_layout_names[i]);
-		buttonStrings[i] = presetNames[i];
-	}
-	for (int i = NUM_PRESETS; i < NUM_FRAME_BUTTONS; i++)
-		buttonStrings[i] = indicatorNames[i - NUM_PRESETS];
-	layoutCoop();
-
-	pool = new menu::glue::Pool(this, NUM_FRAME_BUTTONS);
-	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
-	{
-		const eng::Control &c = COOP_LAYOUT.c[COOP_LAYOUT.freeCtl[i]];
-		buttons[i] = pool->button(eng::ROLE_FREE, -1, i, BTN_A_SEL, &buttonStrings[i], c.rect.x, c.rect.y, c.rect.w, c.rect.h,
-		                          i < NUM_PRESETS ? presetFuncs[i] : toggleFuncs[i - NUM_PRESETS],
-		                          Func_ReturnFromCustomizeCoopFrame);
-		buttons[i]->setBounds(c.rect.x, c.rect.y, c.rect.w, c.rect.h);   /* style A makes itself 56 high otherwise */
-	}
-	pool->link(COOP_LAYOUT);	/* the engine's links (linkFocus, FOCUS_GEOMETRY) */
-	const eng::Control &t = COOP_LAYOUT.c[COOP_LAYOUT.title];
-	title = new menu::TextBox(&titlePtr, t.ax, t.ay, 1.0f, true);
-	add(title);
-
-	setDefaultFocus(buttonAt(COOP_LAYOUT.defaultFocus));
+	setDefaultFocus(editor->defaultButton());
 	setBackFunc(Func_ReturnFromCustomizeCoopFrame);
 	setEnabled(true);
 }
 
 CustomizeCoopFrame::~CustomizeCoopFrame()
 {
-	delete title;
-	delete pool;
+	delete editor;
+	editor = NULL;
 }
 
 void CustomizeCoopFrame::activateSubmenu(int submenu)
@@ -232,7 +174,7 @@ void CustomizeCoopFrame::activateSubmenu(int submenu)
 		coopAssign[coopPort][coopPlayer] + 1, layout == COOP_LAYOUT_CUSTOM ? ", custom" : "");
 
 	for (int i = 0; i < NUM_PRESETS; i++)
-		COOP_FREE[i].lit = (i == layout);
+		editor->item(i).lit = (i == layout);
 	b.All = coop_player_buttons(coopPort, coopPlayer, &sticks);
 	const bool lit[NUM_INDICATORS] = {
 		(bool)b.L1_BUTTON, (bool)b.L2_BUTTON, (bool)b.SELECT_BUTTON, (bool)b.START_BUTTON,
@@ -241,22 +183,15 @@ void CustomizeCoopFrame::activateSubmenu(int submenu)
 		(bool)b.CROSS_BUTTON, (sticks & COOP_STICK_L) != 0, (sticks & COOP_STICK_R) != 0,
 		(bool)b.L3_BUTTON, (bool)b.R3_BUTTON };
 	for (int i = 0; i < NUM_INDICATORS; i++)
-		COOP_FREE[NUM_PRESETS + i].lit = lit[i];
+		editor->item(NUM_PRESETS + i).lit = lit[i];
 
 	/* The title's text is new, and so are the lit states: the page is laid out again, as it is shown. */
-	layoutCoop();
-	{
-		const eng::Control &t = COOP_LAYOUT.c[COOP_LAYOUT.title];
-		title->setPosition(t.ax, t.ay);
-	}
-	for (int i = 0; i < NUM_PRESETS; i++)
-		buttons[i]->setSelected(COOP_FREE[i].lit);
+	editor->relayout(true);
 	/* a button this player has is lit; the others are grey, image and label (the font
 	 * ignores alpha, so grey it is), and still pressable: A turns one on or off */
 	for (int i = 0; i < NUM_INDICATORS; i++)
 	{
-		buttons[NUM_PRESETS + i]->setSelected(lit[i]);
-		buttons[NUM_PRESETS + i]->setButtonColors(lit[i] ? litColors : unlitColors);
+		editor->button(NUM_PRESETS + i)->setButtonColors(lit[i] ? litColors : unlitColors);
 	}
 }
 

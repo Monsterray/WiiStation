@@ -136,6 +136,69 @@ private:
 	char *labelPtr[MAX_ACTIONS];
 };
 
+/* A page of free buttons and labels at the author's rectangles (Configure Input, Configure Buttons, Customize
+ * Co-Op): the frame adds each button once (add: its place, art and text; the buttons are made here, once, and a
+ * click is click(user, id)), then sets each one's state and links and calls relayout() when the state changes
+ * and never per frame. The form owns the focus: the engine's geometry rule over the buttons that are shown,
+ * with the author's links (link()) over it; the frame keeps its picture and its own drawChildren. */
+class Editor {
+public:
+	typedef void (*ClickFn)(void *user, int id);
+	struct Item { Button *b; char **text; float x, y, w, h; bool shown, active, lit; };
+	struct Label { TextBox *box; char **text; float ax, ay, scale; bool centred, shown; };
+
+	Editor(Frame *owner, int nButtons, int nLabels, ClickFn click, void *user, ButtonFunc back);
+	~Editor();
+
+	/* Button id (0..nButtons-1) at its rectangle, shown and active; text is the frame's own pointer, read at each layout. */
+	Button *add(int id, int style, char **text, float x, float y, float w, float h);
+	TextBox *addLabel(int id, char **text, float ax, float ay, float scale, bool centred);
+	/* A title the engine centres at y (Customize Co-Op); buf is kept and may change in place. */
+	void setTitle(char *buf, float y);
+
+	Item &item(int id) { return it[id]; }
+	Label &label(int id) { return lb[id]; }
+	Button *button(int id) const { return it[id].b; }
+	/* The links of the state, replacing the geometry rule's where both ends are shown: -1 none. */
+	void clearLinks(void) { nLinks = 0; }
+	void link(int from, int up, int down, int left, int right);
+	/* The focus wraps at the screen edges (Configure Buttons). */
+	void setWrap(bool w) { wrap = w; }
+	/* Lays out the shown buttons and labels and links focus. withState also puts each button's visible, active and lit
+	 * state and each label's visibility on its widget; Configure Buttons sets those itself and passes false. */
+	void relayout(bool withState);
+	/* The button the layout's default focus is, or NULL. */
+	Button *defaultButton(void) const;
+
+private:
+	Editor(const Editor&);
+	Editor &operator=(const Editor&);
+	static void click(void *self, int tag);
+
+	struct Link { int from; engine::Dir dir; int to; };
+	Frame *frame;
+	Pool *pool;
+	ClickFn clickFn;
+	void *user;
+	ButtonFunc backFn;
+	Item *it;
+	Label *lb;
+	int nBtn, nLbl;
+	Link *links;
+	int nLinks;
+	engine::FreeButton *fb;
+	int *fbId;
+	engine::FreeText *ft;
+	int *ftId;
+	engine::FreeLink *fl;
+	engine::Page page;
+	engine::Layout lay;
+	bool wrap;
+	char *titleBuf, *titlePtr;
+	float titleY;
+	TextBox *titleBox;
+};
+
 #ifdef PERF_PROF
 /* The engine's checks, in debug builds: logs the problems of a laid-out page (a label wider than its button, a
  * readout over its label, a control in the logo's corner) with SysPrintf. A finding, not a crash. */

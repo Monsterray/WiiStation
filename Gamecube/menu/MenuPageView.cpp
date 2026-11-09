@@ -384,6 +384,157 @@ Button *ActionMenu::button(int i) const
 	return pool->at(engine::ROLE_BUTTON, def.acts[i].row, def.acts[i].slot);
 }
 
+Editor::Editor(Frame *owner, int nButtons, int nLabels, ClickFn clickF, void *userData, ButtonFunc back)
+	: frame(owner), pool(new Pool(owner, nButtons)), clickFn(clickF), user(userData), backFn(back),
+	  it(new Item[nButtons]), lb(new Label[nLabels > 0 ? nLabels : 1]), nBtn(nButtons), nLbl(nLabels),
+	  links(new Link[nButtons * engine::DIR_COUNT]), nLinks(0),
+	  fb(new engine::FreeButton[nButtons]), fbId(new int[nButtons]),
+	  ft(new engine::FreeText[nLabels > 0 ? nLabels : 1]), ftId(new int[nLabels > 0 ? nLabels : 1]),
+	  fl(new engine::FreeLink[nButtons * engine::DIR_COUNT]),
+	  wrap(false), titleBuf(NULL), titlePtr(NULL), titleY(0), titleBox(NULL)
+{
+	memset(it, 0, sizeof(Item) * nButtons);
+	memset(lb, 0, sizeof(Label) * (nLabels > 0 ? nLabels : 1));
+}
+
+Editor::~Editor()
+{
+	delete titleBox;
+	for (int i = 0; i < nLbl; i++)
+		delete lb[i].box;
+	delete pool;	/* takes the buttons out of the Cursor and deletes them */
+	delete[] it; delete[] lb; delete[] links; delete[] fb; delete[] fbId; delete[] ft; delete[] ftId; delete[] fl;
+}
+
+void Editor::click(void *self, int tag)
+{
+	Editor *e = (Editor*)self;
+	e->clickFn(e->user, tag);
+}
+
+Button *Editor::add(int id, int style, char **text, float x, float y, float w, float h)
+{
+	Item &i = it[id];
+	i.text = text; i.x = x; i.y = y; i.w = w; i.h = h;
+	i.shown = i.active = true; i.lit = false;
+	i.b = pool->button(engine::ROLE_FREE, -1, id, style, text, x, y, w, h, NULL, backFn);
+	i.b->setClickedCtx(click, this, id);
+	/* style A makes itself 56 high; the author's rectangle is the one */
+	i.b->setBounds(x, y, w, h);
+	return i.b;
+}
+
+TextBox *Editor::addLabel(int id, char **text, float ax, float ay, float scale, bool centred)
+{
+	Label &l = lb[id];
+	l.text = text; l.ax = ax; l.ay = ay; l.scale = scale; l.centred = centred; l.shown = true;
+	l.box = new TextBox(text, ax, ay, scale, centred);
+	frame->add(l.box);
+	return l.box;
+}
+
+void Editor::setTitle(char *buf, float y)
+{
+	titleBuf = buf; titlePtr = buf; titleY = y;
+}
+
+void Editor::link(int from, int up, int down, int left, int right)
+{
+	const int to[engine::DIR_COUNT] = { up, down, left, right };
+	static const engine::Dir dirs[engine::DIR_COUNT] = { engine::DIR_UP, engine::DIR_DOWN, engine::DIR_LEFT, engine::DIR_RIGHT };
+	for (int d = 0; d < engine::DIR_COUNT && nLinks < nBtn * engine::DIR_COUNT; d++)
+	{
+		links[nLinks].from = from; links[nLinks].dir = dirs[d]; links[nLinks].to = to[d];
+		nLinks++;
+	}
+}
+
+void Editor::relayout(bool withState)
+{
+	int nf = 0, nt = 0, nl = 0;
+	int freeOf[nBtn];
+
+	for (int i = 0; i < nBtn; i++)
+	{
+		freeOf[i] = -1;
+		if (!it[i].shown)
+			continue;
+		engine::FreeButton &b = fb[nf];
+		b.text = *it[i].text;
+		b.x = it[i].x; b.y = it[i].y; b.w = it[i].w; b.h = it[i].h;
+		b.lit = it[i].lit;
+		b.inactive = !it[i].active;
+		fbId[nf] = i;
+		freeOf[i] = nf++;
+	}
+	for (int t = 0; t < nLbl; t++)
+	{
+		if (!lb[t].shown)
+			continue;
+		engine::FreeText &x = ft[nt];
+		x.text = *lb[t].text;
+		x.ax = lb[t].ax; x.ay = lb[t].ay; x.scale = lb[t].scale; x.centred = lb[t].centred;
+		x.right = false;
+		ftId[nt++] = t;
+	}
+	for (int k = 0; k < nLinks; k++)
+	{
+		const Link &l = links[k];
+		const int to = l.to < 0 ? -1 : freeOf[l.to];
+		if (freeOf[l.from] < 0 || (l.to >= 0 && to < 0))
+			continue;
+		fl[nl].from = freeOf[l.from]; fl[nl].dir = l.dir; fl[nl].to = to;
+		nl++;
+	}
+
+	memset(&page, 0, sizeof page);
+	page.title = titleBuf;
+	page.titleY = titleY;
+	page.logo = engine::LOGO_SPOT_NONE;
+	page.focus = engine::FOCUS_GEOMETRY;
+	page.wrap = wrap;
+	page.freeButtons = fb; page.nFreeButtons = nf;
+	page.freeTexts = ft; page.nFreeTexts = nt;
+	page.freeLinks = fl; page.nFreeLinks = nl;
+	if (engine::layoutPage(page, METRICS, lay) < 0)
+		return;		/* the tables are fixed: a page that does not fit is a programming error */
+	engine::linkFocus(page, lay);
+
+	if (titleBuf && lay.title >= 0)
+	{
+		const engine::Control &t = lay.c[lay.title];
+		if (!titleBox)
+		{
+			titleBox = new TextBox(&titlePtr, t.ax, t.ay, 1.0f, true);
+			frame->add(titleBox);
+		}
+		else
+			titleBox->setPosition(t.ax, t.ay);
+	}
+	if (withState)
+	{
+		for (int i = 0; i < nBtn; i++)
+		{
+			it[i].b->setVisible(it[i].shown);
+			it[i].b->setActive(it[i].shown && it[i].active);
+			if (it[i].shown)
+				it[i].b->setSelected(it[i].lit);
+		}
+		for (int t = 0; t < nLbl; t++)
+			lb[t].box->setVisible(lb[t].shown);
+	}
+	linkControls(lay, [this](const engine::Control &c) -> Button* {
+		return c.role == engine::ROLE_FREE ? it[fbId[c.slot]].b : NULL; }, true);
+}
+
+Button *Editor::defaultButton(void) const
+{
+	if (lay.defaultFocus < 0)
+		return NULL;
+	const engine::Control &c = lay.c[lay.defaultFocus];
+	return c.role == engine::ROLE_FREE ? it[fbId[c.slot]].b : NULL;
+}
+
 #ifdef PERF_PROF
 void logProblems(const char *frameName, const char *pageName, const engine::Page &page, const engine::Layout &lay)
 {

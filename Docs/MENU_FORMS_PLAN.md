@@ -141,3 +141,20 @@ wide read-only reviews. One step per commit on `try/menu-standard`.
   from the pads only, so script keys never reached it; the new one turns the page (R, L), sorts (Z twice: A-Z, folders first),
   climbs to the tabs and opens USB as the keys say (stills checked).
   Not done: pointer clicks and the thumb drag by hand (code unchanged, fbPollPointer), a real Wii, the release build.
+- Step 9 (2026-11-09, Editor; 9a and 9b, no look change): 9a: Configure Buttons synced and fitted every frame (30 string copies, a
+  `fitToLabel` per mapping button); `updateFrame` now hashes what `activateSubmenu` reads (pad, pad list, controller, config bytes, gun
+  settings) and syncs and refits only when the hash changes (the engine layout was already guarded by the inactive mask).
+  9b: `glue::Editor` (MenuPageView.h/.cpp, +214 lines): a frame `add`s each free button (id, art, text pointer, rectangle) and label once; the
+  form makes the pool, gives every button `click(user, id)` and the back function, owns focus (engine geometry rule over the shown buttons, the
+  author's `link()`s over it, optional `setWrap`) and lays out only when `relayout(withState)` is called (shown/active/lit from `item(id)`,
+  label visibility, an optional engine title). The frame keeps its picture and its own `drawChildren`. Moved: Configure Input 717 -> 564
+  (46 `Func_` handlers and the table's click/return columns, the layout/links/pool code -> one `ciClick(id)`), Customize Co-Op 295 -> 230
+  (24 handlers, layout code -> `coopClick(id)`), Configure Buttons 1171 -> 1131 (layout code, pool; the table's own 25 handlers stay and are
+  called by `cbClick(id)`, they are not copies; focus reads active state from the buttons and passes `relayout(false)`).
+  Proof (release DOL step 8 base against 9b): pages 20, 21, 22, 40, 41 0 differing frames; menukeys walks on 40, 20, 21 (focus moves and A
+  presses): the same frames move in both DOLs, 0 differing frames (9a and 9b). Host tests and `settings_check.py` pass.
+  USB Pad Test left alone: it has no widgets at all (raw drawing of a pad picture, text lines and a ring, state machine in `updateFrame`, the
+  Select function for A), so an Editor would be an empty table; it moves with step 10's Board.
+  Not done: 9c (G2's top: pad Cycle, Light Gun Off|On, slot Cycle with Default, Load, Save apart, Built-in): it needs a stored "default
+  config" distinct from the shipped `config_default` (Save on Default overwrites it, Built-in restores the shipped one) and its file
+  format, so it wants its own session; menu CPU on the bench Wii not measured; the Editor on hardware by hand.
