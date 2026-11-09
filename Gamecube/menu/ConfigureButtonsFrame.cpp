@@ -89,9 +89,9 @@ void Func_ReturnFromConfigureButtonsFrame();
 #define TITLE_STRING configureButtonsTitleString
 
 static char FRAME_STRINGS[40][20] =
-	{ "Next",
+	{ "",
+	  "Built-in",
 	  "Default",
-	  "Slot 1",
 	  "Load",
 	  "Save",
 	  "X+Y",
@@ -124,7 +124,7 @@ static char FRAME_STRINGS[40][20] =
 	  "X+Y",
 	  "Limit FPS:",
 	  "Lift Mouse:",
-	  "Gun/Mouse",
+	  "Light Gun: Off",
 	  "Off",
 	  "Shot:",
 	  "Off",
@@ -144,11 +144,11 @@ struct ConfigButtonInfo
 	ButtonFunc		clickedFunc;
 } FRAME_BUTTONS[NUM_FRAME_BUTTONS] =
 { //	button	buttonStyle buttonString		x		y		width	height	clickFunc
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[0],	 20.0,	 20.0,	 80.0,	40.0,	Func_NextPad  }, // Next Pad
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[1],	110.0,	 20.0,	100.0,	40.0,	Func_DefaultConfig  }, // Restore Default Config
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[2],	220.0,	 20.0,	 80.0,	40.0,	Func_ToggleConfigSlot  }, // Cycle Through Config Slots
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[3],	310.0,	 20.0,	 70.0,	40.0,	Func_LoadConfig  }, // Load Config
-	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[4],	390.0,	 20.0,	 70.0,	40.0,	Func_SaveConfig  }, // Save Config
+	{	NULL,	BTN_STD,	TITLE_STRING,		 20.0,	 20.0,	280.0,	40.0,	Func_NextPad  }, // The pad, a Cycle (Next Pad)
+	{	NULL,	BTN_STD,	FRAME_STRINGS[1],	500.0,	 68.0,	120.0,	40.0,	Func_DefaultConfig  }, // Built-in: the shipped mapping
+	{	NULL,	BTN_STD,	FRAME_STRINGS[2],	 20.0,	 68.0,	220.0,	40.0,	Func_ToggleConfigSlot  }, // The slot, a Cycle
+	{	NULL,	BTN_STD,	FRAME_STRINGS[3],	250.0,	 68.0,	 80.0,	40.0,	Func_LoadConfig  }, // Load Config
+	{	NULL,	BTN_STD,	FRAME_STRINGS[4],	340.0,	 68.0,	 80.0,	40.0,	Func_SaveConfig  }, // Save Config
 
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[5],	 15.0,	135.0,	110.0,	40.0,	Func_ToggleButtonExit  }, // Toggle Button Exit
 
@@ -178,7 +178,7 @@ struct ConfigButtonInfo
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[31],	325.0,	340.0,	 50.0,	40.0,	Func_SensPlus  }, // Stick Sensitivity +
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[28],	265.0,	340.0,	 50.0,	40.0,	Func_SensMinus  }, // Stick Sensitivity -
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[32],	515.0,	135.0,	110.0,	40.0,	Func_ToggleButtonFastF  }, // Toggle Button FastForward
-	{	NULL,	BTN_A_SEL,	FRAME_STRINGS[35],	480.0,	 20.0,	140.0,	40.0,	Func_ToggleGunMouse  }, // Toggle Gun/Mouse Enable
+	{	NULL,	BTN_STD,	FRAME_STRINGS[35],	430.0,	 20.0,	190.0,	40.0,	Func_ToggleGunMouse  }, // Light Gun Off | On, a Cycle (Wiimote only)
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[36],	 15.0,	205.0,	110.0,	40.0,	Func_ToggleButtonScreenshot  }, // Toggle Button Screenshot
 	{	NULL,	BTN_A_NRM,	FRAME_STRINGS[38],	515.0,	205.0,	110.0,	40.0,	Func_ToggleButtonAnalog  }, // Toggle Button ANALOG
 };
@@ -193,7 +193,7 @@ struct TextBoxInfo
 	bool			centered;
 } FRAME_TEXTBOXES[NUM_FRAME_TEXTBOXES] =
 { //	textBox	textBoxString		x		y		scale	centered
-	{	NULL,	TITLE_STRING,		320.0,	100.0,	 1.0,	true }, // ______ Pad X to N64 Pad Y Mapping
+	{	NULL,	TITLE_STRING,		320.0,	100.0,	 1.0,	true }, // not shown: the pad is the Cycle at the top left
 	{	NULL,	FRAME_STRINGS[30],	 70.0,	120.0,	 0.9,	true }, // Menu Combo
 	{	NULL,	FRAME_STRINGS[29],	 318.0,	323.0,	 0.9,	true }, // Stick Sensitivity
 	{	NULL,	FRAME_STRINGS[33],	 570.0,	120.0,	 0.9,	true }, // Fast Forward
@@ -286,6 +286,15 @@ ConfigureButtonsFrame::ConfigureButtonsFrame()
 										FRAME_TEXTBOXES[i].x, FRAME_TEXTBOXES[i].y,
 										FRAME_TEXTBOXES[i].scale, FRAME_TEXTBOXES[i].centered);
 
+	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
+	{
+		if (i == 0 || i == 2 || i == 29)	/* the pad, the slot and Light Gun: Cycles */
+			FRAME_BUTTONS[i].button->setArrows(true);
+		else if (i == 1 || i == 3 || i == 4)	/* Built-in, Load, Save: plain actions */
+			FRAME_BUTTONS[i].button->setPlain(true);
+	}
+	FRAME_TEXTBOXES[0].textBox->setVisible(false);
+
 	setDefaultFocus(FRAME_BUTTONS[0].button);
 	setBackFunc(Func_ReturnFromConfigureButtonsFrame);
 	setEnabled(true);
@@ -301,7 +310,7 @@ ConfigureButtonsFrame::~ConfigureButtonsFrame()
 static char controllerTypeStrings[8][17] =
 	{ "Gamecube",
 	  "Classic",
-	  "Wiimote+Nunchuck",
+	  "Wiimote + Nunchuk",
 	  "Wiimote",
 	  "Wii U Pro",
 	  "Wii U Gamepad",
@@ -449,7 +458,7 @@ void ConfigureButtonsFrame::activateSubmenu(int submenu)
 
 	if (activePadType == ACTIVEPADTYPE_NONE)
 	{
-		sprintf(TITLE_STRING, "PSX Port %s: No Physical Controller Assigned", name );
+		sprintf(TITLE_STRING, "Port %s: No Controller", name );
 
 		if (activePadAssigned == ACTIVEPADASSIGNED_TRUE) //Reset to "Next Pad" button
 		{
@@ -461,12 +470,15 @@ void ConfigureButtonsFrame::activateSubmenu(int submenu)
 		strcpy(FRAME_STRINGS[32], "");
 		strcpy(FRAME_STRINGS[36], "");
 		strcpy(FRAME_STRINGS[38], "");
+		FRAME_BUTTONS[29].button->setVisible(false);
 		for (int i = 1; i < NUM_FRAME_BUTTONS; i++)
 			FRAME_BUTTONS[i].button->setActive(false);
 	}
 	else
 	{
-		sprintf(TITLE_STRING, "PSX Port %s: %s Pad %d Mapping", name, controllerTypeStrings[activePadType], virtualControllers[activePad].number+1 );
+		/* "Port 1: Wiimote + Nunchuk", and " 2" after it for the second pad of a type */
+		int num = virtualControllers[activePad].number;
+		sprintf(TITLE_STRING, "Port %s: %s%s%.0d", name, controllerTypeStrings[activePadType], num > 0 ? " " : "", num > 0 ? num + 1 : 0);
 
 		controller_config_t* currentConfig = virtualControllers[activePad].config;
 
@@ -477,10 +489,7 @@ void ConfigureButtonsFrame::activateSubmenu(int submenu)
 
 		FRAME_TEXTBOXES[4].textBox->setVisible(false);
 		FRAME_TEXTBOXES[2].textBox->setVisible(true);
-		if (padGun() == PADLIGHTGUN_ENABLE)
-			FRAME_BUTTONS[29].button->setSelected(true);
-		else
-			FRAME_BUTTONS[29].button->setSelected(false);
+		strcpy(FRAME_STRINGS[35], padGun() == PADLIGHTGUN_ENABLE ? "Light Gun: On" : "Light Gun: Off");
 
 		if ((lightGun == LIGHTGUN_DISABLE) || !isLightgun || padGun() == PADLIGHTGUN_DISABLE){
 			for (int i = 1; i < NUM_FRAME_BUTTONS; i++){
@@ -491,7 +500,7 @@ void ConfigureButtonsFrame::activateSubmenu(int submenu)
 
 			if (!isLightgun){
 				FRAME_BUTTONS[29].button->setActive(false);
-				FRAME_BUTTONS[29].button->setSelected(false);
+				FRAME_BUTTONS[29].button->setVisible(false);	/* Light Gun is for a Wiimote */
 			}
 		}
 		else{
@@ -753,15 +762,16 @@ void Func_DefaultConfig()
 	pMenuContext->getFrame(MenuContext::FRAME_CONFIGUREBUTTONS)->activateSubmenu(activePad);
 }
 
-/* The slot to load or save. 4 is the Game slot: the file of this game. */
-static const char *const SLOT_NAMES[] = { "Slot 1", "Slot 2", "Slot 3", "Slot 4", "Game" };
-static eng::Cycle slotCycle = { SLOT_NAMES, 5, 0 };
-static unsigned int which_slot = 0;
+/* The slot to load or save: the user's Default (config_slot[CONTROLLER_DEFAULT_SLOT], the shipped mapping until a Save
+ * on Default), Slot 1..4, or Game (the file of this game). Built-in (Func_DefaultConfig) is the shipped mapping. */
+static const char *const SLOT_NAMES[] = { "Default", "Slot 1", "Slot 2", "Slot 3", "Slot 4", "Game" };
+static eng::Cycle slotCycle = { SLOT_NAMES, 6, 0 };
+static unsigned int which_slot = CONTROLLER_DEFAULT_SLOT;   /* the controller's config_slot index */
 
 void Func_ToggleConfigSlot()
 {
 	FRAME_BUTTONS[2].buttonString = (char *)eng::cycleNext(slotCycle);
-	which_slot = slotCycle.index;
+	which_slot = slotCycle.index == 0 ? CONTROLLER_DEFAULT_SLOT : slotCycle.index - 1;
 }
 
 void Func_LoadConfig()

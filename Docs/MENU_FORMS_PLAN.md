@@ -225,3 +225,18 @@ wide read-only reviews. One step per commit on `try/menu-standard`.
   contact sheet C:/Users/Monty Perrotti/AppData/Local/Temp/opencode/ws_disc_contact_sheet.png; DOLs ws_disc_base_release.dol, ws_disc_new_release.dol (same folder).
   Not done: real Wii (decode time of a 600x600 PNG on Broadway not measured: one hitch when the page opens), multi-disc games (the serial of the
   disc loaded), a pack made with --resize (works the same, smaller file).
+- Step 9c (2026-11-09, Configure Buttons' top, G2): line 1 = the pad as a Cycle (`Port 1: Wiimote + Nunchuk`, replaces Next and the title) and, on a
+  Wiimote only, `Light Gun: Off | On` (replaces Gun/Mouse; hidden on other pads); line 2 = the slot as a Cycle (Default, Slot 1-4, Game), Load,
+  Save, and Built-in at the right (the shipped `config_default`). The six top buttons are `BTN_STD` (square, arrows on the three Cycles, plain
+  Load/Save/Built-in); the rectangles keep focus sane under the engine's geometry rule (pad -> down -> slot; slot -> right -> Load). Only
+  ConfigureButtonsFrame.cpp changed on the menu side (the Editor was enough; the old title label is kept hidden). Storage: the user's Default is
+  one more slot, `config_slot[CONTROLLER_DEFAULT_SLOT]` (5), in the same per-controller file (`buttons/<type>.cfg`), written after the four slots,
+  screenshot and ANALOG lists as one more block; a file from before it ends early and the slot stays `config_default` (initialised in
+  init_controller_ts). Save on Default = Save on a slot (all files are written); Load Default copies it in. Game start: Auto Load Slot = Default
+  and a missing Game file now use the user's Default (`loadGameButtons`), which is `config_default` until overwritten. Proof (release DOL, base
+  cd025e19 against new): pages 20, 21 0 differing frames; 40 and 41 differ on the top lines only (`ws_step9c_contact_sheet.png`). Menukeys on page
+  40 with a GC pad (`--pad`), card read back with sdimage_read.py: pad Cycle to Port 2 (all inactive) and back; D from the pad lands on the slot;
+  slot Cycle Default -> Slot 1; change L1, Save on Slot 1 -> gamecube.cfg 504 bytes, slot 1 L1 index 6, other slots and Default 5; Built-in puts
+  L1 back (screen); Load slot 1 restores the saved value (screen); focus reaches pad, slot, Load, Save, Built-in. Not shown: Light Gun Off|On
+  and the long Wiimote + Nunchuk text (no Wiimote in Dolphin runs; the pad button is 280 wide, the text is clipped if it does not fit); Save on
+  Default was not read back (after the Save toast the scripted keys lose focus; the code path is the same as a slot's).
