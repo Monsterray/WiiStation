@@ -42,6 +42,7 @@ extern char originalMode;
 #include "../hbc_home.h"
 #include "../lab_net.h"
 void lab_menu_exit(const char *report);   /* GamecubeMain.cpp: menu.log, results, back to HBC */
+extern "C" int perf_chain_index(void);   /* GamecubeMain.cpp: 0 = no chain with games */
 #include "../../achievements.h"
 #include "../ach_toast.h"
 #include "AchievementsFrame.h"
@@ -277,8 +278,9 @@ bool MenuContext::isRunning()
 	}
 
 	/* Lab mode (scripts/wii_run.py --menu): the walk is over when its script is (labEnd), or after
-	 * 15 minutes whatever happens. Report it, send the results, back to HBC. */
-	if (lab_active()) {
+	 * 15 minutes whatever happens. Report it, send the results, back to HBC. Only a game-less run:
+	 * a lab chain that opens the menu in a game (menuopen, the achievements book) must go on. */
+	if (lab_active() && !perf_chain_index() && !hasLoadedISO) {
 		static unsigned long long labT0;
 		if (!labT0)
 			labT0 = perf_now_us();
@@ -288,8 +290,6 @@ bool MenuContext::isRunning()
 			snprintf(rep, sizeof rep, "menu walk: ok=%d pages=%u last_page=%u keys=%u frames=%u end=%s",
 				late ? 0 : 1, labPages, labLastPage, (unsigned)strlen(autoinput_menukeys), labFrame,
 				late ? "time limit" : "script end");
-			if (hasLoadedISO)
-				SysClose();
 			lab_menu_exit(rep);
 		}
 	}
