@@ -174,7 +174,10 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     lib = tools.get("GAME_LIBRARY")
     ap.add_argument("--out", help="output folder (default GAME_LIBRARY/cover_sources/disc)")
-    ap.add_argument("--limit", type=int, help="fetch at most N serials")
+    ap.add_argument("--limit", type=int, default=50,
+                    help="look up at most N serials this run (default 50; 0 = all). Keeps a run small and slow")
+    ap.add_argument("--retry-missing", action="store_true",
+                    help="ask again for serials listed in missing.txt (not found or no disc art last time)")
     ap.add_argument("--only", help="one serial, e.g. SCUS94423 or SCUS-94423")
     ap.add_argument("--dry-run", action="store_true", help="list what would be fetched, no network")
     ap.add_argument("--sleep", type=float, default=2.0, help="seconds between requests (default 2)")
@@ -188,9 +191,18 @@ def main():
     if a.only:
         o = cover_pack.normalise_serial(a.only)
         games = {s: v for s, v in games.items() if s == o}
-    todo = {s: v for s, v in games.items() if not have(out, s)}
-    print("%d serial(s), %d already in %s, %d to fetch, %d game(s) without serial"
-          % (len(games), len(games) - len(todo), out, len(todo), len(skipped)))
+    # Serials ScreenScraper did not have last time: not asked again (each not-found counts against the
+    # daily not-found quota, and asking for the same misses run after run looks like scraping).
+    missing_file = out / "missing.txt"
+    missing = {}
+    if missing_file.is_file():
+        for line in missing_file.read_text(encoding="utf-8").splitlines():
+            if line.strip():
+                missing[line.split("\t")[0]] = line
+    todo = {s: v for s, v in games.items() if not have(out, s) and (a.retry_missing or s not in missing)}
+    print("%d serial(s), %d already in %s, %d missing last time%s, %d to fetch, %d game(s) without serial"
+          % (len(games), sum(have(out, s) for s in games), out, len(missing),
+             " (retried)" if a.retry_missing else " (skipped)", len(todo), len(skipped)))
     for k, why in skipped:
         print("  skip %s: %s" % (k, why))
     if a.limit:
@@ -206,22 +218,31 @@ def main():
     creds = load_creds(lib, a.debug)
     out.mkdir(parents=True, exist_ok=True)
     ok = 0
+
+    def miss(s, key, why):
+        print("%s: %s (%s)" % (s, why, key))
+        missing[s] = "%s\t%s\t%s\t%s" % (s, why, time.strftime("%Y-%m-%d"), key)
+        missing_file.write_text("\n".join(sorted(missing.values())) + "\n", encoding="utf-8")
+
     try:
         for s, (key, boot) in todo.items():
             try:
                 jeu = info(s, boot, creds)
                 if jeu is None:
-                    print("%s: not found on ScreenScraper (%s)" % (s, key))
+                    miss(s, key, "not found on ScreenScraper")
                 else:
                     m = pick(jeu, s, boot)
                     if not m:
-                        print("%s: found, but no disc art (%s)" % (s, key))
+                        miss(s, key, "found, but no disc art")
                     else:
                         time.sleep(a.sleep)
                         data = api_get(m["url"], creds)
                         if data[:7] == b"NOMEDIA" or len(data) < 200:
-                            print("%s: no disc art file (%s)" % (s, key))
+                            miss(s, key, "no disc art file")
                         else:
+                            if missing.pop(s, None):   # found after all (--retry-missing)
+                                missing_file.write_text("".join(v + "\n" for v in sorted(missing.values())),
+                                                        encoding="utf-8")
                             ext = "." + (m.get("format") or "png").lower().replace("jpeg", "jpg")
                             (out / (s + ext)).write_bytes(data)
                             ok += 1
