@@ -175,3 +175,15 @@ wide read-only reviews. One step per commit on `try/menu-standard`.
   Not done: 10b (the book polish: "today's layout, polished, full screen with a hint line" has no written spec beyond MENU_PLAN sheet 2;
   needs the design and a contact sheet); L/R page turn in Players (needs more than 16 Miis); USB Pad Test with a real pad; menu CPU on
   the bench Wii; hardware.
+- Step 11 (2026-11-09, Dialog; read-only finding, NO code change): the dialogs have no pad-polling loop of their own to remove.
+  `libgui/MessageBox` (setMessage = notice, askMessage = Yes/No, fadeMessage = non-blocking toast) is an engine Frame with three
+  ordinary Buttons; its blocking `while (messageBoxActive) Gui::draw()` runs the SAME per-frame path as every page (`Input::refreshInput`,
+  Cursor, Focus, the frame list, `drawMessageBox` from Gui::draw), and A/B/pointer reach it as button click/return functions. So Quit
+  (`Func_ExitToLoader`), Credits (`MainFrame.cpp:167`) and all ~75 `setMessage`/`askMessage` callers (CurrentRom 24, Settings 17, FileBrowser
+  11, Main 11, Explorer 1, ConfigureButtons 3) already sit on the shared input and draw. `glue::readInput()` (page turn + sort key only)
+  is for Board/List pages and has nothing a button dialog needs; routing the box through it would add a second reader and change the keys.
+  The Dialog form of section 2 (`dialogAsk`/`dialogNote` without a nested loop) is the NON-blocking redesign, which answer 49 declined;
+  not built. Other loops, kept: `Func_PlayGame`'s wait-for-A-release (MainFrame.cpp:233, reads held A on GC/Wiimote/WUPC/DRC; not a
+  dialog, and `readInput` has no held-A, so moving it would need a new field), the "Loading achievements" `fadeMessage` + draw loop
+  (MainFrame.cpp:268), `MenuContext::Autoboot`, `LoadingBar` (one `Gui::draw`). Chain runs skip boxes (`unattended_message`); keep.
+  No DOLs built, no proof run (nothing changed). Open: if Monty wants the non-blocking Dialog or the PlayGame loop on glue, say so.
