@@ -77,3 +77,5 @@ To find leftovers in your own setup:
 ```bash
 grep -rln "wiisxrx" scripts/ .runs/*.txt <your Dolphin folder>/User/Load/WiiSDSync_paused_by_claude/
 ```
+
+Disc art: `scripts/disc_art_fetch.py` downloads the round disc label (ScreenScraper media `support-2D`) for the games in `games.tsv` into `GAME_LIBRARY/cover_sources/disc/<SERIAL>.png` (re-runnable, `--dry-run`, `--limit N`, `--only SERIAL`; login from `GAME_LIBRARY/screenscraper.ini`). Then `cover_pack.py --disc-dir <that folder>` puts them in the pack.
