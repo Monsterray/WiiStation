@@ -751,6 +751,8 @@ static void hash_close_track(void *track) { (void)track; }
 static uint32_t hash_first_sector(void *track) { (void)track; return 0; }
 static void hash_error(const char *message) { SysPrintf("Achievements: hash: %s\n", message); }
 
+static char last_disc_hash[33];   /* the last disc hashed, kept after game_hash is used */
+
 /* The PS1 hash of the loaded disc, into game_hash. 0 when it has no PS1 boot executable. */
 static int hash_disc(const char *image)
 {
@@ -758,12 +760,20 @@ static int hash_disc(const char *image)
 	rc_hash_init_custom_cdreader(&reader);
 	rc_hash_init_error_message_callback(hash_error);
 	game_hash[0] = 0;
+	last_disc_hash[0] = 0;
 	if (!rc_hash_generate_from_file(game_hash, RC_CONSOLE_PLAYSTATION, image)) {
 		game_hash[0] = 0;
 		return 0;
 	}
 	SysPrintf("Achievements: disc hash %s\n", game_hash);   /* public: the set's identity */
+	snprintf(last_disc_hash, sizeof last_disc_hash, "%s", game_hash);
 	return 1;
+}
+
+/* The hash of the disc loaded last, "" when it had none or was not hashed (the Recent record) */
+const char *achievements_official_disc_hash(void)
+{
+	return last_disc_hash;
 }
 
 /* ---- which account, loading the set, and the login ---- */

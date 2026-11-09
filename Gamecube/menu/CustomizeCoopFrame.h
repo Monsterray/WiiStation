@@ -16,6 +16,8 @@
 #include "../libgui/Frame.h"
 #include "MenuTypes.h"
 
+namespace menu { namespace glue { class Pool; } }
+
 class CustomizeCoopFrame : public menu::Frame
 {
 public:
@@ -23,6 +25,9 @@ public:
 	~CustomizeCoopFrame();
 	void activateSubmenu(int submenu);
 	void drawChildren(menu::Graphics& gfx);
+
+private:
+	menu::glue::Pool *pool;
 };
 
 #endif

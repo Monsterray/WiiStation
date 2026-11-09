@@ -390,11 +390,9 @@ hashes in UploadScreen, OpenGX texel checks). The pattern to grep for is a loop 
   whatever height they are given; a smaller row overlaps the next until `setBounds()` gives
   the height back. Labels are not clipped: text wider than its button runs over the edge.
   `setAutoSize(BTN_FIT_WIDTH)` + `setBounds()` fits a button to its label (+28 px).
-- `scripts/menu_text_width.py` checks SettingsFrame's and OptionsFrame's tables (rows,
-  gaps, label fits, logo). A new SettingsFrame button must be added to its TAB_ROWS, or the
-  checker fails: button 79 (Stick D-pad, 5.3.0) was missing, and the row it checked then
-  had uneven gaps and a too-narrow button. ConfigureInputFrame lays itself out in code
-  (layoutTables) and is checked by screenshot only.
+- The Settings, Options and action pages are tables in `Gamecube/menu/pages/*.h`; the host tests
+  (`sh tests/menu_engine/run.sh`) check them and the engine's layout rules. ConfigureInputFrame lays
+  itself out in code (layoutTables) and is checked by screenshot only.
 - **A `vram=` difference in chained games 4+ with equal `ram=`/`pc=`/`cycle=`** was the
   last 7..23 pixels of row 511 keeping game 3's data (CTR's 0x8000). OpenPlugins() points
   the shared psxVuw at gpulib's gpu.vram (globalVram + 4 KB, aligned up to 64) via
@@ -507,11 +505,12 @@ hashes in UploadScreen, OpenGX texel checks). The pattern to grep for is a loop 
 - After changing a bundled library (deps/*/lib), the DOL now relinks (Makefile_Wii
   BUNDLED_LIBS); before, a rebuilt libsmb2 was silently not linked in.
 
-- `menuclick <button> <times> [frame]` calls a Settings button (SettingsFrame.cpp FRAME_BUTTONS
-  index; 14 Save SD, 15 Save USB, 62 Save This Game) at that menu frame (default 40). A modal
+- `menuclick <name> <n> [frame]` presses a Settings button by name at that menu frame (default 40):
+  a setting by key and value (`menuclick FPS 1`), an action n times (`menuclick SaveSettingsSD 1`);
+  names in Gamecube/menu/pages/SettingsPages.h. One click per script (the last line wins). A modal
   MessageBox stops the menu frames, so a walk must dismiss it first. Save This Game, proven
   2026-10-18: `menupage 70`, `menukeys 60 A . . . . . . D A . . . . . . . . A` (open the Spyro
-  folder, load the .cue, OK the info box), `menuclick 62 1 600`, with `WSX_ISOS="Spyro the Dragon"
+  folder, load the .cue, OK the info box), `menuclick SaveSettingsGame 1 600`, with `WSX_ISOS="Spyro the Dragon"
   KEEP_PROFILE=1 wsx.sh menu ...`; read the file back with sdimage_read.py from the kept profile.
   The file holds only the keys that differ from the staged settings.ini (or the defaults), never
   a global-only key (GamecubeMain.cpp GLOBAL_ONLY_KEYS); the message says how many it wrote.

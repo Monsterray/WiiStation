@@ -25,14 +25,18 @@
 #include "../libgui/InputStatusBar.h"
 #include "MenuTypes.h"
 
+namespace menu { namespace glue { class ActionMenu; } }
+
 class MainFrame : public menu::Frame
 {
 public:
 	MainFrame();
 	~MainFrame();
+	int logoSpot() const;
 
 private:
 	menu::InputStatusBar *inputStatusBar;
+	menu::glue::ActionMenu *actions;
 };
 
 #endif

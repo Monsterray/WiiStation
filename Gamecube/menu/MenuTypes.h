@@ -23,7 +23,6 @@
 
 class MenuContext;
 class MainFrame;
-class LoadRomFrame;
 
 //extern MenuContext *pMenuContext;
 

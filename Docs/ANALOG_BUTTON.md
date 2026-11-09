@@ -79,7 +79,7 @@ controller (SETTINGS.md section 6.6; `analog_button` in `Gamecube/PadSSSPSX.c`):
   ID reads 00h until the next 43h;
 - per PlayStation port and multitap slot (a Co-Op port: any player's combination);
 - a note on screen for two seconds: "Port 1: Analog (red light)", "Port 1: Digital (light off)",
-  "Port 1: ANALOG locked by the game", or "no ANALOG button" for Standard and Stick D-pad.
+  "Port 1: ANALOG locked by the game", or "no ANALOG button" for Digital and Stick Pad.
 
 ### AnalogAuto: ready to play (2026-11-01)
 

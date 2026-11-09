@@ -36,6 +36,7 @@ void achievements_change_media(const char *image, const char *game_id);   /* a d
 const char *achievements_status(void);   /* one line for the menus: what achievements do for this game */
 uint32_t achievements_read_memory(uint32_t address, uint8_t *buffer, uint32_t size, void *unused);
 unsigned achievements_count(void);    /* the loaded set's achievements, in either mode */
+const char *achievements_disc_hash(void);   /* the RetroAchievements hash of the disc loaded last; "" none */
 unsigned achievements_earned(void);   /* Local: the union of the players' unlocks (below) */
 /* The folder name of this set's unlock pictures (sd:/wiistation/achievements/shots/<it>/<achievement id>.png):
  * Official and Local, the game's id; Custom, the first 16 characters of the definition's digest; "" in Test mode,

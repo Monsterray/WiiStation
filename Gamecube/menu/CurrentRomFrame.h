@@ -24,15 +24,18 @@
 #include "../libgui/Frame.h"
 #include "MenuTypes.h"
 
+namespace menu { namespace glue { class ActionMenu; } }
+
 class CurrentRomFrame : public menu::Frame
 {
 public:
 	CurrentRomFrame();
 	~CurrentRomFrame();
+	int logoSpot() const;
 	void drawChildren(menu::Graphics& gfx);
 
 private:
-	
+	menu::glue::ActionMenu *actions;
 };
 
 #endif

@@ -1,0 +1,2 @@
+CHAIN
+# No game: the menu comes up (chainLoad finds none). The input script goes to sd:/wiistation/autoinput.txt: sd:/wiistation/autoinput.txt

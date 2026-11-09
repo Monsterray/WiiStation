@@ -21,6 +21,7 @@
 **/
 
 #include <math.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "MenuEngine.h"
@@ -53,6 +54,58 @@ int buttonFitWidth(const Metrics &m, const char *text)
 		float tw = (float)m.width(text, 1.0f, m.ctx);
 		return (int)(2.0f * ceilf((tw + 2.0f * BUTTON_PAD_X) / 2.0f));
 	}
+}
+
+/*  The standard's widths: text + pad, rounded up to a step of STD_STEP  */
+
+int stdStepWidth(const Metrics &m, const char *text, int pad)
+{
+	const int tw = measure(m, text, 1.0f);
+	return ((tw + pad + STD_STEP - 1) / STD_STEP) * STD_STEP;
+}
+
+int stdButtonWidth(const Metrics &m, const char *text)
+{
+	return stdStepWidth(m, text, STD_SEG_PAD_EQ);
+}
+
+int stdSegmentWidths(const Metrics &m, const char *const *names, int n, int room, int *out, bool *equal)
+{
+	int eq = 0, sum = 0;
+	for (int k = 0; k < n; k++) {
+		const int w = stdStepWidth(m, names[k], STD_SEG_PAD_EQ);
+		if (w > eq)
+			eq = w;
+	}
+	if (equal)
+		*equal = n * eq <= room;
+	for (int k = 0; k < n; k++) {
+		out[k] = n * eq <= room ? eq : stdStepWidth(m, names[k], STD_SEG_PAD_OWN);
+		sum += out[k];
+	}
+	/* a row that still does not fit is a layout error (PROB_PAST_RIGHT): shorten the words */
+	return sum;
+}
+
+int stdTabWidths(const Metrics &m, const Tab *tabs, int n, int *out)
+{
+	const float room = (float)MENU_W - 2.0f * (float)MENU_EDGE;
+	int w = 0, sum = 0;
+	bool equal = false;
+
+	for (int t = 0; t < n; t++) {
+		const int tw = stdStepWidth(m, tabs[t].text, STD_TAB_PAD);
+		if (tw > w)
+			w = tw;
+	}
+	/* equal widths when the strip fits between the screen margins, otherwise each tab its own text + 16 */
+	if (n > 0 && (float)(w * n) + STD_TAB_GAP * (float)(n - 1) <= room)
+		equal = true;
+	for (int t = 0; t < n; t++) {
+		out[t] = equal ? w : stdStepWidth(m, tabs[t].text, STD_TAB_PAD_OWN);
+		sum += out[t];
+	}
+	return sum + (n > 1 ? (int)STD_TAB_GAP * (n - 1) : 0);
 }
 
 /* Button k of the row is shown but inactive: drawn, never a focus target (Row::inactive). */
@@ -360,12 +413,120 @@ static void layoutList(Layout &out, const ListSpec &L, int row)
 
 		it.text = "";
 		it.folder = false;
+		it.dim = false;
+		it.tag = it.note = NULL;
 		if (shown)
 			L.item(L.ctx, index, it);
 		c = addButton(out, ROLE_LIST_ITEM, row, k, L.x0, L.y0 + k * pitch, L.w, L.h,
 		              shown && it.text ? it.text : "", false, shown);
 		out.c[c].folder = shown && it.folder;
+		out.c[c].dim = shown && it.dim;
 		out.listItem[k] = c;
+	}
+}
+
+/* `text` cut to at most `room` px with "..." at the end, written to buf; the text itself when it fits.
+ * Cut at a character boundary (not inside a UTF-8 sequence). */
+static const char *cutText(const Metrics &m, const char *text, float scale, int room, char *buf, int bufSize)
+{
+	int lo = 0, hi, len;
+	char probe[STD_CUT_LEN];
+
+	if (measure(m, text, scale) <= room)
+		return text;
+	len = (int)strlen(text);
+	hi = len < bufSize - 4 ? len : bufSize - 4;	/* the prefix, before the three dots and the NUL */
+	/* the longest prefix whose width with "..." is within the room (the width only grows with it) */
+	while (lo < hi) {
+		const int mid = (lo + hi + 1) / 2;
+		int n = mid;
+		while (n > 0 && ((unsigned char)text[n] & 0xC0) == 0x80)
+			n--;
+		memcpy(probe, text, n);
+		strcpy(probe + n, "...");
+		if (measure(m, probe, scale) <= room)
+			lo = mid;
+		else
+			hi = mid - 1;
+	}
+	while (lo > 0 && ((unsigned char)text[lo] & 0xC0) == 0x80)
+		lo--;
+	memcpy(buf, text, lo);
+	strcpy(buf + lo, "...");
+	return buf;
+}
+
+/* The explorer's list (DENSITY_EXPLORER): the page arrows at the two ends of the scroll column, then
+ * the window's rows, each with its name (cut), and the tag and note texts when the item has them. */
+static void layoutListStd(Layout &out, const Metrics &m, const ListSpec &L, int row)
+{
+	const ListState &s = *L.state;
+	const bool paged = L.mode == LIST_PAGED;
+	const bool canPrev = paged && s.top > 0;
+	const bool canNext = paged && s.top + s.slots < s.count;
+	const float tagScale = STD_LIST_PX_TAG / FONT_H;
+	const float yEnd = (float)STD_LIST_Y0 + (float)(s.slots - 1) * (float)STD_LIST_PITCH + (float)STD_LIST_H;
+
+	out.slot[row][0] = addButton(out, ROLE_LIST_PAGE, row, 0, (float)STD_SCROLL_X, (float)STD_LIST_Y0,
+	                             (float)STD_SCROLL_W, (float)STD_SCROLL_ARROW_H, L.prev.text, false, canPrev);
+	out.slot[row][1] = addButton(out, ROLE_LIST_PAGE, row, 1, (float)STD_SCROLL_X, yEnd - (float)STD_SCROLL_ARROW_H,
+	                             (float)STD_SCROLL_W, (float)STD_SCROLL_ARROW_H, L.next.text, false, canNext);
+	for (int k = 0; k < s.slots; k++) {
+		const int index = s.top + k;
+		const bool shown = index < s.count;
+		const float y = (float)STD_LIST_Y0 + (float)k * (float)STD_LIST_PITCH;
+		ListItem it;
+		int c;
+
+		it.text = "";
+		it.folder = false;
+		it.dim = false;
+		it.tag = it.note = NULL;
+		if (shown)
+			L.item(L.ctx, index, it);
+		if (!it.text)
+			it.text = "";
+		c = addButton(out, ROLE_LIST_ITEM, row, k, (float)STD_LIST_X0, y, (float)STD_LIST_W, (float)STD_LIST_H,
+		              "", false, shown);
+		out.c[c].folder = shown && it.folder;
+		out.c[c].dim = shown && it.dim;
+		out.listItem[k] = c;
+		if (!shown)
+			continue;
+
+		{
+			const float tagR = (float)STD_LIST_TAG_R;
+			const bool hasTag = it.tag && *it.tag, hasNote = it.note && *it.note;
+			/* the note sits right against its own tag (a gap of its own, not the widest tag's room) */
+			const float noteR = hasTag ? tagR - (float)measure(m, it.tag, tagScale) - (float)STD_LIST_NOTE_GAP
+			                           : (float)STD_LIST_NOTE_R;
+			/* no text on the right: the name's room is as far from the row's right end as its start from the left */
+			float rightEdge = (float)STD_LIST_X0 + (float)STD_LIST_W - ((float)STD_LIST_NAME_X - (float)STD_LIST_X0);
+			const float textX = it.folder ? (float)STD_LIST_FOLDER_X : (float)STD_LIST_NAME_X;
+			int room;
+
+			/* the name ends before the leftmost text on its right */
+			if (hasTag)
+				rightEdge = tagR - (float)measure(m, it.tag, tagScale) - (float)STD_LIST_NAME_GAP;
+			if (hasNote) {
+				const float e = noteR - (float)measure(m, it.note, tagScale) - (float)STD_LIST_NAME_GAP;
+				if (e < rightEdge)
+					rightEdge = e;
+			}
+			room = (int)(rightEdge - textX);
+			out.c[c].full = it.text;
+			out.c[c].text = cutText(m, it.text, TEXT_SCALE, room, out.cut[k], STD_CUT_LEN);
+			out.c[c].textX = textX;
+			out.c[c].textR = rightEdge;
+
+			{
+				const float ty = y + ((float)STD_LIST_H - (float)m.height("Ag", tagScale, m.ctx)) / 2;
+				if (hasTag)
+					addText(out, m, ROLE_LIST_TAG, row, k, tagR, ty, ALIGN_RIGHT_TOP, tagScale, it.tag);
+				if (hasNote)
+					addText(out, m, ROLE_LIST_NOTE, row, k, noteR, ty, ALIGN_RIGHT_TOP, tagScale, it.note);
+			}
+		}
 	}
 }
 
@@ -382,10 +543,228 @@ static int controlBound(const Page &p)
 		case ROW_READOUT: n += 2; break;
 		case ROW_CHOICE:
 		case ROW_BUTTONS: n += 1 + r.count; break;
-		case ROW_LIST:    n += 2 + r.list->state->slots; break;
+		case ROW_LIST:    n += 2 + r.list->state->slots * (p.standard == DENSITY_EXPLORER ? 3 : 1); break;
 		}
 	}
 	return n + p.nFreeButtons + p.nFreeTexts + 2 * p.nHelp;
+}
+
+/*  The menu standard (Page::standard; MenuLayout.h STD_*, Docs/MENU_PLAN.md 1.1-1.3)
+ *
+ * A page that opts in is laid out here and nowhere else: tab strip or centred title in the header
+ * band, the rows in the body from STD_BODY_Y0 at the density's pitch, every label right-aligned to
+ * STD_LABEL_EDGE, every control in the column from STD_CTRL_X0, every width from the text.
+ *
+ *   Toggle, Choice  touching segments (Toggle = its names as segments); the last `plain` of a
+ *                   Choice are separate action buttons after a gap of STD_BTN_GAP
+ *   Cycle           one STD_CYCLE_W button reading the current name
+ *   Buttons         separate buttons (text + 32, gap 12); the actions' `lit` is "on" (a flag).
+ *                   With a label they start at STD_CTRL_X0, without they are centred on the screen
+ *   Readout         label, and the text at STD_CTRL_X0
+ *
+ * Row::x0, gap, widths and the Page's grid fields are ignored; ActionButton::width is used on a Buttons row
+ * when it is above 0 (a cycle takes STD_CYCLE_W), else the width comes from the text. A row that
+ * does not fit is not squeezed: checkLayout reports it. A page with more rows than the density holds,
+ * or a List row, is refused (-1): the list is not laid out by the standard yet.
+ * Toggle segments are ROLE_CHOICE controls, slot k = value k, so a host's click on slot k sets it. */
+static int layoutStandard(const Page &p, const Metrics &m, Layout &out)
+{
+	float h, pitch;
+	int maxRows;
+
+	switch (p.standard) {
+	case DENSITY_REGULAR: h = (float)STD_REG_H; pitch = (float)STD_REG_PITCH; maxRows = STD_REG_ROWS; break;
+	case DENSITY_COMPACT: h = (float)STD_CMP_H; pitch = (float)STD_CMP_PITCH; maxRows = STD_CMP_ROWS; break;
+	case DENSITY_TEXT:    h = (float)STD_TXT_H; pitch = (float)STD_TXT_PITCH; maxRows = STD_TXT_ROWS; break;
+	case DENSITY_EXPLORER: h = (float)STD_LIST_H; pitch = (float)STD_LIST_PITCH; maxRows = 1; break;
+	default: return -1;
+	}
+	if (p.nRows > maxRows)
+		return -1;
+	if (p.standard == DENSITY_EXPLORER && (p.nRows != 1 || p.rows[0].kind != ROW_LIST))
+		return -1;
+	if (p.standard != DENSITY_EXPLORER && p.nRows > 0 && p.rows[0].kind == ROW_LIST)
+		return -1;
+
+	if (p.nTabs > 0) {
+		int tws[MAX_TABS];
+		if (p.nTabs > MAX_TABS)
+			return -1;
+		const int total = stdTabWidths(m, p.tabs, p.nTabs, tws);
+		int x = ((int)MENU_W - total) / 2;
+		for (int t = 0; t < p.nTabs; t++) {
+			out.tab[t] = addButton(out, ROLE_TAB, -1, t, (float)x, (float)STD_TAB_Y, (float)tws[t], (float)STD_TAB_H,
+			                       p.tabs[t].text, t == p.curTab, true);
+			x += tws[t] + (int)STD_TAB_GAP;
+		}
+	} else if (p.title) {
+		out.title = addText(out, m, ROLE_TITLE, -1, 0, MENU_W / 2, (float)STD_TITLE_Y, ALIGN_CENTRE, TEXT_SCALE, p.title);
+	}
+
+	for (int i = 0; i < p.nRows; i++) {
+		const Row &r = p.rows[i];
+		const float y = (float)STD_BODY_Y0 + (float)i * pitch;
+		const float cy = y + h / 2;
+
+		if (r.label && r.kind != ROW_LIST) {
+			/* right-aligned to the edge: centred on an anchor that puts the right end there */
+			const int lw = measure(m, r.label, TEXT_SCALE);
+			addText(out, m, r.kind == ROW_CHOICE ? ROLE_RLABEL : ROLE_LABEL, i, 0,
+			        (float)STD_LABEL_EDGE - (float)(lw - lw / 2), cy, ALIGN_CENTRE, TEXT_SCALE, r.label);
+		}
+
+		switch (r.kind) {
+		case ROW_TOGGLE:
+		case ROW_CHOICE: {
+			const int plain = r.kind == ROW_CHOICE ? r.plain : 0;
+			const int nseg = r.count - plain;
+			int w[MAX_SLOTS], aw[MAX_SLOTS], room = (int)STD_CTRL_W;
+			float x = (float)STD_CTRL_X0;
+			if (nseg < 1 || nseg + plain > MAX_SLOTS)
+				return -1;
+			for (int k = 0; k < plain; k++) {
+				aw[k] = stdButtonWidth(m, r.names[nseg + k]);
+				room -= aw[k] + (int)STD_BTN_GAP;
+			}
+			{
+				/* equal widths when the whole row fits with them; if not, every part of the row (the
+				 * segments and the separate buttons after them) takes its own width: text + 16 */
+				bool equal = true;
+				stdSegmentWidths(m, r.names, nseg, room, w, &equal);
+				if (!equal) {
+					/* the room was taken with the buttons at text + 32; they now shrink to text + 16, so the
+					 * segments get that room back. Own widths stay unless the row still does not fit. */
+					int room2 = (int)STD_CTRL_W, ownSum = 0;
+					for (int k = 0; k < plain; k++) {
+						aw[k] = stdStepWidth(m, r.names[nseg + k], STD_SEG_PAD_OWN);
+						room2 -= aw[k] + (int)STD_BTN_GAP;
+					}
+					for (int k = 0; k < nseg; k++) {
+						w[k] = stdStepWidth(m, r.names[k], STD_SEG_PAD_OWN);
+						ownSum += w[k];
+					}
+					if (ownSum > room2) {
+						bool eq2 = true;
+						int tw[MAX_SLOTS];
+						stdSegmentWidths(m, r.names, nseg, room2, tw, &eq2);
+						if (!eq2)
+							for (int k = 0; k < nseg; k++)
+								w[k] = tw[k];
+					}
+				}
+			}
+			for (int k = 0; k < nseg; k++) {
+				out.slot[i][k] = addButton(out, ROLE_CHOICE, i, k, x, y, (float)w[k], h, r.names[k],
+				                           k == shownValue(r) - r.lo, !isInactive(r, k));
+				x += (float)w[k];
+			}
+			for (int k = 0; k < plain; k++) {
+				x += (float)STD_BTN_GAP;
+				out.slot[i][nseg + k] = addButton(out, ROLE_BUTTON, i, nseg + k, x, y, (float)aw[k], h,
+				                                  r.names[nseg + k], r.actions && r.actions[nseg + k].lit, !isInactive(r, nseg + k));
+				x += (float)aw[k];
+			}
+			break;
+		}
+		case ROW_CYCLE:
+			out.slot[i][0] = addButton(out, ROLE_BUTTON, i, 0, (float)STD_CTRL_X0, y, (float)STD_CYCLE_W, h,
+			                           r.names[shownValue(r) - r.lo], false, !isInactive(r, 0));
+			break;
+		case ROW_READOUT: {
+			const int vw = measure(m, r.text, TEXT_SCALE);
+			addText(out, m, ROLE_VALUE, i, 0, (float)((int)STD_CTRL_X0 + vw / 2), cy, ALIGN_CENTRE, TEXT_SCALE, r.text);
+			break;
+		}
+		case ROW_BUTTONS: {
+			int w[MAX_SLOTS], total = (int)STD_BTN_GAP * (r.count - 1);
+			float x;
+			if (r.count > MAX_SLOTS)
+				return -1;
+			if (r.prefix) {
+				/* small cycles, each after its own prefix text: prefix, 8, 140 wide, 16 to the next */
+				x = (float)STD_CTRL_X0;
+				for (int k = 0; k < r.count; k++) {
+					const int pw = measure(m, r.prefix[k], TEXT_SCALE);
+					addText(out, m, ROLE_VALUE, i, k, x + (float)(pw / 2), cy, ALIGN_CENTRE, TEXT_SCALE, r.prefix[k]);
+					x += (float)pw + (float)STD_CYCLES_PRE;
+					out.slot[i][k] = addButton(out, ROLE_BUTTON, i, k, x, y, (float)STD_CYCLES_W, h, r.actions[k].text,
+					                           false, !isInactive(r, k));
+					x += (float)STD_CYCLES_W + (float)STD_CYCLES_GAP;
+				}
+				break;
+			}
+			for (int k = 0; k < r.count; k++) {
+				/* a width the host gives is kept (a cycle: STD_CYCLE_W); else the text's */
+				w[k] = r.actions[k].width > 0 ? (int)r.actions[k].width : stdButtonWidth(m, r.actions[k].text);
+				total += w[k];
+			}
+			x = r.label ? (float)STD_CTRL_X0 : (float)(((int)MENU_W - total) / 2);
+			for (int k = 0; k < r.count; k++) {
+				out.slot[i][k] = addButton(out, ROLE_BUTTON, i, k, x, y, (float)w[k], h, r.actions[k].text,
+				                           r.actions[k].lit, !isInactive(r, k));
+				x += (float)w[k] + (float)STD_BTN_GAP;
+			}
+			break;
+		}
+		case ROW_LIST:
+			if (p.standard != DENSITY_EXPLORER || r.list->state->slots > STD_LIST_ROWS)
+				return -1;
+			out.list = i;
+			layoutListStd(out, m, *r.list, i);
+			break;
+		}
+	}
+
+	for (int k = 0; k < p.nFreeButtons; k++) {
+		const FreeButton &b = p.freeButtons[k];
+		out.freeCtl[k] = addButton(out, ROLE_FREE, -1, k, b.x, b.y, b.w, b.h, b.text, b.lit, !b.inactive);
+	}
+	for (int k = 0; k < p.nFreeTexts; k++) {
+		const FreeText &t = p.freeTexts[k];
+		addText(out, m, ROLE_FREE_TEXT, -1, k, t.ax, t.ay,
+		        t.centred ? ALIGN_CENTRE : t.right ? ALIGN_RIGHT_TOP : ALIGN_LEFT_TOP, t.scale, t.text);
+	}
+	return out.n;
+}
+
+int layoutFooter(const Page &p, const Metrics &m, int row, Control out[STD_HELP_LINES])
+{
+	int n = 0;
+	if (!p.footer || row < 0 || row >= p.nRows)
+		return 0;
+	for (int k = 0; k < STD_HELP_LINES; k++) {
+		Control &c = out[n];
+		if (!p.footer[row].line[k])
+			continue;
+		memset(&c, 0, sizeof c);
+		c.kind = CTRL_TEXT;
+		c.role = ROLE_FOOTER;
+		c.row = row;
+		c.slot = n;
+		c.ax = (float)STD_HELP_X0;
+		c.ay = (float)STD_HELP_Y0 + (float)n * (float)STD_HELP_DY;
+		c.align = ALIGN_LEFT_TOP;
+		c.scale = (float)STD_HELP_PX / FONT_H;
+		c.text = p.footer[row].line[k];
+		for (int d = 0; d < DIR_COUNT; d++)
+			c.link[d] = -1;
+		placeText(c, m);
+		if (c.rect.x + c.rect.w > (float)STD_HELP_X1)
+			return -1;
+		n++;
+	}
+	return n;
+}
+
+int checkFooters(const Page &p, const Metrics &m)
+{
+	int bad = 0;
+	for (int i = 0; i < p.nRows; i++) {
+		Control c[STD_HELP_LINES];
+		if (layoutFooter(p, m, i, c) < 0)
+			bad++;
+	}
+	return bad;
 }
 
 int layoutPage(const Page &p, const Metrics &m, Layout &out)
@@ -418,6 +797,9 @@ int layoutPage(const Page &p, const Metrics &m, Layout &out)
 		out.listItem[k] = -1;
 	for (int k = 0; k < MAX_FREE; k++)
 		out.freeCtl[k] = -1;
+
+	if (p.standard != DENSITY_OFF)
+		return layoutStandard(p, m, out);
 
 	/* The choice labels' shared centre: RLABEL_CX, moved left only when a row of buttons had
 	 * to move left, so that its label still clears them by RLABEL_GAP. */
@@ -500,9 +882,10 @@ int layoutPage(const Page &p, const Metrics &m, Layout &out)
 			const int lit = shownValue(r) - r.lo;
 			float cx = rowStart(m, r, y, p.logo);
 			float lx = rlabelCx;
-			if (p.columns >= 2) {
+			if (p.columns >= 2 && r.x0 <= 0) {
 				/* a whole line in a two-column page starts on the grid: its label ends on
-				 * column 1's label edge, its buttons start at column 1's button */
+				 * column 1's label edge, its buttons start at column 1's button; a row that
+				 * gives its own x0 (a wide one: the GPU plugin) keeps the single-column look */
 				float bw, lr;
 				gridPlace(p, m, 0, cx, bw, lr);
 				if (r.label) {
@@ -576,7 +959,8 @@ static void activeSlots(const Layout &lay, int i, int out[MAX_SLOTS], int &n)
 /* OptionsFrame's rule. Rows run top to bottom and wrap, a row's buttons go left and right
  * and wrap, and Up/Down keep the column (a shorter row takes its last column). On a tabbed
  * page the tab row is the top of the loop: the last row goes down to the lit tab, the first
- * row up to it, and every tab goes down to the first row and up to the last. Inactive
+ * row up to it, and every tab goes down to the first row and up to the last. A standard page
+ * (Page::standard) does not keep the column: Up and Down land on the leftmost button. Inactive
  * buttons are left out of every row, so the columns are those of the active buttons. */
 static void linkRows(const Page &p, Layout &lay)
 {
@@ -584,6 +968,7 @@ static void linkRows(const Page &p, Layout &lay)
 	int A[MAX_ROWS][MAX_SLOTS], nA[MAX_ROWS];
 	const bool tabbed = p.nTabs > 0;
 	const int cur = tabbed ? lay.tab[p.curTab] : -1;
+	const bool left = p.standard != DENSITY_OFF;
 
 	/* A line is a row, or on a two-column page the one or two cells that share it: its buttons
 	 * run left to right as one row. A list's links are its own (linkList). */
@@ -619,10 +1004,11 @@ static void linkRows(const Page &p, Layout &lay)
 			continue;		/* the tab row takes the wrap, below */
 		a = F[k];
 		b = F[wrap ? 0 : k + 1];
+		/* a standard page: Up and Down always land on the row's leftmost button */
 		for (int c = 0; c < nA[a]; c++)
-			lay.c[A[a][c]].link[DIR_DOWN] = A[b][c < nA[b] ? c : nA[b] - 1];
+			lay.c[A[a][c]].link[DIR_DOWN] = A[b][left ? 0 : (c < nA[b] ? c : nA[b] - 1)];
 		for (int c = 0; c < nA[b]; c++)
-			lay.c[A[b][c]].link[DIR_UP] = A[a][c < nA[a] ? c : nA[a] - 1];
+			lay.c[A[b][c]].link[DIR_UP] = A[a][left ? 0 : (c < nA[a] ? c : nA[a] - 1)];
 	}
 
 	if (tabbed) {
@@ -646,8 +1032,7 @@ static void linkRows(const Page &p, Layout &lay)
 }
 
 /* A list's rule (the file browser's): LIST_PAGED's items go up and down round the window and skip
- * the inactive ones, as the file browser has always wrapped; LIST_SCROLL's stop at the window's
- * ends, where the caller scrolls. Left and Right go to Prev and Next, and each of those goes back
+ * the inactive ones, as the file browser has always wrapped. Left and Right go to Prev and Next, and each of those goes back
  * to the window's first item. Only focus targets are linked. */
 static void linkList(const Page &p, Layout &lay)
 {
@@ -691,11 +1076,17 @@ static void linkList(const Page &p, Layout &lay)
 		Control &c = lay.c[lay.slot[lay.list][0]];
 		c.link[DIR_UP] = c.link[DIR_DOWN] = c.link[DIR_LEFT] = -1;
 		c.link[DIR_RIGHT] = n > 0 ? A[0] : -1;
+		if (p.standard == DENSITY_EXPLORER)
+			c.link[DIR_DOWN] = c.link[DIR_LEFT] = c.link[DIR_RIGHT];	/* "^": down and left to the first row; its Up (the lit tab) is linkListTabs' */
 	}
 	if (lay.slot[lay.list][1] >= 0) {
 		Control &c = lay.c[lay.slot[lay.list][1]];
 		c.link[DIR_UP] = c.link[DIR_DOWN] = c.link[DIR_RIGHT] = -1;
 		c.link[DIR_LEFT] = n > 0 ? A[0] : -1;
+		if (p.standard == DENSITY_EXPLORER && n > 0) {
+			c.link[DIR_UP] = A[n - 1];			/* the explorer's "v": up to the last row, and left to it */
+			c.link[DIR_LEFT] = A[n - 1];
+		}
 	}
 }
 
@@ -855,7 +1246,7 @@ static void applyFreeLinks(const Page &p, Layout &lay)
 		const FreeLink &l = p.freeLinks[k];
 		const int from = (l.from >= 0 && l.from < p.nFreeButtons) ? lay.freeCtl[l.from] : -1;
 		const int to = (l.to < 0) ? -1 : (l.to < p.nFreeButtons ? lay.freeCtl[l.to] : -2);
-		if (from < 0 || !lay.c[from].focusable || l.dir < 0 || l.dir >= DIR_COUNT || to == -2)
+		if (from < 0 || !lay.c[from].focusable || l.dir < 0 || l.dir >= DIR_COUNT || (l.to >= 0 && to < 0))
 			continue;
 		if (to >= 0 && !lay.c[to].focusable)
 			continue;
@@ -888,6 +1279,38 @@ static int listDefault(const Page &p, const Layout &lay)
 	return -1;
 }
 
+/* A standard page with tabs over a list (the explorer): Down from any tab lands on the list's default
+ * item, and Up from the list's first item goes to the lit tab (the item's Down from the last item
+ * still wraps to the first, as linkList made it). Left and Right on the tabs are linkRows'. */
+static void linkListTabs(const Page &p, Layout &lay)
+{
+	int first = -1, def;
+
+	if (p.standard == DENSITY_OFF || p.nTabs <= 0 || lay.list < 0)
+		return;
+	def = listDefault(p, lay);
+	for (int k = 0; k < p.rows[lay.list].list->state->slots && first < 0; k++) {
+		const int c = lay.listItem[k];
+		if (c >= 0 && lay.c[c].focusable)
+			first = c;
+	}
+	if (def < 0)
+		def = first;
+
+	for (int t = 0; t < p.nTabs && t < MAX_TABS; t++) {
+		const int c = lay.tab[t];
+		if (c < 0 || !lay.c[c].focusable)
+			continue;
+		lay.c[c].link[DIR_UP] = -1;
+		lay.c[c].link[DIR_DOWN] = def;
+	}
+	if (first >= 0 && lay.tab[p.curTab] >= 0 && lay.c[lay.tab[p.curTab]].focusable)
+		lay.c[first].link[DIR_UP] = lay.tab[p.curTab];
+	/* the "^" arrow's Up goes to the lit tab as well */
+	if (lay.slot[lay.list][0] >= 0 && lay.tab[p.curTab] >= 0 && lay.c[lay.tab[p.curTab]].focusable)
+		lay.c[lay.slot[lay.list][0]].link[DIR_UP] = lay.tab[p.curTab];
+}
+
 void linkFocus(const Page &p, Layout &lay)
 {
 	int def = -1;
@@ -895,12 +1318,17 @@ void linkFocus(const Page &p, Layout &lay)
 	for (int i = 0; i < lay.n; i++)
 		for (int d = 0; d < DIR_COUNT; d++)
 			lay.c[i].link[d] = -1;
+	if (p.nTabs > 0 && (p.curTab < 0 || p.curTab >= p.nTabs || p.nTabs > MAX_TABS)) {
+		lay.defaultFocus = -1;		/* a page layoutPage would refuse: no links, nothing to index lay.tab with */
+		return;
+	}
 
 	if (p.focus == FOCUS_GEOMETRY)
 		linkGeometry(lay, p.wrap);
 	else
 		linkRows(p, lay);
 	linkList(p, lay);
+	linkListTabs(p, lay);
 	applyOverrides(p, lay);
 	applyFreeLinks(p, lay);
 
@@ -955,7 +1383,20 @@ int checkLayout(const Page &p, const Metrics &m, const Layout &lay, Problem *out
 		if (r.x < MENU_EDGE || r.x + r.w > MENU_RIGHT || r.y < MENU_EDGE || r.y + r.h > MENU_BOTTOM)
 			note(out, maxOut, np, PROB_PAST_EDGE, i, -1);
 
-		if (p.logo != LOGO_SPOT_NONE) {
+		if (p.standard != DENSITY_OFF) {
+			if ((c.role == ROLE_LABEL || c.role == ROLE_RLABEL) && r.w > (float)STD_LABEL_MAX_W)
+				note(out, maxOut, np, PROB_LABEL_WIDE, i, -1);
+			if ((c.role == ROLE_BUTTON || c.role == ROLE_CHOICE || c.role == ROLE_VALUE || c.role == ROLE_TAB ||
+			     c.role == ROLE_FREE || c.role == ROLE_LIST_PAGE || c.role == ROLE_LIST_ITEM) &&
+			    r.x + r.w > (float)STD_CTRL_X1)
+				note(out, maxOut, np, PROB_PAST_RIGHT, i, -1);
+			if (p.logo == LOGO_SPOT_BOTTOM &&
+			    r.x < (float)(STD_LOGO_X + STD_LOGO_W) && (float)STD_LOGO_X < r.x + r.w &&
+			    r.y < (float)(STD_LOGO_Y + STD_LOGO_H) && (float)STD_LOGO_Y < r.y + r.h)
+				note(out, maxOut, np, PROB_IN_STD_LOGO, i, -1);
+		}
+
+		if (p.logo != LOGO_SPOT_NONE && !(p.standard != DENSITY_OFF && p.logo == LOGO_SPOT_BOTTOM)) {
 			const float lx = p.logo == LOGO_SPOT_TOP ? LOGO_MAIN_X : LOGO_PAGE_X;
 			const float ly = p.logo == LOGO_SPOT_TOP ? LOGO_MAIN_Y : LOGO_PAGE_Y;
 			if (r.x < LOGO_BOX_R(lx) && LOGO_BOX_L(lx) < r.x + r.w &&
@@ -963,18 +1404,48 @@ int checkLayout(const Page &p, const Metrics &m, const Layout &lay, Problem *out
 				note(out, maxOut, np, PROB_IN_LOGO, i, -1);
 		}
 
-		if (c.kind == CTRL_BUTTON &&
+		/* the explorer's page arrows are 12 px glyph buttons: their label is not measured against the box */
+		if (c.kind == CTRL_BUTTON && !(c.role == ROLE_LIST_PAGE && p.standard == DENSITY_EXPLORER) &&
 		    (c.role == ROLE_TAB || c.role == ROLE_BUTTON || c.role == ROLE_CHOICE ||
 		     c.role == ROLE_LIST_PAGE || c.role == ROLE_FREE)) {
-			if (m.width(c.text, TEXT_SCALE, m.ctx) + 2.0f * BUTTON_PAD_X > r.w)
+			/* a standard page's narrowest width is text + 16 (STD_SEG_PAD_OWN), not + 32 */
+			const float pad = p.standard != DENSITY_OFF ? (float)STD_SEG_PAD_OWN : 2.0f * BUTTON_PAD_X;
+			if (m.width(c.text, TEXT_SCALE, m.ctx) + pad > r.w)
 				note(out, maxOut, np, PROB_TEXT_WIDE, i, -1);
 		}
 	}
 
 	for (int i = 0; i < lay.n; i++)
-		for (int j = i + 1; j < lay.n; j++)
-			if (meets(lay.c[i].rect, lay.c[j].rect))
+		for (int j = i + 1; j < lay.n; j++) {
+			const Control &a = lay.c[i], &b = lay.c[j];
+			/* an explorer row's tag and note are drawn on their own row: they may overlap its item */
+			const bool ownRow = a.row == b.row && a.slot == b.slot && a.row >= 0 &&
+			    ((a.role == ROLE_LIST_ITEM && (b.role == ROLE_LIST_TAG || b.role == ROLE_LIST_NOTE)) ||
+			     (b.role == ROLE_LIST_ITEM && (a.role == ROLE_LIST_TAG || a.role == ROLE_LIST_NOTE)));
+			if (!ownRow && meets(a.rect, b.rect))
 				note(out, maxOut, np, PROB_OVERLAP, i, j);
+		}
+
+	/* Standard pages: buttons that act alone never touch anything (the segments of one choice do). */
+	if (p.standard != DENSITY_OFF) {
+		for (int i = 0; i < lay.n; i++) {
+			const Control &a = lay.c[i];
+			if (a.kind != CTRL_BUTTON || a.row < 0 || (a.role != ROLE_BUTTON && a.role != ROLE_CHOICE))
+				continue;
+			for (int j = i + 1; j < lay.n; j++) {
+				const Control &b = lay.c[j];
+				float gap;
+				if (b.kind != CTRL_BUTTON || b.row != a.row || (b.role != ROLE_BUTTON && b.role != ROLE_CHOICE) ||
+				    (a.role == ROLE_CHOICE && b.role == ROLE_CHOICE))
+					continue;
+				if (!(a.rect.y < b.rect.y + b.rect.h && b.rect.y < a.rect.y + a.rect.h))
+					continue;
+				gap = b.rect.x >= a.rect.x ? b.rect.x - (a.rect.x + a.rect.w) : a.rect.x - (b.rect.x + b.rect.w);
+				if (gap < (float)STD_BTN_GAP)
+					note(out, maxOut, np, PROB_BTN_TOUCH, i, j);
+			}
+		}
+	}
 
 	for (int i = 0; i < lay.n; i++) {
 		if (!lay.c[i].focusable)
@@ -1038,20 +1509,188 @@ int tabStep(int cur, int n, int delta, bool wrap)
 	return t < 0 || t >= n ? cur : t;
 }
 
-bool listScroll(ListState &s, int delta)
+int stripLetter(const char *name)
 {
-	const int top = s.top;
-	int f = s.focus < 0 ? s.top : s.focus;
+	if (!name || !name[0])
+		return -1;
+	if (name[0] == '.' && (!name[1] || (name[1] == '.' && !name[2])))
+		return -1;
+	const int ch = (unsigned char)name[0];
+	if (ch >= 'a' && ch <= 'z') return ch - 'a' + 1;
+	if (ch >= 'A' && ch <= 'Z') return ch - 'A' + 1;
+	return 0;
+}
 
-	if (s.count <= 0 || s.slots < 1)
-		return false;
-	f += delta;
-	if (f < 0) f = 0;
-	if (f >= s.count) f = s.count - 1;
-	s.focus = f;
-	if (f < s.top) s.top = f;
-	if (f >= s.top + s.slots) s.top = f - s.slots + 1;
-	return s.top != top;
+char stripChar(int cell)
+{
+	return cell <= 0 ? '#' : (char)('A' + (cell - 1) % 26);
+}
+
+unsigned stripMask(int count, NameFn name, void *ctx)
+{
+	unsigned m = 0;
+	for (int i = 0; i < count; i++) {
+		const int k = stripLetter(name(ctx, i));
+		if (k >= 0)
+			m |= 1u << k;
+	}
+	return m;
+}
+
+int stripFirst(int count, NameFn name, void *ctx, int cell)
+{
+	for (int i = 0; i < count; i++)
+		if (stripLetter(name(ctx, i)) == cell)
+			return i;
+	return -1;
+}
+
+int stripStep(unsigned mask, int cur, int dir)
+{
+	if (dir > 0) {
+		for (int k = cur < 0 ? 0 : cur + 1; k < STRIP_CELLS; k++)
+			if (mask & (1u << k)) return k;
+	} else if (dir < 0) {
+		for (int k = cur < 0 ? STRIP_CELLS - 1 : cur - 1; k >= 0; k--)
+			if (mask & (1u << k)) return k;
+	}
+	return -1;
+}
+
+static int stripEdge(int k)	/* the left edge of cell k's slot: 27 slots over the strip's width */
+{
+	return (int)STD_STRIP_X0 + k * ((int)STD_STRIP_X1 - (int)STD_STRIP_X0) / STRIP_CELLS;
+}
+
+void stripCell(int k, int *x, int *w)
+{
+	*x = stripEdge(k);
+	*w = stripEdge(k + 1) - *x - STD_STRIP_GAP;
+}
+
+int stripHit(int x, int y)
+{
+	if (y < (int)STD_STRIP_Y || y >= (int)(STD_STRIP_Y + STD_STRIP_H) ||
+	    x < (int)STD_STRIP_X0 || x >= (int)STD_STRIP_X1)
+		return -1;
+	for (int k = 0; k < STRIP_CELLS; k++)
+		if (x < stripEdge(k + 1))
+			return k;
+	return -1;
+}
+
+static int listPages(const ListState &s)
+{
+	const int slots = s.slots > 0 ? s.slots : 1;
+	return (s.count + slots - 1) / slots;
+}
+
+Thumb scrollThumb(const ListState &s, int y0, int y1)
+{
+	Thumb t;
+	const int track = y1 - y0, pages = listPages(s), slots = s.slots > 0 ? s.slots : 1;
+	t.y = y0;
+	t.h = track;
+	t.live = pages > 1 && track > 0;
+	if (t.live) {
+		t.h = track * slots / s.count;
+		if (t.h < 16) t.h = 16;
+		if (t.h > track) t.h = track;
+		int page = s.top / slots;
+		if (page > pages - 1) page = pages - 1;
+		t.y = y0 + (track - t.h) * page / (pages - 1);
+	}
+	return t;
+}
+
+int scrollDragPage(const ListState &s, int y0, int y1, int thumbY)
+{
+	const int pages = listPages(s);
+	const Thumb t = scrollThumb(s, y0, y1);
+	const int room = (y1 - y0) - t.h;
+	if (pages <= 1 || room <= 0)
+		return 0;
+	int d = thumbY - y0;
+	if (d < 0) d = 0;
+	if (d > room) d = room;
+	return (d * (pages - 1) + room / 2) / room;
+}
+
+void factsLayout(FactsBox &out)
+{
+	out.x0 = STD_FACTS_X0;	out.y0 = STD_FACTS_Y0;
+	out.x1 = STD_FACTS_X1;	out.y1 = STD_FACTS_Y1;
+	out.titleX = STD_FACTS_TITLE_X;
+	out.titleY = STD_FACTS_TITLE_Y;
+	out.titleRoom = STD_FACTS_X1 - 6 - STD_FACTS_TITLE_X;
+	for (int k = 0; k < STD_FACTS_N; k++) {
+		const int colX = STD_FACTS_COL_X + (k / 3) * STD_FACTS_COL_DX;
+		out.cell[k].keyR = colX + STD_FACTS_KEY_R;
+		out.cell[k].valX = colX + STD_FACTS_VAL_X;
+		out.cell[k].y = STD_FACTS_ROW_Y0 + (k % 3) * STD_FACTS_PITCH;
+		out.cell[k].valRoom = STD_FACTS_VAL_W;
+	}
+}
+
+const char *fitText(const Metrics &m, const char *text, float scale, int room, char *buf, int bufSize)
+{
+	return cutText(m, text, scale, room, buf, bufSize);
+}
+
+void cutTextLeft(const Metrics &m, const char *text, float scale, int room, char *out, int size)
+{
+	int lo = 1, hi = (int)strlen(text);
+	snprintf(out, size, "%s", text);
+	if (hi == 0 || measure(m, out, scale) <= room)
+		return;
+	while (lo < hi && ((unsigned char)text[lo] & 0xC0) == 0x80)	/* at least one character goes */
+		lo++;
+	/* the smallest character boundary whose tail, with "..." in front, fits (the width only shrinks with it);
+	 * lo and hi are always boundaries, and when nothing fits the result is "..." alone */
+	while (lo < hi) {
+		int mid = (lo + hi) / 2;
+		while (mid > lo && ((unsigned char)text[mid] & 0xC0) == 0x80)
+			mid--;
+		snprintf(out, size, "...%s", text + mid);
+		if (measure(m, out, scale) <= room)
+			hi = mid;
+		else {
+			lo = mid + 1;
+			while (lo < hi && ((unsigned char)text[lo] & 0xC0) == 0x80)
+				lo++;
+		}
+	}
+	snprintf(out, size, "...%s", text + lo);
+}
+
+void countText(const Metrics &m, float scale, int room, int folders, int games, int hint, int filterCell,
+               char *out, int size)
+{
+	char head[40], tail[24];
+	if (folders == 0)
+		snprintf(head, sizeof head, games == 1 ? "%d game" : "%d games", games);
+	else if (games == 0)
+		snprintf(head, sizeof head, folders == 1 ? "%d folder" : "%d folders", folders);
+	else
+		snprintf(head, sizeof head, "%d folder%s, %d game%s",
+		         folders, folders == 1 ? "" : "s", games, games == 1 ? "" : "s");
+	tail[0] = 0;
+	if (filterCell >= 0)
+		snprintf(tail, sizeof tail, ", %c", stripChar(filterCell));
+	else if (hint == COUNT_HINT_AZ)
+		snprintf(tail, sizeof tail, ", A-Z");
+	else if (hint == COUNT_HINT_FOLDERS)
+		snprintf(tail, sizeof tail, ", folders first");
+	else if (hint == COUNT_HINT_NEWEST)
+		snprintf(tail, sizeof tail, ", newest first");
+	snprintf(out, size, "%s%s", head, tail);
+	if (tail[0] && m.width(out, scale, m.ctx) > room)	/* too wide: the hint goes first */
+		snprintf(out, size, "%s", head);
+	if (m.width(out, scale, m.ctx) > room) {
+		char buf[80];
+		snprintf(buf, sizeof buf, "%s", out);
+		cutText(m, buf, scale, room, out, size);
+	}
 }
 
 const char *problemName(int kind)
@@ -1063,6 +1702,10 @@ const char *problemName(int kind)
 	case PROB_TEXT_WIDE:   return "label wider than its button";
 	case PROB_UNREACHABLE: return "unreachable by focus";
 	case PROB_BAD_LINK:    return "focus link to a non-focusable control";
+	case PROB_LABEL_WIDE:  return "label wider than 224 px";
+	case PROB_PAST_RIGHT:  return "control past x 616";
+	case PROB_IN_STD_LOGO: return "in the standard's logo box";
+	case PROB_BTN_TOUCH:   return "action buttons closer than 12 px";
 	}
 	return "?";
 }

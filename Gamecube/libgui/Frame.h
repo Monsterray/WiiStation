@@ -49,6 +49,10 @@ public:
 	Component* updateFocus(int direction, int buttonsPressed);
 	virtual void activateSubmenu(int submenu) {};
 	virtual void updateFrame(float deltaTime) {};
+	/* Where the logo goes on this frame: a menu::engine::LogoSpot value (0 none, 1 top right, 2 bottom
+	 * right), the logo field of its page table. A frame with no engine page, or a page that gives the
+	 * logo no room, keeps 0. (An int: MenuEngine.h must not be pulled in by every frame.) */
+	virtual int logoSpot() const { return 0; }
 
 private:
 	Component* defaultFocus;

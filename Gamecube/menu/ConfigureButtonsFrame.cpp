@@ -309,14 +309,23 @@ static void fitMappingButtons(menu::Frame *frame)
 	}
 }
 
+static menu::glue::Pool *cbPool;	/* the buttons, keyed (ROLE_FREE, -1, FRAME_BUTTONS index) */
+
 ConfigureButtonsFrame::ConfigureButtonsFrame()
 {
 	layoutConfigureButtons();
+	cbPool = new menu::glue::Pool(this, NUM_FRAME_BUTTONS);
 	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
 	{
 		const eng::Control &c = cbButtonCtl(i);
-		FRAME_BUTTONS[i].button = new menu::Button(FRAME_BUTTONS[i].buttonStyle, &FRAME_BUTTONS[i].buttonString,
-										c.rect.x, c.rect.y, c.rect.w, c.rect.h);
+		FRAME_BUTTONS[i].button = cbPool->button(eng::ROLE_FREE, -1, i,
+										FRAME_BUTTONS[i].buttonStyle, &FRAME_BUTTONS[i].buttonString,
+										c.rect.x, c.rect.y, c.rect.w, c.rect.h,
+										FRAME_BUTTONS[i].clickedFunc, FRAME_BUTTONS[i].returnFunc);
+		/* the Cursor box was always the table's, not the layout's: kept, so the pointer is as it was */
+		menu::Cursor::getInstance().moveComponent(this, FRAME_BUTTONS[i].button, FRAME_BUTTONS[i].x,
+												FRAME_BUTTONS[i].x+FRAME_BUTTONS[i].width, FRAME_BUTTONS[i].y,
+												FRAME_BUTTONS[i].y+FRAME_BUTTONS[i].height);
 		/* style A makes itself 56 high; the table's rows are 40 apart in places */
 		FRAME_BUTTONS[i].button->setBounds(c.rect.x, c.rect.y, c.rect.w, c.rect.h);
 		if (isMapping(i))
@@ -329,18 +338,6 @@ ConfigureButtonsFrame::ConfigureButtonsFrame()
 			mapWidth[i] = -1.0f;   /* placed on the first draw */
 		}
 	}
-
-	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
-	{
-		FRAME_BUTTONS[i].button->setActive(true);
-		if (FRAME_BUTTONS[i].clickedFunc) FRAME_BUTTONS[i].button->setClicked(FRAME_BUTTONS[i].clickedFunc);
-		if (FRAME_BUTTONS[i].returnFunc) FRAME_BUTTONS[i].button->setReturn(FRAME_BUTTONS[i].returnFunc);
-		add(FRAME_BUTTONS[i].button);
-		menu::Cursor::getInstance().addComponent(this, FRAME_BUTTONS[i].button, FRAME_BUTTONS[i].x,
-												FRAME_BUTTONS[i].x+FRAME_BUTTONS[i].width, FRAME_BUTTONS[i].y,
-												FRAME_BUTTONS[i].y+FRAME_BUTTONS[i].height);
-	}
-
 
 	for (int i = 0; i < NUM_FRAME_TEXTBOXES; i++)
 	{
@@ -360,12 +357,8 @@ ConfigureButtonsFrame::~ConfigureButtonsFrame()
 {
 	for (int i = 0; i < NUM_FRAME_TEXTBOXES; i++)
 		delete FRAME_TEXTBOXES[i].textBox;
-	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
-	{
-		menu::Cursor::getInstance().removeComponent(this, FRAME_BUTTONS[i].button);
-		delete FRAME_BUTTONS[i].button;
-	}
-
+	delete cbPool;	/* takes the buttons out of the Cursor and deletes them */
+	cbPool = NULL;
 }
 
 static char controllerTypeStrings[8][17] =
@@ -467,6 +460,8 @@ static unsigned cbInactive = ~0u;
 /* The button drawn for a layout control. */
 static menu::Button *cbButtonOf(const eng::Control &c)
 {
+	if (c.role != eng::ROLE_FREE)
+		return NULL;
 	return FRAME_BUTTONS[c.slot].button;
 }
 
@@ -486,8 +481,7 @@ static void cbRelink(void)
 	if (eng::layoutPage(CB_PAGE, menu::glue::METRICS, CB_LAYOUT) < 0)
 		return;
 	eng::linkFocus(CB_PAGE, CB_LAYOUT);
-	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
-		menu::glue::linkFocus(FRAME_BUTTONS[i].button, CB_LAYOUT, CB_LAYOUT.c[CB_LAYOUT.freeCtl[i]], cbButtonOf);
+	cbPool->link(CB_LAYOUT, cbButtonOf, true);	/* every free button, inactive ones too */
 }
 
 void ConfigureButtonsFrame::activateSubmenu(int submenu)

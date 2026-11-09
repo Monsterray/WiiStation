@@ -25,7 +25,7 @@
 #include "../libgui/Frame.h"
 #include "../libgui/InputManager.h"
 #include "MainFrame.h"
-#include "LoadRomFrame.h"
+#include "ExplorerSources.h"
 #include "FileBrowserFrame.h"
 #include "CurrentRomFrame.h"
 #include "SettingsFrame.h"
@@ -36,6 +36,7 @@
 #include "UsbPadTestFrame.h"
 #include "AchievementsFrame.h"
 #include "PlayersFrame.h"
+#include "AccountFrame.h"
 
 #include "MenuTypes.h"
 
@@ -52,7 +53,6 @@ public:
 	enum FrameIndices
 	{
 		FRAME_MAIN=1,
-		FRAME_LOADROM,
 		FRAME_FILEBROWSER,
 		FRAME_CURRENTROM,
 		FRAME_SETTINGS,
@@ -62,7 +62,8 @@ public:
 		FRAME_CUSTOMIZECOOP,
 		FRAME_USBPADTEST,
 		FRAME_ACHIEVEMENTS,
-		FRAME_PLAYERS
+		FRAME_PLAYERS,
+		FRAME_ACCOUNT
 	};
 
 private:
@@ -70,7 +71,6 @@ private:
 	void enterFrame(int frameIndex, int submenu);
 	menu::Frame *currentActiveFrame;
 	MainFrame *mainFrame;
-	LoadRomFrame *loadRomFrame;
 	FileBrowserFrame *fileBrowserFrame;
 	CurrentRomFrame *currentRomFrame;
 	SettingsFrame *settingsFrame;
@@ -81,6 +81,7 @@ private:
 	UsbPadTestFrame *usbPadTestFrame;
 	AchievementsFrame *achievementsFrame;
 	PlayersFrame *playersFrame;
+	AccountFrame *accountFrame;
 
 	/* Where focus goes on a Back: the button a screen was left by, and the submenu (tab) it
 	 * was left from. Set when the screen is left by a press; see enterFrame().
@@ -91,7 +92,7 @@ private:
 		menu::Component *button;
 		int submenu;
 	};
-	FocusMemory focusMemory[FRAME_PLAYERS + 1];
+	FocusMemory focusMemory[FRAME_ACCOUNT + 1];
 	int activeIndex, activeSubmenu;
 
 };

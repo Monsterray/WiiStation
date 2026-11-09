@@ -198,6 +198,7 @@ char loadButtonSlot;
 char controllerType;
 char analogAuto;
 char padMirror;
+char explorerOpensOn;
 char numMultitaps;
 char lang = 0;
 char fastLoad = 0;
@@ -243,7 +244,7 @@ static const char* const OPT_FAST_ACCURATE[] = { "Fast", "Accurate" };
 static const char* const OPT_MIX[]           = { "Legacy", "Hi-Fi" };
 static const char* const OPT_LANG[]          = { "En", "Chs", "Kr", "Es", "Pte", "It", "De", "Cht", "Jp", "Fr", "Br", "Ca", "Tu" };
 static const char* const OPT_BIOS[]          = { "HLE", "SD", "USB" };
-static const char* const OPT_CORE[]          = { "Lightrec", "Interpreter", "Dynarec" };
+static const char* const OPT_CORE[]          = { "Lightrec", "Interp.", "Dynarec" };
 static const char* const OPT_GPU[]           = { "Soft Fast", "Soft Timed", "OpenGX" };
 static const char* const OPT_SCREEN[]        = { "4:3", "16:9", "Force 16:9" };
 static const char* const OPT_DITHER[]        = { "None", "Default", "Always" };
@@ -268,7 +269,7 @@ static const char* const OPT_SAVE_DEVICE[]   = { "SD", "USB", "CardA", "CardB" }
 static const char* const OPT_STATES_DEVICE[] = { "SD", "USB" };
 static const char* const OPT_MEMCARD_TYPE[]  = { "Shared", "Game" };
 static const char* const OPT_PAD_ASSIGN[]    = { "Manual", "Automatic" };
-static const char* const OPT_CONTROLLER[]    = { "Standard", "Analog", "Stick D-pad" };
+static const char* const OPT_CONTROLLER[]    = { "Digital", "Analog", "Stick Pad" };
 static const char* const OPT_SLOT[]          = { "Slot 1", "Slot 2", "Slot 3", "Slot 4", "Default", "Auto" };
 static const char* const OPT_LIGHTGUN[]      = { "Off", "GunCon", "Justifier", "Mouse" };
 
@@ -279,58 +280,60 @@ static SettingOption OPTIONS[] =
   { "MenuFont", menuFont, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "FileSortMode", &fileSortMode, FILESORT_DIRS_MIXED, FILESORT_DIRS_FIRST },
   { "TabWrap", &tabWrap, 0, 1 },
-  { "Core", &dynacore, DYNACORE_DYNAREC, DYNACORE_DYNAREC_OLD, NULL, "CPU Core", OPT_CORE, "The CPU emulation core. A change restarts the game." },
-  { "fastLoad", &fastLoad, 0, 1, NULL, "Fast Load", OPT_NO_YES, "Shortens the CD drive delays. Some games break with it on." },
+  { "Core", &dynacore, DYNACORE_DYNAREC, DYNACORE_DYNAREC_OLD, NULL, "CPU Core", OPT_CORE, "Lightrec: fastest. Interpreter: exact but slow. Dynarec: old. A change restarts the game." },
+  { "fastLoad", &fastLoad, 0, 1, NULL, "Fast Load", OPT_OFF_ON, "Shorter CD drive waits, at once. Some games break with it on." },
   { "Files", NULL, 0, 0, "Where WiiStation finds the games and the BIOS." },
   { "RomDirSD", romDirSD, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "RomDirUSB", romDirUSB, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
-  { "BiosDevice", &biosDevice, BIOSDEVICE_HLE, BIOSDEVICE_USB, NULL, "Select BIOS", OPT_BIOS, "Where the BIOS file is read from. HLE needs no file." },
-  { "BootThruBios", &LoadCdBios, BOOTTHRUBIOS_NO, BOOTTHRUBIOS_YES, NULL, "Boot Through BIOS", OPT_NO_YES, "Shows the PlayStation start screen before a game." },
+  /* No menu row: a settings.ini key (SETTINGS.md) */
+  { "ExplorerOpensOn", &explorerOpensOn, EXPLOREROPENS_LAST, EXPLOREROPENS_RECENT },
+  { "BiosDevice", &biosDevice, BIOSDEVICE_HLE, BIOSDEVICE_USB, NULL, "Select BIOS", OPT_BIOS, "Where the BIOS file is read from. HLE needs none, and is used if the file is missing." },
+  { "BootThruBios", &LoadCdBios, BOOTTHRUBIOS_NO, BOOTTHRUBIOS_YES, NULL, "Boot Through BIOS", OPT_OFF_ON, "On: runs the BIOS start screen before a game. Needs a BIOS file, not HLE." },
   { "Video", NULL, 0, 0, "The picture: the renderer, the TV signal and the filters." },
-  { "gpuPlugin", &gpuPlugin, OLD_SOFT, OPEN_GX, NULL, "GPU Plugin", OPT_GPU, "The graphics renderer. OpenGX uses the Wii GPU." },
-  { "VideoMode", &videoMode, VIDEOMODE_AUTO, VIDEOMODE_PROGRESSIVE, NULL, "Video Mode", OPT_VIDEOMODE, "The TV signal. Auto is the Wii setting. Applies at the next start." },
-  { "TVMode", &originalMode, ORIGINALMODE_DISABLE, ORIGINALMODE_ENABLE, NULL, "240p", OPT_OFF_ON, "Turns the 240p display mode on or off." },
-  { "ForceNTSC", &forceNTSC, FORCENTSC_DISABLE, FORCENTSC_ENABLE, NULL, "Force NTSC", OPT_OFF_ON, "Treats every game as an NTSC game." },
-  { "ScreenMode", &screenMode, SCREENMODE_4x3, SCREENMODE_16x9_PILLARBOX, NULL, "Screen Mode", OPT_SCREEN, "Sets the shape of the picture." },
-  { "Interlaced", &interlacedMode, INTERLACED_DISABLE, INTERLACED_ENABLE, NULL, "Interlaced", OPT_OFF_ON, "Turns the interlaced video mode on or off." },
-  { "DeflickerFilter", &deflickerFilter, DEFLICKER_DISABLE, DEFLICKER_ENABLE, NULL, "Deflicker", OPT_OFF_ON, "Turns the deflicker filter on or off." },
+  { "gpuPlugin", &gpuPlugin, OLD_SOFT, OPEN_GX, NULL, "GPU Plugin", OPT_GPU, "OpenGX draws on the Wii GPU, Soft on the CPU. A change restarts the game." },
+  { "VideoMode", &videoMode, VIDEOMODE_AUTO, VIDEOMODE_PROGRESSIVE, NULL, "Video Mode", OPT_VIDEOMODE, "The TV signal. Auto is the Wii's. 480p needs a component cable. Read at start-up." },
+  { "TVMode", &originalMode, ORIGINALMODE_DISABLE, ORIGINALMODE_ENABLE, NULL, "240p", OPT_OFF_ON, "On: pictures of 288 lines or fewer show at 240p. Applies when the game resumes." },
+  { "ForceNTSC", &forceNTSC, FORCENTSC_DISABLE, FORCENTSC_ENABLE, NULL, "NTSC", OPT_OFF_ON, "Treats every game as NTSC, even a PAL one. Applies at the next game load." },
+  { "ScreenMode", &screenMode, SCREENMODE_4x3, SCREENMODE_16x9_PILLARBOX, NULL, "Screen Mode", OPT_SCREEN, "16:9 fills a widescreen TV. Force 16:9 keeps the game 4:3 with side bars (soft GPUs)." },
+  { "Interlaced", &interlacedMode, INTERLACED_DISABLE, INTERLACED_ENABLE, NULL, "Interlaced", OPT_OFF_ON, "On: 480-line pictures are drawn one field at a time, as an interlaced signal." },
+  { "DeflickerFilter", &deflickerFilter, DEFLICKER_DISABLE, DEFLICKER_ENABLE, NULL, "Deflicker", OPT_OFF_ON, "On: blends neighboring lines to cut flicker. Interlaced modes only." },
   { "TrapFilter", &trapFilter, TRAPFILTER_DISABLE, TRAPFILTER_ENABLE, NULL, "Trap", OPT_OFF_ON, "Composite and S-Video only: less color crawl, softer detail." },
-  { "BilinearFilter", &bilinearFilter, BILINEARFILTER_DISABLE, BILINEARFILTER_ENABLE, NULL, "Bilinear", OPT_BILINEAR, "Sets the texture filter." },
-  { "Dithering", &useDithering, USEDITHER_NONE, USEDITHER_ALWAYS, NULL, "Dithering", OPT_DITHER, "Hides the steps between colors in a 15-bit picture." },
-  { "MdecChroma", &mdecChroma, MDECCHROMA_SHARP, MDECCHROMA_SMOOTH, NULL, "MDEC Chroma", OPT_CHROMA, "Sharp is the console. Smooth looks better and costs more." },
-  { "FmvColour", &fmvColour, FMVCOLOUR_15BIT, FMVCOLOUR_24BIT, NULL, "Video Color", OPT_COLOUR, "24-bit is full color. 15-bit shows bands in dark scenes." },
-  { "Gamma", &gammaLevel, 0, 5, NULL, "Gamma", OPT_GAMMA, "Brightens the TV picture. 1.0 changes nothing." },
-  { "DeflickerLevel", &deflickerLevel, DEFLICKERLEVEL_NORMAL, DEFLICKERLEVEL_STRONG, NULL, "Deflicker Level", OPT_DEFLICKER, "Light blurs less than Normal, Strong more. Needs Deflicker on." },
-  { "FilterTour", &filterTour, 0, 1, NULL, "Filter Tour", OPT_OFF_ON, "Steps through the filters while a game runs, named on screen." },
+  { "BilinearFilter", &bilinearFilter, BILINEARFILTER_DISABLE, BILINEARFILTER_ENABLE, NULL, "Bilinear", OPT_BILINEAR, "Near: sharp. Bilinear: smooth. Default: smooth in OpenGX (movies sharp), sharp in the soft GPUs. 240p is always Near." },
+  { "Dithering", &useDithering, USEDITHER_NONE, USEDITHER_ALWAYS, NULL, "Dithering", OPT_DITHER, "None: never. Default: when the game asks. Always: every draw. Used by Soft Mode Fast (next game load) and OpenGX with GX Color 6-bit." },
+  { "MdecChroma", &mdecChroma, MDECCHROMA_SHARP, MDECCHROMA_SMOOTH, NULL, "MDEC Chroma", OPT_CHROMA, "Sharp: each color sample covers a 2x2 block of pixels. Smooth: blends the color between blocks and costs more. Applies at once." },
+  { "FmvColour", &fmvColour, FMVCOLOUR_15BIT, FMVCOLOUR_24BIT, NULL, "Video Color", OPT_COLOUR, "OpenGX, for movies a game decodes in 24-bit: 24-bit is full color. 15-bit shows bands in dark scenes." },
+  { "Gamma", &gammaLevel, 0, 5, NULL, "Gamma", OPT_GAMMA, "Brightens the whole picture, menu too, in steps from 1.0 (no change) to 1.5. Applies at once." },
+  { "DeflickerLevel", &deflickerLevel, DEFLICKERLEVEL_NORMAL, DEFLICKERLEVEL_STRONG, NULL, "Deflicker Level", OPT_DEFLICKER, "Normal is the video mode's own filter. Light blurs less, Strong more. Interlaced modes only; needs Deflicker." },
+  { "FilterTour", &filterTour, 0, 1, NULL, "Filter Tour", OPT_OFF_ON, "Starts at the next game start or resume: every 4 seconds it changes the picture filters and names them under the FPS counter. Your settings come back when the game stops." },
   { "SkipFrames", &frameSkip, FRAMESKIP_DISABLE, FRAMESKIP_ENABLE, NULL, "Frame Skip", OPT_OFF_ON, "Skips frames when the Wii is too slow." },
   { "FPS", &showFPSonScreen, FPS_HIDE, FPS_SHOW, NULL, "Show FPS", OPT_OFF_ON, "Shows the frame rate on the screen." },
   { "EfbSync", &efbSyncSetting, 0, 2 },
-  { "GxTexMin", &gxTexMin, 0, 3, NULL, "Far Textures", OPT_TEXMIN, "OpenGX: smooths ground drawn smaller than a pixel. A trial." },
-  { "GxColor", &gxColor, 0, 2, NULL, "GX Color", OPT_GXCOLOR, "OpenGX: 6-bit dither, or anti-aliased edges in 240p mode. A trial." },
+  { "GxTexMin", &gxTexMin, 0, 3, NULL, "Far Textures", OPT_TEXMIN, "OpenGX, shrunk textures. Off: plain. Linear: smooth. Aniso: sharp on slants." },
+  { "GxColor", &gxColor, 0, 2, NULL, "GX Color", OPT_GXCOLOR, "OpenGX. 24-bit: full color. 6-bit: dithered as Dithering says. AA: 240p only." },
   { "GxMask", &gxMask, 0, 1, NULL, "GX Mask Bit", OPT_GXMASK, "OpenGX: Accurate keeps the PS1 mask bit per pixel. Fast guesses it." },
-  { "SoftGpuMode", &softGpuMode, 0, 2, NULL, "Soft Mode", OPT_SOFTMODE, "Soft GPU pixels. Accurate: as a PS1. Hi-Fi: no dither, finer blends. Fast: the old shortcuts." },
+  { "SoftGpuMode", &softGpuMode, 0, 2, NULL, "Soft Mode", OPT_SOFTMODE, "Soft GPUs only, at once. Accurate: PS1 drawing rules, with dither. Hi-Fi: the same, but no dither and finer colors. Fast: the old quicker code." },
   { "Audio", NULL, 0, 0, "The sound." },
   { "Audio", &audioEnabled, AUDIO_DISABLE, AUDIO_ENABLE, NULL, "Audio", OPT_OFF_ON, "Turns the sound output on or off." },
-  { "SoundDriver", &soundHwAccel, SOUND_HW_ACCEL_OFF, SOUND_HW_ACCEL_ON, NULL, "Sound Driver", OPT_OUTPUT, "The output driver only: DSP plays at 44100 Hz through the Wii's DSP, CPU at 48000 Hz from the CPU. The PS1 sound emulation is the same." },
-  { "SoundResampler", &soundResampler, SOUND_RESAMPLE_HOLD, SOUND_RESAMPLE_CUBIC, NULL, "Output Resampler", OPT_RESAMPLE, "Sets how 44100 Hz sound is converted to 48000 Hz." },
-  { "SoundRateControl", &soundRateControl, SOUND_RATE_CONTROL_OFF, SOUND_RATE_CONTROL_ON, NULL, "Rate", OPT_OFF_ON, "Nudges the playback rate to keep pace with the mixer." },
-  { "SoundTempo", &soundTempo, SOUND_TEMPO_OFF, SOUND_TEMPO_ON, NULL, "Tempo", OPT_OFF_ON, "Legacy: pulls the mixer clock back when sound runs late." },
+  { "SoundDriver", &soundHwAccel, SOUND_HW_ACCEL_OFF, SOUND_HW_ACCEL_ON, NULL, "Sound Driver", OPT_OUTPUT, "CPU: converts to 48000 Hz and plays through SDL. DSP: sends 44100 Hz to the Wii's DSP. The PS1 sound is the same. Read when a game starts." },
+  { "SoundResampler", &soundResampler, SOUND_RESAMPLE_HOLD, SOUND_RESAMPLE_CUBIC, NULL, "Output Resampler", OPT_RESAMPLE, "Turns the mixer's 44100 Hz into 48000 Hz. Hold repeats samples, Linear blends two, Cubic blends four (cleanest, most CPU). Applies at once." },
+  { "SoundRateControl", &soundRateControl, SOUND_RATE_CONTROL_OFF, SOUND_RATE_CONTROL_ON, NULL, "Rate", OPT_OFF_ON, "Keeps the sound queue at its target by changing the playback rate by up to 0.5%." },
+  { "SoundTempo", &soundTempo, SOUND_TEMPO_OFF, SOUND_TEMPO_ON, NULL, "Tempo", OPT_OFF_ON, "Legacy. When the sound queue runs low, makes extra sound so it never runs dry. Speech (XA) can get gaps. Rate replaces it." },
   { "SoundReverb", &soundReverb, SOUND_REVERB_OFF, SOUND_REVERB_ON, NULL, "Reverb", OPT_OFF_ON, "Turns the SPU reverb on or off." },
-  { "SoundMixerPrecision", &soundMixerPrecision, SOUND_MIXER_PRECISION_LEGACY, SOUND_MIXER_PRECISION_HIFI, NULL, "Mixer Precision", OPT_MIX, "Sets the precision of the sound mixer." },
-  { "SoundXaResampler", &soundXaResampler, SOUND_XA_RESAMPLER_LEGACY, SOUND_XA_RESAMPLER_HIFI, NULL, "XA Resampler", OPT_MIX, "Sets the resampler for the XA streams." },
-  { "Interpolation", &spuInterpolation, SIMPLE_INTERPOLATION, GAUSSI_INTERPOLATION, NULL, "Interpolation", OPT_INTERP, "Sets how the sound samples are interpolated." },
+  { "SoundMixerPrecision", &soundMixerPrecision, SOUND_MIXER_PRECISION_LEGACY, SOUND_MIXER_PRECISION_HIFI, NULL, "Mixer Precision", OPT_MIX, "Legacy cuts off the low bits when the mixer scales a voice's volume. Hi-Fi rounds to the nearest value instead: slightly less noise." },
+  { "SoundXaResampler", &soundXaResampler, SOUND_XA_RESAMPLER_LEGACY, SOUND_XA_RESAMPLER_HIFI, NULL, "XA Resampler", OPT_MIX, "Converts 37800 Hz XA streams to 44100 Hz. Legacy: the old nearest or Gaussian step. Hi-Fi: the PS1's own 29-tap filter. 18900 Hz streams always use Legacy." },
+  { "Interpolation", &spuInterpolation, SIMPLE_INTERPOLATION, GAUSSI_INTERPOLATION, NULL, "Interpolation", OPT_INTERP, "Simple is faster. Gaussian is the PS1's own and smoother." },
   { "DisableXa", &xaDisabled, XA_ENABLE, XA_DISABLE, NULL, "XA", OPT_ON_OFF, "Plays or mutes the XA streams of the disc." },
   { "DisableCdda", &cddaDisabled, CDDA_ENABLE, CDDA_DISABLE, NULL, "CDDA", OPT_ON_OFF, "Plays or mutes the CD audio tracks." },
   { "Timing", NULL, 0, 0, "Fast timing or PlayStation timing. Fast is the default." },
-  { "CpuTiming", &cpuTiming, CPU_TIMING_FAST, CPU_TIMING_ACCURATE, NULL, "CPU Timing", OPT_FAST_ACCURATE, "Accurate: GTE and multiply waits as on a PS1." },
+  { "CpuTiming", &cpuTiming, CPU_TIMING_FAST, CPU_TIMING_ACCURATE, NULL, "CPU Timing", OPT_FAST_ACCURATE, "Accurate: 3D math (GTE) and multiply waits as on a PS1. Lightrec only." },
   { "GpuTiming", &gpuTiming, GPU_TIMING_FAST, GPU_TIMING_ACCURATE, NULL, "GPU Timing", OPT_FAST_ACCURATE, "Accurate: the GPU is busy as long as on a PS1." },
-  { "SioTiming", &sioTiming, SIO_TIMING_FAST, SIO_TIMING_ACCURATE, NULL, "Port Timing", OPT_FAST_ACCURATE, "Accurate: each controller port byte takes as long as on a PS1." },
-  { "CpuSpeed", &cpuSpeed, CPU_SPEED_AUTO, CPU_SPEED_300, NULL, "CPU Speed", OPT_SPEED, "Over 100% eases slowdown in some games, at more CPU cost." },
-  { "FrameRate", &frameRateMode, FRAMERATE_AUTO, FRAMERATE_UNLIMITED, NULL, "Frame Rate", OPT_FRAMERATE, "Sets the refresh rate the game runs at. Unlimited turns the frame limit off." },
+  { "SioTiming", &sioTiming, SIO_TIMING_FAST, SIO_TIMING_ACCURATE, NULL, "Port Timing", OPT_FAST_ACCURATE, "Accurate: each byte on a controller port takes as long as on a PS1." },
+  { "CpuSpeed", &cpuSpeed, CPU_SPEED_AUTO, CPU_SPEED_300, NULL, "CPU Speed", OPT_SPEED, "Emulated CPU speed. Over 100% eases slowdown at more Wii CPU cost." },
+  { "FrameRate", &frameRateMode, FRAMERATE_AUTO, FRAMERATE_UNLIMITED, NULL, "Frame Rate", OPT_FRAMERATE, "Auto: 60 or 50 Hz. TV: 59.94 or 50 Hz, one frame per Wii picture. PS1: 59.82 or 49.75 Hz. Unlimited: Auto's rate, no frame limit." },
   { "Performance", NULL, 0, 0, "Disc reads and the frame limiter. Keep the defaults." },
-  { "CdBuffer", &cdBuffer, CD_BUFFER_16K, CD_BUFFER_256K, NULL, "CD Read Buffer", OPT_CD_BUFFER, "16 KB is best: a larger buffer reads more than the game uses." },
-  { "CdPrefetch", &cdPrefetch, CD_PREFETCH_OFF, CD_PREFETCH_ON, NULL, "CD Read-Ahead", OPT_OFF_ON, "A thread reads (and unpacks .pbp/.cbn/.chd) the next sectors early, while the game waits for the next frame." },
-  { "CdChdHunks", &cdChdHunks, CD_CHD_HUNKS_2, CD_CHD_HUNKS_8, NULL, "CHD Hunk Cache", OPT_CD_HUNKS, "Decoded CHD hunks kept in memory. 8 is best." },
+  { "CdBuffer", &cdBuffer, CD_BUFFER_16K, CD_BUFFER_256K, NULL, "CD Read Buffer", OPT_CD_BUFFER, "Image read buffer. 16 KB is best; more reads more than needed. Next load." },
+  { "CdPrefetch", &cdPrefetch, CD_PREFETCH_OFF, CD_PREFETCH_ON, NULL, "CD Read-Ahead", OPT_OFF_ON, "Reads sectors ahead on a thread. Not for SMB or DVD. Next game load." },
+  { "CdChdHunks", &cdChdHunks, CD_CHD_HUNKS_2, CD_CHD_HUNKS_8, NULL, "CHD Hunk Cache", OPT_CD_HUNKS, "Decoded CHD hunks kept in memory (CHD only). 8 is best. Next load." },
   { "LimiterWait", &limiterWait, LIMITER_WAIT_SPIN, LIMITER_WAIT_SLEEP },
   /* Lightrec's background compiler (deps/lightrec/lightrec.c jitq): not in the menu */
   { "JitDelay", &jitDelay, 0, 127 },
@@ -349,20 +352,20 @@ static SettingOption OPTIONS[] =
   /* The disc a multi-disc PBP boots: for chain lines only */
   { "Disc", &chainDisc, 1, 8 },
   { "Saves", NULL, 0, 0, "Memory cards and save states." },
-  { "NativeDevice", &nativeSaveDevice, NATIVESAVEDEVICE_SD, NATIVESAVEDEVICE_CARDB, NULL, "Memcard Save Device", OPT_SAVE_DEVICE, "Where the memory card files are saved." },
+  { "NativeDevice", &nativeSaveDevice, NATIVESAVEDEVICE_SD, NATIVESAVEDEVICE_CARDB, NULL, "Save Memcards To", OPT_SAVE_DEVICE, "Where the memory card files are saved." },
   { "StatesDevice", &saveStateDevice, SAVESTATEDEVICE_SD, SAVESTATEDEVICE_USB, NULL, "Save States Device", OPT_STATES_DEVICE, "Where the save state files are saved." },
-  { "AutoSave", &autoSave, AUTOSAVE_DISABLE, AUTOSAVE_ENABLE, NULL, "Auto Save Memcards", OPT_NO_YES, "Saves the memory cards automatically." },
+  { "AutoSave", &autoSave, AUTOSAVE_DISABLE, AUTOSAVE_ENABLE, NULL, "Memcard Autosave", OPT_OFF_ON, "Saves the memory cards automatically." },
   { "Memcard0", &memCard[0], MEMCARD_DISABLE, MEMCARD_ENABLE, NULL, "Memcard 1", OPT_OFF_ON, "Turns memory card 1 on or off." },
-  { "Memcard0File", &memCardFile[0], MEMCARDFILE_SHARED, MEMCARDFILE_PER_GAME, NULL, "Memcard Type", OPT_MEMCARD_TYPE, "Shared: one card file for all games. Game: one per game." },
+  { "Memcard0File", &memCardFile[0], MEMCARDFILE_SHARED, MEMCARDFILE_PER_GAME, NULL, "Memcard Type", OPT_MEMCARD_TYPE, "Shared: one card file for all games. Game: one per game. Next load." },
   { "Memcard1", &memCard[1], MEMCARD_DISABLE, MEMCARD_ENABLE, NULL, "Memcard 2", OPT_OFF_ON, "Turns memory card 2 on or off." },
-  { "Memcard1File", &memCardFile[1], MEMCARDFILE_SHARED, MEMCARDFILE_PER_GAME, NULL, "Memcard Type", OPT_MEMCARD_TYPE, "Shared: one card file for all games. Game: one per game." },
+  { "Memcard1File", &memCardFile[1], MEMCARDFILE_SHARED, MEMCARDFILE_PER_GAME, NULL, "Memcard Type", OPT_MEMCARD_TYPE, "Shared: one card file for all games. Game: one per game. Next load." },
   { "Controllers", NULL, 0, 0, "The PlayStation ports and the controllers on them." },
   { "PadAutoAssign", &padAutoAssign, PADAUTOASSIGN_MANUAL, PADAUTOASSIGN_AUTOMATIC, NULL, "Pad Assignment", OPT_PAD_ASSIGN, "Automatic assigns the controllers to the ports." },
-  { "ControllerType", &controllerType, CONTROLLERTYPE_STANDARD, CONTROLLERTYPE_STICKDPAD, NULL, "PSX Pad Type", OPT_CONTROLLER, "Stick D-pad: a digital pad whose D-pad follows the left stick." },
+  { "ControllerType", &controllerType, CONTROLLERTYPE_STANDARD, CONTROLLERTYPE_STICKDPAD, NULL, "PSX Pad Type", OPT_CONTROLLER, "Digital: plain pad. Analog: DualShock. Stick Pad: left stick also presses the D-pad." },
   /* No menu row: a settings.ini key (SETTINGS.md section 6.6) */
   { "AnalogAuto", &analogAuto, ANALOGAUTO_OFF, ANALOGAUTO_ALWAYS },
   { "PadMirror", &padMirror, 0, 1 },
-  { "RumbleEnabled", &rumbleEnabled, RUMBLE_DISABLE, RUMBLE_ENABLE, NULL, "Enable Rumble", OPT_NO_YES, "Turns the controller rumble on or off." },
+  { "RumbleEnabled", &rumbleEnabled, RUMBLE_DISABLE, RUMBLE_ENABLE, NULL, "Enable Rumble", OPT_OFF_ON, "Turns the controller rumble on or off." },
   { "LoadButtonSlot", &loadButtonSlot, LOADBUTTON_SLOT0, LOADBUTTON_AUTO, NULL, "Auto Load Slot", OPT_SLOT, "The button mapping that loads at start: a slot, the default, or Auto (this game's own)." },
   { "LightGun", &lightGun, LIGHTGUN_DISABLE, LIGHTGUN_MOUSE, NULL, "Light Gun", OPT_LIGHTGUN, "Sets the light gun type. Off uses the pad." },
   { "GunReticle", &gunReticle, 0, 1, NULL, "Gun Reticle", OPT_OFF_ON, "Shows where the Wii Remote points while it is a light gun or mouse." },
@@ -465,11 +468,11 @@ static SettingOption OPTIONS[] =
   { "Coop2Assign8", &coopAssign[1][7], 0, 3 },
   { "Coop2Layout8", &coopLayout[1][7], COOP_LAYOUT_FULL, COOP_LAYOUT_COUNT - 1 },
   { "Coop2Buttons8", coopButtons[1][7], CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
-  { "Achievements", NULL, 0, 0, "Achievements. Local: RetroAchievements' set, nothing sent, every player earns into the Local journal (1 = Custom, 2 = Test, 3 = Official, 4 = Local). Custom: your own definition file, unlocks kept. Test: the same, nothing kept. Official: RetroAchievements, Casual (an account linked to a Mii in Players, or ra_account.ini, and a TLS seed on the card)." },
-  { "Achievements", &achievementsEnabled, 0, 4, NULL, "Mode", OPT_ACH_MODE, "Off, Custom (your own definition file; unlocks are kept; nothing is downloaded), Test (try a set; nothing is kept), Official (downloads the RetroAchievements set, Casual: needs an account, linked to a Mii in Players or ra_account.ini, and the TLS seed) or Local (the RetroAchievements set, saved on the card; nothing is ever sent; every player earns into the Local journal; needs one download, so a login the first time). Load the game again after a change." },
+  { "Achievements", NULL, 0, 0, "Achievements. Local: RetroAchievements' set, nothing sent, every player earns into the Local journal (1 = Custom, 2 = Test, 3 = Official, 4 = Local). Custom: your own definition file, unlocks kept. Test: the same, nothing kept. Official: RetroAchievements, Casual rules only (an account linked to a Mii in Players, or ra_account.ini, and a TLS seed on the card)." },
+  { "Achievements", &achievementsEnabled, 0, 4, NULL, "Mode", OPT_ACH_MODE, "Off, Custom (your own definition file; unlocks are kept; nothing is downloaded), Test (try a set; nothing is kept), Official (downloads the RetroAchievements set, Casual rules only, no Hardcore; sent to an account linked to a Mii in Players or ra_account.ini, and needs the TLS seed) or Local (the RetroAchievements set, saved on the card; nothing is ever sent; every player earns into the Local journal; needs one download, so a login the first time). Load the game again after a change." },
   { "AchievementUnofficial", &achievementUnofficial, 0, 1, NULL, "Unofficial", OPT_OFF_ON, "Official and Local modes: also the set's Unofficial achievements (not yet approved by RetroAchievements; their unlocks are not kept on the site). Load the game again after a change." },
-  { "AchievementEncore", &achievementEncore, 0, 1, NULL, "Encore", OPT_OFF_ON, "Official mode: achievements you already have can be earned again this session (the card shows again; nothing new is sent to the site). Load the game again after a change." },
-  { "AchievementChallenge", &achievementChallenge, 0, 1, NULL, "Challenge icons", OPT_OFF_ON, "Show the flashing icons for achievements that are one step away (often missable ones). Off hides them; it applies at once." },
+  { "AchievementEncore", &achievementEncore, 0, 1, NULL, "Encore", OPT_OFF_ON, "Official mode: achievements you already have can be earned again this session (the card shows again; nothing new is sent to the site). Also on while a Local Mii is seated next to the Official one. Load the game again after a change." },
+  { "AchievementChallenge", &achievementChallenge, 0, 1, NULL, "Challenge icons", OPT_OFF_ON, "Shows the flashing icon for an achievement that is one step away (often a missable one). Off hides it, at once. The unlock card and the progress pop-up stay." },
   { "AchievementSpectator", &achievementSpectator, 0, 1 },
   { "AchievementFile", achievementFile, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "AchievementLog", achievementLog, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
@@ -587,7 +590,7 @@ void biosFileInit();
  * scripts/settings_check.py reads both lists. */
 static const char* const UNSTORED_KEYS[] = { "FilterTour" };
 static const char* const GLOBAL_ONLY_KEYS[] = {
-	"lang", "MenuFont", "FileSortMode", "TabWrap", "RomDirSD", "RomDirUSB",
+	"lang", "MenuFont", "FileSortMode", "TabWrap", "RomDirSD", "RomDirUSB", "ExplorerOpensOn",
 	"NativeDevice", "StatesDevice", "AchievementFile", "AchievementLog", "AchievementUTCOffset", "AchievementBenchRoot",
 	"smbipaddr", "smbsharename", "smbusername", "smbpassword", "RomDirSMB",
 	"Player1", "Player2", "Player1A", "Player1B", "Player1C", "Player1D", "Player2A", "Player2B", "Player2C", "Player2D",
@@ -686,6 +689,9 @@ static const char* gameSettingsFile(void)
 	}
 	return NULL;
 }
+
+/* For the ISO Info page (RomInfo.cpp): the loaded game's own settings file, or NULL */
+const char *romGameSettingsPath(void) { return gameSettingsFile(); }
 
 /* Built-in per-game defaults: the layer between settings.ini and the game's own file. The menu
  * shows them like any value, and This Game saves a change from them. One "Key=Value" per row. */
@@ -876,6 +882,7 @@ void loadSettings(int argc, char *argv[])
 	controllerType	 = CONTROLLERTYPE_STANDARD;
 	analogAuto	 = ANALOGAUTO_CONFIG;
 	padMirror	 = 0;
+	explorerOpensOn	 = EXPLOREROPENS_LAST;
 	numMultitaps	 = MULTITAPS_NONE;
 	menuActive = 1;
 	forceNTSC 		 = FORCENTSC_DISABLE;

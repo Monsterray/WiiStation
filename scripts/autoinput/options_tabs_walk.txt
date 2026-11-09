@@ -1,0 +1,6 @@
+# Advanced (Options) tab turns with the shoulder buttons, same keys as settings_tabs_walk.txt.
+# R R R and L L, with a focus move on each tab. Compare two DOLs with
+#   bash scripts/wsx.sh menu NAME --dol A.dol --dol2 B.dol --input scripts/autoinput/settings_tabs_walk.txt
+1 0000
+menupage 6
+menukeys 60 D D . > . D . > . D . > . . < . D . < . .
