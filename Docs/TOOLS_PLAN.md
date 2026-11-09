@@ -1,6 +1,6 @@
 # Plan: set up WiiStation on a clean PC
 
-Status: PLAN for Monty's approval (2026-11-09, second version). Nothing below is implemented yet.
+Status: approved 2026-11-09 (answers under "Questions for Monty"). Steps 1-7 are done on try/tools-setup; SETUP.md is the result. Step 8 (Windows Sandbox) is next.
 The first version only changed how scripts find tools. This version also makes the repo
 self-contained, so a person who has never seen WiiStation or Wii homebrew can set it up alone.
 
@@ -10,9 +10,9 @@ A new person reads one file, `SETUP.md`, and gets as far as they want in three l
 
 | Level | They get | They install | Command |
 |---|---|---|---|
-| 1. Build | `boot.dol` | devkitPro | `scripts/setup.sh`, then `scripts/wsx.sh build` |
-| 2. Dolphin | WiiStation running on the PC | + Python, Dolphin | `python scripts/tools.py setup`, then `scripts/wsx.sh run` |
-| 3. Real Wii | WiiStation sent to their Wii and run | + a Wii with the Homebrew Channel | `scripts/wsx.sh wii run` |
+| 1. Build | `boot.dol` | devkitPro | `scripts/setup-devkitpro-windows.sh`, then `scripts/wsx.sh build release` |
+| 2. Dolphin | WiiStation running on the PC | + Python, Dolphin | `python scripts/tools.py setup`, then `scripts/wiistation_play.sh release` |
+| 3. Real Wii | WiiStation sent to their Wii and run | + a Wii with the Homebrew Channel | `hbc.py send` (try it) or `scripts/wii_install.py` (install) |
 
 Each level works without the next one. Nothing else is needed for these three levels: no other
 repository, no queue server, no capture card, no folder in a special place.
@@ -35,8 +35,8 @@ Everything else that is our own code goes into the repo.
 | sending a DOL to a Wii (level 3) | `hbc.py`, in the hbc-reborn repo | `../hbc-reborn` beside the project. Breaks in every worktree. |
 | every Wii run (level 3) | the wii-bench queue + lease server on homeserver | `wii_lab.py` refuses to run without a queue job. |
 | movie recording | dolphin-movie repo | `../dolphin-movie` |
-| PS1 accuracy tests | `C:/tools/ps1-tests` | env var only |
-| game library | `C:/wiistation-lib` | hard-coded in 9 scripts |
+| PS1 accuracy tests | a folder on one PC | env var only |
+| game library | a folder on one PC | hard-coded in 9 scripts |
 
 **2. Scripts find tools in six different ways:** environment variables, `~/.wii-paths.json`,
 `scripts/wii_paths.py` (214 lines), `find_python.sh` / `find_dolphin.sh`, `../sibling` paths,
@@ -52,10 +52,11 @@ release" in 5.13.0. We are at 5.19.
 ## The new way
 
 **1. Our own tools come with the repo.**
-- `hbc.py` (2273 lines, standard library only) is copied to `scripts/vendor/hbc.py`, with the
-  hbc-reborn commit it came from in its first line. Same recipe as `deps/hbc_agent`: an update is
-  a copy and a commit. A test fails if the file differs from that commit's copy, so nobody edits
-  it here by mistake.
+- `hbc.py` (standard library only) comes as a git submodule of the public hbc-reborn repo,
+  `deps/hbc-reborn` (`shallow = true` in `.gitmodules`), pinned at 485f510 (HBC 1.16.0). Scripts
+  call `deps/hbc-reborn/tools/hbc.py`. A clone needs `git submodule update --init deps/hbc-reborn`
+  (or `git clone --recursive`); an update is a checkout of a newer commit and a commit here. No
+  vendored copy, so no copy-check test.
 - The queue, the capture card, movie recording, ps1-tests and chdman become **extras**: one
   section of `SETUP.md` each, after the three levels. A script that needs an extra stops with one
   line that names the extra and its section.
@@ -82,7 +83,7 @@ project sees it.
 - No script guesses a path. A missing name stops the script with one line, for example:
   `DOLPHIN is not set: run python scripts/tools.py setup (SETUP.md, level 2)`.
 
-**4. Level 3 without a queue.** `wsx.sh wii run` sends the DOL with the vendored `hbc.py` to
+**4. Level 3 without a queue.** (As built: `wii_targets.bench_wii()` takes `WII_IP` when `WII_BENCH` is not set, so `wii_install.py` and `wii_lab.py` work as they are.) `wsx.sh wii run` sends the DOL with the submodule's `hbc.py` to
 `WII_IP` and reads the logs back.
 - On a PC with `WII_BENCH` set (Monty's), Wii runs still go **only** through the queue. That rule
   does not change.
@@ -98,7 +99,6 @@ work on the code (branches, tests, style) and points to it too.
 - `tests/test_workstation_paths.py` is widened: it fails on any absolute path, `../sibling` path
   or LAN address in tracked scripts (today it misses `/c/wiistation-lib`, `/c/devkitPro`,
   `Program Files` and `192.168.x`). `wii_targets.py` is the one allowed place for addresses.
-- The vendored `hbc.py` check from point 1.
 
 **7. Proof: a clean-PC run.** Windows Sandbox (built into Windows 11 Pro) starts empty each time.
 An agent follows only `SETUP.md`, from a fresh clone, through levels 1 and 2, and writes down
@@ -115,13 +115,13 @@ holds the lease; see question 2).
 ## Steps (each one small and testable)
 
 1. `scripts/tools.py` + `~/wii-tools.env` on this PC; `tools.py check` passes.
-2. Vendor `hbc.py`; point `wii_lab.py`, `wsx.sh` and the bench scripts at it; add its check test.
+2. Add the `deps/hbc-reborn` submodule; point `wii_lab.py`, `wsx.sh` and the bench scripts at it.
 3. Move the bash scripts to `. ~/wii-tools.env` (wsx.sh, dolphin_run.sh, movie_capture.sh,
    wiistation_play.sh, profile.sh, padtest_dx.sh, menu_pages_walk.sh, the build scripts). Delete
    `find_python.sh` and `find_dolphin.sh`.
 4. Move the Python scripts to `tools.get("NAME")`. Delete `wii_paths.py` and `~/.wii-paths.json`.
    Fix the hard-coded ffmpeg, 7-Zip, clang and nm paths and the `wav_compare.py` literal.
-5. `wsx.sh wii run`: the direct path when `WII_BENCH` is not set.
+5. The direct path (built into `bench_wii()`, no new command) when `WII_BENCH` is not set.
 6. Widen the guard test. Write `SETUP.md`; trim README and CONTRIBUTING.
 7. Check on this PC from a fresh worktree: one `wsx.sh run`, one menu walk, one dev-Wii queue job.
 8. The Windows Sandbox run (point 7 above). Fix what it finds.
@@ -132,11 +132,10 @@ Estimate: steps 1-7 are one focused session for one agent; step 8 is a second sh
 
 ## Questions for Monty
 
-1. Drop the old `LIBOGC=2` build now (the r41-2 install, the three prebuilt files at the repo root,
-   and the `LIBOGC=2` branches in the Makefile)? It was kept "for one release" in 5.13.0. Without
-   it, level 1 is one pacman command. Yes / keep it for now.
-2. For the level-3 check, may the agent run one direct (no-queue) job on the dev Wii, holding the
-   queue lease by hand so nothing else runs at the same time? Yes / test it only on a newcomer's
-   Wii later.
-3. `hbc.py`: a copy in the repo (recommended: one file, no network at clone time) or a git
-   submodule of hbc-reborn (always exact, but needs `git clone --recursive`)?
+1. Drop the old `LIBOGC=2` build now? **Answer: keep it for now.** Do not remove the r41-2
+   install, the root zips or the Makefile branches.
+2. A direct (no-queue) level-3 run on the dev Wii? **Answer: later, a separate step.**
+3. `hbc.py`: a copy or a git submodule? **Answer: submodule** of the public
+   https://github.com/Monsterray/hbc-reborn at `deps/hbc-reborn`, pinned at 485f510 (HBC 1.16.0),
+   `shallow = true`. Scripts call `deps/hbc-reborn/tools/hbc.py`; there is no `HBC_PY` name and
+   no vendored-copy check test.

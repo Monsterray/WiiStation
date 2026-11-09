@@ -3,7 +3,7 @@
 # setup-devkitpro-local.sh for an isolated macOS/Linux toolchain.
 #
 # Run this from devkitPro's own MSYS2 shell (Start Menu -> devkitPro -> MSys2,
-# or C:\devkitPro\msys2\msys2_shell.bat) -- that's what provides `make` and
+# or msys2_shell.bat in devkitPro's msys2 folder) -- that's what provides `make` and
 # the rest of the standard devkitPro environment. A generic Git Bash works
 # too as long as `make` is on PATH some other way; devkitPro's own shell is
 # the one this is tested against.
@@ -25,7 +25,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-# pwd -P: a checkout reached by an 8.3 name (C:/Users/<USERNA~1>/...) has no space in pwd, but
+# pwd -P: a checkout reached by an 8.3 name (an 8.3 user folder name, USERNA~1) has no space in pwd, but
 # make's CURDIR is the physical path, which MSYS maps to /home/<user name with a space>/...
 if [[ "$(cd "$REPO_ROOT" && pwd -P)" == *" "* ]]; then
 	if [ "${1:-debug}" = clean ]; then
@@ -72,16 +72,16 @@ case "$LIBOGC" in
 	*) echo "ERROR: LIBOGC must be 2 or 3 (got '$LIBOGC')."; exit 1 ;;
 esac
 export LIBOGC
-# Windows: force-assign. The login shell here carries a stale DEVKITPRO=/opt/devkitpro and may carry
-# the newer pacman devkitPPC; inheriting either breaks the build (AGENTS.md "Building").
+# Windows: the login shell here carries DEVKITPRO=/opt/devkitpro and may carry the newer pacman
+# devkitPPC; inheriting either breaks the build (AGENTS.md "Building"), so they are dropped and
+# DEVKITPRO comes from ~/wii-tools.env (scripts/tools.py check).
 # macOS/Linux: an isolated toolchain (setup-devkitpro-local.sh) may live elsewhere, so a set value wins.
+case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) unset DEVKITPRO DEVKITPPC ;; esac
+. "$REPO_ROOT/scripts/tools_env.sh"; need DEVKITPRO "level 1"
+export DEVKITPRO
 case "$(uname -s)" in
-	MINGW*|MSYS*|CYGWIN*)
-		export DEVKITPRO=/c/devkitPro
-		export DEVKITPPC="$DEVKITPRO/$DEVKITPPC_NAME" ;;
-	*)
-		export DEVKITPRO="${DEVKITPRO:-/opt/devkitpro}"
-		export DEVKITPPC="${DEVKITPPC:-$DEVKITPRO/$DEVKITPPC_NAME}" ;;
+	MINGW*|MSYS*|CYGWIN*) export DEVKITPPC="$DEVKITPRO/$DEVKITPPC_NAME" ;;
+	*) export DEVKITPPC="${DEVKITPPC:-$DEVKITPRO/$DEVKITPPC_NAME}" ;;
 esac
 export PATH="$DEVKITPRO/tools/bin:$DEVKITPPC/bin:$PATH"
 OGC_SUFFIX="_ogc2"
@@ -104,7 +104,7 @@ if [ "$LIBOGC" = 2 ]; then
 fi
 if ! command -v make >/dev/null 2>&1; then
 	echo "make not found on PATH. Run this from devkitPro's own MSYS2 shell"
-	echo "(Start Menu -> devkitPro -> MSys2, or C:\\devkitPro\\msys2\\msys2_shell.bat)."
+	echo "(Start Menu -> devkitPro -> MSys2, or msys2_shell.bat in devkitPro's msys2 folder)."
 	exit 1
 fi
 

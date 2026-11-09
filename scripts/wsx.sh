@@ -63,8 +63,9 @@ set -u
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 RUNS="${WSX_RUNS:-$REPO/.runs}"
 P="$REPO/scripts/runfiles"                # the autoboot, input and settings presets
-LIB="${WSX_LIBRARY:-/c/wiistation-lib}"   # the game library; save states are in $LIB/states
-DKP_BASH="/c/devkitPro/msys2/usr/bin/bash.exe"
+. "$REPO/scripts/tools_env.sh"             # ~/wii-tools.env: DEVKITPRO, PYTHON, GAME_LIBRARY (scripts/tools.py check)
+LIB="${GAME_LIBRARY:-}"                   # the game library; save states are in $LIB/states
+DKP_BASH="${DEVKITPRO:-}/msys2/usr/bin/bash.exe"
 cmd="${1:-}"; shift || true
 
 # Only a run of OUR OWN is a reason not to build: the build would take CPU from it. The user's
@@ -72,9 +73,8 @@ cmd="${1:-}"; shift || true
 dolphin_running() { bash "$REPO/scripts/profile.sh" dolphin-busy ANY; }
 
 # The summarise/compare steps below are Python. Plain `python` does not exist in the
-# devkitPro MSYS2 bash on a stock machine (`python3` there is a dead WindowsApps stub),
-# so without this every post-processing step silently no-ops. An exported PYTHON wins.
-. "$(dirname "${BASH_SOURCE[0]}")/find_python.sh"   # $PYTHON, else wii_paths.py, else python
+# devkitPro MSYS2 bash on a stock machine, so PYTHON comes from ~/wii-tools.env. Building needs only DEVKITPRO.
+if [ "$cmd" = build ]; then need DEVKITPRO "level 1"; else need PYTHON "level 2"; fi
 
 # The automatic triage after a run (run_triage.py --auto: only when the run looks wrong, a
 # "triage:" block of <= 10 lines). It never changes this script's exit code; WSX_NO_LLM=1 is off.
@@ -262,7 +262,7 @@ state)
 	bash "$0" chain "state_$name" "$RUNS/state_$name/chain.txt" --secs $((at / 30 + 200)) ${rest[@]+"${rest[@]}"} > /dev/null
 	rm -f "$sf"
 	grep -a "^state:" "$RUNS/state_$name/perf.log"
-	card="$LIB/states"   # promoted from each run's card when it ends (dolphin_run.sh)
+	need GAME_LIBRARY "level 2"; card="$LIB/states"   # promoted from each run's card when it ends (dolphin_run.sh)
 	[ -f "$card/$name.txt" ] && sed -n '1,8p' "$card/$name.txt"
 	;;
 
@@ -270,7 +270,7 @@ abstate)
 	# Several settings from one saved moment, in one boot: a chain line per SETS, each loading
 	# the state (State=NAME) and running VBL vblanks from it.
 	run="${1:-}"; st="${2:-}"; vbl="${3:-}"; shift 3 || { echo "abstate RUN STATE VBL SETS... [--rec REC]"; exit 2; }
-	card="$LIB/states"   # promoted from each run's card when it ends (dolphin_run.sh)
+	need GAME_LIBRARY "level 2"; card="$LIB/states"   # promoted from each run's card when it ends (dolphin_run.sh)
 	[ -f "$card/$st.txt" ] || { echo "no save state $st on the test card ($card); make it with wsx.sh state"; exit 2; }
 	folder=$(sed -n 's/^# folder: //p' "$card/$st.txt" | tr -d '\r'); cue=$(sed -n 's/^# cue: //p' "$card/$st.txt" | tr -d '\r')
 	rec=""; sets=(); rest=()

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
-: "${DEVKITPRO:?Set DEVKITPRO to the isolated WiiStation toolchain}"
+. scripts/tools_env.sh; need DEVKITPRO "level 1"
 : "${DEVKITPPC:=$DEVKITPRO/devkitPPC-r41-2}"
 if ! "$DEVKITPPC/bin/powerpc-eabi-gcc" --version | head -1 | grep -q 'release 41'; then
   echo 'Set DEVKITPPC to WiiStation’s pinned release 41 compiler.' >&2

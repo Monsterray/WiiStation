@@ -20,8 +20,9 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from cliutil import parse_opts  # noqa: E402
+import tools  # noqa: E402
 
-PS1_TESTS = os.environ.get("PS1_TESTS", "")
+PS1_TESTS = tools.get("PS1_TESTS", False) or ""
 REF = os.path.join(PS1_TESTS, "bin", "gpu")
 # Where a reference picture holds pixels the test never draws (VRAM the real console had
 # before the test ran), only the test's own area is compared: (x0, y0, x1, y1), end excluded.

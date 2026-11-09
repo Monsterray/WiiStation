@@ -8,7 +8,7 @@ if [ "$target" != host ] && [ "$target" != --wii ]; then
   exit 1
 fi
 if [ "$target" = --wii ]; then
-  : "${DEVKITPRO:?Set the pinned WiiStation toolchain}"
+  . scripts/tools_env.sh; need DEVKITPRO "level 1"
   : "${DEVKITPPC:=$DEVKITPRO/devkitPPC}"  # libogc v3 + devkitPPC r50, as scripts/build.sh
   output=${2:?Choose an output directory}
   mkdir -p "$output"

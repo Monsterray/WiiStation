@@ -28,7 +28,6 @@
 #          WSX_ISOS=<list>    extra library games for the card, comma separated, or "all" for
 #                         every one. The game the autoboot file names is always staged; this
 #                         is for a run that browses to another one.
-#          WSX_LIBRARY=DIR    the game library (default /c/wiistation-lib)
 #          DOLPHIN_ARGS   extra arguments appended verbatim, e.g. "-C Graphics.Settings.OverlayStats=True"
 #          SMB_FROM=FILE  add the smb* / RomDirSMB lines of FILE (a settings.ini with the
 #                         share login) to the run's settings, unread and unprinted
@@ -48,7 +47,7 @@
 # runs: nothing is shared except the CPU.
 #
 # A run gets a fresh, lean profile (scripts/profile.sh new): the template's Config, the BIOS and
-# fonts, and only the games this run names, copied from the library (C:/wiistation-lib). It is
+# fonts, and only the games this run names, copied from the library ($GAME_LIBRARY). It is
 # locked while it runs and deleted at the end (KEEP_PROFILE=1 keeps it). Dolphin rebuilds the
 # card image at every boot, so nothing in a profile has to outlive a run; save states are
 # promoted to the library when a run ends. WSX_PROFILE=NAME runs on a named profile instead.
@@ -72,18 +71,19 @@ REPO="$(cd "$SP/.." && pwd)"
 DOL="${DOL:-$REPO/Gamecube/WiiSXRX_debug.dol}"
 
 # Post-processing below is Python (summaries, sheets, FAT-image reads). Plain `python`
-# does not exist in the devkitPro MSYS2 bash on a stock machine, so without this the
-# whole collect phase silently no-ops and every run collects nothing. See wsx.sh.
-. "$(dirname "${BASH_SOURCE[0]}")/find_python.sh"   # $PYTHON, else wii_paths.py, else python
-# Dolphin 2609 since 2026-10-01: the Dolphin-2609 folder next to the Dolphin that wii_paths.py
+# does not exist in the devkitPro MSYS2 bash on a stock machine, so PYTHON comes from
+# ~/wii-tools.env (scripts/tools.py check). See wsx.sh.
+. "$SP/tools_env.sh"
+need PYTHON "level 2"; need GAME_LIBRARY "level 2"
+# Dolphin 2609 since 2026-10-01: the Dolphin-2609 folder next to the Dolphin that $DOLPHIN
 # names, whose User folder is a junction to that Dolphin's (one copy, 16 GB). The older build
-# stays as a fallback: DOLPHIN_DIR=<its folder>. See find_dolphin.sh.
-. "$SP/find_dolphin.sh"
-D="${DOLPHIN_DIR:?no Dolphin: set DOLPHIN_DIR}"
+# stays as a fallback: DOLPHIN_DIR=<its folder>.
+dolphin_dirs
+D="$DOLPHIN_DIR"
 
 # The library of games, the shared folder (the user's own: read only, for CARDS=1), and the
 # autoboot/input/settings presets (scripts/runfiles).
-LIB="${WSX_LIBRARY:-/c/wiistation-lib}"
+LIB="$GAME_LIBRARY"
 PROF="$SP/profile.sh"
 SHARED="$D/User/Load/WiiSDSync/wiistation"
 P="$SP/runfiles"
@@ -331,7 +331,8 @@ fi
 # with our own cluster-chain reader instead.
 CARD="$PROFILE/Load/WiiSD.raw"
 [ -f "$CARD" ] || echo "no card image at $CARD -- did the folder sync run?"
-"/c/Program Files/7-Zip/7z.exe" e -y -o"$OUT" "$CARD" 'wiistation/vram.bin' >/dev/null 2>&1 || echo "7z extract failed"
+if [ -n "${SEVENZIP:-}" ]; then "$SEVENZIP" e -y -o"$OUT" "$CARD" 'wiistation/vram.bin' >/dev/null 2>&1 || echo "7z extract failed"
+else echo "SEVENZIP is not set: vram.bin not extracted (python scripts/tools.py setup, SETUP.md, extras)"; fi
 "$PYTHON" "$SP/sdimage_read.py" "$CARD" wiistation/perf.log "$OUT/perf.log" 2>&1 | tail -1
 # 7-Zip handed back a stale ptrace.log after a rewrite; our own FAT reader does not
 "$PYTHON" "$SP/sdimage_read.py" "$CARD" wiistation/ptrace.log "$OUT/ptrace.log" >/dev/null 2>&1

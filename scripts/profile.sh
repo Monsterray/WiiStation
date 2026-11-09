@@ -17,7 +17,7 @@
 #   profile.sh keys                                   every game key in the library (WSX_ISOS=all)
 #
 # A game is named by its path under the library's games/ folder: "Spyro the Dragon",
-# "Final Fantasy VII/Final Fantasy VII 1". The library is WSX_LIBRARY (default /c/wiistation-lib);
+# "Final Fantasy VII/Final Fantasy VII 1". The library is GAME_LIBRARY (~/wii-tools.env);
 # only this script's stage/rm and dolphin_run.sh's collect step write to it, never the user's Dolphin
 # folder. WSX_EXTRA_ISOS=DIR is a second source: a game folder found there wins over the library.
 #
@@ -25,11 +25,11 @@
 # the atomic step. A lock whose pid is gone is stale and is taken over.
 set -u
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-LIB="${WSX_LIBRARY:-/c/wiistation-lib}"
+. "$(dirname "${BASH_SOURCE[0]}")/tools_env.sh"   # ~/wii-tools.env: GAME_LIBRARY, PYTHON
+LIB="${GAME_LIBRARY:-}"
 PROFILES="$REPO/.profiles"
 LOCKS="$PROFILES/locks"
 TEMPLATE="$REPO/profiles/template"
-. "$(dirname "${BASH_SOURCE[0]}")/find_python.sh"   # $PYTHON, else wii_paths.py, else python
 
 die() { echo "profile.sh: $*" >&2; exit 2; }
 lower() { tr 'A-Z' 'a-z'; }
@@ -203,7 +203,7 @@ main() {
 		dolphin-busy) cmd_busy "$1" ;;
 		gc) cmd_gc ;;
 		rm) cmd_rm "$@" ;;
-		keys) "$PYTHON" "$REPO/scripts/library_check.py" --keys ;;
+		keys) need PYTHON "level 2"; "$PYTHON" "$REPO/scripts/library_check.py" --keys ;;
 		*) sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//' ;;
 	esac
 }

@@ -5,7 +5,8 @@
 set -e
 here=$(cd "$(dirname "$0")" && pwd)
 repo=$(cd "$here/../../.." && pwd)
-export DEVKITPRO=/c/devkitPro
+. "$repo/scripts/tools_env.sh"; need DEVKITPRO "level 1"   # ~/wii-tools.env
+export DEVKITPRO
 export DEVKITPPC=$DEVKITPRO/devkitPPC
 export PATH="$DEVKITPRO/tools/bin:$DEVKITPPC/bin:$DEVKITPRO/msys2/usr/bin:$PATH"
 WTMP=$(cygpath -w "${TMPDIR:-$here}" 2>/dev/null || echo "$here")

@@ -24,8 +24,8 @@ Which Wii:
   (default)       the bench Wii, as a bench-queue job:
                     python "$WII_BENCH" add --cwd <repo> \\
                         -- python scripts/ra_setup.py --seed --account examples/ra_account.ini
-  --production    Monty's everyday Wii (192.168.8.200) and
-  --lrwii         the living-room Wii (192.168.8.243): only when he asks, run directly (not queued).
+  --production    Monty's everyday Wii (PRODUCTION_WII in wii_targets.py) and
+  --lrwii         the living-room Wii (LRWII in wii_targets.py): only when he asks, run directly (not queued).
                   HBC must be idle on the TV (no app running): checked first, with a screenshot.
                   The script writes these two files under sd:/wiistation/achievements/ and nothing
                   else; it reads only that folder's file names.

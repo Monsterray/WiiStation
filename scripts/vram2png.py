@@ -10,7 +10,8 @@ import sys, subprocess, numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from cliutil import need, parse_opts, req_file, req_int  # noqa: E402
-FF = shutil.which("ffmpeg") or r"C:\Program Files (x86)\ffmpeg\bin\ffmpeg.exe"
+import tools  # noqa: E402
+FF = tools.get("FFMPEG", False) or shutil.which("ffmpeg") or tools.get("FFMPEG")
 
 def main():
     need(sys.argv, 3, "vram2png.py VRAM.bin OUT.png [--crop X,Y,W,H] [--scale N]")

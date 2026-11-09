@@ -22,7 +22,7 @@ deleted, so the user's settings, saves and games stay):
 The fonts go last (Chs.dat is 8 MB). The Wii's address is $WII_BENCH_IP (the queue sets it); run
 directly it refuses (nothing sent), except --dry-run, which stages and talks to no Wii.
 
---production installs on Monty's everyday Wii (192.168.8.200, real data: scripts/wii_targets.py),
+--production installs on Monty's everyday Wii (real data: PRODUCTION_WII in scripts/wii_targets.py),
 only when he asks for it, run directly (not through the bench queue): it first checks that HBC is
 idle on his TV (no app running), then writes sd:/apps/WiiStation (boot.dol, meta.xml, icon.png)
 and nothing else -- not sd:/wiistation, where his settings, saves and cards live; no deletes.
@@ -116,9 +116,9 @@ def main():
     ap.add_argument("--remove-autoboot", action="store_true", help="delete sd:/wiistation/autoboot.txt (bench only)")
     ap.add_argument("--dry-run", action="store_true", help="stage and list; talk to no Wii")
     ap.add_argument("--production", action="store_true",
-                    help="Monty's Wii (192.168.8.200): only when he asks; run directly, not queued")
+                    help="Monty's Wii (PRODUCTION_WII): only when he asks; run directly, not queued")
     ap.add_argument("--lrwii", action="store_true",
-                    help="the living-room Wii (192.168.8.243), production-style: as --production")
+                    help="the living-room Wii (LRWII in wii_targets.py), production-style: as --production")
     ap.add_argument("--setup-folders", action="store_true",
                     help="with --production/--lrwii, on request: also WiiStation's shipped folders "
                          "(controllers, fonts, lang, example_settings.ini) and isos/ and bios/ if missing; "

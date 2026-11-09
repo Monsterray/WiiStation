@@ -12,7 +12,7 @@
 # is, or burn the folders directly.
 #
 # Then boot with the disc in Dolphin's drive:
-#   DOLPHIN_ARGS="-C Dolphin.Core.DefaultISO=C:/path/test.iso" bash scripts/wsx.sh chain ...
+#   DOLPHIN_ARGS="-C Dolphin.Core.DefaultISO=<folder>/test.iso" bash scripts/wsx.sh chain ...
 # with chain lines "dvd:/PSX Games/<game>" and ".cue", or autoinput "menupage 72".
 param(
     [Parameter(Mandatory)] [string]$Out,

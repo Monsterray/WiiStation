@@ -2,7 +2,7 @@
 # Credential-free source build. All seed material in this DOL is public dummy data.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-: "${DEVKITPRO:?Set the pinned WiiStation toolchain}"
+. scripts/tools_env.sh; need DEVKITPRO "level 1"
 # libogc v3 + devkitPPC r50, as scripts/build.sh. libogc v3 has BSD sockets itself (socket/connect/
 # poll/gethostbyname, "soc" devoptab), so the libogc2-era wiisocket binary adapter is gone. The
 # r41-2/libogc2 variant is this script at commit 775ae73a.

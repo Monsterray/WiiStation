@@ -32,6 +32,7 @@ Compare later with:
   python scripts/wav_spectrum.py baselines/media/<ID>/audio.flac <new dump>.wav
 """
 import sys, os, re, csv, glob, shutil, subprocess, datetime
+import tools
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -135,8 +136,8 @@ def main(argv):
             except Exception as e:  # metrics are a convenience; the file still gets kept
                 print("audio metrics failed:", e)
             out = os.path.join(media, "audio.flac")
-            ff = shutil.which("ffmpeg") or r"C:\Program Files (x86)\ffmpeg\bin\ffmpeg.exe"
-            if os.path.exists(ff) or shutil.which("ffmpeg"):
+            ff = tools.get("FFMPEG", False) or shutil.which("ffmpeg")   # else no flac copy (FFMPEG: SETUP.md, extras)
+            if ff:
                 r = subprocess.run([ff, "-y", "-loglevel", "error", "-i", wav, "-c:a", "flac", "-compression_level", "8", out])
                 if r.returncode == 0:
                     audio_name = "audio.flac"

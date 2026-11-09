@@ -20,8 +20,10 @@ import sys
 import tempfile
 import zlib
 
+import tools
+
 SS = 2352
-CHDMAN = os.environ.get("CHDMAN") or shutil.which("chdman") or "chdman"   # $CHDMAN, else PATH
+CHDMAN = tools.get("CHDMAN", False) or shutil.which("chdman") or "chdman"   # ~/wii-tools.env, else PATH
 FORMATS = ["CUE1", "CCD", "TOC", "MDS", "PBP", "CBN", "ISO", "CHD"]
 BOOT = {"CUE1": ".cue", "CCD": ".ccd", "TOC": ".toc", "MDS": ".mdf", "PBP": ".pbp",
         "CBN": ".cbn", "ISO": ".iso", "CHD": ".chd"}

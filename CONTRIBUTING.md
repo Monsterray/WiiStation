@@ -4,16 +4,18 @@
 
 ## Set up
 
-- **devkitPro** with devkitPPC r50 (GCC 16) and libogc v3.1.0, installed at `C:\devkitPro` on Windows
-  (`scripts/setup-devkitpro-windows.sh`). The libogc2 + devkitPPC r41-2 pair still builds with
-  `LIBOGC=2` for one release.
+[SETUP.md](SETUP.md) is the one setup guide: devkitPro, Python, Dolphin, a Wii, and the tool
+paths in `~/wii-tools.env`. Things worth knowing on top of it:
+
+- **Toolchain:** devkitPro's current devkitPPC and libogc v3 (pacman `wii-dev`). The libogc2 +
+  devkitPPC r41-2 pair still builds with `LIBOGC=2`.
 - **A POSIX shell:** devkitPro's MSYS2 bash (`C:\devkitPro\msys2\usr\bin\bash.exe`) or Git Bash.
   Never PowerShell with hand-set `DEVKITPRO`: Windows-style paths silently drop OpenGX
   functions, with no build error.
-- **Python 3.10+:** `python` on the dev machine. The devkitPro bash has no
-  `python` of its own.
-- **Dolphin** for unattended runs: `$DOLPHIN` (see `python scripts/wii_paths.py dolphin`). The game library is `$WSX_LIBRARY`
-  (`scripts/profile.sh`).
+- **Python:** the devkitPro bash has no `python` of its own; scripts take `PYTHON` from
+  `~/wii-tools.env`.
+- **Submodule:** `deps/hbc-reborn` (hbc.py). A new worktree needs
+  `git submodule update --init deps/hbc-reborn`.
 
 ## Build
 

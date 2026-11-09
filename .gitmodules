@@ -1,0 +1,4 @@
+[submodule "deps/hbc-reborn"]
+	path = deps/hbc-reborn
+	url = https://github.com/Monsterray/hbc-reborn
+	shallow = true

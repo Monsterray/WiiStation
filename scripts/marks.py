@@ -29,12 +29,15 @@ REPO = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 from cliutil import flag  # noqa: E402
 import vtl_view  # noqa: E402
+import tools  # noqa: E402
 
 PY = sys.executable
 # A POSIX bash that sees C:/ (wsx.sh needs one): Git's (what wsx.sh is run from; devkitPro's MSYS2 sed broke its -E substitution), else MSYS2. A bare "bash" from
 # Python on Windows is System32's WSL bash, which cannot see C:/ at all.
-BASH = next((b for b in ("C:/Program Files/Git/usr/bin/bash.exe", "C:/devkitPro/msys2/usr/bin/bash.exe",
-                         "C:/Program Files/Git/bin/bash.exe") if os.path.isfile(b)), shutil.which("bash") or "bash")
+_git = shutil.which("git")   # Git for Windows: <root>/cmd/git.exe, <root>/usr/bin/bash.exe
+_dkp = tools.get("DEVKITPRO", False)
+BASH = next((b for b in (_git and os.path.join(os.path.dirname(os.path.dirname(_git)), "usr", "bin", "bash.exe"),
+                         _dkp and _dkp + "/msys2/usr/bin/bash.exe") if b and os.path.isfile(b)), shutil.which("bash") or "bash")
 
 
 def header(name):
@@ -75,7 +78,7 @@ def run_chain(run, name, h, vbls, dol, extra_input=None):
     with open(chain, "w", newline="\r\n") as f:
         f.write("CHAIN\n# marks.py: the movie replayed to its marks\n" + " ".join(fields) + "\n"
                 + h["folder"] + "\n" + h["cue"] + "\n")
-    fw = lambda p: p.replace(chr(92), "/")   # bash takes C:/..., not C:\... (it ate the backslashes)
+    fw = lambda p: p.replace(chr(92), "/")   # bash takes forward slashes (it ate the backslashes)
     cmd = [BASH, fw(os.path.join(HERE, "wsx.sh")), "chain", run, fw(chain), "--dol", fw(dol), "--fast",
            "--secs", "1800", "--env", "FRAMES_DUMP=True", "--env", "KEEP=100000"]
     subprocess.run(cmd, cwd=REPO)

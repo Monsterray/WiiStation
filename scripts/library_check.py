@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""library_check.py [LIB] -- check the game library (default C:/wiistation-lib, or WSX_LIBRARY).
+"""library_check.py [LIB] -- check the game library (default GAME_LIBRARY from ~/wii-tools.env).
 
 A game is a folder under LIB/games/ that holds a boot file: a .cue (every FILE line must name
 an existing file), a .ccd (needs .img and .sub of the same name), a .toc (its FILE/DATAFILE
@@ -19,13 +19,16 @@ import os
 import re
 import sys
 
+import tools
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
-LIB = os.environ.get("WSX_LIBRARY", "C:/wiistation-lib")
+LIB = ""
 KEYS_ONLY = "--keys" in sys.argv   # print the game keys and stop (profile.sh uses it for "all")
 for a in sys.argv[1:]:
     if not a.startswith("--"):
         LIB = a
+LIB = LIB or tools.get("GAME_LIBRARY")
 GAMES = os.path.join(LIB, "games")
 # in order of preference when a folder holds several (scripts/disc_convert.py makes one of each)
 BOOT_EXT = (".cbn", ".cue", ".ccd", ".toc", ".mdf", ".pbp", ".chd", ".iso", ".exe")

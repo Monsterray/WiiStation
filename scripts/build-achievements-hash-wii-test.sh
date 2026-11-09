@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
-: "${DEVKITPRO:?Set the pinned WiiStation toolchain}"
+. scripts/tools_env.sh; need DEVKITPRO "level 1"
 : "${DEVKITPPC:=$DEVKITPRO/devkitPPC-r41-2}"
 output=${1:?Usage: build-achievements-hash-wii-test.sh OUTPUT_DIRECTORY}
 mkdir -p "$output";output=$(cd "$output" && pwd)

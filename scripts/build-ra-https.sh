@@ -12,8 +12,6 @@ cd "$REPO"
 src=.runs/https-ogc3
 dst=build_ogc3/deps/ra_https
 if [ "${1:-}" = "--rebuild" ] || [ ! -f "$src/lib/libcurl.a" ] || [ ! -f "$src/tls/lib/libmbedtls.a" ]; then
-	DEVKITPRO=/c/devkitPro   # set outright, as below
-	export DEVKITPRO
 	bash scripts/build-achievements-native-https-test.sh "$src"
 fi
 rm -rf "$dst"
@@ -26,7 +24,8 @@ cp "$src/cacert.pem" "$dst/cacert.pem"   # the CA bundle the build was tested wi
 # "soc" devoptab), so with libsmb2's poll curl polled the wrong IOS socket and every connect
 # timed out (curl 28; Dolphin and the bench Wii, 2026-10-23). curl gets libogc's own poll,
 # under another name: its reference renamed, and libogc's soc_poll.o renamed to match.
-DEVKITPRO=/c/devkitPro   # set outright: the ambient environment may hold a stale /opt/devkitpro
+. scripts/tools_env.sh; need DEVKITPRO "level 1"   # ~/wii-tools.env (a stale /opt/devkitpro is dropped)
+export DEVKITPRO
 bin="$DEVKITPRO/devkitPPC/bin"
 "$bin/powerpc-eabi-objcopy" --redefine-sym poll=ws_soc_poll "$dst/lib/libcurl.a"
 # Mbed TLS allocates with libc calloc/free (MBEDTLS_PLATFORM_MEMORY is off): pointed at

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
-: "${DEVKITPRO:?Set the pinned WiiStation toolchain}"
+. scripts/tools_env.sh; need DEVKITPRO "level 1"
 : "${DEVKITPPC:=$DEVKITPRO/devkitPPC-r41-2}"
 output=${1:?Usage: build-achievements-client-test.sh OUTPUT_DIRECTORY}
 archive=.runs/cache/rcheevos-683197d8dc92555a51e8280a4123d071ed66bff3.tar.gz

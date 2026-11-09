@@ -382,7 +382,7 @@ export DEVKITPPC="$DEVKITPRO/devkitPPC-r41-2"
 bash scripts/build-achievements-wii-test.sh .runs/bench/unit-build
 python3 scripts/bench_achievements.py prepare \
   --dol .runs/bench/unit-build/boot.dol \
-  --client ../hbc-reborn/tools/hbc.py --bundle .runs/bench/unit-frozen
+  --client deps/hbc-reborn/tools/hbc.py --bundle .runs/bench/unit-frozen
 python "$WII_BENCH" add \
   --name wiistation-achievements-unit --agent wiistation --timeout 240 \
   --cwd "$PWD" -- python3 .runs/bench/unit-frozen/bench_achievements.py run \
@@ -397,7 +397,7 @@ PROBES='-DPERF_PROF_TRACE=0 -DPERF_PROF_GPU=0 -DPERF_PROF_CPU=0' \
   bash scripts/build-achievements-bench.sh
 python3 scripts/achievement_fixture.py .runs/bench/fixture
 python3 scripts/bench_achievement_games.py prepare \
-  --dol Gamecube/WiiSXRX_debug.dol --client ../hbc-reborn/tools/hbc.py \
+  --dol Gamecube/WiiSXRX_debug.dol --client deps/hbc-reborn/tools/hbc.py \
   --fixture .runs/bench/fixture --bundle .runs/bench/games-frozen
 python "$WII_BENCH" add \
   --name wiistation-achievements-games --agent wiistation --timeout 600 \

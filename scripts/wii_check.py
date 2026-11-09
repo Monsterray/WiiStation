@@ -9,7 +9,7 @@
   triage [--elf ELF]         read-only: HBC status, crash report (with source lines from ELF),
                              the last app's kept output. Clears nothing.
   card [FOLDER ...] [--fix]  compare sd:/wiistation/isos/FOLDER with the library
-                             (C:/wiistation-lib/games, names and sizes; default every folder).
+                             ($GAME_LIBRARY/games, names and sizes; default every folder).
                              --fix puts each missing or different file, one plain put at a time.
                              Exit 1 when something differs (after --fix: when a put failed).
 
@@ -23,10 +23,10 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import wii_paths  # noqa: E402
+import tools  # noqa: E402
 from wii_targets import REPO, bench_wii, card_ls, existing_file, hbc, parser, wait_in_hbc  # noqa: E402
 
-LIBRARY = pathlib.Path(os.environ.get("WSX_LIBRARY", "C:/wiistation-lib")) / "games"
+LIBRARY = pathlib.Path(tools.get("GAME_LIBRARY")) / "games"
 SKIP = (".orig", ".ibg", ".bmp")   # library-side extras (cue backups, Dolphin shader caches, covers)
 STATUS_KEYS = ("version", "ios", "ios_revision", "app", "agent", "time", "safety", "memory", "frames")
 
@@ -35,10 +35,9 @@ def card_still(png, xfb=None):
     """A still from the capture card on the bench Wii's HDMI (wii-homebrew-kit docs/capture.md),
     compared with the XFB screenshot when there is one. $WIICAP names the tool; without it
     the step is skipped, never failed."""
-    try:
-        tool = str(wii_paths.wiicap())
-    except wii_paths.NotFound as e:
-        print(f"capture card: skipped ({e})")
+    tool = tools.get("WIICAP", False)
+    if not tool:
+        print(f"capture card: skipped ({tools.missing_msg('WIICAP')})")
         return
     for args in (["still", "--preset", "wii", "--out", png],) + ((["compare", png, xfb],) if xfb else ()):
         r = subprocess.run([sys.executable, tool, *args], capture_output=True, text=True, errors="replace",
