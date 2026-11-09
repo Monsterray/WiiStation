@@ -62,6 +62,14 @@ def game_rows(d):
     return out
 
 
+def is_fast(d):
+    """A --fast run (Dolphin unthrottled): its wall-clock speed is not the game's speed."""
+    try:
+        return 'FAST=1' in open(os.path.join(d, 'run.info'), encoding='utf-8', errors='replace').read()
+    except OSError:
+        return False
+
+
 def frames_count(d):
     return len(glob.glob(os.path.join(d, 'frames', 'framedump_*.png')))
 
@@ -102,15 +110,18 @@ def main():
     elif reasons:
         status = 'CHECK'
 
+    fast = is_fast(d)
     games_txt = ''
     if rows:   # "1 Crash Team Racing 0.99x": the game's settings are in `wsx.sh table`
         cut = lambda n: (n if len(n) <= 22 else n[:22].rsplit(' ', 1)[0]).rstrip(' -')
-        spd = lambda s: '%.2fx' % s if s is not None else 'no block'
+        spd = lambda s: ('' if fast else '%.2fx' % s) if s is not None else 'no block'
         if len(rows) == 1:
-            games_txt = '%s %s' % (cut(rows[0][0]), spd(rows[0][2]))
+            games_txt = ('%s %s' % (cut(rows[0][0]), spd(rows[0][2]))).strip()
         else:
-            games_txt = '; '.join('%d %s %s' % (i, cut(n), spd(s)) for i, (n, _, s) in enumerate(rows, 1))
+            games_txt = '; '.join(('%d %s %s' % (i, cut(n), spd(s))).strip() for i, (n, _, s) in enumerate(rows, 1))
     extra = []
+    if fast and rows:
+        extra.append('fast run: no speed (use --realtime to time)')
     nf = frames_count(d)
     if nf:
         extra.append(f'{nf} frames')
@@ -126,7 +137,7 @@ def main():
             brows = game_rows(b) or []
             deltas = []
             for i, (n, _, s) in enumerate(rows or []):   # by position: an A/B chain repeats a name
-                if i < len(brows) and brows[i][0] == n and s is not None and brows[i][2]:
+                if not fast and not is_fast(b) and i < len(brows) and brows[i][0] == n and s is not None and brows[i][2]:
                     deltas.append('%d %+.1f%%' % (i + 1, 100.0 * (s / brows[i][2] - 1)))
             if deltas:
                 cmp_lines.append('speed vs %s: %s' % (os.path.basename(b), '; '.join(deltas)))
