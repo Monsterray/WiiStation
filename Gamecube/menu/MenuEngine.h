@@ -270,7 +270,7 @@ struct Page {
 	int              nRows;
 	LogoSpot         logo;
 	FocusMode        focus;
-	float            rowY0;		/* an action menu's first row's top (rows are ROW_DY apart) */
+	float            rowY0;		/* an action menu's first row's top (rows are ROW_DY apart); a standard page: its first row's top when > 0, else STD_BODY_Y0 */
 	/* Added for Current ROM (step 3). Zero means none. */
 	const LinkOverride *overrides;	/* focus links set by hand, after the rule (linkFocus) */
 	int              nOverrides;

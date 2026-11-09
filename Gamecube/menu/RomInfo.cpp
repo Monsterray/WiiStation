@@ -88,6 +88,11 @@ void romInfoImage(char *buf, int len)
 	snprintf(buf, len, "%s, %u track%s, %s", fmt ? fmt : "Disc", tracks[1], tracks[1] == 1 ? "" : "s", size);
 }
 
+const char *romInfoSerial(void)
+{
+	return nothingLoaded() || loadedIsExe() ? "" : CdromId;
+}
+
 void romInfoSystem(char *buf, int len)
 {
 	const char *bios = Config.HLE == BIOS_USER_DEFINED ? biosFileName : "HLE BIOS";

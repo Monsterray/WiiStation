@@ -180,6 +180,18 @@
 #define STD_FACTS_VAL_W	156		/* the room of a value */
 #define STD_FACTS_N		  6
 
+/* The ISO Info disc band (design I4, Docs/MENU_FORMS_PLAN.md step 13): when the game has disc art, the round disc at the left
+ * (STD_DISC_D px square: menu pixels are square on the TV in both screen modes), the game name large to its right with the
+ * disc and image lines under it, and the info rows from STD_DISC_ROWS_Y0 (5 text rows end at 424 = STD_BODY_Y1). */
+#define STD_DISC_X		 24
+#define STD_DISC_Y		 88
+#define STD_DISC_D		168
+#define STD_DISC_TEXT_X	216		/* the name and the two lines: STD_DISC_X + STD_DISC_D + 24 */
+#define STD_DISC_NAME_Y	108		/* tops of the 24 px name, then the 16 px lines */
+#define STD_DISC_LINE1_Y 144
+#define STD_DISC_LINE2_Y 168
+#define STD_DISC_ROWS_Y0 268.0
+
 /* The logo box, bottom right; the engine owns it and no control may enter it. */
 #define STD_LOGO_X		572.0
 #define STD_LOGO_Y		384.0

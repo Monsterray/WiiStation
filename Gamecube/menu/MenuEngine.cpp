@@ -423,7 +423,7 @@ static int controlBound(const Page &p)
  *                   With a label they start at STD_CTRL_X0, without they are centred on the screen
  *   Readout         label, and the text at STD_CTRL_X0
  *
- * Row::x0 and gap and the Page's rowY0 and titleY are ignored; ActionButton::width is used on a Buttons row
+ * Row::x0 and gap and the Page's titleY are ignored (rowY0 > 0 moves the first row down: the ISO Info disc band); ActionButton::width is used on a Buttons row
  * when it is above 0 (a cycle takes STD_CYCLE_W), else the width comes from the text. A row that
  * does not fit is not squeezed: checkLayout reports it. A page with more rows than the density holds,
  * or a List row, is refused (-1): the list is not laid out by the standard yet.
@@ -466,7 +466,7 @@ static int layoutStandard(const Page &p, const Metrics &m, Layout &out)
 		const Row &r = p.rows[i];
 		int line, col;
 		rowCell(p, i, line, col);
-		const float y = (float)STD_BODY_Y0 + (float)line * pitch;
+		const float y = (p.rowY0 > 0 ? p.rowY0 : (float)STD_BODY_Y0) + (float)line * pitch;
 		const float cy = y + h / 2;
 		/* a cell of a two-column page (Page::columns): its label edge, button x and width from gridPlace */
 		float bx = (float)STD_CTRL_X0, bw = (float)STD_CYCLE_W, edge = (float)STD_LABEL_EDGE;

@@ -207,3 +207,21 @@ wide read-only reviews. One step per commit on `try/menu-standard`.
   Proof: host tests (6 suites) and settings_check.py pass; release DOLs built from the base (4f094d8a) and the new tree. Walk (all 22
   pages): 0 differing frames except page 10 (Memory, 1 frame, 945 px: its live KB number). menukeys walks (Main 2663 frames, Current ISO
   2701 frames, ActionMenu; focus moves and 9-13 menu moves in both): 0 differing frames. DOLs: C:/Users/Monty Perrotti/AppData/Local/Temp/opencode/ws_step12_base_release.dol and ws_step12_new_release.dol.
+- ISO Info disc band (2026-11-09, step 13; design I4, disc picture only): with a disc picture for the loaded game, the page shows the round disc
+  at the left (STD_DISC_X/Y/D = 24/88/168, square menu pixels), the game name (24 px) right of it at STD_DISC_TEXT_X 216 with "SERIAL, label X"
+  and "CUE, 1 track, 630 MB" (16 px) under it, and the grid starts at the fourth row (System ... Achievements, 5 text rows from
+  STD_DISC_ROWS_Y0 268, ending at STD_BODY_Y1 424). No picture (no pack, no serial, an .exe, no disc row): the page as before, 8 rows, no hole.
+  Standard way: `eng::Page::rowY0` now also moves a standard page's first row (0 = STD_BODY_Y0; layoutStandard only), and
+  `buildOptionsPage(page, tab, bind, out, skip, rowY0)` leaves out the first `skip` rows (ISOINFO_BAND_ROWS = 3: Game, Disc, Image, which the band
+  shows). ISO Info got enter/leave hooks (`isoInfoEnter`/`isoInfoLeave`): enter looks the serial up in `<sd|usb>:/wiistation/covers/index.txt`
+  (cover_index_find, like the explorer's cover), takes the `disc` path, and `cover_art_load`s it as STD_DISC_D square RGB5A3 (stb_image PNG/JPEG,
+  box filter, alpha kept for the round edge). Memory: cover_art holds ONE texture, 168*168*2 = 55 KB in MEM2 (the file, up to 4 MB, and the 600x600
+  RGBA decode are transient MEM2 and freed at once); freed by the leave hook; entering also calls `fbCoverForget()` so the explorer, which shares
+  that texture, drops its state and loads again. Drawn in `OptionsFrame::drawChildren` before the widgets (GX_LoadTexObjPreloaded into the font's
+  region 0, blended quad, then `glue::text` for the three band lines, name scaled down to fit 400 px). A page switch while the page is shown does not
+  reload (no tabs on this page).
+  Host: `menu_pages_test` lays the page out with skip 3 and rowY0 and checks rows below the disc, inside the body, band clear of the title, text and logo
+  box. Proof: scripts/wsx.sh run with --card of a one-serial pack and "menuopen 400 17" (Spyro SCUS94228, game loaded): disc, no pack, and base stills;
+  contact sheet C:/Users/Monty Perrotti/AppData/Local/Temp/opencode/ws_disc_contact_sheet.png; DOLs ws_disc_base_release.dol, ws_disc_new_release.dol (same folder).
+  Not done: real Wii (decode time of a 600x600 PNG on Broadway not measured: one hitch when the page opens), multi-disc games (the serial of the
+  disc loaded), a pack made with --resize (works the same, smaller file).
