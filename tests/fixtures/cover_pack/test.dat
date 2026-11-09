@@ -1,0 +1,75 @@
+clrmamepro (
+	name "Sony - PlayStation"
+	description "Sony - PlayStation - Discs (fixture)"
+	version "2026-01-01"
+)
+
+game (
+	name "Crash Bandicoot (USA)"
+	region "USA"
+	serial "SCUS-94900"
+	rom ( name "Crash Bandicoot (USA).cue" size 85 crc 00000000 )
+)
+
+game (
+	name "Final Fantasy VII (USA) (Disc 1)"
+	region "USA"
+	serial "SCUS-94163"
+	rom ( name "Final Fantasy VII (USA) (Disc 1).cue" size 85 crc 00000001 )
+)
+
+game (
+	name "Final Fantasy VII (USA) (Disc 2)"
+	region "USA"
+	serial "SCUS-94164"
+	rom ( name "Final Fantasy VII (USA) (Disc 2).cue" size 85 crc 00000002 )
+)
+
+game (
+	name "Final Fantasy VII (USA) (Disc 3)"
+	region "USA"
+	serial "SCUS-94165"
+	rom ( name "Final Fantasy VII (USA) (Disc 3).cue" size 85 crc 00000003 )
+)
+
+game (
+	name "Tomb Raider: Chronicles & More (Europe)"
+	region "Europe"
+	serial "SLES-02197"
+	rom ( name "Tomb Raider: Chronicles & More (Europe).cue" size 85 crc 00000004 )
+)
+
+game (
+	name "Demo Disc Test (Europe)"
+	region "Europe"
+	serial "SCED-04009/PR"
+	rom ( name "Demo Disc Test (Europe).cue" size 85 crc 00000005 )
+)
+
+game (
+	name "Nothing Here (Japan)"
+	region "Japan"
+	serial "SLPS-99999"
+)
+
+game (
+	name "Twin Serial (Japan)"
+	region "Japan"
+	serial "SLPM-86001, SLPM-86002"
+)
+
+game (
+	name "No Serial Game (Japan)"
+	region "Japan"
+	rom ( name "x.cue" size 1 crc 00000006 )
+)
+
+game (
+	name "Garbage Serial (Japan)"
+	serial "X"
+)
+
+game (
+	region "Japan"
+	serial "SLPS-11111"
+)

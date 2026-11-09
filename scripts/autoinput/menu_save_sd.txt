@@ -1,2 +1,2 @@
 menupage 1
-menuclick 14 1
+menuclick SaveSettingsSD 1

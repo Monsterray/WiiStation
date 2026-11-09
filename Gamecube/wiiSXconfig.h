@@ -467,6 +467,17 @@ enum controllerType
 extern char analogAuto;
 /* PadMirror 1: every pad with no controller of its own plays port 1's (SETTINGS.md) */
 extern char padMirror;
+/* ExplorerOpensOn: the tab the Load ISO / Swap CD explorer opens on (settings.ini only) */
+extern char explorerOpensOn;
+enum explorerOpensOn
+{
+	EXPLOREROPENS_LAST=0,   /* the tab last used (the default) */
+	EXPLOREROPENS_SD,
+	EXPLOREROPENS_USB,
+	EXPLOREROPENS_DVD,
+	EXPLOREROPENS_NETWORK,
+	EXPLOREROPENS_RECENT
+};
 enum analogAuto
 {
 	ANALOGAUTO_OFF=0,     /* as a DualShock: digital until the game or the ANALOG combination says otherwise */

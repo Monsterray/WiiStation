@@ -83,7 +83,7 @@ msgstr "바이오스 실행"
 msgid "Save settings"
 msgstr "설정 저장"
 
-msgid "Interpreter"
+msgid "Interp."
 msgstr "해석기"
 
 msgid "Dynarec"
@@ -128,7 +128,7 @@ msgstr "자동"
 msgid "Force 16:9"
 msgstr "강제 16:9"
 
-msgid "Force NTSC"
+msgid "NTSC"
 msgstr "강제 NTSC"
 
 msgid "Interlaced"
@@ -176,8 +176,8 @@ msgstr "PSX 컨트롤러 유형"
 msgid "Disable Rumble"
 msgstr "진동 비활성화"
 
-msgid "Standard"
-msgstr "표준"
+msgid "Digital"
+msgstr ""
 
 msgid "Analog"
 msgstr "아날로그"
@@ -185,7 +185,7 @@ msgstr "아날로그"
 msgid "Lightgun"
 msgstr "라이트건"
 
-msgid "Save Button Configs"
+msgid "Save Configs"
 msgstr "버튼 구성 저장"
 
 msgid "Auto Load Slot:"
@@ -215,10 +215,10 @@ msgstr "중간"
 msgid "low"
 msgstr "낮음"
 
-msgid "Memcard Save Device"
+msgid "Save Memcards To"
 msgstr "메모리카드 저장 장치"
 
-msgid "Auto Save Memcards"
+msgid "Memcard Autosave"
 msgstr "메모리카드 자동 저장"
 
 msgid "Save States Device"

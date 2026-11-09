@@ -65,6 +65,13 @@ void achievements_official_change_media(const char *image) __attribute__((weak))
 const char *achievements_official_status(void) __attribute__((weak));
 const char *achievements_official_set_id(void) __attribute__((weak));
 const char *achievements_official_title(void) __attribute__((weak));
+const char *achievements_official_disc_hash(void) __attribute__((weak));
+
+/* The RetroAchievements hash of the disc loaded last ("" none; Official and Local modes hash) */
+const char *achievements_disc_hash(void)
+{
+    return achievements_official_disc_hash ? achievements_official_disc_hash() : "";
+}
 unsigned achievements_official_count(void) __attribute__((weak));
 unsigned achievements_official_earned(void) __attribute__((weak));
 int achievements_official_entry(unsigned i, achievement_entry_t *e) __attribute__((weak));

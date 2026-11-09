@@ -16,13 +16,13 @@ The OPTIONS table in Gamecube/GamecubeMain.cpp is the one source. The checks:
      A label means a menu location. Grid settings need no label: the ports and Co-Op
      are drawn as one grid, not as rows.
   5. A labelled row has one choice text for each value. It has one help line.
-  6. Each ROW_CYCLE/ROW_RADIO row of Gamecube/menu/OptionsFrame.cpp names a key of the
+  6. Each ROW_CYCLE/ROW_RADIO row of Gamecube/menu/pages/OptionsPages.h names a key of the
      table, and the table gives that key a label. The menu's text is the table's.
-  7. Settings screens (Gamecube/menu/SettingsFrame.cpp): each row with a key names a key of
-     the table. A row's label override is a quoted text that differs from the table's label
-     (an override equal to the table's is redundant). A setting button names a key and a
-     value the table gives: SETTING_LABEL needs a label, SETTING_CURRENT needs choices, a
-     number or a constant needs to be in the table's range.
+  7. Settings tabs (Gamecube/menu/pages/SettingsPages.h): each row whose first button has a
+     setting names a key of the table. A row's label override is a quoted text that differs
+     from the table's label (an override equal to the table's is redundant). A setting button
+     names a key and a value the table gives: SEG_FLAG needs a label, SEG_CYCLE needs choices,
+     a SEG_SET value needs to be in the table's range.
 
 Exit 1 on any difference.
 """
@@ -317,78 +317,77 @@ def main():
             bad = 1
             print(f"{k}: no help line")
 
-    # 6. the menu frames: a row names a key that has a label in the table
+    # 6. the Options pages (Gamecube/menu/pages/OptionsPages.h): a row names a key that has a label in the table
     by_key = {r["key"]: r for r in rows}
-    frame = (REPO / "Gamecube/menu/OptionsFrame.cpp").read_text(encoding="utf-8")
+    frame = (REPO / "Gamecube/menu/pages/OptionsPages.h").read_text(encoding="utf-8")
     frame_rows = re.findall(r'\bROW_(?:CYCLE|RADIO|RADIO_FIT)\(\s*"(\w+)"', frame)
     for k in frame_rows:
         if k not in by_key:
             bad = 1
-            print(f"OptionsFrame.cpp: row key '{k}' is not in OPTIONS")
+            print(f"OptionsPages.h: row key '{k}' is not in OPTIONS")
         elif by_key[k]["label"] is None:
             bad = 1
-            print(f"OptionsFrame.cpp: row key '{k}' has no label in OPTIONS")
+            print(f"OptionsPages.h: row key '{k}' has no label in OPTIONS")
 
-    # 7. the Settings screens: row keys, label overrides, and the keyed buttons' values
+    # 7. the Settings tabs (Gamecube/menu/pages/SettingsPages.h): row labels, and each setting button's key and value
     consts = c_constants()
-    sf = (REPO / "Gamecube/menu/SettingsFrame.cpp").read_text(encoding="utf-8")
+    sf = (REPO / "Gamecube/menu/pages/SettingsPages.h").read_text(encoding="utf-8")
     sf = re.sub(r"/\*.*?\*/", "", sf, flags=re.S)
     sf = re.sub(r"(?m)^\s*//[^\n]*", "", sf)
-    row_re = re.compile(r'\{\s*eng::ROW_\w+,\s*(NULL|"\w+"),\s*(NULL|"[^"]*"|FRAME_STRINGS\[\d+\])\s*,')
+    sf = re.sub(r"(?m)^#define[^\n]*(?:\\\n[^\n]*)*", "", sf)	# the macro definitions themselves
+    # a row: kind, label (NULL or a quoted override), then its first button
+    row_re = re.compile(r'\{\s*eng::ROW_\w+,\s*(NULL|"[^"]*"),\s*\{\s*(SEG_\w+)\(\s*"(\w+)"')
     rows_keyed = overrides = 0
     for m in row_re.finditer(sf):
-        key, label = m.group(1), m.group(2)
-        if key == "NULL":
-            continue
-        k = unquote(key)
+        label, macro, key = m.group(1), m.group(2), m.group(3)
+        if macro.startswith("SEG_ACT") or macro == "SEG_PICK":
+            continue	# the first button is an action: its name is not a setting
         rows_keyed += 1
-        if k not in by_key:
+        if key not in by_key:
             bad = 1
-            print(f"SettingsFrame.cpp: row key '{k}' is not in OPTIONS")
+            print(f"SettingsPages.h: row key '{key}' is not in OPTIONS")
             continue
         if label == "NULL":
-            if by_key[k]["label"] is None:
+            if by_key[key]["label"] is None:
                 bad = 1
-                print(f"SettingsFrame.cpp: row key '{k}' has no label in OPTIONS and no override")
-        elif label.startswith('"'):
-            overrides += 1
-            if unquote(label) == by_key[k]["label"]:
-                bad = 1
-                print(f"SettingsFrame.cpp: row '{k}' overrides the label with the table's own, remove it")
+                print(f"SettingsPages.h: row key '{key}' has no label in OPTIONS and no override")
         else:
-            bad = 1
-            print(f"SettingsFrame.cpp: row '{k}' has a string-table label; a keyed row takes the table's or an override")
-    button_re = re.compile(r'\{\s*NULL,\s*BTN_\w+,\s*[^,]+,\s*Func_\w+,\s*Func_\w+,\s*"(\w+)",\s*([^}]+?)\s*\}')
+            overrides += 1
+            if unquote(label) == by_key[key]["label"]:
+                bad = 1
+                print(f"SettingsPages.h: row '{key}' overrides the label with the table's own, remove it")
+    # a button: SEG_SET*(key, value...), SEG_FLAG*(key...), SEG_CYCLE*(key...)
+    button_re = re.compile(r'\b(SEG_(?:SET|FLAG|CYCLE)\w*)\(\s*"(\w+)"\s*(?:,\s*([^,)]+))?')
     buttons = 0
     for m in button_re.finditer(sf):
-        key, val = m.group(1), m.group(2)
+        macro, key, val = m.group(1), m.group(2), m.group(3)
         buttons += 1
         if key not in by_key:
             bad = 1
-            print(f"SettingsFrame.cpp: button key '{key}' is not in OPTIONS")
+            print(f"SettingsPages.h: button key '{key}' is not in OPTIONS")
             continue
         r = by_key[key]
-        if val == "SETTING_LABEL":
+        if macro.startswith("SEG_FLAG"):
             if r["label"] is None:
                 bad = 1
-                print(f"SettingsFrame.cpp: button '{key}' shows a label the table does not have")
-        elif val == "SETTING_CURRENT":
+                print(f"SettingsPages.h: button '{key}' shows a label the table does not have")
+        elif macro.startswith("SEG_CYCLE"):
             if r["choices"] is None:
                 bad = 1
-                print(f"SettingsFrame.cpp: button '{key}' is a cycle, the table has no choices")
+                print(f"SettingsPages.h: button '{key}' is a cycle, the table has no choices")
         else:
             try:
-                v = evaluate(val, consts)
+                v = evaluate(val.strip(), consts)
             except ValueError:
                 bad = 1
-                print(f"SettingsFrame.cpp: button '{key}' value '{val}' is not a constant")
+                print(f"SettingsPages.h: button '{key}' value '{val}' is not a constant")
                 continue
             if r["min"] is None or not (r["min"] <= v <= r["max"]):
                 bad = 1
-                print(f"SettingsFrame.cpp: button '{key}' value {val} is outside the table's range")
+                print(f"SettingsPages.h: button '{key}' value {val} is outside the table's range")
             elif r["choices"] is None or not (0 <= v - r["min"] < r["choices"]):
                 bad = 1
-                print(f"SettingsFrame.cpp: button '{key}' value {val} has no choice text in the table")
+                print(f"SettingsPages.h: button '{key}' value {val} has no choice text in the table")
 
     print(f"checked {len(rows)} keys, {checked} ranges, {labelled} menu labels, {len(frame_rows)} frame rows, "
           f"{rows_keyed} settings rows ({overrides} overrides), {buttons} setting buttons")

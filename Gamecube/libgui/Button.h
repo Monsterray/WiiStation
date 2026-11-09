@@ -27,8 +27,11 @@
 #define BTN_DEFAULT menu::Button::BUTTON_DEFAULT
 #define BTN_A_NRM menu::Button::BUTTON_STYLEA_NORMAL
 #define BTN_A_SEL menu::Button::BUTTON_STYLEA_SELECT
+#define BTN_STD menu::Button::BUTTON_STANDARD
 
 typedef void (*ButtonFunc)( void );
+/* A click that says which button it came from: ctx is what the page registered, tag the button's number in it. */
+typedef void (*ButtonCtxFunc)( void *ctx, int tag );
 
 namespace menu {
 
@@ -40,10 +43,20 @@ public:
 	void setActive(bool active);
 	bool getActive();
 	void setSelected(bool selected);
+	/* BUTTON_STANDARD: a cycle button shows an arrow at each end (Docs/MENU_PLAN.md 1.3). */
+	void setArrows(bool arrows) { this->arrows = arrows; }
+	/* BUTTON_STANDARD: draw the style A normal-button art (a cycle, an action) instead of the selectable one. */
+	void setPlain(bool plain) { this->plain = plain; }
+	/* Changes the style after construction, between BUTTON_STYLEA_NORMAL, BUTTON_STYLEA_SELECT and
+	 * BUTTON_STANDARD (the images the constructor sets for each). For one widget that is shown
+	 * on a standard page and on an older one (OptionsFrame). Not for BUTTON_DEFAULT. */
+	void setStyle(int style);
 	void setReturn(ButtonFunc returnFn);
 	void doReturn();
 	void setClicked(ButtonFunc clickedFn);
 	void doClicked();
+	/* Click with a context: replaces setClicked's function; one handler then serves every row of a page. */
+	void setClickedCtx(ButtonCtxFunc fn, void *ctx, int tag) { ctxFunc = fn; ctxData = ctx; ctxTag = tag; }
 	void setText(char** strPtr);
 
 	/* Let the button take its size from its own label, on either axis or both. The label
@@ -85,6 +98,7 @@ public:
 	void setFontSize(float size);
 	void setLabelMode(int mode);
 	void setLabelScissor(int scissor);
+	void setLabelInsetRight(int inset);	/* -1 (default): the same as the left scissor */
 	void setNormalImage(Image *image);
 	void setFocusImage(Image *image);
 	void setSelectedImage(Image *image);
@@ -96,6 +110,15 @@ public:
 	bool canTakeFocus();
 	void setButtonColors(GXColor *colors);
 	void setLabelColor(GXColor color);
+	/* A label colour for while the button has focus (the explorer's dimmed Recent row on the focus bar);
+	 * clearLabelFocusColor goes back to the one colour. */
+	void setLabelFocusColor(GXColor color) { labelFocusColor = color; labelFocusSet = true; }
+	void clearLabelFocusColor() { labelFocusSet = false; }
+	/* A hook for a direction press while this button has focus (the explorer's rows: Down on the last
+	 * visible row scrolls the list). It runs before the focus links; true means the press was used and
+	 * focus stays. NULL (the default) leaves every other button as it was. */
+	typedef bool (*NavFunc)(Button *self, int direction);
+	void setNavFunc(NavFunc fn) { navFunc = fn; }
 	enum LabelMode
 	{
 		LABEL_CENTER=0,
@@ -108,18 +131,29 @@ public:
 	{
 		BUTTON_DEFAULT=0,
 		BUTTON_STYLEA_NORMAL,
-		BUTTON_STYLEA_SELECT
+		BUTTON_STYLEA_SELECT,
+		/* The menu standard (Docs/MENU_PLAN.md 1.2): today's style A art (the same images, colors and
+		 * label), square corners and any height (the constructor keeps the height it is given; style A
+		 * forces 56). The images are the select set, or the normal set after setPlain(true). */
+		BUTTON_STANDARD
 	};
 
 private:
+	void setImages();
 	Component* followFocus(int direction, int buttonsPressed);
-	bool active, selected;
+	bool active, selected, arrows, plain;
+	Image	*plainImage;
+	Image	*plainFocusImage;
 	Image	*normalImage;
 	Image	*focusImage;
 	Image	*selectedImage;
 	Image	*selectedFocusImage;
 	char** buttonText;
-	int buttonStyle, labelMode, labelScissor;
+	int buttonStyle, labelMode, labelScissor, labelInsetRight;
+	bool labelFocusSet;		/* setLabelFocusColor was called: labelFocusColor shows while focused */
+	GXColor labelFocusColor;
+	NavFunc navFunc;
+	int labelInsetR() const { return labelInsetRight < 0 ? labelScissor : labelInsetRight; }
 	unsigned long StartTime;
 	unsigned scrollKey;   /* hash of the text the scroll time runs for, and whether it was scrolling */
 	bool scrollOn;
@@ -130,6 +164,9 @@ private:
 	float minWidth, maxWidth, labelScale;   /* labelScale < 1: the label shrunk to fit maxWidth */
 	GXColor	focusColor, inactiveColor, activeColor, selectedColor, labelColor;
 	ButtonFunc clickedFunc, returnFunc;
+	ButtonCtxFunc ctxFunc;
+	void *ctxData;
+	int ctxTag;
 
 };
 

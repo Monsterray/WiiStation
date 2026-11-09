@@ -29,6 +29,7 @@ public:
 	OptionsFrame();
 	~OptionsFrame();
 	void activateSubmenu(int submenu);
+	int logoSpot() const;
 	void drawChildren(menu::Graphics& gfx);
 
 	/* activateSubmenu() takes one of these: which page to show. The tab a page
@@ -49,5 +50,8 @@ public:
 	void showTab(int tab);	// a tab of the Advanced pages was pressed
 
 };
+
+/* A script's "menuclick <name> <n>" on the Options page on show (SettingsFrame_ScriptClick falls back to it). */
+bool OptionsFrame_ScriptClick(const char *name, int n);
 
 #endif

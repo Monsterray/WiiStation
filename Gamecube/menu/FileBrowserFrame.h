@@ -35,18 +35,17 @@ public:
 	enum FilebrowserMode
 	{
 		FILEBROWSER_LOADISO=1,
-		FILEBROWSER_SWAPCD,
-		FILEBROWSER_ACCOUNT,   /* a Mii's RetroAchievements account (fileBrowserFrame_OpenAccounts) */
-
+		FILEBROWSER_SWAPCD
 	};
-
-private:
-	u16 previousButtonsGC[4];
-	u32 previousButtonsWii[4];
-	u32 previousButtonsGCHid[4];
 
 };
 
 void fileBrowserFrame_AutoBootFile();
+
+/* The explorer's source tab: 0 SD, 1 USB, 2 DVD, 3 Network, 4 Recent (set by the Func_LoadFrom* sources; the last one used). */
+extern int explorerSource;
+
+/* Opens the explorer for Load ISO (FILEBROWSER_LOADISO) or Swap CD, on explorerSource. */
+void explorerOpen(int mode);
 
 #endif

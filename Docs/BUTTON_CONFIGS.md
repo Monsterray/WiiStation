@@ -41,7 +41,7 @@ The names come from `Gamecube/buttonfiles.c`. The identifiers are in each driver
 | Action | Code | What it copies | Disk |
 |---|---|---|---|
 | Configure Buttons, Save (any slot) | `Func_SaveConfig` (ConfigureButtonsFrame.cpp) | Live mapping to the chosen slot in RAM, then `saveAllButtonConfigs` | Yes: all slot files and the Game file |
-| Settings, Save Button Configs: SD or USB | `Func_SaveButtonsSD`, `Func_SaveButtonsUSB` (SettingsFrame.cpp) | Calls `saveAllButtonConfigs`, same as Save | Yes: all slot files and the Game file |
+| Settings, Save Configs: SD or USB | `Func_SaveButtonsSD`, `Func_SaveButtonsUSB` (SettingsFrame.cpp) | Calls `saveAllButtonConfigs`, same as Save | Yes: all slot files and the Game file |
 | One writer | `saveButtonConfigs` (GamecubeMain.cpp) | Every slot of every type, then the Game file | Yes |
 | Load | `Func_LoadConfig` | Slot (or Game slot) to the live mapping | No |
 | Restore Default | `Func_DefaultConfig` | Built-in mapping to the live mapping | No |
@@ -54,7 +54,7 @@ The names come from `Gamecube/buttonfiles.c`. The identifiers are in each driver
 - `buttonDevice` holds "usb" or "sd". Every Save writes to it. Every set read sets it.
 - At boot it is the device the set came from. A USB start reads SD only when SD has a full set and USB
   does not. Then it writes SD.
-- Settings, Save Button Configs (SD or USB) sets it to the row's device and writes all files there.
+- Settings, Save Configs (SD or USB) sets it to the row's device and writes all files there.
   This is the only place that chooses a device by hand.
 - A set is read from one device only. `button_read_device` picks the preferred device when it has
   every file. Otherwise it picks the other device when that one has every file. Otherwise it picks the

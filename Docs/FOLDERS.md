@@ -13,11 +13,13 @@ page says what goes where, for players and for anyone running the test tools.
 | Players | `wiistation/players.ini` | (5.18.0, 5.18.1: `[Players]` in `settings.ini`) | The Mii seated on each port, the Official Mii and the account links (`[Accounts]`); the Players menu writes it when it closes. Old seat keys in `settings.ini` are still read. |
 | Mii accounts | `wiistation/achievements/ra/<name>.ini` | (new in 5.19.0) | One RetroAchievements account per file, lines as in `ra_account.ini`; a Mii's Edit page links one by its name. |
 | Local unlocks of a RetroAchievements game | `wiistation/achievements/ra_local/<game id>.unlocks` | (new in 5.19.0) | Official mode: the Miis besides the Official one earn the game's set here, as in a Local journal (`Docs/ACHIEVEMENTS.md`). Made by WiiStation. |
-| One game's settings | `wiistation/settings/<serial>.ini` | `wiistation/settings/<serial>.cfg` | Written by Settings > General > Save Settings > **This Game**: only the settings that differ from `settings.ini`, which the game reads first (SETTINGS.md 1.4). 5.6.1 to 5.13.1 wrote `.cfg` (and never read it); the `.cfg` is read when there is no `.ini`. |
+| One game's settings | `wiistation/settings/<serial>.ini` | `wiistation/settings/<serial>.cfg` | Written by Settings > System > Save Settings > **This Game**: only the settings that differ from `settings.ini`, which the game reads first (SETTINGS.md 1.4). 5.6.1 to 5.13.1 wrote `.cfg` (and never read it); the `.cfg` is read when there is no `.ini`. |
 | Memory cards | `wiistation/saves/*.mcd` | `wiisxrx/saves/` | Same file format: copy them across. |
 | Save states | `wiistation/savestates/` | `wiisxrx/savestates/` | States from 5.5 and older may not load in newer versions. |
 | BIOS | `wiistation/bios/SCPH1001.BIN` | `wiisxrx/bios/` | Also `SCPH5501`, `SCPH1000`, `SCPH5500` (NTSC) and `SCPH1002`, `SCPH5502` (PAL). |
 | Button layouts | `wiistation/control*.cfg` | `wiisxrx/control*.cfg` | Same format (version 1): copy them across. |
+| Recent games | `wiistation/recent.ini` | - | The last 20 games loaded from the explorer, newest first. See SETTINGS.md 1.6. |
+| Cover art | `wiistation/covers/` (`usb:` too) | - | A pack made by `scripts/cover_pack.py` (`index.txt` plus the images); the explorer shows a game's cover from it. |
 | Games | `wiistation/isos/` | `wiisxrx/isos/` | Or leave them where they are and list the folder in `RomDirSD` / `RomDirUSB` (below). |
 | Fonts, languages, default button maps | `wiistation/fonts`, `lang`, `controllers` | `wiisxrx/fonts` | Come with the release zip; do not copy old ones. |
 | Debug logs | `wiistation/debuglogs/` | - | Only the debug app, WiiStation (debug), writes here (60 MB at most): [DEBUG_PLAY.md](DEBUG_PLAY.md). |

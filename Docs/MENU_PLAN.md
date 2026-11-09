@@ -47,14 +47,14 @@ They move onto the engine (one adapter, one input step) without changing a pixel
 
 - **Label edge: x 248 on every form, never moving** (flipping tabs must not shift the labels). Labels
   are right-aligned to it and at most 224 px wide (the host check). Two Settings labels are shortened
-  for it: Memcard Save Device -> **Save Memcards To**, Auto Save Memcards -> **Memcard Auto Save**.
+  for it: Memcard Save Device -> **Save Memcards To**, Auto Save Memcards -> **Memcard Autosave**.
 - **Control column**: x 264 to x 616 (352).
 - **Two densities**: **Regular** (button 50 high, pitch 56, 6 rows; the default) and **Compact** (40
   high, pitch 46, 7 rows). **Text rows** for readouts: 28 high, pitch 32, 10 rows. A page with more
   rows becomes two pages or a tab, never a third pitch.
 - **Widths come from the text**: the engine measures the text with the menu font and rounds up to a
   step of 8 px. No page types a width. A row that does not fit is a layout error (the host check fails),
-  not a smaller font and not a Cycle.
+  the fix is shorter words, never a tighter padding (Monty, 2026-11-04), not a smaller font and not a Cycle.
 - **Sub-page buttons** (Advanced, Achievements, Memory; Configure Input, Configure Buttons) are the
   page's **first row**, centered, with no label: they act like sub-tabs.
 - **Corners are square** everywhere.
@@ -75,7 +75,7 @@ touch** anything (gap 12).
 | Buttons | actions, gap 12, from the control column (Save Settings: SD, USB, This Game) or centered on x 320 in a row of their own (sub-pages) |
 | Toggle + action | a Toggle and an action button after a gap of 12 (Boot Through BIOS + Execute BIOS) |
 | Readout | label and value text on text rows, not focusable |
-| List | rows 36 high, pitch 40; a scroll bar; on file lists the **format tag is always rightmost** and the disc count left of it |
+| List | rows 34 high, pitch 34 (the rows touch, 8 of them: STD_LIST_ROWS); a scroll bar; on file lists the **format tag is always rightmost** and the disc count left of it |
 | Warnings | an amber band under a readout, **only when one is in effect** |
 
 Focus is the salmon fill; the current value is the cyan underline (as today).
@@ -87,7 +87,7 @@ Focus is the salmon fill; the current value is the cyan underline (as today).
 | A. Form with tabs | Settings (5 tabs), Advanced (CPU, GPU, SPU, CD, Input) | rows on the grid |
 | B. Form with a title | Advanced Sound, Advanced Graphics, Memory, Achievements settings | type A with a centered title |
 | C. Action menu | Main, Current ISO (today's look kept), Load ROM (replaced by the explorer's tabs) | as today |
-| D. ISO explorer (full screen) | Load ISO from every source | source tabs (SD, USB, DVD, Network, Recent); the path and a count; a letter strip to jump; the list (7 rows, folders with an icon, ".." up, long names cut with "...", the disc count, the format tag rightmost; Recent shows when it was played); a strip with the focused game's facts (cover, format, size, region, last played, achievements, save states) |
+| D. ISO explorer (full screen) | Load ISO from every source | source tabs (SD, USB, DVD, Network, Recent); the path and a count; a letter strip to jump; the list (8 rows touching, folders with an icon, ".." up, long names cut with "...", the disc count, the format tag rightmost; Recent shows when it was played); a strip with the focused game's facts (cover, format, size, region, last played, achievements, save states) |
 | E. Achievements book (full screen) | In Progress / Locked / Earned (+ Leaderboards when the set has them), the detail page | today's layout, polished: the player line (Mii, game, Player n of m, earned, points, one bar), small tabs, six two-line rows (tile, name, description, points; progress, date or rarity under the points); the detail: tile and the full title across the top, text left, unlock picture 296 x 222 right; a hint line |
 | F. Readout | ISO Info, USB Pad Test | text rows, then warnings only when in effect |
 | G. Picture editor | Configure Buttons, Configure Input, Customize Co-Op | **the body stays as today**; only Configure Buttons' top two lines change (below) |
@@ -97,9 +97,9 @@ Focus is the salmon fill; the current value is the cyan underline (as today).
 
 The Achievements-off page has no title: the message, and one centered button to the settings.
 
-**Settings tabs** (agreed): **Video** (Advanced; Screen Mode, Filters, Frame Rate, Show FPS, Frame Skip),
-**Controls** (Configure Input + Configure Buttons; PSX Pad Type, Rumble, Light Gun, Auto Load Slot, Save
-Button Configs), **Saves** (memory cards and save states only: Memcard Auto Save, Save Memcards To,
+**Settings tabs** (agreed): **Video** (Advanced; Screen Mode 4:3 | 16:9 | Force 16:9, Display Interlaced + 240p, Frame Rate cycle + NTSC (was Force NTSC), Filters Off | Near | Bilinear + Trap, Show FPS; Regular, 6 rows, option B chosen 2026-11-04 on `sheet_6_video_options.png`: Deflicker moves to Advanced Graphics beside Deflicker Level, Frame Skip to Advanced > GPU; no setting removed),
+**Input** (the tab keeps the name Input, Monty 2026-11-04; Configure Input + Configure Buttons; PSX Pad Type Digital | Analog | Stick Pad (was Stick D-pad), Rumble, Light Gun, Auto Load Slot, Save
+Configs (was Save Button Configs)), **Saves** (memory cards and save states only: Memcard Autosave, Save Memcards To,
 Memcard Type, Save States Device), **Audio** (Advanced; Enable, Sync, Interpolation, Sound Driver),
 **System** (was General: Advanced, Achievements, Memory; Select BIOS, Boot Through BIOS + Execute BIOS,
 Save / Load Settings, Language).
@@ -111,6 +111,8 @@ Save on Default overwrites the default config. **Built-in** at the right puts ba
 (proposed: once Default can be overwritten, something has to restore it).
 
 ### 1.5 What the code does today (inventory, 2026-11-04)
+
+*A snapshot of 2026-11-04, before the forms rebuild. The current state, with line counts and where each table lives, is Docs/MENU_FORMS_PLAN.md section 6.*
 
 **The engine** (`MenuEngine.h` 441 lines, `MenuEngine.cpp` 1071): `Page { tabs | title, rows,
 help, logo, labelCx, labelDy, rowDy, rowY0, overrides, freeButtons, freeTexts, freeLinks, wrap,
@@ -154,21 +156,45 @@ buttons on Settings). The logo spot is chosen in two places (`Page.logo` and `Me
 twice; pad polling is copied in 6 frames; spare Settings buttons are kept by index (a spare FPS
 Limit, 3 audio Yes/No, 5/6/58/64/65/66, Test USB Pad) because `menuclick` names indices.
 
-**Cost:** `MenuContext.cpp:77-88` makes all 12 frames and their widgets at start; Configure
-Buttons' per-frame layout (above). Not measured yet: `IPLFont` text conversion per draw, the
-menu's MEM1/MEM2 use (`Docs/MEMORY_MAP.md`).
+**Cost (audit 2026-11-04, by code reading; counts not yet measured in Dolphin):**
+- `MenuContext.cpp:77-88` makes all 12 frames and their widgets at start. Settings makes 85 buttons and
+  its handlers use `FRAME_BUTTONS[i].button` for any i (`setSelected`, 20+ places), so Settings stays
+  eager until step 6 (bindings).
+- Configure Buttons per frame: `cbRelink()` (`ConfigureButtonsFrame.cpp:473`) runs every frame
+  (`updateFrame` -> `activateSubmenu(activePad)`, 658-660) but lays out again only when the inactive
+  mask changes. Still every frame: `activateSubmenu` (a `sprintf` of the title, string copies for about
+  40 buttons, 28 `isVisible`/`getActive` reads) and `fitMappingButtons` (295, from `drawChildren` 669):
+  `fitToLabel()` on 22 mapping buttons, one `IplFont::getStringWidth` each.
+- `IPLFont` per string: `getStringWidth` and `drawString` (`IPLFont.cpp:646, 865`) each call
+  `charToWideChar(gettext(s))` = a gettext lookup + `new wchar_t[n]` + `mbstowcs` + `delete[]`. A
+  centered `Button` label (`Button.cpp` ~385-395) calls both on every draw: 2 heap allocations, 2
+  gettext, 2 `mbstowcs` per button per frame. Pixel-neutral fixes: a stack buffer for short strings in
+  `getStringWidth`, or a width cache (key: text + scale; cleared on a language change). Not done.
+- The debug layout log is copied (`CurrentRomFrame.cpp:166-187`, `OptionsFrame.cpp logLayoutProblems`);
+  one `glue::logProblems(who, page, layout)` replaces both (PERF_PROF only).
+- Not read: FocusManager, MessageBox internals, TextBox, Frame, the bodies of Players / Achievements /
+  USB Pad Test, the menu's MEM1/MEM2 use (`Docs/MEMORY_MAP.md`).
 
-**Hazards still open:** `Button` forces height 56; input polled in draw code (Settings, Options,
-FileBrowser, Main, Players, Achievements, USB Pad Test); nested draw loops (`Func_PlayGame`,
-MessageBox). Not checked yet: the pointer clicking hidden-but-active buttons (CursorManager), the
-focus loop guard in `Button.cpp:383-420`.
+**Hazards (audit):**
+- `Button` forces height 56 for style A (`Button.cpp:75,82`); every free-button frame calls `setBounds`
+  after the constructor to undo it. The standard's 40 and 30 high rows need `Button` to take any height.
+- Pointer on hidden buttons: no hazard; `CursorManager.cpp:158,163` skips a component that is not
+  visible and a button that is not active.
+- The focus loop guard exists (`Button.cpp` ~383-420: FOCUS_MAX_SKIP 32, FOCUS_MAX_DEPTH 16).
+- Nested draw loops: `MessageBox.cpp:185,214,317`; `MainFrame.cpp:320` (`Func_PlayGame` buttonHeld)
+  and 355 (the achievements loading wait).
+- Pad polling is copied (lines using `PAD_`/`WPAD_`): FileBrowserFrame 16, PlayersFrame 11,
+  AchievementsFrame 8, UsbPadTestFrame 6, MainFrame 4, CustomizeCoop 1. `glue::tabShoulder` is the one
+  shared tab/page reader already.
+- `menuclick N` indexes `FRAME_BUTTONS`, which pins Settings' eager buttons and its spare ones.
+- The logo spot is set in two places: `Page.logo` and `MenuContext.cpp LOGO_BOTTOM_FRAMES`.
 
 ### 1.5b Review of the mock-ups (2026-11-04, three rounds)
 
 **Monty's rules**, in 1.1-1.4 above. Round 2: no button hints; square corners; arrows only for values
 that are cycled; centered button rows; most-changed settings first; Main, Current ISO, Players and the
 Quit question unchanged; centered titles; ISO Info warnings only when in effect. Round 3: the label edge
-never moves; Save Button Configs stays in Controls (Saves is memory cards and save states only);
+never moves; Save Configs stays in Input (Saves is memory cards and save states only);
 buttons that act alone never touch; sub-page buttons on top; the book keeps today's layout, polished,
 full screen with a hint line; the explorer takes every idea and the whole screen; the format tag
 rightmost with the disc count left of it; G2 with Save/Load and saving over the default config; the tab
@@ -189,6 +215,8 @@ recent list, last-played record or cover picture; the region comes from the name
 **Open:** the two shortened Saves labels; the Built-in button on Configure Buttons.
 
 ### 1.6 The work, in steps that each ship
+
+*Status: superseded by Docs/MENU_FORMS_PLAN.md section 6.*
 
 1. **Audit** what the inventory did not read (libgui Button, CursorManager, FocusManager,
    IPLFont, MessageBox, TextBox, Frame; MenuContext; Players, Achievements, USB Pad Test; the host
@@ -435,7 +463,7 @@ has nothing to give leaves it zeroed, which is what the file holds today, so not
   and draw it with `Graphics::drawImage` from `CurrentRomFrame::drawChildren`.
 
 The Current ROM screen has room at roughly x 520–650, y 240–340, to the right of the Load
-State and Save State buttons. `scripts/menu_text_width.py` will tell you if that runs into
+State and Save State buttons. the host tests (`sh tests/menu_engine/run.sh`) tell you if that runs into
 the spinning logo.
 
 ### Cost and order

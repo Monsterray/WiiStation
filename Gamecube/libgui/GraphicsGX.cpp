@@ -817,6 +817,21 @@ void Graphics::fillRect(int x, int y, int width, int height)
 	GX_End();
 }
 
+void Graphics::fillTriangle(int x1, int y1, int x2, int y2, int x3, int y3)
+{
+	GX_Begin(GX_TRIANGLES, GX_VTXFMT0, 3);
+		GX_Position3f32((float) x1,(float) y1, depth );
+		GX_Color4u8(appliedColor[0].r, appliedColor[0].g, appliedColor[0].b, appliedColor[0].a);
+		GX_TexCoord2f32(0.0f,0.0f);
+		GX_Position3f32((float) x2,(float) y2, depth );
+		GX_Color4u8(appliedColor[1].r, appliedColor[1].g, appliedColor[1].b, appliedColor[1].a);
+		GX_TexCoord2f32(0.0f,0.0f);
+		GX_Position3f32((float) x3,(float) y3, depth );
+		GX_Color4u8(appliedColor[2].r, appliedColor[2].g, appliedColor[2].b, appliedColor[2].a);
+		GX_TexCoord2f32(0.0f,0.0f);
+	GX_End();
+}
+
 void Graphics::drawImage(int textureId, int x, int y, int width, int height, float s1, float s2, float t1, float t2)
 {
 	//Init texture here or in calling code?

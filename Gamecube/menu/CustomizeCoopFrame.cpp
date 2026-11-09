@@ -178,12 +178,6 @@ static void layoutCoop(void)
 	eng::linkFocus(COOP_PAGE, COOP_LAYOUT);
 }
 
-/* The button drawn for a layout control. */
-static menu::Button *coopButtonOf(const eng::Control &c)
-{
-	return buttonAt(int(&c - COOP_LAYOUT.c));
-}
-
 CustomizeCoopFrame::CustomizeCoopFrame()
 {
 	for (int i = 0; i < NUM_PRESETS; i++)
@@ -195,21 +189,16 @@ CustomizeCoopFrame::CustomizeCoopFrame()
 		buttonStrings[i] = indicatorNames[i - NUM_PRESETS];
 	layoutCoop();
 
+	pool = new menu::glue::Pool(this, NUM_FRAME_BUTTONS);
 	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
 	{
 		const eng::Control &c = COOP_LAYOUT.c[COOP_LAYOUT.freeCtl[i]];
-		buttons[i] = new menu::Button(BTN_A_SEL, &buttonStrings[i], c.rect.x, c.rect.y, c.rect.w, c.rect.h);
+		buttons[i] = pool->button(eng::ROLE_FREE, -1, i, BTN_A_SEL, &buttonStrings[i], c.rect.x, c.rect.y, c.rect.w, c.rect.h,
+		                          i < NUM_PRESETS ? presetFuncs[i] : toggleFuncs[i - NUM_PRESETS],
+		                          Func_ReturnFromCustomizeCoopFrame);
 		buttons[i]->setBounds(c.rect.x, c.rect.y, c.rect.w, c.rect.h);   /* style A makes itself 56 high otherwise */
-		buttons[i]->setActive(true);
-		buttons[i]->setClicked(i < NUM_PRESETS ? presetFuncs[i] : toggleFuncs[i - NUM_PRESETS]);
-		buttons[i]->setReturn(Func_ReturnFromCustomizeCoopFrame);
-		add(buttons[i]);
-		menu::Cursor::getInstance().addComponent(this, buttons[i], c.rect.x, c.rect.x + c.rect.w,
-		                                         c.rect.y, c.rect.y + c.rect.h);
 	}
-	/* The engine's links (linkFocus, FOCUS_GEOMETRY). */
-	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
-		menu::glue::linkFocus(buttons[i], COOP_LAYOUT, COOP_LAYOUT.c[COOP_LAYOUT.freeCtl[i]], coopButtonOf);
+	pool->link(COOP_LAYOUT);	/* the engine's links (linkFocus, FOCUS_GEOMETRY) */
 	const eng::Control &t = COOP_LAYOUT.c[COOP_LAYOUT.title];
 	title = new menu::TextBox(&titlePtr, t.ax, t.ay, 1.0f, true);
 	add(title);
@@ -222,11 +211,7 @@ CustomizeCoopFrame::CustomizeCoopFrame()
 CustomizeCoopFrame::~CustomizeCoopFrame()
 {
 	delete title;
-	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
-	{
-		menu::Cursor::getInstance().removeComponent(this, buttons[i]);
-		delete buttons[i];
-	}
+	delete pool;
 }
 
 void CustomizeCoopFrame::activateSubmenu(int submenu)

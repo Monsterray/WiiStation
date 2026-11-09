@@ -1,0 +1,5 @@
+# Players > pick up a Mii > Edit slot > Account list; down twice, back. Page 18 = Players.
+# scripts/wsx.sh menu NAME --dol A.dol [--dol2 B.dol] --input scripts/autoinput/account_walk.txt --sd tests/fixtures/players_accounts
+1 0000
+menupage 18
+menukeys 60 A . D . A . A . . . D . . D . . R . . B . . .
