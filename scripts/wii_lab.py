@@ -42,7 +42,7 @@ REPO = pathlib.Path(__file__).resolve().parents[1]
 # runs stage them; it used to read the user's own Dolphin folder, which lacks the converted formats
 LIBRARY = pathlib.Path(os.environ.get("WSX_LIBRARY", "C:/wiistation-lib")) / "games"
 BASE_SETTINGS = "gpuPlugin = 2\nFPS = 1\nPadType1 = 1\nPadAutoAssign = 0\n"
-RESULTS = ["perf.log", "vramio.log", "ptrace.log", "atrace.log", "lab.log", "tty.log", "dvd.log", "hb.log",
+RESULTS = ["perf.log", "menu.log", "vramio.log", "ptrace.log", "atrace.log", "lab.log", "tty.log", "dvd.log", "hb.log",
            "xfb.bin", "vram.bin"]   # a "dump <vblank>": the TV picture and VRAM then
 
 
@@ -210,6 +210,9 @@ def main():
     ap.add_argument("--smb-from", type=existing_file, default=None,
                     help="a settings.ini with the SMB share login: its smb* and RomDir* lines go to the "
                          "Wii's settings, unread and unprinted (not into run.info)")
+    ap.add_argument("--autoinput", type=existing_file, default=None,
+                    help="the run's autoinput.txt (a menu walk: menukeys/menupage/menutour lines; with a chain of no games "
+                         "WiiStation ends the run when the script does, writes menu.log and goes back to HBC)")
     ap.add_argument("--send-isos", action="store_true", help="send the chain's game folders from the library")
     ap.add_argument("--put", action="append", default=[], metavar="LOCAL=PATH",
                     help="a small file (under 1 MB) for sd:/wiistation/PATH, e.g. a fixture achievement set; repeatable")
@@ -247,6 +250,8 @@ def main():
     shutil.copy(a.chain, run / "chain.txt")
 
     scripts, folders, games = chain_files(a.chain)
+    if games == 0:
+        RUN_DIR = None   # a menu walk has no perf block to triage
     settings = BASE_SETTINGS + "".join(
         f"{k.strip()} = {v.strip()}\n" for k, v in (kv.split("=", 1) for kv in a.set.split(",") if "=" in kv))
     # the share login: only into what the Wii gets, never into `settings` (run.info prints it)
@@ -259,7 +264,7 @@ def main():
         settings += "Achievements = 0\nAchievementSpectator = 1\n"
     puts = [("autoboot.txt", a.chain.read_bytes()),
             ("lab_settings.ini" if protected else "settings.ini", (settings + share).encode()),
-            ("autoinput.txt", b"")]
+            ("autoinput.txt", a.autoinput.read_bytes() if a.autoinput else b"")]
     for f in scripts:
         p = REPO / "scripts/autoinput" / f
         if not p.is_file():
@@ -371,7 +376,14 @@ def main():
     print(f"results: {', '.join(got)} -> {run}")
     if incomplete:
         sys.exit(1)
-    subprocess.run([sys.executable, str(REPO / "scripts/chain_table.py"), str(run)])
+    menulog = run / "menu.log"
+    if games == 0:   # a menu walk: WiiStation's own report is the result
+        print(menulog.read_text(errors="replace").strip() if menulog.is_file() else "no menu.log came back")
+        if not menulog.is_file() or " ok=1 " not in menulog.read_text(errors="replace") + " ":
+            hbc_ready(a.wii, 90)
+            sys.exit(2)
+    else:
+        subprocess.run([sys.executable, str(REPO / "scripts/chain_table.py"), str(run)])
     subprocess.run([sys.executable, str(REPO / "scripts/benchdb.py"), "ingest", str(run)],
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)   # baselines/bench.sqlite
     print("HBC ready for the next test" if hbc_ready(a.wii, 90) else "HBC did not come back within 90 s")

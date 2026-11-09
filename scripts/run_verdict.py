@@ -62,6 +62,14 @@ def game_rows(d):
     return out
 
 
+def menu_report(d):
+    """The one line WiiStation's lab menu walk writes (menu.log), or None."""
+    try:
+        return open(os.path.join(d, 'menu.log'), encoding='utf-8', errors='replace').read().strip() or None
+    except OSError:
+        return None
+
+
 def is_fast(d):
     """A --fast run (Dolphin unthrottled): its wall-clock speed is not the game's speed."""
     try:
@@ -98,8 +106,16 @@ def main():
     rc = read_rc(d)
     reasons = triggers(d, rc) if a.menu_rc is None else []
     rows = game_rows(d) if a.menu_rc is None else []
+    menu = menu_report(d) if a.menu_rc is None else None
+    if menu:   # a lab menu walk (wii_run.py --menu): no game, no perf.log; WiiStation's own report
+        reasons = [r for r in reasons if not r.startswith('no perf')]
+        rows = []
     status = 'OK'
-    if a.menu_rc is not None:
+    if menu:
+        if ' ok=1 ' not in menu + ' ':
+            reasons.append('the walk did not end at its script: ' + menu[:100])
+        status = 'CHECK' if reasons else 'OK'
+    elif a.menu_rc is not None:
         status = {0: 'OK', 1: 'DIFFERS', 2: 'CHECK'}.get(a.menu_rc, 'NO-RESULTS')
         if a.menu_rc == 2:
             reasons.append('the walk did not move the menu (menukeys ignored?)')
@@ -111,7 +127,7 @@ def main():
         status = 'CHECK'
 
     fast = is_fast(d)
-    games_txt = ''
+    games_txt = menu.replace('menu walk: ', 'menu walk ') if menu else ''
     if rows:   # "1 Crash Team Racing 0.99x": the game's settings are in `wsx.sh table`
         cut = lambda n: (n if len(n) <= 22 else n[:22].rsplit(' ', 1)[0]).rstrip(' -')
         spd = lambda s: ('' if fast else '%.2fx' % s) if s is not None else 'no block'
