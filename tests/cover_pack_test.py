@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tests for scripts/cover_pack.py.  Run:  C:/Python312/python.exe -I tests/cover_pack_test.py
+"""Tests for scripts/cover_pack.py.  Run:  python -I tests/cover_pack_test.py
 
 Fixture: tests/fixtures/cover_pack (a tiny fake dat and fake image files whose bytes name their
 origin, so a copy can be traced). Output goes to a temp directory, never into the repo.

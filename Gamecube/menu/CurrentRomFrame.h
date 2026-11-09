@@ -31,6 +31,7 @@ class CurrentRomFrame : public menu::Frame
 public:
 	CurrentRomFrame();
 	~CurrentRomFrame();
+	int logoSpot() const;
 	void drawChildren(menu::Graphics& gfx);
 
 private:

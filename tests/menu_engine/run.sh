@@ -5,7 +5,7 @@
 #     CXX=g++ sh tests/menu_engine/run.sh
 #
 # Nothing is written into the repository: the binary goes to a temporary file.
-# Exit status is the number of failed checks (0 = pass), or 2 if the build or font is missing.
+# Exit status: 0 = pass, 1 = a check failed, 2 = the build or font is missing.
 
 set -u
 
@@ -26,7 +26,7 @@ bin6=$(mktemp "${TMPDIR:-/tmp}/menu_pages_test.XXXXXX") || exit 2
 scratch=$(mktemp -d "${TMPDIR:-/tmp}/recent_list_dir.XXXXXX") || exit 2
 trap 'rm -f "$bin" "$bin2" "$bin3" "$bin4" "$bin5" "$bin6"; rm -rf "$scratch"' EXIT
 
-"$cxx" -std=c++11 -Wall -Wextra -Wno-unused-parameter -O2 \
+"$cxx" -std=c++11 -Wall -Wextra -Wno-unused-parameter -O0 \
 	-o "$bin" \
 	"$root/tests/menu_engine_test.cpp" \
 	"$root/Gamecube/menu/MenuEngine.cpp" || exit 2
@@ -35,9 +35,9 @@ trap 'rm -f "$bin" "$bin2" "$bin3" "$bin4" "$bin5" "$bin6"; rm -rf "$scratch"' E
 rc=$?
 
 # The shared page tables (Gamecube/menu/pages/*.h), as the Wii build compiles them, with empty hooks.
-"$cxx" -std=c++11 -Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers -O2 -o "$bin6" \
-	"$root/tests/menu_pages_test.cpp" || exit 2
-"$bin6"
+"$cxx" -std=c++11 -Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers -O0 -o "$bin6" \
+	"$root/tests/menu_pages_test.cpp" "$root/Gamecube/menu/MenuEngine.cpp" || exit 2
+"$bin6" "$root" "$root/fonts/En.dat"
 rc=$((rc + $?))
 
 # The explorer's format/region/disc-count classifiers (plain C, the code the Wii runs).
@@ -68,4 +68,5 @@ rc=$((rc + $?))
 	"$root/tests/cover_art_test.c" \
 	"$root/Gamecube/cover_art.c" || exit 2
 if [ -f "$real" ]; then "$bin5" "$(dirname "$real")"; else "$bin5"; fi
-exit $((rc + $?))
+rc=$((rc + $?))
+exit $((rc != 0))	# a sum of failure counts can wrap to 0 at 256

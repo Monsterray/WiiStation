@@ -28,8 +28,7 @@
  * A list (ROW_LIST, step 4) is a window of N item buttons over a list of any length, plus Prev and
  * Next buttons where the page turns. The engine lays out only the window: the caller gives the
  * count, and a callback that says what item i is, called for the shown items only. The scrolling
- * state is a ListState the caller owns, changed by listTurn() (pages) or listScroll() (focus at
- * the ends), and the page is laid out again after each change -- never per frame.
+ * state is a ListState the caller owns, changed by listTurn() (pages), and the page is laid out again after each change -- never per frame.
  *
  * Free buttons (step 5) are buttons at their own rectangles, for a picture rather than a grid:
  * Customize Co-Op's presets and controller buttons. Page::freeButtons holds them, after the rows;
@@ -126,7 +125,7 @@ struct Metrics {
 /*  Lists  */
 
 /* The scrolling state of one list. The caller owns it and sets count, slots and focus; the
- * engine changes top and focus through listTurn() and listScroll(). Nothing is kept per item. */
+ * engine changes top and focus through listTurn(). Nothing is kept per item. */
 struct ListState {
 	int count;		/* items in the list, of any length */
 	int slots;		/* items shown at once: the window, 1..MAX_LIST_SLOTS */
@@ -135,10 +134,8 @@ struct ListState {
 };
 
 enum ListMode {
-	LIST_PAGED,		/* the file browser: Prev and Next turn pages (clamped); focus wraps round the
+	LIST_PAGED		/* the file browser: Prev and Next turn pages (clamped); focus wraps round the
 	                 * window, as the links say; listTurn() with wrap also turns pages by L/R */
-	LIST_SCROLL		/* focus moving off either end of the window scrolls it by one item, clamped at
-	                 * the list's own ends (listScroll); the links stop at the window's ends */
 };
 
 /* What item i is: its text, and whether it is a folder (drawn in the folder colour). The text must
@@ -445,10 +442,6 @@ void linkFocus(const Page &page, Layout &lay);
  * page out again. */
 void listTurn(ListState &s, int delta, bool wrap);
 
-/* LIST_SCROLL: focus moves by delta (+1 or -1), clamped at the list's ends. Where focus leaves the
- * window, the window scrolls by one item to keep it in. Returns true when the window moved. */
-bool listScroll(ListState &s, int delta);
-
 /*  The letter strip and the scroll thumb (DENSITY_EXPLORER)
  *
  * Cell 0 is "#" (a name that starts with anything but a letter), cells 1-26 are A-Z. A name's cell
@@ -489,6 +482,9 @@ struct FactsBox {
 void factsLayout(FactsBox &out);
 /* `text` cut with "..." to room px at scale (the text itself when it fits; else buf, bufSize bytes). */
 const char *fitText(const Metrics &m, const char *text, float scale, int room, char *buf, int bufSize);
+/* `text` into out (size bytes): itself when it fits room px, else "..." and the longest tail that fits
+ * (cut at a character boundary; at least the first character goes). */
+void cutTextLeft(const Metrics &m, const char *text, float scale, int room, char *out, int size);
 
 /* The explorer's count text: "42 games, A-Z", "3 folders, 6 games, folders first", on Recent
  * "9 games, newest first" and, with a letter filter on (filterCell >= 0), "3 games, C". Too wide

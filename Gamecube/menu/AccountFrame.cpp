@@ -104,8 +104,6 @@ void AccountFrame::drawChildren(menu::Graphics &gfx)
 	if (!isVisible())
 		return;
 	acView->update();
-	menu::ComponentList::const_iterator iteration;
-	for (iteration = componentList.begin(); iteration != componentList.end(); ++iteration)
-		(*iteration)->draw(gfx);
+	Frame::drawChildren(gfx);
 	acView->drawOverlay(gfx);
 }

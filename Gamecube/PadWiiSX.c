@@ -200,6 +200,9 @@ char autoinput_menukeys[64];
 /*
  * Read in MenuContext.cpp. */
 unsigned autoinput_menupage = 0;
+/* "menutour <n> <n> ...": menupage for each page in turn, 60 menu frames apart from frame 30
+ * (MenuContext.cpp; scripts/menu_pages_walk.sh: one boot photographs every page). */
+unsigned autoinput_menutour[40], autoinput_menutours = 0;
 /* "menuopen <vblank> <page>": stop the game at that vblank, as the menu combination does, and
  * open that menupage (above) in the menu that comes up: e.g. 15, the achievements list of the
  * game being played. */
@@ -362,6 +365,12 @@ void autoinput_load(void)
 				continue;
 			}
 			if (sscanf(line, "menupage %u", &v) == 1) { autoinput_menupage = v; continue; }
+			if (!strncmp(line, "menutour", 8)) {
+				const char *s = line + 8; int w;
+				while (autoinput_menutours < 40 && sscanf(s, "%u%n", &v, &w) == 1)
+					{ autoinput_menutour[autoinput_menutours++] = v; s += w; }
+				continue;
+			}
 			if (sscanf(line, "menuopen %u %u", &v, &k) == 2) {
 				if (!(v == menuopen_fired && frame_counter >= v)) { autoinput_menuopen_vblank = v; menuopen_page = k; }
 				continue;
@@ -458,6 +467,7 @@ void autoinput_reset(const char *path)
 	autoinput_padsweep_vbl = 0;
 	autoinput_padsweep_fast = 0;
 	autoinput_menupage = 0;
+	autoinput_menutours = 0;
 	autoinput_menuopen_vblank = menuopen_page = 0;
 	autoinput_menuclick[0] = 0;
 	autoinput_menuclicks = autoinput_menuclick_frame = 0;

@@ -5,7 +5,7 @@
  *
  * HOW TO ADD OR CHANGE A ROW: one line in ROM_INFO_ROWS below (its label and its function),
  * and the function in RomInfo.cpp. A value is at most 31 characters (a readout's width,
- * OptionsFrame VALUE_LEN); the ISO Info page holds 8 rows (OPT_MAX_ROWS). */
+ * PageView::VALUE_LEN); the ISO Info page holds 8 rows (eng::MAX_ROWS). */
 #ifndef ROMINFO_H
 #define ROMINFO_H
 

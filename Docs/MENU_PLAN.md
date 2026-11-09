@@ -112,6 +112,8 @@ Save on Default overwrites the default config. **Built-in** at the right puts ba
 
 ### 1.5 What the code does today (inventory, 2026-11-04)
 
+*A snapshot of 2026-11-04, before the forms rebuild. The current state, with line counts and where each table lives, is Docs/MENU_FORMS_PLAN.md section 6.*
+
 **The engine** (`MenuEngine.h` 441 lines, `MenuEngine.cpp` 1071): `Page { tabs | title, rows,
 help, logo, labelCx, labelDy, rowDy, rowY0, overrides, freeButtons, freeTexts, freeLinks, wrap,
 columns }` -> `layoutPage()` -> up to 96 controls -> `linkFocus()`, once per page show and
@@ -192,7 +194,7 @@ Limit, 3 audio Yes/No, 5/6/58/64/65/66, Test USB Pad) because `menuclick` names 
 **Monty's rules**, in 1.1-1.4 above. Round 2: no button hints; square corners; arrows only for values
 that are cycled; centered button rows; most-changed settings first; Main, Current ISO, Players and the
 Quit question unchanged; centered titles; ISO Info warnings only when in effect. Round 3: the label edge
-never moves; Save Button Configs stays in Input (Saves is memory cards and save states only);
+never moves; Save Configs stays in Input (Saves is memory cards and save states only);
 buttons that act alone never touch; sub-page buttons on top; the book keeps today's layout, polished,
 full screen with a hint line; the explorer takes every idea and the whole screen; the format tag
 rightmost with the disc count left of it; G2 with Save/Load and saving over the default config; the tab
@@ -213,6 +215,8 @@ recent list, last-played record or cover picture; the region comes from the name
 **Open:** the two shortened Saves labels; the Built-in button on Configure Buttons.
 
 ### 1.6 The work, in steps that each ship
+
+*Status: superseded by Docs/MENU_FORMS_PLAN.md section 6.*
 
 1. **Audit** what the inventory did not read (libgui Button, CursorManager, FocusManager,
    IPLFont, MessageBox, TextBox, Frame; MenuContext; Players, Achievements, USB Pad Test; the host
@@ -459,7 +463,7 @@ has nothing to give leaves it zeroed, which is what the file holds today, so not
   and draw it with `Graphics::drawImage` from `CurrentRomFrame::drawChildren`.
 
 The Current ROM screen has room at roughly x 520–650, y 240–340, to the right of the Load
-State and Save State buttons. `scripts/menu_text_width.py` will tell you if that runs into
+State and Save State buttons. the host tests (`sh tests/menu_engine/run.sh`) tell you if that runs into
 the spinning logo.
 
 ### Cost and order

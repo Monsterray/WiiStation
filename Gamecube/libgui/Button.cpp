@@ -72,6 +72,24 @@ Button::Button(int style, char** label, float x, float y, float width, float hei
 	GXColor colors[5] = {{255, 100, 100, 255}, {255, 255, 255,  70}, {255, 255, 255, 130}, {255, 255, 255, 255}, {255, 255, 255, 255}};
 
 	setType(TYPE_BUTTON);
+	setImages();
+	if (buttonStyle != BUTTON_DEFAULT)
+	{
+		colors[0] = (GXColor) {255, 255, 255, 255};
+		colors[1] = (GXColor) {200, 200, 200, 255};
+		colors[2] = (GXColor) {255, 255, 255, 255};
+	}
+
+	setButtonColors(colors);
+}
+
+Button::~Button()
+{
+}
+
+/* The images (and the 56 high) of the current style. */
+void Button::setImages()
+{
 	switch(buttonStyle)
 	{
 	case BUTTON_DEFAULT:
@@ -101,18 +119,6 @@ Button::Button(int style, char** label, float x, float y, float width, float hei
 		plainFocusImage = Resources::getInstance().getImage(Resources::IMAGE_STYLEA_BUTTONFOCUS);
 		break;
 	}
-	if (buttonStyle != BUTTON_DEFAULT)
-	{
-		colors[0] = (GXColor) {255, 255, 255, 255};
-		colors[1] = (GXColor) {200, 200, 200, 255};
-		colors[2] = (GXColor) {255, 255, 255, 255};
-	}
-
-	setButtonColors(colors);
-}
-
-Button::~Button()
-{
 }
 
 void Button::setStyle(int style)
@@ -120,31 +126,7 @@ void Button::setStyle(int style)
 	if (style == buttonStyle || style == BUTTON_DEFAULT)
 		return;
 	buttonStyle = style;
-	plain = false;
-	arrows = false;
-	switch (buttonStyle)
-	{
-	case BUTTON_STYLEA_NORMAL:
-		setNormalImage(Resources::getInstance().getImage(Resources::IMAGE_STYLEA_BUTTON));
-		setFocusImage(Resources::getInstance().getImage(Resources::IMAGE_STYLEA_BUTTONFOCUS));
-		this->height = 56;
-		break;
-	case BUTTON_STYLEA_SELECT:
-		setNormalImage(Resources::getInstance().getImage(Resources::IMAGE_STYLEA_BUTTONSELECTOFF));
-		setFocusImage(Resources::getInstance().getImage(Resources::IMAGE_STYLEA_BUTTONSELECTOFFFOCUS));
-		setSelectedImage(Resources::getInstance().getImage(Resources::IMAGE_STYLEA_BUTTONSELECTON));
-		setSelectedFocusImage(Resources::getInstance().getImage(Resources::IMAGE_STYLEA_BUTTONSELECTONFOCUS));
-		this->height = 56;
-		break;
-	case BUTTON_STANDARD:
-		setNormalImage(Resources::getInstance().getImage(Resources::IMAGE_STYLEA_BUTTONSELECTOFF));
-		setFocusImage(Resources::getInstance().getImage(Resources::IMAGE_STYLEA_BUTTONSELECTOFFFOCUS));
-		setSelectedImage(Resources::getInstance().getImage(Resources::IMAGE_STYLEA_BUTTONSELECTON));
-		setSelectedFocusImage(Resources::getInstance().getImage(Resources::IMAGE_STYLEA_BUTTONSELECTONFOCUS));
-		plainImage = Resources::getInstance().getImage(Resources::IMAGE_STYLEA_BUTTON);
-		plainFocusImage = Resources::getInstance().getImage(Resources::IMAGE_STYLEA_BUTTONFOCUS);
-		break;
-	}
+	setImages();
 }
 
 void Button::setActive(bool activeBool)
@@ -175,6 +157,7 @@ void Button::doReturn()
 void Button::setClicked(ButtonFunc newClickedFunc)
 {
 	clickedFunc = newClickedFunc;
+	ctxFunc = 0;		/* the last one set wins: doClicked prefers a context click */
 }
 
 void Button::doClicked()

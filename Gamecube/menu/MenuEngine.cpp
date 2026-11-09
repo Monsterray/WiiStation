@@ -1032,8 +1032,7 @@ static void linkRows(const Page &p, Layout &lay)
 }
 
 /* A list's rule (the file browser's): LIST_PAGED's items go up and down round the window and skip
- * the inactive ones, as the file browser has always wrapped; LIST_SCROLL's stop at the window's
- * ends, where the caller scrolls. Left and Right go to Prev and Next, and each of those goes back
+ * the inactive ones, as the file browser has always wrapped. Left and Right go to Prev and Next, and each of those goes back
  * to the window's first item. Only focus targets are linked. */
 static void linkList(const Page &p, Layout &lay)
 {
@@ -1247,7 +1246,7 @@ static void applyFreeLinks(const Page &p, Layout &lay)
 		const FreeLink &l = p.freeLinks[k];
 		const int from = (l.from >= 0 && l.from < p.nFreeButtons) ? lay.freeCtl[l.from] : -1;
 		const int to = (l.to < 0) ? -1 : (l.to < p.nFreeButtons ? lay.freeCtl[l.to] : -2);
-		if (from < 0 || !lay.c[from].focusable || l.dir < 0 || l.dir >= DIR_COUNT || to == -2)
+		if (from < 0 || !lay.c[from].focusable || l.dir < 0 || l.dir >= DIR_COUNT || (l.to >= 0 && to < 0))
 			continue;
 		if (to >= 0 && !lay.c[to].focusable)
 			continue;
@@ -1305,12 +1304,10 @@ static void linkListTabs(const Page &p, Layout &lay)
 		lay.c[c].link[DIR_UP] = -1;
 		lay.c[c].link[DIR_DOWN] = def;
 	}
-	if (first >= 0 && p.curTab >= 0 && p.curTab < p.nTabs && lay.tab[p.curTab] >= 0 &&
-	    lay.c[lay.tab[p.curTab]].focusable)
+	if (first >= 0 && lay.tab[p.curTab] >= 0 && lay.c[lay.tab[p.curTab]].focusable)
 		lay.c[first].link[DIR_UP] = lay.tab[p.curTab];
 	/* the "^" arrow's Up goes to the lit tab as well */
-	if (lay.slot[lay.list][0] >= 0 && p.curTab >= 0 && p.curTab < p.nTabs && lay.tab[p.curTab] >= 0 &&
-	    lay.c[lay.tab[p.curTab]].focusable)
+	if (lay.slot[lay.list][0] >= 0 && lay.tab[p.curTab] >= 0 && lay.c[lay.tab[p.curTab]].focusable)
 		lay.c[lay.slot[lay.list][0]].link[DIR_UP] = lay.tab[p.curTab];
 }
 
@@ -1321,6 +1318,10 @@ void linkFocus(const Page &p, Layout &lay)
 	for (int i = 0; i < lay.n; i++)
 		for (int d = 0; d < DIR_COUNT; d++)
 			lay.c[i].link[d] = -1;
+	if (p.nTabs > 0 && (p.curTab < 0 || p.curTab >= p.nTabs || p.nTabs > MAX_TABS)) {
+		lay.defaultFocus = -1;		/* a page layoutPage would refuse: no links, nothing to index lay.tab with */
+		return;
+	}
 
 	if (p.focus == FOCUS_GEOMETRY)
 		linkGeometry(lay, p.wrap);
@@ -1385,8 +1386,8 @@ int checkLayout(const Page &p, const Metrics &m, const Layout &lay, Problem *out
 		if (p.standard != DENSITY_OFF) {
 			if ((c.role == ROLE_LABEL || c.role == ROLE_RLABEL) && r.w > (float)STD_LABEL_MAX_W)
 				note(out, maxOut, np, PROB_LABEL_WIDE, i, -1);
-			if ((c.role == ROLE_BUTTON || c.role == ROLE_CHOICE || c.role == ROLE_VALUE ||
-			     c.role == ROLE_LIST_PAGE || c.role == ROLE_LIST_ITEM) &&
+			if ((c.role == ROLE_BUTTON || c.role == ROLE_CHOICE || c.role == ROLE_VALUE || c.role == ROLE_TAB ||
+			     c.role == ROLE_FREE || c.role == ROLE_LIST_PAGE || c.role == ROLE_LIST_ITEM) &&
 			    r.x + r.w > (float)STD_CTRL_X1)
 				note(out, maxOut, np, PROB_PAST_RIGHT, i, -1);
 			if (p.logo == LOGO_SPOT_BOTTOM &&
@@ -1506,22 +1507,6 @@ int tabStep(int cur, int n, int delta, bool wrap)
 	if (wrap)
 		return ((t % n) + n) % n;
 	return t < 0 || t >= n ? cur : t;
-}
-
-bool listScroll(ListState &s, int delta)
-{
-	const int top = s.top;
-	int f = s.focus < 0 ? s.top : s.focus;
-
-	if (s.count <= 0 || s.slots < 1)
-		return false;
-	f += delta;
-	if (f < 0) f = 0;
-	if (f >= s.count) f = s.count - 1;
-	s.focus = f;
-	if (f < s.top) s.top = f;
-	if (f >= s.top + s.slots) s.top = f - s.slots + 1;
-	return s.top != top;
 }
 
 int stripLetter(const char *name)
@@ -1650,6 +1635,32 @@ void factsLayout(FactsBox &out)
 const char *fitText(const Metrics &m, const char *text, float scale, int room, char *buf, int bufSize)
 {
 	return cutText(m, text, scale, room, buf, bufSize);
+}
+
+void cutTextLeft(const Metrics &m, const char *text, float scale, int room, char *out, int size)
+{
+	int lo = 1, hi = (int)strlen(text);
+	snprintf(out, size, "%s", text);
+	if (hi == 0 || measure(m, out, scale) <= room)
+		return;
+	while (lo < hi && ((unsigned char)text[lo] & 0xC0) == 0x80)	/* at least one character goes */
+		lo++;
+	/* the smallest character boundary whose tail, with "..." in front, fits (the width only shrinks with it);
+	 * lo and hi are always boundaries, and when nothing fits the result is "..." alone */
+	while (lo < hi) {
+		int mid = (lo + hi) / 2;
+		while (mid > lo && ((unsigned char)text[mid] & 0xC0) == 0x80)
+			mid--;
+		snprintf(out, size, "...%s", text + mid);
+		if (measure(m, out, scale) <= room)
+			hi = mid;
+		else {
+			lo = mid + 1;
+			while (lo < hi && ((unsigned char)text[lo] & 0xC0) == 0x80)
+				lo++;
+		}
+	}
+	snprintf(out, size, "...%s", text + lo);
 }
 
 void countText(const Metrics &m, float scale, int room, int folders, int games, int hint, int filterCell,

@@ -62,6 +62,8 @@ CurrentRomFrame::CurrentRomFrame()
 	setEnabled(true);
 }
 
+int CurrentRomFrame::logoSpot() const { return CUR_MENU.logo; }
+
 CurrentRomFrame::~CurrentRomFrame()
 {
 	curMenu = NULL;
@@ -150,7 +152,7 @@ void Func_LoadSave()
 			else		menu::MessageBox::getInstance().setMessage("No saves found on memcard A");
 			break;
 		case NATIVESAVEDEVICE_CARDB:
-			if (result) menu::MessageBox::getInstance().setMessage("Loaded save from memcard in slot A");
+			if (result) menu::MessageBox::getInstance().setMessage("Loaded save from memcard in slot B");
 			else		menu::MessageBox::getInstance().setMessage("No saves found on memcard B");
 			break;
 	}
@@ -227,20 +229,24 @@ void Func_SaveState()
   slotLabelStale = true;
 }
 
-/* "Slot 3", or "Slot 3 *" when that slot holds a state this build can read. */
+/* The game the label was made for: state files are named by CdromId (misc.c stateFilename). */
+static char slotLabelGame[sizeof CdromId];
+
+/* "Slot 3", or "Slot 3*" when that slot holds a state this build can read. */
 static void refreshStateSlot()
 {
 	char text[24];
 	snprintf(text, sizeof text, "Slot %u%s", which_slot, StateExists(which_slot) ? "*" : "");
 	if (curMenu)
 		curMenu->setText(CUR_SLOT_BUTTON, text);
+	memcpy(slotLabelGame, CdromId, sizeof slotLabelGame);
 	slotLabelStale = false;
 }
 
 void CurrentRomFrame::drawChildren(menu::Graphics& gfx)
 {
 	if (!isVisible()) return;
-	if (slotLabelStale) refreshStateSlot();
+	if (slotLabelStale || memcmp(slotLabelGame, CdromId, sizeof slotLabelGame)) refreshStateSlot();
 	menu::Frame::drawChildren(gfx);
 }
 

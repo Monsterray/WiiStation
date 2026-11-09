@@ -11,7 +11,7 @@
  * tab (slot = the tab). A row's buttons are one set of widgets: which art and arrows a button gets
  * follows its role in the layout (a choice segment, a button) and the marks the frame gave it
  * (mark()). The view owns the layout, so nothing is computed per frame; only the footer help follows
- * the focus (updateFooter).
+ * the focus (update).
  *
  * This program is free software; you can redistribute it and/
  * or modify it under the terms of the GNU General Public Li-
@@ -45,10 +45,10 @@ public:
 	 * FLAT: a choice segment drawn with the plain art (actions that sit in a choice row, never lit). */
 	enum { TOGGLE = 1, CYCLE = 2, FLAT = 4 };
 
-	/* rows x (label boxes + `texts` text boxes + `slots` buttons), `tabs` tab buttons, `help` help-line
-	 * pairs and the footer lines, added to owner in this order. title is the first title text. */
-	PageView(Frame *owner, int rows, int slots, int texts, int tabs, int help, ActFn act, void *user,
-	         ButtonFunc back, const char *title);
+	/* Widgets for the engine's maxima: MAX_ROWS x (label boxes + MAX_SLOTS text boxes + MAX_SLOTS buttons),
+	 * MAX_TABS tab buttons, MAX_HELP help-line pairs and the footer lines, added to owner in this order.
+	 * The unused ones stay hidden. title is the first title text. */
+	PageView(Frame *owner, ActFn act, void *user, ButtonFunc back, const char *title);
 	~PageView();
 
 	/* A tab's text; the view keeps the pointer. */
@@ -74,18 +74,21 @@ public:
 	Button *buttonFor(const engine::Control &c) const;
 	const engine::Layout &layout(void) const { return lay; }
 
-	/* The footer help of the row that has focus; kept while nothing has focus; blank on a tab. Per frame. */
-	void updateFooter(const engine::Page &page);
+	/* Once per drawn frame, for a page of tabs and rows: the shoulder buttons turn the tab (the same as a click
+	 * on it: act(user, -1, tab); the new page's default control takes focus) and the footer follows the focus. */
+	void update(const engine::Page &page);
 
 private:
+	/* The footer help of the row that has focus; kept while nothing has focus; blank on a tab. Lays out only when the row changes. */
+	void updateFooter(const engine::Page &page);
 	struct RowW {
-		Button **btn;
-		char   **btnString;
-		unsigned char *marks;
+		Button *btn[engine::MAX_SLOTS];
+		char   *btnString[engine::MAX_SLOTS];
+		unsigned char marks[engine::MAX_SLOTS];
 		TextBox *text, *rlabel;
-		TextBox **valueBox;
+		TextBox *valueBox[engine::MAX_SLOTS];
 		char    *labelString;
-		char   **valueString;
+		char    *valueString[engine::MAX_SLOTS];
 		char     value[VALUE_LEN];
 	};
 	static void click(void *self, int tag);
@@ -93,18 +96,18 @@ private:
 
 	Frame *frame;
 	Pool *pool;
-	int nRows, nSlots, nTexts, nTabs, nHelp;
 	ActFn act;
 	void *user;
 	TextBox *titleBox;
 	char *titleString;
-	RowW *rowW;
-	Button **tabW;
-	char **tabString;
-	TextBox **helpTermBox, **helpBox, **footerBox;
-	char **helpTermString, **helpString, **footerString;
+	RowW rowW[engine::MAX_ROWS];
+	Button *tabW[engine::MAX_TABS];
+	char *tabString[engine::MAX_TABS];
+	TextBox *helpTermBox[engine::MAX_HELP], *helpBox[engine::MAX_HELP], *footerBox[STD_HELP_LINES];
+	char *helpTermString[engine::MAX_HELP], *helpString[engine::MAX_HELP], *footerString[STD_HELP_LINES];
 	engine::Layout lay;
-	int footerRow;
+	int footerRow;		/* the row whose help should show, -1 none */
+	int footerShown;	/* the row laid out now; updateFooter skips the layout when equal */
 };
 
 /* A page of buttons that each do one thing (Main, Current ISO): the table is an ActionMenuDef
@@ -113,7 +116,7 @@ private:
  * sets the default focus on button(0) and B (setBackFunc) itself. */
 class ActionMenu {
 public:
-	enum { MAX_ACTIONS = 12, LABEL_LEN = 24 };
+	enum { MAX_ACTIONS = ACTION_MAX, LABEL_LEN = 24 };
 	ActionMenu(Frame *owner, const ActionMenuDef &def, ButtonFunc back);
 	~ActionMenu();
 
@@ -127,9 +130,7 @@ private:
 
 	const ActionMenuDef &def;
 	Pool *pool;
-	engine::ActionButton acts[engine::MAX_ROWS][engine::MAX_SLOTS];
-	engine::Row rows[engine::MAX_ROWS];
-	engine::Page page;
+	ActionPage ap;
 	engine::Layout lay;
 	char label[MAX_ACTIONS][LABEL_LEN];
 	char *labelPtr[MAX_ACTIONS];

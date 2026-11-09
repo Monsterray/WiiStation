@@ -27,10 +27,13 @@
 #define SETTINGSPAGES_H
 
 #include <stddef.h>
+#include <string.h>
 #include "../MenuEngine.h"
+#include "../MenuTypes.h"
 #include "../../wiiSXconfig.h"	/* the values of the choices */
 
 namespace eng = menu::engine;
+namespace menu { namespace glue { class PageView; } }
 
 enum SetTabId { SET_TAB_GENERAL = 0, SET_TAB_VIDEO, SET_TAB_INPUT, SET_TAB_AUDIO, SET_TAB_SAVES, SET_TAB_COUNT };
 
@@ -38,10 +41,14 @@ enum SetTabId { SET_TAB_GENERAL = 0, SET_TAB_VIDEO, SET_TAB_INPUT, SET_TAB_AUDIO
 static const int SET_TAB_AT_POS[SET_TAB_COUNT] = { SET_TAB_VIDEO, SET_TAB_INPUT, SET_TAB_SAVES, SET_TAB_AUDIO, SET_TAB_GENERAL };
 static const char *const SET_TAB_NAMES[SET_TAB_COUNT] = { "System", "Video", "Input", "Audio", "Saves" };
 
+/* Where the Settings frame puts the logo (SettingsFrame::logoSpot): the tab strip reaches x=615. */
+static const eng::LogoSpot SET_LOGO = eng::LOGO_SPOT_BOTTOM;
+
 /* A segment's value, where it is not a choice's. SEGV_GAME marks an action that needs a loaded game. */
 #define SEGV_FLAG	(-1)
 #define SEGV_NEXT	(-2)
 #define SEGV_GAME	(-3)
+#define SEGV_EACH	(-4)	/* one button per value of the setting (a radio row): the row has this one seg, the slot is the value */
 
 struct SetSeg
 {
@@ -62,7 +69,8 @@ struct SetSeg
 #define SEG_FLAG(key)					{ key, key, SEGV_FLAG, NULL, NULL, NULL, NULL, NULL }
 #define SEG_FLAG_THEN(key, apply)		{ key, key, SEGV_FLAG, NULL, NULL, NULL, NULL, apply }
 #define SEG_FLAG_ACT(key, act, lit)		{ key, key, SEGV_FLAG, NULL, NULL, act, lit, NULL }
-#define SEG_CYCLE(key)					{ key, key, SEGV_NEXT, NULL, NULL, NULL, NULL, NULL }
+#define SEG_EACH(key, apply)			{ key, key, SEGV_EACH, NULL, NULL, NULL, NULL, apply }
+#define SEG_CYCLE(key)				{ key, key, SEGV_NEXT, NULL, NULL, NULL, NULL, NULL }
 #define SEG_CYCLE_THEN(key, apply)		{ key, key, SEGV_NEXT, NULL, NULL, NULL, NULL, apply }
 #define SEG_CYCLE_ACT(key, act)			{ key, key, SEGV_NEXT, NULL, NULL, act, NULL, NULL }
 #define SEG_CYCLE_TEXT(key, act, textFn)	{ key, key, SEGV_NEXT, NULL, textFn, act, NULL, NULL }
@@ -114,10 +122,14 @@ void applyTrapFilter(void);
 void applyBilinear(void);
 void applyInterpolation(void);
 
-/* One row of a tab. label is the text on the left; NULL takes the label of the first button's setting.
- * plain counts the last buttons of a choice row that are actions or flags, not choices. noLit: a choice
- * row whose buttons are actions, none shown as the current value. prefix: small cycles, each after its
- * own text (Memcard Type: "1", "2"). */
+/* One row of a page, a Settings tab's or an Options page's. kind says what it is: ROW_BUTTONS (buttons, each
+ * its own seg), ROW_CHOICE (segs side by side, one lit), ROW_CYCLE (one button stepping a setting: seg[0]
+ * is its SEG_CYCLE*), ROW_READOUT (a label and the text info writes; no seg). A radio row of an Options page
+ * is ROW_CHOICE with the one seg SEG_EACH. label is the text on the left; NULL takes the label of the first
+ * button's setting. plain counts the last buttons of a choice row that are actions or flags, not choices.
+ * noLit: a choice row whose buttons are actions, none shown as the current value. prefix: small cycles, each
+ * after its own text (Memcard Type: "1", "2"). help: the one or two lines under the rows while the row has
+ * focus, or NULL for none. fit: each button of a radio row as wide as its own word. */
 struct SetRow
 {
 	eng::RowKind		kind;
@@ -126,6 +138,9 @@ struct SetRow
 	int					plain;
 	bool				noLit;
 	const char *const	*prefix;
+	const char			*help[2];
+	bool				fit;
+	void				(*info)(char *buf, int len);	/* ROW_READOUT: writes the right-hand text */
 };
 
 /* The System tab is on the menu standard: the engine takes every position and width from the text. The
@@ -141,7 +156,7 @@ static const SetRow GEN_ROWS[] =
 	                           SEG_SET_ACT("BiosDevice", BIOSDEVICE_USB, Func_BiosSelectUSB),
 	                           SEG_ACT("BiosDvd", "DVD", Func_BiosSelectDVD) } },
 	{ eng::ROW_CHOICE, NULL, { SEG_SET("BootThruBios", BOOTTHRUBIOS_NO), SEG_SET("BootThruBios", BOOTTHRUBIOS_YES),
-	                           SEG_ACT("ExecuteBios", "Execute BIOS", Func_ExecuteBios) }, 1 },
+	                           SEG_ACT("ExecuteBios", "Execute BIOS", Func_ExecuteBios) }, 1, false, NULL, { "Boot Through BIOS: runs the BIOS start screen before a game (not HLE).", "Execute BIOS: ends the game, starts the BIOS shell. Needs a BIOS file." } },
 	{ eng::ROW_BUTTONS, "Save Settings", { SEG_ACT("SaveSettingsSD", "SD", Func_SaveSettingsSD),
 	                                       SEG_ACT("SaveSettingsUSB", "USB", Func_SaveSettingsUSB),
 	                                       SEG_ACT_GAME("SaveSettingsGame", "This Game", Func_SaveSettingsSeparately) } },
@@ -151,23 +166,13 @@ static const SetRow GEN_ROWS[] =
 	{ eng::ROW_BUTTONS, NULL, { SEG_CYCLE_ACT("lang", Func_SelectLanguage) } },
 };
 
-static const eng::FooterHelp SYS_FOOTER[] =
-{
-	{ { NULL, NULL } },
-	{ { NULL, NULL } },
-	{ { "Execute BIOS: start the PS1 BIOS shell (memory cards, CD player).", NULL } },
-	{ { NULL, NULL } },
-	{ { NULL, NULL } },
-	{ { NULL, NULL } },
-};
-
 /* The Video and Input tabs are on the menu standard too. */
 static const SetRow VID_ROWS[] =
 {
 	{ eng::ROW_BUTTONS, NULL, { SEG_ACT("AdvancedGraphics", "Advanced", Func_AdvGfxPage) } },
 	{ eng::ROW_CHOICE, NULL, { SEG_SET("ScreenMode", SCREENMODE_4x3), SEG_SET("ScreenMode", SCREENMODE_16x9),
 	                           SEG_SET("ScreenMode", SCREENMODE_16x9_PILLARBOX) } },
-	{ eng::ROW_BUTTONS, "Display", { SEG_FLAG("Interlaced"), SEG_FLAG_THEN("TVMode", applyOriginalMode) } },
+	{ eng::ROW_BUTTONS, "Display", { SEG_FLAG("Interlaced"), SEG_FLAG_THEN("TVMode", applyOriginalMode) }, 0, false, NULL, { "Interlaced: 480-line pictures drawn one field at a time.", "240p: pictures of 288 lines or fewer show at 240p, on resume." } },
 	{ eng::ROW_BUTTONS, NULL, { SEG_CYCLE_ACT("FrameRate", Func_FrameRateCycle), SEG_FLAG_ACT("ForceNTSC", Func_ForceNTSC, NULL) } },
 	{ eng::ROW_CHOICE, "Filters", { SEG_SET_AS_THEN("BilinearFilter", BILINEARFILTER_DISABLE, "Off", applyBilinear),
 	                                SEG_SET_THEN("BilinearFilter", BILINEARFILTER_NEAR, applyBilinear),
@@ -181,7 +186,7 @@ static const SetRow INP_ROWS[] =
 	{ eng::ROW_BUTTONS, NULL, { SEG_ACT("ConfigureInput", "Configure Input", Func_ConfigureInput),
 	                            SEG_ACT("ConfigureButtons", "Configure Buttons", Func_ConfigureButtons) } },
 	{ eng::ROW_CHOICE, NULL, { SEG_SET("ControllerType", CONTROLLERTYPE_STANDARD), SEG_SET("ControllerType", CONTROLLERTYPE_ANALOG),
-	                           SEG_SET("ControllerType", CONTROLLERTYPE_STICKDPAD) } },
+	                           SEG_SET("ControllerType", CONTROLLERTYPE_STICKDPAD) }, 0, false, NULL, { "Digital: plain pad. Analog: DualShock. Stick Pad: left stick also presses the D-pad." } },
 	{ eng::ROW_CHOICE, NULL, { SEG_SET("RumbleEnabled", RUMBLE_DISABLE), SEG_SET("RumbleEnabled", RUMBLE_ENABLE) } },
 	{ eng::ROW_BUTTONS, NULL, { SEG_CYCLE("LightGun") } },
 	{ eng::ROW_BUTTONS, NULL, { SEG_CYCLE("LoadButtonSlot") } },
@@ -189,48 +194,18 @@ static const SetRow INP_ROWS[] =
 	                                     SEG_ACT("SaveButtonsUSB", "USB", Func_SaveButtonsUSB) }, 0, true },	/* two segments that touch; actions, so none is lit */
 };
 
-/* The help under the rows: the focused row's (or, with a tab focused, the first row that has one). */
-static const eng::FooterHelp VID_FOOTER[] =
-{
-	{ { NULL, NULL } },
-	{ { NULL, NULL } },
-	{ { "Interlaced: full height. 240p: half height, no flicker.", NULL } },
-	{ { NULL, NULL } },
-	{ { NULL, NULL } },
-	{ { NULL, NULL } },
-};
-
-static const eng::FooterHelp INP_FOOTER[] =
-{
-	{ { NULL, NULL } },
-	{ { "Analog: a DualShock. Stick Pad: the stick moves the D-pad.", NULL } },
-	{ { NULL, NULL } },
-	{ { NULL, NULL } },
-	{ { NULL, NULL } },
-	{ { NULL, NULL } },
-};
-
 static const SetRow AUD_ROWS[] =
 {
 	{ eng::ROW_BUTTONS, NULL, { SEG_ACT("AdvancedSound", "Advanced", Func_AdvancedSound) } },
 	/* The file keeps the historical "DisableXa" / "DisableCdda" keys (an inverted sense), so those two lit and click by hook. */
 	{ eng::ROW_BUTTONS, "Enable", { SEG_FLAG("Audio"), SEG_FLAG_ACT("DisableXa", Func_ToggleXa, litXa),
-	                                SEG_FLAG_ACT("DisableCdda", Func_ToggleCdda, litCdda) } },
+	                                SEG_FLAG_ACT("DisableCdda", Func_ToggleCdda, litCdda) }, 0, false, NULL, { "Audio: all sound. XA: the disc's speech and music streams.", "CDDA: the CD music tracks. A lit button plays; an unlit one is muted." } },
 	/* Sync is two settings, made exclusive by the hooks: no key of its own */
 	{ eng::ROW_CHOICE, "Sync", { SEG_PICK("SyncOff", "Off", Func_SoundSyncOff, litSyncOff),
 	                             SEG_FLAG_ACT("SoundTempo", Func_SoundSyncTempo, litSyncTempo),
 	                             SEG_FLAG_ACT("SoundRateControl", Func_SoundSyncRate, litSyncRate) } },
 	{ eng::ROW_BUTTONS, NULL, { SEG_CYCLE_THEN("Interpolation", applyInterpolation) } },
 	{ eng::ROW_CHOICE, NULL, { SEG_SET("SoundDriver", SOUND_HW_ACCEL_ON /* DSP */), SEG_SET("SoundDriver", SOUND_HW_ACCEL_OFF /* CPU */) } },
-};
-
-static const eng::FooterHelp AUD_FOOTER[] =
-{
-	{ { NULL, NULL } },
-	{ { "Audio: all sound. XA: speech and music streams. CDDA: CD music tracks.", NULL } },
-	{ { NULL, NULL } },
-	{ { NULL, NULL } },
-	{ { NULL, NULL } },
 };
 
 /* Memcard Type is two small cycles, one per card, each after its card number (the engine's Row::prefix). */
@@ -250,7 +225,6 @@ struct SetTab
 {
 	const SetRow			*rows;
 	int						nRows;
-	const eng::FooterHelp	*footer;	/* footer[row]: the help of the focused row, or NULL */
 };
 
 #define SET_COUNT(a) ((int)(sizeof(a) / sizeof((a)[0])))
@@ -258,11 +232,11 @@ struct SetTab
 /* Indexed by SetTabId. */
 static const SetTab SET_TABS_DEF[SET_TAB_COUNT] =
 {
-	{ GEN_ROWS, SET_COUNT(GEN_ROWS), SYS_FOOTER },
-	{ VID_ROWS, SET_COUNT(VID_ROWS), VID_FOOTER },
-	{ INP_ROWS, SET_COUNT(INP_ROWS), INP_FOOTER },
-	{ AUD_ROWS, SET_COUNT(AUD_ROWS), AUD_FOOTER },
-	{ SAV_ROWS, SET_COUNT(SAV_ROWS), NULL },
+	{ GEN_ROWS, SET_COUNT(GEN_ROWS) },
+	{ VID_ROWS, SET_COUNT(VID_ROWS) },
+	{ INP_ROWS, SET_COUNT(INP_ROWS) },
+	{ AUD_ROWS, SET_COUNT(AUD_ROWS) },
+	{ SAV_ROWS, SET_COUNT(SAV_ROWS) },
 };
 
 /* Pressed by a script only: no tab shows them. */
@@ -278,6 +252,148 @@ static inline int setRowSegs(const SetRow &r)
 	while (n < 4 && r.seg[n].name)
 		n++;
 	return n;
+}
+
+/* How many buttons a choice row shows for a setting: one per value, at most the engine's slots. A row that
+ * declares more values than there are slots would silently lose the rest; the clamp is the documented limit. */
+static inline int choiceCount(const SettingOption *s)
+{
+	int n = (int)s->max - (int)s->min + 1;
+	if (n < 1) n = 1;
+	if (n > eng::MAX_SLOTS) n = eng::MAX_SLOTS;
+	return n;
+}
+
+/* How many buttons a row has on screen: a readout none, a cycle one, a SEG_EACH row one per value of its
+ * setting (set), any other row one per seg. */
+static inline int rowSlots(const SetRow &r, const SettingOption *set)
+{
+	if (r.kind == eng::ROW_READOUT) return 0;
+	if (r.kind == eng::ROW_CYCLE) return 1;
+	return r.seg[0].value == SEGV_EACH ? choiceCount(set) : setRowSegs(r);
+}
+
+/* The shared reader and writer of a row's buttons (SettingsFrame.cpp). The Settings tabs and the Options
+ * pages both read and click through these: slot is the button's place in its row (the value of a SEG_EACH
+ * button; any other button is its own seg, so 0 will do). */
+const SettingOption *segSetting(const SetSeg &g);
+const char *segText(const SetSeg &g, int slot);
+bool segLit(const SetSeg &g, int slot);
+void segPress(const SetSeg &g, int slot);
+/* A script's "menuclick name n" on one button: false when g is not that button (see SettingsFrame.cpp). */
+bool scriptPress(const SetSeg &g, const char *name, int n);
+/* The text and lit state of every button of rows[0..n) (and the readouts) follow the variables. */
+void syncRows(menu::glue::PageView &view, const SetRow *rows, int n);
+
+/* ---- The engine page of a table of rows: the Wii's frames and the host test build it here ---- */
+
+/* What the page asks of the running program: a button's text and lit state, the setting a button edits. */
+struct SetBind
+{
+	const char	*(*text)(const SetSeg &, int slot);
+	bool		(*lit)(const SetSeg &, int slot);
+	const SettingOption	*(*setting)(const SetSeg &);	/* the setting of the button, or NULL */
+	const char	*(*readout)(int row);					/* ROW_READOUT: the text of row */
+	bool		gameLoaded;
+	bool		settingHelp;	/* a row with no help of its own shows its setting's (the OPTIONS table) */
+};
+
+struct SetPage
+{
+	eng::Row			rows[eng::MAX_ROWS];
+	eng::FooterHelp		footer[eng::MAX_ROWS];	/* row r's help, from SetRow::help */
+	eng::ActionButton	actions[eng::MAX_ROWS][4];
+	const char			*names[eng::MAX_ROWS][4];
+	eng::Tab			tabs[eng::MAX_TABS];
+	eng::Page			page;
+};
+
+/* The place of tab id in the tab row. */
+static inline int setTabPos(int tabId)
+{
+	for (int p = 0; p < SET_TAB_COUNT; p++)
+		if (SET_TAB_AT_POS[p] == tabId)
+			return p;
+	return 0;
+}
+
+/* Describes row r of rows as an engine row: the text of every button and which are lit, as bind gives them. */
+static inline void buildRow(const SetRow &s, int r, const SetBind &bind, SetPage &o)
+{
+	eng::Row &row = o.rows[r];
+	const SettingOption *set = s.kind == eng::ROW_READOUT ? NULL : bind.setting(s.seg[0]);
+	const int n = rowSlots(s, set);
+	const int nChoices = s.kind == eng::ROW_CHOICE ? n - s.plain : n;
+	bool picked = false;
+
+	row.kind    = s.kind;
+	row.label   = s.label ? s.label : set ? set->label : NULL;
+	row.plain   = s.plain;
+	row.prefix  = s.prefix;
+	row.fit     = s.fit;
+	o.footer[r].line[0] = s.help[0] ? s.help[0] : bind.settingHelp && set ? set->help : NULL;
+	o.footer[r].line[1] = s.help[1];
+	if (s.kind == eng::ROW_READOUT)
+	{
+		row.text = bind.readout(r);
+		return;
+	}
+	if (s.kind == eng::ROW_CYCLE || s.seg[0].value == SEGV_EACH)
+	{
+		/* the engine takes the names and the current value of the setting itself */
+		row.names = set->choices;
+		row.lo    = set->min;
+		row.count = s.kind == eng::ROW_CYCLE ? set->max - set->min + 1 : n;
+		row.value = *set->value;
+		return;
+	}
+	row.names   = o.names[r];
+	row.count   = n;
+	row.actions = o.actions[r];
+	for (int c = 0; c < n; c++)
+	{
+		const SetSeg &g = s.seg[c];
+		o.names[r][c] = o.actions[r][c].text = bind.text(g, c);
+		/* a cycle has the width of the longest name (the standard's small cycles take their own) */
+		o.actions[r][c].width = g.value == SEGV_NEXT && !s.prefix ? STD_CYCLE_W : 0.0f;
+		const bool lit = bind.lit(g, c);
+		if (s.kind == eng::ROW_CHOICE && c < nChoices)
+		{
+			if (lit && !picked)
+			{
+				row.value = c;
+				picked = true;
+			}
+		}
+		else
+			o.actions[r][c].lit = lit && !s.noLit;
+		/* drawn always, inactive with no game loaded */
+		if (g.value == SEGV_GAME && !bind.gameLoaded)
+			row.inactive |= 1u << c;
+	}
+}
+
+/* Describes tab tabId as an engine page. */
+static inline void buildSettingsPage(int tabId, const SetBind &bind, SetPage &o)
+{
+	const SetTab &tab = SET_TABS_DEF[tabId];
+	memset(&o, 0, sizeof o);
+	for (int r = 0; r < tab.nRows; r++)
+		buildRow(tab.rows[r], r, bind, o);
+	for (int t = 0; t < SET_TAB_COUNT; t++)
+	{
+		o.tabs[t].text = SET_TAB_NAMES[SET_TAB_AT_POS[t]];	/* a standard page measures the text: no width */
+	}
+	o.page.title      = NULL;
+	o.page.tabs       = o.tabs;
+	o.page.nTabs      = SET_TAB_COUNT;
+	o.page.curTab     = setTabPos(tabId);
+	o.page.rows       = o.rows;
+	o.page.nRows      = tab.nRows;
+	o.page.logo       = SET_LOGO;
+	o.page.focus      = eng::FOCUS_ROWS;
+	o.page.standard   = eng::DENSITY_REGULAR;
+	o.page.footer     = o.footer;
 }
 
 #endif

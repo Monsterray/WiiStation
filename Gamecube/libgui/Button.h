@@ -139,6 +139,7 @@ public:
 	};
 
 private:
+	void setImages();
 	Component* followFocus(int direction, int buttonsPressed);
 	bool active, selected, arrows, plain;
 	Image	*plainImage;

@@ -223,8 +223,8 @@ right.
   Bluetooth latency, how much travel a Classic Controller really has.
 - **Rumble**, which has no observable output in a trace.
 - **The menus.** Nothing here drives the menu, which reads the pads directly rather than
-  through these drivers. `scripts/menu_text_width.py` checks the Settings tabs' geometry
-  and text widths against the 640-pixel screen instead, which is not the same as looking.
+  through these drivers. the host tests (`sh tests/menu_engine/run.sh`) check the Settings tabs' geometry
+  against the 640-pixel screen instead, which is not the same as looking.
 
 ## 6. USB controllers (HID pads): the USB Pad Test page
 
@@ -240,7 +240,7 @@ logs "devices: 0").
    descriptor (section 7). A device whose descriptor names no gamepad input, and has no
    ini: open the page first, then unplug it and plug it in again (the page says so); only
    while the page is open is it read at all ("raw"), and a game never gets it.
-2. Settings > General > **Advanced** > **Input** tab > USB Pad: **Test**. B on the page
+2. Settings > System > **Advanced** > **Input** tab > USB Pad: **Test**. B on the page
    goes back there. A scripted run opens the page with the autoinput line
    `menuclick TestUsbPad 1` (a script-only button of the Settings tabs; B then goes back to
    Settings > Input); `menupage 12` photographs the Advanced > Input tab.

@@ -1,0 +1,5 @@
+# menuclick on the ISO Info page (readout rows, no buttons) with a name no button has: the menu must say
+# "menuclick: no button named 'NoSuchButton'" and keep running (it read a NULL name before 2026-11-08).
+1 0000
+menupage 17
+menuclick NoSuchButton 1 80

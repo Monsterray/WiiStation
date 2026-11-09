@@ -32,6 +32,7 @@ class MainFrame : public menu::Frame
 public:
 	MainFrame();
 	~MainFrame();
+	int logoSpot() const;
 
 private:
 	menu::InputStatusBar *inputStatusBar;

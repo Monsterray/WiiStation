@@ -84,6 +84,8 @@ MainFrame::MainFrame()
 	setEnabled(true);
 }
 
+int MainFrame::logoSpot() const { return MAIN_MENU.logo; }
+
 MainFrame::~MainFrame()
 {
 	mainMenu = NULL;
@@ -113,7 +115,6 @@ void Func_CurrentROM()
 
 void Func_Settings()
 {
-	menu::Gui::getInstance().menuLogo->setLocation(580.0, 410.0, -50.0);
 	pMenuContext->setActiveFrame(MenuContext::FRAME_SETTINGS,SettingsFrame::SUBMENU_VIDEO);
 }
 
@@ -339,11 +340,6 @@ void Func_PlayGame()
 void Func_SetPlayGame()
 {
 	setPlayLabel(false);
-}
-
-void Func_SetResumeGame()
-{
-	setPlayLabel(true);
 }
 
 /* A game is loaded and has been played: the Play button says Resume (Func_PlayGame sets it

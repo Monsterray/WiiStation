@@ -390,11 +390,9 @@ hashes in UploadScreen, OpenGX texel checks). The pattern to grep for is a loop 
   whatever height they are given; a smaller row overlaps the next until `setBounds()` gives
   the height back. Labels are not clipped: text wider than its button runs over the edge.
   `setAutoSize(BTN_FIT_WIDTH)` + `setBounds()` fits a button to its label (+28 px).
-- `scripts/menu_text_width.py` checks SettingsFrame's and OptionsFrame's tables (rows,
-  gaps, label fits, logo). A new SettingsFrame button must be added to its TAB_ROWS, or the
-  checker fails: button 79 (Stick D-pad, 5.3.0) was missing, and the row it checked then
-  had uneven gaps and a too-narrow button. ConfigureInputFrame lays itself out in code
-  (layoutTables) and is checked by screenshot only.
+- The Settings, Options and action pages are tables in `Gamecube/menu/pages/*.h`; the host tests
+  (`sh tests/menu_engine/run.sh`) check them and the engine's layout rules. ConfigureInputFrame lays
+  itself out in code (layoutTables) and is checked by screenshot only.
 - **A `vram=` difference in chained games 4+ with equal `ram=`/`pc=`/`cycle=`** was the
   last 7..23 pixels of row 511 keeping game 3's data (CTR's 0x8000). OpenPlugins() points
   the shared psxVuw at gpulib's gpu.vram (globalVram + 4 KB, aligned up to 64) via

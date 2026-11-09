@@ -144,14 +144,18 @@ extern char CdromId[10];
 static recent_list fbRecent;
 static bool fbRecentLoaded;
 static int fbRecentFilter = -1;		/* the Recent tab's letter filter: a strip cell, -1 none (Func_TabRecent clears it) */
+/* Bumped when what the facts strip and the path/count line were made from changes behind their keys'
+ * back: a list read or re-sorted (fbInfoReset/fbInfoClear), the Recent record read, a game recorded. */
+static unsigned fbGen;
 static void fbRecentLoad(void)
 {
 	recent_load(&fbRecent, RECENT_FILE);
 	fbRecentLoaded = true;
+	fbGen++;
 }
 static int fbSavesIdx = -1, fbSavesN = -1;		/* the row index the count is for; the count (-1 unknown) */
 static int fbLastFocus = -1;					/* the last row a button had focus on (the strip keeps it under a message box) */
-static void fbSavesReset(void) { fbSavesIdx = -1; fbSavesN = -1; }
+static void fbSavesReset(void) { fbSavesIdx = -1; fbSavesN = -1; fbGen++; }
 static int fbSavesCount(int idx, const char *serial)
 {
 	if (idx == fbSavesIdx)
@@ -268,23 +272,11 @@ static char fbPathShown[256];	/* fbPath, cut from the left to the room the count
 static char fbCount[64];
 static eng::FreeText FB_TEXTS[2];
 
-/* out = s, or "..." and its tail when s is wider than room pixels at scale. */
-static void cutLeft(char *out, size_t size, const char *s, float scale, int room)
-{
-	const eng::Metrics &m = menu::glue::METRICS;
-	snprintf(out, size, "%s", s);
-	if (m.width(out, scale, m.ctx) <= room)
-		return;
-	for (const char *p = s; *p; )
-	{
-		p++;
-		while ((*p & 0xC0) == 0x80)		/* not into the middle of a UTF-8 character */
-			p++;
-		snprintf(out, size, "...%s", p);
-		if (m.width(out, scale, m.ctx) <= room)
-			return;
-	}
-}
+/* The path and count line is made again only when its key changes: the list (fbGen, entries, folder),
+ * the tab, the sort or the Recent letter filter. */
+struct FbLineKey { unsigned gen; const void *list; int n, source, sort, filter, upRow; char path[sizeof fbPath]; };
+static FbLineKey fbLineKey;
+static bool fbLineMade;
 
 /* Before every layout: the lit tab, and the path and count line (the count changes with the list). */
 static void fbPrepare(void *, eng::Page &page)
@@ -293,22 +285,33 @@ static void fbPrepare(void *, eng::Page &page)
 
 	const eng::Metrics &m = menu::glue::METRICS;
 	const float scale = (float)STD_PATH_PX / 24.0f;
-	/* "42 games", "3 folders", "3 folders, 6 games" (the ".." row is not an item) */
-	int folders = 0, games = 0;
-	for (int i = fbUpRow ? 1 : 0; dir_entries && i < num_entries; i++)
+	FbLineKey k;
+	memset(&k, 0, sizeof k);
+	k.gen = fbGen;  k.list = dir_entries;  k.n = num_entries;  k.source = explorerSource;
+	k.sort = fileSortMode;  k.filter = fbRecentFilter;  k.upRow = fbUpRow;
+	snprintf(k.path, sizeof k.path, "%s", fbPath);
+	if (!fbLineMade || memcmp(&k, &fbLineKey, sizeof k))
 	{
-		if (dir_entries[i].attr & FILE_BROWSER_ATTR_DIR) folders++;
-		else games++;
+		fbLineKey = k;
+		fbLineMade = true;
+		/* "42 games", "3 folders", "3 folders, 6 games" (the ".." row is not an item) */
+		int folders = 0, games = 0;
+		for (int i = fbUpRow ? 1 : 0; dir_entries && i < num_entries; i++)
+		{
+			if (dir_entries[i].attr & FILE_BROWSER_ATTR_DIR) folders++;
+			else games++;
+		}
+		if (explorerSource == 4 && games == 0)
+			snprintf(fbCount, sizeof fbCount, "No games played yet");
+		else	/* plus the sort hint: "A-Z" / "folders first"; Recent "newest first" or the letter filter */
+			eng::countText(m, scale, (int)(STD_COUNT_R - STD_PATH_X) - 152, folders, games,
+			               explorerSource == 4 ? eng::COUNT_HINT_NEWEST :
+			               fileSortMode ? eng::COUNT_HINT_FOLDERS : eng::COUNT_HINT_AZ,
+			               explorerSource == 4 ? fbRecentFilter : -1, fbCount, sizeof fbCount);
+		eng::cutTextLeft(m, fbPath, scale,
+		                 (int)STD_COUNT_R - m.width(fbCount, scale, m.ctx) - 16 - (int)STD_PATH_X,
+		                 fbPathShown, sizeof fbPathShown);
 	}
-	if (explorerSource == 4 && games == 0)
-		snprintf(fbCount, sizeof fbCount, "No games played yet");
-	else	/* plus the sort hint: "A-Z" / "folders first"; Recent "newest first" or the letter filter */
-		eng::countText(m, scale, (int)(STD_COUNT_R - STD_PATH_X) - 152, folders, games,
-		               explorerSource == 4 ? eng::COUNT_HINT_NEWEST :
-		               fileSortMode ? eng::COUNT_HINT_FOLDERS : eng::COUNT_HINT_AZ,
-		               explorerSource == 4 ? fbRecentFilter : -1, fbCount, sizeof fbCount);
-	cutLeft(fbPathShown, sizeof fbPathShown, fbPath, scale,
-	        (int)STD_COUNT_R - m.width(fbCount, scale, m.ctx) - 16 - (int)STD_PATH_X);
 	FB_TEXTS[0].text = fbPathShown;
 	FB_TEXTS[0].ax = (float)STD_PATH_X;		FB_TEXTS[0].ay = (float)STD_PATH_Y;
 	FB_TEXTS[0].scale = scale;				FB_TEXTS[0].centred = false;	FB_TEXTS[0].right = false;
@@ -384,64 +387,6 @@ void fileBrowserFrame_Error(fileBrowser_file* dir, int error_code);
 void fileBrowserFrame_FillPage();
 void fileBrowserFrame_LoadFile(int i);
 static int dir_comparator(const void* _x, const void* _y);
-
-static void fbFill(menu::Graphics &gfx, int x, int y, int w, int h, GXColor c)
-{
-	gfx.setTEV(GX_PASSCLR);
-	gfx.setColor(c);
-	gfx.enableBlending(true);
-	gfx.fillRect(x, y, w, h);
-}
-
-/* What the buttons do not draw: the folder icons, the arrow glyphs, the scroll thumb (to scale
- * between the arrows) and every text the layout holds (path, count, tag, note, title). */
-void drawExplorerOverlay(menu::Graphics &gfx, const eng::Layout &L, const eng::ListState &S)	/* also AccountFrame.cpp */
-{
-	const GXColor gold = {254,213,95,255}, white = {255,255,255,255}, dim = {110,110,110,255};
-
-	for (int k = 0; k < NUM_FILE_SLOTS; k++)
-	{
-		if (L.listItem[k] < 0)
-			continue;
-		const eng::Control &c = L.c[L.listItem[k]];
-		if (!c.folder)
-			continue;
-		const int x = (int)STD_LIST_ICON_X, y = (int)c.rect.y + ((int)c.rect.h - 14) / 2;
-		fbFill(gfx, x, y, 8, 4, gold);			/* the tab */
-		fbFill(gfx, x, y + 3, 20, 11, gold);	/* the folder */
-	}
-
-	if (L.list >= 0 && L.slot[L.list][0] >= 0 && L.slot[L.list][1] >= 0)
-	{
-		const eng::Control &prev = L.c[L.slot[L.list][0]], &next = L.c[L.slot[L.list][1]];
-		for (int p = 0; p < 2; p++)
-		{
-			const eng::Control &c = p ? next : prev;
-			const int cx = (int)c.rect.x + (int)c.rect.w / 2, cy = (int)c.rect.y + (int)c.rect.h / 2;
-			for (int r = 0; r < 4; r++)
-			{
-				const int w = 2 * (p ? 4 - r : r + 1);
-				fbFill(gfx, cx - w / 2, cy - 4 + 2 * r, w, 2, c.focusable ? white : dim);
-			}
-		}
-		const int y0 = (int)(prev.rect.y + prev.rect.h) + 2, y1 = (int)next.rect.y - 2, track = y1 - y0;
-		const int x = (int)prev.rect.x;
-		const eng::Thumb th = eng::scrollThumb(S, y0, y1);	/* by page: a drag maps back to it */
-		fbFill(gfx, x + 5, y0, 2, track, (GXColor) {255,255,255,40});
-		fbFill(gfx, x + 2, th.y, 8, th.h, th.live ? (GXColor) {200,200,200,255} : dim);
-	}
-
-	menu::IplFont &font = menu::IplFont::getInstance();
-	for (int i = 0; i < L.n; i++)
-	{
-		const eng::Control &c = L.c[i];
-		if (c.kind != eng::CTRL_TEXT || !c.text)
-			continue;
-		font.drawInit(c.role == eng::ROLE_TITLE ? white :
-		              c.role == eng::ROLE_FREE_TEXT ? (GXColor) {40,40,40,255} : (GXColor) {200,200,200,255});
-		font.drawString((int)c.rect.x, (int)c.rect.y, (char*)c.text, c.scale, false);
-	}
-}
 
 /* ---- The letter strip (y 94-118) and the scroll thumb's drag ---------------------------------------
  * The strip is "#" and A-Z over the list. A letter with no name is dim; the focused row's letter is lit
@@ -653,13 +598,13 @@ static void drawLetterStrip(menu::Graphics &gfx)
 		int x, w;
 		eng::stripCell(k, &x, &w);
 		const bool have = (fbStripMask >> k) & 1u;
-		fbFill(gfx, x, y, w, h, k == cur ? (GXColor) {92,92,100,255} : (GXColor) {58,58,62,255});
-		fbFill(gfx, x, y, w, 1, (GXColor) {255,255,255,40});
+		menu::glue::fill(gfx, x, y, w, h, k == cur ? (GXColor) {92,92,100,255} : (GXColor) {58,58,62,255});
+		menu::glue::fill(gfx, x, y, w, 1, (GXColor) {255,255,255,40});
 		char s[2] = { eng::stripChar(k), 0 };
 		font.drawInit(have ? (GXColor) {245,245,245,255} : (GXColor) {140,140,140,255});
 		font.drawString(x + w / 2, y + h / 2, s, scale, true);	/* centered = centered on y too (checked in a capture) */
 		if (k == cur)
-			fbFill(gfx, x + 3, y + 20, w - 6, 2, (GXColor) {61,181,204,255});
+			menu::glue::fill(gfx, x + 3, y + 20, w - 6, 2, (GXColor) {61,181,204,255});
 	}
 }
 
@@ -723,7 +668,7 @@ static void fbCoverDraw(menu::Graphics &gfx, const char *serial)
 #ifdef HW_RVL
 	if (covState != 1)
 		return;
-	fbFill(gfx, STD_COVER_X - 1, STD_COVER_Y - 1, STD_COVER_W + 2, STD_COVER_H + 2, (GXColor) {120,120,120,255});
+	menu::glue::fill(gfx, STD_COVER_X - 1, STD_COVER_Y - 1, STD_COVER_W + 2, STD_COVER_H + 2, (GXColor) {120,120,120,255});
 	GX_InvalidateTexRegion(&texCacheRegionS[0]);			/* the font's region: other texels */
 	GX_LoadTexObjPreloaded(&covTex, &texCacheRegionS[0], GX_TEXMAP0);	/* outside Begin/End */
 	gfx.setColor((GXColor) {255,255,255,255});
@@ -738,21 +683,19 @@ static void fbCoverDraw(menu::Graphics &gfx, const char *serial)
  * lazy read (fbPumpInfo reads the focused row first); a value not known yet is "-". Last played is
  * "Never" until the Recent record (slice 6), and Achievements and Saves are "-" until that record
  * stores the game's serial and its set result. */
-static void drawFactsStrip(menu::Graphics &gfx)
-{
-	menu::IplFont &font = menu::IplFont::getInstance();
-	const eng::Metrics &m = menu::glue::METRICS;
-	eng::FactsBox b;
-	eng::factsLayout(b);
-	fbFill(gfx, b.x0, b.y0, b.x1 - b.x0, b.y1 - b.y0, (GXColor) {45,45,45,168});
-	fbFill(gfx, b.x0, b.y0, b.x1 - b.x0, 1, (GXColor) {255,255,255,40});
+/* What the strip shows, formatted and cut to its cells. Made again only when its key changes: the
+ * focused row and what is known about it (read info, the folder's game), the list and the Recent
+ * record (fbGen), and the day ("today" / "yesterday"). The cover is not in it (fbCoverDraw polls). */
+struct FbFactsText { char title[128]; const char *key[6]; char val[6][96]; int cells; char serial[12]; };
+struct FbFactsKey { unsigned gen; const void *list; int idx, done, discs, gState, gDiscs; unsigned size, gSize; long long day;
+                    char name[FILE_BROWSER_MAX_PATH_LEN]; };
+static FbFactsText fbFacts;
+static FbFactsKey fbFactsKey;
+static bool fbFactsMade;
 
-	const int idx = fbFocusedIndex();
-	if (!dir_entries || idx < 0 || idx >= num_entries)
-	{
-		fbCoverDraw(gfx, "");
-		return;						/* an empty list: the panel only */
-	}
+static void fbFactsMake(FbFactsText &T, const eng::FactsBox &b, int idx, const FbGame *g)
+{
+	const eng::Metrics &m = menu::glue::METRICS;
 	const char *coverSerial = "";		/* of the focused game, when the Recent record has it */
 	const fileBrowser_file &e = dir_entries[idx];
 	const char *name = romFolderList ? e.name : filenameFromAbsPath(e.name);
@@ -766,9 +709,6 @@ static void drawFactsStrip(menu::Graphics &gfx)
 	/* A folder row that holds a game (fbPumpFolderGame found one) shows that game's facts: Game (its
 	 * file name), Size (the format folded in, "CHD, 624 MB"), Region | Last played, Achievements,
 	 * Saves, all of the game's own path. The title stays the folder's name. */
-	FbGame *g = isDir && !up && !romFolderList ? fbGameFind(idx) : NULL;
-	if (g && g->state != 1)
-		g = NULL;
 	if (isDir && !g)
 	{
 		keys[0] = "Type";
@@ -821,21 +761,68 @@ static void drawFactsStrip(menu::Graphics &gfx)
 		vals[3] = val[1][0];  vals[4] = val[1][1];  vals[5] = val[1][2];
 	}
 
-	fbCoverDraw(gfx, coverSerial);		/* before the text: the font's texture is set again by drawInit */
+	const float tScale = (float)STD_FACTS_TITLE_PX / 24.0f;
+	snprintf(T.title, sizeof T.title, "%s", eng::fitText(m, up ? "Up one folder" : name, tScale, b.titleRoom,
+	                                                      buf, sizeof buf));
+	const float scale = (float)STD_FACTS_PX / 24.0f;
+	T.cells = isDir && !g ? 1 : STD_FACTS_N;
+	for (int k = 0; k < T.cells; k++)
+	{
+		T.key[k] = keys[k];
+		snprintf(T.val[k], sizeof T.val[k], "%s", eng::fitText(m, vals[k], scale, b.cell[k].valRoom, buf, sizeof buf));
+	}
+	snprintf(T.serial, sizeof T.serial, "%s", coverSerial);
+}
+
+static void drawFactsStrip(menu::Graphics &gfx)
+{
+	menu::IplFont &font = menu::IplFont::getInstance();
+	const eng::Metrics &m = menu::glue::METRICS;
+	eng::FactsBox b;
+	eng::factsLayout(b);
+	menu::glue::fill(gfx, b.x0, b.y0, b.x1 - b.x0, b.y1 - b.y0, (GXColor) {45,45,45,168});
+	menu::glue::fill(gfx, b.x0, b.y0, b.x1 - b.x0, 1, (GXColor) {255,255,255,40});
+
+	const int idx = fbFocusedIndex();
+	if (!dir_entries || idx < 0 || idx >= num_entries)
+	{
+		fbCoverDraw(gfx, "");
+		return;						/* an empty list: the panel only */
+	}
+	const fileBrowser_file &e = dir_entries[idx];
+	/* A folder row that holds a game (fbPumpFolderGame found one) shows that game's facts. */
+	const char *name = romFolderList ? e.name : filenameFromAbsPath(e.name);
+	const bool dirRow = (e.attr & FILE_BROWSER_ATTR_DIR) != 0 && !romFolderList && strcmp(name, "..");
+	const FbGame *g = dirRow ? fbGameFind(idx) : NULL;
+	if (g && g->state != 1)
+		g = NULL;
+
+	FbFactsKey k;
+	memset(&k, 0, sizeof k);
+	k.gen = fbGen;  k.list = dir_entries;  k.idx = idx;  k.day = (long long)time(NULL) / 86400;
+	k.done = fbInfo && fbInfo[idx].done;  k.discs = k.done ? fbInfo[idx].discs : 0;  k.size = e.size;
+	if (g) { k.gState = g->state;  k.gDiscs = g->discs;  k.gSize = g->size; }
+	snprintf(k.name, sizeof k.name, "%s", e.name);
+	if (!fbFactsMade || memcmp(&k, &fbFactsKey, sizeof k))
+	{
+		fbFactsMake(fbFacts, b, idx, g);
+		k.gen = fbGen;				/* the Recent record may have been read just now */
+		fbFactsKey = k;
+		fbFactsMade = true;
+	}
+	const FbFactsText &T = fbFacts;
+
+	fbCoverDraw(gfx, T.serial);		/* before the text: the font's texture is set again by drawInit */
 	const float tScale = (float)STD_FACTS_TITLE_PX / 24.0f;
 	font.drawInit((GXColor) {255,255,255,255});
-	font.drawString(b.titleX, b.titleY, (char*)eng::fitText(m, up ? "Up one folder" : name, tScale, b.titleRoom,
-	                                                         buf, sizeof buf), tScale, false);
+	font.drawString(b.titleX, b.titleY, (char*)T.title, tScale, false);
 	const float scale = (float)STD_FACTS_PX / 24.0f;
-	for (int k = 0; k < STD_FACTS_N; k++)
+	for (int c = 0; c < T.cells; c++)
 	{
-		const eng::FactsCell &c = b.cell[k];
-		if (isDir && !g && k > 0)
-			break;
 		font.drawInit((GXColor) {200,200,200,255});
-		font.drawString(c.keyR - m.width(keys[k], scale, m.ctx), c.y, (char*)keys[k], scale, false);
+		font.drawString(b.cell[c].keyR - m.width(T.key[c], scale, m.ctx), b.cell[c].y, (char*)T.key[c], scale, false);
 		font.drawInit((GXColor) {245,245,245,255});
-		font.drawString(c.valX, c.y, (char*)eng::fitText(m, vals[k], scale, c.valRoom, buf, sizeof buf), scale, false);
+		font.drawString(b.cell[c].valX, b.cell[c].y, (char*)T.val[c], scale, false);
 	}
 }
 
@@ -1066,12 +1053,7 @@ void FileBrowserFrame::drawChildren(menu::Graphics &gfx)
 			menu::Focus::getInstance().clearPrimaryFocus();
 		}
 
-		//Draw buttons
-		menu::ComponentList::const_iterator iteration;
-		for (iteration = componentList.begin(); iteration != componentList.end(); ++iteration)
-		{
-			(*iteration)->draw(gfx);
-		}
+		Frame::drawChildren(gfx);	//Draw buttons
 		fbView->drawOverlay(gfx);
 		drawLetterStrip(gfx);
 		drawFactsStrip(gfx);
@@ -1477,8 +1459,7 @@ void fileBrowserFrame_OpenRomFolders(fileBrowser_file* deviceDefault, const char
 void fileBrowserFrame_Error(fileBrowser_file* dir, int error_code)
 {
 	char feedback_string[256];
-	/* The box is 560px wide and does not wrap, so each line breaks by hand.
-	 * scripts/menu_text_width.py measures them. */
+	/* The box is 560px wide and does not wrap, so each line breaks by hand. */
 	if(error_code == SMB_NETINITERR) {
   	strcpy(feedback_string,"Still connecting to the network.\nTry again in a moment.");
 	}

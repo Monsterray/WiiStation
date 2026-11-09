@@ -6,9 +6,8 @@
  *
  * The screen is 640x480 whatever the television does with it (Gamecube/libgui/GraphicsGX.cpp).
  * Nothing clips: a button or a string placed past an edge is simply drawn off the screen,
- * which is why scripts/menu_text_width.py checks the tables in SettingsFrame.cpp and
- * OptionsFrame.cpp against everything here and fails the build's own sanity check rather
- * than waiting for someone to notice on a television.
+ * which is why tests/menu_engine/run.sh lays out every shipped page and checks it against
+ * everything here, rather than waiting for someone to notice on a television.
  *
  * THE RULES
  *   - Nothing comes within MENU_EDGE of any edge of the screen.

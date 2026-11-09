@@ -14,6 +14,7 @@
 #define ACTIONPAGES_H
 
 #include <stddef.h>
+#include <string.h>
 #include "../MenuEngine.h"
 
 struct ActionDef
@@ -119,5 +120,55 @@ static const ActionMenuDef CUR_MENU =
 	"Current ISO", CUR_ACTS, ACTION_COUNT(CUR_ACTS), CUR_ROW_PLACE, ACTION_COUNT(CUR_ROW_PLACE),
 	60.0f, menu::engine::LOGO_SPOT_BOTTOM, CUR_LINKS, ACTION_COUNT(CUR_LINKS),
 };
+
+/* ---- The engine page of an action menu: the Wii's ActionMenu and the host test build it here ---- */
+
+enum { ACTION_MAX = 12 };
+
+struct ActionPage
+{
+	menu::engine::ActionButton	acts[menu::engine::MAX_ROWS][menu::engine::MAX_SLOTS];
+	menu::engine::Row			rows[menu::engine::MAX_ROWS];
+	menu::engine::Page			page;
+};
+
+/* texts[k] is button k's text. False when the table does not fit the engine's arrays (nothing is built). */
+static inline bool buildActionPage(const ActionMenuDef &d, const char *const *texts, ActionPage &o)
+{
+	namespace eng = menu::engine;
+	int rowCount[eng::MAX_ROWS] = { 0 };
+	if (d.nActs > ACTION_MAX || d.nRows > eng::MAX_ROWS)
+		return false;
+	for (int k = 0; k < d.nActs; k++)
+		if (d.acts[k].row < 0 || d.acts[k].row >= d.nRows || d.acts[k].slot < 0 || d.acts[k].slot >= eng::MAX_SLOTS)
+			return false;
+	memset(&o, 0, sizeof o);
+	for (int k = 0; k < d.nActs; k++)
+	{
+		const ActionDef &a = d.acts[k];
+		eng::ActionButton &b = o.acts[a.row][a.slot];
+		b.text  = texts[k];
+		b.width = a.width;
+		b.dy    = a.dy;
+		if (a.slot + 1 > rowCount[a.row])
+			rowCount[a.row] = a.slot + 1;	/* a row holds slots 0 .. its last one */
+	}
+	for (int r = 0; r < d.nRows; r++)
+	{
+		o.rows[r].kind    = eng::ROW_BUTTONS;
+		o.rows[r].count   = rowCount[r];
+		o.rows[r].actions = o.acts[r];
+		o.rows[r].x0      = d.rows[r].x0;
+		o.rows[r].gap     = d.rows[r].gap;
+	}
+	o.page.rows       = o.rows;
+	o.page.nRows      = d.nRows;
+	o.page.logo       = d.logo;
+	o.page.focus      = eng::FOCUS_ROWS;
+	o.page.rowY0      = d.rowY0;
+	o.page.overrides  = d.links;
+	o.page.nOverrides = d.nLinks;
+	return true;
+}
 
 #endif

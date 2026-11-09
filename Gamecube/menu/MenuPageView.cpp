@@ -30,27 +30,20 @@ namespace glue {
 
 static char emptyStr[1] = "";
 
+enum { nRows = engine::MAX_ROWS, nSlots = engine::MAX_SLOTS, nTexts = engine::MAX_SLOTS,
+       nTabs = engine::MAX_TABS, nHelp = engine::MAX_HELP };
+
 /* A button's tag: a row's button or segment is (row + 1) * 256 + slot + 1; a tab is -(tab + 1). */
 static int rowTag(int row, int slot) { return (row + 1) * 256 + slot + 1; }
 
-PageView::PageView(Frame *owner, int rows, int slots, int texts, int tabs, int help, ActFn actFn, void *userData,
-                   ButtonFunc back, const char *title)
-	: frame(owner), pool(new Pool(owner, tabs + rows * slots)),
-	  nRows(rows), nSlots(slots), nTexts(texts), nTabs(tabs), nHelp(help), act(actFn), user(userData),
-	  titleString((char*)title), footerRow(-1)
+PageView::PageView(Frame *owner, ActFn actFn, void *userData, ButtonFunc back, const char *title)
+	: frame(owner), pool(new Pool(owner, nTabs + nRows * nSlots)),
+	  act(actFn), user(userData), titleString((char*)title), footerRow(-1), footerShown(-1)
 {
-	rowW = new RowW[rows];
-	tabW = new Button*[tabs];
-	tabString = new char*[tabs];
-	helpTermBox = new TextBox*[help];  helpBox = new TextBox*[help];
-	helpTermString = new char*[help];  helpString = new char*[help];
-	footerBox = new TextBox*[STD_HELP_LINES];
-	footerString = new char*[STD_HELP_LINES];
-
 	titleBox = new TextBox(&titleString, 0.0f, 0.0f, engine::grid::TEXT_SCALE, true);
 	frame->add(titleBox);
 
-	for (int t = 0; t < tabs; t++)
+	for (int t = 0; t < nTabs; t++)
 	{
 		tabString[t] = emptyStr;
 		/* BTN_A_SEL, as the Settings tabs: the current one stays lit. The pointer's box is set by show(). */
@@ -58,14 +51,9 @@ PageView::PageView(Frame *owner, int rows, int slots, int texts, int tabs, int h
 		tabW[t]->setClickedCtx(click, this, -(t + 1));
 	}
 
-	for (int i = 0; i < rows; i++)
+	for (int i = 0; i < nRows; i++)
 	{
 		RowW &r = rowW[i];
-		r.btn = new Button*[slots];
-		r.btnString = new char*[slots];
-		r.marks = new unsigned char[slots];
-		r.valueBox = new TextBox*[texts];
-		r.valueString = new char*[texts];
 		r.labelString = emptyStr;
 		r.value[0] = '\0';
 		/* The label lives in two places depending on the row kind, so it gets two boxes; the page
@@ -74,13 +62,13 @@ PageView::PageView(Frame *owner, int rows, int slots, int texts, int tabs, int h
 		r.rlabel   = new TextBox(&r.labelString, 0.0f, 0.0f, engine::grid::TEXT_SCALE, true);
 		frame->add(r.text);
 		frame->add(r.rlabel);
-		for (int c = 0; c < texts; c++)
+		for (int c = 0; c < nTexts; c++)
 		{
 			r.valueString[c] = r.value;
 			r.valueBox[c] = new TextBox(&r.valueString[c], 0.0f, 0.0f, engine::grid::TEXT_SCALE, true);
 			frame->add(r.valueBox[c]);
 		}
-		for (int c = 0; c < slots; c++)
+		for (int c = 0; c < nSlots; c++)
 		{
 			r.btnString[c] = emptyStr;
 			r.marks[c] = 0;
@@ -90,7 +78,7 @@ PageView::PageView(Frame *owner, int rows, int slots, int texts, int tabs, int h
 		}
 	}
 
-	for (int i = 0; i < help; i++)
+	for (int i = 0; i < nHelp; i++)
 	{
 		helpTermString[i] = emptyStr;
 		helpString[i] = emptyStr;
@@ -125,11 +113,6 @@ PageView::~PageView()
 		delete rowW[i].rlabel;
 		for (int c = 0; c < nTexts; c++)
 			delete rowW[i].valueBox[c];
-		delete[] rowW[i].valueBox;
-		delete[] rowW[i].valueString;
-		delete[] rowW[i].btn;
-		delete[] rowW[i].btnString;
-		delete[] rowW[i].marks;
 	}
 	for (int i = 0; i < nHelp; i++)
 	{
@@ -138,9 +121,6 @@ PageView::~PageView()
 	}
 	for (int i = 0; i < STD_HELP_LINES; i++)
 		delete footerBox[i];
-	delete[] rowW; delete[] tabW; delete[] tabString;
-	delete[] helpTermBox; delete[] helpBox; delete[] helpTermString; delete[] helpString;
-	delete[] footerBox; delete[] footerString;
 }
 
 void PageView::click(void *self, int tag)
@@ -164,7 +144,7 @@ void PageView::setLit(int row, int slot, bool lit)
 
 void PageView::hideAll(void)
 {
-	footerRow = -1;
+	footerRow = footerShown = -1;
 	titleBox->setVisible(false);
 	for (int t = 0; t < nTabs; t++)
 	{
@@ -232,7 +212,7 @@ bool PageView::show(const engine::Page &page, bool engineLit)
 			/* BTN_A_SEL, as the Settings tabs: the current one stays lit. */
 			tabW[c.slot]->setStyle(standard ? BTN_STD : BTN_A_SEL);
 			tabW[c.slot]->setPlain(false);
-			placeButton(frame, tabW[c.slot], c, false);
+			placeButton(tabW[c.slot], c, false);
 			tabW[c.slot]->setSelected(c.selected);
 			break;
 		case engine::ROLE_TITLE:
@@ -264,7 +244,7 @@ bool PageView::show(const engine::Page &page, bool engineLit)
 			b->setStyle(standard ? BTN_STD : BTN_A_NRM);
 			b->setPlain(standard && !(marks & TOGGLE));
 			b->setArrows(standard && (page.rows[c.row].kind == engine::ROW_CYCLE || (marks & CYCLE)));
-			placeButton(frame, b, c, engineLit);
+			placeButton(b, c, engineLit);
 			break;
 		}
 		case engine::ROLE_CHOICE:
@@ -275,7 +255,7 @@ bool PageView::show(const engine::Page &page, bool engineLit)
 			b->setStyle(standard ? BTN_STD : BTN_A_SEL);
 			b->setPlain(standard && (rowW[c.row].marks[c.slot] & FLAT));
 			b->setArrows(false);
-			placeButton(frame, b, c, engineLit);
+			placeButton(b, c, engineLit);
 			break;
 		}
 		case engine::ROLE_HELP_TERM:
@@ -297,29 +277,22 @@ bool PageView::show(const engine::Page &page, bool engineLit)
 /* The engine's focus links, on the buttons. */
 void PageView::linkButtons(void) const
 {
-	static const int DIRS[engine::DIR_COUNT] = {
-		Focus::DIRECTION_UP, Focus::DIRECTION_DOWN,
-		Focus::DIRECTION_LEFT, Focus::DIRECTION_RIGHT
-	};
-	for (int i = 0; i < lay.n; i++)
-	{
-		const engine::Control &c = lay.c[i];
-		if (!c.focusable)
-			continue;
-		Button *b = buttonFor(c);
-		if (!b)
-			continue;
-		for (int d = 0; d < engine::DIR_COUNT; d++)
-		{
-			const int to = c.link[d];	/* a link of -1 is no link */
-			b->setNextFocus(DIRS[d], to >= 0 ? buttonFor(lay.c[to]) : NULL);
-		}
-	}
+	linkControls(lay, [this](const engine::Control &c) { return buttonFor(c); });
 }
 
 Button *PageView::startButton(void) const
 {
 	return lay.defaultFocus >= 0 ? buttonFor(lay.c[lay.defaultFocus]) : NULL;
+}
+
+void PageView::update(const engine::Page &page)
+{
+	const int cur = page.curTab, tab = page.nTabs ? tabShoulderStep(cur, page.nTabs) : cur;
+	if (tab != cur)
+	{
+		act(user, -1, tab);	/* the new tab sets its own default focus; clearing it here showed it a frame late */
+	}
+	updateFooter(page);
 }
 
 void PageView::updateFooter(const engine::Page &page)
@@ -331,6 +304,8 @@ void PageView::updateFooter(const engine::Page &page)
 		if ((c.role == engine::ROLE_BUTTON || c.role == engine::ROLE_CHOICE) && buttonFor(c)->getFocus())
 			row = c.row;
 	}
+	/* A focused row shows its help; a focused tab shows none (rows without help show none either);
+	 * anything else (the back button) keeps what was shown. */
 	if (row >= 0)
 		footerRow = row;
 	else
@@ -339,6 +314,9 @@ void PageView::updateFooter(const engine::Page &page)
 			if (tabW[t]->getFocus())
 				footerRow = -1;
 	}
+	if (footerRow == footerShown)
+		return;
+	footerShown = footerRow;
 	engine::Control out[STD_HELP_LINES];
 	int n = 0;
 	if (page.footer && footerRow >= 0)
@@ -358,42 +336,21 @@ void PageView::updateFooter(const engine::Page &page)
 ActionMenu::ActionMenu(Frame *owner, const ActionMenuDef &d, ButtonFunc back)
 	: def(d), pool(NULL)
 {
-	int rowCount[engine::MAX_ROWS] = { 0 };
-	memset(acts, 0, sizeof acts);
-	for (int k = 0; k < def.nActs; k++)
+	memset(&lay, 0, sizeof lay);
+	for (int k = 0; k < def.nActs && k < MAX_ACTIONS; k++)
 	{
-		const ActionDef &a = def.acts[k];
-		engine::ActionButton &b = acts[a.row][a.slot];
-		snprintf(label[k], LABEL_LEN, "%s", a.text);
+		snprintf(label[k], LABEL_LEN, "%s", def.acts[k].text);
 		labelPtr[k] = label[k];
-		b.text  = label[k];
-		b.lit   = false;
-		b.width = a.width;
-		b.dy    = a.dy;
-		if (a.slot + 1 > rowCount[a.row])
-			rowCount[a.row] = a.slot + 1;	/* a row holds slots 0 .. its last one */
 	}
-	memset(rows, 0, sizeof rows);
-	for (int r = 0; r < def.nRows; r++)
+	/* A table that does not fit the engine, or a page it refuses, makes no buttons (a programming error). */
+	if (!buildActionPage(def, labelPtr, ap) || engine::layoutPage(ap.page, METRICS, lay) < 0)
 	{
-		rows[r].kind    = engine::ROW_BUTTONS;
-		rows[r].count   = rowCount[r];
-		rows[r].actions = acts[r];
-		rows[r].x0      = def.rows[r].x0;
-		rows[r].gap     = def.rows[r].gap;
+		pool = new Pool(owner, 0);
+		return;
 	}
-	memset(&page, 0, sizeof page);
-	page.rows       = rows;
-	page.nRows      = def.nRows;
-	page.logo       = def.logo;
-	page.focus      = engine::FOCUS_ROWS;
-	page.rowY0      = def.rowY0;
-	page.overrides  = def.links;
-	page.nOverrides = def.nLinks;
-	engine::layoutPage(page, METRICS, lay);
-	engine::linkFocus(page, lay);
+	engine::linkFocus(ap.page, lay);
 #ifdef PERF_PROF
-	logProblems("ActionMenu", def.name, page, lay);
+	logProblems("ActionMenu", def.name, ap.page, lay);
 #endif
 
 	/* Each button's box, and so its Cursor range, is the engine's rectangle for its place. */
@@ -401,6 +358,8 @@ ActionMenu::ActionMenu(Frame *owner, const ActionMenuDef &d, ButtonFunc back)
 	for (int k = 0; k < def.nActs; k++)
 	{
 		const ActionDef &a = def.acts[k];
+		if (lay.slot[a.row][a.slot] < 0)
+			continue;
 		const engine::Control &c = lay.c[lay.slot[a.row][a.slot]];
 		pool->button(engine::ROLE_BUTTON, a.row, a.slot, BTN_A_NRM, &labelPtr[k],
 		             c.rect.x, c.rect.y, c.rect.w, c.rect.h, a.click, back);
@@ -420,6 +379,8 @@ void ActionMenu::setText(int i, const char *text)
 
 Button *ActionMenu::button(int i) const
 {
+	if (i < 0 || i >= def.nActs)
+		return NULL;
 	return pool->at(engine::ROLE_BUTTON, def.acts[i].row, def.acts[i].slot);
 }
 
@@ -430,6 +391,9 @@ void logProblems(const char *frameName, const char *pageName, const engine::Page
 	const int np = engine::checkLayout(page, METRICS, lay, probs, engine::MAX_PROBLEMS);
 	if (np > 0)
 		SysPrintf("%s: page '%s' has %d layout problem(s)\n", frameName, pageName, np);
+	const int nf = engine::checkFooters(page, METRICS);
+	if (nf > 0)
+		SysPrintf("%s: page '%s' has %d row(s) whose help line does not fit\n", frameName, pageName, nf);
 	for (int k = 0; k < np && k < engine::MAX_PROBLEMS; k++)
 	{
 		const engine::Problem &p = probs[k];

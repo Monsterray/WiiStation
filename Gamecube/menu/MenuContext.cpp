@@ -19,6 +19,7 @@
 **/
 
 #include <unistd.h>   /* usleep: the wait for the share */
+#include "MenuEngine.h"	/* before the libgui headers: Button.h's include guard is BUTTON_H, a name the engine uses */
 #include "MenuContext.h"
 #include "MenuLayout.h"
 #include "../perf_prof.h"
@@ -124,36 +125,12 @@ MenuContext::~MenuContext()
 	pMenuContext = NULL;
 }
 
-/* The frames that put something where the logo sits in the top right. On these the logo
- * moves to the bottom right. The reason for each is the widest thing it draws up there;
- * scripts/menu_text_width.py reads this list, measures the frames' own button tables
- * against the logo's box, and fails when a frame gains or loses content there. */
-static const int LOGO_BOTTOM_FRAMES[] = {
-	MenuContext::FRAME_SETTINGS,          /* the tab strip reaches x=615 */
-	MenuContext::FRAME_OPTIONS,           /* a radio row reaches x=634 */
-	MenuContext::FRAME_CONFIGUREBUTTONS,  /* one button at (480, 20) */
-	MenuContext::FRAME_CURRENTROM,        /* Swap CD reaches x=540 */
-};
-
-/* The frames that need the logo's room in both corners: no logo on these. Only the frame
- * switch below shows or hides it. A frame's own activateSubmenu() must not: Configure
- * Input's constructor lays itself out with one, and hid the logo from start-up on. */
-static const int LOGO_HIDDEN_FRAMES[] = {
-	MenuContext::FRAME_CONFIGUREINPUT,
-	MenuContext::FRAME_CUSTOMIZECOOP,
-	MenuContext::FRAME_CONFIGUREBUTTONS,
-	MenuContext::FRAME_USBPADTEST,
-	MenuContext::FRAME_PLAYERS,           /* the port band runs edge to edge */
-	MenuContext::FRAME_ACHIEVEMENTS,      /* the book: its header and tabs use the top right */
-	MenuContext::FRAME_FILEBROWSER,       /* the explorer: tab strip, count and last row use both corners */
-	MenuContext::FRAME_ACCOUNT,           /* the account list: the title and the last row use both corners */
-};
-
 /* sd:/wiistation/autoinput.txt's "menupage <n>": see PadWiiSX.c, where it is parsed. */
 extern "C" {
 	void autoinput_load(void);
 	void autoinput_reset(const char *path);
 	extern unsigned autoinput_menupage;
+	extern unsigned autoinput_menutour[40], autoinput_menutours;
 	extern unsigned autoinput_menuopen_page;
 	extern char autoinput_menuclick[32];
 	extern unsigned autoinput_menuclicks, autoinput_menuclick_frame;
@@ -193,6 +170,11 @@ bool MenuContext::isRunning()
 	{
 		static int framesUntilMenuPage = 30, framesUntilOpenPage = 10;
 		unsigned page = 0;
+		static unsigned tourI, tourWait;
+		if (tourI && tourI < autoinput_menutours && --tourWait == 0) {
+			page = autoinput_menutour[tourI++];
+			tourWait = 60;
+		}
 		if (framesUntilMenuPage > 0 && --framesUntilMenuPage == 0) {
 			perf_stack_log("menu frame 30");
 			/* read the script anew: a read before the SD card was mounted (the controller
@@ -200,6 +182,7 @@ bool MenuContext::isRunning()
 			autoinput_reset("sd:/wiistation/autoinput.txt");
 			autoinput_load();
 			page = autoinput_menupage;
+			if (autoinput_menutours) { page = autoinput_menutour[0]; tourI = 1; tourWait = 60; }
 		}
 		/* "menuopen <vblank> <page>": the game stopped there for it; the page ten frames on */
 		if (autoinput_menuopen_page && --framesUntilOpenPage <= 0) {
@@ -351,15 +334,14 @@ void MenuContext::enterFrame(int frameIndex, int submenu)
 		break;
 	}
 
-	/* The logo goes in the top right, where it has always been, unless this frame puts
-	 * something there. Then it goes to the bottom right. */
+	/* The logo goes where the frame's page table says (Frame::logoSpot: top right, bottom right, or
+	 * none). Only this switch shows or hides it: a frame's own activateSubmenu() must not (Configure
+	 * Input's constructor lays itself out with one, and hid the logo from start-up on).
+	 * tests/menu_engine/run.sh checks every shipped page against the logo's box. */
 	{
-		bool bottom = false, hidden = false;
-		for(unsigned i = 0; i < sizeof(LOGO_BOTTOM_FRAMES)/sizeof(LOGO_BOTTOM_FRAMES[0]); i++)
-			if(LOGO_BOTTOM_FRAMES[i] == frameIndex) bottom = true;
-		for(unsigned i = 0; i < sizeof(LOGO_HIDDEN_FRAMES)/sizeof(LOGO_HIDDEN_FRAMES[0]); i++)
-			if(LOGO_HIDDEN_FRAMES[i] == frameIndex) hidden = true;
-		menu::Gui::getInstance().menuLogo->setVisible(!hidden);
+		const int spot = currentActiveFrame ? currentActiveFrame->logoSpot() : menu::engine::LOGO_SPOT_TOP;
+		const bool bottom = spot == menu::engine::LOGO_SPOT_BOTTOM;
+		menu::Gui::getInstance().menuLogo->setVisible(spot != menu::engine::LOGO_SPOT_NONE);
 		menu::Gui::getInstance().menuLogo->setLocation(
 			bottom ? LOGO_PAGE_X : LOGO_MAIN_X,
 			bottom ? LOGO_PAGE_Y : LOGO_MAIN_Y, LOGO_Z);

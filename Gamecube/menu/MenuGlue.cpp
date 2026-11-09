@@ -19,13 +19,11 @@
 
 #include "MenuGlue.h"
 #include "../libgui/IPLFont.h"
+#include "../libgui/GraphicsGX.h"
 #include "../libgui/FocusManager.h"
 #include "../libgui/CursorManager.h"
 #include "../libgui/InputManager.h"
 #include "../../HidController/KernelHID.h"
-
-/* FileBrowserFrame.cpp: the folder icons, arrow glyphs, scroll thumb and texts of an explorer-density page */
-void drawExplorerOverlay(menu::Graphics &gfx, const menu::engine::Layout &L, const menu::engine::ListState &S);
 
 namespace menu {
 extern u16 menu_script_keys;   /* InputManager.cpp: an input script's "menukeys" */
@@ -43,19 +41,6 @@ static int textHeight(const char *s, float scale, void *)
 }
 
 const engine::Metrics METRICS = { textWidth, textHeight, NULL };
-
-void linkFocus(Button *b, const engine::Layout &lay, const engine::Control &c, ButtonOfControl buttonOf)
-{
-	static const int DIRS[engine::DIR_COUNT] = {
-		Focus::DIRECTION_UP, Focus::DIRECTION_DOWN,
-		Focus::DIRECTION_LEFT, Focus::DIRECTION_RIGHT
-	};
-	for (int d = 0; d < engine::DIR_COUNT; d++)
-	{
-		const int to = c.link[d];	/* a link of -1 is no link */
-		b->setNextFocus(DIRS[d], to >= 0 ? buttonOf(lay.c[to]) : NULL);
-	}
-}
 
 Pool::Pool(Frame *owner, int capacity) : frame(owner), e(new Entry[capacity]), n(0), cap(capacity)
 {
@@ -97,35 +82,16 @@ Button *Pool::at(engine::CtrlRole role, int row, int slot) const
 
 void Pool::link(const engine::Layout &lay, Resolver of, bool inactiveToo) const
 {
-	static const int DIRS[engine::DIR_COUNT] = {
-		Focus::DIRECTION_UP, Focus::DIRECTION_DOWN,
-		Focus::DIRECTION_LEFT, Focus::DIRECTION_RIGHT
-	};
-	for (int i = 0; i < lay.n; i++)
-	{
-		const engine::Control &c = lay.c[i];
-		if (!c.focusable && !inactiveToo)
-			continue;
-		Button *b = of ? of(c) : at(c);
-		if (!b)
-			continue;
-		for (int d = 0; d < engine::DIR_COUNT; d++)
-		{
-			const int to = c.link[d];	/* a link of -1 is no link */
-			b->setNextFocus(DIRS[d], to >= 0 ? (of ? of(lay.c[to]) : at(lay.c[to])) : NULL);
-		}
-	}
+	linkControls(lay, [&](const engine::Control &c) { return of ? of(c) : at(c); }, inactiveToo);
 }
 
-void placeButton(Frame *frame, Button *b, const engine::Control &c, bool engineState)
+void placeButton(Button *b, const engine::Control &c, bool engineState)
 {
 	b->setBounds(c.rect.x, c.rect.y, c.rect.w, c.rect.h);
 	b->setVisible(true);
 	b->setActive(engineState ? c.focusable : true);
 	if (engineState)
 		b->setSelected(c.selected);
-	Cursor::getInstance().moveComponent(frame, b,
-		c.rect.x, c.rect.x + c.rect.w, c.rect.y, c.rect.y + c.rect.h);
 }
 
 /* The page keys pressed this frame (a press is a new hold): bits PREV, NEXT, SORT. */
@@ -202,6 +168,7 @@ ListView::ListView(Frame *owner, char *title, ItemFn item, PickFn pick, void *us
 	  prepareFn(NULL), turnFn(NULL), user(userData), backFn(back), nTabs(0)
 {
 	memset(&spec, 0, sizeof spec);
+	memset(&lay, 0, sizeof lay);		/* if the first layout fails, controls 0 are inert */
 	own.count = 0; own.slots = SLOTS; own.top = 0; own.focus = -1;
 	spec.state = st;
 	spec.mode = engine::LIST_PAGED;
@@ -244,6 +211,8 @@ ListView::~ListView()
 
 void ListView::setTabs(const engine::Tab *tabs, int n, TabFn fn)
 {
+	if (nTabs)
+		return;						/* the pool holds one set of tab buttons */
 	nTabs = n < MAX_TABS ? n : MAX_TABS;
 	tabFn = fn;
 	page.tabs = tabs;
@@ -268,6 +237,7 @@ void ListView::setHooks(PrepareFn prepare, TurnFn turn)
 void ListView::useState(engine::ListState *s)
 {
 	st = s;
+	st->slots = SLOTS;		/* the buttons are SLOTS: a smaller window reads control -1 */
 	spec.state = s;
 }
 
@@ -301,40 +271,14 @@ void ListView::layout(void)
 {
 	if (prepareFn)
 		prepareFn(user, page);
-	engine::layoutPage(page, METRICS, lay);
+	if (engine::layoutPage(page, METRICS, lay) < 0)
+		return;						/* keep the last good layout */
 	engine::linkFocus(page, lay);
 }
 
 void ListView::link(void) const
 {
-	static const int DIRS[engine::DIR_COUNT] = {
-		Focus::DIRECTION_UP, Focus::DIRECTION_DOWN,
-		Focus::DIRECTION_LEFT, Focus::DIRECTION_RIGHT
-	};
-	/* every button, shown or not, and the tabs */
-	for (int i = 0; i < BUTTONS + nTabs; i++)
-	{
-		Button *b;
-		const engine::Control *c;
-		if (i < BUTTONS)
-		{
-			b = button[i];
-			c = &lay.c[ctl[i]];
-		}
-		else
-		{
-			const int k = lay.tab[i - BUTTONS];
-			if (k < 0)
-				continue;
-			b = tabB[i - BUTTONS];
-			c = &lay.c[k];
-		}
-		for (int d = 0; d < engine::DIR_COUNT; d++)
-		{
-			const int to = c->link[d];	/* a link of -1 is no link */
-			b->setNextFocus(DIRS[d], to >= 0 ? buttonOf(lay.c[to]) : NULL);
-		}
-	}
+	linkControls(lay, [this](const engine::Control &c) { return buttonOf(c); }, true);	/* shown or not */
 }
 
 /* The layout onto the buttons: boxes, text, label colour and room, active, and the focus links. */
@@ -346,7 +290,7 @@ void ListView::apply(void)
 	{
 		const engine::Control &c = lay.c[ctl[i]];
 		Button *b = button[i];
-		placeButton(frame, b, c, true);			/* box, active (a shown item or a live arrow) */
+		placeButton(b, c, true);			/* active (a shown item or a live arrow) */
 		if (i < 2)
 			continue;							/* the arrows have no text */
 		if (!c.focusable)
@@ -370,12 +314,11 @@ void ListView::apply(void)
 	{
 		const int k = lay.tab[t];
 		if (k >= 0)
-			placeButton(frame, tabB[t], lay.c[k], true);
+			placeButton(tabB[t], lay.c[k], true);
 		else
 		{	/* no tab for this one (the layout always has them: kept for safety) */
 			tabB[t]->setVisible(false);
 			tabB[t]->setActive(false);
-			Cursor::getInstance().moveComponent(frame, tabB[t], 0.0f, 0.0f, 0.0f, 0.0f);
 		}
 	}
 	link();
@@ -448,10 +391,64 @@ PageInput ListView::update(void)
 	return in;
 }
 
+void fill(Graphics &gfx, int x, int y, int w, int h, GXColor c)
+{
+	gfx.setTEV(GX_PASSCLR);
+	gfx.setColor(c);
+	gfx.enableBlending(true);
+	gfx.fillRect(x, y, w, h);
+}
+
+/* What the buttons do not draw: the folder icons, the arrow glyphs, the scroll thumb (to scale
+ * between the arrows) and every text the layout holds (path, count, tag, note, title). */
 void ListView::drawOverlay(Graphics &gfx) const
 {
-	drawExplorerOverlay(gfx, lay, *st);
+	const GXColor gold = {254,213,95,255}, white = {255,255,255,255}, dim = {110,110,110,255};
+
+	for (int k = 0; k < SLOTS; k++)
+	{
+		if (lay.listItem[k] < 0)
+			continue;
+		const engine::Control &c = lay.c[lay.listItem[k]];
+		if (!c.folder)
+			continue;
+		const int x = (int)STD_LIST_ICON_X, y = (int)c.rect.y + ((int)c.rect.h - 14) / 2;
+		fill(gfx, x, y, 8, 4, gold);			/* the tab */
+		fill(gfx, x, y + 3, 20, 11, gold);	/* the folder */
+	}
+
+	if (lay.list >= 0 && lay.slot[lay.list][0] >= 0 && lay.slot[lay.list][1] >= 0)
+	{
+		const engine::Control &prev = lay.c[lay.slot[lay.list][0]], &next = lay.c[lay.slot[lay.list][1]];
+		for (int p = 0; p < 2; p++)
+		{
+			const engine::Control &c = p ? next : prev;
+			const int cx = (int)c.rect.x + (int)c.rect.w / 2, cy = (int)c.rect.y + (int)c.rect.h / 2;
+			for (int r = 0; r < 4; r++)
+			{
+				const int w = 2 * (p ? 4 - r : r + 1);
+				fill(gfx, cx - w / 2, cy - 4 + 2 * r, w, 2, c.focusable ? white : dim);
+			}
+		}
+		const int y0 = (int)(prev.rect.y + prev.rect.h) + 2, y1 = (int)next.rect.y - 2, track = y1 - y0;
+		const int x = (int)prev.rect.x;
+		const engine::Thumb th = engine::scrollThumb(*st, y0, y1);	/* by page: a drag maps back to it */
+		fill(gfx, x + 5, y0, 2, track, (GXColor) {255,255,255,40});
+		fill(gfx, x + 2, th.y, 8, th.h, th.live ? (GXColor) {200,200,200,255} : dim);
+	}
+
+	IplFont &font = IplFont::getInstance();
+	for (int i = 0; i < lay.n; i++)
+	{
+		const engine::Control &c = lay.c[i];
+		if (c.kind != engine::CTRL_TEXT || !c.text)
+			continue;
+		font.drawInit(c.role == engine::ROLE_TITLE ? white :
+		              c.role == engine::ROLE_FREE_TEXT ? (GXColor) {40,40,40,255} : (GXColor) {200,200,200,255});
+		font.drawString((int)c.rect.x, (int)c.rect.y, (char*)c.text, c.scale, false);
+	}
 }
+
 
 void appendBounded(char *dst, size_t dstSize, const char *src)
 {

@@ -427,7 +427,10 @@ menu)
 		cmp_args+=("$RUNS/menu_${name}_b")
 	fi
 	"$PYTHON" "$REPO/scripts/menu_compare.py" compare "${cmp_args[@]}" --out "$out" "${flag[@]}"
-	exit $?
+	rc=$?
+	# Frames are ~1 GB a run: dropped after the compare (before_after images stay); KEEP_FRAMES=1 keeps them.
+	[ -n "${KEEP_FRAMES:-}" ] || rm -rf "${cmp_args[@]/%//frames}"
+	exit $rc
 	;;
 
 summary)

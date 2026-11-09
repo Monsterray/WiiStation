@@ -98,57 +98,63 @@ static_assert(SettingsFrame::SUBMENU_GENERAL == SET_TAB_GENERAL && SettingsFrame
               SettingsFrame::SUBMENU_INPUT == SET_TAB_INPUT && SettingsFrame::SUBMENU_AUDIO == SET_TAB_AUDIO &&
               SettingsFrame::SUBMENU_SAVES == SET_TAB_SAVES, "SettingsFrame::SettingsSubmenus and SetTabId must agree");
 
-/* The tab row's widths, by tab id. Shared with OptionsFrame, whose Advanced tabs sit in the same row. */
-const float settingsTabWidths[SET_TAB_COUNT] = { 110.0f, 100.0f, 100.0f, 100.0f, 100.0f };
-
-/*  What a button shows and does, from its table entry  */
+/*  What a button shows and does, from its table entry (shared with the Options pages)  */
 
 /* The setting a button edits, or NULL for an action. */
-static const SettingOption *settingOf(const SetSeg &g)
+const SettingOption *segSetting(const SetSeg &g)
 {
 	return g.key ? settingByKey(g.key) : NULL;
 }
 
+/* The value a button stands for: its seg's, or for a SEG_EACH button the slot's. */
+static int segValue(const SetSeg &g, const SettingOption *s, int slot)
+{
+	return g.value == SEGV_EACH ? s->min + slot : g.value;
+}
+
 /* A choice's name, a flag's label or a cycle's current name; an action's text. */
-static const char *segText(const SetSeg &g)
+const char *segText(const SetSeg &g, int slot)
 {
 	if (g.textFn)
 		return g.textFn();
 	if (g.text)
 		return g.text;
-	const SettingOption *s = settingOf(g);
+	const SettingOption *s = segSetting(g);
 	if (!s)
 		return g.name;
 	if (g.value == SEGV_FLAG)
 		return s->label;
-	int v = g.value == SEGV_NEXT ? (int)*s->value : g.value;
+	int v = g.value == SEGV_NEXT ? (int)*s->value : segValue(g, s, slot);
 	if (v < s->min || v > s->max)
 		v = s->min;	/* a value the settings file let through */
 	return s->choices[v - s->min];
 }
 
 /* Lit: the setting holds this choice, or a flag is on. A cycle and an action are never lit. */
-static bool segLit(const SetSeg &g)
+bool segLit(const SetSeg &g, int slot)
 {
 	if (g.lit)
 		return g.lit();
-	const SettingOption *s = settingOf(g);
+	const SettingOption *s = segSetting(g);
 	if (!s || g.value == SEGV_NEXT)
 		return false;
 	if (g.value == SEGV_FLAG)
 		return *s->value == s->max;
-	return *s->value == g.value;
+	int cur = *s->value;
+	if (g.value == SEGV_EACH && (cur < s->min || cur > s->max))
+		cur = s->min;	/* a value the settings file parser let through: the first is lit */
+	return cur == segValue(g, s, slot);
 }
 
 /* A click: the button's own function, or a write of its setting and then its apply function. */
-static void press(const SetSeg &g)
+void segPress(const SetSeg &g, int slot)
 {
 	if (g.act)
 	{
 		g.act();
 		return;
 	}
-	const SettingOption *s = settingOf(g);
+	const SettingOption *s = segSetting(g);
 	if (!s)
 		return;
 	int v;
@@ -157,80 +163,39 @@ static void press(const SetSeg &g)
 	else if (g.value == SEGV_NEXT)
 		v = *s->value + 1 > s->max || *s->value + 1 < s->min ? s->min : *s->value + 1;
 	else
-		v = g.value;
+		v = segValue(g, s, slot);
 	*s->value = (char)v;
 	if (g.apply)
 		g.apply();
+}
+
+/* After a click: the texts and lit buttons follow the variables, and the readouts are read again. The layout
+ * stays: a button's width is the layout's, a name that changes is drawn in it. */
+void syncRows(menu::glue::PageView &view, const SetRow *rows, int n)
+{
+	for (int r = 0; r < n; r++)
+	{
+		const SetRow &s = rows[r];
+		if (s.kind == eng::ROW_READOUT)
+		{
+			s.info(view.value(r), menu::glue::PageView::VALUE_LEN);
+			continue;
+		}
+		const int slots = rowSlots(s, segSetting(s.seg[0]));
+		for (int c = 0; c < slots; c++)
+		{
+			const SetSeg &g = s.seg[s.seg[0].value == SEGV_EACH ? 0 : c];
+			view.setText(r, c, segText(g, c));
+			view.setLit(r, c, segLit(g, c) && !s.noLit);
+		}
+	}
 }
 
 /*  The tab on show  */
 
 static menu::glue::PageView	*view;
 static const SetTab			*shown;			/* the tab on show */
-static eng::Row				SET_ROWS[eng::MAX_ROWS];
-static eng::ActionButton	SET_ACTIONS[eng::MAX_ROWS][4];
-static const char			*SET_TEXT[eng::MAX_ROWS][4];
-static eng::Tab				SET_TAB_BTNS[SET_TAB_COUNT];
-static eng::Page			SET_PAGE;
-
-static int tabPosOf(int tab)
-{
-	for (int p = 0; p < SET_TAB_COUNT; p++)
-		if (SET_TAB_AT_POS[p] == tab)
-			return p;
-	return 0;
-}
-
-/* Describes a tab as an engine page: the text of every button and which are lit, as the variables hold
- * them now. */
-static void bindTab(const SetTab &tab)
-{
-	for (int r = 0; r < tab.nRows; r++)
-	{
-		const SetRow &s = tab.rows[r];
-		eng::Row &row = SET_ROWS[r];
-		memset(&row, 0, sizeof row);
-		memset(SET_ACTIONS[r], 0, sizeof SET_ACTIONS[r]);
-		const int n = setRowSegs(s);
-		const int nChoices = s.kind == eng::ROW_CHOICE ? n - s.plain : n;
-		const SettingOption *first = settingOf(s.seg[0]);
-		bool picked = false;
-
-		row.kind    = s.kind;
-		row.label   = s.label ? s.label : (first ? first->label : NULL);
-		row.names   = SET_TEXT[r];
-		row.count   = n;
-		row.actions = SET_ACTIONS[r];
-		row.plain   = s.plain;
-		row.prefix  = s.prefix;
-		for (int c = 0; c < n; c++)
-		{
-			const SetSeg &g = s.seg[c];
-			SET_TEXT[r][c] = SET_ACTIONS[r][c].text = segText(g);
-			/* a cycle has the width of the longest name (the standard's small cycles take their own) */
-			SET_ACTIONS[r][c].width = g.value == SEGV_NEXT && !s.prefix ? 200.0f : 0.0f;
-			const bool lit = segLit(g);
-			if (s.kind == eng::ROW_CHOICE && c < nChoices)
-			{
-				if (lit && !picked)
-				{
-					row.value = c;
-					picked = true;
-				}
-			}
-			else
-				SET_ACTIONS[r][c].lit = lit && !s.noLit;
-			/* drawn always, inactive with no game loaded */
-			if (g.value == SEGV_GAME && !hasLoadedISO)
-				row.inactive |= 1u << c;
-		}
-	}
-	for (int t = 0; t < SET_TAB_COUNT; t++)
-	{
-		SET_TAB_BTNS[t].text  = SET_TAB_NAMES[SET_TAB_AT_POS[t]];
-		SET_TAB_BTNS[t].width = settingsTabWidths[SET_TAB_AT_POS[t]];
-	}
-}
+static SetPage				SET_BUILT;		/* the tab on show, as the engine sees it (buildSettingsPage) */
 
 /* Lays a tab out on the engine and puts its buttons and labels in place. Done when the tab is shown,
  * never per frame. */
@@ -240,7 +205,8 @@ static void showTab(int tabId)
 	shown = &tab;
 
 	view->hideAll();
-	bindTab(tab);
+	const SetBind bind = { segText, segLit, segSetting, NULL, hasLoadedISO != 0, false };
+	buildSettingsPage(tabId, bind, SET_BUILT);
 	for (int r = 0; r < tab.nRows; r++)
 		for (int c = 0; c < setRowSegs(tab.rows[r]); c++)
 		{
@@ -250,20 +216,7 @@ static void showTab(int tabId)
 			                 (tab.rows[r].noLit ? menu::glue::PageView::FLAT : 0));
 		}
 
-	SET_PAGE.title      = NULL;
-	SET_PAGE.tabs       = SET_TAB_BTNS;
-	SET_PAGE.nTabs      = SET_TAB_COUNT;
-	SET_PAGE.curTab     = tabPosOf(tabId);
-	SET_PAGE.rows       = SET_ROWS;
-	SET_PAGE.nRows      = tab.nRows;
-	SET_PAGE.logo       = eng::LOGO_SPOT_BOTTOM;	/* MenuContext: FRAME_SETTINGS is in LOGO_BOTTOM_FRAMES */
-	SET_PAGE.focus      = eng::FOCUS_ROWS;
-	SET_PAGE.labelCx    = 150.0f;	/* the Settings labels: centered at x 150 */
-	SET_PAGE.labelDy    = 28.0f;	/* on the middle of a 56-high row */
-	SET_PAGE.standard   = eng::DENSITY_REGULAR;
-	SET_PAGE.footer     = tab.footer;
-
-	if (!view->show(SET_PAGE, true))
+	if (!view->show(SET_BUILT.page, true))
 	{
 		/* The tables are fixed, so this is a programming error. The tab stays hidden. */
 		SysPrintf("SettingsFrame: tab %d does not fit the menu engine\n", tabId);
@@ -280,27 +233,16 @@ static void showTab(int tabId)
 		if (!(logged & (1u << tabId)))
 		{
 			logged |= 1u << tabId;
-			menu::glue::logProblems("SettingsFrame", SET_TAB_NAMES[tabId], SET_PAGE, view->layout());
+			menu::glue::logProblems("SettingsFrame", SET_TAB_NAMES[tabId], SET_BUILT.page, view->layout());
 		}
 	}
 #endif
 }
 
-/* After a click: the texts and lit buttons follow the variables. The layout stays: a button's width is
- * the layout's, a name that changes is drawn in it. */
 static void syncTab(void)
 {
-	if (!view || !shown)
-		return;
-	for (int r = 0; r < shown->nRows; r++)
-	{
-		const SetRow &s = shown->rows[r];
-		for (int c = 0; c < setRowSegs(s); c++)
-		{
-			view->setText(r, c, segText(s.seg[c]));
-			view->setLit(r, c, segLit(s.seg[c]) && !s.noLit);
-		}
-	}
+	if (view && shown)
+		syncRows(*view, shown->rows, shown->nRows);
 }
 
 /* Every click of the page view: a tab (row -1, slot = the tab's place in the row), or a button of a row. */
@@ -311,7 +253,7 @@ static void settingsAct(void *, int row, int slot)
 		pMenuContext->setActiveFrame(MenuContext::FRAME_SETTINGS, SET_TAB_AT_POS[slot]);
 		return;
 	}
-	press(shown->rows[row].seg[slot]);
+	segPress(shown->rows[row].seg[slot], slot);
 	syncTab();
 }
 
@@ -320,7 +262,7 @@ static void settingsAct(void *, int row, int slot)
 SettingsFrame::SettingsFrame()
 		: activeSubmenu(SUBMENU_VIDEO)
 {
-	view = new menu::glue::PageView(this, eng::MAX_ROWS, eng::MAX_SLOTS, 2, SET_TAB_COUNT, 0, settingsAct, NULL,
+	view = new menu::glue::PageView(this, settingsAct, NULL,
 	                                Func_ReturnFromSettingsFrame, "");
 	for (int t = 0; t < SET_TAB_COUNT; t++)
 		view->setTabText(t, SET_TAB_NAMES[SET_TAB_AT_POS[t]]);
@@ -330,6 +272,8 @@ SettingsFrame::SettingsFrame()
 	setEnabled(true);
 	activateSubmenu(SUBMENU_VIDEO);
 }
+
+int SettingsFrame::logoSpot() const { return SET_LOGO; }
 
 SettingsFrame::~SettingsFrame()
 {
@@ -346,23 +290,14 @@ void SettingsFrame::activateSubmenu(int submenu)
 	showTab(submenu);
 
 	/* Focus starts on the tab's own button; the help starts blank (hideAll). */
-	setDefaultFocus(view->tab(tabPosOf(submenu)));
+	setDefaultFocus(view->tab(setTabPos(submenu)));
 }
 
 void SettingsFrame::drawChildren(menu::Graphics &gfx)
 {
 	if(isVisible())
 	{
-		/* The tab buttons (L / R, and the others menu::glue::tabShoulder reads) turn the tabs, as a
-		 * press of the tab itself does. */
-		{
-			int pos = tabPosOf(activeSubmenu);
-			int tab = menu::glue::tabShoulderStep(pos, SET_TAB_COUNT);
-			if (tab != pos)
-				pMenuContext->setActiveFrame(MenuContext::FRAME_SETTINGS, SET_TAB_AT_POS[tab]);
-		}
-
-		view->updateFooter(SET_PAGE);
+		view->update(SET_BUILT.page);
 
 		//Draw buttons
 		menu::ComponentList::const_iterator iteration;
@@ -795,7 +730,6 @@ bool litSyncOff(void)   { return !soundRateControl && !soundTempo; }
 
 void Func_ReturnFromSettingsFrame()
 {
-	menu::Gui::getInstance().menuLogo->setLocation(580.0, 70.0, -50.0);
 	pMenuContext->setActiveFrame(MenuContext::FRAME_MAIN);
 }
 
@@ -844,19 +778,27 @@ void Func_LoadSettingsGame() { loadSettingsFrom(NULL, "Loaded this game's settin
  * directly, not through the controller drivers that autoinput feeds. A choice (a button with a
  * setting and a value) is pressed by its value: the one segment whose value is n. Any other
  * button is pressed n times. */
-static bool scriptPress(const SetSeg &g, const char *name, int n)
+bool scriptPress(const SetSeg &g, const char *name, int n)
 {
-	if (strcmp(g.name, name))
+	if (!g.name || strcmp(g.name, name))	/* a readout row has no button */
 		return false;
+	if (g.value == SEGV_EACH)
+	{
+		const SettingOption *s = segSetting(g);
+		if (!s || n < 0 || n >= choiceCount(s))
+			return false;
+		segPress(g, n);		/* a radio row's button for the value n */
+		return true;
+	}
 	if (g.key && g.value >= 0)
 	{
 		if (g.value != n)
 			return false;
-		press(g);
+		segPress(g, 0);
 		return true;
 	}
 	for (int i = 0; i < n; i++)
-		press(g);
+		segPress(g, 0);
 	return true;
 }
 
@@ -871,6 +813,6 @@ extern "C" void SettingsFrame_ScriptClick(const char *name, int n)
 		done = scriptPress(SET_SCRIPT_ONLY[i], name, n);
 	if (done)
 		syncTab();
-	else
+	else if (!OptionsFrame_ScriptClick(name, n))
 		SysPrintf("menuclick: no button named '%s'\n", name);
 }

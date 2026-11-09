@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """wii_put_covers.py -- put a cover pack (scripts/cover_pack.py output) on the bench Wii's card.
 
-    C:/Python312/python.exe C:/tools/wii-bench/wiibench.py add --wii dev --cwd C:/projects/WiiStation -- \
-        C:/Python312/python.exe scripts/wii_put_covers.py PACK_DIR [--usb]
+    python wiibench.py add --wii dev -- python scripts/wii_put_covers.py PACK_DIR [--usb]
 
 PACK_DIR is the folder holding index.txt (".../covers"). It is uploaded to sd:/wiistation/covers
 (--usb: usb:/wiistation/covers), index.txt LAST, so a half-finished upload never has an index that

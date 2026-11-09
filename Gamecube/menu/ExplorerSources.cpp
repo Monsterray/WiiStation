@@ -20,16 +20,9 @@
 
 #include <sys/stat.h>
 #include "MenuContext.h"
-#include "MenuEngine.h"	/* before Button.h: its include guard is BUTTON_H, a name the engine uses */
 #include "ExplorerSources.h"
 #include "FileBrowserFrame.h"
-#include "../libgui/Button.h"
-#include "../libgui/IPLFont.h"
-#include "../libgui/resources.h"
-#include "../libgui/FocusManager.h"
-#include "../libgui/CursorManager.h"
 #include "../libgui/MessageBox.h"
-#include "MenuGlue.h"
 
 extern "C" {
 #include "../fileBrowser/fileBrowser.h"
@@ -54,69 +47,47 @@ extern void fileBrowserFrame_OpenRomFolders(fileBrowser_file* deviceDefault, con
  * (loadRomSourceReady). Does not touch explorerSource. */
 void loadRomUseSource(int src)
 {
-	switch (src)
-	{
-	case 0:
-	// Deinit any existing romFile state
-	if(isoFile_deinit) isoFile_deinit( &isoFile );
-	// Change all the romFile pointers
-	isoFile_topLevel = &topLevel_libfat_Default;
-	isoFile_readDir  = fileBrowser_libfat_readDir;
-	isoFile_open     = fileBrowser_libfat_open;
-	isoFile_readFile = fileBrowser_libfatROM_readFile;
-	isoFile_seekFile = fileBrowser_libfat_seekFile;
-	isoFile_init     = fileBrowser_libfat_init;
-	isoFile_deinit   = fileBrowser_libfatROM_deinit;
-	// Make sure the romFile system is ready before we browse the filesystem
-	isoFile_init( isoFile_topLevel );
-		break;
-	case 2:
-	// Deinit any existing romFile state
-	if(isoFile_deinit) isoFile_deinit( &isoFile );
-	// Change all the romFile pointers
-	isoFile_topLevel = &topLevel_DVD;
-	isoFile_readDir  = fileBrowser_DVD_readDir;
-	isoFile_open     = fileBrowser_DVD_open;
-	isoFile_readFile = fileBrowser_DVD_readFile;
-	isoFile_seekFile = fileBrowser_DVD_seekFile;
-	isoFile_init     = fileBrowser_DVD_init;
-	isoFile_deinit   = fileBrowser_DVD_deinit;
-	// Mount the disc as "dvd:"; a failure is said by the browser, from readDir's code
-	isoFile_init( isoFile_topLevel );
-		break;
-	case 1:
+	struct Ops {
+		fileBrowser_file *top;
+		int (*readDir)(fileBrowser_file*, fileBrowser_file**);
+		int (*open)(fileBrowser_file*);
+		int (*readFile)(fileBrowser_file*, void*, unsigned int);
+		int (*seekFile)(fileBrowser_file*, unsigned int, unsigned int);
+		int (*init)(fileBrowser_file*);
+		int (*deinit)(fileBrowser_file*);
+	};
+	static const Ops OPS[4] = {
+		{ &topLevel_libfat_Default, fileBrowser_libfat_readDir, fileBrowser_libfat_open,
+		  fileBrowser_libfatROM_readFile, fileBrowser_libfat_seekFile, fileBrowser_libfat_init,
+		  fileBrowser_libfatROM_deinit },
 #ifdef WII
-	// Deinit any existing romFile state
-	if(isoFile_deinit) isoFile_deinit( &isoFile );
-	// Change all the romFile pointers
-	isoFile_topLevel = &topLevel_libfat_USB;
-	isoFile_readDir  = fileBrowser_libfat_readDir;
-	isoFile_open     = fileBrowser_libfat_open;
-	isoFile_readFile = fileBrowser_libfatROM_readFile;
-	isoFile_seekFile = fileBrowser_libfat_seekFile;
-	isoFile_init     = fileBrowser_libfat_init;
-	isoFile_deinit   = fileBrowser_libfatROM_deinit;
-	// Make sure the romFile system is ready before we browse the filesystem
-	isoFile_init( isoFile_topLevel );
+		{ &topLevel_libfat_USB, fileBrowser_libfat_readDir, fileBrowser_libfat_open,
+		  fileBrowser_libfatROM_readFile, fileBrowser_libfat_seekFile, fileBrowser_libfat_init,
+		  fileBrowser_libfatROM_deinit },
+#else
+		{ 0 },
 #endif
-		break;
-	case 3:
+		{ &topLevel_DVD, fileBrowser_DVD_readDir, fileBrowser_DVD_open, fileBrowser_DVD_readFile,
+		  fileBrowser_DVD_seekFile, fileBrowser_DVD_init, fileBrowser_DVD_deinit },
 #ifdef HW_RVL
-	// Deinit any existing romFile state
-	if(isoFile_deinit) isoFile_deinit( &isoFile );
-	// Change all the romFile pointers
-	isoFile_topLevel = &topLevel_SMB;
-	isoFile_readDir  = fileBrowser_SMB_readDir;
-	isoFile_open     = fileBrowser_SMB_open;
-	isoFile_readFile = fileBrowser_SMB_readFile;
-	isoFile_seekFile = fileBrowser_SMB_seekFile;
-	isoFile_init     = fileBrowser_SMB_init;
-	isoFile_deinit   = fileBrowser_SMB_deinit;
-	// Make sure the romFile system is ready before we browse the filesystem
-	isoFile_init( isoFile_topLevel );
+		{ &topLevel_SMB, fileBrowser_SMB_readDir, fileBrowser_SMB_open, fileBrowser_SMB_readFile,
+		  fileBrowser_SMB_seekFile, fileBrowser_SMB_init, fileBrowser_SMB_deinit },
+#else
+		{ 0 },
 #endif
-		break;
-	}
+	};
+	if (src < 0 || src > 3 || !OPS[src].top)
+		return;
+	const Ops &o = OPS[src];
+	if (isoFile_deinit) isoFile_deinit( &isoFile );		/* the old source's state */
+	isoFile_topLevel = o.top;
+	isoFile_readDir  = o.readDir;
+	isoFile_open     = o.open;
+	isoFile_readFile = o.readFile;
+	isoFile_seekFile = o.seekFile;
+	isoFile_init     = o.init;
+	isoFile_deinit   = o.deinit;
+	isoFile_init( isoFile_topLevel );	/* mounts it (DVD: as "dvd:"; a failure is said by the browser) */
 }
 
 /* Is the device of source src there now? A probe that mounts nothing. */
@@ -135,76 +106,35 @@ int loadRomSourceReady(int src)
 	return 0;
 }
 
-void Func_LoadFromSD()
+/* Opens source src in the explorer: its top level, or the RomDir list of romDirs ("sd:" ...; NULL
+ * for the DVD, which has none). Autoboot opens AutobootPath instead. */
+static void openSource(int src, const char *romDirs)
 {
-	explorerSource = 0;
-	loadRomUseSource(0);
-	if(Autoboot)
+	explorerSource = src;
+#if !defined(WII) || !defined(HW_RVL)
+	if (src == 1 || src == 3)
 	{
-		snprintf(isoFile_topLevel->name, sizeof(isoFile_topLevel->name), "%s", AutobootPath);
-		fileBrowserFrame_OpenDirectory(isoFile_topLevel);
+		menu::MessageBox::getInstance().setMessage("Available only for Wii");
+		return;
 	}
-	else
-	{
-		pMenuContext->setActiveFrame(MenuContext::FRAME_FILEBROWSER,fileBrowserMode);
-		fileBrowserFrame_OpenRomFolders(isoFile_topLevel, "sd:");   /* RomDirSD */
-	}
-}
-
-void Func_LoadFromDVD()
-{
-	explorerSource = 2;
-	loadRomUseSource(2);
+#endif
+	loadRomUseSource(src);
 	if(Autoboot)
-	{   /* autoboot.txt / a chain naming dvd:/... */
+	{   /* autoboot.txt / a chain naming dvd:/... or smb:/...: MenuContext::Autoboot waited for the share */
 		snprintf(isoFile_topLevel->name, sizeof(isoFile_topLevel->name), "%s", AutobootPath);
 		fileBrowserFrame_OpenDirectory(isoFile_topLevel);
 		return;
 	}
-	snprintf(isoFile_topLevel->name, sizeof(isoFile_topLevel->name), "dvd:/");
+	if (src == 2)
+		snprintf(isoFile_topLevel->name, sizeof(isoFile_topLevel->name), "dvd:/");
 	pMenuContext->setActiveFrame(MenuContext::FRAME_FILEBROWSER,fileBrowserMode);
-	fileBrowserFrame_OpenDirectory(isoFile_topLevel);
+	if (romDirs && (src != 3 || loadRomSourceReady(3)))
+		fileBrowserFrame_OpenRomFolders(isoFile_topLevel, romDirs);   /* RomDirSD / RomDirUSB / RomDirSMB */
+	else
+		fileBrowserFrame_OpenDirectory(isoFile_topLevel);   /* the share: says why (settings, network, share) */
 }
 
-void Func_LoadFromUSB()
-{
-	explorerSource = 1;
-#ifdef WII
-	loadRomUseSource(1);
-	
-	if(Autoboot)
-	{
-		snprintf(isoFile_topLevel->name, sizeof(isoFile_topLevel->name), "%s", AutobootPath);
-		fileBrowserFrame_OpenDirectory(isoFile_topLevel);
-	}
-	else
-	{
-		pMenuContext->setActiveFrame(MenuContext::FRAME_FILEBROWSER,fileBrowserMode);
-		fileBrowserFrame_OpenRomFolders(isoFile_topLevel, "usb:");   /* RomDirUSB */
-	}
-#else
-	menu::MessageBox::getInstance().setMessage("Available only for Wii");
-#endif
-}
-
-void Func_LoadFromSamba()
-{
-	explorerSource = 3;
-#ifdef HW_RVL
-	loadRomUseSource(3);
-	
-	if(Autoboot)
-	{   /* autoboot.txt / a chain naming smb:/...: MenuContext::Autoboot waited for the share */
-		snprintf(isoFile_topLevel->name, sizeof(isoFile_topLevel->name), "%s", AutobootPath);
-		fileBrowserFrame_OpenDirectory(isoFile_topLevel);
-		return;
-	}
-	pMenuContext->setActiveFrame(MenuContext::FRAME_FILEBROWSER,fileBrowserMode);
-	if (smb2dev_mounted())
-		fileBrowserFrame_OpenRomFolders(isoFile_topLevel, "smb:");   /* RomDirSMB */
-	else
-		fileBrowserFrame_OpenDirectory(isoFile_topLevel);   /* says why: settings, network, share */
-#else
-	menu::MessageBox::getInstance().setMessage("Available only for Wii");
-#endif
-}
+void Func_LoadFromSD()    { openSource(0, "sd:"); }
+void Func_LoadFromDVD()   { openSource(2, NULL); }
+void Func_LoadFromUSB()   { openSource(1, "usb:"); }
+void Func_LoadFromSamba() { openSource(3, "smb:"); }

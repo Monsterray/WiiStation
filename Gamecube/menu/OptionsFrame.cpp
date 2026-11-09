@@ -20,7 +20,7 @@
  *     (a standard page shows it with an arrow at each end).
  *     ROW_RADIO shows every value at once as its own button with the current one lit, the
  *     way the Settings tabs themselves do it: right when the choice is worth seeing whole.
- *     It fits OPT_MAX_CHOICES values; a row with fewer leaves the trailing slots empty.
+ *     It fits eng::MAX_SLOTS values; a row with fewer leaves the trailing slots empty.
  *     On a standard page (OptPage::standard) a ROW_RADIO is a Choice: touching segments of equal
  *     width, each as wide as the longest name needs, so four values and three both fit.
  *   A readout row (ROW_INFO) needs only a label and a function that writes the right-hand
@@ -30,14 +30,14 @@
  *   One OptRow[] array, one PAGES[] entry (title, rows, optional help lines, which Settings
  *   tab B returns to, and optional enter/leave hooks), one value in OptionsFrame::OptionsPages,
  *   and a button somewhere in SettingsFrame that calls setActiveFrame(FRAME_OPTIONS, that value).
- *   A standard page (the Advanced tabs) gives OptPage::standard (a density) and OptPage::footer
- *   instead of help lines: footer[i] is the one or two lines shown under the rows while row i has
- *   focus (a tab focused, or no focusable row: the first row's), as on the Settings tabs.
+ *   A standard page (the Advanced tabs) gives OptPage::standard (a density) instead of help
+ *   lines: each row's OptRow::help (or its setting's own help) is the one or two lines shown
+ *   under the rows while that row has focus (a tab focused: none), as on the Settings tabs.
  *   Help is a term and its explanation, in two columns under the rows: the term is drawn
  *   bold and right-aligned so the colons line up, and a line with no term continues the one
  *   above it. A help block that runs into the rows or the logo is reported by the menu
- *   engine's layout check in debug builds; scripts/menu_text_width.py measures the lines
- *   themselves against the screen (Gamecube/menu/MenuLayout.h).
+ *   engine's layout check in debug builds and by tests/menu_engine/run.sh, which
+ *   measure the lines against the screen (Gamecube/menu/MenuLayout.h).
  *
  * WHERE THINGS GO
  *   The menu engine (Gamecube/menu/MenuEngine.h) works out every position and every focus
@@ -236,9 +236,6 @@ void pluginsLeave(void)
 }
 
 
-/* The setting each row edits, by its key, looked up once when its page is shown (bindPage).
- * A readout has none. */
-static const SettingOption*	ROW_SET[OPT_MAX_ROWS];
 static int				currentPage;
 static int				returnSubmenu;		// the Settings tab B goes back to
 static bool				tabSwitch;			// activateSubmenu called for a tab, inside the group
@@ -246,188 +243,59 @@ static OptionsFrame*	optionsFrame;
 static menu::glue::PageView*	view;	/* the widgets of every page: tabs, rows, help, footer */
 
 /* The page on show, as the engine sees it. Its layout (about 7 KB) is the view's. */
-static eng::Row			ENG_ROWS[OPT_MAX_ROWS];
-static eng::ActionButton	ENG_ACTIONS[OPT_MAX_ROWS][1];	/* an OPT_ACTION row on a standard page: its one button */
-static eng::Tab			ENG_TABS[NUM_TABS];
-static eng::Page		ENG_PAGE;
+static SetPage		BUILT;
 
-/* The fixed sizes this frame relies on, against the engine's. */
-typedef char opt_rows_match_engine[OPT_MAX_ROWS == eng::MAX_ROWS ? 1 : -1];
-typedef char opt_help_match_engine[OPT_MAX_HELP == eng::MAX_HELP ? 1 : -1];
-typedef char opt_choices_fit_engine[OPT_MAX_CHOICES <= eng::MAX_SLOTS ? 1 : -1];
-typedef char opt_tabs_fit_engine[NUM_TABS <= eng::MAX_TABS ? 1 : -1];
-
-static void optCycle(int row);
-static void optSet(int row, int choice);
-
-/* Every click of the page view: a tab (row -1, slot = the tab), or a button of a row: a radio row's
- * segment sets that value; any other row has one button, a cycle or an action. */
+/* Every click of the page view: a tab (row -1, slot = the tab), or a button of a row. */
 static void optAct(void *, int row, int slot)
 {
 	if (row < 0)
-		optionsFrame->showTab(slot);
-	else if (row < PAGES[currentPage].nrows && PAGES[currentPage].rows[row].kind == OPT_RADIO)
-		optSet(row, slot);
-	else
-		optCycle(row);
-}
-
-static const OptRow* pageRow(int row)
-{
-	return &PAGES[currentPage].rows[row];
-}
-
-static void bindPage(int page)
-{
-	for (int i = 0; i < PAGES[page].nrows; i++)
-		ROW_SET[i] = PAGES[page].rows[i].kind == OPT_INFO || PAGES[page].rows[i].kind == OPT_ACTION
-		             ? NULL : settingByKey(PAGES[page].rows[i].key);
-}
-
-/* How many buttons a radio row shows. A row that declares more values than there are slots
- * would silently lose the rest, so it is clamped here and the clamp is the documented limit. */
-static int rowChoices(int row)
-{
-	const SettingOption *s = ROW_SET[row];
-	int n = (int)s->max - (int)s->min + 1;
-	if (n < 1) n = 1;
-	if (n > OPT_MAX_CHOICES) n = OPT_MAX_CHOICES;
-	return n;
-}
-
-/* Re-read one row from the thing it reflects: the setting's value name, or the readout. */
-static void refreshRow(int row)
-{
-	const OptRow *o = pageRow(row);
-	const SettingOption *s = ROW_SET[row];
-	if (o->kind == OPT_INFO) {
-		o->info(view->value(row), VALUE_LEN);
-	} else if (o->kind == OPT_ACTION) {
-		/* its text is the label of the button: o->key, set by the layout */
-	} else if (o->kind == OPT_RADIO) {
-		int n = rowChoices(row), v = *s->value;
-		if (v < s->min || v > s->max) v = s->min;
-		for (int c = 0; c < n; c++)
-			view->setLit(row, c, c == v - s->min);
-		return;
-	} else {
-		int v = *s->value;
-		if (v < s->min || v > s->max) v = s->min;	// a value the settings file parser let through
-		view->setText(row, 0, s->choices[v - s->min]);
-	}
-}
-
-static void optCycle(int row)
-{
-	const OptRow *o;
-	if (row >= PAGES[currentPage].nrows) return;
-	o = pageRow(row);
-	if (o->kind == OPT_ACTION) { o->apply(); return; }
-	if (o->kind != OPT_CYCLE) return;
 	{
-		const SettingOption *s = ROW_SET[row];
-		int v = *s->value + 1;
-		if (v > s->max || v < s->min) v = s->min;
-		if (!strcmp(s->key, "Achievements")) {	// display order Off, Local, Official, Custom, Test (the numbers are the settings files')
-			static const char NEXT[5] = { 4, 2, 0, 1, 3 };	// from 0 Off, 1 Custom, 2 Test, 3 Official, 4 Local
-			v = (*s->value >= 0 && *s->value <= 4) ? NEXT[(int)*s->value] : 0;
-		}
-		*s->value = (char)v;
+		optionsFrame->showTab(slot);
+		return;
 	}
-	refreshRow(row);
-	if (o->apply) o->apply();
+	const OptPage &p = PAGES[currentPage];
+	if (row < p.nrows)
+	{
+		segPress(p.rows[row].seg[p.rows[row].seg[0].value == SEGV_EACH ? 0 : slot], slot);
+		syncRows(*view, p.rows, p.nrows);
+	}
 }
 
-static void optSet(int row, int choice)
+/* The Achievements mode steps in display order Off, Local, Official, Custom, Test; the numbers are the settings files'
+ * (0 Off, 1 Custom, 2 Test, 3 Official, 4 Local), so the next is not the next number. */
+void Func_AchievementsMode(void)
 {
-	const OptRow *o;
-	if (row >= PAGES[currentPage].nrows) return;
-	o = pageRow(row);
-	if (o->kind != OPT_RADIO || choice >= rowChoices(row)) return;
-	*ROW_SET[row]->value = (char)(ROW_SET[row]->min + choice);
-	refreshRow(row);
-	if (o->apply) o->apply();
+	static const char NEXT[5] = { 4, 2, 0, 1, 3 };
+	const SettingOption *s = settingByKey("Achievements");
+	*s->value = (*s->value >= 0 && *s->value <= 4) ? NEXT[(int)*s->value] : 0;
+}
+
+/* A script's "menuclick name n" on the page on show (SettingsFrame_ScriptClick tries the Settings tabs first). */
+bool OptionsFrame_ScriptClick(const char *name, int n)
+{
+	const OptPage &p = PAGES[currentPage];
+	for (int r = 0; r < p.nrows; r++)
+		if (scriptPress(p.rows[r].seg[0], name, n))
+		{
+			syncRows(*view, p.rows, p.nrows);
+			return true;
+		}
+	return false;
 }
 
 /*  The page, for the engine  */
 
-/* Describes the page on show as an engine Page. The rows keep their values in ROWS (readouts
- * are read into ROWS[i].value before this runs), so the engine lays out what is drawn. */
-static void buildEnginePage(int page, int curTab)
+static const char *readoutOf(int row)
 {
-	const OptPage &p = PAGES[page];
-	const bool tabbed = p.tab != NULL;
-
-	for (int t = 0; t < NUM_TABS; t++)
-	{
-		ENG_TABS[t].text  = PAGES[ADV_TABS[t]].tab;
-		ENG_TABS[t].width = settingsTabWidths[t];
-	}
-	for (int i = 0; i < p.nrows; i++)
-	{
-		const OptRow *o = &p.rows[i];
-		const SettingOption *s = ROW_SET[i];
-		eng::Row &r = ENG_ROWS[i];
-		memset(&r, 0, sizeof r);
-		r.label = s ? s->label : o->label;
-		if (o->kind == OPT_INFO)
-		{
-			r.kind = eng::ROW_READOUT;
-			r.text = view->value(i);
-		}
-		else if (o->kind == OPT_ACTION && p.standard)
-		{
-			ENG_ACTIONS[i][0].text = o->key;	/* the label, then the button from the standard's x */
-			r.kind    = eng::ROW_BUTTONS;
-			r.actions = ENG_ACTIONS[i];
-			r.count   = 1;
-		}
-		else if (o->kind == OPT_ACTION)
-		{
-			r.kind  = eng::ROW_CYCLE;	/* one button with one name: the action's text */
-			r.names = &o->key;
-			r.count = 1;
-		}
-		else if (o->kind == OPT_RADIO)
-		{
-			r.kind  = eng::ROW_CHOICE;
-			r.names = s->choices;
-			r.lo    = s->min;
-			r.count = rowChoices(i);
-			r.value = *s->value;
-			r.fit   = o->fit;
-		}
-		else
-		{
-			r.kind  = eng::ROW_CYCLE;
-			r.names = s->choices;
-			r.lo    = s->min;
-			r.count = s->max - s->min + 1;
-			r.value = *s->value;
-		}
-	}
-
-	ENG_PAGE.title  = p.title;
-	ENG_PAGE.tabs   = tabbed ? ENG_TABS : NULL;
-	ENG_PAGE.nTabs  = tabbed ? NUM_TABS : 0;
-	ENG_PAGE.curTab = curTab < 0 ? 0 : curTab;
-	ENG_PAGE.rows   = ENG_ROWS;
-	ENG_PAGE.nRows  = p.nrows;
-	ENG_PAGE.help   = p.help;
-	ENG_PAGE.nHelp  = p.nhelp;
-	ENG_PAGE.logo   = eng::LOGO_SPOT_BOTTOM;	/* MenuContext: FRAME_OPTIONS is in LOGO_BOTTOM_FRAMES */
-	ENG_PAGE.focus  = eng::FOCUS_ROWS;
-	ENG_PAGE.rowDy  = p.rowDy;
-	ENG_PAGE.columns = p.columns;
-	ENG_PAGE.rowY0  = p.rowY0;
-	ENG_PAGE.standard = (eng::Density)p.standard;
-	ENG_PAGE.footer = p.footer;
+	return view->value(row);
 }
+
+static const SetBind BIND = { segText, segLit, segSetting, readoutOf, false, true };
 
 OptionsFrame::OptionsFrame()
 {
 	optionsFrame = this;
-	view = new menu::glue::PageView(this, OPT_MAX_ROWS, OPT_MAX_CHOICES, 1, NUM_TABS, OPT_MAX_HELP, optAct, NULL,
+	view = new menu::glue::PageView(this, optAct, NULL,
 	                                Func_ReturnFromOptionsFrame, PAGES[PAGE_SOUND].title);
 	for (int t = 0; t < NUM_TABS; t++)
 		view->setTabText(t, PAGES[ADV_TABS[t]].tab);
@@ -437,6 +305,8 @@ OptionsFrame::OptionsFrame()
 	setEnabled(true);
 	activateSubmenu(PAGE_SOUND);
 }
+
+int OptionsFrame::logoSpot() const { return OPT_LOGO; }
 
 OptionsFrame::~OptionsFrame()
 {
@@ -448,7 +318,6 @@ void OptionsFrame::activateSubmenu(int submenu)
 {
 	if (submenu < 0 || submenu >= NUM_PAGES) submenu = PAGE_SOUND;
 	currentPage = submenu;
-	bindPage(currentPage);
 
 	int curTab = -1;
 	for (int t = 0; t < NUM_TABS; t++)
@@ -463,12 +332,11 @@ void OptionsFrame::activateSubmenu(int submenu)
 	/* Hidden first; the layout then shows what this page has. The footer help starts blank. */
 	view->hideAll();
 	/* The values the rows show. A readout's text is read here, before the engine lays it out. */
-	for (int i = 0; i < PAGES[currentPage].nrows; i++)
-		refreshRow(i);
+	syncRows(*view, PAGES[currentPage].rows, PAGES[currentPage].nrows);
 
 	/* The engine lays the page out and links its focus: once, here, not per frame. */
-	buildEnginePage(currentPage, curTab);
-	if (!view->show(ENG_PAGE))
+	buildOptionsPage(currentPage, curTab, BIND, BUILT);
+	if (!view->show(BUILT.page))
 		SysPrintf("OptionsFrame: page %d does not fit the menu engine\n", currentPage);
 #ifdef PERF_PROF
 	else
@@ -477,7 +345,7 @@ void OptionsFrame::activateSubmenu(int submenu)
 		if (!(logged & (1u << currentPage)))
 		{
 			logged |= 1u << currentPage;
-			menu::glue::logProblems("OptionsFrame", PAGES[currentPage].title, ENG_PAGE, view->layout());
+			menu::glue::logProblems("OptionsFrame", PAGES[currentPage].title, BUILT.page, view->layout());
 		}
 	}
 #endif
@@ -514,21 +382,7 @@ void OptionsFrame::drawChildren(menu::Graphics& gfx)
 {
 	if (!isVisible()) return;
 
-	/* The tab buttons turn the Advanced tabs, as the Settings tabs (menu::glue::tabShoulder). */
-	if (PAGES[currentPage].tab)
-	{
-		int cur = 0, tab;
-		while (cur < NUM_TABS - 1 && ADV_TABS[cur] != currentPage)
-			cur++;
-		tab = menu::glue::tabShoulderStep(cur, NUM_TABS);
-		if (tab != cur)
-		{
-			showTab(tab);
-			menu::Focus::getInstance().clearPrimaryFocus();	/* to the new tab: the page's default */
-		}
-	}
-
-	view->updateFooter(ENG_PAGE);
+	view->update(BUILT.page);
 
 	menu::ComponentList::const_iterator iteration;
 	for (iteration = componentList.begin(); iteration != componentList.end(); ++iteration)

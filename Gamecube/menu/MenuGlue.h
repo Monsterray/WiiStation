@@ -26,6 +26,7 @@
 #include "MenuEngine.h"
 #include "../libgui/Button.h"
 #include "../libgui/Frame.h"
+#include "../libgui/FocusManager.h"
 
 namespace menu {
 namespace glue {
@@ -33,12 +34,34 @@ namespace glue {
 /* The text measures of IplFont, for every page's engine Metrics. */
 extern const engine::Metrics METRICS;
 
-/* The button a frame draws for a layout control, or NULL. */
-typedef Button *(*ButtonOfControl)(const engine::Control &c);
+/* The engine's four focus links on the buttons: for each control of lay that has a button
+ * (of(control) is the button, or NULL), and is a focus target or inactiveToo, the buttons its
+ * links point at. A link of -1 is no link. One loop for every frame. */
+template <class Of>
+void linkControls(const engine::Layout &lay, Of of, bool inactiveToo = false)
+{
+	static const int DIRS[engine::DIR_COUNT] = {
+		Focus::DIRECTION_UP, Focus::DIRECTION_DOWN,
+		Focus::DIRECTION_LEFT, Focus::DIRECTION_RIGHT
+	};
+	for (int i = 0; i < lay.n; i++)
+	{
+		const engine::Control &c = lay.c[i];
+		if (!c.focusable && !inactiveToo)
+			continue;
+		Button *b = of(c);
+		if (!b)
+			continue;
+		for (int d = 0; d < engine::DIR_COUNT; d++)
+		{
+			const int to = c.link[d];
+			b->setNextFocus(DIRS[d], to >= 0 ? of(lay.c[to]) : NULL);
+		}
+	}
+}
 
-/* Sets the four focus links of button b, which is drawn for control c of lay. A link of -1 is
- * no link. buttonOf gives the button for the control a link points at. */
-void linkFocus(Button *b, const engine::Layout &lay, const engine::Control &c, ButtonOfControl buttonOf);
+/* A filled rectangle in a flat color, blended. */
+void fill(Graphics &gfx, int x, int y, int w, int h, GXColor c);
 
 /* The tab buttons, for every tabbed screen: -1 for a new press of the previous-tab button on any
  * controller, +1 for the next-tab button, 0 for neither. Previous / next: GameCube and HID pads
@@ -85,10 +108,10 @@ private:
 	int n, cap;
 };
 
-/* A button at the engine's rectangle, shown, and the Cursor's hit box moved with it. With
+/* A button at the engine's rectangle, shown (the Cursor hits a button by its own bounds). With
  * engineState the engine also decides what is active (a focus target) and lit (selected);
  * without it the button is active and its lit state is the caller's. */
-void placeButton(Frame *frame, Button *b, const engine::Control &c, bool engineState);
+void placeButton(Button *b, const engine::Control &c, bool engineState);
 
 /* Appends src to dst, which is dstSize bytes long. Text past the end is cut. */
 void appendBounded(char *dst, size_t dstSize, const char *src);
