@@ -63,35 +63,35 @@ void infoAchFile(char *buf, int len);
  * lot in length; a row whose choices are of a size reads better on the fixed grid. */
 #define ROW_RADIO_FIT(key, apply) \
 	{ eng::ROW_CHOICE, NULL, { SEG_EACH(key, apply) }, 0, false, NULL, { NULL, NULL }, true }
+/* A readout. It never takes focus (Monty, 2026-11-09), so it has no help line. */
 #define ROW_INFO(label, fn) \
 	{ eng::ROW_READOUT, label, { }, 0, false, NULL, { NULL, NULL }, false, fn }
 /* A label and one button that runs fn, e.g. opens a page of its own. No setting. */
 #define ROW_ACTION(label, text, fn) \
 	{ eng::ROW_BUTTONS, label, { SEG_ACT(label, text, fn) } }
 
-/* The same with the row's own help, where the setting's would not do (or there is none: a readout, an
+/* The same with the row's own help, where the setting's would not do (or there is none: an
  * action). h1, h2: the footer's two lines (h2 may be NULL). */
 #define ROW_CYCLE_H(key, apply, h1, h2) \
 	{ eng::ROW_CYCLE, NULL, { SEG_CYCLE_THEN(key, apply) }, 0, false, NULL, { h1, h2 } }
 #define ROW_RADIO_H(key, apply, h1, h2) \
 	{ eng::ROW_CHOICE, NULL, { SEG_EACH(key, apply) }, 0, false, NULL, { h1, h2 } }
-#define ROW_INFO_H(label, fn, h1, h2) \
-	{ eng::ROW_READOUT, label, { }, 0, false, NULL, { h1, h2 }, false, fn }
 #define ROW_ACTION_H(label, text, fn, h1, h2) \
 	{ eng::ROW_BUTTONS, label, { SEG_ACT(label, text, fn) }, 0, false, NULL, { h1, h2 } }
 
 static const SetRow SOUND_ROWS[] =
 {
-	ROW_CYCLE("SoundResampler", NULL),
+	ROW_CYCLE_H("SoundResampler", NULL,
+		"Turns the mixer's 44100 Hz into 48000 Hz. Hold repeats samples, Linear blends two,",
+		"Cubic blends four (cleanest, most CPU). Applies at once."),
 	ROW_CYCLE("SoundReverb", applySpuReverb),
-	ROW_CYCLE("SoundMixerPrecision", NULL),
-	ROW_CYCLE("SoundXaResampler", NULL),
+	ROW_CYCLE_H("SoundMixerPrecision", NULL,
+		"Legacy cuts off the low bits when the mixer scales a voice's volume.",
+		"Hi-Fi rounds to the nearest value instead: slightly less noise."),
+	ROW_CYCLE_H("SoundXaResampler", NULL,
+		"Converts 37800 Hz XA streams to 44100 Hz. Legacy: the old nearest or Gaussian step.",
+		"Hi-Fi: the PS1's own 29-tap filter. 18900 Hz streams always use Legacy."),
 };
-
-/* A line of help under the rows. `term` is the setting being explained, drawn bold in its
- * own column; `text` continues in the second column, so a NULL term indents under the
- * definition above it. The engine's HelpLine is exactly this. */
-typedef eng::HelpLine OptHelp;
 
 /* The five Advanced tabs (CPU, GPU, SPU, CD, Input) are standard pages (Docs/MENU_PLAN.md,
  * eng::Page::standard): a setting with a few values is a Choice (all its values at once, the
@@ -111,7 +111,7 @@ static const SetRow PLUGIN_ROWS[] =
 
 static const SetRow SPU_ROWS[] =
 {
-	ROW_INFO_H("SPU Plugin", infoSpuPlugin, "Emulates the PS1 sound chip on the Wii's CPU.", "The Sound Driver is on the Audio tab; sound quality in Audio, Advanced."),
+	ROW_INFO("SPU Plugin", infoSpuPlugin),
 };
 
 static const SetRow GPU_ROWS[] =
@@ -130,27 +130,37 @@ static const SetRow INPUT_ROWS[] =
 	ROW_ACTION_H("USB Pad", "Test", Func_UsbPadTestAdvanced, "Shows what a USB controller sends, button by button, and logs it to usbpad.log.", NULL),	/* the USB Pad Test page (UsbPadTestFrame.cpp) */
 };
 
-/* The page is two columns of label + button (OptPage::columns): Dithering, a choice row, takes a
- * whole line, the cycles pair up below it. No help lines: the room went to the rows, and
- * SETTINGS.md section 3 explains each. Dithering and MDEC Chroma are read when a disc image is
- * opened, so they take effect at the next game load (SETTINGS.md section 2). Gamma is written to
- * the video encoder now, Deflicker Level to the frame copy now (and again at every game start or
- * resume, go()). Video Mode is read when WiiStation starts. Filter Tour runs while a game does.
- * Soft Mode (SoftGPU/acc.c) is read for every GPU command list: it applies at once. It is here,
- * not on the Advanced GPU tab, which holds five rows only at a 54 px pitch with four help lines. */
+/* Advanced Graphics is one page, two columns (OptPage::columns): Dithering takes a whole line, then the
+ * cycles pair up in table order (Video Color | MDEC Chroma, Gamma | Filter Tour, ...). Dithering and MDEC Chroma are read when a disc image is opened, so they take effect
+ * at the next game load (SETTINGS.md section 2). Gamma is written to the video encoder now, Deflicker Level to the
+ * frame copy now (and again at every game start or resume, go()). Video Mode is read when WiiStation starts. Filter
+ * Tour runs while a game does. Soft Mode (SoftGPU/acc.c) is read for every GPU command list: it applies at once. */
 static const SetRow ADVGFX_ROWS[] =
 {
-	ROW_RADIO_FIT("Dithering", NULL),
-	ROW_CYCLE("FmvColour", NULL),
-	ROW_CYCLE("MdecChroma", NULL),
-	ROW_CYCLE("Gamma", applyVideoGamma),
-	ROW_CYCLE("FilterTour", NULL),
+	ROW_RADIO_H("Dithering", NULL,
+		"None: never. Default: when the game asks. Always: every draw.",
+		"Used by Soft Mode Fast (next game load) and OpenGX with GX Color 6-bit."),
+	ROW_CYCLE_H("FmvColour", NULL,
+		"OpenGX, for movies a game decodes in 24-bit: 24-bit is full color.",
+		"15-bit shows bands in dark scenes."),
+	ROW_CYCLE_H("MdecChroma", NULL,
+		"Sharp: each color sample covers a 2x2 block of pixels.",
+		"Smooth: blends the color between blocks and costs more. Applies at once."),
+	ROW_CYCLE_H("Gamma", applyVideoGamma,
+		"Brightens the whole picture, menu too, in steps from 1.0 (no change) to 1.5.",
+		"Applies at once."),
+	ROW_CYCLE_H("FilterTour", NULL,
+		"Starts at the next game start or resume: every 4 seconds it changes the filters",
+		"and names them under the FPS counter. Your settings return when the game stops."),
 	/* Deflicker (the on/off the Video tab's Filters row used to toggle) next to its Level; both
 	 * apply to the frame copy now */
 	ROW_CYCLE("DeflickerFilter", applyCopyFilter),
-	ROW_CYCLE("DeflickerLevel", applyCopyFilter),
-	/* this way round: Video Mode's "PAL 60" in the left column pushes the grid into the margin */
-	ROW_CYCLE("SoftGpuMode", NULL),
+	ROW_CYCLE_H("DeflickerLevel", applyCopyFilter,
+		"Normal is the video mode's own filter. Light blurs less, Strong more.",
+		"Interlaced modes only; needs Deflicker."),
+	ROW_CYCLE_H("SoftGpuMode", NULL,
+		"Soft GPUs only, at once. Accurate: PS1 drawing rules, with dither.",
+		"Hi-Fi: the same, but no dither and finer colors. Fast: the old quicker code."),
 	ROW_CYCLE("VideoMode", NULL),
 };
 
@@ -168,14 +178,14 @@ static const SetRow CD_ROWS[] =
  * where the memory went, which is what any change to that layout has to be argued from. */
 static const SetRow MEMORY_ROWS[] =
 {
-	ROW_INFO("MEM1 (fast)",         infoMem1),
-	ROW_INFO("MEM2 heap",           infoMem2),
-	ROW_INFO("Texture pool",        infoTexPool),
-	ROW_INFO("Locked cache",        infoLockedCache),
-	ROW_INFO("Font glyph cache",    infoFontCache),
-	ROW_INFO("Recompiler buffer",   infoJitBuffer),
-	ROW_INFO("PS1 RAM + VRAM",      infoPsxBuffers),
-	ROW_INFO("SPU + BIOS buffers",  infoFixedBuffers),
+	ROW_INFO("MEM1 (fast)", infoMem1),
+	ROW_INFO("MEM2 heap", infoMem2),
+	ROW_INFO("Texture pool", infoTexPool),
+	ROW_INFO("Locked cache", infoLockedCache),
+	ROW_INFO("Font glyph cache", infoFontCache),
+	ROW_INFO("Recompiler buffer", infoJitBuffer),
+	ROW_INFO("PS1 RAM + VRAM", infoPsxBuffers),
+	ROW_INFO("SPU + BIOS buffers", infoFixedBuffers),
 };
 
 /*  The ISO Info page: the loaded game's rows, as RomInfo.h lists them  */
@@ -185,26 +195,17 @@ static const SetRow ISOINFO_ROWS[] = { ROM_INFO_ROWS(ISOINFO_ROW) };
 #undef ISOINFO_ROW
 
 /* The mode is a cycle: its five values do not fit a radio row (eng::MAX_SLOTS). A change
- * applies at the next game load (achievements_load), so there is no apply function. The 56 px
- * buttons of the five rows keep a gap at a 58 px pitch starting at y 78 (PAGES); the four help
- * lines still end above the bottom edge. */
+ * applies at the next game load (achievements_load), so there is no apply function. Each row has its own
+ * footer help: the settings' own texts are the long form (SETTINGS.md). The accounts are in Players. */
 static const SetRow ACH_ROWS[] =
 {
-	{ eng::ROW_CYCLE, NULL, { SEG_CYCLE_ACT("Achievements", Func_AchievementsMode) } },
-	ROW_RADIO("AchievementUnofficial", NULL),
-	ROW_RADIO("AchievementEncore", NULL),
-	ROW_RADIO("AchievementChallenge", NULL),
+	{ eng::ROW_CYCLE, NULL, { SEG_CYCLE_ACT("Achievements", Func_AchievementsMode) }, 0, false, NULL,
+	  { "Local: RetroAchievements' set, nothing sent. Official: sent to a Players account.",
+	    "Custom: your own set file. Test: same, nothing kept. Reload the game after a change." } },
+	ROW_RADIO_H("AchievementUnofficial", NULL, "Official and Local: also the set's Unofficial achievements (not yet approved).", "Load the game again after a change."),
+	ROW_RADIO_H("AchievementEncore", NULL, "Official: achievements you already have can be earned again this session.", "Nothing new is sent to the site. Load the game again after a change."),
+	ROW_RADIO_H("AchievementChallenge", NULL, "Shows the flashing icon for an achievement that is one step away.", "Off hides it at once. The unlock card and the progress pop-up stay."),
 	ROW_INFO("Set file", infoAchFile),
-};
-
-static const OptHelp ACH_HELP[] =
-{
-	/* Four lines fit under the four rows; the rest is in SETTINGS.md. The accounts are in
-	 * Players (a Mii's Edit page). */
-	{ "Local:", "RetroAchievements' set, nothing sent." },
-	{ "Official:", "The same, sent to an account (Players)." },
-	{ "Custom, Test:", "Your own set file. Test keeps nothing." },
-	{ NULL,        "Load the game again after a change." },
 };
 
 struct OptPage
@@ -214,15 +215,11 @@ struct OptPage
 	const char*			tab;			// the page's tab among the Advanced pages, or NULL
 	const SetRow*		rows;
 	int					nrows;
-	const OptHelp*		help;			// explanation under the rows; NULL for none
-	int					nhelp;
 	int					returnSubmenu;	// the Settings tab B goes back to; RETURN_CURRENT_ISO: Current ISO
 	void				(*onEnter)(void);
 	void				(*onLeave)(void);
-	float				rowDy;			// the row pitch, or 0 for the default (60)
-	int					columns;		// 2: cycle rows in two label + button columns (eng::Page::columns)
-	float				rowY0;			// the first row's top, or 0 for the default (100)
-	eng::Density		standard;		// DENSITY_OFF: the page is laid out as a grid; else by the menu standard (and the rows' help is the footer)
+	eng::Density		standard;		// the menu standard's density; the rows' help is the footer
+	int					columns;		// 2: the Cycle rows pair up, two cells per line (eng::Page::columns); 0 = one per line
 };
 
 /* Where the Options frame puts the logo (OptionsFrame::logoSpot): a radio row reaches x=634. */
@@ -235,25 +232,23 @@ static const eng::LogoSpot OPT_LOGO = eng::LOGO_SPOT_BOTTOM;
  * lines under them, where B goes, the enter/leave hooks, and the layout (a grid, or the menu standard). */
 #define PG_NAME(id, title, tab)	id, title, tab
 #define PG_ROWS(rows)			rows, COUNT(rows)
-#define PG_HELP(lines)			lines, COUNT(lines)
-#define PG_NOHELP				NULL, 0
 #define PG_HOOKS				pluginsEnter, pluginsLeave
 #define PG_NOHOOKS				NULL, NULL
-#define PG_GRID(dy, cols, y0)	dy, cols, y0, eng::DENSITY_OFF
-#define PG_STD(density)			0.0f, 0, 0.0f, density
+#define PG_STD(density)			density
+#define PG_COLS(n)				n
 
 static const OptPage PAGES[] =
 {
-	{ PG_NAME(OPT_PAGE_SOUND, "Advanced Sound", NULL),      PG_ROWS(SOUND_ROWS),   PG_NOHELP,         OPT_RET_AUDIO,   PG_NOHOOKS, PG_GRID(0.0f, 0, 0.0f) },
-	{ PG_NAME(OPT_PAGE_ADVGFX, "Advanced Graphics", NULL),  PG_ROWS(ADVGFX_ROWS),  PG_NOHELP,         OPT_RET_VIDEO,   PG_NOHOOKS, PG_GRID(56.0f, 2, 90.0f) },
-	{ PG_NAME(OPT_PAGE_PLUGINS, "Advanced", "CPU"),         PG_ROWS(PLUGIN_ROWS),  PG_NOHELP,         OPT_RET_GENERAL, PG_HOOKS,   PG_STD(eng::DENSITY_REGULAR) },
-	{ PG_NAME(OPT_PAGE_STORAGE, "Advanced", "CD"),          PG_ROWS(CD_ROWS),      PG_NOHELP,         OPT_RET_GENERAL, PG_HOOKS,   PG_STD(eng::DENSITY_REGULAR) },
-	{ PG_NAME(OPT_PAGE_MEMORY, "Memory", NULL),             PG_ROWS(MEMORY_ROWS),  PG_NOHELP,         OPT_RET_GENERAL, PG_NOHOOKS, PG_GRID(46.0f, 0, 0.0f) },
-	{ PG_NAME(OPT_PAGE_ADV_GPU, "Advanced", "GPU"),         PG_ROWS(GPU_ROWS),     PG_NOHELP,         OPT_RET_GENERAL, PG_HOOKS,   PG_STD(eng::DENSITY_REGULAR) },
-	{ PG_NAME(OPT_PAGE_ADV_INPUT, "Advanced", "Input"),     PG_ROWS(INPUT_ROWS),   PG_NOHELP,         OPT_RET_GENERAL, PG_HOOKS,   PG_STD(eng::DENSITY_REGULAR) },
-	{ PG_NAME(OPT_PAGE_ADV_SPU, "Advanced", "SPU"),         PG_ROWS(SPU_ROWS),     PG_NOHELP,         OPT_RET_GENERAL, PG_HOOKS,   PG_STD(eng::DENSITY_TEXT) },
-	{ PG_NAME(OPT_PAGE_ACHIEVEMENTS, "Achievements", NULL), PG_ROWS(ACH_ROWS),     PG_HELP(ACH_HELP), OPT_RET_GENERAL, PG_NOHOOKS, PG_GRID(58.0f, 0, 78.0f) },
-	{ PG_NAME(OPT_PAGE_ISOINFO, "ISO Info", NULL),          PG_ROWS(ISOINFO_ROWS), PG_NOHELP,         RETURN_CURRENT_ISO, PG_NOHOOKS, PG_STD(eng::DENSITY_TEXT) },   /* F1: readouts on the standard grid */
+	{ PG_NAME(OPT_PAGE_SOUND, "Advanced Sound", NULL),      PG_ROWS(SOUND_ROWS),   OPT_RET_AUDIO,   PG_NOHOOKS, PG_STD(eng::DENSITY_REGULAR) },
+	{ PG_NAME(OPT_PAGE_ADVGFX, "Advanced Graphics", NULL), PG_ROWS(ADVGFX_ROWS), OPT_RET_VIDEO,   PG_NOHOOKS, PG_STD(eng::DENSITY_REGULAR), PG_COLS(2) },
+	{ PG_NAME(OPT_PAGE_PLUGINS, "Advanced", "CPU"),         PG_ROWS(PLUGIN_ROWS),  OPT_RET_GENERAL, PG_HOOKS,   PG_STD(eng::DENSITY_REGULAR) },
+	{ PG_NAME(OPT_PAGE_STORAGE, "Advanced", "CD"),          PG_ROWS(CD_ROWS),      OPT_RET_GENERAL, PG_HOOKS,   PG_STD(eng::DENSITY_REGULAR) },
+	{ PG_NAME(OPT_PAGE_MEMORY, "Memory", NULL),             PG_ROWS(MEMORY_ROWS),  OPT_RET_GENERAL, PG_NOHOOKS, PG_STD(eng::DENSITY_TEXT) },
+	{ PG_NAME(OPT_PAGE_ADV_GPU, "Advanced", "GPU"),         PG_ROWS(GPU_ROWS),     OPT_RET_GENERAL, PG_HOOKS,   PG_STD(eng::DENSITY_REGULAR) },
+	{ PG_NAME(OPT_PAGE_ADV_INPUT, "Advanced", "Input"),     PG_ROWS(INPUT_ROWS),   OPT_RET_GENERAL, PG_HOOKS,   PG_STD(eng::DENSITY_REGULAR) },
+	{ PG_NAME(OPT_PAGE_ADV_SPU, "Advanced", "SPU"),         PG_ROWS(SPU_ROWS),     OPT_RET_GENERAL, PG_HOOKS,   PG_STD(eng::DENSITY_TEXT) },
+	{ PG_NAME(OPT_PAGE_ACHIEVEMENTS, "Achievements", NULL), PG_ROWS(ACH_ROWS),     OPT_RET_GENERAL, PG_NOHOOKS, PG_STD(eng::DENSITY_REGULAR) },
+	{ PG_NAME(OPT_PAGE_ISOINFO, "ISO Info", NULL),          PG_ROWS(ISOINFO_ROWS), RETURN_CURRENT_ISO, PG_NOHOOKS, PG_STD(eng::DENSITY_TEXT) },   /* F1: readouts on the standard grid */
 };
 
 /* The Advanced pages, in the order their tabs run across the top. A tab switch stays inside
@@ -264,6 +259,13 @@ static const int ADV_TABS[] = {
 	OPT_PAGE_STORAGE, OPT_PAGE_ADV_INPUT
 };
 #define NUM_TABS	((int)(sizeof(ADV_TABS) / sizeof(ADV_TABS[0])))
+/* The tab group a page belongs to (its pages in tab order), or NULL for a page without tabs. */
+static inline const int *tabGroupOf(int page, int *n)
+{
+	for (int t = 0; t < NUM_TABS; t++) if (ADV_TABS[t] == page) { *n = NUM_TABS; return ADV_TABS; }
+	*n = 0;
+	return NULL;
+}
 /* The engine centres the tab row. Its widths are the Settings tab row's (SettingsFrame.h), so
  * moving between the two menus does not shift anything. */
 
@@ -275,7 +277,6 @@ static_assert(COUNT(SOUND_ROWS) <= eng::MAX_ROWS && COUNT(PLUGIN_ROWS) <= eng::M
               COUNT(INPUT_ROWS) <= eng::MAX_ROWS && COUNT(MEMORY_ROWS) <= eng::MAX_ROWS &&
               COUNT(ACH_ROWS) <= eng::MAX_ROWS && COUNT(ISOINFO_ROWS) <= eng::MAX_ROWS,
               "an Options page has at most eng::MAX_ROWS rows");
-static_assert(COUNT(ACH_HELP) <= eng::MAX_HELP, "an Options page has at most eng::MAX_HELP help lines");
 static_assert(NUM_TABS <= eng::MAX_TABS, "the Advanced tabs fit the engine's tab table");
 
 static_assert(COUNT(PAGES) == OPT_PAGE_COUNT, "PAGES: one entry per OptPageId (each entry's id is checked against its index by tests/menu_pages_test.cpp)");
@@ -286,28 +287,25 @@ static_assert(COUNT(PAGES) == OPT_PAGE_COUNT, "PAGES: one entry per OptPageId (e
 static inline void buildOptionsPage(int page, int curTab, const SetBind &bind, SetPage &o)
 {
 	const OptPage &p = PAGES[page];
-	const bool tabbed = p.tab != NULL;
+	int nTabs = 0;
+	const int *group = tabGroupOf(page, &nTabs);
 
 	memset(&o, 0, sizeof o);
-	for (int t = 0; t < NUM_TABS; t++)
-		o.tabs[t].text = PAGES[ADV_TABS[t]].tab;	/* a standard page measures the text: no width */
+	for (int t = 0; t < nTabs; t++)
+		o.tabs[t].text = PAGES[group[t]].tab;	/* a standard page measures the text: no width */
 	for (int i = 0; i < p.nrows; i++)
 		buildRow(p.rows[i], i, bind, o);
 	o.page.title    = p.title;
-	o.page.tabs     = tabbed ? o.tabs : NULL;
-	o.page.nTabs    = tabbed ? NUM_TABS : 0;
+	o.page.tabs     = group ? o.tabs : NULL;
+	o.page.nTabs    = nTabs;
 	o.page.curTab   = curTab < 0 ? 0 : curTab;
 	o.page.rows     = o.rows;
 	o.page.nRows    = p.nrows;
-	o.page.help     = p.help;
-	o.page.nHelp    = p.nhelp;
 	o.page.logo     = OPT_LOGO;
 	o.page.focus    = eng::FOCUS_ROWS;
-	o.page.rowDy    = p.rowDy;
-	o.page.columns  = p.columns;
-	o.page.rowY0    = p.rowY0;
 	o.page.standard = p.standard;
-	o.page.footer   = p.standard ? o.footer : NULL;
+	o.page.columns  = p.columns;
+	o.page.footer   = o.footer;
 }
 
 #endif

@@ -346,12 +346,14 @@ struct Page {
 	 * whole line, and a choice row starts on the grid (label edge and first button of column 1).
 	 * Zero or 1 is one row per line, as every page was. Help runs under the last line.
 	 * FOCUS_ROWS: Left and Right run along a line, Up and Down keep the column.
-	 * Use: columns = 2 in the page (eng::Page, or OptPage::columns in OptionsFrame.cpp); nothing else changes. */
+	 * Use: columns = 2 in the page (eng::Page, or PG_COLS(2) in OptionsPages.h); nothing else changes.
+	 * A standard page does the same with Cycle rows only (a Toggle is a whole line there): each cell is its
+	 * own Row, so its focus, footer help, hit box and menuclick key are the row's; Up and Down keep the column. */
 	int              columns;
 	/* The menu standard (MenuLayout.h STD_*, Docs/MENU_PLAN.md 1.1-1.3). Zero, the default, is every
 	 * page as it was; a non-zero Density opts the page in and layoutPage uses layoutStandard's
 	 * geometry instead of grid:: (the old path is untouched). The grid's own fields (labelCx, labelDy,
-	 * rowDy, rowY0, columns, titleY, tab widths, Row widths and x0) are then ignored: the label edge,
+	 * rowDy, rowY0, titleY, tab widths, Row widths and x0) are then ignored: the label edge,
 	 * the rows' y and every width come from the standard and the text. */
 	Density          standard;
 	/* Footer help: footer[i] is the help of row i (0-2 lines, either NULL), shown for the focused row
@@ -548,7 +550,8 @@ enum ProblemKind {
 	PROB_LABEL_WIDE,	/* a label is wider than STD_LABEL_MAX_W (224 px) */
 	PROB_PAST_RIGHT,	/* a body control reaches past x STD_CTRL_X1 (616) */
 	PROB_IN_STD_LOGO,	/* a control enters the standard's logo box (STD_LOGO_*) */
-	PROB_BTN_TOUCH		/* two action buttons, or an action and a segment, closer than STD_BTN_GAP */
+	PROB_BTN_TOUCH,		/* two action buttons, or an action and a segment, closer than STD_BTN_GAP */
+	PROB_ARROW_TIGHT	/* a Cycle button too narrow for its widest value plus its two arrows (STD_CELL_PAD) */
 };
 
 struct Problem {
