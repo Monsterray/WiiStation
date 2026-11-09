@@ -15,8 +15,9 @@ import pathlib, re, sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from cliutil import flag, need  # noqa: E402
+import tools  # noqa: E402
 
-PS1_TESTS = os.environ.get("PS1_TESTS", "")   # the ps1-tests release folder (bin/, ref/); no default
+PS1_TESTS = tools.get("PS1_TESTS", False) or ""   # the ps1-tests release folder (bin/, ref/); unset skips
 REF = pathlib.Path(PS1_TESTS) / "ref"
 
 

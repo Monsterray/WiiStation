@@ -16,8 +16,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from cliutil import flag, need, req_file, req_int  # noqa: E402
 
 # GCC on this toolchain prints lowercased absolute Windows paths, with or without a column:
-#   c:\src\wiistation\gamecube\libgui\Frame.h:49:42: warning: ... [-Wunused-parameter]
-#   c:\src\wiistation\gpulib\gpu.h:32: warning: "SWAP16" redefined
+#   <dir>\wiistation\gamecube\libgui\Frame.h:49:42: warning: ... [-Wunused-parameter]
+#   <dir>\wiistation\gpulib\gpu.h:32: warning: "SWAP16" redefined
 LINE = re.compile(r"^(?P<file>(?:[A-Za-z]:)?[^:]+):(?P<line>\d+):(?:(?P<col>\d+):)?\s+"
                   r"(?P<sev>warning|error|note):\s+(?P<text>.*?)\s*(?:\[(?P<flag>-W[^\]]+)\])?$")
 ROOT = re.compile(r"^.*?[/\\]wiistation[/\\]", re.I)

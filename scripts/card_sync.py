@@ -1,5 +1,5 @@
 """card_sync.py CARD_ROOT [--apply]: make a mounted SD card's wiistation/isos/ match the game
-library (C:/wiistation-lib/games, or $WSX_LIBRARY/games): copies every library file that is
+library ($GAME_LIBRARY/games, ~/wii-tools.env): copies every library file that is
 missing on the card or has another size. Never deletes: a card file the library lacks is only
 listed. Dry run without --apply. For the BENCH Wii's card in a card reader (2026-10-21: it
 carries everything, past the HBC agent's 512 MB put limit); never a production Wii's card.
@@ -11,7 +11,9 @@ import os
 import shutil
 import sys
 
-lib = os.path.join(os.environ.get("WSX_LIBRARY", "C:/wiistation-lib"), "games")
+import tools
+
+lib = os.path.join(tools.get("GAME_LIBRARY"), "games")
 if len(sys.argv) < 2:
     sys.exit(__doc__)
 card = os.path.join(sys.argv[1], "wiistation", "isos")

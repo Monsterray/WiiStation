@@ -35,9 +35,10 @@ for a in "$@"; do
 	if [ "$a" = --kill-if-stuck ]; then KILL_IF_STUCK=1; else keep+=("$a"); fi
 done
 set -- ${keep[@]+"${keep[@]}"}
-. "$(dirname "${BASH_SOURCE[0]}")/find_python.sh"   # $PYTHON, else wii_paths.py, else python
-. "$(dirname "${BASH_SOURCE[0]}")/find_dolphin.sh"   # DOLPHIN_DIR (see dolphin_run.sh) and DOLPHIN_BASE
-D="${DOLPHIN_DIR:?no Dolphin: set DOLPHIN_DIR}/Dolphin.exe"
+. "$(dirname "${BASH_SOURCE[0]}")/tools_env.sh"   # ~/wii-tools.env: PYTHON, DOLPHIN
+need PYTHON "level 2"
+dolphin_dirs   # DOLPHIN_DIR (see dolphin_run.sh) and DOLPHIN_BASE
+D="$DOLPHIN_DIR/Dolphin.exe"
 case "${1:-release}" in
 	release) DOL="$REPO/Gamecube/WiiSXRX_Release.dol" ;;
 	debug)   DOL="$REPO/Gamecube/WiiSXRX_debug.dol" ;;
@@ -88,7 +89,9 @@ if [ -z "$others" ]; then
 else
 	echo "another Dolphin has this profile open (pid $others): SD folder sync stays on"
 fi
-[ "$SYNC" = off ] && SYNCARG="'-C','Dolphin.Core.WiiSDCardEnableFolderSync=False'," || SYNCARG=""
+# on: said explicitly, because a fresh Dolphin install has folder sync off (SETUP.md level 2)
+[ "$SYNC" = off ] && SYNCARG="'-C','Dolphin.Core.WiiSDCardEnableFolderSync=False'," \
+	|| SYNCARG="'-C','Dolphin.Core.WiiSDCardEnableFolderSync=True',"
 echo "SD folder sync: $SYNC"
 
 echo "starting $(basename "$DOL") ($(stat -c %y "$DOL" | cut -c1-19))"

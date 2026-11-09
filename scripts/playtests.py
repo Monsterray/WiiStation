@@ -8,7 +8,7 @@ session to sd:/wiistation/debuglogs/; tell the agent, which fetches and reads it
 
 A request is done once its recording exists (scripts/autoinput/NAME_play.txt); done ones are
 listed at the end. The library folder is matched to a library key (the game's folder under
-C:/wiistation-lib/games, or $WSX_LIBRARY/games, as games.tsv lists it): the whole key, or a
+$GAME_LIBRARY/games, as games.tsv lists it): the whole key, or a
 key that ends with it (Formats/..., a disc folder), so the pasted command finds exactly one
 game. --all also prints the reason for each request; --game keeps the games whose name
 contains TEXT.
@@ -19,8 +19,10 @@ import pathlib
 import subprocess
 import sys
 
+import tools
+
 HERE = pathlib.Path(__file__).resolve().parent
-LIB = pathlib.Path(os.environ.get("WSX_LIBRARY", "C:/wiistation-lib"))
+LIB = pathlib.Path(tools.get("GAME_LIBRARY"))
 
 
 def slug(name):

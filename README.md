@@ -108,81 +108,15 @@ The unattended test loop (scripted input, debug-build probes, frame and VRAM dum
 
 The CPU cores, GPU renderers, sound, CD-ROM, pad and font backends, how each is selected and what a new one must provide, are described in [Docs/BACKENDS.md](Docs/BACKENDS.md).
 
-## Compilation information
+## Setting up
 
-* devkitPPC r41-2 + libOGC2 (until git [7456c4ab](https://github.com/extremscorner/libogc2/commit/7456c4abf3e8e8ccd7eac7bb7cbe808128befa55)) + SDL + GNU Lightning + Lightrec
+[SETUP.md](SETUP.md) takes you from nothing to WiiStation built (devkitPro), running in Dolphin, and
+running on a Wii, in three levels. Developer notes (tests, conventions) are in [CONTRIBUTING.md](CONTRIBUTING.md).
 
-  You can download devkitPPC r41-2 (and older versions) here: https://wii.leseratte10.de/devkitPro/
-
-  The modified devkitPPC base rules and the compiled libOCG2, SDL, GNU Lightning and Lightrec libraries are here: https://github.com/xjsxjs197/WiiSXRX_2022/raw/main/lightrec+Libogc2.zip
-
-  The compiled SDL is here: https://github.com/xjsxjs197/WiiSXRX_2022/raw/main/libSDL.a
-
-### Quick setup (Windows)
-
-One manual step first (needs admin rights, which nothing else here requires):
-
-1. Download the official installer: https://github.com/devkitPro/installer/releases/latest
-2. Right-click it → **Run as administrator**.
-3. In the component picker, check **"Wii Development"**. Leave the install path at its
-   default (`C:\devkitPro`).
-
-That sets up devkitPro's real MSYS2 + pacman environment. Everything else is scripted —
-run these from **devkitPro's own MSYS2 shell** (Start Menu → devkitPro → MSys2, or
-`C:\devkitPro\msys2\msys2_shell.bat`):
-
-```bash
-scripts/setup-devkitpro-windows.sh   # one-time: pacman -S wii-dev ppc-zlib, plus the one
-                                      # pinned exception below
-scripts/build.sh                     # debug build -> Gamecube/WiiSXRX_debug.dol
-scripts/build.sh release             # release build -> Gamecube/WiiSXRX_Release.dol
-scripts/build.sh clean               # remove build artifacts
-```
-
-devkitPro's Makefiles cannot handle spaces in the source path. `scripts/build.sh`
-handles this by building a temporary source snapshot and copying successful DOL/ELF
-outputs back. Working source edits are included; ignored quarantine files and build
-caches are excluded. These builds start fresh each time. Run `clean` only from a
-checkout without spaces.
-
-`scripts/setup-devkitpro-windows.sh` is idempotent — re-run it any time. It uses
-devkitPro's own pacman for everything pacman can provide: `general-tools`,
-`gamecube-tools`, `make`, cmake support, `wiiload`, and the `ppc-zlib` portlib
-(for `<zlib.h>` — the project's own bundled zlib build is used only internally by
-libCHDr and doesn't expose a public header) all come from the official, signed,
-currently-maintained devkitPro repositories, tracked in pacman's own package
-database like any other install.
-
-The one deliberate exception: this project ships prebuilt libogc2 (Extrems' fork,
-not the official `libogc` pacman provides) plus Lightrec/GNU Lightning binaries,
-all built against **devkitPPC r41-2** specifically, from the `lightrec+Libogc2.zip`
-already checked into the repo root, per the original author's instructions above.
-Newer devkitPPC releases aren't ABI-compatible with those prebuilt binaries, and
-devkitPro's own servers only ever serve the *current* release — old versions
-aren't retained there for anyone's project. The setup script installs r41-2 to its
-own `devkitPPC-r41-2` directory, side by side with pacman's own current devkitPPC,
-rather than overwriting or fighting with it — `scripts/build.sh` points at it
-explicitly.
-
-### Isolated setup (macOS/Linux)
-
-With devkitPro's tools and `ppc-zlib` already installed under `/opt/devkitpro`, create
-a separate pinned toolchain using the compiler from the
-[historical r41-2 archive](https://wii.leseratte10.de/devkitPro/devkitPPC/r41%20(2022-05-31)/)
-and the libraries bundled with this repository:
-
-```bash
-bash scripts/setup-devkitpro-local.sh /tmp/wiistation-devkitpro
-DEVKITPRO=/tmp/wiistation-devkitpro \
-DEVKITPPC=/tmp/wiistation-devkitpro/devkitPPC-r41-2 \
-bash scripts/build.sh release
-```
-
-Choose a new absolute toolchain directory without spaces. `/tmp` is disposable;
-choose a persistent directory for regular development. This setup leaves the system
-compiler and libraries untouched. The build checks required headers and libraries,
-including SDL, WUPC and WiiDRC, rather than accepting an existing `libogc2` directory
-as proof of a complete installation. Windows setup repairs incomplete bundled installs.
+The original WiiSXRX build used devkitPPC r41-2 with prebuilt libogc2, SDL, GNU Lightning and Lightrec
+libraries (`lightrec+Libogc2.zip`, `libSDL.a` in the repo root). Since 5.13.0 the default build uses
+devkitPro's current devkitPPC and libogc v3; the old pair still builds with `LIBOGC=2`, and
+`scripts/setup-devkitpro-windows.sh` installs r41-2 for it (macOS/Linux: `scripts/setup-devkitpro-local.sh`).
 
 ## WiiStation Credits
 

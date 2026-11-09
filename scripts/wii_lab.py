@@ -34,13 +34,13 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import tools  # noqa: E402
 from wii_targets import (bench_wii, existing_file, hbc, hbc_ready, card_ls, local_ip_towards,  # noqa: E402
                         in_hbc, is_production, parser, wiiload, LRWII)
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
-# --send-isos sends game folders from the library (scripts/profile.sh, WSX_LIBRARY), as the Dolphin
+# --send-isos sends game folders from the library (scripts/profile.sh, GAME_LIBRARY), as the Dolphin
 # runs stage them; it used to read the user's own Dolphin folder, which lacks the converted formats
-LIBRARY = pathlib.Path(os.environ.get("WSX_LIBRARY", "C:/wiistation-lib")) / "games"
 BASE_SETTINGS = "gpuPlugin = 2\nFPS = 1\nPadType1 = 1\nPadAutoAssign = 0\n"
 RESULTS = ["perf.log", "vramio.log", "ptrace.log", "atrace.log", "lab.log", "tty.log", "dvd.log", "hb.log",
            "xfb.bin", "vram.bin"]   # a "dump <vblank>": the TV picture and VRAM then
@@ -282,7 +282,7 @@ def main():
     isos = []
     if a.send_isos:
         for d in folders:
-            for p in sorted((LIBRARY / d).glob("*")):
+            for p in sorted((pathlib.Path(tools.get("GAME_LIBRARY")) / "games" / d).glob("*")):
                 isos.append((f"isos/{d}/{p.name}", p))
 
     if not hbc_ready(a.wii, 60):

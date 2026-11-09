@@ -16,8 +16,7 @@
 tag=${1:?tag}; a=${2:?A.dol}; b=${3:-}
 here=$(cd "$(dirname "$0")" && pwd)
 runs=${WSX_RUNS:-$here/../.runs}
-[ -f "$here/find_python.sh" ] && . "$here/find_python.sh"   # main: $PYTHON through wii_paths.py; this branch: plain python
-PYTHON=${PYTHON:-python}
+. "$here/tools_env.sh"; need PYTHON "level 2"   # ~/wii-tools.env
 pages=${PAGES:-"1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 20 21 40 70"}
 
 cache_of() { echo "$runs/walk_cache/$(sha1sum "$1" | cut -c1-12)"; }

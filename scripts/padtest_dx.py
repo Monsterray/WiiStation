@@ -6,7 +6,7 @@
   padtest_dx.py judge RUN_DIR [CELLS]    one PASS/FAIL line per cell, from RUN_DIR/vram_NN.bin
   padtest_dx.py cells                    list the cells
 
-PadTest DX is github.com/Monsterray/padtest (built in ../padtest). Each frame it
+PadTest DX is github.com/Monsterray/padtest (built in the PADTEST checkout). Each frame it
 copies a status block (its include/dx.h) to VRAM; a chained run leaves each game's VRAM in
 sd:/wiistation/vram_NN.bin. scripts/padtest_dx.sh does the whole run. CELLS is a comma list of
 cell names (default: all). The protocol and what each check rests on: the fork's

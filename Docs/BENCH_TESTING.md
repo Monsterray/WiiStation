@@ -23,7 +23,7 @@ From the repository root, substitute a fresh bundle name for each run:
 ```sh
 python3 scripts/bench_smoke.py prepare \
   --dol Gamecube/WiiSXRX_Release.dol \
-  --client '../hbc-reborn/tools/hbc.py' \
+  --client 'deps/hbc-reborn/tools/hbc.py' \
   --bundle .runs/bench/my-release-smoke
 
 python "$WII_BENCH" status

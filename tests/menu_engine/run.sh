@@ -59,8 +59,8 @@ rc=$((rc + $?))
 "$cc" -std=c11 -Wall -Wextra -O2 -D_CRT_SECURE_NO_WARNINGS -o "$bin4" \
 	"$root/tests/cover_index_test.c" \
 	"$root/Gamecube/fileBrowser/cover_index.c" || exit 2
-real=C:/wiistation-lib/cover_pack/covers/index.txt
-if [ -f "$real" ]; then "$bin4" "$scratch" "$real"; else "$bin4" "$scratch"; fi
+real="${GAME_LIBRARY:-}/cover_pack/covers/index.txt"   # GAME_LIBRARY: ~/wii-tools.env, when exported
+if [ -n "${GAME_LIBRARY:-}" ] && [ -f "$real" ]; then "$bin4" "$scratch" "$real"; else "$bin4" "$scratch"; fi
 rc=$((rc + $?))
 
 # Decoding a cover (stb_image, JPEG and PNG) into the explorer's RGB5A3 slot; the real pack's covers when it is here.

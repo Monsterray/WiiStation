@@ -21,7 +21,9 @@ import struct
 import subprocess
 import sys
 
-NM = os.environ.get("NM", "C:/devkitPro/devkitPPC-r41-2/bin/powerpc-eabi-nm")
+import tools
+
+NM = os.environ.get("NM") or tools.get("DEVKITPRO") + "/devkitPPC/bin/powerpc-eabi-nm"
 
 
 def load(path):

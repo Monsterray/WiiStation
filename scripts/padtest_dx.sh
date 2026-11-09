@@ -2,21 +2,21 @@
 # padtest_dx.sh [--cells a,b,..] [--frames] [--rom DIR] [-v] [wsx.sh run options]
 #
 # The controller matrix: PadTest DX (github.com/Monsterray/padtest, built in
-# ../padtest) once per controller setup -- ports None / GameCube pad / Multitap,
+# the PADTEST checkout) once per controller setup -- ports None / GameCube pad / Multitap,
 # multitap slots filled or empty, ControllerType 0/1/2, and a multitap -> pad -> multitap
 # switch while the ROM runs -- all in ONE Dolphin boot (a CHAIN autoboot), then one PASS/FAIL
 # line per cell from what the ROM received (scripts/padtest_dx.py; `padtest_dx.py cells`
 # lists them). About two minutes.
 #   --cells    only these cells (comma list of names)
 #   --frames   also dump Dolphin frames, to .runs/padtest_dx/frames
-#   --rom DIR  folder with padtest.bin + padtest.cue. Default ../padtest/build beside the repo.
+#   --rom DIR  folder with padtest.bin + padtest.cue. Default $PADTEST/build (~/wii-tools.env).
 #   -v         print what each cell's ROM received, not just the verdict
 # Other options go to wsx.sh run (e.g. --dol release). The ROM goes on this run's card only
 # (a copy in .runs/padtest_dx.rom), never the library or the shared SD folder.
 set -e
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 RUNS="${WSX_RUNS:-$REPO/.runs}"
-cells=""; rom="$REPO/../padtest/build"; extra=(); verbose=""
+cells=""; rom=""; extra=(); verbose=""
 while [ $# -gt 0 ]; do
 	case "$1" in
 		--cells) cells="$2"; shift ;;
@@ -27,7 +27,8 @@ while [ $# -gt 0 ]; do
 	esac
 	shift
 done
-. "$(dirname "${BASH_SOURCE[0]}")/find_python.sh"   # $PYTHON, else wii_paths.py, else python
+. "$(dirname "${BASH_SOURCE[0]}")/tools_env.sh"; need PYTHON "level 2"   # ~/wii-tools.env
+[ -n "$rom" ] || { need PADTEST "extras"; rom="$PADTEST/build"; }
 name=padtest_dx
 [ -f "$rom/padtest.bin" ] || { echo "padtest_dx.sh: no such ROM $rom/padtest.bin (--rom DIR)" >&2; exit 2; }
 [ -f "$rom/padtest.cue" ] || { echo "padtest_dx.sh: no such ROM $rom/padtest.cue (--rom DIR)" >&2; exit 2; }

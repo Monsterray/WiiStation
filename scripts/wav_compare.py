@@ -27,6 +27,7 @@ import sys, wave, math, struct, array
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from cliutil import flag, need, req_file, req_int  # noqa: E402
+import tools  # noqa: E402
 
 
 def decode_if_needed(path):
@@ -36,7 +37,7 @@ def decode_if_needed(path):
     if path.lower().endswith(".wav"):
         return path, False
     import shutil, subprocess, tempfile
-    ff = shutil.which("ffmpeg") or r"C:\Program Files (x86)fmpeginfmpeg.exe"
+    ff = tools.get("FFMPEG", False) or shutil.which("ffmpeg") or tools.get("FFMPEG")
     tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False); tmp.close()
     r = subprocess.run([ff, "-y", "-loglevel", "error", "-i", path, "-c:a", "pcm_s16le", tmp.name])
     if r.returncode != 0:

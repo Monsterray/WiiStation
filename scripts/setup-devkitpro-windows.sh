@@ -33,7 +33,8 @@
 # Everything below is safe to re-run.
 set -euo pipefail
 
-DEVKITPRO=/c/devkitPro
+. "$(dirname "${BASH_SOURCE[0]}")/tools_env.sh"   # ~/wii-tools.env
+DEVKITPRO="${DEVKITPRO:-/c/devkitPro}"   # else the installer's default folder
 PACMAN="$DEVKITPRO/msys2/usr/bin/pacman.exe"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MIRROR="https://wii.leseratte10.de/devkitPro"

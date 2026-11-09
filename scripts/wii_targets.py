@@ -1,7 +1,7 @@
 """wii_targets.py -- the two Wiis this project talks to, and the guard for the one with real data.
 
   BENCH_WII       192.168.8.213  the dev/test Wii. Shared by every project through the
-                                 wii-bench queue + lease ($WII_BENCH, see wii_paths.py);
+                                 wii-bench queue + lease ($WII_BENCH, see tools.py);
                                  unattended runs, logs and cleanups happen here.
   PRODUCTION_WII  192.168.8.200  Monty's everyday Wii, with REAL DATA on it: his saves, memory
                                  cards, settings and other apps. Treat it with care:
@@ -45,7 +45,7 @@ import time
 import zlib
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-import wii_paths  # noqa: E402  (shared tool locations; no workstation paths in this project)
+import tools  # noqa: E402  (tool locations: ~/wii-tools.env; no workstation paths in this project)
 
 BENCH_WII = "192.168.8.213"
 PRODUCTION_WII = "192.168.8.200"
@@ -66,21 +66,17 @@ PROTECTED_WIIS = (PRODUCTION_WII, LRWII) + _extra_protected(pathlib.Path(__file_
 PY = pathlib.Path(sys.executable).as_posix()   # the queue's shell has no python of its own: always the full path
 
 
-def _tool(find):
-    try:
-        return pathlib.Path(find()).as_posix()
-    except wii_paths.NotFound as e:
-        sys.exit(str(e))
-
-
 def hbc_tool():
-    """hbc-reborn's hbc.py ($HBC_PY / $HBC_REBORN, see wii_paths.py)."""
-    return _tool(wii_paths.hbc_py)
+    """hbc-reborn's hbc.py: the deps/hbc-reborn submodule."""
+    p = pathlib.Path(__file__).resolve().parents[1] / "deps" / "hbc-reborn" / "tools" / "hbc.py"
+    if not p.is_file():
+        sys.exit(f"{p} is missing: run git submodule update --init deps/hbc-reborn")
+    return p.as_posix()
 
 
 def queue():
-    """The bench queue's wiibench.py ($WII_BENCH, see wii_paths.py)."""
-    return _tool(wii_paths.wii_bench)
+    """The bench queue's wiibench.py ($WII_BENCH, see tools.py)."""
+    return pathlib.Path(tools.get("WII_BENCH")).as_posix()
 
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
@@ -166,8 +162,14 @@ def queue_cmd(args, timeout=None):
 def bench_wii(what, ip=None, allow=()):
     """The bench Wii's address for a job the wii-bench queue started ($WII_BENCH_IP; an explicit
     ip only for a second bench Wii). Outside a queue job it exits without touching any Wii: the
-    queue is what keeps two workstations, or two agents, off the Wii at the same time."""
+    queue is what keeps two workstations, or two agents, off the Wii at the same time.
+    A PC with no queue (no WII_BENCH: SETUP.md level 3) runs straight on its own Wii, $WII_IP;
+    a protected Wii is refused there too, with no safe-mode exception."""
     if not os.environ.get("WII_BENCH_JOB_START"):
+        if not tools.get("WII_BENCH", required=False):
+            ip = ip or tools.get("WII_IP")
+            refuse_production(ip, what)
+            return ip
         sys.exit(f"{what}: run it as a wii-bench queue job, not directly (nothing was sent):\n"
                  f"  {queue_cmd(what + ' ...')}\n"
                  f"then: {PY} {queue()} wait ID")

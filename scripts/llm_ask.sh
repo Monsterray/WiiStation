@@ -15,7 +15,7 @@
 # timeout 900 s. --lines is accepted for old callers and ignored.
 set -u
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
-. "$(dirname "${BASH_SOURCE[0]}")/find_python.sh"   # $PYTHON, else wii_paths.py, else python
+. "$(dirname "${BASH_SOURCE[0]}")/tools_env.sh"; need PYTHON "level 2"   # ~/wii-tools.env
 LLM="$PYTHON $REPO/scripts/llm.py"
 
 usage() { sed -n '2,15p' "$0" | sed -e 's/^# \{0,1\}//'; }

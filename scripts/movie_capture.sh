@@ -27,9 +27,9 @@
 #   --frames  With --play: keep the last 120 frames in .runs/<run>/frames.
 #
 # Environment:
-#   DOLPHIN_MOVIE  The dolphin-movie checkout (default ../dolphin-movie beside the repo).
+#   DOLPHIN_MOVIE  The dolphin-movie checkout (~/wii-tools.env).
 #                  This script uses its dolphin_movie.py for the pads and to read the card.
-#   PYTHON         The Python program (default: python3, else python).
+#   PYTHON         The Python program (~/wii-tools.env).
 #
 # Exit status: 0 when the recording (or the playback) is complete, 1 when it failed,
 # 2 for a usage error.
@@ -65,8 +65,10 @@
 #     use the numpad.
 set -u
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
-TSV="${WSX_LIBRARY:-/c/wiistation-lib}/games.tsv"   # every library game and the file it boots (scripts/library_check.py)
-MOVIE="${DOLPHIN_MOVIE:-$REPO/../dolphin-movie}/dolphin_movie.py"
+. "$(dirname "${BASH_SOURCE[0]}")/tools_env.sh"   # ~/wii-tools.env: PYTHON, GAME_LIBRARY, DOLPHIN_MOVIE
+need PYTHON "level 2"; need GAME_LIBRARY "level 2"; need DOLPHIN_MOVIE "extras"
+TSV="$GAME_LIBRARY/games.tsv"   # every library game and the file it boots (scripts/library_check.py)
+MOVIE="$DOLPHIN_MOVIE/dolphin_movie.py"
 REC_CARD="wiistation/autoinput_rec.txt"            # where WiiStation writes the recording (Gamecube/PadWiiSX.c)
 REC_PRESS='^(?:p2 )?(\d+) [0-9a-f]{4}'             # a press line: "VBL BTNS" for port 1, "p2 VBL BTNS" for port 2
 
@@ -102,8 +104,7 @@ case " $extra " in *" PadMirror=1 "*)
 	*) extra="$extra PadAutoAssign=0 PadType1=1 PadType2=0" ;; esac ;;
 esac
 
-. "$(dirname "${BASH_SOURCE[0]}")/find_python.sh"   # $PYTHON, else wii_paths.py, else python
-[ -f "$MOVIE" ] || { echo "no dolphin-movie at ${MOVIE%/*}: clone it there, or set DOLPHIN_MOVIE to its folder"; exit 2; }
+[ -f "$MOVIE" ] || { echo "no dolphin-movie at ${MOVIE%/*}: fix DOLPHIN_MOVIE in ~/wii-tools.env (SETUP.md, extras)"; exit 2; }
 "$PYTHON" "$MOVIE" selftest >/dev/null || { echo "$MOVIE selftest failed: see its output above"; exit 2; }
 
 # Recordings use one named profile, kept between runs (scripts/profile.sh), so the card the

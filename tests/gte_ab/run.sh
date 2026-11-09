@@ -6,12 +6,12 @@
 #
 #   bash tests/gte_ab/run.sh [A_GTE_C] [B_GTE_C] [CASES_PER_OP]
 #
-# A defaults to `git show HEAD:gte.c`, B to the working gte.c. Needs clang (C:/Program Files/LLVM).
+# A defaults to `git show HEAD:gte.c`, B to the working gte.c. Needs clang (on PATH, or CC=).
 # shim/ holds the few libogc/zlib headers psxcommon.h pulls in; gte.c uses none of them.
 set -e
 R=$(cd "$(dirname "$0")/../.." && pwd); T="$R/tests/gte_ab"; O="${TMP:-/tmp}/gte_ab"; mkdir -p "$O"
-CC="${CC:-/c/Program Files/LLVM/bin/clang.exe}"
-. "$(dirname "${BASH_SOURCE[0]}")/../../scripts/find_python.sh"   # $PYTHON, else wii_paths.py, else python
+CC="${CC:-clang}"
+. "$R/scripts/tools_env.sh"; need PYTHON "level 2"   # ~/wii-tools.env
 command -v "$CC" >/dev/null 2>&1 || [ -x "$CC" ] || { echo "run.sh: no C compiler at $CC (set CC=)" >&2; exit 2; }
 A="${1:-}"; [ -n "$A" ] || { git -C "$R" show HEAD:gte.c > "$O/gte_a.c" || { echo "run.sh: no HEAD:gte.c (not a git checkout?)" >&2; exit 2; }; A="$O/gte_a.c"; }
 B="${2:-$R/gte.c}"; N="${3:-30000}"
