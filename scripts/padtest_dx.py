@@ -70,6 +70,11 @@ SWEEP_ORDER = [0x0001, 0x0008, 0x0100, 0x0200, 0x0400, 0x0800, 0x1000, 0x2000, 0
 SCRIPT_PORTS = ['p1', 'p2', 'p1b', 'p1c', 'p1d', 'p2b', 'p2c', 'p2d']
 
 
+ID_OF_CT = {0: 0x41, 1: 0x73, 2: 0x41, 3: 0x73, 4: 0x53}
+# ROM bit of a button -> ROM bit it shows up at in 53h: L1, Sq, Tri, R1, R2 (psx-spx green mode)
+GREEN = {2: 1, 7: 2, 4: 3, 3: 4, 1: 7}
+
+
 def rom_bit(mask):
     """A PSX mask bit (Start 0008) as the ROM's button bit (wire bytes swapped)."""
     b = mask.bit_length() - 1
@@ -113,6 +118,10 @@ CELLS = [
          switch=[(1, 1), (1, 4)]),
     # SioTiming Accurate (sio.c): the same checks, and a byte and its /ACK timed as on a PS1
     dict(name='pads_ct1_sio', ct=1, ports=[('pad', ''), ('pad', '')], sets=['SioTiming=1']),
+    # Dual Analog (3: starts red 73h, AnalogAuto 1) and Analog Joystick (4: starts 53h, no config
+    # commands; buttons rearranged, L3/R3 read 1)
+    dict(name='pads_ct3', ct=3, ports=[('pad', ''), ('pad', '')]),
+    dict(name='pad_ct4', ct=4, ports=[('pad', ''), ('none', '')]),
     dict(name='taps_ct1_sio', ct=1, ports=[('tap', 'ABCD'), ('tap', 'ABCD')], sets=['SioTiming=1']),
 ]
 # SioTiming Accurate, in system clock ticks as the ROM measures them: a byte is 8 bits at the
@@ -229,7 +238,7 @@ def cfg_check(s):
     for i, name in enumerate(CFG):
         got = s['cfg'][i * 8:i * 8 + 8]
         if digital:     # A digital pad answers 42h (a read) and nothing else: FFh, 2 bytes
-            want, wlen = ([0x41, 0x5A] + [None] * 6, 5) if name.startswith('42') else ([0xFF] + [None] * 7, 2)
+            want, wlen = ([s['type'], 0x5A] + [None] * 6, REPLY_LEN.get(s['type'], 5)) if name.startswith('42') else ([0xFF] + [None] * 7, 2)
         else:
             want, wlen = WANT[i], WANT_LEN[i]
         bad = [j for j, w in enumerate(want) if w is not None and got[j] != w]
@@ -321,7 +330,7 @@ def judge_device(where, s, ct, sp, tap, checks):
     """A filled port or slot. sp: the script port whose sweep order it must show, or None
     for GameCube pad 1 (the driver's padsweep)."""
     fails = []
-    want = 0x73 if ct == 1 else 0x41
+    want = ID_OF_CT[ct]
     if s['type'] != want:
         return ['%s: id %02X, want %02X' % (where, s['type'], want)]
     n = REPLY_LEN[want]
@@ -337,14 +346,16 @@ def judge_device(where, s, ct, sp, tap, checks):
         fails.append('%s: %d button bits' % (where, len(bits)))
     if s['multi']:
         fails.append('%s: %d multi-bit presses' % (where, s['multi']))
-    if ct == 1 and 'axes' in checks:
+    if ct in (1, 3) and 'axes' in checks:   # the ROM reads axes of 73h only (controllers.c:291), not 53h
         for a in range(4):
             d = axis_values(s, a)
             if s['axis_min'][a] != 0 or s['axis_max'][a] != 255 or d < LEAST_AXIS['gc' if sp is None else 'script']:
                 fails.append('%s %s %d..%d %d values' % (where, AXES[a], s['axis_min'][a], s['axis_max'][a], d))
     if sp is not None and 'order' in checks:
         skip = DPAD if ct == 2 else set()
-        want_o = [b for b in sweep_order(sp) if b not in skip]
+        if ct == 4:     # 53h: the ROM sees the buttons moved (psx-spx), and no L3/R3
+            skip = skip | {9, 10}
+        want_o = [GREEN.get(b, b) if ct == 4 else b for b in sweep_order(sp) if b not in skip]
         got = [b for f, b in sorted((f, b) for b, f in enumerate(s['first']) if f != NO_FRAME) if b not in skip]
         if sorted(got) != sorted(want_o):
             fails.append('%s: first presses of %d of %d buttons' % (where, len(got), len(want_o)))

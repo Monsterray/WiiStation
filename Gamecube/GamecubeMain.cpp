@@ -268,7 +268,7 @@ static const char* const OPT_SAVE_DEVICE[]   = { "SD", "USB", "CardA", "CardB" }
 static const char* const OPT_STATES_DEVICE[] = { "SD", "USB" };
 static const char* const OPT_MEMCARD_TYPE[]  = { "Shared", "Game" };
 static const char* const OPT_PAD_ASSIGN[]    = { "Manual", "Automatic" };
-static const char* const OPT_CONTROLLER[]    = { "Standard", "Analog", "Stick D-pad" };
+static const char* const OPT_CONTROLLER[]    = { "Standard", "Analog", "Stick D-pad", "Dual Analog", "Analog Joystick" };
 static const char* const OPT_SLOT[]          = { "Slot 1", "Slot 2", "Slot 3", "Slot 4", "Default", "Auto" };
 static const char* const OPT_LIGHTGUN[]      = { "Off", "GunCon", "Justifier", "Mouse" };
 
@@ -358,7 +358,7 @@ static SettingOption OPTIONS[] =
   { "Memcard1File", &memCardFile[1], MEMCARDFILE_SHARED, MEMCARDFILE_PER_GAME, NULL, "Memcard Type", OPT_MEMCARD_TYPE, "Shared: one card file for all games. Game: one per game." },
   { "Controllers", NULL, 0, 0, "The PlayStation ports and the controllers on them." },
   { "PadAutoAssign", &padAutoAssign, PADAUTOASSIGN_MANUAL, PADAUTOASSIGN_AUTOMATIC, NULL, "Pad Assignment", OPT_PAD_ASSIGN, "Automatic assigns the controllers to the ports." },
-  { "ControllerType", &controllerType, CONTROLLERTYPE_STANDARD, CONTROLLERTYPE_STICKDPAD, NULL, "PSX Pad Type", OPT_CONTROLLER, "Stick D-pad: a digital pad whose D-pad follows the left stick." },
+  { "ControllerType", &controllerType, CONTROLLERTYPE_STANDARD, CONTROLLERTYPE_JOYSTICK, NULL, "PSX Pad Type", OPT_CONTROLLER, "Stick D-pad: a digital pad whose D-pad follows the left stick." },
   /* No menu row: a settings.ini key (SETTINGS.md section 6.6) */
   { "AnalogAuto", &analogAuto, ANALOGAUTO_OFF, ANALOGAUTO_ALWAYS },
   { "PadMirror", &padMirror, 0, 1 },
@@ -688,7 +688,10 @@ static const char* gameSettingsFile(void)
 }
 
 /* Built-in per-game defaults: the layer between settings.ini and the game's own file. The menu
- * shows them like any value, and This Game saves a change from them. One "Key=Value" per row. */
+ * shows them like any value, and This Game saves a change from them. One "Key=Value" per row, so
+ * a game that wants a pad type and AnalogAuto takes two rows with the same ids, e.g. a game made for
+ * the Dual Analog: { { "SLUS00000" }, "ControllerType=3" }, { { "SLUS00000" }, "AnalogAuto=1" }.
+ * ControllerType and AnalogAuto are per-game keys like the rest (not in GLOBAL_ONLY_KEYS). */
 static const struct { const char* ids[8]; const char* kv; } gameDefaults[] = {
 	/* Crash Team Racing: 4-player races hold the game's 30 fps cap at 150% (25 at 100%);
 	 * LRWii 68% busy, 86% worst second (2026-11-05) */

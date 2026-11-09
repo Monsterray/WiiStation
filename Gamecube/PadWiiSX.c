@@ -671,7 +671,7 @@ void autoinput_record_sticks(int port, const unsigned char st[4])
 		have[port] = 0;
 		return;
 	}
-	if (controllerType != CONTROLLERTYPE_ANALOG)   /* a digital pad: the game reads no sticks */
+	if (!CONTROLLERTYPE_HAS_ANALOG(controllerType))   /* a digital pad: the game reads no sticks */
 		return;
 	if ((port == 1 && !virtualControllers[1].inUse) || (have[port] && !memcmp(last[port], st, 4)))
 		return;

@@ -456,10 +456,14 @@ enum controllerType
 {
 	CONTROLLERTYPE_STANDARD=0,
 	CONTROLLERTYPE_ANALOG,
-	CONTROLLERTYPE_STICKDPAD   /* a digital pad whose D-pad also follows the left stick */
+	CONTROLLERTYPE_STICKDPAD,  /* a digital pad whose D-pad also follows the left stick */
+	CONTROLLERTYPE_DUALANALOG, /* SCPH-1150 Dual Analog: 41h / 73h red / 53h green, no config commands, one motor */
+	CONTROLLERTYPE_JOYSTICK    /* SCPH-1110 Analog Joystick: 41h / 53h, no config commands, no motor */
 };
+/* The types that have an analog mode (an ANALOG button or switch) */
+#define CONTROLLERTYPE_HAS_ANALOG(t) ((t) == CONTROLLERTYPE_ANALOG || (t) == CONTROLLERTYPE_DUALANALOG || (t) == CONTROLLERTYPE_JOYSTICK)
 
-/* AnalogAuto: when a pad of Controller Type Analog starts in analog mode (PadSSSPSX.c) */
+/* AnalogAuto: when a pad with an analog mode starts in it (PadSSSPSX.c; per type in SETTINGS.md) */
 extern char analogAuto;
 /* PadMirror 1: every pad with no controller of its own plays port 1's (SETTINGS.md) */
 extern char padMirror;
