@@ -9,17 +9,21 @@
 #        --dol debug|play|release|PATH   what to boot (default debug). The DOL is COPIED into the
 #                                   run directory first, so a rebuild between queued runs
 #                                   cannot change what boots.
-#        --secs N                   run length (default 170)
+#        --secs N                   run length, wall seconds (default 120: short runs are the rule)
 #        --input speech|title|FILE  autoinput script: scripts/autoinput/spyro_<name>.txt or a file
 #        --set K=V[,K=V...]         settings on top of the base (gpuPlugin=2 FPS=1 PadType1=1 PadAutoAssign=0)
 #        --dsp                      DSP sound path: SoundDriver=1 and Dolphin DSP LLE
 #        --nodump                   no audio dump
-#        --fast                     Dolphin as fast as the PC allows (about 2x): frames and guest
+#        --fast                     THE DEFAULT for run (not for chain, menu, state, abstate):
+#                                   Dolphin as fast as the PC allows (about 2x): frames and guest
 #                                   time are unchanged, and SoundRateControl=0 SoundTempo=0 make
 #                                   the audio dump bit-identical to a normal-speed run (with the
 #                                   rate control on, two Dolphin runs agree for a minute or two at
 #                                   best: skill references/measuring.md, scripts/aq_cmp.py).
 #                                   --secs is wall time, so a fast run covers about twice the game.
+#                                   The verdict prints no speed for a fast run.
+#        --realtime                 normal speed, sound rate control as set: for anything about
+#                                   timing (speed, pacing, audio rate control, --dsp sound)
 #        --autoboot spyro|bios|none which autoboot file (default spyro)
 #        --env VAR=VALUE            extra environment for dolphin_run.sh (CACHE=1, XFB_RAM=1 ...)
 #        --card FILE|DIR            put FILE (or the folder DIR) in the card's wiistation/ folder for
@@ -31,7 +35,8 @@
 #   scripts/wsx.sh chain NAME CHAINFILE [options]         a chained autoboot (several games, one
 #                                   boot) from scripts/chains/; stages the input scripts it names,
 #                                   runs until the console powers off, prints scripts/chain_table.py.
-#                                   Same options as run; --secs is the limit for the whole chain.
+#                                   Same options as run, but REAL TIME by default (a chain measures
+#                                   speed; --fast to override); --secs is the limit for the whole chain.
 #   scripts/wsx.sh state NAME GAME --at V [--rec REC] [--ct 0|1] [options]
 #                                   boot GAME (part of its folder name in chains/all.txt, or the game
 #                                   of recording REC), play REC if given, and save the game at vblank V
@@ -39,6 +44,10 @@
 #   scripts/wsx.sh abstate RUN STATE VBL SETS... [--rec REC] [options]
 #                                   one boot: each SETS ("K=V,K=V", or - for none) runs VBL vblanks
 #                                   from save state STATE; prints the table. --rec plays REC on.
+#   scripts/wsx.sh states [list|make|check] [NAME...] [--force]
+#                                   the save-state library (scripts/states.txt): test moments to
+#                                   start from with abstate instead of booting and playing there;
+#                                   make records missing ones, check loads each twice (same = ok)
 #   Every run, chain and menu comparison ENDS with its verdict: "VERDICT NAME: OK|CHECK|
 #                                   NO-RESULTS|DIFFERS | speed per game" and <= 6 lines (where to
 #                                   look). Also .runs/NAME/verdict.txt and verdict.json. Read it first.
@@ -154,7 +163,7 @@ build)
 run)
 	name="${1:-}"; shift || true
 	[ -n "$name" ] || { echo "run NAME [options]"; exit 2; }
-	dol="debug"; secs=170; input="speech"; sets=""; dsp=""; dump=1; aboot="spyro"; extra=(); cards=(); fast=""; setfile=""; base=""
+	dol="debug"; secs=120; input="speech"; sets=""; dsp=""; dump=1; aboot="spyro"; extra=(); cards=(); fast=1; setfile=""; base=""
 	while [ $# -gt 0 ]; do
 		case "$1" in
 			--base) base="$2"; shift 2 ;;
@@ -165,6 +174,7 @@ run)
 			--dsp) dsp=1; shift ;;
 			--nodump) dump=0; shift ;;
 			--fast) fast=1; shift ;;
+			--realtime) fast=""; shift ;;
 			--autoboot) aboot="$2"; shift 2 ;;
 			--env) extra+=("$2"); shift 2 ;;
 			--card) cards+=("$2"); shift 2 ;;
@@ -244,7 +254,7 @@ chain)
 		[ -f "$REPO/scripts/autoinput/$f" ] || { echo "chain names sd:/wiistation/$f: no scripts/autoinput/$f"; exit 2; }
 		cardargs+=(--card "$REPO/scripts/autoinput/$f")
 	done
-	WSX_TRIAGE_DEFER=1 bash "$0" run "$name" --autoboot "$cf" --input "$P/autoinput_none.txt" --nodump --env FRAMES_DUMP=False ${cardargs[@]+"${cardargs[@]}"} "$@" | grep -v "^  "
+	WSX_TRIAGE_DEFER=1 bash "$0" run "$name" --realtime --autoboot "$cf" --input "$P/autoinput_none.txt" --nodump --env FRAMES_DUMP=False ${cardargs[@]+"${cardargs[@]}"} "$@" | grep -v "^  "
 	"$PYTHON" "$REPO/scripts/chain_table.py" "$RUNS/$name"
 	st=$?
 	"$PYTHON" "$REPO/scripts/benchdb.py" ingest "$RUNS/$name" >/dev/null 2>&1   # baselines/bench.sqlite
@@ -301,6 +311,7 @@ abstate)
 	while [ $# -gt 0 ]; do
 		case "$1" in
 			--rec) rec="$2"; shift 2 ;;
+			--fast|--realtime|--nodump|--dsp) rest+=("$1"); shift ;;   # options without a value
 			--*) rest+=("$1" "$2"); shift 2 ;;
 			*) sets+=("$1"); shift ;;
 		esac
@@ -326,6 +337,57 @@ abstate)
 	bash "$0" chain "$run" "$cf" --secs $(( ${#sets[@]} * (vbl / 30 + 90) )) ${rest[@]+"${rest[@]}"}
 	rm -f "$ai"
 	grep -a "^state:\|^statefp:" "$RUNS/$run/perf.log"
+	;;
+states)
+	# The save-state library, scripts/states.txt: list it, make the missing states, or check
+	# that each still loads the same way twice (states NAME... limits it to those).
+	sub="${1:-list}"; shift || true
+	case "$sub" in list|make|check) ;; *) echo "states [list|make|check] [NAME...] [--force] [--dol D]"; exit 2 ;; esac
+	force=""; names=(); rest=()
+	while [ $# -gt 0 ]; do
+		case "$1" in
+			--force) force=1; shift ;;
+			--dol) rest+=(--dol "$2"); shift 2 ;;
+			--*) echo "states: unknown option $1"; exit 2 ;;
+			*) names+=("$1"); shift ;;
+		esac
+	done
+	card="$LIB/states"   # promoted from each run's card when it ends (dolphin_run.sh)
+	lib=$(tr -d '\r' < "$REPO/scripts/states.txt" | grep -v -E '^[[:space:]]*(#|$)')
+	for n in "${names[@]:-}"; do
+		[ -z "$n" ] || echo "$lib" | awk -v n="$n" '$1 == n { f = 1 } END { exit !f }' || { echo "no state $n in scripts/states.txt"; exit 2; }
+	done
+	src=0
+	while read -r st rec at what; do
+		if [ ${#names[@]} -gt 0 ] && ! printf '%s\n' "${names[@]}" | grep -qx -- "$st"; then continue; fi
+		case "$sub" in
+		list)
+			if [ -f "$card/$st.st" ]; then
+				printf '%-15s ok       vbl %-6s saved %s, build %s: %s\n' "$st" "$at" \
+					"$(sed -n 's/^# saved: //p' "$card/$st.txt" | tr -d '\r')" "$(sed -n 's/^# build: //p' "$card/$st.txt" | tr -d '\r')" "$what"
+			else
+				printf '%-15s MISSING  vbl %-6s %s (states make %s)\n' "$st" "$at" "$what" "$st"
+			fi ;;
+		make)
+			if [ -f "$card/$st.st" ] && [ -z "$force" ]; then echo "$st: on the card already (--force re-makes it)"; continue; fi
+			echo "$st: playing $rec to vblank $at (--fast) ..."
+			rm -f "$card/$st.st" "$card/$st.txt"
+			bash "$0" state "$st" "$rec" --at "$at" --rec "$rec" --fast ${rest[@]+"${rest[@]}"} < /dev/null | grep -a "^state:" | tail -1
+			if [ -f "$card/$st.st" ]; then echo "$st: made"; else echo "$st: NOT MADE (see $RUNS/state_$st)"; src=1; fi ;;
+		check)
+			[ -f "$card/$st.st" ] || { echo "$st: MISSING (states make $st)"; src=1; continue; }
+			# two chain lines from the same state, 300 vblanks each: the fingerprints must match
+			bash "$0" abstate "check_$st" "$st" 300 - - ${rest[@]+"${rest[@]}"} < /dev/null > "$RUNS/check_$st.out" 2>&1
+			fp=$(grep -a '^statefp:' "$RUNS/check_$st/perf.log" 2>/dev/null)
+			# a line can end a vblank before its statefp: then the "state: game=N ram= vram= pc= cycle="
+			# line every chain line ends with is the fingerprint
+			[ "$(printf '%s' "$fp" | grep -c .)" = 2 ] || fp=$(grep -a '^state: game=[0-9]* ram=' "$RUNS/check_$st/perf.log" 2>/dev/null | sed 's/game=[0-9]* //')
+			if [ "$(printf '%s' "$fp" | grep -c .)" != 2 ]; then echo "$st: DOES NOT LOAD ($(printf '%s' "$fp" | grep -c .) of 2 fingerprints; $RUNS/check_$st.out)"; src=1
+			elif [ "$(printf '%s\n' "$fp" | sort -u | wc -l)" != 1 ]; then echo "$st: LOADS DIFFERENTLY twice: $(printf '%s\n' "$fp" | sort -u | tr '\n' '|')"; src=1
+			else echo "$st: same twice ($(printf '%s\n' "$fp" | head -1 | sed 's/^state[a-z]*: *//' | cut -c1-50))"; fi ;;
+		esac
+	done <<< "$lib"
+	exit $src
 	;;
 
 table)
@@ -439,7 +501,7 @@ menu)
 	fi
 	inp="$out/input.txt"
 	menu_run() {   # menu_run RUN DOL: every frame kept (KEEP), no audio dump
-		bash "$0" run "$1" --dol "$2" --autoboot none --input "$inp" --secs "$secs" --nodump --env KEEP=100000 ${msets:+--set "$msets"} > "$out/$1.log" 2>&1
+		bash "$0" run "$1" --realtime --dol "$2" --autoboot none --input "$inp" --secs "$secs" --nodump --env KEEP=100000 ${msets:+--set "$msets"} > "$out/$1.log" 2>&1
 		echo "run $1: exit $? (log $out/$1.log)"
 	}
 	menu_run "menu_${name}_a" "$dolA"

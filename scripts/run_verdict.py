@@ -117,6 +117,8 @@ def main():
         spd = lambda s: ('' if fast else '%.2fx' % s) if s is not None else 'no block'
         if len(rows) == 1:
             games_txt = ('%s %s' % (cut(rows[0][0]), spd(rows[0][2]))).strip()
+            if games_txt == 'run':   # a fast single run: nothing to say
+                games_txt = ''
         else:
             games_txt = '; '.join(('%d %s %s' % (i, cut(n), spd(s))).strip() for i, (n, _, s) in enumerate(rows, 1))
     extra = []
@@ -161,6 +163,8 @@ def main():
     body = ['  ' + r[:150] for r in reasons[:4]] + ['  ' + c for c in cmp_lines]
     if os.path.isfile(os.path.join(d, 'triage.txt')):
         body.append('  triage: ' + os.path.join(d, 'triage.txt'))
+    if any(r.startswith('no perf block') for r in reasons):
+        body.append('  the first perf block is written after 1800 presented frames (~60-90 s of a game): run longer')
     if status in ('CHECK', 'NO-RESULTS'):
         body.append('  next: wsx.sh triage %s   (or read run.log / perf.log at the lines above)' % name)
     elif rows and len(rows) > 1:

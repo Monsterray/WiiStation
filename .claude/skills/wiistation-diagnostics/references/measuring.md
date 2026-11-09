@@ -572,6 +572,9 @@ cursor starts on the first folder, so `menukeys 90 A` opens it).
 
 ## Max speed: `--fast` (2026-10-12)
 
+Since 2026-11-09 `--fast` is the DEFAULT for `wsx.sh run` (with `--secs 120`); `--realtime` turns it
+off. `chain`, `menu`, `state`, `abstate` and movie capture stay real time unless given `--fast`.
+
 `wsx.sh run|chain ... --fast` runs Dolphin with `Dolphin.Core.EmulationSpeed=0` (FAST=1 in
 dolphin_run.sh): about 2.1x on this PC, even single-core. Guest time is emulated, so frames are
 pixel-identical to a normal run, and with `SoundRateControl=0 SoundTempo=0` (which --fast sets) the

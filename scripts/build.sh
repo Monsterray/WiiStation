@@ -28,32 +28,58 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # pwd -P: a checkout reached by an 8.3 name (C:/Users/<USERNA~1>/...) has no space in pwd, but
 # make's CURDIR is the physical path, which MSYS maps to /home/<user name with a space>/...
 if [[ "$(cd "$REPO_ROOT" && pwd -P)" == *" "* ]]; then
+	# devkitPro's make rules cannot quote CURDIR, so a checkout whose path has a space (the
+	# opencode worktrees under the user profile) builds in a space-free MIRROR of itself:
+	# /tmp/wiistation-build-<hash of the path>, one per checkout, kept between builds. tar keeps
+	# file times, so make rebuilds only what changed (a one-file edit ~70 s instead of a full
+	# ~250 s rebuild every time: 2026-11-09 dev audit). Ignored saves, quarantine and build
+	# caches are not copied. Only the outputs of this build are copied back.
+	# keyed by the Windows path: MSYS shows the same checkout as /c/Users/..., /home/... or an 8.3
+	# name depending on how it was reached; cygpath -m of the physical path is one spelling
+	physical_root="$(cd "$REPO_ROOT" && pwd -P)"
+	if command -v cygpath > /dev/null; then physical_root="$(cygpath -m "$physical_root")"; fi
+	task_build="/tmp/wiistation-build-$(printf '%s' "$physical_root" | md5sum | cut -c1-10)"
 	if [ "${1:-debug}" = clean ]; then
-		echo "Run clean from a checkout without spaces; isolated builds clean themselves." >&2
-		exit 1
+		rm -rf "$task_build"
+		echo "Removed the build mirror $task_build."
+		exit 0
 	fi
-	# devkitPro's make rules cannot quote CURDIR. Snapshot source (including working
-	# edits) into a space-free directory; ignored saves, quarantine and build caches
-	# are excluded. Copy only successful build outputs back to the user's checkout.
-	task_build=$(mktemp -d /tmp/wiistation-build.XXXXXX)
-	trap 'rm -rf "$task_build"' EXIT
-	echo "Building a source snapshot in $task_build (checkout path contains spaces)."
+	# mirrors of checkouts that are gone (removed worktrees), and old one-shot snapshots
+	for mirror in /tmp/wiistation-build-*; do
+		if [ -f "$mirror/.source" ] && [ ! -d "$(cat "$mirror/.source")" ]; then rm -rf "$mirror"; fi
+	done
+	find /tmp -maxdepth 1 -name 'wiistation-build.*' -mmin +1440 -exec rm -rf {} + 2>/dev/null || true
+	mkdir -p "$task_build"
+	exec 9> "$task_build/.lock"
+	command -v flock > /dev/null && flock 9   # one build per mirror at a time
+	printf '%s' "$physical_root" > "$task_build/.source"
+	echo "Building in the mirror $task_build (checkout path contains spaces)."
+	file_list="$task_build/.files.new"
 	git -C "$REPO_ROOT" ls-files --cached --others --exclude-standard -z |
 	while IFS= read -r -d '' source_file; do
 		if [ -f "$REPO_ROOT/$source_file" ] || [ -L "$REPO_ROOT/$source_file" ]; then
 			printf '%s\0' "$source_file"
 		fi
-	done | tar -C "$REPO_ROOT" --null -T - -cf - | tar -C "$task_build" -xf -
-	# deps/ext (libwupc, ignored) is built once per checkout; without it the snapshot fetches it
-	[ ! -d "$REPO_ROOT/deps/ext" ] || cp -r "$REPO_ROOT/deps/ext" "$task_build/deps/"
-	# Official mode's HTTPS stack (scripts/build-ra-https.sh, ignored) likewise: without it the snapshot's DOL has no secure connection
+	done > "$file_list"
+	# files deleted from the checkout since the last build leave the mirror too
+	if [ -f "$task_build/.files" ]; then
+		comm -23 <(tr '\0' '\n' < "$task_build/.files" | sort) <(tr '\0' '\n' < "$file_list" | sort) |
+		while IFS= read -r gone; do rm -f "$task_build/$gone"; done
+	fi
+	tar -C "$REPO_ROOT" --null -T "$file_list" -cf - | tar -C "$task_build" -xf -
+	mv "$file_list" "$task_build/.files"
+	# deps/ext (libwupc, ignored) is built once per checkout; without it the mirror fetches it once.
+	# -p keeps the times (so make does not rebuild against it), -u copies only what is newer
+	[ ! -d "$REPO_ROOT/deps/ext" ] || cp -rpu "$REPO_ROOT/deps/ext" "$task_build/deps/"
+	# Official mode's HTTPS stack (scripts/build-ra-https.sh, ignored) likewise: without it the DOL has no secure connection
 	if [ -d "$REPO_ROOT/build_ogc3/deps/ra_https" ]; then
 		mkdir -p "$task_build/build_ogc3/deps"
-		cp -r "$REPO_ROOT/build_ogc3/deps/ra_https" "$task_build/build_ogc3/deps/"
+		cp -rpu "$REPO_ROOT/build_ogc3/deps/ra_https" "$task_build/build_ogc3/deps/"
 	fi
+	touch "$task_build/.started"
 	bash "$task_build/scripts/build.sh" "$@"
 	for artifact in "$task_build"/Gamecube/*.dol "$task_build"/Gamecube/*.elf; do
-		[ ! -f "$artifact" ] || cp "$artifact" "$REPO_ROOT/Gamecube/"
+		if [ "$artifact" -nt "$task_build/.started" ]; then cp -p "$artifact" "$REPO_ROOT/Gamecube/"; fi
 	done
 	echo "Build outputs copied to $REPO_ROOT/Gamecube."
 	exit 0

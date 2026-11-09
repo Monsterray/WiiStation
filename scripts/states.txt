@@ -1,0 +1,13 @@
+# The save-state library: moments in a game that a test starts from instead of booting and
+# playing there (the 2026-11-09 dev audit: 46% of a chain's wall time went on reaching the
+# test point). `scripts/wsx.sh states` lists them, `states make` records the missing ones,
+# `states check` loads each twice and compares fingerprints. Run from one with
+#   scripts/wsx.sh abstate RUN STATE VBLANKS - ["K=V,..." ...] [--rec RECORDING]
+# The states live on the test card ($LIB/states, Docs/SAVE_STATES.md). Re-make one
+# (`states make NAME --force`) when `states check` says it no longer loads or loads differently.
+#
+# NAME           RECORDING (scripts/autoinput/<NAME>_play.txt)   VBLANK  what it is
+spyro9000        spyro_the_dragon                                 9000    Spyro the Dragon in play (09-22 recording)
+ctr9000          crash_team_racing                                9000    Crash Team Racing in play (10-19 recording)
+ff7_6000         final_fantasy_vii_1                              6000    Final Fantasy VII disc 1 in play (09-22 recording)
+soulreaver9000   legacy_of_kain_soul_reaver_u                     9000    Soul Reaver in play (10-21 recording)
