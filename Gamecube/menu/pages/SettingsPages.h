@@ -185,8 +185,8 @@ static const SetRow INP_ROWS[] =
 {
 	{ eng::ROW_BUTTONS, NULL, { SEG_ACT("ConfigureInput", "Configure Input", Func_ConfigureInput),
 	                            SEG_ACT("ConfigureButtons", "Configure Buttons", Func_ConfigureButtons) } },
-	{ eng::ROW_CHOICE, NULL, { SEG_SET("ControllerType", CONTROLLERTYPE_STANDARD), SEG_SET("ControllerType", CONTROLLERTYPE_ANALOG),
-	                           SEG_SET("ControllerType", CONTROLLERTYPE_STICKDPAD) }, 0, false, NULL, { "Digital: plain pad. Analog: DualShock. Stick Pad: left stick also presses the D-pad." } },
+	/* Five pad types do not fit a Choice row (eng::MAX_SLOTS 4): one button steps through them. The help is the option's own. */
+	{ eng::ROW_BUTTONS, NULL, { SEG_CYCLE("ControllerType") } },
 	{ eng::ROW_CHOICE, NULL, { SEG_SET("RumbleEnabled", RUMBLE_DISABLE), SEG_SET("RumbleEnabled", RUMBLE_ENABLE) } },
 	{ eng::ROW_BUTTONS, NULL, { SEG_CYCLE("LightGun") } },
 	{ eng::ROW_BUTTONS, NULL, { SEG_CYCLE("LoadButtonSlot") } },
