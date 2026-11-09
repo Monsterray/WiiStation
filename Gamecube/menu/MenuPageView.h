@@ -46,7 +46,7 @@ public:
 	enum { TOGGLE = 1, CYCLE = 2, FLAT = 4 };
 
 	/* Widgets for the engine's maxima: MAX_ROWS x (label boxes + MAX_SLOTS text boxes + MAX_SLOTS buttons),
-	 * MAX_TABS tab buttons, MAX_HELP help-line pairs and the footer lines, added to owner in this order.
+	 * MAX_TABS tab buttons and the footer lines, added to owner in this order.
 	 * The unused ones stay hidden. title is the first title text. */
 	PageView(Frame *owner, ActFn act, void *user, ButtonFunc back, const char *title);
 	~PageView();
@@ -61,7 +61,7 @@ public:
 	void setLit(int row, int slot, bool lit);
 	void mark(int row, int slot, int bits) { rowW[row].marks[slot] = (unsigned char)bits; }
 
-	/* Every widget off and unlit, the help lines blank, the footer reset. First step of a page change. */
+	/* Every widget off and unlit, the footer reset. First step of a page change. */
 	void hideAll(void);
 	/* Lays page out (once, here), places every widget, links focus. False when it does not fit: nothing is shown.
 	 * engineLit: take each button's lit and inactive state from the layout (the Settings tabs); else the frame
@@ -103,8 +103,8 @@ private:
 	RowW rowW[engine::MAX_ROWS];
 	Button *tabW[engine::MAX_TABS];
 	char *tabString[engine::MAX_TABS];
-	TextBox *helpTermBox[engine::MAX_HELP], *helpBox[engine::MAX_HELP], *footerBox[STD_HELP_LINES];
-	char *helpTermString[engine::MAX_HELP], *helpString[engine::MAX_HELP], *footerString[STD_HELP_LINES];
+	TextBox *footerBox[STD_HELP_LINES];
+	char *footerString[STD_HELP_LINES];
 	engine::Layout lay;
 	int footerRow;		/* the row whose help should show, -1 none */
 	int footerShown;	/* the row laid out now; updateFooter skips the layout when equal */

@@ -45,8 +45,8 @@ static void fail(const char *where, const char *what)
 static const char *const DITHER_NAMES[]       = { "None", "Default", "Always" };
 static const char *const CHROMA_NAMES[]       = { "Sharp", "Smooth" };
 static const char *const FMV_COLOUR_NAMES[]   = { "15-bit", "24-bit" };
-#define CYC(label, names, value)   { ROW_CYCLE,   label, names, 0, (int)(sizeof(names) / sizeof((names)[0])), value, NULL, false, NULL }
-#define RADIO_FIT(label, names, value) { ROW_CHOICE, label, names, 0, (int)(sizeof(names) / sizeof((names)[0])), value, NULL, true, NULL }
+#define CYC(label, names, value)   { ROW_CYCLE,   label, names, 0, (int)(sizeof(names) / sizeof((names)[0])), value, NULL, NULL }
+#define RADIOROW(label, names, value) { ROW_CHOICE, label, names, 0, (int)(sizeof(names) / sizeof((names)[0])), value, NULL, NULL }
 
 /* Findings the OptionsFrame pages have, on the real font. They are printed and do not fail
  * the test: fixing one changes a page's picture, and the plan keeps pictures until someone has
@@ -126,33 +126,21 @@ static void testCheckCatches(void)
 {
 	static const char *const WIDE[] = { "Interpreter with a much longer name than fits" };
 	static const char *const NARROW[] = { "On", "Off" };
-	static const char *const THREE[]  = { "On", "Off", "Auto" };
 	static const ActionButton FOUR[] = { {"A", 180, false}, {"B", 180, false}, {"C", 180, false}, {"D", 180, false} };
 	Row rows[5];
 	Layout lay;
 	Problem probs[MAX_PROBLEMS];
 	int np;
-	bool seen[8];
+	bool seen[32];
 	Page page;
 	const char *tag = "checks";
 
 	printf("checkLayout on deliberately bad pages\n");
 
-	/* A label too long for its column: past the edge and over the button. */
-	memset(rows, 0, sizeof rows);
-	rows[0].kind = ROW_CYCLE;
-	rows[0].label = "This label is far too long for its column at all";
-	rows[0].names = NARROW; rows[0].count = 2; rows[0].value = 0;
-	page = Page();
-	page.rows = rows; page.nRows = 1; page.logo = LOGO_SPOT_BOTTOM;
-	layoutPage(page, kFont, lay);
-	linkFocus(page, lay);
-	np = checkLayout(page, kFont, lay, probs, MAX_PROBLEMS);
-	memset(seen, 0, sizeof seen);
-	for (int i = 0; i < np && i < MAX_PROBLEMS; i++) seen[probs[i].kind] = true;
-	if (!seen[PROB_PAST_EDGE] || !seen[PROB_OVERLAP]) fail(tag, "long label not reported as past the edge and overlapping");
-
 	/* A value wider than its button. */
+	page = Page();
+	page.logo = LOGO_SPOT_BOTTOM;
+	page.standard = DENSITY_REGULAR;
 	memset(rows, 0, sizeof rows);
 	rows[0].kind = ROW_CYCLE; rows[0].label = "Short";
 	rows[0].names = WIDE; rows[0].count = 1; rows[0].value = 0;
@@ -168,7 +156,9 @@ static void testCheckCatches(void)
 	 * nothing moves it clear. */
 	static const ActionButton WIDE3[] = { {"A", 200, false}, {"B", 200, false}, {"C", 200, false} };
 	memset(rows, 0, sizeof rows);
-	for (int i = 0; i < 4; i++) { rows[i].kind = ROW_CYCLE; rows[i].label = "Row"; rows[i].names = NARROW; rows[i].count = 2; }
+	for (int i = 0; i < 4; i++) { rows[i].kind = ROW_BUTTONS; rows[i].count = 1; rows[i].actions = WIDE3; }
+	page.standard = DENSITY_OFF;	/* the old path stays for the action menus */
+	page.rowY0 = 160.0f;
 	/* Three buttons reach x = 610, into the logo's box at the bottom right. */
 	rows[4].kind = ROW_BUTTONS; rows[4].count = 3; rows[4].actions = WIDE3;
 	page.rows = rows; page.nRows = 5;
@@ -178,19 +168,6 @@ static void testCheckCatches(void)
 	memset(seen, 0, sizeof seen);
 	for (int i = 0; i < np && i < MAX_PROBLEMS; i++) seen[probs[i].kind] = true;
 	if (!seen[PROB_IN_LOGO]) fail(tag, "a row in the logo's box not reported");
-
-	/* The same corner with a choice row of three 135 px buttons, which would reach x = 634 if
-	 * left where they start. The engine moves the row left so that it ends at the logo's limit
-	 * (538 on that line), and reports nothing. */
-	rows[4].kind = ROW_CHOICE; rows[4].label = "Low"; rows[4].names = THREE; rows[4].count = 3;
-	page.rows = rows; page.nRows = 5;
-	layoutPage(page, kFont, lay);
-	linkFocus(page, lay);
-	np = checkLayout(page, kFont, lay, probs, MAX_PROBLEMS);
-	if (np != 0) fail(tag, "a choice row that can move clear of the logo was reported");
-	for (int i = 0; i < lay.n; i++)
-		if (lay.c[i].role == ROLE_CHOICE && lay.c[i].rect.x + lay.c[i].rect.w > 538.0f)
-			fail(tag, "a choice row was not moved left of the logo's limit");
 
 	/* An action row wider than the screen. */
 	memset(rows, 0, sizeof rows);
@@ -203,6 +180,20 @@ static void testCheckCatches(void)
 	for (int i = 0; i < np && i < MAX_PROBLEMS; i++) seen[probs[i].kind] = true;
 	if (!seen[PROB_PAST_EDGE]) fail(tag, "a button row off the screen not reported");
 
+	/* Two free buttons on top of each other (an Editor page: the old path that stays). */
+	static FreeButton twin[2] = { { "One", 100, 100, 120, 40, false, false }, { "Two", 160, 110, 120, 40, false, false } };
+	Page fp = Page();
+	fp.logo = LOGO_SPOT_NONE;
+	fp.focus = FOCUS_GEOMETRY;
+	fp.freeButtons = twin; fp.nFreeButtons = 2;
+	layoutPage(fp, kFont, lay);
+	linkFocus(fp, lay);
+	np = checkLayout(fp, kFont, lay, probs, MAX_PROBLEMS);
+	memset(seen, 0, sizeof seen);
+	for (int i = 0; i < np && i < MAX_PROBLEMS; i++) seen[probs[i].kind] = true;
+	if (!seen[PROB_OVERLAP]) fail(tag, "two overlapping free buttons not reported");
+
+	page.standard = DENSITY_REGULAR;
 	/* Two cycle rows. Each one's Up and Down link to the other (the wrap makes both), so cutting
 	 * both of the first row's vertical links leaves the second unreachable. */
 	memset(rows, 0, sizeof rows);
@@ -299,6 +290,7 @@ static void testInactiveNeverFocus(void)
 		page.rows = rows;
 		page.logo = LOGO_SPOT_NONE;
 		page.focus = modes[m];
+		page.standard = DENSITY_REGULAR;
 		snprintf(where, sizeof where, "inactive/%s", modeName[m]);
 
 		if (layoutPage(page, kFont, lay) < 0) {
@@ -404,7 +396,7 @@ static void testLinkOverrides(void)
 	rows[3].kind = ROW_BUTTONS; rows[3].actions = LOW; rows[3].count = 1;
 
 	memset(&page, 0, sizeof page);
-	page.rows = rows; page.nRows = 4; page.logo = LOGO_SPOT_NONE; page.focus = FOCUS_ROWS;
+	page.rows = rows; page.nRows = 4; page.logo = LOGO_SPOT_NONE; page.focus = FOCUS_ROWS; page.standard = DENSITY_REGULAR;
 
 	/* The rule alone: A and B go down to C (D is inactive), C down to E, and E up to C. */
 	if (!layOutLinked(page, lay, where))
@@ -468,8 +460,8 @@ static void listItemFn(void *, int index, ListItem &out)
 	out.folder = (index % 7) == 0;		/* every seventh item is a folder */
 }
 
-static const ListButton LIST_PREV = { "Prev",  35.0f, 220.0f, 70.0f, 40.0f };
-static const ListButton LIST_NEXT = { "Next", 535.0f, 220.0f, 70.0f, 40.0f };
+static const ListButton LIST_PREV = { "Prev" };
+static const ListButton LIST_NEXT = { "Next" };
 
 /* The file browser's geometry: items at x 120, 400 wide, 35 high, 40 apart from y 40. */
 static ListSpec listSpec(ListState *st, ListMode mode)
@@ -480,8 +472,6 @@ static ListSpec listSpec(ListState *st, ListMode mode)
 	sp.mode = mode;
 	sp.item = listItemFn;
 	sp.ctx = NULL;
-	sp.x0 = 120.0f; sp.y0 = 40.0f;
-	sp.w = 400.0f; sp.h = 35.0f; sp.pitch = 40.0f;
 	sp.prev = LIST_PREV;
 	sp.next = LIST_NEXT;
 	return sp;
@@ -500,47 +490,6 @@ static void listPageOf(Page &page, Row &row, const ListSpec &spec)
 	page.focus = FOCUS_ROWS;
 }
 
-/* The window's item i, as a control index, or -1. */
-static int listItemCtl(const Layout &lay, int k)
-{
-	return (k >= 0 && k < MAX_LIST_SLOTS) ? lay.listItem[k] : -1;
-}
-
-static bool checkListWindow(const char *where, const Layout &lay, const ListState &st)
-{
-	bool ok = true;
-	for (int k = 0; k < st.slots; k++) {
-		const int c = listItemCtl(lay, k);
-		const int index = st.top + k;
-		if (c < 0) {
-			fail(where, "a window slot has no control");
-			return false;
-		}
-		if (index < st.count) {
-			if (!lay.c[c].text || strcmp(lay.c[c].text, listNames[index]) != 0) {
-				fail(where, "a shown item has the wrong text");
-				ok = false;
-			}
-			if (!lay.c[c].focusable || lay.c[c].folder != (index % 7 == 0)) {
-				fail(where, "a shown item is not an active button, or its folder flag is wrong");
-				ok = false;
-			}
-		} else {
-			if (lay.c[c].text[0] != '\0' || lay.c[c].focusable || lay.c[c].folder) {
-				fail(where, "a slot past the end of the list is not an empty inactive button");
-				ok = false;
-			}
-		}
-		if (!nearly(lay.c[c].rect.x, 120.0f) || !nearly(lay.c[c].rect.w, 400.0f) ||
-		    !nearly(lay.c[c].rect.y, 40.0f + 40.0f * k) || !nearly(lay.c[c].rect.h, 35.0f)) {
-			fail(where, "an item's box is not the file browser's");
-			ok = false;
-			break;
-		}
-	}
-	return ok;
-}
-
 /* Lays a list page out and links it, after the state has changed. Returns false if it does not lay out. */
 static bool layOutList(const Page &page, Layout &lay, const char *where)
 {
@@ -555,208 +504,6 @@ static bool layOutList(const Page &page, Layout &lay, const char *where)
 		return false;
 	}
 	return true;
-}
-
-/* Checks the window's focus links and the window itself after a layout. */
-static void checkListLinks(const char *where, const Layout &lay, const ListState &st, bool paged)
-{
-	int A[MAX_LIST_SLOTS], n = 0;
-	const int prev = lay.slot[0][0], next = lay.slot[0][1];
-
-	for (int k = 0; k < st.slots; k++) {
-		const int c = listItemCtl(lay, k);
-		if (c >= 0 && lay.c[c].focusable)
-			A[n++] = c;
-	}
-	if (linksToInactive(lay) != 0)
-		fail(where, "a focus link points at an inactive control");
-	for (int j = 0; j < n; j++) {
-		const Control &c = lay.c[A[j]];
-		if (paged && n > 1) {
-			if (c.link[DIR_UP] != A[(j + n - 1) % n] || c.link[DIR_DOWN] != A[(j + 1) % n])
-				fail(where, "a paged window does not wrap up and down round its shown items");
-		} else {
-			if (c.link[DIR_UP] != (j > 0 ? A[j - 1] : -1) || c.link[DIR_DOWN] != (j + 1 < n ? A[j + 1] : -1))
-				fail(where, "a scrolling window does not stop at its ends");
-		}
-		if (c.link[DIR_LEFT] != (prev >= 0 && lay.c[prev].focusable ? prev : -1) ||
-		    c.link[DIR_RIGHT] != (next >= 0 && lay.c[next].focusable ? next : -1))
-			fail(where, "an item does not go to Prev and Next");
-	}
-}
-
-static void testListWindow(void)
-{
-	static ListState st;
-	static ListSpec spec;
-	static Row row;
-	static Page page;
-	static Layout lay;
-	static bool reached[MAX_CONTROLS];
-	const char *where = "list";
-
-	printf("Lists (a window of 10 over 5,000 items)\n");
-	for (int i = 0; i < 5000; i++)
-		snprintf(listNames[i], sizeof listNames[i], "file%04d", i);
-
-	/* The first page: ten items, Next active, Prev inactive, the default focus on item 0. */
-	st.count = 5000; st.slots = 10; st.top = 0; st.focus = -1;
-	spec = listSpec(&st, LIST_PAGED);
-	listPageOf(page, row, spec);
-	if (!layOutList(page, lay, where))
-		return;
-	if (listCalls != 10)
-		fail(where, "the layout did not ask for exactly the window's items");
-	if (!checkListWindow(where, lay, st))
-		return;
-	if (lay.list != 0 || lay.slot[0][0] < 0 || lay.slot[0][1] < 0)
-		fail(where, "the Prev and Next buttons are missing");
-	if (lay.c[lay.slot[0][0]].focusable || !lay.c[lay.slot[0][1]].focusable)
-		fail(where, "on the first page, Prev is active or Next is not");
-	if (lay.defaultFocus != lay.listItem[0])
-		fail(where, "the default focus is not the first item");
-	if (lay.c[lay.slot[0][0]].link[DIR_RIGHT] != lay.listItem[0])
-		fail(where, "an inactive Prev does not keep its link to the first item");
-	checkListLinks(where, lay, st, true);
-	if (reachFromDefault(lay, reached) != 11)
-		fail(where, "the first page's focus does not reach its ten items and Next");
-	if (auditLayout(page, lay, "List", -1, true) != 0)
-		fail(where, "checkLayout reports a problem with the first page that is not a known one");
-
-	/* Paging with Prev and Next: clamped at both ends, a page at a time. */
-	listTurn(st, -1, false);
-	if (st.top != 0 || st.focus != 0)
-		fail(where, "Prev on the first page moved");
-	listTurn(st, 1, false);
-	if (st.top != 10 || st.focus != 10)
-		fail(where, "Next did not turn to the second page, or focus did not land on its first item");
-	if (!layOutList(page, lay, where))
-		return;
-	if (!checkListWindow(where, lay, st))
-		return;
-	if (!lay.c[lay.slot[0][0]].focusable)
-		fail(where, "Prev is not active on the second page");
-	checkListLinks(where, lay, st, true);
-
-	/* The last page is full (4,990..4,999): Next is inactive there, and Next clamps. */
-	for (int i = 0; i < 499; i++)
-		listTurn(st, 1, false);
-	if (st.top != 4990)
-		fail(where, "paging forward did not reach the last full page");
-	listTurn(st, 1, false);
-	if (st.top != 4990)
-		fail(where, "Next on the last page moved");
-	if (!layOutList(page, lay, where))
-		return;
-	if (!checkListWindow(where, lay, st))
-		return;
-	if (lay.c[lay.slot[0][1]].focusable || !lay.c[lay.slot[0][0]].focusable)
-		fail(where, "on the last page, Next is active or Prev is not");
-	/* Focus can stay on a page button that has just gone inactive (the browser's Next, clicked on
-	 * the last page): its links stay, so Left still goes to the first item, and Right is none. */
-	if (lay.c[lay.slot[0][1]].link[DIR_LEFT] != listItemCtl(lay, 0) ||
-	    lay.c[lay.slot[0][1]].link[DIR_RIGHT] != -1)
-		fail(where, "an inactive Next lost its links: focus left on it would be stuck");
-
-	/* L and R wrap (listTurn with wrap): from the last page to the first, and back. */
-	listTurn(st, 1, true);
-	if (st.top != 0 || st.focus != 0)
-		fail(where, "R on the last page did not wrap to the first");
-	listTurn(st, -1, true);
-	if (st.top != 4990 || st.focus != 4990)
-		fail(where, "L on the first page did not wrap to the last");
-
-	/* A partial last page (5,005 items: 5,000..5,004 shown, five empty slots). The empty slots
-	 * are inactive and the window's links skip them, and the ring is the five shown items. */
-	st.count = 5005; st.top = 5000; st.focus = 5000;
-	if (!layOutList(page, lay, where))
-		return;
-	if (!checkListWindow(where, lay, st))
-		return;
-	checkListLinks(where, lay, st, true);
-	{
-		const int c4 = listItemCtl(lay, 4), c0 = listItemCtl(lay, 0);
-		if (lay.c[c4].link[DIR_DOWN] != c0)
-			fail(where, "the last shown item does not wrap to the first shown item");
-	}
-	if (reachFromDefault(lay, reached) != 6)
-		fail(where, "a partial last page does not reach its five items and Prev");
-	listTurn(st, 1, false);
-	if (st.top != 5000 || st.count != 5005)
-		fail(where, "a partial last page turned past its end");
-	st.count = 5000; st.top = 0; st.focus = -1;
-
-	/* Focus inside the window: a focus in the window is the default focus; one outside it is not. */
-	st.top = 10; st.focus = 13;
-	if (!layOutList(page, lay, where))
-		return;
-	if (lay.defaultFocus != listItemCtl(lay, 3))
-		fail(where, "a focus inside the window is not the default focus");
-	st.focus = 99;
-	if (!layOutList(page, lay, where))
-		return;
-	if (lay.defaultFocus != listItemCtl(lay, 0))
-		fail(where, "a focus outside the window does not fall back to the first shown item");
-	st.top = 0; st.focus = -1;
-
-	/* Errors: a window too small or too large, two lists on one page, a missing state. */
-	{
-		ListState bad = st;
-		ListSpec badSpec;
-		Row badRow;
-		Page badPage;
-		Layout badLay;
-
-		bad.slots = 0;
-		badSpec = listSpec(&bad, LIST_PAGED);
-		listPageOf(badPage, badRow, badSpec);
-		if (layoutPage(badPage, kFont, badLay) >= 0)
-			fail(where, "a list with no window was laid out");
-		bad.slots = MAX_LIST_SLOTS + 1;
-		badSpec = listSpec(&bad, LIST_PAGED);
-		listPageOf(badPage, badRow, badSpec);
-		if (layoutPage(badPage, kFont, badLay) >= 0)
-			fail(where, "a list window past MAX_LIST_SLOTS was laid out");
-	}
-	{
-		Row two[2];
-		Page twoPage;
-		memset(two, 0, sizeof two);
-		two[0].kind = ROW_LIST; two[0].list = &spec;
-		two[1].kind = ROW_LIST; two[1].list = &spec;
-		memset(&twoPage, 0, sizeof twoPage);
-		twoPage.rows = two; twoPage.nRows = 2; twoPage.logo = LOGO_SPOT_TOP;
-		if (layoutPage(twoPage, kFont, lay) >= 0)
-			fail(where, "two lists on one page were laid out");
-	}
-	{
-		Row nostate;
-		ListSpec nospec = spec;
-		Page nopage;
-		nospec.state = NULL;
-		memset(&nostate, 0, sizeof nostate);
-		nostate.kind = ROW_LIST; nostate.list = &nospec;
-		memset(&nopage, 0, sizeof nopage);
-		nopage.rows = &nostate; nopage.nRows = 1;
-		if (layoutPage(nopage, kFont, lay) >= 0)
-			fail(where, "a list with no state was laid out");
-	}
-
-	/* An empty list lays out with nothing focusable, and listTurn does nothing to it. */
-	{
-		ListState empty = { 0, 10, 0, -1 };
-		ListSpec es = listSpec(&empty, LIST_PAGED);
-		Row er;
-		Page ep;
-		listPageOf(ep, er, es);
-		if (!layOutList(ep, lay, where))
-			return;
-		if (lay.defaultFocus != -1 || lay.c[lay.slot[0][1]].focusable || lay.c[lay.slot[0][0]].focusable)
-			fail(where, "an empty list has something to focus");
-		listTurn(empty, 1, true);
-		if (empty.top != 0)
-			fail(where, "listTurn moved an empty list");
-	}
 }
 
 static void testListPaging(void)
@@ -1131,81 +878,6 @@ static void testCycle(void)
 	printf("cycle: wraps through all names ... %s\n", failures == before ? "ok" : "FAILED");
 }
 
-/* Page::columns == 2, synthetic pages (the shipped Advanced Graphics page is checked in menu_pages_test.cpp):
- * an odd run leaves a cell empty, a wide row splits the runs, a label too long is found, columns 0 is one column. */
-static void testTwoColumns(void)
-{
-	static const char *const GAMMA_NAMES[] = { "1.0", "1.1", "1.2", "1.3", "1.4", "1.5" };
-	Page p;
-	Layout lay;
-	Problem probs[MAX_PROBLEMS];
-	int before = failures;
-
-	memset(&p, 0, sizeof p);
-	p.title = "Advanced Graphics";
-	p.logo = LOGO_SPOT_BOTTOM;
-	p.focus = FOCUS_ROWS;
-	p.columns = 2;
-
-	/* An odd run leaves the right cell of its last line empty; a wide row splits the runs. */
-	{
-		Row odd[] = { CYC("Gamma", GAMMA_NAMES, 0), CYC("Video Color", FMV_COLOUR_NAMES, 0),
-		              RADIO_FIT("Dithering", DITHER_NAMES, 1), CYC("Gamma", GAMMA_NAMES, 0),
-		              CYC("Gamma", GAMMA_NAMES, 0), CYC("Gamma", GAMMA_NAMES, 0) };
-		Page q = p;
-		q.rows = odd;
-		q.nRows = COUNT(odd);
-		q.help = NULL;
-		q.nHelp = 0;
-		if (layoutPage(q, kFont, lay) < 0)
-			fail("2 columns", "layoutPage refused the mixed page");
-		linkFocus(q, lay);
-		static const int cells[3][2] = { { 0, 1 }, { 3, 4 }, { 5, -1 } };
-		static const float ys[3] = { 100.0f, 220.0f, 280.0f };
-		checkGrid(lay, odd, cells, ys, 3);	/* the lone cell sits in column 1 of the same grid */
-		{	/* the wide row starts on the grid: its first button at column 1's button x */
-			const Key wide = { ROLE_CHOICE, 2, 0 }, cell = { ROLE_BUTTON, 0, 0 };
-			if (lay.c[findCtrl(lay, wide)].rect.x != lay.c[findCtrl(lay, cell)].rect.x)
-				fail("2 columns", "a wide row does not start at column 1's button");
-		}
-		if (checkLayout(q, kFont, lay, probs, MAX_PROBLEMS) != 0)
-			fail("2 columns", "checkLayout finds a problem on the mixed page");
-	}
-
-	/* The check still sees a label too long for its cell: it runs over the button beside it. */
-	{
-		Row bad[] = { CYC("A label far too long to fit in its half of the screen, or even on the whole screen, whatever the font", GAMMA_NAMES, 0) };
-		Page q = p;
-		bool over = false;
-		q.rows = bad;
-		q.nRows = 1;
-		q.help = NULL;
-		q.nHelp = 0;
-		layoutPage(q, kFont, lay);
-		linkFocus(q, lay);
-		for (int i = 0, n = checkLayout(q, kFont, lay, probs, MAX_PROBLEMS); i < n && i < MAX_PROBLEMS; i++)
-			if (probs[i].kind == PROB_OVERLAP || probs[i].kind == PROB_PAST_EDGE)
-				over = true;
-		if (!over)
-			fail("2 columns", "checkLayout missed a label wider than its cell");
-	}
-
-	/* Columns unset: one row per line, as before. */
-	{
-		Row three[] = { CYC("Gamma", GAMMA_NAMES, 0), CYC("Video Color", FMV_COLOUR_NAMES, 0),
-		                CYC("MDEC Chroma", CHROMA_NAMES, 0) };
-		Page q = p;
-		const Key k = { ROLE_BUTTON, 2, 0 };
-		q.rows = three;
-		q.nRows = COUNT(three);
-		q.columns = 0;
-		layoutPage(q, kFont, lay);
-		if (lay.c[findCtrl(lay, k)].rect.x != 295.0f || lay.c[findCtrl(lay, k)].rect.y != 220.0f)
-			fail("2 columns", "columns 0 changed the one-column layout");
-	}
-	printf("two columns: cells, help, focus, checks ... %s\n", failures == before ? "ok" : "FAILED");
-}
-
 /* Page::columns == 2 on a standard page: a full-width choice, then Cycle rows in pairs. Each cell is its own
  * row (its own focus, footer); Left/Right run along a line, Up/Down keep the column; a Toggle takes a whole line. */
 static void testStdColumns(void)
@@ -1223,7 +895,7 @@ static void testStdColumns(void)
 	p.standard = DENSITY_REGULAR;
 	p.columns = 2;
 	{
-		Row rows[] = { RADIO_FIT("Dithering", DITHER_NAMES, 1), CYC("Gamma", GAMMA_NAMES, 0), CYC("Video Color", FMV_COLOUR_NAMES, 0),
+		Row rows[] = { RADIOROW("Dithering", DITHER_NAMES, 1), CYC("Gamma", GAMMA_NAMES, 0), CYC("Video Color", FMV_COLOUR_NAMES, 0),
 		               CYC("MDEC Chroma", CHROMA_NAMES, 0), CYC("Gamma", GAMMA_NAMES, 0), CYC("Gamma", GAMMA_NAMES, 0) };
 		Page q = p;
 		q.rows = rows;
@@ -2421,14 +2093,12 @@ int main(int argc, char **argv)
 
 	testCycle();
 	testTabStep();
-	testTwoColumns();
 	testStdColumns();
 	testEdgeWrap();
 	testConfigureButtonStates();
 	testLinkOverrides();
 	testCheckCatches();
 	testInactiveNeverFocus();
-	testListWindow();
 	testListPaging();
 	testStandard();
 	testStdOverflowCaught();

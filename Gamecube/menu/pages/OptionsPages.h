@@ -59,13 +59,9 @@ void infoAchFile(char *buf, int len);
 	{ eng::ROW_CYCLE, NULL, { SEG_CYCLE_THEN(key, apply) } }
 #define ROW_RADIO(key, apply) \
 	{ eng::ROW_CHOICE, NULL, { SEG_EACH(key, apply) } }
-/* The same, but each button only as wide as its own word. Right when the words differ a
- * lot in length; a row whose choices are of a size reads better on the fixed grid. */
-#define ROW_RADIO_FIT(key, apply) \
-	{ eng::ROW_CHOICE, NULL, { SEG_EACH(key, apply) }, 0, false, NULL, { NULL, NULL }, true }
 /* A readout. It never takes focus (Monty, 2026-11-09), so it has no help line. */
 #define ROW_INFO(label, fn) \
-	{ eng::ROW_READOUT, label, { }, 0, false, NULL, { NULL, NULL }, false, fn }
+	{ eng::ROW_READOUT, label, { }, 0, false, NULL, { NULL, NULL }, fn }
 /* A label and one button that runs fn, e.g. opens a page of its own. No setting. */
 #define ROW_ACTION(label, text, fn) \
 	{ eng::ROW_BUTTONS, label, { SEG_ACT(label, text, fn) } }

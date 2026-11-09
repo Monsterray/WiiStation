@@ -33,7 +33,7 @@ namespace glue {
 static char emptyStr[1] = "";
 
 enum { nRows = engine::MAX_ROWS, nSlots = engine::MAX_SLOTS, nTexts = engine::MAX_SLOTS,
-       nTabs = engine::MAX_TABS, nHelp = engine::MAX_HELP };
+       nTabs = engine::MAX_TABS };
 
 /* A button's tag: a row's button or segment is (row + 1) * 256 + slot + 1; a tab is -(tab + 1). */
 static int rowTag(int row, int slot) { return (row + 1) * 256 + slot + 1; }
@@ -80,18 +80,6 @@ PageView::PageView(Frame *owner, ActFn actFn, void *userData, ButtonFunc back, c
 		}
 	}
 
-	for (int i = 0; i < nHelp; i++)
-	{
-		helpTermString[i] = emptyStr;
-		helpString[i] = emptyStr;
-		helpTermBox[i] = new TextBox(&helpTermString[i], 0.0f, 0.0f, engine::grid::HELP_SCALE, false);
-		helpTermBox[i]->setRightAligned(true);
-		helpTermBox[i]->setBold(true);
-		helpBox[i] = new TextBox(&helpString[i], 0.0f, 0.0f, engine::grid::HELP_SCALE, false);
-		frame->add(helpTermBox[i]);
-		frame->add(helpBox[i]);
-	}
-
 	for (int i = 0; i < STD_HELP_LINES; i++)
 	{
 		footerString[i] = emptyStr;
@@ -115,11 +103,6 @@ PageView::~PageView()
 		delete rowW[i].rlabel;
 		for (int c = 0; c < nTexts; c++)
 			delete rowW[i].valueBox[c];
-	}
-	for (int i = 0; i < nHelp; i++)
-	{
-		delete helpTermBox[i];
-		delete helpBox[i];
 	}
 	for (int i = 0; i < STD_HELP_LINES; i++)
 		delete footerBox[i];
@@ -169,13 +152,6 @@ void PageView::hideAll(void)
 			r.marks[c] = 0;
 		}
 	}
-	for (int i = 0; i < nHelp; i++)
-	{
-		helpTermString[i] = emptyStr;
-		helpString[i] = emptyStr;
-		helpTermBox[i]->setVisible(false);
-		helpBox[i]->setVisible(false);
-	}
 	for (int i = 0; i < STD_HELP_LINES; i++)
 		footerBox[i]->setVisible(false);
 }
@@ -193,8 +169,7 @@ Button *PageView::buttonFor(const engine::Control &c) const
 
 bool PageView::show(const engine::Page &page, bool engineLit)
 {
-	const bool standard = page.standard != engine::DENSITY_OFF;
-	if (engine::layoutPage(page, METRICS, lay) < 0)
+	if (page.standard == engine::DENSITY_OFF || engine::layoutPage(page, METRICS, lay) < 0)
 	{
 		/* The tables are fixed, so this is a programming error. Nothing is shown rather than a half-placed page. */
 		lay.n = 0;
@@ -211,8 +186,7 @@ bool PageView::show(const engine::Page &page, bool engineLit)
 		switch (c.role)
 		{
 		case engine::ROLE_TAB:
-			/* BTN_A_SEL, as the Settings tabs: the current one stays lit. */
-			tabW[c.slot]->setStyle(standard ? BTN_STD : BTN_A_SEL);
+			tabW[c.slot]->setStyle(BTN_STD);
 			tabW[c.slot]->setPlain(false);
 			placeButton(tabW[c.slot], c, false);
 			tabW[c.slot]->setSelected(c.selected);
@@ -238,38 +212,27 @@ bool PageView::show(const engine::Page &page, bool engineLit)
 			break;
 		case engine::ROLE_BUTTON:
 		{
-			/* a toggle or cycle, or an action. On the standard an action is plain art; a flag keeps the
-			 * select art (it is lit when on), and a cycle has an arrow at each end. */
+			/* a toggle or cycle, or an action. An action is plain art; a flag keeps the select art (it is
+			 * lit when on), and a cycle has an arrow at each end. */
 			Button *b = rowW[c.row].btn[c.slot];
 			const int marks = rowW[c.row].marks[c.slot];
 			rowW[c.row].btnString[c.slot] = (char*)c.text;
-			b->setStyle(standard ? BTN_STD : BTN_A_NRM);
-			b->setPlain(standard && !(marks & TOGGLE));
-			b->setArrows(standard && (page.rows[c.row].kind == engine::ROW_CYCLE || (marks & CYCLE)));
+			b->setStyle(BTN_STD);
+			b->setPlain(!(marks & TOGGLE));
+			b->setArrows(page.rows[c.row].kind == engine::ROW_CYCLE || (marks & CYCLE));
 			placeButton(b, c, engineLit);
 			break;
 		}
 		case engine::ROLE_CHOICE:
 		{
-			/* BTN_A_SEL is the style a one-of-several choice uses: the selected one stays lit. */
 			Button *b = rowW[c.row].btn[c.slot];
 			rowW[c.row].btnString[c.slot] = (char*)c.text;
-			b->setStyle(standard ? BTN_STD : BTN_A_SEL);
-			b->setPlain(standard && (rowW[c.row].marks[c.slot] & FLAT));
+			b->setStyle(BTN_STD);
+			b->setPlain(rowW[c.row].marks[c.slot] & FLAT);
 			b->setArrows(false);
 			placeButton(b, c, engineLit);
 			break;
 		}
-		case engine::ROLE_HELP_TERM:
-			helpTermString[c.slot] = (char*)c.text;
-			helpTermBox[c.slot]->setPosition(c.ax, c.ay);
-			helpTermBox[c.slot]->setVisible(true);
-			break;
-		case engine::ROLE_HELP_TEXT:
-			helpString[c.slot] = (char*)c.text;
-			helpBox[c.slot]->setPosition(c.ax, c.ay);
-			helpBox[c.slot]->setVisible(true);
-			break;
 		}
 	}
 	linkButtons();

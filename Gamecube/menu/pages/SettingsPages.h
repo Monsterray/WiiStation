@@ -129,7 +129,7 @@ void applyInterpolation(void);
  * button's setting. plain counts the last buttons of a choice row that are actions or flags, not choices.
  * noLit: a choice row whose buttons are actions, none shown as the current value. prefix: small cycles, each
  * after its own text (Memcard Type: "1", "2"). help: the one or two lines under the rows while the row has
- * focus, or NULL for none. fit: each button of a radio row as wide as its own word. */
+ * focus, or NULL for none. */
 struct SetRow
 {
 	eng::RowKind		kind;
@@ -139,7 +139,6 @@ struct SetRow
 	bool				noLit;
 	const char *const	*prefix;
 	const char			*help[2];
-	bool				fit;
 	void				(*info)(char *buf, int len);	/* ROW_READOUT: writes the right-hand text */
 };
 
@@ -330,7 +329,6 @@ static inline void buildRow(const SetRow &s, int r, const SetBind &bind, SetPage
 	row.label   = s.label ? s.label : set ? set->label : NULL;
 	row.plain   = s.plain;
 	row.prefix  = s.prefix;
-	row.fit     = s.fit;
 	o.footer[r].line[0] = s.help[0] ? s.help[0] : bind.settingHelp && set ? set->help : NULL;
 	o.footer[r].line[1] = s.help[1];
 	if (s.kind == eng::ROW_READOUT)

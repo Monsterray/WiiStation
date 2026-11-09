@@ -187,3 +187,23 @@ wide read-only reviews. One step per commit on `try/menu-standard`.
   dialog, and `readInput` has no held-A, so moving it would need a new field), the "Loading achievements" `fadeMessage` + draw loop
   (MainFrame.cpp:268), `MenuContext::Autoboot`, `LoadingBar` (one `Gui::draw`). Chain runs skip boxes (`unattended_message`); keep.
   No DOLs built, no proof run (nothing changed). Open: if Monty wants the non-blocking Dialog or the PlayGame loop on glue, say so.
+- Step 12 (2026-11-09, delete the old path; 12b measured): `git diff --stat`: 7 files, 95 insertions, 801 deletions (MenuEngine.cpp 1752 ->
+  ~1530, MenuEngine.h -119, MenuPageView.cpp/.h, pages/OptionsPages.h and SettingsPages.h, tests/menu_engine_test.cpp -373). Deleted:
+  Page::help/nHelp/HelpLine/ROLE_HELP_*, labelCx, labelDy, rowDy, Row::widths, Row::fit (SetRow::fit, ROW_RADIO_FIT), ListSpec x0/y0/w/h/pitch
+  and ListButton x/y/w/h, buttonFitWidth, the old tabs/labels/Toggle/Cycle/Choice/Readout/List layout, the old-grid branches in
+  gridPlace/isCell, PageView's 16 help TextBoxes; `grid::` is down to TITLE_X/Y, ROW_DY, BUTTON_H, BUTTON_PAD_X, TEXT_SCALE, FONT_H.
+  Kept on purpose: the old path (Page::standard == DENSITY_OFF) still serves two shipped kinds. (1) ActionMenu (Main, Current ISO):
+  only ROW_BUTTONS rows (Row::x0/gap, ActionButton width/dy/lit, rowY0, overrides, logo, FOCUS_ROWS). (2) glue::Editor (Configure Input,
+  Co-Op, Configure Buttons): free buttons/texts/links, title, titleY, wrap, FOCUS_GEOMETRY, no rows. layoutPage on that path now refuses a
+  tab row or any non-Buttons row (-1); PageView::show refuses a DENSITY_OFF page. Page::columns stays (standard two columns).
+  Tests: old-geometry list tests (window/links/geometry) and testTwoColumns deleted (explorer, testStdColumns and testStandard cover the
+  live ones); list paging, guards, edge wrap, overrides, check-catches, inactive focus kept, with the Cycle/Choice/Toggle/Readout cases moved to
+  DENSITY_REGULAR and the logo-box case kept on the old path with ROW_BUTTONS rows. Deleted cases: label past the edge in the old column,
+  choice row moved clear of the logo (old geometry only).
+  12b (memory the menu's widgets take): only two PageViews exist (OptionsFrame, SettingsFrame); each builds 42 Buttons (6 tabs + 9 rows x 4
+  slots) and 57 TextBoxes (title, 9 x (label, rlabel, 4 values), 2 footer lines). Estimated from the class layouts (Button ~200 B, TextBox
+  ~130 B, not measured with sizeof on a PPC build): about 16 KB per view, ~32 KB for both. Far under the 200 KB bar: lazy page build NOT
+  done, nothing to save.
+  Proof: host tests (6 suites) and settings_check.py pass; release DOLs built from the base (4f094d8a) and the new tree. Walk (all 22
+  pages): 0 differing frames except page 10 (Memory, 1 frame, 945 px: its live KB number). menukeys walks (Main 2663 frames, Current ISO
+  2701 frames, ActionMenu; focus moves and 9-13 menu moves in both): 0 differing frames. DOLs: C:/Users/Monty Perrotti/AppData/Local/Temp/opencode/ws_step12_base_release.dol and ws_step12_new_release.dol.

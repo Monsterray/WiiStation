@@ -2,14 +2,12 @@
  * WiiStation - MenuEngine.h
  *
  * The menu framework's core (Docs/MENU_PLAN.md, step 1). A page is described as
- * data -- tabs, rows, help lines, where the logo is -- and this code works out where every
+ * data -- tabs, rows, footer help, where the logo is -- and this code works out where every
  * control goes and where D-pad focus goes. It is plain C++ with no GX or libogc calls, so a
  * host build (tests/menu_engine_test.cpp) lays out the real pages and checks them.
  *
- * The arithmetic is OptionsFrame.cpp's, moved here under its own names. layoutPage() gives
- * the rectangles and text positions OptionsFrame gives today; the test re-derives them from
- * OptionsFrame's code and compares. Where OptionsFrame and MenuLayout.h disagree, the numbers
- * kept here are OptionsFrame's (the look must not change); see the notes on grid:: below.
+ * A page opts in to the standard (Page::standard, layoutStandard); a page that does not is one of the
+ * two old-grid kinds that are left (see grid:: below).
  *
  *   Metrics m = { fontWidth, fontHeight, NULL };   // IplFont on the Wii, a file stub on the host
  *   Layout  lay;                                    // caller-owned; nothing is allocated here
@@ -56,59 +54,25 @@ namespace engine {
 
 /* Fixed sizes: a page is laid out in these arrays and nothing else is allocated. */
 enum {
-	MAX_ROWS     = 9,		/* rows from ROW_Y0 down; a page sets its pitch (Memory: 46, eight rows) */
+	MAX_ROWS     = 9,		/* rows on one page (the density holds fewer) */
 	MAX_SLOTS    = 4,		/* focusable buttons in one row: choices, or action buttons */
 	MAX_TABS     = 6,
-	MAX_HELP     = 8,
 	MAX_CONTROLS = 96,
 	MAX_PROBLEMS = 64,
 	MAX_LIST_SLOTS = 16,	/* item buttons in one list's window */
 	MAX_FREE     = 56		/* free buttons on one page (Configure Input: 2 + 4 + 2 x 4 slots x 2 + 2 x 8 x 3) */
 };
 
-/* The numbers of OptionsFrame.cpp, under their names. Three disagree with MenuLayout.h and are
- * kept as OptionsFrame has them, so that a page ported here looks the same:
- *   LABEL_CX    160  -- MenuLayout's TAB_LABEL_CX is 150.
- *   CHOICE_GAP   12  -- MenuLayout's TAB_GAP is 10. The Buttons row uses TAB_GAP.
- *   TAB_ROW_GAP  20  -- the gap between two tabs; TAB_GAP is for buttons in a row.
- */
+/* The numbers of the old-grid pages that are left: an action menu (rows of buttons, ActionMenu) and a free
+ * page (a title, free buttons and texts, Editor). The standard's numbers are STD_* in MenuLayout.h. */
 namespace grid {
-	const float TAB_Y         =  30.0f;	/* the tab row: 56 high, centred */
-	const float TAB_ROW_GAP   =  20.0f;
 	const float TITLE_X       = 320.0f;
 	const float TITLE_Y       =  44.0f;
-	const float ROW_Y0        = 100.0f;	/* the Settings tabs' first row */
-	const float ROW_DY        =  60.0f;	/* row pitch */
+	const float ROW_DY        =  60.0f;	/* an action menu's row pitch */
 	const float BUTTON_H      =  56.0f;
-	const float LABEL_CX      = 160.0f;	/* left-hand label, centred */
-	const float LABEL_DY      =  20.0f;	/* a label's centre is this far below its row top */
-	const float CYCLE_X       = 295.0f;	/* == TAB_BUTTON_X */
-	const float CYCLE_W       = 200.0f;
-	const float VALUE_CX      = 395.0f;	/* a readout's text: CYCLE_X + CYCLE_W / 2, unless that
-	                                         * would run into its label (VALUE_GAP after it) */
-	const float VALUE_GAP     =  10.0f;	/* between a readout's label and its text */
-	const float RLABEL_CX     = 110.0f;	/* label of a row of choices, centred; a page's choice
-	                                         * labels share one centre, moved left only if a row
-	                                         * of buttons had to move left (layoutPage) */
-	const float CHOICE_X0     = 205.0f;	/* a choice row starts here, or further left (layoutPage) */
-	const float CHOICE_W      = 135.0f;	/* a choice's width unless its row fits the words */
-	const float CHOICE_DX     = 147.0f;	/* CHOICE_W + 12 */
-	const float CHOICE_GAP    =  12.0f;	/* between two fitted choices */
-	const float RLABEL_GAP    =  10.0f;	/* between a choice row's label and its first button */
 	const float BUTTON_PAD_X  =  16.0f;	/* Button's default padding, left and right */
 	const float TEXT_SCALE    =   1.0f;
-	/* Help: two columns under the rows. The term is drawn right-aligned in its column. */
-	const float HELP_TERM_R   = 152.0f;	/* defaults; a page moves them to centre its block */
-	const float HELP_TEXT_X   = 162.0f;
-	const float HELP_COL_GAP  =  10.0f;
-	const float HELP_SCALE    =  0.62f;
-	const float HELP_LINE_DY  =  19.0f;	/* lines of one explanation */
-	const float HELP_CELL_GAP =   9.0f;	/* extra before a line that starts a new term */
 	const float FONT_H        =  24.0f;	/* the glyph tile: CH_FONT_HEIGHT in IPLFont.cpp */
-	/* Page::columns == 2: one grid for the page. A cell is a right-aligned label, RLABEL_GAP, then a
-	 * button; a column's label width is its widest label, its button width its widest fitted button
-	 * (so every line shares the edges). The columns are COL2_GAP apart, the grid centred once. */
-	const float COL2_GAP      =  24.0f;
 }
 
 /* Text measurement. The Wii passes IplFont's getStringWidth and getStringHeight; the host
@@ -151,10 +115,9 @@ struct ListItem {
 /* Called by the engine for each shown item, when the window is laid out. index is absolute. */
 typedef void (*ListItemFn)(void *ctx, int index, ListItem &out);
 
-/* A Prev or Next button: its text and its box, which need not be on the grid. */
+/* A Prev or Next button: its text (the standard places it). */
 struct ListButton {
 	const char *text;
-	float       x, y, w, h;
 };
 
 struct ListSpec {
@@ -162,9 +125,6 @@ struct ListSpec {
 	ListMode    mode;
 	ListItemFn  item;
 	void       *ctx;
-	float       x0, y0;		/* the first item's top left */
-	float       w, h;		/* an item's size */
-	float       pitch;		/* item to item; 0 = h */
 	ListButton  prev, next;	/* LIST_PAGED's page buttons; drawn in both modes, active only when paged */
 };
 
@@ -194,12 +154,11 @@ struct Row {
 	int                 count;		/* Toggle/Cycle/Choice: values; Choice and Buttons: buttons */
 	int                 value;		/* Toggle/Cycle/Choice: the current value; the host keeps it */
 	const char         *text;		/* Readout: the right-hand text; the host refreshes it */
-	bool                fit;		/* Choice: each button as wide as its own word */
 	const ActionButton *actions;	/* Buttons */
-	/* Added for the Settings tabs (step 2). Zero means the default for each. */
-	float               x0;			/* Choice, Buttons: the first button's left edge; 0 = where the row goes */
-	float               gap;		/* Choice with widths, Buttons: between two buttons; 0 = TAB_GAP */
-	const float        *widths;		/* Choice: each button's width (the fixed grid is CHOICE_W); NULL = the default */
+	/* An action menu's rows (not the standard): the first button's left edge, 0 = centred; the gap between
+	 * two buttons, 0 = TAB_GAP. */
+	float               x0;
+	float               gap;
 	int                 plain;		/* Choice: the last `plain` buttons are actions (lit only as a flag, like a Buttons row) */
 	/* Bit k set: button k of the row is shown but inactive (This Game with no game loaded).
 	 * It is drawn, but it is never a focus target and no link points at it. A Toggle or Cycle
@@ -264,11 +223,6 @@ struct Tab {
 	float       width;
 };
 
-struct HelpLine {
-	const char *term;	/* NULL: continues the explanation above */
-	const char *text;
-};
-
 enum LogoSpot {
 	LOGO_SPOT_NONE,		/* no logo drawn: both corners are free */
 	LOGO_SPOT_TOP,		/* top right, the logo's usual place */
@@ -293,13 +247,13 @@ struct LinkOverride {
 
 /* How a standard page is laid out (STD_* in MenuLayout.h). */
 enum Density {
-	DENSITY_OFF = 0,	/* not the standard: the page keeps the grid:: layout */
+	DENSITY_OFF = 0,	/* not the standard: an action menu or a free page, laid out with grid:: */
 	DENSITY_REGULAR,	/* buttons 50 high, pitch 56, 6 rows */
 	DENSITY_COMPACT,	/* buttons 40 high, pitch 46, 7 rows */
 	DENSITY_TEXT,		/* text rows: 28 high, pitch 32, 10 rows (readout pages) */
 	DENSITY_EXPLORER	/* one ROW_LIST: STD_LIST_ROWS (8) rows 34 high, pitch 34 (touching), from y 126, tag and note at the row's
-	                     * right end, names cut to fit; the ListSpec's own geometry is ignored, only its
-	                     * state, item function and the page arrows' texts are used (STD_LIST_*) */
+	                     * right end, names cut to fit; the ListSpec's state, item function and the page
+	                     * arrows' texts are used (STD_LIST_*) */
 };
 
 /* The help of one row, for the footer: up to two lines. */
@@ -314,15 +268,9 @@ struct Page {
 	int              curTab;	/* the lit tab */
 	Row             *rows;
 	int              nRows;
-	const HelpLine  *help;
-	int              nHelp;
 	LogoSpot         logo;
 	FocusMode        focus;
-	/* Added for the Settings tabs (step 2). Zero means the default for each. */
-	float            labelCx;	/* every label centred here, not LABEL_CX (and RLABEL_CX for a choice's) */
-	float            labelDy;	/* a label's centre this far below its row's top, not LABEL_DY */
-	float            rowDy;		/* the row pitch, not ROW_DY (the Settings Audio and Saves tabs: 70) */
-	float            rowY0;		/* the first row's top, not ROW_Y0 (Main: 60); 0 = ROW_Y0 */
+	float            rowY0;		/* an action menu's first row's top (rows are ROW_DY apart) */
 	/* Added for Current ROM (step 3). Zero means none. */
 	const LinkOverride *overrides;	/* focus links set by hand, after the rule (linkFocus) */
 	int              nOverrides;
@@ -339,22 +287,17 @@ struct Page {
 	 * A direction with no target wraps to the farthest focusable control on its row or column.
 	 * With none there, it wraps to the farthest focusable control on that side, nearest in the cross axis. */
 	bool             wrap;
-	/* The compact (four-column) layout, for any page with many short settings: 2 = two cells of
-	 * label + button per line, on one grid for the page (shared label edges and button x; each
-	 * button as wide as its widest name, so cycling never moves it). Toggle and Cycle rows fill
-	 * the cells in reading order (left, then right, then the next line); any other row takes a
-	 * whole line, and a choice row starts on the grid (label edge and first button of column 1).
-	 * Zero or 1 is one row per line, as every page was. Help runs under the last line.
-	 * FOCUS_ROWS: Left and Right run along a line, Up and Down keep the column.
-	 * Use: columns = 2 in the page (eng::Page, or PG_COLS(2) in OptionsPages.h); nothing else changes.
-	 * A standard page does the same with Cycle rows only (a Toggle is a whole line there): each cell is its
-	 * own Row, so its focus, footer help, hit box and menuclick key are the row's; Up and Down keep the column. */
+	/* The two-column layout, for a standard page with many short settings: 2 = two cells of label + button
+	 * per line, on one grid for the page (shared label edges and button x; each button as wide as its widest
+	 * name, so cycling never moves it). Cycle rows fill the cells in reading order (left, then right, then
+	 * the next line); any other row (a Toggle too) takes a whole line. Zero or 1 is one row per line.
+	 * FOCUS_ROWS: Left and Right run along a line, Up and Down keep the column. Each cell is its own Row,
+	 * so its focus, footer help, hit box and menuclick key are the row's. Use: PG_COLS(2) in OptionsPages.h. */
 	int              columns;
-	/* The menu standard (MenuLayout.h STD_*, Docs/MENU_PLAN.md 1.1-1.3). Zero, the default, is every
-	 * page as it was; a non-zero Density opts the page in and layoutPage uses layoutStandard's
-	 * geometry instead of grid:: (the old path is untouched). The grid's own fields (labelCx, labelDy,
-	 * rowDy, rowY0, titleY, tab widths, Row widths and x0) are then ignored: the label edge,
-	 * the rows' y and every width come from the standard and the text. */
+	/* The menu standard (MenuLayout.h STD_*, Docs/MENU_PLAN.md 1.1-1.3). A non-zero Density opts the page in
+	 * and layoutPage uses layoutStandard: the label edge, the rows' y and every width come from the standard
+	 * and the text (Row::x0 and gap, rowY0 and titleY are ignored). Zero is one of the two old-grid kinds:
+	 * an action menu (ROW_BUTTONS rows only) or a free page (free buttons and texts under a title). */
 	Density          standard;
 	/* Footer help: footer[i] is the help of row i (0-2 lines, either NULL), shown for the focused row
 	 * only, see layoutFooter. NULL = the page has none. Standard pages only. */
@@ -373,8 +316,6 @@ enum CtrlRole {
 	ROLE_VALUE,		/* a readout's text */
 	ROLE_BUTTON,	/* a toggle or cycle button, or an action button */
 	ROLE_CHOICE,	/* one button of a choice row */
-	ROLE_HELP_TERM,	/* bold, right-aligned in the term column */
-	ROLE_HELP_TEXT,
 	ROLE_LIST_ITEM,	/* one item of a list's window; inactive past the end of the list */
 	ROLE_LIST_PAGE,	/* a list's Prev or Next button */
 	ROLE_FREE,		/* a free button: at its own rectangle, not on the grid (FreeButton) */
@@ -397,8 +338,8 @@ struct Rect {
 struct Control {
 	CtrlKind    kind;
 	CtrlRole    role;
-	int         row;			/* the row, or -1 for tabs, title and help */
-	int         slot;			/* tab, choice or action index; help: the line */
+	int         row;			/* the row, or -1 for tabs and title */
+	int         slot;			/* tab, choice or action index */
 	Rect        rect;			/* a button's box; a text's drawn box, from its anchor */
 	float       ax, ay;			/* text: the anchor the page gives (the TextBox position) */
 	TextAlign   align;
@@ -499,10 +440,6 @@ void countText(const Metrics &m, float scale, int room, int folders, int games, 
  * delta -1 or +1 from tab cur of n. wrap: past the last tab is the first (the TabWrap setting);
  * without it the ends stop. Returns the new tab, or cur when there is none to go to. */
 int tabStep(int cur, int n, int delta, bool wrap);
-
-/* The width a fitted choice is drawn at: its label plus 16 px each side, rounded up to an
- * even width (Button::fitToLabel). An empty label keeps the choice width. */
-int buttonFitWidth(const Metrics &m, const char *text);
 
 /*  Widths of the standard (Docs/MENU_PLAN.md 1.2: "widths come from the text")
  *
