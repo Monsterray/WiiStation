@@ -44,21 +44,27 @@ class Fatal(Exception):
 
 
 def redact(text, creds):
-    for v in creds.values():
-        if v:
+    for k, v in creds.items():
+        if v and k in ("devid", "devpassword", "devdebugpassword", "ssid", "sspassword"):
             text = text.replace(v, "***").replace(urllib.parse.quote(v), "***")
     return text
 
 
-def load_creds(lib):
+def load_creds(lib, debug=()):
+    """debug: ["forcerequestok=99999", ...] -- ScreenScraper's developer debug mode (100 calls a day):
+    adds devdebugpassword and those switches to every lookup."""
     ini = pathlib.Path(lib) / "screenscraper.ini"
     cp = configparser.ConfigParser()
     if not cp.read(ini, encoding="utf-8"):
         raise Fatal("screenscraper.ini not found in the library folder")
     try:
         d, u = cp["developer"], cp["user"]
-        return {"devid": d["devid"], "devpassword": d["devpassword"], "softname": d["softname"],
-                "ssid": u["ssid"], "sspassword": u["sspassword"]}
+        creds = {"devid": d["devid"], "devpassword": d["devpassword"], "softname": d["softname"],
+                 "ssid": u["ssid"], "sspassword": u["sspassword"]}
+        if debug:
+            creds["devdebugpassword"] = d["devdebugpassword"]
+            creds.update(kv.split("=", 1) for kv in debug)
+        return creds
     except KeyError as e:
         raise Fatal("screenscraper.ini has no key %s" % e)
 
@@ -125,10 +131,26 @@ def info(serial, name, creds):
                 continue
             raise
         try:
-            return json.loads(raw)["response"]["jeu"]
+            resp = json.loads(raw)["response"]
         except (ValueError, KeyError):
             continue        # plain-text answer = not found
+        check_quota(resp.get("ssuser", {}))
+        if "jeu" in resp:
+            return resp["jeu"]
     return None
+
+
+def check_quota(u):
+    """Stop at the account's own daily limits, read from each answer (the server does not
+    always refuse: in debug mode a forced counter past the limit still answers 200)."""
+    for used, limit, what in (("requeststoday", "maxrequestsperday", "requests"),
+                              ("requestskotoday", "maxrequestskoperday", "not-found answers")):
+        try:
+            n, m = int(u[used]), int(u[limit])
+        except (KeyError, ValueError):
+            continue
+        if m and n >= m:
+            raise Fatal("daily quota reached: %d of %d %s today; retry tomorrow" % (n, m, what))
 
 
 def pick(jeu, serial, name):
@@ -156,6 +178,9 @@ def main():
     ap.add_argument("--only", help="one serial, e.g. SCUS94423 or SCUS-94423")
     ap.add_argument("--dry-run", action="store_true", help="list what would be fetched, no network")
     ap.add_argument("--sleep", type=float, default=2.0, help="seconds between requests (default 2)")
+    ap.add_argument("--debug", action="append", default=[], metavar="KEY=VALUE",
+                    help="developer debug mode, for testing (100 calls a day): forceupdate=1, forcelevel=N, "
+                         "forcerequestok=N (daily counter), forcerequestko=N (not-found counter), forcerequestmin=N")
     ap.add_argument("--dat", default=str(pathlib.Path(lib) / "cover_sources" / "Sony - PlayStation.dat"))
     a = ap.parse_args()
     out = pathlib.Path(a.out or pathlib.Path(lib) / "cover_sources" / "disc")
@@ -178,7 +203,7 @@ def main():
         return 0
     if not todo:
         return 0
-    creds = load_creds(lib)
+    creds = load_creds(lib, a.debug)
     out.mkdir(parents=True, exist_ok=True)
     ok = 0
     try:
