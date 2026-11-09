@@ -1699,15 +1699,15 @@ static void loadGameButtons(void)
 	for (int i = 0; i < num_controller_t; i++) {
 		controller_t* c = controller_ts[i];
 		if (!loaded)
-			memcpy(&c->config_slot[CONTROLLER_GAME_SLOT], &c->config_default, sizeof(controller_config_t));
+			memcpy(&c->config_slot[CONTROLLER_GAME_SLOT], &c->config_slot[CONTROLLER_DEFAULT_SLOT], sizeof(controller_config_t));
 		/* Auto: this game's mapping, or the default when it has none -- never the previous game's.
-		 * Default: the built-in mapping (config_default), as Restore Default sets it. */
+		 * Default: the user's default (the built-in mapping until Save on Default overwrites it). */
 		if (loadButtonSlot == LOADBUTTON_AUTO)
 			for (int j = 0; j < 4; j++)
 				memcpy(&c->config[j], &c->config_slot[CONTROLLER_GAME_SLOT], sizeof(controller_config_t));
 		else if (loadButtonSlot == LOADBUTTON_DEFAULT)
 			for (int j = 0; j < 4; j++)
-				memcpy(&c->config[j], &c->config_default, sizeof(controller_config_t));
+				memcpy(&c->config[j], &c->config_slot[CONTROLLER_DEFAULT_SLOT], sizeof(controller_config_t));
 	}
 }
 

@@ -166,7 +166,9 @@ typedef struct {
 	controller_config_t config[4];
 	// Saved controller mappings: slots 0..3 (the slot files, buttonfiles.c), and the Game
 	// slot at CONTROLLER_GAME_SLOT (its own file per game, save_game_slot)
-	controller_config_t config_slot[5];
+	// and the user's Default at CONTROLLER_DEFAULT_SLOT (in the slot file, after the four slots;
+	// config_default until Save on Default overwrites it)
+	controller_config_t config_slot[6];
 } controller_t;
 
 typedef struct _virtualControllers_t {
@@ -244,6 +246,7 @@ void unassign_controller(int whichVirtual);
 int load_configurations(FILE*, controller_t*);
 void save_configurations(FILE*, controller_t*);
 #define CONTROLLER_GAME_SLOT 4
+#define CONTROLLER_DEFAULT_SLOT 5
 void save_game_slot(FILE*, controller_t*);
 int load_game_slot(FILE*, controller_t*);
 
