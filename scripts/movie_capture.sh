@@ -207,7 +207,7 @@ sleep 2; cp "$dolp" "$dir/boot.dol" || exit 1
 # A recording reads the pads even when the game window has no focus (2026-11-01: a run recorded
 # no press at all from a USB pad); a playback never does, so nobody's hands can get in.
 bg=; [ -z "$play" ] && bg=" -C Dolphin.Input.BackgroundInput=True"
-bash "$REPO/scripts/wsx.sh" run "$run" --dol "$dir/boot.dol" --autoboot "$dir/chain.txt" --input "$dir/none.txt" \
+bash "$REPO/scripts/wsx.sh" run "$run" --realtime --dol "$dir/boot.dol" --autoboot "$dir/chain.txt" --input "$dir/none.txt" \
 	--nodump --env FRAMES_DUMP=$frames --env "DOLPHIN_ARGS=-C Dolphin.Core.SIDevice1=6$bg" \
 	--card "$src" --secs $((vbl / 30 + 180)) | grep -E "refusing|no such|fault|exit"
 [ -n "$play" ] && { echo "done: .runs/$run"; exit 0; }

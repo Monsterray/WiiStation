@@ -40,6 +40,9 @@ extern "C" void glResetCacheRegion(void);
 extern int backFromMenu;
 extern char originalMode;
 #include "../hbc_home.h"
+#include "../lab_net.h"
+void lab_menu_exit(const char *report);   /* GamecubeMain.cpp: menu.log, results, back to HBC */
+extern "C" int perf_chain_index(void);   /* GamecubeMain.cpp: 0 = no chain with games */
 #include "../../achievements.h"
 #include "../ach_toast.h"
 #include "AchievementsFrame.h"
@@ -132,6 +135,8 @@ extern "C" {
 	extern unsigned autoinput_menupage;
 	extern unsigned autoinput_menutour[40], autoinput_menutours;
 	extern unsigned autoinput_menuopen_page;
+	extern unsigned autoinput_menukeys_frame;
+	extern char autoinput_menukeys[64];
 	extern char autoinput_menuclick[32];
 	extern unsigned autoinput_menuclicks, autoinput_menuclick_frame;
 	void SettingsFrame_ScriptClick(const char *name, int n);
@@ -165,6 +170,8 @@ bool MenuContext::isRunning()
 	}
 //	printf("MenuContext isRunning\n");
 
+	static unsigned labPages, labLastPage, labFrame, labEnd;   /* lab menu walk: see the end of this function's script block */
+
 	/* A few frames in, so that the menu has drawn itself once and the video mode has
 	 * settled, open the page the script asked for -- then never again. */
 	{
@@ -183,6 +190,18 @@ bool MenuContext::isRunning()
 			autoinput_load();
 			page = autoinput_menupage;
 			if (autoinput_menutours) { page = autoinput_menutour[0]; tourI = 1; tourWait = 60; }
+			/* Lab mode: the walk's last scheduled action plus ~1 s ends the run (labEnd, in menu
+			 * frames); a script with nothing to do ends it at once. Without this a menu-only lab
+			 * run sat in the menu until someone at the Wii left it (LRWii, 2026-11-04). */
+			unsigned e = 0, n = strlen(autoinput_menukeys);
+			if (autoinput_menupage || autoinput_menuopen_page) e = 90;
+			if (autoinput_menutours && 30 + 60 * autoinput_menutours + 60 > e) e = 30 + 60 * autoinput_menutours + 60;
+			if (n && autoinput_menukeys_frame + 12 * n + 60 > e) e = autoinput_menukeys_frame + 12 * n + 60;
+			if (autoinput_menuclicks) {
+				unsigned c = (autoinput_menuclick_frame ? autoinput_menuclick_frame : 40) + 60;
+				if (c > e) e = c;
+			}
+			labEnd = (e ? e : 90) + 30;
 		}
 		/* "menuopen <vblank> <page>": the game stopped there for it; the page ten frames on */
 		if (autoinput_menuopen_page && --framesUntilOpenPage <= 0) {
@@ -191,6 +210,8 @@ bool MenuContext::isRunning()
 			framesUntilOpenPage = 10;
 		}
 		if (page) {
+			labPages++;
+			labLastPage = page;
 			autoinput_menupage = page;
 			if (autoinput_menupage >= 1 && autoinput_menupage <= 5)
 				setActiveFrame(FRAME_SETTINGS,
@@ -253,6 +274,23 @@ bool MenuContext::isRunning()
 		{
 			armed = false;
 			Func_PlayGame();
+		}
+	}
+
+	/* Lab mode (scripts/wii_run.py --menu): the walk is over when its script is (labEnd), or after
+	 * 15 minutes whatever happens. Report it, send the results, back to HBC. Only a game-less run:
+	 * a lab chain that opens the menu in a game (menuopen, the achievements book) must go on. */
+	if (lab_active() && !perf_chain_index() && !hasLoadedISO) {
+		static unsigned long long labT0;
+		if (!labT0)
+			labT0 = perf_now_us();
+		bool late = perf_now_us() - labT0 > 15ULL * 60 * 1000000;
+		if (++labFrame >= 30 && ((labEnd && labFrame >= labEnd) || late)) {
+			char rep[160];
+			snprintf(rep, sizeof rep, "menu walk: ok=%d pages=%u last_page=%u keys=%u frames=%u end=%s",
+				late ? 0 : 1, labPages, labLastPage, (unsigned)strlen(autoinput_menukeys), labFrame,
+				late ? "time limit" : "script end");
+			lab_menu_exit(rep);
 		}
 	}
 

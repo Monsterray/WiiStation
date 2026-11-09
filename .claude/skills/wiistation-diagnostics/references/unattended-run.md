@@ -233,6 +233,15 @@ Two permanent GFX.ini changes are deliberate (see dolphin-pitfalls.md).
 
 ## The bench Wii (real hardware, unattended)
 
+**One command, ends in a verdict (2026-11-09):** `python scripts/wii_run.py NAME scripts/chains/X.txt
+[--dol ..] [--set K=V] [--timeout S]`, or `wii_run.py NAME --menu scripts/autoinput/walk.txt` for a
+menu walk (no game; WiiStation writes `menu.log` "walked N pages, last page X" when the script ends and
+exits to HBC). Start it with the Bash tool's run_in_background and read the last lines:
+`VERDICT NAME: OK|CHECK|NO-RESULTS|WII-LOST ...`. It queues `wii_lab.py` on the dev Wii (the queue and
+lease server), waits quietly, cleans the card, and exits 0 OK, 1 CHECK/DIFFERS, 2 NO-RESULTS,
+3 the Wii did not come back (power cycle; never force one). No `wiibench wait`/`status` polling.
+A menu run also ends by itself after 15 min (`MenuContext::isRunning`, lab mode).
+
 The dev Wii is at 192.168.8.213 in the Homebrew Channel. `python scripts/wii_lab.py NAME
 CHAINFILE` sends the DOL with wiiload and `lab=<PC>:4300`; `Gamecube/lab_net.c` fetches the
 chain and its input scripts, runs it, sends the logs back into `.runs/NAME/` and exits to

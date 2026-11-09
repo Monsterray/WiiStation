@@ -104,6 +104,18 @@ settings) to its vtable, its selector and its traps; start there before adding o
 
 ## Reading, asking, checking
 
+- **A run's result: the VERDICT first.** Every `wsx.sh run`, `chain` and `menu` ends with
+  `VERDICT NAME: OK|CHECK|NO-RESULTS|DIFFERS | speed per game` and at most 6 lines saying why
+  and where to look (`.runs/NAME/verdict.txt`, `verdict.json`). Read those lines, not
+  perf.log, run.log or frame images; open a log only at the file:line the verdict names, or
+  with `wsx.sh triage`/`table --detail` when you need the *why*. `--base NAME` puts speed,
+  frames and audio against an earlier run in the same verdict. Start long runs with the Bash
+  tool's `run_in_background` and read the last lines when notified; to block on a run that is
+  already going, `wsx.sh wait NAME` (never `sleep N; tail`). `wsx.sh run` is short and fast by
+  default (120 s, `--fast`; no speed in its verdict): add `--realtime` for anything about
+  timing or sound rate control; chains stay real time. To test a moment in a game, start from
+  the state library (`wsx.sh states`, Docs/SAVE_STATES.md) with `abstate` instead of playing there. The 2026-11-09 audit found 97% of
+  result reads were hand-rolled (744 inline parsers, 999 frame images): about 3 h a week.
 - **Code structure:** use the codebase MCP (`search_graph`, `trace_path`, `get_code_snippet`,
   project `wiistation`) for callers, callees and globals before grepping. Caveat: it cannot
   parse `GlesGpu/gpuVramReadback.inc` (unity-build include); grep that file. The Dolphin
