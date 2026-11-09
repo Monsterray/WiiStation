@@ -52,7 +52,7 @@ static struct
 	//int devcnt;			//unused
 	u16 padStat[10];		//Digital Buttons
 	int padID[10];
-	int padMode1[10];	//0 = digital, 1 = analog
+	int padMode1[10];	//0 = digital (41h), 1 = analog red (73h), 2 = analog green (53h: Dual Analog, Joystick)
 	int padModeE[10];	//Config mode (DualShock, after command 43h 01h)
 	int padModeC[10];
 	int padModeF[10];
@@ -234,9 +234,46 @@ static int IsDualShock (const int pad)
 		global.padID[pad] != 0x63 && global.padID[pad] != 0x12;
 }
 
-static void PADsetMode (const int pad, const int mode)	//mode = 0 (digital) or 1 (analog)
+/* An analog pad of a type with no config commands: the Dual Analog (SCPH-1150) and the Analog
+ * Joystick (SCPH-1110). No 43h..4Fh, so a game switches nothing and AnalogAuto has no signal
+ * to wait for. */
+static int IsPlainAnalog (const int pad)
 {
-	static const u8 padID[] = { 0x41, 0x73 };
+	return (controllerType == CONTROLLERTYPE_DUALANALOG || controllerType == CONTROLLERTYPE_JOYSTICK) &&
+		global.padID[pad] != 0x31 && global.padID[pad] != 0x63 && global.padID[pad] != 0x12;
+}
+
+/* Rumble of the old one-motor method (psx-spx: SCPH-1150, SCPH-1200 and SCPH-110): the DualShock
+ * and the Dual Analog. The Analog Joystick has no motor. */
+static int HasRumble (const int pad)
+{
+	return IsDualShock(pad) || (controllerType == CONTROLLERTYPE_DUALANALOG && IsPlainAnalog(pad));
+}
+
+/* The modes a type has: 0 always, 1 (red) on the DualShock and Dual Analog, 2 (green, ID 53h) on
+ * the Dual Analog and the Joystick. The ANALOG button steps through them in this order: the
+ * DualShock 41h <-> 73h, the Dual Analog 41h -> 73h -> 53h -> 41h, the Joystick 41h <-> 53h
+ * (its digital/analog switch). */
+static int mode_valid (const int mode)
+{
+	switch (controllerType) {
+	case CONTROLLERTYPE_ANALOG:     return mode <= 1;
+	case CONTROLLERTYPE_DUALANALOG: return mode <= 2;
+	case CONTROLLERTYPE_JOYSTICK:   return mode == 0 || mode == 2;
+	}
+	return mode == 0;
+}
+
+static int next_mode (const int mode)
+{
+	if (controllerType == CONTROLLERTYPE_DUALANALOG)
+		return (mode + 1) % 3;
+	return mode ? 0 : (controllerType == CONTROLLERTYPE_JOYSTICK ? 2 : 1);
+}
+
+static void PADsetMode (const int pad, const int mode)	//mode = 0 (digital), 1 (analog, red) or 2 (analog, green)
+{
+	static const u8 padID[] = { 0x41, 0x73, 0x53 };
 	global.padMode1[pad] = mode;
 	global.padID[pad] = padID[mode];
 	RumbleReset(pad);
@@ -248,6 +285,13 @@ static void PADsetMode (const int pad, const int mode)	//mode = 0 (digital) or 1
  * a use for the sticks then finds them; Standard and Stick D-pad are digital pads. */
 static int power_on_mode (void)
 {
+	if (analogAuto == ANALOGAUTO_OFF)
+		return 0;
+	/* No config commands, so no game to wait for: Auto and Always both start analog */
+	if (controllerType == CONTROLLERTYPE_DUALANALOG)
+		return 1;
+	if (controllerType == CONTROLLERTYPE_JOYSTICK)
+		return 2;
 	return controllerType == CONTROLLERTYPE_ANALOG && analogAuto == ANALOGAUTO_ALWAYS;
 }
 
@@ -285,7 +329,7 @@ static void pad_note_show(const int pad, const char *what, const int on_screen)
 		snprintf(t, sizeof t, "Port %d%c: %s", (pad - 2) / 4 + 1, 'A' + (pad - 2) % 4, what);
 	if (on_screen) {
 		memcpy(pad_note_text, t, sizeof t);
-		pad_note_red = global.padMode1[pad] && IsDualShock(pad);
+		pad_note_red = global.padMode1[pad] == 1 && (IsDualShock(pad) || IsPlainAnalog(pad));
 		pad_note_vbl = frame_counter;
 	}
 #ifdef PERF_PROF
@@ -311,16 +355,17 @@ static void analog_button(const int pad, const int held)
 		return;
 	}
 	analog_was_held[pad] = 1;
-	if (!IsDualShock(pad))
+	if (!IsDualShock(pad) && !IsPlainAnalog(pad))
 		what = "no ANALOG button (PSX Pad Type)";
 	else if (global.padModeF[pad])
 		what = "ANALOG locked by the game";
 	else {
-		PADsetMode(pad, !global.padMode1[pad]);
+		PADsetMode(pad, next_mode(global.padMode1[pad]));
 		analog_chosen[pad] = 1;   /* the player's choice: AnalogAuto keeps out of it */
 		if (global.dsNewRumble[pad])
 			global.padModeC[pad] = 1;
-		what = global.padMode1[pad] ? "Analog (red light)" : "Digital (light off)";
+		what = global.padMode1[pad] == 2 ? "Analog (green light, 53h)" :
+		       global.padMode1[pad] ? "Analog (red light)" : "Digital (light off)";
 	}
 	pad_note_show(pad, what, 1);
 }
@@ -514,7 +559,7 @@ static void UpdateState (const int pad) //Note: pad = 0 or 1
 	 * only understand a digital pad (ID 0x41) ignoring every button -- as a real PlayStation
 	 * does with the DualShock's analog light on. Standard ignores config commands, so a pad
 	 * left in analog mode goes back to digital here. */
-	if (controllerType != CONTROLLERTYPE_ANALOG && global.padMode1[pad])
+	if (!mode_valid(global.padMode1[pad]))
 		PADsetMode( pad, 0);
 
 	analog_held_now = 0;
@@ -937,6 +982,18 @@ static unsigned char pad_byte (const int pad, const unsigned char value, int *ac
 			x->len = 2 + 2 * (global.padID[pad] & 0x0f);
 			x->buf.b8[1] = global.padModeC[pad] ? 0x00 : 0x5a;
 			x->buf.b16[1] = global.padStat[pad];
+			if (global.padID[pad] == 0x53)
+			{
+				/* Green mode (psx-spx "Dual Analog Pad in LED=Green Mode"): L3/R3 read 1, and
+				 * bit9=L1 bit10=Square bit11=Triangle bit12=R1 bit15=R2 (the others stay).
+				 * padStat is the word byte-swapped, active low. */
+				const u16 w = (u16)((global.padStat[pad] << 8) | (global.padStat[pad] >> 8));
+				#define GB(to, from) (((w >> (from)) & 1) << (to))
+				const u16 g = (w & 0x61f9 /* Select, Start, D-pad, L2, Circle, Cross */) | 0x0006 |
+					GB(9, 10) | GB(10, 15) | GB(11, 12) | GB(12, 11) | GB(15, 9);
+				#undef GB
+				x->buf.b16[1] = (u16)((g << 8) | (g >> 8));
+			}
 			if (value == 0x43 && global.padModeE[pad])
 			{
 				/* In config mode 43h answers F3h 5Ah and six 00h bytes, not the
@@ -1021,7 +1078,7 @@ static unsigned char pad_byte (const int pad, const unsigned char value, int *ac
 			global.irq10En[pad] = value;
 			global.legacyXX[pad] = value;
 		}
-		if (cur == 3 && IsDualShock(pad) && !global.dsNewRumble[pad])
+		if (cur == 3 && HasRumble(pad) && !global.dsNewRumble[pad])
 			global.padVibF[pad][0] = (global.legacyXX[pad] & 0xc0) == 0x40 && (value & 1);
 		break;
 	case 0x43:
