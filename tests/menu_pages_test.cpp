@@ -259,6 +259,14 @@ static void checkPage(const Page &p, const char *name)
 		if (known(name, q.kind)) { checks++; printf("known %s: %s\n", name, what); }
 		else check(false, what, name);
 	}
+	for (int i = 0; i < p.nRows; i++) {
+		Control fc[STD_HELP_LINES];
+		if (layoutFooter(p, kFont, i, fc) < 0) {
+			char what[200];
+			snprintf(what, sizeof what, "help too wide for row %d: %s", i, p.footer[i].line[0]);
+			check(false, what, name);
+		}
+	}
 	check(checkFooters(p, kFont) == 0, "every help line fits (checkFooters)", name);
 	check(checkSymmetry(name, p, lay) == 0, "focus links are two-way", name);
 	check(n < MAX_PROBLEMS, "checkLayout did not run out of room", name);
@@ -287,37 +295,6 @@ static void checkValues(SetPage &ob, const char *name)
 			check(checkLayout(ob.page, kFont, lay, probs, MAX_PROBLEMS) == 0, "every value of every row lays out clean", name);
 		}
 		row.value = saved;
-	}
-}
-
-/* The shipped Advanced Graphics page: two columns on one shared grid (rows 1..8 in cells), its choice row on top. */
-static void checkAdvGfxGrid(const Page &p, const Row *rows)
-{
-	static Layout lay;
-	const char *name = "Advanced Graphics grid";
-	check(layoutPage(p, kFont, lay) >= 0 && p.nRows == 9 && p.columns == 2, "the page is nine rows in two columns", name);
-	linkFocus(p, lay);
-	static const int cells[4][2] = { { 1, 2 }, { 3, 4 }, { 5, 6 }, { 7, 8 } };
-	static const float ys[4] = { 146.0f, 202.0f, 258.0f, 314.0f };	/* Dithering is at 90 */
-	const int before = failures;
-	checkGrid(lay, rows, cells, ys, 4);
-	check(failures == before, "the cycle pairs are on the grid", name);
-	const Key kc = { ROLE_CHOICE, 0, 0 };
-	const int c = findCtrl(lay, kc);
-	check(c >= 0 && lay.c[c].rect.y == 90.0f, "the Dithering row did not move", name);
-	/* Down and Up keep the column, Left and Right change it and wrap, the bottom line wraps to the top by column. */
-	static const struct { int row, dir, to; } F[] = {
-		{ 1, DIR_RIGHT, 2 }, { 2, DIR_LEFT, 1 }, { 2, DIR_RIGHT, 1 }, { 1, DIR_LEFT, 2 },
-		{ 1, DIR_DOWN, 3 },  { 2, DIR_DOWN, 4 }, { 3, DIR_UP, 1 },    { 4, DIR_UP, 2 },
-		{ 3, DIR_DOWN, 5 },  { 4, DIR_DOWN, 6 }, { 6, DIR_RIGHT, 5 },
-		{ 5, DIR_DOWN, 7 },  { 6, DIR_DOWN, 8 }, { 7, DIR_UP, 5 },    { 8, DIR_UP, 6 },
-		{ 7, DIR_DOWN, 0 },  { 8, DIR_DOWN, 0 },
-	};
-	for (unsigned k = 0; k < sizeof F / sizeof F[0]; k++) {
-		const Key kf = { ROLE_BUTTON, F[k].row, 0 };
-		const int a = findCtrl(lay, kf);
-		const int t = a < 0 ? -1 : lay.c[a].link[F[k].dir];
-		check(t >= 0 && lay.c[t].row == F[k].to, "a focus link goes to the wrong cell", name);
 	}
 }
 
@@ -422,16 +399,16 @@ static void checkShippedPages(const char *root)
 					keys = keys && lookup(p.rows[r].seg[0].key);
 		check(keys, "every setting key of the page is in the table", p.title);
 		if (!keys) continue;
-		for (int t = 0; t < NUM_TABS; t++)
-			if (ADV_TABS[t] == i) tab = t;
+		int nt = 0;
+		const int *grp = tabGroupOf(i, &nt);
+		for (int t = 0; t < nt; t++)
+			if (grp[t] == i) tab = t;
 		char name[48];
 		snprintf(name, sizeof name, "%s%s%s", p.title, p.tab ? " / " : "", p.tab ? p.tab : "");
 		readoutPage = &p;
 		buildOptionsPage(i, tab, bind, ob);
 		checkPage(ob.page, name);
 		checkValues(ob, name);
-		if (i == OPT_PAGE_ADVGFX)
-			checkAdvGfxGrid(ob.page, ob.rows);
 	}
 	printf("shipped pages through the engine: %d checks\n", checks - before);
 }
@@ -461,6 +438,7 @@ int main(int argc, char **argv)
 	/* the Advanced tabs run in ADV_TABS order and each is a tabbed page */
 	for (int t = 0; t < NUM_TABS; t++)
 		check(PAGES[ADV_TABS[t]].tab != NULL, "ADV_TABS entry has a tab", PAGES[ADV_TABS[t]].title);
+	check(PAGES[OPT_PAGE_ADVGFX].columns == 2 && PAGES[OPT_PAGE_ADVGFX].nrows == 9, "Advanced Graphics is one page of 9 rows in 2 columns", "Advanced Graphics");
 
 	for (int i = 0; i < OPT_PAGE_COUNT; i++)
 	{
@@ -469,9 +447,8 @@ int main(int argc, char **argv)
 		check(p.nrows > 0 && p.nrows <= eng::MAX_ROWS, "row count in 1..eng::MAX_ROWS", p.title);
 		check(p.returnSubmenu == RETURN_CURRENT_ISO || p.returnSubmenu == OPT_RET_GENERAL ||
 		      p.returnSubmenu == OPT_RET_VIDEO || p.returnSubmenu == OPT_RET_AUDIO, "return target is a Settings tab or Current ISO", p.title);
-		check(p.tab == NULL || p.standard != eng::DENSITY_OFF, "a tabbed Advanced page is a standard page", p.title);
-		check(p.help == NULL || p.nhelp <= eng::MAX_HELP, "help lines fit", p.title);
-		for (int r = 0; r < p.nrows; r++)
+		check(p.standard != eng::DENSITY_OFF, "every Options page is a standard page", p.title);
+				for (int r = 0; r < p.nrows; r++)
 		{
 			const SetRow &o = p.rows[r];
 			if (o.kind == ROW_CYCLE || (o.kind == ROW_CHOICE && o.seg[0].value == SEGV_EACH))

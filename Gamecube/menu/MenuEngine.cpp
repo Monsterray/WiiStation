@@ -147,6 +147,13 @@ static float rowTop(const Page &p, int i)
 	return (p.rowY0 > 0 ? p.rowY0 : ROW_Y0) + i * (p.rowDy > 0 ? p.rowDy : ROW_DY);
 }
 
+/* A row that takes a cell of a two-column page: a Cycle, and on a grid page a Toggle too (a standard
+ * page's Toggle is a segmented control as wide as the control column, so it is a line of its own). */
+static bool isCell(const Page &p, const Row &r)
+{
+	return p.columns >= 2 && (r.kind == ROW_CYCLE || (r.kind == ROW_TOGGLE && p.standard == DENSITY_OFF));
+}
+
 /* Which line and column row i is in. One column: line i, column 0. Two columns: a Toggle or
  * Cycle row takes the open right-hand cell of the line above, or opens a new line; any other
  * row is a line of its own. */
@@ -156,7 +163,7 @@ static void rowCell(const Page &p, int i, int &line, int &col)
 	line = -1;
 	col = 0;
 	for (int k = 0; k <= i; k++) {
-		const bool cell = p.columns >= 2 && (p.rows[k].kind == ROW_TOGGLE || p.rows[k].kind == ROW_CYCLE);
+		const bool cell = isCell(p, p.rows[k]);
 		if (cell && open) {
 			col = 1;
 			open = false;
@@ -180,22 +187,34 @@ static void gridPlace(const Page &p, const Metrics &m, int col, float &btnX, flo
 	for (int k = 0; k < p.nRows; k++) {
 		const Row &r = p.rows[k];
 		int line, c;
-		if (r.kind != ROW_TOGGLE && r.kind != ROW_CYCLE)
+		if (!isCell(p, r))
 			continue;
 		rowCell(p, k, line, c);
 		cols = c ? 2 : cols;
 		if ((float)measure(m, r.label, TEXT_SCALE) > lw[c])
 			lw[c] = (float)measure(m, r.label, TEXT_SCALE);
-		for (int n = 0; n < r.count; n++)
-			if ((float)buttonFitWidth(m, r.names[n]) > bw[c])
-				bw[c] = (float)buttonFitWidth(m, r.names[n]);
+		for (int n = 0; n < r.count; n++) {
+			/* a standard cell is text + the arrows (STD_CELL_PAD); the column takes its widest value */
+			const float w = p.standard != DENSITY_OFF ? (float)stdStepWidth(m, r.names[n], STD_CELL_PAD)
+			                                          : (float)buttonFitWidth(m, r.names[n]);
+			if (w > bw[c])
+				bw[c] = w;
+		}
 	}
-	x = (MENU_W - (lw[0] + RLABEL_GAP + bw[0] + (cols > 1 ? COL2_GAP + lw[1] + RLABEL_GAP + bw[1] : 0))) / 2;
-	if (col)
-		x += lw[0] + RLABEL_GAP + bw[0] + COL2_GAP;
-	btnX = x + lw[col] + RLABEL_GAP;
-	btnW = bw[col];
-	labelRight = btnX - RLABEL_GAP;
+	{
+		/* a standard grid is tighter (STD_CELL_*), and pushed left when it would pass the control column's right edge */
+		const float lg = p.standard != DENSITY_OFF ? (float)STD_CELL_LGAP : RLABEL_GAP;
+		const float cg = p.standard != DENSITY_OFF ? (float)STD_CELL_CGAP : COL2_GAP;
+		const float total = lw[0] + lg + bw[0] + (cols > 1 ? cg + lw[1] + lg + bw[1] : 0);
+		x = (MENU_W - total) / 2;
+		if (p.standard != DENSITY_OFF && x + total > (float)STD_CTRL_X1)
+			x = (float)STD_CTRL_X1 - total;
+		if (col)
+			x += lw[0] + lg + bw[0] + cg;
+		btnX = x + lw[col] + lg;
+		btnW = bw[col];
+		labelRight = btnX - lg;
+	}
 }
 
 /* How many lines the rows take: where the help starts. */
@@ -579,7 +598,7 @@ static int layoutStandard(const Page &p, const Metrics &m, Layout &out)
 	case DENSITY_EXPLORER: h = (float)STD_LIST_H; pitch = (float)STD_LIST_PITCH; maxRows = 1; break;
 	default: return -1;
 	}
-	if (p.nRows > maxRows)
+	if (pageLines(p) > maxRows)
 		return -1;
 	if (p.standard == DENSITY_EXPLORER && (p.nRows != 1 || p.rows[0].kind != ROW_LIST))
 		return -1;
@@ -603,14 +622,20 @@ static int layoutStandard(const Page &p, const Metrics &m, Layout &out)
 
 	for (int i = 0; i < p.nRows; i++) {
 		const Row &r = p.rows[i];
-		const float y = (float)STD_BODY_Y0 + (float)i * pitch;
+		int line, col;
+		rowCell(p, i, line, col);
+		const float y = (float)STD_BODY_Y0 + (float)line * pitch;
 		const float cy = y + h / 2;
+		/* a cell of a two-column page (Page::columns): its label edge, button x and width from gridPlace */
+		float bx = (float)STD_CTRL_X0, bw = (float)STD_CYCLE_W, edge = (float)STD_LABEL_EDGE;
+		if (isCell(p, r))
+			gridPlace(p, m, col, bx, bw, edge);
 
 		if (r.label && r.kind != ROW_LIST) {
 			/* right-aligned to the edge: centred on an anchor that puts the right end there */
 			const int lw = measure(m, r.label, TEXT_SCALE);
 			addText(out, m, r.kind == ROW_CHOICE ? ROLE_RLABEL : ROLE_LABEL, i, 0,
-			        (float)STD_LABEL_EDGE - (float)(lw - lw / 2), cy, ALIGN_CENTRE, TEXT_SCALE, r.label);
+			        edge - (float)(lw - lw / 2), cy, ALIGN_CENTRE, TEXT_SCALE, r.label);
 		}
 
 		switch (r.kind) {
@@ -667,7 +692,7 @@ static int layoutStandard(const Page &p, const Metrics &m, Layout &out)
 			break;
 		}
 		case ROW_CYCLE:
-			out.slot[i][0] = addButton(out, ROLE_BUTTON, i, 0, (float)STD_CTRL_X0, y, (float)STD_CYCLE_W, h,
+			out.slot[i][0] = addButton(out, ROLE_BUTTON, i, 0, bx, y, bw, h,
 			                           r.names[shownValue(r) - r.lo], false, !isInactive(r, 0));
 			break;
 		case ROW_READOUT: {
@@ -749,7 +774,9 @@ int layoutFooter(const Page &p, const Metrics &m, int row, Control out[STD_HELP_
 		for (int d = 0; d < DIR_COUNT; d++)
 			c.link[d] = -1;
 		placeText(c, m);
-		if (c.rect.x + c.rect.w > (float)STD_HELP_X1)
+		/* a page with the logo at the bottom (drawn in the legacy box, not STD_LOGO_*) keeps its help left of it */
+		if (c.rect.x + c.rect.w > (float)STD_HELP_X1 ||
+		    (p.logo == LOGO_SPOT_BOTTOM && c.rect.x + c.rect.w > LOGO_BOX_L(LOGO_PAGE_X)))
 			return -1;
 		n++;
 	}
@@ -968,7 +995,7 @@ static void linkRows(const Page &p, Layout &lay)
 	int A[MAX_ROWS][MAX_SLOTS], nA[MAX_ROWS];
 	const bool tabbed = p.nTabs > 0;
 	const int cur = tabbed ? lay.tab[p.curTab] : -1;
-	const bool left = p.standard != DENSITY_OFF;
+	const bool left = p.standard != DENSITY_OFF && p.columns < 2;	/* two columns keep the column */
 
 	/* A line is a row, or on a two-column page the one or two cells that share it: its buttons
 	 * run left to right as one row. A list's links are its own (linkList). */
@@ -1413,6 +1440,16 @@ int checkLayout(const Page &p, const Metrics &m, const Layout &lay, Problem *out
 			if (m.width(c.text, TEXT_SCALE, m.ctx) + pad > r.w)
 				note(out, maxOut, np, PROB_TEXT_WIDE, i, -1);
 		}
+		/* a standard Cycle draws an arrow at each end: every value it can show must clear them */
+		if (p.standard != DENSITY_OFF && c.role == ROLE_BUTTON && c.row >= 0 && c.row < p.nRows &&
+		    p.rows[c.row].kind == ROW_CYCLE) {
+			const Row &cr = p.rows[c.row];
+			for (int n = 0; n < cr.count; n++)
+				if (m.width(cr.names[n], TEXT_SCALE, m.ctx) + (float)STD_CELL_PAD > r.w) {
+					note(out, maxOut, np, PROB_ARROW_TIGHT, i, -1);
+					break;
+				}
+		}
 	}
 
 	for (int i = 0; i < lay.n; i++)
@@ -1705,6 +1742,7 @@ const char *problemName(int kind)
 	case PROB_LABEL_WIDE:  return "label wider than 224 px";
 	case PROB_PAST_RIGHT:  return "control past x 616";
 	case PROB_IN_STD_LOGO: return "in the standard's logo box";
+	case PROB_ARROW_TIGHT: return "a cycle value touches its arrows";
 	case PROB_BTN_TOUCH:   return "action buttons closer than 12 px";
 	}
 	return "?";

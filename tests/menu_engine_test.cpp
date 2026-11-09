@@ -1206,6 +1206,72 @@ static void testTwoColumns(void)
 	printf("two columns: cells, help, focus, checks ... %s\n", failures == before ? "ok" : "FAILED");
 }
 
+/* Page::columns == 2 on a standard page: a full-width choice, then Cycle rows in pairs. Each cell is its own
+ * row (its own focus, footer); Left/Right run along a line, Up/Down keep the column; a Toggle takes a whole line. */
+static void testStdColumns(void)
+{
+	static const char *const GAMMA_NAMES[] = { "1.0", "1.1", "1.2", "1.3", "1.4", "1.5" };
+	Page p;
+	Layout lay;
+	Problem probs[MAX_PROBLEMS];
+	int before = failures;
+
+	memset(&p, 0, sizeof p);
+	p.title = "Std columns";
+	p.logo = LOGO_SPOT_BOTTOM;
+	p.focus = FOCUS_ROWS;
+	p.standard = DENSITY_REGULAR;
+	p.columns = 2;
+	{
+		Row rows[] = { RADIO_FIT("Dithering", DITHER_NAMES, 1), CYC("Gamma", GAMMA_NAMES, 0), CYC("Video Color", FMV_COLOUR_NAMES, 0),
+		               CYC("MDEC Chroma", CHROMA_NAMES, 0), CYC("Gamma", GAMMA_NAMES, 0), CYC("Gamma", GAMMA_NAMES, 0) };
+		Page q = p;
+		q.rows = rows;
+		q.nRows = COUNT(rows);
+		if (layoutPage(q, kFont, lay) < 0) { fail("std columns", "layoutPage refused"); return; }
+		linkFocus(q, lay);
+		const int a = lay.slot[1][0], b = lay.slot[2][0], c = lay.slot[3][0], d = lay.slot[4][0], e = lay.slot[5][0];
+		if (lay.c[a].rect.y != lay.c[b].rect.y || lay.c[a].rect.x >= lay.c[b].rect.x)
+			fail("std columns", "a pair is not side by side on one line");
+		if (lay.c[c].rect.y != lay.c[a].rect.y + 56.0f || lay.c[e].rect.y != lay.c[c].rect.y + 56.0f)
+			fail("std columns", "lines are not one pitch apart");
+		if (lay.c[a].link[DIR_RIGHT] != b || lay.c[b].link[DIR_LEFT] != a || lay.c[a].link[DIR_DOWN] != c ||
+		    lay.c[b].link[DIR_DOWN] != d || lay.c[d].link[DIR_UP] != b || lay.c[e].link[DIR_UP] != c)
+			fail("std columns", "focus does not move along a line and keep the column");
+		if (checkLayout(q, kFont, lay, probs, MAX_PROBLEMS) != 0)
+			fail("std columns", "checkLayout finds a problem on a good two-column standard page");
+			/* every button of a column is one width; shrunk to text + 16 the arrows are touched (PROB_ARROW_TIGHT) */
+			if (lay.c[a].rect.w != lay.c[c].rect.w || lay.c[a].rect.w != lay.c[e].rect.w || lay.c[b].rect.w != lay.c[d].rect.w)
+				fail("std columns", "the buttons of one column are not one width");
+			lay.c[a].rect.w = 20.0f;
+			{
+				bool tight = false;
+				for (int i = 0, n = checkLayout(q, kFont, lay, probs, MAX_PROBLEMS); i < n && i < MAX_PROBLEMS; i++)
+					tight = tight || probs[i].kind == PROB_ARROW_TIGHT;
+				if (!tight)
+					fail("std columns", "a cycle button too narrow for its widest value and arrows was not reported");
+			}
+			
+	}
+	/* the bad page: names so long that the grid runs past x 616 and off the left edge */
+	{
+		static const char *const LONG[] = { "A name far too long for half the screen", "Another one just as long as it" };
+		Row rows[] = { CYC("Left", LONG, 0), CYC("Right", LONG, 0) };
+		Page q = p;
+		bool wide = false;
+		q.rows = rows;
+		q.nRows = COUNT(rows);
+		if (layoutPage(q, kFont, lay) < 0) { fail("std columns", "layoutPage refused the bad page"); return; }
+		linkFocus(q, lay);
+		for (int i = 0, n = checkLayout(q, kFont, lay, probs, MAX_PROBLEMS); i < n && i < MAX_PROBLEMS; i++)
+			if (probs[i].kind == PROB_PAST_RIGHT || probs[i].kind == PROB_PAST_EDGE)
+				wide = true;
+		if (!wide)
+			fail("std columns", "checkLayout missed a two-column standard page wider than the screen");
+	}
+	printf("standard two columns: cells, focus, bad page ... %s\n", failures == before ? "ok" : "FAILED");
+}
+
 /*  The standard (Docs/MENU_PLAN.md): its widths, footer and four checks. Each check has a failing and a passing page.  */
 
 static bool stdHas(const Page &p, const Layout &lay, int kind)
@@ -1408,6 +1474,24 @@ static void testStandard(void)
 		if (layoutFooter(p, kFont, 1, c) != -1) fail(tag, "a footer line wider than 532 px must give -1");
 		if (layoutFooter(p, kFont, 0, c) != 1) fail(tag, "a short footer line beside a bad one must still lay out");
 		if (checkFooters(p, kFont) != 1) fail(tag, "checkFooters must count the one bad row");
+		{
+			/* a line that fits the footer (556) but reaches under the page logo (box left 542) */
+			static char NEAR_LOGO[96];
+			static const FooterHelp LG[1] = { { { NEAR_LOGO, NULL } } };
+			int n = 0;
+			for (; n < 90; n++) {
+				NEAR_LOGO[n] = 'm';
+				NEAR_LOGO[n + 1] = 0;
+				if (kFont.width(NEAR_LOGO, (float)STD_HELP_PX / 24.0f, kFont.ctx) > 520.0f)
+					break;
+			}
+			p.nRows = 1;
+			p.footer = LG;
+			p.logo = LOGO_SPOT_NONE;
+			if (layoutFooter(p, kFont, 0, c) != 1) fail(tag, "a 520 px help line must fit a page with no logo");
+			p.logo = LOGO_SPOT_BOTTOM;
+			if (layoutFooter(p, kFont, 0, c) != -1) fail(tag, "a help line reaching under the page logo was not reported");
+		}
 	}
 
 	printf("standard pages: widths, Video row, four checks, density limits, footer ... %s\n",
@@ -2338,6 +2422,7 @@ int main(int argc, char **argv)
 	testCycle();
 	testTabStep();
 	testTwoColumns();
+	testStdColumns();
 	testEdgeWrap();
 	testConfigureButtonStates();
 	testLinkOverrides();

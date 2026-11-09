@@ -280,7 +280,7 @@ static SettingOption OPTIONS[] =
   { "MenuFont", menuFont, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },
   { "FileSortMode", &fileSortMode, FILESORT_DIRS_MIXED, FILESORT_DIRS_FIRST },
   { "TabWrap", &tabWrap, 0, 1 },
-  { "Core", &dynacore, DYNACORE_DYNAREC, DYNACORE_DYNAREC_OLD, NULL, "CPU Core", OPT_CORE, "Lightrec: fastest. Interpreter: exact but slow. Dynarec: old. A change restarts the game." },
+  { "Core", &dynacore, DYNACORE_DYNAREC, DYNACORE_DYNAREC_OLD, NULL, "CPU Core", OPT_CORE, "Lightrec: fastest. Interpreter: exact but slow. Dynarec: old. Restarts the game." },
   { "fastLoad", &fastLoad, 0, 1, NULL, "Fast Load", OPT_OFF_ON, "Shorter CD drive waits, at once. Some games break with it on." },
   { "Files", NULL, 0, 0, "Where WiiStation finds the games and the BIOS." },
   { "RomDirSD", romDirSD, CONFIG_STRING_TYPE, CONFIG_STRING_TYPE },

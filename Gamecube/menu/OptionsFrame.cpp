@@ -297,9 +297,6 @@ OptionsFrame::OptionsFrame()
 	optionsFrame = this;
 	view = new menu::glue::PageView(this, optAct, NULL,
 	                                Func_ReturnFromOptionsFrame, PAGES[PAGE_SOUND].title);
-	for (int t = 0; t < NUM_TABS; t++)
-		view->setTabText(t, PAGES[ADV_TABS[t]].tab);
-
 	setDefaultFocus(view->rowButton(0));
 	setBackFunc(Func_ReturnFromOptionsFrame);
 	setEnabled(true);
@@ -319,9 +316,13 @@ void OptionsFrame::activateSubmenu(int submenu)
 	if (submenu < 0 || submenu >= NUM_PAGES) submenu = PAGE_SOUND;
 	currentPage = submenu;
 
-	int curTab = -1;
-	for (int t = 0; t < NUM_TABS; t++)
-		if (ADV_TABS[t] == currentPage) curTab = t;
+	int nTabs = 0, curTab = -1;
+	const int *group = tabGroupOf(currentPage, &nTabs);
+	for (int t = 0; t < nTabs; t++)
+	{
+		view->setTabText(t, PAGES[group[t]].tab);
+		if (group[t] == currentPage) curTab = t;
+	}
 
 	if (!tabSwitch)
 	{
@@ -371,9 +372,11 @@ void OptionsFrame_BackToInput()
 
 void OptionsFrame::showTab(int tab)
 {
-	if (tab < 0 || tab >= NUM_TABS || ADV_TABS[tab] == currentPage) return;
+	int n = 0;
+	const int *group = tabGroupOf(currentPage, &n);
+	if (!group || tab < 0 || tab >= n || group[tab] == currentPage) return;
 	tabSwitch = true;
-	activateSubmenu(ADV_TABS[tab]);
+	activateSubmenu(group[tab]);
 	tabSwitch = false;
 }
 
