@@ -30,7 +30,8 @@ public:
 	~UsbPadTestFrame();
 	void activateSubmenu(int submenu);
 	void updateFrame(float deltaTime);
-	void drawChildren(menu::Graphics& gfx);
+private:
+	menu::Component *board;
 };
 
 void Func_UsbPadTest();   /* the Settings button: opens the page */

@@ -44,6 +44,7 @@
 #include <sys/stat.h>
 #include "MenuContext.h"
 #include "AchievementsFrame.h"
+#include "MenuPageView.h"
 #include "../libgui/Component.h"
 #include "../libgui/IPLFont.h"
 #include "../libgui/FocusManager.h"
@@ -85,13 +86,11 @@ struct Item { unsigned short i; unsigned when; unsigned char percent; };
 
 typedef char Line[100];
 
-void fill(menu::Graphics &gfx, int x, int y, int w, int h, GXColor c)
-{
-	gfx.setTEV(GX_PASSCLR);
-	gfx.setColor(c);
-	gfx.enableBlending(true);
-	gfx.fillRect(x, y, w, h);
-}
+using menu::glue::fill;
+using menu::glue::text;
+using menu::glue::width;
+using menu::glue::textCenter;
+using menu::glue::hintLine;
 
 void frame(menu::Graphics &gfx, int x, int y, int w, int h, int t, GXColor c)
 {
@@ -101,28 +100,10 @@ void frame(menu::Graphics &gfx, int x, int y, int w, int h, int t, GXColor c)
 	fill(gfx, x + w - t, y + t, t, h - 2 * t, c);
 }
 
-/* Text from its top left at scale. */
-void text(int x, int y, const char *s, float scale, GXColor c)
-{
-	menu::IplFont &font = menu::IplFont::getInstance();
-	font.drawInit(c);
-	font.drawString(x, y, (char *)s, scale, false);
-}
-
-int width(const char *s, float scale) { return menu::IplFont::getInstance().getStringWidth((char *)s, scale); }
-
 /* Text that ends at x (right aligned) */
 void textRight(int x, int y, const char *s, float scale, GXColor c)
 {
 	text(x - width(s, scale), y, s, scale, c);
-}
-
-/* Text centered on x */
-void textCenter(int x, int y, const char *s, float scale, GXColor c)
-{
-	menu::IplFont &font = menu::IplFont::getInstance();
-	font.drawInit(c);
-	font.drawString(x, y, (char *)s, scale, true);
 }
 
 /* s cut so that it ends in "..." within maxw pixels at scale; unless always, a string that fits is left */
@@ -430,47 +411,22 @@ void drawBar(menu::Graphics &gfx, int x, int y, int w, int h, int percent, GXCol
 	}
 }
 
-/* The hint line: white on a dark band (the menu's lower half is dark, and dark text was lost on it) */
-void footer(menu::Graphics &gfx, const char *hint)
-{
-	fill(gfx, 0, 442, 640, 38, FOOT);
-	text(20, 449, hint, 0.5f, WHITE);
-}
-
 const char *typeName(unsigned char type)
 {
 	return type == ACH_TYPE_PROGRESSION ? "Progression" : type == ACH_TYPE_WIN ? "Win condition" :
 	       type == ACH_TYPE_MISSABLE ? "Missable" : "";
 }
 
-/* L and R (GameCube), + and - (Wii Remote, Classic): the next or the previous player */
-bool switchPlayer(void)
+/* turn (the shoulders, + and -, from the board's one input step): the next or the previous player */
+bool switchPlayer(int turn)
 {
 	unsigned n = achievements_player_count(), v = achievements_viewed_player();
-	int step = 0;
-#ifdef HW_RVL
-	WPADData *w = menu::Input::getInstance().getWpad();
-	for (int i = 0; i < 4; i++)
-	{
-		if (w[i].btns_d & (WPAD_BUTTON_PLUS | WPAD_CLASSIC_BUTTON_PLUS | WPAD_CLASSIC_BUTTON_FULL_R)) step = 1;
-		if (w[i].btns_d & (WPAD_BUTTON_MINUS | WPAD_CLASSIC_BUTTON_MINUS | WPAD_CLASSIC_BUTTON_FULL_L)) step = -1;
-	}
-#endif
-	static u16 before[4];	/* an input script's menukeys count as pad 1's (FocusManager.cpp) */
-	for (int i = 0; i < 4; i++)
-	{
-		u16 held = PAD_ButtonsHeld(i) | (i == 0 ? menu::menu_script_keys : 0);
-		u16 gc = held & ~before[i];
-		before[i] = held;
-		if (gc & PAD_TRIGGER_R) step = 1;
-		if (gc & PAD_TRIGGER_L) step = -1;
-	}
 	/* the Wii Remote's menu combination is + and - together: it is not a switch (MenuContext.cpp) */
-	if (step && (pad_menu_combo_held() || (menu::menu_script_keys & MENU_SCRIPT_COMBO)))
-		step = 0;
-	if (n > 1 && step)
+	if (turn && (pad_menu_combo_held() || (menu::menu_script_keys & MENU_SCRIPT_COMBO)))
+		turn = 0;
+	if (n > 1 && turn)
 	{
-		achievements_view_player((v + n + step) % n);
+		achievements_view_player((v + n + turn) % n);
 		return true;
 	}
 	return false;
@@ -478,15 +434,15 @@ bool switchPlayer(void)
 
 } // namespace
 
-class AchievementsBoard : public menu::Component
+class AchievementsBoard : public menu::glue::Board
 {
 public:
-	AchievementsBoard() { setType(TYPE_OTHER); }
-	void drawComponent(menu::Graphics &gfx);
 	menu::Component *updateFocus(int direction, int buttonsPressed);
 	void enter(unsigned jump);
 
 private:
+	void onInput(const menu::glue::PageInput &in);
+	void paint(menu::Graphics &gfx);
 	void readPointer();
 	Rect tabRect(int t) const { return (Rect){ LIST_X + t * TAB_DX, TAB_Y, TAB_W, TAB_H }; }
 	int tabAt(int x, int y) const;
@@ -857,19 +813,9 @@ void AchievementsBoard::drawBoards(menu::Graphics &gfx)
 	textCenter(320, 176 + 8 * 28 + 4, line, 0.7f, DARK);
 }
 
-void AchievementsBoard::drawComponent(menu::Graphics &gfx)
+void AchievementsBoard::onInput(const menu::glue::PageInput &in)
 {
-	char hint[128];
-	unsigned count = achievements_count();
-	readPointer();
-	if (!count)
-	{
-		snprintf(hint, sizeof hint, "%s", achievements_status());	/* why: off, a .exe, no set, Official ... */
-		textCenter(320, 190, hint, 1.0f, DARK);
-		footer(gfx, "B: back");
-		return;
-	}
-	if (switchPlayer())
+	if (achievements_count() && switchPlayer(in.turn))
 	{
 		leaveDetail();
 		for (int t = 0; t < TABS; t++)
@@ -878,6 +824,20 @@ void AchievementsBoard::drawComponent(menu::Graphics &gfx)
 		if (tab != TAB_BOARDS)
 			tab = firstTab();
 		clampSel();
+	}
+}
+
+void AchievementsBoard::paint(menu::Graphics &gfx)
+{
+	char hint[128];
+	unsigned count = achievements_count();
+	readPointer();
+	if (!count)
+	{
+		snprintf(hint, sizeof hint, "%s", achievements_status());	/* why: off, a .exe, no set, Official ... */
+		textCenter(320, 190, hint, 1.0f, DARK);
+		hintLine(gfx, "B: back");
+		return;
 	}
 	if (detail)
 		drawDetail(gfx);
@@ -898,7 +858,7 @@ void AchievementsBoard::drawComponent(menu::Graphics &gfx)
 	else
 		snprintf(hint, sizeof hint, "%s   Left/Right: tabs%s   B: back", pointer ? "Click an achievement" : "A: details",
 		         players ? "   L/R, +/-: player" : "");
-	footer(gfx, hint);
+	hintLine(gfx, hint);
 	gfx.setTEV(GX_PASSCLR);
 }
 

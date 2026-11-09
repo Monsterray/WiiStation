@@ -15,6 +15,7 @@
 #include <string.h>
 #include "MenuContext.h"
 #include "PlayersFrame.h"
+#include "MenuPageView.h"
 #include "FileBrowserFrame.h"
 #include "../libgui/Image.h"
 #include "../libgui/IPLFont.h"
@@ -45,12 +46,8 @@ const GXColor PALE = {236, 236, 236, 255};
 
 struct Rect { int x, y, w, h; bool in(int px, int py) const { return px >= x && px < x + w && py >= y && py < y + h; } };
 
-void fill(menu::Graphics &gfx, int x, int y, int w, int h, GXColor c)
-{
-	gfx.setTEV(GX_PASSCLR);
-	gfx.setColor(c);
-	gfx.fillRect(x, y, w, h);
-}
+using menu::glue::fill;
+using menu::glue::text;
 
 void ring(menu::Graphics &gfx, int x, int y, int inner, int outer, GXColor c)
 {
@@ -58,17 +55,6 @@ void ring(menu::Graphics &gfx, int x, int y, int inner, int outer, GXColor c)
 	gfx.setColor(c);
 	gfx.enableBlending(true);
 	gfx.fillRing(x, y, inner, outer, 48);
-}
-
-/* Text from its top left, scaled down to fit maxw when given. */
-void text(int x, int y, const char *s, float scale, GXColor c, int maxw = 0)
-{
-	menu::IplFont &font = menu::IplFont::getInstance();
-	int w = font.getStringWidth((char *)s, scale);
-	if (maxw > 0 && w > maxw)
-		scale = scale * maxw / w;
-	font.drawInit(c);
-	font.drawString(x, y, (char *)s, scale, false);
 }
 
 /* Text centered on (x, y), capitals included: measured, a centered string's capitals sit
@@ -177,16 +163,18 @@ void Func_ReturnFromPlayers()
 
 } // namespace
 
-class PlayersBoard : public menu::Component
+class PlayersBoard : public menu::glue::Board
 {
 public:
-	PlayersBoard() { setType(TYPE_OTHER); memset(img, 0, sizeof img); memset(serial, 0, sizeof serial); memset(imgSrc, 0, sizeof imgSrc); reset(); }
+	PlayersBoard() { turn = 0; memset(img, 0, sizeof img); memset(serial, 0, sizeof serial); memset(imgSrc, 0, sizeof imgSrc); reset(); }
 	~PlayersBoard() { for (int i = 0; i < PLAYERS_MAX; i++) delete img[i]; }
 	void reset() { page = 0; focus = 0; onCards = false; onEdit = false; card = 0; held = -1; dragging = false; pointer = false; coop = -1; checked = false; editKey[0] = 0; editRow = 0; }
-	void drawComponent(menu::Graphics &gfx);
 	menu::Component *updateFocus(int direction, int buttonsPressed);
 
 private:
+	void onInput(const menu::glue::PageInput &in) { turn = in.turn; }
+	void paint(menu::Graphics &gfx);
+	int turn;                        /* the page turn of this frame's input step */
 	menu::Image *img[PLAYERS_MAX];
 	unsigned serial[PLAYERS_MAX];
 	const void *imgSrc[PLAYERS_MAX];   /* the coin pixels each img was made from: the Miis' order changes (players_sort) */
@@ -533,7 +521,7 @@ menu::Component *PlayersBoard::updateEdit(int direction, bool a, bool b)
 	return this;
 }
 
-void PlayersBoard::drawComponent(menu::Graphics &gfx)
+void PlayersBoard::paint(menu::Graphics &gfx)
 {
 	layout();
 	readPointer();
@@ -542,14 +530,8 @@ void PlayersBoard::drawComponent(menu::Graphics &gfx)
 		return;
 	}
 	/* +/- (Wii Remote, Classic) and L/R (GameCube) turn the page */
-	WPADData *w = menu::Input::getInstance().getWpad();
-	for (int i = 0; i < 4; i++) {
-		if (w[i].btns_d & (WPAD_BUTTON_PLUS | WPAD_CLASSIC_BUTTON_PLUS | WPAD_CLASSIC_BUTTON_FULL_R)) turnPage(1);
-		if (w[i].btns_d & (WPAD_BUTTON_MINUS | WPAD_CLASSIC_BUTTON_MINUS | WPAD_CLASSIC_BUTTON_FULL_L)) turnPage(-1);
-		u16 gc = PAD_ButtonsDown(i);
-		if (gc & PAD_TRIGGER_R) turnPage(1);
-		if (gc & PAD_TRIGGER_L) turnPage(-1);
-	}
+	if (turn)
+		turnPage(turn);
 
 	char line[96];
 	text(20, 14, "Players", 1.0f, DARK);

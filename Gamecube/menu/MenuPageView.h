@@ -199,6 +199,25 @@ private:
 	TextBox *titleBox;
 };
 
+/* A Board is a page that draws itself (the achievements book, Players, USB Pad Test): one component that, once per
+ * drawn frame, takes one input step (the pads read once, readInput) and then draws. A page overrides onInput() and
+ * paint(); the frame adds the board and keeps whatever focus, pointer and click code it has. */
+class Board : public Component {
+public:
+	Board() { setType(TYPE_OTHER); }
+	void drawComponent(Graphics &gfx);
+protected:
+	virtual void onInput(const PageInput &in) { (void)in; }
+	virtual void paint(Graphics &gfx) = 0;
+};
+
+/* The drawing helpers the boards share (with fill(), MenuGlue.h): text from its top left (scaled down to fit maxw when
+ * given), the width of a string, text centered on x, and the hint line (white on a dark band over the bottom). */
+void text(int x, int y, const char *s, float scale, GXColor c, int maxw = 0);
+int width(const char *s, float scale);
+void textCenter(int x, int y, const char *s, float scale, GXColor c);
+void hintLine(Graphics &gfx, const char *hint);
+
 #ifdef PERF_PROF
 /* The engine's checks, in debug builds: logs the problems of a laid-out page (a label wider than its button, a
  * readout over its label, a control in the logo's corner) with SysPrintf. A finding, not a crash. */

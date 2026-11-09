@@ -22,6 +22,8 @@
 #include "MenuLayout.h"
 #include "../libgui/FocusManager.h"
 #include "../libgui/resources.h"
+#include "../libgui/IPLFont.h"
+#include "../libgui/GraphicsGX.h"
 
 extern "C" void SysPrintf(const char *fmt, ...);
 
@@ -533,6 +535,42 @@ Button *Editor::defaultButton(void) const
 		return NULL;
 	const engine::Control &c = lay.c[lay.defaultFocus];
 	return c.role == engine::ROLE_FREE ? it[fbId[c.slot]].b : NULL;
+}
+
+/*  Board  */
+
+void Board::drawComponent(Graphics &gfx)
+{
+	onInput(readInput());
+	paint(gfx);
+}
+
+void text(int x, int y, const char *s, float scale, GXColor c, int maxw)
+{
+	IplFont &font = IplFont::getInstance();
+	if (maxw > 0)
+	{
+		int w = font.getStringWidth((char *)s, scale);
+		if (w > maxw)
+			scale = scale * maxw / w;
+	}
+	font.drawInit(c);
+	font.drawString(x, y, (char *)s, scale, false);
+}
+
+int width(const char *s, float scale) { return IplFont::getInstance().getStringWidth((char *)s, scale); }
+
+void textCenter(int x, int y, const char *s, float scale, GXColor c)
+{
+	IplFont &font = IplFont::getInstance();
+	font.drawInit(c);
+	font.drawString(x, y, (char *)s, scale, true);
+}
+
+void hintLine(Graphics &gfx, const char *hint)
+{
+	fill(gfx, 0, 442, 640, 38, (GXColor){52, 52, 52, 255});
+	text(20, 449, hint, 0.5f, (GXColor){255, 255, 255, 255});
 }
 
 #ifdef PERF_PROF

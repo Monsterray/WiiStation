@@ -158,3 +158,20 @@ wide read-only reviews. One step per commit on `try/menu-standard`.
   Not done: 9c (G2's top: pad Cycle, Light Gun Off|On, slot Cycle with Default, Load, Save apart, Built-in): it needs a stored "default
   config" distinct from the shipped `config_default` (Save on Default overwrites it, Built-in restores the shipped one) and its file
   format, so it wants its own session; menu CPU on the bench Wii not measured; the Editor on hardware by hand.
+- Step 10 (2026-11-09, Board; 10a only, no look change): `glue::Board` (MenuPageView.h/.cpp, +19/+38 lines): a component whose
+  `drawComponent` takes ONE input step (`glue::readInput()`, the shared pad reader) and then calls the page's `paint()`; a page overrides
+  `onInput(PageInput)` and `paint(gfx)`. Shared helpers in glue: `text` (optional fit width), `width`, `textCenter`, `hintLine` (white on the
+  dark band); `fill` was already `glue::fill` (MenuGlue.h). Moved: the book (AchievementsFrame.cpp 965 -> 925: its own `switchPlayer` pad
+  loops, `fill/text/width/textCenter/footer` copies; the player switch now takes the turn from the input step, the menu-combo guard stays),
+  Players (769 -> 751: the page-turn pad loops and the `fill/text` copies; the turn is read in `onInput` and applied at the old place in
+  `paint`, so the order with `layout()` and the Edit page is unchanged), USB Pad Test (632 -> 645: a `UsbPadBoard` whose `onInput` is the
+  per-frame tick that `drawChildren` made, `paint` is the old drawing; it has no pad polling to delete). Players' `fill` now blends like the
+  book's (no visible change). Wii +/- and GC L/R now also come from the shared reader's WUPC/HID sources.
+  Proof (release DOLs `ws_step10_base_release.dol` = cd025e19, `ws_step10_a_release.dol`): `PAGES="15 18" menu_pages_walk.sh` 0 differing frames
+  (page 15 has no game there: its "no set" line); `account_walk.txt` (Players, pick up a Mii, Edit slot, Account list) 0 of 1203 frames;
+  `ach_book.txt` run with the ach_book fixture (list, tabs, detail, next, back, other player; 5943 frames) `wsx.sh frames` 0 differing;
+  USB Pad Test: `menupage 3`, `menuclick TestUsbPad 1 50`, menukeys A A B (no USB pad: the "plug one in" line) 0 of 1224 frames.
+  Host tests and `settings_check.py` pass.
+  Not done: 10b (the book polish: "today's layout, polished, full screen with a hint line" has no written spec beyond MENU_PLAN sheet 2;
+  needs the design and a contact sheet); L/R page turn in Players (needs more than 16 Miis); USB Pad Test with a real pad; menu CPU on
+  the bench Wii; hardware.
