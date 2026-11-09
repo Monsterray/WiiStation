@@ -26,6 +26,8 @@
 #                                   the run (repeatable): the per-game input scripts a chained
 #                                   autoboot names, or a settings/ folder with a game's own file
 #        --settings FILE            the lines of FILE after the base and --set (a whole settings.ini)
+#        --base NAME                the verdict also compares with an earlier run of the same test:
+#                                   speed per game, frames and audio
 #   scripts/wsx.sh chain NAME CHAINFILE [options]         a chained autoboot (several games, one
 #                                   boot) from scripts/chains/; stages the input scripts it names,
 #                                   runs until the console powers off, prints scripts/chain_table.py.
@@ -37,6 +39,11 @@
 #   scripts/wsx.sh abstate RUN STATE VBL SETS... [--rec REC] [options]
 #                                   one boot: each SETS ("K=V,K=V", or - for none) runs VBL vblanks
 #                                   from save state STATE; prints the table. --rec plays REC on.
+#   Every run, chain and menu comparison ENDS with its verdict: "VERDICT NAME: OK|CHECK|
+#                                   NO-RESULTS|DIFFERS | speed per game" and <= 6 lines (where to
+#                                   look). Also .runs/NAME/verdict.txt and verdict.json. Read it first.
+#   scripts/wsx.sh wait NAME [--timeout S]                wait for a run started in the background
+#                                   and print its verdict (default 540 s; exit 4 = still running)
 #   scripts/wsx.sh summary NAME...                        re-read finished runs (run_summary.py)
 #   scripts/wsx.sh table NAME [--detail gpu|tex|cpu|lc|pmc|upl]  a chain's per-game table (chain_table.py)
 #   scripts/wsx.sh compare A [B] [--detail GROUP] [--explain]  two chains, or one A/B chain's pairs
@@ -81,6 +88,16 @@ dolphin_running() { bash "$REPO/scripts/profile.sh" dolphin-busy ANY; }
 auto_triage() {
 	[ -n "${WSX_NO_LLM:-}" ] && return 0
 	"$PYTHON" "$REPO/scripts/run_triage.py" --auto "$1" || true
+}
+
+# The last lines of every run, chain and menu comparison: "VERDICT NAME: OK|CHECK|NO-RESULTS|
+# DIFFERS | speed per game" and at most 6 lines under it (run_verdict.py), also in
+# RUN_DIR/verdict.txt and verdict.json. Read it before any log. verdict DIR [BASE] [args...];
+# BASE is a run name or directory (--base): speed, frames and audio against that run.
+verdict() {
+	local d="$1" b="${2:-}"; shift 2 || shift $#
+	if [ -n "$b" ] && [ ! -d "$b" ]; then b="$RUNS/$b"; fi
+	"$PYTHON" "$REPO/scripts/run_verdict.py" "$d" ${b:+--base "$b"} "$@" || true
 }
 
 # menu: put the profile's WiimoteNew.ini back from its backup and check it by checksum. The
@@ -137,9 +154,10 @@ build)
 run)
 	name="${1:-}"; shift || true
 	[ -n "$name" ] || { echo "run NAME [options]"; exit 2; }
-	dol="debug"; secs=170; input="speech"; sets=""; dsp=""; dump=1; aboot="spyro"; extra=(); cards=(); fast=""; setfile=""
+	dol="debug"; secs=170; input="speech"; sets=""; dsp=""; dump=1; aboot="spyro"; extra=(); cards=(); fast=""; setfile=""; base=""
 	while [ $# -gt 0 ]; do
 		case "$1" in
+			--base) base="$2"; shift 2 ;;
 			--dol) dol="$2"; shift 2 ;;
 			--secs) secs="$2"; shift 2 ;;
 			--input) input="$2"; shift 2 ;;
@@ -179,7 +197,8 @@ run)
 	rm -rf "$dir/card" "$dir/frames"
 	# what the last run under this name collected: a result this run does not produce must not stay behind
 	rm -f "$dir"/*.log "$dir"/vram*.bin "$dir"/vram*.png "$dir"/xfb*.bin "$dir"/*.wav
-	rm -f "$dir/dolphin.rc" "$dir/triage.txt"
+	rm -f "$dir/dolphin.rc" "$dir/triage.txt" "$dir/verdict.json" "$dir/verdict.txt"
+	date +%s > "$dir/running"   # until run_verdict.py writes verdict.json (wsx.sh wait)
 	for c in "${cards[@]:-}"; do [ -n "$c" ] && mkdir -p "$dir/card" && cp -r "$c" "$dir/card/"; done
 	{
 		printf 'gpuPlugin = 2\nFPS = 1\nPadType1 = 1\nPadAutoAssign = 0\n'
@@ -206,7 +225,10 @@ run)
 	[ $rc -ne 0 ] && echo "dolphin_run.sh exit $rc (see $dir/run.log)"
 	"$PYTHON" "$REPO/scripts/run_summary.py" "$dir"
 	st=$?
-	[ -n "${WSX_TRIAGE_DEFER:-}" ] || auto_triage "$dir"   # a chain does it once, at its end
+	if [ -z "${WSX_TRIAGE_DEFER:-}" ]; then   # a chain does these once, at its end
+		auto_triage "$dir"
+		verdict "$dir" "$base"
+	fi
 	exit $st
 	;;
 
@@ -227,6 +249,8 @@ chain)
 	st=$?
 	"$PYTHON" "$REPO/scripts/benchdb.py" ingest "$RUNS/$name" >/dev/null 2>&1   # baselines/bench.sqlite
 	auto_triage "$RUNS/$name"
+	base=""; prev=""; for x in "$@"; do [ "$prev" = --base ] && base="$x"; prev="$x"; done
+	verdict "$RUNS/$name" "$base"
 	exit $st
 	;;
 
@@ -407,6 +431,7 @@ menu)
 	trap 'exit 130' INT TERM
 	"$PYTHON" "$REPO/scripts/menu_compare.py" ini-off "$MENU_INI" || exit 1
 	out="$RUNS/menu_$name"; mkdir -p "$out"
+	rm -f "$out/verdict.json" "$out/verdict.txt"; date +%s > "$out/running"
 	if [ -n "$page" ]; then
 		printf 'menupage %s\n' "$page" > "$out/input.txt"; flag=(--page)
 	else
@@ -427,7 +452,46 @@ menu)
 	rc=$?
 	# Frames are ~1 GB a run: dropped after the compare (before_after images stay); KEEP_FRAMES=1 keeps them.
 	[ -n "${KEEP_FRAMES:-}" ] || rm -rf "${cmp_args[@]/%//frames}"
+	verdict "$out" "" --menu-rc "$rc"
 	exit $rc
+	;;
+
+wait)
+	# Block until run NAME (a run, a chain, or menu NAME) has its verdict, then print it. For a
+	# run started in the background: no `sleep N; tail` loops. Exit 0 OK, 1 CHECK/DIFFERS,
+	# 2 NO-RESULTS or no such run, 3 ended without a verdict, 4 still running at --timeout.
+	name="${1:-}"; shift || true
+	[ -n "$name" ] || { echo "wait NAME [--timeout SECONDS]   (default 540: under a 10-minute tool limit)"; exit 2; }
+	to=540; [ "${1:-}" = --timeout ] && to="${2:-540}"
+	d="$RUNS/$name"
+	[ -d "$d" ] || [ ! -d "$RUNS/menu_$name" ] || d="$RUNS/menu_$name"
+	t0=$(date +%s); settled=""
+	while :; do
+		now=$(date +%s)
+		if [ -f "$d/verdict.json" ] && [ ! -e "$d/running" ]; then
+			# a verdict from before this wait may be an earlier run of the same name whose
+			# successor has not written its "running" mark yet: look once more, 3 s later
+			if [ -n "$settled" ] || [ $(( now - $(stat -c %Y "$d/verdict.json") )) -lt $(( now - t0 + 2 )) ]; then
+				cat "$d/verdict.txt"
+				case "$(sed -n 's/.*"status": "\([A-Z-]*\)".*/\1/p' "$d/verdict.json")" in
+					OK) exit 0 ;; CHECK|DIFFERS) exit 1 ;; *) exit 2 ;;
+				esac
+			fi
+			settled=1; sleep 3; continue
+		fi
+		if [ -f "$d/dolphin.rc" ] && [ ! -f "$d/verdict.json" ] && [ $(( now - $(stat -c %Y "$d/dolphin.rc") )) -gt 180 ]; then
+			echo "VERDICT $name: ENDED WITHOUT A VERDICT (Dolphin exit $(cat "$d/dolphin.rc"); the wsx.sh that ran it stopped early)"
+			tail -5 "$d/run.log" 2>/dev/null
+			exit 3
+		fi
+		if [ ! -d "$d" ] && [ $(( now - t0 )) -ge 60 ]; then echo "wait: no run $name in $RUNS"; exit 2; fi
+		if [ $(( now - t0 )) -ge "$to" ]; then
+			echo "wait: $name still running after ${to} s (call wait again; it picks up where the run is)"
+			grep -a "^=== chain" "$d/perf.log" 2>/dev/null | tail -1
+			exit 4
+		fi
+		sleep 5
+	done
 	;;
 
 summary)
