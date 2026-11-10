@@ -5,4 +5,4 @@ sd:/wiistation/isos/Spyro the Dragon
 Spyro the Dragon [NTSC-U] [SCUS-94228].cue
 35835 sd:/wiistation/crash3_long_play.txt PadAutoAssign=1 ControllerType=0 PadType2=1
 sd:/wiistation/isos/Crash Bandicoot 3 - Warped
-Crash Bandicoot 3 - Warped [U] [SLUS-94244].cue
+Crash Bandicoot 3 - Warped [U] [SCUS-94244].cue

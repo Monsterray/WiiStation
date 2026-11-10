@@ -19,8 +19,8 @@ Final Fantasy VIII [NTSC-U] [Disc3of4] [SLUS-00909].ccd
 sd:/wiistation/isos/Formats/Final Fantasy VIII [PBP]
 Final Fantasy VIII.pbp
 1500 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
-sd:/wiistation/isos/Final Fantasy VIII/Final Fantasy VIII [NTSC-U] [Disc4of4] [SLUS-00909]
-Final Fantasy VIII [NTSC-U] [Disc4of4] [SLUS-00909].cue
+sd:/wiistation/isos/Final Fantasy VIII/Final Fantasy VIII [NTSC-U] [Disc4of4] [SLUS-00910]
+Final Fantasy VIII [NTSC-U] [Disc4of4] [SLUS-00910].cue
 1500 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1 Disc=4
 sd:/wiistation/isos/Formats/Final Fantasy VIII [PBP]
 Final Fantasy VIII.pbp

@@ -8,4 +8,4 @@ sd:/wiistation/isos/Crash Team Racing
 Crash Team Racing [U] [SCUS-94426].cue
 1800 SkipFrames=0
 sd:/wiistation/isos/Final Fantasy VII/Final Fantasy VII 1
-Final Fantasy VII [U] [Disc 1] [SLUS-94163].cue
+Final Fantasy VII [U] [Disc 1] [SCUS-94163].cue

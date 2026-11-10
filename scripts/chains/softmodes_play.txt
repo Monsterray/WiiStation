@@ -13,13 +13,13 @@ sd:/wiistation/isos/Spyro the Dragon
 Spyro the Dragon [NTSC-U] [SCUS-94228].cue
 3000 sd:/wiistation/crash_bandicoot_3_warped_play.txt PadAutoAssign=1 ControllerType=0 gpuPlugin=0 SoftGpuMode=0
 sd:/wiistation/isos/Crash Bandicoot 3 - Warped
-Crash Bandicoot 3 - Warped [U] [SLUS-94244].cue
+Crash Bandicoot 3 - Warped [U] [SCUS-94244].cue
 3000 sd:/wiistation/crash_bandicoot_3_warped_play.txt PadAutoAssign=1 ControllerType=0 gpuPlugin=0 SoftGpuMode=1
 sd:/wiistation/isos/Crash Bandicoot 3 - Warped
-Crash Bandicoot 3 - Warped [U] [SLUS-94244].cue
+Crash Bandicoot 3 - Warped [U] [SCUS-94244].cue
 3000 sd:/wiistation/crash_bandicoot_3_warped_play.txt PadAutoAssign=1 ControllerType=0 gpuPlugin=0 SoftGpuMode=2
 sd:/wiistation/isos/Crash Bandicoot 3 - Warped
-Crash Bandicoot 3 - Warped [U] [SLUS-94244].cue
+Crash Bandicoot 3 - Warped [U] [SCUS-94244].cue
 2400 sd:/wiistation/crash_bash_play.txt PadAutoAssign=1 ControllerType=0 gpuPlugin=0 SoftGpuMode=0
 sd:/wiistation/isos/Crash Bash
 Crash Bash [U] [SCUS-94570].cue

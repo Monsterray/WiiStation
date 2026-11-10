@@ -8,7 +8,7 @@ sd:/wiistation/isos/Spyro the Dragon
 Spyro the Dragon [NTSC-U] [SCUS-94228].cue
 3600 sd:/wiistation/final_fantasy_vii_1_play.txt PadAutoAssign=1 ControllerType=0
 sd:/wiistation/isos/Final Fantasy VII/Final Fantasy VII 1
-Final Fantasy VII [U] [Disc 1] [SLUS-94163].cue
+Final Fantasy VII [U] [Disc 1] [SCUS-94163].cue
 3600 sd:/wiistation/crash_bash_play.txt PadAutoAssign=1 ControllerType=0
 sd:/wiistation/isos/Crash Bash
 Crash Bash [U] [SCUS-94570].cue

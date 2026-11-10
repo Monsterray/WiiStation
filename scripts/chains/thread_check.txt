@@ -5,7 +5,7 @@ sd:/wiistation/isos/Spyro the Dragon
 Spyro the Dragon [NTSC-U] [SCUS-94228].cue
 600 CdPrefetch=1
 sd:/wiistation/isos/Crash Bandicoot 3 - Warped
-Crash Bandicoot 3 - Warped [U] [SLUS-94244].cue
+Crash Bandicoot 3 - Warped [U] [SCUS-94244].cue
 600 CdPrefetch=1
 sd:/wiistation/isos/Crash Team Racing
 Crash Team Racing [U] [SCUS-94426].cue
@@ -20,7 +20,7 @@ sd:/wiistation/isos/Medievil
 Medievil [U] [SCUS-94227].cue
 600 CdPrefetch=1
 sd:/wiistation/isos/Final Fantasy VII/Final Fantasy VII 1
-Final Fantasy VII [U] [Disc 1] [SLUS-94163].cue
+Final Fantasy VII [U] [Disc 1] [SCUS-94163].cue
 600 CdPrefetch=1
 sd:/wiistation/isos/Gex (USA)
 Gex (USA).cue

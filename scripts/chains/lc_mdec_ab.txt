@@ -2,7 +2,7 @@ CHAIN
 # MDEC locked cache on the bench Wii: FF7 (opening FMV) with LockedCache 0 and 4 (try/lc-step34)
 7200 sd:/wiistation/final_fantasy_vii_1_play.txt PadAutoAssign=1 ControllerType=0 LockedCache=0
 sd:/wiistation/isos/Final Fantasy VII/Final Fantasy VII 1
-Final Fantasy VII [U] [Disc 1] [SLUS-94163].cue
+Final Fantasy VII [U] [Disc 1] [SCUS-94163].cue
 7200 sd:/wiistation/final_fantasy_vii_1_play.txt PadAutoAssign=1 ControllerType=0 LockedCache=4
 sd:/wiistation/isos/Final Fantasy VII/Final Fantasy VII 1
-Final Fantasy VII [U] [Disc 1] [SLUS-94163].cue
+Final Fantasy VII [U] [Disc 1] [SCUS-94163].cue

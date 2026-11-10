@@ -225,8 +225,8 @@ the protocol, not the ID.
 | Crash Bash (U) | `Crash Bash` | SCUS-94570 | `gpu_slow_llist_db` (pause and rules text) | `crash_bash_play.txt`, `crashbash_dump.txt` |
 | Point Blank (U) | `Point Blank (USA)` | SLUS-00481 | `gpu_slow_llist_db` (calibration cursor) | `bios_pointblank*.txt`, `gun_reticle.txt` |
 | MediEvil (U) | `Medievil` (5 formats) | SCUS-94227 | `cdrom.c` seek-time comment ("Medievil = ?-4x"). off-screen headstone text (general fix) | `fmv_me.txt`, `medievil_analog.txt` |
-| Final Fantasy VII (U), disc 1 | `Final Fantasy VII/Final Fantasy VII 1` | SCUS-94163 (the file name says SLUS-94163) | no ID-keyed hack | `final_fantasy_vii_1_play.txt` |
-| Crash Bandicoot 3 (U) | `Crash Bandicoot 3 - Warped` | SCUS-94244 (the file name says SLUS-94244) | no ID-keyed hack | `replay3.txt` |
+| Final Fantasy VII (U), disc 1 | `Final Fantasy VII/Final Fantasy VII 1` | SCUS-94163 (file name fixed 2026-11-09; was SLUS-94163) | no ID-keyed hack | `final_fantasy_vii_1_play.txt` |
+| Crash Bandicoot 3 (U) | `Crash Bandicoot 3 - Warped` | SCUS-94244 (file name fixed 2026-11-09; was SLUS-94244) | no ID-keyed hack | `replay3.txt` |
 | Gex, Gex 3, Frogger, Resident Evil 3, Micro Machines V3 | library | - | no ID-keyed hack | `library20.txt` |
 
 ## 3. Priority

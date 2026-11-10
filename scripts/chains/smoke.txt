@@ -3,7 +3,7 @@ CHAIN
 # bash scripts/wsx.sh chain smoke smoke.txt --secs 400
 600
 sd:/wiistation/isos/Crash Bandicoot 3 - Warped
-Crash Bandicoot 3 - Warped [U] [SLUS-94244].cue
+Crash Bandicoot 3 - Warped [U] [SCUS-94244].cue
 600
 sd:/wiistation/isos/Medievil
 Medievil [U] [SCUS-94227].cue

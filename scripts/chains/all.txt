@@ -12,7 +12,7 @@ Spyro the Dragon [NTSC-U] [SCUS-94228].cue
 
 3600
 sd:/wiistation/isos/Crash Bandicoot 3 - Warped
-Crash Bandicoot 3 - Warped [U] [SLUS-94244].cue
+Crash Bandicoot 3 - Warped [U] [SCUS-94244].cue
 
 3600
 sd:/wiistation/isos/Crash Team Racing
@@ -32,7 +32,7 @@ Medievil [U] [SCUS-94227].cue
 
 3600
 sd:/wiistation/isos/Final Fantasy VII/Final Fantasy VII 1
-Final Fantasy VII [U] [Disc 1] [SLUS-94163].cue
+Final Fantasy VII [U] [Disc 1] [SCUS-94163].cue
 
 3600
 sd:/wiistation/isos/Gex (USA)

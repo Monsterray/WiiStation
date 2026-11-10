@@ -268,10 +268,12 @@ One-off runs from a finished investigation; no doc names them. Kept as the setup
 - **Identical copies:** `lc5_fin_def` = `ape_finish_lvl1`, `lc5_replay3_def` = `replay3` (same lines, other file name).
 - **Games missing from the library** (`library_check.py`, FIXED 2026-11-09): `newgames_boot` and `pbp_study_ff8` named
   FF8 disc 4 by its old folder name (`Final Fantasy VIII (USA) (Disc 4)`); they now use the library's
-  `Final Fantasy VIII [NTSC-U] [Disc4of4] [SLUS-00909]`. The library's FF8 disc 4 cue and all four FF9 cues named `.bin`
-  files from before the folders were renamed; their `FILE` lines now name the `.bin` beside them (old cue kept as
-  `.cue.orig`). `library_check.py`: 0 problems. Left as is: the FF9 folders all carry SLUS-01296 (the real serials are
-  01251, 01295, 01296, 01297) and FF8 disc 4 carries 00909 (disc 3's); renaming them would move their saves and states.
+  folder. The library's FF8 disc 4 cue and all four FF9 cues named `.bin` files from before the folders were renamed;
+  their `FILE` lines now name the `.bin` beside them. `library_check.py`: 0 problems.
+- **Wrong serials in library names** (FIXED 2026-11-09, checked against each disc's SYSTEM.CNF `BOOT=`): Crash 3
+  SLUS-94244 -> SCUS-94244, FF7 disc 1 SLUS-94163 -> SCUS-94163, FF8 disc 4 SLUS-00909 -> SLUS-00910, FF9 discs 1/2/4
+  SLUS-01296 -> SLUS-01251/01295/01297. Chains, input scripts, `softgpu_check.sh` and its baselines use the new names;
+  old run records under `baselines/` keep the names they ran with.
 - **No comment line:** `ape_attract_anicap`, `ape_attract_texmin`, `ape_attract_xfb`, `ape_crt_turnon`, `ape_exit_user`,
   `ape_fin1_xfbcol`, `ape_front_reg`, `ape_front_reg2`, `ape_hand_user`, `crashbash_dump`, `ff7_dump450`, `gex3_analog`,
   `mmv3_probe`, `shot_crash3`. Some others reuse a comment copied from the chain they came from (the `lc5_*` and `lc_wii_*`

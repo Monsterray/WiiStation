@@ -5,7 +5,7 @@ sd:/wiistation/isos/Ape Escape
 Ape Escape [U] [SCUS-94423].cue
 1200
 sd:/wiistation/isos/Crash Bandicoot 3 - Warped
-Crash Bandicoot 3 - Warped [U] [SLUS-94244].cue
+Crash Bandicoot 3 - Warped [U] [SCUS-94244].cue
 1200
 sd:/wiistation/isos/Crash Bash
 Crash Bash [U] [SCUS-94570].cue
@@ -17,7 +17,7 @@ sd:/wiistation/isos/Dino Crisis 2 (USA)
 Dino Crisis 2 (USA).cue
 1200
 sd:/wiistation/isos/Final Fantasy VII/Final Fantasy VII 1
-Final Fantasy VII [U] [Disc 1] [SLUS-94163].cue
+Final Fantasy VII [U] [Disc 1] [SCUS-94163].cue
 1200
 sd:/wiistation/isos/Frogger (USA)
 Frogger (USA).cue

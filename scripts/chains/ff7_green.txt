@@ -2,4 +2,4 @@ CHAIN
 # FF7 opening: the green frame at the start of the opening video (Docs/PARKED_BUGS.md); dump every frame
 2400 sd:/wiistation/final_fantasy_vii_1_play.txt PadAutoAssign=1 ControllerType=0
 sd:/wiistation/isos/Final Fantasy VII/Final Fantasy VII 1
-Final Fantasy VII [U] [Disc 1] [SLUS-94163].cue
+Final Fantasy VII [U] [Disc 1] [SCUS-94163].cue
