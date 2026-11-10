@@ -24,7 +24,9 @@
 #include "achievements.h"
 #include "Gamecube/perf_prof.h"
 #include "Gamecube/ach_progress.h"
+#include "Gamecube/ach_boards.h"
 #include "deps/rcheevos/include/rc_runtime.h"
+#include "deps/rcheevos/include/rc_runtime_types.h"   /* rc_format_value */
 #include "deps/rcheevos/src/util/md5.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -33,6 +35,7 @@
 #include <limits.h>
 #include <strings.h>
 #include <ctype.h>
+#include <time.h>
 
 /* The guest memory the conditions address: PS1 RAM, then the scratchpad after it */
 #define PSX_RAM_BYTES 0x200000u
@@ -85,6 +88,7 @@ int achievements_official_board(unsigned i, const char **title, const char **des
 int achievements_official_board_scores(unsigned i, achievement_score_t *top, unsigned *n, achievement_score_t *mine)
     __attribute__((weak));
 void achievements_official_players_changed(void) __attribute__((weak));
+int achievements_official_board_info(unsigned i, unsigned *id, int *lower_is_better, int *format) __attribute__((weak));
 /* A RetroAchievements mode (Official or Local) is on: rc_client plays through achievements_official.c */
 #define RA_MODE() (achievementsEnabled == ACH_OFFICIAL || achievementsEnabled == ACH_LOCAL)
 /* ... and this build has its hook `fn` */
@@ -183,11 +187,11 @@ static int is_key(const char *s)
 
 /* The players now: the hook's Miis (valid, once each), else Guest alone. Test mode has no
  * players: nothing is kept. Returns how many, in out (room for ACH_PLAYERS_MAX). */
-static unsigned collect_players(achievement_player_t *out)
+static unsigned collect_from(achievement_player_t *out, int hooked)
 {
     achievement_player_t got[ACH_PLAYERS_MAX];
     unsigned n = 0, i, j, have = 0;
-    if (achievementsEnabled == ACH_CUSTOM && achievements_players) n = achievements_players(got);
+    if (hooked && achievements_players) n = achievements_players(got);
     if (n > ACH_PLAYERS_MAX) n = ACH_PLAYERS_MAX;
     memset(out, 0, sizeof(*out) * ACH_PLAYERS_MAX);
     for (i = 0; i < n; ++i) {
@@ -200,6 +204,8 @@ static unsigned collect_players(achievement_player_t *out)
     }
     return have ? have : 1;   /* Guest alone: one player with the key "" */
 }
+
+static unsigned collect_players(achievement_player_t *out) { return collect_from(out, achievementsEnabled == ACH_CUSTOM); }
 
 static void pick_players(void)
 {
@@ -320,17 +326,133 @@ const char *achievements_presence(void)
 
 unsigned achievements_board_count(void)
 {
-    return OFFICIAL(board_count) ? achievements_official_board_count() : 0;
+    return RA(board_count) ? achievements_official_board_count() : 0;   /* Local mode has the set's boards too: its own table */
 }
 
 int achievements_board(unsigned i, const char **title, const char **desc)
 {
-    return OFFICIAL(board) ? achievements_official_board(i, title, desc) : -1;
+    return RA(board) ? achievements_official_board(i, title, desc) : -1;
 }
 
 int achievements_board_scores(unsigned i, achievement_score_t *top, unsigned *n, achievement_score_t *mine)
 {
     return OFFICIAL(board_scores) ? achievements_official_board_scores(i, top, n, mine) : -1;
+}
+
+/* ---- local leaderboards (Gamecube/ach_boards.h): this Wii's best score of every seated Mii, per board ----
+ * The set's boards are evaluated in achievements_official.c (the definitions rc_client parsed);
+ * a finished attempt comes here, and every seated Mii (Guest when none) keeps its best. The file is
+ * read when the set is in and written at achievements_flush (never in a frame). Nothing is sent. */
+
+static ach_boards_t lb;
+static int lb_open;
+static achievement_player_t lb_who[ACH_PLAYERS_MAX];   /* who plays: the seated Miis on a connected pad, or Guest alone */
+static unsigned lb_who_n;
+
+void achievements_boards_players_changed(void)
+{
+    if (lb_open) lb_who_n = collect_from(lb_who, 1);
+}
+
+void achievements_boards_open(const char *path)
+{
+    if (!RA_MODE() || lb_open || !path) return;
+    if (!ach_boards_open(&lb, path)) SysPrintf("Achievements: local boards: %s is not a board file of this version, left alone\n", path);
+    lb_open = 1;
+    achievements_boards_players_changed();
+    SysPrintf("Achievements: local boards: %u score%s on this Wii\n", lb.n, lb.n == 1 ? "" : "s");
+}
+
+static void boards_close(void)
+{
+    if (lb_open) ach_boards_close(&lb);
+    lb_open = 0;
+    lb_who_n = 0;
+}
+
+int achievements_boards_score(unsigned id, int32_t value, int lower_is_better, int format, const char *title)
+{
+    char text[24], names[96] = "";
+    unsigned p, best = 0, shown = 0;
+    uint32_t now = (uint32_t)time(NULL);
+    if (!lb_open) return 0;
+    rc_format_value(text, sizeof text, value, format);
+    for (p = 0; p < lb_who_n; p++)
+        if (ach_boards_record(&lb, id, lb_who[p].key, value, lower_is_better, now) == 1) {
+            size_t n = strlen(names);
+            best++;
+            if (lb_who[p].key[0] && shown++ < 2 && n < sizeof names - 40)
+                snprintf(names + n, sizeof names - n, "%s%s", n ? ", " : "", lb_who[p].name[0] ? lb_who[p].name : "Mii");
+            SysPrintf("Achievements: new best on board %u: %s (%.8s)\n", id, text, lb_who[p].key);
+        }
+    if (best && achievements_notify) {
+        achievement_notice_t n;
+        char head[96];
+        memset(&n, 0, sizeof n);
+        n.kind = ACH_NOTICE_BOARD;
+        snprintf(head, sizeof head, "New best: %s", title ? title : "");
+        n.title = head;
+        n.desc = text;
+        n.who = names;
+        n.rarity_x100 = -1;
+        achievements_notify(&n);
+    }
+    return (int)best;
+}
+
+static int is_seated(const char key[ACH_LB_KEY])
+{
+    char k[ACH_LB_KEY];
+    unsigned p;
+    for (p = 0; p < lb_who_n; p++) {
+        ach_lb_key(k, lb_who[p].key);
+        if (!memcmp(k, key, ACH_LB_KEY)) return 1;
+    }
+    return 0;
+}
+
+static void local_row(achievement_local_score_t *row, const ach_board_score_t *s, unsigned rank, int format)
+{
+    char key[ACH_KEY_LEN + 1];
+    memset(row, 0, sizeof *row);
+    row->rank = rank;
+    memcpy(key, s->key, ACH_KEY_LEN);
+    key[ACH_KEY_LEN] = 0;
+    if (!key[0]) snprintf(row->name, sizeof row->name, "Guest");
+    else if (!achievements_player_lookup || achievements_player_lookup(key, row->name, sizeof row->name) != 1 || !row->name[0])
+        snprintf(row->name, sizeof row->name, "Mii %.4s", key + 4);   /* no longer on this console: the middle of the key tells Miis of one Wii apart */
+    rc_format_value(row->score, sizeof row->score, s->value, format);
+    row->when = s->date;
+    row->seated = (unsigned char)is_seated(s->key);
+}
+
+int achievements_board_local(unsigned i, achievement_local_score_t *rows, unsigned *n)
+{
+    ach_board_score_t top[ACH_LOCAL_ROWS];
+    unsigned id, k, p, total, room = *n < ACH_LOCAL_ROWS ? *n : ACH_LOCAL_ROWS, shown;
+    int lower, format;
+    *n = 0;
+    if (!lb_open || !room || !achievements_official_board_info || achievements_official_board_info(i, &id, &lower, &format) < 0)
+        return -1;
+    total = ach_boards_top(&lb, id, lower, top, room);
+    shown = total < room ? total : room;
+    for (k = 0; k < shown; k++) local_row(&rows[k], &top[k], k + 1, format);
+    *n = shown;
+    for (p = 0; total > shown && p < lb_who_n; p++) {   /* a seated Mii ranks below the table: its own row last, with its rank */
+        char key[ACH_LB_KEY];
+        int at;
+        ach_lb_key(key, lb_who[p].key);
+        for (k = 0; k < shown && memcmp(top[k].key, key, ACH_LB_KEY); k++) ;
+        if (k < shown || (at = ach_boards_find(&lb, id, key)) < 0) continue;
+        {
+            ach_board_score_t s;
+            ach_lb_get(lb.rec + (size_t)at * ACH_LB_REC, &s);
+            local_row(&rows[shown], &s, ach_boards_rank(&lb, &s, lower), format);
+            *n = shown + 1;
+        }
+        break;
+    }
+    return (int)total;
 }
 
 /* ---- the unlock journal: "<set digest> <id> <player key> <title>" per player that earned it ----
@@ -453,6 +575,7 @@ int achievements_earned_for(const char *key)
 void achievements_flush(void)
 {
     unsigned i, p;
+    if (lb_open) ach_boards_flush(&lb);   /* new bests, one record each */
     if (!(active || ra_local) || achievementsEnabled == ACH_TEST) return;   /* Test mode keeps no record */
     for (i = 0; i < count; ++i)
         for (p = 0; p < players; ++p) {
@@ -911,6 +1034,7 @@ void achievements_close(void)
 {
     if (achievements_official_close) achievements_official_close();
     achievements_flush();
+    boards_close();
     if (active) rc_runtime_destroy(&runtime);
     active = running = 0;
     ra_drop();
@@ -1149,6 +1273,7 @@ void achievements_players_changed(void)
     char game[sizeof load_game];
     unsigned n, p;
     int same;
+    achievements_boards_players_changed();
     if (ra_local && achievementsEnabled == ACH_LOCAL) {   /* RetroAchievements' set: rc_client's entries go in again */
         if (achievements_official_players_changed) achievements_official_players_changed();
         return;

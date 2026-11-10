@@ -1,0 +1,12 @@
+# The Local leaderboards tab (Gamecube/menu/AchievementsFrame.cpp drawLocalBoard): two Miis, A (82625a00) and B (82625dd1), on pads 1 and 2.
+# tests/fixtures/ach_boards: a made-up set with two boards (Best Lap, High Score), seeded with scripts/ach_boards_fixture.py. The game's
+# triggers finish both boards (frames 100 and 80 of the byte-0 counter), so A and B each get a New best; the menu opens at 1700 on the
+# book, goes to the Leaderboards tab, the second board, and back.
+#   python scripts/ra_cache_fixture.py tests/fixtures/ach_boards/Tests/AchBoards/set.txt --hash 3e9eb765a7b2912e60c30f363f0a3574 --game-id 9000002 --out tests/fixtures/ach_boards
+#   python scripts/ach_boards_fixture.py --game-id 9000002 --out tests/fixtures/ach_boards
+#   scripts/wsx.sh run NAME --autoboot spyro --input scripts/autoinput/ach_boards.txt --fast --secs 100 --card tests/fixtures/ach_boards/achievements \
+#     --env FRAMES_DUMP=True --env KEEP=100000 --set 'Achievements=4,Player1="82625a00c2123456",Player2="82625dd1c2123456",PadAutoAssign=1'
+1 0000
+p2 1 0000
+menuopen 1700 15
+menukeys 90 ......RRR.....D.....U.....B

@@ -292,6 +292,70 @@ const char *achievements_official_presence(void)
 
 unsigned achievements_official_board_count(void) { boards_build(); return boarded_n; }
 
+/* ---- this Wii's own scores (achievements.c, Gamecube/ach_boards.h) ----
+ * In Casual rc_client keeps the set's leaderboards switched off (they run in Hardcore only) and,
+ * if it ran them, would send each score to the server. So they run here: the definitions rc_client
+ * parsed (client->game->subsets, its shared memrefs, which do_frame keeps current) are evaluated
+ * with rc_evaluate_lboard, after rc_client's own frame, and a finished attempt goes to
+ * achievements_boards_score. rc_client's state for them is never touched, so nothing is submitted,
+ * shown as a tracker or sent: the never-send locks hold in Official and Local mode alike. */
+
+static rc_client_leaderboard_info_t *board_info_of(uint32_t id)
+{
+	rc_client_subset_info_t *sub;
+	uint32_t k;
+	if (!client || !client->game) return NULL;
+	for (sub = client->game->subsets; sub; sub = sub->next)
+		for (k = 0; k < sub->public_.num_leaderboards; k++)
+			if (sub->leaderboards[k].public_.id == id) return &sub->leaderboards[k];
+	return NULL;
+}
+
+/* Board i of the list: its id, LowerIsBetter and rc_format_value's format; -1: none */
+int achievements_official_board_info(unsigned i, unsigned *id, int *lower_is_better, int *format)
+{
+	const rc_client_leaderboard_info_t *b;
+	boards_build();
+	if (i >= boarded_n || !(b = board_info_of(boarded[i]->id))) return -1;
+	*id = b->public_.id;
+	*lower_is_better = b->public_.lower_is_better != 0;
+	*format = b->format;
+	return 0;
+}
+
+static void boards_frame(void)
+{
+	rc_client_subset_info_t *sub;
+	const int unpromoted = rc_client_get_unpromoted_enabled(client);
+	if (!client->game || client->game->waiting_for_reset) return;
+	for (sub = client->game->subsets; sub; sub = sub->next) {
+		rc_client_leaderboard_info_t *b = sub->leaderboards, *stop = b + sub->public_.num_leaderboards;
+		if (!sub->active) continue;
+		for (; b < stop; b++) {
+			int32_t value = 0;
+			int old, now;
+			if (!b->lboard || b->hidden || b->public_.state == RC_CLIENT_LEADERBOARD_STATE_DISABLED ||
+			    (b->public_.category != RC_CLIENT_LEADERBOARD_CATEGORY_PROMOTED && !unpromoted))
+				continue;
+			old = b->lboard->state;
+			now = rc_evaluate_lboard(b->lboard, &value, achievements_read_memory, NULL, NULL);
+			if (now == RC_LBOARD_STATE_TRIGGERED && old != RC_LBOARD_STATE_TRIGGERED)
+				achievements_boards_score(b->public_.id, value, b->public_.lower_is_better != 0, b->format, b->public_.title);
+		}
+	}
+}
+
+/* A reset or a loaded state ends every attempt */
+static void boards_restart(void)
+{
+	rc_client_subset_info_t *sub;
+	uint32_t k;
+	if (!client || !client->game) return;
+	for (sub = client->game->subsets; sub; sub = sub->next)
+		for (k = 0; k < sub->public_.num_leaderboards; k++)
+			if (sub->leaderboards[k].lboard) rc_reset_lboard(sub->leaderboards[k].lboard);
+}
+
 int achievements_official_board(unsigned i, const char **title, const char **desc)
 {
 	boards_build();
@@ -361,7 +425,10 @@ int achievements_official_board_scores(unsigned i, achievement_score_t *top, uns
 void achievements_official_reset(void)
 {
 	steps_restart();
-	if (set_ready()) rc_client_reset(client);
+	if (set_ready()) {
+		rc_client_reset(client);
+		boards_restart();
+	}
 }
 
 int achievements_official_state_save(void *data, unsigned size)
@@ -382,6 +449,7 @@ int achievements_official_state_load(const void *data, unsigned size)
 	const uint8_t *in = data;
 	if (!set_ready()) return 0;
 	steps_restart();
+	boards_restart();
 	if (in && size > 4 && !memcmp(in, "WAO1", 4) &&
 	    rc_client_deserialize_progress_sized(client, in + 4, size - 4) == RC_OK)
 		return 1;
@@ -1002,6 +1070,11 @@ static void game_loaded_cb(int result, const char *error, rc_client_t *c, void *
 	          rc_client_get_unpromoted_enabled(client) ? ", Unofficial" : "");
 	list_stale = 1;
 	had_build();
+	mkdir(ACH_ACCOUNT_DIR "boards", 0777);
+	{
+		char path[96];
+		if (g && ach_boards_path(g->id, path, sizeof path)) achievements_boards_open(path);
+	}
 	local_begin(g);
 	if (local_mode && !achievements_ra_active()) {   /* the journal could not be read: no player earns */
 		snprintf(state, sizeof state, "Local journal unreadable");
@@ -1197,6 +1270,7 @@ void achievements_official_frame(void)
 		rc_client_idle(client);
 	else {
 		rc_client_do_frame(client);
+		if (game_loaded) boards_frame();
 		if (settle && --settle == 0) steps_seed();
 	}
 }

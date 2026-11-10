@@ -58,3 +58,13 @@ UBSAN_OPTIONS=halt_on_error=1 "$task_dir/ra_cache_test"
   -Ideps/rcheevos/include achievements.c tests/achievements_official_alone_test.c \
   "$task_dir"/*.o -lm -o "$task_dir/official_alone_test"
 UBSAN_OPTIONS=halt_on_error=1 "$task_dir/official_alone_test" "$task_dir"
+# Local leaderboards: the file format (Gamecube/ach_boards.h: exact bytes, in-place improve, cut-short record, 30000 records)
+"${CC:-cc}" -std=c99 -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined \
+  tests/ach_boards_test.c -o "$task_dir/boards_test"
+UBSAN_OPTIONS=halt_on_error=1 "$task_dir/boards_test" "$task_dir"
+# ... and in the engine: every seated Mii keeps its best, LowerIsBetter, the pop-up, the book's table
+"${CC:-cc}" -std=c99 -O1 -g -Wall -Wextra -Werror \
+  -fsanitize=address,undefined -fno-omit-frame-pointer \
+  -Ideps/rcheevos/include achievements.c tests/achievements_boards_test.c \
+  "$task_dir"/*.o -lm -o "$task_dir/engine_boards_test"
+UBSAN_OPTIONS=halt_on_error=1 "$task_dir/engine_boards_test" "$task_dir"
