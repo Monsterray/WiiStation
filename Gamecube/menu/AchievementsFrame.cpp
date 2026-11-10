@@ -103,6 +103,17 @@ void frame(menu::Graphics &gfx, int x, int y, int w, int h, int t, GXColor c)
 	fill(gfx, x + w - t, y + t, t, h - 2 * t, c);
 }
 
+/* A flat trapezoid, wide edge at yb, narrow at y0: the slant is sl px on each side; the corners are
+ * (xl, yb) (xl + sl, y0) (xr - sl, y0) (xr, yb). Two triangles in one color. */
+void trap(menu::Graphics &gfx, int xl, int xr, int y0, int yb, int sl, GXColor c)
+{
+	gfx.setTEV(GX_PASSCLR);
+	gfx.setColor(c);
+	gfx.enableBlending(true);
+	gfx.fillTriangle(xl, yb, xl + sl, y0, xr - sl, y0);
+	gfx.fillTriangle(xl, yb, xr - sl, y0, xr, yb);
+}
+
 /* Text that ends at x (right aligned) */
 void textRight(int x, int y, const char *s, float scale, GXColor c)
 {
@@ -664,18 +675,58 @@ void AchievementsBoard::drawHeader(menu::Graphics &gfx)
 
 void AchievementsBoard::drawTabs(menu::Graphics &gfx)
 {
-	char line[48];
-	for (int t = 0; t < tabCount(); t++)
+	/* Folder tabs, "C1 color edge": slanted sides, each tab overlaps its neighbours, the chosen one is drawn
+	 * last (in front), 4 px taller, in the page color and runs into a page-colored band across the list,
+	 * so it joins the page with no line. A 4 px color edge follows each tab's slanted top. */
+	const int SL = 8, OVER = 3, BOT = 121, EDGE = 4;
+	const GXColor PAGE = {238, 238, 238, 255};
+	const GXColor ACCENT[TABS] = { {62, 112, 196, 255}, {120, 120, 128, 255}, {74, 150, 86, 255}, {120, 120, 128, 255} };
+	/* the labels are built when a count changes, not every frame */
+	static struct { char line[48]; int count; float scale; } cache[TABS] = { { "", -2, 0 }, { "", -2, 0 }, { "", -2, 0 }, { "", -2, 0 } };
+
+	fill(gfx, LIST_X, BOT - 2, LIST_W, 5, PAGE);
+	for (int k = tabCount(); k >= 0; k--)	/* k == tabCount(): the chosen tab, last */
 	{
+		int t = k == tabCount() ? tab : k;
+		bool on = k == tabCount();
+		if (!on && t == tab)
+			continue;
 		Rect r = tabRect(t);
-		bool on = t == tab;
-		fill(gfx, r.x, r.y, r.w, r.h, on ? (GXColor){120, 120, 120, 255} : (GXColor){160, 160, 160, 255});
-		fill(gfx, r.x + 1, r.y + 1, r.w - 2, r.h - 1, on ? (GXColor){238, 238, 238, 255} : (GXColor){190, 190, 190, 255});
-		if (t < 3)
-			snprintf(line, sizeof line, "%s (%d)", TAB_NAMES[t], counts[t]);
+		int x0 = r.x - OVER, x1 = r.x + r.w + OVER;
+		int y0 = on ? TAB_Y - 2 : TAB_Y + 2, yb = on ? BOT + 2 : BOT - 2;
+		GXColor a = ACCENT[t];
+		if (!on)	/* 55% of the color, the rest page */
+			a = (GXColor){ (u8)((a.r * 55 + PAGE.r * 45) / 100), (u8)((a.g * 55 + PAGE.g * 45) / 100),
+				(u8)((a.b * 55 + PAGE.b * 45) / 100), 255 };
+		trap(gfx, x0, x1, y0, yb, SL, on ? (GXColor){150, 150, 156, 255} : (GXColor){172, 172, 178, 255});
+		trap(gfx, x0 + 1, x1 - 1, y0 + 1, on ? yb : yb - 1, SL, on ? PAGE : (GXColor){206, 206, 210, 255});
+		if (on)
+			fill(gfx, x0 + 1, BOT - 2, x1 - x0 - 2, 5, PAGE);	/* no line where it meets the page */
 		else
-			snprintf(line, sizeof line, "%s", TAB_NAMES[t]);
-		textFit(r.x + 8, r.y + 3, line, 0.6f, 0.5f, r.w - 16, on ? DARK : MID);
+			fill(gfx, x0 + 2, BOT - 3, x1 - x0 - 4, 1, (GXColor){188, 188, 192, 255});
+		trap(gfx, x0 + SL, x1 - SL, y0, y0 + EDGE, 1, a);
+
+		/* the label, centered; rebuilt only when the count changes */
+		auto &c = cache[t];
+		int n = t < 3 ? counts[t] : -1;
+		if (c.count != n || !c.line[0])
+		{
+			if (t < 3)
+				snprintf(c.line, sizeof c.line, "%s (%d)", TAB_NAMES[t], n);
+			else
+				snprintf(c.line, sizeof c.line, "%s", TAB_NAMES[t]);
+			c.scale = fitScale(c.line, 0.6f, 0.5f, r.w - 16);
+			clip(c.line, c.scale, r.w - 16);
+			c.count = n;
+		}
+		int tx = (x0 + x1 - width(c.line, c.scale)) / 2, ty = (y0 + EDGE + yb) / 2 - 11;
+		if (on)
+		{
+			text(tx, ty, c.line, c.scale, (GXColor){45, 45, 50, 255});
+			text(tx + 1, ty, c.line, c.scale, (GXColor){45, 45, 50, 255});	/* bold */
+		}
+		else
+			text(tx, ty, c.line, c.scale, (GXColor){95, 95, 100, 255});
 	}
 }
 

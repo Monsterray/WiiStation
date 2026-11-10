@@ -186,6 +186,7 @@ wide read-only reviews. One step per commit on `try/menu-standard`.
   box; the divider line is gone. All detail text and the header lines are formatted when the row / page changes (`formatDetail`, `build`),
   not per frame. Off (E6): "Achievements are off." + "Turn them on, then load the game again" + an "Achievements Settings" button
   (A, or a pointer click on it) that opens Options > Achievements; other no-list states (a .exe, no set, Official status) keep the status line.
+  Tabs, later the same day: Monty's "C1 Folder, color edge" (`drawTabs`): trapezoid folder tabs (8 px slant, 3 px overlap each side, chosen one last, 4 px taller, page color 238, no line to the page via a page-colored band), a 4 px color edge on top (blue / gray / green; 55 % color on the unchosen ones), labels centered (bold = drawn twice), labels cached per count; 0 differing pixels outside the strip.
   Data: `achievement_entry_t.rarity_x100` (RA player share x 100; -1 for a Local set) and `.when` (unix seconds, Official only; 0 for a
   Local set) already existed; a Local set has neither, so the ach_book fixture shows no rarity and no row date (left out, nothing invented);
   the detail's date falls back to the picture file's date. No time of day (UTC only, no zone known). Official paths (rarity / dates) were
