@@ -5,7 +5,8 @@
 
 Games come from GAME_LIBRARY/games.tsv (key, boot file, format, status). A game's serial is the
 [SLUS-00892] tag in its boot file name or key; without one, the game name is looked up in the
-libretro Redump dat (cover_pack.read_dat). Games with neither are listed and skipped, as are the
+libretro Redump dat (cover_pack.read_dat), then read from the disc (disc_serial.py: SYSTEM.CNF or a
+PBP's DISC_ID). Games with none of these are listed and skipped, as are the
 Tests/ homebrew. Files are written as OUT/<SERIAL>.<ext> (SLUS00892.png), the name
 cover_pack.py --disc-dir matches by serial. Default OUT: GAME_LIBRARY/cover_sources/disc.
 Serials with a file already in OUT are skipped, so the script can be re-run.
@@ -27,6 +28,7 @@ import urllib.request
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import cover_pack  # noqa: E402
+import disc_serial  # noqa: E402
 import tools  # noqa: E402
 
 API = "https://api.screenscraper.fr/api2/jeuInfos.php"
@@ -92,7 +94,9 @@ def games_of(lib, dat_path):
                 serial = (by_name.get(cover_pack._alnum(stem)) or by_name.get(cover_pack._alnum(key.split("/")[-1]))
                           or by_name.get(cover_pack._alnum(cover_pack.base_name(stem))))
             if not serial:
-                skipped.append((key, "no serial in the name and not in the dat"))
+                serial = disc_serial.serial_of(pathlib.Path(lib) / "games" / key / boot)
+            if not serial:
+                skipped.append((key, "no serial in the name, the dat or the disc"))
             elif serial not in found:
                 found[serial] = (key, boot)
     return found, skipped
