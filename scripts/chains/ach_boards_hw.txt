@@ -1,0 +1,6 @@
+CHAIN
+# Local leaderboards on the dev Wii (Docs/ACHIEVEMENTS.md "Local leaderboards file"): the Dolphin recipe of
+# scripts/autoinput/ach_boards.txt as a chain line. Run through .runs/boards_job.py (puts tests/fixtures/ach_boards, backs up the card).
+2400 sd:/wiistation/ach_boards.txt Achievements=4 FPS=0 PadAutoAssign=1 Player1="82625a00c2123456" Player2="82625dd1c2123456"
+sd:/wiistation/isos/Spyro the Dragon
+Spyro the Dragon [NTSC-U] [SCUS-94228].cue
