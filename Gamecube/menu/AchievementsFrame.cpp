@@ -255,8 +255,9 @@ int tab, sel[TABS], topRow[TABS];
 bool detail;
 int board;				/* the leaderboard shown */
 int localFor = -1;			/* Local mode: the board whose table localRows holds (-1: read it again) */
-achievement_local_score_t localRows[ACH_LOCAL_ROWS + 1];
+achievement_local_score_t localRows[ACH_LOCAL_MAX];
 unsigned localN;
+int localCompact;
 int localTotal;
 unsigned total_earned, total_points, earned_points, jumpId;
 bool pointer;
@@ -913,8 +914,7 @@ void AchievementsBoard::drawLocalBoard(menu::Graphics &gfx)
 	char line[64];
 	if (localFor != board)
 	{
-		localN = ACH_LOCAL_ROWS;
-		localTotal = achievements_board_local(board, localRows, &localN);
+		localTotal = achievements_board_local(board, localRows, &localN, &localCompact);
 		localFor = board;
 	}
 	if (localTotal <= 0)
@@ -924,19 +924,26 @@ void AchievementsBoard::drawLocalBoard(menu::Graphics &gfx)
 	}
 	snprintf(line, sizeof line, "This Wii: %d Mii%s", localTotal, localTotal == 1 ? "" : "s");
 	textRight(620, 154, line, 0.5f, MID);
+	/* normal rows, or compact ones when the seated Miis ranked below the top part do not fit; a gap
+	 * where the ranks jump (the top part ends, or the next seated Mii is further down) */
+	const int step = localCompact ? 20 : 28;
+	const float big = localCompact ? 0.55f : 0.7f, small = localCompact ? 0.42f : 0.5f;
+	int y = 176;
 	for (unsigned i = 0; i < localN; i++)
 	{
 		const achievement_local_score_t &r = localRows[i];
-		int y = 176 + i * 28 + (i >= 8 ? 4 : 0);
 		char date[16];
+		if (i && r.rank != localRows[i - 1].rank + 1)
+			y += 4;
 		if (r.seated)
-			fill(gfx, 24, y - 3, 592, 28, (GXColor){196, 214, 240, 255});
+			fill(gfx, 24, y - 3, 592, step, (GXColor){196, 214, 240, 255});
 		snprintf(line, sizeof line, "%u", r.rank);
-		text(40, y, line, 0.7f, DARK);
-		textFit(100, y, r.name, 0.7f, 0.5f, 250, DARK);
-		textRight(480, y, r.score, 0.7f, DARK);
+		text(40, y, line, big, DARK);
+		textFit(100, y, r.name, big, small, 250, DARK);
+		textRight(480, y, r.score, big, DARK);
 		dateText(r.when, date, sizeof date);
-		textRight(604, y + 3, date, 0.5f, MID);
+		textRight(604, y + 3, date, small, MID);
+		y += step;
 	}
 }
 

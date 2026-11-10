@@ -23,6 +23,7 @@
 #include "ach_icons.h"
 #include "ach_shot.h"
 #include "perf_prof.h"
+#include "players.h"
 #ifdef HW_RVL
 #include "ach_badge.h"   /* RetroAchievements badge pictures (Official mode) */
 #endif
@@ -37,7 +38,7 @@ int IplFont_getStringWidth(char *string, float scale);
 
 /* ---- the queue: a second unlock waits until the first has gone ---- */
 
-enum { KIND_UNLOCK, KIND_BEATEN, KIND_MASTERED, KIND_GAME, KIND_WARNING };
+enum { KIND_UNLOCK, KIND_BEATEN, KIND_MASTERED, KIND_GAME, KIND_WARNING, KIND_HINT };
 enum { T_BLUE, T_BRONZE, T_SILVER, T_GOLD, T_CRYSTAL, T_FINISH, T_PLAT, T_BLACK };
 enum { ICON_TROPHY, ICON_KEY, ICON_HOURGLASS, ICON_FLAG, ICON_CROWN, ICON_DISC, ICON_WARN };
 
@@ -145,11 +146,30 @@ static void indicator_push(const achievement_notice_t *n)
 	}
 }
 
+/* After a set's game card: the seats that play with no Mii (players_unseated). Only seated Miis on
+ * connected pads earn, and Guest earns only when no Mii does, so "their unlocks are not kept" holds. */
+extern int perf_chain_index(void);   /* GamecubeMain.cpp: 0 outside a chain */
+static void seat_hint(void)
+{
+	char title[32];
+	int seated = 0, open = players_unseated(&seated);
+	achievement_notice_t h;
+	if (open <= 0 || perf_chain_index())
+		return;
+	memset(&h, 0, sizeof h);
+	h.kind = ACH_NOTICE_HINT;
+	if (seated) snprintf(title, sizeof title, "%d not seated", open);
+	else snprintf(title, sizeof title, "No players seated");
+	h.title = title;
+	h.desc = seated ? "Their unlocks are not kept" : "Playing as Guest";
+	ach_toast_push(&h);
+}
+
 void ach_toast_push(const achievement_notice_t *n)
 {
 	Toast *t;
 	Face *f;
-	if (n->kind != ACH_NOTICE_UNLOCK && n->kind != ACH_NOTICE_GAME && n->kind != ACH_NOTICE_WARNING && n->kind != ACH_NOTICE_BOARD) {
+	if (n->kind != ACH_NOTICE_UNLOCK && n->kind != ACH_NOTICE_GAME && n->kind != ACH_NOTICE_WARNING && n->kind != ACH_NOTICE_BOARD && n->kind != ACH_NOTICE_HINT) {
 		indicator_push(n);
 		return;
 	}
@@ -172,13 +192,13 @@ void ach_toast_push(const achievement_notice_t *n)
 		f->icon = ICON_CROWN;
 		return;
 	}
-	if (n->kind == ACH_NOTICE_WARNING) {   /* an achievement card in black, without the flash */
-		t->kind = KIND_WARNING;
+	if (n->kind == ACH_NOTICE_WARNING || n->kind == ACH_NOTICE_HINT) {   /* an achievement card in black, without the flash */
+		t->kind = n->kind == ACH_NOTICE_HINT ? KIND_HINT : KIND_WARNING;
 		f = &t->f1;
 		snprintf(f->title, sizeof f->title, "%s", n->title ? n->title : "");
 		snprintf(f->desc, sizeof f->desc, "%s", n->desc ? n->desc : "");
-		snprintf(f->left, sizeof f->left, "NOTICE");
-		snprintf(f->right, sizeof f->right, "Casual");
+		snprintf(f->left, sizeof f->left, n->kind == ACH_NOTICE_HINT ? "PLAYERS" : "NOTICE");
+		snprintf(f->right, sizeof f->right, n->kind == ACH_NOTICE_HINT ? "Not seated" : "Casual");
 		f->tier = T_BLACK;
 		f->icon = ICON_WARN;
 		return;
@@ -197,6 +217,7 @@ void ach_toast_push(const achievement_notice_t *n)
 		f->icon = ICON_DISC;
 		f->fill = n->count ? (float)n->earned / n->count : 0;
 		f->blocks = n->count <= 60 ? n->count : 0;
+		seat_hint();   /* the seats start empty: a short card after the game card, not in a chain */
 		return;
 	}
 	t->kind = n->mastered ? KIND_MASTERED : n->beaten ? KIND_BEATEN : KIND_UNLOCK;
@@ -545,6 +566,16 @@ static void fit_face(Face *f)
 		if (!u) u = strstr(f->right, " have it");   /* "Kat, 8.1% have it" -> "Kat, 8.1%" */
 		if (u && (!strcmp(u, " unlocked") || !strcmp(u, " have it"))) *u = 0;
 	}
+	{   /* "Kat, Bo +6" (a new best for more Miis): the names are cut, the count stays */
+		char *plus = strrchr(f->right, '+'), tail[8];
+		if (plus && plus > f->right && plus[-1] == ' ' && strlen(plus) < sizeof tail && plus[1] >= '0' && plus[1] <= '9') {
+			snprintf(tail, sizeof tail, " %s", plus);
+			plus[-1] = 0;
+			fit(f->right, sizeof f->right, FOOT_SCALE, CARD_W * 45 / 100 - text_w(tail, FOOT_SCALE));
+			strncat(f->right, tail, sizeof f->right - strlen(f->right) - 1);
+			return;
+		}
+	}
 	fit(f->right, sizeof f->right, FOOT_SCALE, CARD_W * 45 / 100);
 }
 
@@ -834,7 +865,7 @@ static void toast_frame(void)
 	q->last = frame_counter;
 	t = q->shown / rate;
 	set = q->kind == KIND_BEATEN || q->kind == KIND_MASTERED;
-	dur = set ? 6.0f : q->kind == KIND_GAME || q->kind == KIND_WARNING ? 4.0f : 5.0f;
+	dur = set ? 6.0f : q->kind == KIND_HINT ? 3.0f : q->kind == KIND_GAME || q->kind == KIND_WARNING ? 4.0f : 5.0f;
 	if (t >= dur) {   /* done: the next one starts on the next present */
 		q_head = (q_head + 1) % QUEUE;
 		q_len--;
@@ -855,7 +886,7 @@ static void toast_frame(void)
 
 	if (q->kind == KIND_GAME) {
 		sheen = between(t, 1.3f, 1.85f);   /* the disc is at speed by then */
-	} else if (q->kind == KIND_WARNING) {
+	} else if (q->kind == KIND_WARNING || q->kind == KIND_HINT) {
 		/* the card slides in and out like the others: no flicker, flash, glow, sheen or rays */
 	} else if (!set) {
 		const int tier = q->f1.tier;

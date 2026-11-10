@@ -33,6 +33,7 @@
 #include "../libgui/CursorManager.h"
 #include "../libgui/MessageBox.h"
 #include "../../achievements.h"
+#include "../players.h"
 #include <ogc/lwp_watchdog.h>
 #include "MenuGlue.h"
 #ifdef DEBUGON
@@ -85,6 +86,21 @@ MainFrame::MainFrame()
 }
 
 int MainFrame::logoSpot() const { return MAIN_MENU.logo; }
+
+/* A small amber disc on the Players button's top right corner while an active seat has no Mii
+ * ("players start empty"); gone when achievements are off or every active seat is seated. */
+void MainFrame::drawChildren(menu::Graphics& gfx)
+{
+	Frame::drawChildren(gfx);
+	if (!isVisible() || players_unseated(NULL) <= 0)
+		return;
+	gfx.setTEV(GX_PASSCLR);
+	gfx.enableBlending(true);
+	gfx.setColor((GXColor){120, 78, 0, 255});
+	gfx.fillRing(503, 231, 0, 8, 48);
+	gfx.setColor((GXColor){255, 176, 32, 255});
+	gfx.fillRing(503, 230, 0, 6, 48);
+}
 
 MainFrame::~MainFrame()
 {

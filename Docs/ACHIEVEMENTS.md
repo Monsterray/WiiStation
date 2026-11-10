@@ -358,9 +358,20 @@ allocation, no sort of the whole list. `tests/ach_boards_test.c` (`many_miis`) m
   next flush writes them again.
 
 **The book (Local mode, Leaderboards tab).** Rank, Mii name (a Mii no longer on this Wii shows as
-"Mii 5a00"), value as rcheevos formats it, date; the best 8 rows. The seated Miis are on a blue band.
-A seated Mii that is below the 8 gets its own last row with its real rank. A board with no scores
-says so. Ties are ranked by the earlier date, then the key.
+"Mii 5a00"), value as rcheevos formats it, date. The seated Miis are on a blue band. A board with
+no scores says so. Ties are ranked by the earlier date, then the key.
+
+Table rules (`achievements_board_local`, which fills the rows; `drawLocalBoard` only draws them),
+made for up to 8 seated Miis (two multitaps):
+- The top part is the best 8 and every row has its rank. Every seated Mii with a score that is not in
+  it follows, in rank order, each with its real rank; a gap between two ranks is drawn as a thin gap.
+- The page holds 9 rows of normal height (`ACH_LOCAL_FIT`). When the seated Miis below the top need
+  more room, the top part shrinks, but never under 3 rows.
+- If they still do not fit, the rows are drawn small ("compact", up to 13 rows, `ACH_LOCAL_MAX`) and
+  the top part is cut to what fits. A seated Mii past the last row (more than 10 of them below the
+  top) is left out; with 8 seats that does not happen.
+- The call returns how many Miis have a score on the board, and -1 for a board that does not exist.
+- The "New best" toast names the Miis: "Kat, Bo +6" (the names that fit, then how many more).
 
 Checks: `tests/ach_boards_test.c` (the format: exact bytes, in-place improve, append, a cut-short
 record, another version, 30,000 records) and `tests/achievements_boards_test.c` (the engine: every
@@ -574,11 +585,25 @@ Rules the SDK sets that touch WiiStation:
 
 - **Seats**: `wiistation/players.ini` (5.18.2; `[Players]` in settings.ini before), one line per
   seat (`Player1=`, `Player2=`, multitap `Player1A=` ... `Player2D=`, Co-Op `Player1P1=` ...
-  `Player2P8=`), each a Mii key or empty for Guest; the menu writes it when it closes.
+  `Player2P8=`), each a Mii key or empty for Guest.
   `PlayersRecent=` keeps the last 15 seated, most recent first: the menu lists them first. A Mii can sit on one port only;
-  dropping it on another moves it, dropping it on a taken port swaps the two. Seats are kept
-  across sessions. A key no longer on the console reads as Guest, with a notice; its unlocks
-  stay in the journal (nothing is deleted).
+  dropping it on another moves it, dropping it on a taken port swaps the two. **Seats are not kept
+  across sessions (5.19.x): every seat is empty when WiiStation starts.** players.ini holds only
+  `PlayersRecent`, `PlayersOfficial` and the `[Accounts]` links; the `Player*` lines of an older
+  players.ini, and of a settings.ini of 5.18.0 and 5.18.1, are ignored (a scripted run, a lab run or
+  a Dolphin run with autoinput.txt, still seats from settings.ini, and so does a chain's `Player*`
+  setting). Seats do stay across game loads in one session. A key no longer on the console reads as
+  Guest, with a notice; its unlocks stay in the journal (nothing is deleted).
+- **The hint**: while a seat that plays (its pad connected) has no Mii and achievements are on, the
+  Players button on the main menu carries a small amber disc, and a game with a set shows a short
+  black card (3 s, "PLAYERS") when it starts, not in a chain: "No players seated / Playing as Guest"
+  when no seat has a Mii, "N not seated / Their unlocks are not kept" when some have. The second is
+  true: only a seated Mii on a connected pad earns, and Guest earns only when no Mii does.
+- **Eight players**: two multitaps give 8 seats (1A-1D, 2A-2D), and a game such as Micro Maniacs plays
+  them all at once. The Players menu lists all eight, a game's unlock card says "8 players", the book
+  switches between the players ("Player 1 of 8"), the Local leaderboard table keeps every seated Mii
+  visible (see [Local leaderboards file](#local-leaderboards-file)) and the "New best" card names them.
+  The limit is `ACH_PLAYERS_MAX` (26, every seat of every port type).
 - **Who earns**: at an unlock, every port that has a Mii and a connected pad (the same test the
   Co-Op pad mapping uses). Guest earns when no seated Mii does (a game with only Guest pads still
   unlocks, as today). One journal line per Mii that earned it.

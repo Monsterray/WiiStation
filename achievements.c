@@ -373,7 +373,7 @@ static void boards_close(void)
 int achievements_boards_score(unsigned id, int32_t value, int lower_is_better, int format, const char *title)
 {
     char text[24], names[96] = "";
-    unsigned p, best = 0, shown = 0;
+    unsigned p, best = 0, shown = 0, miis = 0;
     uint32_t now = (uint32_t)time(NULL);
     if (!lb_open) return 0;
     rc_format_value(text, sizeof text, value, format);
@@ -381,10 +381,19 @@ int achievements_boards_score(unsigned id, int32_t value, int lower_is_better, i
         if (ach_boards_record(&lb, id, lb_who[p].key, value, lower_is_better, now) == 1) {
             size_t n = strlen(names);
             best++;
-            if (lb_who[p].key[0] && shown++ < 2 && n < sizeof names - 40)
-                snprintf(names + n, sizeof names - n, "%s%s", n ? ", " : "", lb_who[p].name[0] ? lb_who[p].name : "Mii");
+            if (lb_who[p].key[0]) {
+                miis++;
+                if (shown < 2 && n < sizeof names - 40) {   /* the first two by name, the others as "+N" */
+                    snprintf(names + n, sizeof names - n, "%s%s", n ? ", " : "", lb_who[p].name[0] ? lb_who[p].name : "Mii");
+                    shown++;
+                }
+            }
             SysPrintf("Achievements: new best on board %u: %s (%.8s)\n", id, text, lb_who[p].key);
         }
+    if (miis > shown) {
+        size_t n = strlen(names);
+        snprintf(names + n, sizeof names - n, " +%u", miis - shown);
+    }
     if (best && achievements_notify) {
         achievement_notice_t n;
         char head[96];
@@ -426,32 +435,60 @@ static void local_row(achievement_local_score_t *row, const ach_board_score_t *s
     row->seated = (unsigned char)is_seated(s->key);
 }
 
-int achievements_board_local(unsigned i, achievement_local_score_t *rows, unsigned *n)
+/* The top part's length for a table of `cap` rows: up to ACH_LOCAL_ROWS, shorter (not below 3) so
+ * that the seated Miis outside it fit. at_top[q]: seated Mii q's position among the top 8 (-1: none). */
+static unsigned local_top_len(unsigned total, const int *at_top, unsigned nm, unsigned cap)
 {
-    ach_board_score_t top[ACH_LOCAL_ROWS];
-    unsigned id, k, p, total, room = *n < ACH_LOCAL_ROWS ? *n : ACH_LOCAL_ROWS, shown;
-    int lower, format;
+    unsigned show = total < ACH_LOCAL_ROWS ? total : ACH_LOCAL_ROWS, q, below;
+    for (;;) {
+        for (below = q = 0; q < nm; q++)
+            if (at_top[q] < 0 || (unsigned)at_top[q] >= show) below++;
+        if (show + below <= cap || show <= 3) return show;
+        show--;
+    }
+}
+
+int achievements_board_local(unsigned i, achievement_local_score_t *rows, unsigned *n, int *compact)
+{
+    ach_board_score_t top[ACH_LOCAL_ROWS], mine[ACH_PLAYERS_MAX];
+    unsigned rank[ACH_PLAYERS_MAX], id, k, p, q, total, nm = 0, show, cap, used;
+    int at_top[ACH_PLAYERS_MAX], lower, format;
     *n = 0;
-    if (!lb_open || !room || !achievements_official_board_info || achievements_official_board_info(i, &id, &lower, &format) < 0)
+    *compact = 0;
+    if (!lb_open || !achievements_official_board_info || achievements_official_board_info(i, &id, &lower, &format) < 0)
         return -1;
-    total = ach_boards_top(&lb, id, lower, top, room);
-    shown = total < room ? total : room;
-    for (k = 0; k < shown; k++) local_row(&rows[k], &top[k], k + 1, format);
-    *n = shown;
-    for (p = 0; total > shown && p < lb_who_n; p++) {   /* a seated Mii ranks below the table: its own row last, with its rank */
+    total = ach_boards_top(&lb, id, lower, top, ACH_LOCAL_ROWS);
+    for (p = 0; p < lb_who_n; p++) {   /* the seated Miis with a score, best rank first */
         char key[ACH_LB_KEY];
         int at;
         ach_lb_key(key, lb_who[p].key);
-        for (k = 0; k < shown && memcmp(top[k].key, key, ACH_LB_KEY); k++) ;
-        if (k < shown || (at = ach_boards_find(&lb, id, key)) < 0) continue;
-        {
-            ach_board_score_t s;
-            ach_lb_get(lb.rec + (size_t)at * ACH_LB_REC, &s);
-            local_row(&rows[shown], &s, ach_boards_rank(&lb, &s, lower), format);
-            *n = shown + 1;
+        if ((at = ach_boards_find(&lb, id, key)) < 0) continue;
+        ach_lb_get(lb.rec + (size_t)at * ACH_LB_REC, &mine[nm]);
+        rank[nm] = ach_boards_rank(&lb, &mine[nm], lower);
+        for (k = 0; k < ACH_LOCAL_ROWS && k < total && memcmp(top[k].key, key, ACH_LB_KEY); k++) ;
+        at_top[nm] = k < ACH_LOCAL_ROWS && k < total ? (int)k : -1;
+        for (q = nm++; q > 0 && rank[q - 1] > rank[q]; q--) {
+            unsigned r = rank[q]; ach_board_score_t s = mine[q]; int t = at_top[q];
+            rank[q] = rank[q - 1]; mine[q] = mine[q - 1]; at_top[q] = at_top[q - 1];
+            rank[q - 1] = r; mine[q - 1] = s; at_top[q - 1] = t;
         }
-        break;
     }
+    cap = ACH_LOCAL_FIT;
+    show = local_top_len(total, at_top, nm, cap);
+    {
+        unsigned below;
+        for (below = q = 0; q < nm; q++)
+            if (at_top[q] < 0 || (unsigned)at_top[q] >= show) below++;
+        if (show + below > cap) {   /* more than a table of normal rows holds: compact rows */
+            *compact = 1;
+            cap = ACH_LOCAL_MAX;
+            show = local_top_len(total, at_top, nm, cap);
+        }
+    }
+    for (k = 0; k < show; k++) local_row(&rows[k], &top[k], k + 1, format);
+    for (used = show, q = 0; q < nm && used < cap; q++)   /* the seated Miis below the top part, with their real ranks */
+        if (at_top[q] < 0 || (unsigned)at_top[q] >= show) local_row(&rows[used++], &mine[q], rank[q], format);
+    *n = used;
     return (int)total;
 }
 

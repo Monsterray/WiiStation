@@ -633,10 +633,28 @@ static void settingsTake(SettingValues* v)
 
 /* Back to v, except the menu's unsaved changes that a game load keeps (settingKeep) and the
  * settings no file holds. */
+/* A Players seat (Player1 ... Player2P8). WiiStation starts with every seat empty: players.ini no
+ * longer seats anyone (readPlayers; an old file's lines are read and ignored). The Players menu, a
+ * chain's setting or a staged settings.ini seats a Mii, and the seat stays across game loads. */
+static bool isSeat(int i)
+{
+	return OPTIONS[i].value >= playerSeat[0] && OPTIONS[i].value <= playerSeat[PLAYERS_SEATS - 1];
+}
+static bool seatsIgnored;   /* readPlayers is reading players.ini, or a player's run reads settings.ini */
+/* Only a scripted run (a lab run, or a Dolphin run that staged autoinput.txt) seats Miis from
+ * settings.ini; 5.18.0 and 5.18.1 wrote Player* lines there, and an old card must still start empty. */
+static void readSettingsIni(FILE* f)
+{
+	struct stat s;
+	seatsIgnored = !(lab_active() || !stat("sd:/wiistation/autoinput.txt", &s));
+	readConfig(f);
+	seatsIgnored = false;
+}
+
 static void settingsPut(const SettingValues* v)
 {
 	for (int i = 0; i < OPTION_COUNT; i++) {
-		if (!OPTIONS[i].value || settingKeep[i] || !settingStored(OPTIONS[i].key, false))
+		if (!OPTIONS[i].value || settingKeep[i] || isSeat(i) || !settingStored(OPTIONS[i].key, false))
 			continue;
 		if (OPTIONS[i].max != CONFIG_STRING_TYPE)
 			*OPTIONS[i].value = v->num[i];
@@ -922,7 +940,7 @@ void loadSettings(int argc, char *argv[])
             strcpy(Config.PatchesDir, "usb:/wiistation/ppf/");
 			FILE* f = fopen( "usb:/wiistation/settings.ini", "r" );  //attempt to open file
 			if(f) {        //open ok, read it
-				readConfig(f);
+				readSettingsIni(f);
 				fclose(f);
 			}
 			playersDev = "usb";
@@ -942,7 +960,7 @@ void loadSettings(int argc, char *argv[])
             // add xjsxjs197 end
 			FILE* f = fopen( "sd:/wiistation/settings.ini", "r" );  //attempt to open file
 			if(f) {        //open ok, read it
-				readConfig(f);
+				readSettingsIni(f);
 				fclose(f);
 			}
 			readPlayers();
@@ -1438,7 +1456,7 @@ int main(int argc, char *argv[])
 		if (lf && labSettings())
 			settingsPut(&settingDefaults);
 		if (lf) {
-			readConfig(lf);
+			readSettingsIni(lf);
 			fclose(lf);
 		}
 	}
@@ -1726,7 +1744,7 @@ static bool loadSeparatelySettingItem(const char* settingPathBuf)
     if (configFile_init(configFile_file)) {        //only if device initialized ok
         FILE* f = fopen( settingPathBuf, "r" );   //attempt to open file
         if (f) {
-            readConfig(f);
+            readSettingsIni(f);
             fclose(f);
 #ifdef PERF_PROF
             perf_log_begin();   /* before the game's first go(), which would start the log anew */
@@ -1960,6 +1978,8 @@ void setOption(char* key, char* valuePointer){
 		if(OPTIONS[i].value && !strcmp(OPTIONS[i].key, key)){   /* a section row has no value */
 			if (settingKeep[i])   /* an unsaved menu change: the read leaves it */
 				break;
+			if (seatsIgnored && isSeat(i))   /* seats start empty: players.ini's old Player1= ... lines are ignored */
+				break;
 			if (readingFile && !settingStored(key, readingGameFile))   /* not this file's to set */
 				break;
 			if(isString) {
@@ -2002,8 +2022,9 @@ void readConfig(FILE* f){
 }
 
 /* The seats (the [Players] rows) live in players.ini, beside settings.ini on the boot device:
- * settings.ini was long enough. Seat keys in a settings.ini of 5.18.0/5.18.1 are still read,
- * and players.ini, read after it, wins. The Players menu writes the file when it closes. */
+ * settings.ini was long enough. Only the recent list, the Official Mii and the account links are kept
+ * there now (the seats start empty, isSeat); seat keys in settings.ini still seat (scripted runs). The
+ * Players menu writes the file when it closes. */
 static bool isPlayersRow(int i)
 {
 	if (!OPTIONS[i].value)
@@ -2019,7 +2040,9 @@ static void readPlayers(void)
 	FILE* f = fopen(path, "r");
 	if (!f)
 		return;
-	readConfig(f);   /* the seats; the [Accounts] lines match no setting */
+	seatsIgnored = true;
+	readConfig(f);   /* PlayersRecent and PlayersOfficial; the seats are not read; the [Accounts] lines match no setting */
+	seatsIgnored = false;
 	rewind(f);
 	char line[CONFIG_LINE_MAX];
 	bool accounts = false;
@@ -2038,8 +2061,8 @@ static void readPlayers(void)
 	fclose(f);
 }
 
-/* The seats, the Miis last seated (players_used), the Official Mii and the account links to
- * players.ini, when one changed since the file was read or written. */
+/* The Miis last seated (players_used), the Official Mii and the account links to players.ini,
+ * when one changed since the file was read or written (the seats are not written). */
 bool writePlayers(void)
 {
 	char path[40];
@@ -2053,11 +2076,13 @@ bool writePlayers(void)
 	FILE* f = fopen(path, "wb");
 	if (!f)
 		return false;
-	fprintf(f, "; WiiStation: the Mii seated on each PlayStation port (its creation ID), empty for Guest.\n"
-	           "; The Players menu writes this file. SETTINGS.md (Players) tells the keys.\n");
+	fprintf(f, "; WiiStation: the Miis last seated, the Official Mii and the accounts linked to Miis.\n"
+	           "; The seats are not kept: every seat is empty when WiiStation starts. The Players menu writes this file.\n"
+	           "; SETTINGS.md (Players) tells the keys.\n");
 	for (int i = 0; i < OPTION_COUNT; i++)
 		if (isPlayersRow(i) && OPTIONS[i].value) {
-			fprintf(f, "%s = \"%s\"\n", OPTIONS[i].key, OPTIONS[i].value);
+			if (!isSeat(i))
+				fprintf(f, "%s = \"%s\"\n", OPTIONS[i].key, OPTIONS[i].value);
 			settingRemember(i);
 		}
 	const char *key, *name;

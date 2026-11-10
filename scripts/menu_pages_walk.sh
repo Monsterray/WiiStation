@@ -19,6 +19,9 @@ runs=${WSX_RUNS:-$here/../.runs}
 . "$here/tools_env.sh"; need PYTHON "level 2"   # ~/wii-tools.env
 pages=${PAGES:-"1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 20 21 40 70"}
 
+# The seats start empty now: the account fixture's two Miis (players.ini no longer seats) sit by a setting, as a scripted run seats them.
+seats='Player1="82625a00c2123456",Player2="82626573c2123456"'
+
 cache_of() { echo "$runs/walk_cache/$(sha1sum "$1" | cut -c1-12)"; }
 
 shoot() {   # shoot NAME DOL: boot once for the pages the DOL's cache lacks
@@ -28,14 +31,14 @@ shoot() {   # shoot NAME DOL: boot once for the pages the DOL's cache lacks
 	printf 'menutour%s\n' "$todo" > "$runs/walk_$tag.txt"
 	secs=$(( $(echo $todo | wc -w) * 60 / 40 + 8 ))
 	KEEP_FRAMES=1 bash "$here/wsx.sh" menu "walk_${tag}_$1" --dol "$2" --input "$runs/walk_$tag.txt" --secs "$secs" \
-		--sd "$here/../tests/fixtures/players_accounts" > "$runs/walk_${tag}_$1.log" 2>&1
+		--sd "$here/../tests/fixtures/players_accounts" --set "$seats" > "$runs/walk_${tag}_$1.log" 2>&1
 	"$PYTHON" "$here/menu_tour.py" extract "$runs/menu_walk_${tag}_${1}_a" "$cache" "$todo" | grep -v ': frame'
 	rm -rf "$runs/menu_walk_${tag}_${1}_a/frames"   # a minute of PNGs per run; the stills are kept
 }
 
 if [ -n "${SLOW:-}" ]; then
 	for p in $pages; do
-		out=$(bash "$here/wsx.sh" menu "${tag}_p$p" --dol "$a" ${b:+--dol2 "$b"} --page "$p" --sd "$here/../tests/fixtures/players_accounts" 2>&1)
+		out=$(bash "$here/wsx.sh" menu "${tag}_p$p" --dol "$a" ${b:+--dol2 "$b"} --page "$p" --sd "$here/../tests/fixtures/players_accounts" --set "$seats" 2>&1)
 		echo "page $p: $(echo "$out" | grep -E 'frames differing|page is frame|did not' | tr -s ' ' | tr '\n' ' ')"
 	done
 	exit

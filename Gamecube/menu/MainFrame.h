@@ -33,6 +33,7 @@ public:
 	MainFrame();
 	~MainFrame();
 	int logoSpot() const;
+	void drawChildren(menu::Graphics& gfx);   /* the unseated-players marker over the Players button */
 
 private:
 	menu::InputStatusBar *inputStatusBar;

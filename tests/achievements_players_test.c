@@ -241,6 +241,28 @@ static void test_who_text_sizes(void)
 	CHECK(!strcmp(notices[0].who, "4 players"), "four: '%s'", notices[0].who);
 }
 
+/* two multitaps: 8 Miis earn it, one journal line each, and the page can show each of them */
+static void test_eight_players(void)
+{
+	unsigned i;
+	memset(seated, 0, sizeof seated);
+	for (i = 0; i < 8; i++) {
+		snprintf(seated[i].key, sizeof seated[0].key, "826260%02xc2123456", i);
+		snprintf(seated[i].name, sizeof seated[0].name, "P%u", i + 1);
+	}
+	seated_n = 8;
+	CHECK(load() == 3, "load");
+	CHECK(achievements_player_count() == 8, "eight players");
+	trigger(1);
+	CHECK(notice_n == 1 && !strcmp(notices[0].who, "8 players"), "one toast, '%s'", notices[0].who);
+	CHECK(lines_with(read_file(path(1)), "826260") == 8, "eight journal lines");
+	for (i = 0; i < 8; i++) {
+		achievements_view_player(i);
+		CHECK(achievements_player_earned(i) == 1 && !strcmp(achievements_player_name(i), seated[i].name), "player %u", i);
+	}
+	achievements_close();
+}
+
 static void test_missing_mii_reads_as_guest(void)
 {
 	char *j;
@@ -431,6 +453,7 @@ static const struct hc_test tests[] = {
 	{ "two_miis_both_earn", test_two_miis_both_earn, false },
 	{ "swap_and_union", test_swap_and_union, false },
 	{ "who_text_sizes", test_who_text_sizes, false },
+	{ "eight_players", test_eight_players, false },
 	{ "missing_mii_reads_as_guest", test_missing_mii_reads_as_guest, false },
 	{ "cap", test_cap, false },
 	{ "state_from_other_players", test_state_from_other_players, false },
