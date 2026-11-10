@@ -33,6 +33,8 @@ EXEMPT = (
     "baselines/*",
     "scripts/autoinput/*",   # recorded play files; headers name the machine they were made on
     "scripts/runfiles/*",
+    "SETUP.md",              # example install folders for a new person (C:/tools/Dolphin-x64, ...)
+    "scripts/tools.py",      # the usual install places `tools.py setup` searches
 )
 
 _FOLDER = r"(?:projects|tools|users|ai)[\\/]+(?!wii-bench\b)[\w-]"
