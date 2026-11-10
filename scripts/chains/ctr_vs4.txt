@@ -1,0 +1,5 @@
+CHAIN
+# Crash Team Racing 4-player VS on a multitap, Crash Cove, 3 laps (needs ctr_vs4.txt). Race lights at ~vblank 6300; race window 6800-11000.
+11000 sd:/wiistation/ctr_vs4.txt PadAutoAssign=0 ControllerType=0 gpuPlugin=2 PadType1=4 PadType2=0 PadType3=1 PadType4=1 PadType5=1 PadType6=1
+sd:/wiistation/isos/Crash Team Racing
+Crash Team Racing [U] [SCUS-94426].cue

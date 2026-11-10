@@ -7,8 +7,8 @@ Bomberman - Party Edition (USA).cue
 sd:/wiistation/isos/Final Fantasy VIII/Final Fantasy VIII [NTSC-U] [Disc1of4] [SLUS-00892]
 Final Fantasy VIII [NTSC-U] [Disc1of4] [SLUS-00892].ccd
 2400 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
-sd:/wiistation/isos/Final Fantasy VIII/Final Fantasy VIII (USA) (Disc 4)
-Final Fantasy VIII (USA) (Disc 4).cue
+sd:/wiistation/isos/Final Fantasy VIII/Final Fantasy VIII [NTSC-U] [Disc4of4] [SLUS-00909]
+Final Fantasy VIII [NTSC-U] [Disc4of4] [SLUS-00909].cue
 2400 sd:/wiistation/none.txt PadAutoAssign=1 ControllerType=1
 sd:/wiistation/isos/Gran Turismo 2 (Simulation Mode) (v1.2)
 Gran Turismo 2 (Simulation Mode) (v1.2).cue

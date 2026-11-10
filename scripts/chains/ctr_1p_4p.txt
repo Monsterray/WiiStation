@@ -1,0 +1,8 @@
+CHAIN
+# Crash Team Racing, Crash Cove: 1P Arcade then 4P VS (multitap), same chain. Race windows ~7000-11000 vblanks. Untested as a pair.
+11000 sd:/wiistation/ctr_a1.txt PadAutoAssign=0 ControllerType=0 gpuPlugin=2 PadType1=1 PadType2=0 PadAssign1=0
+sd:/wiistation/isos/Crash Team Racing
+Crash Team Racing [U] [SCUS-94426].cue
+11000 sd:/wiistation/ctr_vs4.txt PadAutoAssign=0 ControllerType=0 gpuPlugin=2 PadType1=4 PadType2=0 PadType3=1 PadType4=1 PadType5=1 PadType6=1
+sd:/wiistation/isos/Crash Team Racing
+Crash Team Racing [U] [SCUS-94426].cue

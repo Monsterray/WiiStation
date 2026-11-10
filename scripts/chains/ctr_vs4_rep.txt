@@ -1,0 +1,5 @@
+CHAIN
+# Monty's 4P VS movie (ctr_vs4_play.txt, recorded 2026-11-05) with PadMirror on and 61 report lines (ctr_vs4_rep.txt): per-window speed on the bench Wii. Results: .runs/notes/HANDOFF_CTR_VS4.md, phase 3.
+35761 sd:/wiistation/ctr_vs4_rep.txt PadAutoAssign=1 ControllerType=0 PadType1=4 PadMirror=1 PadAutoAssign=0 PadType2=0 PadType3=1 PadType4=0 PadType5=0 PadType6=0
+sd:/wiistation/isos/Crash Team Racing
+Crash Team Racing [U] [SCUS-94426].cue

@@ -76,7 +76,9 @@ python scripts/hprof_view.py .runs/NAME/hprof_01.bin --elf DOL.elf --callers
 
 `bash scripts/wsx.sh chain NAME FILE --secs LIMIT` runs a chained autoboot (format in
 `Gamecube/GamecubeMain.cpp` above `chainLoad()`), waits for the console to power off, and
-prints the table. Files in `scripts/chains/`:
+prints the table. Files in `scripts/chains/` (all 200+ of them, sorted by purpose -- standing
+suites, reusable checks, area tests, investigation records -- in `Docs/CHAINS.md`; look there
+before writing a new chain, and add a new standing one to it):
 
 | file | what | time |
 |---|---|---|
