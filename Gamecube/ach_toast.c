@@ -149,7 +149,7 @@ void ach_toast_push(const achievement_notice_t *n)
 {
 	Toast *t;
 	Face *f;
-	if (n->kind != ACH_NOTICE_UNLOCK && n->kind != ACH_NOTICE_GAME && n->kind != ACH_NOTICE_WARNING) {
+	if (n->kind != ACH_NOTICE_UNLOCK && n->kind != ACH_NOTICE_GAME && n->kind != ACH_NOTICE_WARNING && n->kind != ACH_NOTICE_BOARD) {
 		indicator_push(n);
 		return;
 	}
@@ -161,6 +161,17 @@ void ach_toast_push(const achievement_notice_t *n)
 	if (q_len == QUEUE) return;   /* more unlocks at once than fit: the journal still has them */
 	t = &queue[(q_head + q_len++) % QUEUE];
 	memset(t, 0, sizeof *t);
+	if (n->kind == ACH_NOTICE_BOARD) {   /* a new best on a leaderboard: the same plain card, blue, with the crown */
+		t->kind = KIND_WARNING;
+		f = &t->f1;
+		snprintf(f->title, sizeof f->title, "%s", n->title ? n->title : "");
+		snprintf(f->desc, sizeof f->desc, "%s", n->desc ? n->desc : "");
+		snprintf(f->left, sizeof f->left, "LEADERBOARD");
+		snprintf(f->right, sizeof f->right, "%s", n->who && n->who[0] ? n->who : "This Wii");
+		f->tier = T_BLUE;
+		f->icon = ICON_CROWN;
+		return;
+	}
 	if (n->kind == ACH_NOTICE_WARNING) {   /* an achievement card in black, without the flash */
 		t->kind = KIND_WARNING;
 		f = &t->f1;

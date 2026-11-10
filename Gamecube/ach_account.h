@@ -62,4 +62,11 @@ static inline int ach_ra_journal_path(unsigned game_id, char *path, size_t size)
 	return n > 0 && (size_t)n < size;
 }
 
+/* One leaderboard file per game: achievements/boards/<game id>.lb (Gamecube/ach_boards.h) */
+static inline int ach_boards_path(unsigned game_id, char *path, size_t size)
+{
+	int n = snprintf(path, size, ACH_ACCOUNT_DIR "boards/%u.lb", game_id);
+	return n > 0 && (size_t)n < size;
+}
+
 #endif

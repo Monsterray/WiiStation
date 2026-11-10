@@ -3,7 +3,8 @@
 
     python scripts/ra_cache_fixture.py SETFILE --hash HEX32 --game-id N --out DIR
 
-SETFILE is a Custom-mode definition file (Docs/ACHIEVEMENTS.md, "Definition file"). The script
+SETFILE is a Custom-mode definition file (Docs/ACHIEVEMENTS.md, "Definition file"), which may also carry
+Board=ID|Title|Description|Mem|Format|LowerIsBetter lines (the set's leaderboards, for the local boards). The script
 writes DIR/achievements/ra_cache/gameid-<hash>.json and sets-<hash>.json, the two answers Local
 mode keeps on the card (Gamecube/ach_ra_cache.h), in the shape the server gives them. Put DIR on a
 test card with `wsx.sh chain ... --card DIR`: Local mode then loads that "official" set with no
@@ -20,12 +21,18 @@ import sys
 
 
 def parse_set(path):
-    title, games, achievements = "", [], []
+    title, games, achievements, boards = "", [], [], []
     for raw in pathlib.Path(path).read_text(encoding="utf-8").splitlines():
         line = raw.strip()
         if not line or line[0] in "#;":
             continue
-        if line.startswith("Game="):
+        if line.startswith("Board="):   # Board=ID|Title|Description|Mem|Format|LowerIsBetter (0 or 1)
+            f = line[6:].split("|")
+            if len(f) != 6 or not f[0].isdigit():
+                sys.exit("bad line: " + line)
+            boards.append({"ID": int(f[0]), "Title": f[1], "Description": f[2], "Mem": f[3], "Format": f[4],
+                           "LowerIsBetter": f[5] == "1", "Hidden": False})
+        elif line.startswith("Game="):
             games.append(line[5:])
         elif line.startswith("Title="):
             title = line[6:]
@@ -41,7 +48,7 @@ def parse_set(path):
                 "BadgeName": "%05d" % int(f[0]), "Created": 1700000000, "Modified": 1700000000,
                 "Type": kind, "Rarity": 12.5, "RarityHardcore": 6.25,
             })
-    return title or "Fixture", achievements
+    return title or "Fixture", achievements, boards
 
 
 def main():
@@ -53,14 +60,14 @@ def main():
     a = ap.parse_args()
     if not re.fullmatch(r"[0-9a-fA-F]{32}", a.hash):
         sys.exit("--hash must be 32 hex digits")
-    title, achievements = parse_set(a.setfile)
+    title, achievements, boards = parse_set(a.setfile)
     h = a.hash.lower()
     icon = "https://media.retroachievements.org/Images/%06d.png" % (a.game_id % 1000000)
     sets = {
         "Success": True, "GameId": a.game_id, "Title": title, "ConsoleId": 12, "ImageIconUrl": icon,
         "RichPresenceGameId": a.game_id, "RichPresencePatch": "",
         "Sets": [{"AchievementSetId": a.game_id, "GameId": a.game_id, "Title": title, "Type": "core",
-                  "ImageIconUrl": icon, "Achievements": achievements, "Leaderboards": []}],
+                  "ImageIconUrl": icon, "Achievements": achievements, "Leaderboards": boards}],
     }
     out = pathlib.Path(a.out) / "achievements" / "ra_cache"
     out.mkdir(parents=True, exist_ok=True)

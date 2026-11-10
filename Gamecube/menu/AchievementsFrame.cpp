@@ -254,6 +254,10 @@ int counts[3];
 int tab, sel[TABS], topRow[TABS];
 bool detail;
 int board;				/* the leaderboard shown */
+int localFor = -1;			/* Local mode: the board whose table localRows holds (-1: read it again) */
+achievement_local_score_t localRows[ACH_LOCAL_ROWS + 1];
+unsigned localN;
+int localTotal;
 unsigned total_earned, total_points, earned_points, jumpId;
 bool pointer;
 int px, py;
@@ -525,6 +529,7 @@ private:
 	void drawRow(menu::Graphics &gfx, int v, int idx);
 	void drawDetail(menu::Graphics &gfx);
 	void drawBoards(menu::Graphics &gfx);
+	void drawLocalBoard(menu::Graphics &gfx);
 };
 
 void AchievementsBoard::enter(unsigned jump)
@@ -533,6 +538,7 @@ void AchievementsBoard::enter(unsigned jump)
 		sel[t] = topRow[t] = 0;
 	detail = false;
 	board = 0;
+	localFor = -1;	/* the table is sorted when the book opens, and when another board is chosen */
 	pointer = false;
 	freeShot();
 	achievements_players_changed();	/* a Mii seated in the Players menu since: the set loads again for it, as it would on resume */
@@ -900,6 +906,40 @@ void AchievementsBoard::drawDetail(menu::Graphics &gfx)
 	textRight(620, 449, det.of, 0.5f, WHITE);
 }
 
+/* Local mode: this Wii's table of the board (achievements_board_local): rank, Mii, value, date; the seated
+ * Miis on a coloured band; a seated Mii below the table has its own last row, with its real rank */
+void AchievementsBoard::drawLocalBoard(menu::Graphics &gfx)
+{
+	char line[64];
+	if (localFor != board)
+	{
+		localN = ACH_LOCAL_ROWS;
+		localTotal = achievements_board_local(board, localRows, &localN);
+		localFor = board;
+	}
+	if (localTotal <= 0)
+	{
+		textCenter(320, 270, "No scores on this Wii yet", 0.8f, MID);
+		return;
+	}
+	snprintf(line, sizeof line, "This Wii: %d Mii%s", localTotal, localTotal == 1 ? "" : "s");
+	textRight(620, 154, line, 0.5f, MID);
+	for (unsigned i = 0; i < localN; i++)
+	{
+		const achievement_local_score_t &r = localRows[i];
+		int y = 176 + i * 28 + (i >= 8 ? 4 : 0);
+		char date[16];
+		if (r.seated)
+			fill(gfx, 24, y - 3, 592, 28, (GXColor){196, 214, 240, 255});
+		snprintf(line, sizeof line, "%u", r.rank);
+		text(40, y, line, 0.7f, DARK);
+		textFit(100, y, r.name, 0.7f, 0.5f, 250, DARK);
+		textRight(480, y, r.score, 0.7f, DARK);
+		dateText(r.when, date, sizeof date);
+		textRight(604, y + 3, date, 0.5f, MID);
+	}
+}
+
 void AchievementsBoard::drawBoards(menu::Graphics &gfx)
 {
 	unsigned count = achievements_board_count();
@@ -908,6 +948,7 @@ void AchievementsBoard::drawBoards(menu::Graphics &gfx)
 	const char *title, *desc;
 	char line[128];
 	int r;
+	const bool local = achievementsEnabled == ACH_LOCAL;
 
 	if (!count || achievements_board(board, &title, &desc) < 0)
 	{
@@ -919,6 +960,11 @@ void AchievementsBoard::drawBoards(menu::Graphics &gfx)
 	snprintf(line, sizeof line, "%d of %u", board + 1, count);
 	textRight(620, 130, line, 0.6f, MID);
 
+	if (local)
+	{
+		drawLocalBoard(gfx);
+		return;
+	}
 	r = achievements_board_scores(board, best, &n, &mine);
 	if (r <= 0)
 	{

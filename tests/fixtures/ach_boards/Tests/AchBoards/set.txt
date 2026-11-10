@@ -1,0 +1,8 @@
+# Local boards fixture (Docs/ACHIEVEMENTS.md, "Local leaderboards file"): made up as a RetroAchievements set by
+# scripts/ra_cache_fixture.py. Byte 0 is a frame counter for the hit counts, as in the other fixtures.
+Title=Boards
+1|Alpha|0xH000000=0xH000000.200.|5|||Hit 200 frames
+# a time (lower is better): starts after 50 frames, ends after 100 with 2:03.00 (value 7380 frames at 60/s)
+Board=1|Best Lap|Fastest lap|STA:0xH000000=0xH000000.50.::CAN:0=1::SUB:0xH000000=0xH000000.100.::VAL:7380|FRAMES|1
+# a score (higher is better): starts after 20 frames, ends after 80
+Board=2|High Score|Most points|STA:0xH000000=0xH000000.20.::CAN:0=1::SUB:0xH000000=0xH000000.80.::VAL:4321|SCORE|0

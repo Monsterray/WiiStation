@@ -27,7 +27,7 @@ this was `MII_PLAN.md` until 2026-11-04) and what is planned.
 | Unlock pictures | In the product (2026-10-29, `Gamecube/ach_shot.c`): the game's frame at each unlock, saved to `sd:/wiistation/achievements/shots/`. See [Unlock pictures](#unlock-pictures). |
 | Badges | In the product (2026-10-24, `Gamecube/ach_badge.c`): RetroAchievements pictures, 64 x 64 RGB5A3 (15-bit, the PS1's colour), in the card, the panel and the boxes. Cached on the card (`achievements/badges/`) and in a 256 KB pool; asked for when the notice comes. |
 | RetroAchievements login, awards, Rich Presence | In the product (Official, Casual). Rich presence is shown on the list page and sent with rc_client's pings. |
-| Leaderboards | Read only: the list and each board's ten best scores and the player's own (Achievements > Leaderboards). RetroAchievements takes leaderboard entries in Hardcore only, so a Casual client submits none. |
+| Leaderboards | Official: read only, the list and each board's ten best scores and the player's own (Achievements > Leaderboards). RetroAchievements takes leaderboard entries in Hardcore only, so a Casual client submits none. Local: this Wii's own scores per Mii, kept in a file on the card and shown in the Leaderboards tab; nothing is sent. See [Local leaderboards file](#local-leaderboards-file). |
 | Hardcore | Not implemented: needs RetroAchievements to approve WiiStation as a client. |
 | `rc_client`, API and PS1 hash code | Built into the Wii DOL (2026-10-23): `achievements_official.c` logs in from `ra_account.ini`, identifies the disc by the upstream PS1 hash in every format WiiStation boots (BIN/CUE, ISO, IMG/CCD, MDF/MDS, TOC, CBN, CHD, PBP), read at game load through WiiStation's own CD plugin; the same hash as upstream rcheevos' hasher (Frogger in 16 formats, Spyro 2 in 3: `scripts/chains/ach_hash_formats.txt`). On the bench Wii with the account, every format copy on its card finds its set: Frogger in 16 formats (31 achievements), MediEvil and Rayman as CHD and PBP (50, 58): `scripts/chains/ach_official_formats.txt`, job 20261023-212834-b319a4, evaluates each frame and sends unlocks to the toast with their rarity. Working on the bench Wii (2026-10-23): logged in, Spyro identified, its 89-achievement set loaded in Casual. No unlock has been earned yet. |
 | HTTPS (Mbed TLS 3.6.4 + curl 8.16.0) | In the Wii build when `scripts/build-ra-https.sh` has installed it (`Gamecube/ra_transport.c`, a worker thread, one kept-open connection). Needs, on the card in `sd:/wiistation/achievements/`: `tls_seed.bin` (64 secret random bytes for this Wii) and `ra_account.ini` (both put by `scripts/ra_setup.py`), and `cacert.pem` (shipped with every install, pinned). The clock learns its time zone from the server. See [Official setup](#official-setup). Costs: [the notes](ACHIEVEMENTS_NOTES.md#official-mode-cost-on-the-bench-wii). |
@@ -294,6 +294,81 @@ with a word that looks like a key has `-` where the key goes).
   authentication.
 - The journal is not a durable outbox for official awards.
 
+## Local leaderboards file
+
+This Wii's own leaderboard scores, kept per Mii. They exist in Local mode and in Official mode (the
+book shows them in Local mode; Official mode's book still shows RetroAchievements' table, and keeps
+this Wii's scores for a later "This Wii" view). Custom mode has none (a definition file has no boards).
+Nothing is sent: the scores are made on the console from the definitions rc_client parsed, rc_client's
+own leaderboard state is never touched, and the never-send locks of Local mode and Official mode are
+unchanged. Code: `Gamecube/ach_boards.h` (the file, plain C, host-tested), `achievements.c` (who
+keeps a score, the table, the pop-up), `achievements_official.c` (`boards_frame`: the evaluation),
+`AchievementsFrame.cpp` (`drawLocalBoard`).
+
+Why not rc_client: in Casual it keeps the set's leaderboards switched off (`client->state.hardcore ||
+allow_leaderboards_in_casual`, and nothing sets the second) and a client that ran them would submit
+each score. So after `rc_client_do_frame`, `boards_frame` runs `rc_evaluate_lboard` itself on the
+parsed definitions (`client->game->subsets[].leaderboards[].lboard`), which read the same memory
+cells rc_client keeps current. A board that reaches "triggered" gives its value to
+`achievements_boards_score`, which gives every seated Mii (Guest when none) its new best. A reset
+or a loaded state restarts every attempt (`rc_reset_lboard`). LowerIsBetter and the value format
+come from the board's definition. A new best shows the "New best" card (blue, "LEADERBOARD", the
+Miis' names).
+
+**File.** `sd:/wiistation/achievements/boards/<game id>.lb`, one per game (`ach_boards_path`). All
+numbers big endian, written and read field by field (no struct is written, so no padding or byte
+order can leak in).
+
+| Offset | Size | Field |
+|---|---|---|
+| 0 | 4 | `"WLB1"` |
+| 4 | 2 | version, 1 |
+| 6 | 2 | record size, 28 |
+| 8 | 4 | record count |
+| 12 + 28 n | 4 | board id (the RetroAchievements leaderboard id) |
+| 16 + 28 n | 16 | Mii key, ASCII hex as in the Players menu; all zero bytes = Guest |
+| 32 + 28 n | 4 | best value, signed |
+| 36 + 28 n | 4 | date, seconds since 1970 |
+
+One record per (board id, Mii key), holding only that Mii's best. Records stay in the order they
+were first written; nothing is sorted in the file. The record size is in the header so a later
+version can add a field to the end; a reader refuses a file whose version or record size it does
+not know and leaves it alone (never writes it).
+
+**Size and speed.** 12 bytes plus 28 per (board, Mii). The worst case taken for design, 100 boards
+x 300 Miis = 30,000 records = 840,012 bytes, is one `fread` at the game load (0.4 ms on a PC) into
+one MEM2 block (the Wii; `malloc` on the host) and stays there; the cap is 200,000 records (5.6 MB).
+Nothing is read or written per frame. The book's table is made on request: one pass over the records
+with a short insertion for the best 8 (`ach_boards_top`, 0.15 ms for 30,000 records on a PC), no
+allocation, no sort of the whole list. `tests/ach_boards_test.c` (`many_miis`) measures these.
+
+**Write rules.**
+- A new best changes the record in memory and is listed as dirty (at most 32). Nothing is written in
+  a frame: `achievements_flush` writes the dirty records (and the game close does); a full list of 32
+  is written at once.
+- A record that changes is written in place: seek to `12 + 28 * index`, 28 bytes. A new (board, Mii)
+  appends: the record is written at the end first, the count at offset 8 after (4 bytes).
+- Torn write: the count is written after the records, so a write cut short leaves a count that does
+  not cover the new record, and the file reads as it was before. A last record the file holds only
+  part of is ignored (the count is cut to the whole records in the file). The next append writes
+  over the stray bytes. A header cut short reads as an empty file and is made again at the first
+  write.
+- A file that is not ours (another version or format) is kept as it is and never written.
+- The file is opened with `r+b` (else `w+b`); a failed write keeps the records in the list and the
+  next flush writes them again.
+
+**The book (Local mode, Leaderboards tab).** Rank, Mii name (a Mii no longer on this Wii shows as
+"Mii 5a00"), value as rcheevos formats it, date; the best 8 rows. The seated Miis are on a blue band.
+A seated Mii that is below the 8 gets its own last row with its real rank. A board with no scores
+says so. Ties are ranked by the earlier date, then the key.
+
+Checks: `tests/ach_boards_test.c` (the format: exact bytes, in-place improve, append, a cut-short
+record, another version, 30,000 records) and `tests/achievements_boards_test.c` (the engine: every
+seated Mii keeps its best, LowerIsBetter, the pop-up, the table, Custom mode keeps none), both in
+`scripts/test-achievements.sh`. Dolphin: `scripts/autoinput/ach_boards.txt` with the fixture
+`tests/fixtures/ach_boards` (a made-up set with two boards, `scripts/ra_cache_fixture.py` `Board=`
+lines, and a seeded file from `scripts/ach_boards_fixture.py`).
+
 ## Save states
 
 States carry an optional `ACH1` section in the `WSXE` extension (`misc.c`). The PCSX state
@@ -327,12 +402,14 @@ layout does not change.
 | `Gamecube/ra_transport.c` | HTTPS worker; the clock's time zone learnt from verified responses |
 | `Gamecube/ach_badge.c`, `ach_badge.h`, `ach_badge_conv.h` | Badge pictures: download, card cache, PNG decode (libpng), RGB5A3 |
 | `Gamecube/ach_players.h`, `ach_players.c` | Who earns (Local): the seated Miis on connected pads, the engine's hook `achievements_players` |
-| `Gamecube/ach_account.h` | Which account file a link means, the RetroAchievements set's journal digest and path (plain C) |
+| `Gamecube/ach_account.h` | Which account file a link means, the RetroAchievements set's journal digest and path, the leaderboards file's path (plain C) |
+| `Gamecube/ach_boards.h` | The local leaderboards file: format, in-place writes, the table (plain C, header only). See [Local leaderboards file](#local-leaderboards-file) |
 | `Gamecube/ach_ra_cache.h` | Local mode: which requests may leave the console, the card's copy of the set (file names, what is kept, how old), the login that is made up (plain C) |
 | `tests/achievements_local_test.c`, `tests/ach_ra_cache_test.c` | Host tests: Local mode (Guest and Miis earn, players change in play, the numbers of the modes); the request rules and the cache names |
 | `tests/achievements_ra_test.c`, `tests/ach_account_test.c` | Host tests: the Local side of Official mode (who, journal, restore, the page, a failed account, the cap); the account paths and names |
+| `tests/ach_boards_test.c`, `tests/achievements_boards_test.c` | Host tests: the leaderboards file (exact bytes, in place, torn write, 30,000 records); the engine (every seated Mii keeps its best, LowerIsBetter, the pop-up, the table) |
 | `tests/achievements_players_test.c` | Host test: old lines are Guest's, two Miis, a swap, a missing Mii, the 1 MiB cap, the union, states of other players |
-| `Gamecube/menu/AchievementsFrame.cpp` | The book: tabs, rows, the detail with the unlock picture, the leaderboards (one player at a time) |
+| `Gamecube/menu/AchievementsFrame.cpp` | The book: tabs, rows, the detail with the unlock picture, the leaderboards (Official: one player at a time; Local: this Wii's table) |
 | `Gamecube/ach_progress.h` | The 10 % step rule of the progress pop-up (plain C) |
 | `Gamecube/ach_shot.c`, `ach_shot.h` | The unlock pictures: grab, sliced compression, the worker's write; the file names (plain C) |
 | `Gamecube/ach_picture.c`, `ach_picture.h` | One unlock picture as a 256 x 192 RGB5A3 texture for the book |
@@ -699,14 +776,14 @@ another mode uses custom achievements (Custom, the former Local). Setting `Achie
 |---|---|
 | Who earns | Every seated Mii on a connected pad, or Guest when there is none (`achievements_ra_plan_all`). Nobody is the Official Mii: there is no account side. The journal is Official mode's Local side: `achievements/ra_local/<game id>.unlocks`, lines `<digest> <id> <player key> <title>`, the digest made from the game id. So a Mii that earned Spyro's set as a Local Mii of Official mode keeps it in Local mode, and the other way round. Guest's lines have no key. |
 | Rules | Casual; Hardcore is not implemented. `AchievementUnofficial` applies. Encore is on (nothing is the account's). The toast has no side tag (all earn Local) and names the players as in Custom mode. |
-| Never sent | Three locks. (1) rc_client is put in spectator mode before the game loads: it makes no session start, no ping (so no rich presence on the profile), no award, no leaderboard entry. (2) `server_call` (`achievements_official.c`) refuses every request that is not the login, the game id or the set (`ach_req_kind`, `ach_local_may_send` in `Gamecube/ach_ra_cache.h`) with an answer made on the console (`ra_transport_complete`): a refusal shows in the log as "a request of kind X is refused". (3) The test is the log: only "a login download goes to the server", "a gameid ...", "a set ..." lines can appear, or none (a game load served from the card). Leaderboards and rich presence are Official only (the book shows no Leaderboards tab in Local mode). |
+| Never sent | Three locks. (1) rc_client is put in spectator mode before the game loads: it makes no session start, no ping (so no rich presence on the profile), no award, no leaderboard entry. (2) `server_call` (`achievements_official.c`) refuses every request that is not the login, the game id or the set (`ach_req_kind`, `ach_local_may_send` in `Gamecube/ach_ra_cache.h`) with an answer made on the console (`ra_transport_complete`): a refusal shows in the log as "a request of kind X is refused". (3) The test is the log: only "a login download goes to the server", "a gameid ...", "a set ..." lines can appear, or none (a game load served from the card). Rich presence is Official only. Leaderboards in Local mode are this Wii's own: the scores are evaluated on the console, kept in a file on the card, and never sent (no request kind exists for a score; see [Local leaderboards file](#local-leaderboards-file)). |
 | The download | The patch API needs a login. The account is any one: the Official Mii's linked file if it is there, else `achievements/ra_account.ini`, else the first `*.ini` in `achievements/ra/`. A password login stores the token as in Official mode. Nothing else about the account is used: no unlock list is fetched (spectator mode). |
 | The card's copy | `sd:/wiistation/achievements/ra_cache/`: `gameid-<hash>.json` (the answer to a disc's hash, only when the game is known) and `sets-<hash>.json` (the set), each written only after a successful answer, through a temp file and a rename; never the login (it holds the token), never a request. A game load whose set file is on the card and younger than 30 days (`ACH_CACHE_REFRESH_DAYS`; a wrong clock counts as young) makes no request at all: the login is made up on the console (`ach_synth_login`: the user "Local", the token "offline", never stored), so Local also works with no account and no network. An older copy is asked for again; if the server cannot be reached (no answer or a 5xx) or the login fails, the old copy is used. Badges have their own cache (`achievements/badges/`, as before): a badge not yet cached shows as the title's letter until it can be downloaded. |
 | No network, nothing saved | The status line says "No network, no saved set" and a black banner on the game card says "Local: no network, no set / Go online once to save it". With a network but no account: "Local: no account / Link one in Players". A disc the server does not know says "No set for this disc" as in Official mode. |
 | Seats change | `achievements_players_changed()` (the game goes on after the menu) builds the Local side again for the new players (`achievements_ra_replan`, `achievements_official_players_changed`); the old players' unlocks are written first. Official mode with Local players still plans at the game load only. |
 | Disc swap | rc_client's check as in Official mode. In an offline load the second disc of a game is known only when its hash was downloaded and saved before (a swap while online saves it). |
 | Save states | Official's `WAO1` (rc_client's progress); the unlocks come from the journal, as in Official mode with Local players. |
-| Not here | Hardcore, leaderboards, rich presence, the account's own unlocks. |
+| Not here | Hardcore, the account's leaderboard table and entries, rich presence, the account's own unlocks. |
 
 Checks (2026-10-29, `try/modes`): host tests `tests/achievements_local_test.c` and `tests/ach_ra_cache_test.c`
 (`scripts/test-achievements.sh`); Dolphin `scripts/chains/ach_local.txt` with the made-up set of
