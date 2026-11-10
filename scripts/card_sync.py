@@ -23,7 +23,7 @@ if not os.path.isdir(card):
 if os.path.isdir(os.path.join(sys.argv[1], "hbcbench")) is False:
     print("note: no hbcbench/ on this card -- check it is the bench Wii's card before --apply")
 
-SKIP = (".orig", ".ibg", ".bmp", ".jpg", ".png", ".nfo", ".sfv", ".md5")   # not for the Wii
+SKIP = (".orig", ".ibg", ".bmp", ".jpg", ".png", ".nfo", ".sfv", ".md5", ".pdf", ".isz")   # not for the Wii
 todo, total = [], 0
 for root, _, files in os.walk(lib):
     rel = os.path.relpath(root, lib)
