@@ -626,7 +626,24 @@ def run(args):
     unmatched_games = []
     if args.games:
         names = game_names(args.games)
+        all_rows = rows
         rows, unmatched_games = select_games(rows, names)
+        if unmatched_games and pathlib.Path(args.games).is_dir():
+            # no serial in the name and no dat match: read it from the disc (SYSTEM.CNF, PBP DISC_ID)
+            import disc_serial
+            files = {}
+            for f in sorted(pathlib.Path(args.games).rglob("*")):
+                if f.is_file() and f.suffix.lower() in GAME_EXTS:
+                    files.setdefault(f.stem, f)
+            by_serial = {r.serial: r for r in all_rows}
+            still = []
+            for n in unmatched_games:
+                r = by_serial.get(disc_serial.serial_of(files[n]) if n in files else None)
+                if r is None:
+                    still.append(n)
+                elif r not in rows:
+                    rows.append(r)
+            unmatched_games = still
         print("games: %d names, %d serials matched, %d names matched nothing" % (
             len(names), len(rows), len(unmatched_games)))
         for n in unmatched_games:
