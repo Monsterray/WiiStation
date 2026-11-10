@@ -56,6 +56,7 @@ private:
     u8* getCharPngBuf(const wchar_t wChar);
     int getCharCode(const wchar_t wChar);
     void releaseFontMem(void);
+    bool inkSpan(const wchar_t *txt, float scale, float &left, float &right);
 
 	u16 frameWidth;
 	GXTexObj fontTexObj;

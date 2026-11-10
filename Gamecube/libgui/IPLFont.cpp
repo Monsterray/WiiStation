@@ -52,6 +52,7 @@ namespace menu {
 
 static std::map<wchar_t, int> charCodeMap;
 static std::map<wchar_t, u8*> charPngBufMap;
+static std::map<wchar_t, std::pair<int, int> > inkBearing;   /* first / one past the last inked column per glyph (inkSpan) */
 heap_cntrl* GXtexCache;
 /* The glyph heap's block of the general MEM2 heap, sized to the loaded font (MEM2.h). */
 static void *fontHeapMem;
@@ -227,6 +228,7 @@ void IplFont::releaseFontMem(void)
         atlas = NULL;
     }
     charCodeMap.clear();
+    inkBearing.clear();
     if (charPngBufMap.size() > 0)
     {
          std::map<wchar_t, u8*>::iterator it = charPngBufMap.begin();
@@ -655,14 +657,59 @@ bool IplFont::drawSmall(int x, int y, const wchar_t *txt, int n, float scale)
     return true;
 }
 
+/* Where the ink of txt lies, in pixels from the pen's start, laid out as drawString lays it out
+ * (a glyph's bearings are measured once from its tile). False when nothing is inked. */
+bool IplFont::inkSpan(const wchar_t *txt, float scale, float &left, float &right)
+{
+    std::map<wchar_t, std::pair<int, int> > &bearing = inkBearing;
+    float pen = 0.0f;
+    bool any = false;
+
+    for (; *txt; txt++)
+    {
+        std::map<wchar_t, std::pair<int, int> >::iterator it = bearing.find(*txt);
+        if (it == bearing.end())
+        {
+            const u8 *g = getCharPngBuf(*txt);
+            int c0 = CH_FONT_WIDTH, c1 = 0;
+            for (int y = 0; y < CH_FONT_HEIGHT; y++)
+                for (int x = 0; x < CH_FONT_WIDTH; x++)
+                    if (g[ia8_offset(CH_FONT_WIDTH, x, y)] >= 64)
+                    {
+                        if (x < c0) c0 = x;
+                        if (x + 1 > c1) c1 = x + 1;
+                    }
+            it = bearing.insert(std::make_pair(*txt, std::make_pair(c0, c1))).first;
+        }
+        if (it->second.first < it->second.second)
+        {
+            const float l = (int)(pen + 0.5f) + it->second.first * scale, r = (int)(pen + 0.5f) + it->second.second * scale;
+            if (!any || l < left) left = l;
+            if (!any || r > right) right = r;
+            any = true;
+        }
+        pen += (getCharCode(*txt) + 1) * scale;
+    }
+    return any;
+}
+
 void IplFont::drawString(int x, int y, char *string, float scale, bool centered)
 {
     if(centered)
     {
         int strHeight = this->getStringHeight(string, scale);
         int strWidth = this->getStringWidth(string, scale);
+        float inkL, inkR;
+        wchar_t *w = charToWideChar(gettext(string));
 
-        x = (int) x - strWidth/2;
+        /* Centre the ink, not the advance box: the width above counts 5 units of slack and the
+         * spacing after the last letter, and each glyph sits in its cell with a left bearing, so
+         * the ink of a label centred on x landed 1.5 to 3 px left of x (tests/menu_text_center.py) */
+        if (inkSpan(w, scale, inkL, inkR))
+            x = (int)((float)x - (inkL + inkR) / 2.0f + 0.5f);
+        else
+            x = (int) x - strWidth/2;
+        delete[] w;
         y = (int) y - strHeight/2;
     }
 

@@ -58,8 +58,8 @@ void ring(menu::Graphics &gfx, int x, int y, int inner, int outer, GXColor c)
 }
 
 /* Text centered on (x, y), capitals included: measured, a centered string's capitals sit
- * about 6 x scale above the y it is given, and its ink about 5 x scale left of x (the font's
- * width counts the spacing after the last letter). */
+ * about 6 x scale above the y it is given. (drawString centers the ink horizontally now; this
+ * used to add 5 x scale to x for the spacing the width counts, which put the ink right of x.) */
 void textMid(int x, int y, const char *s, float scale, GXColor c, int maxw = 0)
 {
 	menu::IplFont &font = menu::IplFont::getInstance();
@@ -67,7 +67,7 @@ void textMid(int x, int y, const char *s, float scale, GXColor c, int maxw = 0)
 	if (maxw > 0 && w > maxw)
 		scale = scale * maxw / w;
 	font.drawInit(c);
-	font.drawString(x + (int)(5 * scale + 0.5f), y + (int)(6 * scale), (char *)s, scale, true);
+	font.drawString(x, y + (int)(6 * scale), (char *)s, scale, true);
 }
 
 /* A round well for a coin of radius r: shadowed at the top, lit at the bottom lip. The lip is the

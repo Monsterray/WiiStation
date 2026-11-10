@@ -69,4 +69,10 @@ rc=$((rc + $?))
 	"$root/Gamecube/cover_art.c" || exit 2
 if [ -f "$real" ]; then "$bin5" "$(dirname "$real")"; else "$bin5"; fi
 rc=$((rc + $?))
+# Centered labels: the ink of every label lands within 1 px of the centre it is given (needs Pillow).
+py=$(command -v python || command -v python3)
+if [ -n "$py" ] && "$py" -c "import PIL" 2>/dev/null; then
+	"$py" "$root/tests/menu_text_center.py" --scales 1.0,0.75,0.5 > "$scratch/center.txt"; crc=$?
+	tail -1 "$scratch/center.txt"; echo "0 checks failed: menu_text_center exit $crc" | grep -q "^0 checks failed: .* exit 0$" || rc=$((rc + 1))
+fi
 exit $((rc != 0))	# a sum of failure counts can wrap to 0 at 256
