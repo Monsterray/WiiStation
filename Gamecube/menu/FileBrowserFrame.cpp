@@ -631,6 +631,8 @@ static void fbCoverFree(void)
 	covState = 0;
 	covRest = 0;
 }
+/* The ISO Info disc band shares cover_art's one texture: it calls this first, so the explorer loads its cover again. */
+void fbCoverForget(void) { fbCoverFree(); }
 static bool fbCoverLoad(const char *serial)
 {
 #ifdef HW_RVL

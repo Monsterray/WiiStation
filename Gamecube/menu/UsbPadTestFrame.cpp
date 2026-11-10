@@ -39,6 +39,7 @@
 #include "MenuContext.h"
 #include "SettingsFrame.h"
 #include "UsbPadTestFrame.h"
+#include "MenuPageView.h"
 #include "../libgui/GuiResources.h"
 #include "../libgui/Image.h"
 #include "../libgui/IPLFont.h"
@@ -555,16 +556,31 @@ void Func_UsbPadTestAdvanced()
 	pMenuContext->setActiveFrame(MenuContext::FRAME_USBPADTEST, 0);
 }
 
+/* The page: one tick per drawn frame (nothing calls a frame's updateTime), then the picture and the lines. */
+class UsbPadBoard : public menu::glue::Board
+{
+public:
+	UsbPadBoard(UsbPadTestFrame *f) : owner(f) {}
+private:
+	void onInput(const menu::glue::PageInput &) { owner->updateFrame(0); }
+	void paint(menu::Graphics &gfx);
+	UsbPadTestFrame *owner;
+};
+
 UsbPadTestFrame::UsbPadTestFrame()
 {
 	setBackFunc(Func_UsbPadTestBack);
 	setSelectFunc(Func_UsbPadTestSkip);
+	board = new UsbPadBoard(this);
+	add(board);
 	setEnabled(true);
 	snprintf(line4, sizeof(line4), "Wii Remote / GameCube pad:  A skip,  B stop");
 }
 
 UsbPadTestFrame::~UsbPadTestFrame()
 {
+	remove(board);
+	delete board;
 	if (logFile) fclose(logFile);
 }
 
@@ -573,11 +589,8 @@ void UsbPadTestFrame::activateSubmenu(int submenu)
 	startTest();
 }
 
-void UsbPadTestFrame::drawChildren(menu::Graphics &gfx)
+void UsbPadBoard::paint(menu::Graphics &gfx)
 {
-	if (!isVisible())
-		return;
-	updateFrame(0);   /* nothing calls a frame's updateTime: the page ticks once per drawn frame */
 	GXColor white = {255, 255, 255, 255}, lit = {255, 200, 0, 255}, grey = {160, 160, 160, 255};
 
 	gfx.setColor(white);

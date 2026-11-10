@@ -79,6 +79,9 @@
 #include "../wiiSXconfig.h"
 #include "../../psxcommon.h"   /* Config: the ISO Info page */
 #include "../MEM2.h"
+#include "../cover_art.h"
+#include "../fileBrowser/cover_index.h"
+#include "MenuLayout.h"
 #include "../../achievements.h"
 
 extern "C" {
@@ -236,7 +239,76 @@ void pluginsLeave(void)
 }
 
 
+/*  The ISO Info disc band (design I4): the game's disc picture from the cover pack, when it has one  */
+
+void fbCoverForget(void);	/* FileBrowserFrame.cpp: the explorer's cover shares cover_art's texture */
+extern GXTexRegion texCacheRegionS[8];
+
 static int				currentPage;
+
+/* Loaded when the page opens (one decode, 600 x 600 -> STD_DISC_D square RGB5A3, 55 KB in MEM2 through cover_art, which holds
+ * one texture at a time) and freed when the page is left. discBand: the picture is there, so the page shows the band and its
+ * grid starts at the fourth row; no picture (no pack, no serial, no disc file): the page as it was. */
+static bool				discBand;
+static GXTexObj			discTex;
+static char				bandName[96], bandDisc[48], bandImage[48];
+
+static bool discLoad(void)
+{
+	static const char *const dirs[] = { "sd:/wiistation/covers", "usb:/wiistation/covers" };
+	const char *serial = romInfoSerial();
+	if (!serial[0])
+		return false;
+	for (unsigned d = 0; d < sizeof dirs / sizeof dirs[0]; d++)
+	{
+		char idx[48], path[112];
+		cover_row r;
+		snprintf(idx, sizeof idx, "%s/index.txt", dirs[d]);
+		if (cover_index_find(idx, serial, &r) && r.disc[0] && !cover_index_path(path, sizeof path, dirs[d], r.disc) &&
+		    cover_art_load(path, &discTex, STD_DISC_D, STD_DISC_D))
+			return true;
+	}
+	return false;
+}
+
+void isoInfoEnter(void)
+{
+	fbCoverForget();
+	discBand = discLoad();
+	if (discBand)
+	{
+		romInfoGame(bandName, sizeof bandName);
+		romInfoDisc(bandDisc, sizeof bandDisc);
+		romInfoImage(bandImage, sizeof bandImage);
+	}
+}
+void isoInfoLeave(void)
+{
+	if (discBand)
+		cover_art_free();
+	discBand = false;
+}
+
+/* Rows the grid leaves out because the band shows them */
+static int rowSkip(void) { return discBand && currentPage == OPT_PAGE_ISOINFO ? ISOINFO_BAND_ROWS : 0; }
+
+static void discDraw(menu::Graphics &gfx)
+{
+	if (!discBand || currentPage != OPT_PAGE_ISOINFO)
+		return;
+	GX_InvalidateTexRegion(&texCacheRegionS[0]);				/* the font's region: other texels */
+	GX_LoadTexObjPreloaded(&discTex, &texCacheRegionS[0], GX_TEXMAP0);	/* outside Begin/End */
+	gfx.setColor((GXColor) {255,255,255,255});
+	gfx.setTEV(GX_MODULATE);
+	gfx.enableBlending(true);
+	gfx.drawImage(0, STD_DISC_X, STD_DISC_Y, STD_DISC_D, STD_DISC_D, 0, 1, 0, 1);
+	const int room = (int)STD_CTRL_X1 - STD_DISC_TEXT_X;
+	menu::glue::text(STD_DISC_TEXT_X, STD_DISC_NAME_Y, bandName, 1.0f, (GXColor) {30,30,30,255}, room);
+	menu::glue::text(STD_DISC_TEXT_X, STD_DISC_LINE1_Y, bandDisc, 16.0f / 24, (GXColor) {60,60,60,255}, room);
+	menu::glue::text(STD_DISC_TEXT_X, STD_DISC_LINE2_Y, bandImage, 16.0f / 24, (GXColor) {60,60,60,255}, room);
+}
+
+
 static int				returnSubmenu;		// the Settings tab B goes back to
 static bool				tabSwitch;			// activateSubmenu called for a tab, inside the group
 static OptionsFrame*	optionsFrame;
@@ -254,10 +326,12 @@ static void optAct(void *, int row, int slot)
 		return;
 	}
 	const OptPage &p = PAGES[currentPage];
-	if (row < p.nrows)
+	const int skip = rowSkip();
+	if (row < p.nrows - skip)
 	{
-		segPress(p.rows[row].seg[p.rows[row].seg[0].value == SEGV_EACH ? 0 : slot], slot);
-		syncRows(*view, p.rows, p.nrows);
+		const SetRow &r = p.rows[skip + row];
+		segPress(r.seg[r.seg[0].value == SEGV_EACH ? 0 : slot], slot);
+		syncRows(*view, p.rows + skip, p.nrows - skip);
 	}
 }
 
@@ -274,10 +348,11 @@ void Func_AchievementsMode(void)
 bool OptionsFrame_ScriptClick(const char *name, int n)
 {
 	const OptPage &p = PAGES[currentPage];
-	for (int r = 0; r < p.nrows; r++)
+	const int skip = rowSkip();
+	for (int r = skip; r < p.nrows; r++)
 		if (scriptPress(p.rows[r].seg[0], name, n))
 		{
-			syncRows(*view, p.rows, p.nrows);
+			syncRows(*view, p.rows + skip, p.nrows - skip);
 			return true;
 		}
 	return false;
@@ -329,14 +404,15 @@ void OptionsFrame::activateSubmenu(int submenu)
 		returnSubmenu = PAGES[currentPage].returnSubmenu;
 		if (PAGES[currentPage].onEnter) PAGES[currentPage].onEnter();
 	}
+	const int skip = rowSkip();
 
 	/* Hidden first; the layout then shows what this page has. The footer help starts blank. */
 	view->hideAll();
 	/* The values the rows show. A readout's text is read here, before the engine lays it out. */
-	syncRows(*view, PAGES[currentPage].rows, PAGES[currentPage].nrows);
+	syncRows(*view, PAGES[currentPage].rows + skip, PAGES[currentPage].nrows - skip);
 
 	/* The engine lays the page out and links its focus: once, here, not per frame. */
-	buildOptionsPage(currentPage, curTab, BIND, BUILT);
+	buildOptionsPage(currentPage, curTab, BIND, BUILT, skip, skip ? (float)STD_DISC_ROWS_Y0 : 0.0f);
 	if (!view->show(BUILT.page))
 		SysPrintf("OptionsFrame: page %d does not fit the menu engine\n", currentPage);
 #ifdef PERF_PROF
@@ -386,6 +462,7 @@ void OptionsFrame::drawChildren(menu::Graphics& gfx)
 	if (!isVisible()) return;
 
 	view->update(BUILT.page);
+	discDraw(gfx);			/* before the texts: drawInit sets the font's texture again */
 
 	menu::ComponentList::const_iterator iteration;
 	for (iteration = componentList.begin(); iteration != componentList.end(); ++iteration)

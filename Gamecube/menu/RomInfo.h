@@ -12,6 +12,7 @@
 void romInfoGame(char *buf, int len);           /* the image's file name without its extension */
 void romInfoDisc(char *buf, int len);           /* "SCUS-94228, label SPYRO"; "SLUS-00892, disc 1 of 4" */
 void romInfoImage(char *buf, int len);          /* "CUE, 1 track, 630 MB" */
+const char *romInfoSerial(void);                /* CdromId ("SCUS94228", the cover pack's form), or "" when there is none */
 void romInfoSystem(char *buf, int len);         /* "NTSC, 60 Hz, HLE BIOS"; "PAL, forced to NTSC, HLE BIOS" */
 void romInfoCards(char *buf, int len);          /* "Per game (SCUS-94228)", "Shared", "Off" */
 void romInfoSettings(char *buf, int len);       /* "Global" or "This Game (SCUS94228.ini)" */

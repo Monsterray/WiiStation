@@ -50,16 +50,22 @@ import tools  # noqa: E402  (tool locations: ~/wii-tools.env; no workstation pat
 BENCH_WII = "192.168.8.213"
 PRODUCTION_WII = "192.168.8.200"
 LRWII = "192.168.8.243"      # the living-room Wii: production-style, real data (2026-10-20)
-# More protected Wiis can be added on a workstation ($WII_PROTECTED, comma-separated, or
-# .dev/wiis.json {"protected": [...]}, the wii-homebrew-kit convention); never removed: a missing
-# or empty config must not leave the production Wiis unguarded.
+# More protected Wiis can be added on a workstation ($WII_PROTECTED, comma-separated; the project's
+# .dev/wiis.json; the workstation's wii-bench list, wiis.json beside $WII_BENCH's wiibench.py, the
+# wii-bench kit convention: {"protected": [...]}); never removed: a missing or empty config must not
+# leave the production Wiis unguarded.
 def _extra_protected(repo):
-    try:
-        data = json.loads((repo / ".dev" / "wiis.json").read_text())
-    except (OSError, ValueError):
-        data = {}
-    env = [p.strip() for p in os.environ.get("WII_PROTECTED", "").split(",") if p.strip()]
-    return tuple(env) + tuple(data.get("protected", []))
+    files = [repo / ".dev" / "wiis.json"]
+    bench = tools.get("WII_BENCH", required=False)
+    if bench:
+        files.append(pathlib.Path(bench).parent / "wiis.json")
+    found = [p.strip() for p in os.environ.get("WII_PROTECTED", "").split(",") if p.strip()]
+    for f in files:
+        try:
+            found += json.loads(f.read_text()).get("protected", [])
+        except (OSError, ValueError, AttributeError):
+            pass
+    return tuple(found)
 
 
 PROTECTED_WIIS = (PRODUCTION_WII, LRWII) + _extra_protected(pathlib.Path(__file__).resolve().parents[1])

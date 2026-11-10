@@ -46,7 +46,7 @@ public:
 	enum { TOGGLE = 1, CYCLE = 2, FLAT = 4 };
 
 	/* Widgets for the engine's maxima: MAX_ROWS x (label boxes + MAX_SLOTS text boxes + MAX_SLOTS buttons),
-	 * MAX_TABS tab buttons, MAX_HELP help-line pairs and the footer lines, added to owner in this order.
+	 * MAX_TABS tab buttons and the footer lines, added to owner in this order.
 	 * The unused ones stay hidden. title is the first title text. */
 	PageView(Frame *owner, ActFn act, void *user, ButtonFunc back, const char *title);
 	~PageView();
@@ -61,7 +61,7 @@ public:
 	void setLit(int row, int slot, bool lit);
 	void mark(int row, int slot, int bits) { rowW[row].marks[slot] = (unsigned char)bits; }
 
-	/* Every widget off and unlit, the help lines blank, the footer reset. First step of a page change. */
+	/* Every widget off and unlit, the footer reset. First step of a page change. */
 	void hideAll(void);
 	/* Lays page out (once, here), places every widget, links focus. False when it does not fit: nothing is shown.
 	 * engineLit: take each button's lit and inactive state from the layout (the Settings tabs); else the frame
@@ -103,8 +103,8 @@ private:
 	RowW rowW[engine::MAX_ROWS];
 	Button *tabW[engine::MAX_TABS];
 	char *tabString[engine::MAX_TABS];
-	TextBox *helpTermBox[engine::MAX_HELP], *helpBox[engine::MAX_HELP], *footerBox[STD_HELP_LINES];
-	char *helpTermString[engine::MAX_HELP], *helpString[engine::MAX_HELP], *footerString[STD_HELP_LINES];
+	TextBox *footerBox[STD_HELP_LINES];
+	char *footerString[STD_HELP_LINES];
 	engine::Layout lay;
 	int footerRow;		/* the row whose help should show, -1 none */
 	int footerShown;	/* the row laid out now; updateFooter skips the layout when equal */
@@ -135,6 +135,88 @@ private:
 	char label[MAX_ACTIONS][LABEL_LEN];
 	char *labelPtr[MAX_ACTIONS];
 };
+
+/* A page of free buttons and labels at the author's rectangles (Configure Input, Configure Buttons, Customize
+ * Co-Op): the frame adds each button once (add: its place, art and text; the buttons are made here, once, and a
+ * click is click(user, id)), then sets each one's state and links and calls relayout() when the state changes
+ * and never per frame. The form owns the focus: the engine's geometry rule over the buttons that are shown,
+ * with the author's links (link()) over it; the frame keeps its picture and its own drawChildren. */
+class Editor {
+public:
+	typedef void (*ClickFn)(void *user, int id);
+	struct Item { Button *b; char **text; float x, y, w, h; bool shown, active, lit; };
+	struct Label { TextBox *box; char **text; float ax, ay, scale; bool centred, shown; };
+
+	Editor(Frame *owner, int nButtons, int nLabels, ClickFn click, void *user, ButtonFunc back);
+	~Editor();
+
+	/* Button id (0..nButtons-1) at its rectangle, shown and active; text is the frame's own pointer, read at each layout. */
+	Button *add(int id, int style, char **text, float x, float y, float w, float h);
+	TextBox *addLabel(int id, char **text, float ax, float ay, float scale, bool centred);
+	/* A title the engine centres at y (Customize Co-Op); buf is kept and may change in place. */
+	void setTitle(char *buf, float y);
+
+	Item &item(int id) { return it[id]; }
+	Label &label(int id) { return lb[id]; }
+	Button *button(int id) const { return it[id].b; }
+	/* The links of the state, replacing the geometry rule's where both ends are shown: -1 none. */
+	void clearLinks(void) { nLinks = 0; }
+	void link(int from, int up, int down, int left, int right);
+	/* The focus wraps at the screen edges (Configure Buttons). */
+	void setWrap(bool w) { wrap = w; }
+	/* Lays out the shown buttons and labels and links focus. withState also puts each button's visible, active and lit
+	 * state and each label's visibility on its widget; Configure Buttons sets those itself and passes false. */
+	void relayout(bool withState);
+	/* The button the layout's default focus is, or NULL. */
+	Button *defaultButton(void) const;
+
+private:
+	Editor(const Editor&);
+	Editor &operator=(const Editor&);
+	static void click(void *self, int tag);
+
+	struct Link { int from; engine::Dir dir; int to; };
+	Frame *frame;
+	Pool *pool;
+	ClickFn clickFn;
+	void *user;
+	ButtonFunc backFn;
+	Item *it;
+	Label *lb;
+	int nBtn, nLbl;
+	Link *links;
+	int nLinks;
+	engine::FreeButton *fb;
+	int *fbId;
+	engine::FreeText *ft;
+	int *ftId;
+	engine::FreeLink *fl;
+	engine::Page page;
+	engine::Layout lay;
+	bool wrap;
+	char *titleBuf, *titlePtr;
+	float titleY;
+	TextBox *titleBox;
+};
+
+/* A Board is a page that draws itself (the achievements book, Players, USB Pad Test): one component that, once per
+ * drawn frame, takes one input step (the pads read once, readInput) and then draws. A page overrides onInput() and
+ * paint(); the frame adds the board and keeps whatever focus, pointer and click code it has. */
+class Board : public Component {
+public:
+	Board() { setType(TYPE_OTHER); }
+	void drawComponent(Graphics &gfx);
+protected:
+	virtual void onInput(const PageInput &in) { (void)in; }
+	virtual void paint(Graphics &gfx) = 0;
+};
+
+/* The drawing helpers the boards share (with fill(), MenuGlue.h): text from its top left (scaled down to fit maxw when
+ * given), the width of a string, text centered on x, and the hint line (white on a dark band over the bottom). */
+void text(int x, int y, const char *s, float scale, GXColor c, int maxw = 0);
+int width(const char *s, float scale);
+void textCenter(int x, int y, const char *s, float scale, GXColor c);
+void hintLine(Graphics &gfx, const char *hint);
 
 #ifdef PERF_PROF
 /* The engine's checks, in debug builds: logs the problems of a laid-out page (a label wider than its button, a

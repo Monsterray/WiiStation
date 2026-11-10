@@ -271,6 +271,9 @@ void init_controller_ts(void){
 		memcpy(&controller_ts[i]->config_slot[CONTROLLER_GAME_SLOT],
 		       &controller_ts[i]->config_default,
 		       sizeof(controller_config_t));
+		memcpy(&controller_ts[i]->config_slot[CONTROLLER_DEFAULT_SLOT],
+		       &controller_ts[i]->config_default,
+		       sizeof(controller_config_t));
 	}
 }
 
@@ -543,6 +546,21 @@ int load_configurations(FILE* f, controller_t* controller){
 	for(i=0; i<4; ++i)
 		controller->config_slot[i].analog = read_analog(f, controller);
 
+	/* The user's Default follows, in the same form as a slot. A file from before it ends here:
+	 * the slot stays config_default. */
+	{
+		controller_config_t* d = &controller->config_slot[CONTROLLER_DEFAULT_SLOT];
+		int probe, index;
+		if (fread(&probe, 4, 1, f) == 1) {
+			fseek(f, -4, SEEK_CUR);
+			read_slot(f, controller, d);
+			if (fread(&index, 4, 1, f) != 1 || index < 0 || index >= controller->num_screenshot_combos)
+				index = controller->config_default.screenshot->index;
+			d->screenshot = controller->screenshot_combos + index;
+			d->analog = read_analog(f, controller);
+		}
+	}
+
 	/* Auto Load Slot 1..4 copies that slot to the mapping now; Auto (the Game slot) and Default
 	 * (the built-in mapping) are applied at each game start (loadGameButtons, GamecubeMain.cpp). */
 	if (loadButtonSlot >= LOADBUTTON_SLOT0 && loadButtonSlot <= LOADBUTTON_SLOT3) {
@@ -600,6 +618,10 @@ void save_configurations(FILE* f, controller_t* controller){
 		fwrite(&controller->config_slot[i].screenshot->index, 4, 1, f);
 	for(i=0; i<4; ++i)
 		fwrite(&controller->config_slot[i].analog->index, 4, 1, f);
+	/* the user's Default */
+	write_slot(f, controller, &controller->config_slot[CONTROLLER_DEFAULT_SLOT]);
+	fwrite(&controller->config_slot[CONTROLLER_DEFAULT_SLOT].screenshot->index, 4, 1, f);
+	fwrite(&controller->config_slot[CONTROLLER_DEFAULT_SLOT].analog->index, 4, 1, f);
 }
 
 /* The Game slot of one controller (config_slot[CONTROLLER_GAME_SLOT]): the magic and that slot.

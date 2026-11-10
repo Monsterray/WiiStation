@@ -44,6 +44,8 @@
 #include <sys/stat.h>
 #include "MenuContext.h"
 #include "AchievementsFrame.h"
+#include "MenuPageView.h"
+#include "OptionsFrame.h"
 #include "../libgui/Component.h"
 #include "../libgui/IPLFont.h"
 #include "../libgui/FocusManager.h"
@@ -74,24 +76,24 @@ const int LIST_X = 20, LIST_W = 584;
 const int BADGE_X = 28, BADGE_S = 48, TEXT_X = 88, RIGHT_X = 596, TEXT_W = 408;	/* title and description end at 496 */
 const int TAB_Y = 94, TAB_H = 26, TAB_W = 150, TAB_DX = 152;
 const int TOP_SCORES = 10;
-const int SHOT_X = 316, SHOT_Y = 134, SHOT_W = 296, SHOT_H = 222;	/* the detail's picture, 4:3 */
+const int SHOT_X = 320, SHOT_Y = 128, SHOT_W = 296, SHOT_H = 222;	/* the detail's picture, 4:3 */
 
 const GXColor DARK = {62, 62, 62, 255}, MID = {90, 90, 90, 255}, WHITE = {255, 255, 255, 255};
 const GXColor RED = {184, 49, 47, 255}, GREEN = {44, 120, 58, 255}, BLUE = {60, 110, 190, 255}, FOOT = {52, 52, 52, 255};
 
 struct Rect { int x, y, w, h; bool in(int px, int py) const { return px >= x && px < x + w && py >= y && py < y + h; } };
 
+const Rect OFF_BTN = { 210, 262, 220, 36 };	/* "Achievements Settings" when they are off */
+
 struct Item { unsigned short i; unsigned when; unsigned char percent; };
 
 typedef char Line[100];
 
-void fill(menu::Graphics &gfx, int x, int y, int w, int h, GXColor c)
-{
-	gfx.setTEV(GX_PASSCLR);
-	gfx.setColor(c);
-	gfx.enableBlending(true);
-	gfx.fillRect(x, y, w, h);
-}
+using menu::glue::fill;
+using menu::glue::text;
+using menu::glue::width;
+using menu::glue::textCenter;
+using menu::glue::hintLine;
 
 void frame(menu::Graphics &gfx, int x, int y, int w, int h, int t, GXColor c)
 {
@@ -101,28 +103,21 @@ void frame(menu::Graphics &gfx, int x, int y, int w, int h, int t, GXColor c)
 	fill(gfx, x + w - t, y + t, t, h - 2 * t, c);
 }
 
-/* Text from its top left at scale. */
-void text(int x, int y, const char *s, float scale, GXColor c)
+/* A flat trapezoid, wide edge at yb, narrow at y0: the slant is sl px on each side; the corners are
+ * (xl, yb) (xl + sl, y0) (xr - sl, y0) (xr, yb). Two triangles in one color. */
+void trap(menu::Graphics &gfx, int xl, int xr, int y0, int yb, int sl, GXColor c)
 {
-	menu::IplFont &font = menu::IplFont::getInstance();
-	font.drawInit(c);
-	font.drawString(x, y, (char *)s, scale, false);
+	gfx.setTEV(GX_PASSCLR);
+	gfx.setColor(c);
+	gfx.enableBlending(true);
+	gfx.fillTriangle(xl, yb, xl + sl, y0, xr - sl, y0);
+	gfx.fillTriangle(xl, yb, xr - sl, y0, xr, yb);
 }
-
-int width(const char *s, float scale) { return menu::IplFont::getInstance().getStringWidth((char *)s, scale); }
 
 /* Text that ends at x (right aligned) */
 void textRight(int x, int y, const char *s, float scale, GXColor c)
 {
 	text(x - width(s, scale), y, s, scale, c);
-}
-
-/* Text centered on x */
-void textCenter(int x, int y, const char *s, float scale, GXColor c)
-{
-	menu::IplFont &font = menu::IplFont::getInstance();
-	font.drawInit(c);
-	font.drawString(x, y, (char *)s, scale, true);
 }
 
 /* s cut so that it ends in "..." within maxw pixels at scale; unless always, a string that fits is left */
@@ -225,6 +220,31 @@ void dateText(unsigned t, char *out, size_t size)
 	snprintf(out, size, "%04d-%02d-%02d", tmv.tm_year + 1900, tmv.tm_mon + 1, tmv.tm_mday);
 }
 
+/* "12 % have it": the share of players, whole from 10 % up (and when the tenth is 0), else with one decimal.
+ * Nothing when the set holds no player counts (a Local set: x100 < 0). */
+void rarityText(char *out, size_t size, int x100)
+{
+	if (x100 < 0)
+		out[0] = '\0';
+	else if (x100 < 5)
+		snprintf(out, size, "under 0.1 %% have it");
+	else
+	{
+		int tenths = (x100 + 5) / 10;
+		if (tenths >= 100 || tenths % 10 == 0)
+			snprintf(out, size, "%d %% have it", (tenths + 5) / 10);
+		else
+			snprintf(out, size, "%d.%d %% have it", tenths / 10, tenths % 10);
+	}
+}
+
+/* line plus " · " plus part (just part when line is empty) */
+void joinPart(char *line, size_t size, const char *part)
+{
+	size_t n = strlen(line);
+	snprintf(line + n, size - n, "%s%s", n ? " - " : "", part);
+}
+
 void Func_ReturnFromAchievementsFrame();
 
 /* ---- the state ---- */
@@ -244,6 +264,15 @@ GXTexObj shotTex;
 bool shotOk;
 unsigned shotFor;		/* the achievement whose picture was looked for, 0 none */
 char shotDate[16];
+
+/* The text of the page, formatted when the page or the row changes (not each frame) */
+char hdrEarned[40], hdrPoints[48], hdrPlayer[32];
+struct DetailText
+{
+	Line title[2], desc[5];
+	int nTitle, nDesc;
+	char meta[120], count[32], who[100], when[16], taken[32], of[24];
+} det;
 
 int cmpProgress(const void *a, const void *b)
 {
@@ -282,6 +311,17 @@ void build()
 	}
 	qsort(lists[TAB_PROGRESS], counts[TAB_PROGRESS], sizeof(Item), cmpProgress);
 	qsort(lists[TAB_EARNED], counts[TAB_EARNED], sizeof(Item), cmpEarned);
+
+	snprintf(hdrEarned, sizeof hdrEarned, "%u / %u earned", total_earned, count);
+	if (total_points)
+		snprintf(hdrPoints, sizeof hdrPoints, "%u / %u points", earned_points, total_points);
+	else
+		snprintf(hdrPoints, sizeof hdrPoints, "no points in this set");
+	unsigned players = achievements_player_count();
+	if (players > 1)
+		snprintf(hdrPlayer, sizeof hdrPlayer, "Player %u of %u", achievements_viewed_player() + 1, players);
+	else
+		hdrPlayer[0] = '\0';
 }
 
 void clampSel()
@@ -419,6 +459,16 @@ void drawBadge(menu::Graphics &gfx, const achievement_entry_t &e, int x, int y, 
 	text(x + (size - width(letter, 1.1f * s)) / 2, y + size / 2 - (int)(15 * s), letter, 1.1f * s, WHITE);
 }
 
+/* A small solid triangle pointing left (dir -1) or right (1), its tip at x, centered on y */
+void drawArrow(menu::Graphics &gfx, int x, int y, int dir)
+{
+	for (int k = 0; k < 7; k++)
+	{
+		int h = 2 * k + 1;
+		fill(gfx, dir < 0 ? x + k : x - k, y - k, 1, h, DARK);
+	}
+}
+
 void drawBar(menu::Graphics &gfx, int x, int y, int w, int h, int percent, GXColor c)
 {
 	fill(gfx, x, y, w, h, (GXColor){150, 150, 150, 255});
@@ -430,47 +480,22 @@ void drawBar(menu::Graphics &gfx, int x, int y, int w, int h, int percent, GXCol
 	}
 }
 
-/* The hint line: white on a dark band (the menu's lower half is dark, and dark text was lost on it) */
-void footer(menu::Graphics &gfx, const char *hint)
-{
-	fill(gfx, 0, 442, 640, 38, FOOT);
-	text(20, 449, hint, 0.5f, WHITE);
-}
-
 const char *typeName(unsigned char type)
 {
 	return type == ACH_TYPE_PROGRESSION ? "Progression" : type == ACH_TYPE_WIN ? "Win condition" :
 	       type == ACH_TYPE_MISSABLE ? "Missable" : "";
 }
 
-/* L and R (GameCube), + and - (Wii Remote, Classic): the next or the previous player */
-bool switchPlayer(void)
+/* turn (the shoulders, + and -, from the board's one input step): the next or the previous player */
+bool switchPlayer(int turn)
 {
 	unsigned n = achievements_player_count(), v = achievements_viewed_player();
-	int step = 0;
-#ifdef HW_RVL
-	WPADData *w = menu::Input::getInstance().getWpad();
-	for (int i = 0; i < 4; i++)
-	{
-		if (w[i].btns_d & (WPAD_BUTTON_PLUS | WPAD_CLASSIC_BUTTON_PLUS | WPAD_CLASSIC_BUTTON_FULL_R)) step = 1;
-		if (w[i].btns_d & (WPAD_BUTTON_MINUS | WPAD_CLASSIC_BUTTON_MINUS | WPAD_CLASSIC_BUTTON_FULL_L)) step = -1;
-	}
-#endif
-	static u16 before[4];	/* an input script's menukeys count as pad 1's (FocusManager.cpp) */
-	for (int i = 0; i < 4; i++)
-	{
-		u16 held = PAD_ButtonsHeld(i) | (i == 0 ? menu::menu_script_keys : 0);
-		u16 gc = held & ~before[i];
-		before[i] = held;
-		if (gc & PAD_TRIGGER_R) step = 1;
-		if (gc & PAD_TRIGGER_L) step = -1;
-	}
 	/* the Wii Remote's menu combination is + and - together: it is not a switch (MenuContext.cpp) */
-	if (step && (pad_menu_combo_held() || (menu::menu_script_keys & MENU_SCRIPT_COMBO)))
-		step = 0;
-	if (n > 1 && step)
+	if (turn && (pad_menu_combo_held() || (menu::menu_script_keys & MENU_SCRIPT_COMBO)))
+		turn = 0;
+	if (n > 1 && turn)
 	{
-		achievements_view_player((v + n + step) % n);
+		achievements_view_player((v + n + turn) % n);
 		return true;
 	}
 	return false;
@@ -478,15 +503,15 @@ bool switchPlayer(void)
 
 } // namespace
 
-class AchievementsBoard : public menu::Component
+class AchievementsBoard : public menu::glue::Board
 {
 public:
-	AchievementsBoard() { setType(TYPE_OTHER); }
-	void drawComponent(menu::Graphics &gfx);
 	menu::Component *updateFocus(int direction, int buttonsPressed);
 	void enter(unsigned jump);
 
 private:
+	void onInput(const menu::glue::PageInput &in);
+	void paint(menu::Graphics &gfx);
 	void readPointer();
 	Rect tabRect(int t) const { return (Rect){ LIST_X + t * TAB_DX, TAB_Y, TAB_W, TAB_H }; }
 	int tabAt(int x, int y) const;
@@ -581,6 +606,12 @@ menu::Component *AchievementsBoard::updateFocus(int direction, int buttonsPresse
 			Func_ReturnFromAchievementsFrame();
 		return this;
 	}
+	if (!achievements_count())	/* nothing to list: when achievements are off, A opens their settings */
+	{
+		if (a && achievementsEnabled == ACH_OFF && (!pointer || OFF_BTN.in(px, py)))
+			pMenuContext->setActiveFrame(MenuContext::FRAME_OPTIONS, OptionsFrame::PAGE_ACHIEVEMENTS);
+		return this;
+	}
 	if (detail)
 	{
 		if (direction == menu::Focus::DIRECTION_LEFT || direction == menu::Focus::DIRECTION_UP) step(-1);
@@ -609,51 +640,93 @@ menu::Component *AchievementsBoard::updateFocus(int direction, int buttonsPresse
 
 void AchievementsBoard::drawHeader(menu::Graphics &gfx)
 {
-	unsigned who = achievements_viewed_player(), count = achievements_count(), players = achievements_player_count();
+	unsigned who = achievements_viewed_player(), count = achievements_count();
 	const char *name = achievements_player_name(who), *key = achievements_player_key(who);
-	char line[128];
-	int x = 20;
+	int x = 20, maxw = 320;
 	if (name[0])
 	{
 		fill(gfx, 16, 6, 52, 52, (GXColor){196, 196, 196, 255});
 		drawCoin(gfx, key, 20, 10, 44);
 		x = 76;
 	}
-	textFit(x, 6, name[0] ? name : "Guest", 0.9f, 0.5f, 320, DARK);
-	textFit(x, 36, achievements_title(), 0.6f, 0.5f, 330, MID);
+	if (hdrPlayer[0])	/* "< Player 1 of 2 >" at the middle, beside the name; the name keeps clear of it */
+	{
+		int half = width(hdrPlayer, 0.65f) / 2 + 14;
+		textCenter(320, 20, hdrPlayer, 0.65f, DARK);
+		drawArrow(gfx, 320 - half, 29, -1);
+		drawArrow(gfx, 320 + half, 29, 1);
+		maxw = 320 - half - 14 - x;
+		if (maxw < 90)
+			maxw = 90;
+	}
+	textFit(x, 6, name[0] ? name : "Guest", 0.9f, 0.5f, maxw, DARK);
+	textFit(x, 36, achievements_title(), 0.6f, 0.5f, maxw + 10, MID);
 
-	snprintf(line, sizeof line, "%u / %u earned", total_earned, count);
-	textRight(620, 6, line, 0.75f, DARK);
-	if (total_points)
-		snprintf(line, sizeof line, "%u / %u points", earned_points, total_points);
-	else
-		snprintf(line, sizeof line, "no points in this set");
-	textRight(620, 36, line, 0.6f, MID);
+	textRight(620, 6, hdrEarned, 0.75f, DARK);
+	textRight(620, 36, hdrPoints, 0.6f, MID);
 	drawBar(gfx, 20, 62, 600, 10, count ? (int)(total_earned * 100 / count) : 0, GREEN);
 
-	snprintf(line, sizeof line, "%s", achievements_player_note(who));	/* why this Mii earns Local (its account did not work) */
-	if (!line[0] && !who)	/* the Official Mii's list is the server's: its rich presence; the Local Miis' is their own */
-		snprintf(line, sizeof line, "%s", achievements_presence());
-	if (!line[0] && players > 1)
-		snprintf(line, sizeof line, "Player %u of %u", who + 1, players);
-	if (line[0])
-		textFit(20, 74, line, 0.5f, 0.5f, 600, MID);
+	const char *note = achievements_player_note(who);	/* why this Mii earns Local (its account did not work) */
+	if (!note[0] && !who)	/* the Official Mii's list is the server's: its rich presence; the Local Miis' is their own */
+		note = achievements_presence();
+	if (note[0])
+		textFit(20, 74, note, 0.5f, 0.5f, 600, MID);
 }
 
 void AchievementsBoard::drawTabs(menu::Graphics &gfx)
 {
-	char line[48];
-	for (int t = 0; t < tabCount(); t++)
+	/* Folder tabs, "C1 color edge": slanted sides, each tab overlaps its neighbours, the chosen one is drawn
+	 * last (in front), 4 px taller, in the page color and runs into a page-colored band across the list,
+	 * so it joins the page with no line. A 4 px color edge follows each tab's slanted top. */
+	const int SL = 8, OVER = 3, BOT = 121, EDGE = 4;
+	const GXColor PAGE = {238, 238, 238, 255};
+	const GXColor ACCENT[TABS] = { {62, 112, 196, 255}, {120, 120, 128, 255}, {74, 150, 86, 255}, {120, 120, 128, 255} };
+	/* the labels are built when a count changes, not every frame */
+	static struct { char line[48]; int count; float scale; } cache[TABS] = { { "", -2, 0 }, { "", -2, 0 }, { "", -2, 0 }, { "", -2, 0 } };
+
+	fill(gfx, LIST_X, BOT - 2, LIST_W, 5, PAGE);
+	for (int k = tabCount(); k >= 0; k--)	/* k == tabCount(): the chosen tab, last */
 	{
+		int t = k == tabCount() ? tab : k;
+		bool on = k == tabCount();
+		if (!on && t == tab)
+			continue;
 		Rect r = tabRect(t);
-		bool on = t == tab;
-		fill(gfx, r.x, r.y, r.w, r.h, on ? (GXColor){120, 120, 120, 255} : (GXColor){160, 160, 160, 255});
-		fill(gfx, r.x + 1, r.y + 1, r.w - 2, r.h - 1, on ? (GXColor){238, 238, 238, 255} : (GXColor){190, 190, 190, 255});
-		if (t < 3)
-			snprintf(line, sizeof line, "%s (%d)", TAB_NAMES[t], counts[t]);
+		int x0 = r.x - OVER, x1 = r.x + r.w + OVER;
+		int y0 = on ? TAB_Y - 2 : TAB_Y + 2, yb = on ? BOT + 2 : BOT - 2;
+		GXColor a = ACCENT[t];
+		if (!on)	/* 55% of the color, the rest page */
+			a = (GXColor){ (u8)((a.r * 55 + PAGE.r * 45) / 100), (u8)((a.g * 55 + PAGE.g * 45) / 100),
+				(u8)((a.b * 55 + PAGE.b * 45) / 100), 255 };
+		trap(gfx, x0, x1, y0, yb, SL, on ? (GXColor){150, 150, 156, 255} : (GXColor){172, 172, 178, 255});
+		trap(gfx, x0 + 1, x1 - 1, y0 + 1, on ? yb : yb - 1, SL, on ? PAGE : (GXColor){206, 206, 210, 255});
+		if (on)
+			fill(gfx, x0 + 1, BOT - 2, x1 - x0 - 2, 5, PAGE);	/* no line where it meets the page */
 		else
-			snprintf(line, sizeof line, "%s", TAB_NAMES[t]);
-		textFit(r.x + 8, r.y + 3, line, 0.6f, 0.5f, r.w - 16, on ? DARK : MID);
+			fill(gfx, x0 + 2, BOT - 3, x1 - x0 - 4, 1, (GXColor){188, 188, 192, 255});
+		trap(gfx, x0 + SL, x1 - SL, y0, y0 + EDGE, 1, a);
+
+		/* the label, centered; rebuilt only when the count changes */
+		auto &c = cache[t];
+		int n = t < 3 ? counts[t] : -1;
+		if (c.count != n || !c.line[0])
+		{
+			if (t < 3)
+				snprintf(c.line, sizeof c.line, "%s (%d)", TAB_NAMES[t], n);
+			else
+				snprintf(c.line, sizeof c.line, "%s", TAB_NAMES[t]);
+			c.scale = fitScale(c.line, 0.6f, 0.5f, r.w - 16);
+			clip(c.line, c.scale, r.w - 16);
+			c.count = n;
+		}
+		int tx = (x0 + x1 - width(c.line, c.scale)) / 2, ty = (y0 + EDGE + yb) / 2 - 11;
+		if (on)
+		{
+			text(tx, ty, c.line, c.scale, (GXColor){45, 45, 50, 255});
+			text(tx + 1, ty, c.line, c.scale, (GXColor){45, 45, 50, 255});	/* bold */
+		}
+		else
+			text(tx, ty, c.line, c.scale, (GXColor){95, 95, 100, 255});
 	}
 }
 
@@ -669,20 +742,20 @@ void AchievementsBoard::drawRow(menu::Graphics &gfx, int v, int idx)
 	fill(gfx, LIST_X, y, LIST_W, ph, e.earned ? (GXColor){208, 226, 208, 255} : (GXColor){222, 222, 222, 255});
 	drawBadge(gfx, e, BADGE_X, y + (ph - BADGE_S) / 2, BADGE_S, e.earned);
 
-	/* the right column: the points, then when it was earned, how rare it is, or that it is Unofficial */
+	/* the right column: the points, then when it was earned (Earned), how rare it is (Locked) or that it is Unofficial;
+	 * In progress keeps its bar and count. A Local set holds no dates or counts: nothing is written then. */
 	if (e.points)
 	{
 		snprintf(line, sizeof line, "%u pts", e.points);
 		textRight(RIGHT_X, y + 4, line, 0.7f, DARK);
 	}
-	if (e.earned && e.when)
+	line[0] = '\0';
+	if (e.earned)
 		dateText(e.when, line, sizeof line);
-	else if (e.rarity_x100 >= 0)
-		snprintf(line, sizeof line, "%d.%d%% have it", e.rarity_x100 / 100, e.rarity_x100 % 100 / 10);
+	else if (tab == TAB_LOCKED && e.rarity_x100 >= 0)
+		rarityText(line, sizeof line, e.rarity_x100);
 	else if (e.unofficial)
 		snprintf(line, sizeof line, "Unofficial");
-	else
-		line[0] = '\0';
 	if (line[0])
 		textRight(RIGHT_X, y + 30, line, 0.5f, MID);
 
@@ -734,85 +807,97 @@ void AchievementsBoard::drawList(menu::Graphics &gfx)
 	}
 }
 
+/* The detail's text for e, formatted once per achievement (the page keeps it until another one is shown) */
+void formatDetail(const achievement_entry_t &e, const char *name)
+{
+	det.nTitle = wrap(e.title, 1.0f, 488, det.title, 2);
+	det.meta[0] = '\0';
+	char part[40];
+	if (e.points)
+	{
+		snprintf(part, sizeof part, "%u points", e.points);
+		joinPart(det.meta, sizeof det.meta, part);
+	}
+	if (typeName(e.type)[0])
+		joinPart(det.meta, sizeof det.meta, typeName(e.type));
+	rarityText(part, sizeof part, e.rarity_x100);
+	if (part[0])
+		joinPart(det.meta, sizeof det.meta, part);
+	if (e.unofficial)
+		joinPart(det.meta, sizeof det.meta, "Unofficial");
+	det.nDesc = wrap(e.desc, 0.65f, 276, det.desc, 5);
+
+	det.count[0] = '\0';
+	if (e.progress[0] && !e.earned)
+		spaced(det.count, sizeof det.count, e.progress);
+	det.who[0] = det.when[0] = det.taken[0] = '\0';
+	if (e.earned)
+	{
+		snprintf(det.who, sizeof det.who, "%s", name[0] ? name : "Earned");
+		if (name[0])
+			strncat(det.who, " earned it", sizeof det.who - strlen(det.who) - 1);
+		dateText(e.when, det.when, sizeof det.when);
+		if (!det.when[0])	/* a Local set keeps no time: the picture's file is dated from the unlock */
+			snprintf(det.when, sizeof det.when, "%s", shotDate);
+	}
+	if (shotOk && shotDate[0])
+		snprintf(det.taken, sizeof det.taken, "Taken %s", shotDate);
+}
+
 void AchievementsBoard::drawDetail(menu::Graphics &gfx)
 {
 	achievement_entry_t e;
-	char line[160];
-	Line lines[6];
 	int n = counts[tab];
 	if (!n || achievements_entry(lists[tab][sel[tab]].i, &e) < 0)
 	{
 		leaveDetail();
 		return;
 	}
-	loadShot(e.id);
-	const char *name = achievements_player_name(achievements_viewed_player());
-
-	/* the big badge, the title, the points, the kind and how rare it is */
-	drawBadge(gfx, e, 24, 18, 96, e.earned);
-	textFit(140, 14, e.title, 1.0f, 0.5f, 476, DARK);
-	if (e.points)
+	if (shotFor != e.id)
 	{
-		snprintf(line, sizeof line, "%u points", e.points);
-		text(140, 50, line, 0.8f, DARK);
+		loadShot(e.id);
+		formatDetail(e, achievements_player_name(achievements_viewed_player()));
+		snprintf(det.of, sizeof det.of, "%d of %d", sel[tab] + 1, n);
 	}
-	snprintf(line, sizeof line, "%s", typeName(e.type));
-	if (e.rarity_x100 >= 0)
-		snprintf(line + strlen(line), sizeof line - strlen(line), "%s%d.%d%% of players have it",
-		         line[0] ? "   " : "", e.rarity_x100 / 100, e.rarity_x100 % 100 / 10);
-	if (e.unofficial)
-		snprintf(line + strlen(line), sizeof line - strlen(line), "%sUnofficial", line[0] ? "   " : "");
-	textFit(140, 84, line, 0.6f, 0.5f, 476, MID);
-	fill(gfx, 20, 124, 600, 2, (GXColor){170, 170, 170, 255});
 
-	/* the left column: the description, the progress, who earned it and when */
-	int y = SHOT_Y;
-	int nl = wrap(e.desc, 0.65f, 276, lines, 6);
-	for (int k = 0; k < nl; k++)
-		text(24, y + k * 24, lines[k], 0.65f, DARK);
-	y += nl * 24 + 14;
-	if (e.progress[0] && !e.earned)
+	/* the tile, the full title (two lines at most) and the facts under it */
+	drawBadge(gfx, e, 24, 20, 88, e.earned);
+	for (int k = 0; k < det.nTitle; k++)
+		text(128, 20 + k * 30, det.title[k], 1.0f, DARK);
+	text(128, 86, det.meta, 0.65f, (GXColor){150, 100, 20, 255}, 488);
+
+	/* the left column: the description, then the progress or who earned it, and when */
+	for (int k = 0; k < det.nDesc; k++)
+		text(24, SHOT_Y + 12 + k * 24, det.desc[k], 0.65f, DARK);
+	if (det.count[0])
 	{
-		char count[32];
-		spaced(count, sizeof count, e.progress);
-		text(24, y, count, 0.8f, DARK);
-		drawBar(gfx, 24, y + 30, 270, 12, e.percent, BLUE);
-		y += 56;
+		text(24, 268, det.count, 0.8f, DARK);
+		drawBar(gfx, 24, 298, 272, 8, e.percent, BLUE);
+		text(24, 318, "Not earned yet", 0.65f, MID);
 	}
-	if (e.earned)
+	else if (e.earned)
 	{
-		char d[16];
-		dateText(e.when, d, sizeof d);
-		if (name[0])
-			snprintf(line, sizeof line, "%s earned it%s%s", name, d[0] ? " on " : "", d);
-		else
-			snprintf(line, sizeof line, "Earned%s%s", d[0] ? " " : "", d);
-		textFit(24, y, line, 0.65f, 0.5f, 276, GREEN);
+		text(24, 290, det.who, 0.65f, GREEN, 276);
+		text(24, 316, det.when, 0.5f, DARK);
 	}
 	else
-		text(24, y, "Not earned yet", 0.65f, MID);
+		text(24, 290, "Not earned yet", 0.65f, MID);
 
-	/* the picture of the unlock, 4:3 */
-	fill(gfx, SHOT_X - 3, SHOT_Y - 3, SHOT_W + 6, SHOT_H + 6, (GXColor){90, 90, 90, 255});
+	/* the picture of the unlock, 4:3, and its date under it */
+	fill(gfx, SHOT_X - 2, SHOT_Y - 2, SHOT_W + 4, SHOT_H + 4, (GXColor){30, 30, 30, 255});
 	if (shotOk)
 	{
 		drawTex(gfx, &shotTex, SHOT_X, SHOT_Y, SHOT_W, SHOT_H, WHITE);
-		if (shotDate[0])
-		{
-			snprintf(line, sizeof line, "Taken %s", shotDate);
-			fill(gfx, SHOT_X - 3, SHOT_Y + SHOT_H + 3, SHOT_W + 6, 22, FOOT);
-			text(SHOT_X + 4, SHOT_Y + SHOT_H + 6, line, 0.5f, WHITE);
-		}
+		if (det.taken[0])
+			textCenter(SHOT_X + SHOT_W / 2, SHOT_Y + SHOT_H + 8, det.taken, 0.5f, WHITE);
 	}
 	else
 	{
-		fill(gfx, SHOT_X, SHOT_Y, SHOT_W, SHOT_H, (GXColor){196, 196, 196, 255});
-		textCenter(SHOT_X + SHOT_W / 2, SHOT_Y + SHOT_H / 2 - 28, "No picture", 0.7f, MID);
-		textCenter(SHOT_X + SHOT_W / 2, SHOT_Y + SHOT_H / 2 + 2, "It is taken when the", 0.5f, MID);
-		textCenter(SHOT_X + SHOT_W / 2, SHOT_Y + SHOT_H / 2 + 18, "achievement unlocks", 0.5f, MID);
+		fill(gfx, SHOT_X, SHOT_Y, SHOT_W, SHOT_H, (GXColor){215, 215, 215, 255});
+		textCenter(SHOT_X + SHOT_W / 2, SHOT_Y + SHOT_H / 2 - 24, "No picture yet", 0.65f, MID);
+		textCenter(SHOT_X + SHOT_W / 2, SHOT_Y + SHOT_H / 2 + 2, "taken when it unlocks", 0.5f, MID);
 	}
-	snprintf(line, sizeof line, "%d of %d", sel[tab] + 1, n);
-	textRight(620, 449, line, 0.5f, WHITE);
+	textRight(620, 449, det.of, 0.5f, WHITE);
 }
 
 void AchievementsBoard::drawBoards(menu::Graphics &gfx)
@@ -857,19 +942,9 @@ void AchievementsBoard::drawBoards(menu::Graphics &gfx)
 	textCenter(320, 176 + 8 * 28 + 4, line, 0.7f, DARK);
 }
 
-void AchievementsBoard::drawComponent(menu::Graphics &gfx)
+void AchievementsBoard::onInput(const menu::glue::PageInput &in)
 {
-	char hint[128];
-	unsigned count = achievements_count();
-	readPointer();
-	if (!count)
-	{
-		snprintf(hint, sizeof hint, "%s", achievements_status());	/* why: off, a .exe, no set, Official ... */
-		textCenter(320, 190, hint, 1.0f, DARK);
-		footer(gfx, "B: back");
-		return;
-	}
-	if (switchPlayer())
+	if (achievements_count() && switchPlayer(in.turn))
 	{
 		leaveDetail();
 		for (int t = 0; t < TABS; t++)
@@ -878,6 +953,33 @@ void AchievementsBoard::drawComponent(menu::Graphics &gfx)
 		if (tab != TAB_BOARDS)
 			tab = firstTab();
 		clampSel();
+	}
+}
+
+void AchievementsBoard::paint(menu::Graphics &gfx)
+{
+	char hint[128];
+	unsigned count = achievements_count();
+	readPointer();
+	if (!count)
+	{
+		if (achievementsEnabled == ACH_OFF)
+		{
+			/* off: say so, and the one way to fix it */
+			textCenter(320, 182, "Achievements are off.", 1.0f, DARK);
+			textCenter(320, 224, "Turn them on, then load the game again", 0.6f, MID);
+			bool over = pointer && OFF_BTN.in(px, py);
+			fill(gfx, OFF_BTN.x, OFF_BTN.y, OFF_BTN.w, OFF_BTN.h, over ? (GXColor){214, 160, 150, 255} : (GXColor){176, 124, 116, 255});
+			fill(gfx, OFF_BTN.x + 2, OFF_BTN.y + 2, OFF_BTN.w - 4, OFF_BTN.h - 4, over ? (GXColor){170, 110, 102, 255} : (GXColor){140, 92, 86, 255});
+			textCenter(320, OFF_BTN.y + 6, "Achievements Settings", 0.7f, WHITE);
+			hintLine(gfx, pointer ? "Click: Achievements Settings   B: back" : "A: Achievements Settings   B: back");
+			gfx.setTEV(GX_PASSCLR);
+			return;
+		}
+		snprintf(hint, sizeof hint, "%s", achievements_status());	/* why: a .exe, no set, Official ... */
+		textCenter(320, 190, hint, 1.0f, DARK);
+		hintLine(gfx, "B: back");
+		return;
 	}
 	if (detail)
 		drawDetail(gfx);
@@ -898,7 +1000,7 @@ void AchievementsBoard::drawComponent(menu::Graphics &gfx)
 	else
 		snprintf(hint, sizeof hint, "%s   Left/Right: tabs%s   B: back", pointer ? "Click an achievement" : "A: details",
 		         players ? "   L/R, +/-: player" : "");
-	footer(gfx, hint);
+	hintLine(gfx, hint);
 	gfx.setTEV(GX_PASSCLR);
 }
 

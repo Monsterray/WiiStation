@@ -40,6 +40,8 @@ extern "C" void applyCopyFilter(void);	/* Gamecube/libgui/GraphicsGX.cpp */
 void Func_UsbPadTestAdvanced(void);	/* UsbPadTestFrame.cpp */
 void pluginsEnter(void);
 void pluginsLeave(void);
+void isoInfoEnter(void);	/* the ISO Info disc band: loads the disc picture, if the pack has one */
+void isoInfoLeave(void);
 void infoMem1(char *buf, int len);
 void infoMem2(char *buf, int len);
 void infoTexPool(char *buf, int len);
@@ -59,13 +61,9 @@ void infoAchFile(char *buf, int len);
 	{ eng::ROW_CYCLE, NULL, { SEG_CYCLE_THEN(key, apply) } }
 #define ROW_RADIO(key, apply) \
 	{ eng::ROW_CHOICE, NULL, { SEG_EACH(key, apply) } }
-/* The same, but each button only as wide as its own word. Right when the words differ a
- * lot in length; a row whose choices are of a size reads better on the fixed grid. */
-#define ROW_RADIO_FIT(key, apply) \
-	{ eng::ROW_CHOICE, NULL, { SEG_EACH(key, apply) }, 0, false, NULL, { NULL, NULL }, true }
 /* A readout. It never takes focus (Monty, 2026-11-09), so it has no help line. */
 #define ROW_INFO(label, fn) \
-	{ eng::ROW_READOUT, label, { }, 0, false, NULL, { NULL, NULL }, false, fn }
+	{ eng::ROW_READOUT, label, { }, 0, false, NULL, { NULL, NULL }, fn }
 /* A label and one button that runs fn, e.g. opens a page of its own. No setting. */
 #define ROW_ACTION(label, text, fn) \
 	{ eng::ROW_BUTTONS, label, { SEG_ACT(label, text, fn) } }
@@ -193,6 +191,8 @@ static const SetRow MEMORY_ROWS[] =
 #define ISOINFO_ROW(label, fn) ROW_INFO(label, fn),
 static const SetRow ISOINFO_ROWS[] = { ROM_INFO_ROWS(ISOINFO_ROW) };
 #undef ISOINFO_ROW
+/* With disc art the band shows the first three rows (Game, Disc, Image) and the grid starts at the fourth. */
+#define ISOINFO_BAND_ROWS	3
 
 /* The mode is a cycle: its five values do not fit a radio row (eng::MAX_SLOTS). A change
  * applies at the next game load (achievements_load), so there is no apply function. Each row has its own
@@ -248,7 +248,7 @@ static const OptPage PAGES[] =
 	{ PG_NAME(OPT_PAGE_ADV_INPUT, "Advanced", "Input"),     PG_ROWS(INPUT_ROWS),   OPT_RET_GENERAL, PG_HOOKS,   PG_STD(eng::DENSITY_REGULAR) },
 	{ PG_NAME(OPT_PAGE_ADV_SPU, "Advanced", "SPU"),         PG_ROWS(SPU_ROWS),     OPT_RET_GENERAL, PG_HOOKS,   PG_STD(eng::DENSITY_TEXT) },
 	{ PG_NAME(OPT_PAGE_ACHIEVEMENTS, "Achievements", NULL), PG_ROWS(ACH_ROWS),     OPT_RET_GENERAL, PG_NOHOOKS, PG_STD(eng::DENSITY_REGULAR) },
-	{ PG_NAME(OPT_PAGE_ISOINFO, "ISO Info", NULL),          PG_ROWS(ISOINFO_ROWS), RETURN_CURRENT_ISO, PG_NOHOOKS, PG_STD(eng::DENSITY_TEXT) },   /* F1: readouts on the standard grid */
+	{ PG_NAME(OPT_PAGE_ISOINFO, "ISO Info", NULL),          PG_ROWS(ISOINFO_ROWS), RETURN_CURRENT_ISO, isoInfoEnter, isoInfoLeave, PG_STD(eng::DENSITY_TEXT) },   /* F1: readouts on the standard grid */
 };
 
 /* The Advanced pages, in the order their tabs run across the top. A tab switch stays inside
@@ -284,7 +284,9 @@ static_assert(COUNT(PAGES) == OPT_PAGE_COUNT, "PAGES: one entry per OptPageId (e
 /* ---- The engine page of an Options page: the Wii's OptionsFrame and the host test build it here ---- */
 
 /* Describes PAGES[page] as an engine page (the rows through buildRow, as the Settings tabs). */
-static inline void buildOptionsPage(int page, int curTab, const SetBind &bind, SetPage &o)
+/* skip: leading rows left out of the page (the ISO Info rows the disc band shows instead); rowY0: the first row's top
+ * (0 = the standard's). */
+static inline void buildOptionsPage(int page, int curTab, const SetBind &bind, SetPage &o, int skip = 0, float rowY0 = 0)
 {
 	const OptPage &p = PAGES[page];
 	int nTabs = 0;
@@ -293,14 +295,15 @@ static inline void buildOptionsPage(int page, int curTab, const SetBind &bind, S
 	memset(&o, 0, sizeof o);
 	for (int t = 0; t < nTabs; t++)
 		o.tabs[t].text = PAGES[group[t]].tab;	/* a standard page measures the text: no width */
-	for (int i = 0; i < p.nrows; i++)
-		buildRow(p.rows[i], i, bind, o);
+	for (int i = 0; i < p.nrows - skip; i++)
+		buildRow(p.rows[skip + i], i, bind, o);
 	o.page.title    = p.title;
 	o.page.tabs     = group ? o.tabs : NULL;
 	o.page.nTabs    = nTabs;
 	o.page.curTab   = curTab < 0 ? 0 : curTab;
 	o.page.rows     = o.rows;
-	o.page.nRows    = p.nrows;
+	o.page.nRows    = p.nrows - skip;
+	o.page.rowY0    = rowY0;
 	o.page.logo     = OPT_LOGO;
 	o.page.focus    = eng::FOCUS_ROWS;
 	o.page.standard = p.standard;

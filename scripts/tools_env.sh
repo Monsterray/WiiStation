@@ -1,6 +1,6 @@
 # Source this (bash): it loads ~/wii-tools.env (NAME="path" lines; scripts/tools.py setup writes it)
 # without overriding a variable that is already set, then offers `need NAME LEVEL`: stop with
-# one line when NAME is unset. DEVKITPRO is made an MSYS path (/c/devkitPro); a stale
+# one line when NAME is unset. DEVKITPRO is made an MSYS path (cygpath -u); a stale
 # DEVKITPRO of a login shell (a folder that is not there) is dropped first.
 _te="${WII_TOOLS_ENV:-$HOME/wii-tools.env}"
 if [ -n "${DEVKITPRO:-}" ] && [ ! -d "$DEVKITPRO" ]; then unset DEVKITPRO; fi

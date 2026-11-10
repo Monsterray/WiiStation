@@ -84,6 +84,8 @@ extern "C" void applyCopyFilter(void) {}
 void Func_UsbPadTestAdvanced(void) {}
 void pluginsEnter(void) {}
 void pluginsLeave(void) {}
+void isoInfoEnter(void) {}
+void isoInfoLeave(void) {}
 void infoMem1(char *, int) {}
 void infoMem2(char *, int) {}
 void infoTexPool(char *, int) {}
@@ -409,6 +411,27 @@ static void checkShippedPages(const char *root)
 		buildOptionsPage(i, tab, bind, ob);
 		checkPage(ob.page, name);
 		checkValues(ob, name);
+	}
+	/* ISO Info with the disc band (STD_DISC_*): the rows after the band, clear of the disc, the name text, the title and the logo */
+	{
+		static SetPage ib;
+		const SetBind bind = { segTextHost, segLitHost, segSettingHost, readoutHost, true, true };
+		readoutPage = &PAGES[OPT_PAGE_ISOINFO];
+		buildOptionsPage(OPT_PAGE_ISOINFO, -1, bind, ib, ISOINFO_BAND_ROWS, (float)STD_DISC_ROWS_Y0);
+		checkPage(ib.page, "ISO Info (disc band)");
+		static Layout lay;
+		layoutPage(ib.page, kFont, lay);
+		check(ib.page.nRows == PAGES[OPT_PAGE_ISOINFO].nrows - ISOINFO_BAND_ROWS, "the band takes the first rows", "ISO Info (disc band)");
+		for (int k = 0; k < lay.n; k++) {
+			const Control &c = lay.c[k];
+			if (c.row < 0) continue;
+			check(c.rect.y >= STD_DISC_Y + STD_DISC_D, "a row starts below the disc", "ISO Info (disc band)");
+			check(c.rect.y + c.rect.h <= STD_BODY_Y1, "a row ends inside the body", "ISO Info (disc band)");
+		}
+		check(STD_DISC_Y >= STD_HEADER_Y1, "the disc starts below the title", "ISO Info (disc band)");
+		check(STD_DISC_X + STD_DISC_D < STD_DISC_TEXT_X, "the band's text starts right of the disc", "ISO Info (disc band)");
+		check(STD_DISC_LINE2_Y + 16 <= STD_DISC_ROWS_Y0 && STD_DISC_Y + STD_DISC_D <= STD_DISC_ROWS_Y0, "the band ends above the rows", "ISO Info (disc band)");
+		check(STD_DISC_Y + STD_DISC_D <= STD_LOGO_Y && STD_CTRL_X1 <= STD_LOGO_X + STD_LOGO_W, "the band is clear of the logo box", "ISO Info (disc band)");
 	}
 	printf("shipped pages through the engine: %d checks\n", checks - before);
 }

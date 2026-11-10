@@ -32,10 +32,9 @@ namespace engine {
 using namespace grid;
 
 /* Every control the worst legal page can need must fit in Layout::c: the tabs, the title,
- * two controls per row plus a row of up to MAX_SLOTS buttons, two per help line, and a list's
- * window with its Prev and Next. */
+ * two controls per row plus a row of up to MAX_SLOTS buttons, and a list's window with its Prev and Next. */
 typedef char engine_controls_fit
-	[(MAX_TABS + 1 + MAX_ROWS * (2 + MAX_SLOTS) + 2 * MAX_HELP + MAX_LIST_SLOTS + 2) <= MAX_CONTROLS ? 1 : -1];
+	[(MAX_TABS + 1 + MAX_ROWS * (2 + MAX_SLOTS) + MAX_LIST_SLOTS + 2) <= MAX_CONTROLS ? 1 : -1];
 
 /* The text of a measured string. OptionsFrame's helpWidth() gives 0 for an empty string; the
  * Button fit and TextBox drawing use IplFont directly, which gives 5 for an empty one. */
@@ -44,16 +43,6 @@ static int measure(const Metrics &m, const char *s, float scale)
 	if (!s || !*s)
 		return 0;
 	return m.width(s, scale, m.ctx);
-}
-
-int buttonFitWidth(const Metrics &m, const char *text)
-{
-	if (!text || !*text)
-		return (int)CHOICE_W;
-	{
-		float tw = (float)m.width(text, 1.0f, m.ctx);
-		return (int)(2.0f * ceilf((tw + 2.0f * BUTTON_PAD_X) / 2.0f));
-	}
 }
 
 /*  The standard's widths: text + pad, rounded up to a step of STD_STEP  */
@@ -140,18 +129,11 @@ static int shownValue(const Row &r)
 	return v;
 }
 
-/* The top of line i: the page's first row (rowY0, or ROW_Y0) plus i row pitches, the page's own
- * pitch or ROW_DY. */
-static float rowTop(const Page &p, int i)
-{
-	return (p.rowY0 > 0 ? p.rowY0 : ROW_Y0) + i * (p.rowDy > 0 ? p.rowDy : ROW_DY);
-}
-
-/* A row that takes a cell of a two-column page: a Cycle, and on a grid page a Toggle too (a standard
- * page's Toggle is a segmented control as wide as the control column, so it is a line of its own). */
+/* A row that takes a cell of a two-column page: a Cycle (a Toggle is a segmented control as wide as the
+ * control column, so it is a line of its own). */
 static bool isCell(const Page &p, const Row &r)
 {
-	return p.columns >= 2 && (r.kind == ROW_CYCLE || (r.kind == ROW_TOGGLE && p.standard == DENSITY_OFF));
+	return p.columns >= 2 && r.kind == ROW_CYCLE;
 }
 
 /* Which line and column row i is in. One column: line i, column 0. Two columns: a Toggle or
@@ -194,20 +176,19 @@ static void gridPlace(const Page &p, const Metrics &m, int col, float &btnX, flo
 		if ((float)measure(m, r.label, TEXT_SCALE) > lw[c])
 			lw[c] = (float)measure(m, r.label, TEXT_SCALE);
 		for (int n = 0; n < r.count; n++) {
-			/* a standard cell is text + the arrows (STD_CELL_PAD); the column takes its widest value */
-			const float w = p.standard != DENSITY_OFF ? (float)stdStepWidth(m, r.names[n], STD_CELL_PAD)
-			                                          : (float)buttonFitWidth(m, r.names[n]);
+			/* a cell is text + the arrows (STD_CELL_PAD); the column takes its widest value */
+			const float w = (float)stdStepWidth(m, r.names[n], STD_CELL_PAD);
 			if (w > bw[c])
 				bw[c] = w;
 		}
 	}
 	{
-		/* a standard grid is tighter (STD_CELL_*), and pushed left when it would pass the control column's right edge */
-		const float lg = p.standard != DENSITY_OFF ? (float)STD_CELL_LGAP : RLABEL_GAP;
-		const float cg = p.standard != DENSITY_OFF ? (float)STD_CELL_CGAP : COL2_GAP;
+		/* the grid is pushed left when it would pass the control column's right edge */
+		const float lg = (float)STD_CELL_LGAP;
+		const float cg = (float)STD_CELL_CGAP;
 		const float total = lw[0] + lg + bw[0] + (cols > 1 ? cg + lw[1] + lg + bw[1] : 0);
 		x = (MENU_W - total) / 2;
-		if (p.standard != DENSITY_OFF && x + total > (float)STD_CTRL_X1)
+		if (x + total > (float)STD_CTRL_X1)
 			x = (float)STD_CTRL_X1 - total;
 		if (col)
 			x += lw[0] + lg + bw[0] + cg;
@@ -261,8 +242,6 @@ static void placeText(Control &c, const Metrics &m)
 	c.rect.y = (float)y;
 	c.rect.w = (float)w;
 	c.rect.h = (float)h;
-	if (c.role == ROLE_HELP_TERM)
-		c.rect.w += 1.0f;	/* the term is drawn bold: a second copy one pixel to the right */
 }
 
 static int addText(Layout &out, const Metrics &m, CtrlRole role, int row, int slot,
@@ -305,143 +284,6 @@ static int addButton(Layout &out, CtrlRole role, int row, int slot,
 	c.focusable = focusable;
 	c.selected = lit;
 	return i;
-}
-
-/* The right edge a line may reach, given its lowest pixel (MenuLayout.h's MENU_ROW_RIGHT, for
- * whichever corner the logo is in). */
-static float rowRight(float bottom, LogoSpot spot)
-{
-	if (spot == LOGO_SPOT_BOTTOM && bottom > LOGO_BOX_T(LOGO_PAGE_Y))
-		return LOGO_BOX_L(LOGO_PAGE_X) - MENU_EDGE;
-	if (spot == LOGO_SPOT_TOP && bottom > LOGO_BOX_T(LOGO_MAIN_Y))
-		return LOGO_BOX_L(LOGO_MAIN_X) - MENU_EDGE;
-	return MENU_RIGHT;
-}
-
-/* The help block: two columns, centred on the screen as a whole, then moved left far enough
- * that its lower lines clear the logo's corner, and no further. */
-static void layoutHelp(const Page &p, const Metrics &m, Layout &out)
-{
-	const float helpLineH = FONT_H * HELP_SCALE;
-	int wTerm = 0, wText = 0, shift = 0;
-	float termR, textX, y;
-
-	for (int i = 0; i < p.nHelp; i++) {
-		const HelpLine &h = p.help[i];
-		if (h.term) {
-			int w = measure(m, h.term, HELP_SCALE);
-			if (w > wTerm) wTerm = w;
-		}
-		{
-			int w = measure(m, h.text, HELP_SCALE);
-			if (w > wText) wText = w;
-		}
-	}
-	termR = (MENU_W - (wTerm + HELP_COL_GAP + wText)) / 2 + wTerm;
-	textX = termR + HELP_COL_GAP;
-
-	y = rowTop(p, pageLines(p));
-	for (int i = 0; i < p.nHelp; i++) {
-		const HelpLine &h = p.help[i];
-		int over;
-		if (i > 0 && h.term) y += HELP_CELL_GAP;
-		over = (int)(textX + measure(m, h.text, HELP_SCALE) - rowRight(y + helpLineH, p.logo));
-		if (over > shift) shift = over;
-		y += HELP_LINE_DY;
-	}
-	if (termR - wTerm - shift < MENU_EDGE)
-		shift = (int)(termR - wTerm - MENU_EDGE);
-	termR -= shift;
-	textX -= shift;
-
-	y = rowTop(p, pageLines(p));
-	for (int i = 0; i < p.nHelp; i++) {
-		const HelpLine &h = p.help[i];
-		if (i > 0 && h.term) y += HELP_CELL_GAP;
-		if (h.term)
-			addText(out, m, ROLE_HELP_TERM, -1, i, termR, y, ALIGN_RIGHT_TOP, HELP_SCALE, h.term);
-		addText(out, m, ROLE_HELP_TEXT, -1, i, textX, y, ALIGN_LEFT_TOP, HELP_SCALE, h.text);
-		y += HELP_LINE_DY;
-	}
-}
-
-/* A choice button's width: its own, the fitted one, or the fixed grid's. */
-static float choiceWidth(const Metrics &m, const Row &r, int c)
-{
-	if (r.widths)
-		return r.widths[c];
-	return r.fit ? (float)buttonFitWidth(m, r.names[c]) : CHOICE_W;
-}
-
-/* The space between two choice buttons (or two action buttons, for Buttons rows). */
-static float choiceGap(const Row &r)
-{
-	if (r.widths)
-		return r.gap > 0 ? r.gap : TAB_GAP;
-	return CHOICE_GAP;
-}
-
-/* A choice row's width, from its first button's left edge to its last one's right edge. */
-static float choiceRowWidth(const Metrics &m, const Row &r)
-{
-	float total = 0;
-	for (int c = 0; c < r.count; c++) {
-		total += choiceWidth(m, r, c);
-		if (c + 1 < r.count)
-			total += choiceGap(r);
-	}
-	return total;
-}
-
-/* Where a choice row's first button goes: CHOICE_X0, or further left when the row would run
- * past the right edge its lowest pixel allows, and no further. */
-static float choiceStart(const Metrics &m, const Row &r, float y, LogoSpot spot)
-{
-	const float right = rowRight(y + BUTTON_H, spot);
-	const float total = choiceRowWidth(m, r);
-
-	return CHOICE_X0 + total > right ? right - total : CHOICE_X0;
-}
-
-/* Where a choice or buttons row starts: its own x0 when the page gives one, else the default. */
-static float rowStart(const Metrics &m, const Row &r, float y, LogoSpot spot)
-{
-	return r.x0 > 0 ? r.x0 : choiceStart(m, r, y, spot);
-}
-
-/* A list's window: its Prev and Next buttons, then the item buttons, slot by slot. The items past
- * the end of the list are drawn inactive, with no text, as the file browser has always drawn its
- * empty slots. Items are asked for only in the window: nothing is kept per item. */
-static void layoutList(Layout &out, const ListSpec &L, int row)
-{
-	const ListState &s = *L.state;
-	const float pitch = L.pitch > 0 ? L.pitch : L.h;
-	const bool paged = L.mode == LIST_PAGED;
-	const bool canPrev = paged && s.top > 0;
-	const bool canNext = paged && s.top + s.slots < s.count;
-
-	out.slot[row][0] = addButton(out, ROLE_LIST_PAGE, row, 0, L.prev.x, L.prev.y, L.prev.w, L.prev.h,
-	                             L.prev.text, false, canPrev);
-	out.slot[row][1] = addButton(out, ROLE_LIST_PAGE, row, 1, L.next.x, L.next.y, L.next.w, L.next.h,
-	                             L.next.text, false, canNext);
-	for (int k = 0; k < s.slots; k++) {
-		const int index = s.top + k;
-		const bool shown = index < s.count;
-		ListItem it;
-		int c;
-
-		it.text = "";
-		it.folder = false;
-		it.dim = false;
-		it.tag = it.note = NULL;
-		if (shown)
-			L.item(L.ctx, index, it);
-		c = addButton(out, ROLE_LIST_ITEM, row, k, L.x0, L.y0 + k * pitch, L.w, L.h,
-		              shown && it.text ? it.text : "", false, shown);
-		out.c[c].folder = shown && it.folder;
-		out.c[c].dim = shown && it.dim;
-		out.listItem[k] = c;
-	}
 }
 
 /* `text` cut to at most `room` px with "..." at the end, written to buf; the text itself when it fits.
@@ -562,10 +404,10 @@ static int controlBound(const Page &p)
 		case ROW_READOUT: n += 2; break;
 		case ROW_CHOICE:
 		case ROW_BUTTONS: n += 1 + r.count; break;
-		case ROW_LIST:    n += 2 + r.list->state->slots * (p.standard == DENSITY_EXPLORER ? 3 : 1); break;
+		case ROW_LIST:    n += 2 + r.list->state->slots * 3; break;	/* the item, its tag and its note */
 		}
 	}
-	return n + p.nFreeButtons + p.nFreeTexts + 2 * p.nHelp;
+	return n + p.nFreeButtons + p.nFreeTexts;
 }
 
 /*  The menu standard (Page::standard; MenuLayout.h STD_*, Docs/MENU_PLAN.md 1.1-1.3)
@@ -581,7 +423,7 @@ static int controlBound(const Page &p)
  *                   With a label they start at STD_CTRL_X0, without they are centred on the screen
  *   Readout         label, and the text at STD_CTRL_X0
  *
- * Row::x0, gap, widths and the Page's grid fields are ignored; ActionButton::width is used on a Buttons row
+ * Row::x0 and gap and the Page's titleY are ignored (rowY0 > 0 moves the first row down: the ISO Info disc band); ActionButton::width is used on a Buttons row
  * when it is above 0 (a cycle takes STD_CYCLE_W), else the width comes from the text. A row that
  * does not fit is not squeezed: checkLayout reports it. A page with more rows than the density holds,
  * or a List row, is refused (-1): the list is not laid out by the standard yet.
@@ -624,7 +466,7 @@ static int layoutStandard(const Page &p, const Metrics &m, Layout &out)
 		const Row &r = p.rows[i];
 		int line, col;
 		rowCell(p, i, line, col);
-		const float y = (float)STD_BODY_Y0 + (float)line * pitch;
+		const float y = (p.rowY0 > 0 ? p.rowY0 : (float)STD_BODY_Y0) + (float)line * pitch;
 		const float cy = y + h / 2;
 		/* a cell of a two-column page (Page::columns): its label edge, button x and width from gridPlace */
 		float bx = (float)STD_CTRL_X0, bw = (float)STD_CYCLE_W, edge = (float)STD_LABEL_EDGE;
@@ -796,7 +638,7 @@ int checkFooters(const Page &p, const Metrics &m)
 
 int layoutPage(const Page &p, const Metrics &m, Layout &out)
 {
-	if (p.nRows < 0 || p.nRows > MAX_ROWS || p.nHelp < 0 || p.nHelp > MAX_HELP ||
+	if (p.nRows < 0 || p.nRows > MAX_ROWS ||
 	    p.nTabs < 0 || p.nTabs > MAX_TABS || (p.nTabs > 0 && (!p.tabs || p.curTab < 0 || p.curTab >= p.nTabs)) ||
 	    p.nFreeButtons < 0 || p.nFreeButtons > MAX_FREE || (p.nFreeButtons > 0 && !p.freeButtons) ||
 	    p.nFreeTexts < 0 || (p.nFreeTexts > 0 && !p.freeTexts) || p.nFreeLinks < 0 || (p.nFreeLinks > 0 && !p.freeLinks))
@@ -828,129 +670,33 @@ int layoutPage(const Page &p, const Metrics &m, Layout &out)
 	if (p.standard != DENSITY_OFF)
 		return layoutStandard(p, m, out);
 
-	/* The choice labels' shared centre: RLABEL_CX, moved left only when a row of buttons had
-	 * to move left, so that its label still clears them by RLABEL_GAP. */
-	const float lcx = p.labelCx > 0 ? p.labelCx : LABEL_CX;	/* a row's label, left of its controls */
-	const float ldy = p.labelDy > 0 ? p.labelDy : LABEL_DY;
-	float rlabelCx = p.labelCx > 0 ? p.labelCx : RLABEL_CX;
-	for (int i = 0; i < p.nRows && p.labelCx <= 0; i++) {
-		const Row &r = p.rows[i];
-		if (r.kind != ROW_CHOICE || !r.label)
-			continue;
-		{
-			int line, col;
-			rowCell(p, i, line, col);
-			const float x0 = rowStart(m, r, rowTop(p, line), p.logo);
-			const int lw = measure(m, r.label, TEXT_SCALE);
-			const float cx = x0 - RLABEL_GAP - (float)(lw - lw / 2);
-			if (cx < rlabelCx)
-				rlabelCx = cx;
-		}
-	}
+	/* A page that has not opted in is one of two kinds: an action menu (rows of buttons from their own x0,
+	 * ActionMenu) or a free page (free buttons and texts under a title, Editor). Nothing else is laid out
+	 * here: a tab strip, a label, a cycle, a choice, a readout or a list needs the standard. */
+	if (p.nTabs > 0)
+		return -1;
+	for (int i = 0; i < p.nRows; i++)
+		if (p.rows[i].kind != ROW_BUTTONS)
+			return -1;
 
-	/* The tab row: centred, TAB_ROW_GAP apart. */
-	const bool tabbed = p.nTabs > 0;
-	if (tabbed) {
-		float total = TAB_ROW_GAP * (p.nTabs - 1);
-		float x;
-		for (int t = 0; t < p.nTabs; t++)
-			total += p.tabs[t].width;
-		x = (MENU_W - total) / 2;
-		for (int t = 0; t < p.nTabs; t++) {
-			out.tab[t] = addButton(out, ROLE_TAB, -1, t, x, TAB_Y, p.tabs[t].width, BUTTON_H,
-			                       p.tabs[t].text, t == p.curTab, true);
-			x += p.tabs[t].width + TAB_ROW_GAP;
-		}
-	} else if (p.title) {
+	if (p.title)
 		out.title = addText(out, m, ROLE_TITLE, -1, 0, TITLE_X, p.titleY > 0 ? p.titleY : TITLE_Y,
 		                    ALIGN_CENTRE, TEXT_SCALE, p.title);
-	}
 
 	for (int i = 0; i < p.nRows; i++) {
 		const Row &r = p.rows[i];
-		int line, col;
-		rowCell(p, i, line, col);
-		const float y = rowTop(p, line);
-
-		switch (r.kind) {
-		case ROW_TOGGLE:
-		case ROW_CYCLE: {
-			const bool two = p.columns >= 2;
-			float bx = CYCLE_X, bw = CYCLE_W, lr = 0;
-			if (two)
-				gridPlace(p, m, col, bx, bw, lr);
-			if (r.label) {
-				/* centred on an anchor that puts its right edge at lr (the choice rows' rounding) */
-				const int lw = measure(m, r.label, TEXT_SCALE);
-				addText(out, m, ROLE_LABEL, i, 0, two ? lr - (float)(lw - lw / 2) : lcx, y + ldy, ALIGN_CENTRE, TEXT_SCALE, r.label);
-			}
-			out.slot[i][0] = addButton(out, ROLE_BUTTON, i, 0, bx, y, bw, BUTTON_H,
-			                           r.names[shownValue(r) - r.lo], false, !isInactive(r, 0));
-			break;
-		}
-		case ROW_READOUT: {
-			/* The text is centred on VALUE_CX, unless its label would run into it: then it
-			 * starts VALUE_GAP after the label's right edge, as TextBox would draw it. */
-			float vx = VALUE_CX;
-			if (r.label) {
-				const int lw = measure(m, r.label, TEXT_SCALE);
-				const int vw = measure(m, r.text, TEXT_SCALE);
-				const int need = (int)lcx - lw / 2 + lw + (int)VALUE_GAP;
-				if ((int)vx - vw / 2 < need)
-					vx = (float)(need + vw / 2);
-			}
-			if (r.label)
-				addText(out, m, ROLE_LABEL, i, 0, lcx, y + ldy, ALIGN_CENTRE, TEXT_SCALE, r.label);
-			addText(out, m, ROLE_VALUE, i, 0, vx, y + ldy, ALIGN_CENTRE, TEXT_SCALE, r.text);
-			break;
-		}
-		case ROW_CHOICE: {
-			/* The last `plain` buttons are actions: drawn like the rest, never lit. */
-			const int lit = shownValue(r) - r.lo;
-			float cx = rowStart(m, r, y, p.logo);
-			float lx = rlabelCx;
-			if (p.columns >= 2 && r.x0 <= 0) {
-				/* a whole line in a two-column page starts on the grid: its label ends on
-				 * column 1's label edge, its buttons start at column 1's button; a row that
-				 * gives its own x0 (a wide one: the GPU plugin) keeps the single-column look */
-				float bw, lr;
-				gridPlace(p, m, 0, cx, bw, lr);
-				if (r.label) {
-					const int lw = measure(m, r.label, TEXT_SCALE);
-					lx = lr - (float)(lw - lw / 2);
-				}
-			}
-			if (r.label)
-				addText(out, m, ROLE_RLABEL, i, 0, lx, y + ldy, ALIGN_CENTRE, TEXT_SCALE, r.label);
-			for (int c = 0; c < r.count; c++) {
-				float w = choiceWidth(m, r, c);
-				out.slot[i][c] = addButton(out, ROLE_CHOICE, i, c, cx, y, w, BUTTON_H, r.names[c],
-				                           c < r.count - r.plain && c == lit, !isInactive(r, c));
-				cx += w + choiceGap(r);
-			}
-			break;
-		}
-		case ROW_LIST:
-			out.list = i;
-			layoutList(out, *r.list, i);
-			break;
-		case ROW_BUTTONS: {
-			/* Centred on the screen, or from x0. With a label, the label is drawn left of them. */
-			const float gap = r.gap > 0 ? r.gap : TAB_GAP;
-			float total = gap * (r.count - 1);
-			float x;
-			for (int k = 0; k < r.count; k++)
-				total += r.actions[k].width;
-			x = r.x0 > 0 ? r.x0 : (MENU_W - total) / 2;
-			if (r.label)
-				addText(out, m, ROLE_LABEL, i, 0, lcx, y + ldy, ALIGN_CENTRE, TEXT_SCALE, r.label);
-			for (int k = 0; k < r.count; k++) {
-				out.slot[i][k] = addButton(out, ROLE_BUTTON, i, k, x, y + r.actions[k].dy, r.actions[k].width, BUTTON_H,
-				                           r.actions[k].text, r.actions[k].lit, !isInactive(r, k));
-				x += r.actions[k].width + gap;
-			}
-			break;
-		}
+		const float y = p.rowY0 + (float)i * ROW_DY;
+		/* Centred on the screen, or from x0 */
+		const float gap = r.gap > 0 ? r.gap : TAB_GAP;
+		float total = gap * (r.count - 1);
+		float x;
+		for (int k = 0; k < r.count; k++)
+			total += r.actions[k].width;
+		x = r.x0 > 0 ? r.x0 : (MENU_W - total) / 2;
+		for (int k = 0; k < r.count; k++) {
+			out.slot[i][k] = addButton(out, ROLE_BUTTON, i, k, x, y + r.actions[k].dy, r.actions[k].width, BUTTON_H,
+			                           r.actions[k].text, r.actions[k].lit, !isInactive(r, k));
+			x += r.actions[k].width + gap;
 		}
 	}
 
@@ -963,9 +709,6 @@ int layoutPage(const Page &p, const Metrics &m, Layout &out)
 		addText(out, m, ROLE_FREE_TEXT, -1, k, t.ax, t.ay, t.centred ? ALIGN_CENTRE : ALIGN_LEFT_TOP,
 		        t.scale, t.text);
 	}
-
-	if (p.nHelp > 0)
-		layoutHelp(p, m, out);
 	return out.n;
 }
 

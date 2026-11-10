@@ -30,35 +30,11 @@
 #include "../libgui/FocusManager.h"
 #include "../libgui/CursorManager.h"
 #include "MenuGlue.h"
+#include "MenuPageView.h"
 
 extern "C" {
 #include "../gc_input/controller.h"
 }
-
-void Func_AutoSelectInput();
-void Func_ManualSelectInput();
-
-void Func_TogglePad0Type();
-void Func_TogglePad1Type();
-void Func_TogglePad0AType();
-void Func_TogglePad0BType();
-void Func_TogglePad0CType();
-void Func_TogglePad0DType();
-void Func_TogglePad1AType();
-void Func_TogglePad1BType();
-void Func_TogglePad1CType();
-void Func_TogglePad1DType();
-
-void Func_TogglePad0Assign();
-void Func_TogglePad1Assign();
-void Func_TogglePad0AAssign();
-void Func_TogglePad0BAssign();
-void Func_TogglePad0CAssign();
-void Func_TogglePad0DAssign();
-void Func_TogglePad1AAssign();
-void Func_TogglePad1BAssign();
-void Func_TogglePad1CAssign();
-void Func_TogglePad1DAssign();
 
 void Func_ReturnFromConfigureInputFrame();
 
@@ -101,46 +77,42 @@ static char ciStrings[42][15] =
  * The box fields come last. The table fills only the fields before them. */
 struct CiButton
 {
-	menu::Button	*button;
 	int				buttonStyle;
 	char*			buttonString;
-	ButtonFunc		clickedFunc;
-	ButtonFunc		returnFunc;
 	float			x, y, width, height;
 };
 
-/* Buttons 0..21 are listed here. The Co-Op buttons 22..69 are filled in by layoutTables. */
+/* Buttons 0..21 are listed here (clicks: ciClick). The Co-Op buttons 22..69 are filled in by layoutTables. */
 static CiButton ciButtons[NUM_FRAME_BUTTONS] =
-{	//	button	style		string			clickFunc				returnFunc
-	{	NULL,	BTN_A_SEL,	ciStrings[5],	Func_AutoSelectInput,	Func_ReturnFromConfigureInputFrame },
-	{	NULL,	BTN_A_SEL,	ciStrings[6],	Func_ManualSelectInput,	Func_ReturnFromConfigureInputFrame },
-	{	NULL,	BTN_A_NRM,	ciStrings[11],	Func_TogglePad0Type,	Func_ReturnFromConfigureInputFrame },
-	{	NULL,	BTN_A_NRM,	ciStrings[11],	Func_TogglePad1Type,	Func_ReturnFromConfigureInputFrame },
-	{	NULL,	BTN_A_NRM,	ciStrings[11],	Func_TogglePad0AType,	Func_ReturnFromConfigureInputFrame },
-	{	NULL,	BTN_A_NRM,	ciStrings[11],	Func_TogglePad0BType,	Func_ReturnFromConfigureInputFrame },
-	{	NULL,	BTN_A_NRM,	ciStrings[11],	Func_TogglePad0CType,	Func_ReturnFromConfigureInputFrame },
-	{	NULL,	BTN_A_NRM,	ciStrings[11],	Func_TogglePad0DType,	Func_ReturnFromConfigureInputFrame },
-	{	NULL,	BTN_A_NRM,	ciStrings[11],	Func_TogglePad1AType,	Func_ReturnFromConfigureInputFrame },
-	{	NULL,	BTN_A_NRM,	ciStrings[11],	Func_TogglePad1BType,	Func_ReturnFromConfigureInputFrame },
-	{	NULL,	BTN_A_NRM,	ciStrings[11],	Func_TogglePad1CType,	Func_ReturnFromConfigureInputFrame },
-	{	NULL,	BTN_A_NRM,	ciStrings[11],	Func_TogglePad1DType,	Func_ReturnFromConfigureInputFrame },
-	{	NULL,	BTN_A_NRM,	ciStrings[12],	Func_TogglePad0Assign,	Func_ReturnFromConfigureInputFrame },
-	{	NULL,	BTN_A_NRM,	ciStrings[12],	Func_TogglePad1Assign,	Func_ReturnFromConfigureInputFrame },
-	{	NULL,	BTN_A_NRM,	ciStrings[12],	Func_TogglePad0AAssign,	Func_ReturnFromConfigureInputFrame },
-	{	NULL,	BTN_A_NRM,	ciStrings[12],	Func_TogglePad0BAssign,	Func_ReturnFromConfigureInputFrame },
-	{	NULL,	BTN_A_NRM,	ciStrings[12],	Func_TogglePad0CAssign,	Func_ReturnFromConfigureInputFrame },
-	{	NULL,	BTN_A_NRM,	ciStrings[12],	Func_TogglePad0DAssign,	Func_ReturnFromConfigureInputFrame },
-	{	NULL,	BTN_A_NRM,	ciStrings[12],	Func_TogglePad1AAssign,	Func_ReturnFromConfigureInputFrame },
-	{	NULL,	BTN_A_NRM,	ciStrings[12],	Func_TogglePad1BAssign,	Func_ReturnFromConfigureInputFrame },
-	{	NULL,	BTN_A_NRM,	ciStrings[12],	Func_TogglePad1CAssign,	Func_ReturnFromConfigureInputFrame },
-	{	NULL,	BTN_A_NRM,	ciStrings[12],	Func_TogglePad1DAssign,	Func_ReturnFromConfigureInputFrame },
+{	//	style		string
+	{	BTN_A_SEL,	ciStrings[5] },		/* Automatic */
+	{	BTN_A_SEL,	ciStrings[6] },		/* Manual */
+	{	BTN_A_NRM,	ciStrings[11] },	/* 2, 3: port type */
+	{	BTN_A_NRM,	ciStrings[11] },
+	{	BTN_A_NRM,	ciStrings[11] },	/* 4..11: multitap slot type */
+	{	BTN_A_NRM,	ciStrings[11] },
+	{	BTN_A_NRM,	ciStrings[11] },
+	{	BTN_A_NRM,	ciStrings[11] },
+	{	BTN_A_NRM,	ciStrings[11] },
+	{	BTN_A_NRM,	ciStrings[11] },
+	{	BTN_A_NRM,	ciStrings[11] },
+	{	BTN_A_NRM,	ciStrings[11] },
+	{	BTN_A_NRM,	ciStrings[12] },	/* 12, 13: port number */
+	{	BTN_A_NRM,	ciStrings[12] },
+	{	BTN_A_NRM,	ciStrings[12] },	/* 14..21: multitap slot number */
+	{	BTN_A_NRM,	ciStrings[12] },
+	{	BTN_A_NRM,	ciStrings[12] },
+	{	BTN_A_NRM,	ciStrings[12] },
+	{	BTN_A_NRM,	ciStrings[12] },
+	{	BTN_A_NRM,	ciStrings[12] },
+	{	BTN_A_NRM,	ciStrings[12] },
+	{	BTN_A_NRM,	ciStrings[12] },
 };
 
 /* One label of the page. layoutTables sets its position (x, y).
  * The position fields come last. The table fills only the fields before them. */
 struct CiTextBox
 {
-	menu::TextBox	*textBox;
 	char*			textBoxString;
 	float			scale;
 	bool			centered;
@@ -149,18 +121,17 @@ struct CiTextBox
 
 /* Labels 0..4 are listed here. The Co-Op labels 5..20 are filled in by layoutTables. */
 static CiTextBox ciTextBoxes[NUM_FRAME_TEXTBOXES] =
-{	//	textBox	textBoxString	scale	centered
-	{	NULL,	ciStrings[0],	1.0f,	true },	/* Pad Assignment */
-	{	NULL,	ciStrings[1],	1.0f,	true },	/* Pad 1 */
-	{	NULL,	ciStrings[2],	1.0f,	true },	/* Pad 2 */
-	{	NULL,	ciStrings[3],	1.0f,	true },	/* Multitap 1 */
-	{	NULL,	ciStrings[4],	1.0f,	true },	/* Multitap 2 */
+{	//	textBoxString	scale	centered
+	{	ciStrings[0],	1.0f,	true },	/* Pad Assignment */
+	{	ciStrings[1],	1.0f,	true },	/* Pad 1 */
+	{	ciStrings[2],	1.0f,	true },	/* Pad 2 */
+	{	ciStrings[3],	1.0f,	true },	/* Multitap 1 */
+	{	ciStrings[4],	1.0f,	true },	/* Multitap 2 */
 };
 
 /* ---- Co-Op rows: each port's players, P1..P8 -------------------------------------
  * A row: the controller type (None, GC, Wii, HID), Customize (the player's layout, in
- * CustomizeCoopFrame) and which controller of that type (1..4). ButtonFunc takes no
- * arguments, so each button gets its own small function. */
+ * CustomizeCoopFrame) and which controller of that type (1..4). ciClick calls these. */
 extern MenuContext *pMenuContext;
 static void coopRefresh(int port)
 {
@@ -185,17 +156,6 @@ static void coopCustomize(int port, int k)
 {
 	pMenuContext->setActiveFrame(MenuContext::FRAME_CUSTOMIZECOOP, port * COOP_MAX + k);
 }
-#define COOP_ROW_FUNCS(p, k) 	static void Func_Coop##p##k##Type(void)   { coopToggleType(p, k); } 	static void Func_Coop##p##k##Custom(void) { coopCustomize(p, k); } 	static void Func_Coop##p##k##Assign(void) { coopToggleAssign(p, k); }
-#define COOP_PORT_FUNCS(p) COOP_ROW_FUNCS(p,0) COOP_ROW_FUNCS(p,1) COOP_ROW_FUNCS(p,2) COOP_ROW_FUNCS(p,3) 	COOP_ROW_FUNCS(p,4) COOP_ROW_FUNCS(p,5) COOP_ROW_FUNCS(p,6) COOP_ROW_FUNCS(p,7)
-COOP_PORT_FUNCS(0)
-COOP_PORT_FUNCS(1)
-#define COOP_ROW_TABLE(p, k) { Func_Coop##p##k##Type, Func_Coop##p##k##Custom, Func_Coop##p##k##Assign }
-static ButtonFunc coopFuncs[2][COOP_MAX][3] = {
-	{ COOP_ROW_TABLE(0,0), COOP_ROW_TABLE(0,1), COOP_ROW_TABLE(0,2), COOP_ROW_TABLE(0,3),
-	  COOP_ROW_TABLE(0,4), COOP_ROW_TABLE(0,5), COOP_ROW_TABLE(0,6), COOP_ROW_TABLE(0,7) },
-	{ COOP_ROW_TABLE(1,0), COOP_ROW_TABLE(1,1), COOP_ROW_TABLE(1,2), COOP_ROW_TABLE(1,3),
-	  COOP_ROW_TABLE(1,4), COOP_ROW_TABLE(1,5), COOP_ROW_TABLE(1,6), COOP_ROW_TABLE(1,7) } };
-
 /* The layout: Pad Assignment as a row of the Settings tabs' grid (MenuLayout.h: label
  * centred on TAB_LABEL_CX, buttons from TAB_BUTTON_X, TAB_GAP apart); below it two port
  * columns side by side, each headed by its PSX Port label and that port's type and number,
@@ -245,8 +205,6 @@ static void layoutTables(void)
 				CiButton &b = ciButtons[COOP_BTN(p, k, c)];
 				b.buttonStyle = BTN_A_NRM;
 				b.buttonString = ciStrings[c == 1 ? 19 : 12];
-						b.clickedFunc = coopFuncs[p][k][c];
-				b.returnFunc = Func_ReturnFromConfigureInputFrame;
 				setRect(COOP_BTN(p, k, c), CI_COL_X(p) + coopX[c], CI_COOP_Y(k), coopW[c], CI_COOP_H);
 			}
 			CiTextBox &t = ciTextBoxes[COOP_LABEL(p, k)];
@@ -266,55 +224,50 @@ static void layoutTables(void)
 	ciTextBoxes[0].y = CI_ROW_Y(0) + CI_ROW_H / 2;
 }
 
-static menu::glue::Pool *ciPool;	/* the buttons, keyed (ROLE_FREE, -1, ciButtons index) */
+static menu::glue::Editor *ciEd;	/* the buttons and labels: layout, focus, click by id (ciClick) */
+static void ciClick(void *user, int id);
 
 ConfigureInputFrame::ConfigureInputFrame()
 {
 	layoutTables();
-	/* made, given their click and return functions, added and put in the Cursor with the table's box */
-	ciPool = new menu::glue::Pool(this, NUM_FRAME_BUTTONS);
+	/* made, given their click and return, added and put in the Cursor with the table's box; a style-A button
+	 * makes itself 56 high whatever it is given, so the editor gives every one its own bounds back */
+	ciEd = new menu::glue::Editor(this, NUM_FRAME_BUTTONS, NUM_FRAME_TEXTBOXES, ciClick, NULL,
+	                              Func_ReturnFromConfigureInputFrame);
 	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
-		ciButtons[i].button = ciPool->button(menu::engine::ROLE_FREE, -1, i,
-										ciButtons[i].buttonStyle, &ciButtons[i].buttonString,
-										ciButtons[i].x, ciButtons[i].y,
-										ciButtons[i].width, ciButtons[i].height,
-										ciButtons[i].clickedFunc, ciButtons[i].returnFunc);
+		ciEd->add(i, ciButtons[i].buttonStyle, &ciButtons[i].buttonString,
+		          ciButtons[i].x, ciButtons[i].y, ciButtons[i].width, ciButtons[i].height);
 
-	/* A style-A button makes itself 56 high whatever it is given: every one gets its own
-	 * bounds back. Automatic and Manual take their width from their label, as the Settings
+	/* Automatic and Manual take their width from their label, as the Settings
 	 * tabs' buttons do, Manual TAB_GAP after Automatic. Their rectangles are then the page's. */
-	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
-		ciButtons[i].button->setBounds(ciButtons[i].x, ciButtons[i].y,
-		                                   ciButtons[i].width, ciButtons[i].height);
 	{
 		float x = TAB_BUTTON_X;
 		for (int i = 0; i < 2; i++)
 		{
-			menu::Button *b = ciButtons[i].button;
+			menu::Button *b = ciEd->button(i);
 			b->setAutoSize(menu::Button::BTN_FIT_WIDTH);
 			b->setBounds(x, CI_ROW_Y(0), 0, CI_ROW_H);
 			ciButtons[i].x = x;
 			ciButtons[i].width = b->getWidth();
 			ciButtons[i].height = CI_ROW_H;
+			ciEd->item(i).x = x;
+			ciEd->item(i).w = b->getWidth();
+			ciEd->item(i).h = CI_ROW_H;
 			x += b->getWidth() + TAB_GAP;
 		}
 	}
 
 	/* the two fitted buttons' Cursor boxes are the fitted rectangles */
 	for (int i = 0; i < 2; i++)
-		menu::Cursor::getInstance().moveComponent(this, ciButtons[i].button, ciButtons[i].x,
+		menu::Cursor::getInstance().moveComponent(this, ciEd->button(i), ciButtons[i].x,
 												ciButtons[i].x+ciButtons[i].width, ciButtons[i].y,
 												ciButtons[i].y+ciButtons[i].height);
 
 	for (int i = 0; i < NUM_FRAME_TEXTBOXES; i++)
-	{
-		ciTextBoxes[i].textBox = new menu::TextBox(&ciTextBoxes[i].textBoxString,
-										ciTextBoxes[i].x, ciTextBoxes[i].y,
-										ciTextBoxes[i].scale, ciTextBoxes[i].centered);
-		add(ciTextBoxes[i].textBox);
-	}
+		ciEd->addLabel(i, &ciTextBoxes[i].textBoxString, ciTextBoxes[i].x, ciTextBoxes[i].y,
+		               ciTextBoxes[i].scale, ciTextBoxes[i].centered);
 
-	setDefaultFocus(ciButtons[0].button);
+	setDefaultFocus(ciEd->button(0));
 	setBackFunc(Func_ReturnFromConfigureInputFrame);
 	setEnabled(true);
 	activateSubmenu(SUBMENU_REINIT);
@@ -322,152 +275,39 @@ ConfigureInputFrame::ConfigureInputFrame()
 
 ConfigureInputFrame::~ConfigureInputFrame()
 {
-	for (int i = 0; i < NUM_FRAME_TEXTBOXES; i++)
-		delete ciTextBoxes[i].textBox;
-	delete ciPool;	/* takes the buttons out of the Cursor and deletes them */
-	ciPool = NULL;
+	delete ciEd;	/* the labels, and the buttons out of the Cursor */
+	ciEd = NULL;
 }
 
-/*  The page, on the engine (Docs/MENU_PLAN.md, step 5)  */
+/*  The page, on the editor (Docs/MENU_FORMS_PLAN.md, step 9)  */
 
 /* The page changes with the state: which buttons and labels are there, which are active, which lit,
- * and where focus goes. activateSubmenu() works those out, then the engine lays the page out and
+ * and where focus goes. activateSubmenu() works those out, then the editor lays the page out and
  * links it (layoutState), as it does when the page is shown -- never per frame. The buttons keep
  * their places (the table's rectangles), so the Cursor ranges set in the constructor stay right. */
-namespace eng = menu::engine;
 
 /* The state: shown, active and lit, by button and by label (ciButtons and ciTextBoxes index) */
 static bool ciShown[NUM_FRAME_BUTTONS], ciActive[NUM_FRAME_BUTTONS], ciLit[NUM_FRAME_BUTTONS];
 static bool ciTextShown[NUM_FRAME_TEXTBOXES];
 
-/* The focus the state gives: from button `from`, each direction to a button (-1: none). The links are
- * the engine's FreeLink overrides, which replace the rule's link where both are focus targets. */
-struct CiLink { int from; eng::Dir dir; int to; };
-#define CI_MAX_LINKS (NUM_FRAME_BUTTONS * eng::DIR_COUNT)
-static CiLink ciLinks[CI_MAX_LINKS];
-static int nCiLinks;
-
+/* The focus the state gives: from button `from`, each direction to a button (-1: none). The editor's links
+ * replace the rule's where both are focus targets; a link to a button the state does not show is left out. */
 static void linkButton(int from, int up, int down, int left, int right)
 {
-	const int to[eng::DIR_COUNT] = { up, down, left, right };
-	static const eng::Dir dirs[eng::DIR_COUNT] = { eng::DIR_UP, eng::DIR_DOWN, eng::DIR_LEFT, eng::DIR_RIGHT };
-	for (int d = 0; d < eng::DIR_COUNT; d++)
-	{
-		ciLinks[nCiLinks].from = from;
-		ciLinks[nCiLinks].dir = dirs[d];
-		ciLinks[nCiLinks].to = to[d];
-		nCiLinks++;
-	}
-}
-
-/* The page's own arrays: the engine keeps none of them. */
-static eng::FreeButton CI_FREE[NUM_FRAME_BUTTONS];
-static int             CI_FREE_ID[NUM_FRAME_BUTTONS];	/* free index -> ciButtons index */
-static eng::FreeText   CI_TEXTS[NUM_FRAME_TEXTBOXES];
-static int             CI_TEXT_ID[NUM_FRAME_TEXTBOXES];	/* free text index -> ciTextBoxes index */
-static eng::FreeLink   CI_FLINKS[CI_MAX_LINKS];
-static eng::Page       CI_PAGE;
-static eng::Layout     CI_LAYOUT;
-
-/* Lays the page out for the state, links it, and gives each button and label its place, state and links.
- * A link to a button the state does not show is left out: the state never gives one. */
-/* The button drawn for a layout control. */
-static menu::Button *ciButtonOf(const eng::Control &c)
-{
-	if (c.role != eng::ROLE_FREE)
-		return NULL;
-	return ciButtons[CI_FREE_ID[c.slot]].button;
+	ciEd->link(from, up, down, left, right);
 }
 
 static void layoutState(void)
 {
-	int nf = 0, nt = 0, nl = 0;
-	int freeOf[NUM_FRAME_BUTTONS];
-
 	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
 	{
-		freeOf[i] = -1;
-		if (!ciShown[i])
-			continue;
-		eng::FreeButton &b = CI_FREE[nf];
-		b.text = ciButtons[i].buttonString;
-		b.x = ciButtons[i].x;
-		b.y = ciButtons[i].y;
-		b.w = ciButtons[i].width;
-		b.h = ciButtons[i].height;
-		b.lit = ciLit[i];
-		b.inactive = !ciActive[i];
-		CI_FREE_ID[nf] = i;
-		freeOf[i] = nf++;
+		ciEd->item(i).shown = ciShown[i];
+		ciEd->item(i).active = ciActive[i];
+		ciEd->item(i).lit = ciLit[i];
 	}
 	for (int t = 0; t < NUM_FRAME_TEXTBOXES; t++)
-	{
-		if (!ciTextShown[t])
-			continue;
-		eng::FreeText &x = CI_TEXTS[nt];
-		x.text = ciTextBoxes[t].textBoxString;
-		x.ax = ciTextBoxes[t].x;
-		x.ay = ciTextBoxes[t].y;
-		x.scale = ciTextBoxes[t].scale;
-		x.centred = ciTextBoxes[t].centered;
-		CI_TEXT_ID[nt++] = t;
-	}
-	for (int k = 0; k < nCiLinks; k++)
-	{
-		const CiLink &l = ciLinks[k];
-		const int to = l.to < 0 ? -1 : freeOf[l.to];
-		if (freeOf[l.from] < 0 || (l.to >= 0 && to < 0))
-			continue;
-		CI_FLINKS[nl].from = freeOf[l.from];
-		CI_FLINKS[nl].dir = l.dir;
-		CI_FLINKS[nl].to = to;
-		nl++;
-	}
-
-	memset(&CI_PAGE, 0, sizeof CI_PAGE);
-	CI_PAGE.logo = eng::LOGO_SPOT_NONE;	/* no logo on this frame: it needs the room */
-	CI_PAGE.focus = eng::FOCUS_GEOMETRY;
-	CI_PAGE.freeButtons = CI_FREE;
-	CI_PAGE.nFreeButtons = nf;
-	CI_PAGE.freeTexts = CI_TEXTS;
-	CI_PAGE.nFreeTexts = nt;
-	CI_PAGE.freeLinks = CI_FLINKS;
-	CI_PAGE.nFreeLinks = nl;
-	if (eng::layoutPage(CI_PAGE, menu::glue::METRICS, CI_LAYOUT) < 0)
-		return;		/* the tables are fixed: a page that does not fit is a programming error */
-	eng::linkFocus(CI_PAGE, CI_LAYOUT);
-
-	for (int k = 0; k < nf; k++)
-	{
-		const int i = CI_FREE_ID[k];
-		menu::Button *b = ciButtons[i].button;
-		b->setVisible(true);
-		b->setActive(ciActive[i]);
-		b->setSelected(ciLit[i]);
-	}
-	for (int i = 0; i < NUM_FRAME_BUTTONS; i++)
-		if (!ciShown[i])
-		{
-			ciButtons[i].button->setVisible(false);
-			ciButtons[i].button->setActive(false);
-		}
-
-	for (int c = 0; c < CI_LAYOUT.n; c++)
-	{
-		const eng::Control &ctl = CI_LAYOUT.c[c];
-		if (ctl.role == eng::ROLE_FREE)
-		{
-			menu::Button *b = ciButtons[CI_FREE_ID[ctl.slot]].button;
-			b->setBounds(ctl.rect.x, ctl.rect.y, ctl.rect.w, ctl.rect.h);
-		}
-		else if (ctl.role == eng::ROLE_FREE_TEXT)
-		{
-			ciTextBoxes[CI_TEXT_ID[ctl.slot]].textBox->setPosition(ctl.ax, ctl.ay);
-		}
-	}
-	ciPool->link(CI_LAYOUT, ciButtonOf, true);	/* the engine's focus links, on every drawn button */
-	for (int t = 0; t < NUM_FRAME_TEXTBOXES; t++)
-		ciTextBoxes[t].textBox->setVisible(ciTextShown[t]);
+		ciEd->label(t).shown = ciTextShown[t];
+	ciEd->relayout(true);
 }
 
 /* What each port shows: its type and number on its own row; in its column below, four
@@ -485,7 +325,7 @@ void ConfigureInputFrame::activateSubmenu(int submenu)
 		ciShown[i] = ciActive[i] = ciLit[i] = false;
 	for (int t = 0; t < NUM_FRAME_TEXTBOXES; t++)
 		ciTextShown[t] = t <= 2;		/* Pad Assignment and the two port labels */
-	nCiLinks = 0;
+	ciEd->clearLinks();
 
 	ciShown[0] = ciShown[1] = ciActive[0] = ciActive[1] = true;
 	ciLit[0] = !manual;
@@ -581,7 +421,7 @@ void ConfigureInputFrame::activateSubmenu(int submenu)
 }
 
 
-void Func_AutoSelectInput()
+static void Func_AutoSelectInput()
 {
 	/* Automatic greys out the port types, so a port Manual had made a Multitap stayed one
 	 * where nobody could see or change it (only Configure Buttons gave it away). It goes
@@ -594,7 +434,7 @@ void Func_AutoSelectInput()
 	pMenuContext->getFrame(MenuContext::FRAME_CONFIGUREINPUT)->activateSubmenu(ConfigureInputFrame::SUBMENU_REINIT);
 }
 
-void Func_ManualSelectInput()
+static void Func_ManualSelectInput()
 {
 	padAutoAssign = PADAUTOASSIGN_MANUAL;
 	pMenuContext->getFrame(MenuContext::FRAME_CONFIGUREINPUT)->activateSubmenu(ConfigureInputFrame::SUBMENU_REINIT);
@@ -689,27 +529,34 @@ static void toggleSlotAssign(int i)
 	refreshInput();
 }
 
-void Func_TogglePad0Type()    { togglePortType(PADASSIGN_INPUT0); }
-void Func_TogglePad1Type()    { togglePortType(PADASSIGN_INPUT1); }
-void Func_TogglePad0AType()   { toggleSlotType(PADASSIGN_INPUT0A); }
-void Func_TogglePad0BType()   { toggleSlotType(PADASSIGN_INPUT0B); }
-void Func_TogglePad0CType()   { toggleSlotType(PADASSIGN_INPUT0C); }
-void Func_TogglePad0DType()   { toggleSlotType(PADASSIGN_INPUT0D); }
-void Func_TogglePad1AType()   { toggleSlotType(PADASSIGN_INPUT1A); }
-void Func_TogglePad1BType()   { toggleSlotType(PADASSIGN_INPUT1B); }
-void Func_TogglePad1CType()   { toggleSlotType(PADASSIGN_INPUT1C); }
-void Func_TogglePad1DType()   { toggleSlotType(PADASSIGN_INPUT1D); }
+/* A press of button id: Automatic, Manual; the port types and numbers (2, 3 and 12, 13) and the multitap
+ * slots' (4..11 and 14..21, which are PADASSIGN_INPUT0A.. at id - 2 and id - 12); then the Co-Op rows. */
+static void ciClick(void *, int id)
+{
+	if (id == 0)
+		Func_AutoSelectInput();
+	else if (id == 1)
+		Func_ManualSelectInput();
+	else if (id < 4)
+		togglePortType(id - 2);
+	else if (id < 12)
+		toggleSlotType(id - 2);
+	else if (id < 14)
+		togglePortAssign(id - 12);
+	else if (id < 22)
+		toggleSlotAssign(id - 12);
+	else
+	{
+		const int p = (id - 22) / 24, k = (id - 22) % 24 / 3;
+		switch ((id - 22) % 3)
+		{
+		case 0: coopToggleType(p, k); break;
+		case 1: coopCustomize(p, k); break;
+		default: coopToggleAssign(p, k); break;
+		}
+	}
+}
 
-void Func_TogglePad0Assign()  { togglePortAssign(PADASSIGN_INPUT0); }
-void Func_TogglePad1Assign()  { togglePortAssign(PADASSIGN_INPUT1); }
-void Func_TogglePad0AAssign() { toggleSlotAssign(PADASSIGN_INPUT0A); }
-void Func_TogglePad0BAssign() { toggleSlotAssign(PADASSIGN_INPUT0B); }
-void Func_TogglePad0CAssign() { toggleSlotAssign(PADASSIGN_INPUT0C); }
-void Func_TogglePad0DAssign() { toggleSlotAssign(PADASSIGN_INPUT0D); }
-void Func_TogglePad1AAssign() { toggleSlotAssign(PADASSIGN_INPUT1A); }
-void Func_TogglePad1BAssign() { toggleSlotAssign(PADASSIGN_INPUT1B); }
-void Func_TogglePad1CAssign() { toggleSlotAssign(PADASSIGN_INPUT1C); }
-void Func_TogglePad1DAssign() { toggleSlotAssign(PADASSIGN_INPUT1D); }
 
 void Func_ReturnFromConfigureInputFrame()
 {
