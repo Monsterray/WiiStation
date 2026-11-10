@@ -929,12 +929,18 @@ void AchievementsBoard::drawLocalBoard(menu::Graphics &gfx)
 	const int step = localCompact ? 20 : 28;
 	const float big = localCompact ? 0.55f : 0.7f, small = localCompact ? 0.42f : 0.5f;
 	int y = 176;
+	/* the gaps shrink so the last band ends above the hint line (y 442) */
+	int gaps = 0, gap;
+	for (unsigned i = 1; i < localN; i++)
+		gaps += localRows[i].rank != localRows[i - 1].rank + 1;
+	gap = gaps ? (267 - (int)localN * step) / gaps : 0;
+	gap = gap > 4 ? 4 : gap < 0 ? 0 : gap;
 	for (unsigned i = 0; i < localN; i++)
 	{
 		const achievement_local_score_t &r = localRows[i];
 		char date[16];
 		if (i && r.rank != localRows[i - 1].rank + 1)
-			y += 4;
+			y += gap;
 		if (r.seated)
 			fill(gfx, 24, y - 3, 592, step, (GXColor){196, 214, 240, 255});
 		snprintf(line, sizeof line, "%u", r.rank);
