@@ -175,6 +175,22 @@ wide read-only reviews. One step per commit on `try/menu-standard`.
   Not done: 10b (the book polish: "today's layout, polished, full screen with a hint line" has no written spec beyond MENU_PLAN sheet 2;
   needs the design and a contact sheet); L/R page turn in Players (needs more than 16 Miis); USB Pad Test with a real pad; menu CPU on
   the bench Wii; hardware.
+- Step 10b (2026-11-09, the book polished to sheet 2 E1-E6; try/menu-book, AchievementsFrame.cpp only). MONTY'S CHANGE: the tabs keep
+  today's bookmark look (the selected tab joins the page), NOT the flat standard tabs of E1-E3: tab strip 0 differing pixels on the
+  three list panels. List: "< Player 1 of 2 >" (two drawn triangles, the font has no such glyph) at the middle of the header beside the
+  name, which shrinks to keep clear of it; the line under the bar is gone (the note / rich presence line stays). Rows: Earned shows the
+  unlock date under the points, Locked shows "12 % have it" (whole from 10 %, one decimal under, formatted `rarityText`), In progress keeps
+  bar + count (no rarity there, as in E1). Detail: 88 px tile + full title (two lines, 1.0 scale), "10 points - Missable - 61 % have it"
+  in amber under it (the font has no middle dot: " - "), description left (5 lines), at the bottom of the column the count + bar or
+  "<player> earned it" + date, the picture at 320,128 296x222 with "Taken <date>" under it (no band), "No picture yet / taken when it unlocks"
+  box; the divider line is gone. All detail text and the header lines are formatted when the row / page changes (`formatDetail`, `build`),
+  not per frame. Off (E6): "Achievements are off." + "Turn them on, then load the game again" + an "Achievements Settings" button
+  (A, or a pointer click on it) that opens Options > Achievements; other no-list states (a .exe, no set, Official status) keep the status line.
+  Data: `achievement_entry_t.rarity_x100` (RA player share x 100; -1 for a Local set) and `.when` (unix seconds, Official only; 0 for a
+  Local set) already existed; a Local set has neither, so the ach_book fixture shows no rarity and no row date (left out, nothing invented);
+  the detail's date falls back to the picture file's date. No time of day (UTC only, no zone known). Official paths (rarity / dates) were
+  not run on a real account: formatter checked on the host for 11 values. Proof: ws_book_base_release.dol vs ws_book_new_release.dol,
+  ach_book walk + an Achievements=0 run (A on the button opens the settings page), contact sheet ws_book_contact_sheet.png.
 - Step 11 (2026-11-09, Dialog; read-only finding, NO code change): the dialogs have no pad-polling loop of their own to remove.
   `libgui/MessageBox` (setMessage = notice, askMessage = Yes/No, fadeMessage = non-blocking toast) is an engine Frame with three
   ordinary Buttons; its blocking `while (messageBoxActive) Gui::draw()` runs the SAME per-frame path as every page (`Input::refreshInput`,
