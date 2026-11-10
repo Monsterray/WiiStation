@@ -330,9 +330,11 @@ for the definition format, state handling, persistence boundaries, and tests.
 
 Who plays on each PlayStation port, set in the Players menu (Main, Players): a Mii from the
 Mii Channel's database, read only, never written (Docs/ACHIEVEMENTS.md, Players and Miis). The keys are per Wii: a
-game's file never holds them. Since 5.18.2 they are in their own file, `wiistation/players.ini`
-beside `settings.ini`, which the Players menu writes when it closes. Seat keys in a
-`settings.ini` from 5.18.0 or 5.18.1 are still read; `players.ini`, read after it, wins.
+game's file never holds them. **Every seat is empty when WiiStation starts**: the seats are not
+saved (`wiistation/players.ini` keeps only `PlayersRecent`, `PlayersOfficial` and the `[Accounts]`
+links; a `Player1=` line in an older `players.ini` is read and ignored). Seat the Miis in the Players
+menu each time; a seat then stays until WiiStation closes. A scripted run seats a Mii with a setting
+(`Player1="key"` in a settings file or a chain line).
 
 Since 5.19.0 the seats decide who earns achievements in Local mode: every Mii seated on a port
 whose pad is connected, and Guest when none is (`Docs/ACHIEVEMENTS.md`, "Unlock journal"). The

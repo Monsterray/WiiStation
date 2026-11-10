@@ -1,0 +1,11 @@
+# ach_boards.txt with all 8 pads (two multitaps): see set8 in .runs; run like ach_boards.txt with --set Player1A..2D
+1 0000
+p2 1 0000
+p1b 1 0000
+p1c 1 0000
+p1d 1 0000
+p2b 1 0000
+p2c 1 0000
+p2d 1 0000
+menuopen 1700 15
+menukeys 90 ......RRR.....>.....>.....>.....B

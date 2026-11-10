@@ -152,12 +152,19 @@ int achievements_board_scores(unsigned i, achievement_score_t *top, unsigned *n,
 
 /* This Wii's own scores (Docs/ACHIEVEMENTS.md, "Local leaderboards"; Gamecube/ach_boards.h): every
  * seated Mii (or Guest) keeps its best on each board, in either RetroAchievements mode; nothing is
- * ever sent. The set's boards run on the console, in the frame. Rows come best first: up to *n of
- * them (room: ACH_LOCAL_ROWS + 1 slots), then, when a seated Mii ranks below them, its row last (its rank
- * says so). Returns how many Miis have a score on the board, -1: no such board. */
-#define ACH_LOCAL_ROWS 8   /* the table; rows[] has ACH_LOCAL_ROWS + 1 slots, the last one for a seated Mii below the table */
+ * ever sent. The set's boards run on the console, in the frame. Rows come best first: the top part
+ * (up to 8, rank = position), then every seated Mii with a score that is not in it, in rank order,
+ * each with its real rank. rows[] has ACH_LOCAL_MAX slots; *n is the count out. The table shows
+ * ACH_LOCAL_FIT rows of normal height: when the seated Miis below the top part need more room, the top
+ * part shrinks (never under 3); if they still do not fit, *compact is 1 (the caller draws up to
+ * ACH_LOCAL_MAX rows small) and the top part is cut to what fits in that. Seated Miis past the last row
+ * (more than ACH_LOCAL_MAX - 3 of them below the top) are left out. Returns how many Miis have a score
+ * on the board, -1: no such board. */
+#define ACH_LOCAL_ROWS 8   /* the top part at most */
+#define ACH_LOCAL_FIT 9    /* rows of normal height on the page */
+#define ACH_LOCAL_MAX 13   /* rows[] slots: compact rows */
 typedef struct { unsigned rank; char name[32], score[24]; unsigned when; unsigned char seated; } achievement_local_score_t;
-int achievements_board_local(unsigned i, achievement_local_score_t *rows, unsigned *n);
+int achievements_board_local(unsigned i, achievement_local_score_t *rows, unsigned *n, int *compact);
 /* achievements_official.c: the set is in (opens this game's file and asks who plays), the seats
  * changed, and a board's attempt ended with a score (id, value, LowerIsBetter, rc_format_value's
  * format, the board's title; returns how many Miis it is a new best for) */
@@ -173,7 +180,8 @@ enum {
     ACH_NOTICE_CHALLENGE_ON,    /* an achievement is one step away (primed): id, title, badge */
     ACH_NOTICE_CHALLENGE_OFF,   /* that is over: id */
     ACH_NOTICE_WARNING,         /* a notice about the set, not an achievement: title, desc (a black banner) */
-    ACH_NOTICE_BOARD            /* a new best on a leaderboard: title (the board), desc (the value), who */
+    ACH_NOTICE_BOARD,           /* a new best on a leaderboard: title (the board), desc (the value), who */
+    ACH_NOTICE_HINT             /* a short hint, not an achievement: title, desc (a black banner, 3 s) */
 };
 
 /* One notice for the toast (Gamecube/ach_toast.c). Strings live until the set is closed. */

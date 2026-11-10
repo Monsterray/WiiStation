@@ -42,6 +42,7 @@ static int lookup(const char *key, char *name, unsigned size)
 {
 	if (!strcmp(key, KEY_A)) snprintf(name, size, "Kat");
 	else if (!strcmp(key, KEY_B)) snprintf(name, size, "Ollie");
+	else if (!strncmp(key, "000000000000200", 15) && key[15] >= '0' && key[15] <= '7') snprintf(name, size, "P%d", key[15] - '0' + 1);
 	else return 0;
 	return 1;
 }
@@ -122,8 +123,9 @@ static void test_guest_when_nobody_sits(void)
 
 static void test_the_table(void)
 {
-	achievement_local_score_t rows[ACH_LOCAL_ROWS + 1];
-	unsigned n = ACH_LOCAL_ROWS, i;
+	achievement_local_score_t rows[ACH_LOCAL_MAX];
+	unsigned n, i;
+	int compact;
 	char key[17];
 	/* twelve other Miis, then Kat last */
 	achievements_boards_open(path);
@@ -138,26 +140,88 @@ static void test_the_table(void)
 	seat(KEY_A, KEY_B);
 	achievements_boards_players_changed();
 	achievements_boards_score(8, 50, 0, RC_FORMAT_SCORE, "High Score");
-	CHECK(achievements_board_local(1, rows, &n) == 14 && n == ACH_LOCAL_ROWS + 1, "14 Miis, 8 rows and Kat: %u", n);
+	CHECK(achievements_board_local(1, rows, &n, &compact) == 14 && n == ACH_LOCAL_ROWS + 1 && !compact, "14 Miis, 8 rows and Kat: %u", n);
 	CHECK(rows[0].rank == 1 && rows[0].score[0] && !rows[0].seated && !strncmp(rows[0].name, "Mii ", 4), "best first, a Mii no longer here: %s", rows[0].name);
-	CHECK(rows[7].rank == 8 && !rows[7].seated, "eight rows");
-	CHECK(rows[8].rank == 13 && rows[8].seated && !strcmp(rows[8].name, "Kat"), "Kat below the table, rank %u %s", rows[8].rank, rows[8].name);
+	CHECK(rows[6].rank == 7 && !rows[6].seated, "the top shrank to 7 for two Miis below");
+	CHECK(rows[7].rank == 13 && rows[7].seated && !strcmp(rows[7].name, "Kat"), "Kat below the table, rank %u %s", rows[7].rank, rows[7].name);
+	CHECK(rows[8].rank == 14 && rows[8].seated && !strcmp(rows[8].name, "Ollie"), "then Ollie, rank %u %s", rows[8].rank, rows[8].name);
 	/* Kat alone climbs into the table: no extra row for her; Ollie is still below */
 	seat(KEY_A, NULL);
 	achievements_boards_players_changed();
 	achievements_boards_score(8, 5000, 0, RC_FORMAT_SCORE, "High Score");
 	seat(KEY_A, KEY_B);
 	achievements_boards_players_changed();
-	n = ACH_LOCAL_ROWS;
-	CHECK(achievements_board_local(1, rows, &n) == 14 && n == 9, "9 rows now");
+	CHECK(achievements_board_local(1, rows, &n, &compact) == 14 && n == 9, "9 rows now");
 	CHECK(rows[0].rank == 1 && rows[0].seated && !strcmp(rows[0].name, "Kat"), "Kat first");
 	CHECK(rows[8].rank == 14 && rows[8].seated && !strcmp(rows[8].name, "Ollie"), "Ollie below the table now: %u %s", rows[8].rank, rows[8].name);
-	n = 3;
-	CHECK(achievements_board_local(1, rows, &n) == 14 && n == 4, "asked for 3, and Ollie below");
-	n = ACH_LOCAL_ROWS;
-	CHECK(achievements_board_local(2, rows, &n) == -1 && n == 0, "no such board");
-	n = ACH_LOCAL_ROWS;
-	CHECK(achievements_board_local(0, rows, &n) == 0 && n == 0, "a board without scores");
+	CHECK(achievements_board_local(2, rows, &n, &compact) == -1 && n == 0, "no such board");
+	CHECK(achievements_board_local(0, rows, &n, &compact) == 0 && n == 0, "a board without scores");
+	achievements_close();
+}
+
+/* up to 8 players at once (two multitaps): k seated Miis, the first `better` of them in the top part */
+static void seat_many(unsigned k)
+{
+	unsigned i;
+	memset(seated, 0, sizeof seated);
+	for (i = 0; i < k; i++) {
+		snprintf(seated[i].key, sizeof seated[0].key, "%016x", 0x2000u + i);
+		snprintf(seated[i].name, sizeof seated[0].name, "P%u", i + 1);
+	}
+	seated_n = k;
+	achievements_boards_players_changed();
+}
+
+static void test_eight_seated(void)
+{
+	achievement_local_score_t rows[ACH_LOCAL_MAX];
+	unsigned n, i, mine = 0;
+	int compact;
+	char key[17];
+	FILE *f;
+	long size;
+	achievements_boards_open(path);
+	/* 20 other Miis on board 8 (a score: higher is better) at 1000 + 10 i, then 8 seated Miis below them all */
+	for (i = 0; i < 20; i++) {
+		snprintf(key, sizeof key, "%016x", 0x1000u + i);
+		memset(seated, 0, sizeof seated);
+		snprintf(seated[0].key, sizeof seated[0].key, "%s", key);
+		seated_n = 1;
+		achievements_boards_players_changed();
+		achievements_boards_score(8, 1000 + (int)i * 10, 0, RC_FORMAT_SCORE, "High Score");
+	}
+	achievements_flush();
+	f = fopen(path, "rb");
+	fseek(f, 0, SEEK_END);
+	size = ftell(f);
+	fclose(f);
+	seat_many(8);
+	CHECK(achievements_boards_score(8, 100, 0, RC_FORMAT_SCORE, "High Score") == 8, "a new best for each of the 8");
+	CHECK(popup.who[0] && !strcmp(popup.who, "P1, P2 +6"), "the pop-up names two and counts six: '%s'", popup.who);
+	f = fopen(path, "rb");
+	fseek(f, 0, SEEK_END);
+	CHECK(ftell(f) == size, "8 records, none written in the frame");
+	fclose(f);
+	CHECK(achievements_board_local(1, rows, &n, &compact) == 28, "28 Miis");
+	for (i = 0; i < n; i++) mine += rows[i].seated;
+	CHECK(mine == 8 && compact && n <= ACH_LOCAL_MAX, "all 8 seated shown, compact: %u seated of %u rows", mine, n);
+	CHECK(rows[0].rank == 1 && !rows[0].seated, "the top is there");
+	CHECK(rows[n - 1].rank == 28 && !strcmp(rows[n - 1].name, "P8") && rows[n - 8].rank == 21, "the ties by key, the worst last with its real rank: %u %s", rows[n - 1].rank, rows[n - 1].name);
+	/* two of them ranked in the top part: 6 below fit in normal rows by shrinking the top */
+	seat_many(8);
+	for (i = 2; i < 8; i++) {   /* P3..P8 better than everything: they are the top */
+		seat_many(0); seated_n = 1;
+		snprintf(seated[0].key, sizeof seated[0].key, "%016x", 0x2000u + i);
+		snprintf(seated[0].name, sizeof seated[0].name, "P%u", i + 1);
+		achievements_boards_players_changed();
+		achievements_boards_score(8, 5000 + (int)i, 0, RC_FORMAT_SCORE, "High Score");
+	}
+	seat_many(8);
+	CHECK(achievements_board_local(1, rows, &n, &compact) == 28, "still 28");
+	for (mine = i = 0; i < n; i++) mine += rows[i].seated;
+	CHECK(mine == 8 && !compact && n == ACH_LOCAL_FIT, "6 on top, 2 below: normal rows, %u rows, %u seated, compact %d", n, mine, compact);
+	CHECK(rows[0].rank == 1 && rows[0].seated, "P8 first");
+	CHECK(rows[n - 1].rank == 28 && rows[n - 2].rank == 27, "P1 and P2 last with ranks %u %u", rows[n - 2].rank, rows[n - 1].rank);
 	achievements_close();
 }
 
@@ -178,6 +242,7 @@ static const struct hc_test tests[] = {
 	{ "every_seated_mii_keeps_its_best", test_every_seated_mii_keeps_its_best, false },
 	{ "guest_when_nobody_sits", test_guest_when_nobody_sits, false },
 	{ "the_table", test_the_table, false },
+	{ "eight_seated", test_eight_seated, false },
 	{ "no_boards_outside_the_ra_modes", test_no_boards_outside_the_ra_modes, false },
 };
 

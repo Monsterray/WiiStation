@@ -13,6 +13,7 @@
 #include "players_recent.h"
 #include "../deps/mii/mii.h"
 #include "../deps/mii/miidraw.h"
+#include "../achievements.h"
 #include "../mem2_manager.h"
 #include "../wiiSXconfig.h"
 #include "../gc_input/controller.h"
@@ -334,6 +335,21 @@ int players_seat_active(int s)
 		return padType[(s - 2) / 4] == PADTYPE_MULTITAP;
 	s -= 10;
 	return padType[s / COOP_MAX] == PADTYPE_COOP && s % COOP_MAX < (coopPlayers[s / COOP_MAX] < 1 ? 1 : coopPlayers[s / COOP_MAX]);
+}
+
+/* The hint that Miis are to be seated: with achievements on, the active seats that have no Mii (the
+ * Main menu's Players button carries a dot, a game start shows a toast). */
+int players_unseated(int *seated)
+{
+	int s, open = 0, taken = 0;
+	for (s = 0; s < PLAYERS_SEATS; s++)
+		if (players_seat_active(s)) {
+			if (playerSeat[s][0]) taken++;
+			else open++;
+		}
+	if (seated)
+		*seated = taken;
+	return achievementsEnabled != ACH_OFF ? open : 0;
 }
 
 const char *players_official(void)

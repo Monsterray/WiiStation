@@ -78,6 +78,9 @@ extern int playersLinksChanged;                            /* a link changed sin
 extern char playersOfficial[256];
 const char *players_official(void);
 int players_seat_active(int seat);   /* a seat that plays as the ports are set now */
+/* Achievements on: how many active seats have no Mii (0 with achievements off); *seated (may be NULL) is
+ * how many active seats have one. For the "seat the players" hint. */
+int players_unseated(int *seated);
 
 #ifdef __cplusplus
 }
