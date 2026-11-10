@@ -7,19 +7,10 @@
 # devkitPro repositories, tracked in pacman's own package database like any
 # other install.
 #
-# Since 5.13.0 WiiStation builds by default against pacman's CURRENT devkitPPC
-# and devkitPro's libogc v3 (with libfat-ogc and wii-sdl from pacman; the
-# remaining libraries are rebuilt from deps/ by scripts/build.sh). The steps
-# below the pacman one exist for the old build, LIBOGC=2, kept for one release:
-#
-# The one deliberate exception: this project ships prebuilt libogc2 (Extrems'
-# fork, not the official "libogc" pacman provides) plus Lightrec and GNU
-# Lightning binaries, all built against devkitPPC r41-2 specifically. Newer
-# devkitPPC releases are not ABI-compatible with those prebuilt binaries, and
-# devkitPro's own servers only ever serve the *current* devkitPPC release --
-# old versions are simply not retained there, by policy, for anyone's
-# project. r41-2 is installed to its own devkitPPC-r41-2 directory (never
-# overlapping pacman's own current devkitPPC install) purely for that reason.
+# WiiStation builds against pacman's CURRENT devkitPPC and devkitPro's libogc v3
+# (with libfat-ogc and wii-sdl from pacman; the remaining libraries are rebuilt
+# from deps/ by scripts/build.sh). The old r41-2 / libogc2 build and its bundled
+# prebuilt libraries were removed in 6.0.0.
 #
 # Prerequisites (do this once, manually -- it needs admin rights this script
 # cannot obtain on its own):
@@ -37,7 +28,6 @@ set -euo pipefail
 DEVKITPRO="${DEVKITPRO:-/c/devkitPro}"   # else the installer's default folder
 PACMAN="$DEVKITPRO/msys2/usr/bin/pacman.exe"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-MIRROR="https://wii.leseratte10.de/devkitPro"
 
 log() { printf '\n==> %s\n' "$1"; }
 
@@ -64,52 +54,6 @@ log "Installing/updating wii-dev, wii-sdl, ppc-zlib and unzip via pacman"
 # wii-dev: devkitPPC, libogc (v3), libfat-ogc; wii-sdl: the SDL 1.2 the default (libogc v3)
 # build links for its sound output (dfsound/sdl.c)
 "$PACMAN" -S --needed --noconfirm wii-dev wii-sdl ppc-zlib unzip
-
-# --- 2. devkitPPC r41-2, pinned for ABI compatibility with this project's --
-#        bundled prebuilt libogc2/lightrec/lightning (see header comment)
-DEVKITPPC_PIN="$DEVKITPRO/devkitPPC-r41-2"
-if [ -x "$DEVKITPPC_PIN/bin/powerpc-eabi-gcc.exe" ]; then
-	log "devkitPPC r41-2 already installed, skipping"
-else
-	log "Downloading devkitPPC r41-2 (~51MB, pinned -- see header comment)"
-	tmp=$(mktemp -d)
-	curl -L -o "$tmp/devkitPPC.pkg.tar.xz" \
-		"$MIRROR/devkitPPC/r41%20(2022-05-31)/devkitPPC-r41-2-windows_x86_64.pkg.tar.xz"
-	tar -xf "$tmp/devkitPPC.pkg.tar.xz" -C "$tmp"
-	mv "$tmp/opt/devkitpro/devkitPPC" "$DEVKITPPC_PIN"
-	rm -rf "$tmp"
-fi
-
-# --- 3. libogc2 + SDL + Lightning + Lightrec (bundled in this repo, this --
-#        project's own choice of fork/build, not something pacman ships)
-if bash "$REPO_ROOT/scripts/check-wii-libraries.sh" "$DEVKITPRO/libogc2"; then
-	log "libogc2 already installed, skipping"
-else
-	log "Installing/repairing bundled lightrec+Libogc2.zip"
-	tmp=$(mktemp -d)
-	unzip -oq "$REPO_ROOT/lightrec+Libogc2.zip" -d "$tmp"
-	cp -rn "$tmp/lightrec+Libogc2/devkitPPC/"* "$DEVKITPPC_PIN/"
-	mkdir -p "$DEVKITPRO/libogc2"
-	cp -r "$tmp/lightrec+Libogc2/libogc2/." "$DEVKITPRO/libogc2/"
-	rm -rf "$tmp"
-fi
-
-# --- 4. wii_rules / gamecube_rules / base_tools for the pinned compiler ---
-#        wii_rules/gamecube_rules must point LIBOGC_INC/LIB at libogc2, not
-#        pacman's official libogc -- libogc2's own copies do that, so use
-#        those instead of whatever the standard devkitPPC package ships.
-#        base_tools we take from pacman's current devkitppc-rules install
-#        (same file wii-dev already gave us) rather than fetching a second,
-#        separately-versioned copy -- it only sets PATH/PORTLIBS_PATH/the
-#        compiler-prefix variables, none of which are version-sensitive.
-cp -f "$DEVKITPRO/libogc2/wii_rules" "$DEVKITPPC_PIN/wii_rules"
-cp -f "$DEVKITPRO/libogc2/gamecube_rules" "$DEVKITPPC_PIN/gamecube_rules"
-cp -f "$DEVKITPRO/devkitPPC/base_tools" "$DEVKITPPC_PIN/base_tools"
-# The stock base_tools hardcodes $(DEVKITPRO)/devkitPPC/bin into PATH instead
-# of using $(DEVKITPPC) -- harmless with only one devkitPPC install, but it
-# silently prepends pacman's *current* compiler ahead of this pinned one
-# once both exist side by side. Point it at $(DEVKITPPC) instead.
-sed -i 's#\$(DEVKITPATH)/devkitPPC/bin#$(DEVKITPPC)/bin#' "$DEVKITPPC_PIN/base_tools"
 
 log "Toolchain setup complete."
 

@@ -72,7 +72,10 @@ def stamp_meta(meta, dol):
     return s
 
 
-def stage(dol, dev=True, folder="WiiStation"):
+def stage(dol, dev=True, folder="WiiStation", root=STAGE):
+    """Lay out apps/<folder> and wiistation/{controllers,fonts,lang} under root (make_release.py
+    zips the same tree); returns the (local, remote) folders wii_install syncs."""
+    STAGE = root
     if STAGE.exists():
         shutil.rmtree(STAGE)
     app = STAGE / "apps" / folder
@@ -102,6 +105,17 @@ def stage(dol, dev=True, folder="WiiStation"):
     shutil.copytree(REPO / "lang", STAGE / "wiistation" / "lang")
     return [(app, "sd:/apps/" + folder)] + [
         (STAGE / "wiistation" / d, "sd:/wiistation/" + d) for d in ("controllers", "lang", "fonts")]
+
+
+def stage_extras(root=STAGE):
+    """The two single files a release carries besides the folders: example_settings.ini and
+    the pinned CA bundle (a bundle that is not the pinned one is refused)."""
+    sys.path.insert(0, str(REPO / "scripts"))
+    from ra_ca_bundle import BUNDLE, verify_pin
+    verify_pin()
+    (root / "wiistation" / "achievements").mkdir(parents=True, exist_ok=True)
+    shutil.copy2(REPO / "Gamecube/release/example_settings.ini", root / "wiistation")
+    shutil.copy2(BUNDLE, root / "wiistation" / "achievements")
 
 
 def main():

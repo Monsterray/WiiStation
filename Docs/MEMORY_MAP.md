@@ -156,7 +156,7 @@ What the shipped fonts actually need:
 | Font | Glyphs | Heap used |
 |---|---|---|
 | `En.dat` (built in, English) | 95 | 106 KB |
-| `Segoe`, `Times`, `CalibriBold` | 319 | 358 KB |
+| `Sans`, `Serif`, `SansBold` | 319 | 358 KB |
 | a 3500-character common-hanzi set | 3500 | 3.9 MB |
 | full GB2312 | 6763 | 7.6 MB |
 

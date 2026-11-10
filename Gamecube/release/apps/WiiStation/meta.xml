@@ -2,8 +2,8 @@
  <app version="2">
    <name>WiiStation</name>
    <coder>Monty Perrotti</coder>
-   <version>5.19.0</version>
-   <release_date>20261024</release_date>
+   <version>6.0.0</version>
+   <release_date>20261109</release_date>
    <short_description>PSX Emulator for Wii</short_description>
    <long_description>
 WiiStation - A Sony PlayStation 1 emulator for Wii / Wii U, by Monty Perrotti.
@@ -21,7 +21,8 @@ Featuring:
 - Co-Op: up to 8 controllers play one PlayStation port together, each with its own buttons.
 - Multiple languages.
 - Crash reports for the Homebrew Channel (hangs, crashes, no audio).
-- Achievements (rcheevos): RetroAchievements sets online (Casual), or local sets, off by default.
+- Achievements (rcheevos): RetroAchievements sets (Official, Casual only; or Local, nothing sent) and your own sets, with a book, unlock pictures and Mii leaderboards; off by default.
+- A rebuilt menu, with a Players page for each seat's Mii.
 
 * WiiSX/CubeSX is a PCSX port. The original team was:
 emu_kidid - general coding

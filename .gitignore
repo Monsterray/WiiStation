@@ -84,3 +84,11 @@ common-key
 sd-key
 # workstation-local settings (.dev/wiis.json: more protected Wiis for scripts/wii_targets.py)
 .dev/
+
+# Screenshots of the Sony BIOS shell: local reference only, not for the public repo
+examples/playstation-scph1001-*.png
+# dolphin_run.sh logs: they name this workstation's folders; kept on disk only (numbers are in index.csv)
+baselines/*/run.log
+
+# deps/opengx archives: built by scripts/build.sh (in build_ogc3/ for the default build)
+deps/opengx/lib/*.a

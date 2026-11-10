@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Build WiiStation for Wii. Use setup-devkitpro-windows.sh on Windows or
-# setup-devkitpro-local.sh for an isolated macOS/Linux toolchain.
+# Build WiiStation for Wii. Use setup-devkitpro-windows.sh on Windows (devkitPro's
+# pacman packages elsewhere).
 #
 # Run this from devkitPro's own MSYS2 shell (Start Menu -> devkitPro -> MSys2,
 # or msys2_shell.bat in devkitPro's msys2 folder) -- that's what provides `make` and
@@ -14,8 +14,6 @@
 #   scripts/build.sh debug-warn   # debug build with -Wall -Wextra (WARN=1)
 #   scripts/build.sh release-warn # release build with -Wall -Wextra (WARN=1)
 #   scripts/build.sh clean        # clean all build artifacts
-#   LIBOGC=2 scripts/build.sh release  # libogc2 + devkitPPC r41-2; outputs get _ogc2
-#                                      # (WiiSXRX_Release_ogc2.dol, build_release_ogc2/)
 #
 # The *-warn variants build with real compiler warnings enabled instead of
 # the default fully-quiet (-w) build -- use them when auditing the codebase
@@ -60,22 +58,19 @@ if [[ "$(cd "$REPO_ROOT" && pwd -P)" == *" "* ]]; then
 fi
 
 # LIBOGC picks the libogc / devkitPPC pair the Makefiles build against:
-#   3 (default)  devkitPro's libogc v3 + devkitPPC r50 ($DEVKITPRO/devkitPPC); dependency archives
-#                are built in build_ogc3/deps (5.13.0).
-#   2            libogc2 + devkitPPC-r41-2. Pinned, not the pacman-managed $DEVKITPRO/devkitPPC,
-#                which is incompatible with libogc2 -- see scripts/setup-devkitpro-windows.sh. Its
-#                outputs get the _ogc2 suffix (build dirs, .elf/.dol), so nothing mixes.
+#   3 (only)    devkitPro's libogc v3 + devkitPPC ($DEVKITPRO/devkitPPC); dependency archives
+#               are built in build_ogc3/deps. The old libogc2 / devkitPPC r41-2 build (LIBOGC=2)
+#               and its prebuilt libraries were removed in 6.0.0.
 LIBOGC="${LIBOGC:-3}"
 case "$LIBOGC" in
-	2) DEVKITPPC_NAME=devkitPPC-r41-2 ;;
 	3) DEVKITPPC_NAME=devkitPPC ;;
-	*) echo "ERROR: LIBOGC must be 2 or 3 (got '$LIBOGC')."; exit 1 ;;
+	*) echo "ERROR: LIBOGC=$LIBOGC is gone (removed in 6.0.0); only the default, libogc v3, builds."; exit 1 ;;
 esac
 export LIBOGC
 # Windows: the login shell here carries DEVKITPRO=/opt/devkitpro and may carry the newer pacman
 # devkitPPC; inheriting either breaks the build (AGENTS.md "Building"), so they are dropped and
 # DEVKITPRO comes from ~/wii-tools.env (scripts/tools.py check).
-# macOS/Linux: an isolated toolchain (setup-devkitpro-local.sh) may live elsewhere, so a set value wins.
+# macOS/Linux: a set value wins.
 case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) unset DEVKITPRO DEVKITPPC ;; esac
 . "$REPO_ROOT/scripts/tools_env.sh"; need DEVKITPRO "level 1"
 export DEVKITPRO
@@ -92,15 +87,8 @@ if [ "$LIBOGC" = 3 ]; then
 fi
 
 if [ ! -x "$DEVKITPPC/bin/powerpc-eabi-gcc" ] && [ ! -x "$DEVKITPPC/bin/powerpc-eabi-gcc.exe" ]; then
-	echo "$DEVKITPPC_NAME not found at $DEVKITPPC. Use setup-devkitpro-windows.sh on Windows or setup-devkitpro-local.sh on macOS/Linux."
+	echo "$DEVKITPPC_NAME not found at $DEVKITPPC. Use setup-devkitpro-windows.sh on Windows or devkitPro's pacman packages."
 	exit 1
-fi
-if [ "$LIBOGC" = 2 ]; then
-	bash "$REPO_ROOT/scripts/check-wii-libraries.sh" "$DEVKITPRO/libogc2"
-	if ! "$DEVKITPPC/bin/powerpc-eabi-gcc" --version | head -n 1 | grep -q 'release 41'; then
-		echo "WiiStation's bundled libraries require devkitPPC release 41. Set DEVKITPPC to the pinned compiler." >&2
-		exit 1
-	fi
 fi
 if ! command -v make >/dev/null 2>&1; then
 	echo "make not found on PATH. Run this from devkitPro's own MSYS2 shell"

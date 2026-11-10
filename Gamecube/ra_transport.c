@@ -146,7 +146,9 @@ static lwp_t worker = LWP_THREAD_NULL;
 static mutex_t lock = LWP_MUTEX_NULL;
 static cond_t wake = LWP_COND_NULL;
 static int ready = -1;   /* -1 not started, 0 failed (no seed, clock or network), 1 ready */
-static char user_agent[96];
+static char user_agent[128];
+/* Marker scripts/make_release.py looks for in the DOL: present only in the real (curl + Mbed TLS) transport. */
+static const char ws_ra_transport_marker[] = "WS-RA-TRANSPORT:curl+mbedtls";
 
 /* ---- libogc v3 socket gaps that curl meets (bench jobs 20261023-13xxxx, Docs/ACHIEVEMENTS_NOTES.md) ---- */
 
@@ -437,11 +439,20 @@ void ra_transport_post(const char *url, const char *post, const char *content_ty
                        rc_client_server_callback_t done, void *done_data)
 {
 	int i;
+	int n;
 	if (worker == LWP_THREAD_NULL) {
 		static u8 stack[128 * 1024] __attribute__((aligned(32)));   /* a TLS handshake is stack hungry */
 		LWP_MutexInit(&lock, false);
 		LWP_CondInit(&wake);
-		snprintf(user_agent, sizeof user_agent, "WiiStation/%s (Wii)", WIISTATION_VERSION);
+		/* "<product>/<version> (<system>) <extensions>": rcheevos asks for its own clause; it needs no client */
+		n = snprintf(user_agent, sizeof user_agent, "WiiStation/%s (Wii) ", WIISTATION_VERSION);
+		if (n > 0 && (size_t)n < sizeof user_agent)
+			rc_client_get_user_agent_clause(NULL, user_agent + n, sizeof user_agent - n);
+		{   /* keep the marker in release builds, where SysPrintf compiles away */
+			static const char *volatile keep = ws_ra_transport_marker;
+			(void)*keep;
+		}
+		SysPrintf("Achievements: User-Agent: %s (%s)\n", user_agent, ws_ra_transport_marker);
 		LWP_CreateThread(&worker, work, NULL, stack, sizeof stack, 48);
 	}
 	LWP_MutexLock(lock);

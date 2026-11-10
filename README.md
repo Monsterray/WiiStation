@@ -2,6 +2,8 @@
 
 # WiiStation
 
+**Version 6.0.0** (2026-11-09): a rebuilt menu and the achievement system. What is new, how to install or upgrade, and the known issues: [Docs/RELEASE_NOTES_6.0.0.md](Docs/RELEASE_NOTES_6.0.0.md). Download `WiiStation-6.0.0.zip` from the [releases](https://github.com/Monsterray/WiiStation/releases) and unzip it onto the root of your SD card.
+
 WiiStation (formerly WiiSXRX_2022), is a Sony PlayStation 1 (PS1/PSX/PSone) emulator, forked from the original WiiSX-RX (https://github.com/niuus/WiiSXRX) emulator by NiuuS, originally a port of PCSX-Reloaded, but with many changes from PCSX-ReARMed, for the Nintendo Wii/Wii U.
 
 ## The following changes have been made to the code based on WiiSXRX.
@@ -113,10 +115,7 @@ The CPU cores, GPU renderers, sound, CD-ROM, pad and font backends, how each is 
 [SETUP.md](SETUP.md) takes you from nothing to WiiStation built (devkitPro), running in Dolphin, and
 running on a Wii, in three levels. Developer notes (tests, conventions) are in [CONTRIBUTING.md](CONTRIBUTING.md).
 
-The original WiiSXRX build used devkitPPC r41-2 with prebuilt libogc2, SDL, GNU Lightning and Lightrec
-libraries (`lightrec+Libogc2.zip`, `libSDL.a` in the repo root). Since 5.13.0 the default build uses
-devkitPro's current devkitPPC and libogc v3; the old pair still builds with `LIBOGC=2`, and
-`scripts/setup-devkitpro-windows.sh` installs r41-2 for it (macOS/Linux: `scripts/setup-devkitpro-local.sh`).
+The build uses devkitPro's current devkitPPC and libogc v3. The original WiiSXRX build (devkitPPC r41-2 with prebuilt libogc2, SDL, GNU Lightning and Lightrec libraries) was removed in 6.0.0.
 
 ## WiiStation Credits
 

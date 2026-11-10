@@ -132,6 +132,11 @@ ifeq ($(LIBOGC),3)
 RA_HTTPS_DIR ?= $(CURDIR)/../build_ogc3/deps/ra_https
 export RA_HTTPS_DIR
 endif
+ifeq ($(wildcard $(RA_HTTPS_DIR)/lib/libcurl.a),)
+ifndef ALLOW_STUB_TRANSPORT
+$(error $(RA_HTTPS_DIR) is missing: a release without the HTTPS stack cannot log in to Official mode. Run scripts/build-ra-https.sh first (see SETUP.md), or pass ALLOW_STUB_TRANSPORT=1)
+endif
+endif
 ifneq ($(wildcard $(RA_HTTPS_DIR)/lib/libcurl.a),)
 RA_HTTPS_LIBS := -lcurl -lwssocpoll -lmbedtls -lmbedx509 -lmbedcrypto
 RA_HTTPS_PATH := -L$(RA_HTTPS_DIR)/lib

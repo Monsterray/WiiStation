@@ -13,7 +13,7 @@ folder (open it in a browser and press Play). Each style below lists what makes 
 - **Colour:** PS1 colour is 15-bit, so a gradient shows as bands. Make a gradient of 4 or 5 hard
   bands, then put a 2 x 2 dither on top (black at 16 % alpha, checker pattern).
 - **Pixels:** small icons are 16 x 16 and are drawn with nearest-neighbour filtering.
-- **Text:** the menu font (Segoe-based) with a hard 1-2 px shadow, not a soft shadow.
+- **Text:** the menu font (Selawik-based) with a hard 1-2 px shadow, not a soft shadow.
 - **Counters:** numbers step up in whole values (points, earned count). They do not slide.
 
 ## 1. Save Block (memory card)

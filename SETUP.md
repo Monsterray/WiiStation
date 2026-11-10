@@ -19,8 +19,9 @@ Already cloned without `--recursive`? Run `git submodule update --init` in the c
 2. Open the devkitPro shell (Start menu, "MSYS2", from devkitPro) and go to the clone, for
    example `cd /c/projects/WiiStation`.
 3. `sh scripts/setup-devkitpro-windows.sh`. It installs the Wii libraries this project needs
-   (pacman packages, plus a pinned old compiler for the old `LIBOGC=2` build).
-4. `scripts/wsx.sh build release`. It prints the DOL: `Gamecube/WiiSXRX_Release.dol`.
+   (pacman packages).
+4. `bash scripts/build-ra-https.sh --rebuild` (one time; Official mode's HTTPS stack, see below).
+5. `scripts/wsx.sh build release`. It prints the DOL: `Gamecube/WiiSXRX_Release.dol`.
 
 The build finds devkitPro at `C:\devkitPro`. If you installed it somewhere else, put
 `DEVKITPRO=<folder>` in `~/wii-tools.env` (see "Tool paths" below).
@@ -72,6 +73,10 @@ from memory; nothing is installed on the Wii:
 
 The script copies only new or changed files and deletes nothing, so your settings, saves and
 games on the card stay.
+
+### Official mode HTTPS stack
+
+RetroAchievements Official mode needs Mbed TLS and curl, which are not in the repo. `bash scripts/build-ra-https.sh --rebuild` builds them into `build_ogc3/deps/ra_https` (ignored by git; one time per checkout, a few minutes). Without that folder `scripts/wsx.sh build release` stops with an error, and a debug build links a stub transport that fails every request. `scripts/make_release.py` refuses a DOL without the real transport.
 
 ## Tool paths: `~/wii-tools.env`
 

@@ -272,7 +272,7 @@ The port's entropy is fake. Certificate checks that pass do not prove secret ses
   open, read, write and ioctl. It does not expose Starlet kernel syscalls. The ES code has no
   random command. This is evidence about the API, not proof that Hollywood has no random
   source. Sources: [libogc2 ES source](https://raw.githubusercontent.com/extremscorner/libogc2/master/libogc/es.c),
-  [local pinned setup](../scripts/setup-devkitpro-local.sh).
+  local pinned setup (since removed).
 - [IOS syscall research](https://wiibrew.org/wiki/IOS/Syscalls) names an internal
   `IOSC_GenerateRand`. We found no supported PPC IPC path to it and no quality assessment. An
   ARM syscall number cannot go through `IOS_Ioctl`. Custom IOS, exploits or key extraction

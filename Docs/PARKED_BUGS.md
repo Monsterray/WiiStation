@@ -6,6 +6,18 @@ without doing the investigation a second time.
 
 ---
 
+## ps1-tests io-access-bitwidth.exe: DSI in Lightrec code on the Wii -- PARKED 2026-11-09, new
+
+Found in the 6.0.0 release pass (dev Wii, job 20261109-224603-b8cd5f, release DOL, Tier 1 chain game 16 of 39;
+logs in ws-develop/.runs/rel600_tier12). The test program crashes with a DSI at 809a14bc inside Lightrec-compiled
+code, DAR 1fa00000: an access to the expansion region (EXP2/EXP3 area) that the recompiled code does not map or
+route to the I/O handlers. First time this test ran on hardware, so it is not known to be a regression. No game in
+the regimen touches that region; every game in Tier 1 and 2 ran.
+Next: run it in Dolphin with the interpreter (Core=1) vs Lightrec; see how Lightrec's memory map
+(lightrec_init map in libpcsxcore/lightrec) covers 0x1f000000-0x1fbfffff and which width (8/16/32) faults.
+
+---
+
 ## CTR after Spyro in one Official chain: Lightrec hangs or crashes in the race -- FIXED 2026-10-24
 
 **Cause: MEM1 ran out.** libogc v3's malloc does not spill into MEM2 (arena2 stays at 0), so a

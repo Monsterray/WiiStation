@@ -441,7 +441,7 @@ itself, once, when a read fails.
 | `autoboot.txt` | Starts a game without the menu. See section 10. |
 | `autoinput.txt` | Presses controller buttons at given times. See section 11. |
 | `bios/SCPH1001.BIN` | The PlayStation BIOS. Needed when `BiosDevice` is 1 or 2. |
-| `fonts/<Name>.dat` | A menu font, selected with `MenuFont`. The repository has four in `fonts/menu/`: `Classic` (the original glyphs, descenders cut), `Segoe` (the built-in face with full descenders and Latin accents), `Times` (a Times New Roman face) and `CalibriBold` (a bold Calibri face, made with the recipe in section 9.1). Make a new one with `scripts/genfont.py`. |
+| `fonts/<Name>.dat` | A menu font, selected with `MenuFont`. The repository has four in `fonts/menu/`: `Classic` (the original glyphs, descenders cut), `Sans` (the built-in face, Selawik, with full descenders and Latin accents), `Serif` (Liberation Serif) and `SansBold` (Selawik Semibold, made with the recipe in section 9.1). The old values `Segoe`, `Times` and `CalibriBold` still work: they select `Sans`, `Serif` and `SansBold`. `fonts/README.md` names the source font and license of each file. Make a new one with `scripts/genfont.py`. |
 | `ppf/` | PPF patch files. WiiStation applies a patch with the same name as the game. |
 | `lang/` | Menu language files. |
 | `fonts/chs.dat` | Font file for the Chinese menu language. |
@@ -456,15 +456,15 @@ itself, once, when a read fails.
 
 A menu font file holds one 24 x 24 pixel image for each character. The script `scripts/genfont.py` makes the file from a TrueType font. It needs Python 3 and the Pillow package (`python -m pip install --user pillow`).
 
-1. Open a shell in the repository folder (the WiiStation checkout, not a subfolder) and run the script. This example makes a bold Calibri font with all Latin characters:
+1. Open a shell in the repository folder (the WiiStation checkout, not a subfolder) and run the script. This example makes a bold sans font with all Latin characters:
 
    ```
-   python scripts/genfont.py --charset latin --ttf C:/Windows/Fonts/calibrib.ttf --out fonts/menu/CalibriBold.dat --preview preview.png
+   python scripts/genfont.py --charset latin --ttf selawksb.ttf --out fonts/menu/SansBold.dat --preview preview.png
    ```
 
    The script selects the largest size that keeps the tallest and the deepest characters inside the 24 rows. It reports the size and the baseline. Open `preview.png` to check the result.
-2. Copy the file to `sd:/wiistation/fonts/CalibriBold.dat`.
-3. Add this line to `settings.ini`: `MenuFont = "CalibriBold"`.
+2. Copy the file to `sd:/wiistation/fonts/SansBold.dat`.
+3. Add this line to `settings.ini`: `MenuFont = "SansBold"`.
 4. Start WiiStation. To go back to the built-in font, remove the line.
 
 Use `--charset ascii` for a smaller file with only the English characters. Use `--ref fonts/En.dat` instead of `--charset` to keep the character widths of an existing font file, so that the menu layout does not change.

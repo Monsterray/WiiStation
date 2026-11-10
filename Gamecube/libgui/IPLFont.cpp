@@ -19,6 +19,7 @@
 **/
 
 #include <map>
+#include <string.h>
 #include <ogc/lwp_heap.h>
 
 #include "IPLFont.h"
@@ -272,9 +273,20 @@ FILE* IplFont::getFontFile(char* sdUsb)
         lang != KOREAN && lang != JAPANESE)
     {
         FILE* f;
-        snprintf(fontPathBuf, sizeof(fontPathBuf), "%s:/wiistation/fonts/%s.dat", sdUsb, menuFont);
+        /* The 5.x names (Microsoft faces) now mean the open-source faces that
+         * replaced them; a file of the old name on the card is the fallback. */
+        const char* now = !strcmp(menuFont, "Segoe") ? "Sans" :
+                          !strcmp(menuFont, "CalibriBold") ? "SansBold" :
+                          !strcmp(menuFont, "Times") ? "Serif" : menuFont;
+        snprintf(fontPathBuf, sizeof(fontPathBuf), "%s:/wiistation/fonts/%s.dat", sdUsb, now);
         f = fopen(fontPathBuf, "rb");
         if (f) return f;
+        if (now != menuFont)
+        {
+            snprintf(fontPathBuf, sizeof(fontPathBuf), "%s:/wiistation/fonts/%s.dat", sdUsb, menuFont);
+            f = fopen(fontPathBuf, "rb");
+            if (f) return f;
+        }
     }
     switch(lang)
     {

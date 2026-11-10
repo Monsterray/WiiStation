@@ -6,7 +6,7 @@ instead of judged from memory. One directory per run, filed by `scripts/baseline
 ```
 baselines/index.csv            one row per baseline with its key metrics (open it in a spreadsheet)
 baselines/<id>/perf.log        the debug build's counters, last report block is what matters
-baselines/<id>/run.log         dolphin_run.sh's log: build timestamp, every Dolphin option used
+baselines/<id>/run.log         dolphin_run.sh's log (this machine only, not in git: it names local folders)
 baselines/<id>/settings.cfg    the settings the run was staged with
 baselines/<id>/notes.md        game, purpose, build, and the numbers in one page
 baselines/media/<id>/          audio.flac (the Dolphin audio dump, lossless) and sheet.png

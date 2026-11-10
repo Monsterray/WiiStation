@@ -1,5 +1,5 @@
 README : WiiStation
-Version 5.19.0
+Version 6.0.0
 
 LICENSE:
     This software is licensed under the GNU General Public License v2
@@ -10,7 +10,7 @@ LICENSE:
 QUICK USAGE:
  * Disc images: .cue/.bin, .ccd/.img, .toc, .mds/.mdf, .iso, .pbp, .cbn, .chd and PS-X .exe.
     What each one can and cannot do is under DISC IMAGE FORMATS below.
- * To install: Extract the contents of WiiStation.zip to the root of your SD card
+ * To install: Extract the contents of WiiStation-6.0.0.zip to the root of your SD card
  * For SD/USB: Put ISOs (.bin/.cue or other formats) in the directory named /wiistation/isos,
     or anywhere else: RomDirSD (and RomDirUSB) in wiistation/settings.ini name
     game folders, e.g. RomDirSD = "/wiistation/isos, /roms/psx". Every setting is
@@ -101,11 +101,11 @@ Settings:
    * Delete Saves: Not yet implemented
 
 REPORTING ISSUES:
- Report emulator issues to https://github.com/xjsxjs197/WiiSXRX_2022/issues
+ Report emulator issues to https://github.com/Monsterray/WiiStation/issues
  Do not report individual game bugs
 
 CODE:
- Source code can be found here https://github.com/xjsxjs197/WiiSXRX_2022/
+ Source code can be found here https://github.com/Monsterray/WiiStation
 
 CREDITS:
  * WiiStation fork: xjsxjs197
@@ -155,7 +155,13 @@ LATER UPDATES BY:
  * Monty Perrotti (WiiStation)
 
 WiiStation CHANGE LOG:
-Next version (not released yet):
+Ver 6.0.0 (2026-11-09), the first GitHub release. What changed for players, how to upgrade and the known
+issues: Docs/RELEASE_NOTES_6.0.0.md (https://github.com/Monsterray/WiiStation/releases).
+* The menu was rebuilt on shared pages; the achievement system (Local, Official in Casual,
+  Custom, the book, unlock pictures, local Mii leaderboards) ships.
+* Players start empty: Mii seats are no longer remembered between starts. An amber dot on
+  Players and a PLAYERS note after the game card say a seat has no Mii.
+* Also in 6.0.0 (since 5.19.0):
 * PSX Pad Type Analog is ready to play: a game that asks the DualShock about its
   modes and leaves the choice to the player (Gex 3, MediEvil) now gets analog mode
   (red light) by itself after 10 seconds, so the left stick works without the ANALOG key
