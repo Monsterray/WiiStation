@@ -203,6 +203,12 @@ int gx_vout_render(short canSwapFrameBuf)
 	 * In particular, never rotate an XFB merely because GX_CopyDisp was queued. */
 	if (gx_present_inflight)
 		return 0;
+	/* The menu owns the screen. A game loading from the menu (loadISO: SysReset, LoadCdrom) runs
+	 * the console and its GPU presents an empty display; that black frame (with the FPS text)
+	 * reached the TV and stayed there for the whole load, about a second on a Wii, since the
+	 * menu draws nothing until the load returns. Keep the menu's last frame instead. */
+	if (menuActive)
+		return 0;
 
 	// reset swap table from GUI/DEBUG
 	// To improve efficiency, the original BGR pixel format of PS is directly used
