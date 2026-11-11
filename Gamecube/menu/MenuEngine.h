@@ -144,6 +144,10 @@ struct ActionButton {
 	float       width;
 	bool        lit;		/* Buttons: a toggle that is on (drawn lit); an action is never lit */
 	float       dy;			/* Buttons: this far below the row's top; 0 = the row's top (Current ROM's Slot) */
+	/* A cycle button (standard pages): every value it can show. Its width is the widest of them plus the
+	 * arrows' room, measured by the engine; width is then not used. */
+	const char *const *values;
+	int                 nValues;
 };
 
 struct Row {
@@ -451,6 +455,7 @@ int stdStepWidth(const Metrics &m, const char *text, int pad);
 
 /* A separate button (an action, a flag, a sub-page button): text + 32. */
 int stdButtonWidth(const Metrics &m, const char *text);
+int stdCycleWidth(const Metrics &m, const char *const *values, int n, const char *first);
 
 /* The segments of one choice (they touch). Writes n widths to out and returns their sum.
  * Equal widths, the widest text + 32, when n of them fit in `room`; otherwise each segment its own

@@ -53,6 +53,19 @@ int stdStepWidth(const Metrics &m, const char *text, int pad)
 	return ((tw + pad + STD_STEP - 1) / STD_STEP) * STD_STEP;
 }
 
+/* A cycle button: wide enough for the widest of its values (and of `first`, the text shown) with the
+ * arrows' room, so no value ever touches an arrow. */
+int stdCycleWidth(const Metrics &m, const char *const *values, int n, const char *first)
+{
+	int w = stdStepWidth(m, first, STD_CELL_PAD);
+	for (int k = 0; k < n; k++) {
+		const int v = stdStepWidth(m, values[k], STD_CELL_PAD);
+		if (v > w)
+			w = v;
+	}
+	return w > (int)STD_CYCLE_MIN ? w : (int)STD_CYCLE_MIN;
+}
+
 int stdButtonWidth(const Metrics &m, const char *text)
 {
 	return stdStepWidth(m, text, STD_SEG_PAD_EQ);
@@ -418,13 +431,13 @@ static int controlBound(const Page &p)
  *
  *   Toggle, Choice  touching segments (Toggle = its names as segments); the last `plain` of a
  *                   Choice are separate action buttons after a gap of STD_BTN_GAP
- *   Cycle           one STD_CYCLE_W button reading the current name
+ *   Cycle           one button reading the current name; every cycle on a page is as wide as the widest value any of them shows (stdCycleWidth)
  *   Buttons         separate buttons (text + 32, gap 12); the actions' `lit` is "on" (a flag).
  *                   With a label they start at STD_CTRL_X0, without they are centred on the screen
  *   Readout         label, and the text at STD_CTRL_X0
  *
  * Row::x0 and gap and the Page's titleY are ignored (rowY0 > 0 moves the first row down: the ISO Info disc band); ActionButton::width is used on a Buttons row
- * when it is above 0 (a cycle takes STD_CYCLE_W), else the width comes from the text. A row that
+ * when it is above 0 (a cycle: its widest value, stdCycleWidth), else the width comes from the text. A row that
  * does not fit is not squeezed: checkLayout reports it. A page with more rows than the density holds,
  * or a List row, is refused (-1): the list is not laid out by the standard yet.
  * Toggle segments are ROLE_CHOICE controls, slot k = value k, so a host's click on slot k sets it. */
@@ -462,6 +475,21 @@ static int layoutStandard(const Page &p, const Metrics &m, Layout &out)
 		out.title = addText(out, m, ROLE_TITLE, -1, 0, MENU_W / 2, (float)STD_TITLE_Y, ALIGN_CENTRE, TEXT_SCALE, p.title);
 	}
 
+	/* every cycle on the page is as wide as the widest one needs (a cell of a two-column page has its column's) */
+	int cycleW = 0;
+	for (int i = 0; i < p.nRows; i++) {
+		const Row &r = p.rows[i];
+		if (r.kind == ROW_CYCLE && !isCell(p, r)) {
+			const int w = stdCycleWidth(m, r.names, r.count, r.names[shownValue(r) - r.lo]);
+			cycleW = w > cycleW ? w : cycleW;
+		} else if (r.kind == ROW_BUTTONS && r.actions && !r.prefix)
+			for (int k = 0; k < r.count; k++)
+				if (r.actions[k].nValues > 0) {
+					const int w = stdCycleWidth(m, r.actions[k].values, r.actions[k].nValues, r.actions[k].text);
+					cycleW = w > cycleW ? w : cycleW;
+				}
+	}
+
 	for (int i = 0; i < p.nRows; i++) {
 		const Row &r = p.rows[i];
 		int line, col;
@@ -469,9 +497,11 @@ static int layoutStandard(const Page &p, const Metrics &m, Layout &out)
 		const float y = (p.rowY0 > 0 ? p.rowY0 : (float)STD_BODY_Y0) + (float)line * pitch;
 		const float cy = y + h / 2;
 		/* a cell of a two-column page (Page::columns): its label edge, button x and width from gridPlace */
-		float bx = (float)STD_CTRL_X0, bw = (float)STD_CYCLE_W, edge = (float)STD_LABEL_EDGE;
+		float bx = (float)STD_CTRL_X0, bw = 0, edge = (float)STD_LABEL_EDGE;
 		if (isCell(p, r))
 			gridPlace(p, m, col, bx, bw, edge);
+		else if (r.kind == ROW_CYCLE)
+			bw = (float)cycleW;
 
 		if (r.label && r.kind != ROW_LIST) {
 			/* right-aligned to the edge: centred on an anchor that puts the right end there */
@@ -561,8 +591,9 @@ static int layoutStandard(const Page &p, const Metrics &m, Layout &out)
 				break;
 			}
 			for (int k = 0; k < r.count; k++) {
-				/* a width the host gives is kept (a cycle: STD_CYCLE_W); else the text's */
-				w[k] = r.actions[k].width > 0 ? (int)r.actions[k].width : stdButtonWidth(m, r.actions[k].text);
+				/* a cycle: its widest value; else a width the host gives is kept; else the text's */
+				w[k] = r.actions[k].nValues > 0 ? cycleW
+				     : r.actions[k].width > 0 ? (int)r.actions[k].width : stdButtonWidth(m, r.actions[k].text);
 				total += w[k];
 			}
 			x = r.label ? (float)STD_CTRL_X0 : (float)(((int)MENU_W - total) / 2);
@@ -1182,6 +1213,16 @@ int checkLayout(const Page &p, const Metrics &m, const Layout &lay, Problem *out
 			const float pad = p.standard != DENSITY_OFF ? (float)STD_SEG_PAD_OWN : 2.0f * BUTTON_PAD_X;
 			if (m.width(c.text, TEXT_SCALE, m.ctx) + pad > r.w)
 				note(out, maxOut, np, PROB_TEXT_WIDE, i, -1);
+		}
+		/* a cycle button in a row of buttons: its width is its widest value's (stdCycleWidth); checked the same way */
+		if (p.standard != DENSITY_OFF && c.role == ROLE_BUTTON && c.row >= 0 && c.row < p.nRows &&
+		    p.rows[c.row].kind == ROW_BUTTONS && p.rows[c.row].actions && p.rows[c.row].actions[c.slot].nValues > 0) {
+			const ActionButton &ab = p.rows[c.row].actions[c.slot];
+			for (int n = 0; n < ab.nValues; n++)
+				if (m.width(ab.values[n], TEXT_SCALE, m.ctx) + (float)STD_CELL_PAD > r.w) {
+					note(out, maxOut, np, PROB_ARROW_TIGHT, i, -1);
+					break;
+				}
 		}
 		/* a standard Cycle draws an arrow at each end: every value it can show must clear them */
 		if (p.standard != DENSITY_OFF && c.role == ROLE_BUTTON && c.row >= 0 && c.row < p.nRows &&

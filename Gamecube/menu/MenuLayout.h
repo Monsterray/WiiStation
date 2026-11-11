@@ -203,7 +203,7 @@
 #define STD_STEP		  8	/* a width from text is rounded up to a multiple of this */
 #define STD_SEG_PAD_EQ	 32	/* equal segments, and a separate button: widest text + 32 */
 #define STD_SEG_PAD_OWN	 16	/* segments that cannot be equal: each its own text + 16 */
-#define STD_CYCLE_W		200.0	/* a Cycle button */
+#define STD_CYCLE_MIN	 96	/* a Cycle button: the least width; it is otherwise as wide as its widest value + STD_CELL_PAD */
 #define STD_CELL_PAD	 38	/* a two-column cell: text + the arrows (base 17 px in from each end, drawArrows) + 2 px clear each side */
 #define STD_CELL_LGAP	  8	/* label to button in a two-column cell */
 #define STD_CELL_CGAP	 12	/* between the two columns */
