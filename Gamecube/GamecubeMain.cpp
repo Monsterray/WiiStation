@@ -1377,6 +1377,25 @@ static bool chainNext(void)
 	return false;
 }
 
+/* A lab run with no game (a menu walk: scripts/wii_run.py --menu): the input script is over.
+ * Write what the walk did to sd:/wiistation/menu.log, send the results and go back to HBC, as
+ * the end of a chain does. Called by MenuContext::isRunning(); does not return. */
+void lab_menu_exit(const char *report)
+{
+	FILE *f = fopen("sd:/wiistation/menu.log", "w");
+	if (f) {
+		fprintf(f, "%s\n", report);
+		fclose(f);
+	}
+	hb_phase("lab menu report", report);
+	autoinput_reset(NULL);
+	lab_report();
+	hb_phase("exit", "lab");
+	net_deinit();
+	fatUnmount("sd");
+	exit(0);
+}
+
 int main(int argc, char *argv[])
 {
 	/* INITIALIZE */

@@ -202,6 +202,22 @@ where the game waits for it, or read only what happens before the crash.
 
 ## Reading and comparing
 
+Start from the verdict (`scripts/run_verdict.py`, 2026-11-09): the last lines of every
+`wsx.sh run|chain|menu`, also `.runs/NAME/verdict.txt` and `verdict.json`.
+
+| status | means | next |
+|---|---|---|
+| OK | `run_triage.triggers()` found nothing: exit 0, no fault/hang lines, every game has its perf block, audio not all silence | the speeds in the line; `table` only for where the time went |
+| CHECK | finished, but something looks wrong; up to 4 reasons with `file:line` | read the log at that line, or `wsx.sh triage NAME` |
+| NO-RESULTS | no perf.log, or no game reached its perf block | `wsx.sh triage NAME`; run.log's start (staging, shell) |
+| DIFFERS | with `--base`: frames (`frame_compare.py`) or audio (`wav_compare.py --exact`) not the same | `wsx.sh frames A B --crop` -- mind the off-by-one dump numbering below |
+
+`--base NAME` (run, chain) adds speed per game against that run (matched by position and
+name), and frames/audio when both runs have them. `wsx.sh wait NAME [--timeout S]` blocks until
+a background run's verdict exists and prints it (exit 0 OK, 1 CHECK/DIFFERS, 2 NO-RESULTS,
+3 ended without a verdict, 4 still running: call it again). The run writes `running` at start
+and the verdict removes it, so `wait` never returns the verdict of an earlier run of that name.
+
 | command | answers |
 |---|---|
 | `wsx.sh table NAME` | per game: load, speed, psx, gte, gpu, poly, hle, spu, mdec, cd (% of wall) |
@@ -557,6 +573,9 @@ cursor starts on the first folder, so `menukeys 90 A` opens it).
   a menu highlight vanish in a capture, so a menu capture still wants the machine to itself.
 
 ## Max speed: `--fast` (2026-10-12)
+
+Since 2026-11-09 `--fast` is the DEFAULT for `wsx.sh run` (with `--secs 120`); `--realtime` turns it
+off. `chain`, `menu`, `state`, `abstate` and movie capture stay real time unless given `--fast`.
 
 `wsx.sh run|chain ... --fast` runs Dolphin with `Dolphin.Core.EmulationSpeed=0` (FAST=1 in
 dolphin_run.sh): about 2.1x on this PC, even single-core. Guest time is emulated, so frames are

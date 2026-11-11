@@ -17,7 +17,7 @@ from wii_targets import bench_wii, card_ls, hbc, parser, refuse_production  # no
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
 LOGS = ["perf.log", "hb.log", "dvd.log", "tty.log", "lab.log", "atrace.log", "ptrace.log",
-        "vramio.log", "pcring.log", "emu.log", "smbtrace.log", "padtrace.csv", "quit.log"]
+        "vramio.log", "menu.log", "pcring.log", "emu.log", "smbtrace.log", "padtrace.csv", "quit.log"]
 DUMPS = ["vram.bin", "vram_*.bin", "vsig_*.bin", "vtl_*.bin", "hprof_*.bin", "aq_*.bin", "xfb.bin", "xfb_*.bin"]
 INPUTS = ["autoboot.txt", "autoboot.txt.disabled", "autoinput.txt", "crashtest.txt", "hangtest.txt"]
 STALE = ["settingsRX2022.cfg"]

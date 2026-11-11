@@ -32,6 +32,13 @@ fingerprint of the machine, so groups can be compared: the same settings twice g
 line. The table has a row per group; its `vbl` and `speed` count from vblank 0, so after a
 load `speed` is too high -- compare the other columns.
 
+**The library** (`scripts/states.txt`, 2026-11-09): named test moments made from the recordings,
+so a test starts in the game instead of booting and playing there.
+`scripts/wsx.sh states` lists them (made or missing), `states make [NAME]` records the missing
+ones (`--force` re-makes), and `states check [NAME]` loads each twice for 300 vblanks and
+compares the fingerprints: a state that no longer loads, or loads differently, says so and is
+re-made. Add a line to the file for a new moment.
+
 **In a chain file** a line's `State=NAME` loads the state once the game has booted (its first
 vblank); the line's vblank count is then counted from the state's vblank. `State=` takes a full
 path too (`State=sd:/wiistation/savestates/SCUS_942.28.st0`, a menu slot).

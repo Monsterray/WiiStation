@@ -9,27 +9,34 @@
 #        --dol debug|play|release|PATH   what to boot (default debug). The DOL is COPIED into the
 #                                   run directory first, so a rebuild between queued runs
 #                                   cannot change what boots.
-#        --secs N                   run length (default 170)
+#        --secs N                   run length, wall seconds (default 120: short runs are the rule)
 #        --input speech|title|FILE  autoinput script: scripts/autoinput/spyro_<name>.txt or a file
 #        --set K=V[,K=V...]         settings on top of the base (gpuPlugin=2 FPS=1 PadType1=1 PadAutoAssign=0)
 #        --dsp                      DSP sound path: SoundDriver=1 and Dolphin DSP LLE
 #        --nodump                   no audio dump
-#        --fast                     Dolphin as fast as the PC allows (about 2x): frames and guest
+#        --fast                     THE DEFAULT for run (not for chain, menu, state, abstate):
+#                                   Dolphin as fast as the PC allows (about 2x): frames and guest
 #                                   time are unchanged, and SoundRateControl=0 SoundTempo=0 make
 #                                   the audio dump bit-identical to a normal-speed run (with the
 #                                   rate control on, two Dolphin runs agree for a minute or two at
 #                                   best: skill references/measuring.md, scripts/aq_cmp.py).
 #                                   --secs is wall time, so a fast run covers about twice the game.
+#                                   The verdict prints no speed for a fast run.
+#        --realtime                 normal speed, sound rate control as set: for anything about
+#                                   timing (speed, pacing, audio rate control, --dsp sound)
 #        --autoboot spyro|bios|none which autoboot file (default spyro)
 #        --env VAR=VALUE            extra environment for dolphin_run.sh (CACHE=1, XFB_RAM=1 ...)
 #        --card FILE|DIR            put FILE (or the folder DIR) in the card's wiistation/ folder for
 #                                   the run (repeatable): the per-game input scripts a chained
 #                                   autoboot names, or a settings/ folder with a game's own file
 #        --settings FILE            the lines of FILE after the base and --set (a whole settings.ini)
+#        --base NAME                the verdict also compares with an earlier run of the same test:
+#                                   speed per game, frames and audio
 #   scripts/wsx.sh chain NAME CHAINFILE [options]         a chained autoboot (several games, one
 #                                   boot) from scripts/chains/; stages the input scripts it names,
 #                                   runs until the console powers off, prints scripts/chain_table.py.
-#                                   Same options as run; --secs is the limit for the whole chain.
+#                                   Same options as run, but REAL TIME by default (a chain measures
+#                                   speed; --fast to override); --secs is the limit for the whole chain.
 #   scripts/wsx.sh state NAME GAME --at V [--rec REC] [--ct 0|1] [options]
 #                                   boot GAME (part of its folder name in chains/all.txt, or the game
 #                                   of recording REC), play REC if given, and save the game at vblank V
@@ -37,6 +44,15 @@
 #   scripts/wsx.sh abstate RUN STATE VBL SETS... [--rec REC] [options]
 #                                   one boot: each SETS ("K=V,K=V", or - for none) runs VBL vblanks
 #                                   from save state STATE; prints the table. --rec plays REC on.
+#   scripts/wsx.sh states [list|make|check] [NAME...] [--force]
+#                                   the save-state library (scripts/states.txt): test moments to
+#                                   start from with abstate instead of booting and playing there;
+#                                   make records missing ones, check loads each twice (same = ok)
+#   Every run, chain and menu comparison ENDS with its verdict: "VERDICT NAME: OK|CHECK|
+#                                   NO-RESULTS|DIFFERS | speed per game" and <= 6 lines (where to
+#                                   look). Also .runs/NAME/verdict.txt and verdict.json. Read it first.
+#   scripts/wsx.sh wait NAME [--timeout S]                wait for a run started in the background
+#                                   and print its verdict (default 540 s; exit 4 = still running)
 #   scripts/wsx.sh summary NAME...                        re-read finished runs (run_summary.py)
 #   scripts/wsx.sh table NAME [--detail gpu|tex|cpu|lc|pmc|upl]  a chain's per-game table (chain_table.py)
 #   scripts/wsx.sh compare A [B] [--detail GROUP] [--explain]  two chains, or one A/B chain's pairs
@@ -81,6 +97,16 @@ if [ "$cmd" = build ]; then need DEVKITPRO "level 1"; else need PYTHON "level 2"
 auto_triage() {
 	[ -n "${WSX_NO_LLM:-}" ] && return 0
 	"$PYTHON" "$REPO/scripts/run_triage.py" --auto "$1" || true
+}
+
+# The last lines of every run, chain and menu comparison: "VERDICT NAME: OK|CHECK|NO-RESULTS|
+# DIFFERS | speed per game" and at most 6 lines under it (run_verdict.py), also in
+# RUN_DIR/verdict.txt and verdict.json. Read it before any log. verdict DIR [BASE] [args...];
+# BASE is a run name or directory (--base): speed, frames and audio against that run.
+verdict() {
+	local d="$1" b="${2:-}"; shift 2 || shift $#
+	if [ -n "$b" ] && [ ! -d "$b" ]; then b="$RUNS/$b"; fi
+	"$PYTHON" "$REPO/scripts/run_verdict.py" "$d" ${b:+--base "$b"} "$@" || true
 }
 
 # menu: put the profile's WiimoteNew.ini back from its backup and check it by checksum. The
@@ -137,9 +163,10 @@ build)
 run)
 	name="${1:-}"; shift || true
 	[ -n "$name" ] || { echo "run NAME [options]"; exit 2; }
-	dol="debug"; secs=170; input="speech"; sets=""; dsp=""; dump=1; aboot="spyro"; extra=(); cards=(); fast=""; setfile=""
+	dol="debug"; secs=120; input="speech"; sets=""; dsp=""; dump=1; aboot="spyro"; extra=(); cards=(); fast=1; setfile=""; base=""
 	while [ $# -gt 0 ]; do
 		case "$1" in
+			--base) base="$2"; shift 2 ;;
 			--dol) dol="$2"; shift 2 ;;
 			--secs) secs="$2"; shift 2 ;;
 			--input) input="$2"; shift 2 ;;
@@ -147,6 +174,7 @@ run)
 			--dsp) dsp=1; shift ;;
 			--nodump) dump=0; shift ;;
 			--fast) fast=1; shift ;;
+			--realtime) fast=""; shift ;;
 			--autoboot) aboot="$2"; shift 2 ;;
 			--env) extra+=("$2"); shift 2 ;;
 			--card) cards+=("$2"); shift 2 ;;
@@ -179,7 +207,8 @@ run)
 	rm -rf "$dir/card" "$dir/frames"
 	# what the last run under this name collected: a result this run does not produce must not stay behind
 	rm -f "$dir"/*.log "$dir"/vram*.bin "$dir"/vram*.png "$dir"/xfb*.bin "$dir"/*.wav
-	rm -f "$dir/dolphin.rc" "$dir/triage.txt"
+	rm -f "$dir/dolphin.rc" "$dir/triage.txt" "$dir/verdict.json" "$dir/verdict.txt"
+	date +%s > "$dir/running"   # until run_verdict.py writes verdict.json (wsx.sh wait)
 	for c in "${cards[@]:-}"; do [ -n "$c" ] && mkdir -p "$dir/card" && cp -r "$c" "$dir/card/"; done
 	{
 		printf 'gpuPlugin = 2\nFPS = 1\nPadType1 = 1\nPadAutoAssign = 0\n'
@@ -206,7 +235,10 @@ run)
 	[ $rc -ne 0 ] && echo "dolphin_run.sh exit $rc (see $dir/run.log)"
 	"$PYTHON" "$REPO/scripts/run_summary.py" "$dir"
 	st=$?
-	[ -n "${WSX_TRIAGE_DEFER:-}" ] || auto_triage "$dir"   # a chain does it once, at its end
+	if [ -z "${WSX_TRIAGE_DEFER:-}" ]; then   # a chain does these once, at its end
+		auto_triage "$dir"
+		verdict "$dir" "$base"
+	fi
 	exit $st
 	;;
 
@@ -222,11 +254,13 @@ chain)
 		[ -f "$REPO/scripts/autoinput/$f" ] || { echo "chain names sd:/wiistation/$f: no scripts/autoinput/$f"; exit 2; }
 		cardargs+=(--card "$REPO/scripts/autoinput/$f")
 	done
-	WSX_TRIAGE_DEFER=1 bash "$0" run "$name" --autoboot "$cf" --input "$P/autoinput_none.txt" --nodump --env FRAMES_DUMP=False ${cardargs[@]+"${cardargs[@]}"} "$@" | grep -v "^  "
+	WSX_TRIAGE_DEFER=1 bash "$0" run "$name" --realtime --autoboot "$cf" --input "$P/autoinput_none.txt" --nodump --env FRAMES_DUMP=False ${cardargs[@]+"${cardargs[@]}"} "$@" | grep -v "^  "
 	"$PYTHON" "$REPO/scripts/chain_table.py" "$RUNS/$name"
 	st=$?
 	"$PYTHON" "$REPO/scripts/benchdb.py" ingest "$RUNS/$name" >/dev/null 2>&1   # baselines/bench.sqlite
 	auto_triage "$RUNS/$name"
+	base=""; prev=""; for x in "$@"; do [ "$prev" = --base ] && base="$x"; prev="$x"; done
+	verdict "$RUNS/$name" "$base"
 	exit $st
 	;;
 
@@ -277,6 +311,7 @@ abstate)
 	while [ $# -gt 0 ]; do
 		case "$1" in
 			--rec) rec="$2"; shift 2 ;;
+			--fast|--realtime|--nodump|--dsp) rest+=("$1"); shift ;;   # options without a value
 			--*) rest+=("$1" "$2"); shift 2 ;;
 			*) sets+=("$1"); shift ;;
 		esac
@@ -302,6 +337,57 @@ abstate)
 	bash "$0" chain "$run" "$cf" --secs $(( ${#sets[@]} * (vbl / 30 + 90) )) ${rest[@]+"${rest[@]}"}
 	rm -f "$ai"
 	grep -a "^state:\|^statefp:" "$RUNS/$run/perf.log"
+	;;
+states)
+	# The save-state library, scripts/states.txt: list it, make the missing states, or check
+	# that each still loads the same way twice (states NAME... limits it to those).
+	sub="${1:-list}"; shift || true
+	case "$sub" in list|make|check) ;; *) echo "states [list|make|check] [NAME...] [--force] [--dol D]"; exit 2 ;; esac
+	force=""; names=(); rest=()
+	while [ $# -gt 0 ]; do
+		case "$1" in
+			--force) force=1; shift ;;
+			--dol) rest+=(--dol "$2"); shift 2 ;;
+			--*) echo "states: unknown option $1"; exit 2 ;;
+			*) names+=("$1"); shift ;;
+		esac
+	done
+	card="$LIB/states"   # promoted from each run's card when it ends (dolphin_run.sh)
+	lib=$(tr -d '\r' < "$REPO/scripts/states.txt" | grep -v -E '^[[:space:]]*(#|$)')
+	for n in "${names[@]:-}"; do
+		[ -z "$n" ] || echo "$lib" | awk -v n="$n" '$1 == n { f = 1 } END { exit !f }' || { echo "no state $n in scripts/states.txt"; exit 2; }
+	done
+	src=0
+	while read -r st rec at what; do
+		if [ ${#names[@]} -gt 0 ] && ! printf '%s\n' "${names[@]}" | grep -qx -- "$st"; then continue; fi
+		case "$sub" in
+		list)
+			if [ -f "$card/$st.st" ]; then
+				printf '%-15s ok       vbl %-6s saved %s, build %s: %s\n' "$st" "$at" \
+					"$(sed -n 's/^# saved: //p' "$card/$st.txt" | tr -d '\r')" "$(sed -n 's/^# build: //p' "$card/$st.txt" | tr -d '\r')" "$what"
+			else
+				printf '%-15s MISSING  vbl %-6s %s (states make %s)\n' "$st" "$at" "$what" "$st"
+			fi ;;
+		make)
+			if [ -f "$card/$st.st" ] && [ -z "$force" ]; then echo "$st: on the card already (--force re-makes it)"; continue; fi
+			echo "$st: playing $rec to vblank $at (--fast) ..."
+			rm -f "$card/$st.st" "$card/$st.txt"
+			bash "$0" state "$st" "$rec" --at "$at" --rec "$rec" --fast ${rest[@]+"${rest[@]}"} < /dev/null | grep -a "^state:" | tail -1
+			if [ -f "$card/$st.st" ]; then echo "$st: made"; else echo "$st: NOT MADE (see $RUNS/state_$st)"; src=1; fi ;;
+		check)
+			[ -f "$card/$st.st" ] || { echo "$st: MISSING (states make $st)"; src=1; continue; }
+			# two chain lines from the same state, 300 vblanks each: the fingerprints must match
+			bash "$0" abstate "check_$st" "$st" 300 - - ${rest[@]+"${rest[@]}"} < /dev/null > "$RUNS/check_$st.out" 2>&1
+			fp=$(grep -a '^statefp:' "$RUNS/check_$st/perf.log" 2>/dev/null)
+			# a line can end a vblank before its statefp: then the "state: game=N ram= vram= pc= cycle="
+			# line every chain line ends with is the fingerprint
+			[ "$(printf '%s' "$fp" | grep -c .)" = 2 ] || fp=$(grep -a '^state: game=[0-9]* ram=' "$RUNS/check_$st/perf.log" 2>/dev/null | sed 's/game=[0-9]* //')
+			if [ "$(printf '%s' "$fp" | grep -c .)" != 2 ]; then echo "$st: DOES NOT LOAD ($(printf '%s' "$fp" | grep -c .) of 2 fingerprints; $RUNS/check_$st.out)"; src=1
+			elif [ "$(printf '%s\n' "$fp" | sort -u | wc -l)" != 1 ]; then echo "$st: LOADS DIFFERENTLY twice: $(printf '%s\n' "$fp" | sort -u | tr '\n' '|')"; src=1
+			else echo "$st: same twice ($(printf '%s\n' "$fp" | head -1 | sed 's/^state[a-z]*: *//' | cut -c1-50))"; fi ;;
+		esac
+	done <<< "$lib"
+	exit $src
 	;;
 
 table)
@@ -407,6 +493,7 @@ menu)
 	trap 'exit 130' INT TERM
 	"$PYTHON" "$REPO/scripts/menu_compare.py" ini-off "$MENU_INI" || exit 1
 	out="$RUNS/menu_$name"; mkdir -p "$out"
+	rm -f "$out/verdict.json" "$out/verdict.txt"; date +%s > "$out/running"
 	if [ -n "$page" ]; then
 		printf 'menupage %s\n' "$page" > "$out/input.txt"; flag=(--page)
 	else
@@ -414,7 +501,7 @@ menu)
 	fi
 	inp="$out/input.txt"
 	menu_run() {   # menu_run RUN DOL: every frame kept (KEEP), no audio dump
-		bash "$0" run "$1" --dol "$2" --autoboot none --input "$inp" --secs "$secs" --nodump --env KEEP=100000 ${msets:+--set "$msets"} > "$out/$1.log" 2>&1
+		bash "$0" run "$1" --realtime --dol "$2" --autoboot none --input "$inp" --secs "$secs" --nodump --env KEEP=100000 ${msets:+--set "$msets"} > "$out/$1.log" 2>&1
 		echo "run $1: exit $? (log $out/$1.log)"
 	}
 	menu_run "menu_${name}_a" "$dolA"
@@ -427,7 +514,46 @@ menu)
 	rc=$?
 	# Frames are ~1 GB a run: dropped after the compare (before_after images stay); KEEP_FRAMES=1 keeps them.
 	[ -n "${KEEP_FRAMES:-}" ] || rm -rf "${cmp_args[@]/%//frames}"
+	verdict "$out" "" --menu-rc "$rc"
 	exit $rc
+	;;
+
+wait)
+	# Block until run NAME (a run, a chain, or menu NAME) has its verdict, then print it. For a
+	# run started in the background: no `sleep N; tail` loops. Exit 0 OK, 1 CHECK/DIFFERS,
+	# 2 NO-RESULTS or no such run, 3 ended without a verdict, 4 still running at --timeout.
+	name="${1:-}"; shift || true
+	[ -n "$name" ] || { echo "wait NAME [--timeout SECONDS]   (default 540: under a 10-minute tool limit)"; exit 2; }
+	to=540; [ "${1:-}" = --timeout ] && to="${2:-540}"
+	d="$RUNS/$name"
+	[ -d "$d" ] || [ ! -d "$RUNS/menu_$name" ] || d="$RUNS/menu_$name"
+	t0=$(date +%s); settled=""
+	while :; do
+		now=$(date +%s)
+		if [ -f "$d/verdict.json" ] && [ ! -e "$d/running" ]; then
+			# a verdict from before this wait may be an earlier run of the same name whose
+			# successor has not written its "running" mark yet: look once more, 3 s later
+			if [ -n "$settled" ] || [ $(( now - $(stat -c %Y "$d/verdict.json") )) -lt $(( now - t0 + 2 )) ]; then
+				cat "$d/verdict.txt"
+				case "$(sed -n 's/.*"status": "\([A-Z-]*\)".*/\1/p' "$d/verdict.json")" in
+					OK) exit 0 ;; CHECK|DIFFERS) exit 1 ;; *) exit 2 ;;
+				esac
+			fi
+			settled=1; sleep 3; continue
+		fi
+		if [ -f "$d/dolphin.rc" ] && [ ! -f "$d/verdict.json" ] && [ $(( now - $(stat -c %Y "$d/dolphin.rc") )) -gt 180 ]; then
+			echo "VERDICT $name: ENDED WITHOUT A VERDICT (Dolphin exit $(cat "$d/dolphin.rc"); the wsx.sh that ran it stopped early)"
+			tail -5 "$d/run.log" 2>/dev/null
+			exit 3
+		fi
+		if [ ! -d "$d" ] && [ $(( now - t0 )) -ge 60 ]; then echo "wait: no run $name in $RUNS"; exit 2; fi
+		if [ $(( now - t0 )) -ge "$to" ]; then
+			echo "wait: $name still running after ${to} s (call wait again; it picks up where the run is)"
+			grep -a "^=== chain" "$d/perf.log" 2>/dev/null | tail -1
+			exit 4
+		fi
+		sleep 5
+	done
 	;;
 
 summary)
