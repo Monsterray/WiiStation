@@ -97,7 +97,13 @@ static u16 scripted_menu_keys(void)
 		return 0;
 	f -= autoinput_menukeys_frame;
 	k = f / 12;
-	if (k >= strlen(autoinput_menukeys) || f % 12 >= 6)
+	if (k >= strlen(autoinput_menukeys))
+		return 0;
+	switch (autoinput_menukeys[k]) {
+	/* lower case u / d: held the whole 12 frames, so a run of them is one long hold */
+	case 'u': return PAD_BUTTON_UP;    case 'd': return PAD_BUTTON_DOWN;
+	}
+	if (f % 12 >= 6)
 		return 0;
 	switch (autoinput_menukeys[k]) {
 	case 'U': return PAD_BUTTON_UP;    case 'D': return PAD_BUTTON_DOWN;

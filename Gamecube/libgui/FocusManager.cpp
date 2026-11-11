@@ -26,6 +26,13 @@
 #include "Button.h"
 
 #include "../../HidController/KernelHID.h"
+#include "../menu/ListRepeat.h"
+/* Time base ticks per millisecond (not lwp_watchdog.h: its inline gettime clashes with ogc_compat.c) */
+#ifdef HW_RVL
+#define TB_TIMER_CLOCK 60750
+#else
+#define TB_TIMER_CLOCK 40500
+#endif
 
 namespace menu {
 extern u16 menu_script_keys;   /* InputManager.cpp: an input script's "menukeys" */
@@ -127,7 +134,11 @@ Focus::Focus()
 		  secondaryFocusOwner(0),
 		  returnFocus(0),
 		  actionOwner(0),
-		  actionBack(false)
+		  actionBack(false),
+		  listRepeat(false),
+		  repDir(0),
+		  repStart(0),
+		  repNext(0)
 {
 	for (int i=0; i<4; i++) {
 		previousButtonsWii[i] = 0;
@@ -196,6 +207,7 @@ void Focus::updateFocus()
 		clearInput = false;
 	}
 
+	int repHeld = 0;
 	for (int i=0; i<4; i++)
 	{
 #ifdef HW_RVL
@@ -209,6 +221,26 @@ void Focus::updateFocus()
 			currentButtonsWiiUGamepad = 0;
 #endif
 		u16 currentButtonsGC = PAD_ButtonsHeld(i) | stickGC(i) | (i == 0 ? menu_script_keys : 0);
+		if (!repHeld)
+		{	/* Up or Down held on this controller, as each source's edge code below reads it */
+			const u32 g = currentButtonsGC & 0xf;
+			int v = g == PAD_BUTTON_UP ? DIRECTION_UP : g == PAD_BUTTON_DOWN ? DIRECTION_DOWN : 0;
+#ifdef HW_RVL
+			if (!v)
+			{
+				const u32 w = wiiPad[i].exp.type == WPAD_EXP_CLASSIC ? currentButtonsWii & 0xc0030000 : currentButtonsWii & 0xf00;
+				const u32 wu = currentButtonsWiiUPro & 0xc0030000;
+				const u32 gp = currentButtonsWiiUGamepad & 0x0F00;
+				const u32 hg = currentButtonsGCHid & 0x0F;
+				const bool cl = wiiPad[i].exp.type == WPAD_EXP_CLASSIC;
+				v = w == (cl ? WPAD_CLASSIC_BUTTON_UP : WPAD_BUTTON_UP) ? DIRECTION_UP :
+				    w == (cl ? WPAD_CLASSIC_BUTTON_DOWN : WPAD_BUTTON_DOWN) ? DIRECTION_DOWN :
+				    wu == WPAD_CLASSIC_BUTTON_UP || gp == WIIDRC_BUTTON_UP || hg == PAD_BUTTON_UP ? DIRECTION_UP :
+				    wu == WPAD_CLASSIC_BUTTON_DOWN || gp == WIIDRC_BUTTON_DOWN || hg == PAD_BUTTON_DOWN ? DIRECTION_DOWN : 0;
+			}
+#endif
+			repHeld = v;
+		}
 		if (currentButtonsGC ^ previousButtonsGC[i])
 		{
 			u16 currentButtonsDownGC = (currentButtonsGC ^ previousButtonsGC[i]) & currentButtonsGC;
@@ -381,6 +413,26 @@ void Focus::updateFocus()
 		}
 #endif
 	}
+
+	/* Hold-to-repeat for Up and Down, only while a list is on screen. The press itself was handled
+	 * above; this adds the repeats (timing: engine::repeatInterval in menu/MenuEngine.h). */
+	u32 now;			/* the time base's low 32 bits (wraps in 70 s: only differences are used) */
+	asm volatile("mftb %0" : "=r"(now));
+	if (!listRepeat || freezeAction || !repHeld)
+		repDir = 0;
+	else if (repHeld != repDir)
+	{
+		repDir = repHeld;
+		repStart = now;
+		repNext = now + engine::REPEAT_DELAY_MS * TB_TIMER_CLOCK;
+	}
+	else if ((s32)(now - repNext) >= 0)
+	{
+		const int held = (int)((now - repStart) / TB_TIMER_CLOCK);
+		repNext = now + engine::repeatInterval(held) * TB_TIMER_CLOCK;
+		primaryFocusOwner = pressOn(primaryFocusOwner, repDir, 0);
+	}
+	listRepeat = false;
 }
 
 /* Runs a press on target. NULL means the frame itself (its Back func). */

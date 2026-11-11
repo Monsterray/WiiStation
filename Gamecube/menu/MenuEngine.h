@@ -48,6 +48,7 @@
 #define MENUENGINE_H
 
 #include "MenuLayout.h"
+#include "ListRepeat.h"
 
 namespace menu {
 namespace engine {
@@ -384,6 +385,8 @@ void linkFocus(const Page &page, Layout &lay);
  * (wrap true), and focus lands on the page's first item. Lays out nothing: the caller lays the
  * page out again. */
 void listTurn(ListState &s, int delta, bool wrap);
+
+/* Hold-to-repeat timing for lists: ListRepeat.h (REPEAT_*_MS, repeatInterval). */
 
 /*  The letter strip and the scroll thumb (DENSITY_EXPLORER)
  *

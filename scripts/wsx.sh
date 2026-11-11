@@ -121,7 +121,7 @@ build)
 		echo "host tests: $(grep -cE '0 failed|0 checks failed' "$RUNS/hosttest.log") suites passed"
 	fi
 	before=$(stat -c %Y "$REPO/$out" 2>/dev/null || echo 0)
-	"$DKP_BASH" -lc "cd '$REPO' && $env bash scripts/build.sh $mode" > "$log" 2>&1
+	"$DKP_BASH" -lc "cd '$(cygpath -m "$REPO")' && $env bash scripts/build.sh $mode" > "$log" 2>&1
 	rc=$?
 	after=$(stat -c %Y "$REPO/$out" 2>/dev/null || echo 0)
 	if [ $rc -ne 0 ] || [ "$after" = "$before" ]; then
