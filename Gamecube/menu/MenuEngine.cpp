@@ -431,7 +431,7 @@ static int controlBound(const Page &p)
  *
  *   Toggle, Choice  touching segments (Toggle = its names as segments); the last `plain` of a
  *                   Choice are separate action buttons after a gap of STD_BTN_GAP
- *   Cycle           one button reading the current name; every cycle on a page is as wide as the widest value any of them shows (stdCycleWidth)
+ *   Cycle           one button reading the current name, as wide as its own widest value (stdCycleWidth)
  *   Buttons         separate buttons (text + 32, gap 12); the actions' `lit` is "on" (a flag).
  *                   With a label they start at STD_CTRL_X0, without they are centred on the screen
  *   Readout         label, and the text at STD_CTRL_X0
@@ -475,21 +475,6 @@ static int layoutStandard(const Page &p, const Metrics &m, Layout &out)
 		out.title = addText(out, m, ROLE_TITLE, -1, 0, MENU_W / 2, (float)STD_TITLE_Y, ALIGN_CENTRE, TEXT_SCALE, p.title);
 	}
 
-	/* every cycle on the page is as wide as the widest one needs (a cell of a two-column page has its column's) */
-	int cycleW = 0;
-	for (int i = 0; i < p.nRows; i++) {
-		const Row &r = p.rows[i];
-		if (r.kind == ROW_CYCLE && !isCell(p, r)) {
-			const int w = stdCycleWidth(m, r.names, r.count, r.names[shownValue(r) - r.lo]);
-			cycleW = w > cycleW ? w : cycleW;
-		} else if (r.kind == ROW_BUTTONS && r.actions && !r.prefix)
-			for (int k = 0; k < r.count; k++)
-				if (r.actions[k].nValues > 0) {
-					const int w = stdCycleWidth(m, r.actions[k].values, r.actions[k].nValues, r.actions[k].text);
-					cycleW = w > cycleW ? w : cycleW;
-				}
-	}
-
 	for (int i = 0; i < p.nRows; i++) {
 		const Row &r = p.rows[i];
 		int line, col;
@@ -501,7 +486,7 @@ static int layoutStandard(const Page &p, const Metrics &m, Layout &out)
 		if (isCell(p, r))
 			gridPlace(p, m, col, bx, bw, edge);
 		else if (r.kind == ROW_CYCLE)
-			bw = (float)cycleW;
+			bw = (float)stdCycleWidth(m, r.names, r.count, r.names[shownValue(r) - r.lo]);
 
 		if (r.label && r.kind != ROW_LIST) {
 			/* right-aligned to the edge: centred on an anchor that puts the right end there */
@@ -592,7 +577,7 @@ static int layoutStandard(const Page &p, const Metrics &m, Layout &out)
 			}
 			for (int k = 0; k < r.count; k++) {
 				/* a cycle: its widest value; else a width the host gives is kept; else the text's */
-				w[k] = r.actions[k].nValues > 0 ? cycleW
+				w[k] = r.actions[k].nValues > 0 ? stdCycleWidth(m, r.actions[k].values, r.actions[k].nValues, r.actions[k].text)
 				     : r.actions[k].width > 0 ? (int)r.actions[k].width : stdButtonWidth(m, r.actions[k].text);
 				total += w[k];
 			}
