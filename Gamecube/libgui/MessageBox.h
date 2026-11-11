@@ -32,6 +32,7 @@ class MessageBox : public Frame
 {
 public:
 	void setMessage(const char* text);
+	void setGameLoaded(const char* text, GXTexObj* disc);	/* the Game Loaded box: rows, notes, disc picture or NULL */
 	int askMessage(const char* text);
 	void fadeMessage(const char* text);
 	void setReturnValue(int returnValue);
@@ -47,6 +48,7 @@ public:
 	}
 
 private:
+	void showMessage(const char* text);
 	MessageBox();
 	~MessageBox();
 	Image *buttonImage;

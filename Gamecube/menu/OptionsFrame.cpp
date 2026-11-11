@@ -253,7 +253,8 @@ static bool				discBand;
 static GXTexObj			discTex;
 static char				bandName[96], bandDisc[48], bandImage[48];
 
-static bool discLoad(void)
+/* The loaded game's disc picture into *tex (also used by the Game Loaded box); the caller frees it with cover_art_free */
+bool isoDiscPictureLoad(GXTexObj *tex)
 {
 	static const char *const dirs[] = { "sd:/wiistation/covers", "usb:/wiistation/covers" };
 	const char *serial = romInfoSerial();
@@ -265,11 +266,12 @@ static bool discLoad(void)
 		cover_row r;
 		snprintf(idx, sizeof idx, "%s/index.txt", dirs[d]);
 		if (cover_index_find(idx, serial, &r) && r.disc[0] && !cover_index_path(path, sizeof path, dirs[d], r.disc) &&
-		    cover_art_load(path, &discTex, STD_DISC_D, STD_DISC_D))
+		    cover_art_load(path, tex, STD_DISC_D, STD_DISC_D))
 			return true;
 	}
 	return false;
 }
+static bool discLoad(void) { return isoDiscPictureLoad(&discTex); }
 
 void isoInfoEnter(void)
 {

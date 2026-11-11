@@ -633,6 +633,7 @@ static void fbCoverFree(void)
 }
 /* The ISO Info disc band shares cover_art's one texture: it calls this first, so the explorer loads its cover again. */
 void fbCoverForget(void) { fbCoverFree(); }
+bool isoDiscPictureLoad(GXTexObj *tex);	/* OptionsFrame.cpp */
 static bool fbCoverLoad(const char *serial)
 {
 #ifdef HW_RVL
@@ -1688,34 +1689,37 @@ void fileBrowserFrame_LoadFile(int i)
 			// auto recJR => psxJR for some game
 			CheckGameR3000AutoFix();
 
-			/* "Loaded <file>", a warning when one applies, then the game's rows (RomInfo.h) */
+			/* The Game Loaded box (RomInfo.h): the game's own rows, a warning when one applies, the save found, and the disc picture */
 			char RomInfo[512] = "";
-			menu::glue::appendBounded(RomInfo, sizeof(RomInfo), "Game loaded");   /* the File row names it */
-			menu::glue::appendBounded(RomInfo, sizeof(RomInfo), "\n");
+			romInfoGameLoaded(RomInfo, sizeof(RomInfo));
 			if (check_unsatisfied_libcrypt())
 				menu::glue::appendBounded(RomInfo, sizeof(RomInfo), "Warning: LibCrypt protected game with missing SBI\n");
-			romInfoText(RomInfo, sizeof(RomInfo));
 
 			switch (autoSaveLoaded)
 			{
 			case NATIVESAVEDEVICE_NONE:
 				break;
 			case NATIVESAVEDEVICE_SD:
-				menu::glue::appendBounded(RomInfo, sizeof(RomInfo), "\nFound & loaded save from SD card\n");
+				menu::glue::appendBounded(RomInfo, sizeof(RomInfo), "Found & loaded save from SD card\n");
 				break;
 			case NATIVESAVEDEVICE_USB:
-				menu::glue::appendBounded(RomInfo, sizeof(RomInfo), "\nFound & loaded save from USB device\n");
+				menu::glue::appendBounded(RomInfo, sizeof(RomInfo), "Found & loaded save from USB device\n");
 				break;
 			case NATIVESAVEDEVICE_CARDA:
-				menu::glue::appendBounded(RomInfo, sizeof(RomInfo), "\nFound & loaded save from memcard in slot A\n");
+				menu::glue::appendBounded(RomInfo, sizeof(RomInfo), "Found & loaded save from memcard in slot A\n");
 				break;
 			case NATIVESAVEDEVICE_CARDB:
-				menu::glue::appendBounded(RomInfo, sizeof(RomInfo), "\nFound & loaded save from memcard in slot B\n");
+				menu::glue::appendBounded(RomInfo, sizeof(RomInfo), "Found & loaded save from memcard in slot B\n");
 				break;
 			}
 			autoSaveLoaded = NATIVESAVEDEVICE_NONE;
 
-			menu::MessageBox::getInstance().setMessage(RomInfo);
+			GXTexObj discPicture;
+			fbCoverForget();			/* the explorer's cover shares cover_art's one texture */
+			const bool hasPicture = isoDiscPictureLoad(&discPicture);
+			menu::MessageBox::getInstance().setGameLoaded(RomInfo, hasPicture ? &discPicture : NULL);
+			if (hasPicture)
+				cover_art_free();
 		}
 		else		// If not.
 		{
