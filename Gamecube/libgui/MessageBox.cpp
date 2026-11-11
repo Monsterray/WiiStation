@@ -70,6 +70,64 @@ static char FRAME_STRINGS[2][7] =
 #define MESSAGEBOX_TEXT_WIDTH 512
 char messageBoxText[MESSAGEBOX_TEXT_WIDTH];
 
+/* Wrap messageBoxText to the box: each line is cut by its measured width in the menu font (the
+ * box is 560 wide). A line breaks at the last space that fits, else after the last '/', else
+ * inside the word (a long path, never in the middle of a UTF-8 character). */
+static void wrapMessage()
+{
+	const int maxW = 500;
+	char out[MESSAGEBOX_TEXT_WIDTH];
+	char tmp[MESSAGEBOX_TEXT_WIDTH];
+	int o = 0;
+	const char *p = messageBoxText;
+
+	while (1)
+	{
+		const char *e = strchr(p, '\n');
+		int len = e ? (int)(e - p) : (int)strlen(p);
+		while (len > 0)
+		{
+			int n = 0, sp = -1, sl = -1;
+			memcpy(tmp, p, len); tmp[len] = '\0';
+			if (IplFont::getInstance().getStringWidth(tmp, 1.0) <= maxW)
+				n = len;
+			else
+			{
+				for (int i = 1; i <= len; i++)
+				{
+					tmp[i] = '\0';
+					if ((p[i] & 0xC0) == 0x80) { tmp[i] = p[i]; continue; }
+					if (IplFont::getInstance().getStringWidth(tmp, 1.0) > maxW) break;
+					n = i;
+					tmp[i] = p[i];
+				}
+				if (n < 1) n = 1;
+				for (int i = 0; i < n; i++)
+				{
+					if (p[i] == ' ') sp = i;
+					if (p[i] == '/') sl = i + 1;
+				}
+				if (p[n] == ' ') sp = n;
+				if (sp > 0) n = sp;
+				else if (sl > 0) n = sl;
+			}
+			if (o + n + 2 >= MESSAGEBOX_TEXT_WIDTH) { n = 0; len = 0; break; }
+			memcpy(out + o, p, n); o += n;
+			p += n; len -= n;
+			if (len > 0)
+			{
+				out[o++] = '\n';
+				if (*p == ' ') { p++; len--; }
+			}
+		}
+		if (!e || o + 2 >= MESSAGEBOX_TEXT_WIDTH) break;
+		out[o++] = '\n';
+		p = e + 1;
+	}
+	out[o] = '\0';
+	memcpy(messageBoxText, out, o + 1);
+}
+
 struct ButtonInfo
 {
 	menu::Button	*button;
@@ -181,6 +239,7 @@ void MessageBox::setMessage(const char* string)
 	//memset(messageBoxText, 0, MESSAGEBOX_TEXT_WIDTH);
 	strncpy(messageBoxText, string, MESSAGEBOX_TEXT_WIDTH);
 	messageBoxText[MESSAGEBOX_TEXT_WIDTH - 1] = '\0';
+	wrapMessage();
 
 	while (messageBoxActive)
 		menu::Gui::getInstance().draw();
@@ -209,6 +268,7 @@ int MessageBox::askMessage(const char* string)
 	//memset(messageBoxText, 0, MESSAGEBOX_TEXT_WIDTH);
 	strncpy(messageBoxText, string, MESSAGEBOX_TEXT_WIDTH);
 	messageBoxText[MESSAGEBOX_TEXT_WIDTH - 1] = '\0';
+	wrapMessage();
 
 	setReturnValue(0);
 	while (messageBoxActive)
@@ -235,6 +295,7 @@ void MessageBox::fadeMessage(const char* string)
 	//memset(messageBoxText, 0, MESSAGEBOX_TEXT_WIDTH);
 	strncpy(messageBoxText, string, MESSAGEBOX_TEXT_WIDTH);
 	messageBoxText[MESSAGEBOX_TEXT_WIDTH - 1] = '\0';
+	wrapMessage();
 
 	messageFade = 1.0f;
 
