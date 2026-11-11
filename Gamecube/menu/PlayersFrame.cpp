@@ -604,7 +604,7 @@ void PlayersBoard::paint(menu::Graphics &gfx)
 	if (onEdit)
 		textMid(320, 434, "Edit: a Mii's player settings", 0.7f, PALE);
 	else if (fm && !onCards) {
-		snprintf(line, sizeof line, "%s%s", fm->name, fm->favorite ? "  (favorite)" : "");
+		snprintf(line, sizeof line, "%s", fm->name);
 		textMid(320, 434, line, 0.7f, PALE);
 	}
 	if (dragging && held >= 0)

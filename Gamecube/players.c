@@ -43,7 +43,8 @@ static const u8 fav_rgb[12][3] = {
 	{ 0x00, 0x78, 0x30 }, { 0x0a, 0x48, 0xb4 }, { 0x3c, 0xaa, 0xde }, { 0xf5, 0x5a, 0x7d },
 	{ 0x73, 0x28, 0xad }, { 0x48, 0x38, 0x18 }, { 0xe0, 0xe0, 0xe0 }, { 0x18, 0x18, 0x14 }
 };
-static const u8 gold[3] = { 0xe0, 0xb0, 0x30 };
+/* A favorite's ring: warm metallic gold, light at the top to dark at the bottom (mock-up: .runs/rel600_fix/misc/gold_candidates.png) */
+static const u8 gold_top[3] = { 0xff, 0xe2, 0x70 }, gold_bot[3] = { 0xb2, 0x70, 0x12 };
 
 /* Texel (x, y) of a w-wide GX RGBA8 texture: 4x4 tiles of 64 bytes, A and R in the first
  * 32, G and B in the next: p[0] A, p[1] R, p[32] G, p[33] B. */
@@ -76,7 +77,7 @@ static void make_coin(u8 *t, int fav, int favorite)
 
 			for (k = 0; k < 3; ++k) {
 				float bg = c[k] + (255 - c[k]) * light;
-				float ring = favorite ? gold[k] * (1.15f - 0.3f * y / N) : bg + (255 - bg) * 0.75f;
+				float ring = favorite ? gold_top[k] + (gold_bot[k] - gold_top[k]) * y / N : bg + (255 - bg) * 0.75f;
 				bg = bg + ((ring > 255 ? 255 : ring) - bg) * rim;
 				bg *= 1 - 0.45f * edge;
 				src[k] = (u8)(src[k] * head + bg * (1 - head) + 0.5f);
