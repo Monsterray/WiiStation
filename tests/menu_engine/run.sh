@@ -23,8 +23,9 @@ bin3=$(mktemp "${TMPDIR:-/tmp}/recent_list_test.XXXXXX") || exit 2
 bin4=$(mktemp "${TMPDIR:-/tmp}/cover_index_test.XXXXXX") || exit 2
 bin5=$(mktemp "${TMPDIR:-/tmp}/cover_art_test.XXXXXX") || exit 2
 bin6=$(mktemp "${TMPDIR:-/tmp}/menu_pages_test.XXXXXX") || exit 2
+bin7=$(mktemp "${TMPDIR:-/tmp}/disc_serial_test.XXXXXX") || exit 2
 scratch=$(mktemp -d "${TMPDIR:-/tmp}/recent_list_dir.XXXXXX") || exit 2
-trap 'rm -f "$bin" "$bin2" "$bin3" "$bin4" "$bin5" "$bin6"; rm -rf "$scratch"' EXIT
+trap 'rm -f "$bin" "$bin2" "$bin3" "$bin4" "$bin5" "$bin6" "$bin7"; rm -rf "$scratch"' EXIT
 
 "$cxx" -std=c++11 -Wall -Wextra -Wno-unused-parameter -O0 \
 	-o "$bin" \
@@ -61,6 +62,13 @@ rc=$((rc + $?))
 	"$root/Gamecube/fileBrowser/cover_index.c" || exit 2
 real="${GAME_LIBRARY:-}/cover_pack/covers/index.txt"   # GAME_LIBRARY: ~/wii-tools.env, when exported
 if [ -n "${GAME_LIBRARY:-}" ] && [ -f "$real" ]; then "$bin4" "$scratch" "$real"; else "$bin4" "$scratch"; fi
+rc=$((rc + $?))
+
+# The serial reader (names, BOOT lines, every image layout, cue/toc/ccd/mds/m3u, PBP DISC_ID).
+"$cc" -std=c11 -Wall -Wextra -O2 -D_CRT_SECURE_NO_WARNINGS -o "$bin7" \
+	"$root/tests/disc_serial_test.c" \
+	"$root/Gamecube/fileBrowser/disc_serial.c" || exit 2
+"$bin7" "$scratch"
 rc=$((rc + $?))
 
 # Decoding a cover (stb_image, JPEG and PNG) into the explorer's RGB5A3 slot; the real pack's covers when it is here.
