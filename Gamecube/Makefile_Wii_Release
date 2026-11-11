@@ -200,7 +200,8 @@ export OFILES	:=	$(addsuffix .o,$(BINFILES)) \
                     $(FONTFILES:.dat=.dat.o) \
                     $(LANGFILES:.lang=.lang.o) \
 					$(CPPFILES:.cpp=.o) $(CFILES:.c=.o) \
-					$(sFILES:.s=.o) $(SFILES:.S=.o)
+					$(sFILES:.s=.o) $(SFILES:.S=.o) \
+					$(if $(filter 3,$(LIBOGC)),wiisd_fix.o)
 
 #---------------------------------------------------------------------------------
 # build a list of include paths
@@ -271,6 +272,17 @@ DEPENDS	:=	$(OFILES:.o=.d)
 # built and never linked in)
 BUNDLED_LIBS := $(wildcard $(CURDIR)/$(BUNDLED_ROOT)/libsmb2/lib/wii/libsmb2.a $(CURDIR)/$(BUNDLED_ROOT)/hbc_agent/lib/libhbcagent.a)
 $(OUTPUT).elf: $(OFILES) $(BUNDLED_LIBS)
+
+# libogc's wiisd.o keeps its 64-byte SWITCHFUNC buffer (__sd0_functions) only 32-aligned. In a link
+# where it lands across a 4 KB boundary (0x...fe0), the SD card's first data command is never
+# answered and start-up hangs at "settings (SD/USB mount)" -- on the real Wii only, and only for
+# that layout (release/6.0.0 eb43585a, 2026-11-10; the 5.17.0 hang of 2026-10-24 is likely the
+# same). A copy of the object with the buffer 64-aligned goes ahead of libogc.a (after the .elf rule: the first rule here is the default goal), which then
+# never supplies its own wiisd.o. libogc v3 only (libogc2 has its own, never reported).
+wiisd_fix.o: $(DEVKITPRO)/libogc/lib/wii/libogc.a
+	@echo wiisd_fix.o
+	@$(AR) x $< wiisd.o && mv wiisd.o $@
+	@$(OBJCOPY) --set-section-alignment .bss.__sd0_functions=64 $@
 
 #---------------------------------------------------------------------------------
 # This rule links in binary data with the .jpg extension
