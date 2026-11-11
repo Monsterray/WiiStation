@@ -828,13 +828,10 @@ static void linkList(const Page &p, Layout &lay)
 
 	for (int j = 0; j < n; j++) {
 		Control &c = lay.c[A[j]];
-		if (L->mode == LIST_PAGED && n > 1) {
-			c.link[DIR_UP]   = A[(j + n - 1) % n];
-			c.link[DIR_DOWN] = A[(j + 1) % n];
-		} else {
-			c.link[DIR_UP]   = j > 0 ? A[j - 1] : -1;
-			c.link[DIR_DOWN] = j + 1 < n ? A[j + 1] : -1;
-		}
+		/* No wrap: Down on the last row and Up on the first have no link (the explorer's
+		 * first row gets the lit tab in linkListTabs) */
+		c.link[DIR_UP]   = j > 0 ? A[j - 1] : -1;
+		c.link[DIR_DOWN] = j + 1 < n ? A[j + 1] : -1;
 		c.link[DIR_LEFT]  = prev;
 		c.link[DIR_RIGHT] = next;
 	}
@@ -1277,6 +1274,16 @@ void listTurn(ListState &s, int delta, bool wrap)
 	}
 	s.top = p * slots;
 	s.focus = s.top;
+}
+
+int repeatInterval(int heldMs)
+{
+	if (heldMs <= REPEAT_DELAY_MS)
+		return REPEAT_START_MS;
+	if (heldMs >= REPEAT_RAMP_MS)
+		return REPEAT_FAST_MS;
+	return REPEAT_START_MS - (REPEAT_START_MS - REPEAT_FAST_MS) * (heldMs - REPEAT_DELAY_MS) /
+	       (REPEAT_RAMP_MS - REPEAT_DELAY_MS);
 }
 
 int tabStep(int cur, int n, int delta, bool wrap)

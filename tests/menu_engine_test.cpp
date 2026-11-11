@@ -506,6 +506,24 @@ static bool layOutList(const Page &page, Layout &lay, const char *where)
 	return true;
 }
 
+static void testRepeatInterval(void)
+{
+	int prev = REPEAT_START_MS + 1, bad = 0;
+
+	printf("Lists, hold-to-repeat timing\n");
+	for (int t = 0; t <= 4000; t += 10) {
+		const int v = repeatInterval(t);
+		if (v > prev || v < REPEAT_FAST_MS || v > REPEAT_START_MS)
+			bad++;
+		prev = v;
+	}
+	if (bad || repeatInterval(0) != REPEAT_START_MS || repeatInterval(REPEAT_DELAY_MS) != REPEAT_START_MS ||
+	    repeatInterval(REPEAT_RAMP_MS) != REPEAT_FAST_MS || repeatInterval(60000) != REPEAT_FAST_MS)
+		fail("list", "repeatInterval is not a falling line from REPEAT_START_MS to REPEAT_FAST_MS");
+	printf("  interval: %d ms at the first repeat, %d at 1 s, %d at %d ms and after\n",
+	       repeatInterval(REPEAT_DELAY_MS), repeatInterval(1000), repeatInterval(REPEAT_RAMP_MS), REPEAT_RAMP_MS);
+}
+
 static void testListPaging(void)
 {
 	/* The browser's own turn rule, written out: Prev and Next clamp, L and R wrap, and a page is
@@ -1340,8 +1358,8 @@ static void expCheckLinks(const char *where, const Page &page, const Layout &lay
 	}
 	if (lay.c[first].link[DIR_UP] != lay.tab[page.curTab])
 		fail(where, "Up from the first row does not go to the lit tab");
-	if (lay.c[last].link[DIR_DOWN] != first)
-		fail(where, "Down from the last row does not wrap to the first");
+	if (lay.c[last].link[DIR_DOWN] != -1)
+		fail(where, "Down from the last row has a link (a list does not wrap)");
 	for (int k = 0, prevC = -1; k < st.slots; k++) {
 		const int c = lay.listItem[k];
 		if (c < 0 || !lay.c[c].focusable)
@@ -1597,8 +1615,8 @@ static void testStdExplorer(void)
 			linkFocus(ap, lay);
 			if (checkLayout(ap, kFont, lay, probs, MAX_PROBLEMS) != 0)
 				fail("Explorer title", "the explorer with a title has layout problems");
-			if (lay.c[lay.listItem[0]].link[DIR_UP] != lay.listItem[STD_LIST_ROWS - 1])
-				fail("Explorer title", "Up from the first row does not wrap to the last");
+			if (lay.c[lay.listItem[0]].link[DIR_UP] != -1)
+				fail("Explorer title", "Up from the first row has a link (a list does not wrap)");
 		}
 	}
 
@@ -2100,6 +2118,7 @@ int main(int argc, char **argv)
 	testCheckCatches();
 	testInactiveNeverFocus();
 	testListPaging();
+	testRepeatInterval();
 	testStandard();
 	testStdOverflowCaught();
 	testStdExplorer();

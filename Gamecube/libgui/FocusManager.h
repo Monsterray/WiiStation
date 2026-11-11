@@ -37,6 +37,9 @@ public:
 	void clearInputData();
 	void clearPrimaryFocus();
 	void setFreezeAction(bool freezeAction);
+	/* A list calls this every frame it is on screen: Up and Down held then repeat (menu/MenuEngine.h
+	 * has the timing). Cleared after each updateFocus. */
+	void setListRepeat(bool on) { listRepeat = on; }
 	/* Runs a press on target: the focused button, or the one under the Wii pointer; NULL means
 	 * the frame itself. While it runs, actionIsBack() and actionTarget() say what was pressed. */
 	Component* pressOn(Component* target, int direction, int buttons);
@@ -79,6 +82,9 @@ private:
 	Frame *currentFrame;
 	Component *returnFocus, *actionOwner;
 	bool actionBack;
+	bool listRepeat;
+	int repDir;				/* the vertical direction held now (a Focus direction), 0 for none */
+	u32 repStart, repNext;	/* time base ticks: when it went down, and when the next repeat is due */
 
 };
 

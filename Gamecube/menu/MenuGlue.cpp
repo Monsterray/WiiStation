@@ -379,9 +379,10 @@ PageInput ListView::update(void)
 	const PageInput in = readInput();
 	if (in.turn && !in.sort)
 	{
-		turn(in.turn, true);
+		turn(in.turn, false);		/* + and - stop at the first and last page */
 		Focus::getInstance().clearPrimaryFocus();
 	}
+	Focus::getInstance().setListRepeat(true);	/* Up and Down repeat while held, in every list */
 	/* the focused row scrolls its whole name, the others show the cut one */
 	for (int i = 2; i < BUTTONS; i++)
 	{
