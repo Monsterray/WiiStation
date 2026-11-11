@@ -137,7 +137,22 @@ static void testCheckCatches(void)
 
 	printf("checkLayout on deliberately bad pages\n");
 
-	/* A value wider than its button. */
+	/* A label wider than its button: an action button with a fixed width smaller than its text. */
+	static const ActionButton TIGHT[] = { {"Interpreter with a much longer name than fits", 60, false} };
+	page = Page();
+	page.logo = LOGO_SPOT_BOTTOM;
+	page.standard = DENSITY_OFF;
+	memset(rows, 0, sizeof rows);
+	rows[0].kind = ROW_BUTTONS; rows[0].count = 1; rows[0].actions = TIGHT;
+	page.rows = rows; page.nRows = 1;
+	layoutPage(page, kFont, lay);
+	linkFocus(page, lay);
+	np = checkLayout(page, kFont, lay, probs, MAX_PROBLEMS);
+	memset(seen, 0, sizeof seen);
+	for (int i = 0; i < np && i < MAX_PROBLEMS; i++) seen[probs[i].kind] = true;
+	if (!seen[PROB_TEXT_WIDE]) fail(tag, "a label wider than its button not reported");
+
+	/* A cycle with a wide value sizes its button from the widest value: no wide-label problem. */
 	page = Page();
 	page.logo = LOGO_SPOT_BOTTOM;
 	page.standard = DENSITY_REGULAR;
@@ -150,7 +165,7 @@ static void testCheckCatches(void)
 	np = checkLayout(page, kFont, lay, probs, MAX_PROBLEMS);
 	memset(seen, 0, sizeof seen);
 	for (int i = 0; i < np && i < MAX_PROBLEMS; i++) seen[probs[i].kind] = true;
-	if (!seen[PROB_TEXT_WIDE]) fail(tag, "a label wider than its button not reported");
+	if (seen[PROB_TEXT_WIDE]) fail(tag, "a cycle with a wide value still reports a wide label");
 
 	/* A row of buttons in the logo's corner. A row of buttons is centred on the screen, so
 	 * nothing moves it clear. */

@@ -46,6 +46,7 @@
 #include "AchievementsFrame.h"
 #include "MenuPageView.h"
 #include "OptionsFrame.h"
+#include "../libgui/Button.h"
 #include "../libgui/Component.h"
 #include "../libgui/IPLFont.h"
 #include "../libgui/FocusManager.h"
@@ -1028,9 +1029,18 @@ void AchievementsBoard::paint(menu::Graphics &gfx)
 			textCenter(320, 182, "Achievements are off.", 1.0f, DARK);
 			textCenter(320, 224, "Turn them on, then load the game again", 0.6f, MID);
 			bool over = pointer && OFF_BTN.in(px, py);
-			fill(gfx, OFF_BTN.x, OFF_BTN.y, OFF_BTN.w, OFF_BTN.h, over ? (GXColor){214, 160, 150, 255} : (GXColor){176, 124, 116, 255});
-			fill(gfx, OFF_BTN.x + 2, OFF_BTN.y + 2, OFF_BTN.w - 4, OFF_BTN.h - 4, over ? (GXColor){170, 110, 102, 255} : (GXColor){140, 92, 86, 255});
-			textCenter(320, OFF_BTN.y + 6, "Achievements Settings", 0.7f, WHITE);
+			/* a real standard button (the same art and label placement as every other), drawn here */
+			static char *offLabel = (char *)"Achievements Settings";
+			static menu::Button *offBtn = 0;
+			if (!offBtn)
+			{
+				offBtn = new menu::Button(BTN_STD, &offLabel, OFF_BTN.x, OFF_BTN.y, OFF_BTN.w, OFF_BTN.h);
+				offBtn->setPlain(true);
+				offBtn->setActive(true);
+				offBtn->setFontSize(0.7f);
+			}
+			offBtn->setFocus(pointer ? over : true);
+			offBtn->drawComponent(gfx);
 			hintLine(gfx, pointer ? "Click: Achievements Settings   B: back" : "A: Achievements Settings   B: back");
 			gfx.setTEV(GX_PASSCLR);
 			return;
