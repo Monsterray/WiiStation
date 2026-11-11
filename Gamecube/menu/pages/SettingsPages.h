@@ -352,8 +352,11 @@ static inline void buildRow(const SetRow &s, int r, const SetBind &bind, SetPage
 	{
 		const SetSeg &g = s.seg[c];
 		o.names[r][c] = o.actions[r][c].text = bind.text(g, c);
-		/* a cycle has the width of the longest name (the standard's small cycles take their own) */
-		o.actions[r][c].width = g.value == SEGV_NEXT && !s.prefix ? STD_CYCLE_W : 0.0f;
+		/* a cycle is as wide as its widest value (the engine measures; the standard's small cycles take their own) */
+		const SettingOption *cs = g.value == SEGV_NEXT && !s.prefix ? bind.setting(g) : NULL;
+		o.actions[r][c].width   = 0.0f;
+		o.actions[r][c].values  = cs ? cs->choices : NULL;
+		o.actions[r][c].nValues = cs ? cs->max - cs->min + 1 : 0;
 		const bool lit = bind.lit(g, c);
 		if (s.kind == eng::ROW_CHOICE && c < nChoices)
 		{

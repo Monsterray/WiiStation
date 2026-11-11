@@ -312,41 +312,55 @@ static void drawHalves(Graphics& gfx, float x, float y, float width, float heigh
 	gfx.drawImage(0, xm, y0, x1 - xm, y1 - y0, width/8.0, 0.0, 0.0, 1.0);
 }
 
-/* BUTTON_STANDARD: today's style A picture with square corners. The texture is 8 x 56 and is shown
- * 4 px to the texture width (drawHalves: s 0..width/8 over half the width), so its left 4 px hold
- * the glow, the dark border (texel 2) and the light edge (texel 3), and from texel 4 on every
- * column is the middle of the button. The rounded corners are in the
- * texture's first and last rows. Here the button is cut into four bands: the corner rows (the
- * first 8 and rows 45..52 of the 56) take their left and right edge from one straight row of
- * the texture (30), 2 px wide, with the middle from px 2 on, so the border runs into the corner
- * square; the other rows are the texture as drawn today. Whole pixels throughout, no overlap
- * (an overlap would blend the border over the face instead of over the background), so
- * touching segments meet exactly. */
+/* BUTTON_STANDARD: today's style A picture with square corners, cut into a 9-slice at one texel to one
+ * pixel. The texture is 8 x 56: texels 0-1 are a faint glow, texel 2 is the 1 px dark border, texel 3 the
+ * light edge, and from texel 4 on every column is the middle; row 0 is the top border, row 1 the light
+ * edge, rows 2..50 the face (row 50 holds the cyan underline of a lit button), row 51 the bottom border and
+ * rows 52..55 the soft shadow. The old picture drew 4 px to the texture width, 2 texels to a pixel, so the
+ * half-pixel border fell between two pixels or fell out when the picture was scaled (16:9), and a button lost
+ * a border side depending on where it stood. Here the edge strips are 2 px (texels 2-3) and the top and
+ * bottom bands 2 px and 7 px (rows 0-1, rows 49-55), each at exactly one texel to a pixel, sampled at
+ * the texel centers; only the face between them is stretched. The outer pixel of each strip repeats one
+ * border texel, so the corner pixels are as dark as the sides (the texture's corner texel is rounded). Whole pixels throughout, no overlap
+ * (an overlap would blend the border over the face instead of over the background), so touching
+ * segments meet exactly. */
 static void drawSquare(Graphics& gfx, float x, float y, float width, float height)
 {
 	const int x0 = (int)x, x1 = (int)(x + width), y0 = (int)y, y1 = (int)(y + height);
 	const int w = x1 - x0, h = y1 - y0;
-	if (w < 8 || h < 8)
+	if (w < 8 || h < 14)
 	{
 		drawHalves(gfx, x, y, width, height);
 		return;
 	}
-	static const int ROWS[5] = { 0, 8, 45, 53, 56 };   /* band edges, in texture rows */
-	const float tc = 30.5f / 56.0f;                    /* a straight row, for the corner bands */
-	for (int b = 0; b < 4; b++)
+	const float sB = 2.5f / 8.0f, sL = 3.5f / 8.0f;    /* the border column and the light edge column */
+	const float T = 1.0f / 56.0f;
+	/* a band: tex rows r0..r1 over py..py+ph; ts is a row to repeat for the border column, or -1 */
+	struct Band { int r0, r1, py, ph; };
+	const Band bands[3] = {
+		{ 0, 2, y0, 2 },
+		{ 2, 49, y0 + 2, h - 9 },
+		{ 49, 56, y1 - 7, 7 },
+	};
+	for (int b = 0; b < 3; b++)
 	{
-		const int ya = y0 + (int)(ROWS[b] * (float)h / 56.0f + 0.5f);
-		const int yb = (b == 3) ? y1 : y0 + (int)(ROWS[b + 1] * (float)h / 56.0f + 0.5f);
-		if (yb <= ya)
-			continue;
-		const float ta = (float)(ya - y0) / h, tb = (float)(yb - y0) / h;
-		const bool corner = (b == 0 || b == 2);
-		const int e = corner ? 2 : 4;                   /* the edge strip, in px */
-		const float se = corner ? 0.5f : 1.0f;
-		const float t1 = corner ? tc : ta, t2 = corner ? tc : tb;
-		gfx.drawImage(0, x0, ya, e, yb - ya, 0.0, se, t1, t2);
-		gfx.drawImage(0, x0 + e, ya, w - 2 * e, yb - ya, 1.0, 1.0, ta, tb);
-		gfx.drawImage(0, x1 - e, ya, e, yb - ya, se, 0.0, t1, t2);
+		const Band &B = bands[b];
+		const float ta = B.r0 * T, tb = B.r1 * T;
+		for (int side = 0; side < 2; side++)
+		{
+			const int bx = side ? x1 - 1 : x0, lx = side ? x1 - 2 : x0 + 1;   /* border column, light column */
+			if (b == 0)
+				gfx.drawImage(0, bx, B.py, 1, B.ph, sB, sB, 1.5f * T, 1.5f * T);
+			else if (b == 1)
+				gfx.drawImage(0, bx, B.py, 1, B.ph, sB, sB, ta, tb);
+			else
+			{
+				gfx.drawImage(0, bx, B.py, 1, 3, sB, sB, 50.5f * T, 50.5f * T);   /* rows 49-51: border */
+				gfx.drawImage(0, bx, B.py + 3, 1, 4, sB, sB, 52.0f * T, 56.0f * T);
+			}
+			gfx.drawImage(0, lx, B.py, 1, B.ph, sL, sL, ta, tb);
+		}
+		gfx.drawImage(0, x0 + 2, B.py, w - 4, B.ph, 1.0, 1.0, ta, tb);
 	}
 }
 
