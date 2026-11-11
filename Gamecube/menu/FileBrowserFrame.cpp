@@ -59,6 +59,7 @@ extern "C" {
 #include "../fileBrowser/explorer_info.h"
 #include "../fileBrowser/recent_list.h"
 #include "../fileBrowser/cover_index.h"
+#include "../fileBrowser/disc_serial.h"
 #include "../cover_art.h"
 #include "../../database.h"
 #include "../players.h"
@@ -615,26 +616,53 @@ extern GXTexRegion texCacheRegionS[8];
  * record has it) and the cover pack (<dev>:/wiistation/covers/index.txt, SD first, then USB) has a box
  * picture for it. The file is read only after the focus has rested on the row COVER_REST frames, so
  * scrolling never decodes a picture. Nothing is drawn when there is no cover. */
-#define COVER_REST 12
-static char covSerial[12];		/* the serial covState is about */
-static int covState;			/* 0 resting / not tried, 1 texture loaded, 2 no cover */
-static int covRest;				/* frames covSerial has been focused */
+#define COVER_REST 9			/* 150 ms: a held direction (up to 30 rows/s) never starts the slow work */
+#define COV_SLOTS 16
+/* One row's cover, kept for the folder so going back to a row is instant: the serial (ser 0 not looked
+ * up, 1 known, 2 none) and the picture (tex 0 not tried, 1 loaded in buf/obj, 2 none). Keyed by the game
+ * file's path; one lookup per frame at most (the serial read, then the picture). */
+struct CovSlot { char key[FILE_BROWSER_MAX_PATH_LEN]; char serial[12]; unsigned char ser, tex; void *buf;
 #ifdef HW_RVL
-static GXTexObj covTex;
+                 GXTexObj obj;
 #endif
-static void fbCoverFree(void)
+};
+#ifdef EXPLORER_TIMING
+static void explorerLog(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
+#endif
+static CovSlot covSlots[COV_SLOTS];
+static unsigned covNext;
+static char covFocus[FILE_BROWSER_MAX_PATH_LEN];	/* the game file the strip is about */
+static int covRest;				/* frames covFocus has been focused */
+static void covSlotFree(CovSlot *s)
 {
 #ifdef HW_RVL
-	cover_art_free();
+	cover_art_buf_free(s->buf);
 #endif
-	covSerial[0] = 0;
-	covState = 0;
+	memset(s, 0, sizeof *s);
+}
+static void fbCoverFree(void)
+{
+	for (int i = 0; i < COV_SLOTS; i++)
+		covSlotFree(&covSlots[i]);
+	covFocus[0] = 0;
 	covRest = 0;
 }
-/* The ISO Info disc band shares cover_art's one texture: it calls this first, so the explorer loads its cover again. */
+/* The ISO Info disc band shares cover_art's one texture: it calls this first (the cache goes too). */
 void fbCoverForget(void) { fbCoverFree(); }
 bool isoDiscPictureLoad(GXTexObj *tex);	/* OptionsFrame.cpp */
-static bool fbCoverLoad(const char *serial)
+static CovSlot *covFind(const char *key, bool make)
+{
+	for (int i = 0; i < COV_SLOTS; i++)
+		if (covSlots[i].key[0] && !strcmp(covSlots[i].key, key))
+			return &covSlots[i];
+	if (!make)
+		return NULL;
+	CovSlot *s = &covSlots[covNext++ % COV_SLOTS];
+	covSlotFree(s);
+	snprintf(s->key, sizeof s->key, "%s", key);
+	return s;
+}
+static bool fbCoverLoad(CovSlot *s)
 {
 #ifdef HW_RVL
 	static const char *const dirs[] = { "sd:/wiistation/covers", "usb:/wiistation/covers" };
@@ -643,42 +671,80 @@ static bool fbCoverLoad(const char *serial)
 		char idx[48], path[112];
 		cover_row r;
 		snprintf(idx, sizeof idx, "%s/index.txt", dirs[d]);
-		if (cover_index_find(idx, serial, &r) && r.box[0] &&
+		if (cover_index_find(idx, s->serial, &r) && r.box[0] &&
 		    !cover_index_path(path, sizeof path, dirs[d], r.box) &&
-		    cover_art_load(path, &covTex, STD_COVER_W, STD_COVER_H))
+		    cover_art_load_buf(path, &s->obj, STD_COVER_W, STD_COVER_H, &s->buf))
 			return true;
 	}
 #else
-	(void)serial;
+	(void)s;
 #endif
 	return false;
 }
-static void fbCoverDraw(menu::Graphics &gfx, const char *serial)
+/* file: the game file of the focused row ("" for none); recentSerial: the Recent record's serial for it.
+ * The serial comes from that record, else from the file's names (no read), else from the disc itself
+ * (ds_read_serial) once the focus has rested; then the picture is loaded one frame later. */
+static void fbCoverDraw(menu::Graphics &gfx, const char *file, const char *recentSerial)
 {
-	if (!serial[0])
+	if (!file[0])
 	{
-		if (covSerial[0])
-			fbCoverFree();
+		covFocus[0] = 0;
 		return;
 	}
-	if (strncmp(serial, covSerial, sizeof covSerial - 1))
+	if (strcmp(file, covFocus))
 	{
-		fbCoverFree();
-		snprintf(covSerial, sizeof covSerial, "%s", serial);
+		snprintf(covFocus, sizeof covFocus, "%s", file);
+		covRest = 0;
 	}
-	if (covState == 0 && ++covRest >= COVER_REST)
-		covState = fbCoverLoad(covSerial) ? 1 : 2;
+	else if (covRest < 1000)
+		covRest++;
+	CovSlot *s = covFind(file, true);
+	bool worked = false;
+	if (!s->ser)
+	{
+		if (recentSerial[0])
+			snprintf(s->serial, sizeof s->serial, "%s", recentSerial), s->ser = 1;
+		else if (ds_name_serial(file, s->serial))
+			s->ser = 1;
+		else if (covRest >= COVER_REST)
+		{
+#ifdef EXPLORER_TIMING
+			unsigned long long q = gettime();
+#endif
+			s->ser = ds_read_serial(file, s->serial) ? 1 : 2;
+			worked = true;
+#ifdef EXPLORER_TIMING
+			explorerLog("  serial read %d '%s' us %llu %s\n", s->ser, s->serial, (gettime() - q) * 1000ULL / 60750ULL, file);
+#endif
+		}
+	}
+	if (!worked && s->ser == 1 && !s->tex && covRest >= COVER_REST)
+	{
+#ifdef EXPLORER_TIMING
+		unsigned long long q = gettime();
+#endif
+		s->tex = fbCoverLoad(s) ? 1 : 2;
+#ifdef EXPLORER_TIMING
+		explorerLog("  cover load %d '%s' us %llu\n", s->tex, s->serial, (gettime() - q) * 1000ULL / 60750ULL);
+#endif
+	}
 #ifdef HW_RVL
-	if (covState != 1)
+	if (s->tex != 1)
 		return;
 	menu::glue::fill(gfx, STD_COVER_X - 1, STD_COVER_Y - 1, STD_COVER_W + 2, STD_COVER_H + 2, (GXColor) {120,120,120,255});
 	GX_InvalidateTexRegion(&texCacheRegionS[0]);			/* the font's region: other texels */
-	GX_LoadTexObjPreloaded(&covTex, &texCacheRegionS[0], GX_TEXMAP0);	/* outside Begin/End */
+	GX_LoadTexObjPreloaded(&s->obj, &texCacheRegionS[0], GX_TEXMAP0);	/* outside Begin/End */
 	gfx.setColor((GXColor) {255,255,255,255});
 	gfx.setTEV(GX_MODULATE);
 	gfx.enableBlending(true);
 	gfx.drawImage(0, STD_COVER_X, STD_COVER_Y, STD_COVER_W, STD_COVER_H, 0, 1, 0, 1);
 #endif
+}
+/* true once the cover of file is settled (shown, or known to be none) */
+static bool fbCoverSettled(const char *file)
+{
+	const CovSlot *s = file[0] ? covFind(file, false) : NULL;
+	return !file[0] || (s && (s->ser == 2 || s->tex != 0));
 }
 
 /* The facts strip under the list: the focused row's full name, then Format, Size, Region (first
@@ -689,7 +755,7 @@ static void fbCoverDraw(menu::Graphics &gfx, const char *serial)
 /* What the strip shows, formatted and cut to its cells. Made again only when its key changes: the
  * focused row and what is known about it (read info, the folder's game), the list and the Recent
  * record (fbGen), and the day ("today" / "yesterday"). The cover is not in it (fbCoverDraw polls). */
-struct FbFactsText { char title[128]; const char *key[6]; char val[6][96]; int cells; char serial[12]; };
+struct FbFactsText { char title[128]; const char *key[6]; char val[6][96]; int cells; char serial[12]; char file[FILE_BROWSER_MAX_PATH_LEN]; };
 struct FbFactsKey { unsigned gen; const void *list; int idx, done, discs, gState, gDiscs; unsigned size, gSize; long long day;
                     char name[FILE_BROWSER_MAX_PATH_LEN]; };
 static FbFactsText fbFacts;
@@ -775,7 +841,17 @@ static void fbFactsMake(FbFactsText &T, const eng::FactsBox &b, int idx, const F
 		snprintf(T.val[k], sizeof T.val[k], "%s", eng::fitText(m, vals[k], scale, b.cell[k].valRoom, buf, sizeof buf));
 	}
 	snprintf(T.serial, sizeof T.serial, "%s", coverSerial);
+	T.file[0] = 0;
+	if (!isDir || g)		/* the game file the cover is about: the row's, or the folder's first game */
+		snprintf(T.file, sizeof T.file, "%s", g ? g->path : e.name);
 }
+
+#ifdef EXPLORER_TIMING
+static void explorerProbe(int idx, bool factsDone, bool coverDone, const char *name);
+#define EXPLORER_PROBE(i, f, c, n) explorerProbe(i, f, c, n)
+#else
+#define EXPLORER_PROBE(i, f, c, n) ((void)0)
+#endif
 
 static void drawFactsStrip(menu::Graphics &gfx)
 {
@@ -789,7 +865,7 @@ static void drawFactsStrip(menu::Graphics &gfx)
 	const int idx = fbFocusedIndex();
 	if (!dir_entries || idx < 0 || idx >= num_entries)
 	{
-		fbCoverDraw(gfx, "");
+		fbCoverDraw(gfx, "", "");
 		return;						/* an empty list: the panel only */
 	}
 	const fileBrowser_file &e = dir_entries[idx];
@@ -815,7 +891,8 @@ static void drawFactsStrip(menu::Graphics &gfx)
 	}
 	const FbFactsText &T = fbFacts;
 
-	fbCoverDraw(gfx, T.serial);		/* before the text: the font's texture is set again by drawInit */
+	fbCoverDraw(gfx, T.file, T.serial);		/* before the text: the font's texture is set again by drawInit */
+	EXPLORER_PROBE(idx, dirRow ? fbGameFind(idx) != NULL : (!fbInfo || fbInfo[idx].done), (fbCoverSettled(T.file) && (T.file[0] || !dirRow)), name);
 	const float tScale = (float)STD_FACTS_TITLE_PX / 24.0f;
 	font.drawInit((GXColor) {255,255,255,255});
 	font.drawString(b.titleX, b.titleY, (char*)T.title, tScale, false);
@@ -841,6 +918,28 @@ static void explorerLog(const char *fmt, ...)
 	fclose(f);
 }
 #define TICKS_US(t) ((unsigned long long)(t) * 1000ULL / 60750ULL)
+/* One line per focused row once its facts and its cover are settled: ms from the focus change to each. */
+static void explorerProbe(int idx, bool factsDone, bool coverDone, const char *name)
+{
+	static int cur = -1;
+	static unsigned long long t0, tF, tC;
+	static bool logged;
+	const unsigned long long now = gettime();
+	if (idx != cur || !dir_entries)
+	{
+		cur = idx;
+		t0 = now;
+		tF = tC = 0;
+		logged = false;
+	}
+	if (factsDone && !tF) tF = now;
+	if (coverDone && !tC) tC = now;
+	if (!logged && tF && tC)
+	{
+		logged = true;
+		explorerLog("focus %d facts_ms %llu cover_ms %llu %s\n", idx, TICKS_US(tF - t0) / 1000, TICKS_US(tC - t0) / 1000, name);
+	}
+}
 #endif
 
 char* filenameFromAbsPath(char* absPath);
@@ -950,7 +1049,7 @@ static bool fbPumpFolderGame(int focus)
 		restFrames = 0;
 		return false;
 	}
-	if (restFrames < 12)
+	if (restFrames < 9)
 	{
 		restFrames++;
 		return false;

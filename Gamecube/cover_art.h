@@ -26,6 +26,11 @@ int cover_art_decode(const uint8_t *file, size_t n, uint16_t *out, unsigned ow, 
  * file, or not a usable picture; nothing is kept. */
 int cover_art_load(const char *path, GXTexObj *out, unsigned ow, unsigned oh);
 
+/* The same, the texels in a buffer of the caller's (*buf; free it with cover_art_buf_free, after which
+ * the texture object must not be used): for a cache of several covers. */
+int cover_art_load_buf(const char *path, GXTexObj *out, unsigned ow, unsigned oh, void **buf);
+void cover_art_buf_free(void *buf);
+
 /* The picture in memory goes; the texture object must not be used after */
 void cover_art_free(void);
 #endif

@@ -64,13 +64,13 @@ void cover_art_free(void)
 	tex = NULL;
 }
 
-int cover_art_load(const char *path, GXTexObj *out, unsigned ow, unsigned oh)
+int cover_art_load_buf(const char *path, GXTexObj *out, unsigned ow, unsigned oh, void **buf)
 {
 	FILE *f;
 	long n;
-	uint8_t *file = NULL;
+	uint8_t *file = NULL, *t;
 	int ok;
-	cover_art_free();
+	*buf = NULL;
 	if (!(f = fopen(path, "rb"))) return 0;
 	if (fseek(f, 0, SEEK_END) == 0 && (n = ftell(f)) > 16 && n <= MAX_FILE && fseek(f, 0, SEEK_SET) == 0 &&
 	    (file = _mem2_malloc((uint32_t)n))) {
@@ -81,16 +81,28 @@ int cover_art_load(const char *path, GXTexObj *out, unsigned ow, unsigned oh)
 	}
 	fclose(f);
 	if (!file) return 0;
-	tex = _mem2_memalign(32, ow * oh * 2);
-	ok = tex && cover_art_decode(file, (size_t)n, (uint16_t *)tex, ow, oh);
+	t = _mem2_memalign(32, ow * oh * 2);
+	ok = t && cover_art_decode(file, (size_t)n, (uint16_t *)t, ow, oh);
 	_mem2_free(file);
 	if (!ok) {
-		cover_art_free();
+		if (t) _mem2_free(t);
 		return 0;
 	}
-	DCFlushRange(tex, ow * oh * 2);
-	GX_InitTexObj(out, tex, ow, oh, GX_TF_RGB5A3, GX_CLAMP, GX_CLAMP, GX_FALSE);
+	DCFlushRange(t, ow * oh * 2);
+	GX_InitTexObj(out, t, ow, oh, GX_TF_RGB5A3, GX_CLAMP, GX_CLAMP, GX_FALSE);
 	GX_InitTexObjFilterMode(out, GX_LINEAR, GX_LINEAR);
+	*buf = t;
 	return 1;
+}
+
+void cover_art_buf_free(void *buf)
+{
+	if (buf) _mem2_free(buf);
+}
+
+int cover_art_load(const char *path, GXTexObj *out, unsigned ow, unsigned oh)
+{
+	cover_art_free();
+	return cover_art_load_buf(path, out, ow, oh, (void **)&tex);
 }
 #endif
