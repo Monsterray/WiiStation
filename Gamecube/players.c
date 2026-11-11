@@ -43,8 +43,8 @@ static const u8 fav_rgb[12][3] = {
 	{ 0x00, 0x78, 0x30 }, { 0x0a, 0x48, 0xb4 }, { 0x3c, 0xaa, 0xde }, { 0xf5, 0x5a, 0x7d },
 	{ 0x73, 0x28, 0xad }, { 0x48, 0x38, 0x18 }, { 0xe0, 0xe0, 0xe0 }, { 0x18, 0x18, 0x14 }
 };
-/* A favorite's ring: warm metallic gold, light at the top to dark at the bottom (mock-up: .runs/rel600_fix/misc/gold_candidates.png) */
-static const u8 gold_top[3] = { 0xff, 0xe2, 0x70 }, gold_bot[3] = { 0xb2, 0x70, 0x12 };
+/* A favorite's ring: rich yellow gold, light at the top to dark at the bottom (mock-up: .runs/rel600_fix/misc/gold_candidates.png) */
+static const u8 gold_top[3] = { 0xff, 0xd6, 0x46 }, gold_bot[3] = { 0xcc, 0x8c, 0x0c };
 
 /* Texel (x, y) of a w-wide GX RGBA8 texture: 4x4 tiles of 64 bytes, A and R in the first
  * 32, G and B in the next: p[0] A, p[1] R, p[32] G, p[33] B. */

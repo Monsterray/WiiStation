@@ -32,4 +32,10 @@ void romInfoAchievements(char *buf, int len);   /* what achievements do here (ac
 /* All rows as "Label: value" lines, appended to text (the message after a load) */
 void romInfoText(char *text, int size);
 
+/* The Game Loaded box (MessageBox::setGameLoaded): "Key<TAB>value" lines of what the game itself says
+ * (Game, Disc, Region when the serial names one, Image), appended to text. Longer values than a
+ * readout's 31 characters are fine here: the box wraps them. */
+void romInfoGameLoaded(char *text, int size);
+void romInfoRegion(char *buf, int len);         /* "USA", "Europe", "Japan" from the serial prefix; "" when unknown */
+
 #endif

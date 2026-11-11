@@ -159,3 +159,34 @@ void romInfoText(char *text, int size)
 		menu::glue::appendBounded(text, size, line);
 	}
 }
+
+/* The disc's own region, from its serial prefix (the license area the disc was made for); "" when the prefix is not known */
+void romInfoRegion(char *buf, int len)
+{
+	static const struct { const char *prefix; const char *region; } areas[] = {
+		{ "SLUS", "USA" }, { "SCUS", "USA" }, { "PUPX", "USA" },
+		{ "SLES", "Europe" }, { "SCES", "Europe" }, { "SLED", "Europe" }, { "SCED", "Europe" }, { "PUEX", "Europe" },
+		{ "SLPS", "Japan" }, { "SLPM", "Japan" }, { "SCPS", "Japan" }, { "SCPM", "Japan" }, { "SIPS", "Japan" }, { "PAPX", "Japan" }, { "PCPX", "Japan" },
+		{ "SLKA", "Korea" }, { "SCKA", "Korea" }, { "SLAJ", "Asia" }, { "SCAJ", "Asia" },
+	};
+	const char *serial = romInfoSerial();
+	buf[0] = 0;
+	for (size_t i = 0; i < sizeof areas / sizeof areas[0]; i++)
+		if (!strncasecmp(serial, areas[i].prefix, 4)) { snprintf(buf, len, "%s", areas[i].region); return; }
+}
+
+/* The rows of the Game Loaded box: "Key<TAB>value" lines, read from the game itself (not settings or WiiStation state) */
+void romInfoGameLoaded(char *text, int size)
+{
+	static const struct { const char *label; void (*value)(char *, int); } rows[] = {
+		{ "Game", romInfoGame }, { "Disc", romInfoDisc }, { "Region", romInfoRegion }, { "Image", romInfoImage },
+	};
+	char value[64], line[96];
+	for (size_t i = 0; i < sizeof rows / sizeof rows[0]; i++) {
+		rows[i].value(value, sizeof value);
+		if (!value[0])
+			continue;
+		snprintf(line, sizeof line, "%s\t%s\n", rows[i].label, value);
+		menu::glue::appendBounded(text, size, line);
+	}
+}

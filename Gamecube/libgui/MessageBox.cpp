@@ -30,7 +30,8 @@
 #include <stdio.h>
 #include "../hb_probe.h"
 
-extern "C" int perf_chain_index(void);              /* GamecubeMain.cpp: >0 during a chain */
+extern GXTexRegion texCacheRegionS[8];              /* GraphicsGX.cpp: the font's texture region */
+extern "C" int perf_chain_index(void);             /* GamecubeMain.cpp: >0 during a chain */
 extern "C" void SysPrintf(const char *fmt, ...);
 
 /* A chained run has nobody to press OK: a message box there waited for ever (2026-10-09, the
@@ -73,13 +74,11 @@ char messageBoxText[MESSAGEBOX_TEXT_WIDTH];
 /* Wrap messageBoxText to the box: each line is cut by its measured width in the menu font (the
  * box is 560 wide). A line breaks at the last space that fits, else after the last '/', else
  * inside the word (a long path, never in the middle of a UTF-8 character). */
-static void wrapMessage()
+static void wrapInto(const char *src, char *out, int cap, int maxW, float scale = 1.0f)
 {
-	const int maxW = 500;
-	char out[MESSAGEBOX_TEXT_WIDTH];
 	char tmp[MESSAGEBOX_TEXT_WIDTH];
 	int o = 0;
-	const char *p = messageBoxText;
+	const char *p = src;
 
 	while (1)
 	{
@@ -89,7 +88,7 @@ static void wrapMessage()
 		{
 			int n = 0, sp = -1, sl = -1;
 			memcpy(tmp, p, len); tmp[len] = '\0';
-			if (IplFont::getInstance().getStringWidth(tmp, 1.0) <= maxW)
+			if (IplFont::getInstance().getStringWidth(tmp, scale) <= maxW)
 				n = len;
 			else
 			{
@@ -97,7 +96,7 @@ static void wrapMessage()
 				{
 					tmp[i] = '\0';
 					if ((p[i] & 0xC0) == 0x80) { tmp[i] = p[i]; continue; }
-					if (IplFont::getInstance().getStringWidth(tmp, 1.0) > maxW) break;
+					if (IplFont::getInstance().getStringWidth(tmp, scale) > maxW) break;
 					n = i;
 					tmp[i] = p[i];
 				}
@@ -111,7 +110,7 @@ static void wrapMessage()
 				if (sp > 0) n = sp;
 				else if (sl > 0) n = sl;
 			}
-			if (o + n + 2 >= MESSAGEBOX_TEXT_WIDTH) { n = 0; len = 0; break; }
+			if (o + n + 2 >= cap) { n = 0; len = 0; break; }
 			memcpy(out + o, p, n); o += n;
 			p += n; len -= n;
 			if (len > 0)
@@ -120,12 +119,122 @@ static void wrapMessage()
 				if (*p == ' ') { p++; len--; }
 			}
 		}
-		if (!e || o + 2 >= MESSAGEBOX_TEXT_WIDTH) break;
+		if (!e || o + 2 >= cap) break;
 		out[o++] = '\n';
 		p = e + 1;
 	}
 	out[o] = '\0';
-	memcpy(messageBoxText, out, o + 1);
+}
+
+static void wrapMessage()
+{
+	char out[MESSAGEBOX_TEXT_WIDTH];
+	wrapInto(messageBoxText, out, sizeof out, 500);
+	memcpy(messageBoxText, out, strlen(out) + 1);
+}
+
+/* The Game Loaded box (setGameLoaded): a title, "Key: value" rows with the key bold and a long value wrapped under
+ * the value column, plain note lines, and the disc picture on the right when there is one. Built once when the box
+ * opens; drawMessageBox only draws it. */
+#define INFO_MAX_LINES 10
+#define INFO_X 70			/* left edge of the keys */
+#define INFO_Y 124			/* top of the first line */
+#define INFO_LINE 22
+#define INFO_SCALE 0.8f
+#define INFO_PIC_X 436
+#define INFO_PIC_Y 138
+#define INFO_PIC_D 136
+#define INFO_TITLE_SCALE 1.35f
+static GXTexObj *infoDisc = NULL;
+static bool infoMode = false;
+static int infoCount, infoValueX;
+struct InfoLine { char text[128]; char key[24]; unsigned char kind; };
+static InfoLine infoLines[INFO_MAX_LINES];
+enum { INFO_ROW_FIRST, INFO_ROW_MORE, INFO_NOTE_FIRST, INFO_NOTE };
+
+/* Bold: the menu font has one weight, so bold is the string drawn a pixel to the right (TextBox does the same) */
+static void drawBold(int x, int y, char *s, float scale, bool centered)
+{
+	IplFont::getInstance().drawString(x, y, s, scale, centered);
+	IplFont::getInstance().drawString(x + 1, y, s, scale, centered);
+}
+
+static void infoAdd(unsigned char kind, const char *key, const char *text)
+{
+	if (infoCount >= INFO_MAX_LINES)
+		return;
+	snprintf(infoLines[infoCount].text, sizeof infoLines[0].text, "%s", text);
+	snprintf(infoLines[infoCount].key, sizeof infoLines[0].key, "%s", key);
+	infoLines[infoCount++].kind = kind;
+}
+
+/* Splits a wrapped text (lines joined by '\n') into lines of the box */
+static void infoAddWrapped(unsigned char first, unsigned char more, const char *key, const char *wrapped)
+{
+	bool isFirst = true;
+	const char *p = wrapped;
+	while (1)
+	{
+		const char *e = strchr(p, '\n');
+		char line[128];
+		int n = e ? (int)(e - p) : (int)strlen(p);
+		if (n > (int)sizeof line - 1) n = sizeof line - 1;
+		memcpy(line, p, n); line[n] = '\0';
+		infoAdd(isFirst ? first : more, isFirst ? key : "", line);
+		isFirst = false;
+		if (!e) break;
+		p = e + 1;
+	}
+}
+
+static void infoBuild(const char *text, bool pic)
+{
+	const int right = pic ? INFO_PIC_X - 14 : 600 - 30;
+	char keys[INFO_MAX_LINES][24], vals[INFO_MAX_LINES][128];
+	int nrows = 0, keyW = 0;
+	const char *p = text;
+	infoCount = 0;
+	/* rows first (key TAB value), measured so the value column is one x */
+	while (*p && nrows < INFO_MAX_LINES)
+	{
+		const char *e = strchr(p, '\n');
+		int n = e ? (int)(e - p) : (int)strlen(p);
+		const char *tab = (const char *)memchr(p, '\t', n);
+		if (tab)
+		{
+			snprintf(keys[nrows], sizeof keys[0], "%.*s:", (int)(tab - p) < 20 ? (int)(tab - p) : 20, p);
+			snprintf(vals[nrows], sizeof vals[0], "%.*s", n - (int)(tab - p) - 1 < 127 ? n - (int)(tab - p) - 1 : 127, tab + 1);
+			int w = IplFont::getInstance().getStringWidth(keys[nrows], INFO_SCALE) + 1;
+			if (w > keyW) keyW = w;
+			nrows++;
+		}
+		if (!e) break;
+		p = e + 1;
+	}
+	infoValueX = INFO_X + keyW + 10;
+	for (int i = 0; i < nrows; i++)
+	{
+		char wrapped[256];
+		wrapInto(vals[i], wrapped, sizeof wrapped, right - infoValueX, INFO_SCALE);
+		infoAddWrapped(INFO_ROW_FIRST, INFO_ROW_MORE, keys[i], wrapped);
+	}
+	/* then the notes: the lines without a TAB */
+	bool first = true;
+	for (p = text; *p; )
+	{
+		const char *e = strchr(p, '\n');
+		int n = e ? (int)(e - p) : (int)strlen(p);
+		if (n > 0 && !memchr(p, '\t', n))
+		{
+			char one[128], wrapped[256];
+			snprintf(one, sizeof one, "%.*s", n < 127 ? n : 127, p);
+			wrapInto(one, wrapped, sizeof wrapped, right - INFO_X, INFO_SCALE);
+			infoAddWrapped(first ? INFO_NOTE_FIRST : INFO_NOTE, INFO_NOTE, "", wrapped);
+			first = false;
+		}
+		if (!e) break;
+		p = e + 1;
+	}
 }
 
 struct ButtonInfo
@@ -202,6 +311,24 @@ MessageBox::~MessageBox()
 }
 
 void MessageBox::setMessage(const char* string)
+{
+	infoMode = false;
+	showMessage(string);
+}
+
+/* The box after a game loads. text: "Key<TAB>value" lines are rows, any other line a note (a warning, the save that
+ * was loaded); disc: the disc picture's texture, or NULL for none (the text then has the full width). */
+void MessageBox::setGameLoaded(const char* text, GXTexObj* disc)
+{
+	infoBuild(text, disc != NULL);
+	infoDisc = disc;
+	infoMode = true;
+	showMessage(text);
+	infoMode = false;
+	infoDisc = NULL;
+}
+
+void MessageBox::showMessage(const char* string)
 {
 	if (unattended_message(string))
 		return;
@@ -363,6 +490,46 @@ void MessageBox::drawMessageBox(Graphics& gfx)
 	gfx.drawImage(0, x+width/2, y, width/2, height/2, width/16.0, 0.0, 0.0, height/16.0);
 	gfx.drawImage(0, x, y+height/2, width/2, height/2, 0.0, width/16.0, height/16.0, 0.0);
 	gfx.drawImage(0, x+width/2, y+height/2, width/2, height/2, width/16.0, 0.0, height/16.0, 0.0);
+
+	if (infoMode)
+	{
+		if (infoDisc)
+		{
+			GX_InvalidateTexRegion(&texCacheRegionS[0]);				/* the font's region: other texels */
+			GX_LoadTexObjPreloaded(infoDisc, &texCacheRegionS[0], GX_TEXMAP0);
+			gfx.setColor((GXColor) {255,255,255,255});
+			gfx.setTEV(GX_MODULATE);
+			gfx.enableBlending(true);
+			gfx.drawImage(0, INFO_PIC_X, INFO_PIC_Y, INFO_PIC_D, INFO_PIC_D, 0, 1, 0, 1);
+		}
+		char title[] = "Game Loaded";
+		IplFont::getInstance().drawInit(tmpTextColor);
+		drawBold((int)(x + width/2), 46, title, INFO_TITLE_SCALE, true);
+		int ly = INFO_Y;
+		for (int i = 0; i < infoCount; i++)
+		{
+			InfoLine &l = infoLines[i];
+			if (l.kind == INFO_ROW_FIRST && i > 0) ly += 6;
+			if (l.kind == INFO_NOTE_FIRST) ly += 18;
+			if (l.kind == INFO_NOTE_FIRST || l.kind == INFO_NOTE)
+			{
+				GXColor note = !strncmp(l.text, "Warning", 7) ? (GXColor) {255,210,110,255} : (GXColor) {170,230,170,255};
+				note.a = tmpTextColor.a;
+				IplFont::getInstance().setColor(note);
+				IplFont::getInstance().drawString(INFO_X, ly, l.text, INFO_SCALE, false);
+				IplFont::getInstance().setColor(tmpTextColor);
+			}
+			else
+			{
+				if (l.kind == INFO_ROW_FIRST)
+					drawBold(INFO_X, ly, l.key, INFO_SCALE, false);
+				IplFont::getInstance().drawString(infoValueX, ly, l.text, INFO_SCALE, false);
+			}
+			ly += INFO_LINE;
+		}
+		drawChildren(gfx);
+		return;
+	}
 
 	//detect number of lines
 #ifdef HW_RVL
