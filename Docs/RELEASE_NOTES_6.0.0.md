@@ -44,11 +44,13 @@ Every setting, with its default and what it does, is in `wiistation/example_sett
 - Players: a page to seat a Mii on each port, edit its player settings and link an account.
 
 ### Achievements
-Off by default. Choose the mode in Settings > General > Achievements.
+Off by default. Choose the mode in Settings > System > Achievements.
 - **Official**: RetroAchievements sets, earned with your RetroAchievements account. **Casual only**
   (see RetroAchievements, below).
 - **Local**: the RetroAchievements set, but nothing is ever sent. Every seated Mii (or Guest) earns into
   a file on your card. The set is downloaded once and saved; after that no network is needed.
+  The first download needs an account file and tls_seed.bin on the card; the "Online files" line on
+  the Achievements page says which is missing.
 - **Custom**: your own set file; unlocks are kept in a journal. **Test**: the same, nothing kept.
 - **The book** (Current ISO > Achievements): the game, "12 / 89 earned", points, tabs for In progress,
   Locked and Earned, a detail page for each achievement, and the picture of the moment you earned it

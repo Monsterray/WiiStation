@@ -52,6 +52,7 @@ void infoFixedBuffers(char *buf, int len);
 void infoPsxBuffers(char *buf, int len);
 void infoSpuPlugin(char *buf, int len);
 void infoAchFile(char *buf, int len);
+void infoAchOnline(char *buf, int len);	/* OptionsFrame.cpp: the account file and tls_seed.bin a first download needs */
 
 /* Rows are SetRow (pages/SettingsPages.h): the same type, reader and writer as the Settings tabs. A cycle is
  * ROW_CYCLE, a radio row ROW_CHOICE with one SEG_EACH, a readout ROW_READOUT, an action ROW_BUTTONS. The
@@ -200,12 +201,13 @@ static const SetRow ISOINFO_ROWS[] = { ROM_INFO_ROWS(ISOINFO_ROW) };
 static const SetRow ACH_ROWS[] =
 {
 	{ eng::ROW_CYCLE, NULL, { SEG_CYCLE_ACT("Achievements", Func_AchievementsMode) }, 0, false, NULL,
-	  { "Local: RetroAchievements' set, nothing sent. Official: sent to a Players account.",
-	    "Custom: your own set file. Test: same, nothing kept. Reload the game after a change." } },
-	ROW_RADIO_H("AchievementUnofficial", NULL, "Official and Local: also the set's Unofficial achievements (not yet approved).", "Load the game again after a change."),
-	ROW_RADIO_H("AchievementEncore", NULL, "Official: achievements you already have can be earned again this session.", "Nothing new is sent to the site. Load the game again after a change."),
-	ROW_RADIO_H("AchievementChallenge", NULL, "Shows the flashing icon for an achievement that is one step away.", "Off hides it at once. The unlock card and the progress pop-up stay."),
-	ROW_INFO("Set file", infoAchFile),
+	  { "Local: the site's set, nothing sent. Official: sent to a Players account.",
+	    "Both need the Online files below once. Custom/Test: own set file. Reload the game." } },
+	ROW_RADIO_H("AchievementUnofficial", NULL, "Also load the set's Unofficial achievements (not yet approved by the site).", "The site keeps none of their unlocks; Local keeps them. Reload the game."),
+	ROW_RADIO_H("AchievementEncore", NULL, "Official only: earn achievements you already have again this session.", "Nothing new is sent to the site. Reload the game after a change."),
+	ROW_RADIO_H("AchievementChallenge", NULL, "Flashing icon at the bottom right when an achievement is one step away.", "Off hides it at once. The unlock card and the progress pop-up stay."),
+	ROW_INFO("Online files", infoAchOnline),
+	ROW_INFO("Custom set file", infoAchFile),
 };
 
 struct OptPage

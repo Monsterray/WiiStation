@@ -244,7 +244,7 @@ Ver 5.19.0 (2026-10-28):
 * The unlock card and the progress panel keep moving while the game shows a
   still picture or a black screen (loading): they used to freeze until the game
   drew again, and the game card at a game's start froze half slid in.
-* New setting AchievementChallenge (General, Achievements, Challenge icons): Off
+* New setting AchievementChallenge (System, Achievements, Challenge icons): Off
   hides the flashing icons of achievements that are one step away.
 * Save states made by other players keep the game, but the unlocks come from
   the Miis seated now: a state never moves one Mii's unlocks to another.
@@ -328,7 +328,7 @@ Ver 5.18.0 (2026-10-28):
   Channel agent 1.12.1.
 
 Ver 5.17.0 (2026-10-24):
-* Achievements, Official mode (Settings > General > Achievements): RetroAchievements
+* Achievements, Official mode (Settings > System > Achievements): RetroAchievements
   sets, earned online with your RetroAchievements account (Casual; Hardcore
   needs RetroAchievements' approval first). The disc is identified the way
   RetroAchievements does it, from every format WiiStation boots (CUE/BIN, ISO,

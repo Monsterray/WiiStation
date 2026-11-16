@@ -60,6 +60,9 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <strings.h>
+#include <dirent.h>
+#include <sys/stat.h>
 #include <ogc/system.h>
 #include <ogc/lwp_heap.h>
 #include "MenuGlue.h"
@@ -218,6 +221,30 @@ void infoAchFile(char *buf, int len)
 		snprintf(buf, len, "...%s", achievementFile + n - (len - 4));
 	else
 		snprintf(buf, len, "%s", achievementFile);
+}
+
+/* The files Official and Local need on the card (Docs/ACHIEVEMENTS.md, Official setup). A Local set already
+ * saved needs neither, so "Missing" says what a first download needs, not that the game cannot load. */
+static bool achFile(const char *path)
+{
+	struct stat st;
+	return !stat(path, &st);
+}
+
+void infoAchOnline(char *buf, int len)
+{
+	bool account = achFile("sd:/wiistation/achievements/ra_account.ini");
+	if (!account)
+		if (DIR *d = opendir("sd:/wiistation/achievements/ra")) {
+			while (struct dirent *e = readdir(d)) {
+				size_t n = strlen(e->d_name);
+				if (n > 4 && !strcasecmp(e->d_name + n - 4, ".ini"))
+					account = true;
+			}
+			closedir(d);
+		}
+	bool seed = achFile("sd:/wiistation/achievements/tls_seed.bin");
+	snprintf(buf, len, "%s", account && seed ? "Ready" : account ? "No TLS seed" : seed ? "No account" : "No account, no seed");
 }
 
 /*  Pages: the tables are in pages/OptionsPages.h  */

@@ -96,6 +96,7 @@ void infoFixedBuffers(char *, int) {}
 void infoPsxBuffers(char *, int) {}
 void infoSpuPlugin(char *, int) {}
 void infoAchFile(char *, int) {}
+void infoAchOnline(char *, int) {}
 #define ROM_STUB(label, fn) void fn(char *, int) {}
 ROM_INFO_ROWS(ROM_STUB)
 
